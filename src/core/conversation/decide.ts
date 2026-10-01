@@ -3,7 +3,8 @@ import type { Quote } from '../types/commerce.js';
 import { advance } from './phase.js';
 import { aiMaySpeak, ownershipOf } from './ownership.js';
 import { detectFastPath } from './fastpath.js';
-import { detectInjection, SAFE_FALLBACK_REPLY } from '../safety/injection.js';
+import { detectInjection, SAFE_FALLBACK_REPLIES } from '../safety/injection.js';
+import type { FixedLanguage } from './gateLanguage.js';
 import { computeScores, needsHandoff, isHotLead, type Signal } from '../scoring/signals.js';
 import type { Email } from '../types/ids.js';
 
@@ -57,6 +58,8 @@ export type TurnInput = {
   readonly signals: readonly Signal[];
   /** Deterministic quote, if a product+quantity exist. Postgres-owned numbers. */
   readonly quote: Quote | null;
+  /** LG — the language of the fixed sentences said this turn (`fixedLanguage` of the gate's). English when absent. */
+  readonly language?: FixedLanguage;
 };
 
 export type TurnAction =
@@ -115,7 +118,7 @@ export function decideTurn(input: TurnInput): TurnDecision {
     return {
       ...base,
       injectionDetected: true,
-      action: { kind: 'canned_reply', reply: SAFE_FALLBACK_REPLY },
+      action: { kind: 'canned_reply', reply: SAFE_FALLBACK_REPLIES[input.language ?? 'en'] },
       nextPhase: state.phase,
       pendingQuestion: state.pendingQuestion,
       product: state.product,

@@ -25,14 +25,19 @@ import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
+import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
 
-/** Why a reply that would have gone alone waits: its language's sentence is unread, or does not exist. */
-const withheldBecause = (language: string | null | undefined): 'disclosure_not_reviewed' | 'language_without_disclosure' =>
-  disclosureStanding(language) === 'unwritten' ? 'language_without_disclosure' : 'disclosure_not_reviewed';
+/**
+ * Why a reply that would have gone alone waits: nobody can tell its language
+ * (LG), its language's sentence is unread, or does not exist.
+ */
+const withheldBecause = (language: string | null | undefined): 'language_unknown' | 'disclosure_not_reviewed' | 'language_without_disclosure' =>
+  language === UNDETERMINED ? 'language_unknown'
+    : disclosureStanding(language) === 'unwritten' ? 'language_without_disclosure' : 'disclosure_not_reviewed';
 /** The two letters a language is known by here ("pt-BR" → "pt"); English when none was read. */
 const languageHead = (language: string | null | undefined): string => (language ?? '').slice(0, 2).toLowerCase() || 'en';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
-import { detectSignals } from '../core/scoring/detect.js';
+import { detectSignals, personRequestLanguage } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { statesAPrice } from '../core/safety/statesPrice.js';
@@ -42,8 +47,8 @@ import { toConfirmableOrder } from '../core/commerce/confirmable.js';
 import { proofUrl } from '../db/proofs.js';
 import {
   guardFallbackReply,
-  SAFE_REPLY,
-  HANDOFF_REPLY,
+  SAFE_REPLIES,
+  HANDOFF_REPLIES,
   orderBlockedReply,
   quoteRefusalContext,
 } from '../core/conversation/templates.js';
@@ -159,6 +164,12 @@ export type TurnResult = {
   newState: ConversationState;
   signals: readonly Signal[];
   stateBefore: ConversationState;
+  /**
+   * LG (decision 16) — the customer's language as the gate reads it, by fixed
+   * rules (core/conversation/gateLanguage.ts): a script, or Latin words the
+   * analysis agrees with; `und` when nobody can tell. Never null.
+   */
+  gateLanguage: string;
   provenance: { promptVersion: string | null; modelId: string | null };
   guardViolations: number;
   /**
@@ -269,6 +280,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     detectInjection(req.text).detected ||
     detectFastPath(req.text, state).matched;
 
+  /** What was said before, both sides — read once, and only when something needs it. */
+  let earlier: Awaited<ReturnType<typeof tenant.conversations.recentMessages>> | null = null;
+  const history = async () => (earlier ??= await tenant.conversations.recentMessages(req.conversationId, {
+    limit: HISTORY_TURNS, excluding: [req.messageId, ...(req.answering ?? [])],
+  }));
+
   let retrieved: readonly RetrievedProduct[] = [];
   let analysis: Analysis | null = null;
   let promptVersion: string | null = null;
@@ -285,9 +302,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       state,
       candidates: retrieved,
       // Q1 — what was said before, both sides, as the prompt promises.
-      recentMessages: await tenant.conversations.recentMessages(req.conversationId, {
-        limit: HISTORY_TURNS, excluding: [req.messageId, ...(req.answering ?? [])],
-      }),
+      recentMessages: await history(),
       ...(selling.quantityFirst ? {} : { priceFirst: true }),
     });
     timings.analyzerMs = Date.now() - ta;
@@ -322,6 +337,20 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     }
   }
 
+  // ── LG (decision 16): the customer's language, by fixed rules. ─────────────
+  // This turn's words first; a message that says nothing of its language ("ok",
+  // "200 pcs?") is read by the customer's last three. The analysis — this
+  // turn's, else the one remembered on the customer — only ever confirms a
+  // Latin-script reading, never makes one. A request for a person caught
+  // before any model read it is in the language of the pattern that caught it.
+  // The fixed sentences below are said in it where it is one of the three they
+  // are written in.
+  const pattern = analysis ? null : personRequestLanguage(req.text);
+  const analysedLanguage = analysis?.language.detected ?? (pattern ? null : state.preferredLanguage);
+  const gateLang = languageEvidence(req.text, analysedLanguage, pattern) ?? gateLanguage(
+    (await history()).filter((m) => m.direction === 'inbound').map((m) => m.text).reverse().slice(0, 3), analysedLanguage);
+  const sayIn = fixedLanguage(gateLang);
+
   // ── Signals: unresolved history + what this turn adds. Dedup by kind. ──────
   const productIdForPrice =
     analysis?.intent.productCandidate?.productId ?? state.product?.productId ?? null;
@@ -355,6 +384,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     extractedEmail: email,
     signals,
     quote: null, // negotiation logic consults it in Week 3; gates ignore it
+    language: sayIn,
   });
 
   // ── Quote: deterministic, snapshotted, Postgres-owned. ─────────────────────
@@ -473,7 +503,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         reply = null;
         answerPath = 'silent';
       } else {
-        reply = HANDOFF_REPLY;
+        reply = HANDOFF_REPLIES[sayIn];
         answerPath = 'handoff';
       }
       break;
@@ -496,7 +526,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         replyDeterministic = true;
       } else {
         confirmBlockedReasons = confirmable.error;
-        reply = orderBlockedReply(confirmable.error, quote);
+        reply = orderBlockedReply(confirmable.error, quote, sayIn);
         replyDeterministic = true;
       }
       break;
@@ -725,12 +755,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         //  · And the turn is held for her (hold.ts): "it comes to you instead"
         //    is what her forbidden-words page promises.
         guardsFailedTwice = true;
-        const standIn = guardFallbackReply(quote, analysis?.intent.nextLogicalQuestion ?? null);
+        const standIn = guardFallbackReply(quote, analysis?.intent.nextLogicalQuestion ?? null, sayIn);
         const numeralsOk = guardNumerals({ reply: standIn, quote, state: newState, clientText: req.text, allow: numeralAllow });
         const passes = numeralsOk.ok
           && guardClaims({ reply: standIn, policy: claimsPolicy }).ok
           && guardForbidden({ reply: standIn, ownerTerms: forbiddenTerms }).ok;
-        reply = passes ? standIn : SAFE_REPLY;
+        reply = passes ? standIn : SAFE_REPLIES[sayIn];
         replyDeterministic = true;
         answerPath = 'stand_in';
       }
@@ -755,7 +785,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   if (deletionPromiseWithheld === null && reply !== null) deletionPromiseWithheld = promisesDeletion(reply);
   if (deletionPromiseWithheld !== null) {
     signals = [...signals.filter((s) => s.kind !== 'deletion_requested'), { kind: 'deletion_requested' }];
-    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null });
+    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null, language: sayIn });
     newState = stateAfter(decision);
     reply = null;
     replyDeterministic = true;
@@ -778,9 +808,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   if (selling.pricesToOwner && reply !== null && deletionPromiseWithheld === null
       && decision.action.kind !== 'handoff' && statesAPrice(reply)) {
     signals = [...signals.filter((s) => s.kind !== 'price_to_owner'), { kind: 'price_to_owner' }];
-    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null });
+    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null, language: sayIn });
     newState = stateAfter(decision);
-    reply = decision.action.kind === 'handoff' ? HANDOFF_REPLY : null;
+    reply = decision.action.kind === 'handoff' ? HANDOFF_REPLIES[sayIn] : null;
     replyDeterministic = true;
     answerPath = 'handoff';
     knowledgeUsed = [];
@@ -832,6 +862,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       productBefore: state.product?.productId ?? null, productUsed: productSearchedUnder,
     }),
     stateBefore: state,
+    gateLanguage: gateLang,
     provenance: { promptVersion, modelId },
     guardViolations,
     forbiddenHits,
@@ -1091,7 +1122,8 @@ export async function commitTurn(
     const disclosureText = async (): Promise<string | null> => {
       const who = await tenant.conversations.speaker(req.conversationId);
       return disclosureFor({
-        detected: r.analysis?.language.detected ?? r.newState.preferredLanguage,
+        // LG — the sentence in the language the gate released, never another.
+        detected: r.gateLanguage,
         name: who?.name ?? null,
         business: who?.business.name ?? null,
       });
@@ -1134,11 +1166,22 @@ export async function commitTurn(
     // the rule existed, not only new choices made on the owner's page. Per
     // language (2026-09-30): the customer's, read the way the sentence itself
     // is chosen. One whose sentence is unread, or that has none, drafts.
-    const language = r.analysis?.language.detected ?? r.newState.preferredLanguage;
-    const released = !speaksAlone || tenant.autonomy.released(language);
+    // LG (decision 16) — the language is the gate's, decided by fixed rules,
+    // never the analysis's word alone; one nobody can tell (`und`) drafts.
+    const language = r.gateLanguage;
+    const released = !speaksAlone || (language !== UNDETERMINED && tenant.autonomy.released(language));
+    // LG — and, in a workspace that signed itself up, only once five replies in
+    // that language have gone out with the owner's approval (trust first;
+    // 0108). A workspace the operator made or opened is not bound.
+    const proven = !speaksAlone || !released || await tenant.autonomy.languageProven(languageHead(language));
     const sentence = speaksAlone && released ? await disclosureText() : null;
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
-    const mayDisclose = !speaksAlone || (earned && vetted && released && named && sentence !== null);
+    const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);
+    /** What the card and the timeline say about the language, when that is why it waits. */
+    const languageWithheld = !released
+      ? (withheldBecause(language) === 'language_unknown' ? { reason: 'language_unknown' as const }
+        : { reason: withheldBecause(language), language: languageHead(language) })
+      : !proven ? { reason: 'language_new' as const, language: languageHead(language) } : null;
 
     const mode = effectiveMode(
       (r.hold || !mayDisclose) ? 'draft' : policyMode,
@@ -1149,8 +1192,8 @@ export async function commitTurn(
       // owner set it is the kind of thing she should be able to find.
       await tenant.events.append(req.conversationId, 'autonomy_withheld', {
         capability,
-        reason: !earned ? 'not_earned' : !vetted ? 'first_quote' : !released ? withheldBecause(language) : named ? 'no_assistant_name' : 'assistant_not_named',
-        ...(earned && vetted && !released ? { language: languageHead(language) } : {}),
+        ...(!earned ? { reason: 'not_earned' } : !vetted ? { reason: 'first_quote' } : languageWithheld
+          ? languageWithheld : { reason: named ? 'no_assistant_name' : 'assistant_not_named' }),
       });
     }
 
@@ -1243,6 +1286,8 @@ export async function commitTurn(
       await tenant.events.append(req.conversationId, 'draft_pending', {
         draftId: d.draftId, capability,
         ...(replyLanguage ? { language: languageHead(replyLanguage) } : {}),
+        // LG — the language the gate read, so the first five in it can be counted (0108).
+        gate: language,
         // R3 — the product it quotes, so the owner's approval vets that product.
         ...(quotedProduct ? { productId: quotedProduct } : {}),
         // The audit trail says WHY this one waited, so a draft the owner did
@@ -1266,7 +1311,7 @@ export async function commitTurn(
         // has no signed-off sentence saying who is answering: the card says so.
         ...(speaksAlone && !earned ? { withheld: { reason: 'not_earned' } }
           : speaksAlone && !vetted ? { withheld: { reason: 'first_quote' } }
-          : speaksAlone && !released ? { withheld: { reason: withheldBecause(language), language: languageHead(language) } } : {}),
+          : speaksAlone && languageWithheld ? { withheld: languageWithheld } : {}),
       });
 
       /*

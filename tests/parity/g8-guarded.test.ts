@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { usd } from '../../src/core/types/money.js';
-import { SAFE_REPLY } from '../../src/core/conversation/templates.js';
+import { SAFE_REPLIES } from '../../src/core/conversation/templates.js';
 import { holdReasonOf } from '../../src/core/conversation/hold.js';
 import { guardNumerals } from '../../src/core/safety/numerals.js';
 import { guardClaims } from '../../src/core/safety/claims.js';
@@ -25,17 +25,18 @@ const NOW = new Date('2026-09-11T08:00:00Z');
 
 describe('G8 · the one fixed sentence needs no guard', () => {
   it('passes every guard with nothing allowed: no figure, no claim, no forbidden word', () => {
-    expect(guardNumerals({ reply: SAFE_REPLY, quote: null, state: emptyState(), clientText: '', allow: [] }).ok).toBe(true);
-    expect(guardClaims({ reply: SAFE_REPLY, policy: [] }).ok).toBe(true);
-    expect(guardForbidden({ reply: SAFE_REPLY, ownerTerms: [] }).ok).toBe(true);
-    for (const floor of FORBIDDEN_FLOOR) expect(SAFE_REPLY.toLowerCase()).not.toContain(floor);
+    expect(guardNumerals({ reply: SAFE_REPLIES.en, quote: null, state: emptyState(), clientText: '', allow: [] }).ok).toBe(true);
+    expect(guardClaims({ reply: SAFE_REPLIES.en, policy: [] }).ok).toBe(true);
+    expect(guardForbidden({ reply: SAFE_REPLIES.en, ownerTerms: [] }).ok).toBe(true);
+    for (const floor of FORBIDDEN_FLOOR) expect(SAFE_REPLIES.en.toLowerCase()).not.toContain(floor);
   });
 
   it('the stand-in is chosen from the analyser’s question only — the refusal note stays with the writer', async () => {
     const turn = await src('src/pipeline/turn.ts');
-    expect(turn).toContain('guardFallbackReply(quote, analysis?.intent.nextLogicalQuestion ?? null)');
-    expect(turn).not.toContain('guardFallbackReply(quote, nextQuestion)');
-    expect(turn).toContain('reply = passes ? standIn : SAFE_REPLY;');
+    // LG — in the customer's language where Nomi writes it.
+    expect(turn).toContain('guardFallbackReply(quote, analysis?.intent.nextLogicalQuestion ?? null, sayIn)');
+    expect(turn).not.toContain('guardFallbackReply(quote, nextQuestion');
+    expect(turn).toContain('reply = passes ? standIn : SAFE_REPLIES[sayIn];');
   });
 });
 

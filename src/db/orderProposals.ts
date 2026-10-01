@@ -32,6 +32,8 @@ export type PendingProposal = {
   readonly paymentTerms: string | null;
   readonly incoterm: string | null;
   readonly createdAt: Date;
+  /** LG — the customer's language as last read (two letters), for the sentence that confirms the order. */
+  readonly customerLanguage?: string | null;
 };
 
 /** The row as the owner's tap reads it, under its lock. */
@@ -43,7 +45,7 @@ type Raw = {
   id: string; conversation_id: string; product_id: string; product_name: string;
   quantity: number; unit: string; unit_price: string; total: string; currency: string;
   client_email: string; payment_terms: string | null; incoterm: string | null;
-  created_at: Date; state: ProposalRow['state'];
+  created_at: Date; state: ProposalRow['state']; customer_language: string | null;
 };
 
 /**
@@ -69,15 +71,18 @@ const rowOf = (r: Raw): ProposalRow | null => {
   incoterm: r.incoterm,
   createdAt: r.created_at,
   state: r.state,
+  customerLanguage: r.customer_language,
   };
 };
 
 const SELECT = sql`
   select op.id, op.conversation_id, op.product_id, p.name as product_name,
          op.quantity, op.unit, op.unit_price::text as unit_price, op.total::text as total,
-         op.currency, op.client_email, op.payment_terms, op.incoterm, op.created_at, op.state
+         op.currency, op.client_email, op.payment_terms, op.incoterm, op.created_at, op.state,
+         cl.preferred_language as customer_language
     from order_proposals op
-    join products p on p.id = op.product_id`;
+    join products p on p.id = op.product_id
+    left join clients cl on cl.id = op.client_id`;
 
 /**
  * Write what the customer said yes to. Idempotent: while one waits, a second

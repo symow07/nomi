@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeTurn, commitTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
-import { SAFE_REPLY } from '../../src/core/conversation/templates.js';
+import { SAFE_REPLIES } from '../../src/core/conversation/templates.js';
 import { emptyState, CONVERSATION, PRODUCT } from '../parity/fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from './fakes.js';
 
@@ -88,7 +88,7 @@ describe('G8 · the generated reply fails twice', () => {
     p.replyWriter.replies = [`Unlike ${FORBIDDEN}, we…`];
 
     const { said, r } = await run(p, 'hello, do you make bags?');
-    expect(r.reply).toBe(SAFE_REPLY);
+    expect(r.reply).toBe(SAFE_REPLIES.en);
     for (const s of said) expect(s).not.toContain(FORBIDDEN);
   });
 

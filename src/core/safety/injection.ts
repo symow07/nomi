@@ -54,6 +54,12 @@ export function detectInjection(text: string): InjectionVerdict {
   return { detected: false };
 }
 
-/** Returned instead of an AI reply. Costs nothing and reveals nothing. */
-export const SAFE_FALLBACK_REPLY =
-  'Thanks for your message — what are you looking for today?';
+/**
+ * Returned instead of an AI reply. Costs nothing and reveals nothing. LG — in
+ * the customer's language where it is one of Nomi's three (`fixedLanguage`).
+ */
+export const SAFE_FALLBACK_REPLIES: Readonly<Record<'en' | 'zh' | 'ar', string>> = {
+  en: 'Thanks for your message — what are you looking for today?',
+  zh: '谢谢你的消息——今天想找什么呢？',
+  ar: 'شكرًا على الرسالة — ما المطلوب اليوم؟',
+};

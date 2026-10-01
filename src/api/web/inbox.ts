@@ -26,6 +26,7 @@ import { loadTranscriptWindow } from '../../db/transcript.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
 import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals.js';
 import { orderConfirmedReply } from '../../core/conversation/templates.js';
+import { fixedLanguage } from '../../core/conversation/gateLanguage.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, type BuyersFilter } from '../../db/buyersList.js';
@@ -566,9 +567,10 @@ export type ConversationDetail = {
      * no signed-off sentence saying who is answering: unread (es, fr) or none
      * at all. The card names the language and why.
      */
-    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; readonly language: string }
+    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new'; readonly language: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
-      | { readonly reason: 'not_earned' | 'first_quote' } | null;
+      // LG — nobody can tell which language the customer writes in.
+      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
@@ -1006,11 +1008,12 @@ export function needsWhy(locale: Locale, c: ConversationSummary): string {
 }
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
-function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; language: string } | { reason: 'not_earned' | 'first_quote' } | null {
+function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new'; language: string }
+  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language } = v as { reason?: unknown; language?: unknown };
-  if (reason === 'not_earned' || reason === 'first_quote') return { reason };
-  if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure') || typeof language !== 'string') return null;
+  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure' && reason !== 'language_new') || typeof language !== 'string') return null;
   return { reason, language: language.slice(0, 8) };
 }
 
@@ -1358,6 +1361,8 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
   const willSend = orderConfirmedReply({
     orderReference: t(locale, 'order.card.reference'),
     productName: p.productName, quantity: p.quantity, unit: p.unit,
+    // LG — the sentence the customer will read, in their language.
+    language: fixedLanguage(p.customerLanguage),
   });
   return `<div class="card draft order" role="region" id="order">
       <h2>${esc(t(locale, 'order.card.title'))}</h2>

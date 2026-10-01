@@ -381,6 +381,23 @@ export function asksForPerson(text: string): boolean {
 }
 
 /**
+ * LG (decision 16) — the language of the first-line pattern that caught a
+ * message, for a turn no model read: a hand-off before any analysis is said
+ * in the language of the pattern that caught it — a layer-1 frame, the
+ * seller's manager (English), or a shop's opener. Null when none did.
+ */
+export function personRequestLanguage(text: string): 'en' | 'zh' | 'ar' | 'es' | 'fr' | null {
+  const t = readable(text ?? '');
+  if (!t) return null;
+  for (const [lang, frames] of [['en', EN], ['zh', ZH], ['ar', AR_FRAMES], ['es', ES], ['fr', FR]] as const) {
+    if (frames.some((f) => firesIn(t, f))) return lang;
+  }
+  if (namesSellersManager(t)) return 'en';
+  const i = OPENER_RES.findIndex((re) => new RegExp(re.source).test(t));
+  return OPENER_CLAUSES[i]?.[0] ?? null;
+}
+
+/**
  * ── A SHOP'S OPENER (the owner's decision, 2026-09-28) ──────────────────────
  *
  * 客服在吗 — "customer service, are you there?" — is how a Chinese buyer opens
@@ -418,24 +435,25 @@ const OPENER_END = String.raw`(?=\s*(?:$|${OPENER_PUNCT}|${OPENER_GREETING}))`;
 const OPENER_START = String.raw`(^|${OPENER_PUNCT})(?:[\s,，、!！.。،¿¡]*${OPENER_GREETING})*[\s,，、!！.。،¿¡]*`;
 const ZH_Q = String.raw`(?:吗|嗎|么|麼|嘛|呢|呀|啊)`;
 
-const OPENER_CLAUSES: readonly string[] = [
+/** Each clause with its language (LG: a hand-off before any model is said in it). */
+const OPENER_CLAUSES: readonly (readonly ['en' | 'zh' | 'ar' | 'es' | 'fr', string])[] = [
   // 客服在吗 / 你们客服在不在 / 老板在吗 / 掌柜在线吗 — the shop, or its service, asked whether it is
   // there. The question word ends the clause; without one (客服在？) a stop must — 客服在哪里 is a question.
-  String.raw`(?:(?:你们|你們|您们|您們|贵店|貴店|贵司|貴司)的?)?(?:客服|老板|老闆|掌柜|掌櫃|店家|店主|卖家|賣家|商家)(?:在(?:线|線)?(?:${ZH_Q}|不在|没有?|沒有?)|在(?:线|線)?${OPENER_END})`,
+  ['zh', String.raw`(?:(?:你们|你們|您们|您們|贵店|貴店|贵司|貴司)的?)?(?:客服|老板|老闆|掌柜|掌櫃|店家|店主|卖家|賣家|商家)(?:在(?:线|線)?(?:${ZH_Q}|不在|没有?|沒有?)|在(?:线|線)?${OPENER_END})`],
   // 有人吗 / 有人在吗 / 有没有人 / 有客服吗 — never 有人说… (someone said) or 有没有人能帮我 (the model's)
-  String.raw`有(?:没有|沒有)?(?:人|客服)(?:在(?:线|線)?)?(?:${ZH_Q}|没有?|沒有?|${OPENER_END})`,
+  ['zh', String.raw`有(?:没有|沒有)?(?:人|客服)(?:在(?:线|線)?)?(?:${ZH_Q}|没有?|沒有?|${OPENER_END})`],
   // "Is anyone there?", "anybody here?", "Is customer service available?", "Hello? Anyone?"
-  String.raw`(?:(?:is|are)\s+(?:there\s+)?)?(?:any\s?one|any\s?body|some\s?one|some\s?body|customer\s+(?:service|support))\s+(?:there|here|around|available|online|in)${OPENER_END}`,
-  String.raw`(?:is|are)\s+there\s+(?:any\s?one|any\s?body|some\s?one|some\s?body)${OPENER_END}`,
-  String.raw`(?:any\s?one|any\s?body)(?=\s*\?)`,
+  ['en', String.raw`(?:(?:is|are)\s+(?:there\s+)?)?(?:any\s?one|any\s?body|some\s?one|some\s?body|customer\s+(?:service|support))\s+(?:there|here|around|available|online|in)${OPENER_END}`],
+  ['en', String.raw`(?:is|are)\s+there\s+(?:any\s?one|any\s?body|some\s?one|some\s?body)${OPENER_END}`],
+  ['en', String.raw`(?:any\s?one|any\s?body)(?=\s*\?)`],
   // «فيه أحد؟», «هل يوجد أحد؟», «أحد موجود؟», «فيه أحد يرد؟», «خدمة العملاء موجودة؟» — never
   // «في أحد المصانع» (in one of the factories): the clause must end there
   // Spanish and French: "¿hay alguien?", "¿alguien disponible?", "il y a quelqu'un ?", "vous êtes là ?"
-  String.raw`(?:hay\s+alguien(?:\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea))?|alguien\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea)|(?:est[aá]\s+)?(?:el\s+)?(?:encargado|vendedor|due[ñn]o)\s+(?:ah[ií]|disponible))${OPENER_END}`,
-  String.raw`(?:(?:il\s+)?y\s+a(?:[-\s]t[-\s]il)?\s+quelqu'un(?:\s+(?:l[àa]|de\s+disponible|en\s+ligne))?|quelqu'un\s+(?:est\s+)?(?:l[àa]|disponible|en\s+ligne))${OPENER_END}`,
-  String.raw`(?:(?:(?:هل\s+)?(?:فيه|في|يوجد|هناك|من)\s+(?:احد|حد)(?:\s+(?:موجود|هنا|يرد(?:\s+(?:علي|عليا))?|يجاوب|فاضي))?|(?:احد|حد)\s+(?:موجود|هنا)|(?:هل\s+)?خدم[هة]\s+العملاء\s+موجود[هة]?))${OPENER_END}`,
+  ['es', String.raw`(?:hay\s+alguien(?:\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea))?|alguien\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea)|(?:est[aá]\s+)?(?:el\s+)?(?:encargado|vendedor|due[ñn]o)\s+(?:ah[ií]|disponible))${OPENER_END}`],
+  ['fr', String.raw`(?:(?:il\s+)?y\s+a(?:[-\s]t[-\s]il)?\s+quelqu'un(?:\s+(?:l[àa]|de\s+disponible|en\s+ligne))?|quelqu'un\s+(?:est\s+)?(?:l[àa]|disponible|en\s+ligne))${OPENER_END}`],
+  ['ar', String.raw`(?:(?:(?:هل\s+)?(?:فيه|في|يوجد|هناك|من)\s+(?:احد|حد)(?:\s+(?:موجود|هنا|يرد(?:\s+(?:علي|عليا))?|يجاوب|فاضي))?|(?:احد|حد)\s+(?:موجود|هنا)|(?:هل\s+)?خدم[هة]\s+العملاء\s+موجود[هة]?))${OPENER_END}`],
 ];
-const OPENER_RES: readonly RegExp[] = OPENER_CLAUSES.map((c) => new RegExp(`${OPENER_START}(?:${c})`, 'g'));
+const OPENER_RES: readonly RegExp[] = OPENER_CLAUSES.map(([, c]) => new RegExp(`${OPENER_START}(?:${c})`, 'g'));
 const GREETINGS = new RegExp(OPENER_GREETING, 'g');
 
 /**

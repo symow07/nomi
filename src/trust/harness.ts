@@ -218,6 +218,8 @@ class HarnessTenant implements Tenant {
   earnedRungValue: 0 | 1 | 2 = 2;
   /** R3 — every product's first quote already sent; a test about R3 sets false. */
   quoteVettedFlag = true;
+  /** LG — five replies already approved in every language, unless a test says otherwise. */
+  languageProvenFor: (language: string) => boolean = () => true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -230,6 +232,7 @@ class HarnessTenant implements Tenant {
     released: (language?: string | null) => (this.releasedFor ? this.releasedFor(language) : this.releasedFlag),
     earnedRung: async () => this.earnedRungValue,
     quoteVetted: async () => this.quoteVettedFlag,
+    languageProven: async (language: string) => this.languageProvenFor(language),
   };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.

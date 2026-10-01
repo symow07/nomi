@@ -139,6 +139,12 @@ export interface AutonomyRepo {
    * workspace the operator made.
    */
   quoteVetted(productId: string): Promise<boolean>;
+  /**
+   * LG (0108) — may a reply in this language (two letters) go out alone? Only
+   * once five replies in it went out with the owner's approval, in a workspace
+   * that signed itself up; always where the operator made or opened it.
+   */
+  languageProven(language: string): Promise<boolean>;
 }
 
 /**

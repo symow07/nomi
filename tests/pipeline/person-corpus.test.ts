@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { computeTurn, commitTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
-import { HANDOFF_REPLY } from '../../src/core/conversation/templates.js';
+import { HANDOFF_REPLIES } from '../../src/core/conversation/templates.js';
+import { fixedLanguage } from '../../src/core/conversation/gateLanguage.js';
+
+/** LG — the hand-off sentence in the customer's language where Nomi writes it (en, zh, ar), else English. */
+const handoffIn = (lang: string): string => HANDOFF_REPLIES[fixedLanguage(lang)];
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
 import { disclosureFor, withDisclosure } from '../../src/core/conversation/disclosure.js';
 import { emptyState, CONVERSATION } from '../parity/fixtures.js';
@@ -85,7 +89,7 @@ describe('1 · every request hands off at layer 1, with no model asked — en, z
         expect(p.analyzer.calls, text).toBe(0);
         expect(r.decision.action.kind, text).toBe('handoff');
         expect(signalsOf(p), text).toContain('human_requested');
-        expect(fx.outbound?.reply ?? null, text).toBe(HANDOFF_REPLY);
+        expect(fx.outbound?.reply ?? null, text).toBe(handoffIn(lang));
       });
     }
   }
@@ -149,7 +153,7 @@ describe("a shop's opener · AUTO-SEND · the disclosure DELIVERED: answered fir
       expect(p.analyzer.calls, text).toBe(1);   // layer 1: no model asked
       expect(second.r.decision.action.kind, text).toBe('handoff');
       expect(signalsOf(p), text).toContain('human_requested');
-      expect(second.fx.outbound?.reply ?? null, text).toBe(HANDOFF_REPLY);
+      expect(second.fx.outbound?.reply ?? null, text).toBe(handoffIn(lang));
     });
   }
 });
@@ -261,8 +265,9 @@ describe('not an opener: after the disclosure was delivered, answered as usual',
 });
 
 describe('on the FIRST message, before any disclosure, every plain ask still hands off — and every deletion request, silently', () => {
-  const plain = [...Object.values(REQUESTS).flat(), ...Object.values(PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS).flat()];
-  for (const text of plain) {
+  const plain = [...Object.entries(REQUESTS), ...Object.entries(PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS)]
+    .flatMap(([lang, texts]) => texts.map((text) => ({ lang, text })));
+  for (const { lang, text } of plain) {
     it(`a person: ${JSON.stringify(text)}`, async () => {
       const p = ports({ told: false });
       const { r, fx } = await run(p, text);
@@ -270,7 +275,7 @@ describe('on the FIRST message, before any disclosure, every plain ask still han
       expect(r.decision.action.kind, text).toBe('handoff');
       expect(signalsOf(p), text).toContain('human_requested');
       // The hand-off sentence goes out — with the disclosure in front, the first message sent alone.
-      expect(fx.outbound?.reply ?? '', text).toContain(HANDOFF_REPLY);
+      expect(fx.outbound?.reply ?? '', text).toContain(handoffIn(lang));
     });
   }
   for (const text of [...Object.values(DELETION_REQUESTS).flat(), '客服在吗？请删除我的数据', 'Is anyone there? Please delete my data']) {

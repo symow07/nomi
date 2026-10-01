@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeTurn, commitTurn, UNCLAIMED_AGENT, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
-import { HANDOFF_REPLY } from '../../src/core/conversation/templates.js';
+import { HANDOFF_REPLIES } from '../../src/core/conversation/templates.js';
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
 import { isProblemSignal, toTriggerReason, SIGNAL_SAMPLES } from '../../src/core/scoring/signals.js';
 import { alertKindFor } from '../../src/pipeline/notify.js';
@@ -81,14 +81,14 @@ describe('layer 2 · true — the ordinary hand-off, and the writer is never cal
       expect(p.analyzer.calls).toBe(1);
       expect(p.replyWriter.calls).toBe(0);
       expect(r.decision.action).toEqual({ kind: 'handoff', notifyOnly: false });
-      expect(r.reply).toBe(HANDOFF_REPLY);
+      expect(r.reply).toBe(HANDOFF_REPLIES.en);
       expect(r.answerPath).toBe('handoff');
       expect(r.newState.assignedTo).toBe(UNCLAIMED_AGENT);
       expect(p.tenant.states.get(CONVERSATION)?.assignedTo).toBe(UNCLAIMED_AGENT);
       expect(signalsOf(p)).toEqual(['human_requested']);
       expect(alertKindFor(fx)).toBe('handoff');
-      if (mode === 'auto') expect(fx.outbound?.reply).toBe(HANDOFF_REPLY);
-      else expect(p.tenant.draftsCreated.map((d) => d.draftText)).toEqual([HANDOFF_REPLY]);
+      if (mode === 'auto') expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES.en);
+      else expect(p.tenant.draftsCreated.map((d) => d.draftText)).toEqual([HANDOFF_REPLIES.en]);
     });
   }
 });
@@ -181,15 +181,16 @@ describe('layer 2 · null — the answer could not be read: a person answers, no
   });
 });
 
-describe('layer 1 · the unambiguous request hands off with ZERO analyser calls', () => {
-  for (const text of [
-    'Can I talk to someone?',
-    'I want to speak with a person',
-    'أريد أحدًا يساعدني',
-    '我要找你们经理',
-    'أريد التحدث مع مديركم',
-    'I want to speak to a real person now',
-  ]) {
+describe('layer 1 · the unambiguous request hands off with ZERO analyser calls — in the customer\'s language (LG)', () => {
+  for (const [text, lang] of [
+    ['Can I talk to someone?', 'en'],
+    ['I want to speak with a person', 'en'],
+    ['أريد أحدًا يساعدني', 'ar'],
+    ['我要找你们经理', 'zh'],
+    ['أريد التحدث مع مديركم', 'ar'],
+    ['I want to speak to a real person now', 'en'],
+  ] as const) {
+    const HANDOFF = HANDOFF_REPLIES[lang];
     it(JSON.stringify(text), async () => {
       const p = ports();
       p.analyzer.next = analysis(false);   // it would say no — it is never asked
@@ -199,11 +200,11 @@ describe('layer 1 · the unambiguous request hands off with ZERO analyser calls'
       expect(p.replyWriter.calls).toBe(0);
       expect(r.usage.llmCalls).toBe(0);
       expect(r.analysis).toBeNull();
-      expect(r.reply).toBe(HANDOFF_REPLY);
+      expect(r.reply).toBe(HANDOFF);
       expect(r.answerPath).toBe('handoff');
       expect(r.newState.assignedTo).toBe(UNCLAIMED_AGENT);
       expect(signalsOf(p)).toEqual(['human_requested']);
-      expect(fx.outbound?.reply).toBe(HANDOFF_REPLY);
+      expect(fx.outbound?.reply).toBe(HANDOFF);
       expect(alertKindFor(fx)).toBe('handoff');
     });
   }

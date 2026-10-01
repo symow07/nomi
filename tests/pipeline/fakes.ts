@@ -270,6 +270,8 @@ export class FakeTenant implements Tenant {
   earnedRungValue: 0 | 1 | 2 = 2;
   /** R3 — every product's first quote already sent, unless a test says otherwise. */
   quoteVettedFlag = true;
+  /** LG — five replies already approved in every language, unless a test says otherwise. */
+  languageProvenFor: (language: string) => boolean = () => true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -282,6 +284,7 @@ export class FakeTenant implements Tenant {
     released: (language?: string | null) => (this.releasedFor ? this.releasedFor(language) : this.releasedFlag),
     earnedRung: async () => this.earnedRungValue,
     quoteVetted: async () => this.quoteVettedFlag,
+    languageProven: async (language: string) => this.languageProvenFor(language),
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do

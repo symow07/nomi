@@ -55,8 +55,9 @@ describe('G4 · the rule, where it is decided', () => {
     const turn = src('src/pipeline/turn.ts');
     expect(turn).toContain('const earned = !speaksAlone || (await tenant.autonomy.earnedRung()) >= rungOf(capability);');
     // R3 — and the product's first quote, beside it.
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && named && sentence !== null);');
-    expect(turn).toContain("reason: !earned ? 'not_earned' :");
+    // LG — and the language's first five, beside it.
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);');
+    expect(turn).toContain("...(!earned ? { reason: 'not_earned' } :");
   });
   it('the one function answers for the caller only, from the workspace that pays, and no outside a tenant', () => {
     const m = src('migrations/0102_sending_alone_earned.sql');

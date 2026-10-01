@@ -42,7 +42,7 @@ describe('R3 · the card', () => {
     expect(card(renderConversationDetail(plain, 'en', NOW, null))).not.toContain(esc(t('en', 'inbox.draft.held.first_quote')));
   });
   it('the card reads the reason back from the draft\'s own event', () => {
-    expect(src('src/api/web/inbox.ts')).toContain("if (reason === 'not_earned' || reason === 'first_quote') return { reason };");
+    expect(src('src/api/web/inbox.ts')).toContain("if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };");
   });
 });
 
@@ -51,10 +51,10 @@ describe('R3 · the turn', () => {
   it('a reply that states a product\'s price goes alone only when that product is vetted — beside every other condition', () => {
     expect(turn).toContain('const quotedProduct = r.quote && r.decision.product ? r.decision.product.productId : null;');
     expect(turn).toContain('const vetted = !speaksAlone || !quotedProduct || await tenant.autonomy.quoteVetted(quotedProduct);');
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && named && sentence !== null);');
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);');
   });
   it('the reason named: not earned first, then the first quote, then the language', () => {
-    expect(turn).toContain("reason: !earned ? 'not_earned' : !vetted ? 'first_quote' : !released ? withheldBecause(language)");
+    expect(turn).toContain("...(!earned ? { reason: 'not_earned' } : !vetted ? { reason: 'first_quote' } : languageWithheld");
     expect(turn).toContain(": speaksAlone && !vetted ? { withheld: { reason: 'first_quote' } }");
   });
   it('every draft that quotes carries its product, so the owner\'s approval of it can vet it', () => {
