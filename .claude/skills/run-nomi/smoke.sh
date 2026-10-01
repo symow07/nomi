@@ -122,7 +122,7 @@ curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE
 
 #  the owner surfaces
 get /app            "$SK/app-home.html"   '<h1 class="page">Today'  "Today did not render"
-get /app/factory    "$SK/app-factory.html" "What you promise buyers" "My factory did not render"
+get /app/business   "$SK/app-factory.html" "What you promise customers" "My business did not render"
 get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not render"
 get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandbox did not render"
 

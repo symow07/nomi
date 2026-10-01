@@ -17,6 +17,7 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-01 | #193 | **WA + WA-S — a business connects its OWN WhatsApp number; replies after 24 hours go as one approved template** (0120; decision 43; built as if Tech Provider status had passed). Embedded Signup by redirect (no script): the code, the shared WABA from `debug_token`, its numbers, the subscription, the registration with a PIN — then the encrypted token and the routing credential; replies and media through the business's own token, a 401 marked and nothing more sent; pilot mode ended (and back) as the owner's step. WA-S: `nomi_reply_waiting` in six languages, asked of Meta from the card and read back; once approved, a reply after the 24 hours goes as it in the customer's language and the words wait in the box. Found on the way: a K5 test's fake counted a turn another file left queued (Found on the way). Pre-pilot 12/12 before and after; integration 1180 of 1180; CI both jobs pass on the second run. Merged 23:06 UTC as `4404256`, deployed, `/health` ok, schema 120. Every path is on the never-run list | 120 |
 | 2026-10-01 | #192 | **UI-es — the owner's pages in Spanish** (0119; decision 39). Spanish is the fourth owner locale: the switch (kept on `owner_locale`, so alerts are Spanish too), `Accept-Language`, sign-up; `Intl` formats, Stripe's pages, G10's translation into Spanish; the whole catalogue (about 3,040 lines, written by eight parallel passes to rule 6 in Spanish and checked by the suite: placeholders, banned words, gendered forms). Setup is «Ajustes». The Spanish disclosure's gate is untouched. The whole catalogue awaits a native read (NATIVE-REVIEW-UI, where to look first). Integration 1174 of 1174; CI both jobs pass. Merged 22:03 UTC as `bd4ee3c`, deployed, `/health` ok, schema 119 | 119 |
 | 2026-10-01 | #191 | **CH7 — a shared post or a story reply matched to a product** (decision 6). The media's id kept from Meta's webhook; the shop's OWN caption read with its Page token (another account's post cannot be read, so it never matches); one product's name, Chinese name or alias found whole. One product named: a turn about it, on a line marked as what the customer did, and the timeline says which product. None or several: nothing guessed — no words go to a person with the caption shown; words are answered as before (my call, rule 78). No model call, no migration. Pre-pilot 12/12 before and after; integration 1171 of 1171; CI both jobs pass. Merged 21:42 UTC as `2024351`, deployed, `/health` ok, schema 118. Its media read is on the never-run list (its own App Review submission) | 118 |
 | 2026-10-01 | #190 | **EXT — lists the parser cannot read, and her site's pages as knowledge** (0118; decision 30). Excel (`.xlsx`) read in-process with node:zlib alone and mapped like a CSV; a PDF accepted only when its own bytes say so, read like a photographed page and kept beside the import; the closer reading (`CatalogExtractor`) only when the owner asks, for rows read without a price or refused, within the allowance — M37 holds (`containExtracted`: a reading survives only when its line holds every figure), each such row waits for its own tick and is flagged when read less surely. A page of her site (an address or pasted text) proposed as at most 20 facts, each with its sentence; nothing written until she ticks, then only those, on the audit trail. Owner-asked reads: 90 s, one retry, a failure said plainly. Found on the way: the production model provider stopped answering (Found on the way); EXT's live check could not run (the never-run list). Integration 1167 of 1167; CI both jobs pass. Merged 21:12 UTC as `0a7732b`, deployed, schema 118 (backup `nomi-backup-20261001T030418Z`) | 118 |
@@ -355,6 +356,14 @@ delivered or not answered 2xx).
 
 ## Waiting on the owner (the plan's open decisions)
 
+**At the end of the self-serve run (2026-10-02) — only you can do these, in this order:**
+
+1. **The model provider.** `deepseek-flash` has answered nothing since 2026-10-01 ~20:10 UTC (Found on the way). Check its account, or point `LLM_*` at another; then run `tools/check-ext.mjs` and `tools/check-person-model.mjs` (§3) and tick EXT's row on the never-run list.
+2. **Native readers.** The zh, ar, es (and fr) disclosure sentences gate sending alone in those languages — a reader signs them off and the flag is flipped in the same commit, by you. The Spanish owner UI (#192) and the WA-S template sentences wait for a read too (`docs/NATIVE-REVIEW-UI.md`; not gates).
+3. **Meta.** Business Verification, then App Review submission 1 from `docs/APP-REVIEW-PACK.md`; the Tech Provider application for WhatsApp, then `META_WHATSAPP_APP_ID` + `META_WHATSAPP_ES_CONFIG_ID`; `META_APP_REVIEW=approved:<date>` the day it lands; then walk the never-run list below in order.
+4. **Keys, then open sign-up.** `MAIL_*` (sender), `BOT_CHECK_*`, `STRIPE_*` and the plans (`tools/billing.mjs plan-set`), `VAPID_*`, `HEALTH_PING_URL`, `BACKUP_PING_URL` on the `backup` service. Open sign-up needs a sender and a bot check: `tools/signup-mode.mjs open`.
+5. **Counsel and DNS.** The privacy policy's retention sentence before RET is switched on; EU1; the Spanish legal pages; `docs/SITE-DNS.md` for nomidoes.com.
+
 These items cannot be built without a decision the plan left open and the
 instruction did not answer. Collected here; asked once, at the end.
 
@@ -672,6 +681,9 @@ once, in this order, and tick it here.
   create a credential); the same MCP sign-in asks (Amplitude, Amplitude EU,
   Atlassian, BigQuery, Hex; Definite failed to connect) and the watch hook's
   Whisper key after another context restart: ignored.
+- 2026-10-02, after #193: the same MCP sign-in asks (Amplitude, Amplitude EU,
+  Atlassian, BigQuery, Hex; Definite failed to connect) and the watch hook's
+  Whisper key, after another context restart: ignored.
 
 ## How to resume
 

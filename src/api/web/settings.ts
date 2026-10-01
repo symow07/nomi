@@ -212,7 +212,8 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     ${flashBanner(flash)}
     <div class="block"><h2>${esc(t(locale, 'settings.language.title'))}</h2>${switcher(locale, '/app/settings')}</div>
     <ul class="tlines setup-doors">
-      ${door('/app/onboarding', t(locale, 'nav.onboarding'), ready)}
+      ${door('/app/guide', t(locale, 'guide.title'), ready)}
+      ${door('/app/onboarding', t(locale, 'nav.onboarding'))}
       ${door('/app/channels', t(locale, 'nav.channels'), state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'))}
       ${door('/app/settings/profile', t(locale, 'settings.profile.title'), state(step('profile'), 'setup.state.done', 'setup.state.toDo'))}
       ${door('/app/settings/business', t(locale, 'business.kind.label'), v.kind ?? t(locale, 'setup.state.notAnswered'))}

@@ -1,3 +1,5 @@
+import { renderGuide, guideFileAt } from './guide.js';
+import { setupProgress } from '../../db/setup.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
@@ -220,7 +222,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown, businessName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 
@@ -478,6 +480,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
   { method: 'GET', url: '/assets/icon-192.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
   { method: 'GET', url: '/assets/icon-512.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
+  { method: 'GET', url: '/assets/guide/:file', why: 'The guided path — the setup videos and their captions, recorded from the demo workspace: the same files for everyone, read from the build, never from the database; names no tenant. Only names of the folder\'s one shape are served' },
   { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, and (CC-26) the one script, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
 ];
 
@@ -3650,6 +3653,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M11.1 Business Profile & Owner Settings (owner-authenticated only) ─────
+  /**
+   * THE GUIDED PATH — the five setup steps in order, each with where it
+   * stands, its door, and its video (`guide.ts`). Anyone signed in may read it;
+   * each door leads where the step is done, and that page decides who may.
+   */
+  app.get('/app/guide', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    const progress = setupState() ?? (bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => setupProgress(tx, bid.value)).catch(() => null) : null);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'guide.title'), active: 'settings',
+      bodyHtml: renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null }, locale, assistantName(locale)),
+    }));
+  });
+  // The guide's videos and their captions: only names the folder holds, of the one shape.
+  app.get('/assets/guide/:file', async (req, reply) => {
+    const found = guideFileAt((req.params as { file: string }).file);
+    if (!found) return reply.callNotFound();
+    return reply.header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff')
+      .type(found.type).send(found.body);
+  });
+
   app.get('/app/settings', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
