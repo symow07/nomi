@@ -13,7 +13,7 @@ import { type Money, currencySymbol } from '../../types/money.js';
  * constant, Asia/Shanghai, for every workspace. The zone is a required
  * argument on purpose: a caller that forgets it does not compile.
  */
-const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar' };
+const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', es: 'es' };
 
 /** Quantities: zh says 12000 → "1.2万" and small numbers ungrouped (5000);
  *  en/ar group Western (5,000). Western digits in every locale. */
@@ -59,9 +59,9 @@ export function formatTime(locale: Locale, d: Date, zone: string): string {
   }).format(d);
 }
 
-const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم' };
-const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس' };
-const TOMORROW: Record<Locale, string> = { en: 'Tomorrow', zh: '明天', ar: 'غدًا' };
+const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم', es: 'Hoy' };
+const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس', es: 'Ayer' };
+const TOMORROW: Record<Locale, string> = { en: 'Tomorrow', zh: '明天', ar: 'غدًا', es: 'Mañana' };
 /** The calendar day an instant falls on in the workspace's zone, as 'YYYY-MM-DD'. */
 export const dayKey = (d: Date, zone: string): string =>
   new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);

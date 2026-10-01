@@ -16,7 +16,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
  * matters: the inline geometry must equal the file's, byte for byte.
  */
 
-const page = (locale: 'en' | 'zh' | 'ar' = 'en', avatar = markSmall(30, null)) =>
+const page = (locale: 'en' | 'zh' | 'ar' | 'es' = 'en', avatar = markSmall(30, null)) =>
   shell({ title: 'T', active: 'home', locale, path: '/app', avatar, bodyHtml: '<p>body</p>' });
 
 /** The three shapes, pulled out of a source file with the fills ignored. */

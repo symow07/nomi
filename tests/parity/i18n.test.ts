@@ -60,7 +60,7 @@ describe('ADR-0008 · catalog completeness (CI gate)', () => {
   // 2026-09-23 — no product constant names her any more. Until the owner
   // confirms a name, `{name}` is this phrase.
   it('ASSISTANT_FALLBACK is "your assistant" in every locale', () => {
-    expect(ASSISTANT_FALLBACK).toEqual({ en: 'your assistant', zh: '你的助手', ar: 'مساعدك' });
+    expect(ASSISTANT_FALLBACK).toEqual({ en: 'your assistant', zh: '你的助手', ar: 'مساعدك', es: 'tu asistente' });
   });
 
   // Phase A (Nomi): the employee's nav entry IS her name — "you go to her", not

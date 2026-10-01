@@ -15151,3 +15151,41 @@ Reviewer: ______  Date: ______
 - before: كتابة ما قاله المشتري فعلاً…
 - **ar: كتابة ما قاله العميل فعلاً…**
 
+
+## 2026-10-02 — UI-es (0119): the owner's pages in Spanish, all of them
+
+**Not a gate**, like everything in this file. The whole Spanish catalogue (the `ES`
+block in `src/core/owner/i18n/messages.ts`, about 3,040 lines) was written for
+this release and has had no native read. The Spanish *disclosure* is a different
+thing: its gate (`DISCLOSURE_NATIVE_REVIEW.es`) stays false and is not touched here.
+
+**The rules it was written to** (rule 6 in Spanish): the owner is addressed with
+*tú*, never with an adjective or participle that agrees ("¿Confirmas…?", "Te damos
+la bienvenida", "Ya puedes…" — never "¿Estás seguro?", "Bienvenido", "listo");
+the assistant is `{name}` (or «tu asistente») with a verb, never «él/ella», never
+"{name} está lista"; customers are «tu cliente», «cada cliente», «tus clientes»,
+«quien escribe», never «el cliente/la clienta». Things agree normally («el canal
+está conectado»). `tests/parity/assistant-pronouns.test.ts` holds what a regex can.
+
+**Where to look first** — choices made to keep gender out, or meanings guessed:
+
+- Page names: Setup → «Ajustes» (the nav; "Configuración" contained "config",
+  which the nav test refuses), Billing → «Facturación», "Needs you" → «Te necesita»,
+  "Ready for customers" → «A punto para atender clientes», "Go live" → «empezar con
+  clientes reales». Check they read as names and match where other lines cite them.
+- "{name} is stopped" lines (`assistant.stop.stopped`, `refused.what.stopped`,
+  `today.stopped.title`, …) → «Se detuvo a {name}…» — formal; a better neutral form?
+- "the owner" / "Nomi's operator" → «quien dirige el negocio», «quien opera Nomi»,
+  «titular» (`staff.*`, `legal.terms.*`, `notify.signup_digest.*`) — long in places.
+- Customer counts: «clientes con respuesta» for "customers answered"
+  (`billing.plan.customers`, `ops.activity.handled`) instead of «atendidos».
+- `capability.*` are infinitives («Saludar», «Cotizar»…) and fill `{cap}` inside
+  sentences such as `insight.promotionReady` — read those sentences whole.
+- `samples.requests.asked`, `panel.sampleAsked`, `calendar.range`, `closures.range`:
+  how `{when}` / `{date}` / `{from}` read inside the sentence.
+- `meta.cred.verifyToken` («Contraseña de verificación»), `help.meta.test.check`
+  (Meta's Spanish labels guessed), `login.brandTagline` («tu asistente digital»).
+- `site.*` (nomidoes.com in Spanish), `legal.*` (privacy, terms, deletion — the
+  pages a customer reads) — counsel's and a native reader's.
+
+Reviewer: ______  Date: ______

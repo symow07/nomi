@@ -104,7 +104,7 @@ export const DESIGN_TOKENS = {
     },
     sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
     /** Set from `html[lang]`; the shell writes the locale there on every page. */
-    lineHeight: { en: 1.5, zh: 1.7, ar: 1.75 },
+    lineHeight: { en: 1.5, zh: 1.7, ar: 1.75, es: 1.5 },
     /**
      * CJK never below weight 400 at 15 px and under (decision 1). No weight
      * below 400 exists anywhere today; a test holds that it stays so.

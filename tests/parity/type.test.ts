@@ -24,7 +24,7 @@ const FONTS = new URL('../../assets/fonts/', import.meta.url);
 type Face = { family: string; weight: number; set: 'base' | 'zh'; file: string; unicodeRange: string };
 const manifest = async () => JSON.parse(await readFile(new URL('faces.json', FONTS), 'utf8')) as { faces: Face[] };
 const first = (stack: string) => /^"([^"]+)"/.exec(stack)?.[1];
-const page = (locale: 'en' | 'zh' | 'ar') => shell({ title: 'T', active: 'home', locale, path: '/app', bodyHtml: '' });
+const page = (locale: 'en' | 'zh' | 'ar' | 'es') => shell({ title: 'T', active: 'home', locale, path: '/app', bodyHtml: '' });
 const typeSheet = (html: string) => stylesheetAt(sheetLinks(html)[1]!.slice('/assets/'.length))!.css;
 
 describe('one font order per language', () => {

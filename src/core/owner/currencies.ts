@@ -40,7 +40,7 @@ export function currencyForSignup(country: string, picked: string | null | undef
 export const asksCurrency = (country: string | null | undefined): boolean =>
   !!country?.trim() && currencyOfCountry(country) === null;
 
-const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar' };
+const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', es: 'es' };
 
 /** "UAE dirham (AED)" / "阿联酋迪拉姆 (AED)" / «درهم إماراتي (AED)» — the name in the owner's language, then the code. */
 export function currencyLabel(locale: Locale, c: Currency): string {

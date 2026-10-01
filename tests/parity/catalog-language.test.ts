@@ -99,7 +99,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
   });
 
   it('the retired surface names are gone', () => {
-    const retired: Record<Locale, RegExp> = { en: /\bInbox\b/, zh: /收件箱/, ar: /الوارد/ };
+    const retired: Record<Locale, RegExp> = { en: /\bInbox\b/, zh: /收件箱/, ar: /الوارد/, es: /bandeja de entrada/i };
     for (const l of LOCALES) {
       const hits = entries(l).filter(([, s]) => retired[l].test(s)).map(([k, s]) => `${l}/${k}: ${s}`);
       expect(hits, hits.join('\n')).toEqual([]);
