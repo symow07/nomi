@@ -1,3 +1,4 @@
+import { figuresIn } from '../../core/conversation/figures.js';
 import { sql } from 'kysely';
 import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
@@ -570,6 +571,10 @@ export type ConversationDetail = {
       | { readonly reason: 'not_earned' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
+    /** G10 — the language the reply is in (two letters), when the turn knew it. */
+    language?: string | null;
+    /** G10 — the owner's translation of it, kept on the draft; never sent. */
+    translation?: { readonly text: string; readonly locale: string } | null;
   } | null;
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
@@ -809,8 +814,11 @@ export async function loadConversationDetail(
 
     // G7a/G7b — why her rules held it, and the prices behind that, from the
     // `draft_pending` event the turn wrote beside THIS draft.
-    const draft = (await sql<{ id: string; draft_text: string; capability: string; owner_edit: string | null; pending: Record<string, unknown> | null }>`
-      select d.id, d.draft_text, d.capability, d.owner_edit,
+    const draft = (await sql<{
+      id: string; draft_text: string; capability: string; owner_edit: string | null; pending: Record<string, unknown> | null;
+      translation: string | null; translation_locale: string | null;
+    }>`
+      select d.id, d.draft_text, d.capability, d.owner_edit, d.translation, d.translation_locale,
              (select e.payload from conversation_events e
                where e.conversation_id = d.conversation_id and e.type = 'draft_pending'
                  and e.payload->>'draftId' = d.id::text
@@ -905,7 +913,9 @@ export async function loadConversationDetail(
             forbidden: stringsOf(draft.pending?.['forbidden']),
             disclosureSent: draft.pending?.['disclosureSent'] === true,
             withheld: withheldOf(draft.pending?.['withheld']),
-            ownerEdit: draft.owner_edit }
+            ownerEdit: draft.owner_edit,
+            language: typeof draft.pending?.['language'] === 'string' ? String(draft.pending['language']).slice(0, 8) : null,
+            translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
       ownership: ownershipOf(head.assigned_to),
@@ -1575,13 +1585,17 @@ function expiredCard(d: ConversationDetail, locale: Locale): string {
  * is drawn elsewhere: Practice (P4) draws this same card for the practice copy's
  * reply, posting to its own routes — one card, one approval path.
  */
-export type ApprovalTargets = { readonly act: string; readonly handTo: string };
+export type ApprovalTargets = {
+  readonly act: string; readonly handTo: string;
+  /** G10 — where "translate it for me" posts; absent (Practice), no button. */
+  readonly translate?: string;
+};
 
 export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, targets?: ApprovalTargets): string {
   const p = d.pendingDraft;
   if (!p) return '';
   const cid = encodeURIComponent(d.conversationId);
-  const to: ApprovalTargets = targets ?? { act: `/app/inbox/${cid}/act`, handTo: `/app/inbox/${cid}/takeover` };
+  const to: ApprovalTargets = targets ?? { act: `/app/inbox/${cid}/act`, handTo: `/app/inbox/${cid}/takeover`, translate: `/app/inbox/${cid}/translate` };
   const name = assistantName(locale);
   const channel = d.channel ? channelName(locale, d.channel) : null;
   const lastIn = [...d.messages].reverse().find((m) => m.direction === 'inbound') ?? null;
@@ -1606,6 +1620,22 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');
+
+  // G10 (decision 38) — a reply in a language the owner may not read: said so,
+  // its figures listed in Western digits from the reply itself, and a
+  // translation into the owner's own language on request — never sent.
+  const foreign = p.language && p.language !== locale ? (() => {
+    const nums = figuresIn(p.draftText);
+    const tr = p.translation && p.translation.locale === locale ? p.translation.text : null;
+    return `<div class="foreign">
+      ${waits(t(locale, 'card.foreign', { language: languageName(locale, p.language!) }))}
+      ${nums.length ? `<p class="muted">${esc(t(locale, 'card.foreign.figures'))} ${nums.map((n) => `<bdi dir="ltr">${esc(n)}</bdi>`).join(', ')}</p>` : ''}
+      ${tr ? `<p class="k">${esc(t(locale, 'card.foreign.translation', { language: languageName(locale, locale) }))}</p>
+      <blockquote class="said" dir="auto"><bdi>${esc(tr)}</bdi></blockquote>`
+        : to.translate ? `<form method="post" action="${esc(to.translate)}"><input type="hidden" name="draftId" value="${esc(p.draftId)}" />
+      <button class="btn" type="submit">${esc(t(locale, 'card.foreign.translate', { language: languageName(locale, locale) }))}</button></form>` : ''}
+    </div>`;
+  })() : '';
 
   const said = lastIn && !lastIn.received && lastIn.text.trim()
     ? `<blockquote class="said" dir="auto"><bdi>${esc(lastIn.text)}</bdi></blockquote>` : '';
@@ -1678,6 +1708,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
       ${top}
       ${closing}
       ${state}
+      ${foreign}
       ${said}
       ${und}
       ${how}

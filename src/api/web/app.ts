@@ -1,3 +1,4 @@
+import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionsPaused } from '../../db/opsFlags.js';
 import { loadReady, renderReady } from './ready.js';
 import { sendingAloneEarned } from '../../db/earned.js';
@@ -164,7 +165,7 @@ import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposa
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
-import type { PageTranscriber } from '../../llm/ports.js';
+import type { PageTranscriber, DraftTranslator } from '../../llm/ports.js';
 import {
   shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
 } from './layout.js';
@@ -365,6 +366,8 @@ export type WebDeps = {
    * keeps working.
    */
   readonly pageTranscriber?: PageTranscriber;
+  /** G10 — translates a draft for its owner to check; never sent. Absent: the button says so. */
+  readonly draftTranslator?: DraftTranslator;
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
   readonly storeFetcher?: StoreFetcher;
   /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
@@ -428,6 +431,9 @@ export const PUBLIC_ROUTES: readonly {
 
 /** My business's address before the positioning rewrite; it redirects (below). */
 export const LEGACY_BUSINESS = '/app/' + 'factory';
+
+/** G10 — the owner's language, as the model is asked to translate into it. */
+const TRANSLATE_INTO: Record<Locale, string> = { en: 'English', zh: 'Simplified Chinese', ar: 'Arabic' };
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const codec = makeSessionCodec(deps.sessionSecret);
@@ -1839,6 +1845,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // newest message, with the next thing to do under that. Back to the bare
   // address, she landed at the top of the page and scrolled down to where she
   // had been.
+  // G10 (decision 38) — translate a waiting reply for its owner to check. Kept
+  // on the draft for the owner's eyes only: never sent, never offered as the
+  // reply. A model call, so it is held to the day's allowance and counted.
+  app.post('/app/inbox/:conversationId/translate', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const locale = localeOf(req);
+    const back = conversationUrl(cid);
+    const draftId = String((req.body as { draftId?: string } | undefined)?.draftId ?? '');
+    const draft = /^[0-9a-f-]{36}$/i.test(draftId) ? await withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ draft_text: string }>`
+      select draft_text from drafts where id = ${draftId}::uuid and conversation_id = ${cid}::uuid and status = 'pending'`
+      .execute(tx)).rows[0]).catch(() => undefined) : undefined;
+    if (!draft) return flashTo(reply, back, 'inbox.flash.translate.gone');
+    if (!deps.draftTranslator) return flashTo(reply, back, 'inbox.flash.translate.unavailable');
+    if (allowanceUsed(await withTenantTx(deps.db, bid.value, (tx) => allowanceOf(tx)))) return flashTo(reply, back, 'inbox.flash.translate.allowance');
+    const done = await deps.draftTranslator.translate({ text: draft.draft_text, toLanguage: TRANSLATE_INTO[locale] }).catch(() => null);
+    if (done) await recordSpendAlone(deps.db, s.businessId, { llmCalls: 1, inputTokens: done.usage.inputTokens, outputTokens: done.usage.outputTokens }, { turn: false });
+    if (!done) return flashTo(reply, back, 'inbox.flash.translate.failed');
+    await withTenantTx(deps.db, bid.value, (tx) => sql`
+      update drafts set translation = ${done.text.slice(0, 8000)}, translation_locale = ${locale}, translated_at = now()
+       where id = ${draftId}::uuid and status = 'pending'`.execute(tx));
+    return reply.redirect(back);
+  });
+
   app.post('/app/inbox/:conversationId/act', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');

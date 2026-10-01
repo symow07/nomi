@@ -228,7 +228,11 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
       // G3 — the allowance alerts: how much is used, and when it renews.
       pct: 80, time: '08:00',
       // G7 — a switch still on, on the daily list.
-      flag: 'connections_off', who: 'everyone', since: '1 Oct' };
+      flag: 'connections_off', who: 'everyone', since: '1 Oct',
+      // G9 — the day's sign-up forms.
+      forms: 5, used: 3,
+      // G9 — where the cohort stands.
+      workspaces: 12, practised: 7, replied: 4 };
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };

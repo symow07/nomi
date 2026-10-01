@@ -1228,8 +1228,11 @@ export async function commitTurn(
         asks: r.asks,
       });
       draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
+      // G10 — the language the reply is in, so the card can say when the owner may not read it.
+      const replyLanguage = r.analysis?.language.replyIn ?? r.analysis?.language.detected ?? r.newState.preferredLanguage ?? null;
       await tenant.events.append(req.conversationId, 'draft_pending', {
         draftId: d.draftId, capability,
+        ...(replyLanguage ? { language: languageHead(replyLanguage) } : {}),
         // The audit trail says WHY this one waited, so a draft the owner did
         // not ask for is explicable rather than mysterious.
         // G7a — and the inbox reads it back, so the card says why too.

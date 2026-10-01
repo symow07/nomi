@@ -1,3 +1,4 @@
+import { signupForms, loadFunnel } from './funnel.js';
 import { sql } from 'kysely';
 import type { Db } from '../db/client.js';
 import type { NotifyJob } from '../queue/boss.js';
@@ -27,10 +28,17 @@ export async function signupDigestAlert(db: Db, operatorBusinessId: string, now:
   // G7 (KS4) — and a line for every operator switch still on, so none is forgotten.
   const flags = (await sql<{ flag: string; capability: string | null; business: string | null; set_at: Date }>`
     select flag, capability, business, set_at from active_ops_flags()`.execute(db)).rows;
-  if (rows.length === 0 && flags.length === 0) return null;
+  // G9 — the day's sign-up forms, and how many came back with their code (counts only).
+  const forms = await signupForms(db, since);
+  // G9 — where the cohort stands: how many workspaces, how many finished Practice, how many replied.
+  const funnel = await loadFunnel(db);
+  const cohort = { workspaces: funnel.length, practised: funnel.filter((f) => f.checklistCompleteAt).length, replied: funnel.filter((f) => f.firstReplyAt).length };
+  if (rows.length === 0 && flags.length === 0 && forms.forms === 0) return null;
   return {
     businessId: operatorBusinessId, kind: 'signup_digest', conversationId: null,
     signups: rows.map((r) => ({ business: r.name, kind: r.kind, country: r.country, at: r.signed_up_at.toISOString() })),
     ...(flags.length ? { flags: flagLines(flags) } : {}),
+    forms,
+    ...(cohort.workspaces ? { cohort } : {}),
   };
 }

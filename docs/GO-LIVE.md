@@ -150,3 +150,34 @@ After any rollback, note what happened in `INCIDENT-PLAYBOOK.md`.
   on a request for a human behave exactly as they did in the sandbox — the
   sandbox runs the same engine.
 - **The sandbox stays isolated.** It has no channel credential and cannot send.
+
+## Opening the first cohort of strangers (G8)
+
+Separate from the WhatsApp switch above: cohort 1 is Instagram and Messenger,
+drafts only, operator-assisted (decision 34). `docs/FACTORY-PROVISIONING.md`
+("The first cohort") says what each control does.
+
+**Cohort 1a — invitation only, before Meta's approval.**
+
+1. A backup younger than the day; the migrations deployed; `/health` ok.
+2. In Railway (by name; values pasted by the owner): `SIGNUP_MODE=invite`,
+   `SIGNUP_CAP=20`, the installation's sender set (sign-up codes and alerts),
+   `META_APP_REVIEW` unset (Channels says Nomi is being reviewed). Optional:
+   `VAPID_*` for phone alerts.
+3. One invitation per business: `tools/invite-factory.mjs`. Agencies: at most
+   two, one client workspace each.
+4. Every day: read each sign-up e-mail and the 07:15 UTC list; act with
+   `tools/workspaces.mjs`, `tools/ops-flags.mjs`, `tools/suspend-workspace.mjs`.
+
+**Cohort 1b — real customers, the day App Review approves (M4).**
+
+1. Set `META_APP_REVIEW=approved:<YYYY-MM-DD>`.
+2. Run the launch acceptance test on production (`docs/LAUNCH-ACCEPTANCE.md`)
+   and check it with `tools/acceptance-check.mjs`. 1b opens when it passes.
+3. Watch `tools/workspaces.mjs --funnel` against decision 33's exit criteria;
+   they gate cohort 2 and any rise of `SIGNUP_CAP`.
+
+**In an incident:** `tools/ops-flags.mjs --set connections_off --all` stops new
+connections at once; `--set global_silence` silences the assistant;
+`tools/suspend-workspace.mjs` takes one workspace out completely
+(`docs/INCIDENT-PLAYBOOK.md`).
