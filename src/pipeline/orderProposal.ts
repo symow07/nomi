@@ -5,7 +5,7 @@ import type { BusinessId, ConversationId } from '../core/types/ids.js';
 import { confirmableFromProposal } from '../core/commerce/confirmable.js';
 import { orderConfirmedReply } from '../core/conversation/templates.js';
 import { lockProposal, decideProposal } from '../db/orderProposals.js';
-import { assistantHold } from '../db/assistantStop.js';
+import { assistantHold, HOLD_OUTCOME } from '../db/assistantStop.js';
 import { takeOver } from '../conversations/takeover.js';
 
 /**
@@ -39,7 +39,8 @@ export type ProposalOutcome =
   | 'already_decided'    // someone decided it already (idempotent no-op)
   | 'incomplete'         // the proposal cannot make an order (a product or price is gone)
   | 'assistant_stopped'  // 0070 — stopped on every channel: it stays waiting
-  | 'assistant_silenced'; // 0071 — ops paused sending: it stays waiting
+  | 'assistant_silenced' // 0071 — ops paused sending: it stays waiting
+  | 'allowance_used';    // G3 — the day's allowance is used: it stays waiting
 
 export type ProposalDeps = {
   readonly db: Db;
@@ -66,7 +67,7 @@ export async function confirmOrderProposal(
     // send gate would refuse it after the order was made and the conversation
     // closed. Refused here instead, before anything changes; it stays waiting.
     const hold = await assistantHold(tx, input.businessId);
-    if (hold) return { outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped', sendText: null };
+    if (hold) return { outcome: HOLD_OUTCOME[hold], sendText: null };
 
     const confirmable = confirmableFromProposal(p);
     if (!confirmable.ok) return { outcome: 'incomplete', sendText: null };

@@ -35,6 +35,7 @@ import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/regis
 import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js';
 import { activationPreconditions, activationState, type ActivationRefusal } from '../../channels/activation.js';
 import { loadAssistantStop, type AssistantStop } from '../../db/assistantStop.js';
+import { allowanceOf, allowanceRenewsAt, allowanceUsed } from '../../db/allowance.js';
 import { loadKillSwitches } from '../../db/opsFlags.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
@@ -157,6 +158,11 @@ export type FactoryReadiness = {
   readonly assistantStop?: AssistantStop;
   /** 0071 — ops has paused sending (the kill switch). Absent reads as not paused. */
   readonly opsSilenced?: boolean;
+  /**
+   * G3 — today's allowance, always shown: how much is used (null: this
+   * workspace has no cap), whether it is used up, and when it renews.
+   */
+  readonly allowance?: { readonly pctUsed: number | null; readonly used: boolean; readonly renewsAt: Date };
 };
 
 export type FactoryView = {
@@ -375,7 +381,7 @@ export async function loadFactory(
   offer: ReachOffer = NO_OFFER,
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
-  const [profile, products, promises, channels, setup, pre, state, stop, opsSilenced, recipients, rehearsal, prices, people, mail] = await Promise.all([
+  const [profile, products, promises, channels, setup, pre, state, stop, opsSilenced, recipients, rehearsal, prices, people, mail, allowance] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
@@ -398,6 +404,8 @@ export async function loadFactory(
     loadPriceRules(db, businessIdRaw),
     loadPeople(db, businessIdRaw),
     bid.ok ? withTenantTx(db, bid.value, (tx) => liveMailAccount(tx, bid.value)) : null,
+    // G3 — the day's allowance, from the one reader the hold and the send gate ask.
+    bid.ok ? withTenantTx(db, bid.value, (tx) => allowanceOf(tx)) : null,
   ]);
   const sold = products.filter((p) => p.isActive);
   return {
@@ -429,6 +437,9 @@ export async function loadFactory(
       activatedBy: state?.activatedBy ?? null,
       assistantStop: stop ?? { stoppedAt: null, stoppedBy: null },
       opsSilenced,
+      ...(allowance ? { allowance: {
+        pctUsed: allowance.pctUsed, used: allowanceUsed(allowance), renewsAt: allowanceRenewsAt(new Date()),
+      } } : {}),
     },
     rehearsal,
     prices,
@@ -816,7 +827,14 @@ export function renderFactory(
     ? `<p class="fwarn" data-golive="silenced">${esc(t(locale, 'assistant.silenced.note', { name }))}</p>` : '';
   const everyBlock = held || waRelevant || liveElsewhere.length > 0
     ? `<h3 class="sub3" data-golive="every">${esc(t(locale, 'assistant.stop.title'))}</h3>${silencedNote}${everyBody}` : '';
-  const readyBody = everyBlock + (waRelevant
+  // G3 — today's allowance, always visible: what is used, and when it renews.
+  const a = r.allowance;
+  const allowanceBlock = a ? `<h3 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h3>
+       ${a.pctUsed === null ? `<p class="fdesc">${esc(t(locale, 'business.allowance.none'))}</p>`
+         : `<p class="${a.used ? 'fwarn' : 'fdesc'}">${esc(t(locale, 'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }))}</p>
+            ${a.used ? `<p class="fdesc">${esc(t(locale, 'business.allowance.waiting'))}</p>
+            <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>` : ''}`}` : '';
+  const readyBody = everyBlock + allowanceBlock + (waRelevant
     ? `<h3 class="sub3" data-golive="whatsapp">${esc(t(locale, 'reach.channel.whatsapp'))}</h3>${whatsappBody}${elsewhereBody
         ? `<h3 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h3>${elsewhereBody}` : ''}`
     : `${elsewhereBody

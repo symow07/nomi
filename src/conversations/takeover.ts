@@ -6,7 +6,7 @@ import {
 } from '../core/conversation/ownership.js';
 import { isProblemSignal, type Signal } from '../core/scoring/signals.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
-import { assistantHold } from '../db/assistantStop.js';
+import { assistantHold, HOLD_OUTCOME } from '../db/assistantStop.js';
 
 /**
  * M16.1 — Human takeover services.
@@ -32,7 +32,9 @@ export type TakeoverOutcome =
    */
   | 'assistant_stopped'
   /** 0071 — the same, because ops paused sending (`global_silence`). */
-  | 'assistant_silenced';
+  | 'assistant_silenced'
+  /** G3 — the same, because the day's allowance is used. */
+  | 'allowance_used';
 export type TakeoverResult = { readonly outcome: TakeoverOutcome; readonly ownership: ConversationOwnership | null };
 
 /** Read assigned_to for a tenant-owned conversation. null row = not this tenant's. */
@@ -131,7 +133,7 @@ export async function resumeAi(deps: TakeoverDeps, input: { businessId: Business
     // handing a conversation back would take the buyer off "Needs you" with
     // nobody to answer. Refused, in the same transaction as the move.
     const hold = await assistantHold(tx, input.businessId);
-    if (hold) return { outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped', ownership: cur };
+    if (hold) return { outcome: HOLD_OUTCOME[hold], ownership: cur };
 
     await lockConversation(tx, input.conversationId);
     const repos = tenantRepos(tx, input.businessId);

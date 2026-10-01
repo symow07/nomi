@@ -17,7 +17,7 @@ import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/i
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
-import { assistantHold } from '../db/assistantStop.js';
+import { assistantHold, HOLD_REASON } from '../db/assistantStop.js';
 import { practiceOf, conversationExists } from '../db/practice.js';
 import { notePracticeChecks } from '../trust/practiceChecks.js';
 import {
@@ -320,10 +320,11 @@ export async function startWorker(
     const started = Date.now();
 
     /**
-     * ── 0070 / 0071 · THE ASSISTANT IS HELD: THE OWNER'S STOP, OR OPS ──────
+     * ── 0070 / 0071 / G3 · THE ASSISTANT IS HELD: STOP, OPS, THE ALLOWANCE ─
      *
      * The owner stopped the assistant on every channel, or the ops kill switch
-     * (`global_silence`) is on. Checked FIRST, before an owner's "answer this"
+     * (`global_silence`) is on, or the day's allowance is used (G3, 0101: no
+     * model may be asked until it renews). Checked FIRST, before an owner's "answer this"
      * too: while held the assistant writes nothing — no model call, no draft,
      * no reply. (Before 0071 the ops switch let the turn run and then threw
      * the reply away, handing nobody the buyer: an emergency control that hid
@@ -374,7 +375,7 @@ export async function startWorker(
             messageIds: waiting.length ? waiting.map((f) => f.id) : [job.data.messageId],
           },
           analysis: null, retrieved: null,
-          decision: { action: { kind: 'held', reason: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' } },
+          decision: { action: { kind: 'held', reason: HOLD_REASON[hold] } },
           quoteId: null, promptVersion: null, modelId: null, latencyMs: Date.now() - started,
           // The plan's HF: a hold is the silent path — nobody answered, nothing was sent.
           measure: { path: 'silent', analyserAvoidable: false, llmCalls: 0, inputTokens: 0, outputTokens: 0 },
@@ -384,7 +385,7 @@ export async function startWorker(
         // deletion request among them is written down now, not filed under
         // "stopped" for the owner to notice.
         return handToPerson(repos, conversationId.value,
-          { kind: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' },
+          { kind: HOLD_REASON[hold] },
           [{ messageId: job.data.messageId, text: job.data.text || null },
            ...waiting.map((f) => ({ messageId: f.id, text: f.text }))]);
       });

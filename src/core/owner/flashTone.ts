@@ -34,6 +34,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // `inbox.flash.sentNotLive`, recorded but nothing sent.
   'order.flash.not_found', 'order.flash.already_decided', 'order.flash.incomplete',
   'order.flash.assistant_stopped', 'order.flash.assistant_silenced', 'order.flash.confirmedNotLive',
+  // G3 — the day's allowance is used: the order still waits.
+  'order.flash.allowance_used',
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // CC-02a — a buyer's deletion request that was not recorded.
@@ -86,6 +88,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // 0070 — stopped on every channel: the owner asked for something Stop refuses.
   'takeover.flash.assistant_stopped', 'inbox.flash.assistant_stopped',
   'takeover.flash.assistant_silenced', 'inbox.flash.assistant_silenced',
+  // G3 — the day's allowance is used: refused the same way.
+  'takeover.flash.allowance_used', 'inbox.flash.allowance_used',
   'terms.flash.failed', 'terms.flash.incoterm_invalid', 'terms.flash.payment_missing',
   'terms.flash.payment_too_long', 'unsure.flash.gone',
 ]);

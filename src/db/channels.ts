@@ -6,7 +6,7 @@ import { dayKey } from '../core/owner/i18n/format.js';
 import { isAllowlisted } from '../channels/allowlist.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel } from './assistants.js';
-import { checkBudget } from '../core/budget.js';
+import { allowanceOf, allowanceUsed } from './allowance.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { assistantStopped } from './assistantStop.js';
 import { outreachFacts } from './outreach.js';
@@ -76,16 +76,11 @@ export function channelStore(
       const zone = await zoneOf(tx, businessId);
       const ctxRes = await sql<{
         assigned_to: string | null; last_inbound_at: Date | null;
-        daily_llm_calls: number | null; daily_tokens: string | null;
-        soft_warn_pct: number | null; on_exceeded: string | null;
-        used_calls: number | null; used_tokens: string | null;
         pilot_mode: boolean | null; activated_at: Date | null;
         buyer_wa_id: string | null; sent_today: number; send_ceiling: number | null;
         channel: string | null; buyer_locale: string | null;
       }>`
         select c.assigned_to, c.channel, cl.preferred_language as buyer_locale,
-               tb.daily_llm_calls, tb.daily_tokens, tb.soft_warn_pct, tb.on_exceeded,
-               tb.used_calls, tb.used_tokens,
                -- G10b — the BUYER's window, not the channel's.
                cc.last_inbound_at,
                ch.pilot_mode, ch.activated_at,
@@ -100,26 +95,9 @@ export function channelStore(
                -- since, 200 for those that existed.
                (select bz.daily_send_ceiling from businesses bz where bz.id = c.business_id) as send_ceiling
           from conversations c
-          -- BUGFIX (found in M18.2): this compared a column named status,
-          -- which tenant_budgets does not have, so the query threw on EVERY
-          -- call and this whole load() path had never run against a real
-          -- database.
-          --
-          -- M51.2 — AND IT USED TO DECIDE. It re-implemented, in SQL, the rule
-          -- that core/budget.ts checkBudget already states: the same policy
-          -- in two places, one enforced and one merely tested. This query now
-          -- reads the NUMBERS and core makes the judgement, so there is one
-          -- rule and the tested copy is the one that runs.
-          left join lateral (
-            select b.daily_llm_calls, b.daily_tokens, b.soft_warn_pct, b.on_exceeded,
-                   coalesce(u.llm_calls, 0) as used_calls,
-                   coalesce(u.input_tokens, 0) + coalesce(u.output_tokens, 0) as used_tokens
-              from tenant_budgets b
-              left join usage_ledger u
-                on u.business_id = b.business_id
-               and u.day = (now() at time zone 'UTC')::date   -- T7: the ledger's day is UTC for writer and readers
-             where b.business_id = c.business_id limit 1
-          ) tb on true
+          -- M51.2 — the budget is no longer read here: G3's one reader
+          -- (allowanceOf, below) gives the numbers and core/budget.ts
+          -- checkBudget judges them, for this gate, the hold and Today alike.
           left join clients cl on cl.id = c.client_id
           left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
           -- G10b — ONE row, deterministically. A buyer with two WhatsApp
@@ -242,18 +220,10 @@ export function channelStore(
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
         // M51.2 — ONE rule, applied here. A tenant with no budget row is not
-        // paused: absence is "she has set no ceiling", never "stop".
-        paused: c?.daily_llm_calls != null && c.on_exceeded != null
-          ? checkBudget(
-              { llmCalls: Number(c.used_calls ?? 0), tokens: Number(c.used_tokens ?? 0) },
-              {
-                dailyLlmCalls: Number(c.daily_llm_calls),
-                dailyTokens: Number(c.daily_tokens ?? 0),
-                softWarnPct: Number(c.soft_warn_pct ?? 80),
-                onExceeded: c.on_exceeded === 'pause' ? 'pause' : 'throttle',
-              },
-            ).kind === 'pause'
-          : false,
+        // paused: absence is "she has set no ceiling", never "stop". G3 — the
+        // numbers from the one reader, which charges a practice copy's sends to
+        // the workspace that pays (P5).
+        paused: allowanceUsed(await allowanceOf(tx)),
         lastInboundAt: c?.last_inbound_at ?? null,
         // M25 — THE template entry point (TEMPLATE_ENTRY_POINT in
         // core/channel/templateReadiness.ts names it). No longer a literal: it
