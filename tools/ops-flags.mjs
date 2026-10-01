@@ -29,7 +29,7 @@ const has = (name) => process.argv.includes(name);
 
 const url = process.env['MIGRATE_DATABASE_URL'];
 if (!url) { console.error('✗  MIGRATE_DATABASE_URL must be set. Nothing was changed.'); process.exit(2); }
-const { OPERATOR_FLAGS, setOperatorFlag, clearOperatorFlag } = await import('../dist/db/operator.js');
+const { OPERATOR_FLAGS, setOperatorFlag, clearOperatorFlag } = await import('./lib/operator.mjs');
 const set = arg('--set'); const clear = arg('--clear'); const yes = has('--yes');
 const business = arg('--business'); const all = has('--all'); const reason = arg('--reason'); const by = arg('--by');
 const flag = set ?? clear;

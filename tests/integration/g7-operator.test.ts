@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { offlineModels } from '../pipeline/fakes.js';
+// @ts-expect-error — the operator tool, plain JS on purpose (tools/ is not type-checked).
+import * as op from '../../tools/lib/operator.mjs';
 
 /**
  * G7 — THE OPERATOR'S CONTROLS (KS2–KS4, KS6's stop flag), over Postgres and
@@ -39,8 +41,7 @@ const PILOT_PAGE_TOKEN = `pilot-page-token-${RUN}`;
 d('G7 · the operator\'s controls (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let admin: pg.Client;
-  let op: typeof import('../../src/db/operator.js');
-  let graph: import('../../src/db/operator.js').GraphDeps;
+  let graph: { openToken: (c: string) => string | null; subscribe: (p: { pageId: string; token: string }) => Promise<boolean>; unsubscribe: (p: { pageId: string; token: string }) => Promise<void> };
   const calls: { method: string; url: string }[] = [];
   const recorder: import('../../src/channels/meta/messaging.js').MetaFetch = async (url, init) => {
     calls.push({ method: init.method, url });
@@ -51,10 +52,13 @@ d('G7 · the operator\'s controls (requires DATABASE_URL + MIGRATE_DATABASE_URL)
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: MIGRATE_URL });
     await admin.connect();
-    op = await import('../../src/db/operator.js');
     const { deriveKey, encryptSecret, decryptSecret, credentialFingerprint } = await import('../../src/security/credentials.js');
     const key = deriveKey(CREDENTIAL_KEY);
-    graph = { openToken: (c) => { try { return decryptSecret(c, key).plain; } catch { return null; } }, graphVersion: 'v23.0', fetch: recorder };
+    const { subscribeMetaPage, unsubscribeMetaPage } = await import('../../src/channels/meta/connect.js');
+    graph = {
+      openToken: (c) => { try { return decryptSecret(c, key).plain; } catch { return null; } },
+      subscribe: (p) => subscribeMetaPage(p, 'v23.0', recorder), unsubscribe: (p) => unsubscribeMetaPage(p, 'v23.0', recorder),
+    };
     await admin.query(`insert into businesses (id, name) values ($1, $2)`, [PILOT, `G7 installation ${RUN}`]);
     for (const [id, name, page] of [[SHOP, `G7 Shop ${RUN}`, PAGE], [BROKEN, `G7 Broken ${RUN}`, BROKEN_PAGE]] as const) {
       await admin.query(`insert into businesses (id, name, signed_up_at) values ($1, $2, now())`, [id, name]);

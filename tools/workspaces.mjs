@@ -28,7 +28,7 @@ const has = (name) => process.argv.includes(name);
 
 const url = process.env['MIGRATE_DATABASE_URL'];
 if (!url) { console.error('✗  MIGRATE_DATABASE_URL must be set. Nothing was changed.'); process.exit(2); }
-const { listWorkspaces, setEarned } = await import('../dist/db/operator.js');
+const { listWorkspaces, setEarned } = await import('./lib/operator.mjs');
 const earn = arg('--earn'); const unearn = arg('--unearn'); const by = arg('--by'); const yes = has('--yes');
 const client = toolClient(url, { replyTimeoutMs: 30_000 });
 await client.connect();

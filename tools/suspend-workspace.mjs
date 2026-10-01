@@ -41,14 +41,17 @@ if ((!business && !all) || (business && all) || !by || (!restore && !reason)) {
   console.error('Usage: --business <uuid> | --all-self-serve, --reason "<why>" (to suspend), --by "<you>", [--restore], [--yes]');
   process.exit(2);
 }
-const { suspendWorkspace, restoreWorkspace, listWorkspaces } = await import('../dist/db/operator.js');
+const { suspendWorkspace, restoreWorkspace, listWorkspaces } = await import('./lib/operator.mjs');
 let graph = null;
 if (process.env['CREDENTIAL_KEY']) {
   const { deriveKey, decryptSecret } = await import('../dist/security/credentials.js');
+  const { subscribeMetaPage, unsubscribeMetaPage } = await import('../dist/channels/meta/connect.js');
   const key = deriveKey(process.env['CREDENTIAL_KEY']);
+  const version = process.env['META_GRAPH_API_VERSION'] || 'v23.0';
   graph = {
     openToken: (c) => { try { return decryptSecret(c, key).plain; } catch { return null; } },
-    graphVersion: process.env['META_GRAPH_API_VERSION'] || 'v23.0', fetch,
+    subscribe: (page) => subscribeMetaPage(page, version, fetch),
+    unsubscribe: (page) => unsubscribeMetaPage(page, version, fetch),
   };
 } else console.log('·  CREDENTIAL_KEY is not set: Pages are marked, but not unsubscribed at Meta.');
 
