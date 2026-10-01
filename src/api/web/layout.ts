@@ -85,7 +85,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
     '/app/settings/components',
   ] },
   // Phase 4b — the machine room is reached from Getting ready, and lights Setup through it.
-  { hub: '/app/onboarding', routes: ['/app/onboarding/technical'] },
+  { hub: '/app/onboarding', routes: ['/app/onboarding/technical', '/app/ready'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
   { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
