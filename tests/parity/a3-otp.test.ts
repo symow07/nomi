@@ -137,7 +137,8 @@ describe('A3 · the rules that make it safe', () => {
   it('nothing becomes a tenant until the code comes back — the waiting sign-up holds a HASH, never a password', () => {
     expect(app).toMatch(/passwordHash: await hashPassword\(v\.value\.password\),[\s\S]{0,700}if \(otpOn\)/);
     const verify = app.slice(app.indexOf("app.post('/verify',"), app.indexOf("app.post('/verify/resend'"));
-    expect(verify).toMatch(/redeemOtp\([\s\S]*provisionAccount\(deps\.db, p\)/);
+    // G1 — with the sign-up mode and the cap as they are now, not as when the code was sent.
+    expect(verify).toMatch(/redeemOtp\([\s\S]*provisionAccount\(deps\.db, \{ \.\.\.p, inviteRequired: signupMode === 'invite', cap: deps\.signupCap \?\? null \}\)/);
     expect(verify.indexOf('redeemOtp(')).toBeLessThan(verify.indexOf('provisionAccount('));
     expect(app).not.toMatch(/console\.(log|warn|error)\([^)]*\bcode\b/);
   });

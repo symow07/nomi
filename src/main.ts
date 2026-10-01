@@ -14,7 +14,7 @@ import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.j
 import { readNewMail } from './channels/email/inboxReader.js';
 import { businessesReadingInbox } from './db/mailAccounts.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
-import { signupModeFrom } from './core/owner/signup.js';
+import { signupModeFrom, signupCapFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js'
 import { latestBackupRun } from './db/backups.js';
 import { backupFreshness } from './core/ops/backups.js';
@@ -63,6 +63,7 @@ import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists
 import type { PgBoss } from 'pg-boss';
 import type { ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
+import { signupDigestAlert } from './pipeline/signupDigest.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
@@ -649,6 +650,8 @@ export async function buildProduction(
       businessId: PILOT_BUSINESS_ID,
       // A1 — who may create a workspace here. Unset is 'invite'.
       signupMode: signupModeFrom(process.env['SIGNUP_MODE']),
+      // G1 — the cohort cap, counted in the database; unset: no cap.
+      signupCap: signupCapFrom(process.env['SIGNUP_CAP']),
       // A3 — the installation's own sender. Unset, nothing ever asks for a code.
       systemMail,
       templateState: TEMPLATE_STATE,
@@ -1179,6 +1182,14 @@ export async function buildProduction(
    * was owed, once the hour has room (src/db/appErrors.ts).
    */
   await erasePracticeDaily();
+
+  // G1 — the operator's list of the last day's sign-ups, once a day.
+  await boss.schedule(QUEUES.signupDigest, '15 7 * * *', {});
+  await boss.work(QUEUES.signupDigest, async () => {
+    const digest = await signupDigestAlert(db, PILOT_BUSINESS_ID, new Date());
+    if (!digest) return;
+    await boss.send(QUEUES.notify, digest satisfies NotifyJob, { singletonKey: 'signup_digest', singletonSeconds: 23 * 3600 });
+  });
 
   // G5b — a reply waiting past the day its channel allows is marked expired:
   // the owner sees why it was never sent, not a Send the channel refuses.

@@ -4,6 +4,7 @@ import pg from 'pg';
 import { flashSaid } from './tenant.js';
 import { importAt, submitReview } from './importReview.js';
 import { offlineModels } from '../pipeline/fakes.js';
+import { signUpWithCode, type Outbox } from './signUpWithCode.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
@@ -23,10 +24,11 @@ const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const PILOT = `c0de0000-0000-4000-8000-${RUN}0001`;
-const ABOUT = { kind: 'retail', sells: 'Perfume oils', website: '', teamSize: '2-5' };
+const ABOUT = { kind: 'retail', sells: 'Perfume oils', website: '', teamSize: '2-5', terms: 'on' };
 
 d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
+  const outbox: Outbox = [];
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
   let admin: pg.Client;
   let cookie = '';
@@ -61,7 +63,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'cur-verify-token-0001',
       CREDENTIAL_KEY: 'a'.repeat(64), PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { models: offlineModels(), logger: false });
+    }, { models: offlineModels(), logger: false, systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } } });
   }, 90_000);
 
   afterAll(async () => {
@@ -71,7 +73,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
   });
 
   it('SIGN-UP GIVES THE COUNTRY ITS OWN MONEY, and asks where that is not on the list', async () => {
-    const made = await form('/signup', A);
+    const made = await signUpWithCode(form, outbox, A);
     expect(made.statusCode, made.body.slice(0, 300)).toBe(302);
     cookie = cookieOf(made);
     const row = await one<{ id: string; currency: string }>(`select id::text as id, currency from businesses where name = $1`, [A.factory]);
@@ -85,7 +87,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(asked.body).toContain(t('en', 'signup.problem.currency_missing'));
     expect(asked.body).toContain('<select id="su-currency" name="currency" required>');
     expect((await admin.query(`select 1 from businesses where name = $1`, [M.factory])).rowCount).toBe(0);
-    const picked = await form('/signup', { ...M, currency: 'USD' });
+    const picked = await signUpWithCode(form, outbox, { ...M, currency: 'USD' });
     expect(picked.statusCode, picked.body.slice(0, 300)).toBe(302);
     expect((await one<{ currency: string }>(`select currency from businesses where name = $1`, [M.factory])).currency).toBe('USD');
   });

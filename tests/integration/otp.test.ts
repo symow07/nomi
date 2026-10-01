@@ -20,7 +20,7 @@ const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const PILOT = `a3550000-0000-4000-8000-${RUN}0001`;
-const ABOUT = { kind: 'brand', sells: 'Leather goods', country: 'MA', currency: 'USD', website: '', teamSize: '1' };
+const ABOUT = { kind: 'brand', sells: 'Leather goods', country: 'MA', currency: 'USD', website: '', teamSize: '1', terms: 'on' };
 const A = { factory: `Otp Atlas ${RUN}`, name: 'Mei', email: `mei-${RUN}@otp.example`, password: `otp-password-${RUN}`, ...ABOUT };
 
 d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {

@@ -221,7 +221,10 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
     // many times, and how many more were held back — `renderOwnerAlert` fills
     // both, so the test does too.
     // G5 — an alert about a conversation links to it.
-    const base = { name: '小雅', buyer: 'Ahmed', when: '20 Sep', count: 3, url: 'https://app.nomidoes.com/app/inbox/x#latest' };
+    // G1 — the operator's sign-up alerts name the workspace, its kind and country,
+    // what it sells and its website.
+    const base = { name: '小雅', buyer: 'Ahmed', when: '20 Sep', count: 3, url: 'https://app.nomidoes.com/app/inbox/x#latest',
+      business: 'Atlas Trading', kind: 'Brand', country: 'AE', n: 1, sells: 'Leather bags', website: 'https://atlas.example' };
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };

@@ -1713,11 +1713,11 @@ export type SignupPageInput = {
     readonly factory?: string; readonly name?: string; readonly email?: string; readonly invite?: string;
     readonly kind?: string; readonly sells?: string; readonly country?: string; readonly website?: string;
     readonly teamSize?: string; readonly channels?: readonly string[]; readonly zone?: string;
-    readonly currency?: string;
+    readonly currency?: string; readonly terms?: boolean;
   };
   /** Sentences, already chosen by the route: one per field, plus one for the whole form. */
   readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite'
-    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency', string>>;
+    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency' | 'terms', string>>;
   readonly error?: string | null;
 };
 
@@ -1801,6 +1801,9 @@ export function signupPage(input: SignupPageInput): string {
       <input id="su-password" type="password" name="password" required minlength="${input.passwordMin}" autocomplete="new-password" />
       ${fieldErr('password') || `<div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>`}
       ${invite}
+      <label class="check"><input type="checkbox" name="terms" required${v.terms ? ' checked' : ''} />
+        <span>${esc(t(locale, 'signup.terms', { terms: '\u0000' })).replace('\u0000', `<a href="/terms" target="_blank" rel="noopener">${esc(t(locale, 'signup.termsLink'))}</a>`)}</span></label>
+      ${fieldErr('terms')}
       <button type="submit">${esc(t(locale, 'signup.submit'))}</button>
     </form>`;
   return doorFrame(locale, input.path, t(locale, 'signup.title'), card, other);

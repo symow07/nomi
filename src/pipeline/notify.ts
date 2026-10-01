@@ -50,7 +50,7 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice
  * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
  * locale, and its words in `renderOwnerAlert`.
  */
-export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors'] as const satisfies readonly AlertKind[];
+export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -107,10 +107,14 @@ export type OperatorAlertDetail = {
   readonly metaErrors?: readonly { readonly business: string; readonly attempted: number; readonly failed: number; readonly errors: readonly string[] }[];
   /** TZ — the zone the reader's dates are said in: the receiving workspace's. UTC when not given. */
   readonly zone?: string;
+  /** `signup_digest` (G1): who signed up in the last day. */
+  readonly signups?: readonly { readonly business: string; readonly kind: string | null; readonly country: string | null }[];
 };
 
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
 const DELETION_ALERT_LINES = 10;
+/** G1 — the daily sign-up list names this many; past it, how many more. */
+export const SIGNUP_DIGEST_LINES = 25;
 
 /**
  * Event → neutral alert code (business logic stays locale-free). A deletion
@@ -164,6 +168,14 @@ export function renderOwnerAlert(
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
   if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
+  // G1 — the day's sign-ups: how many, then each by name, kind and country.
+  if (kind === 'signup_digest') {
+    const list = detail.signups ?? [];
+    const shown = list.slice(0, SIGNUP_DIGEST_LINES);
+    const more = list.length > shown.length ? [t(locale, 'notify.signup_digest.more', { n: list.length - shown.length })] : [];
+    return [t(locale, 'notify.signup_digest', { n: list.length }),
+      ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more].join('\n');
+  }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
   if (kind === 'meta_errors') {
@@ -355,7 +367,42 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     })),
     appError: job.appError ?? null,
     metaErrors: job.metaErrors ?? [],
+    signups: (job.signups ?? []).map((s) => ({ business: s.business, kind: s.kind, country: s.country })),
   };
+}
+
+/**
+ * G1 — the operator hears of each sign-up as it happens: the new workspace's
+ * name, kind and country, by e-mail to the operator's own sign-in address (the
+ * installation's business), in the operator's language. Nothing a customer
+ * said; never the new owner's password or code.
+ */
+export async function notifyOperatorOfSignup(
+  deps: { readonly db: Db; readonly mail: OwnerMailer }, operatorBusinessIdRaw: string, newBusinessIdRaw: string,
+): Promise<'sent' | 'skipped' | 'failed'> {
+  const op = parseBusinessId(operatorBusinessIdRaw);
+  const made = parseBusinessId(newBusinessIdRaw);
+  if (!op.ok || !made.ok || op.value === made.value) return 'skipped';
+  const b = await withTenantTx(deps.db, made.value, (tx) => sql<{
+    name: string; kind: string | null; country: string | null; sells: string | null; website: string | null;
+  }>`select name, kind, country, description as sells, website from businesses where id = ${made.value}`.execute(tx).then((r) => r.rows[0]));
+  const to = await withTenantTx(deps.db, op.value, async (tx) => ({
+    locale: (await sql<{ owner_locale: string }>`select owner_locale from businesses where id = ${op.value}`.execute(tx)).rows[0]?.owner_locale ?? 'en',
+    email: await ownerLoginEmail(tx, op.value),
+  }));
+  if (!b || !to.email) return 'skipped';
+  const locale: Locale = parseLocale(to.locale) ?? 'en';
+  const r = await deps.mail.send({
+    to: to.email, subject: t(locale, 'notify.signup_new.subject'),
+    text: [
+      t(locale, 'notify.signup_new', {
+        business: b.name, kind: b.kind ? t(locale, `business.kind.${b.kind}` as MessageKey) : '—', country: b.country ?? '—',
+      }),
+      t(locale, 'notify.signup_new.sells', { sells: b.sells ?? '—' }),
+      t(locale, 'notify.signup_new.website', { website: b.website ?? '—' }),
+    ].join('\n'),
+  });
+  return r.ok ? 'sent' : 'failed';
 }
 
 /**

@@ -304,8 +304,12 @@ import type { Db } from './client.js';
  * 98 = the owner's phone and a reply that waited too long (0098):
  *      `push_subscriptions`, `expire_waiting_drafts()`. The alerts page and
  *      the ten-minute sweep read them; against a 97 database both fail.
+ * 99 = what a self-serve sign-up leaves on the record (0099):
+ *      `businesses.signed_up_at`, `auto_earned_at`, `terms_version`,
+ *      `terms_accepted_at`, `self_serve_count()`, `signups_since()`. Every
+ *      sign-up writes them; against a 98 database no workspace can be made.
  */
-export const REQUIRED_SCHEMA_VERSION = 98;
+export const REQUIRED_SCHEMA_VERSION = 99;
 
 export type SchemaState = {
   readonly required: number;
