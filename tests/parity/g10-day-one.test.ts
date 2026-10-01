@@ -57,7 +57,9 @@ describe('G10b · she is told his window is shut, when she presses send', () => 
     const act = app.slice(app.indexOf("app.post('/app/inbox/:conversationId/act'"));
     expect(act.slice(0, act.indexOf('applyOwnerCommand('))).toContain('ownerSendVerdict(');
     const reply = app.slice(app.indexOf("app.post('/app/inbox/:conversationId/reply'"));
-    expect(reply.slice(0, reply.indexOf('ownerReply('))).toContain('ownerSendVerdict(');
+    // WA-S — the reply asks the same verdict through `ownerSendWindow`, which also says whether it reopens.
+    expect(reply.slice(0, reply.indexOf('ownerReply('))).toContain('ownerSendWindow(');
+    expect(app).toContain('const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => (await ownerSendWindow(bid, conversationId)).verdict;');
   });
 });
 

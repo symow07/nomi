@@ -88,8 +88,10 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // disconnected (which can un-complete it). TZ — one more: the workspace's
     // zone, which the same cached facts carry to every page. K1 — the import
     // is added from its review's save or from its floors page: one more. K5 —
-    // "prices go to me" completes the products step too: one more.
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(16);
+    // "prices go to me" completes the products step too: one more. WA (0120) —
+    // three more: her own WhatsApp number connected (the callback, and the
+    // number chosen) and disconnected.
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(19);
   });
 });
 

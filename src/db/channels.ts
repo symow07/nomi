@@ -237,9 +237,7 @@ export function channelStore(
         // templates the operator recorded as approved. While it resolves to
         // 'none' a closed window refuses as `window_closed`; the moment a real
         // approval is recorded it becomes `window_needs_owner`, gate unchanged.
-        // WA-S — a business whose own number has the reopening template
-        // APPROVED reopens a closed window with it, for this customer.
-        template: reopen ? 'approved' : (opts.template ?? 'none'),
+        template: opts.template ?? 'none',
         activated,
         pilotMode,
         recipientAllowed,
@@ -251,9 +249,11 @@ export function channelStore(
         ...(buyerLocale ? { buyerLocale } : {}),
         ...(outreach ? { outreach } : {}),
         ...(inReplyTo ? { inReplyTo } : {}),
-        ...(reopen ? { reopen } : {}),
       };
-      return { rows, ctx };
+      // WA-S — a business whose own number has the reopening template APPROVED
+      // reopens a closed window with it, for this customer: the template state
+      // above is the installation's; this is the one thing that overrides it.
+      return { rows, ctx: reopen ? { ...ctx, template: 'approved', reopen } : ctx };
     },
 
     /**
