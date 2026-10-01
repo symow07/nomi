@@ -1095,17 +1095,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // ── Auth ────────────────────────────────────────────────────────────────
   // Phase 5 — on a site host, `/` is the site; everywhere else it is the door.
-  const site = (req: FastifyRequest, path: '/' | '/site', noindex: boolean): string => renderSite({
+  // SITE (opening step 4) — the button is sign-up only while sign-up is open
+  // in force, asked as the door asks it, on every request.
+  const site = async (req: FastifyRequest, path: '/' | '/site', noindex: boolean): Promise<string> => renderSite({
     locale: localeOf(req), path, noindex, contact: deps.legalContact ?? null,
     signIn: (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/login') : null) ?? '/login',
+    signUp: (await signupModeNow()) === 'open'
+      ? (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/signup') : null) ?? '/signup' : null,
   });
   app.get('/', async (req, reply) =>
     onSiteHost(req)
-      ? reply.type('text/html; charset=utf-8').send(site(req, '/', false))
+      ? reply.type('text/html; charset=utf-8').send(await site(req, '/', false))
       : reply.redirect(sessionOf(req) ? '/app' : '/login'));
   // The same page on any host, for the owner to read before the DNS exists.
   app.get('/site', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(site(req, '/site', true)));
+    reply.type('text/html; charset=utf-8').send(await site(req, '/site', true)));
 
   // G1 — open sign-up asks every new address for a code, so it needs the
   // installation's own sender: without one, open reads as closed. BOT — and a

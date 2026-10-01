@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { messages, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import {
@@ -172,5 +173,27 @@ describe('Phase 5 · which host is the site', () => {
   it('builds the app address from PUBLIC_BASE_URL, or gives none', () => {
     expect(appAddress('https://app.nomidoes.com/', '/app?x=1')).toBe('https://app.nomidoes.com/app?x=1');
     expect(appAddress(null, '/app')).toBeNull();
+  });
+});
+
+describe('SITE · the button follows sign-up as it stands (opening step 4)', () => {
+  for (const l of LOCALES) {
+    it(`${l} · open: "start your workspace" to sign-up, and no invitation; closed or by invitation: the invitation`, () => {
+      const open = renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login',
+        signUp: 'https://app.example.test/signup', noindex: false });
+      expect(open).toContain(`<a class="site-go" href="https://app.example.test/signup">${esc(t(l, 'site.cta.signup'))}</a>`);
+      expect(open).toContain(esc(t(l, 'site.signup.title')));
+      expect(open).toContain(esc(t(l, 'site.first.open')));
+      expect(open).not.toContain(esc(t(l, 'site.cta.invite')));
+      expect(open).not.toContain(esc(t(l, 'site.first.invite')));
+      const invite = page(l);
+      expect(invite).toContain(esc(t(l, 'site.cta.invite')));
+      expect(invite).not.toContain('/signup');
+    });
+  }
+  it('open with no contact address: the sign-up section stands, without the address line', () => {
+    const html = renderSite({ locale: 'en', path: '/', contact: null, signIn: '/login', signUp: '/signup', noindex: false });
+    expect(html).toContain('href="/signup"');
+    expect(html).not.toContain('mailto:');
   });
 });

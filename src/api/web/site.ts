@@ -69,6 +69,13 @@ export type SiteInput = {
   readonly contact: string | null;
   /** Where "Sign in" goes: the app's own login. */
   readonly signIn: string;
+  /**
+   * SITE (opening step 4) — sign-up is open on this installation, as the app
+   * decides it on every request (the operator's switch, a sender, a bot check).
+   * Then the button is "Start your workspace" and goes to sign-up; until then
+   * the site invites a visitor to write (rule 12: it states nothing unbuilt).
+   */
+  readonly signUp?: string | null;
   /** The preview on the app host is not for search engines. */
   readonly noindex: boolean;
 };
@@ -78,7 +85,9 @@ export function renderSite(v: SiteInput): string {
   const k = (key: Parameters<typeof t>[1]) => esc(t(l, key));
   const mail = v.contact ? `mailto:${esc(v.contact)}` : null;
   const signIn = esc(v.signIn);
-  const invite = mail ? `<a class="site-go" href="${mail}">${k('site.cta.invite')}</a>` : '';
+  const signUp = v.signUp ? esc(v.signUp) : null;
+  const invite = signUp ? `<a class="site-go" href="${signUp}">${k('site.cta.signup')}</a>`
+    : mail ? `<a class="site-go" href="${mail}">${k('site.cta.invite')}</a>` : '';
 
   const step = (n: 1 | 2 | 3) =>
     `<li><h3>${k(`site.how.${n}.title`)}</h3><p>${k(`site.how.${n}.body`)}</p></li>`;
@@ -149,12 +158,16 @@ export function renderSite(v: SiteInput): string {
 
   <section class="site-sec" aria-labelledby="site-first">
     <h2 id="site-first">${k('site.first.title')}</h2>
-    <p class="site-prose">${k('site.first.invite')}</p>
+    <p class="site-prose">${k(signUp ? 'site.first.open' : 'site.first.invite')}</p>
     <p class="site-prose">${k('site.first.drafts')}</p>
     <p class="site-prose">${k('site.first.assisted')}</p>
   </section>
 
-  ${mail ? `<section class="site-sec site-invite" aria-labelledby="site-invite">
+  ${signUp ? `<section class="site-sec site-invite" aria-labelledby="site-invite">
+    <h2 id="site-invite">${k('site.signup.title')}</h2>
+    <p class="site-prose">${k('site.signup.body')}</p>
+    <p class="site-cta">${invite}${mail ? `<span class="site-member">${k('site.signup.write')} <a href="${mail}">${esc(v.contact!)}</a></span>` : ''}</p>
+  </section>` : mail ? `<section class="site-sec site-invite" aria-labelledby="site-invite">
     <h2 id="site-invite">${k('site.invite.title')}</h2>
     <p class="site-prose">${k('site.invite.body')}</p>
     <p class="site-cta">${invite}<span class="site-member">${k('site.invite.write')} <a href="${mail}">${esc(v.contact!)}</a></span></p>
