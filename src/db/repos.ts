@@ -1,3 +1,4 @@
+import { optionsOf } from '../core/commerce/options.js';
 import { earnedRung } from './ramp.js';
 import { sellingAnswers } from '../core/owner/sellingStyle.js';
 import { zoneOf } from './zone.js';
@@ -38,7 +39,7 @@ import type {
   RuleCondition,
 } from '../core/types/commerce.js';
 import type { Signal } from '../core/scoring/signals.js';
-import type { AllowedClaim, ClaimKind } from '../core/safety/claims.js';
+import { PRODUCT_CLAIMS, type AllowedClaim, type ClaimKind } from '../core/safety/claims.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { issueProofLinkTx } from './proofs.js';
@@ -264,6 +265,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       };
     },
 
+    // VAR (0111) — read through product_options(): a practice copy's are its live product's.
+    async productOptions(productId) {
+      return optionsOf((await sql<{ o: unknown }>`select product_options(${productId}::uuid) as o`.execute(tx)).rows[0]?.o);
+    },
+
     async priceTiers(productId) {
       const rows = await tx.selectFrom('price_tiers').selectAll()
         .where('product_id', '=', productId).orderBy('min_qty').execute();
@@ -380,9 +386,22 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     async claimsPolicy() {
       const rows = await sql<{ kind: string; claim_key: string; allowed: boolean }>`
         select kind, claim_key, allowed from claims_policy`.execute(tx);
-      return rows.rows.map((r): AllowedClaim => ({
+      const policy = rows.rows.map((r): AllowedClaim => ({
         kind: r.kind as ClaimKind, claimKey: r.claim_key, allowed: r.allowed,
       }));
+      // CK (0110) — the product claims bind a workspace that signed itself up,
+      // and any workspace whose owner picked what it sells. One the operator
+      // made and nobody categorised keeps saying what it said before (a live
+      // pilot's "100% cotton" is not held overnight); a practice copy answers
+      // as its workspace.
+      const enforced = (await sql<{ e: boolean }>`
+        select (p.signed_up_at is not null or p.product_category is not null) as e
+          from businesses me join businesses p on p.id = coalesce(me.practice_of, me.id)
+         where me.id = current_business_id()`.execute(tx)).rows[0]?.e ?? true;
+      if (enforced) return policy;
+      const stated = new Set(policy.filter((p) => p.kind === 'product_attribute').map((p) => p.claimKey));
+      return [...policy, ...PRODUCT_CLAIMS.filter((k) => !stated.has(k))
+        .map((claimKey): AllowedClaim => ({ kind: 'product_attribute', claimKey, allowed: true }))];
     },
 
     async bundleRules() { return []; },        // schema exists; wiring lands with recommendations

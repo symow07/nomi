@@ -1,3 +1,4 @@
+import { isProductCategory } from '../core/safety/claims.js';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -39,8 +40,8 @@ const ymd = (v: unknown): string => closureDate(v).toISOString().slice(0, 10);
 
 /** What is in force now: the lines are drawn against it. */
 export async function loadSellingState(tx: Tx, bid: BusinessId): Promise<SellingState> {
-  const b = (await sql<{ kind: string | null; quantity_first: boolean | null; working_hours: string | null }>`
-    select kind, quantity_first, working_hours from businesses where id = ${bid}`.execute(tx)).rows[0];
+  const b = (await sql<{ kind: string | null; quantity_first: boolean | null; working_hours: string | null; product_category: string | null }>`
+    select kind, quantity_first, working_hours, product_category from businesses where id = ${bid}`.execute(tx)).rows[0];
   const products = (await sql<{ id: string; name: string; moq: number | null }>`
     select id::text as id, name, moq from products where business_id = ${bid} and is_active order by name, id limit 500`.execute(tx)).rows;
   const allowed = (await sql<{ kind: string; claim_key: string }>`
@@ -59,6 +60,7 @@ export async function loadSellingState(tx: Tx, bid: BusinessId): Promise<Selling
     quantityFirst: sellingAnswers(b?.kind, { quantityFirst: b?.quantity_first ?? null }).quantityFirst,
     products,
     allowed: new Set(allowed.map((a) => `${a.kind}:${a.claim_key}`)),
+    productCategory: b?.product_category && isProductCategory(b.product_category) ? b.product_category : null,
     terms: terms ? { payment: terms.payment_terms, incoterm: terms.incoterm } : null,
     workingHours: b?.working_hours ?? null,
     closures: closures.map((c) => ({ label: c.label, from: ymd(c.starts_on), to: ymd(c.ends_on) })),
@@ -115,8 +117,15 @@ export async function applyLines(
         if (r.rows[0]) await audit(tx, bid, 'product_edited', actor, { productId: l.productId, changes: { moq: { from: l.from, to: l.to } }, source: { via: 'how_you_sell' } });
         break;
       }
+      case 'category': {
+        const before = (await sql<{ v: string | null }>`select product_category as v from businesses where id = ${bid} for update`.execute(tx)).rows[0]?.v ?? null;
+        await sql`update businesses set product_category = ${l.to} where id = ${bid}`.execute(tx);
+        await audit(tx, bid, 'selling_set', actor, { field: 'productCategory', from: before, to: l.to, via: 'how_you_sell' });
+        break;
+      }
       case 'promise':
-      case 'cert': {
+      case 'cert':
+      case 'attr': {
         const before = (await sql<{ allowed: boolean }>`select allowed from claims_policy
           where business_id = ${bid} and kind = ${l.claimKind} and claim_key = ${l.claim}`.execute(tx)).rows[0]?.allowed ?? false;
         await sql`insert into claims_policy (business_id, kind, claim_key, allowed) values (${bid}, ${l.claimKind}, ${l.claim}, ${l.to})

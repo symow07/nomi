@@ -132,9 +132,12 @@ export class FakeTenant implements Tenant {
   terms: TradeTerms | null = null;
   /** K5 · RT — how the business sells; a test sets what it needs. */
   selling: SellingFacts = { pricesToOwner: false, kind: null, quantityFirst: true };
+  /** VAR — each product's options, by product id; none unless a test sets them. */
+  productOptionRows = new Map<string, readonly { readonly name: string; readonly values: readonly string[] }[]>();
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
+    productOptions: async (id) => this.productOptionRows.get(id) ?? [],
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),
     negotiationRules: async () => this.rules,
     forbiddenTerms: async () => this.forbidden,

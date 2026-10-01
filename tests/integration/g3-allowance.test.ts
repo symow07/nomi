@@ -124,10 +124,10 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
       intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
       recommendedPhase: 'clarification', wantsPerson: false,
     } satisfies Analysis;
-    replyWriter.replies = ['Yes, the brass one is in stock.'];
+    replyWriter.replies = ['Yes, the brass one comes in black.'];
     const from = `9715${runDigits(RUN, 6)}1`;
     const before = analyzer.calls;
-    expect((await writes(from, 'Is the brass lamp in stock?')).statusCode).toBe(200);
+    expect((await writes(from, 'Does the brass lamp come in black?')).statusCode).toBe(200);
     firstConv = await until(async () => {
       const id = await convOf(from);
       if (!id) return undefined;

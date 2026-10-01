@@ -251,7 +251,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     // the door is the first page of the tab she is on
     expect(r.body).toContain('<a class="deeper live-door" href="/app/inbox?filter=all">');
     expect((await ask(url)).said).toEqual({ news: false });
-    await buyerWrites(BIZ, second, 'Is the 1L bottle in stock?');
+    await buyerWrites(BIZ, second, 'Does the 1L bottle come in amber?');
     expect((await ask(url)).said).toEqual({ news: true, what: 'list' });
     const again = await pageAsk('/app/inbox?filter=all');
     expect((await ask(again)).said).toEqual({ news: false });

@@ -37,7 +37,7 @@ const withheldBecause = (language: string | null | undefined): 'language_unknown
 /** The two letters a language is known by here ("pt-BR" → "pt"); English when none was read. */
 const languageHead = (language: string | null | undefined): string => (language ?? '').slice(0, 2).toLowerCase() || 'en';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
-import { detectSignals, personRequestLanguage } from '../core/scoring/detect.js';
+import { detectSignals, personRequestLanguage, stockQuestionLanguage } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { statesAPrice } from '../core/safety/statesPrice.js';
@@ -345,7 +345,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // before any model read it is in the language of the pattern that caught it.
   // The fixed sentences below are said in it where it is one of the three they
   // are written in.
-  const pattern = analysis ? null : personRequestLanguage(req.text);
+  const pattern = analysis ? null : (personRequestLanguage(req.text) ?? stockQuestionLanguage(req.text));
   const analysedLanguage = analysis?.language.detected ?? (pattern ? null : state.preferredLanguage);
   const gateLang = languageEvidence(req.text, analysedLanguage, pattern) ?? gateLanguage(
     (await history()).filter((m) => m.direction === 'inbound').map((m) => m.text).reverse().slice(0, 3), analysedLanguage);
@@ -552,6 +552,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       const knowledgeNumbers = identifiedProductId === null ? [] : knowledge
         .filter((s) => s.productId === identifiedProductId)
         .flatMap((s) => extractNumerals(`${s.label} ${s.content}`).map((n) => n.value));
+      // VAR (0111) — the identified product's options, whole: "in M, in
+      // black?" is answered from them, not from whatever text retrieval found.
+      // Their figures (a size 42, a 250 ml) are hers, sourced like her facts.
+      const options = identifiedProductId === null ? [] : await tenant.catalog.productOptions(identifiedProductId);
+      const optionNumbers = options.flatMap((o) => extractNumerals(`${o.name} ${o.values.join(', ')}`).map((n) => n.value));
       /**
        * M45 — "can you send a sample?"
        *
@@ -593,6 +598,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       const numeralAllow = [
         ...(refusalCtx?.allow ?? []),
         ...knowledgeNumbers,
+        ...optionNumbers,
         ...(sampleCtx?.ok ? sampleCtx.allow : []),
         ...(closureCtx?.allow ?? []),
         ...nameNumbers,
@@ -682,6 +688,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           nextQuestion,
           retryAfterViolation: attempt > 0,
           knowledge,
+          ...(options.length ? { options } : {}),
           // Absent when she has stated nothing: the model is told nothing to
           // work from rather than being asked to be careful about samples.
           ...(sampleCtx?.ok ? { sampleNote: sampleCtx.note } : {}),

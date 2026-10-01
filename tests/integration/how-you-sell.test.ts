@@ -246,7 +246,8 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     // Setup carries the door and where she is: price, words, minimum, returns, hours, payment.
     const setup = await get('/app/settings');
     expect(setup.body).toContain('href="/app/business/selling"');
-    expect(setup.body).toContain('6 of 8 answered');
+    // CK (0110) added "What you sell" to a shop's questions: nine now.
+    expect(setup.body).toContain('6 of 9 answered');
   });
 
   it('A REFUSED ANSWER is shown back with its problem, and nothing is kept', async () => {

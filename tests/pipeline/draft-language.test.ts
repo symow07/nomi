@@ -24,8 +24,9 @@ describe('G10 · the draft says which language its reply is in', () => {
       intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
       recommendedPhase: 'clarification',
     } satisfies Analysis;
-    p.replyWriter.replies = ['有的，玫瑰精华有现货。'];
-    const req = { conversationId: CONVERSATION, messageId: 'm-1', text: '玫瑰精华有货吗？' };
+    // Not a stock question: since VAR those go to the owner before any model.
+    p.replyWriter.replies = ['有的，玫瑰精华有粉色和白色。'];
+    const req = { conversationId: CONVERSATION, messageId: 'm-1', text: '玫瑰精华有什么颜色？' };
     await commitTurn(p, req, await computeTurn(p, req), Date.now());
     expect(p.tenant.eventRows.find((e) => e.type === 'draft_pending')?.payload).toMatchObject({ language: 'zh' });
   });

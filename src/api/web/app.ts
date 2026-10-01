@@ -2763,6 +2763,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       nameZh: b['nameZh'] ?? null,
       customerNames: b['customerNames'] ?? null,
       leadTime: b['leadTime'] ?? null,
+      options: b['options'] ?? null,
     });
     const locale = localeOf(req);
     if (!r.ok) {

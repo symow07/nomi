@@ -46,7 +46,8 @@ describe('HS · who is asked what', () => {
     expect(SERVICE_QUESTIONS).not.toContain('delivery');
   });
   it('the migration\'s list is the code\'s list', () => {
-    const sql = readFileSync(new URL('../../migrations/0096_how_you_sell.sql', import.meta.url), 'utf8');
+    // CK (0110) redefined the list with 'product_claims'; 0096 is never edited.
+    const sql = readFileSync(new URL('../../migrations/0110_category_claims.sql', import.meta.url), 'utf8');
     for (const q of ALL_QUESTIONS) expect(sql).toContain(`'${q}'`);
   });
   it('the next question skips what is done, and wraps to one left behind', () => {
