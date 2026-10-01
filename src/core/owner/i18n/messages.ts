@@ -7740,7 +7740,7 @@ const AR: Record<MessageKey, string> = {
   'import.extract.button': 'إعادة قراءة هذه الأسطر بعناية أكبر',
   'import.extract.hint': 'قراءة أدق للأسطر التي لم تُقرأ منتجات. كل سطر يُقرأ بهذه الطريقة ينتظر علامة المراجعة، ويُذكر ما قُرئ منه بثقة أقل.',
   'import.flash.extracted': 'قُرئ {n} من الأسطر الإضافية، وكلٌّ منها ينتظر علامة المراجعة.',
-  'import.flash.extractNone': 'لم تُقرأ منتجات أخرى في هذه الأسطر، وبقيت كما هي.',
+  'import.flash.extractNone': 'لم تُقرأ منتجات أخرى في هذه الأسطر، ولم يتغيّر فيها شيء.',
   'import.flash.extractFailed': 'تعذّرت القراءة الآن، ولم يتغير شيء.',
   'import.flash.extractAllowance': 'رصيد اليوم مستنفد، لذلك لم يُقرأ شيء.',
   'pageFacts.title': 'التعلّم من صفحة في موقعك',

@@ -223,7 +223,8 @@ d('G16 · re-photographing updates what changed (requires DATABASE_URL)', () => 
 
   it('UPLOAD FAILURES ARE NAMED FOR WHAT THEY ARE — not all "too large"', async () => {
     const sentence = (r: 'not_a_photo' | 'upload_failed' | 'too_large') => esc(t('en', `product.photo.refused.${r}`));
-    const pdf = await shoot(FIRST, multipart(Buffer.from('%PDF-1.4 not an image'), 'application/pdf'));
+    // Named a PDF, which a list may be since EXT (0118) — but its own bytes are not one.
+    const pdf = await shoot(FIRST, multipart(Buffer.from('MZ not an image, not a document'), 'application/pdf'));
     expect(pdf.body).toContain(sentence('not_a_photo'));
 
     // A form with no file in it: nothing arrived to be too large.
