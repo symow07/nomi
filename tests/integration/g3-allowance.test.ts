@@ -147,7 +147,7 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
     await used(850);
     await sweep();
     const warn = await until(async () => mails(t('en', 'notify.allowance_warn.subject'))[0], 'the 80% e-mail');
-    expect(warn.text).toMatch(/^85% of today's allowance is used\. At 100%, new messages wait for you until it renews at ⁨?04:00⁩?\.$/);
+    expect(warn.text).toMatch(/^85% of today's allowance is used\. At 100%, new messages wait for you until it renews at \u2068?04:00\u2069?\.$/);
     await sweep();
     await used(CAP);
     await sweep();
