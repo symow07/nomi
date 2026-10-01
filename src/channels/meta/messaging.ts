@@ -94,8 +94,23 @@ export function parseMetaMessaging(channel: MetaMessagingChannel, payload: unkno
       const mid = str(message['mid']);
       const sender = str(obj(m['sender'])['id']);
       const recipient = str(obj(m['recipient'])['id']);
-      // An echo is our own message coming back; answering it would be a loop.
-      if (!mid || !sender || !recipient || message['is_echo'] === true) continue;
+      if (!mid || !sender || !recipient) continue;
+      // CH3 — an echo is a message the account SENT: never a turn (answering
+      // it would be a loop), but a reply the owner typed in Meta's own app is
+      // news Nomi must hear. It travels as its own event, the account as the
+      // sender and the customer as the recipient.
+      if (message['is_echo'] === true) {
+        const { received, text } = describe(message);
+        const appId = message['app_id'];
+        events.push({
+          kind: 'echo', eventId: mid, dedupKey: `echo:${mid}`,
+          waId: recipient, phoneNumberId: sender,
+          occurredAt: at(m['timestamp'] ?? entry['time']),
+          text, received,
+          appId: typeof appId === 'number' || typeof appId === 'string' ? String(appId) : null,
+        });
+        continue;
+      }
 
       const { received, text, ref } = describe(message);
       const event: InboundMessageEvent = {

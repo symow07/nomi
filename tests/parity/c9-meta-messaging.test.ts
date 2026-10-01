@@ -81,7 +81,10 @@ describe('C9 · a buyer writes, and it lands in the right place', () => {
   });
 
   it('OUR OWN MESSAGE COMING BACK IS NOT A BUYER — an echo would be a loop', () => {
-    expect(parseMetaMessaging('instagram', envelope('instagram', { text: 'our reply', echo: true }))).toEqual([]);
+    // CH3 — it is an event of its own (what the owner typed in Meta's app is
+    // news), never a buyer's message to answer.
+    const events = parseMetaMessaging('instagram', envelope('instagram', { text: 'our reply', echo: true }));
+    expect(events.map((e) => e.kind)).toEqual(['echo']);
   });
 
   it('what she cannot read is named, not answered as empty text', () => {

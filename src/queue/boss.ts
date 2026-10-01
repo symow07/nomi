@@ -64,7 +64,26 @@ export const QUEUES = {
    * are erased (0089, `practice_expire`). Practice is not kept.
    */
   practiceExpiry: 'ops.practice_expiry',
+  /**
+   * CH3 — a message the business's own account sent, come back from Meta. Held
+   * a little before it is read (`ECHO_SETTLE_SECONDS`), so Nomi's own send has
+   * recorded the id Meta gave it and is recognised as ours (src/pipeline/echo.ts).
+   */
+  echo: 'message.echo',
 } as const;
+
+/** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */
+export type EchoJob = {
+  businessId: string;
+  channel: 'instagram' | 'messenger';
+  mid: string;
+  customer: string;
+  account: string;
+  text: string | null;
+  received: string;
+  appId: string | null;
+  occurredAt: string;
+};
 
 export type SequenceSweepJob = { businessId: string };
 export type BackupWatchJob = { businessId: string };

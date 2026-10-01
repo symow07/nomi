@@ -52,7 +52,29 @@ export type StatusEvent = {
   readonly errorDetail: string | null;
 };
 
-export type ChannelEvent = InboundMessageEvent | StatusEvent;
+/**
+ * CH3 — a message the business's own account SENT, coming back (Meta's
+ * `is_echo`). Either one Nomi sent, or one the owner typed in Instagram's or
+ * Messenger's own app — which Nomi must know of, or it answers a customer the
+ * owner already answered. Which is which is decided later, by the app it came
+ * from and by the messages Nomi sent (src/pipeline/echo.ts).
+ */
+export type EchoEvent = {
+  readonly kind: 'echo';
+  readonly eventId: string;              // the message's mid
+  readonly dedupKey: string;             // `echo:<mid>` — never collides with the message itself
+  /** The customer it was sent TO (their scoped id). */
+  readonly waId: string;
+  /** The account that sent it (the Page / Instagram account) → resolves the tenant. */
+  readonly phoneNumberId: string;
+  readonly occurredAt: Date;
+  readonly text: string | null;
+  readonly received: string;
+  /** The Meta app it was sent from, when Meta says (`app_id`). */
+  readonly appId: string | null;
+};
+
+export type ChannelEvent = InboundMessageEvent | StatusEvent | EchoEvent;
 
 type J = Record<string, unknown>;
 const arr = (v: unknown): J[] => (Array.isArray(v) ? (v as J[]) : []);

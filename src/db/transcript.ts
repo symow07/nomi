@@ -101,7 +101,8 @@ export async function loadTranscriptWindow(tx: Tx, conversationId: string, befor
     select m.id::text as id, m.direction, m.text_content, m.sent_at, m.input_type, m.transcription,
            m.ai_analysis->>'received' as received, m.provider_media_id as media,
            -- D4 — the sent row it was copied from, by the id it was copied under.
-           o.origin
+           -- CH3 — or the owner's own reply from Meta's app, which no sent row holds.
+           coalesce(o.origin, case when m.external_id like 'echo:%' then 'owner' end) as origin
       from messages m
       left join outbound_messages o
         on m.direction = 'outbound' and m.external_id = 'out:' || o.id::text

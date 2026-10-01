@@ -49,10 +49,15 @@ are invisible from it.
    a temporary Railway variable and, inside `railway run --service nomi`,
    exchange it (`/oauth/access_token?grant_type=fb_exchange_token…`), read
    `/me/accounts` for the Page token (long-lived, `expires_at: 0`), `POST
-   /{page}/subscribed_apps?subscribed_fields=messages,messaging_postbacks`,
+   /{page}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_echoes`,
    write `META_PAGE_ACCESS_TOKEN` from the process, delete the temporary
    variable, redeploy. No token ever passes through a chat or a shell line.
    Check with `/debug_token`: the scopes must list `instagram_manage_messages`.
+   CH3 — the app's webhook (Webhooks → Page, and Instagram) must also have
+   **`message_echoes`** ticked: it is how Nomi hears a reply the owner types
+   in Messenger's or Instagram's own app. A Page connected before CH3 is
+   re-subscribed once with `railway run --service nomi -- node
+   tools/meta-resubscribe.mjs --yes` (a dry run without `--yes`).
 7. **Who may write in.** With *standard* access on a published app, Meta hands
    the app data only from people who hold a role on the app. Your own
    Facebook profile (the admin) reaches Messenger; a personal Instagram
