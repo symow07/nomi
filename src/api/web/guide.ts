@@ -5,6 +5,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { SETUP_STEPS, type SetupStep } from '../../db/setup.js';
 import { STEP_LINK } from './onboarding.js';
+import * as show from './values.js';
 
 /**
  * THE GUIDED PATH — a stranger who signed up, from an empty workspace to a
@@ -61,7 +62,7 @@ export function renderGuide(v: GuideView, locale: Locale, name: string, videos: 
         <details><summary>${esc(t(locale, 'guide.read'))}</summary><ol>${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol></details>`
       : `<ol>${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>`;
     return `<li class="guide-step${done ? ' done' : ''}${v.next === step ? ' next' : ''}" id="${step}">
-      <h2><span class="muted">${i + 1}.</span> ${esc(t(locale, `factory.next.${step}` as MessageKey, { name }))}
+      <h2><span class="muted">${esc(show.count(locale, i + 1))}.</span> ${esc(t(locale, `factory.next.${step}` as MessageKey, { name }))}
         <span class="pill ${done ? 'ok' : 'warn'}">${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></h2>
       ${video}
       ${done ? '' : deeper(STEP_LINK[step], t(locale, 'guide.do'), v.next === step ? 'next' : '')}

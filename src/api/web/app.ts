@@ -480,6 +480,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
   { method: 'GET', url: '/assets/icon-192.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
   { method: 'GET', url: '/assets/icon-512.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
+  { method: 'GET', url: '/assets/guide/:file', why: 'The guided path — the setup videos and their captions, recorded from the demo workspace: the same files for everyone, read from the build, never from the database; names no tenant. Only names of the folder\'s one shape are served' },
   { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, and (CC-26) the one script, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
 ];
 
