@@ -654,7 +654,7 @@ export function renderAddForm(
           <label class="pcheck"><input type="radio" name="hand" value="printed" required /> ${esc(t(locale, 'import.hand.printed'))}</label>
           <label class="pcheck"><input type="radio" name="hand" value="handwritten" /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
         </fieldset>
-        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp" multiple required />
+        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp,application/pdf" multiple required />
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>

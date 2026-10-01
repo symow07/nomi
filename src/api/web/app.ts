@@ -60,8 +60,9 @@ import {
 import {
   startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
   stagedFlash, renderImportReview, renderFloors, openImportOf, importPhoto, notFoundImport, MAX_PHOTOS, type PhotoIn,
-  importedProducts, askAboutThree, renderAskAboutThree, renderAskedQuestions,
+  importedProducts, askAboutThree, renderAskAboutThree, renderAskedQuestions, extractRefused,
 } from './importFlow.js';
+import type { CatalogExtractor } from '../../core/onboard/catalogImport.js';
 import { looksLikeXlsx, xlsxRows, rowsAsCsv } from '../../net/xlsx.js';
 import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, renderStoreRefusal } from './storeImport.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
@@ -400,6 +401,8 @@ export type WebDeps = {
    * keeps working.
    */
   readonly pageTranscriber?: PageTranscriber;
+  /** EXT — the model extractor, for the lines a list's parser could not make a product of; absent: the button is not offered. */
+  readonly catalogExtractor?: CatalogExtractor;
   /** G10 — translates a draft for its owner to check; never sent. Absent: the button says so. */
   readonly draftTranslator?: DraftTranslator;
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
@@ -2829,6 +2832,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         const bytes = await part.toBuffer();
         // An empty file box sends a part with no bytes: not a photo, not an error.
         if (bytes.length === 0) continue;
+        // EXT — a PDF price list is a page too: its own bytes must say so, not only its label.
+        if (mt === 'application/pdf' && bytes.subarray(0, 5).toString('latin1') === '%PDF-') { photos.push({ bytes, mediaType: mt }); continue; }
         if (mt !== 'image/jpeg' && mt !== 'image/png' && mt !== 'image/webp') return refuse('not_a_photo');
         photos.push({ bytes, mediaType: mt });
       }
@@ -2857,7 +2862,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // K8 — a table whose columns are not mapped yet shows its columns first.
     const table = m.imp.kind === 'file' && m.imp.rows.length === 0 && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
     if (table) return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
-    return renderImportReview(m, locale, { flash: takeFlash(req, reply), blockers: [] });
+    return renderImportReview(m, locale, { flash: takeFlash(req, reply), blockers: [], canExtract: Boolean(deps.catalogExtractor) });
   }));
   app.get('/app/products/import/:importId/columns', ownerPage('price_rules', 'products', '/app/products', async (s, req, _reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
@@ -2882,6 +2887,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: renderColumns(locale, m.imp.id, table, m.imp.currency, out.problem, mappingFrom(b, table)),
     }));
   });
+  /**
+   * EXT — the lines that were not products, read again by the model extractor
+   * at the owner's asking. What she had ticked or changed is saved first, so
+   * the closer reading never costs her the review she was in.
+   */
+  app.post('/app/products/import/:importId/extract', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const id = (req.params as { importId: string }).importId;
+    const to = `/app/products/import/${encodeURIComponent(id)}`;
+    const b = { ...((req.body ?? {}) as Readonly<Record<string, string | undefined>>), next: 'save' };
+    const saved = await saveReview(deps.db, s.businessId, id, personOf(s).id, b);
+    if (saved.kind === 'gone') return reply.redirect('/app/products/add');
+    if (saved.kind !== 'saved') return reply.redirect(to);
+    const out = await extractRefused(deps.db, s.businessId, id, {
+      extractor: deps.catalogExtractor,
+      spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
+    });
+    if (out.kind === 'gone') return reply.redirect('/app/products/add');
+    if (out.kind === 'read') return flashTo(reply, to, 'import.flash.extracted', { n: out.n });
+    return flashTo(reply, to, out.kind === 'allowance_used' ? 'import.flash.extractAllowance'
+      : out.kind === 'none' ? 'import.flash.extractNone' : 'import.flash.extractFailed');
+  });
+
   app.post('/app/products/import/:importId/save', async (req, reply) => {
     const id = (req.params as { importId: string }).importId;
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');

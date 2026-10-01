@@ -3,6 +3,8 @@ import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
 import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator } from './ports.js';
+import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
+import { parseExtractorAnswer } from '../core/onboard/extract.js';
 import type { Analysis } from '../core/conversation/decide.js';
 import type { Phase, ProductMatch } from '../core/types/conversation.js';
 import { parseProductId } from '../core/types/ids.js';
@@ -367,10 +369,13 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
   const PROMPT_VERSION = 'page-transcribe-1';
   return {
     async transcribe({ imageBase64, mediaType }) {
+      // EXT — a PDF is a document block, and may hold several pages: more room
+      // to write them, and a read that still runs out is refused as cut off.
+      const pdf = mediaType === 'application/pdf';
       const res = await client.messages.create({
         model,
         ...extra,
-        max_tokens: 2000,
+        max_tokens: pdf ? 8000 : 2000,
         // T5 — a transcription has one right answer: no sampling.
         temperature: 0,
         system:
@@ -383,8 +388,10 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-            { type: 'text', text: 'Transcribe this page.' },
+            pdf
+              ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageBase64 } }
+              : { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+            { type: 'text', text: pdf ? 'Transcribe every page of this document, in order.' : 'Transcribe this page.' },
           ],
         }],
       });
@@ -422,6 +429,44 @@ export function anthropicDraftTranslator(client: Anthropic, model: string = MODE
       const out = block?.type === 'text' ? block.text.trim() : '';
       if (!out || res.stop_reason === 'max_tokens') return null;
       return { text: out, modelId: model, usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
+    },
+  };
+}
+
+/**
+ * EXT — the catalogue extractor, for the lines a price list's parser could
+ * not read, asked only by the owner. It may only COPY what a line holds: the
+ * line, the name and the figures exactly as written, a confidence per field;
+ * `containExtracted` then throws away anything a line does not hold, and every
+ * surviving row waits for her own tick. Temperature 0: one right reading.
+ */
+export function anthropicCatalogExtractor(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): CatalogExtractor {
+  const PROMPT_VERSION = 'catalog-extract-1';
+  return {
+    async extract({ lines, currency }) {
+      const res = await client.messages.create({
+        model,
+        ...extra,
+        max_tokens: 4000,
+        temperature: 0,
+        system:
+          'You read lines from a business\'s price list that a simple parser could not read. ' +
+          'For each line that names ONE product with its price, return that product; skip headings, notes, and lines naming several products. ' +
+          'Copy the line exactly as given into "line". "name" is the product name exactly as written on the line. ' +
+          '"price" is the price exactly as written on the line, digits and separators only, no currency sign, or null if the line has none. ' +
+          '"unit" is the unit word written on the line (pcs, kg, box...) or null. "moq" is the minimum order quantity only if the line states one, as an integer, else null. ' +
+          'Never invent, correct, convert or complete a value: if it is not written on the line, it is null. ' +
+          'Give your confidence from 0 to 1 for each field. Reply with JSON only: ' +
+          '{"products":[{"line":"","name":"","price":"","unit":"","moq":null,"confidence":{"name":0,"price":0,"unit":0,"moq":0}}]}',
+        messages: [{ role: 'user', content: [{ type: 'text', text: JSON.stringify({ currency, lines }) }] }],
+      });
+      const block = firstText(res.content);
+      return {
+        items: parseExtractorAnswer(block?.type === 'text' ? block.text : ''),
+        promptVersion: PROMPT_VERSION,
+        modelId: model,
+        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+      };
     },
   };
 }

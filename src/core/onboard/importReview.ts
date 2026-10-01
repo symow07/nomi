@@ -1,3 +1,4 @@
+import { lessSure, type FieldConfidence } from './extract.js';
 import type { Currency } from '../types/money.js';
 import { type ExtractedProduct, type RejectReason, ownPriceCount, validateExtracted, validatePage } from './catalogImport.js';
 import { parseCustomerNames, MAX_ALIAS_LENGTH } from './aliases.js';
@@ -33,10 +34,11 @@ export type ImportFlag =
   | 'many_decimals'       // more than two decimal places
   | 'from_or_vat'         // "from", "incl. VAT", "compare at", 起, 含税… — the figure may not be the price
   | 'bare_dollar'         // a bare "$" from a seller whose country does not count in US dollars
-  | 'challenge_mismatch'; // K7: typed from the paper differently, or next to one that was
+  | 'challenge_mismatch'  // K7: typed from the paper differently, or next to one that was
+  | 'low_confidence';     // EXT: read by the extractor, less surely than LOW_CONFIDENCE somewhere
 
 export const FLAG_ORDER: readonly ImportFlag[] = [
-  'challenge_mismatch', 'two_prices', 'from_or_vat', 'bare_dollar', 'outlier', 'many_decimals', 'digits_in_name',
+  'challenge_mismatch', 'low_confidence', 'two_prices', 'from_or_vat', 'bare_dollar', 'outlier', 'many_decimals', 'digits_in_name',
 ];
 
 export type ImportKind = 'paste' | 'photo' | 'store' | 'file';
@@ -79,6 +81,8 @@ export type ImportRow = {
   readonly apply?: boolean;
   /** K8 — the options a store gave (sizes, colours, shades): the product's knowledge, never a price. */
   readonly options?: string;
+  /** EXT — read by the model extractor, with how sure it was of each field: the row needs its own tick. */
+  readonly confidence?: FieldConfidence;
 };
 
 /** What the review needs to know about the business to read its rows. */
@@ -126,6 +130,7 @@ export function flagsOf(row: ImportRow, all: readonly ImportRow[], ctx: ReviewCo
   if (row.refused !== null || row.removed) return [];
   const out = new Set<ImportFlag>();
   if (row.challenge === 'mismatch' || row.reopened) out.add('challenge_mismatch');
+  if (row.confidence && lessSure(row.confidence, row).length > 0) out.add('low_confidence');
   if (ownPriceCount(row.line, ctx.currency) >= 2) out.add('two_prices');
   if (FROM_OR_VAT.test(row.line)) out.add('from_or_vat');
   if (ctx.currency === 'USD' && ctx.country !== null && !DOLLAR_COUNTRIES.has(ctx.country)
@@ -141,6 +146,8 @@ export function flagsOf(row: ImportRow, all: readonly ImportRow[], ctx: ReviewCo
 export function needsTick(row: ImportRow, all: readonly ImportRow[], ctx: ReviewContext, checkEveryRow: boolean): boolean {
   if (row.refused !== null || row.removed) return false;
   if (checkEveryRow) return true;
+  // EXT — a row the extractor read always waits for her own tick.
+  if (row.confidence) return true;
   if (ctx.kind === 'photo' && row.price !== null) return true;
   return flagsOf(row, all, ctx).length > 0;
 }

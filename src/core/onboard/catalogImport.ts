@@ -1,3 +1,4 @@
+import type { ExtractedLine } from './extract.js';
 import { type Money, type Currency, DOT_THOUSANDS } from '../types/money.js';
 /**
  * M6 — Tolerant catalog import. Messy Excel pastes, forwarded messages,
@@ -51,10 +52,18 @@ export type ExtractedProduct = {
 export type ReadingProblem = 'ambiguous_price' | 'other_currency' | 'several_numbers';
 
 /** LLM port for messy input (photos of price lists, rambling messages). */
+/**
+ * EXT — the model extractor, asked only by the owner and only for the lines
+ * the parser could not make a product of. It returns, per line, what it read
+ * and how sure it is of each field; `containExtracted` (./extract.ts) decides
+ * what of that may become a row. Text in, never a photo: a page is first
+ * transcribed (M37).
+ */
 export interface CatalogExtractor {
-  extract(input: { text: string | null; imageBase64: string | null }): Promise<{
-    products: readonly ExtractedProduct[];
-    usage: { inputTokens: number; outputTokens: number };
+  extract(input: { readonly lines: readonly string[]; readonly currency: string }): Promise<{
+    readonly items: readonly ExtractedLine[];
+    readonly promptVersion: string; readonly modelId: string;
+    readonly usage: { inputTokens: number; outputTokens: number };
   }>;
 }
 

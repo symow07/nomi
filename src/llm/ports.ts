@@ -130,7 +130,8 @@ export interface PageTranscriber {
    */
   transcribe(input: {
     imageBase64: string;
-    mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+    /** EXT — or a PDF: its pages transcribed in order, under the same rule. */
+    mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
   }): Promise<{
     /** The page's text, newline-separated, in reading order. */
     text: string;
