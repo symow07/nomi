@@ -8,7 +8,7 @@ import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
-import { anthropicPageTranscriber } from './llm/anthropic.js';
+import { anthropicPageTranscriber, anthropicDraftTranslator } from './llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
@@ -419,6 +419,8 @@ export async function buildProduction(
     echoSettleSeconds?: number;
     /** G5b — tests only: the push service, instead of the network. */
     pushFetch?: PushFetch;
+    /** G10 — tests only: the translator, instead of the model. */
+    draftTranslator?: import('./llm/ports.js').DraftTranslator;
     /**
      * The pre-pilot walkthrough only: as if the AI disclosure had passed native
      * review. Production never passes it — there is no environment variable
@@ -634,6 +636,8 @@ export async function buildProduction(
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
   const pageTranscriber = anthropicPageTranscriber(llmClient(llm), llm.model, requestExtrasFor(llm));
+  // G10 — a draft in a language its owner may not read, translated on request (never sent).
+  const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(llmClient(llm), llm.model, requestExtrasFor(llm));
   // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
   // and the way out to a push service. Unset: no phone alerts, and the page says so.
   const vapid = vapidFrom(process.env);
@@ -646,6 +650,7 @@ export async function buildProduction(
     registerWebApp(a, {
       db,
       pageTranscriber,
+      draftTranslator,
       sessionSecret: webSessionSecret,
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,

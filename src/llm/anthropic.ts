@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
-import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber } from './ports.js';
+import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator } from './ports.js';
 import type { Analysis } from '../core/conversation/decide.js';
 import type { Phase, ProductMatch } from '../core/types/conversation.js';
 import { parseProductId } from '../core/types/ids.js';
@@ -397,6 +397,29 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
         modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
       };
+    },
+  };
+}
+
+/** G10 — the owner's own reading of a draft in a language they may not read. Never sent. */
+export function anthropicDraftTranslator(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): DraftTranslator {
+  return {
+    async translate({ text, toLanguage }) {
+      const res = await client.messages.create({
+        model,
+        ...extra,
+        max_tokens: 1500,
+        temperature: 0,
+        system:
+          'You translate a reply a business is about to send to its customer, so the business owner can check what it says. ' +
+          `Translate it into ${toLanguage}. Keep every number, price, unit, date, product name and person's name exactly as written. ` +
+          'Do not add, explain, soften or correct anything. Output only the translation.',
+        messages: [{ role: 'user', content: text }],
+      });
+      const block = firstText(res.content);
+      const out = block?.type === 'text' ? block.text.trim() : '';
+      if (!out || res.stop_reason === 'max_tokens') return null;
+      return { text: out, modelId: model, usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
     },
   };
 }
