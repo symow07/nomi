@@ -161,3 +161,17 @@ export interface DraftTranslator {
     usage: { inputTokens: number; outputTokens: number };
   } | null>;
 }
+
+/**
+ * EXT — a page of the owner's own site (shipping, returns, payment, care)
+ * read into facts a customer might ask about, each with the sentence it came
+ * from. Proposed, never written: `containFacts` drops a quote the page does
+ * not hold, and the owner ticks line by line.
+ */
+export interface PageFactsReader {
+  read(input: { readonly text: string }): Promise<{
+    readonly facts: readonly import('../core/owner/pageFacts.js').PageFact[];
+    readonly promptVersion: string; readonly modelId: string;
+    readonly usage: { inputTokens: number; outputTokens: number };
+  }>;
+}

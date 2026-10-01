@@ -2,7 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
-import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator } from './ports.js';
+import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader } from './ports.js';
+import { parseFactsAnswer } from '../core/owner/pageFacts.js';
 import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
 import { parseExtractorAnswer } from '../core/onboard/extract.js';
 import type { Analysis } from '../core/conversation/decide.js';
@@ -470,6 +471,39 @@ export function anthropicCatalogExtractor(client: Anthropic, model: string = MOD
       const block = firstText(res.content);
       return {
         items: parseExtractorAnswer(block?.type === 'text' ? block.text : ''),
+        promptVersion: PROMPT_VERSION,
+        modelId: model,
+        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+      };
+    },
+  };
+}
+
+/**
+ * EXT — the page-facts reader: a page of the owner's own site into short facts
+ * a customer might ask about, each quoting the sentence it came from, word for
+ * word. Never a fact the page does not state; `containFacts` checks the quote.
+ */
+export function anthropicPageFactsReader(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): PageFactsReader {
+  const PROMPT_VERSION = 'page-facts-1';
+  return {
+    async read({ text }) {
+      const res = await client.messages.create({
+        model,
+        ...extra,
+        max_tokens: 3000,
+        temperature: 0,
+        system:
+          'You read a page from a shop\'s own website: shipping, returns, payment, care or similar. ' +
+          'List the facts a customer might ask the shop about, at most 20, each in one short plain sentence in the page\'s own language. ' +
+          'For each fact, copy into "quote" the exact sentence of the page it comes from, word for word. ' +
+          'Only facts the page states: never add, generalise, or complete one. Skip navigation, menus and marketing. ' +
+          'Reply with JSON only: {"facts":[{"fact":"","quote":""}]}',
+        messages: [{ role: 'user', content: [{ type: 'text', text }] }],
+      }, OWNER_READ_REQUEST);
+      const block = firstText(res.content);
+      return {
+        facts: parseFactsAnswer(block?.type === 'text' ? block.text : ''),
         promptVersion: PROMPT_VERSION,
         modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },

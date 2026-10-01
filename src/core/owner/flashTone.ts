@@ -60,6 +60,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // G7 — the operator stopped new connections.
   'connect.flash.paused',
   // EXT — the closer reading found nothing more, could not run, or the allowance is used.
+  'pageFacts.flash.noneTicked',
   'import.flash.extractNone', 'import.flash.extractFailed', 'import.flash.extractAllowance',
   // BILL — no card yet; the plan's seats or assistants used; Billing refused or unreachable.
   'connect.flash.card', 'people.flash.seat_limit', 'assistants.flash.assistant_limit',
@@ -113,6 +114,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // EXT — lines read more closely.
   'import.flash.extracted',
+  'pageFacts.flash.written',
   // BILL — a plan saved.
   'billing.flash.plan',
   // KS6 — asked; asked before; or nothing to ask.

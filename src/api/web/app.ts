@@ -177,7 +177,8 @@ import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposa
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
-import type { PageTranscriber, DraftTranslator } from '../../llm/ports.js';
+import type { PageTranscriber, DraftTranslator, PageFactsReader } from '../../llm/ports.js';
+import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, renderPageFactsRefusal } from './pageFacts.js';
 import {
   shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
 } from './layout.js';
@@ -403,6 +404,8 @@ export type WebDeps = {
   readonly pageTranscriber?: PageTranscriber;
   /** EXT — the model extractor, for the lines a list's parser could not make a product of; absent: the button is not offered. */
   readonly catalogExtractor?: CatalogExtractor;
+  /** EXT — a page of her site read into facts she ticks; absent: the form is not offered. */
+  readonly pageFactsReader?: PageFactsReader;
   /** G10 — translates a draft for its owner to check; never sent. Absent: the button says so. */
   readonly draftTranslator?: DraftTranslator;
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
@@ -4537,8 +4540,46 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
-    return renderKnowledgeOps(ops, locale, new Date()) + renderKnowledgeIndex(index, locale, prefill);
+    return renderKnowledgeOps(ops, locale, new Date()) + renderKnowledgeIndex(index, locale, prefill)
+      + (deps.pageFactsReader ? renderPageFactsForm(locale) : '');
   }));
+
+  /**
+   * EXT — a page of her site, proposed as facts; nothing written until she
+   * ticks lines. Teaching facts is everyone's work (rule 11), and so is this.
+   */
+  app.post('/app/knowledge/from-page', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as { address?: string; text?: string };
+    const out = await startPageFacts(deps.db, s.businessId, personOf(s).name, {
+      fetcher: deps.storeFetcher ?? publicFetcher, reader: deps.pageFactsReader,
+      spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
+    }, { address: String(b.address ?? ''), text: String(b.text ?? '') });
+    if (out.ok) return reply.redirect(`/app/knowledge/from-page/${out.id}`, 303);
+    return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'pageFacts.refusedTitle'), active: 'knowledge', bodyHtml: renderPageFactsRefusal(locale, out.reason),
+    }));
+  });
+  app.get('/app/knowledge/from-page/:id', authed('knowledge', async (s, req, locale, reply) => {
+    const p = await loadProposal(deps.db, s.businessId, (req.params as { id: string }).id);
+    if (!p) { reply.code(404); return `<h1 class="page">${esc(t(locale, 'pageFacts.notFound'))}</h1>`; }
+    return renderProposal(p, locale, takeFlash(req, reply));
+  }));
+  app.post('/app/knowledge/from-page/:id/confirm', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const ticked = Object.keys(b).filter((k) => k.startsWith('line:') && b[k] !== undefined).map((k) => k.slice('line:'.length));
+    const p = await loadProposal(deps.db, s.businessId, id);
+    if (!p) return reply.redirect('/app/knowledge');
+    const label = t(locale, 'pageFacts.label', { source: p.source === 'pasted' ? t(locale, 'pageFacts.pasted') : (() => { try { return new URL(p.source).hostname; } catch { return p.source; } })() });
+    const r = await confirmPageFacts(deps.db, s.businessId, id, personOf(s).name, ticked, label);
+    if (r.kind === 'gone') return reply.redirect(`/app/knowledge/from-page/${encodeURIComponent(id)}`);
+    if (r.kind === 'none_ticked') return flashTo(reply, `/app/knowledge/from-page/${encodeURIComponent(id)}`, 'pageFacts.flash.noneTicked');
+    return flashTo(reply, '/app/knowledge', 'pageFacts.flash.written', { n: r.n });
+  });
 
   app.get('/app/knowledge/:id', async (req, reply) => {
     const s = sessionOf(req);
