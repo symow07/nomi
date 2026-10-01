@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 /**
@@ -12,6 +14,7 @@ const DATABASE_URL = process.env['DATABASE_URL'];
 const MIGRATE_URL = process.env['MIGRATE_DATABASE_URL'];
 const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 const RUN = randomUUID().slice(0, 8);
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 d('G9 · the funnel (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let db: import('../../src/db/client.js').Db;
@@ -77,4 +80,14 @@ d('G9 · the funnel (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     expect(forms.forms).toBeGreaterThanOrEqual(1);
     expect(forms.codesUsed).toBeGreaterThanOrEqual(1);
   });
+  it('the operator reads it: tools/workspaces.mjs --funnel lists the steps and the measures', () => {
+    const r = spawnSync(process.execPath, ['tools/workspaces.mjs', '--funnel'], {
+      cwd: ROOT, encoding: 'utf8', timeout: 120_000, env: { ...process.env, MIGRATE_DATABASE_URL: MIGRATE_URL ?? '' },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`G9 Studio ${RUN} (${BIZ})`);
+    expect(r.stdout).toContain('Practice 6/6');
+    expect(r.stdout).toContain('operator acted before its first reply');
+    expect(r.stdout).toContain('Exit criteria (decision 33)');
+  }, 120_000);
 });

@@ -55,8 +55,7 @@ try {
       }
       const m = exitMeasures(rows, new Date(), openFrom);
       const mins = (x) => (x === null ? '—' : `${Math.round(x)} min`);
-      console.log('
-Exit criteria (decision 33) that rows can answer:');
+      console.log('\nExit criteria (decision 33) that rows can answer:');
       console.log(`  · first real reply within 7 days of being able to connect: ${m.firstReplyIn7Days.pass} of ${m.firstReplyIn7Days.of} (pass: at least 12 of 20)`);
       console.log(`  · median sign-up to a complete Practice checklist: ${mins(m.signupToChecklistMinutes)} (pass: under 60 min)`);
       console.log(`  · median time to the owner's decision on a draft: ${mins(m.decisionMinutes)}, clock time (pass: under 2 hours of business hours)`);
