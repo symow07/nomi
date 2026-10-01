@@ -1082,7 +1082,7 @@ export async function buildProduction(
     if (!job) return;
     // The backup alert also travels by the installation's own mail (A3), so
     // it reaches the owner with no channel connected at all.
-    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: systemMail }, job.data);   // throws on retryable failure → pg-boss retries
+    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null }, job.data);   // throws on retryable failure → pg-boss retries
   });
 
   /**

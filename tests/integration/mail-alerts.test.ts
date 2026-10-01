@@ -1,0 +1,161 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { sql } from 'kysely';
+import { randomUUID } from 'node:crypto';
+import { runDigits } from './tenant.js';
+import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
+import type { Analysis } from '../../src/core/conversation/decide.js';
+
+/**
+ * G5 — AN OWNER WHO SET NO ALERT NUMBER STILL HEARS OF A CUSTOMER, in
+ * production's own composition: a signed webhook → the worker → the turn →
+ * the notify queue → the installation's mail.
+ *
+ *   · A reply waiting for the owner (no alert existed for it) is e-mailed to
+ *     the owner's sign-in address, with the assistant's name and a link to
+ *     the conversation — once an hour for a conversation, however many
+ *     drafts it makes.
+ *   · A hand-off is e-mailed too, and still goes by WhatsApp where a number
+ *     is set; a WhatsApp failure after the e-mail left never sends it twice.
+ */
+
+const DATABASE_URL = process.env['DATABASE_URL'];
+const d = DATABASE_URL ? describe : describe.skip;
+
+const RUN = randomUUID().slice(0, 8);
+const BIZ = `dd990000-0000-4000-8000-${RUN}0001`;
+const OWNER = `owner-${RUN}@example.test`;
+const BASE = 'https://app.example.test';
+
+const until = async <T>(probe: () => Promise<T | undefined>, what: string, ms = 90_000): Promise<T> => {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await probe();
+    if (v !== undefined) return v;
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 200));
+  }
+};
+
+d('G5 · alerts by e-mail (requires DATABASE_URL)', () => {
+  let prod: import('../../src/main.js').Production;
+  let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
+  const outbox: { to: string; subject: string; text: string }[] = [];
+  const analyzer = new FakeAnalyzer();
+  const replyWriter = new FakeReplyWriter();
+
+  const q = async <R>(fn: (tx: import('../../src/db/client.js').Tx) => Promise<R>): Promise<R> => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const b = parseBusinessId(BIZ); if (!b.ok) throw new Error('fixture');
+    return withTenantTx(prod.db, b.value, fn);
+  };
+  /** A customer writes; wait until the turn has written its draft (or handed over). */
+  const writes = async (from: string, text: string, drafts = 1) => {
+    const w = sim.inboundText({ from, text });
+    expect((await prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: w.rawBody,
+      headers: { 'content-type': 'application/json', ...w.headers } })).statusCode).toBe(200);
+    return until(() => q(async (tx) => {
+      const r = (await sql<{ conv: string; drafts: number; held: boolean }>`
+        select c.id::text as conv,
+               (select count(*)::int from drafts dr where dr.conversation_id = c.id) as drafts,
+               exists (select 1 from conversation_signals s where s.conversation_id = c.id and s.kind = 'human_requested') as held
+          from conversations c join clients cl on cl.id = c.client_id
+         where c.business_id = ${BIZ}::uuid and cl.phone like ${`%${from}`}`.execute(tx)).rows[0];
+      return r && (r.drafts >= drafts || r.held) ? r : undefined;
+    }), `the turn for "${text}"`);
+  };
+  /** This run's owner's mail with that subject (another run's queued alert may reach this outbox too). */
+  const ours = (subject: string) => outbox.filter((x) => x.subject === subject && x.to === OWNER);
+  const mailFor = (subject: string, n = 1) => until(async () => {
+    const m = ours(subject);
+    return m.length >= n ? m : undefined;
+  }, `${n} e-mail(s) "${subject}"`);
+
+  beforeAll(async () => {
+    const { buildProduction } = await import('../../src/main.js');
+    const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    sim = whatsappSimulator([], { tag: `g5${RUN}` });
+    const setup = createDb(DATABASE_URL!);
+    const b = parseBusinessId(BIZ); if (!b.ok) throw new Error('fixture');
+    await withTenantTx(setup, b.value, async (t) => {
+      await sql`insert into businesses (id, name, engine, kind, owner_locale) values (${BIZ}, 'Saffron Studio', 'service', 'brand', 'en') on conflict (id) do nothing`.execute(t);
+      await sql`update businesses set batch_debounce_ms = 300, batch_max_window_ms = 10000 where id = ${BIZ}`.execute(t);
+      await sql`insert into channels (business_id, kind, status, display_phone, connected_at, activated_at, activated_by, pilot_mode)
+                values (${BIZ}, 'whatsapp', 'connected', '+971 50****0099', now(), now(), 'test', false)`.execute(t);
+      await sql`insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine)
+                values (${BIZ}, 'whatsapp', ${sim.phoneNumberId}, 'sim-test', 'service')`.execute(t);
+      await sql`insert into assistants (business_id, name, is_default) values (${BIZ}, 'Lily', true)`.execute(t);
+      await sql`insert into onboarding_state (business_id, assistant_named_at) values (${BIZ}, now())
+                on conflict (business_id) do update set assistant_named_at = now()`.execute(t);
+      // The owner signs in with an e-mail address and set no alert number.
+      const person = (await sql<{ id: string }>`insert into people (business_id, name, is_owner) values (${BIZ}, 'Mona', true) returning id::text as id`.execute(t)).rows[0]!.id;
+      await sql`insert into logins (business_id, person_id, email, password_hash) values (${BIZ}, ${person}::uuid, ${OWNER}, 'scrypt$never-used')`.execute(t);
+    });
+    await setup.destroy();
+    process.env['PILOT_BUSINESS_ID'] = BIZ;
+    prod = await buildProduction({
+      provider: 'meta', DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
+      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765', META_APP_SECRET: 'meta-app-secret-not-real',
+      META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'g5-verify-token-xxxx', CREDENTIAL_KEY: 'f'.repeat(64), PORT: 0,
+      PUBLIC_BASE_URL: BASE,
+    }, {
+      adapter: sim.adapter, logger: false, media: {}, models: { analyzer, replyWriter },
+      systemMail: { from: 'nomi@nomi.test', send: async (m: { to: string; subject: string; text: string }) => { outbox.push(m); return { ok: true as const }; } },
+    } as Parameters<typeof buildProduction>[1]);
+  }, 60_000);
+  afterAll(async () => { await prod?.close(); });
+
+  it('A REPLY WAITING FOR THE OWNER is e-mailed to the sign-in address, with the name and a link — once an hour for the conversation', async () => {
+    analyzer.next = {
+      language: { detected: 'en', replyIn: 'en' },
+      intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
+      recommendedPhase: 'clarification', wantsPerson: false,
+    } satisfies Analysis;
+    replyWriter.replies = ['Yes, we have it in blue.'];
+    const from = `9715${runDigits(RUN, 6)}1`;
+    const first = await writes(from, 'Do you have the scarf in blue?');
+    const [mail] = await mailFor('A reply is waiting for you');
+    expect(mail!.to).toBe(OWNER);
+    expect(mail!.text).toContain('Lily wrote a reply for a customer');
+    expect(mail!.text).toContain(`Open the conversation: ${BASE}/app/inbox/${first.conv}#latest`);
+
+    // The same customer again: a second draft, and no second e-mail this hour.
+    await writes(from, 'And in green?', 2);
+    await new Promise((r) => setTimeout(r, 3000));
+    expect(ours('A reply is waiting for you')).toHaveLength(1);
+    // Another conversation is its own: the control that the quiet above was the hour, not a broken queue.
+    await writes(`9715${runDigits(RUN, 6)}2`, 'Is the silk one washable?');
+    await mailFor('A reply is waiting for you', 2);
+  }, 180_000);
+
+  it('A HAND-OFF is e-mailed too', async () => {
+    const from = `9715${runDigits(RUN, 6)}3`;
+    const r = await writes(from, 'Can I talk to a real person please?');
+    expect(r.held).toBe(true);
+    const mails = await mailFor('A customer is waiting for you');
+    expect(mails.some((m) => m.text.includes(`${BASE}/app/inbox/${r.conv}#latest`))).toBe(true);
+  }, 120_000);
+
+  it('BOTH WAYS where a number is set; a WhatsApp failure after the e-mail left is not retried; no way at all is said', async () => {
+    const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
+    const mails: string[] = [];
+    const mail = { send: async (m: { to: string }) => { mails.push(m.to); return { ok: true as const }; } };
+    const texts: string[] = [];
+    const ok = { sendText: async (to: string) => { texts.push(to); return { ok: true as const, providerMessageId: 'x' }; } };
+    const retry = { sendText: async () => ({ ok: false as const, retryable: true, error: '503' }) };
+    await q((tx) => sql`update businesses set owner_phone = '+971500009999' where id = ${BIZ}::uuid`.execute(tx));
+    const job = { businessId: BIZ, kind: 'hot_lead' as const, conversationId: null };
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail }, job)).toBe('sent');
+    expect([mails, texts]).toEqual([[OWNER], ['+971500009999']]);
+    // The e-mail left; WhatsApp's retryable failure does not throw (a retry would mail twice).
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: retry, mail }, job)).toBe('sent');
+    // With no e-mail sender, the retryable failure is retried as before.
+    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry }, job)).rejects.toThrow();
+    // No number and no sender: nowhere to go, and it says so.
+    await q((tx) => sql`update businesses set owner_phone = null where id = ${BIZ}::uuid`.execute(tx));
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok }, job)).toBe('skipped_no_destination');
+  });
+});

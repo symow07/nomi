@@ -220,7 +220,8 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
     // and due when, and how many. `count` since CC-10: the error alert says how
     // many times, and how many more were held back — `renderOwnerAlert` fills
     // both, so the test does too.
-    const base = { name: '小雅', buyer: 'Ahmed', when: '20 Sep', count: 3 };
+    // G5 — an alert about a conversation links to it.
+    const base = { name: '小雅', buyer: 'Ahmed', when: '20 Sep', count: 3, url: 'https://app.nomidoes.com/app/inbox/x#latest' };
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };

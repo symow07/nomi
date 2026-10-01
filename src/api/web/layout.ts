@@ -138,22 +138,8 @@ export const byAssistant = (name: string): string =>
 export const back = (href: string, label: string): string =>
   `<a class="back" href="${href}"><span class="go" aria-hidden="true">‹</span>${esc(label)}</a>`;
 
-/**
- * CC-25 — THE ADDRESS OF A CONVERSATION, written here and nowhere else.
- *
- * Every door into a conversation and every redirect back to one lands on its
- * newest message (`#latest`): the reply waiting for approval sits directly
- * under it, and so does the notice an action leaves. A conversation linked
- * any other way opens at its top — the header, and a whole transcript between
- * the owner and both. `tests/parity/conversation-landing.test.ts` finds every
- * other way.
- *
- * `before` is the "Earlier messages" door: the window before that cursor,
- * landing on the newest message IT shows. A cursor is digits, hex and `_`
- * (`src/db/transcript.ts`), so neither part ever puts a `%` into a page.
- */
-export const conversationUrl = (conversationId: string, before?: string | null): string =>
-  `/app/inbox/${encodeURIComponent(conversationId)}${before ? `?before=${encodeURIComponent(before)}` : ''}#latest`;
+/** CC-25 — the address of a conversation: one definition, shared with the alerts (G5). */
+export { conversationUrl } from '../../core/owner/addresses.js';
 
 /* D — a stack of doors (`.doors`) is styled once, in the shell: My business,
    the assistant's page and Setup each hold one. */

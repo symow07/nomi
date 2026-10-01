@@ -84,15 +84,18 @@ describe('CC-25 · one address for a conversation', () => {
   it('nothing under src/ writes a conversation page’s address but `conversationUrl`', () => {
     const found = sources('src').flatMap((f) => {
       const src = read(f);
-      const own = f === 'src/api/web/layout.ts' ? src.replace(HELPER, '') : src;
+      const own = f === 'src/core/owner/addresses.ts' ? src.replace(HELPER, '') : src;
       return handWritten(own).map((a) => `${f}: ${a}`);
     });
     expect(found).toEqual([]);
   });
 
   it('the helper writes it once, and every kind of door and return goes through it', () => {
-    const def = HELPER.exec(read('src/api/web/layout.ts'))?.[0] ?? '';
+    // G5 — the definition lives in core, so an alert e-mail links the same way; the web layer re-exports it.
+    const def = HELPER.exec(read('src/core/owner/addresses.ts'))?.[0] ?? '';
     expect(handWritten(def)).toHaveLength(1);
+    expect(read('src/api/web/layout.ts')).toContain("export { conversationUrl } from '../../core/owner/addresses.js';");
+    expect(read('src/pipeline/notify.ts')).toContain('conversationUrl(');
     for (const f of [
       'src/api/web/app.ts',            // every redirect back to a conversation, and the voice page's door
       'src/api/web/inbox.ts',          // Buyers' rows, "Earlier messages", "Latest messages"
