@@ -62,18 +62,24 @@ const REPLIES: Record<FastPathType, Record<string, string>> = {
     ar: 'ممتاز، نعم هذا هو المنتج. ما الكمية المطلوبة تقريبًا؟',
     zh: '好的，就是这个产品。请问需要多少？',
     es: 'Perfecto. ¿Qué cantidad necesitas?',
+    fr: "Parfait, c'est bien ce produit. Combien en voulez-vous ?",
+    pt: 'Perfeito, é este produto. Quantas unidades você quer?',
   },
   product_confirmed_no: {
     en: "No problem — could you describe what you're looking for in more detail, or send another photo?",
     ar: 'لا مشكلة، هل يمكنك وصف المنتج بشكل أدق أو إرسال صورة أخرى؟',
     zh: '没关系，能再描述一下您需要的产品，或者发一张其他的图片吗？',
     es: 'Sin problema — ¿puedes describir lo que buscas con más detalle o enviar otra foto?',
+    fr: 'Pas de problème. Pouvez-vous décrire plus précisément ce que vous cherchez, ou envoyer une autre photo ?',
+    pt: 'Sem problema. Pode descrever com mais detalhes o que procura, ou enviar outra foto?',
   },
   order_confirm_yes: {
     en: "Perfect — I'll get your confirmation sent right away.",
     ar: 'ممتاز، سأرسل لك تأكيد الطلب فوراً.',
     zh: '好的，我马上发送确认信息给您。',
     es: 'Perfecto — te envío la confirmación ahora mismo.',
+    fr: 'Parfait, je vous envoie la confirmation tout de suite.',
+    pt: 'Perfeito, envio a confirmação agora mesmo.',
   },
 };
 

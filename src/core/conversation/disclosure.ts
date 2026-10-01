@@ -30,7 +30,7 @@
  */
 
 /** The languages the disclosure is written in. Anything else falls back to en. */
-export const DISCLOSURE_LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
+export const DISCLOSURE_LOCALES = ['en', 'zh', 'ar', 'es', 'fr', 'pt'] as const;
 export type DisclosureLocale = (typeof DISCLOSURE_LOCALES)[number];
 
 const TEXT: Readonly<Record<DisclosureLocale, string>> = {
@@ -54,6 +54,11 @@ const TEXT: Readonly<Record<DisclosureLocale, string>> = {
   // and in no gender.
   es: 'Hola, soy {name}, asistente de IA de {business}. Si prefieres hablar con una persona de nuestro equipo, solo tienes que decirlo y te responderá en cuanto pueda.',
   fr: "Bonjour, je suis {name}, l'IA de {business}. Pour parler à une personne de notre équipe, il suffit de le demander : on vous répondra dès que possible.",
+  // 2026-10-01 — Portuguese (the pt pack), as Brazil writes it («equipe»).
+  // NOT yet read by a native speaker (the gate below). «assistente de IA»
+  // without an article genders nobody; the customer is addressed through the
+  // verb («preferir», «pedir»), in no gender.
+  pt: 'Olá, sou {name}, assistente de IA de {business}. Se preferir falar com uma pessoa da nossa equipe, é só pedir e responderemos assim que possível.',
 };
 
 const isDisclosureLocale = (v: string): v is DisclosureLocale =>
@@ -97,6 +102,7 @@ export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean
   // flips in the same commit that names them.
   es: false,
   fr: false,
+  pt: false,
 };
 
 /** The locales still waiting for a native reading, in order. */

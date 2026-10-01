@@ -167,8 +167,9 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     // the same commit that updates this assertion. Since 2026-09-30 the gate
     // is per language (the owner): es/fr customers' replies wait; en/zh/ar go.
     const { disclosureAwaitingReview, autonomyReleased, autonomyReleasedFor, DISCLOSURE_NATIVE_REVIEW } = await import('../../src/core/conversation/disclosure.js');
-    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true, es: false, fr: false });
-    expect(disclosureAwaitingReview()).toEqual(['es', 'fr']);
+    // Updated deliberately again (rule 1): the pt pack (2026-10-01) added Portuguese, awaiting review like es and fr.
+    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true, es: false, fr: false, pt: false });
+    expect(disclosureAwaitingReview()).toEqual(['es', 'fr', 'pt']);
     expect(autonomyReleased()).toBe(true);
     expect(['en', 'zh', 'ar', 'es', 'fr', 'pt'].map((l) => autonomyReleasedFor(l))).toEqual([true, true, true, false, false, false]);
   });

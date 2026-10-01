@@ -18,15 +18,22 @@ import type { FixedLanguage } from './gateLanguage.js';
  * gender (rule 6): the passive, a noun phrase, «يُرجى», the unvowelled ـك.
  */
 
-/** A unit as each language writes it in a customer's sentence; one it does not know is left as written. */
-const UNIT_WORDS: Readonly<Record<'zh' | 'ar', Readonly<Record<string, string>>>> = {
-  zh: { pcs: '件', item: '件', items: '件', sets: '套', pairs: '双', cartons: '箱', dozen: '打', rolls: '卷', m: '米', kg: '公斤' },
-  ar: { pcs: 'قطعة', item: 'قطعة', items: 'قطعة', sets: 'طقم', pairs: 'زوج', cartons: 'كرتون', dozen: 'دزينة', rolls: 'لفة', m: 'متر', kg: 'كغ' },
+/**
+ * A unit as each language writes it in a customer's sentence — one and many
+ * where the language tells them apart; one it does not know is left as written.
+ */
+const UNIT_WORDS: Readonly<Record<Exclude<FixedLanguage, 'en'>, Readonly<Record<string, readonly [string, string]>>>> = {
+  zh: { pcs: ['件', '件'], item: ['件', '件'], items: ['件', '件'], sets: ['套', '套'], pairs: ['双', '双'], cartons: ['箱', '箱'], dozen: ['打', '打'], rolls: ['卷', '卷'], m: ['米', '米'], kg: ['公斤', '公斤'] },
+  ar: { pcs: ['قطعة', 'قطعة'], item: ['قطعة', 'قطعة'], items: ['قطعة', 'قطعة'], sets: ['طقم', 'طقم'], pairs: ['زوج', 'زوج'], cartons: ['كرتون', 'كرتون'], dozen: ['دزينة', 'دزينة'], rolls: ['لفة', 'لفة'], m: ['متر', 'متر'], kg: ['كغ', 'كغ'] },
+  es: { pcs: ['unidad', 'unidades'], item: ['unidad', 'unidades'], items: ['unidad', 'unidades'], sets: ['juego', 'juegos'], pairs: ['par', 'pares'], cartons: ['caja', 'cajas'], dozen: ['docena', 'docenas'], rolls: ['rollo', 'rollos'], m: ['metro', 'metros'], kg: ['kg', 'kg'] },
+  fr: { pcs: ['pièce', 'pièces'], item: ['pièce', 'pièces'], items: ['pièce', 'pièces'], sets: ['lot', 'lots'], pairs: ['paire', 'paires'], cartons: ['carton', 'cartons'], dozen: ['douzaine', 'douzaines'], rolls: ['rouleau', 'rouleaux'], m: ['mètre', 'mètres'], kg: ['kg', 'kg'] },
+  pt: { pcs: ['unidade', 'unidades'], item: ['unidade', 'unidades'], items: ['unidade', 'unidades'], sets: ['conjunto', 'conjuntos'], pairs: ['par', 'pares'], cartons: ['caixa', 'caixas'], dozen: ['dúzia', 'dúzias'], rolls: ['rolo', 'rolos'], m: ['metro', 'metros'], kg: ['kg', 'kg'] },
 };
-const unitIn = (lang: FixedLanguage, unit: string): string => (lang === 'en' ? unit : UNIT_WORDS[lang][unit] ?? unit);
-/** A figure and its unit: set together in Chinese, a space between in English and Arabic (CC-13). */
+const unitIn = (lang: FixedLanguage, unit: string, n: number): string =>
+  (lang === 'en' ? unit : UNIT_WORDS[lang][unit]?.[n === 1 ? 0 : 1] ?? unit);
+/** A figure and its unit: set together in Chinese, a space between elsewhere (CC-13). */
 const qtyIn = (lang: FixedLanguage, n: number, unit: string): string =>
-  `${n.toLocaleString('en-US')}${lang === 'zh' ? '' : ' '}${unitIn(lang, unit)}`;
+  `${n.toLocaleString('en-US')}${lang === 'zh' ? '' : ' '}${unitIn(lang, unit, n)}`;
 
 /**
  * G4 — "A confirmation email is on its way" was a promise nothing in this
@@ -47,6 +54,9 @@ export function orderConfirmedReply(input: {
   // and not every one sends a proforma.
   if (lang === 'zh') return `你的订单已确认——编号 ${orderReference}：${productName}，${qtyIn(lang, quantity, unit)}。接下来我们会把发票发给你。`;
   if (lang === 'ar') return `تم تأكيد الطلب — المرجع ${orderReference}: ${qtyIn(lang, quantity, unit)} من ${productName}. وستصلك الفاتورة بعد ذلك.`;
+  if (lang === 'es') return `Tu pedido está confirmado — referencia ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}. Te enviaremos la factura a continuación.`;
+  if (lang === 'fr') return `Votre commande est confirmée — référence ${orderReference} : ${productName}, ${qtyIn(lang, quantity, unit)}. Nous vous enverrons ensuite la facture.`;
+  if (lang === 'pt') return `Seu pedido está confirmado — referência ${orderReference}: ${productName}, ${qtyIn(lang, quantity, unit)}. Em seguida enviaremos a fatura.`;
   return (
     `Your order is confirmed — reference ${orderReference}: ` +
     `${qtyIn(lang, quantity, unit)} of ${productName}. ` +
@@ -87,6 +97,38 @@ const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'email_missing' | 
     missing_product: 'ما المنتج المراد طلبه؟',
     other: 'يلزم تفصيل واحد إضافي قبل التأكيد — لحظة من فضلك.',
   },
+  // The customer is addressed as each language's disclosure addresses them,
+  // and in no gender: no adjective agrees with the customer or with "us".
+  es: {
+    email_missing: 'Ya casi está. ¿Me compartes el correo electrónico para la confirmación del pedido?',
+    product_not_confirmed_by_client: 'Antes de confirmar: ¿es exactamente este el producto que quieres?',
+    quantity_missing: '¿Cuántas unidades quieres?',
+    below_minimum: 'La cantidad pedida está por debajo del pedido mínimo de este producto. ¿Puedes aumentarla?',
+    pending_question_unresolved: 'Para no confundirnos: ¿puedes responder primero a la pregunta anterior?',
+    handed_off: 'Alguien de nuestro equipo revisará este pedido contigo personalmente en breve.',
+    missing_product: '¿Qué producto quieres pedir?',
+    other: 'Necesito un detalle más antes de confirmar. Un momento, por favor.',
+  },
+  fr: {
+    email_missing: "On y est presque. Pouvez-vous indiquer l'adresse e-mail pour la confirmation de commande ?",
+    product_not_confirmed_by_client: 'Avant de confirmer : est-ce bien exactement ce produit que vous voulez ?',
+    quantity_missing: 'Combien en voulez-vous ?',
+    below_minimum: "La quantité demandée est inférieure au minimum de commande pour ce produit. Pouvez-vous l'augmenter ?",
+    pending_question_unresolved: "Pour bien nous comprendre : pouvez-vous d'abord répondre à la question précédente ?",
+    handed_off: "Quelqu'un de notre équipe va revoir cette commande avec vous personnellement très bientôt.",
+    missing_product: 'Quel produit souhaitez-vous commander ?',
+    other: "Il me manque un détail avant de confirmer. Un instant, s'il vous plaît.",
+  },
+  pt: {
+    email_missing: 'Quase lá. Pode enviar o e-mail para a confirmação do pedido?',
+    product_not_confirmed_by_client: 'Antes de confirmar: é exatamente este o produto que você quer?',
+    quantity_missing: 'Quantas unidades você quer?',
+    below_minimum: 'A quantidade pedida está abaixo do pedido mínimo deste produto. Pode aumentar?',
+    pending_question_unresolved: 'Para não haver confusão: pode responder primeiro à pergunta anterior?',
+    handed_off: 'Alguém da nossa equipe vai revisar este pedido com você pessoalmente em breve.',
+    missing_product: 'Qual produto você quer pedir?',
+    other: 'Falta um detalhe antes de confirmar. Um momento, por favor.',
+  },
 };
 
 export function orderBlockedReply(reasons: readonly BlockingReason[], quote: Quote | null, language: FixedLanguage = 'en'): string {
@@ -107,6 +149,9 @@ export function orderBlockedReply(reasons: readonly BlockingReason[], quote: Quo
       const moq = qtyIn(language, quote.moq, quote.quantity.unit);
       if (language === 'zh') return `这个产品的最低起订量是${moq}——这个数量可以吗？`;
       if (language === 'ar') return `الحد الأدنى للطلب من هذا المنتج ${moq} — هل تناسب هذه الكمية؟`;
+      if (language === 'es') return `El pedido mínimo de este producto es de ${moq}. ¿Te sirve esa cantidad?`;
+      if (language === 'fr') return `Le minimum de commande pour ce produit est de ${moq}. Cette quantité vous convient-elle ?`;
+      if (language === 'pt') return `O pedido mínimo deste produto é de ${moq}. Essa quantidade serve?`;
       return `The minimum order for this product is ${moq} — would that quantity work for you?`;
     }
     case 'pending_question_unresolved':
@@ -142,6 +187,10 @@ export const HANDOFF_REPLIES: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks — someone from our team will reply to you personally, as soon as they can.',
   zh: '谢谢——我们团队会有人尽快亲自回复你。',
   ar: 'شكرًا — سيصلك ردّ شخصي من فريقنا في أقرب وقت ممكن.',
+  es: 'Gracias. Alguien de nuestro equipo te responderá personalmente en cuanto pueda.',
+  fr: "Merci. Quelqu'un de notre équipe vous répondra personnellement dès que possible.",
+  // «Obrigado/obrigada» agrees with who speaks; the assistant has no gender, so the team thanks.
+  pt: 'Agradecemos a mensagem. Alguém da nossa equipe vai responder pessoalmente assim que possível.',
 };
 
 /**
@@ -153,6 +202,9 @@ export const SAFE_REPLIES: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks for your message — let me check the details and come back to you shortly.',
   zh: '谢谢你的消息——我核对一下细节，稍后回复你。',
   ar: 'شكرًا على الرسالة — سيتم التحقق من التفاصيل والعودة بالرد قريبًا.',
+  es: 'Gracias por tu mensaje. Reviso los detalles y te respondo en breve.',
+  fr: 'Merci pour votre message. Je vérifie les détails et je reviens vers vous rapidement.',
+  pt: 'Agradecemos a mensagem. Vamos verificar os detalhes e responder em breve.',
 };
 
 /**
@@ -164,6 +216,9 @@ const TELL_ME_MORE: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks for your message — could you tell me a little more about what you need?',
   zh: '谢谢你的消息——能再多说一点你的需求吗？',
   ar: 'شكرًا على الرسالة — يُرجى توضيح المطلوب بتفصيل أكثر.',
+  es: 'Gracias por tu mensaje. ¿Puedes contarme un poco más de lo que necesitas?',
+  fr: "Merci pour votre message. Pouvez-vous m'en dire un peu plus sur votre besoin ?",
+  pt: 'Agradecemos a mensagem. Pode contar um pouco mais sobre o que precisa?',
 };
 
 export function guardFallbackReply(quote: Quote | null, nextQuestion: string | null, language: FixedLanguage = 'en'): string {
@@ -184,6 +239,15 @@ export function guardFallbackReply(quote: Quote | null, nextQuestion: string | n
     if (language === 'ar') {
       return (one ? `السعر ${unit} للوحدة` : `لكمية ${qty}: سعر الوحدة ${unit}، والإجمالي ${total}`) +
         (days ? `، ومدة التجهيز بالأيام: ${days}.` : '.');
+    }
+    if (language === 'es') {
+      return (one ? `${unit} por unidad` : `Para ${qty}: ${unit} por unidad, ${total} en total`) + (days ? `, con ${days} días de preparación.` : '.');
+    }
+    if (language === 'fr') {
+      return (one ? `${unit} l'unité` : `Pour ${qty} : ${unit} l'unité, ${total} au total`) + (days ? `, délai de préparation : ${days} jours.` : '.');
+    }
+    if (language === 'pt') {
+      return (one ? `${unit} por unidade` : `Para ${qty}: ${unit} por unidade, ${total} no total`) + (days ? `, com prazo de preparo de ${days} dias.` : '.');
     }
     // The positioning rewrite: "lead time" is trade vocabulary.
     return (one ? `${unit} each` : `For ${qty}: ${unit} each, ${total} in total`) + (days ? `, ready in ${days} days.` : '.');

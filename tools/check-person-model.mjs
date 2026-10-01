@@ -10,7 +10,7 @@
  * test may reach a model (`offlineModels()`). This one asks the real one.
  *
  * WHAT IT ASKS. The sentences the owner named on 2026-09-28, both ways, in
- * en / zh / ar, a few ordinary questions, and the 45 passing mentions of
+ * en / zh / ar (and es / fr / pt since their packs, 2026-10-01), a few ordinary questions, and the 45 passing mentions of
  * deletion (tests/parity/deletion-corpus.ts) — each through layer 1 and the
  * real analyser (dist/llm/anthropic.js), with the prompt in prompts/. It
  * prints every answer, how many could not be read, and the median time. It
@@ -75,6 +75,22 @@ const NAMED = [
   [false, 'أحتاج التحدث مع شخص في شركتي أولاً'],
   [false, 'اسمي أحمد'],
   [false, 'كم سعر ٥٠٠ حقيبة؟'],
+  // The es / fr / pt packs (2026-10-01): the same both ways, in each.
+  [true, '¿Puedo hablar con alguien?'],
+  [true, 'Quiero hablar con una persona'],
+  [false, '¿Venden pelucas de cabello humano?'],
+  [false, 'Llámame Ana'],
+  [false, '¿Cuánto cuestan 500 bolsas?'],
+  [true, "Je voudrais parler à quelqu'un"],
+  [true, 'Appelez-moi svp'],
+  [false, 'Vous avez des perruques en cheveux humains ?'],
+  [false, 'Appelez-moi Marie'],
+  [false, 'Combien pour 500 sacs ?'],
+  [true, 'Posso falar com uma pessoa?'],
+  [true, 'Me liga por favor'],
+  [false, 'Vocês vendem perucas de cabelo humano?'],
+  [false, 'Pode me chamar de Ana'],
+  [false, 'Quanto custam 500 sacolas?'],
 ];
 
 /**

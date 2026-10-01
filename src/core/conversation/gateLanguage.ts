@@ -27,8 +27,12 @@ import { SCRIPTS, STOPWORDS } from './understand.js';
 /** BCP 47's "undetermined". Every reply to it waits for the owner. */
 export const UNDETERMINED = 'und';
 
-/** The languages Nomi's fixed sentences are written in (LG's packs). */
-export const FIXED_LANGUAGES = ['en', 'zh', 'ar'] as const;
+/**
+ * The languages Nomi's fixed sentences are written in (LG's packs; es, fr and
+ * pt with their packs, 2026-10-01). Written is not released: a reply goes
+ * alone only where the language's disclosure was signed off.
+ */
+export const FIXED_LANGUAGES = ['en', 'zh', 'ar', 'es', 'fr', 'pt'] as const;
 export type FixedLanguage = (typeof FIXED_LANGUAGES)[number];
 
 /** A fixed sentence's language for a customer: theirs where one is written, else English (and that reply drafts). */

@@ -91,6 +91,8 @@ const ES_INTENS = '(?:realmente|de\\s+verdad|en\\s+serio|claro\\s+que|sin\\s+dud
 const ES_GAP = `(?:${ES_INTENS}\\s+){0,2}`;
 const FR_INTENS = '(?:vraiment|bien|r[ée]ellement|s[ûu]rement|certainement|[àa]\\s+100\\s*%)';
 const FR_GAP = `(?:${FR_INTENS}\\s+){0,2}`;
+/** pt — "sou realmente uma pessoa", "não sou mesmo um robô": up to two of these between the verb and the noun. */
+const PT_GAP = `(?:(?:realmente|mesmo|mesma|de\\s+fato|com\\s+certeza|sim)\\s+){0,2}`;
 
 /**
  * Written out rather than generated, because each one is a sentence somebody
@@ -149,6 +151,19 @@ const DENIALS: readonly RegExp[] = [
   // "c'est une personne de l'équipe qui vous répondra" (an offer, in the future).
   /\bc['’]est\s+(?:une\s+)?vraie\s+personne\b|\bc['’]est\s+un\s+(?:vrai\s+)?humain\s+qui\s+(?:vous\s+|te\s+)?(?:r[ée]pond|[ée]crit|parle)\b/i,
   /\bil\s+n['’]y\s+a\s+(?:pas|aucun)\s+(?:de\s+)?(?:bots?|robots?|ia)\s+ici\b|\bpas\s+de\s+(?:bots?|robots?)\s+ici\b/i,
+
+  // ── Português (the pt pack, 2026-10-01) ───────────────────────────────────
+  // "sou uma pessoa real", "não sou um robô", "você está falando com uma
+  // pessoa". «sou» is always the speaker, so "uma pessoa da nossa equipe vai
+  // responder" (a hand-off offer) carries none and passes.
+  new RegExp(`(?<![a-zçãõáéíóúâêô])sou\\s+${PT_GAP}(?:uma?\\s+)?(?:pessoa|humano|humana|ser\\s+humano|mulher|homem|menina|menino|mo[cç]a|rapaz)(?:\\s+(?:real|de\\s+verdade))?(?![a-zçãõáéíóúâêô])`, 'i'),
+  new RegExp(`(?<![a-zçãõáéíóúâêô])n[aã]o\\s+sou\\s+${PT_GAP}(?:uma?\\s+)?(?:bot|rob[oô]|ia|i\\.a\\.|chatbot|m[aá]quina|programa|computador|intelig[eê]ncia\\s+artificial)(?![a-zçãõáéíóúâêô])`, 'i'),
+  /(?<![a-zçãõáéíóúâêô])sou\s+eu\s+(?:mesm[oa]\s+)?quem\s+(?:escreve|est[aá]\s+escrevendo|responde)(?![a-zçãõáéíóúâêô])/i,
+  /(?<![a-zçãõáéíóúâêô])(?:te|lhe)\s+(?:garanto|prometo|juro)\s+que\s+sou\s+(?:uma?\s+)?(?:pessoa|humano|humana)(?![a-zçãõáéíóúâêô])/i,
+  // Said about the conversation: "você está falando com uma pessoa real".
+  /(?<![a-zçãõáéíóúâêô])(?:voc[eê]\s+est[aá]|tu\s+est[aá]s)\s+(?:falando|conversando|teclando)\s+com\s+(?:uma?\s+)?(?:pessoa|humano|ser\s+humano)(?:\s+(?:real|de\s+verdade))?(?![a-zçãõáéíóúâêô])/i,
+  // "aqui não tem robô" — never "não temos robôs aspiradores em estoque": a robot vacuum is a product.
+  /(?<![a-zçãõáéíóúâêô])n[aã]o\s+(?:h[aá]|tem)\s+(?:nenhum[a]?\s+)?(?:bots?|rob[oô]s?|ia|m[aá]quinas?)\s+(?:aqui|neste\s+chat|nesta\s+conversa)(?![a-zçãõáéíóúâêô])|(?<![a-zçãõáéíóúâêô])aqui\s+n[aã]o\s+(?:h[aá]|tem)\s+(?:bots?|rob[oô]s?|ia)(?![a-zçãõáéíóúâêô])/i,
 
   // ── 中文 ──────────────────────────────────────────────────────────────────
   // No spaces, so these are exact phrases rather than anchored patterns. Each
@@ -244,6 +259,17 @@ const IDENTITY_QUESTIONS: readonly RegExp[] = [
   /\best[-\s]ce\s+(?:que\s+c['’]est\s+)?(?:un\s+)?(?:bot|robot|une\s+ia|un\s+humain|une\s+vraie\s+personne|automatique)\b/i,
   /(?<![A-Za-zÀ-ÿ])[àa]\s+qui\s+(?:je\s+parle|est[-\s]ce\s+que\s+je\s+parle|ai[-\s]je\s+affaire)\b/i,
 
+  // ── Português ─────────────────────────────────────────────────────────────
+  // "você é um robô?", "é uma pessoa real?", "estou falando com um bot?", "com quem eu falo?"
+  // Portuguese asks without inverting, so "você é muito simpática" (a
+  // compliment) reads like the question: the question mark says which it is.
+  /(?<![a-zçãõáéíóúâêô])(?:voc[eê]\s+[eé]|vc\s+[eé]|tu\s+[eé]s|[eé]\s+voc[eê]|voc[eê]s\s+s[aã]o)\s+(?:uma?\s+)?(?:bot|rob[oô]|ia|chatbot|humano|humana|pessoa(?:\s+real)?|m[aá]quina|real|de\s+verdade)(?![a-zçãõáéíóúâêô])(?=[^.!\n]{0,24}\?)/i,
+  /(?<![a-zçãõáéíóúâêô])estou\s+(?:falando|conversando|teclando)\s+com\s+(?:uma?\s+)?(?:bot|rob[oô]|ia|chatbot|humano|humana|pessoa|m[aá]quina)(?![a-zçãõáéíóúâêô])/i,
+  // With the subject dropped, as Brazil asks: "é uma pessoa real?", "é um robô?" — never "é real?" (the leather).
+  /(?:^|[.!?]\s*)[eé]\s+(?:uma?\s+)?(?:bot|rob[oô]|ia|chatbot|humano|humana|pessoa(?:\s+real)?|m[aá]quina)(?![a-zçãõáéíóúâêô])(?=[^.!\n]{0,24}\?)/i,
+  /(?<![a-zçãõáéíóúâêô])(?:isto|isso|este\s+chat|esse\s+chat)\s+[eé]\s+(?:uma?\s+)?(?:bot|rob[oô]|ia|resposta\s+autom[aá]tica)(?![a-zçãõáéíóúâêô])|(?<![a-zçãõáéíóúâêô])(?:isto|isso|este\s+chat)\s+[eé]\s+autom[aá]tico\s*\?/i,
+  /(?<![a-zçãõáéíóúâêô])com\s+quem\s+(?:eu\s+)?(?:falo|estou\s+falando)(?![a-zçãõáéíóúâêô])/i,
+
   // ── 中文 ──────────────────────────────────────────────────────────────────
   // "你是机器人吗？", "您是不是真人", "你是AI吗"
   /(?:你|您)(?:是|係)(?:不是)?(?:机器人|機器人|真人|人工智能|人工智慧|AI|机器|機器|真的人|人类|人類)/i,
@@ -294,6 +320,8 @@ const ACKNOWLEDGMENTS: readonly RegExp[] = [
   /\bIA\b/,
   /\b(?:inteligencia\s+artificial|intelligence\s+artificielle|asistente\s+virtual|assistant\s+virtuel|autom[aá]tic[oa]|automatique)\b/i,
   /\bno\s+soy\s+(?:una?\s+)?(?:persona|humano|humana)\b|\bje\s+ne\s+suis\s+pas\s+(?:une?\s+)?(?:personne|humaine?)\b/i,
+  // Portuguese: "assistente de IA" (the \bIA\b above), "inteligência artificial", "não sou uma pessoa".
+  /(?<![a-zçãõáéíóúâêô])(?:intelig[eê]ncia\s+artificial|resposta\s+autom[aá]tica)(?![a-zçãõáéíóúâêô])|(?<![a-zçãõáéíóúâêô])n[aã]o\s+sou\s+(?:uma?\s+)?(?:pessoa|humano|humana)(?![a-zçãõáéíóúâêô])/i,
 ];
 
 /** The first denial in this reply, or null. */

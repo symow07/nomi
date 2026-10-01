@@ -371,6 +371,8 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 
 ## Found on the way
 
+- **The live check in French (2026-10-01, the packs):** «Appelez-moi Marie» ("call me Marie", a name) comes back from the model as asking for a call. Layer 1 rightly does not fire; layer 2 hands the customer to a person — the safe direction, and French replies wait for the owner anyway while its disclosure is unread. Kept and listed, like #110's two passing mentions; worth a prompt line only if it shows up with real customers.
+
 - **2026-10-01, the boot test would have broken at schema 100** (found running G2's suite): to
   simulate a database behind the build it shifted the newest migration's row down by 100 and
   restored only rows below zero. At 100 the row became version 0 and was never put back — the

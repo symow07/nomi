@@ -19,7 +19,7 @@
  */
 
 // Spanish and French since 2026-09-29: the disclosure speaks them, so layer 1 hears them.
-export type Lang = 'en' | 'zh' | 'ar' | 'es' | 'fr';
+export type Lang = 'en' | 'zh' | 'ar' | 'es' | 'fr' | 'pt';
 
 /** The five the old list missed — the owner's first priority, by cost. */
 export const THE_FIVE_MISSES: readonly [string, string][] = [
@@ -184,6 +184,23 @@ export const REQUESTS: Record<Lang, readonly string[]> = {
     "Persona real por favor",
     "Quiero hablar con el dueño",
   ],
+  pt: [
+    "Posso falar com uma pessoa?",
+    "Quero falar com uma pessoa real",
+    "Preciso falar com alguém da sua equipe",
+    "Gostaria de falar com o responsável",
+    "Queria falar com um atendente",
+    "Me passa para um atendente, por favor",
+    "Me transfere pro atendimento",
+    "Pode me ligar?",
+    "Me liga por favor",
+    "Me liga amanhã",
+    "Não quero falar com um robô",
+    "Tem alguém com quem eu possa falar?",
+    "Pessoa real por favor",
+    "Quero falar com o dono",
+    "Quero atendimento humano",
+  ],
   fr: [
     "Je voudrais parler à une vraie personne",
     "Puis-je parler à quelqu'un ?",
@@ -237,6 +254,13 @@ export const OTHER_MEANINGS: Record<Lang, readonly [string, string][]> = {
     ["Nuestro agente en Madrid recogerá la mercancía", "'agente' — theirs, a trade term"],
     ["No quiero una bolsa hecha a máquina", "'máquina' — how the goods are made"],
     ["¿Tienen robots de cocina?", "'robots' — a product"],
+  ],
+  pt: [
+    ["Vocês vendem perucas de cabelo humano?", "'humano' — a product"],
+    ["Queremos ser seu representante no Brasil", "'representante' — a trade relationship"],
+    ["Nosso agente em São Paulo vai retirar a mercadoria", "'agente' — theirs, a trade term"],
+    ["Não quero uma bolsa feita à máquina", "'máquina' — how the goods are made"],
+    ["Vocês têm robôs de cozinha?", "'robôs' — a product"],
   ],
   fr: [
     ["Vous vendez des perruques en cheveux humains ?", "'humains' — a product"],
@@ -292,6 +316,14 @@ export const OWN_SIDE: Record<Lang, readonly [string, string][]> = {
     ["Me puedes llamar Ana", "a name, not a call"],
     ["Mi compañero me llamará mañana", "their colleague calls them"],
     ["Nuestro equipo de ventas te contactará", "their own sales team"],
+  ],
+  pt: [
+    ["Vou falar com alguém da minha equipe e te aviso", "someone in their own team"],
+    ["Preciso falar com meu chefe primeiro", "their own boss"],
+    ["Quero falar com uma pessoa da minha empresa antes", "a person at their own company"],
+    ["Pode me chamar de Ana", "a name, not a call"],
+    ["Meu colega vai me ligar amanhã", "their colleague calls them"],
+    ["Nossa equipe de vendas vai entrar em contato", "their own sales team"],
   ],
   fr: [
     ["Je vais parler à quelqu'un de mon équipe et je reviens vers vous", "someone in their own team"],
@@ -378,6 +410,18 @@ export const PASSING: Record<Lang, readonly string[]> = {
     "Uno de nuestros clientes pidió este producto",
     "Gracias por la ayuda",
   ],
+  pt: [
+    "Queremos falar sobre o preço",
+    "Quero falar com você sobre um pedido grande",
+    "Podemos falar sobre o preço?",
+    "Falamos em breve",
+    "Te ligo amanhã",
+    "Pode me ligar quando quiser",
+    "Podemos fazer uma ligação semana que vem?",
+    "Vocês têm amostra de cabelo humano?",
+    "Um dos nossos clientes pediu este produto",
+    "Obrigado pela ajuda",
+  ],
   fr: [
     "Nous voulons parler du prix",
     "Je voudrais vous parler d'une grosse commande",
@@ -405,6 +449,10 @@ export const DECLINED: Record<Lang, readonly string[]> = {
     "No quiero hablar con una persona, solo mándame el precio",
     "No hace falta pasarme con nadie",
   ],
+  pt: [
+    "Não quero falar com uma pessoa, só me manda o preço",
+    "Não precisa me passar para ninguém",
+  ],
   fr: [
     "Je ne veux pas parler à une personne, envoyez juste le prix",
     "Pas besoin de me passer quelqu'un",
@@ -419,6 +467,10 @@ export const ABOUT_THE_ASSISTANT: Record<Lang, readonly string[]> = {
   es: [
     "¿Eres humano?",
     "¿Estoy hablando con un bot o con una persona?",
+  ],
+  pt: [
+    "Você é humano?",
+    "Estou falando com um robô ou com uma pessoa?",
   ],
   fr: [
     "Êtes-vous un humain ?",
@@ -437,6 +489,9 @@ export const LEFT_TO_LAYER_TWO: Record<Lang, readonly [string, string][]> = {
   ar: [['أريد مندوب مبيعات', 'a sales rep — or appointing one']],
   es: [
     ["Hola?? ¿Alguien está leyendo estos mensajes?", "only the meaning says it"],
+  ],
+  pt: [
+    ["Olá?? Alguém está lendo estas mensagens?", "only the meaning says it"],
   ],
   fr: [
     ["Allô ?? Quelqu'un lit vraiment ces messages ?", "only the meaning says it"],
@@ -501,6 +556,13 @@ export const OPENERS: Record<Lang, readonly [string, string][]> = {
     ["Buenas, ¿hay alguien?", "with a greeting"],
     ["¿Hay alguien atendiendo?", "anyone attending"],
   ],
+  pt: [
+    ["Tem alguém?", "anyone there — the greeting"],
+    ["Olá, tem alguém aí?", "with a hello"],
+    ["Alguém disponível?", "available"],
+    ["Boa tarde, tem alguém?", "with a greeting"],
+    ["Tem alguém atendendo?", "anyone attending"],
+  ],
   fr: [
     ["Il y a quelqu'un ?", "anyone there — the greeting"],
     ["Bonjour, il y a quelqu'un ?", "with a hello"],
@@ -521,6 +583,9 @@ export const OPENERS_WITH_MORE: Record<Lang, readonly string[]> = {
   ar: ['فيه أحد؟ أريد أعرف السعر', 'السلام عليكم، هل يوجد أحد؟ كم سعر هذا؟'],
   es: [
     "¿Hay alguien? Tengo una pregunta sobre el precio",
+  ],
+  pt: [
+    "Tem alguém? Tenho uma dúvida sobre o preço",
   ],
   fr: [
     "Il y a quelqu'un ? J'ai une question sur le prix",
@@ -557,6 +622,11 @@ export const NOT_OPENERS: Record<Lang, readonly [string, string][]> = {
     ["¿Hola?", "a hello"],
     ["Alguien me dijo que el precio era más bajo", "'alguien' inside a sentence"],
   ],
+  pt: [
+    ["Você está aí?", "addressed to whoever answers"],
+    ["Oi?", "a hello"],
+    ["Alguém me disse que o preço era menor", "'alguém' inside a sentence"],
+  ],
   fr: [
     ["Vous êtes là ?", "addressed to whoever answers"],
     ["Allô ?", "a hello"],
@@ -574,6 +644,9 @@ export const PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS: Record<Lang, readonly string[]> 
   ar: ['فيه أحد؟ أريد التحدث مع شخص حقيقي', 'هل يوجد أحد أتكلم معه؟'],
   es: [
     "¿Hay alguien? Quiero hablar con una persona real",
+  ],
+  pt: [
+    "Tem alguém? Quero falar com uma pessoa real",
   ],
   fr: [
     "Il y a quelqu'un ? Je voudrais parler à une vraie personne",
