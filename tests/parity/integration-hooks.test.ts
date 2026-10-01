@@ -23,3 +23,13 @@ describe('an integration hook outlasts a graceful stop', () => {
     expect(read('src/main.ts')).toContain('await boss.stop().catch(() => {});');
   });
 });
+
+describe('the tools the suite runs are built from the code under test', () => {
+  it('the runner builds before the suite, and a failed build fails the run', () => {
+    const runner = read('tools/run-integration.mjs');
+    const build = runner.indexOf("spawnSync('npm', ['run', 'build']");
+    expect(build).toBeGreaterThan(-1);
+    expect(build).toBeLessThan(runner.indexOf("['vitest', 'run', 'tests/integration/'"));
+    expect(runner).toContain('if (built.status !== 0) {');
+  });
+});
