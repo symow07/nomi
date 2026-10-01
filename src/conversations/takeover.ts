@@ -34,7 +34,9 @@ export type TakeoverOutcome =
   /** 0071 — the same, because ops paused sending (`global_silence`). */
   | 'assistant_silenced'
   /** G3 — the same, because the day's allowance is used. */
-  | 'allowance_used';
+  | 'allowance_used'
+  // BILL (0117) — the payment lapsed: the same refusal, under its own name.
+  | 'billing_lapsed';
 export type TakeoverResult = { readonly outcome: TakeoverOutcome; readonly ownership: ConversationOwnership | null };
 
 /** Read assigned_to for a tenant-owned conversation. null row = not this tenant's. */

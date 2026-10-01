@@ -41,7 +41,8 @@ export type ProposalOutcome =
   | 'incomplete'         // the proposal cannot make an order (a product or price is gone)
   | 'assistant_stopped'  // 0070 — stopped on every channel: it stays waiting
   | 'assistant_silenced' // 0071 — ops paused sending: it stays waiting
-  | 'allowance_used';    // G3 — the day's allowance is used: it stays waiting
+  | 'allowance_used'     // G3 — the day's allowance is used: it stays waiting
+  | 'billing_lapsed';    // BILL — the payment lapsed: it stays waiting
 
 export type ProposalDeps = {
   readonly db: Db;

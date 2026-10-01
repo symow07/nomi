@@ -17,7 +17,7 @@ import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/i
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
-import { assistantHold, HOLD_REASON } from '../db/assistantStop.js';
+import { turnHold, HOLD_REASON } from '../db/assistantStop.js';
 import { practiceOf, conversationExists } from '../db/practice.js';
 import { notePracticeChecks } from '../trust/practiceChecks.js';
 import {
@@ -339,7 +339,8 @@ export async function startWorker(
      * by the same handoff, so a later Start never answers them a second time
      * after a person may already have.
      */
-    const hold = await withTenantTx(db, businessId.value, (tx) => assistantHold(tx, businessId.value));
+    // BILL (0117) — and, for a customer not yet answered this month, the plan's month used.
+    const hold = await withTenantTx(db, businessId.value, (tx) => turnHold(tx, businessId.value, conversationId.value));
     if (hold) {
       const effects = await withTenantTx(db, businessId.value, async (tx) => {
         await lockConversation(tx, conversationId.value);

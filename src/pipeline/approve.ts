@@ -41,6 +41,7 @@ export type ApplyOutcome =
   | 'assistant_stopped' // 0070 — stopped on every channel: the draft stays pending
   | 'assistant_silenced' // 0071 — ops paused sending: the draft stays pending
   | 'allowance_used'   // G3 — the day's allowance is used: the draft stays pending
+  | 'billing_lapsed'   // BILL — the payment lapsed: the draft stays pending
   | 'already_resolved'; // draft already decided (idempotent no-op)
 
 export type ApplyResult = {
@@ -227,6 +228,7 @@ function messageFor(outcome: ApplyOutcome): string {
     case 'assistant_silenced': return '我们在查一件事，暂时停了助手的发送：这条草稿没有发出，仍留在待办里。你自己发的回复照常送达。';
     case 'assistant_stopped': return '你的助手已在所有渠道停下：这条草稿没有发出，仍留在待办里。你可以直接回复买家，或在「我的公司」让助手重新回复。';
     case 'allowance_used': return '今天的额度已经用完：这条草稿没有发出，仍留在待办里。你自己发的回复照常送达；额度恢复后，这条也可以再发。';
+    case 'billing_lapsed': return '付款没有成功，助手暂停了：这条草稿没有发出，仍留在待办里。你自己发的回复照常送达；在「付款」里更新银行卡后，这条也可以再发。';
     case 'needs_edit': return '这条不能照原样发送：买家问她是不是真人，这条没有回答，已经先发了说明。改一下再发。';
     case 'unknown': return '没听懂，回复「发送」照发、「改+内容」改一下、或「不回」跳过。';
   }

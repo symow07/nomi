@@ -35,7 +35,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'order.flash.not_found', 'order.flash.already_decided', 'order.flash.incomplete',
   'order.flash.assistant_stopped', 'order.flash.assistant_silenced', 'order.flash.confirmedNotLive',
   // G3 — the day's allowance is used: the order still waits.
-  'order.flash.allowance_used',
+  'order.flash.allowance_used', 'order.flash.billing_lapsed',
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // CC-02a — a buyer's deletion request that was not recorded.
@@ -96,6 +96,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'takeover.flash.assistant_silenced', 'inbox.flash.assistant_silenced',
   // G3 — the day's allowance is used: refused the same way.
   'takeover.flash.allowance_used', 'inbox.flash.allowance_used',
+  // BILL — the payment lapsed: the same refusals, under their own name.
+  'takeover.flash.billing_lapsed', 'inbox.flash.billing_lapsed',
   // G10 — a translation that did not happen.
   'inbox.flash.translate.gone', 'inbox.flash.translate.unavailable', 'inbox.flash.translate.allowance', 'inbox.flash.translate.failed',
   'terms.flash.failed', 'terms.flash.incoterm_invalid', 'terms.flash.payment_missing',
