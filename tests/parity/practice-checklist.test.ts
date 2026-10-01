@@ -39,13 +39,13 @@ describe('P4 · the checklist, per kind of business', () => {
     }
   });
 
-  it('"how much is this?" shows the gap, never a tick, until RT — whatever was practised', () => {
-    expect(NOT_YET.has('retail_price')).toBe(true);
-    const html = draw(checklistFor('retail'), ['retail_price', 'quoted']);
-    const row = html.match(/<li class="chk gap">[\s\S]*?<\/li>/)?.[0] ?? '';
-    expect(row).toContain(esc(t('en', 'practice.check.retail_price')));
-    expect(row).toContain(esc(t('en', 'practice.check.notYet')));
-    expect(row).not.toContain('✓');
+  it('RT (0095) — "how much is this?" is ticked once a shop\'s price question got a price; nothing waits on a later item', () => {
+    expect(NOT_YET.size).toBe(0);
+    const seen = draw(checklistFor('retail'), ['retail_price', 'quoted']);
+    const row = seen.match(/<li class="chk ok">[\s\S]*?<\/li>/g)?.find((r) => r.includes(esc(t('en', 'practice.check.retail_price')))) ?? '';
+    expect(row).toContain('✓');
+    const unseen = draw(checklistFor('retail'), ['quoted']);
+    expect(unseen).not.toMatch(/<li class="chk gap">/);
   });
 
   it('the count is what was seen of this list, and each seen item is ticked', () => {

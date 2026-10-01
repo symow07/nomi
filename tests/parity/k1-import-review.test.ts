@@ -33,7 +33,9 @@ describe('K1 · every line is a row, the refused ones too', () => {
     expect(defaultUnitFor('online_shop')).toBe('item');
     expect(defaultUnitFor('brand')).toBe('item');
     expect(defaultUnitFor('retail')).toBe('item');
-    for (const k of ['manufacturer', 'trading', 'wholesale', 'services', 'agency', 'startup', 'other', null]) expect(defaultUnitFor(k), String(k)).toBe('pcs');
+    for (const k of ['manufacturer', 'trading', 'wholesale', 'services', 'agency', null]) expect(defaultUnitFor(k), String(k)).toBe('pcs');
+    // RT — a startup or "something else" sells the way a shop does.
+    for (const k of ['startup', 'other']) expect(defaultUnitFor(k), k).toBe('item');
     expect(isRetailKind('brand') && !isRetailKind('manufacturer')).toBe(true);
     expect(read('Tote bag $12')[0]!.unit).toBe('item');
     expect(read('Tote bag $12', { ...PASTE, defaultUnit: 'pcs' })[0]!.unit).toBe('pcs');

@@ -836,6 +836,7 @@ export function renderFactory(
   // that sells in another currency than its country's own (`ratePairOf`).
   const home = currencyOfCountry(f.connection.country);
   const sellHowBody = `<div class="doors">
+    ${viewer.isOwner ? deeper('/app/business/selling', t(locale, 'selling.title')) : ''}
     ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
     ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}

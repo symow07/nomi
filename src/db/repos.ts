@@ -1,3 +1,4 @@
+import { sellingAnswers } from '../core/owner/sellingStyle.js';
 import { zoneOf } from './zone.js';
 import { sql } from 'kysely';
 /**
@@ -366,9 +367,13 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
 
     // K5 · RT — read on the business row, so a change on its page binds the next turn.
     async selling() {
-      const r = (await sql<{ prices_to_owner: boolean; kind: string | null }>`
-        select prices_to_owner, kind from businesses where id = ${businessId}`.execute(tx)).rows[0];
-      return { pricesToOwner: r?.prices_to_owner ?? false, kind: r?.kind ?? null };
+      const r = (await sql<{ prices_to_owner: boolean; kind: string | null; quantity_first: boolean | null }>`
+        select prices_to_owner, kind, quantity_first from businesses where id = ${businessId}`.execute(tx)).rows[0];
+      const kind = r?.kind ?? null;
+      return {
+        pricesToOwner: r?.prices_to_owner ?? false, kind,
+        quantityFirst: sellingAnswers(kind, { quantityFirst: r?.quantity_first ?? null }).quantityFirst,
+      };
     },
 
     async claimsPolicy() {

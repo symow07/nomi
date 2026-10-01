@@ -30,7 +30,7 @@ function ports(mode: 'auto' | 'draft' = 'auto', pricesToOwner = true): Ports {
     analyzer: new FakeAnalyzer(), replyWriter: new FakeReplyWriter(),
     now: () => new Date('2026-07-14T04:00:00Z'),
   };
-  p.tenant.selling = { pricesToOwner, kind: 'services' };
+  p.tenant.selling = { pricesToOwner, kind: 'services', quantityFirst: false };
   if (mode === 'auto') {
     p.tenant.grantRows = CAPABILITIES.filter((c) => c !== 'confirm_order')
       .map((capability) => ({ capability, mode: 'auto' as const, timeWindow: null }));

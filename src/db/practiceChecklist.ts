@@ -36,10 +36,10 @@ export const checklistFor = (kind: ChecklistKind): readonly ChecklistItem[] =>
        ...(kind === 'retail' ? ['retail_price' as const] : []), 'order_tapped'];
 
 /**
- * Items that cannot pass yet, whatever is practised: a shop's price before a
- * quantity is the plan's RT (phase 3). Until it lands the item shows the gap.
+ * Items that cannot pass yet, whatever is practised. None since RT (0095): a
+ * shop's price question is answered with the price of one.
  */
-export const NOT_YET: ReadonlySet<ChecklistItem> = new Set(['retail_price']);
+export const NOT_YET: ReadonlySet<ChecklistItem> = new Set([]);
 
 
 export async function checklistKind(db: Db, live: BusinessId): Promise<ChecklistKind> {
@@ -78,7 +78,11 @@ async function seenOnCopy(db: Db, copy: BusinessId): Promise<Set<ChecklistItem>>
                     where c.business_id = ${copy}::uuid and s.kind = 'price_to_owner') as price_handed,
         exists (select 1 from turns t where t.business_id = ${copy}::uuid
                   and coalesce(t.decision->'product', 'null'::jsonb) = 'null'::jsonb
-                  and t.answer_path in ('model', 'taught_answer')) as offer_answered`.execute(tx)).rows[0] ?? {};
+                  and t.answer_path in ('model', 'taught_answer')) as offer_answered,
+        -- RT — a shop's price question answered with a price, no quantity asked first.
+        exists (select 1 from turns t where t.business_id = ${copy}::uuid
+                  and t.analysis->'intent'->>'primary' = 'price_request' and t.quote_id is not null
+                  and coalesce(t.decision->'quantity', 'null'::jsonb) = 'null'::jsonb) as retail_price`.execute(tx)).rows[0] ?? {};
     for (const [k, v] of Object.entries(r)) if (v) seen.add(k as ChecklistItem);
 
     // "Are you a real person?" answered honestly: a turn whose question asked it,

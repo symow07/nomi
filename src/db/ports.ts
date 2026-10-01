@@ -291,7 +291,12 @@ export interface CatalogRepo {
  * the business states no price and every price question goes to the owner
  * (0094). `kind`: the kind of business sign-up recorded (RT reads it).
  */
-export type SellingFacts = { readonly pricesToOwner: boolean; readonly kind: string | null };
+export type SellingFacts = {
+  readonly pricesToOwner: boolean;
+  readonly kind: string | null;
+  /** RT (0095) — ask how many before giving a price: her answer, else her kind's. */
+  readonly quantityFirst: boolean;
+};
 
 /**
  * M45 — a buyer asked for a sample. One row per conversation.

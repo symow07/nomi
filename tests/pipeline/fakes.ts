@@ -131,7 +131,7 @@ export class FakeTenant implements Tenant {
   /** G6 — her proforma terms. Null (she has stated none) unless a test sets them. */
   terms: TradeTerms | null = null;
   /** K5 · RT — how the business sells; a test sets what it needs. */
-  selling: SellingFacts = { pricesToOwner: false, kind: null };
+  selling: SellingFacts = { pricesToOwner: false, kind: null, quantityFirst: true };
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],

@@ -101,7 +101,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
   const prompt = loadPrompt('analysis.txt');
 
   return {
-    async analyze({ text, state, candidates, recentMessages }) {
+    async analyze({ text, state, candidates, recentMessages, priceFirst }) {
       // RETRIEVAL, NOT THE CATALOG: only the top-k candidates enter the prompt.
       const catalog = candidates
         // 0081 — a product with no minimum says so; never "MOQ:null".
@@ -121,7 +121,9 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
           role: 'user',
           content:
             `PRODUCT CATALOG:\n${catalog}\n\nCONVERSATION HISTORY:\n${history}\n\n` +
-            `CLIENT MESSAGE:\n${text || '[no text]'}\n\nCURRENT PHASE: ${state.phase}`,
+            `CLIENT MESSAGE:\n${text || '[no text]'}\n\nCURRENT PHASE: ${state.phase}` +
+            // RT — a shop or a brand gives its price first: no quantity is needed to reach it.
+            (priceFirst ? '\n\nSELLING: price first' : ''),
         }],
       }, ANALYSIS_REQUEST);
 
@@ -236,7 +238,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
   const prompt = loadPrompt('response.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, sampleNote, closureNote, speaker }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, sampleNote, closureNote, speaker, priceFirst }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
@@ -265,6 +267,8 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         knowledge: (knowledge ?? []).map((k) => ({ kind: k.kind, about: k.label, fact: k.content })),
         next_question: nextQuestion,
         product_confirmed: state.product?.confirmedByClient ?? false,
+        // RT — present only for a business that gives its price first.
+        ...(priceFirst ? { selling: { price_first: true } } : {}),
       };
 
       const guard = retryAfterViolation

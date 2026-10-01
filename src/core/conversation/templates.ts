@@ -95,6 +95,12 @@ export const SAFE_REPLY = 'Thanks for your message — let me check the details 
  * never an internal note meant for the writer.
  */
 export function guardFallbackReply(quote: Quote | null, nextQuestion: string | null): string {
+  // RT — the price of one, as a shop gives it: no "for 1 pcs", no total that repeats it.
+  if (quote && quote.quantity.value === 1) {
+    return `${currencySymbol(quote.unitPrice.currency)}${quote.unitPrice.amount.toFixed(2)}` +
+      `${symbolIsCode(quote.unitPrice.currency) ? '' : ` ${quote.unitPrice.currency}`} each` +
+      (quote.leadTimeDays ? `, ready in ${quote.leadTimeDays} days.` : '.');
+  }
   if (quote) {
     return (
       `For ${quote.quantity.value.toLocaleString('en-US')} ${quote.quantity.unit}: ` +

@@ -94,6 +94,7 @@ phase rules:
 - clarification: what they want is partly known; confirm it, or ask what tells the options apart
 - qualification: product known, need quantity + destination
 - commercial_discussion: quantity known, proceed to price/MOQ/terms
+- When the message ends with "SELLING: price first" (a shop or a brand), no quantity is needed for a price: once the product is known and the client asks the price, the phase is commercial_discussion, and quantity is not a missing field
 - confirmation: all key fields known, collecting final confirmation + email
 - Phase can only advance forward, never backward
 - Do NOT include escalated or closed in recommended_phase — these are set by the system, not by analysis
