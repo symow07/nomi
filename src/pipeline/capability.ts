@@ -1,3 +1,4 @@
+import { clearRungFor } from '../db/ramp.js';
 import { sql } from 'kysely';
 import { modesFor, type AutonomyLevel } from '../core/conversation/autonomyLevel.js';
 import { withTenantTx, type Db, type Tx } from '../db/client.js';
@@ -32,10 +33,15 @@ import type { CapabilityEvidence, DemotionAction, DemotionDecision } from '../co
  * which also means the app role never needs a DELETE it does not have.
  */
 export async function demotedSince(tx: Tx, capability: string): Promise<Date | null> {
+  // R1 (fix 4) — only the SYSTEM's demotions reset the window. The owner's
+  // step-downs and revokes wrote 'pause' too, and a revoke wrote it even on a
+  // capability already in draft: stepping down reset the evidence, stepping up
+  // never did. R1 (fix 6) — and the business is named, not left to row security.
   const r = await sql<{ at: Date | null }>`
     select max(at) as at from capability_events
-     where capability = ${capability}
-       and action in ('pause', 'return_to_learning', 'withdraw')`.execute(tx);
+     where business_id = current_business_id() and capability = ${capability}
+       and action in ('pause', 'return_to_learning', 'withdraw')
+       and actor = 'system_self_demoted'`.execute(tx);
   return r.rows[0]?.at ?? null;
 }
 
@@ -50,21 +56,26 @@ export async function loadCapabilityEvidence(tx: Tx, capability: string): Promis
            count(*) filter (where status = 'approved')::int as approved,
            count(*) filter (where status = 'edited')::int as edited,
            count(*) filter (where status = 'edited' and decided_at >= now() - interval '7 days')::int as recent
-      from drafts where capability = ${capability} and decided_at >= ${from}`.execute(tx)).rows[0]!;
+      from drafts where business_id = current_business_id() and capability = ${capability} and decided_at >= ${from}`.execute(tx)).rows[0]!;
   const s = (await sql<{ passed: number; failed: number; serious: number }>`
     select count(*) filter (where verdict = 'correct')::int as passed,
            count(*) filter (where verdict = 'needs_improvement')::int as failed,
            count(*) filter (where verdict = 'serious')::int as serious
-      from spot_checks where capability = ${capability} and answered_at >= ${from}`.execute(tx)).rows[0]!;
+      from spot_checks where business_id = current_business_id() and capability = ${capability} and answered_at >= ${from}`.execute(tx)).rows[0]!;
   const days = (await sql<{ d: number }>`
     select coalesce(floor(extract(epoch from now() - min(created_at)) / 86400), 0)::int as d
-      from drafts where capability = ${capability} and created_at >= ${from}`.execute(tx)).rows[0]!.d;
+      from drafts where business_id = current_business_id() and capability = ${capability} and created_at >= ${from}`.execute(tx)).rows[0]!.d;
 
   // Guard violations recorded since the same watermark. Was hardcoded 0, which
   // meant demotionDecision could never see the one thing it treats as fatal.
+  // R1 (fix 3) — only a trip on the FINAL reply: a reply caught and rewritten
+  // clean was the guard working, not evidence against her. An event from
+  // before R1 carries no `final` and is counted, as it always was.
   const v = (await sql<{ n: number }>`
     select count(*)::int as n from conversation_events
-     where type = 'guard_violation' and payload->>'capability' = ${capability}
+     where business_id = current_business_id()
+       and type = 'guard_violation' and payload->>'capability' = ${capability}
+       and coalesce(payload->>'final', 'true') = 'true'
        and created_at >= ${from}`.execute(tx)).rows[0]!;
 
   return {
@@ -135,6 +146,10 @@ export async function chooseAutonomyLevel(
                 array[${`owner_chose_${level}`}], ${actor})`.execute(tx);
       n++;
     }
+    // R5 (0109) — the level itself, so the page can name it beside what is in
+    // force when the system's own demotions have moved things since.
+    await sql`update businesses set autonomy_level_chosen = ${level}, autonomy_level_chosen_at = now()
+               where id = ${bid.value}`.execute(tx);
     return n;
   });
   return { ok: true, changed };
@@ -188,5 +203,8 @@ export async function autoDemote(
     values (${businessId}::uuid, ${capability}, ${decision.action}, 'auto', 'draft',
             ${sql.raw(`array[${decision.reasons.map((r) => `'${r}'`).join(',') || `''`}]::text[]`)},
             ${JSON.stringify(evidence)}::jsonb, 'system_self_demoted')`.execute(tx);
+  // R2 (0106) — the rung this capability belongs to is earned again, from
+  // fresh evidence, on a workspace that signed itself up.
+  await clearRungFor(tx, businessId, capability);
   return { demoted: true, action: decision.action };
 }

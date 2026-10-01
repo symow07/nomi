@@ -1,7 +1,9 @@
+import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionsPaused } from '../../db/opsFlags.js';
 import { loadReady, renderReady } from './ready.js';
-import { sendingAloneEarned } from '../../db/earned.js';
+import { earnedRung } from '../../db/ramp.js';
+import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
 import { workspaceZone } from './zone.js';
 import { workspaceCurrency } from '../../db/currency.js';
 import type { PendingQuestion } from '../../core/types/conversation.js';
@@ -1871,6 +1873,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(back);
   });
 
+  // R2 (0106) — "this is me testing": the owner's own test messages to the shop
+  // count toward nothing on the ramp. Owner only: it changes what the ramp counts.
+  app.post('/app/inbox/:conversationId/testing', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', '/app/inbox');
+    if (!s) return reply;
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(cid)) return reply.redirect('/app/inbox');
+    const on = String((req.body as { testing?: string } | undefined)?.testing ?? '') === 'on';
+    await withTenantTx(deps.db, bid.value, (tx) => sql`
+      update conversations set owner_testing = ${on} where id = ${cid}::uuid and business_id = ${bid.value}::uuid`.execute(tx));
+    return flashTo(reply, conversationUrl(cid), on ? 'conv.testing.flash.on' : 'conv.testing.flash.off');
+  });
+
   app.post('/app/inbox/:conversationId/act', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
@@ -2941,11 +2957,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!b.ok) return true;
     return withTenantTx(deps.db, b.value, (tx) => connectionsPaused(tx, b.value)).catch(() => true);
   };
-  // G4 — the workspace's own answer, in its own transaction; a failure reads as not earned.
-  const earnedFor = async (businessIdRaw: string): Promise<boolean> => {
+  // G4 / R2 — the workspace's own rung, in its own transaction; a failure reads as none.
+  const rungFor = async (businessIdRaw: string): Promise<0 | 1 | 2> => {
     const b = parseBusinessId(businessIdRaw);
-    if (!b.ok) return false;
-    return withTenantTx(deps.db, b.value, (tx) => sendingAloneEarned(tx)).catch(() => false);
+    if (!b.ok) return 0;
+    return withTenantTx(deps.db, b.value, (tx) => earnedRung(tx)).catch(() => 0 as const);
   };
   const capAction = (verb: string, run: (biz: string, cap: string, actor: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
     app.post(`/app/employee/capability/:capability/${verb}`, async (req, reply) => {
@@ -2960,8 +2976,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
         return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
       }
-      // G4 — and a workspace that signed itself up grants nothing until it is earned.
-      if (verb === 'promote' && !(await earnedFor(s.businessId))) {
+      // G4 / R2 — and a workspace that signed itself up grants nothing past its rung.
+      // (An unknown capability, or confirm_order, is refused by the grant itself.)
+      const need = (CAPABILITIES as readonly string[]).includes(cap) ? rungOf(cap as Capability) : 3;
+      if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {
         return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notEarned');
       }
       const r = await run(s.businessId, cap, personOf(s).id);
@@ -2985,7 +3003,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     // G4 (0102) — in a workspace that signed itself up, sending alone is earned,
     // not chosen: refused where it is SAVED. `waits` is never refused.
-    if (level !== 'waits' && !(await earnedFor(s.businessId))) {
+    if (rungOfLevel(level) > await rungFor(s.businessId)) {
       return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notEarned');
     }
     const r = await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id)

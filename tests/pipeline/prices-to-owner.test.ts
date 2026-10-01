@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeTurn, commitTurn, UNCLAIMED_AGENT, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
-import { HANDOFF_REPLY } from '../../src/core/conversation/templates.js';
+import { HANDOFF_REPLIES } from '../../src/core/conversation/templates.js';
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
 import { toTriggerReason, isProblemSignal } from '../../src/core/scoring/signals.js';
 import { alertKindFor } from '../../src/pipeline/notify.js';
@@ -69,13 +69,13 @@ describe('K5 · layer 1 — a price question goes to the owner, and nothing is p
       const { r, fx } = await run(p, 'How much for 5000 of the bags?');
       expect(p.replyWriter.calls).toBe(0);
       expect(r.decision.action).toEqual({ kind: 'handoff', notifyOnly: false });
-      expect(r.reply).toBe(HANDOFF_REPLY);
+      expect(r.reply).toBe(HANDOFF_REPLIES.en);
       expect(r.quote).toBeNull();
       expect(p.tenant.quotesRecorded).toEqual([]);
       expect(r.newState.assignedTo).toBe(UNCLAIMED_AGENT);
       expect(signalsOf(p)).toContain('price_to_owner');
       expect(alertKindFor(fx)).toBe('handoff');
-      if (mode === 'auto') expect(fx.outbound?.reply).toBe(HANDOFF_REPLY);
+      if (mode === 'auto') expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES.en);
     });
   }
 
@@ -96,10 +96,10 @@ describe('K5 · layer 2 — no reply states a price', () => {
     p.replyWriter.replies = ['Yes, it is $20.'];
     const { r, fx } = await run(p, 'Is the scarf $20?');
     expect(p.replyWriter.calls).toBe(1);
-    expect(r.reply).toBe(HANDOFF_REPLY);
+    expect(r.reply).toBe(HANDOFF_REPLIES.en);
     expect(r.answerPath).toBe('handoff');
     expect(signalsOf(p)).toContain('price_to_owner');
-    expect(fx.outbound?.reply).toBe(HANDOFF_REPLY);
+    expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES.en);
   });
 
   it('a reply with a figure that is not a price goes as usual (the customer\'s own size)', async () => {

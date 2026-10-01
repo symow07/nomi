@@ -4,7 +4,10 @@ import {
   selectSpotChecks, parseSpotCheckReply, SPOT_CHECKS_PER_WEEK,
   type CompletedWork, type SpotCheckVerdict,
 } from '../core/trust/spotCheck.js';
-import { applySpotCheck, demotionDecision } from '../core/trust/evidence.js';
+import { applySpotCheck, demotionDecision, type DemotionDecision } from '../core/trust/evidence.js';
+import { SELLS } from '../core/trust/ramp.js';
+import { figuresIn } from '../core/conversation/figures.js';
+import { clearRungFor } from '../db/ramp.js';
 import { loadCapabilityEvidence, autoDemote } from './capability.js';
 
 /**
@@ -45,7 +48,24 @@ export type PendingSpotCheck = {
   readonly reply: string;
   readonly conversationId: string | null;
   readonly askedAt: Date;
+  /** R5 — the reply went out alone (an `auto_sent` event), not as a draft someone approved. */
+  readonly wasAuto?: boolean;
 };
+
+/**
+ * R5 (0109) — WHAT A CHECK POINTS AT. A draft by its id (as since M34.7), or
+ * work sent alone as `auto:<event id>` — the `auto_sent` event the turn wrote
+ * with the words it queued. The joins read whichever it is; a reference of
+ * neither shape matches nothing, and a check whose work cannot be shown is
+ * not shown.
+ */
+const AUTO_REF = 'auto:';
+const WORK_JOINS = sql`
+      left join drafts d on s.work_ref !~ '^auto:' and d.business_id = s.business_id
+            and d.id = case when s.work_ref ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then s.work_ref::uuid end
+      left join conversation_events e on s.work_ref ~ '^auto:[0-9]+$' and e.business_id = s.business_id and e.type = 'auto_sent'
+            and e.id = case when s.work_ref ~ '^auto:[0-9]+$' then substr(s.work_ref, 6)::bigint end
+      left join turns t on t.business_id = s.business_id and t.message_id = coalesce(d.turn_message_id, e.payload->>'messageId')`;
 
 /**
  * Completed work that has never been spot-checked.
@@ -61,7 +81,7 @@ async function checkableWork(tx: Tx, businessId: string): Promise<readonly Compl
     id: string; capability: string; buyer_message: string | null;
     reply: string; decided_at: Date; was_auto: boolean;
   }>`
-    select d.id,
+    select d.id::text as id,
            d.capability,
            t.input->>'text' as buyer_message,
            coalesce(d.sent_text, d.draft_text) as reply,
@@ -76,6 +96,27 @@ async function checkableWork(tx: Tx, businessId: string): Promise<readonly Compl
        and not exists (
          select 1 from spot_checks s
           where s.business_id = d.business_id and s.work_ref = d.id::text
+       )
+    union all
+    -- R5 — work sent alone in the last fortnight, once it actually left: the
+    -- words the turn queued are on the conversation's timeline as sent.
+    select ${AUTO_REF} || e.id::text,
+           e.payload->>'capability',
+           t.input->>'text',
+           e.payload->>'body',
+           e.created_at,
+           true
+      from conversation_events e
+      left join turns t on t.message_id = e.payload->>'messageId' and t.business_id = e.business_id
+     where e.business_id = ${businessId}::uuid
+       and e.type = 'auto_sent'
+       and e.created_at >= now() - interval '14 days'
+       and exists (select 1 from messages m
+                    where m.conversation_id = e.conversation_id and m.direction = 'outbound'
+                      and m.text_content = e.payload->>'body')
+       and not exists (
+         select 1 from spot_checks s
+          where s.business_id = e.business_id and s.work_ref = ${AUTO_REF} || e.id::text
        )
   `.execute(tx);
   return rows.rows.map((r) => ({
@@ -112,8 +153,16 @@ export async function ensureSpotChecks(tx: Tx, businessId: string): Promise<numb
 
   const picked = selectSpotChecks(await checkableWork(tx, businessId), room);
   for (const w of picked) {
-    // conversation_id comes from the draft rather than being carried through
+    // conversation_id comes from the work rather than being carried through
     // the pure selector, which has no business knowing about conversations.
+    if (w.id.startsWith(AUTO_REF)) {
+      await sql`
+        insert into spot_checks (business_id, conversation_id, capability, work_ref, asked_at)
+        select ${businessId}::uuid, e.conversation_id, ${w.capability}, ${w.id}, now()
+          from conversation_events e where e.id = ${Number(w.id.slice(AUTO_REF.length))} and e.business_id = ${businessId}::uuid
+      `.execute(tx);
+      continue;
+    }
     await sql`
       insert into spot_checks (business_id, conversation_id, capability, work_ref, asked_at)
       select ${businessId}::uuid, d.conversation_id, ${w.capability}, ${w.id}, now()
@@ -129,15 +178,14 @@ export async function loadPendingSpotChecks(
 ): Promise<readonly PendingSpotCheck[]> {
   const rows = await sql<{
     id: string; capability: string; conversation_id: string | null;
-    buyer_message: string | null; reply: string | null; asked_at: Date;
+    buyer_message: string | null; reply: string | null; asked_at: Date; was_auto: boolean;
   }>`
     select s.id, s.capability, s.conversation_id,
            t.input->>'text' as buyer_message,
-           coalesce(d.sent_text, d.draft_text) as reply,
-           s.asked_at
+           coalesce(d.sent_text, d.draft_text, e.payload->>'body') as reply,
+           s.asked_at, e.id is not null as was_auto
       from spot_checks s
-      left join drafts d on d.id = s.work_ref::uuid and d.business_id = s.business_id
-      left join turns t on t.message_id = d.turn_message_id and t.business_id = s.business_id
+      ${WORK_JOINS}
      where s.business_id = ${businessId}::uuid and s.answered_at is null
      order by s.asked_at desc
   `.execute(tx);
@@ -152,6 +200,7 @@ export async function loadPendingSpotChecks(
       buyerMessage: r.buyer_message ?? '',
       reply: r.reply!,
       askedAt: r.asked_at,
+      ...(r.was_auto ? { wasAuto: true } : {}),
     }));
 }
 
@@ -164,10 +213,41 @@ export async function loadPendingSpotChecks(
  * Idempotent by `answered_at is null`: a double submit finds it answered and
  * changes nothing, the same guard `applyOwnerCommand` uses on drafts.
  */
+/**
+ * R5 — A WRONG PRICE. A check of priced work (quote, negotiate) that the owner
+ * calls seriously wrong, or corrects with figures the reply did not hold. Not
+ * a wording correction: "too formal" changes no figure.
+ */
+export function wrongPrice(capability: string, verdict: SpotCheckVerdict, correction: string | null, reply: string): boolean {
+  if (!(SELLS as readonly string[]).includes(capability)) return false;
+  if (verdict === 'serious') return true;
+  if (correction === null) return false;
+  const said = figuresIn(correction);
+  const sorted = (xs: readonly string[]) => [...xs].sort().join('|');
+  return said.length > 0 && sorted(said) !== sorted(figuresIn(reply));
+}
+
 export async function answerSpotCheck(
   tx: Tx, businessId: string, spotCheckId: string, rawReply: string,
 ): Promise<{ answered: boolean; verdict: SpotCheckVerdict | null; demoted: boolean }> {
-  const { verdict, correction } = parseSpotCheckReply(rawReply);
+  const parsed = parseSpotCheckReply(rawReply);
+  const { correction } = parsed;
+  // R1 (fix 5) — the evidence is read BEFORE the verdict is written, and the
+  // verdict folded in once below. Read after, it already held the verdict and
+  // `applySpotCheck` added it a second time: one correction demoted at once.
+  const open = (await sql<{ capability: string; reply: string | null }>`
+    select s.capability, coalesce(d.sent_text, d.draft_text, e.payload->>'body') as reply
+      from spot_checks s
+      ${WORK_JOINS}
+     where s.id = ${spotCheckId}::uuid and s.business_id = ${businessId}::uuid and s.answered_at is null
+       for update of s`.execute(tx)).rows[0];
+  if (!open) return { answered: false, verdict: null, demoted: false };
+  // R5 — a wrong price found this way is serious, whatever words said it: the
+  // workspace goes back to rung 1 (below), and the capability to drafts. Only
+  // against the reply itself: work that cannot be shown is never judged.
+  const priceWrong = open.reply !== null && wrongPrice(open.capability, parsed.verdict, correction, open.reply);
+  const verdict: SpotCheckVerdict = priceWrong ? 'serious' : parsed.verdict;
+  const base = await loadCapabilityEvidence(tx, open.capability);
   const r = await sql<{ id: string; capability: string }>`
     update spot_checks
        set verdict = ${verdict}, correction = ${correction}, answered_at = now()
@@ -189,8 +269,25 @@ export async function answerSpotCheck(
   // Only ever downward: `autoDemote` writes the literal 'draft' and refuses a
   // capability that is not currently in auto, so a "correct" verdict cannot
   // promote anything. Promotion stays the owner's tap.
-  const base = await loadCapabilityEvidence(tx, row.capability);
   const evidence = applySpotCheck(base, verdict);
-  const d = await autoDemote(tx, businessId, row.capability, demotionDecision(evidence), evidence);
-  return { answered: true, verdict, demoted: d.demoted };
+  const decision: DemotionDecision = priceWrong
+    ? { action: 'return_to_learning', reasons: ['wrong_price'] } : demotionDecision(evidence);
+  const d = await autoDemote(tx, businessId, row.capability, decision, evidence);
+  // R5 — and the price rung goes, even where the capability was not in auto
+  // (the check was of an approved draft): on a workspace that earned it, the
+  // loss is the system's own demotion, on the record and told to the owner.
+  if (priceWrong && !d.demoted) {
+    const had = (await sql<{ had: boolean }>`
+      select sells_earned_at is not null as had from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.had === true;
+    if (had) {
+      await clearRungFor(tx, businessId, row.capability);
+      const mode = (await sql<{ mode: string }>`
+        select mode from autonomy_policy where business_id = ${businessId}::uuid and capability = ${row.capability}`.execute(tx)).rows[0]?.mode;
+      await sql`
+        insert into capability_events (business_id, capability, action, from_mode, to_mode, reasons, evidence, actor)
+        values (${businessId}::uuid, ${row.capability}, 'return_to_learning', ${mode === 'auto' ? 'auto' : 'draft'}, 'draft',
+                array['wrong_price'], ${JSON.stringify(evidence)}::jsonb, 'system_self_demoted')`.execute(tx);
+    }
+  }
+  return { answered: true, verdict, demoted: d.demoted || priceWrong };
 }

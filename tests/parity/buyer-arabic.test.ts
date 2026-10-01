@@ -4,6 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { messages, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { disclosureFor } from '../../src/core/conversation/disclosure.js';
 import { AR_BANNED_FORMS } from './assistant-pronouns.lists.js';
+import { HANDOFF_REPLIES, SAFE_REPLIES, orderBlockedReply, orderConfirmedReply, guardFallbackReply } from '../../src/core/conversation/templates.js';
+import { SAFE_FALLBACK_REPLIES } from '../../src/core/safety/injection.js';
+import type { BlockingReason, Quote } from '../../src/core/types/commerce.js';
+import { PRODUCT } from './fixtures.js';
+import { usd } from '../../src/core/types/money.js';
 
 /**
  * EVERY ARABIC WORD A BUYER READS addresses them in neither gender (rule 6),
@@ -11,9 +16,11 @@ import { AR_BANNED_FORMS } from './assistant-pronouns.lists.js';
  * 2026-09-28, the owner's direction).
  *
  * What a buyer reads in Arabic, all of it: the buyer-facing pages of the
- * catalogue (`legal.*`, `unsub.*`, `proof.*`), the disclosure, and the fixed
- * replies of the fast path. The rest of the send path writes through the
- * model, whose words are its own; the rest of the catalogue is the owner's
+ * catalogue (`legal.*`, `unsub.*`, `proof.*`), the disclosure, the fixed
+ * replies of the fast path, and since LG the fixed sentences of the send path
+ * (hand-off, the safe replies, an order blocked or confirmed, the stand-in).
+ * The rest of the send path writes through the model, whose words are its
+ * own; the rest of the catalogue is the owner's
  * (tests/parity/assistant-pronouns.test.ts holds that).
  *
  * The forms below are the ones that can only be a gendered address to the
@@ -37,10 +44,26 @@ const fastPathArabic = (): string[] => {
   return [...block.matchAll(/^\s+ar: '([^']+)',$/gm)].map((m) => m[1]!);
 };
 
+const QUOTE: Quote = { productId: PRODUCT, quantity: { value: 500, unit: 'pcs' }, unitPrice: usd(1.2), discountPct: 0, total: usd(600),
+  moq: 100, leadTimeDays: 20, leadTimeBlocked: null, requiresHuman: false, contradicts: null, appliedRules: [] };
+const ONE: Quote = { ...QUOTE, quantity: { value: 1, unit: 'item' }, unitPrice: usd(12), total: usd(12), leadTimeDays: 5, moq: null };
+const BLOCKED: readonly BlockingReason[] = ['email_missing', 'product_not_confirmed_by_client', 'quantity_missing', 'quantity_below_moq',
+  'pending_question_unresolved', 'problem_score_too_high', 'missing_product', 'price_missing'];
+/** LG — the send path's fixed sentences, in Arabic. */
+const fixedArabic = (): [string, string][] => [
+  ['handoff', HANDOFF_REPLIES.ar], ['safe', SAFE_REPLIES.ar], ['injection', SAFE_FALLBACK_REPLIES.ar],
+  ...BLOCKED.map((r) => [`blocked:${r}`, orderBlockedReply([r], QUOTE, 'ar')] as [string, string]),
+  ['blocked:no-minimum', orderBlockedReply(['quantity_below_moq'], null, 'ar')],
+  ['confirmed', orderConfirmedReply({ orderReference: 'NM-1', productName: 'X', quantity: 5, unit: 'pcs', language: 'ar' })],
+  ['stand-in', guardFallbackReply(null, null, 'ar')], ['stand-in:quote', guardFallbackReply(QUOTE, null, 'ar')],
+  ['stand-in:one', guardFallbackReply(ONE, null, 'ar')],
+];
+
 const buyerArabic = (): [string, string][] => [
   ...(Object.entries(messages.ar) as [MessageKey, string][]).filter(([k]) => /^(legal|unsub|proof)\./.test(k)),
   ['disclosure', disclosureFor({ detected: 'ar', name: 'Lily', business: 'Westlake' })!],
   ...fastPathArabic().map((v, i) => [`fastpath#${i + 1}`, v] as [string, string]),
+  ...fixedArabic(),
 ];
 
 describe('buyer-facing Arabic addresses nobody in a gender', () => {
@@ -48,6 +71,7 @@ describe('buyer-facing Arabic addresses nobody in a gender', () => {
     const all = buyerArabic();
     expect(all.filter(([k]) => /^(legal|unsub|proof)\./.test(k)).length).toBeGreaterThan(90);
     expect(all.filter(([k]) => k.startsWith('fastpath#'))).toHaveLength(3);
+    expect(all.filter(([k]) => /^(handoff|safe|injection|blocked|confirmed|stand-in)/.test(k)).length).toBe(fixedArabic().length);
     expect(all.find(([k]) => k === 'disclosure')?.[1]).toContain('مساعد آلي');
   });
 

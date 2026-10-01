@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeTurn, commitTurn, UNCLAIMED_AGENT, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
-import { HANDOFF_REPLY } from '../../src/core/conversation/templates.js';
+import { HANDOFF_REPLIES } from '../../src/core/conversation/templates.js';
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
 import { emptyState, CONVERSATION, PRODUCT } from '../parity/fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from './fakes.js';
@@ -131,9 +131,9 @@ describe('0075 · layer 1 — the buyer asks, and nothing at all is sent', () =>
   it('a request for a person on its own still gets the hand-off sentence (unchanged)', async () => {
     const p = ports();
     const { r, fx } = await run(p, 'I want to speak to a real person.');
-    expect(r.reply).toBe(HANDOFF_REPLY);
+    expect(r.reply).toBe(HANDOFF_REPLIES.en);
     expect(r.answerPath).toBe('handoff');
-    expect(fx.outbound?.reply).toBe(HANDOFF_REPLY);
+    expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES.en);
   });
 });
 

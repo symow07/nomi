@@ -26,6 +26,7 @@ import { loadTranscriptWindow } from '../../db/transcript.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
 import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals.js';
 import { orderConfirmedReply } from '../../core/conversation/templates.js';
+import { fixedLanguage } from '../../core/conversation/gateLanguage.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, type BuyersFilter } from '../../db/buyersList.js';
@@ -566,9 +567,10 @@ export type ConversationDetail = {
      * no signed-off sentence saying who is answering: unread (es, fr) or none
      * at all. The card names the language and why.
      */
-    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; readonly language: string }
+    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new'; readonly language: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
-      | { readonly reason: 'not_earned' } | null;
+      // LG — nobody can tell which language the customer writes in.
+      | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
@@ -579,6 +581,8 @@ export type ConversationDetail = {
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
   readonly ownership: ConversationOwnership;
+  /** R2 (0106) — the owner marked this conversation "this is me testing": it counts toward nothing. */
+  readonly ownerTesting?: boolean;
   /** M47/G12 — WHICH human holds it, raw. The ownership model reads it; this names it. */
   readonly heldBy?: string | null;
   /**
@@ -734,10 +738,10 @@ export async function loadConversationDetail(
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null; pending: number;
-      answered_by: string | null; assistants: number; owner_unsent_reply: string | null; channel: string;
+      answered_by: string | null; assistants: number; owner_unsent_reply: string | null; channel: string; owner_testing: boolean;
     }>`
       select c.id, c.channel, cl.display_name as buyer, cl.country, p.name_zh, p.name,
-             cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply,
+             cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply, c.owner_testing,
              -- A5: the conversation's own assistant; one that started before
              -- there was a second belongs to the main one.
              coalesce(
@@ -918,6 +922,7 @@ export async function loadConversationDetail(
             translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
+      ownerTesting: head.owner_testing === true,
       ownership: ownershipOf(head.assigned_to),
       heldBy: head.assigned_to,
       answeredBy: head.assistants > 1 ? head.answered_by : null,
@@ -1003,11 +1008,12 @@ export function needsWhy(locale: Locale, c: ConversationSummary): string {
 }
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
-function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; language: string } | { reason: 'not_earned' } | null {
+function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new'; language: string }
+  | { reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language } = v as { reason?: unknown; language?: unknown };
-  if (reason === 'not_earned') return { reason };
-  if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure') || typeof language !== 'string') return null;
+  if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
+  if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure' && reason !== 'language_new') || typeof language !== 'string') return null;
   return { reason, language: language.slice(0, 8) };
 }
 
@@ -1355,6 +1361,8 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
   const willSend = orderConfirmedReply({
     orderReference: t(locale, 'order.card.reference'),
     productName: p.productName, quantity: p.quantity, unit: p.unit,
+    // LG — the sentence the customer will read, in their language.
+    language: fixedLanguage(p.customerLanguage),
   });
   return `<div class="card draft order" role="region" id="order">
       <h2>${esc(t(locale, 'order.card.title'))}</h2>
@@ -1615,8 +1623,9 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
-    p.withheld ? waits(p.withheld.reason === 'not_earned' ? t(locale, 'inbox.draft.held.not_earned', { name })
-      : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })) : '',
+    p.withheld ? waits('language' in p.withheld
+      ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })
+      : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name })) : '',
     p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');
@@ -2001,6 +2010,11 @@ export function renderConversationDetail(
     ].filter(Boolean).join(' · ')}</div>` : ''}
     ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
       deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}
+    ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
+      viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
+      ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
+      <input type="hidden" name="testing" value="${d.ownerTesting ? 'off' : 'on'}" />
+      <button class="btn ghost quiet" type="submit">${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
     ${log}
     ${flashHtml}
     ${acts}`;

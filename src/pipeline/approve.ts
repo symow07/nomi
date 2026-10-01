@@ -1,3 +1,5 @@
+import { stampRungs } from '../db/ramp.js';
+import { sameWords } from '../db/ownerWords.js';
 import { sql } from 'kysely';
 import { withTenantTx, lockConversation, type Db } from '../db/client.js';
 import { parseOwnerReply } from '../core/conversation/cards.js';
@@ -123,6 +125,23 @@ export async function applyOwnerCommand(
         values (${input.businessId}, ${draft.conversation_id}, 'draft_resolved',
                 ${JSON.stringify({ draftId: draft.id, status, actor: input.decidedBy })}::jsonb)
       `.execute(tx);
+      // R3 (0107) — the owner sent a quote of this product: its price may go
+      // out alone from now on (until it changes). Staff do not vet a price.
+      if (status === 'approved' || status === 'edited') {
+        await sql`
+          update products set quote_vetted_at = now()
+           where quote_vetted_at is null
+             and id = (select (e.payload->>'productId')::uuid from conversation_events e
+                        where e.conversation_id = ${draft.conversation_id} and e.type = 'draft_pending'
+                          and e.payload->>'draftId' = ${draft.id}::text and e.payload ? 'productId'
+                        order by e.id desc limit 1)
+             and (${input.decidedBy} = 'owner'
+                  or exists (select 1 from people p where p.business_id = ${input.businessId}::uuid
+                                and p.is_owner and p.id::text = ${input.decidedBy}))`.execute(tx);
+      }
+      // R2 (0106) — every decision counts toward the ramp: a rung earned by it is
+      // stamped in this same transaction (a workspace that signed itself up only).
+      await stampRungs(tx, input.businessId);
     };
 
     switch (cmd.kind) {
@@ -153,6 +172,13 @@ export async function applyOwnerCommand(
         // 0080 — sent as written, it asks what the draft asked.
         return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks };
       case 'edit':
+        // R1 (fix 1) — "Edit & send" with the words unchanged is the draft sent
+        // as written, and counts so: the box opens with the draft in it.
+        if (sameWords(draft.draft_text, cmd.text)) {
+          await resolve('approved', draft.draft_text);
+          await ensureSpotChecks(tx, input.businessId);
+          return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks };
+        }
         // sent_text ≠ draft_text is exactly what the training_examples view reads.
         // 0080 — the owner's words ask whatever they ask, which Nomi cannot
         // know: an edit carries no pending question.

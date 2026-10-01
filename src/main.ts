@@ -65,6 +65,7 @@ import type { ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queu
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
 import { signupDigestAlert } from './pipeline/signupDigest.js';
 import { allowanceAlerts } from './pipeline/allowanceWatch.js';
+import { demotionAlerts, spotCheckSweep } from './pipeline/supervision.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
@@ -1199,9 +1200,19 @@ export async function buildProduction(
 
   // G3 — every five minutes: an owner whose workspace crossed 80% or 100% of
   // today's allowance is told, once a day per line (the claim keeps the count).
+  // R5 — and an owner whose assistant stepped back on its own is told, once.
   await boss.schedule(QUEUES.allowance, '*/5 * * * *', {});
   await boss.work(QUEUES.allowance, async () => {
-    for (const job of await allowanceAlerts(db, new Date())) await boss.send(QUEUES.notify, job satisfies NotifyJob);
+    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db)]) {
+      await boss.send(QUEUES.notify, job satisfies NotifyJob);
+    }
+  });
+
+  // R5 — once a day: spot checks offered on work that went out alone.
+  await boss.schedule(QUEUES.spotChecks, '20 5 * * *', {});
+  await boss.work(QUEUES.spotChecks, async () => {
+    const n = await spotCheckSweep(db);
+    if (n > 0) console.log(`[spot checks] ${n} offered on work sent alone`);
   });
 
   // G5b — a reply waiting past the day its channel allows is marked expired:

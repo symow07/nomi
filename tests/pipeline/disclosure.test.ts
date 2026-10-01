@@ -454,28 +454,29 @@ describe('the gate is per language (the owner, 2026-09-30): each customer\'s own
     p.tenant.releasedFor = autonomyReleasedFor;   // the real gate, not a flag the test sets
   };
 
-  for (const [detected, said] of [['en', "Yiwu Canvas Co's AI assistant"], ['zh', 'Yiwu Canvas Co的AI助手'], ['ar', 'مساعد آلي لدى Yiwu Canvas Co']] as const) {
+  // LG — the customer writes in the language: the gate reads the text, the analysis only confirms it.
+  for (const [detected, said, hello] of [['en', "Yiwu Canvas Co's AI assistant", 'Hello'], ['zh', 'Yiwu Canvas Co的AI助手', '你好'], ['ar', 'مساعد آلي لدى Yiwu Canvas Co', 'مرحبا']] as const) {
     it(`${detected} — signed off: auto sends alone, with the disclosure in ${detected}`, async () => {
       const p = ports('auto');
       await real(p);
       seed(p);
       p.analyzer.next = analysis(detected);
       p.replyWriter.replies = ['We make canvas totes in several sizes.'];
-      const { sent, drafts, events } = await run(p, 'Hello');
+      const { sent, drafts, events } = await run(p, hello);
       expect(drafts).toHaveLength(0);
       expect(sent).toContain(said);
       expect(events.find((e) => e.type === 'autonomy_withheld')).toBeUndefined();
     });
   }
 
-  for (const detected of ['es', 'fr']) {
+  for (const [detected, hello] of [['es', 'Hola'], ['fr', 'Bonjour']] as const) {
     it(`${detected} — written, not yet read: the reply is a draft, and the card is told the language and why`, async () => {
       const p = ports('auto');
       await real(p);
       seed(p);
       p.analyzer.next = analysis(detected);
       p.replyWriter.replies = ['Hacemos bolsas de lona.'];
-      const { sent, drafts, events } = await run(p, 'Hola');
+      const { sent, drafts, events } = await run(p, hello);
       expect(sent).toBeNull();
       expect(drafts).toHaveLength(1);
       expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'disclosure_not_reviewed', language: detected });

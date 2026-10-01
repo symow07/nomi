@@ -4,6 +4,7 @@ import { tenantRepos } from '../db/repos.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 import { confirmableFromProposal } from '../core/commerce/confirmable.js';
 import { orderConfirmedReply } from '../core/conversation/templates.js';
+import { fixedLanguage } from '../core/conversation/gateLanguage.js';
 import { lockProposal, decideProposal } from '../db/orderProposals.js';
 import { assistantHold, HOLD_OUTCOME } from '../db/assistantStop.js';
 import { takeOver } from '../conversations/takeover.js';
@@ -85,6 +86,8 @@ export async function confirmOrderProposal(
       productName: p.productName,
       quantity: p.quantity,
       unit: p.unit,
+      // LG — in the customer's language where it is one of the three.
+      language: fixedLanguage(p.customerLanguage),
     });
     return { outcome: 'confirmed', orderReference: created.orderReference, sendText };
   });

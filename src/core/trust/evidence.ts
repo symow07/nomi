@@ -82,7 +82,8 @@ export type DemotionReason =
   | 'serious_spot_check'
   | 'policy_violation'        // floor/claims guard fired
   | 'hallucination'
-  | 'channel_unstable';       // provider instability — not the employee's fault
+  | 'channel_unstable'        // provider instability — not the employee's fault
+  | 'wrong_price';            // R5 — a spot check of priced work found the price wrong
 
 export type DemotionDecision = {
   readonly action: DemotionAction;

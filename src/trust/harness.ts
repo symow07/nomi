@@ -212,10 +212,14 @@ class HarnessTenant implements Tenant {
   /** Per language, when a test needs it (the real gate is per language since 2026-09-30). */
   releasedFor: ((language?: string | null) => boolean) | null = null;
   /**
-   * G4 — sending alone earned. TRUE by default: these scenarios describe a
-   * workspace the operator made; one about a self-serve workspace sets false.
+   * G4 / R2 — the rung earned. 2 by default: these scenarios describe a
+   * workspace the operator made; one about a self-serve workspace sets less.
    */
-  earnedFlag = true;
+  earnedRungValue: 0 | 1 | 2 = 2;
+  /** R3 — every product's first quote already sent; a test about R3 sets false. */
+  quoteVettedFlag = true;
+  /** LG — five replies already approved in every language, unless a test says otherwise. */
+  languageProvenFor: (language: string) => boolean = () => true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -226,7 +230,9 @@ class HarnessTenant implements Tenant {
     // Released by default: these fakes describe what she does once autonomy is
     // allowed at all. The gate itself is proved against the real flag.
     released: (language?: string | null) => (this.releasedFor ? this.releasedFor(language) : this.releasedFlag),
-    earned: async () => this.earnedFlag,
+    earnedRung: async () => this.earnedRungValue,
+    quoteVetted: async () => this.quoteVettedFlag,
+    languageProven: async (language: string) => this.languageProvenFor(language),
   };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.

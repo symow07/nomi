@@ -127,11 +127,24 @@ export interface AutonomyRepo {
    */
   released(language: string | null | undefined): boolean;
   /**
-   * G4 (0102) — has this workspace earned sending alone? Always for one the
-   * operator made; for one that signed itself up, only once the ramp (or the
-   * operator, for a pilot) says so. False: every reply drafts.
+   * G4 (0102) / R2 (0106) — how far this workspace's switch may go: 2 for one
+   * the operator made (or a pilot the operator opened); for one that signed
+   * itself up, the rung it has earned (0 nothing alone, 1 talks, 2 sells). A
+   * reply whose capability needs more drafts.
    */
-  earned(): Promise<boolean>;
+  earnedRung(): Promise<0 | 1 | 2>;
+  /**
+   * R3 (0107) — may this product's price go out alone? Only once the owner has
+   * sent one quote of it (a price change starts it again); always for a
+   * workspace the operator made.
+   */
+  quoteVetted(productId: string): Promise<boolean>;
+  /**
+   * LG (0108) — may a reply in this language (two letters) go out alone? Only
+   * once five replies in it went out with the owner's approval, in a workspace
+   * that signed itself up; always where the operator made or opened it.
+   */
+  languageProven(language: string): Promise<boolean>;
 }
 
 /**

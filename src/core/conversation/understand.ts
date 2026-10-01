@@ -37,14 +37,14 @@ export type Candidate = { readonly productId: string; readonly relevance: number
 
 /* ── language ───────────────────────────────────────────────────────────── */
 
-const SCRIPTS: readonly (readonly [RegExp, string])[] = [
+export const SCRIPTS: readonly (readonly [RegExp, string])[] = [
   [/[؀-ۿ]/g, 'ar'], [/[一-鿿]/g, 'zh'], [/[Ѐ-ӿ]/g, 'ru'],
   [/[가-힯]/g, 'ko'], [/[぀-ヿ]/g, 'ja'], [/[฀-๿]/g, 'th'],
   [/[֐-׿]/g, 'he'], [/[ऀ-ॿ]/g, 'hi'],
 ];
 
 /** The commonest small words of each Latin-script language a buyer here writes in. */
-const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
+export const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
   en: ['the', 'and', 'you', 'for', 'is', 'what', 'your', 'please', 'can', 'do', 'how', 'we', 'price', 'need', 'hello', 'hi'],
   fr: ['le', 'la', 'les', 'de', 'des', 'et', 'vous', 'pour', 'est', 'bonjour', 'prix', 'combien', 'merci', 'je', 'nous', 'une'],
   es: ['el', 'los', 'las', 'de', 'y', 'para', 'es', 'hola', 'precio', 'cuanto', 'cuánto', 'gracias', 'por', 'una', 'necesito', 'que'],
