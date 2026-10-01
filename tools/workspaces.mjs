@@ -6,6 +6,7 @@
  *   railway run --service nomi -- node tools/workspaces.mjs --self-serve     # those that signed themselves up
  *   railway run --service nomi -- node tools/workspaces.mjs --earn <uuid> --by "<you>" --yes     # sending alone opened (G4)
  *   railway run --service nomi -- node tools/workspaces.mjs --unearn <uuid> --by "<you>" --yes
+ *   railway run --service nomi -- node tools/workspaces.mjs --funnel              # G9: each step, and the exit criteria
  *
  * Lists name, kind, country, when it signed up, whether sending alone is
  * earned (and by whom), active or suspended, its Page and WhatsApp, today's
@@ -34,6 +35,39 @@ const client = toolClient(url, { replyTimeoutMs: 30_000 });
 await client.connect();
 try {
   await requireAdmin(client);
+  // G9 — the funnel: each self-serve workspace's steps, then decision 33's measures.
+  if (has('--funnel')) {
+    const { createDb } = await import('../dist/db/client.js');
+    const { loadFunnel, exitMeasures } = await import('../dist/pipeline/funnel.js');
+    const { metaReviewFrom } = await import('../dist/core/channel/metaReview.js');
+    const db = createDb(url);
+    try {
+      const rows = await loadFunnel(db);
+      const review = metaReviewFrom(process.env);
+      const openFrom = review.state === 'approved' ? review.on : null;
+      const d = (x) => (x ? x.toISOString().slice(0, 16).replace('T', ' ') : '—');
+      console.log(`${rows.length} workspace(s) that signed themselves up.`);
+      for (const r of rows) {
+        console.log(`  · ${r.name} (${r.businessId}) — signed up ${d(r.signedUpAt)} — list ${d(r.firstImportAt)} / confirmed ${d(r.firstImportConfirmedAt)}`
+          + ` — Practice ${r.checksSeen}/${r.checksTotal}${r.checklistCompleteAt ? ` (complete ${d(r.checklistCompleteAt)})` : ''} — named ${d(r.namedAt)}`
+          + ` — connected ${d(r.connectedAt)} — first customer ${d(r.firstCustomerAt)} — first reply ${d(r.firstReplyAt)}`
+          + ` — drafts decided ${r.draftsDecided}, expired ${r.draftsExpired}${r.operatorBeforeFirstReply ? ' — operator acted before its first reply' : ''}`);
+      }
+      const m = exitMeasures(rows, new Date(), openFrom);
+      const mins = (x) => (x === null ? '—' : `${Math.round(x)} min`);
+      console.log('
+Exit criteria (decision 33) that rows can answer:');
+      console.log(`  · first real reply within 7 days of being able to connect: ${m.firstReplyIn7Days.pass} of ${m.firstReplyIn7Days.of} (pass: at least 12 of 20)`);
+      console.log(`  · median sign-up to a complete Practice checklist: ${mins(m.signupToChecklistMinutes)} (pass: under 60 min)`);
+      console.log(`  · median time to the owner's decision on a draft: ${mins(m.decisionMinutes)}, clock time (pass: under 2 hours of business hours)`);
+      console.log(`  · drafts expired in the 24-hour window: ${m.expired.expired} of ${m.expired.of} (pass: under 20%)`);
+      console.log(`  · first reply with no operator action before it: ${m.firstReplyWithoutOperator.pass} of ${m.firstReplyWithoutOperator.of} (pass: at least 15 of 20)`);
+      console.log('  Counted by the operator, not here: sends without the owner in draft mode (T6 holds it at 0), cross-workspace incidents, Meta strikes (the CEIL alarm).');
+    } finally {
+      await db.destroy();
+    }
+    process.exit(0);
+  }
   const id = earn ?? unearn;
   if (id) {
     if (!by) { console.error('Usage: --earn|--unearn <uuid> --by "<you>" [--yes]'); process.exit(2); }
