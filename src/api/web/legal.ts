@@ -1,8 +1,15 @@
+import { createHash } from 'node:crypto';
 import { t } from './say.js';
+import { TERMS_KEYS } from '../../core/legal/terms.js';
 import { processorLabel, type Processor } from '../../core/legal/processors.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { publicDocument, esc } from './layout.js';
+
+/** G1 — the version of the terms a sign-up agrees to: their English words, digested (src/core/legal/terms.ts). */
+export const TERMS_VERSION: string = createHash('sha256')
+  .update(TERMS_KEYS.map((k) => t('en', k)).join('\n'))
+  .digest('hex').slice(0, 12);
 
 /**
  * The two pages a stranger may read without writing to anyone: what is kept
@@ -36,7 +43,7 @@ const contact = (l: Locale, email: string | null): string => `
  * with no change to the terms would read as a change to them. The privacy and
  * deletion pages changed together (CC-02a) and share theirs.
  */
-const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' = 'legal.updated'): string =>
+const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' | 'legal.updated.terms' = 'legal.updated'): string =>
   `<p class="updated">${esc(t(l, key))}</p>`;
 
 /**
@@ -91,6 +98,9 @@ export function renderLegalTerms(l: Locale, email: string | null): string {
     <h2>${k('legal.terms.service.title')}</h2><p>${k('legal.terms.service.body')}</p>
     <h2>${k('legal.terms.yours.title')}</h2>
     ${list(['legal.terms.yours.you1', 'legal.terms.yours.you2', 'legal.terms.yours.you3'])}
+    <h2>${k('legal.terms.use.title')}</h2>
+    ${list(['legal.terms.use.use1', 'legal.terms.use.use2', 'legal.terms.use.use3', 'legal.terms.use.use4'])}
+    <p>${k('legal.terms.use.after')}</p>
     <h2>${k('legal.terms.ours.title')}</h2>
     ${list(['legal.terms.ours.we1', 'legal.terms.ours.we2', 'legal.terms.ours.we3', 'legal.terms.ours.we4'])}
     <h2>${k('legal.terms.fees.title')}</h2><p>${k('legal.terms.fees.body')}</p>
@@ -98,7 +108,7 @@ export function renderLegalTerms(l: Locale, email: string | null): string {
     <h2>${k('legal.terms.changes.title')}</h2><p>${k('legal.terms.changes.body')}</p>
     ${contact(l, email)}
     <p><a href="/privacy">${k('legal.privacyLink')}</a></p>
-    ${updated(l)}`);
+    ${updated(l, 'legal.updated.terms')}`);
 }
 
 /**

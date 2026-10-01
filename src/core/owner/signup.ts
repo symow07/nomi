@@ -31,6 +31,12 @@ export function signupModeFrom(raw: string | undefined): SignupMode {
   return v === 'open' || v === 'closed' ? v : 'invite';
 }
 
+/** G1 — `SIGNUP_CAP`: how many self-serve workspaces may exist; a whole number above zero, else no cap. */
+export function signupCapFrom(raw: string | undefined): number | null {
+  const n = Number((raw ?? '').trim());
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 export type SignupInput = {
   readonly factory: string; readonly name: string; readonly email: string;
   readonly password: string; readonly invite: string;
@@ -41,15 +47,17 @@ export type SignupInput = {
   readonly zone?: string;
   /** CUR — the currency picked, where the country's own is not on the list; empty otherwise. */
   readonly currency?: string;
+  /** G1 — the terms box: 'on' when she agreed. */
+  readonly terms?: string;
 };
 
 export type SignupField = 'factory' | 'name' | 'email' | 'password' | 'invite'
-  | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency';
+  | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency' | 'terms';
 export type SignupProblem =
   | 'factory_missing' | 'name_missing' | 'email_invalid'
   | 'password_short' | 'password_long' | 'password_is_email' | 'invite_missing'
   | 'kind_missing' | 'sells_missing' | 'country_missing' | 'website_invalid' | 'team_size_missing'
-  | 'zone_missing' | 'currency_missing';
+  | 'zone_missing' | 'currency_missing' | 'terms_missing';
 
 /** What sign-up learned about the business, in the shape `provision_workspace` takes. */
 export type BusinessProfile = {
@@ -91,6 +99,8 @@ export function validateSignup(
   else if (input.password.length > opts.passwordMax) problems.password = 'password_long';
   else if (email && input.password.trim().toLowerCase() === email) problems.password = 'password_is_email';
   if (opts.mode === 'invite' && !UUID.test(invite)) problems.invite = 'invite_missing';
+  // G1 — the terms, agreed in so many words: a box she ticks, never a default.
+  if (input.terms !== 'on') problems.terms = 'terms_missing';
 
   // A2 — about the business. Asked once, here; every answer is a choice from a
   // list or one short line, so nothing she types can be "wrong" in a way she

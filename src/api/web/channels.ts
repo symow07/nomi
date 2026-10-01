@@ -363,6 +363,8 @@ export const channelFlash = (code: ChannelFlash): MessageKey =>
  * The rest stay: for Telegram, WeCom and RED the missing part really is time.
  */
 const COMING_SOON: readonly ({ literal: string } | { key: MessageKey })[] = [
+  // G1 — the two sign-up asks about that Nomi cannot answer on yet.
+  { literal: 'TikTok' }, { literal: 'WeChat' },
   { literal: 'Telegram' },
   { key: 'channel.platform.wecom' }, { key: 'channel.platform.rednote' },
 ];

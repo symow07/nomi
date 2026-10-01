@@ -65,7 +65,8 @@ describe('Legal pages · what a stranger may read', () => {
     // The terms keep their own date; privacy and deletion changed together
     // (CC-02a) and carry theirs — a date that moved with no change to the
     // terms would read as a change to them.
-    expect(renderLegalTerms('en', null)).toContain(esc(t('en', 'legal.updated')));
+    // G1 — the terms changed (acceptable use) on their own date.
+    expect(renderLegalTerms('en', null)).toContain(esc(t('en', 'legal.updated.terms')));
     for (const h of [renderPrivacy('en', null, FACTS), renderDataDeletion('en', null)]) {
       expect(h).toContain(esc(t('en', 'legal.updated.privacy')));
     }

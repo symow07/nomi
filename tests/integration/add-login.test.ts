@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { offlineModels } from '../pipeline/fakes.js';
+import { signUpWithCode, type Outbox } from './signUpWithCode.js';
 
 /**
  * 0078 — tools/add-login.mjs, run for real against Postgres, and the login it
@@ -31,7 +32,7 @@ const COPY = `add10000-0000-4000-8000-${RUN}0005`;    // OLD's practice copy (00
 const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
 const OWNER = { email: `owner-${RUN}@westlake.example`, password: `westlake-password-${RUN}` };
 const SIGNUP = { factory: `Signed Up ${RUN}`, name: 'Sara', email: `sara-${RUN}@signed.example`, password: `signed-password-${RUN}`,
-  kind: 'manufacturer', sells: 'Canvas bags', country: 'MA', currency: 'USD', website: '', teamSize: '2-5' };
+  kind: 'manufacturer', sells: 'Canvas bags', country: 'MA', currency: 'USD', website: '', teamSize: '2-5', terms: 'on' };
 
 type Run = { code: number | null; out: string; err: string };
 const tool = (args: string[], url = MIGRATE_URL): Run => {
@@ -50,6 +51,7 @@ const tokenOf = (r: Run): string => {
 
 d('0078 · add-login gives a workspace that exists a login (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 120_000 }, () => {
   let prod: import('../../src/main.js').Production;
+  const outbox: Outbox = [];
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
   let admin: pg.Client;
 
@@ -61,7 +63,15 @@ d('0078 · add-login gives a workspace that exists a login (requires DATABASE_UR
   const sessionOf = (r: { headers: Record<string, unknown> }) =>
     ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? [])
       .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
-  const signIn = (email: string, password: string) => form('/login', { email, password });
+  // The ordinary door: the password, then — this browser being new — A3's code from the mail.
+  const signIn = async (email: string, password: string) => {
+    const r = await form('/login', { email, password });
+    if (r.headers['location'] !== '/verify') return r;
+    const pending = ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? [])
+      .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_otp=')) ?? '';
+    const code = [...outbox].reverse().find((m) => m.to === email)?.subject.match(/\d{6}/)?.[0] ?? '';
+    return form('/verify', { code }, pending);
+  };
   const loginsOf = async (business: string) => (await admin.query(
     `select l.email, l.archived_at is not null as archived, p.name, p.is_owner
        from logins l join people p on p.id = l.person_id where l.business_id = $1 order by l.created_at`, [business])).rows;
@@ -88,9 +98,9 @@ d('0078 · add-login gives a workspace that exists a login (requires DATABASE_UR
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'add-login-verify-01',
       CREDENTIAL_KEY: 'a'.repeat(64), PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { models: offlineModels(), logger: false });
+    }, { models: offlineModels(), logger: false, systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } } });
     // A workspace made by signing up, for the comparison and the clash.
-    const made = await form('/signup', SIGNUP);
+    const made = await signUpWithCode(form, outbox, SIGNUP);
     expect(made.statusCode, made.body.slice(0, 300)).toBe(302);
   }, 90_000);
 

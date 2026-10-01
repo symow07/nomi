@@ -49,6 +49,11 @@ export async function personForCodeHash(db: Db, codeHash: string): Promise<{
   return r ? { businessId: r.business_id, person: { id: r.person_id, name: r.person_name, isOwner: r.is_owner } } : null;
 }
 
+/** G1 — how many self-serve workspaces exist (0099), for the cohort cap. */
+export async function selfServeCount(db: Db): Promise<number> {
+  return (await sql<{ n: number }>`select self_serve_count() as n`.execute(db)).rows[0]?.n ?? 0;
+}
+
 export async function inviteIsOpen(db: Db, invite: string): Promise<boolean> {
   const r = (await sql<{ open: boolean }>`select invite_is_open(${invite}::uuid) as open`.execute(db)).rows[0];
   return r?.open === true;
@@ -56,7 +61,10 @@ export async function inviteIsOpen(db: Db, invite: string): Promise<boolean> {
 
 export type ProvisionOutcome =
   | { readonly code: 'created'; readonly businessId: string; readonly personId: string }
-  | { readonly code: 'email_taken' | 'invite_not_open' | 'failed' };
+  | { readonly code: 'email_taken' | 'invite_not_open' | 'failed' | 'full' };
+
+/** G1 — the cohort cap was reached while she signed up: nothing was made. */
+class SignupFull extends Error {}
 
 /**
  * A business, its owner and the owner's login — together or not at all. The
@@ -75,12 +83,20 @@ export async function provisionAccount(db: Db, input: {
     /** CUR — the workspace's one currency; a pending sign-up from before CUR has none, and keeps the column's (USD). */
     readonly currency?: string;
   };
+  /** G1 — the terms she agreed to (their digest); a pending sign-up from before G1 has none. */
+  readonly termsVersion?: string | null;
+  /** G1 — how many self-serve workspaces may exist; null: no cap. Counted under one lock. */
+  readonly cap?: number | null;
 }): Promise<ProvisionOutcome> {
   try {
     // TZ, CUR — the zone and the currency sign-up chose are written in the SAME
     // transaction as the workspace: one that fails leaves no workspace behind
     // an error page.
     const r = await db.transaction().execute(async (tx) => {
+      if (input.cap != null) {
+        const n = (await sql<{ n: number }>`select self_serve_count() as n`.execute(tx)).rows[0]?.n ?? 0;
+        if (n >= input.cap) throw new SignupFull();
+      }
       const made = (await sql<{ business_id: string; person_id: string }>`
         select business_id::text as business_id, person_id::text as person_id
           from provision_workspace(${input.factory}, ${input.language}, ${input.ownerName},
@@ -88,8 +104,15 @@ export async function provisionAccount(db: Db, input: {
                                    ${input.invite}::uuid, ${input.inviteRequired},
                                    ${JSON.stringify(input.profile)}::jsonb)`.execute(tx)).rows[0];
       const currency = parseCurrency(input.profile.currency ?? '');
-      if (made && (isZone(input.profile.zone) || currency)) {
+      if (made) {
+        // G1 — made by sign-up, and under which terms.
         await sql`select set_config('app.business_id', ${made.business_id}, true)`.execute(tx);
+        const terms = input.termsVersion && /^[0-9a-f]{12}$/.test(input.termsVersion) ? input.termsVersion : null;
+        await sql`update businesses set signed_up_at = now(), terms_version = ${terms},
+                    terms_accepted_at = case when ${terms}::text is null then null else now() end
+                   where id = ${made.business_id}::uuid`.execute(tx);
+      }
+      if (made && (isZone(input.profile.zone) || currency)) {
         if (isZone(input.profile.zone)) {
           await sql`update businesses set timezone = ${input.profile.zone} where id = ${made.business_id}::uuid`.execute(tx);
         }
@@ -102,6 +125,7 @@ export async function provisionAccount(db: Db, input: {
     if (!r) return { code: 'failed' };
     return { code: 'created', businessId: r.business_id, personId: r.person_id };
   } catch (e) {
+    if (e instanceof SignupFull) return { code: 'full' };
     const pg = e as { code?: string; message?: string };
     if (pg.code === '23505') return { code: 'email_taken' };
     if (pg.code === 'P0001' && /invite_not_open/.test(pg.message ?? '')) return { code: 'invite_not_open' };

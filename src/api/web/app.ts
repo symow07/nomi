@@ -17,7 +17,7 @@ import {
   type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
-import { renderPrivacy, renderDataDeletion, renderLegalTerms, type LegalFacts } from './legal.js';
+import { renderPrivacy, renderDataDeletion, renderLegalTerms, TERMS_VERSION, type LegalFacts } from './legal.js';
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
 import { DEFAULT_PROCESSOR, HOSTING } from '../../core/legal/processors.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
@@ -56,6 +56,7 @@ import {
 } from './howYouSell.js';
 import type { Question } from '../../core/owner/howYouSell.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
+import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS } from './appIcons.js';
@@ -183,7 +184,7 @@ import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
 import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
-  lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword,
+  lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, selfServeCount, loginOfPerson, setPassword,
   setupLinkEmail, spendSetupLink, requestRecoveryLink,
 } from '../../db/accounts.js';
 import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
@@ -215,6 +216,8 @@ export type WebDeps = {
   readonly businessId: string;         // the ONE business the environment's access code opens
   /** A1 — who may create a workspace here. Absent means 'invite'. */
   readonly signupMode?: SignupMode;
+  /** G1 — how many self-serve workspaces may exist (`SIGNUP_CAP`); absent: no cap. */
+  readonly signupCap?: number | null;
   /**
    * A3 — the installation's own sender. With one, a code is e-mailed when an
    * account is made and when an unknown browser signs in. WITHOUT ONE NOTHING
@@ -1062,7 +1065,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/site', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(site(req, '/site', true)));
 
-  const signupMode: SignupMode = deps.signupMode ?? 'invite';
+  // G1 — open sign-up asks every new address for a code, so it needs the
+  // installation's own sender: without one, open reads as closed.
+  const signupMode: SignupMode = (deps.signupMode ?? 'invite') === 'open' && !deps.systemMail ? 'closed' : (deps.signupMode ?? 'invite');
+  /** G1 — the operator hears of each sign-up at once (the daily digest is the worker's). */
+  const toldOfSignup = (businessId: string) => {
+    if (!deps.systemMail) return;
+    void notifyOperatorOfSignup({ db: deps.db, mail: deps.systemMail }, deps.businessId, businessId).catch(() => undefined);
+  };
   // The second line of defence; the first is the per-login lock in the database.
   const loginThrottle = makeThrottle({ max: 20, windowMs: 5 * 60_000 });
   /** PWR — the door can e-mail a link only where the installation sends system mail. */
@@ -1122,7 +1132,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       password: String(b['password'] ?? ''), invite: String(b['invite'] ?? ''),
       kind: String(b['kind'] ?? ''), sells: String(b['sells'] ?? ''), country: String(b['country'] ?? ''),
       website: String(b['website'] ?? ''), teamSize: String(b['teamSize'] ?? ''), zone: String(b['zone'] ?? ''),
-      currency: String(b['currency'] ?? ''),
+      currency: String(b['currency'] ?? ''), terms: String(b['terms'] ?? ''),
       channels: Object.keys(b).filter((k) => k.startsWith('channel_') && b[k] !== undefined).map((k) => k.slice('channel_'.length)).slice(0, 12),
     };
     const again = (code: number, extra: { problems?: Partial<Record<SignupField, string>>; error?: string }) =>
@@ -1131,7 +1141,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         values: {
           factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite, kind: raw.kind, sells: raw.sells,
           country: raw.country.toUpperCase(), website: raw.website, teamSize: raw.teamSize, channels: raw.channels, zone: raw.zone,
-          currency: raw.currency,
+          currency: raw.currency, terms: raw.terms === 'on',
         }, ...extra,
       }));
     if (signupMode === 'closed') return again(403, {});
@@ -1148,11 +1158,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (signupMode === 'invite' && !(await inviteIsOpen(deps.db, v.value.invite!).catch(() => false))) {
       return again(400, { error: t(locale, 'signup.error.invite_not_open') });
     }
+    // G1 — the cohort cap, before a code is sent for a place there is not.
+    if (deps.signupCap != null && (await selfServeCount(deps.db).catch(() => 0)) >= deps.signupCap) {
+      return again(403, { error: t(locale, 'signup.error.full') });
+    }
     const wanted = {
       factory: v.value.factory, language: locale, ownerName: v.value.name, email: v.value.email,
       passwordHash: await hashPassword(v.value.password),
       invite: v.value.invite, inviteRequired: signupMode === 'invite',
-      profile: v.value.profile,
+      profile: v.value.profile, termsVersion: TERMS_VERSION,
     };
     // A3 — with a sender, the address has to answer first. An address that
     // already has a workspace is told so NOW, as before: she could learn it by
@@ -1163,10 +1177,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (sent !== 'sent') return again(sent === 'slow' ? 429 : 502, { error: t(locale, sent === 'slow' ? 'verify.error.slow' : 'verify.error.mail') });
       return reply.redirect('/verify');
     }
-    const made = await provisionAccount(deps.db, wanted);
+    const made = await provisionAccount(deps.db, { ...wanted, cap: deps.signupCap ?? null });
     if (made.code !== 'created') {
-      return again(made.code === 'failed' ? 500 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
+      return again(made.code === 'failed' ? 500 : made.code === 'full' ? 403 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
     }
+    toldOfSignup(made.businessId);
     noticeOnNextPage(reply, 'signup.welcome');
     return signIn(reply, made.businessId, { id: made.personId, name: v.value.name, isOwner: true },
       '/app/business', await passwordVersionOf(made.businessId, made.personId));
@@ -1372,6 +1387,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     readonly factory: string; readonly language: string; readonly ownerName: string; readonly email: string;
     readonly passwordHash: string; readonly invite: string | null; readonly inviteRequired: boolean;
     readonly profile: Parameters<typeof provisionAccount>[1]['profile'];
+    /** G1 — the terms agreed on the form; absent on a sign-up pending from before G1. */
+    readonly termsVersion?: string | null;
   };
 
   /** Issues a code, mails it, and points the browser at /verify. False: tell her why not. */
@@ -1427,7 +1444,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     writeCookie(reply, OTP_COOKIE, '', { path: '/verify', maxAgeSec: 0 });
     if (r.purpose === 'signup') {
       const p = r.payload as PendingSignup;
-      const made = await provisionAccount(deps.db, p);
+      // G1 — the sign-up mode as it is NOW, not as it was when the code was
+      // sent: closed refuses, and invite asks for a ticket whatever the code said.
+      if (signupMode === 'closed') {
+        return html(reply, 403, signupPage({ locale, path: '/signup', mode: 'closed', passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null }));
+      }
+      const made = await provisionAccount(deps.db, { ...p, inviteRequired: signupMode === 'invite', cap: deps.signupCap ?? null });
       if (made.code !== 'created') {
         // The address was taken, or the invitation spent, while the code was in her inbox.
         return html(reply, 400, signupPage({
@@ -1438,6 +1460,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }
       const login = await lookupLogin(deps.db, p.email).catch(() => null);
       if (login) rememberDevice(reply, login.loginId);
+      toldOfSignup(made.businessId);
       noticeOnNextPage(reply, 'signup.welcome');
       return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
         '/app/business', await passwordVersionOf(made.businessId, made.personId));
