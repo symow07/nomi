@@ -49,6 +49,12 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
   let db: import('../../src/db/client.js').Db;
   let admin: pg.Client;
   let BIZ = '';
+  /**
+   * The workspace's own zone, read back: since G2 (0100) a sign-up that names
+   * none is born in UTC, and the dates hard-coded in Shanghai's differed from
+   * the page's every day from 16:00 UTC (found 2026-10-01 on CI).
+   */
+  let ZONE = 'UTC';
   let CONV = '';
   let CLIENT = '';
   let OWNER_ID = '';
@@ -117,6 +123,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     if (r.code !== 'created') throw new Error(`provision: ${r.code}`);
     BIZ = r.businessId;
     OWNER_ID = r.personId;
+    ZONE = (await admin.query(`select timezone from businesses where id = $1`, [BIZ])).rows[0].timezone;
 
     await tx(async (t) => {
       CLIENT = (await sql<{ id: string }>`
@@ -218,7 +225,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     // The page says it was asked, and the date it must be carried out by.
     const page = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
     expect(page).toContain(t('en', 'conv.deletion.open', {
-      asked: formatDate('en', row.asked_at, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(row.asked_at), 'Asia/Shanghai'),
+      asked: formatDate('en', row.asked_at, ZONE), due: formatDate('en', deletionDueBy(row.asked_at), ZONE),
     }));
     expect(page, 'an open request is not asked for again').not.toContain(`action="/app/conversations/${CONV}/deletion"`);
 
@@ -263,7 +270,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     expect(page).toContain(t('en', 'data.buyers.title'));
     expect(page).toContain(BUYER);
     expect(page).toContain(t('en', 'data.buyers.due', {
-      asked: formatDate('en', row.asked_at, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(row.asked_at), 'Asia/Shanghai'),
+      asked: formatDate('en', row.asked_at, ZONE), due: formatDate('en', deletionDueBy(row.asked_at), ZONE),
     }));
     expect(page).toContain(`name="id" value="${row.id}"`);
 
@@ -286,11 +293,11 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
 
     const data = (await get(ownerCookie, '/app/settings/data')).body;
     expect(data).toContain(t('en', 'data.buyers.done', {
-      asked: formatDate('en', row.asked_at, 'Asia/Shanghai'), done: formatDate('en', done, 'Asia/Shanghai'),
+      asked: formatDate('en', row.asked_at, ZONE), done: formatDate('en', done, ZONE),
     }));
     expect(data, 'a done request is not offered back').not.toContain(`name="id" value="${row.id}"`);
     const file = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
-    expect(file).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done, 'Asia/Shanghai') })));
+    expect(file).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done, ZONE) })));
     expect(file).not.toContain(`action="/app/conversations/${CONV}/deletion"`);
   });
 
@@ -322,7 +329,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     expect(mailbox[0]!.text).toContain(OTHER_NAME);
     expect(mailbox[0]!.text).toContain(t('en', 'notify.deletion_due.soon', {
       business: OTHER_NAME, what: t('en', 'data.deletion.scope.buyer'),
-      asked: formatDate('en', asked, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(asked), 'Asia/Shanghai'),
+      asked: formatDate('en', asked, ZONE), due: formatDate('en', deletionDueBy(asked), ZONE),
     }));
     // No channel is live here: e-mail only, as the backup alert.
     expect(texts).toHaveLength(0);
@@ -365,11 +372,11 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     // test failed every day from 16:00 UTC (found 2026-09-30).
     const text = renderOwnerAlert('en', 'deletion_due', null, {
       deletionsDue: [{ business: OTHER_NAME, scope: 'workspace', askedAt: asked, overdue: true }],
-      zone: 'Asia/Shanghai',
+      zone: ZONE,
     });
     expect(text).toContain(t('en', 'notify.deletion_due.late', {
       business: OTHER_NAME, what: t('en', 'data.deletion.scope.workspace'),
-      asked: formatDate('en', asked, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(asked), 'Asia/Shanghai'),
+      asked: formatDate('en', asked, ZONE), due: formatDate('en', deletionDueBy(asked), ZONE),
     }));
   });
 
