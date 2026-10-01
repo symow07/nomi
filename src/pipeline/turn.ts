@@ -1174,6 +1174,9 @@ export async function commitTurn(
     if (r.guardViolations > 0) {
       await tenant.events.append(req.conversationId, 'guard_violation', {
         capability, count: r.guardViolations,
+        // R1 (fix 3) — did the reply that was KEPT fail its guards, or was a
+        // tripped attempt rewritten clean? Only the first counts as evidence.
+        final: r.hold === 'guards_failed_twice',
         // M37.5 — name the words. A refusal the owner cannot act on is a
         // complaint; naming the term tells her whether it was her own rule or
         // the floor, and lets her fix her list if it was hers.

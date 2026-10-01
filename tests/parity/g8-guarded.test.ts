@@ -51,7 +51,7 @@ describe('G8 · kept out of the employee’s record', () => {
     const turn = await src('src/pipeline/turn.ts');
     expect(turn).toContain("'forbidden_in_her_text'");
     const capability = await src('src/pipeline/capability.ts');
-    expect(capability).toContain("where type = 'guard_violation'");
+    expect(capability).toContain("and type = 'guard_violation'");
     expect(capability).not.toContain('forbidden_in_her_text');
   });
 });
