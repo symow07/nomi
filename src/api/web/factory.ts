@@ -504,7 +504,7 @@ const FINDING_DOOR: Record<FindingReason, MessageKey> = {
  * where it falls in the right-to-left line (V1-386), instead of its halves
  * landing at the two ends of two lines.
  */
-export const nameList = (names: readonly string[], more = false): string =>
+const nameList = (names: readonly string[], more = false): string =>
   names.map((n, i) => `<span class="fitem"><bdi>${esc(n)}</bdi>${i < names.length - 1 ? ' ·' : more ? ' …' : ''}</span>`).join(' ');
 
 /**

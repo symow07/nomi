@@ -260,6 +260,12 @@ describe('Phase 9 · B5 · How you sell', () => {
     for (const l of LOCALES) expect(q(l), l).toContain(`<p class="muted hs-pos">${bare(t(l, 'hs.position', { i: '1', n: '9' }))}</p>`);
   });
 
+  it('the Arabic questions write no detached «لـ» before the name', () => {
+    for (const k of ['hs.offers', 'hs.lede.returns', 'hs.line.promise.on', 'hs.line.cert.on', 'hs.line.attr.on', 'hs.line.attr.off', 'hs.line.promiseNotAllowed'] as const) {
+      expect(t('ar', k), k).not.toMatch(/لـ ?(مساعدك|:)/);
+    }
+  });
+
   it('V1-416 · a chosen radio is in the page’s ink', () => {
     expect(css).toMatch(/input\[type="radio"\], input\[type="checkbox"\] \{ accent-color:var\(--color-ink\); \}/);
   });

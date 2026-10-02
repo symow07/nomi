@@ -340,6 +340,13 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
     expect(t('ar', 'domain.field.placeholder')).not.toBe('yourbusiness.com');
   });
 
+  it('V1-446 · Arabic: no detached «لـ» before a name anywhere on this page', () => {
+    expect(visible(page('ar'))).not.toMatch(/لـ ?(Nomi|مساعدك)/);
+    for (const k of ['outreach.turnOnConfirm', 'connect.mail.read.tick', 'meta.rules.first', 'pilot.mode.off'] as const) {
+      expect(t('ar', k), k).not.toMatch(/لـ ?(\{name\}|Nomi|مساعدك)/);
+    }
+  });
+
   it('V1-403 · no picture stands for WhatsApp', () => {
     for (const l of LOCALES) expect(page(l), l).not.toContain('📱');
   });
