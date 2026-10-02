@@ -257,7 +257,10 @@ describe('V1-522, V1-528 · the full zone list: grouped, in the owner\'s languag
   it('a country with one zone is named wholly in the owner\'s language; a city only where a country has several', () => {
     const dubai = (l: (typeof LOCALES)[number]) => optionsOf(profile(l)).find((o) => o.z === 'Asia/Dubai')!.label;
     for (const l of ['zh', 'ar'] as const) expect(dubai(l), l).not.toMatch(/[A-Za-z]/);
-    expect(optionsOf(profile('zh')).find((o) => o.z === 'Asia/Shanghai')!.label).toMatch(/^中国（Shanghai） — /);
+    // Phase 9 (V1-522) — China's two zones keep two times, so neither needs a city.
+    expect(optionsOf(profile('zh')).find((o) => o.z === 'Asia/Shanghai')!.label, 'zh Shanghai').not.toMatch(/[A-Za-z]/);
+    // Brazil's Recife and Fortaleza keep the same time: the city tells them apart.
+    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Recife')!.label).toMatch(/（Recife）/);
     expect(optionsOf(profile('en')).find((o) => o.z === 'Europe/Paris')!.label).toMatch(/^France — /);
   });
   it('no station in Antarctica or Svalbard is offered — unless it is the zone already kept', () => {

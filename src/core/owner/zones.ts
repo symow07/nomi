@@ -335,12 +335,35 @@ export const zonePlace = (zone: string): string =>
 
 /** The time a zone keeps, in the owner's language ("北美东部时间"); '' when this build cannot name it. */
 export function zoneKept(locale: Locale, zone: string): string {
+  const key = `${locale}|${zone}`;
+  const hit = KEPT.get(key);
+  if (hit !== undefined) return hit;
+  let name = '';
   try {
-    return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: zone, timeZoneName: 'longGeneric' })
+    name = new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: zone, timeZoneName: 'longGeneric' })
       .formatToParts(new Date(0)).find((p) => p.type === 'timeZoneName')?.value ?? '';
-  } catch {
-    return '';
-  }
+  } catch { /* this build cannot name it */ }
+  KEPT.set(key, name);
+  return name;
+}
+/** A list of every zone names each a few hundred times a render; the names never change within a build. */
+const KEPT = new Map<string, string>();
+
+/**
+ * Phase 9 (V1-522) — the zones of ONE list, each named by the time it keeps in
+ * the owner's language ("北美东部时间", "北美中部时间"); the tz city, which only
+ * this build's English can name, is added only where two zones of the list
+ * keep the same time ("巴西利亚时间 (Recife)"), or where the time has no name.
+ */
+export function zoneLabelsAmong(locale: Locale, zones: readonly string[]): (zone: string) => string {
+  const times = new Map<string, number>();
+  for (const z of zones) { const k = zoneKept(locale, z); if (k) times.set(k, (times.get(k) ?? 0) + 1); }
+  const open = (s: string) => (locale === 'zh' ? `（${s}）` : ` (${s})`);
+  return (zone) => {
+    const kept = zoneKept(locale, zone);
+    if (!kept) return zonePlace(zone);
+    return (times.get(kept) ?? 0) > 1 ? `${kept}${open(zonePlace(zone))}` : kept;
+  };
 }
 
 /**
