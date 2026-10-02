@@ -83,3 +83,22 @@ describe('the filename', () => {
     expect(csvFilename('buyers', new Date(Date.UTC(2026, 8, 21)))).toBe('nomi-buyers-2026-09-21.csv');
   });
 });
+
+describe('Phase 9 (V1-383) · a file for a spreadsheet that writes a decimal comma', () => {
+  it('";" between fields, "1,05" in a figure; words, dates and formulas as before', async () => {
+    const { RFC4180 } = await import('../../src/core/owner/csv.js');
+    const semi = { sep: ';', decimal: ',' } as const;
+    expect(csvRow(['Tote', 1.05, '1.0500', '1.5 days', 'a;b', 'a,b', -0.5, '=1+1', 12], semi)).toBe('Tote;1,05;1,0500;1.5 days;"a;b";a,b;-0,5;\'=1+1;12');
+    expect(csvRow(['Tote', 1.05, 'a,b'], RFC4180)).toBe('Tote,1.05,"a,b"');
+    expect(csvRows(['name', 'price'], [['Tote', '1.0500']], semi)).toBe('name;price\r\nTote;1,0500\r\n');
+  });
+  it('chosen by the reader\'s language in the workspace\'s country: Spain and France, not Mexico, not English', async () => {
+    const { withCountry } = await import('../../src/api/web/zone.js');
+    const { csvDialectFor } = await import('../../src/api/web/values.js');
+    expect(withCountry('ES', () => csvDialectFor('es'))).toEqual({ sep: ';', decimal: ',' });
+    expect(withCountry('FR', () => csvDialectFor('fr'))).toEqual({ sep: ';', decimal: ',' });
+    expect(withCountry('MX', () => csvDialectFor('es'))).toEqual({ sep: ',', decimal: '.' });
+    expect(withCountry('ES', () => csvDialectFor('en'))).toEqual({ sep: ',', decimal: '.' });
+    expect(withCountry(null, () => csvDialectFor('es'))).toEqual({ sep: ',', decimal: '.' });
+  });
+});

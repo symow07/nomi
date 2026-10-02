@@ -1839,7 +1839,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // It is her data, freshly read. Nothing between here and her laptop may
       // keep a copy to hand to the next person who asks.
       .header('cache-control', 'no-store')
-      .send(csvFile(sheet.header, sheet.rows));
+      .send(csvFile(sheet.header, sheet.rows, show.csvDialectFor(localeOf(req))));
   });
 
   app.post('/app/settings/data/delete', async (req, reply) => {

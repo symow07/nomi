@@ -3,6 +3,7 @@ import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { currencySymbol } from '../../core/types/money.js';
 import { workspaceZone, workspaceCountry } from './zone.js';
+import { RFC4180, type CsvDialect } from '../../core/owner/csv.js';
 
 /**
  * RIGHT TO LEFT, BY DESIGN (the design pass §9, 2026-09-30).
@@ -129,6 +130,21 @@ const localQty = (locale: Locale, n: number): string | null => {
   const country = workspaceCountry();
   if (!country || !/^[A-Z]{2}$/.test(country)) return null;
   try { return new Intl.NumberFormat(`${LANG[locale]}-${country}`).format(n); } catch { return null; }
+};
+
+/**
+ * Phase 9 (V1-383) — the export's fields and decimals by the same rule: where
+ * the reader's language writes a decimal comma in the workspace's country
+ * (Spanish in Spain, French), ";" between fields and "1,05"; elsewhere — and
+ * in Mexico, and in English — RFC 4180's "," and "1.05".
+ */
+export const csvDialectFor = (locale: Locale): CsvDialect => {
+  if (locale !== 'es' && locale !== 'fr') return RFC4180;
+  const country = workspaceCountry();
+  if (!country || !/^[A-Z]{2}$/.test(country)) return RFC4180;
+  let decimal: string | undefined;
+  try { decimal = new Intl.NumberFormat(`${LANG[locale]}-${country}`).formatToParts(1.5).find((p) => p.type === 'decimal')?.value; } catch { return RFC4180; }
+  return decimal === ',' ? { sep: ';', decimal: ',' } : RFC4180;
 };
 
 /** A quantity alone: "5,000", "1.2万", "5,000"; "5000" in Spanish in Spain. */
