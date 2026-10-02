@@ -114,11 +114,29 @@ const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): 
 export const money = (locale: Locale, m: Money): string =>
   isolate(locale, locale === 'ar' ? arabicMoney(m, 2) : localMoney(locale, m, 2) ?? f.formatMoney(m));
 
-/** A quantity alone: "5,000", "1.2万", "5,000". */
-export const quantity = (locale: Locale, n: number): string => isolate(locale, f.formatQty(locale, n));
+/**
+ * Phase 9 (V1-169, V1-229, V1-300, V1-307) — a quantity by the same rule as an
+ * amount: the reader's language in the workspace's country. Spanish in Spain
+ * "5000" and "12.000", in Mexico "5,000"; French "5 000". English keeps
+ * "5,000" everywhere, as its amounts do (Intl would write "5.000" for English
+ * in Spain); Chinese keeps its 万 and Arabic its confirmed form; with no
+ * country on record, as before. The
+ * send path writes its own figures (`core/owner/i18n/format.ts`) and is not
+ * changed here.
+ */
+const localQty = (locale: Locale, n: number): string | null => {
+  if (locale !== 'es' && locale !== 'fr') return null;
+  const country = workspaceCountry();
+  if (!country || !/^[A-Z]{2}$/.test(country)) return null;
+  try { return new Intl.NumberFormat(`${LANG[locale]}-${country}`).format(n); } catch { return null; }
+};
 
-/** A quantity and what it counts, as one: "5,000 pcs", "5000个", "5,000 قطعة". */
-export const quantityOf = (locale: Locale, n: number, unit: string): string => isolate(locale, f.formatQtyUnit(locale, n, unit));
+/** A quantity alone: "5,000", "1.2万", "5,000"; "5000" in Spanish in Spain. */
+export const quantity = (locale: Locale, n: number): string => isolate(locale, localQty(locale, n) ?? f.formatQty(locale, n));
+
+/** A quantity and what it counts, as one: "5,000 pcs", "5000个", "5,000 قطعة"; "5000 uds." in Spain. */
+export const quantityOf = (locale: Locale, n: number, unit: string): string =>
+  isolate(locale, f.withUnit(locale, localQty(locale, n) ?? f.formatQty(locale, n), unit));
 
 /** A figure already written (a range, "5,000+") and its unit, as one. */
 export const figureOf = (locale: Locale, figure: string, unit: string): string => isolate(locale, f.withUnit(locale, figure, unit));
