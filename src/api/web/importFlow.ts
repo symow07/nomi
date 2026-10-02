@@ -106,6 +106,8 @@ export async function startPasteImport(db: Db, businessIdRaw: string, actor: str
     const currency = await currencyOf(tx, bid.value);
     const ctx = await contextFor(tx, bid.value, 'paste', currency);
     const rows = rowsFromParsed(parsePriceLines(text, currency), { photo: null, startAt: 1, defaultUnit: ctx.defaultUnit, page: false });
+    // Phase 9 (V1-321) — no line that could be a product: nothing is kept, and the add page says so.
+    if (rows.length === 0) return null;
     return createImport(tx, bid.value, { kind: 'paste', currency, sourceText: text, rows, createdBy: actor });
   });
 }

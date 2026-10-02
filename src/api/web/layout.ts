@@ -994,14 +994,16 @@ const STYLE_PAGES = `
   .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
   /* Products are a dense list (decision 2), not a card each. */
-  .prod { display:block; padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:inherit; }
+  /* Phase 9 (V1-302) — a row that opens carries the chevron every door has, at its end. */
+  .prod { display:flex; align-items:center; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:inherit; }
   .prod:last-child { border-bottom:0; }
+  .prod-m { flex:1; min-width:0; }
   .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  .p-tag { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .prod-b { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .p-tag { display:block; color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .prod-add { margin:0 0 var(--space-16); }
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
-  .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
-  .tier { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
+  .info { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); }
@@ -1011,6 +1013,13 @@ const STYLE_PAGES = `
   .rev-src { flex-basis:100%; font-size:var(--font-size-caption); }
   .rev-move { flex-basis:100%; }
   .photo-in { display:block; width:100%; margin:var(--space-12) 0; font:inherit; color:var(--color-ink); min-height:44px; }
+  /* Phase 9 (V1-323) — a file box in the page's own words: the browser's box stays the control
+     (focusable, named by its label) but is not drawn, and the line beside it says whether one was chosen. */
+  .filepick { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin:var(--space-12) 0; }
+  .filepick input[type=file] { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+  .filepick:focus-within .btn { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .filepick input:invalid ~ .filepick-some, .filepick input:valid ~ .filepick-none { display:none; }
+  .filepick-some { font-size:var(--font-size-small); color:var(--color-ink); }
   textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
   /* The import review: the photos beside the rows from a wide screen, above them on a phone. */
