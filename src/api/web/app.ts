@@ -141,10 +141,10 @@ import {
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
-import { loadCustomerFile, renderCustomerFile, renameBuyer } from './conversations.js';
+import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
-import { renderListPane, renderCustomerPanel, renderPanes } from './panes.js';
+import { renderListPane, renderCustomerPanel, renderPanes, paneRowOf } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
@@ -2062,7 +2062,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
       bodyHtml: withAssistantName(detail.assistantName, () => renderPanes(
-        renderListPane(list, locale, now, conversationId, people),
+        // Phase 9 (V1-257) — and the open conversation, when the tab beside it does not list it.
+        renderListPane(list, locale, now, conversationId, people,
+          everyone.conversations.find((c) => c.conversationId === conversationId) ?? paneRowOf(detail)),
         renderConversationDetail(withProof, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
@@ -3523,7 +3525,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
     const flash = takeFlash(req, reply);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: file.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
+      title: customerFileTitle(locale, file), active: 'inbox',
       bodyHtml: renderCustomerFile(file, locale, new Date(), flash, personOf(s)),
     }));
   });

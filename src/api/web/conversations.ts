@@ -6,7 +6,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatList } from '../../core/owner/i18n/format.js';
-import { buyerWho, channelName, productName } from './inbox.js';
+import { buyerWho, channelName, productName, perPiece } from './inbox.js';
 import { esc, deeper, back, conversationUrl, signalMark, type Signal } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
@@ -35,11 +35,20 @@ type RelStatus =
   | { readonly t: 'awaiting' } | { readonly t: 'order'; readonly s: string } | { readonly t: 'closed' }
   | { readonly t: 'quoted' } | { readonly t: 'phase'; readonly s: string } | { readonly t: 'talking' };
 
-/** The first `n` characters — counted as characters, so an emoji is never cut in half. */
+/**
+ * The first `n` characters — counted as characters, so an emoji is never cut
+ * in half — and, Phase 9 (V1-274), cut where a word ends: "…the LED string li…"
+ * stopped mid-word with half the row empty.
+ */
 const truncate = (s: string, n: number): string => {
   const chars = Array.from(s);
-  return chars.length > n ? `${chars.slice(0, n).join('')}…` : s;
+  if (chars.length <= n) return s;
+  const head = chars.slice(0, n).join('');
+  const space = head.lastIndexOf(' ');
+  return `${(space > n * 0.6 ? head.slice(0, space) : head).trimEnd()}…`;
 };
+/** How much of a message a history line shows. */
+const HISTORY_CHARS = 140;
 /** D3 — the channel's name, read in one place (`inbox.ts`); named here too, where it was first. */
 export { channelName };
 
@@ -86,6 +95,8 @@ export type CustomerFile = {
   readonly buyer: string | null;
   readonly country: string | null;
   readonly channel: string;
+  /** Phase 9 (V1-272) — their number or e-mail on this channel, where it is one a person reads. Optional for fixtures. */
+  readonly address?: string | null;
   readonly status: RelStatus;
   readonly statusTone: Tone;
   readonly needsOwner: boolean;
@@ -127,9 +138,12 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       id: string; buyer: string | null; country: string | null; channel: string;
       phase: string; is_active: boolean; closed_at: Date | null; client_created: Date | null;
       name_zh: string | null; name: string | null;
-      pending: number; quote_count: number; order_count: number; order_status: string | null;
+      pending: number; quote_count: number; order_count: number; order_status: string | null; address: string | null;
     }>`
       select c.id, cl.display_name as buyer, cl.country, c.channel, c.phase,
+             (select cc.channel_user_id from client_channels cc
+               where cc.client_id = c.client_id and cc.channel = c.channel
+                 and cc.channel in ('whatsapp', 'email') limit 1) as address,
              c.is_active, c.closed_at, cl.created_at as client_created,
              p.name_zh, p.name,
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
@@ -189,9 +203,9 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
        where conversation_id = ${conversationId} order by sent_at desc, id desc limit 60`.execute(tx)).rows.reverse().forEach((m) => {
       if (m.direction === 'inbound') {
         const isImg = m.input_type === 'image' || m.input_type === 'image_text';
-        timeline.push(isImg ? mile('buyer_image', m.sent_at) : mile('buyer_text', m.sent_at, { text: truncate(m.text_content ?? '', 60) }));
+        timeline.push(isImg ? mile('buyer_image', m.sent_at) : mile('buyer_text', m.sent_at, { text: truncate(m.text_content ?? '', HISTORY_CHARS) }));
       } else if (m.text_content) {
-        timeline.push(mile('reply', m.sent_at, { text: truncate(m.text_content, 60) }));
+        timeline.push(mile('reply', m.sent_at, { text: truncate(m.text_content, HISTORY_CHARS) }));
       }
     });
 
@@ -228,7 +242,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     const profileProducts = products.length ? products.map((p) => ({ name: p.name, nameZh: p.nameZh })) : identified;
 
     return {
-      conversationId: head.id, buyer: head.buyer, country: head.country, channel: head.channel,
+      conversationId: head.id, buyer: head.buyer, country: head.country, channel: head.channel, address: head.address,
       status: rel.status, statusTone: rel.tone, needsOwner: rel.needsOwner,
       profile: { firstContact, products: profileProducts, quoteCount: head.quote_count, orderCount: head.order_count },
       timeline: recent,
@@ -284,17 +298,22 @@ function milestoneHtml(locale: Locale, m: Milestone, buyer: string | null): stri
   const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
   const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
+  const fig = (x: string): string => `<bdi class="fig">${esc(x)}</bdi>`;
+  // Phase 9 (V1-276) — what someone said, on its own line in its own direction:
+  // an English message in an Arabic sentence ran "…5,000 :Aisha Bello".
+  const words = (x: string): string => `<bdi class="said" dir="auto">${esc(x)}</bdi>`;
   /** The sentence escaped, with the quoted part put in — isolated — where its blank was. */
   const said = (key: MessageKey, params: Record<string, string>, blank: string, part: string): string =>
     esc(t(locale, key, { ...params, [blank]: '\u0000' })).replace('\u0000', part);
   switch (m.kind) {
     // The design pass (UI-PASS 5): the customer by name, never the lone role word.
     case 'buyer_text': return esc(t(locale, 'conv.tl.buyer_text', { who: '\u0001', text: '\u0000' }))
-      .replace('\u0001', iso(buyer ?? t(locale, 'common.buyer'))).replace('\u0000', iso(m.text ?? ''));
+      .replace('\u0001', iso(buyer ?? t(locale, 'common.buyer'))).replace('\u0000', words(m.text ?? ''));
     case 'buyer_image': return esc(t(locale, 'conv.tl.buyer_image'));
-    case 'reply': return said('conv.tl.reply', { name }, 'text', iso(m.text ?? ''));
+    case 'reply': return said('conv.tl.reply', { name }, 'text', words(m.text ?? ''));
+    // Phase 9 (V1-278) — per piece, as the reply says it.
     case 'quote': return said('conv.tl.quote', { name }, 'detail',
-      [iso(show.quantityOf(locale, m.qty ?? 0, pcs)), iso(`${m.unitPrice ? show.money(locale, m.unitPrice) : '—'}/${pcs}`)].join(' · '));
+      [fig(show.quantityOf(locale, m.qty ?? 0, pcs)), fig(m.unitPrice ? perPiece(locale, m.unitPrice) : '—')].join(' · '));
     case 'order': return said('conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? '') }, 'qty',
       iso(show.quantityOf(locale, m.qty ?? 0, pcs)));
     default: return esc(t(locale, `conv.tl.${m.kind}` as MessageKey));
@@ -362,6 +381,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
       ? `<p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
         <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
         <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>
+        ${deeper('/app/settings/data', t(locale, 'data.title'))}
         <form method="post" action="${here}/deletion" class="pform">
           <button class="btn danger" type="submit">${esc(t(locale, 'conv.deletion.record'))}</button>
         </form>
@@ -404,6 +424,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
         <p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
         <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
         <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>
+        ${/* Phase 9 (conversation-missed-09) — the page the sentence names, one door away. */ ''}${deeper('/app/settings/data', t(locale, 'data.title'))}
         <form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/deletion" class="pform">
           <div class="fld"><label for="deletion-note">${esc(t(locale, 'conv.deletion.note'))}</label>
             <textarea id="deletion-note" name="note" rows="2" required maxlength="${BUYER_NOTE_MAX}"></textarea>
@@ -419,6 +440,10 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
   </div>`;
 }
 
+/** Phase 9 (V1-284) — the tab says which of the customer's two pages this is: it read "Aisha Bello", as the conversation's did. */
+export const customerFileTitle = (locale: Locale, f: Pick<CustomerFile, 'buyer'>): string =>
+  `${f.buyer ?? t(locale, 'common.buyer')} · ${t(locale, 'conv.file.title')}`;
+
 export function renderCustomerFile(
   f: CustomerFile, locale: Locale, now: Date, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
 ): string {
@@ -427,7 +452,7 @@ export function renderCustomerFile(
   // CC-13 — each locale's own list, not the Chinese enumeration comma in every language.
   const productsLabel = formatList(locale, p.products.map((pr) => productName(locale, pr)).filter((x): x is string => Boolean(x)));
   const profileRows = [
-    p.firstContact ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.firstContact'))}</span><b>${esc(show.date(locale, p.firstContact))}</b></div>` : '',
+    p.firstContact ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.firstContact'))}</span><b>${esc(show.day(locale, p.firstContact, now))}</b></div>` : '',
     productsLabel ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.products'))}</span><b><bdi>${esc(productsLabel)}</bdi></b></div>` : '',
     p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${esc(show.count(locale, p.quoteCount))}</b></div>` : '',
     p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${esc(show.count(locale, p.orderCount))}</b></div>` : '',
@@ -438,7 +463,7 @@ export function renderCustomerFile(
         <input id="buyer-name" name="name" maxlength="80" value="${esc(f.buyer ?? '')}" placeholder="${esc(t(locale, 'common.buyer'))}">
         <button class="btn" type="submit">${esc(t(locale, 'conv.file.nameSave'))}</button>
       </div>
-      <div class="muted hint">${esc(t(locale, 'conv.file.nameHint', { buyer: t(locale, 'common.buyer') }))}</div>
+      <div class="muted hint">${esc(t(locale, 'conv.file.nameHint', { buyer: '\u0000' })).replace('\u0000', `<bdi class="fig">${esc(t(locale, 'common.buyer'))}</bdi>`)}</div>
     </form>`;
   const profile = `<div class="block"><h2>${esc(t(locale, 'conv.file.title'))}</h2>
     ${nameForm}
@@ -459,9 +484,9 @@ export function renderCustomerFile(
     // Each figure isolated, so Arabic keeps quantity, price and total apart and in order.
     ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${[
       show.quantityOf(locale, ctx.latestQuote.qty, pcs),
-      `${show.money(locale, ctx.latestQuote.unitPrice)}/${pcs}`,
+      perPiece(locale, ctx.latestQuote.unitPrice),
       `${t(locale, 'product.detail.total')} ${show.money(locale, ctx.latestQuote.total)}`,
-    ].map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</div></div>` : '',
+    ].map((x) => `<bdi class="fig">${esc(x)}</bdi>`).join(' · ')}</div></div>` : '',
     ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${
       // G4 — the reference opens the order, so what she tells a buyer who asks
       // after it is one tap away.
@@ -484,7 +509,8 @@ export function renderCustomerFile(
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, f.buyer, f.country)}</h1>
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
     </div>
-    <div class="muted subline">${esc(channelName(locale, f.channel))}</div>
+    <div class="muted subline">${esc(channelName(locale, f.channel))}${f.address
+      ? ` <bdi dir="ltr">${esc(f.channel === 'whatsapp' && /^\d+$/.test(f.address) ? `+${f.address}` : f.address)}</bdi>` : ''}</div>
     ${flashBanner(flash)}
     ${actLink}
     ${profile}

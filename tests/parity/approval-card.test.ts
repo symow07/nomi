@@ -81,7 +81,7 @@ describe('the card, drawn', () => {
     const held = (reason: 'disclosure_not_reviewed' | 'language_without_disclosure', language: string) =>
       ({ ...base, pendingDraft: { ...base.pendingDraft!, withheld: { reason, language } } });
     const es = withoutIsolates(card(renderConversationDetail(held('disclosure_not_reviewed', 'es'), 'en', NOW, null)));
-    expect(es).toContain('<b>Waiting for you</b>');
+    expect(es).toContain('<b>Needs you</b>');
     expect(es).toContain('does not send alone to customers writing in Spanish yet');
     const pt = withoutIsolates(card(renderConversationDetail(held('language_without_disclosure', 'pt'), 'zh', NOW, null)));
     expect(pt).toContain('目前没有葡萄牙语版的身份说明');
@@ -100,9 +100,10 @@ describe('the card, drawn', () => {
     expect(html.split('how much for 10 of the rose serum?')).toHaveLength(2);
     expect(c).not.toContain('asked ·');
     // what was understood and how it was read: one quiet line under the acts, opening downward
-    expect(c).toMatch(/<details class="reading"><summary><span class="t">How your assistant read this<\/span><span class="c">5 reasons<\/span><\/summary><p class="und">/);
+    // Phase 9 (V1-222) — the line carries only what needs the owner: no count of reasons.
+    expect(c).toMatch(/<details class="reading"><summary><span class="t">How your assistant read this<\/span><\/summary><p class="und">/);
     expect(c).toContain('<bdi>a price question</bdi> · <bdi>Rose Face Serum</bdi> · <bdi>10\u00a0bottles</bdi> · <bdi>English</bdi>');
-    expect(c).toContain('<bdi>$34.90</bdi><span>your price for Rose Face Serum</span>');
+    expect(c).toContain('<bdi>$34.90</bdi><span>your price for <bdi class="pname">Rose Face Serum</bdi></span>');
     expect(c).toContain('<bdi>$349.00</bdi><span>the total, at your prices</span>');
     expect(c).toContain('<bdi>Ships from Leeds</bdi><span>something you taught</span>');
     expect(c).toContain('checked twice');
@@ -132,7 +133,7 @@ describe('the card, drawn', () => {
   it('what made it wait is the card\'s state line, drawn before the rest', () => {
     const held = withoutIsolates(renderConversationDetail({ ...base, pendingDraft: { ...base.pendingDraft!, heldBecause: 'discount_needs_owner' } }, 'en', NOW, null));
     const c = card(held);
-    expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">○<\/span> <b>Waiting for you<\/b> /);
+    expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">○<\/span> <b>Needs you<\/b> /);
     expect(c.indexOf('class="stateline"')).toBeLessThan(c.indexOf('<textarea'));
   });
 
@@ -145,7 +146,8 @@ describe('the card, drawn', () => {
     const c = card(html);
     // Phase 9 (V1-220) — and where in the reply it stands.
     expect(c).toContain('<span class="mk warn" aria-hidden="true">○</span><bdi>29</bdi><span>no source found <bdi class="muted">Today only: $29.</bdi></span>');
-    expect(c).toMatch(/<span class="c warn"><span aria-hidden="true">○<\/span> Not every figure has a source<\/span><\/summary>/);
+    // Phase 9 (V1-222) — which figure, on the line itself.
+    expect(c).toMatch(/<span class="c warn"><span aria-hidden="true">○<\/span> No source for 29<\/span><\/summary>/);
     expect(c).toContain('a second, separate reading differed on the product');
   });
 
@@ -153,10 +155,10 @@ describe('the card, drawn', () => {
     const draft = { ...base.pendingDraft!, draftText: 'All our lamps are CE certified.' };
     const no = card(withoutIsolates(renderConversationDetail({ ...base, pendingDraft: draft, claimsAllowed: [] }, 'en', NOW, null)));
     expect(no).toContain(t('en', 'card.source.claimUnconfirmed'));
-    expect(no).toContain(t('en', 'card.unconfirmedClaim'));
+    expect(no).toContain(t('en', 'card.unconfirmedWhich', { claims: '“CE certified”' }));
     const yes = card(withoutIsolates(renderConversationDetail({ ...base, pendingDraft: draft, claimsAllowed: ['certification:CE'] }, 'en', NOW, null)));
     expect(yes).toContain(t('en', 'card.source.claim'));
-    expect(yes).not.toContain(t('en', 'card.unconfirmedClaim'));
+    expect(yes).not.toContain('Not confirmed by you');
   });
 
   it('phase 9 (V1-220) · a model code\'s number is shown in its words, so the owner sees where it came from', () => {
@@ -170,9 +172,9 @@ describe('the card, drawn', () => {
     const zh = card(withoutIsolates(renderConversationDetail(base, 'zh', NOW, null)));
     expect(zh).toContain(t('zh', 'card.goes', { channel: 'Instagram' }));
     expect(zh).toContain('<bdi>问价</bdi> · <bdi>玫瑰精华</bdi>');
-    expect(zh).toContain('5 条依据');
+    expect(zh).not.toContain('条依据');
     const ar = card(withoutIsolates(renderConversationDetail(base, 'ar', NOW, null)));
-    expect(ar).toContain('5 أسباب');
+    expect(ar).not.toContain('أسباب');
     expect(ar).toContain(t('ar', 'card.handToMe'));
     // the reply box takes the draft's own direction
     expect(ar).toMatch(/<textarea id="reply" name="edit" rows="\d+" dir="auto"/);
@@ -201,10 +203,10 @@ describe('the card, drawn', () => {
   it('no turn on record (a fixture, an old conversation): the card still works, and claims nothing it cannot show', () => {
     const c = card(withoutIsolates(renderConversationDetail({ ...base, reading: null, knowledgeUsed: [] }, 'en', NOW, null)));
     // no reading of the message: no intent, no language, no second reading — only the product the conversation holds
-    expect(c).toContain('<p class="und"><span class="k">Understood</span><span><bdi>Rose Face Serum</bdi></span></p>');
+    expect(c).toContain('<p class="und"><span class="k">Understood as:</span> <span><bdi>Rose Face Serum</bdi></span></p>');
     expect(c).not.toContain('checked twice');
     // …and the quote the page holds still sources its figures
-    expect(c).toContain('<bdi>$34.90</bdi><span>your price for Rose Face Serum</span>');
+    expect(c).toContain('<bdi>$34.90</bdi><span>your price for <bdi class="pname">Rose Face Serum</bdi></span>');
     expect(c).not.toContain('Not every figure');
     expect(c).toContain('name="command" value="send"');
   });

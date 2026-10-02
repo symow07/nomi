@@ -237,12 +237,13 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     expect(withoutIsolates(renderOrder(order(), 'ar', null))).toContain(`5,000${NBSP}قطعة`);
   });
 
+  // Phase 9 (V1-258) — per ONE piece, still in the page's language: "/pc", "/个", "/قطعة", "/ud.".
   it('practice: each chip\'s colon, and the price per unit in the page\'s language (it said "/pc" everywhere)', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderSandbox(practice(), l, { flash: null }));
       expect(html, l).toContain(esc(labelled(l, t(l, 'sandbox.xray.skill'), t(l, 'capability.quote' as MessageKey))));
-      expect(html, l).toContain(`${l === 'ar' ? `\u200F0.85${NBSP}US$` : '$0.85'}/${esc(t(l, 'product.unit.pcs'))}`);
-      expect(html, l).not.toContain('/pc<');
+      expect(html, l).toContain(`${l === 'ar' ? `\u200F0.85${NBSP}US$` : '$0.85'}/${esc(t(l, 'product.unit.pc'))}`);
+      if (l !== 'en') expect(html, l).not.toContain('/pc<');
     }
   });
 

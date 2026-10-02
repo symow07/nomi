@@ -50,7 +50,8 @@ describe('P4 · the checklist, per kind of business', () => {
 
   it('the count is what was seen of this list, and each seen item is ticked', () => {
     const html = draw(checklistFor('catalogue'), ['quoted', 'stop_handoff', 'price_handed']);   // price_handed is not on this list
-    expect(html).toMatch(/2\/8/);
+    // Phase 9 (V1-290) — the count says what it counts.
+    expect(html).toContain(t('en', 'practice.checklist.count', { done: 2, total: 8 }));
     expect(html).toMatch(/<li class="chk ok"><span class="mk" aria-hidden="true">✓<\/span>\s*<span class="lbl">One of your products quoted/);
   });
 

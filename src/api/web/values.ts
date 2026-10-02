@@ -119,6 +119,9 @@ export const time = (locale: Locale, d: Date): string => isolate(locale, f.forma
 /** "Today 09:15", "Yesterday 23:40", "Jul 17 09:15". */
 export const when = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatRelative(locale, d, now, workspaceZone()));
 
+/** Phase 9 (V1-267) — "Today", "Yesterday", "Tue, Sep 29": a day on its own, for a divider or a first contact. */
+export const day = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatDay(locale, d, now, workspaceZone()));
+
 /** "14:02", "Yesterday", "Sep 28" — a list's corner. */
 export const shortWhen = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatShortWhen(locale, d, now, workspaceZone()));
 

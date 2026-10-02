@@ -53,7 +53,7 @@ describe('G12 · the conversation says whose it is', () => {
     proof: { quoteId: null, token: null }, ...over,
   });
 
-  it('the design pass (UI-PASS 5) — in "Hand to", the reader is "You", whatever the row is called', () => {
+  it('the design pass (UI-PASS 5) — in "Hand to", the reader is "me" (the label’s own object), whatever the row is called', () => {
     // An owner provisioned before logins was named after the business, and the
     // list offered "Westlake Canvas Co." as a person.
     const named = [{ ...owner, name: 'Westlake Canvas Co.' }, chen];
@@ -61,12 +61,12 @@ describe('G12 · the conversation says whose it is', () => {
       // Held by Chen, the owner takes it back through "Hand to": the owner is "You".
       const byChen = detail({ people: named, heldBy: chen.id, ownership: 'OWNER_CONTROLLED', lastHumanAction: null });
       const asOwner = renderConversationDetail(byChen, l, NOW, null, { id: owner.id, isOwner: true });
-      expect(asOwner, l).toContain(`<option value="${owner.id}">${esc(t(l, 'conv.by.you'))}</option>`);
+      expect(asOwner, l).toContain(`<option value="${owner.id}">${esc(t(l, 'handto.self'))}</option>`);
       expect(asOwner, l).not.toContain('>Westlake Canvas Co.</option>');
       // Held by the owner, Chen sees the owner as the row names them — and is not offered back to the holder.
       const byOwner = detail({ people: named, heldBy: owner.id, ownership: 'OWNER_CONTROLLED', lastHumanAction: null });
       const asChen = renderConversationDetail(byOwner, l, NOW, null, { id: chen.id, isOwner: false });
-      expect(asChen, l).toContain(`<option value="${chen.id}">${esc(t(l, 'conv.by.you'))}</option>`);
+      expect(asChen, l).toContain(`<option value="${chen.id}">${esc(t(l, 'handto.self'))}</option>`);
     }
   });
 

@@ -176,13 +176,14 @@ describe('M16.2c · inbox human control surface (localized)', () => {
     const quiet = renderConversationDetail({ ...detailIn('AI'), pendingDraft: null }, 'en', NOW, null);
     expect(quiet).toContain(shown('en', 'takeover.status.ai'));
     expect(quiet).toContain(' action="/app/inbox/conv-1/takeover"');
-    expect(quiet).toContain('Take over');
+    expect(quiet).toContain(shown('en', 'takeover.action.take'));
+    expect(t('en', 'takeover.action.take')).toBe(t('en', 'card.handToMe'));
   });
 
   it('WAITING_HUMAN state: waiting status + stored handoff reasons + take-over', () => {
     const html = renderConversationDetail(
       detailIn('WAITING_HUMAN', { handoffReasons: ['human_requested', 'complaint'] }), 'en', NOW, null);
-    expect(html).toContain('Waiting for you');
+    expect(html).toContain('Needs you');
     expect(html).toContain('Handed to you because');
     expect(html).toContain('the customer asked for a person');   // stored reason, not a summary
     expect(html).toContain('a complaint');
@@ -231,7 +232,7 @@ describe('M16.2c · inbox human control surface (localized)', () => {
     const zh = renderConversationDetail(withLast('OWNER_CONTROLLED', 'takeover'), 'zh', NOW, null);
     expect(zh).toContain('你正在处理'); expect(zh).toContain('由你接手'); expect(zh).toContain('最近操作');
     const ar = renderConversationDetail(detailIn('WAITING_HUMAN'), 'ar', NOW, null);
-    expect(ar).toContain('بانتظارك'); expect(ar).toContain(shown('ar', 'card.handToMe'));
+    expect(ar).toContain('بحاجة إليك'); expect(ar).toContain(shown('ar', 'card.handToMe'));
   });
 
   it('invents no metric on the control surface — any locale', () => {
@@ -317,7 +318,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     expect(ar).toContain('بحاجة إليك'); expect(ar).not.toContain('يحتاجون'); expect(ar).toContain(shown('ar', 'buyers.badge.reviewShort'));
     expect(ar).not.toContain('Needs you'); expect(ar).not.toContain(shown('en', 'buyers.badge.reviewShort'));
     const zh = renderInboxList(mixed, 'zh', NOW);
-    expect(zh).toContain('需要你处理'); expect(zh).toContain(shown('zh', 'buyers.badge.reviewShort'));
+    expect(zh).toContain('等你处理'); expect(zh).toContain(shown('zh', 'buyers.badge.reviewShort'));
   });
 
   it('invents no metric: no rate, percentage, score or ranking — any locale', () => {
@@ -386,12 +387,12 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
     // `statusOf` calls every assigned conversation "Paused" — printing that above
     // "Waiting for you" told the owner two different things at once.
     const wait = renderConversationDetail(detailIn('WAITING_HUMAN'), 'en', NOW, null);
-    expect(wait).toContain('Waiting for you');
+    expect(wait).toContain('Needs you');
     expect(wait).not.toContain('Paused');
     const owned = renderConversationDetail(detailIn('OWNER_CONTROLLED'), 'en', NOW, null);
     expect(owned).not.toContain('Paused');
     // while the assistant holds it, the conversation's own state is still worth stating
-    expect(renderConversationDetail(detailIn('AI'), 'en', NOW, null)).toContain('Awaiting you');
+    expect(renderConversationDetail(detailIn('AI'), 'en', NOW, null)).toContain('<span class="pill warn">Needs you</span>');
   });
 
   it('what the assistant used to answer: a reason on the card while a reply waits, its own section once one went, hidden once a human holds the pen', () => {
@@ -520,10 +521,17 @@ describe('Release hardening · a permanent change asks first', () => {
     }
   });
 
-  it('none of the card\'s acts asks first: each is about this one reply', () => {
+  /**
+   * Phase 9 (V1-237, the owner's call given to the builder, 2026-10-03) — one
+   * act on the card puts the reply away for good: "No reply needed". Phase 5's
+   * rule keeps asking for what erases, so it asks; Send and "I'll reply" never do.
+   */
+  it('only "No reply needed" asks first: it puts this reply away for good; Send and I\'ll reply never ask', () => {
     const start = withDraft.indexOf('id="approve"');
     const card = withDraft.slice(start, withDraft.indexOf('</section>', start));
     expect(card).toContain('value="send"');
-    expect(card).not.toContain('onclick="return confirm');
+    expect(card.split('onclick="return confirm').length - 1).toBe(1);
+    const asking = card.slice(card.lastIndexOf('<button', card.indexOf('onclick="return confirm')));
+    expect(asking.slice(0, asking.indexOf('</button>'))).toContain('value="不回"');
   });
 });

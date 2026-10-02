@@ -13,7 +13,7 @@ import { countryName, orderStatusName, capabilityName, type MessageKey } from '.
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import { t, assistantName, outreachShown, tn } from './say.js';
-import { formatList, labelled } from '../../core/owner/i18n/format.js';
+import { formatList, labelled, dayKey } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
@@ -33,6 +33,8 @@ import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, type BuyersFilter } from '../../db/buyersList.js';
 import * as show from './values.js';
+import { isCountryCode } from '../../core/owner/business.js';
+import { workspaceZone } from './zone.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,11 +71,14 @@ const receivedOf = (v: string | null | undefined): ReceivedKind | null =>
  * parseOwnerReply expects — only the labels localize.
  */
 
-// Flags are emoji, not localizable — shared with conversations.
-export const FLAG: Record<string, string> = {
-  AE: '🇦🇪', SA: '🇸🇦', RU: '🇷🇺', EG: '🇪🇬', MA: '🇲🇦', NG: '🇳🇬', CN: '🇨🇳', US: '🇺🇸', TR: '🇹🇷', IN: '🇮🇳',
+// Flags are emoji, not localizable — shared with conversations and the calendar.
+// Phase 9 (V1-265) — every country's, from its two letters: a list of ten gave
+// Aisha in Nigeria a flag and Carlos in Brazil none.
+export const flag = (c: string | null): string => {
+  const code = (c ?? '').trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) && isCountryCode(code)
+    ? String.fromCodePoint(...[...code].map((ch) => 0x1F1E6 + ch.charCodeAt(0) - 65)) : '';
 };
-export const flag = (c: string | null): string => (c ? (FLAG[c] ?? '') : '');
 
 /** The catalogue name in the owner's own language. Shared — the factory page
  *  used to print the English name to a Chinese owner. */
@@ -1042,6 +1047,13 @@ export function needsWhy(locale: Locale, c: ConversationSummary): string {
   return t(locale, 'buyers.badge.yours');
 }
 
+/**
+ * Phase 9 (V1-228, V1-258, V1-278) — a unit price is per ONE piece: "$1.45/pc",
+ * "$1.45/ud.", as the reply itself says it. It read "$1.45/pcs" beside a draft
+ * saying "$1.45/pc".
+ */
+export const perPiece = (locale: Locale, m: Money): string => `${show.money(locale, m)}/${t(locale, 'product.unit.pc')}`;
+
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
 function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new'; language: string }
   | { reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null {
@@ -1157,7 +1169,7 @@ export function customerRow(locale: Locale, c: ConversationSummary, o: RowOption
   // Who wrote the newest message, when it was not the customer: you, in words;
   // the assistant, by its mark — only where the row's own mark does not say it already.
   const speaker = c.lastFrom === 'person' ? `<bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ': '}`
-    : c.lastFrom === 'assistant' && state !== 'hers' ? '<span class="as" aria-hidden="true">✦</span> ' : '';
+    : c.lastFrom === 'assistant' && state !== 'hers' ? `<span class="as" aria-hidden="true">✦</span><span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
   const when = [
     o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
     c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '',
@@ -1493,7 +1505,8 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     <form method="post" action="/app/inbox/${cid}/handto" class="handto">
       <label class="muted" for="handto">${esc(t(locale, 'handto.label'))}</label>
       <select id="handto" name="personId" required>
-        ${others.map((p) => `<option value="${esc(p.id)}">${esc(isViewer(p) ? t(locale, 'conv.by.you') : p.name)}</option>`).join('')}
+        ${/* Phase 9 (V1-243, V1-264) — the reader as the label's own object: "Pasar a mí", «إحالة إلى نفسي», not "Pasar a Tú". */ ''}${
+          others.map((p) => `<option value="${esc(p.id)}">${esc(isViewer(p) ? t(locale, 'handto.self') : p.name)}</option>`).join('')}
       </select>
       <button class="btn" type="submit">${esc(t(locale, 'handto.button'))}</button>
     </form>`;
@@ -1504,7 +1517,10 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     case 'AI':
       // Phase 9 (V1-215) — with a reply waiting for the owner, the card says so,
       // as the header's "Awaiting you" does; "is handling this" contradicted it.
-      return `<div class="card takeover"><span class="pill as">${esc(t(locale, d.pendingDraft ? 'takeover.status.aiDraft' : 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
+      // Phase 9 (conversation-new-06) — with nothing waiting, the card says so itself: in a dashed box
+      // of its own the line read as an empty drop zone, narrower than the cards around it.
+      return `<div class="card takeover"><span class="pill as">${esc(t(locale, d.pendingDraft ? 'takeover.status.aiDraft' : 'takeover.status.ai'))}</span>${
+        d.pendingDraft || d.working === true ? '' : `<p class="muted takeover-note">${esc(t(locale, 'inbox.draft.none'))}</p>`}${last}${takeBtn}${handToForm}</div>`;
     case 'WAITING_HUMAN':
       return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}${handToForm}</div>`;
     case 'OWNER_CONTROLLED':
@@ -1749,7 +1765,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     r?.language ? languageName(locale, r.language) : null,
   ].filter((x): x is string => !!x);
   const und = understood.length
-    ? `<p class="und"><span class="k">${esc(t(locale, 'card.understood'))}</span><span>${understood.map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</span></p>`
+    ? `<p class="und"><span class="k">${esc(labelled(locale, t(locale, 'card.understood'), '').trimEnd())}</span> <span>${understood.map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</span></p>`
     : '';
 
   // How it was read: one line per product name and figure in the reply, each with its source.
@@ -1770,8 +1786,12 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     : l.source === 'total' && d.quote ? show.money(locale, d.quote.total)
     : l.value.toLocaleString('en-US', { maximumFractionDigits: 4 });
   const line = (ok: boolean, said: string, source: string, where = '') =>
-    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${esc(source)}${
+    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${source}${
       where ? ` <bdi class="muted">${esc(where)}</bdi>` : ''}</span></li>`;
+  // Phase 9 (V1-242) — the product's name kept whole where the line has room:
+  // «سعر LED String Lights / 10m في قائمة أسعارك» broke the name in two.
+  const priceSource = (product: string): string =>
+    esc(t(locale, 'card.source.price', { product: '\u0000' })).replace('\u0000', `<bdi class="pname">${esc(product)}</bdi>`);
   // Phase 9 (V1-220) — where in the reply a figure stands: "300" alone was
   // unreadable; "…model ZX-300 has…" says it came from the model's name.
   const whereIn = (value: number): string => {
@@ -1786,34 +1806,38 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   };
   const reasons = [
     ...read.lines.map((l) => l.kind === 'product'
-      ? line(true, `“${l.name}”`, t(locale, 'card.source.product'))
+      ? line(true, `“${l.name}”`, esc(t(locale, 'card.source.product')))
       : line(l.source !== 'unsourced', figure(l), l.source === 'price'
-        ? (prod ? t(locale, 'card.source.price', { product: prod }) : t(locale, 'card.source.priceAny'))
-        : t(locale, `card.source.${l.source}` as MessageKey), l.source === 'unsourced' ? whereIn(l.value) : '')),
-    ...d.knowledgeUsed.map((k) => line(true, k, t(locale, 'card.source.taught'))),
+        ? (prod ? priceSource(prod) : esc(t(locale, 'card.source.priceAny')))
+        : esc(t(locale, `card.source.${l.source}` as MessageKey)), l.source === 'unsourced' ? whereIn(l.value) : '')),
+    ...d.knowledgeUsed.map((k) => line(true, k, esc(t(locale, 'card.source.taught')))),
     // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a
     // term, a guarantee), and whether you confirmed it: "CE certified" stood in
     // a draft with nothing on the card, while no certification was confirmed.
     ...detectClaims(p.draftText).map((c) => {
       const confirmed = (d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`);
-      return line(confirmed, `“${c.matchedText}”`, t(locale, confirmed ? 'card.source.claim' : 'card.source.claimUnconfirmed'));
+      return line(confirmed, `“${c.matchedText}”`, esc(t(locale, confirmed ? 'card.source.claim' : 'card.source.claimUnconfirmed')));
     }),
     ...(r?.differsOn === null || r?.differsOn === undefined ? []
-      : r.differsOn.length === 0 ? [line(true, t(locale, 'card.checked'), t(locale, 'card.checked.same'))]
-      : [line(false, t(locale, 'card.checked.differs'), t(locale, 'card.checked.differsOn', {
+      : r.differsOn.length === 0 ? [line(true, t(locale, 'card.checked'), esc(t(locale, 'card.checked.same')))]
+      : [line(false, t(locale, 'card.checked.differs'), esc(t(locale, 'card.checked.differsOn', {
           fields: formatList(locale, r.differsOn.map((f) => t(locale, `card.field.${f}` as MessageKey))),
-        }))]),
+        })))]),
   ];
   // One quiet line under the acts, opening downward: what was understood, and
   // how the reply was read. A figure nothing accounts for is said on the line
   // itself, with the ○ that marks it in the list it opens.
-  const unsourced = read.lines.some((l) => l.kind === 'figure' && l.source === 'unsourced');
-  const unconfirmed = detectClaims(p.draftText).some((c) => !(d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`));
+  // Phase 9 (V1-222) — which figure, and which claim: "Not every figure has a
+  // source" sent the owner into the fold to find out. A count of reasons beside
+  // it said nothing the owner acts on, so the line carries only what needs them.
+  const unsourced = [...new Set(read.lines.flatMap((l) => (l.kind === 'figure' && l.source === 'unsourced' ? [figure(l)] : [])))];
+  const unconfirmed = [...new Set(detectClaims(p.draftText)
+    .filter((c) => !(d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`)).map((c) => `“${c.matchedText}”`))];
   const how = reasons.length || und
     ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
-        unsourced ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unsourced'))}</span>`
-          : unconfirmed ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unconfirmedClaim'))}</span>`
-          : reasons.length ? `<span class="c">${esc(tn(locale, 'card.reasons.count', reasons.length))}</span>` : ''}</summary>${
+        unsourced.length ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) }))}</span>`
+          : unconfirmed.length ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) }))}</span>`
+          : ''}</summary>${
         und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
     : '';
 
@@ -1843,7 +1867,12 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
         <div class="acts">
           <button class="btn send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
           <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
-          <button class="btn" type="submit" name="command" value="不回">${esc(t(locale, 'card.noReply'))}</button>
+        </div>
+        ${/* Phase 9 (V1-237) — the owner's call (2026-10-03): "No reply needed" leaves the row of
+             the two answers and sits on its own line under them, with the window; it puts
+             the reply away for good, so it asks first. What it does when pressed is unchanged. */ ''}<div class="acts-more">
+          <button class="btn" type="submit" name="command" value="不回"
+            onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'card.noReply.confirm'))}">${esc(t(locale, 'card.noReply'))}</button>
           ${window ? `<p class="src">${window}</p>` : ''}
         </div>
       </form>
@@ -1880,11 +1909,12 @@ export function renderConversationDetail(
   // Each figure isolated: in Arabic one run of quantity, unit, price and total
   // reordered itself ("1.45$/قطعة"). The separators keep the page's direction.
   const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
+  const fig = (x: string): string => `<bdi class="fig">${esc(x)}</bdi>`;
   const context = (d.quote || d.order) ? `<div class="ctx">
       ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${[
-        iso(show.quantityOf(locale, d.quote.quantity, pcs)),
-        iso(`${show.money(locale, d.quote.unitPrice)}/${pcs}`),
-        iso(`${t(locale, 'product.detail.total')} ${show.money(locale, d.quote.total)}`),
+        fig(show.quantityOf(locale, d.quote.quantity, pcs)),
+        fig(perPiece(locale, d.quote.unitPrice)),
+        fig(`${t(locale, 'product.detail.total')} ${show.money(locale, d.quote.total)}`),
       ].join(' · ')}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
       ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${[
         iso(d.order.reference), iso(orderStatusName(locale, d.order.status)),
@@ -1912,13 +1942,19 @@ export function renderConversationDetail(
   const older = d.transcript?.older === true;
   const earlier = d.transcript?.earlier ?? null;
   const last = flash === null ? d.messages.length - 1 : -1;
+  const dayOf = (m: TimelineMessage): string | null => (m.at ? dayKey(m.at, workspaceZone()) : null);
+  const divider = (m: TimelineMessage, i: number): string => {
+    const k = dayOf(m);
+    return k !== null && (i === 0 || dayOf(d.messages[i - 1]!) !== k)
+      ? `<p class="tday"><span>${esc(show.day(locale, m.at!, now))}</span></p>` : '';
+  };
   const timeline = d.messages.length
-    ? `<div class="timeline">${d.messages.map((m, i) => `
+    ? `<div class="timeline">${d.messages.map((m, i) => `${divider(m, i)}
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div dir="auto" class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
-          <div class="ts muted">${[m.at ? esc(show.when(locale, m.at, now)) : '',
+          <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
             // The design pass (UI-PASS 5): each speaker by their name — the
             // customer's, "You", the assistant's — never a role word; a
             // customer with no name yet is just their message.
@@ -1941,8 +1977,6 @@ export function renderConversationDetail(
   // its reply will take says so, directly under that message; the page's
   // script draws the reply in when it lands. "No reply" is not said meanwhile.
   const working = d.working === true && d.ownership === 'AI' ? workingLine(locale) : '';
-  const noDraft = working ? ''
-    : `<div class="block"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
 
   // Phase D — "why did she say that?", from the stored usage audit. Shown only
   // while SHE is speaking: once a human takes over it is no longer the question.
@@ -2111,7 +2145,6 @@ export function renderConversationDetail(
     ${working}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${takeoverCard(d, locale, now, viewer)}
-    ${d.ownership === 'OWNER_CONTROLLED' || d.pendingDraft ? '' : noDraft}
     ${deletionCard}
     ${unheardCard}
     ${unreadableCard}
