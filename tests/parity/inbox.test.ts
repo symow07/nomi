@@ -317,7 +317,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     expect(ar).toContain('بحاجة إليك'); expect(ar).not.toContain('يحتاجون'); expect(ar).toContain(shown('ar', 'buyers.badge.reviewShort'));
     expect(ar).not.toContain('Needs you'); expect(ar).not.toContain(shown('en', 'buyers.badge.reviewShort'));
     const zh = renderInboxList(mixed, 'zh', NOW);
-    expect(zh).toContain('需要你处理'); expect(zh).toContain(shown('zh', 'buyers.badge.reviewShort'));
+    expect(zh).toContain('等你处理'); expect(zh).toContain(shown('zh', 'buyers.badge.reviewShort'));   // Phase 9 (V1-175) — the group says what its tab says
   });
 
   it('invents no metric: no rate, percentage, score or ranking — any locale', () => {

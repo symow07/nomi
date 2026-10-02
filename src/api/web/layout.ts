@@ -343,7 +343,7 @@ ${cssVariables()}
   nav.side .subnav { display:flex; align-items:center; width:100%; min-height:40px;
     padding: var(--space-8) var(--space-12) var(--space-8) var(--space-24); border:0; border-radius: var(--radius-card);
     background:transparent; color: var(--color-ink-secondary); font: inherit; font-size: var(--font-size-small);
-    text-align:start; cursor:pointer; margin-bottom: var(--space-4); }
+    text-align:start; cursor:pointer; margin-bottom: var(--space-4); flex-wrap:wrap; }
   .navout { margin:0; }
   nav.side .navout .subnav { padding-inline-start: var(--space-12); }
   nav.side .subnav:hover { background: var(--color-surface); color: var(--color-ink); }
@@ -504,7 +504,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
     font-size:var(--font-size-small); }
-  .tab.on { background:var(--color-paper); border-color:var(--color-border); color:var(--color-ink); font-weight:600; }
+  /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an ink edge and weight, not a paler grey than its neighbours. */
+  .tab.on { background:var(--color-surface); border-color:var(--color-ink); box-shadow:inset 0 0 0 1px var(--color-ink); color:var(--color-ink); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
@@ -1246,6 +1247,12 @@ const STYLE_PAGES = `
   .search { display:flex; align-items:center; gap:var(--space-8); margin:0 0 var(--space-16); max-width:var(--measure-prose); }
   .search input { flex:1; min-width:0; appearance:none; }
   .search .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Phase 9 (V1-171) — the button stands as tall as the field it sends, so their edges meet. */
+  .search .btn { align-self:stretch; }
+  /* Phase 9 (V1-181, inbox-calendar-missed-06) — the way back from a search is a link in what was found, never beside the field. */
+  .found .clear { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  /* Phase 9 (V1-182) — the searched words, marked by weight and a line: no colour of their own. */
+  mark.hit { background:transparent; color:inherit; font-weight:700; text-decoration:underline; text-underline-offset:2px; }
   /* Grouped by who is speaking. Phase 1 (2026-10-02): the list takes the
      whole column, one ruled sheet of rows, so a laptop shows ten or more. */
   .lhead { display:flex; flex-direction:column; }
@@ -1289,9 +1296,15 @@ const STYLE_PAGES = `
   .cr-why { grid-row:2; grid-column:3; justify-self:end; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .is-needs .cr-why { color:var(--color-waiting); font-weight:600; }
+  /* Phase 9 (inbox-calendar-new-02) — on a phone the product stays on line one, cut at its end; its figures go. */
   @media (max-width: 720px) {
-    .cr-detail { display:none; }
+    .cr-fig { display:none; }
   }
+  /* Phase 9 (inbox-calendar-new-03) — what the row marks mean, under the rows. */
+  .cr-key { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-16); margin:var(--space-8) 0 var(--space-12); }
+  .ck-i { display:inline-flex; align-items:baseline; gap:var(--space-4); }
+  /* Phase 9 (V1-166) — a door the rail already holds on a wide screen is the phone's alone. */
+  @media (min-width: 721px) { .deeper.on-phone { display:none; } }
   .dhead .who { font-size:var(--font-size-small); }
   /* CC-20 — on the conversation, the buyer's and the product's page, the name
      in the header is the page's title (an h1), drawn the size it always was. */
@@ -1812,7 +1825,8 @@ export function shell(input: {
   const sub = (href: string, key: MessageKey, on: boolean, count: number | null) =>
     `<a href="${href}" class="subnav${on ? ' active' : ''}"${on ? ' aria-current="page"' : ''}${
       count ? ` aria-label="${esc(t(locale, key))}, ${esc(tn(locale, 'nav.needsYou', count))}"` : ''}>${esc(t(locale, key))}${
-      count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, String(count)))}</span>` : ''}</a>`;
+      // Phase 9 (V1-172) — the number says what it counts, to everyone: "3 waiting".
+      count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, t(locale, 'nav.waiting', { n: count })))}</span>` : ''}</a>`;
   const nav = `<div class="navgroup">${link(byId('home'))}${link(byId('inbox'))}
       <div class="navhub" role="group" aria-labelledby="nav-customers">
         <span class="navhead" id="nav-customers">${esc(t(locale, 'nav.customers'))}</span>
