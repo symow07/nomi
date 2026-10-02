@@ -23,6 +23,7 @@ import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
+import { chosenName } from '../../db/assistants.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
 import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals.js';
 import { orderConfirmedReply } from '../../core/conversation/templates.js';
@@ -215,9 +216,11 @@ export async function loadInboxList(
       answered_by: string | null; assistants: number; deletion_waiting: boolean; order_waiting: boolean;
     }>`
       select c.id::text as id, cl.display_name as buyer, cl.country, c.channel,
+             -- Phase 9 (V1-005) — the name only once chosen (rule 7, chosenName):
+             -- the row's default name said "Lily drafted" before the owner had chosen it.
              coalesce(
-               (select a.name from assistants a where a.id = c.assistant_id),
-               (select a.name from assistants a
+               (select ${chosenName('a')} from assistants a where a.id = c.assistant_id),
+               (select ${chosenName('a')} from assistants a
                  where a.business_id = c.business_id and a.is_default and a.archived_at is null)) as answered_by,
              (select count(*)::int from assistants a
                where a.business_id = c.business_id and a.archived_at is null) as assistants,
@@ -752,9 +755,11 @@ export async function loadConversationDetail(
              cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply, c.owner_testing,
              -- A5: the conversation's own assistant; one that started before
              -- there was a second belongs to the main one.
+             -- Phase 9 (V1-005) — the name only once chosen (rule 7, chosenName):
+             -- the row's default name said "Lily drafted" before the owner had chosen it.
              coalesce(
-               (select a.name from assistants a where a.id = c.assistant_id),
-               (select a.name from assistants a
+               (select ${chosenName('a')} from assistants a where a.id = c.assistant_id),
+               (select ${chosenName('a')} from assistants a
                  where a.business_id = c.business_id and a.is_default and a.archived_at is null)) as answered_by,
              (select count(*)::int from assistants a
                where a.business_id = c.business_id and a.archived_at is null) as assistants,
