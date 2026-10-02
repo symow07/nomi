@@ -2876,7 +2876,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
-    if (!text.trim()) return reply.redirect('/app/products/add');
+    // Phase 9 (V1-007) — an empty box says so; it reloaded and said nothing.
+    if (!text.trim()) return flashTo(reply, '/app/products/add', 'product.add.empty');
     // K8 — a pasted table (a store's export, spreadsheet rows) is mapped by its columns first.
     if (looksLikeTable(text)) {
       const table = await startTableImport(deps.db, s.businessId, personOf(s).id, text);

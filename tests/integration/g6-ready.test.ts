@@ -88,6 +88,14 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(outside.body).not.toContain('<nav class="side"');
   });
 
+  it('PHASE 9 · V1-007 · an empty product paste says so instead of reloading in silence', async () => {
+    const { flashSaid } = await import('./tenant.js');
+    const r = await app.inject({ method: 'POST', url: '/app/products/add/review', payload: 'text=%20%20', headers: { ...FORM, cookie: pilotCookie } });
+    expect(r.statusCode).toBe(302);
+    expect(flashSaid(r, 'a-test-session-secret-of-sufficient-length')).toBe(t('en', 'product.add.empty'));
+    expect((await get(pilotCookie, '/app/products/add')).body).toMatch(/<textarea name="text" rows="8" required/);
+  });
+
   it('PHASE 9 · the component gallery is the installation\'s too: 404 for any other owner, and no door to it', async () => {
     expect((await get(shopCookie, '/app/settings/components')).statusCode).toBe(404);
     expect((await get(pilotCookie, '/app/settings/components')).statusCode).toBe(200);

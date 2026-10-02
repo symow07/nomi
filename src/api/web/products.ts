@@ -645,7 +645,7 @@ export function renderAddForm(
       <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${[1, 2, 3].map((i) =>
         esc(t(locale, `product.add.example${i}` as MessageKey, { price: EXAMPLE_PRICES[currency][i - 1]! }))).join('<br>')}</p>
       <form method="post" action="/app/products/add/review">
-        <textarea name="text" rows="8" placeholder="${esc(t(locale, 'product.add.placeholder'))}"${refused ? '' : ' autofocus'}></textarea>
+        <textarea name="text" rows="8" required placeholder="${esc(t(locale, 'product.add.placeholder'))}"${refused ? '' : ' autofocus'}></textarea>
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.add.note'))}</p>
