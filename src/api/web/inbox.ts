@@ -17,7 +17,7 @@ import { formatList, labelled } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
-import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark } from './layout.js';
+import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -982,9 +982,7 @@ export async function loadConversationDetail(
  * dots that breathe (still for a reader who asked for less motion). A polite
  * status, so a screen reader hears it once. Practice draws the same line.
  */
-export const workingLine = (locale: Locale): string =>
-  `<div class="block working" role="status"><span class="as" aria-hidden="true">✦</span> <span>${
-    esc(t(locale, 'conv.working', { name: assistantName(locale) }))}</span><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
+export const workingLine = (locale: Locale): string => atWork(t(locale, 'conv.working', { name: assistantName(locale) }), true);
 
 // The conversation's own state — only meaningful while SHE holds it. Once a
 // human is involved, `statusOf` calls every assigned conversation 'paused',
@@ -1241,6 +1239,11 @@ export function renderInboxList(
       : data.filter === 'blocked'
       ? `<div class="empty">${esc(t(locale, 'refused.none'))}
           <div>${deeper(esc(buyersHref({ filter: 'all' })), t(locale, 'inbox.empty.seeAll'))}</div></div>`
+      // Phase 6 — "Mine" empty is not an empty business: it said "No conversations
+      // yet … share your WhatsApp number" to a workspace with seventy-one.
+      : data.filter === 'mine'
+      ? `<div class="empty">${esc(t(locale, 'inbox.empty.mine'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.mineBody', { name: assistantName(locale) }))}</span>
+          <div>${deeper(esc(buyersHref({ filter: 'pending' })), t(locale, 'inbox.empty.seeNeeds'))}</div></div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/business', t(locale, 'inbox.empty.setup'))}</div></div>`;
     return `${head}<div class="block">${body}</div>${doors}`;

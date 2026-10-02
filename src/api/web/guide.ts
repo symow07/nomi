@@ -24,7 +24,7 @@ import * as show from './values.js';
 export const CAPTIONS_PER_STEP = 3;
 
 const DIR = new URL('../../../assets/guide/', import.meta.url);
-const NAME = /^(profile|products|name|channels|first_success)\.(en|zh|ar|es)\.(webm|vtt)$/;
+const NAME = /^(profile|products|name|channels|first_success)\.(en|zh|ar|es)\.(webm|vtt|jpg)$/;
 const FILES: ReadonlySet<string> = (() => {
   try { return new Set(readdirSync(DIR).filter((f) => NAME.test(f))); } catch { return new Set(); }
 })();
@@ -35,8 +35,17 @@ export function guideFileAt(file: string): { readonly body: Buffer; readonly typ
   if (!FILES.has(file)) return null;
   let body = read.get(file);
   if (!body) { body = readFileSync(new URL(file, DIR)); read.set(file, body); }
-  return { body, type: file.endsWith('.vtt') ? 'text/vtt; charset=utf-8' : 'video/webm' };
+  return { body, type: file.endsWith('.vtt') ? 'text/vtt; charset=utf-8' : file.endsWith('.jpg') ? 'image/jpeg' : 'video/webm' };
 }
+
+/**
+ * Phase 6 — each video's length in seconds (`tools/guide-stills.mjs` writes it
+ * with the still frames), so the page says how long a step takes before
+ * anything is fetched. A video with no length on record shows none.
+ */
+const LENGTHS: Readonly<Record<string, number>> = (() => {
+  try { return JSON.parse(readFileSync(new URL('lengths.json', DIR), 'utf8')) as Record<string, number>; } catch { return {}; }
+})();
 
 /** Is this step's video (and its captions) here in this language? */
 export const hasVideo = (step: SetupStep, locale: Locale): boolean =>
@@ -55,10 +64,13 @@ export function renderGuide(v: GuideView, locale: Locale, name: string, videos: 
     const done = v.steps.find((s) => s.step === step)?.done ?? false;
     const words = captionKeys(step).map((k) => t(locale, k, { name }));
     const video = videos(step, locale)
-      ? `<video class="guide-video" controls preload="none" playsinline>
+      // Phase 6 — a still of the step instead of a black box, and its length, before anything is fetched.
+      ? `<video class="guide-video" controls preload="none" playsinline${
+          FILES.has(`${step}.${locale}.jpg`) ? ` poster="/assets/guide/${step}.${locale}.jpg"` : ''}>
           <source src="/assets/guide/${step}.${locale}.webm" type="video/webm">
           <track kind="captions" src="/assets/guide/${step}.${locale}.vtt" srclang="${locale}" label="${esc(t(locale, 'guide.captions'))}" default>
         </video>
+        ${LENGTHS[`${step}.${locale}`] ? `<p class="caption muted">${esc(t(locale, 'guide.length', { length: show.seconds(locale, LENGTHS[`${step}.${locale}`]!) }))}</p>` : ''}
         <details><summary>${esc(t(locale, 'guide.read'))}</summary><ol>${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol></details>`
       : `<ol>${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>`;
     return `<li class="guide-step${done ? ' done' : ''}${v.next === step ? ' next' : ''}" id="${step}">

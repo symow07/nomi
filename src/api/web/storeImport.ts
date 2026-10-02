@@ -210,31 +210,41 @@ export function renderColumns(locale: Locale, id: string, table: Table, currency
 }
 
 /** The add page's two store ways in: the address, and a file. */
-export function renderStoreForms(locale: Locale, currency: string): string {
-  return `<div class="block">
+/**
+ * Phase 6 — a store address or a file that came to nothing says so UNDER ITS
+ * OWN FIELD, on the same page, with the address as it was typed; it was a page
+ * of its own ("Nothing was added") that lost it. A file cannot be put back in
+ * its box by any page, so its sentence says to choose it again.
+ */
+export type StoreFormRefusal = { readonly form: 'store' | 'file'; readonly reason: StoreRefusal; readonly stated?: string; readonly address?: string };
+
+export function renderStoreForms(locale: Locale, currency: string, refused: StoreFormRefusal | null = null): string {
+  const on = (f: 'store' | 'file') => refused?.form === f;
+  const bad = (id: string) => ` aria-invalid="true" aria-describedby="${id}"`;
+  return `<div class="block" id="store">
       <h2>${esc(t(locale, 'import.store.title'))}</h2>
       <p>${esc(t(locale, 'import.store.intro'))}</p>
       <form method="post" action="/app/products/add/store">
-        <label class="pq"><span>${esc(t(locale, 'import.store.address'))}</span> <input type="text" name="address" inputmode="url" autocomplete="url" placeholder="myshop.com" dir="ltr" required /></label>
+        <label class="pq"><span>${esc(t(locale, 'import.store.address'))}</span> <input type="text" name="address" inputmode="url" autocomplete="url" placeholder="myshop.com" dir="ltr" required${
+          on('store') ? `${bad('store-err')} autofocus value="${esc(refused?.address ?? '')}"` : ''} /></label>
+        ${on('store') ? renderStoreRefusal(locale, refused!.reason, refused!.stated, 'store-err') : ''}
         <label class="pcheck"><input type="checkbox" name="currency" /> ${esc(t(locale, 'import.store.currency', { currency }))}</label>
         <button class="btn" type="submit">${esc(t(locale, 'import.store.read'))}</button>
       </form>
     </div>
-    <div class="block">
+    <div class="block" id="file">
       <h2>${esc(t(locale, 'import.file.title'))}</h2>
       <p>${esc(t(locale, 'import.file.intro'))}</p>
       <form method="post" action="/app/products/add/file" enctype="multipart/form-data">
-        <input class="photo-in" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+        <input class="photo-in" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required${
+          on('file') ? `${bad('file-err')} autofocus` : ''} />
+        ${on('file') ? renderStoreRefusal(locale, refused!.reason, refused!.stated, 'file-err') : ''}
         <button class="btn" type="submit">${esc(t(locale, 'import.file.read'))}</button>
       </form>
     </div>`;
 }
 
-/** A store or a file that came to nothing: why, and the way on. */
-export function renderStoreRefusal(locale: Locale, reason: StoreRefusal, stated?: string): string {
-  return `<h1 class="page">${esc(t(locale, 'import.store.refusedTitle'))}</h1>
-    <div class="block">
-      <p>${esc(t(locale, `import.store.refused.${reason}` as MessageKey, { stated: stated ?? '' }))}</p>
-      ${deeper('/app/products/add', t(locale, 'import.store.again'))}
-    </div>`;
+/** A store or a file that came to nothing: why, under the field it concerns (phase 6). */
+export function renderStoreRefusal(locale: Locale, reason: StoreRefusal, stated?: string, id = 'store-err'): string {
+  return `<p class="perr" role="alert" id="${esc(id)}">${esc(t(locale, `import.store.refused.${reason}` as MessageKey, { stated: stated ?? '' }))}</p>`;
 }

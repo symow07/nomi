@@ -173,14 +173,14 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     unreadable = true;
     const res = await shoot();
     unreadable = false;
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(400);   // phase 6: the add page again, the sentence under the photo field
     // the UNREADABLE sentence specifically, not the shared refusal title — a
     // page that fell through to "no product lines" would say something else,
     // and the two ask her to do different things. With photos numbered, it
     // names the one to take again.
     expect(res.body).toContain('Photo 1 could not be read, so nothing was added');
-    // no review, no form, no rows
-    expect(res.body).not.toContain('/app/products/import/');
+    // no review, no form, no rows (the add page may still show an import started earlier)
+    expect(res.body).not.toMatch(/action="\/app\/products\/import\/[^"]+\/save"/);
     expect(await products()).toEqual(before);
   });
 
@@ -189,13 +189,13 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     const res = await shoot();
     transcript = PAGE;
     expect(res.body).toContain('no line on it looks like a product with a price');
-    expect(res.body).not.toContain('/app/products/import/');
+    expect(res.body).not.toMatch(/action="\/app\/products\/import\/[^"]+\/save"/);
   });
 
   it('K1 · a handwritten list is refused before any photo is read; an unanswered question is asked again', async () => {
     const before = reads;
     const hand = await shoot(undefined, undefined, 'handwritten');
-    expect(hand.statusCode).toBe(200);
+    expect(hand.statusCode).toBe(400);
     expect(hand.body).toContain('Handwritten lists are not read yet');
     const none = await shoot(undefined, undefined, null);
     expect(none.body).toContain('Say whether the list is printed or handwritten');
@@ -229,7 +229,7 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     expect(real.statusCode, 'a 4 MB photo — the ordinary case — was refused').toBe(303);
 
     const huge = await shoot(Buffer.alloc(9 * 1024 * 1024, 0x41));   // past the ceiling
-    expect(huge.statusCode).toBe(200);
+    expect(huge.statusCode).toBe(400);
     expect(huge.body).toContain('too large to read');
 
     expect(await products(), 'an import is not a product until it is confirmed').toEqual(before);
@@ -238,7 +238,7 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
   it('a file that is not an image is refused, whatever it is named', async () => {
     // Named a PDF, which a list may be since EXT (0118) — but its own bytes are not one.
     const res = await shoot(Buffer.from('MZ not an image, not a document'), 'application/pdf');
-    expect(res.body).toContain('could not read this page');
+    expect(res.body).toContain('<p class="perr" role="alert">');   // the reason, under the photo field (phase 6)
   });
 
   it('and the route needs a session, like every other owner surface', async () => {

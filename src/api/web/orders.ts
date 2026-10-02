@@ -213,7 +213,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
   ].map(([l, val]) => `<div class="frow"><span class="flabel">${esc(l!)}</span><span class="fval"><bdi>${esc(val!)}</bdi></span></div>`).join('');
 
   const history = v.history.length === 0
-    ? `<p class="muted empty-p">${esc(t(locale, 'order.history.empty'))}</p>`
+    ? `<div class="empty">${esc(t(locale, 'order.history.empty'))}</div>`
     : `<ul class="rows">${v.history.map((u) => `<li class="row lines">
         <div><b>${esc(stateName(u.state))}</b> <span class="muted">${esc(show.date(locale, u.at))}</span></div>
         ${u.trackingReference ? `<div class="muted"><bdi>${esc(labelled(locale, t(locale, 'order.field.tracking'), u.trackingReference))}</bdi></div>` : ''}

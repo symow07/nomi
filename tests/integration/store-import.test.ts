@@ -120,8 +120,11 @@ d('K8 · store import (requires DATABASE_URL)', () => {
     const before = asked.length;
     for (const address of ['https://localhost', 'https://169.254.169.254', 'http://boutique.example.com']) {
       const res = await post('/app/products/add/store', { address });
-      expect(res.statusCode, address).toBe(200);
-      expect(res.body, address).toContain(t('en', 'import.store.refusedTitle'));
+      // Phase 6 — the add page again, the reason under the address and the address still in it.
+      expect(res.statusCode, address).toBe(400);
+      expect(res.body, address).toContain('<p class="perr" role="alert" id="store-err">');
+      expect(res.body, address).toContain(`value="${address}"`);
+      expect(res.body, address).toContain('action="/app/products/add/store"');
     }
     expect(asked.length).toBe(before);
   });

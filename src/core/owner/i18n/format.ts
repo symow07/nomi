@@ -153,6 +153,11 @@ export function formatTimeLeft(locale: Locale, ms: number): string {
   return new Intl.ListFormat(INTL_TAG[locale], { type: 'unit', style: locale === 'zh' ? 'narrow' : 'long' }).format(said);
 }
 
+/** Phase 6 — a short length, in whole seconds, as the locale says it: "24 seconds", "24秒", "٢٤ ثانية". */
+export function formatSeconds(locale: Locale, s: number): string {
+  return new Intl.NumberFormat(INTL_TAG[locale], { style: 'unit', unit: 'second', unitDisplay: 'long' }).format(Math.round(s));
+}
+
 /** The hour (0–23) an instant falls in, in the workspace's zone — the row it sits in on a calendar. */
 export function hourIn(d: Date, zone: string): number {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', hourCycle: 'h23' }).format(d));

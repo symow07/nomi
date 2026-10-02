@@ -7,6 +7,7 @@ import { readAttention, type AttentionCounts } from './operations.js';
 import { isRefusal, UNCERTAIN } from './refusals.js';
 import { conversationUrl } from './layout.js';
 import { QUEUES } from '../../queue/boss.js';
+import { billingState } from '../../db/billing.js';
 import type { LiveWatch } from './flash.js';
 
 /**
@@ -58,10 +59,10 @@ import type { LiveWatch } from './flash.js';
  * shows, read by the same function (`readAttention`), so the two cannot differ.
  */
 
-export type LiveKind = 'conversation' | 'buyers' | 'today' | 'channels' | 'practice';
+export type LiveKind = 'conversation' | 'buyers' | 'today' | 'channels' | 'practice' | 'billing';
 
 /** What the line can say: one sentence each (`live.<what>` in the catalogue). */
-export type LiveNews = 'message' | 'reply' | 'changed' | 'list' | 'today' | 'channels' | 'practice';
+export type LiveNews = 'message' | 'reply' | 'changed' | 'list' | 'today' | 'channels' | 'practice' | 'billing';
 
 /**
  * What the page's script is told. `what` only when there is news. `working`
@@ -89,6 +90,8 @@ const MARK: Record<LiveKind, RegExp> = {
   today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}$`),
   channels: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
   practice: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
+  // Phase 6 — billing: whether a card is saved, and the plan's state.
+  billing: /^[01]\.[a-z_]{1,20}$/,
 };
 
 /** Is this a mark of this kind, as a page would carry it? */
@@ -118,7 +121,8 @@ export function liveNews(kind: LiveKind, since: string, now: string): LiveSaid {
     if (state1 !== state0) return { news: true, what: 'changed' };
     return { news: false };
   }
-  return since === now ? { news: false } : { news: true, what: kind === 'buyers' ? 'list' : kind === 'channels' ? 'channels' : 'today' };
+  return since === now ? { news: false }
+    : { news: true, what: kind === 'buyers' ? 'list' : kind === 'channels' ? 'channels' : kind === 'billing' ? 'billing' : 'today' };
 }
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
@@ -259,11 +263,14 @@ export async function liveAnswer(
     : kind === 'practice' ? await conversationMark(db, bid, conversationId, 'both')
     : kind === 'buyers' ? await buyersMark(db, bid)
     : kind === 'channels' ? await channelsMark(db, bid)
+    : kind === 'billing' ? await billingMark(db, bid)
     : todayMark(await readAttention(db, bid));
   if (now === null) return { status: 404, said: { news: false } };
   const news = liveNews(kind, since, now);
   // Phase 5 — a conversation and Practice also say whether the assistant is at work on it.
-  const said: LiveSaid = (kind === 'conversation' || kind === 'practice') && await assistantWorking(db, bid, conversationId)
+  // Phase 6 — billing is "at work" while Stripe has not yet confirmed a card.
+  const said: LiveSaid = ((kind === 'conversation' || kind === 'practice') && await assistantWorking(db, bid, conversationId))
+    || (kind === 'billing' && now.startsWith('0.'))
     ? { ...news, working: true } : news;
   // A practice copy's orders are not the workspace's: the rail's count is left as it is.
   if (kind === 'practice') return { status: 200, said };
@@ -325,6 +332,27 @@ export async function channelsMark(db: Db, bid: BusinessId): Promise<string> {
     return `${row?.n ?? 0}.${(row?.print ?? '').slice(0, 16)}`;
   });
 }
+
+/**
+ * Phase 6 — the billing page's mark: whether a card is saved, and the plan's
+ * state. Back from Stripe's page, the card is confirmed by Stripe's own message
+ * a moment later; the page that said "Stripe is confirming the card" watches
+ * for it and draws the answer in, so the sentence does not wait for a reload.
+ */
+export async function billingMark(db: Db, bid: BusinessId): Promise<string> {
+  return withTenantTx(db, bid, async (tx) => {
+    const s = await billingState(tx);
+    return `${s.cardSavedAt ? 1 : 0}.${s.status}`;
+  });
+}
+
+/** The billing page watches for the card Stripe is confirming; at work until it is. */
+export const billingWatch = (mark: string, working: boolean): LiveWatch => ({
+  ask: `/app/live/billing?since=${mark}`,
+  door: '/app/settings/billing',
+  says: [{ what: 'billing', key: 'billing.live.changed' }, { what: 'slow', key: 'billing.live.slow' }],
+  ...(working ? { working: true } : {}),
+});
 
 /** The Channels page watches its own mark; the door is the page again, at "Your accounts". */
 export const channelsWatch = (mark: string): LiveWatch => ({

@@ -133,16 +133,25 @@ export async function confirmPageFacts(
   });
 }
 
-/** The form, on the knowledge page: an address, or the page's text pasted. */
-export function renderPageFactsForm(locale: Locale): string {
+/**
+ * The form, on the knowledge page: an address, or the page's text pasted.
+ * Phase 6 — a page that came to nothing says why UNDER THE FIELD, on the
+ * knowledge page itself, with what was typed still in it; it was a page of its
+ * own ("Nothing was read") that lost the address.
+ */
+export type PageFactsKept = { readonly address: string; readonly text: string; readonly reason: PageFactsRefusal };
+export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null = null): string {
+  const bad = kept ? ' aria-invalid="true" aria-describedby="pf-err" autofocus' : '';
   return `<div class="block" id="from-page">
     <h2>${esc(t(locale, 'pageFacts.title'))}</h2>
     <p class="muted">${esc(t(locale, 'pageFacts.intro'))}</p>
     <form method="post" action="/app/knowledge/from-page" class="pform">
       <label for="pf-address">${esc(t(locale, 'pageFacts.address'))}</label>
-      <input id="pf-address" type="text" name="address" inputmode="url" autocapitalize="none" spellcheck="false" dir="ltr" maxlength="500" placeholder="myshop.com/pages/shipping" />
-      <details><summary>${esc(t(locale, 'pageFacts.pasteInstead'))}</summary>
-        <textarea name="text" rows="6" dir="auto" maxlength="60000"></textarea></details>
+      <input id="pf-address" type="text" name="address" inputmode="url" autocapitalize="none" spellcheck="false" dir="ltr" maxlength="500" placeholder="myshop.com/pages/shipping"${
+        kept ? ` value="${esc(kept.address)}"` : ''}${kept && !kept.text ? bad : ''} />
+      ${kept ? `<p class="perr" role="alert" id="pf-err">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p>` : ''}
+      <details${kept?.text ? ' open' : ''}><summary>${esc(t(locale, 'pageFacts.pasteInstead'))}</summary>
+        <textarea name="text" rows="6" dir="auto" maxlength="60000"${kept?.text ? bad : ''}>${esc(kept?.text ?? '')}</textarea></details>
       <button class="btn" type="submit">${esc(t(locale, 'pageFacts.read'))}</button>
     </form>
   </div>`;
@@ -167,10 +176,3 @@ export function renderProposal(p: Proposal, locale: Locale, flash: Flash | null)
     </form>`;
 }
 
-/** Why a page came to nothing, and the way on. */
-export function renderPageFactsRefusal(locale: Locale, reason: PageFactsRefusal): string {
-  return `${back('/app/knowledge', t(locale, 'nav.knowledge'))}
-    <h1 class="page">${esc(t(locale, 'pageFacts.refusedTitle'))}</h1>
-    <p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${reason}` as MessageKey))}</p>
-    <p><a class="deeper" href="/app/knowledge#from-page">${esc(t(locale, 'pageFacts.again'))}</a></p>`;
-}

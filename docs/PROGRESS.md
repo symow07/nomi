@@ -39,10 +39,38 @@ under "Decided" below.
 | 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | #200 |
 | 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | #201 |
 | 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | #202 |
-| 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | next |
-| 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | — |
+| 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
+| 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | next |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
 | 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+
+**Phase 6 (#203) — states.**
+
+**Errors, inline and kept.** A form that came to nothing comes back as the same page (status 400), with the reason under the field it concerns, the field marked and focused, and everything typed still in it.
+- **Four separate refusal pages are gone.** They were "Nothing was added" (a store address, a file), the photo refusal, and "Nothing was read" (a page of the site). Each lost what was typed. Their three titles are retired from the catalogue.
+- **The settings forms:** closures, forbidden words, the rate, terms and the sample price. Their field refusals were a notice at the top after a redirect that emptied the form. The profile and the password already came back inline.
+- **Shared pieces:** `Kept`, `keptValue`, `keptError` and `keptInvalid` (rows.ts), and the `FIELD_OF` table in app.ts, which says which field each refusal is about. Any other refusal stays a notice.
+
+**Empty.**
+- Every empty state is now a panel of its own (dashed edge, padding, a gap above). It no longer reads as the caption of the button above it; twelve one-line paragraphs became panels.
+- "Mine" with nothing held says so and points at who is waiting. It said "No conversations yet… share your WhatsApp number" in a workspace with 71 (the benchmark's finding).
+- Six "not found" pages (product, conversation ×2, order, a page's proposal, knowledge's product) were a bare heading and one link. They now say what is missing, the likely reason, and the way back (`missingPage`).
+
+**Loading.**
+- The button that sent a form is marked busy (`aria-busy`, three breathing dots after its word), and a second press does not send it again. A page that stays where it is (a download) gives the button back after 12 s.
+- The guide's videos have a still frame and their length ("Video · 20 seconds") before anything loads. They were black boxes with a loading ring. `tools/guide-stills.mjs` makes the 20 stills (616 KB) and `lengths.json`.
+
+**Nothing that never resolves.**
+- Practice's "Sent. {name}'s reply appears here when it is ready" is now "Sent."; the "at work" line under it shows the work, and it ends.
+- Billing's "Stripe is confirming the card; it shows here within a minute" was static until a reload. It is now a watched state: a `billing` live answer is "at work" until a card is saved, and the page redraws itself when Stripe answers.
+- Every fast-polling page stops after 15 minutes and says its last word ("Stripe has not confirmed the card yet. Open this page again later…").
+
+**Measured:**
+- Parity: 3,798 tests, plus 13 for phase 6 (negative controls on the two script tests).
+- Integration, 6 of 6 against real Postgres: closures, forbidden, samples, Knowledge, not-found pages, "Mine", Billing's watch.
+- Screenshots: closures in Arabic on a phone (the error under the last day, values kept, focused); a store address refused on a laptop; the guide with its stills.
+
+**Deferred to phase 7, on purpose:** the calendar's "add a date" form still reports its errors as a notice. Phase 7 rebuilds the calendar, so the form is redone there rather than twice.
 
 **Phase 5 (#202) — motion.**
 
@@ -232,6 +260,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #203 | **Phase 6 — states**: four separate refusal pages became inline errors under their field with what was typed kept; five settings forms come back the same way; empty states are panels, "Mine" no longer claims an empty business, six not-found pages say why; a busy button on every form; the guide's videos have stills and lengths; Practice and Billing no longer promise what never comes; fast asking ends after 15 minutes. No migration | 120 |
 | 2026-10-02 | #202 | **Phase 5 — motion**: the three durations used with one decelerating curve, all of it only for readers who did not ask for less motion; Undo instead of confirm for four set-aside things (word, closure, fact, date); the product's own ask-first dialog instead of the browser's box; the assistant at work shown in place, and its reply drawn into the page without a reload. No migration | 120 |
 | 2026-10-02 | #201 | **Phase 4 — colour and hierarchy**: four signals, each a colour and a shape (✓ ○ ✕ ✦); 92 pieces of coloured text with no shape → 0 in four languages; one filled button per page (six pages had two to four); misused colour removed; Setup's states and Today's waiting customers carry their signal; `tools/ui-colour.mjs`. No migration | 120 |
 | 2026-10-02 | #200 | **Phase 3 — settings**: Setup in six labelled groups, each row with its current value, and a server-side search; the settings pages as label / control rows in cards with one save each (the profile's three forms one); the component gallery off Setup; 48 new lines in four languages. No migration | 120 |

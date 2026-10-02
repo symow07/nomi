@@ -366,7 +366,7 @@ d('M45 · samples (requires DATABASE_URL)', () => {
       select count(*)::int as n from sample_policy where business_id = ${BIZ}
     `.execute(t).then((r) => r.rows[0]!.n));
     for (const bad of ['price=', 'price=free', 'price=-5']) {
-      expect((await post('/app/settings/samples', bad)).statusCode, bad).toBe(302);
+      expect((await post('/app/settings/samples', bad)).statusCode, bad).toBe(400);   // phase 6: sent back, under the field
     }
     expect(await tx((t) => sql<{ n: number }>`
       select count(*)::int as n from sample_policy where business_id = ${BIZ}

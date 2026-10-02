@@ -128,6 +128,9 @@ export const until = (locale: Locale, d: Date, now: Date): string => isolate(loc
 /** "1 hour, 20 minutes". */
 export const timeLeft = (locale: Locale, ms: number): string => isolate(locale, f.formatTimeLeft(locale, ms));
 
+/** Phase 6 — a video's length, in seconds. */
+export const seconds = (locale: Locale, s: number): string => isolate(locale, f.formatSeconds(locale, s));
+
 /** "September 2026". */
 export const month = (locale: Locale, ymd: string): string => isolate(locale, f.formatMonth(locale, ymd));
 

@@ -147,7 +147,7 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
     readerDown = true;
     const down = await postPhotos(app, cookie, [{ bytes: pdf, mime: 'application/pdf' }]);
     readerDown = false;
-    expect(down.statusCode).toBe(200);
+    expect(down.statusCode).toBe(400);   // phase 6: the add page again, the sentence under the photo field
     expect(down.body).toContain(t('en', 'product.photo.refused.reader_failed'));
   });
 

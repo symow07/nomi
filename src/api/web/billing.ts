@@ -1,7 +1,7 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { back, esc } from './layout.js';
+import { back, esc, atWork } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 import { priceText } from '../../core/billing/status.js';
@@ -34,7 +34,11 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
   const date = (d: Date | null) => (d ? show.date(locale, d) : '—');
   const plan = v.plans.find((p) => p.id === s.planId) ?? null;
   const price = (p: Plan) => t(locale, `billing.price.${p.period}` as MessageKey, { price: priceText(locale, p.amountMinor, p.currency) });
-  const returned = v.returned ? `<p class="muted" role="status">${esc(t(locale, `billing.returned.${v.returned}` as MessageKey))}</p>` : '';
+  // Phase 6 — back from Stripe with a card: while Stripe has not confirmed it,
+  // the page says so as work in progress, and its script draws the answer in
+  // (live.ts `billingWatch`); once it has, the status line says it and this goes.
+  const returned = v.returned === 'saved' ? (s.cardSavedAt ? '' : atWork(t(locale, 'billing.returned.saved')))
+    : v.returned ? `<p class="muted" role="status">${esc(t(locale, `billing.returned.${v.returned}` as MessageKey))}</p>` : '';
 
   const status = s.status === 'lapsed' ? `<p class="perr" role="alert">${esc(t(locale, 'billing.status.lapsed'))}</p>`
     : s.status === 'past_due' ? `<p class="perr" role="alert">${esc(t(locale, 'billing.status.past_due'))}</p>`

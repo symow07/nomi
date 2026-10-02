@@ -229,7 +229,8 @@ d('M44 · the factory closure calendar (requires DATABASE_URL)', () => {
     const before = (await rows()).length;
     for (const bad of ['label=&from=2027-02-05&to=2027-02-21', 'label=x&from=&to=2027-02-21',
       'label=x&from=2027-02-21&to=2027-02-05']) {
-      expect((await post('/app/settings/closures', bad)).statusCode, bad).toBe(302);
+      // Phase 6 — sent back: the same page (400), the reason under the field, what was typed kept.
+      expect((await post('/app/settings/closures', bad)).statusCode, bad).toBe(400);
     }
     expect(await rows()).toHaveLength(before);
   });

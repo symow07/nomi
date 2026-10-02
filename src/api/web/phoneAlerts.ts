@@ -62,7 +62,7 @@ export async function testPhones(db: Db, businessIdRaw: string, personId: string
 
 export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Flash | null): string {
   const phones = v.phones.length === 0
-    ? `<p class="muted empty-p">${esc(t(locale, 'alerts.phone.none'))}</p>`
+    ? `<div class="empty">${esc(t(locale, 'alerts.phone.none'))}</div>`
     : `<ul class="rows">${v.phones.map((p) => `<li class="row lines">
         <div><b dir="auto">${esc(p.device ?? t(locale, 'alerts.phone.unknownDevice'))}</b>
           <span class="muted small">${esc(t(locale, 'alerts.phone.since', { date: show.date(locale, p.createdAt) }))}</span></div>
