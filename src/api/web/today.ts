@@ -117,12 +117,12 @@ export function renderLastDay(d: TodayData, locale: Locale): string {
     l.handed > 0 ? door('/app/inbox?filter=pending', `${hand}${esc(tn(locale, 'today.last.handed', l.handed, { name }))}`) : '',
     l.yourself > 0 ? door('/app/inbox?filter=mine', esc(tn(locale, 'today.last.yourself', l.yourself))) : '',
   ].filter(Boolean);
-  return lines.length ? `<ul class="tlines">${lines.join('')}</ul>` : `<p class="muted">${esc(t(locale, 'today.last.none'))}</p>`;
+  return lines.length ? `<ul class="tlines">${lines.join('')}</ul>` : `<div class="empty">${esc(t(locale, 'today.last.none'))}</div>`;
 }
 
 /** Coming up: when, what, and whose — each to the conversation or order it came from. */
 export function renderComingUp(d: TodayData, locale: Locale): string {
-  if (d.comingUp.length === 0) return `<p class="muted">${esc(t(locale, 'today.coming.none'))}</p>`;
+  if (d.comingUp.length === 0) return `<div class="empty">${esc(t(locale, 'today.coming.none'))}</div>`;
   return `<ul class="tlines">${d.comingUp.map((e) => {
     const when = e.allDay ? show.date(locale, e.at)
       : dayKey(e.at, workspaceZone()) === dayKey(d.now, workspaceZone()) ? show.time(locale, e.at) : `${show.date(locale, e.at)} ${show.time(locale, e.at)}`;

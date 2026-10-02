@@ -150,14 +150,14 @@ describe('Today, by time (render)', () => {
     expect(html).toMatch(/<span class="as" aria-hidden="true">✦<\/span> [^<]*14/);
     expect(html).toContain(tn('en', 'today.last.yourself', 1));
     const quiet = renderOperationsHome(live(populated), 'en', { ...busy, last24: { answered: 0, sent: 0, handed: 0, yourself: 0 } });
-    expect(quiet).toContain(t('en', 'today.last.none'));
+    expect(quiet).toContain(`<div class="empty">${t('en', 'today.last.none')}</div>`);   // phase 9 — a panel, not a grey line
     // CC-05 — the way into Results stays, whatever the day held.
     expect(quiet).toContain('href="/app/analytics"');
   });
 
   it('coming up: the calendar\'s next things, or the fact that there are none — and a door to the calendar', () => {
     const html = renderOperationsHome(live(emptyFactory), 'en', NOTHING_TODAY(NOW));
-    expect(html).toContain(t('en', 'today.coming.none'));
+    expect(html).toContain(`<div class="empty">${t('en', 'today.coming.none')}</div>`);
     expect(html).toContain('href="/app/calendar"');
   });
 
