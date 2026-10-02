@@ -905,21 +905,20 @@ const STYLE_PAGES = `
   .gmeta { font-size:var(--font-size-caption); grid-column:1; }
   .gact { grid-row:1 / span 2; align-self:center; color:var(--color-ink); font-size:var(--font-size-small); white-space:nowrap; }
   @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
-  .emp-h { display:flex; align-items:center; gap:var(--space-12); }
-  .emp-name { font-size:var(--font-size-title); font-weight:700; }
-  .dgroup { margin-bottom:var(--space-16); }
-  .dtitle { font-weight:600; margin-bottom:var(--space-8); }
-  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-small); background:var(--color-paper); border:1px solid var(--color-border); }
-  .ditem.ok { color:var(--color-ok); }
-  .ditem.warn { color:var(--color-waiting); }
-  .ditem.no { color:var(--color-ink-secondary); }
+  /* Phase 9 — the card says what the assistant does today; the h1 above it is the name. */
+  .emp-stage { font-size:var(--font-size-small); font-weight:600; }
+  .emp-hired { margin-top:var(--space-8); }
+  /* A task list is a list, not a pile of cards: nothing in it can be pressed. The prose measure, like every list. */
+  .dgroup { margin-bottom:var(--space-16); max-width:var(--measure-prose); }
+  .dtitle { font-weight:600; margin-bottom:var(--space-4); }
+  .ditems { list-style:none; margin:0; padding:0; }
+  .ditem { padding:var(--space-4) 0; margin:0; font-size:var(--font-size-small); }
   .growth { list-style:none; padding:0; margin:0; }
   .growth li { padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .growth li:last-child { border-bottom:none; }
   .pstage { margin:var(--space-8) 0; font-size:var(--font-size-small); }
   .conds { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-8); }
   .cond { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .cond.met { color:var(--color-ok); }
   .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .actrow:last-of-type { border-bottom:none; }
 
