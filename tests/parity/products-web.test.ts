@@ -32,7 +32,8 @@ describe('M9.5 · product list (localized)', () => {
     // CC-13 — the Chinese colon, full width and with no space after it; a figure and 个 together,
     // each figure isolated (the Arabic line reordered a bare price).
     expect(html).toContain('最低起订：<bdi>1000个</bdi>');
-    expect(html).toContain('<bdi>5000个</bdi>：<bdi>$0.92</bdi>');
+    // Phase 9 (V1-299) — the price of one unit; where it starts above the minimum, from how many.
+    expect(html).toContain('5000个起：<bdi>$0.92/个</bdi>');
     expect(html).not.toContain('已学习 ✓'); expect(html).not.toContain('可以被图片识别');   // V1 review fix 3: an absent mark means fine
     expect(html).toContain('href="/app/products/p1"');
     expect(html).toContain('需要价格'); expect(html).toContain('价格待补');
@@ -44,7 +45,7 @@ describe('M9.5 · product list (localized)', () => {
     // CC-13 — a figure and its unit are two words (a no-break space between); the gap between
     // the two facts is the product's own " · ", not a full-width space.
     expect(html).toContain('Min. order: <bdi>1,000\u00a0pcs</bdi>');
-    expect(html).toContain('<bdi>5,000\u00a0pcs</bdi>: <bdi>$0.92</bdi> · Min. order');
+    expect(html).toContain('From 5,000\u00a0pcs: <bdi>$0.92/pc</bdi> · Min. order');
     // V1 review fix 3: an absent mark means fine — nothing says "Learned" or "Recognizable".
     expect(html).not.toContain('Learned ✓'); expect(html).not.toContain('Recognizable by photo');
     expect(html.split('Not recognizable by photo yet').length - 1).toBe(items.filter((i) => !i.imageMatchable).length);
@@ -53,9 +54,13 @@ describe('M9.5 · product list (localized)', () => {
   });
 
   it('empty catalog teaches the next action per locale, never "no data"', () => {
-    expect(renderProductList([], 'en')).toContain('Upload your catalog to start');
-    expect(renderProductList([], 'zh')).toContain('上传产品目录开始培训');
-    expect(renderProductList([], 'ar')).toContain(t('ar', 'product.list.empty.cta'));
+    // Phase 9 (missed-01) — the door names the page it opens ("Upload your catalog" named a third thing).
+    for (const l of LOCALES) {
+      const html = renderProductList([], l);
+      expect(html, l).toContain(`href="/app/products/add">${t(l, 'product.teach')}<span class="go"`);
+      expect(html, l).toContain(`<h1 class="page">${t(l, 'nav.products')}</h1>`);
+    }
+    expect(renderProductList([], 'en')).not.toMatch(/upload|catalog/i);
     expect(renderProductList([], 'en').toLowerCase()).not.toContain('no data');
   });
 });
@@ -109,10 +114,12 @@ describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
   });
 
   it('add form promises nothing is enabled before confirmation — per locale', () => {
-    expect(renderAddForm('zh')).toContain('确认之前，什么都不会启用');
+    // Phase 9 (V1-333) — said in the owner's words: offered to customers, not "enabled".
+    expect(renderAddForm('zh')).toContain('确认之前，什么都不会提供给客户');
     const en = renderAddForm('en');
     expect(en).toContain(t('en', 'product.teach'));
-    expect(en).toContain('Nothing is enabled until you confirm');
+    expect(en).toContain('Nothing is offered to customers until you confirm');
+    expect(en).not.toMatch(/enabled/i);
   });
 });
 
@@ -160,7 +167,7 @@ describe('D1 · the badge says WHAT is missing', () => {
     expect(html.split(t('en', 'product.status.needsLimits')).length - 1).toBe(2);
     expect(html).toContain(t('en', 'product.status.notOffered'));
     expect(html).not.toContain(t('en', 'product.status.needsConfirm'));
-    expect(renderProductList(items, 'en'), 'nothing waiting, nothing said').not.toContain('/app/business/prices');
+    expect(renderProductList(items, 'en'), 'nothing waiting, nothing said').not.toContain(t('en', 'product.list.needLimits.link'));
   });
 });
 

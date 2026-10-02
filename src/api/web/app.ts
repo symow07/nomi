@@ -170,7 +170,7 @@ import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
   teachKnowledge, correctKnowledge, archiveKnowledge, restoreKnowledge, setCertification, type KnowledgeFlash,
 } from './knowledge.js';
-import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
+import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, renderKnowledgePeriod, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
   loadPracticeView, renderSandbox, sayInPractice, parseTotal,
@@ -2893,7 +2893,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (table.ok) return reply.redirect(`/app/products/import/${table.id}/columns`, 303);
     }
     const id = await startPasteImport(deps.db, s.businessId, personOf(s).id, text);
-    return reply.redirect(id ? `/app/products/import/${id}` : '/app/products/add', 303);
+    // Phase 9 (V1-321) — a paste with no line that could be a product says so; it reloaded and said nothing.
+    return id ? reply.redirect(`/app/products/import/${id}`, 303) : flashTo(reply, '/app/products/add', 'product.add.nothingRead');
   });
   /**
    * Phase 6 — a form on the add page that came to nothing: the add page again,
@@ -2901,7 +2902,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * its own that lost what she typed (the audit's two separate refusal pages).
    */
   const addAgain = async (req: FastifyRequest, reply: FastifyReply, s: OwnerSession,
-    refused: { readonly photo: string } | { readonly store: StoreFormRefusal }) => {
+    refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal }) => {
     const locale = localeOf(req);
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.teach'), active: 'products',
@@ -2918,7 +2919,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await startStoreImport(deps.db, s.businessId, personOf(s).id, deps.storeFetcher ?? publicFetcher,
       { address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' });
     if (!out.ok) {
-      return addAgain(req, reply, s, { store: { form: 'store', reason: out.reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? '') } });
+      return addAgain(req, reply, s, { store: { form: 'store', reason: out.reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' } });
     }
     return reply.redirect(`/app/products/import/${out.id}`, 303);
   });
@@ -2961,11 +2962,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
     const locale = localeOf(req);
-    const refuse = (reason: PhotoRefusal, photo?: number, left?: number) =>
-      addAgain(req, reply, s, { photo: renderPhotoRefusal(reason, locale, photo, left) });
-
     const photos: PhotoIn[] = [];
     let hand: string | null = null;
+    // Phase 9 (new-07) — sent back with the answer to "printed or handwritten?" still chosen.
+    const refuse = (reason: PhotoRefusal, photo?: number, left?: number) =>
+      addAgain(req, reply, s, { photo: renderPhotoRefusal(reason, locale, photo, left), hand });
+
     try {
       // Ten files, and the one question beside them: files and parts raised
       // together, or the registration's 6 parts would cut a ten-photo list short.
@@ -4944,10 +4946,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
+    // Phase 9 (V1-358) — what to do first; the period's counts last.
     return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
-        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '');
+        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
+      + renderKnowledgePeriod(ops, locale, new Date());
   };
   app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);

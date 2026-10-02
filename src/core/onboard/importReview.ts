@@ -35,10 +35,12 @@ export type ImportFlag =
   | 'from_or_vat'         // "from", "incl. VAT", "compare at", 起, 含税… — the figure may not be the price
   | 'bare_dollar'         // a bare "$" from a seller whose country does not count in US dollars
   | 'challenge_mismatch'  // K7: typed from the paper differently, or next to one that was
-  | 'low_confidence';     // EXT: read by the extractor, less surely than LOW_CONFIDENCE somewhere
+  | 'low_confidence'      // EXT: read by the extractor, less surely than LOW_CONFIDENCE somewhere
+  | 'no_sign'             // phase 9: a price read with no currency sign anywhere on the line
+  | 'unread_figure';      // phase 9: no price, and a figure on the line that was not read as one
 
 export const FLAG_ORDER: readonly ImportFlag[] = [
-  'challenge_mismatch', 'low_confidence', 'two_prices', 'from_or_vat', 'bare_dollar', 'outlier', 'many_decimals', 'digits_in_name',
+  'challenge_mismatch', 'low_confidence', 'two_prices', 'from_or_vat', 'bare_dollar', 'no_sign', 'outlier', 'many_decimals', 'unread_figure', 'digits_in_name',
 ];
 
 export type ImportKind = 'paste' | 'photo' | 'store' | 'file';
@@ -138,7 +140,13 @@ export function flagsOf(row: ImportRow, all: readonly ImportRow[], ctx: ReviewCo
   const median = medianPrice(all);
   if (row.price !== null && median !== null && (row.price < median * 0.1 || row.price > median * 10)) out.add('outlier');
   if (row.price !== null && moreThanTwoDecimals(row.price)) out.add('many_decimals');
-  if (/\d/.test(row.name) || CURRENCY_SIGN.test(row.name)) out.add('digits_in_name');
+  // Phase 9 (V1-334) — a price nothing on the line said was money: its own tick.
+  if (row.price !== null && (ctx.kind === 'paste' || ctx.kind === 'photo') && !row.confidence
+      && ownPriceCount(row.line, ctx.currency) === 0 && !row.line.includes('\t')) out.add('no_sign');
+  // Phase 9 (missed-11) — a line with a figure and no price: the figure was not
+  // read as its price. Said as that, not as a name with digits left in it.
+  if (row.price === null && figuresOn(row.line).length > 0) out.add('unread_figure');
+  else if (/\d/.test(row.name) || CURRENCY_SIGN.test(row.name)) out.add('digits_in_name');
   return FLAG_ORDER.filter((f) => out.has(f));
 }
 

@@ -22,7 +22,7 @@ import type { PracticeTrust } from '../../src/trust/practiceChecks.js';
 import { renderInboxList, renderConversationDetail, type InboxList, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderKnowledgeIndex, renderProductKnowledge, type ProductKnowledge } from '../../src/api/web/knowledge.js';
-import { renderKnowledgeOps, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
+import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderSite, SITE_CSS } from '../../src/api/web/site.js';
@@ -198,20 +198,23 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
 
   it('products: the colon and the gap per language, every figure spaced from its unit', () => {
     const en = withoutIsolates(renderProductList([item()], 'en'));
-    expect(en).toContain(`<bdi>5,000${NBSP}pcs</bdi>: <bdi>$0.92</bdi> · Min. order: <bdi>1,000${NBSP}pcs</bdi>`);
+    // Phase 9 (V1-299) — the price of one unit; the quantity it starts from only where that is above the minimum.
+    expect(en).toContain(`From 5,000${NBSP}pcs: <bdi>$0.92/pc</bdi> · Min. order: <bdi>1,000${NBSP}pcs</bdi>`);
     const ar = withoutIsolates(renderProductList([item()], 'ar'));
     // The design pass §9: Arabic money is the locale's own form, read as one unit.
-    expect(ar).toContain(`<bdi>5,000${NBSP}قطعة</bdi>: <bdi>\u200F0.92${NBSP}US$</bdi> · `);
+    expect(ar).toContain(`ابتداءً من 5,000${NBSP}قطعة: <bdi>\u200F0.92${NBSP}US$ لكل قطعة</bdi> · `);
     const zh = withoutIsolates(renderProductList([item()], 'zh'));
-    expect(zh).toContain('<bdi>5000个</bdi>：<bdi>$0.92</bdi>　最低起订：<bdi>1000个</bdi>');
+    expect(zh).toContain('5000个起：<bdi>$0.92/个</bdi>　最低起订：<bdi>1000个</bdi>');
     for (const [l, html] of [['en', en], ['ar', ar]] as const) {
       expect(html, l).not.toMatch(/[：　]/);
     }
     const page = withoutIsolates(renderProductDetail(detail(), 'ar'));
     expect(page).toContain(`500–2,000${NBSP}قطعة`);
-    expect(page).toContain(`2,000+${NBSP}قطعة`);
-    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>\u200F0.92${NBSP}US$/قطعة</bdi>`);   // recent quotes, each figure isolated
-    expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000+个');
+    // Phase 9 (missed-02) — "2,000 and up" in words: a bare "2,000+" is drawn "+2,000" in Arabic.
+    expect(page).toContain(`2,000${NBSP}قطعة فأكثر`);
+    expect(page).not.toContain('2,000+');
+    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>\u200F0.92${NBSP}US$ لكل قطعة</bdi>`);   // recent quotes, each figure isolated
+    expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000个起');
   });
 
   it('contacts: the gap between the facts is " · " in English and Arabic; Chinese keeps its own', () => {
@@ -340,7 +343,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
       expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/business" class="navlink active" aria-current="page"/);
-      expect(withoutIsolates(renderKnowledgeOps(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week"');
+      // Phase 9 (V1-358) — the period's tabs sit with its counts at the foot of the page, and keep it there.
+      expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week#period"');
     }
     const results: AnalyticsData = {
       range: 'month', hasActivity: false,
@@ -366,7 +370,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       }
       expect(pages.conversation, l).toContain('<h1 class="who">🇳🇬 <b><bdi>Aisha Bello</bdi></b>');
       expect(pages.buyer, l).toContain('<h1 class="who">🇦🇪 <b><bdi>Ahmed</bdi></b>');
-      expect(pages.product, l).toMatch(/<h1 class="who"><b>(Canvas Tote Bag|帆布袋)<\/b>/);
+      // Phase 9 (V1-310) — the product's name is the page's title, drawn like every page's.
+      expect(pages.product, l).toMatch(/<h1 class="page"><bdi>(Canvas Tote Bag|帆布袋)<\/bdi><\/h1>/);
     }
     // Drawn the size it always was: the header's own rule, the heading's margins taken off.
     const css = linkedCss(shelled('en'));

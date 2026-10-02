@@ -2,11 +2,12 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t } from './say.js';
+import { type MessageKey, claimName } from '../../core/owner/i18n/messages.js';
+import { t, tn, assistantName } from './say.js';
+import { formatList } from '../../core/owner/i18n/format.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
 import { renderUsageFact, type UsageFact } from './knowledge-insights.js';
-import { esc, back } from './layout.js';
+import { esc, back, deeper } from './layout.js';
 import * as show from './values.js';
 import { flashBanner, type Flash } from './flash.js';
 
@@ -23,6 +24,10 @@ import { flashBanner, type Flash } from './flash.js';
 const KINDS: readonly KnowledgeKind[] = [
   'specification', 'material', 'production_note', 'faq', 'buyer_answer', 'usage', 'restriction',
 ];
+/** Phase 9 (V1-364) — what can be said of the business as a whole: no specifications or materials, which are a product's. */
+const BUSINESS_KINDS: readonly KnowledgeKind[] = ['faq', 'buyer_answer', 'restriction'];
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Certification/compliance keys the claims guard recognises. */
 const CERT_KEYS: readonly string[] = [
@@ -36,6 +41,8 @@ export type KItem = {
 
 export type ProductKnowledge = {
   readonly productId: string; readonly productName: string | null;
+  /** Phase 9 (V1-375) — its Chinese name, which a Chinese page shows, as the product's own page does. */
+  readonly productNameZh?: string | null;
   readonly items: readonly KItem[];
   readonly certs: readonly string[];   // active certification/compliance claim keys
   /**
@@ -49,8 +56,11 @@ export type ProductKnowledge = {
 };
 
 export type KnowledgeIndex = {
-  readonly products: readonly { readonly id: string; readonly name: string | null; readonly count: number }[];
+  readonly products: readonly { readonly id: string; readonly name: string | null; readonly nameZh?: string | null; readonly count: number }[];
   readonly business: readonly KItem[];
+  /** Phase 9 (V1-373) — the certifications, which apply to every product, live on this page: the ones on, and how many products they cover. */
+  readonly certs?: readonly string[];
+  readonly appliesToProducts?: number;
 };
 
 const rowToItem = (r: { id: string; kind: string; label: string; content: string; source: string }): KItem =>
@@ -62,27 +72,32 @@ export async function loadKnowledgeIndex(db: Db, businessIdRaw: string): Promise
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { products: [], business: [] };
   return withTenantTx(db, bid.value, async (tx) => {
-    const products = (await sql<{ id: string; name: string | null; count: number }>`
-      select p.id, p.name,
+    const products = (await sql<{ id: string; name: string | null; name_zh: string | null; count: number }>`
+      select p.id, p.name, p.name_zh,
              (select count(*)::int from product_knowledge k where k.product_id = p.id and k.status='active') as count
         from products p where p.business_id = ${bid.value} and p.is_active
        order by p.name asc limit 200
-    `.execute(tx)).rows;
+    `.execute(tx)).rows.map((r) => ({ id: r.id, name: r.name, nameZh: r.name_zh, count: r.count }));
     const business = (await sql<{ id: string; kind: string; label: string; content: string; source: string }>`
       select id, kind, label, content, source from product_knowledge
        where business_id = ${bid.value} and product_id is null and status='active'
        order by created_at desc
     `.execute(tx)).rows.map(rowToItem);
-    return { products, business };
+    const certs = (await sql<{ claim_key: string }>`
+      select claim_key from claims_policy
+       where business_id = ${bid.value} and kind in ('certification','compliance') and allowed
+    `.execute(tx)).rows.map((r) => r.claim_key);
+    return { products, business, certs, appliesToProducts: products.length };
   });
 }
 
 export async function loadProductKnowledge(db: Db, businessIdRaw: string, productId: string): Promise<ProductKnowledge | null> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return null;
+  // Phase 9 (missed-03) — an address cut short is a product that is not here, never a broken page.
+  if (!bid.ok || !UUID_SHAPE.test(productId)) return null;
   return withTenantTx(db, bid.value, async (tx) => {
-    const head = (await sql<{ name: string | null }>`
-      select name from products where id = ${productId} limit 1`.execute(tx)).rows[0];
+    const head = (await sql<{ name: string | null; name_zh: string | null }>`
+      select name, name_zh from products where id = ${productId} limit 1`.execute(tx)).rows[0];
     if (!head) return null;
     const items = (await sql<{ id: string; kind: string; label: string; content: string; source: string }>`
       select id, kind, label, content, source from product_knowledge
@@ -95,7 +110,7 @@ export async function loadProductKnowledge(db: Db, businessIdRaw: string, produc
     const appliesToProducts = Number((await sql<{ n: number }>`
       select count(*)::int as n from products where business_id = ${bid.value} and is_active
     `.execute(tx)).rows[0]?.n ?? 0);
-    return { productId, productName: head.name, items, certs, appliesToProducts };
+    return { productId, productName: head.name, productNameZh: head.name_zh, items, certs, appliesToProducts };
   });
 }
 
@@ -182,27 +197,66 @@ export async function setCertification(db: Db, businessIdRaw: string, key: strin
 const kindLabel = (l: Locale, k: KnowledgeKind) => t(l, `knowledge.kind.${k}` as MessageKey);
 const sourceLabel = (l: Locale, s: KnowledgeSource) => t(l, `knowledge.source.${s}` as MessageKey);
 
-function kindSelect(l: Locale): string {
-  return `<select name="kind">${KINDS.map((k) => `<option value="${k}">${esc(kindLabel(l, k))}</option>`).join('')}</select>`;
+/** A product's name as the page's language shows it: its Chinese name on a Chinese page (V1-361, V1-375). */
+const shownName = (l: Locale, name: string | null, nameZh: string | null | undefined): string =>
+  (l === 'zh' ? nameZh ?? name : name) ?? '—';
+const COLLATE: Record<Locale, string> = { en: 'en', zh: 'zh-CN', ar: 'ar', es: 'es', fr: 'fr' };
+
+function kindSelect(l: Locale, kinds: readonly KnowledgeKind[]): string {
+  return `<select name="kind" id="teach-kind">${kinds.map((k) => `<option value="${k}">${esc(kindLabel(l, k))}</option>`).join('')}</select>`;
+}
+
+/**
+ * Phase 9 (V1-371, V1-372, new-18, V1-374, missed-19) — each certification is
+ * a row: its name in words ("Food-safe materials", never "food_grade"), whether
+ * it is on (✓ On, or Off — in words, not only in green), and a button that
+ * says what pressing it does. The ask-first dialog's own button repeats that
+ * word, so it reads "Turn on", never the code.
+ */
+function certRows(l: Locale, certs: readonly string[], n: number, productId: string): string {
+  return `<ul class="rows certlist">${CERT_KEYS.map((k) => {
+    const on = certs.includes(k);
+    const label = claimName(l, k);
+    const q = t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: label, n });
+    return `<li class="row">
+      <span class="cert-name"><b>${esc(label)}</b> <span class="pill${on ? ' ok' : ''}">${esc(t(l, on ? 'knowledge.cert.on' : 'knowledge.cert.off'))}</span></span>
+      <form method="post" action="/app/knowledge/cert" class="inline">
+        <input type="hidden" name="productId" value="${esc(productId)}" />
+        <input type="hidden" name="key" value="${esc(k)}" />
+        <input type="hidden" name="allowed" value="${on ? '0' : '1'}" />
+        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(q)}">${esc(t(l, on ? 'knowledge.cert.turnOff' : 'knowledge.cert.turnOn'))}</button>
+      </form></li>`;
+  }).join('')}</ul>`;
 }
 
 export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefill = ''): string {
-  const products = data.products.length
-    ? `<div class="klist">${data.products.map((p) => `
+  // Phase 9 (V1-361) — each product by the name the reader's Products page shows, in the reader's order.
+  const collator = new Intl.Collator(COLLATE[locale]);
+  const sorted = [...data.products].sort((a, b) => collator.compare(shownName(locale, a.name, a.nameZh), shownName(locale, b.name, b.nameZh)));
+  // Phase 9 (V1-360) — each row says what its number counts.
+  const products = sorted.length
+    ? `<div class="klist">${sorted.map((p) => `
         <a class="krow" href="/app/knowledge/${encodeURIComponent(p.id)}">
-          <span><bdi>${esc(p.name ?? '—')}</bdi></span><span class="muted">${esc(show.count(locale, p.count))}</span>
+          <span><bdi>${esc(shownName(locale, p.name, p.nameZh))}</bdi></span><span class="muted">${esc(p.count > 0
+            ? tn(locale, 'knowledge.product.facts', p.count) : t(locale, 'knowledge.product.none'))}<span class="go" aria-hidden="true">›</span></span>
         </a>`).join('')}</div>`
-    : `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`;
+    : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
 
   const biz = data.business.map((i) => itemCard(i, locale, null)).join('');
+  const n = data.appliesToProducts ?? data.products.length;
   // CC-20 — no title of its own: this is the second half of the knowledge page,
   // under the one <h1> the page's first half draws (`renderKnowledgeOps`), which
   // carries this page's lede too. It printed the same title a second time.
   return `
     <div class="block"><h2>${esc(t(locale, 'knowledge.products'))}</h2>${products}</div>
     <div class="block"><h2>${esc(t(locale, 'knowledge.business'))}</h2>
-      ${biz || `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`}
-      ${teachForm(locale, '', prefill)}
+      ${biz || `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`}
+      ${teachForm(locale, '', prefill, BUSINESS_KINDS)}
+    </div>
+    <div class="block" id="certs"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
+      <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n }))}</p>
+      <p class="fdesc">${esc(t(locale, 'knowledge.cert.hint'))}</p>
+      ${certRows(locale, data.certs ?? [], n, '')}
     </div>
     `;
 }
@@ -217,7 +271,7 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
     <form method="post" action="/app/knowledge/correct" class="krow-actions">
       <input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
-      <textarea name="content" rows="2" placeholder="${esc(t(locale, 'knowledge.correct'))}">${esc(i.content)}</textarea>
+      <textarea name="content" rows="2" aria-label="${esc(t(locale, 'knowledge.correct'))}" placeholder="${esc(t(locale, 'knowledge.correct'))}">${esc(i.content)}</textarea>
       <div class="kbtns">
         <button class="btn" type="submit">${esc(t(locale, 'knowledge.correct.save'))}</button>
       </div>
@@ -230,15 +284,19 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
   </div>`;
 }
 
-function teachForm(locale: Locale, productId: string, prefill = ''): string {
-  return `<form method="post" action="/app/knowledge/teach" class="teach">
+/**
+ * Phase 9 (V1-363, V1-368, V1-377) — the teach form is the product's own form:
+ * each field's name is its label, in the page's size, attached to the field.
+ */
+function teachForm(locale: Locale, productId: string, prefill = '', kinds: readonly KnowledgeKind[] = KINDS): string {
+  return `<form method="post" action="/app/knowledge/teach" class="pform teach">
     <input type="hidden" name="productId" value="${esc(productId)}" />
-    <h3>${esc(t(locale, 'knowledge.teach'))}</h3>
-    <label class="muted">${esc(t(locale, 'knowledge.teach.kind'))}</label>${kindSelect(locale)}
-    <label class="muted">${esc(t(locale, 'knowledge.teach.label'))}</label>
-    <input type="text" name="label" required maxlength="120" value="${esc(prefill)}" />
-    <label class="muted">${esc(t(locale, 'knowledge.teach.content'))}</label>
-    <textarea name="content" rows="3" required></textarea>
+    <h3 class="sub3">${esc(t(locale, 'knowledge.teach'))}</h3>
+    <label class="pq"><span>${esc(t(locale, 'knowledge.teach.kind'))}</span>${kindSelect(locale, kinds)}</label>
+    <label class="pq"><span>${esc(t(locale, 'knowledge.teach.label'))}</span>
+      <input type="text" name="label" required maxlength="120" value="${esc(prefill)}" /></label>
+    <label class="pq"><span>${esc(t(locale, 'knowledge.teach.content'))}</span>
+      <textarea name="content" rows="3" required></textarea></label>
     <button class="btn send" type="submit">${esc(t(locale, 'knowledge.teach.add'))}</button>
   </form>`;
 }
@@ -249,39 +307,29 @@ export function renderProductKnowledge(
 ): string {
   const now = opts.now ?? new Date();
   const flashHtml = flashBanner(flash);
+  const name = assistantName(locale);
+  const title = shownName(locale, d.productName, d.productNameZh);
   const items = d.items.length
     ? d.items.map((i) => itemCard(i, locale, d.productId, renderUsageFact(opts.usage?.get(i.id), locale, now))).join('')
-    : `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`;
+    : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
+  // Phase 9 (V1-373) — a setting for every product is not on one product's page:
+  // which certifications are on is said here, and changed where they all are.
+  const on = CERT_KEYS.filter((k) => d.certs.includes(k)).map((k) => claimName(locale, k));
 
-  const certs = CERT_KEYS.map((k) => {
-    const on = d.certs.includes(k);
-    // M22 (F-03) — this toggle changes what she may say about EVERY product.
-    // The owner is standing on one product's page, so she is asked plainly.
-    const q = t(locale, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn',
-      { key: k, n: d.appliesToProducts });
-    return `<form method="post" action="/app/knowledge/cert" class="inline certtoggle">
-      <input type="hidden" name="productId" value="${esc(d.productId)}" />
-      <input type="hidden" name="key" value="${esc(k)}" />
-      <input type="hidden" name="allowed" value="${on ? '0' : '1'}" />
-      <button class="cert ${on ? 'on' : ''}" type="submit"
-              onclick="return confirm(this.dataset.confirm)"
-              data-confirm="${esc(q)}">${on ? '✓ ' : ''}${esc(k)}</button>
-    </form>`;
-  }).join('');
-
+  // Phase 9 (V1-377, V1-378) — the back link names the page it opens, and stands
+  // above the title, as on the product's own page; V1-376 — and that page is a door away.
   return `
-    <div class="dhead">${back('/app/knowledge', t(locale, 'knowledge.back'))}
-      <h1 class="page">${esc(d.productName ?? '—')}</h1></div>
+    ${back('/app/knowledge', t(locale, 'nav.knowledge'))}
+    <h1 class="page"><bdi>${esc(title)}</bdi></h1>
     ${flashHtml}
-    <div class="block"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
-      <p class="scope">${esc(t(locale, 'knowledge.cert.scope', { n: d.appliesToProducts }))}</p>
-      <p class="muted">${esc(t(locale, 'knowledge.cert.hint'))}</p>
-      <div class="certs">${certs}</div>
-    </div>
     <div class="block">
-      <h2>${esc(t(locale, 'knowledge.taught.title'))}</h2>
-      <p class="scope">${esc(t(locale, 'knowledge.taught.scope', { product: d.productName ?? '' }))}</p>
+      <h2>${esc(t(locale, 'knowledge.taught.title', { name }))}</h2>
+      <p class="scope">${esc(t(locale, 'knowledge.taught.scope', { product: title }))}</p>
       ${items}${teachForm(locale, d.productId, opts.prefill ?? '')}</div>
+    <div class="block"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
+      <p class="fdesc">${esc(on.length ? t(locale, 'knowledge.cert.onHere', { list: formatList(locale, on) }) : t(locale, 'knowledge.cert.noneHere'))}</p>
+      <div class="doors">${deeper('/app/knowledge#certs', t(locale, 'knowledge.cert.change'))}
+        ${deeper(`/app/products/${encodeURIComponent(d.productId)}`, t(locale, 'knowledge.productDoor'))}</div>
+    </div>
     `;
 }
-

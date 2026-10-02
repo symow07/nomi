@@ -10,16 +10,16 @@ import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catal
 import { diffAgainstCatalogue, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import { rowsFromParsed, asExtracted, liveRows, type ImportRow } from '../../core/onboard/importReview.js';
 import { defaultUnitFor, sellsByQuantity } from '../../core/owner/sellingStyle.js';
-import { renderStoreForms, type StoreFormRefusal } from './storeImport.js';
+import { renderStoreForms, filePick, type StoreFormRefusal } from './storeImport.js';
 import { savePriceRulesTx } from './priceRules.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
-import { labelled } from '../../core/owner/i18n/format.js';
+import { labelled, formatList } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
 import { addAliases, renameAlias } from '../../db/productAliases.js';
-import { esc, back, deeper } from './layout.js';
+import { esc, back, deeper, conversationUrl } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
@@ -46,6 +46,25 @@ const displayName = (locale: Locale, name: string, nameZh: string | null): strin
 const UNIT_CODES = new Set(['item', 'pcs', 'pair', 'set', 'pack', 'box', 'carton', 'dozen', 'bottle', 'kg', 'g', 'm', 'l', 'ml']);
 export const unitLabel = (locale: Locale, unit: string): string =>
   UNIT_CODES.has(unit) ? t(locale, `product.unit.${unit}` as MessageKey) : unit;
+/**
+ * Phase 9 (V1-317) — the unit ONE of something is counted in, for a price per
+ * unit: "$1.05/pc", never "$1.05/pcs". Only `pcs` has a plural label; every
+ * other code is already said in the singular.
+ */
+export const unitOne = (locale: Locale, unit: string): string =>
+  unit === 'pcs' ? t(locale, 'product.unit.pcs.one') : unitLabel(locale, unit);
+/**
+ * Phase 9 (V1-299) — ONE way to write a product's price, on the list, the
+ * product's page and its recent quotes: the price of one unit. The list said
+ * "500 pcs: $1.05" (which reads as five hundred for $1.05), the page "500+ pcs
+ * $1.05" and the quotes "$1.05/pcs".
+ */
+export const perUnit = (locale: Locale, price: Money, unit: string): string =>
+  t(locale, 'product.price.perUnit', { price: show.money(locale, price), unit: unitOne(locale, unit) });
+
+/** Phase 9 (missed-03) — an address cut short is a product that is not here, never a broken page. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid = (s: string): boolean => UUID_SHAPE.test(s);
 
 /** One figure (or a figure and its word), isolated so a right-to-left line cannot reorder it. */
 const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
@@ -159,7 +178,11 @@ export type ProductDetail = {
   readonly tiers: readonly { minQty: number; maxQty: number | null; unitPrice: Money }[];
   readonly aliases: readonly string[];
   readonly images: readonly string[];
-  readonly recentQuotes: readonly { quantity: number; unitPrice: Money; total: Money }[];
+  /** Phase 9 (V1-306) — each with when it was worked out, for whom, and the conversation it came from. */
+  readonly recentQuotes: readonly {
+    quantity: number; unitPrice: Money; total: Money;
+    at?: Date; customer?: string | null; conversationId?: string | null;
+  }[];
   /** CUR — the workspace's one currency: a price typed on this page is in it. */
   readonly currency: Currency;
   /** K3 — the line of her list it was added from, and the photo, when it came from one. */
@@ -170,7 +193,7 @@ export type ProductDetail = {
 
 export async function loadProductDetail(db: Db, businessIdRaw: string, productId: string): Promise<ProductDetail | null> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return null;
+  if (!bid.ok || !isUuid(productId)) return null;
   return withTenantTx(db, bid.value, async (tx) => {
     const p = (await sql<{
       id: string; name: string; name_zh: string | null; sku: string; category: string | null;
@@ -198,15 +221,25 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
     const images = (await sql<{ url: string }>`
       select url from product_images where product_id = ${productId} order by is_primary desc, sort_order asc limit 8`
       .execute(tx)).rows.map((i) => i.url);
-    const recentQuotes = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string; currency: string }>`
-      select quantity, unit_price_usd, total_usd, currency from quotes where product_id = ${productId} order by created_at desc limit 5`
+    const recentQuotes = (await sql<{
+      quantity: number; unit_price_usd: string; total_usd: string; currency: string;
+      created_at: Date; conversation_id: string | null; customer: string | null;
+    }>`
+      select q.quantity, q.unit_price_usd, q.total_usd, q.currency, q.created_at, q.conversation_id,
+             cl.display_name as customer
+        from quotes q
+        left join conversations cv on cv.id = q.conversation_id
+        left join clients cl on cl.id = cv.client_id
+       where q.product_id = ${productId} order by q.created_at desc limit 5`
       .execute(tx)).rows
       .map((q) => ({
         quantity: q.quantity,
         unitPrice: moneyFromRow(Number(q.unit_price_usd), q.currency),
         total: moneyFromRow(Number(q.total_usd), q.currency),
+        at: q.created_at, customer: q.customer, conversationId: q.conversation_id,
       }))
-      .filter((q): q is { quantity: number; unitPrice: Money; total: Money } => q.unitPrice !== null && q.total !== null);
+      .filter((q): q is { quantity: number; unitPrice: Money; total: Money; at: Date; customer: string | null; conversationId: string | null } =>
+        q.unitPrice !== null && q.total !== null);
 
     const learned = p.is_active && (tiers.length > 0 || p.price !== null);
     return {
@@ -479,36 +512,54 @@ export function renderProductList(
   kind: string | null = null,
 ): string {
   const byQuantity = sellsByQuantity(kind);
+  const name = assistantName(locale);
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
-  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1>${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ''}</div>
+  // Phase 9 (V1-301, V1-304) — the way to add says "add", under the title and
+  // in the list's own column: it was a far-right text link ("Teach your
+  // assistant your products ›"), and on a Spanish phone dropped 50 px below the
+  // title. It goes somewhere, so it is a door (buttons do things, doors go
+  // places: tests/parity/buttons-and-doors.test.ts).
+  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1></div>
     ${flashBanner(flash)}
-    ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name: assistantName(locale) }))}
+    ${viewer.isOwner && items.length > 0 ? deeper('/app/products/add', t(locale, 'product.teach'), 'prod-add') : ''}
+    ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name }))}
       ${viewer.isOwner ? `<a class="blink" href="/app/business/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}`;
   if (items.length === 0) {
+    // Phase 9 (missed-01) — the door names the page it opens.
     return `${head}
-      <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: assistantName(locale) }))}</span>
-      <div style="margin-top:var(--space-16)">${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.list.empty.cta')) : ownerDecides(locale)}</div></div></div>`;
+      <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name }))}</span>
+      <div class="doors">${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ownerDecides(locale)}</div></div></div>`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
-    // CC-13 — each locale's own colon and gap: "500 pcs: $2.10 · Min. order: 500 pcs",
-    // "500个：$2.10　最低起订：500个". The full-width colon and space were in every language.
-    // Each figure isolated: after an Arabic word a bare "$2.10" is drawn "2.10$".
-    // RT — a shop's price of one is the price; a quantity is named only where the price starts above one.
+    // CC-13 — each locale's own colon and gap ("最低起订：500个"); each figure isolated:
+    // after an Arabic word a bare "$2.10" is drawn "2.10$".
+    // Phase 9 (V1-299) — the price of one unit, as everywhere: "$1.05/pc · Min. order: 500 pcs".
+    // A quantity is named before it only where the price starts above the minimum.
+    const starts = p.entryQty !== null && p.entryQty > Math.max(1, p.moq ?? 1);
     const price = p.entryPrice !== null && p.entryQty !== null
-      ? (!byQuantity && p.entryQty <= 1 ? iso(show.money(locale, p.entryPrice))
-        : labelled(locale, iso(show.quantityOf(locale, p.entryQty, u)), iso(show.money(locale, p.entryPrice))))
+      ? (starts ? labelled(locale, esc(t(locale, 'product.list.from', { qty: show.quantityOf(locale, p.entryQty, u) })), iso(perUnit(locale, p.entryPrice, p.unit)))
+        : iso(perUnit(locale, p.entryPrice, p.unit)))
       : esc(t(locale, 'product.list.priceTbd'));
     const moq = !byQuantity && p.moq === null ? null : labelled(locale, esc(t(locale, 'product.list.moq')),
       p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u)));
+    // Phase 9 (V1-302) — a row that opens says so, with the chevron every door has.
     return `
-    <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
-      <div class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</div>
-      <div class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</div>
-      ${p.imageMatchable ? '' : `<div class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</div>`}
-    </a>`;
+    <a class="prod" href="/app/products/${encodeURIComponent(p.id)}"><span class="prod-m">
+      <span class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</span>
+      <span class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</span>
+      ${p.imageMatchable ? '' : `<span class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</span>`}
+    </span><span class="go" aria-hidden="true">›</span></a>`;
   }).join('');
-  return `${head}<div class="rows">${cards}</div>`;
+  // Phase 9 (V1-303, V1-379) — what belongs to the products, one door each:
+  // their price limits, what the assistant knows about them, and a copy of
+  // the list. The copy was only under Setup › Your data.
+  const doors = viewer.isOwner ? `<div class="block"><div class="doors">
+      ${deeper('/app/business/prices', t(locale, 'prices.title'))}
+      ${deeper('/app/knowledge', t(locale, 'nav.knowledge'))}
+      ${deeper('/app/settings/data/products', t(locale, 'product.list.copy'), '', 'download')}
+    </div></div>` : '';
+  return `${head}<div class="rows">${cards}</div>${doors}`;
 }
 
 export function renderProductDetail(
@@ -530,6 +581,28 @@ export function renderProductDetail(
     errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `product.edit.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
   const val = (f: string, fallback: string): string =>
     esc(draft[f] !== undefined ? draft[f]! : fallback);
+  // Phase 9 (missed-02) — "500 and up" in each language's own words: in Arabic
+  // a bare "500+" is drawn "+500", which reads as "plus 500".
+  const tierLabel = (tr: { minQty: number; maxQty: number | null }): string => tr.maxQty
+    ? show.figureOf(locale, `${show.quantity(locale, tr.minQty)}–${show.quantity(locale, tr.maxQty)}`, u)
+    : t(locale, 'product.detail.tierFrom', { n: show.quantity(locale, tr.minQty), unit: u });
+  // Phase 9 (V1-305) — the box is the price of the FIRST quantity price, and
+  // says so; the others are named under it, kept as they are.
+  const entry = d.tiers[0];
+  const priceLabel = entry && entry.minQty > 1
+    ? t(locale, 'product.edit.priceFrom', { qty: show.quantityOf(locale, entry.minQty, u), currency: d.currency })
+    : t(locale, 'product.edit.price', { currency: d.currency });
+  const others = d.tiers.slice(1);
+  const priceHint = others.length
+    ? `<span class="caption muted">${esc(t(locale, 'product.edit.price.others', { list: formatList(locale, others.map(tierLabel)) }))}</span>` : '';
+  // Phase 9 (V1-309) — the unit is chosen from the reader's own words ("个",
+  // "قطعة", "uds."), the owner's own word kept when it is not one of them.
+  const unitNow = draft['unit'] ?? d.unit;
+  const units = [...(UNIT_CODES.has(unitNow) ? [] : [unitNow]), ...UNIT_CODES];
+  const unitSelect = `<select name="unit">${units.map((c) =>
+    `<option value="${esc(c)}"${c === unitNow ? ' selected' : ''}>${esc(unitLabel(locale, c))}</option>`).join('')}</select>`;
+  // Phase 9 (V1-312) — a name in Chinese only where there is one, or the page is in Chinese.
+  const zhField = locale === 'zh' || d.nameZh !== null || (draft['nameZh'] ?? '') !== '';
   const editForm = !viewer.isOwner ? `<div class="block">
     <h2>${esc(t(locale, 'product.edit.title'))}</h2>
     ${ownerDecides(locale)}
@@ -538,40 +611,42 @@ export function renderProductDetail(
     <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform">
       <label class="pq"><span>${esc(t(locale, 'product.edit.name'))}</span>
         <input name="name" dir="auto" value="${val('name', d.name)}" />${ferr('name')}</label>
-      <label class="pq"><span>${esc(t(locale, 'product.edit.nameZh'))}</span>
-        <input name="nameZh" lang="zh" value="${val('nameZh', d.nameZh ?? '')}" />${ferr('nameZh')}</label>
-      <label class="pq"><span>${esc(t(locale, 'product.edit.options'))}</span>
-        <textarea name="options" rows="3" dir="auto" placeholder="${esc(t(locale, 'product.edit.options.placeholder'))}">${val('options', formatOptions(d.options ?? [], '\n'))}</textarea>${ferr('options')}
-        <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
+      ${zhField ? `<label class="pq"><span>${esc(t(locale, 'product.edit.nameZh'))}</span>
+        <input name="nameZh" lang="zh" value="${val('nameZh', d.nameZh ?? '')}" />${ferr('nameZh')}</label>` : ''}
       <label class="pq"><span>${esc(t(locale, 'product.edit.customerNames'))}</span>
         <textarea name="customerNames" rows="3" dir="auto">${val('customerNames', '')}</textarea>${ferr('customerNames')}
         <span class="caption muted">${esc(t(locale, 'product.edit.customerNames.hint'))}</span></label>
-      <label class="pq"><span>${esc(t(locale, 'product.edit.price', { currency: d.currency }))}</span>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.options'))}</span>
+        <textarea name="options" rows="3" dir="auto" placeholder="${esc(t(locale, 'product.edit.options.placeholder'))}">${val('options', formatOptions(d.options ?? [], '\n'))}</textarea>${ferr('options')}
+        <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
+      <label class="pq"><span>${esc(priceLabel)}</span>
         <input name="price" inputmode="decimal"
-               value="${val('price', d.tiers[0] ? String(d.tiers[0].unitPrice.amount) : '')}" />${ferr('price')}</label>
-      <label class="pq"><span>${esc(t(locale, 'product.edit.moq'))}</span>
+               value="${val('price', entry ? String(entry.unitPrice.amount) : '')}" />${ferr('price')}${priceHint}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.list.moq'))}</span>
         <input name="moq" inputmode="numeric" placeholder="${esc(t(locale, 'product.noMinimum'))}"
                value="${val('moq', d.moq === null ? '' : String(d.moq))}" />${ferr('moq')}
         <span class="caption muted">${esc(t(locale, 'product.edit.moq.hint'))}</span></label>
-      <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>
-        <input name="unit" value="${val('unit', d.unit)}" />${ferr('unit')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>${unitSelect}${ferr('unit')}</label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.leadTime'))}</span>
         <input name="leadTime" inputmode="numeric" value="${val('leadTime', d.leadTimeDays === null ? '' : String(d.leadTimeDays))}" />${ferr('leadTime')}
         <span class="caption muted">${esc(t(locale, 'product.edit.leadTime.hint', { name }))}</span></label>
       <label class="pcheck"><input type="checkbox" name="isActive" ${d.isActive ? 'checked' : ''} />
         <span>${esc(t(locale, 'product.edit.active'))}</span></label>
+      <span class="caption muted">${esc(t(locale, 'product.edit.active.hint'))}</span>
       <button class="btn send" type="submit">${esc(t(locale, 'product.edit.save'))}</button>
     </form>
   </div>`;
 
+  // Phase 9 (V1-314) — the prices are read, not pressed: hairline rows, not boxes.
   const tiers = d.tiers.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
-        `<div class="tier"><span>${esc(show.figureOf(locale, tr.maxQty ? `${show.quantity(locale, tr.minQty)}–${show.quantity(locale, tr.maxQty)}` : `${show.quantity(locale, tr.minQty)}+`, u))}</span><b>${esc(show.money(locale, tr.unitPrice))}</b></div>`).join('')}</div></div>`
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><ul class="rows">${d.tiers.map((tr) =>
+        `<li class="row"><span>${esc(tierLabel(tr))}</span><b>${iso(perUnit(locale, tr.unitPrice, d.unit))}</b></li>`).join('')}</ul></div>`
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
 
+  // Phase 9 (V1-313) — the names already on record stand above the box that adds more.
   const aliases = d.aliases.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
-        <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name: assistantName(locale) }))}</p></div>`
+        <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name }))}</p></div>`
     // T3 — found by no name: said, with what makes it findable.
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>
         <p class="fwarn">${esc(t(locale, 'product.detail.notFindable'))}</p></div>`;
@@ -580,28 +655,50 @@ export function renderProductDetail(
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${d.images.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
     : '';
 
+  // Phase 9 (V1-306) — each quote says when, for whom, and opens the conversation it was worked out in.
   const quotes = d.recentQuotes.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>${d.recentQuotes.map((q) =>
-        `<div class="qrow muted">${[show.quantityOf(locale, q.quantity, u), `${show.money(locale, q.unitPrice)}/${u}`,
-          `${t(locale, 'product.detail.total')} ${show.money(locale, q.total)}`].map(iso).join(' · ')}</div>`).join('')}</div>`
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2><ul class="rows">${d.recentQuotes.map((q) => {
+        const facts = [
+          ...(q.at ? [show.date(locale, q.at)] : []),
+          ...(q.customer ? [q.customer] : []),
+          show.quantityOf(locale, q.quantity, u), perUnit(locale, q.unitPrice, d.unit),
+          `${t(locale, 'product.detail.total')} ${show.money(locale, q.total)}`,
+        ].map(iso).join(' · ');
+        return `<li class="row">${q.conversationId
+          ? `<a class="deeper" href="${conversationUrl(q.conversationId)}"><span>${facts}</span><span class="go" aria-hidden="true">›</span></a>`
+          : `<span class="muted">${facts}</span>`}</li>`;
+      }).join('')}</ul></div>`
     : '';
 
+  // Phase 9 (V1-308) — only what the owner set and the assistant uses: the
+  // category ("bags", a raw value from the demo's seed) and "Customizable: No"
+  // (a default nobody stated) are no longer shown — no page writes either, and
+  // nothing a customer is told reads them.
+  // V1-311 — each fact is called what its field is called.
+  const details = [
+    d.moq === null && !sellsByQuantity(d.businessKind) ? '' : `<div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))}</div>`,
+    d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(tn(locale, 'product.detail.leadTimeDays', d.leadTimeDays))}</div>` : '',
+    d.source ? `<div><span class="muted">${esc(t(locale, 'product.detail.fromList'))}</span> <bdi>${esc(d.source.line)}</bdi>${viewer.isOwner && d.source.importId && d.source.photo !== null
+      ? ` <a href="/app/products/import/${encodeURIComponent(d.source.importId)}/photo/${d.source.photo}">${esc(t(locale, 'product.detail.fromPhoto', { n: d.source.photo }))}</a>` : ''}</div>` : '',
+  ].filter(Boolean).join('');
+  const info = details ? `<div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2><div class="info">${details}</div></div>` : '';
+
+  // Phase 9 (V1-315, V1-376) — the product's other pages, one door each.
+  const doors = `<div class="block"><div class="doors">
+      ${deeper(`/app/knowledge/${encodeURIComponent(d.id)}`, t(locale, 'product.detail.knowledgeDoor', { name }))}
+      ${viewer.isOwner ? deeper(`/app/business/prices?product=${encodeURIComponent(d.id)}#p-${encodeURIComponent(d.id)}`, t(locale, 'product.detail.limitsDoor')) : ''}
+    </div></div>`;
+
+  // Phase 9 (V1-310, V1-320) — the product's name is the page's title, the same
+  // size as every other page's, and the tab's; the back link stands above it.
+  // V1-319, new-04 — being found by photo is a quiet note, never louder than the name.
   return `
     ${flashBanner(flash)}
-    <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
-      <h1 class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''}${skuMark(d.sku)}</h1>${statusPill(locale, d.status)}</div>
-    ${d.imageMatchable ? `<div class="p-tag big">${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}
-    <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
-      <div class="info">
-        ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
-        ${d.moq === null && !sellsByQuantity(d.businessKind) ? '' : `<div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))}</div>`}
-        ${d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(t(locale, 'product.detail.leadTimeDays', { days: d.leadTimeDays }))}</div>` : ''}
-        <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
-        ${d.source ? `<div><span class="muted">${esc(t(locale, 'product.detail.fromList'))}</span> <bdi>${esc(d.source.line)}</bdi>${viewer.isOwner && d.source.importId && d.source.photo !== null
-          ? ` <a href="/app/products/import/${encodeURIComponent(d.source.importId)}/photo/${d.source.photo}">${esc(t(locale, 'product.detail.fromPhoto', { n: d.source.photo }))}</a>` : ''}</div>` : ''}
-      </div>
-    </div>
-    ${tiers}${editForm}${aliases}${images}${quotes}`;
+    ${back('/app/products', t(locale, 'product.detail.back'))}
+    <h1 class="page"><bdi>${esc(title)}</bdi></h1>
+    ${alt || ownSku(d.sku) || d.status !== 'learned' ? `<p class="subline">${alt ? `<span class="muted" dir="auto">${esc(alt)}</span>` : ''}${skuMark(d.sku)} ${statusPill(locale, d.status)}</p>` : ''}
+    ${d.imageMatchable ? `<p class="caption muted">${esc(t(locale, 'product.detail.imageMatchBig', { name }))}</p>` : ''}
+    ${tiers}${info}${aliases}${editForm}${doors}${images}${quotes}`;
 }
 
 /**
@@ -630,40 +727,50 @@ export function renderAddForm(
   /** EXT — the page reader can read a PDF on this installation (its model provider takes documents). */
   pdfReadable = false,
   /** Phase 6 — a form on this page that came to nothing: its sentence goes under it, the page is the same. */
-  refused: { readonly photo: string } | { readonly store: StoreFormRefusal } | null = null,
+  refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal } | null = null,
+  now: Date = new Date(),
 ): string {
+  // Phase 9 (V1-328) — the way back to the list, above the title, as on a product's page.
+  const backLink = back('/app/products', t(locale, 'product.detail.back'));
   if (!viewer.isOwner) {
-    return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
-    <div class="block">${ownerDecides(locale)}
-      <p>${back('/app/products', t(locale, 'product.detail.back'))}</p></div>`;
+    return `${backLink}<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
+    <div class="block">${ownerDecides(locale)}</div>`;
   }
-  return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
+  // Phase 9 (new-07) — a photo refusal keeps the answer to "printed or handwritten?".
+  const hand = refused && 'photo' in refused ? refused.hand ?? null : null;
+  // Phase 9 (missed-06) — nothing is focused on arrival: on a phone that raised
+  // the keyboard and pushed the list waiting to be checked out of sight.
+  // V1-324 — the first way has a heading like the other four; V1-328 — and is
+  // the box's label.
+  return `${backLink}<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     ${flashBanner(flash)}
-    ${renderOpenImport(locale, open)}
+    ${renderOpenImport(locale, open, now)}
     <div class="block" id="paste">
+      <h2 id="paste-h">${esc(t(locale, 'product.add.pasteTitle'))}</h2>
       <p>${esc(t(locale, 'product.add.intro'))}</p>
       <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${[1, 2, 3].map((i) =>
         esc(t(locale, `product.add.example${i}` as MessageKey, { price: EXAMPLE_PRICES[currency][i - 1]! }))).join('<br>')}</p>
       <form method="post" action="/app/products/add/review">
-        <textarea name="text" rows="8" required placeholder="${esc(t(locale, 'product.add.placeholder'))}"${refused ? '' : ' autofocus'}></textarea>
+        <textarea name="text" rows="8" required aria-labelledby="paste-h" placeholder="${esc(t(locale, 'product.add.placeholder'))}"></textarea>
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
       </form>
-      <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.add.note'))}</p>
+      <p class="caption muted">${esc(t(locale, 'product.add.note', { tag: t(locale, 'product.status.needsConfirm') }))}</p>
     </div>
     <div class="block" id="photo">
       <h2>${esc(t(locale, 'product.add.photoTitle'))}</h2>
       <p>${esc(t(locale, 'product.add.photoIntro'))}</p>
       <form method="post" action="/app/products/add/photo" enctype="multipart/form-data">
         <fieldset class="choices"><legend>${esc(t(locale, 'import.hand.q'))}</legend>
-          <label class="pcheck"><input type="radio" name="hand" value="printed" required /> ${esc(t(locale, 'import.hand.printed'))}</label>
-          <label class="pcheck"><input type="radio" name="hand" value="handwritten" /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
+          <label class="pcheck"><input type="radio" name="hand" value="printed" required${hand === 'printed' ? ' checked' : ''} /> ${esc(t(locale, 'import.hand.printed'))}</label>
+          <label class="pcheck"><input type="radio" name="hand" value="handwritten"${hand === 'handwritten' ? ' checked' : ''} /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
         </fieldset>
-        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp${pdfReadable ? ',application/pdf' : ''}" multiple required${
-          refused && 'photo' in refused ? ' aria-invalid="true" aria-describedby="photo-err" autofocus' : ''} />
+        ${filePick(locale, `<input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp${pdfReadable ? ',application/pdf' : ''}" multiple required${
+          refused && 'photo' in refused ? ' aria-invalid="true" aria-describedby="photo-err" autofocus' : ''} />`,
+          { choose: 'product.add.photoChoose', none: 'product.add.photoNone', some: 'product.add.photoSome' })}
         ${refused && 'photo' in refused ? refused.photo : ''}
         <button class="btn" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
-      <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
+      <p class="caption muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>
     ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null)}
     ${renderPricesToMe(locale, pricesToOwner)}`;
@@ -673,6 +780,9 @@ export function renderAddForm(
  * K5 — the fallback for an owner with no list (services, agencies, a shop that
  * prices only in private messages): nothing is priced, and every price
  * question comes to her. Its own form: one press either way.
+ *
+ * Phase 9 (V1-326) — the button says what pressing it does, and turning it on
+ * asks first: it sends every price question to the owner.
  */
 export function renderPricesToMe(locale: Locale, on: boolean): string {
   const name = assistantName(locale);
@@ -681,15 +791,24 @@ export function renderPricesToMe(locale: Locale, on: boolean): string {
       <p>${esc(t(locale, on ? 'product.pricesToMe.on' : 'product.pricesToMe.intro', { name }))}</p>
       <form method="post" action="/app/products/prices-to-me">
         <input type="hidden" name="on" value="${on ? '0' : '1'}" />
-        <button class="btn" type="submit">${esc(t(locale, on ? 'product.pricesToMe.turnOff' : 'product.pricesToMe.turnOn', { name }))}</button>
+        <button class="btn" type="submit"${on ? '' : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'product.pricesToMe.confirmOn', { name }))}"`}>${esc(t(locale, on ? 'product.pricesToMe.turnOff' : 'product.pricesToMe.turnOn', { name }))}</button>
       </form>
     </div>`;
 }
 
-/** The add page's note about a list left open. */
-export function renderOpenImport(locale: Locale, open: { id: string; createdAt: Date; lines: number } | null): string {
+/**
+ * The add page's note about a list left open.
+ *
+ * Phase 9 (missed-08, V1-330, V1-332) — when, as a person says it: "today",
+ * "yesterday", else the date, which never breaks across a line.
+ */
+export function renderOpenImport(locale: Locale, open: { id: string; createdAt: Date; lines: number } | null, now: Date = new Date()): string {
   if (!open) return '';
-  return `<div class="block imp-open"><p>${esc(tn(locale, 'import.waiting', open.lines, { n: show.count(locale, open.lines), date: show.date(locale, open.createdAt) }))}</p>
+  const day = (d: Date) => show.date(locale, d);
+  const when = day(open.createdAt) === day(now) ? t(locale, 'import.waiting.today')
+    : day(open.createdAt) === day(new Date(now.getTime() - 86_400_000)) ? t(locale, 'import.waiting.yesterday')
+    : t(locale, 'import.waiting.on', { date: day(open.createdAt).replace(/ /g, '\u00a0') });
+  return `<div class="block imp-open"><p>${esc(tn(locale, 'import.waiting', open.lines, { n: show.count(locale, open.lines), when }))}</p>
     <a class="deeper" href="/app/products/import/${encodeURIComponent(open.id)}">${esc(t(locale, 'import.continue'))}<span class="go" aria-hidden="true">›</span></a></div>`;
 }
 
@@ -757,6 +876,7 @@ type EditSource = { readonly via: 'import'; readonly line: string };
 async function updateProductTx(
   tx: Tx, bid: BusinessId, productId: string, actor: string, edit: ProductEdit, source?: EditSource,
 ): Promise<EditResult> {
+  if (!isUuid(productId)) return { ok: false, errors: {} };
   const cur = (await sql<{
     price: string | null; moq: number | null; unit: string; is_active: boolean; floor: string | null;
     name: string; name_zh: string | null; lead_time_days: number | null; options: unknown;
@@ -885,10 +1005,14 @@ async function updateProductTx(
   // The entry tier is the same fact as the list price. Letting them drift is
   // how a quote comes out at a number the owner never set. CUR — in the same
   // currency: this insert once left it to the column's default, USD.
+  // Phase 9 (V1-305) — the ENTRY tier is the lowest one, which is the price the
+  // page shows in this box. It was always the tier "from 1": on a product whose
+  // prices start at 500, that added a tier no quote of 500 or more ever reads
+  // (the most specific tier wins), so the owner's new price changed nothing.
   if (detail['price'] && price !== null) {
     await sql`
       insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
-      values (${productId}, 1, ${price}, ${currency})
+      values (${productId}, coalesce((select min(min_qty) from price_tiers where product_id = ${productId}), 1), ${price}, ${currency})
       on conflict (product_id, min_qty) do update set unit_price_usd = excluded.unit_price_usd, currency = excluded.currency
     `.execute(tx);
   }

@@ -189,8 +189,9 @@ describe('M29 · questions, not a form', () => {
   it('asks the three questions in the owner’s language, in every locale', () => {
     for (const l of LOCALES) {
       const html = renderPriceRules(view(), l);
-      for (const k of ['prices.q.floor', 'prices.q.maxDiscount', 'prices.q.askAbove'] as const)
-        expect(html, `${l}/${k}`).toContain(t(l, k as MessageKey, { name: 'Lily' }).slice(0, 12));
+      // Phase 9 (V1-351) — the answer for everything asks about "anything you sell", a product about one of it.
+      for (const k of ['prices.q.floor', 'prices.q.floorAll', 'prices.q.maxDiscount', 'prices.q.askAbove'] as const)
+        expect(html, `${l}/${k}`).toContain(t(l, k as MessageKey, { name: 'Lily', currency: 'USD' }).slice(0, 12));
     }
   });
 

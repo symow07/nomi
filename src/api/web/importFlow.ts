@@ -6,7 +6,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Currency } from '../../core/types/money.js';
 import { parsePriceLines, type ExtractedProduct, type CatalogExtractor } from '../../core/onboard/catalogImport.js';
 import { containExtracted, lessSure } from '../../core/onboard/extract.js';
-import { formatList } from '../../core/owner/i18n/format.js';
+import { formatList, labelled } from '../../core/owner/i18n/format.js';
 import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import {
   extractCandidate, type ImportRow, type ImportKind, type ReviewContext, type RowEdit, type RowEditError, type Blocker, type ImportFlag,
@@ -27,7 +27,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 import { esc, back } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
-import { catalogueForTx, importFlash, writeImportRows, unitLabel, type ImportResult } from './products.js';
+import { catalogueForTx, importFlash, writeImportRows, unitLabel, unitOne, perUnit, type ImportResult } from './products.js';
 import { currencySymbol } from '../../core/types/money.js';
 import * as show from './values.js';
 
@@ -106,6 +106,8 @@ export async function startPasteImport(db: Db, businessIdRaw: string, actor: str
     const currency = await currencyOf(tx, bid.value);
     const ctx = await contextFor(tx, bid.value, 'paste', currency);
     const rows = rowsFromParsed(parsePriceLines(text, currency), { photo: null, startAt: 1, defaultUnit: ctx.defaultUnit, page: false });
+    // Phase 9 (V1-321) — no line that could be a product: nothing is kept, and the add page says so.
+    if (rows.length === 0) return null;
     return createImport(tx, bid.value, { kind: 'paste', currency, sourceText: text, rows, createdBy: actor });
   });
 }
@@ -547,49 +549,63 @@ export function renderAskedQuestions(locale: Locale, importId: string, questions
 
 const base = (id: string): string => `/app/products/import/${encodeURIComponent(id)}`;
 
+/** Phase 9 (V1-345) — "Per" is followed by one unit: "ud.", never "uds.". */
 const unitOptions = (locale: Locale, current: string): string => {
   const codes: string[] = [...IMPORT_UNITS];
   if (!codes.includes(current)) codes.unshift(current);
-  return codes.map((u) => `<option value="${esc(u)}"${u === current ? ' selected' : ''}>${esc(unitLabel(locale, u))}</option>`).join('');
+  return codes.map((u) => `<option value="${esc(u)}"${u === current ? ' selected' : ''}>${esc(unitOne(locale, u))}</option>`).join('');
 };
 
-const flagLine = (locale: Locale, f: ImportFlag): string =>
-  `<span class="imp-warn">${esc(t(locale, `import.flag.${f}` as MessageKey))}</span>`;
+const flagLine = (locale: Locale, f: ImportFlag, currency: Currency): string =>
+  `<span class="imp-warn">${esc(t(locale, `import.flag.${f}` as MessageKey, { currency }))}</span>`;
 
 function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly RowEditError[], typed: Body): string {
   const flags = flagsOf(r, m.imp.rows, m.ctx);
   const tickNeeded = !m.matched.has(r.key) && needsTick(r, m.imp.rows, m.ctx, m.imp.checkEveryRow);
   const asking = r.challenge === 'ask';
-  const price = r.price === null ? t(locale, 'import.row.noPrice') : show.money(locale, { amount: r.price, currency: m.imp.currency });
-  const minimum = r.moq === null ? t(locale, 'product.noMinimum') : t(locale, 'product.review.moqSuffix', { qty: show.quantity(locale, r.moq) });
+  // Phase 9 (V1-345) — one notation, in sentence case: "$18.00/pc · No minimum", "No price yet · Min. order: 500 pcs".
+  const price = r.price === null ? t(locale, 'import.row.noPrice') : perUnit(locale, { amount: r.price, currency: m.imp.currency }, r.unit);
+  const minimum = r.moq === null ? t(locale, 'product.noMinimum') : labelled(locale, t(locale, 'product.list.moq'), show.quantityOf(locale, r.moq, unitLabel(locale, r.unit)));
   const v = (field: string, fallback: string): string => typed[`${field}:${r.key}`] ?? fallback;
   const err = errors.length ? `<p class="perr" role="alert">${errors.map((e) => esc(t(locale, `import.error.${e}` as MessageKey))).join(' ')}</p>` : '';
-  const open = flags.length > 0 || errors.length > 0 || r.reopened || (m.imp.checkEveryRow && !r.ticked);
+  // Phase 9 (V1-337) — a flagged row says why in its own line; its form opens
+  // only when something in it was refused or asks to be looked at again, so
+  // four lines are no longer four open forms.
+  const open = errors.length > 0 || r.reopened || (m.imp.checkEveryRow && !r.ticked);
+  const need = flags.length > 0 || open;
   // K7 — a challenge row keeps what was read hidden: its price, its line, its price box.
   const summary = asking
     ? `<b dir="auto">${esc(r.name)}</b> <span class="muted">${esc(t(locale, 'import.row.challengeHidden'))}</span>`
-    : `<b dir="auto">${esc(r.name)}</b> <span class="muted">${price} · ${esc(unitLabel(locale, r.unit))} · ${esc(minimum)}</span>${r.options ? ` <span class="muted small" dir="auto">${esc(r.options)}</span>` : ''}`;
+    : `<b dir="auto">${esc(r.name)}</b> <span class="muted">${esc(price)} · ${esc(minimum)}</span>${r.options ? ` <span class="muted small" dir="auto">${esc(r.options)}</span>` : ''}`;
+  // Phase 9 (V1-335) — a line with no price and no figure (a heading, a "SPRING
+  // SALE") is added as a product to price later: said, with the way to leave it out.
+  const unpriced = r.price === null && !asking && !r.removed && !flags.includes('unread_figure')
+    ? `<span class="imp-note muted">${esc(t(locale, 'import.row.noPriceNote', { name: assistantName(locale) }))}</span>` : '';
+  // Phase 9 (V1-336) — the tick is something the owner says ("This line is
+  // right"), on its own line under the row, never run into the product's name.
+  const tick = tickNeeded && !asking
+    ? `<label class="pcheck imp-tick"><input type="checkbox" name="tick:${esc(r.key)}"${r.ticked ? ' checked' : ''} /> ${esc(t(locale, 'import.row.checked'))}</label>` : '';
   return `
-    <div class="imp-row${open ? ' need' : ''}${r.removed ? ' out' : ''}" id="row-${esc(r.key)}">
+    <div class="imp-row${need ? ' need' : ''}${r.removed ? ' out' : ''}" id="row-${esc(r.key)}">
       <div class="imp-h">
-        ${tickNeeded && !asking ? `<label class="pcheck"><input type="checkbox" name="tick:${esc(r.key)}"${r.ticked ? ' checked' : ''} /> ${esc(t(locale, 'import.row.checked'))}</label>` : ''}
         ${summary}
         ${r.removed ? `<span class="pill">${esc(t(locale, 'import.row.removed'))}</span>` : ''}
       </div>
-      ${flags.map((f) => flagLine(locale, f)).join('')}
+      ${flags.map((f) => flagLine(locale, f, m.imp.currency)).join('')}${unpriced}
       ${r.confidence && lessSure(r.confidence, r).length ? `<p class="muted small">${esc(t(locale, 'import.lessSure', {
         fields: formatList(locale, lessSure(r.confidence, r).map((f) => t(locale, `import.field.${f}` as MessageKey))) }))}</p>` : ''}
       ${asking ? `<label class="imp-typed">${esc(t(locale, 'import.row.challenge'))}
         <input type="text" inputmode="decimal" name="typed:${esc(r.key)}" value="${esc(v('typed', ''))}" autocomplete="off" /> <span class="muted">${esc(m.imp.currency)}</span></label>` : ''}
       ${r.challenge === 'ok' ? `<span class="muted">${esc(t(locale, 'import.row.challengeOk'))}</span>` : ''}
+      ${tick}
       ${err}
       <details class="imp-edit"${open ? ' open' : ''}><summary>${esc(t(locale, 'import.row.change'))}</summary>
         <label>${esc(t(locale, 'import.row.name'))} <input type="text" name="name:${esc(r.key)}" value="${esc(v('name', r.name))}" dir="auto" maxlength="120" /></label>
         ${asking ? '' : `<label>${esc(t(locale, 'import.row.price', { currency: m.imp.currency }))} <input type="text" inputmode="decimal" name="price:${esc(r.key)}" value="${esc(v('price', r.price === null ? '' : String(r.price)))}" /></label>`}
         <label>${esc(t(locale, 'import.row.unit'))} <select name="unit:${esc(r.key)}">${unitOptions(locale, r.unit)}</select></label>
-        <label>${esc(t(locale, 'import.row.moq'))} <input type="text" inputmode="numeric" name="moq:${esc(r.key)}" value="${esc(v('moq', r.moq === null ? '' : String(r.moq)))}" /></label>
-        <label class="pcheck"><input type="checkbox" name="nomin:${esc(r.key)}"${r.moq === null ? ' checked' : ''} /> ${esc(t(locale, 'product.noMinimum'))}</label>
-        <label>${esc(t(locale, 'import.row.names'))} <input type="text" name="names:${esc(r.key)}" value="${esc(v('names', r.names.join(', ')))}" dir="auto" /></label>
+        <label>${esc(t(locale, 'import.row.moq'))} <input type="text" inputmode="numeric" name="moq:${esc(r.key)}" placeholder="${esc(t(locale, 'product.noMinimum'))}" value="${esc(v('moq', r.moq === null ? '' : String(r.moq)))}" />
+          <span class="muted small">${esc(t(locale, 'product.edit.moq.hint'))}</span></label>
+        <label>${esc(t(locale, 'import.row.names'))} <textarea name="names:${esc(r.key)}" rows="2" dir="auto">${esc(v('names', r.names.join('\n')))}</textarea></label>
         ${r.options !== undefined || m.imp.kind === 'store' || m.imp.kind === 'file' ? `<label>${esc(t(locale, 'import.row.options'))} <input type="text" name="options:${esc(r.key)}" value="${esc(v('options', r.options ?? ''))}" dir="auto" maxlength="600" /></label>` : ''}
         <span class="muted small">${esc(t(locale, 'import.row.namesHint'))}</span>
         <label class="pcheck"><input type="checkbox" name="remove:${esc(r.key)}"${r.removed ? ' checked' : ''} /> ${esc(t(locale, 'import.row.remove'))}</label>
@@ -681,10 +697,15 @@ export function renderImportReview(
   const offered = newRows.length + m.diff.changed.length;
   const discount = typed['discount'] ?? (imp.discountPct === null ? '' : String(imp.discountPct));
 
-  return `<h1 class="page">${esc(t(locale, 'import.title'))}</h1>
+  // Phase 9 (V1-342) — what still stands before the products can be added is
+  // said beside the button from the start, not only after it was pressed.
+  const pending = stops.length ? [] : modelBlockers(m).filter((b) => b.kind !== 'nothing');
+  // Phase 9 (V1-344) — the way back to the add page, above the title.
+  return `${back('/app/products/add', t(locale, 'product.teach'))}
+    <h1 class="page">${esc(t(locale, 'import.title'))}</h1>
     ${flashBanner(opts.flash ?? null)}
     <div class="block">
-      <p><b>${esc(tn(locale, 'import.count', linesRead(imp.rows), { n: show.count(locale, linesRead(imp.rows)) }))}</b> ${esc(t(locale, 'import.countYours'))}</p>
+      <p><b>${esc(tn(locale, 'import.count', linesRead(imp.rows), { n: show.count(locale, linesRead(imp.rows)) }))}</b>${locale === 'zh' ? '' : ' '}${esc(t(locale, 'import.countYours'))}</p>
       ${need > 0 ? `<p class="fwarn">${esc(tn(locale, 'import.needYou', need, { n: show.count(locale, need) }))}</p>` : ''}
       ${imp.checkEveryRow ? `<p class="fwarn" role="alert">${esc(t(locale, 'import.checkEvery'))}</p>` : ''}
       ${m.currencyNow !== imp.currency ? `<p class="perr" role="alert">${esc(t(locale, 'import.currencyChanged', { now: m.currencyNow, was: imp.currency }))}</p>` : ''}
@@ -698,10 +719,6 @@ export function renderImportReview(
         <input type="hidden" name="applies" value="${esc(m.diff.changed.map((c) => keyOfLine(c.line)).join(','))}" />
         ${changes ? `<div class="block"><h2>${esc(t(locale, 'product.review.changedTitle', { count: m.diff.changed.length }))}</h2>
           <p class="muted">${esc(t(locale, 'product.review.changedHint'))}</p>${changes}</div>` : ''}
-        ${opts.canExtract && !asking && imp.state === 'open' && imp.rows.some(extractCandidate) ? `<div class="block" id="extract">
-          <p>${esc(t(locale, 'import.extract.lead', { n: show.count(locale, imp.rows.filter(extractCandidate).length) }))}</p>
-          <p><button class="btn" type="submit" formaction="${base(imp.id)}/extract" formnovalidate>${esc(t(locale, 'import.extract.button'))}</button></p>
-          <p class="muted small">${esc(t(locale, 'import.extract.hint'))}</p></div>` : ''}
         ${newRows.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.addedTitle', { count: newRows.filter((r) => !r.removed).length }))}</h2>
           ${newRows.map((r) => rowHtml(locale, m, r, errors.get(r.key) ?? [], typed)).join('')}</div>` : ''}
         ${held.size ? `<div class="block"><h2>${esc(t(locale, 'product.review.heldTitle'))}</h2>${[...held.values()].map((h) => `
@@ -710,21 +727,28 @@ export function renderImportReview(
             ${h.product ? `<a href="/app/products/${esc(h.product.id)}">${esc(t(locale, 'product.review.openProduct'))}</a>` : ''}</div>`).join('')}</div>` : ''}
         ${unchanged.size ? `<div class="block"><h2>${esc(t(locale, 'product.review.unchangedTitle', { count: unchanged.size }))}</h2>${m.diff.unchanged.map((u) => `<div class="rev"><b dir="auto">${esc(u.product.name)}</b></div>`).join('')}</div>` : ''}
         ${refused.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${refused.map((r) => `<div class="rev muted"><bdi>${esc(r.line)}</bdi> <span class="rev-move">${esc(t(locale, `product.reject.${r.refused}` as MessageKey, { currency: imp.currency, sign: currencySymbol(imp.currency).trim() }))}</span></div>`).join('')}</div>` : ''}
+        ${/* Phase 9 (missed-10) — the offer to read again comes after the lines it is about, and names them by what they share. */ ''}
+        ${opts.canExtract && !asking && imp.state === 'open' && imp.rows.some(extractCandidate) ? `<div class="block" id="extract">
+          <p>${esc(tn(locale, 'import.extract.lead', imp.rows.filter(extractCandidate).length, { n: show.count(locale, imp.rows.filter(extractCandidate).length) }))}</p>
+          <p><button class="btn" type="submit" formaction="${base(imp.id)}/extract" formnovalidate>${esc(t(locale, 'import.extract.button'))}</button></p>
+          <p class="muted small">${esc(t(locale, 'import.extract.hint'))}</p></div>` : ''}
         <div class="block">
           <label class="imp-q">${esc(t(locale, 'import.discount.q', { name: assistantName(locale) }))}
             <span class="imp-pct"><input type="text" inputmode="decimal" name="discount" value="${esc(discount)}" autocomplete="off" /> %</span></label>
           ${opts.discountError ? `<p class="perr" role="alert">${esc(t(locale, 'import.discount.invalid'))}</p>` : ''}
           <p class="muted small">${esc(t(locale, 'import.discount.hint'))}</p>
         </div>
-        ${offered === 0 ? `<div class="block"><p class="muted">${esc(t(locale, 'product.review.nothingToChange'))}</p></div>` : `<div class="imp-acts">
+        ${offered === 0 ? `<div class="block"><p class="muted">${esc(t(locale, 'product.review.nothingToChange'))}</p></div>` : `${pending.length ? `<p class="imp-pending">${pending.map((b) => blockerLine(locale, b)).join(' ')} ${esc(t(locale, 'import.pending.why'))}</p>` : ''}<div class="imp-acts">
           <button class="btn send" type="submit" name="next" value="add">${esc(t(locale, newRows.length === 0 ? 'product.review.confirmChanges' : 'import.add'))}</button>
           <button class="btn" type="submit" name="next" value="save">${esc(t(locale, 'import.save'))}</button>
         </div>`}
       </form>
     </div>
     ${paste}
+    ${/* Phase 9 (V1-341, new-12) — it throws the list away, so it looks like it: the red outline,
+         never the filled button "Add these products" wears; the question names the same act. */ ''}
     <form method="post" action="${base(imp.id)}/drop" class="block">
-      <button class="btn ghost quiet" type="submit" data-confirm="${esc(t(locale, 'import.dropConfirm'))}">${esc(t(locale, 'import.drop'))}</button>
+      <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'import.dropConfirm'))}">${esc(t(locale, 'import.drop'))}</button>
     </form>`;
 }
 
