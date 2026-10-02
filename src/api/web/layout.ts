@@ -1959,9 +1959,6 @@ const DOOR_STYLE = `
      refusal keeps the gap its margin leaves). */
   .err-field { border-color:var(--color-warn); }
   label.check .err-field { outline:2px solid var(--color-warn); outline-offset:2px; }
-  /* public-new-11 — a form on its way: its button says so and takes no second press (the one script). */
-  button[aria-busy="true"] { cursor:progress; }
-  button[aria-busy="true"]::after { content:"…"; margin-inline-start:var(--space-4); }
 ${markBefore('failed', ['.err', '.fld-err'])}
   .hint { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
   label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); display:block; }
@@ -1989,18 +1986,17 @@ const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
  * the terms (V1-038, V1-039, V1-051). `site` is where the site is read: `/site`
  * on the app's own host, the default.
  *
- * A page that sends a form links the one script (`form`), for one thing only:
- * the button that sent it says so and takes no second press (public-new-11).
- * The page works exactly the same without it.
+ * The door runs no script (CC-26): it holds the password and the code fields,
+ * and nothing on it needs one (public-new-11 was decided that way).
  */
-type DoorOptions = { readonly site?: string; readonly form?: boolean };
+type DoorOptions = { readonly site?: string };
 const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, o: DoorOptions = {}): string => `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · ${esc(title)}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${linkTo(DOOR_SHEET)}
-${typeLink(locale)}${o.form ? `\n${scriptTo(LIVE_JS)}` : ''}</head>
+${typeLink(locale)}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
   <div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
@@ -2089,7 +2085,7 @@ export function loginPage(input: {
       ? `<p class="other"><a href="/login">${esc(t(locale, 'login.withEmail'))}</a></p>`
       : `<p class="other small"><a href="/login?with=code">${esc(t(locale, 'login.codeToggle'))}</a></p>`,
   ].join('');
-  return doorFrame(locale, input.path, codeMode ? t(locale, 'login.code.title') : t(locale, 'login.title'), card, other, { form: true });
+  return doorFrame(locale, input.path, codeMode ? t(locale, 'login.code.title') : t(locale, 'login.title'), card, other);
 }
 
 export type SignupPageInput = {
@@ -2231,7 +2227,7 @@ export function signupPage(input: SignupPageInput): string {
       <script src="${esc(input.botCheck.script)}" async defer></script>` : ''}
       <button type="submit">${esc(t(locale, 'signup.submit'))}</button>
     </form>`;
-  return doorFrame(locale, input.path, t(locale, 'signup.title'), card, other, { form: true });
+  return doorFrame(locale, input.path, t(locale, 'signup.title'), card, other);
 }
 
 /**
@@ -2299,7 +2295,7 @@ export function setPasswordPage(input: {
         maxlength="${input.passwordMax}" autocomplete="new-password" />
       <button type="submit">${esc(t(locale, 'setpw.submit'))}</button>
     </form>`;
-  return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other, { form: true });
+  return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other);
 }
 
 /**
@@ -2337,7 +2333,7 @@ export function forgotPasswordPage(input: {
         autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus />
       <button type="submit">${esc(t(locale, 'forgot.submit'))}</button>
     </form>`;
-  return doorFrame(locale, input.path, t(locale, 'forgot.title'), card, other, { form: true });
+  return doorFrame(locale, input.path, t(locale, 'forgot.title'), card, other);
 }
 
 export function verifyPage(input: {
@@ -2361,7 +2357,7 @@ export function verifyPage(input: {
       <form method="post" action="/verify/resend"><button type="submit">${esc(t(locale, 'verify.resend'))}</button></form>
     </details>`;
   const other = `<p class="other"><a href="${input.purpose === 'device' ? '/login' : '/signup'}">${esc(t(locale, 'verify.back'))}</a></p>`;
-  return doorFrame(locale, input.path, t(locale, 'verify.title'), card, other, { form: true });
+  return doorFrame(locale, input.path, t(locale, 'verify.title'), card, other);
 }
 
 /**

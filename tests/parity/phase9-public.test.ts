@@ -97,14 +97,15 @@ describe('an empty sign-in field is answered by the page (V1-037)', () => {
   });
 });
 
-describe('the door\'s sheet: one face, links that look like links, refusals at their edge, a busy button (V1-031, V1-034, V1-045, V1-049, V1-050, V1-053, public-missed-13, public-new-11)', () => {
+describe('the door\'s sheet: one face, links that look like links, refusals at their edge (V1-031, V1-034, V1-045, V1-049, V1-050, V1-053, public-missed-13)', () => {
   const css = linkedCss(loginPage({ locale: 'en', path: '/login' }));
   it('holds each rule', () => {
     expect(css).toContain('input, select, button, textarea { font-family:inherit; }');
     expect(css).toMatch(/\.login \.card a, \.login \.other a, \.login \.foot a \{ color:var\(--color-ink\); text-decoration:underline;/);
     expect(css).toContain('label.check.terms { display:flex; margin-bottom:var(--space-16); }');
     expect(css).toContain('.err-field { border-color:var(--color-warn); }');
-    expect(css).toContain('button[aria-busy="true"]::after { content:"…";');
+    // public-new-11 was decided the other way: the door runs no script (CC-26), so no busy state.
+    expect(css).not.toContain('button[aria-busy');
     // public-missed-09 — the pill is names, not underlined links, on the door and the site alike
     expect(css).toMatch(/\.langsw a \{[^}]*text-decoration:none; \}/);
   });
