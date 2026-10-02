@@ -169,7 +169,7 @@ describe('C10 · connect your own Page and Instagram, as the cards show it', () 
 });
 
 describe('Phase 9 · the Connect WhatsApp page has the thing its first step asks for (V1-450, V1-451)', () => {
-  const STAFF: Viewer = { id: 'p2', name: 'Chen', isOwner: false };
+  const STAFF: Viewer = { id: 'p2', isOwner: false };
   it('with a mailer: a number field and one button, in every locale; no Test or switch it does not have', () => {
     for (const l of LOCALES) {
       const html = renderConnectGuide(l, { canAsk: true });

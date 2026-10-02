@@ -7,8 +7,9 @@ import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capabilit
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, tn } from './say.js';
-import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../core/insights/changed.js';
+import { biggestChange, MONTH_DRIVERS, MONTH_CHANGE_MIN_DAYS, type MonthDriver } from '../../core/insights/changed.js';
 import { esc, conversationUrl, deeper } from './layout.js';
+
 
 /**
  * M34.10 — insights, not counts.
@@ -214,17 +215,27 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
      */
     const zone = await zoneOf(tx, bid.value);
     const months = (await sql<{
-      driver: string; from_count: number; to_count: number;
+      driver: string; from_count: number; to_count: number; days: number | null;
     }>`
-      with bounds as (
+      -- Phase 9 (V1-087) — like with like: the days of this month so far
+      -- against the SAME days of last month (never past its end), not a whole
+      -- month against two days; and customers, not messages, where the
+      -- sentence says customers.
+      with b0 as (
         select date_trunc('month', (now() at time zone ${zone})) as this_start,
-               date_trunc('month', (now() at time zone ${zone}) - interval '1 month') as last_start
+               date_trunc('month', (now() at time zone ${zone}) - interval '1 month') as last_start,
+               (now() at time zone ${zone}) - date_trunc('month', (now() at time zone ${zone})) as elapsed,
+               extract(day from (now() at time zone ${zone}))::int as days
+      ),
+      bounds as (
+        select this_start, last_start, least(last_start + elapsed, this_start) as last_end, days from b0
       ),
       inquiries as (
         select 'inquiries' as driver,
-               count(*) filter (where m.sent_at >= (b.last_start at time zone ${zone})
-                                  and m.sent_at <  (b.this_start at time zone ${zone}))::int as from_count,
-               count(*) filter (where m.sent_at >= (b.this_start at time zone ${zone}))::int as to_count
+               count(distinct m.conversation_id) filter (where m.sent_at >= (b.last_start at time zone ${zone})
+                                  and m.sent_at <  (b.last_end at time zone ${zone}))::int as from_count,
+               count(distinct m.conversation_id) filter (where m.sent_at >= (b.this_start at time zone ${zone}))::int as to_count,
+               max(b.days) as days
           from messages m
           join conversations c on c.id = m.conversation_id
           cross join bounds b
@@ -233,16 +244,18 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
       quoted as (
         select 'quotes' as driver,
                count(*) filter (where q.created_at >= (b.last_start at time zone ${zone})
-                                  and q.created_at <  (b.this_start at time zone ${zone}))::int as from_count,
-               count(*) filter (where q.created_at >= (b.this_start at time zone ${zone}))::int as to_count
+                                  and q.created_at <  (b.last_end at time zone ${zone}))::int as from_count,
+               count(*) filter (where q.created_at >= (b.this_start at time zone ${zone}))::int as to_count,
+               max(b.days) as days
           from quotes q cross join bounds b
          where q.business_id = ${bid.value}
       ),
       ordered as (
         select 'orders' as driver,
                count(*) filter (where o.created_at >= (b.last_start at time zone ${zone})
-                                  and o.created_at <  (b.this_start at time zone ${zone}))::int as from_count,
-               count(*) filter (where o.created_at >= (b.this_start at time zone ${zone}))::int as to_count
+                                  and o.created_at <  (b.last_end at time zone ${zone}))::int as from_count,
+               count(*) filter (where o.created_at >= (b.this_start at time zone ${zone}))::int as to_count,
+               max(b.days) as days
           from orders o cross join bounds b
          where o.business_id = ${bid.value}
       )
@@ -254,11 +267,14 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
       return [d, { from: Number(row?.from_count ?? 0), to: Number(row?.to_count ?? 0) }];
     })) as Record<MonthDriver, { from: number; to: number }>;
 
-    const changed = biggestChange(counts);
+    // Fewer than a week into the month, a change is noise, and saying it
+    // would be a notification nothing corresponds to: nothing is said.
+    const days = Number(months.find((r) => r.days !== null)?.days ?? 0);
+    const changed = days >= MONTH_CHANGE_MIN_DAYS ? biggestChange(counts) : null;
     const monthChange: Insight | null = changed
       ? {
           key: `insight.monthChange.${changed.driver}.${changed.change > 0 ? 'up' : 'down'}` as MessageKey,
-          params: { from: changed.from, to: changed.to },
+          params: { from: changed.from, to: changed.to, days },
           // A — every buyer, on the one list (Customers merged into Buyers).
           action: { kind: 'seeBuyers', href: '/app/inbox?filter=all' },
         }
