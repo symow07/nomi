@@ -315,7 +315,7 @@ export function zoneForSignup(country: string, picked: string | null | undefined
   return picked && zoneChoices(country).includes(picked) && isZone(picked) ? picked : null;
 }
 
-const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', es: 'es' };
+const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', es: 'es', fr: 'fr' };
 
 /**
  * A zone as an owner reads it: the place, then the time it keeps in the

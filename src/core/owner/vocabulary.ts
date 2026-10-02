@@ -88,6 +88,8 @@ export const BANNED_OWNER_TERMS: readonly string[] = [
   '系统',   // "the system" is software talk; the employee has a name
   // es technical equivalents (UI-es, 0119)
   'ia', 'inteligencia artificial', 'modelo', 'base de datos', 'servidor', 'robot',
+  // fr technical equivalents (phase 9, 0121) — 'ia' and 'robot' above serve both
+  'intelligence artificielle', 'modèle', 'base de données', 'serveur',
 ];
 
 /**

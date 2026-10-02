@@ -15697,3 +15697,48 @@ and the month's count, now "+N". Read the Arabic for gender: تجارتي and م
 - zh: +{n} 项
 - ar: +{n} أخرى
 - es: +{n} más
+
+## 2026-10-03 — phase 9 (0121): the owner's pages in French, all of them
+
+**Not a gate**, like everything in this file. The whole French catalogue (the `FR`
+block in `src/core/owner/i18n/messages.ts`, 3,194 lines) was written for this
+release and has had no native read. The French *disclosure* is a different thing:
+its gate (`DISCLOSURE_NATIVE_REVIEW.fr`) stays false and is not touched here.
+
+**The rules it was written to** (rule 6 in French):
+- **The owner** is addressed with *vous*, and never with an adjective or participle that agrees.
+  - Written: «Connexion réussie», «Confirmer ?», «Bienvenue».
+  - Never: "Vous êtes connecté", "prêt", "sûr", or "Bienvenu".
+- **The assistant** is `{name}` (or «votre assistant») with a verb.
+  - Never il/elle.
+  - Never "{name} est prêt": «{name} peut répondre», «{name} est à l’arrêt».
+- **Customers** are «client(s)», «la clientèle» or «la personne qui écrit», with no il/elle for them.
+- **Typography:** U+202F before ? ! ;, U+00A0 before : and inside « ». The typographic apostrophe ’ throughout.
+- `tests/parity/assistant-pronouns.test.ts` holds what a regex can.
+
+**Where to look first**: choices made to keep gender out, and meanings the translators guessed.
+
+- **Page names:**
+  - Setup → «Réglages»; Getting ready → «Préparatifs»; Practice → «Entraînement»; My business → «Mon activité».
+  - "Needs you" → «Vous attend»; "Ready for customers" → «Tout est prêt pour les clients».
+  - "Where customers reach you" → «Où vos clients vous écrivent». Some sentences call the same page «Canaux», as the English says "Channels".
+  - Check they read as names and match wherever other lines cite them.
+- **"The owner"** has three forms: «la direction», «la personne qui dirige l’activité / l’entreprise», and «la personne propriétaire de l’activité» (`staff.*`, `runbook.deploy.*`, `data.deletion.ownerOnly`, `setup.desc.people`).
+  - "Nomi's operator" is «l’équipe Nomi» or «l’exploitant de Nomi» (the legal pages).
+  - Pick one voice, and check it reads well for a one-person shop.
+- **Capabilities** (`capability.*`) are nouns («Accueil», «Devis», «Relances»…) and fill `{cap}` inside sentences. Read those sentences whole.
+- **"Go live"** is «le lancement». `pilot.attest.owner_ready` is «Je donne le feu vert au lancement», because "je suis prêt" would agree.
+- **"Hand to me / Take over / Hand back"** are «Je m’en occupe / Reprendre la main / Rendre la main». `handto.*` is «Confier à».
+- **"Stopped"** is «{name} est à l’arrêt» throughout.
+- **Placeholders a translator could not see the context of:**
+  - `takeover.why` («Motif du transfert :»), `knowledge.usage.lastUsed`;
+  - `panel.sampleAsked` / `sampleHandled` (no «le» before `{date}`), `calendar.range` («du {from} au {to}»);
+  - `connect.mail.connectedBy`, `prospects.key.stored`.
+- **Software words:** none is said, and «j’ai» is avoided (the banned-word test reads "ai").
+- **The `demote.why.*` first-person lines** are «j’étais sur le point de…».
+- **Mailbox:** the owner's e-mail inbox is «messagerie»; «boîte de réception» was the retired name of the app's own area.
+- **Examples:** `product.reject.ambiguous_price` keeps `1250.00` (a French owner writes `1250,00`); `import.error.price_not_number` uses `12,50` (the reader takes it).
+- **`site.*` and `legal.*`** (nomidoes.com in French, and the policies a customer reads) are counsel's and a native reader's.
+  - `site.who.languages` still lists the four languages the English lists. French joins it when a French workspace is offered on the site.
+
+Reviewer: ______  Date: ______

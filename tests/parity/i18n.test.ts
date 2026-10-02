@@ -14,7 +14,8 @@ describe('ADR-0008 · locale resolution', () => {
     expect(parseLocale('en')).toBe('en');
     expect(parseLocale('zh')).toBe('zh');
     expect(parseLocale('ar')).toBe('ar');
-    expect(parseLocale('fr')).toBeNull();
+    expect(parseLocale('fr')).toBe('fr');   // phase 9 (0121) — the fifth
+    expect(parseLocale('pt')).toBeNull();
     expect(parseLocale(undefined)).toBeNull();
   });
 
@@ -22,14 +23,16 @@ describe('ADR-0008 · locale resolution', () => {
     expect(fromAcceptLanguage('ar-SA,ar;q=0.9,en;q=0.8')).toBe('ar');
     expect(fromAcceptLanguage('zh-CN,zh;q=0.9')).toBe('zh');
     expect(fromAcceptLanguage('en-GB')).toBe('en');
-    expect(fromAcceptLanguage('fr-FR,de;q=0.5')).toBeNull();
+    expect(fromAcceptLanguage('fr-FR,de;q=0.5')).toBe('fr');
+    expect(fromAcceptLanguage('pt-BR,de;q=0.5')).toBeNull();
     expect(fromAcceptLanguage(null)).toBeNull();
   });
 
   it('resolveLocale: cookie > Accept-Language > default', () => {
     expect(resolveLocale('zh', 'en-US')).toBe('zh');          // cookie wins
     expect(resolveLocale(null, 'ar-SA')).toBe('ar');          // header next
-    expect(resolveLocale('bogus', 'fr-FR')).toBe('en');       // both invalid → default
+    expect(resolveLocale('bogus', 'pt-BR')).toBe('en');       // both invalid → default
+    expect(resolveLocale('bogus', 'fr-FR')).toBe('fr');       // French is served since 0121
     expect(resolveLocale(undefined, undefined)).toBe('en');
   });
 
@@ -60,7 +63,7 @@ describe('ADR-0008 · catalog completeness (CI gate)', () => {
   // 2026-09-23 — no product constant names her any more. Until the owner
   // confirms a name, `{name}` is this phrase.
   it('ASSISTANT_FALLBACK is "your assistant" in every locale', () => {
-    expect(ASSISTANT_FALLBACK).toEqual({ en: 'your assistant', zh: '你的助手', ar: 'مساعدك', es: 'tu asistente' });
+    expect(ASSISTANT_FALLBACK).toEqual({ en: 'your assistant', zh: '你的助手', ar: 'مساعدك', es: 'tu asistente', fr: 'votre assistant' });
   });
 
   // Phase A (Nomi): the employee's nav entry IS her name — "you go to her", not

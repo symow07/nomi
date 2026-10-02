@@ -56,6 +56,11 @@ const OLD: Record<Locale, string> = {
     + 'Pídelo. Desde la cuenta de Instagram, Facebook o WhatsApp desde la que escribiste, envía al negocio un mensaje diciendo que quieres que se borren tus datos. '
     + 'Una persona del negocio recibe la solicitud y borra tus registros a mano. Se hace en un plazo de 30 días, y te avisamos por el mismo canal cuando esté hecho. '
     + 'Lo que se conserva: lo que el negocio debe guardar por ley, como la factura de un pedido; y las copias que guarda la propia Meta.',
+  // Phase 9: French never had the old page either; this is that page as it would have read, for the negative controls.
+  fr: 'Supprimer vos données Vous pouvez faire supprimer tout ce qu’une entreprise a gardé sur vous via Nomi. '
+    + 'Demandez-le. Depuis le compte Instagram, Facebook ou WhatsApp d’où vous avez écrit, envoyez à l’entreprise un message disant que vous voulez faire supprimer vos données. '
+    + 'Une personne de l’entreprise reçoit la demande et efface vos données à la main. C’est fait sous 30 jours, et nous vous prévenons sur le même canal une fois terminé. '
+    + 'Ce qui reste : ce que l’entreprise doit garder selon la loi, comme la facture d’une commande ; et les copies gardées par Meta.',
 };
 
 /**
@@ -124,6 +129,21 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     keptRecord: /Un registro de que lo pediste y de cuándo se hizo/,
     keptMeta: /copias que guarda la propia Meta/,
   },
+  fr: {
+    thirtyDays: /dans les 30 jours suivant l’enregistrement de la demande par l’entreprise/,
+    businessRecords: /L’entreprise enregistre votre demande dans Nomi/,
+    operatorByHand: /L’exploitant de Nomi[^.]*effectue la suppression à la main/,
+    doneSeenByBusiness: /l’entreprise la voit marquée comme effectuée/,
+    erasedIdentity: /Qui vous êtes sur chaque canal/,
+    erasedMessages: /Tous les messages échangés entre vous et l’entreprise/,
+    erasedPrepared: /Les réponses préparées pour vous, ainsi que les devis et les demandes d’échantillons/,
+    erasedNotes: /notes et les signaux/,
+    erasedConversations: /sauf ce qui est nécessaire pour conserver une commande/,
+    keptOrders: /Les commandes que vous avez passées[^.]*sans vos coordonnées ni vos messages/,
+    keptDoNotContact: /plus rien n’y soit jamais envoyé/,
+    keptRecord: /Une trace de votre demande et de la date/,
+    keptMeta: /copies que Meta conserve/,
+  },
 };
 
 /** What the page must never say again: a confirmation sent to the buyer, "the same channel", anything instant or automatic. */
@@ -135,10 +155,12 @@ const NEVER: Record<Locale, readonly RegExp[]> = {
   ar: [/القناة نفسها/, /نفس القناة/, /يصل إشعار/, /سنبلغك|سنخبرك|سنعلمك/, /تلقائي/, /فورًا|فورا|على الفور|فوري/],
   es: [/mismo canal/i, /te (avisamos|avisaremos|confirmaremos|notificaremos|diremos)/i, /recibir[áa]s una confirmaci[óo]n/i,
        /autom[áa]tic/i, /inmediatamente|al instante|de inmediato/i],
+  fr: [/même canal/i, /nous vous (informerons|confirmerons|préviendrons|prévenons|dirons)/i, /vous recevrez une confirmation/i,
+       /automatique/i, /immédiatement|instantanément|tout de suite/i],
 };
 
 /** The one promise the old page made in every language: a confirmation on "the same channel". */
-const SAME_CHANNEL: Record<Locale, RegExp> = { en: /same channel/i, zh: /同一个渠道/, ar: /القناة نفسها/, es: /mismo canal/i };
+const SAME_CHANNEL: Record<Locale, RegExp> = { en: /same channel/i, zh: /同一个渠道/, ar: /القناة نفسها/, es: /mismo canal/i, fr: /même canal/i };
 
 describe('CC-02a · /data-deletion states the contract, in every language', () => {
   for (const l of LOCALES) {

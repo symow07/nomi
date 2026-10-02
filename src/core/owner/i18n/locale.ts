@@ -4,19 +4,19 @@
  * cookie + Accept-Language header and calls resolveLocale.
  */
 
-// UI-es (0119, decision 39) — Spanish, the fourth.
-export type Locale = 'en' | 'zh' | 'ar' | 'es';
+// UI-es (0119, decision 39) — Spanish, the fourth. Phase 9 (0121, V1-001) — French, the fifth.
+export type Locale = 'en' | 'zh' | 'ar' | 'es' | 'fr';
 
-export const LOCALES: readonly Locale[] = ['en', 'zh', 'ar', 'es'];
+export const LOCALES: readonly Locale[] = ['en', 'zh', 'ar', 'es', 'fr'];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** Endonyms — a locale's own name, invariant across the UI language. */
-export const LOCALE_LABEL: Record<Locale, string> = { en: 'English', zh: '中文', ar: 'العربية', es: 'Español' };
+export const LOCALE_LABEL: Record<Locale, string> = { en: 'English', zh: '中文', ar: 'العربية', es: 'Español', fr: 'Français' };
 
 /**
  * The positioning rewrite (0093): the languages a business may say it SERVES —
  * the nine the safety checks read (rule 18), each in its own name. Informational:
- * nothing gates on it. The owner's pages stay in the three locales above.
+ * nothing gates on it. The owner's pages are in the five locales above.
  */
 export const SERVED_LANGUAGES = ['en', 'zh', 'ar', 'es', 'fr', 'pt', 'de', 'tr', 'ru'] as const;
 export type ServedLanguage = (typeof SERVED_LANGUAGES)[number];
@@ -30,7 +30,7 @@ export const dirOf = (l: Locale): 'rtl' | 'ltr' => (isRtl(l) ? 'rtl' : 'ltr');
 
 /** A value is a supported Locale, else null. */
 export function parseLocale(raw: string | null | undefined): Locale | null {
-  return raw === 'en' || raw === 'zh' || raw === 'ar' || raw === 'es' ? raw : null;
+  return raw === 'en' || raw === 'zh' || raw === 'ar' || raw === 'es' || raw === 'fr' ? raw : null;
 }
 
 /** First supported locale named in an Accept-Language header, else null. */
@@ -39,7 +39,7 @@ export function fromAcceptLanguage(header: string | null | undefined): Locale | 
   for (const part of header.split(',')) {
     const tag = (part.split(';')[0] ?? '').trim().toLowerCase();
     const primary = tag.split('-')[0];
-    if (primary === 'en' || primary === 'zh' || primary === 'ar' || primary === 'es') return primary;
+    if (primary === 'en' || primary === 'zh' || primary === 'ar' || primary === 'es' || primary === 'fr') return primary;
   }
   return null;
 }

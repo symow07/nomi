@@ -29,7 +29,7 @@ import { AR_BANNED_FORMS, AR_NAME_ADJACENT_NOUNS, AR_HUWA_HIYA_THINGS, ZH_IT_THI
  */
 
 const strip = (s: string) => s.replace(/\{[a-zA-Z_]+\}/g, ' ');
-const entries = (l: 'en' | 'zh' | 'ar' | 'es') => Object.entries(messages[l]) as [MessageKey, string][];
+const entries = (l: 'en' | 'zh' | 'ar' | 'es' | 'fr') => Object.entries(messages[l]) as [MessageKey, string][];
 
 const AR_W = '[\\u0621-\\u064A\\u064B-\\u0652]';
 
@@ -120,6 +120,40 @@ describe('Spanish: nobody is gendered', () => {
   it('the checks fire on the sentences they exist for', () => {
     expect(/(?<![\p{L}])(él|ella|ellos|ellas)(?![\p{L}])/iu.test('Ella responde')).toBe(true);
     expect(/(?<![\p{L}])(bienvenid[oa]s?|est[áa]s\s+(segur|list|conectad|registrad|suscrit)[oa]s?)(?![\p{L}])/iu.test('¿Estás seguro?')).toBe(true);
+  });
+});
+
+// Phase 9 (0121) — French, like Spanish, carries gender in adjectives and
+// participles. What a regex can hold: no elle/elles at all, il/ils only
+// impersonal (il y a, il faut…); no adjective or participle after {name} and
+// a linking verb; the owner never addressed with one ("Vous êtes connecté",
+// "Bienvenu"). The rest is the native read's (docs/NATIVE-REVIEW-UI.md).
+const FR_IMPERSONAL = /^(?:y\s+a|faut|reste|restait|manque|suffit|est\s+(?:temps|possible|impossible|préférable|inutile|utile|recommandé|conseillé|prudent|trop|déjà|encore)|vaut|s’agit|se\s+peut|n’y\s+a|ne\s+reste|ne\s+faut|n’est)/iu;
+const FR_PERSONAL = (v: string): boolean => [...strip(v).matchAll(/(?<![\p{L}])(elles?|ils?)(?![\p{L}])\s*(.{0,24})/giu)]
+  .some((m) => m[1]!.toLowerCase().startsWith('elle') || !FR_IMPERSONAL.test(m[2]!));
+const FR_NAME_AGREES = /\{name\}\s+(?:n’)?(?:est|sera|était|reste|semble|devient|demeure)\s+(?:pas\s+|déjà\s+|encore\s+)?(?:prête?|sûre?|connectée?|occupée?|formée?|nommée?|arrêtée?|activée?|désactivée?|bloquée?|lancée?|prête?s?)(?![\p{L}])/iu;
+const FR_OWNER_AGREES = /(?<![\p{L}])(?:bienvenue?s(?![\p{L}])|bienvenu(?![\p{L}e])|(?:vous\s+êtes|êtes-vous)\s+(?:sûre?s?|prête?s?|connectée?s?|inscrite?s?|abonnée?s?|certaine?s?|déconnectée?s?|seule?s?)(?![\p{L}]))/iu;
+describe('French: nobody is gendered', () => {
+  it('no elle / elles, and il / ils only impersonal', () => {
+    const bad = entries('fr').filter(([, v]) => FR_PERSONAL(v));
+    expect(bad.map(([k, v]) => `${k}: ${v}`)).toEqual([]);
+  });
+  it('no adjective or participle agreeing with {name} after a linking verb', () => {
+    const bad = entries('fr').filter(([, v]) => FR_NAME_AGREES.test(v));
+    expect(bad.map(([k, v]) => `${k}: ${v}`)).toEqual([]);
+  });
+  it('the owner is never addressed with a word that agrees', () => {
+    const bad = entries('fr').filter(([, v]) => FR_OWNER_AGREES.test(v));
+    expect(bad.map(([k, v]) => `${k}: ${v}`)).toEqual([]);
+  });
+  it('the checks fire on the sentences they exist for, and not on impersonal il', () => {
+    expect(FR_PERSONAL('Elle répond vite')).toBe(true);
+    expect(FR_PERSONAL('Il répond vite')).toBe(true);
+    expect(FR_PERSONAL('Il faut un prix')).toBe(false);
+    expect(FR_NAME_AGREES.test('{name} est prête')).toBe(true);
+    expect(FR_OWNER_AGREES.test('Vous êtes connecté')).toBe(true);
+    expect(FR_OWNER_AGREES.test('Bienvenu')).toBe(true);
+    expect(FR_OWNER_AGREES.test('Bienvenue')).toBe(false);
   });
 });
 

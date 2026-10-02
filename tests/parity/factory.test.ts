@@ -463,7 +463,7 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
  * never say more than the preconditions say, and never less.
  */
 describe('M20.2 · the activation readiness surface', () => {
-  const withReadiness = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' | 'es' = 'en') =>
+  const withReadiness = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
     withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l));
 
   it('ready: says so, and names exactly who can receive a message', () => {
@@ -546,7 +546,7 @@ describe('M20.2 · the activation readiness surface', () => {
 
 /** M20.3 — going live is an owner decision, made here, and reversible here. */
 describe('M20.3 · activate and deactivate as owner actions', () => {
-  const view = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' | 'es' = 'en') =>
+  const view = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
     withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l));
 
   it('ready: offers the decision, and says what it does before it is taken', () => {
@@ -617,7 +617,7 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
 
 /** M20.3.1 — the page states one channel truth, in every language. */
 describe('M20.3.1 · activation truth, localized', () => {
-  const at = (lifecycle: FactoryView['readiness']['lifecycle'], l: 'en' | 'zh' | 'ar' | 'es',
+  const at = (lifecycle: FactoryView['readiness']['lifecycle'], l: 'en' | 'zh' | 'ar' | 'es' | 'fr',
               over: Partial<FactoryView['readiness']> = {}) =>
     // the stylesheet carries English comments; the owner reads the markup
     withoutIsolates(renderFactory({ ...complete, readiness: {
@@ -688,7 +688,7 @@ describe('M20.3.1 · activation truth, localized', () => {
  * no route. She could not finish setup without an engineer.
  */
 describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
-  const view = (recipients: FactoryView['readiness']['recipients'], l: 'en' | 'zh' | 'ar' | 'es' = 'en') =>
+  const view = (recipients: FactoryView['readiness']['recipients'], l: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
     withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, recipients } } as FactoryView, l));
 
   it('THE M21 REPRODUCTION: there is now a way to add a number', () => {

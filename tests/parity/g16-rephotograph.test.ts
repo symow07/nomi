@@ -108,7 +108,7 @@ describe('G16 · which pile each line goes in', () => {
 
 describe('G16 · the review shows the change, and lets her leave it out', () => {
   const text = 'ZX-100 Canvas tote $0.98 MOQ 500\nZX-220 Vacuum cup $2.60 MOQ 1000\nZX-777 Straw hat $4.00';
-  const page = (x: string, locale: 'en' | 'zh' | 'ar' | 'es' = 'en', catalogue = CATALOGUE) => reviewPage(x, locale, { catalogue });
+  const page = (x: string, locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en', catalogue = CATALOGUE) => reviewPage(x, locale, { catalogue });
 
   it('the changed product is a tick of its own, on by default, inside the confirm form', () => {
     const html = page(text);

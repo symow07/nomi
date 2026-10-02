@@ -13,7 +13,7 @@ import { type Money, currencySymbol } from '../../types/money.js';
  * constant, Asia/Shanghai, for every workspace. The zone is a required
  * argument on purpose: a caller that forgets it does not compile.
  */
-const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', es: 'es' };
+const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', es: 'es', fr: 'fr' };
 
 /** Quantities: zh says 12000 → "1.2万" and small numbers ungrouped (5000);
  *  en/ar group Western (5,000). Western digits in every locale. */
@@ -59,9 +59,9 @@ export function formatTime(locale: Locale, d: Date, zone: string): string {
   }).format(d);
 }
 
-const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم', es: 'Hoy' };
-const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس', es: 'Ayer' };
-const TOMORROW: Record<Locale, string> = { en: 'Tomorrow', zh: '明天', ar: 'غدًا', es: 'Mañana' };
+const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم', es: 'Hoy', fr: 'Aujourd’hui' };
+const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس', es: 'Ayer', fr: 'Hier' };
+const TOMORROW: Record<Locale, string> = { en: 'Tomorrow', zh: '明天', ar: 'غدًا', es: 'Mañana', fr: 'Demain' };
 /** The calendar day an instant falls on in the workspace's zone, as 'YYYY-MM-DD'. */
 export const dayKey = (d: Date, zone: string): string =>
   new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
@@ -107,7 +107,8 @@ export function dayStart(ymd: string, zone: string): Date {
  * printed "Last contact：Today" to English readers.
  */
 export const labelled = (locale: Locale, label: string, value: string): string =>
-  `${label}${locale === 'zh' ? '：' : ': '}${value}`;
+  // French sets a no-break space before the colon (phase 9).
+  `${label}${locale === 'zh' ? '：' : locale === 'fr' ? '\u00a0: ' : ': '}${value}`;
 
 /**
  * CC-13 — a figure and the unit it counts, the way each locale writes them:
