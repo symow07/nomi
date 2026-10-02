@@ -57,6 +57,8 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     '/app/live/channels': '0.0000000000000000',
     '/app/live/conversation/:conversationId': '0.0.00000000',
     '/app/live/practice': '0.0.00000000',
+    // Phase 6 — Billing watches for the card Stripe is confirming.
+    '/app/live/billing': '0.none',
   };
   const asked = (url: string, target: string): string =>
     STALE_MARK[url] ? `${target}?since=${STALE_MARK[url]}` : target;

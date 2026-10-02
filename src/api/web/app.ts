@@ -4876,7 +4876,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
     return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
-      + (deps.pageFactsReader ? renderPageFactsForm(locale, kept) : '');
+      + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
+        // No page reader here: no form is offered, but a page sent anyway still says why.
+        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '');
   };
   app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);

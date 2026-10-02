@@ -124,7 +124,7 @@ d('M43b · the rate she stated (requires DATABASE_URL)', () => {
     const before = (await rows()).length;
     for (const bad of ['rate=', 'rate=seven', 'rate=0', 'rate=-7']) {
       const res = await post('/app/settings/rate', bad);
-      expect(res.statusCode, bad).toBe(302);
+      expect(res.statusCode, bad).toBe(400);   // phase 6: sent back, under the field
     }
     expect(await rows()).toHaveLength(before);
   });

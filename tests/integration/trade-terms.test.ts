@@ -147,8 +147,10 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
 
   it('a term outside the guard’s vocabulary is refused, and nothing is written', async () => {
     const res = await post(ownerCookie, '/app/settings/terms', `payment=${encodeURIComponent(HERS)}&incoterm=XYZ`);
-    expect(res.statusCode).toBe(302);
-    expect(flashSaid(res, SECRET)).toContain('delivery term');
+    // Phase 6 — sent back: the same page, the reason under the delivery term.
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('id="tm-incoterm-err"');
+    expect(res.body).toContain('delivery term');
     expect(await termsRows()).toEqual([]);
   });
 

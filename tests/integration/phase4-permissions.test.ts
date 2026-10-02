@@ -357,7 +357,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     expect(review.statusCode).toBe(200);
     expect(review.body).toContain(`action="${at}/save"`);
     const shot = await photo(ownerCookie);
-    expect(shot.statusCode).toBe(200);             // no page reader here: a sentence, not a refusal
+    expect(shot.statusCode).toBe(400);             // no page reader here: a sentence under the photo field (phase 6)
     expect(flashSaid(shot, SECRET)).not.toContain(OWNER_NOTICE);
     const { res: confirm } = await submitReview(app, ownerCookie, at, { tickAll: true });
     expect(flashSaid(confirm, SECRET)).not.toContain(OWNER_NOTICE);
