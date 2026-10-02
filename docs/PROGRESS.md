@@ -40,9 +40,38 @@ under "Decided" below.
 | 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | #201 |
 | 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | #202 |
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
-| 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | next |
-| 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
+| 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
+| 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | next |
 | 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+
+**Phase 7 (#204) — the phone.**
+
+**The top nav is one line.** Every entry is one line, 56 px tall; it was two lines for "Your assistant", "My business" and «نشاطي التجاري».
+- **Short labels on a phone only:** two entries have a shorter phone form (*Assistant* and *Business*; 助手 and 生意; مساعدك and تجارتي; *Asistente* and *Negocio*). "Your assistant" is shortened only while the assistant has no name; a chosen name is short already.
+- **The rest stays:** the count beside "Setup" stays on its line.
+- **Measured at 360 and 390 px in en / zh / ar / es:** every entry one line, and the nav no wider than the screen.
+- **Below 380 px:** the small mark gives up its place to the five entries.
+
+**The calendar on a phone.**
+- **Week and month scroll visibly.** A shade sits at each edge that has more days beyond it, and goes when that edge is reached. There is a thin bar, and the hours column stays pinned while the days scroll past.
+- **No name is cut.**
+  - Names wrap; the ellipsis is gone.
+  - A Latin name inside Arabic is isolated and whole.
+  - The columns are wide enough for a whole surname.
+  - Measured with the browser's own layout on week, month and day in four languages at 390 px: 0 names clipped. The only wrap inside a name is a hyphenated surname, "Al-Sayed", which breaks at its own hyphen.
+- **A crowded month day shows two dates and "+N more"** (a door to that day), instead of a taller row.
+- **The day view is one list in time order,** not a grid of empty hours.
+  - Each row has the hour (all-day dates first), a small drawn icon for the kind of date, the name whole, and what it is.
+  - The nine icons are sample, order, price, reply, follow-up, closure, closed conversation, the owner's own date and promise. They are line drawings in the text's own colour, so colour stays the four signals'.
+  - Done dates are greyed, never hidden: handled, kept, closed or past.
+  - What is still owed (a reply due, a sample nobody dealt with, a promise not kept) carries its ○ or ✕ however old it is.
+- **The calendar's "add a date" form**, deferred from phase 6, comes back open with the reason under its field and what was typed kept.
+
+**Decided by me:**
+- The phone labels.
+- Done = handled, kept, closed or past, except what is still owed.
+- Two dates per month cell.
+- 780 px of grid, scrolled, so that names stay whole.
 
 **Phase 6 (#203) — states.**
 
@@ -260,6 +289,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #204 | **Phase 7 — the phone**: the top nav on one line in four languages at 360 and 390 px (a shorter phone label for two entries); the calendar's grids scroll visibly with the hours pinned, no name is cut, a crowded month day says "+N more", the day is one time-ordered list with a kind icon and done dates greyed; the add-a-date form comes back inline. No migration | 120 |
 | 2026-10-02 | #203 | **Phase 6 — states**: four separate refusal pages became inline errors under their field with what was typed kept; five settings forms come back the same way; empty states are panels, "Mine" no longer claims an empty business, six not-found pages say why; a busy button on every form; the guide's videos have stills and lengths; Practice and Billing no longer promise what never comes; fast asking ends after 15 minutes. No migration | 120 |
 | 2026-10-02 | #202 | **Phase 5 — motion**: the three durations used with one decelerating curve, all of it only for readers who did not ask for less motion; Undo instead of confirm for four set-aside things (word, closure, fact, date); the product's own ask-first dialog instead of the browser's box; the assistant at work shown in place, and its reply drawn into the page without a reload. No migration | 120 |
 | 2026-10-02 | #201 | **Phase 4 — colour and hierarchy**: four signals, each a colour and a shape (✓ ○ ✕ ✦); 92 pieces of coloured text with no shape → 0 in four languages; one filled button per page (six pages had two to four); misused colour removed; Setup's states and Today's waiting customers carry their signal; `tools/ui-colour.mjs`. No migration | 120 |

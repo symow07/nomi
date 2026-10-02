@@ -15664,3 +15664,36 @@ The "Mine" empty state, the not-found line, the guide video's length, Billing's 
 - zh: 发出了。
 - ar: أُرسلت.
 - es: Enviado.
+
+## 2026-10-02 — the UI rebuild, phase 7 (the phone): every new line
+
+The phone nav's two short labels (shown only on a phone), the day list's word for a date that is done,
+and the month's count, now "+N". Read the Arabic for gender: تجارتي and مساعدك address nobody.
+
+### `nav.short.employee`
+
+- en: Assistant
+- zh: 助手
+- ar: مساعدك
+- es: Asistente
+
+### `nav.short.factory`
+
+- en: Business
+- zh: 生意
+- ar: تجارتي
+- es: Negocio
+
+### `calendar.done`
+
+- en: Done:
+- zh: 已完成：
+- ar: تمّ:
+- es: Hecho:
+
+### `calendar.more`
+
+- en: +{n} more
+- zh: +{n} 项
+- ar: +{n} أخرى
+- es: +{n} más
