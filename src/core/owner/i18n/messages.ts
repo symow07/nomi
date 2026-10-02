@@ -3368,6 +3368,9 @@ const EN = {
   'conv.testing.confirm': 'Mark this conversation as you testing? Its replies stop counting toward sending alone. You can undo it here.',
   'practice.stop.running': '{name} answers in Practice.',
   'takeover.status.aiDraft': '{name} wrote a reply; it waits for your OK',
+  'card.source.claim': 'you confirmed it',
+  'card.source.claimUnconfirmed': 'you have not confirmed this',
+  'card.unconfirmedClaim': 'Says something you have not confirmed',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -6647,6 +6650,9 @@ const ZH: Record<MessageKey, string> = {
   'conv.testing.confirm': '把这段对话标记为你自己在测试？这里的回复不再计入自己发送的进度。之后可以在这里改回来。',
   'practice.stop.running': '{name}正在「练习」里回复。',
   'takeover.status.aiDraft': '{name}写好了回复，等你确认',
+  'card.source.claim': '你已确认',
+  'card.source.claimUnconfirmed': '你还没确认这一点',
+  'card.unconfirmedClaim': '说了你还没确认的事',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -9920,6 +9926,9 @@ const AR: Record<MessageKey, string> = {
   'conv.testing.confirm': 'وضع علامة على هذه المحادثة كاختبار منك؟ لن تُحسب ردودها في التقدّم نحو الإرسال دون انتظارك، ويمكن التراجع عن ذلك هنا.',
   'practice.stop.running': 'يجري الرد في «تدريب» من {name}.',
   'takeover.status.aiDraft': 'ردّ من {name} بانتظار موافقتك',
+  'card.source.claim': 'مؤكَّد منك',
+  'card.source.claimUnconfirmed': 'لم يُؤكَّد منك بعد',
+  'card.unconfirmedClaim': 'فيه ما لم يُؤكَّد منك',
 };
 
 /**
@@ -13134,6 +13143,9 @@ const ES: Record<MessageKey, string> = {
   'conv.testing.confirm': '¿Marcar esta conversación como una prueba tuya? Sus respuestas dejan de contar para el envío sin ti. Puedes deshacerlo aquí.',
   'practice.stop.running': '{name} responde en Práctica.',
   'takeover.status.aiDraft': '{name} escribió una respuesta; espera tu visto bueno',
+  'card.source.claim': 'lo confirmaste',
+  'card.source.claimUnconfirmed': 'no lo has confirmado',
+  'card.unconfirmedClaim': 'Dice algo que no has confirmado',
 };
 
 
@@ -16353,6 +16365,9 @@ const FR: Record<MessageKey, string> = {
   'conv.testing.confirm': 'Marquer cette conversation comme votre propre test ? Ses réponses ne comptent plus pour l’envoi sans vous. Vous pouvez revenir en arrière ici.',
   'practice.stop.running': '{name} répond dans l’Entraînement.',
   'takeover.status.aiDraft': '{name} a écrit une réponse, qui attend votre accord',
+  'card.source.claim': 'vous l’avez confirmé',
+  'card.source.claimUnconfirmed': 'vous ne l’avez pas confirmé',
+  'card.unconfirmedClaim': 'Affirme quelque chose que vous n’avez pas confirmé',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };

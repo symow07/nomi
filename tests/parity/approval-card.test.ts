@@ -149,6 +149,16 @@ describe('the card, drawn', () => {
     expect(c).toContain('a second, separate reading differed on the product');
   });
 
+  it('phase 9 (V1-221) · a claim the reply makes is on the card, and says whether you confirmed it', () => {
+    const draft = { ...base.pendingDraft!, draftText: 'All our lamps are CE certified.' };
+    const no = card(withoutIsolates(renderConversationDetail({ ...base, pendingDraft: draft, claimsAllowed: [] }, 'en', NOW, null)));
+    expect(no).toContain(t('en', 'card.source.claimUnconfirmed'));
+    expect(no).toContain(t('en', 'card.unconfirmedClaim'));
+    const yes = card(withoutIsolates(renderConversationDetail({ ...base, pendingDraft: draft, claimsAllowed: ['certification:CE'] }, 'en', NOW, null)));
+    expect(yes).toContain(t('en', 'card.source.claim'));
+    expect(yes).not.toContain(t('en', 'card.unconfirmedClaim'));
+  });
+
   it('phase 9 (V1-220) · a model code\'s number is shown in its words, so the owner sees where it came from', () => {
     const html = withoutIsolates(renderConversationDetail({
       ...base, pendingDraft: { ...base.pendingDraft!, draftText: 'Our sturdy model ZX-300 ships within a week.' },

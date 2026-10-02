@@ -23,6 +23,7 @@ import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
+import { detectClaims } from '../../core/safety/claims.js';
 import { chosenName } from '../../db/assistants.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
 import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals.js';
@@ -646,6 +647,11 @@ export type ConversationDetail = {
    */
   readonly knowledgeUsed: readonly string[];
   /**
+   * Phase 9 (V1-221) — the claims this workspace confirmed ("certification:CE"),
+   * so the card can say when a reply states one that was not. Absent reads as none.
+   */
+  readonly claimsAllowed?: readonly string[];
+  /**
    * M43b — the rate SHE stated, or null.
    *
    * Carried on the read model rather than fetched by the renderer, because the
@@ -973,6 +979,7 @@ export async function loadConversationDetail(
          where business_id = ${bid.value}::uuid and archived_at is null`.execute(tx))
         .rows.map((p) => ({ id: p.id, name: p.name, isOwner: p.is_owner })),
       knowledgeUsed,
+      claimsAllowed: (await tenantRepos(tx, bid.value).catalog.claimsPolicy()).filter((c) => c.allowed).map((c) => `${c.kind}:${c.claimKey}`),
       channel: head.channel,
       // The quote's figures are read with or without a turn on record.
       reading: cardReadingOf(turn?.analysis ?? null, turn?.own_understanding ?? null, q),
@@ -1773,6 +1780,13 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
         ? (prod ? t(locale, 'card.source.price', { product: prod }) : t(locale, 'card.source.priceAny'))
         : t(locale, `card.source.${l.source}` as MessageKey), l.source === 'unsourced' ? whereIn(l.value) : '')),
     ...d.knowledgeUsed.map((k) => line(true, k, t(locale, 'card.source.taught'))),
+    // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a
+    // term, a guarantee), and whether you confirmed it: "CE certified" stood in
+    // a draft with nothing on the card, while no certification was confirmed.
+    ...detectClaims(p.draftText).map((c) => {
+      const confirmed = (d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`);
+      return line(confirmed, `“${c.matchedText}”`, t(locale, confirmed ? 'card.source.claim' : 'card.source.claimUnconfirmed'));
+    }),
     ...(r?.differsOn === null || r?.differsOn === undefined ? []
       : r.differsOn.length === 0 ? [line(true, t(locale, 'card.checked'), t(locale, 'card.checked.same'))]
       : [line(false, t(locale, 'card.checked.differs'), t(locale, 'card.checked.differsOn', {
@@ -1783,9 +1797,11 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   // how the reply was read. A figure nothing accounts for is said on the line
   // itself, with the ○ that marks it in the list it opens.
   const unsourced = read.lines.some((l) => l.kind === 'figure' && l.source === 'unsourced');
+  const unconfirmed = detectClaims(p.draftText).some((c) => !(d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`));
   const how = reasons.length || und
     ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
         unsourced ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unsourced'))}</span>`
+          : unconfirmed ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unconfirmedClaim'))}</span>`
           : reasons.length ? `<span class="c">${esc(tn(locale, 'card.reasons.count', reasons.length))}</span>` : ''}</summary>${
         und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
     : '';
