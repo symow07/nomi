@@ -43,7 +43,30 @@ under "Decided" below.
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · next: French |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · next: the rest of the list, by area |
+
+**Phase 9, part two (#207) — French, the fifth owner language (0121; V1-001, the last S1).**
+
+**What it covers.**
+- The locale itself, with its date and number formats, the French colon (a no-break space before ":") and its line height.
+- Stripe's pages in French, and the translation of a draft into the owner's language.
+- The site names French among the workspace's languages.
+
+**0121** lets `owner_locale` and `drafts.translation_locale` take 'fr', and redefines `provision_workspace` so a sign-up made in French stays French (0119 is not edited). The French *disclosure's* gate is untouched and stays shut.
+
+**The catalogue.** All 3,194 lines, written by eight translators in parallel to rule 6 in French:
+- the owner is *vous*, with no adjective or participle that agrees;
+- `{name}` takes a verb, never il or elle;
+- customers are «client(s)» or «la personne qui écrit»;
+- French typography throughout.
+
+**How it was checked.**
+- Each chunk passed a checker before assembly: placeholders identical to the English, no software words, no il/elle except impersonal, no straight apostrophe, the spacing before ? ! ; :.
+- `assistant-pronouns.test.ts` now holds the French gender rules.
+- `catalog-language.test.ts` lists by key the French words that are the English word (Conversations, Photos, Total…). A key on that list whose French changes fails the test, so the list cannot go stale.
+- The deletion page's contract is asserted in French.
+- `tests/integration/ui-fr.test.ts`: the switch kept for the alerts, Accept-Language, a French sign-up, the translation column.
+- The choices the translators flagged are listed for a native reader in `docs/NATIVE-REVIEW-UI.md` (2026-10-03); that list is not a gate.
 
 **Phase 9, part one (#206) — the items the owner named, and what each one really was.**
 
@@ -380,7 +403,8 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-10-03 | #206 | **Phase 9, part one — the named items**: French found to be a customer's language only (#124, #182), never an owner's (en/zh/ar/es since #192); the dead proof and unsubscribe pages now follow the reader's language; the discount, what goes out alone and "No conversations yet" each made to say what the code does; Connect WhatsApp's field and button (the number mailed to the operator); the e-mail form's labels; backups and keys Nomi's (`tools/installation-checks.mjs`), not the owner's; the gallery the installation's only; Practice's captions; Today's month line like with like. 7 of the 8 S1s. No migration | 120 |
+| 2026-10-03 | #207 | **Phase 9, part two — French, the fifth owner language** (0121): the locale, formats and colon, Stripe, the draft translation, sign-up; the whole catalogue (3,194 lines, rule 6 in French); the site names French; the gender checks, the cognates by key, the deletion contract and `ui-fr` in French. The French disclosure's gate untouched. Backup before it `nomi-backup-20261002T030023Z` (drill passed) | 121 |
+| 2026-10-03 | #206 | **Phase 9, part one — the named items**: French found to be a customer's language only (#124, #182), never an owner's (en/zh/ar/es since #192); the dead proof and unsubscribe pages now follow the reader's language; the discount, what goes out alone and "No conversations yet" each made to say what the code does; Connect WhatsApp's field and button (the number mailed to the operator); the e-mail form's labels; backups and keys Nomi's (`tools/installation-checks.mjs`), not the owner's; the gallery the installation's only; Practice's captions; Today's month line like with like. 7 of the 8 S1s. CI both jobs pass; integration 1201 of 1201 locally after one heading test was updated; pre-pilot 12/12 before and after. Merged as `817ff54`, deployed, `/health` ok. No migration | 120 |
 | 2026-10-02 | #205 | **Phase 8 — the re-audit**: the rebuilt app audited again by the first audit's method (62 pages + 3 calendar views, five languages, two widths, 650 captures, nine reviewers, a hand walk). One merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`. Dropped 31, still reproducing 535, newly introduced 75 (and 93 the first audit missed); 703 in all, 8 of them S1. Phase 6's "every empty state is a panel" corrected: five were not. CI both jobs pass. Merged as `7a71515`, deployed, `/health` ok. Docs only | 120 |
 | 2026-10-02 | #204 | **Phase 7 — the phone**: the top nav on one line in four languages at 360 and 390 px (a shorter phone label for two entries); the calendar's grids scroll visibly with the hours pinned, no name is cut, a crowded month day says "+N more", the day is one time-ordered list with a kind icon and done dates greyed; the add-a-date form comes back inline. No migration | 120 |
 | 2026-10-02 | #203 | **Phase 6 — states**: four separate refusal pages became inline errors under their field with what was typed kept; five settings forms come back the same way; empty states are panels, "Mine" no longer claims an empty business, six not-found pages say why; a busy button on every form; the guide's videos have stills and lengths; Practice and Billing no longer promise what never comes; fast asking ends after 15 minutes. No migration | 120 |
