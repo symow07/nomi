@@ -1027,7 +1027,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Getting ready');             // English default
+    expect(res.body).toContain(esc(t('en', 'pilot.title')));             // English default
     expect(res.body).toContain('Checked for you');          // detected badge (demo has products/channel)
     expect(res.body).toContain('action="/app/onboarding/validate"');   // sandbox check
     expect(res.body).toContain('action="/app/onboarding/attest"');     // owner attestation form
@@ -1440,7 +1440,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.body).toContain(`<h2 id="today-coming">${esc(t('en', 'today.coming.title'))}</h2>`);
       expect(res.body).toContain('href="/app/calendar"');
       // Phase B: messaging state is ONE quiet line, not a status card
-      expect(res.body).toContain('Messaging is not active yet');
+      expect(res.body).toContain(esc(t('en', 'ops.system.notLive')));
       expect(res.body).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);   // V1 step four: block + muted, same name
       expect(res.body).not.toContain('class="pill ok"');     // never "Connected" pre-Meta
     });

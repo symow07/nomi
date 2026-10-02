@@ -88,8 +88,10 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // is no longer a door on Setup: it is a page for whoever builds the product
   // (the screenshots tool walks it), not a setting. It still lights Setup, by
   // sitting under its address.
-  // Phase 4b — the machine room is reached from Getting ready, and lights Setup through it.
-  { hub: '/app/onboarding', routes: ['/app/onboarding/technical', '/app/ready'] },
+  // Phase 4b — the machine room was reached from Getting ready. Phase 9: no
+  // owner's page links to it any more (it is the operator's, by its address),
+  // so it is not a contextual route of any hub; it lights nothing.
+  { hub: '/app/onboarding', routes: ['/app/ready'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
   { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
