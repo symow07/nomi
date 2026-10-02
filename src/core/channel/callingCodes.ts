@@ -1,4 +1,5 @@
 import { canonicalCountry } from '../owner/business.js';
+import { displayPhone } from './phone.js';
 
 /**
  * Phase 4b (audit CC-15) — the international calling code of the country a
@@ -78,10 +79,10 @@ const CODES: ReadonlySet<string> = new Set(Object.values(CALLING_CODES));
  * with its "+" and nothing more.
  */
 export function withCallingCode(digits: string): string {
-  if (!/^[0-9]{7,15}$/.test(digits)) return `+${digits}`;
+  if (!/^[0-9]{7,15}$/.test(digits)) return displayPhone(digits);
   for (const n of [1, 2, 3]) {
     const code = digits.slice(0, n);
     if (CODES.has(code)) return `+${code} ${digits.slice(n)}`;
   }
-  return `+${digits}`;
+  return displayPhone(digits);
 }
