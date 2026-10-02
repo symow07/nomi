@@ -7,7 +7,7 @@ import { shell, missingPage, atWork } from '../../src/api/web/layout.js';
 import { renderInboxList, type InboxList } from '../../src/api/web/inbox.js';
 import { renderAddForm, renderPhotoRefusal } from '../../src/api/web/products.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
-import { renderClosures, renderForbidden } from '../../src/api/web/settings.js';
+import { renderClosures, renderForbidden, type ClosureView, type ForbiddenView } from '../../src/api/web/settings.js';
 import { renderGuide } from '../../src/api/web/guide.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { t, messages } from '../../src/core/owner/i18n/messages.js';
@@ -86,13 +86,15 @@ describe('phase 6 · errors under their field, on the same page, with what was t
   });
 
   it('the settings forms: the field that was wrong is marked and says why; everything typed is still there', () => {
-    const closures = renderClosures({ closures: [] } as never, 'en', null,
+    const noClosures: ClosureView = { closures: [] };
+    const closures = renderClosures(noClosures, 'en', null,
       { values: { label: 'Eid', from: '2026-12-04', to: '2026-12-01' }, field: 'to', text: t('en', 'closures.flash.ends_before_starts') });
     expect(closures).toContain('value="Eid"');
     expect(closures).toContain('value="2026-12-04"');
     expect(closures).toMatch(/<div class="setrow bad">[\s\S]*?id="cl-to" name="to" type="date" required value="2026-12-01" aria-invalid="true" aria-describedby="cl-to-err" autofocus/);
     expect(closures).toContain(`<span class="fielderr" role="alert" id="cl-to-err">${t('en', 'closures.flash.ends_before_starts')}</span>`);
-    const words = renderForbidden({ own: [], floor: [] } as never, 'en', null, { values: { term: 'cheap', note: 'n' }, field: 'term', text: t('en', 'forbidden.flash.duplicate') });
+    const noWords: ForbiddenView = { own: [], floor: [] };
+    const words = renderForbidden(noWords, 'en', null, { values: { term: 'cheap', note: 'n' }, field: 'term', text: t('en', 'forbidden.flash.duplicate') });
     expect(words).toContain('value="cheap" aria-invalid="true"');
     expect(words).toContain('value="n"');
   });
