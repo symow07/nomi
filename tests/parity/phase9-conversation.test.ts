@@ -28,3 +28,9 @@ describe('V1-219, V1-255 · marking a conversation as your own test is an act, a
     expect(t('en', 'conv.testing.mark')).toMatch(/^Mark /);
   });
 });
+
+describe('V1-225 · the back link and the panel door never say the same word', () => {
+  it('in every locale', () => {
+    for (const l of LOCALES) expect(t(l, 'panel.open'), l).not.toBe(t(l, 'inbox.detail.back'));
+  });
+});

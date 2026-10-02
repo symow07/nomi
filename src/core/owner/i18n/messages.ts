@@ -3389,7 +3389,7 @@ const ZH: Record<MessageKey, string> = {
   'nav.needsYou.other': '{n} 位客户在等你',
   'pane.label': '对话',
   'panel.label': '客户',
-  'panel.open': '客户',
+  'panel.open': '客户资料',
   'panel.close': '关闭',
   'panel.writesIn': '用{language}写',
   'panel.firstWrote': '{date} 第一次来信',
