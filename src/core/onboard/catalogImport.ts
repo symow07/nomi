@@ -150,6 +150,23 @@ function readingFor(currency: Currency): Reading {
 const NUMBER_CELL = /^\d[\d.,]*$/;
 
 /**
+ * Phase 9 (V1-334) — a price written with no sign at all, as most lists are
+ * pasted: "Canvas tote 18.00", "Mug 2.50 each". Only a figure with exactly two
+ * decimals, at the END of the line (an "each" after it allowed), is read — a
+ * size ("500ml"), a quantity or a model number has no cents. Read through the
+ * same `readAmount`, so "24,50" in a dollar workspace is refused as the
+ * ambiguous figure T4 refuses with a sign, never priced. The review flags
+ * every such row for its own tick (`no_sign`): nothing on the line said it
+ * was money.
+ */
+const BARE_PRICE = /(?:^|\s)(\d{1,7}[.,]\d{2})(?:\s*(?:each|ea\.?|apiece|a\s+piece|per\s+(?:piece|pc|item|unit)|\/\s*(?:pc|pcs|piece|item|unit)|cada\s+un[oa]|c\/u|la\s+pi[eè]ce|l['’]unit[eé]|pi[eè]ce|每个|一个|\/个|للقطعة|لكل\s+قطعة))?\s*[.;]?\s*$/i;
+
+/** Phase 9 — the bare figure at the end of a line, if that is how its price is written. */
+export function barePrice(line: string): RegExpMatchArray | null {
+  return line.includes('\t') ? null : line.match(BARE_PRICE);
+}
+
+/**
  * K1 — how many prices in the workspace's own currency a line carries. The
  * parser takes the first; a second is a struck price, a "was/now", or one price
  * per size ("Hoodie S-M $40 / L-XL $45"), and the review flags it. A figure
@@ -231,6 +248,15 @@ export function parsePriceLines(text: string, currency: Currency): readonly Extr
       }
     }
 
+    // Phase 9 (V1-334) — no sign anywhere, and the line ends in a price: that is its price.
+    const bare = !problem && price === null && written === null ? barePrice(line) : null;
+    if (bare) {
+      const a = readAmount(bare[1]!, currency);
+      if (a === 'ambiguous') problem = 'ambiguous_price';
+      else price = a;
+    }
+    const body = bare ? line.slice(0, line.length - bare[0].length) : line;
+
     const moq =
       line.match(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*(\\d[\\d,]*)`, 'i'))?.[1] ??
       line.match(/(\d[\d,]*)\s*(?:个|件|套|pcs)?\s*起/)?.[1] ??
@@ -238,7 +264,7 @@ export function parsePriceLines(text: string, currency: Currency): readonly Extr
       line.match(/\t(\d{2,})\s*$/)?.[1] ?? null;
 
     // Name = the line minus the article number, price/moq/currency fragments.
-    const name = (article ? line.slice(article.length) : line)
+    const name = (article ? body.slice(article.length) : body)
       .replace(reading.beforeAll, ' ')
       .replace(reading.afterAll, ' ')
       .replace(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*\\d[\\d,]*`, 'gi'), ' ')

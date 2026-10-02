@@ -1039,6 +1039,12 @@ const STYLE_PAGES = `
   .imp-typed, .imp-q { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); margin-top:var(--space-8); }
   .imp-typed input, .imp-pct input, .imp-edit input, .imp-edit select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
   .imp-typed input, .imp-pct input { width:8em; }
+  /* Phase 9 (V1-340) — the figure and its sign stay on one line, in either direction. */
+  .imp-pct { display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap; }
+  /* Phase 9 (V1-336, V1-335) — the tick the owner gives, on its own line; a note under a row. */
+  .imp-tick { margin-top:var(--space-8); }
+  .imp-note { display:block; margin-top:var(--space-4); }
+  .imp-pending { font-size:var(--font-size-small); color:var(--color-ink); margin:var(--space-16) 0 0; max-width:var(--measure-prose); }
   .imp-edit { margin-top:var(--space-8); }
   .imp-edit summary { cursor:pointer; color:var(--color-ink-secondary); min-height:44px; display:flex; align-items:center; }
   .imp-edit label { display:flex; flex-direction:column; gap:var(--space-4); margin:var(--space-8) 0; }

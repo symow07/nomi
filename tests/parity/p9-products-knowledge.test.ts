@@ -8,6 +8,10 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc, shell } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
+import { reviewModel } from './reviewPage.js';
+import { renderImportReview } from '../../src/api/web/importFlow.js';
+import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
+import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
 
 /**
  * Phase 9, round two — Products, the product page, the add page and the
@@ -299,5 +303,127 @@ describe('Products — the add page', () => {
       const said = add(l, owner, 'USD', null, { text: t(l, 'product.add.nothingRead'), bad: true });
       expect(said, l).toContain(esc(t(l, 'product.add.nothingRead')));
     }
+  });
+});
+
+describe('The import review', () => {
+  // The audit's own list: two plain prices, two products on one line, and a heading.
+  const LIST = 'Canvas tote 18.00\nWool scarf 24,50 each\nMug 8 or bowl 12\nSPRING SALE';
+  const review = (l: Locale, text = LIST, opts: Parameters<typeof renderImportReview>[2] = {}) =>
+    plain(renderImportReview(reviewModel(text), l, { canExtract: true, ...opts }));
+
+  it('V1-334 — a plain price is read, flagged for its own tick; a figure that reads two ways is refused, never guessed', () => {
+    const [tote, scarf, mug, sale] = parsePriceLines(LIST, 'USD');
+    expect(tote).toMatchObject({ name: 'Canvas tote', price: usd(18) });
+    expect(scarf).toMatchObject({ price: null, problem: 'ambiguous_price' });   // T4: "24,50" in a dollar workspace
+    expect(mug).toMatchObject({ price: null });
+    expect(sale).toMatchObject({ price: null });
+    expect(parsePriceLines('Mug 2.50 each', 'USD')[0]).toMatchObject({ name: 'Mug', price: usd(2.5) });
+    // A size, a quantity, a model number: no cents, never a price.
+    for (const line of ['Thermos 500ml', 'Version 2.0', 'Bottle 0.75 l', 'Model ZX 300']) {
+      expect(parsePriceLines(line, 'USD')[0]!.price, line).toBeNull();
+    }
+    const m = reviewModel('Canvas tote 18.00');
+    const row = m.imp.rows[0]!;
+    expect(flagsOf(row, m.imp.rows, m.ctx)).toContain('no_sign');
+    expect(needsTick(row, m.imp.rows, m.ctx, false)).toBe(true);
+    expect(flagsOf(reviewModel('Canvas tote $18.00').imp.rows[0]!, [], m.ctx)).not.toContain('no_sign');
+    expect(review('en')).toContain(t('en', 'import.flag.no_sign', { currency: 'USD' }));
+  });
+
+  it('V1-335 — a line with no price and no figure is said to be added unpriced, with the way to leave it out', () => {
+    for (const l of LOCALES) expect(review(l), l).toContain(esc(t(l, 'import.row.noPriceNote')));
+    const en = review('en');
+    // "3 new": the scarf is refused with its reason, not counted as a product.
+    expect(en).toContain('3 new — not in your catalogue yet');
+  });
+
+  it('V1-336 — the tick is something the owner says, on its own line, never run into the name', () => {
+    for (const l of LOCALES) {
+      const html = review(l);
+      expect(html, l).toContain(`<label class="pcheck imp-tick"><input type="checkbox" name="tick:l1" /> ${esc(t(l, 'import.row.checked'))}</label>`);
+      expect(html, l).not.toMatch(/<div class="imp-h">\s*<label/);
+    }
+    expect(t('en', 'import.row.checked')).toBe('This line is right');
+  });
+
+  it('V1-337 — a flagged row keeps its form closed; it opens only for something refused', () => {
+    const html = review('en');
+    expect(html).not.toContain('<details class="imp-edit" open>');
+    const refused = plain(renderImportReview(reviewModel(LIST), 'en', { errors: new Map([['l1', ['price_not_number']]]) }));
+    expect(refused.match(/<details class="imp-edit" open>/g)).toHaveLength(1);
+  });
+
+  it('V1-338 / V1-339 — one control for the minimum; names in a box of lines', () => {
+    const html = review('en');
+    expect(html).not.toContain('name="nomin:');
+    expect(html).toContain(`name="moq:l1" placeholder="${t('en', 'product.noMinimum')}"`);
+    expect(html).toMatch(/<textarea name="names:l1" rows="2" dir="auto"><\/textarea>/);
+    // An empty box is no minimum.
+    expect(editRow(reviewModel('Tote $2 MOQ 50').imp.rows[0]!, { moq: '', noMinimum: false }).row.moq).toBeNull();
+  });
+
+  it('V1-340 — the "%" stays on the line of its box', () => {
+    const css = linkedCss(shell({ title: 'x', active: 'products', locale: 'en', path: '/app/products/import/x', bodyHtml: review('en') }));
+    expect(css).toContain('.imp-pct { display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap; }');
+  });
+
+  it('V1-341 / new-12 — "Start again" is the red-outlined act, and its question names the same act', () => {
+    for (const l of LOCALES) {
+      const html = review(l);
+      expect(html, l).toContain(`<button class="btn danger" type="submit" data-confirm="${esc(t(l, 'import.dropConfirm'))}">${esc(t(l, 'import.drop'))}</button>`);
+      expect(t(l, 'import.dropConfirm').replace(/^¿/, '').startsWith(t(l, 'import.drop')), l).toBe(true);
+      expect(html, l).not.toContain('quiet');
+    }
+  });
+
+  it('V1-342 — what stands before "Add these products" is said beside it from the start', () => {
+    const en = review('en');
+    const before = en.slice(0, en.indexOf('name="next" value="add"'));
+    expect(before).toContain('class="imp-pending"');
+    expect(before).toContain(t('en', 'import.pending.why'));
+    expect(t('en', 'import.discount.hint')).toMatch(/^With a discount here/);
+  });
+
+  it('V1-343 — the Arabic "per" list names each unit once', () => {
+    const html = review('ar');
+    const options = [...html.matchAll(/<select name="unit:l1">([\s\S]*?)<\/select>/g)][0]![1]!;
+    const words = [...options.matchAll(/>([^<]+)<\/option>/g)].map((x) => x[1]);
+    expect(new Set(words).size).toBe(words.length);
+  });
+
+  it('V1-344 — a way back to the add page; the tab named by the page\'s title', () => {
+    for (const l of LOCALES) {
+      const body = review(l);
+      expect(body, l).toMatch(/^<a class="back" href="\/app\/products\/add">/);
+      expect(shell({ title: t(l, 'nav.products'), active: 'products', locale: l, path: '/app/products/import/x', bodyHtml: body }), l)
+        .toContain(`<title>${esc(t(l, 'import.title'))} · Nomi</title>`);
+    }
+  });
+
+  it('missed-10 — the offer to read again comes after the lines it names, counts them right, and its note has no "it"', () => {
+    const en = review('en');
+    expect(en.indexOf('id="extract"')).toBeGreaterThan(en.indexOf('id="row-l4"'));
+    // Two lines hold a figure and no price (the scarf is refused, the mug unread); the heading has none.
+    expect(en).toContain('2 lines have a figure that was not read as a price, or were not read as a product.');
+    expect(t('en', 'import.extract.hint')).not.toMatch(/\bit\b/);
+  });
+
+  it('missed-11 — an unread figure is said as that, never as digits left in the name', () => {
+    for (const l of LOCALES) {
+      const html = review(l);
+      expect(html, l).toContain(esc(t(l, 'import.flag.unread_figure')));
+      expect(html, l).not.toContain(esc(t(l, 'import.flag.digits_in_name')));
+    }
+  });
+
+  it('V1-345 / V1-346 — one case, one unit per "per", no space after a Chinese full stop, plain Spanish, no counting chore', () => {
+    const en = review('en');
+    expect(en).toContain('$18.00/pc · No minimum');
+    expect(en).not.toContain('no price yet');
+    expect(review('es')).toContain('<option value="pcs" selected>ud.</option>');
+    expect(review('zh')).not.toMatch(/。<\/b> /);
+    expect(t('es', 'import.needYou.other')).not.toContain('van primero');
+    for (const l of LOCALES) expect(t(l, 'import.countYours'), l).not.toMatch(/count|数一数|عدّ|Cuenta|Comptez/i);
   });
 });
