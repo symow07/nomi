@@ -132,7 +132,7 @@ describe('the customer panel', () => {
   it('who they are, then each block from what is on record, with the marks for who acted', () => {
     const html = withWorkspace(SCOPE, () => renderCustomerPanel(panel, [], 'en', NOW, 'c-1'));
     expect(html).toContain('<h2><bdi>Maya Rahman</bdi></h2>');
-    expect(html).toContain('WhatsApp <bdi>+447700900123</bdi> · writes in English · ');
+    expect(html).toContain('WhatsApp <bdi dir="ltr">+447700900123</bdi> · writes in English · ');
     expect(html).toContain('First wrote ');
     expect(html).toContain('2 conversations');
     expect(html).toContain('<bdi>Rose Face Serum</bdi></span><span class="pn-r">3 times · 18:00</span>');
@@ -153,6 +153,11 @@ describe('the customer panel', () => {
   it('a block with nothing in it is not drawn — no zero, no empty heading', () => {
     const html = renderCustomerPanel({ ...panel, askedAbout: [], prices: [], samples: [], promised: [], orders: [], activity: [] }, [], 'en', NOW, 'c-1');
     for (const h of ['Asked about', 'Prices worked out', 'Promised', 'On record', 'On the calendar', 'Activity']) expect(html).not.toContain(`<h3>${h}</h3>`);
+  });
+
+  it('phase 9 · a phone number reads left to right in Arabic too (conversation-missed-01)', () => {
+    const html = renderCustomerPanel({ ...panel, channel: 'whatsapp', address: '2345000000261' }, [], 'ar', NOW, 'c-1');
+    expect(html).toContain('<bdi dir="ltr">+2345000000261</bdi>');
   });
 
   it('the panes: drawn always, laid out by width — below 1100 px the conversation stands alone', () => {

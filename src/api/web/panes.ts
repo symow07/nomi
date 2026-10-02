@@ -92,7 +92,9 @@ export function renderCustomerPanel(
   const language = p.language ? languageName(locale, p.language) : null;
   const facts = [
     // A WhatsApp number is stored as its digits; it is shown the way it is dialled.
-    `${esc(channelName(locale, p.channel))}${p.address ? ` <bdi>${esc(p.channel === 'whatsapp' && /^\d+$/.test(p.address) ? `+${p.address}` : p.address)}</bdi>` : ''}`,
+    // Phase 9 — an address (a number, an e-mail, a handle) reads left to right in
+    // every language: a bare <bdi> has no letter to go by, and Arabic put the + last.
+    `${esc(channelName(locale, p.channel))}${p.address ? ` <bdi dir="ltr">${esc(p.channel === 'whatsapp' && /^\d+$/.test(p.address) ? `+${p.address}` : p.address)}</bdi>` : ''}`,
     language ? esc(t(locale, 'panel.writesIn', { language })) : '',
     p.country ? esc(countryName(locale, p.country) ?? p.country) : '',
   ].filter(Boolean).join(' · ');
