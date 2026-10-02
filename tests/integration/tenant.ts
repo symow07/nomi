@@ -1,4 +1,4 @@
-import { DEMO_NAMESPACE, demoPhone } from '../../src/demo/factory.js';
+import { DEMO_NAMESPACE, DEMO_BUYERS, demoPhone } from '../../src/demo/factory.js';
 import { FLASH_COOKIE, readFlash } from '../../src/api/web/flash.js';
 import type { Locale } from '../../src/core/owner/i18n/locale.js';
 
@@ -47,7 +47,29 @@ export const RUN_BIZ = nsId('0000000000b1');
  * A buyer phone in this run's block. `client_channels` is UNIQUE on
  * (channel, channel_user_id) GLOBALLY, so a shared number collides across runs.
  */
-export const runPhone = (phone: string): string => demoPhone(phone, RUN_NS);
+export const runPhone = (phone: string): string => runPhoneIn(RUN_NS)(phone);
+
+/**
+ * `demoPhone` keeps the country code and the digits after the tenth and moves
+ * the eight between, so two numbers that differ only in those eight become ONE
+ * number. 971500007701 was a demo buyer's 971500000101: M22's "new"
+ * conversation was demo buyer 1's, and failed whenever P3 had left a refusal
+ * there (2026-10-03). A number that lands on a seeded buyer's, or on one this
+ * file was already given for another number, is refused here, at the call.
+ */
+export function runPhoneIn(namespace: string): (phone: string) => string {
+  const seeded = new Map(DEMO_BUYERS.map((b) => [demoPhone(b.phone, namespace), b.phone]));
+  const given = new Map<string, string>();
+  return (phone) => {
+    const p = demoPhone(phone, namespace);
+    const other = seeded.get(p) ?? given.get(p);
+    if (other !== undefined && other !== phone) {
+      throw new Error(`runPhone('${phone}') becomes the same number as '${other}' in this run — choose other last digits`);
+    }
+    given.set(p, phone);
+    return p;
+  };
+}
 
 /**
  * Digits unique to a run, for the identities Postgres holds unique across ALL

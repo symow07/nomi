@@ -3214,7 +3214,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const allowed = await drive(BUYER, 'hello allowlisted buyer');
       expect(allowed.some((e) => e.kind === 'sent'), JSON.stringify(allowed)).toBe(true);
-      const stranger = await drive(ph('971509999999'), 'MUST NEVER BE DELIVERED');
+      const stranger = await drive(ph('971509999988'), 'MUST NEVER BE DELIVERED');
       expect(stranger).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
       expect(stranger.some((e) => e.kind === 'sent')).toBe(false);
     });
@@ -3297,8 +3297,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const b = parseBusinessId(DEMO_BIZ); if (!b.ok) throw new Error('fixture');
     const marker = `deployment mode, ${RUN_NS}: nothing carries this`;
     const conv = await withTenantTx(prod.db, b.value, async (tx) => {
+      // Ordered to the end: the seeded conversations share one created_at, and
+      // a pick that changed from run to run left this refusal on whichever.
       const c = (await sql<{ id: string }>`select id::text as id from conversations where business_id = ${DEMO_BIZ}
-        order by created_at limit 1`.execute(tx)).rows[0]!.id;
+        order by created_at, id limit 1`.execute(tx)).rows[0]!.id;
       await enqueueOutboundRow(tx, b.value, c, marker, 'owner');
       return c;
     });
@@ -3402,7 +3404,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
 
   it('not_activated: the row is canceled, audited by its REAL reason, and shown', async () => {
     await setChannel(`activated_at = null, activated_by = null, pilot_mode = true`);
-    const { effects, refusals, audit, row } = await driveOne(ph('971500007701'), 'M22 A');
+    const { effects, refusals, audit, row } = await driveOne(ph('971500007715'), 'M22 A');
 
     expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_activated' }));
     expect(effects.some((e) => e.kind === 'sent')).toBe(false);          // nothing left the building
@@ -3416,7 +3418,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
 
   it('not_allowlisted: refused for the allowlist, and recorded as such', async () => {
     await setChannel(`activated_at = now(), activated_by = 'test', pilot_mode = true`);
-    const { effects, refusals, audit } = await driveOne(ph('971500007702'), 'M22 B');
+    const { effects, refusals, audit } = await driveOne(ph('971500007716'), 'M22 B');
 
     expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
     expect(audit?.detail?.reason).toBe('not_allowlisted');
@@ -3431,7 +3433,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     const { loadRefusals } = await import('../../src/api/web/refusals.js');
 
     const cid = await withTenantTx(prod.db, bid, async (tx) => {
-      const c = await ensureConversation(tx, bid, ph('971500007703'), 'M22 C');
+      const c = await ensureConversation(tx, bid, ph('971500007717'), 'M22 C');
       await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
                 values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
       await enqueueOutboundRow(tx, bid, c.conversationId, 'she must not say this', 'employee');
@@ -3461,7 +3463,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     const { loadRefusals } = await import('../../src/api/web/refusals.js');
 
     const cid = await withTenantTx(prod.db, bid, async (tx) => {
-      const c = await ensureConversation(tx, bid, ph('971500007704'), 'M22 D');
+      const c = await ensureConversation(tx, bid, ph('971500007718'), 'M22 D');
       await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
       await enqueueOutboundRow(tx, bid, c.conversationId, 'a reply three days late', 'employee');
       // The buyer last spoke three days ago, so the 24-hour window is long shut.
@@ -3469,7 +3471,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
       // (G10b) — not the messages table, and no longer the channel row, which
       // any buyer's message moved. Set the fact the gate actually reads.
       await sql`update client_channels set last_inbound_at = now() - interval '3 days'
-                 where channel='whatsapp' and channel_user_id=${ph('971500007704')}`.execute(tx as never);
+                 where channel='whatsapp' and channel_user_id=${ph('971500007718')}`.execute(tx as never);
       return c.conversationId;
     });
     const effects = await withTenantTx(prod.db, bid, (tx) =>
@@ -3505,7 +3507,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     // tenant, left `active` when an earlier production closed mid-job — sent
     // under their own conditions. CI's second pass caught one (2026-09-29 and
     // 30); it was never a refused message. The claim is about these four.
-    const ours = ['971500007701', '971500007702', '971500007703', '971500007704'].map((p) => ph(p));
+    const ours = ['971500007715', '971500007716', '971500007717', '971500007718'].map((p) => ph(p));
     const toOurs = sim.requests.filter((r) => ours.some((p) => r.body.includes(p)));
     expect(toOurs, 'a refused message reached the provider').toEqual([]);
   });
