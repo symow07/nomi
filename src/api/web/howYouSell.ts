@@ -123,26 +123,38 @@ export const questionOf = (raw: string): Question | null => (isQuestion(raw) ? r
 const title = (l: Locale, q: Question, name: string) =>
   q === 'price' ? t(l, 'selling.quantityFirst.q', { name }) : t(l, `hs.q.${q}` as MessageKey, { name });
 
+/**
+ * Phase 9 — the hub: the back link at the top, as on the question pages; how
+ * many of the questions are answered; the way in as the page's one filled
+ * button, saying which question it opens; and a state chip only where there
+ * is a state to show — a row nobody has answered yet carries none, so nine
+ * identical grey "Not answered" chips no longer stand for nothing.
+ */
 export function renderHub(v: HubView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   const done = answeredIn(v.progress);
   const first = v.order.find((q) => !done.has(q)) ?? null;
   const stateOf = (q: Question) => v.progress[q]?.state ?? 'open';
+  const answered = v.order.filter((q) => stateOf(q) === 'answered').length;
   const rows = v.order.map((q) => {
     const s = stateOf(q);
     const chip = s === 'answered' ? 'auto' : s === 'draft' ? 'draft' : '';
     return `<li class="row lines">
-      <div><b>${esc(title(locale, q, name))}</b> <span class="chip${chip ? ` ${chip}` : ''}">${esc(t(locale, `hs.state.${s}` as MessageKey))}</span></div>
+      <div class="hs-q"><b>${esc(title(locale, q, name))}</b>${s === 'open' ? ''
+        : ` <span class="chip${chip ? ` ${chip}` : ''}">${esc(t(locale, `hs.state.${s}` as MessageKey))}</span>`}</div>
       ${deeper(`${HS_BASE}/${q}`, t(locale, s === 'answered' || s === 'skipped' ? 'hs.change' : 'hs.answer'))}
     </li>`;
   }).join('');
-  return `<h1 class="page">${esc(t(locale, 'hs.title'))}</h1>
+  const position = (q: Question) => ({ i: v.order.indexOf(q) + 1, n: v.order.length });
+  return `<div class="dhead">${back('/app/business', t(locale, 'hs.backToBusiness'))}</div>
+    <h1 class="page">${esc(t(locale, 'hs.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'hs.lede', { name }))}</p>
-    ${first ? `<div class="block">${deeper(`${HS_BASE}/${first}`, t(locale, done.size === 0 ? 'hs.start' : 'hs.continue'))}</div>`
+    <p class="hs-count">${esc(t(locale, 'hs.count', { done: show.count(locale, answered), total: show.count(locale, v.order.length) }))}</p>
+    ${first ? `<form method="get" action="${HS_BASE}/${first}" class="hs-start"><button class="btn send" type="submit">${esc(t(locale,
+        done.size === 0 ? 'hs.start' : 'hs.continue', { i: show.count(locale, position(first).i), n: show.count(locale, position(first).n) }))}</button></form>`
       : `<p class="muted">${esc(t(locale, 'hs.allDone', { name }))}</p>`}
-    <section class="block"><ul class="rows">${rows}</ul></section>
-    ${back('/app/business', t(locale, 'hs.backToBusiness'))}`;
+    <section class="block"><ul class="rows hs-rows">${rows}</ul></section>`;
 }
 
 const errLine = (l: Locale, e: AnswerError | undefined): string => {
@@ -169,8 +181,9 @@ export function renderQuestion(
   const val = (field: string, fallback: string): string => esc(typed && typeof typed[field] === 'string' ? String(typed[field]) : fallback);
   const box = (fieldName: string, on: boolean, label: string) =>
     `<label class="pcheck"><input type="checkbox" name="${esc(fieldName)}"${on ? ' checked' : ''} /> <span>${esc(label)}</span></label>`;
-  const radio = (fieldName: string, value: string, on: boolean, label: string, extra = '') =>
-    `<label class="pcheck"><input type="radio" name="${esc(fieldName)}" value="${esc(value)}"${on ? ' checked' : ''} /> <span>${esc(label)}${extra}</span></label>`;
+  const radio = (fieldName: string, value: string, on: boolean, label: string, extra = '', required = false) =>
+    `<label class="pcheck"><input type="radio" name="${esc(fieldName)}" value="${esc(value)}"${on ? ' checked' : ''}${required ? ' required' : ''} /> <span>${esc(label)}${extra}</span></label>`;
+  const answeredHere = v.progress[q]?.state === 'answered';
   const toldBox = (fallback: string) => `<label class="fld"><span class="muted">${esc(t(locale, q === 'returns' || q === 'delivery' ? 'hs.told.optional' : 'hs.told'))}</span>
       <textarea name="told" rows="4" dir="auto" maxlength="${MAX_TOLD}">${val('told', fallback)}</textarea>${errLine(locale, errors['told'])}
       <span class="caption muted">${esc(t(locale, 'hs.told.hint', { name }))}</span></label>`;
@@ -179,13 +192,18 @@ export function renderQuestion(
   let fields = '';
   switch (q) {
     case 'price': {
-      const now = kept?.q === 'price' ? kept.quantityFirst : v.state.quantityFirst;
+      // Phase 9 (V1-412) — a question she has not answered starts with nothing
+      // chosen: what is in force now is said in words, and Next asks for her
+      // own choice. Her draft, or an answer she gave, is what the form keeps.
+      const chosen: boolean | null = kept?.q === 'price' ? kept.quantityFirst
+        : answeredHere ? v.state.quantityFirst : null;
       const usual = SELLING_DEFAULTS[v.facts.profile].quantityFirst;
-      const mark = (yes: boolean) => usual === yes ? ` <span class="muted small">${esc(t(locale, `selling.usual.${v.facts.profile}` as MessageKey))}</span>` : '';
-      fields = `<fieldset class="choices">${radio('quantityFirst', 'no', !now, t(locale, 'selling.quantityFirst.no', { name }), mark(false))}${
-        radio('quantityFirst', 'yes', now, t(locale, 'selling.quantityFirst.yes', { name }), mark(true))}</fieldset>
+      const mark = (yes: boolean) => usual === yes ? `<span class="muted small hs-usual">${esc(t(locale, `selling.usual.${v.facts.profile}` as MessageKey))}</span>` : '';
+      fields = `${chosen === null ? `<p class="small">${esc(t(locale, v.state.quantityFirst ? 'hs.price.now.yes' : 'hs.price.now.no', { name }))}</p>` : ''}
+        <fieldset class="choices hs-choices">${radio('quantityFirst', 'no', chosen === false, t(locale, 'selling.quantityFirst.no', { name }), mark(false), true)}${
+        radio('quantityFirst', 'yes', chosen === true, t(locale, 'selling.quantityFirst.yes', { name }), mark(true), true)}</fieldset>
         ${errLine(locale, errors['quantityFirst'])}
-        <p class="muted small">${esc(t(locale, 'selling.quantityFirst.hint', { name }))}</p>`;
+        <p class="muted small hs-hint">${esc(t(locale, 'selling.quantityFirst.hint', { name }))}</p>`;
       break;
     }
     case 'minimum': {
@@ -193,7 +211,8 @@ export function renderQuestion(
         fields = `<p class="fwarn">${esc(t(locale, 'hs.minimum.noProducts'))}</p>${deeper('/app/products/add', t(locale, 'product.teach'))}`;
         break;
       }
-      const mode = kept?.q === 'minimum' ? kept.mode : (v.facts.profile === 'bulk' ? 'depends' : 'none');
+      // Phase 9 — nothing chosen for her on a question she has not answered.
+      const mode = kept?.q === 'minimum' ? kept.mode : answeredHere ? (v.facts.profile === 'bulk' ? 'depends' : 'none') : null;
       const qty = kept?.q === 'minimum' && kept.qty !== null ? String(kept.qty) : '';
       fields = `<fieldset class="choices">${radio('mode', 'none', mode === 'none', t(locale, 'hs.minimum.none'))}${
         radio('mode', 'same', mode === 'same', t(locale, 'hs.minimum.same'))}${
@@ -281,13 +300,19 @@ export function renderQuestion(
       break;
   }
   const canAnswer = !(q === 'minimum' && v.state.products.length === 0);
+  // Phase 9 — "one at a time" says which one; Next and Later sit side by side
+  // in one row (Later posts to its own address and needs no choice).
+  const at = v.order.indexOf(q);
+  const position = at < 0 ? '' : `<p class="muted hs-pos">${esc(t(locale, 'hs.position', { i: show.count(locale, at + 1), n: show.count(locale, v.order.length) }))}</p>`;
   return `<div class="dhead">${back(HS_BASE, t(locale, 'hs.back'))}</div>
+    ${position}
     <h1 class="page">${esc(title(locale, q, name))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, `hs.lede.${q}` as MessageKey, { name }))}</p>
     ${canAnswer ? `<form method="post" action="${HS_BASE}/${q}" class="pform">${fields}
-      <button class="btn send" type="submit">${esc(t(locale, 'hs.next'))}</button></form>` : fields}
-    <form method="post" action="${HS_BASE}/${q}/skip"><button class="btn" type="submit">${esc(t(locale, 'hs.skip'))}</button></form>`;
+      <div class="acts hs-acts"><button class="btn send" type="submit">${esc(t(locale, 'hs.next'))}</button>
+        <button class="btn" type="submit" formaction="${HS_BASE}/${q}/skip" formnovalidate>${esc(t(locale, 'hs.skip'))}</button></div></form>`
+      : `${fields}<form method="post" action="${HS_BASE}/${q}/skip"><button class="btn" type="submit">${esc(t(locale, 'hs.skip'))}</button></form>`}`;
 }
 
 /** One line, as she reads it before ticking it. */

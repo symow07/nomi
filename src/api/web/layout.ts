@@ -469,6 +469,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
             font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .chkbox input { min-height:0; }
+  /* Phase 9 (V1-416) — a chosen radio or tick in the ink of the page, not the browser's own blue. */
+  input[type="radio"], input[type="checkbox"] { accent-color:var(--color-ink); }
   /* One figure, stated large: the rate she set, the sample price, the state an
      order is in. It is a READING, not a KPI tile. */
   .stated-now { font-size:var(--font-size-display); margin:var(--space-12) 0; }
@@ -1079,6 +1081,18 @@ const STYLE_PAGES = `
   .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
   .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  /* ── howYouSell.ts — Phase 9: the hub and its questions. */
+  .hs-count { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
+  .hs-start { margin:0 0 var(--space-8); }
+  /* The hub's rows run the column's width, like the sections of My business it opens from. */
+  .hs-rows { max-width:100%; }
+  /* A chip is one word on one line: its outline never splits across two. */
+  .hs-q .chip { display:inline-block; white-space:nowrap; }
+  .hs-pos { margin:0 0 var(--space-4); }
+  /* The usual choice is said on its own line, so no dash leads a line and no character is left alone at the end of one. */
+  .hs-usual { display:block; }
+  .hs-choices .pcheck span, .hs-hint { text-wrap:pretty; }
+  .hs-acts { margin:var(--space-16) 0 0; }
   /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
   .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
   .wa-steps li { margin-bottom:var(--space-8); }
