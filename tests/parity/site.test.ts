@@ -94,7 +94,8 @@ describe('Phase 5 · the page', () => {
     expect(SITE_CSS).not.toContain('%');
     for (const l of LOCALES) {
       const html = page(l);
-      expect(html.replace(/<style>[\s\S]*?<\/style>/, ''), l).not.toContain('%');
+      // A mail link's subject and text are percent-encoded by the address itself — not a figure anyone reads.
+      expect(html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/href="mailto:[^"]*"/g, ''), l).not.toContain('%');
       expect(html.toLowerCase(), l).not.toContain('token');
       expect(html.toLowerCase(), l).not.toContain('stack');
       expect(html, l).not.toMatch(/<script/);
@@ -124,6 +125,70 @@ describe('Phase 5 · the page', () => {
   it('escapes the address it is given', () => {
     const html = renderSite({ locale: 'en', path: '/', contact: 'a"b@example.test', signIn: '/login', noindex: false });
     expect(html).not.toContain('a"b@');
+  });
+});
+
+/**
+ * Phase 9 — the site against the merged defect list (docs/UI-AUDIT.md, "site").
+ */
+describe('Phase 9 · the site says one thing, the product\'s way', () => {
+  const text = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ');
+
+  it('one rule for sending alone, and what earns it (V1-016, V1-025, public-missed-17)', () => {
+    for (const l of LOCALES) expect(Object.keys(messages[l]), l).not.toContain('site.first.drafts');
+    expect(t('en', 'site.yours.alone.body')).toMatch(/named your assistant and done the checks in Practice/);
+    expect(t('en', 'site.yours.alone.body')).toMatch(/went out unchanged, you may let greetings and questions go alone/);
+    expect(t('zh', 'site.yours.alone.body')).not.toContain('赢得');
+    // the invitation is said once (V1-027)
+    expect(t('en', 'site.invite.body')).not.toMatch(/by invitation/);
+    // "we read every new workspace" (V1-017)
+    expect(t('en', 'site.first.assisted')).not.toMatch(/\bread\b/);
+  });
+
+  it('the example is the product\'s draft card in its words, with no buttons that do nothing (V1-018, public-new-01, public-missed-04)', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      const card = html.slice(html.indexOf('<figure'), html.indexOf('</figure>'));
+      expect(card, l).toContain(`<span class="site-as" aria-hidden="true">✦</span> ${esc(t(l, 'card.drafted'))}`);
+      expect(card, l).toContain(`<span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span>`);
+      expect(card, l).not.toContain('site-fake');
+      expect(card, l).not.toMatch(/<(button|a)\b/);
+      expect(card, l).toContain(`<p class="site-acts">${esc(t(l, 'site.example.acts'))}</p>`);
+      // one filled button: the hero's; the same act lower down is outlined
+      expect(html.match(/class="site-go"/g)?.length, l).toBe(1);
+      expect(html.match(/class="site-go site-go-2"/g)?.length, l).toBe(1);
+    }
+    expect(SITE_CSS).toContain('.site-draft-tag::before { content:"○"; content:"○" / "";');
+  });
+
+  it('the header keeps Sign in beside the name; the pill has its own row on a phone (V1-019)', () => {
+    const html = page('es');
+    expect(html).toMatch(/<header class="site-top">\s*<a class="site-brand"[\s\S]*?<\/a>\s*<a class="site-signin"[^>]*>[^<]+<\/a>\s*<div class="site-lang"><div class="langsw"/);
+    // wider than what is left beside the name on a phone, so it takes the next row and fills it
+    expect(SITE_CSS).toContain('.site-lang { flex:1 0 20rem; }');
+    expect(SITE_CSS.indexOf('.site-lang { flex:0 0 auto; order:1; margin-inline-start:auto; }'))
+      .toBeGreaterThan(SITE_CSS.indexOf('@media (min-width: 48rem)'));
+    expect(SITE_CSS.indexOf('@media (min-width: 48rem)')).toBeGreaterThan(0);
+  });
+
+  it('the mail asks with a subject and the questions; e-mail never breaks at its hyphen; one numeral system (public-missed-02, V1-023, V1-028)', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).toContain(`href="mailto:hello@example.test?subject=${esc(encodeURIComponent(t(l, 'site.invite.subject')))}&amp;body=${esc(encodeURIComponent(t(l, 'site.invite.mailBody')))}"`);
+    }
+    expect(text(page('en'))).not.toMatch(/\be-mail/i);
+    expect(text(page('en'))).toContain('e\u2011mail');
+    expect(SITE_CSS).not.toContain('arabic-indic');
+  });
+
+  it('the foot is the policies, its deletion link says it is for customers; no space after a full-width colon (V1-029, public-missed-06, public-missed-08)', () => {
+    for (const l of LOCALES) {
+      const foot = page(l).slice(page(l).indexOf('<footer'));
+      expect(foot, l).toContain(`<a href="/data-deletion">${esc(t(l, 'site.foot.deletion'))}</a>`);
+      expect(foot, l).not.toContain('https://app.example.test/login');
+    }
+    expect(page('zh')).toContain(`${esc(t('zh', 'site.invite.write'))}<a href="mailto:`);
+    expect(page('en')).toContain(`${esc(t('en', 'site.invite.write'))} <a href="mailto:`);
   });
 });
 

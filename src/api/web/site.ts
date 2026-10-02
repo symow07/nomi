@@ -82,12 +82,20 @@ export type SiteInput = {
 
 export function renderSite(v: SiteInput): string {
   const l = v.locale;
-  const k = (key: Parameters<typeof t>[1]) => esc(t(l, key));
-  const mail = v.contact ? `mailto:${esc(v.contact)}` : null;
+  // Phase 9 (V1-023) — "e-mail" never breaks at its hyphen: a no-break hyphen, drawn, not stored.
+  const k = (key: Parameters<typeof t>[1]) => esc(t(l, key)).replace(/(^|[^\p{L}])([eE])-mail/gu, '$1$2\u2011mail');
+  // Phase 9 (public-missed-02) — the mail opens already saying what to write.
+  const mail = v.contact
+    ? `mailto:${esc(v.contact)}?subject=${esc(encodeURIComponent(t(l, 'site.invite.subject')))}&amp;body=${esc(encodeURIComponent(t(l, 'site.invite.mailBody')))}`
+    : null;
   const signIn = esc(v.signIn);
   const signUp = v.signUp ? esc(v.signUp) : null;
-  const invite = signUp ? `<a class="site-go" href="${signUp}">${k('site.cta.signup')}</a>`
-    : mail ? `<a class="site-go" href="${mail}">${k('site.cta.invite')}</a>` : '';
+  // public-missed-04 — one filled button on the page: the hero's. The same act lower down is outlined.
+  const go = (second: boolean) => (signUp ? `<a class="site-go${second ? ' site-go-2' : ''}" href="${signUp}">${k('site.cta.signup')}</a>`
+    : mail ? `<a class="site-go${second ? ' site-go-2' : ''}" href="${mail}">${k('site.cta.invite')}</a>` : '');
+  const invite = go(false);
+  // public-missed-08 — a label that ends in a full-width colon takes no space after it.
+  const label = (key: Parameters<typeof t>[1]) => `${k(key)}${/\uFF1A$/.test(t(l, key)) ? '' : ' '}`;
 
   const step = (n: 1 | 2 | 3) =>
     `<li><h3>${k(`site.how.${n}.title`)}</h3><p>${k(`site.how.${n}.body`)}</p></li>`;
@@ -111,7 +119,8 @@ export function renderSite(v: SiteInput): string {
     body: `<div class="site-root" data-surface="site">
   <header class="site-top">
     <a class="site-brand" href="${v.path}">${markSmall(28, null)}<span>Nomi</span></a>
-    <div class="site-tools">${switcher(l, v.path)}<a class="site-signin" href="${signIn}">${k('site.signIn')}</a></div>
+    <a class="site-signin" href="${signIn}">${k('site.signIn')}</a>
+    <div class="site-lang">${switcher(l, v.path)}</div>
   </header>
 
   <section class="site-hero">
@@ -128,9 +137,10 @@ export function renderSite(v: SiteInput): string {
         <p class="site-bubble" dir="auto">${k('site.example.buyer')}</p>
       </div>
       <div class="site-said site-draft">
-        <span class="site-who">${k('site.example.reply')}<span class="site-draft-tag">${k('site.example.waiting')}</span></span>
+        ${/* V1-018, public-new-01 — the product's own draft card, in its own words: who drafted it and
+           that it waits; what happens next is said, not drawn as buttons that do nothing. */ ''}<span class="site-who"><span><span class="site-as" aria-hidden="true">✦</span> ${esc(t(l, 'card.drafted'))}</span><span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span></span>
         <p class="site-bubble" dir="auto">${k('site.example.draft')}</p>
-        <div class="site-acts" aria-hidden="true"><span class="site-fake">${k('site.example.change')}</span><span class="site-fake site-fake-send">${k('site.example.send')}</span></div>
+        <p class="site-acts">${k('site.example.acts')}</p>
       </div>
     </figure>
   </section>
@@ -161,26 +171,25 @@ export function renderSite(v: SiteInput): string {
   <section class="site-sec" aria-labelledby="site-first">
     <h2 id="site-first">${k('site.first.title')}</h2>
     <p class="site-prose">${k(signUp ? 'site.first.open' : 'site.first.invite')}</p>
-    <p class="site-prose">${k('site.first.drafts')}</p>
     <p class="site-prose">${k('site.first.assisted')}</p>
   </section>
 
   ${signUp ? `<section class="site-sec site-invite" aria-labelledby="site-invite">
     <h2 id="site-invite">${k('site.signup.title')}</h2>
     <p class="site-prose">${k('site.signup.body')}</p>
-    <p class="site-cta">${invite}${mail ? `<span class="site-member">${k('site.signup.write')} <a href="${mail}">${esc(v.contact!)}</a></span>` : ''}</p>
+    <p class="site-cta">${go(true)}${mail ? `<span class="site-member">${label('site.signup.write')}<a href="${mail}">${esc(v.contact!)}</a></span>` : ''}</p>
   </section>` : mail ? `<section class="site-sec site-invite" aria-labelledby="site-invite">
     <h2 id="site-invite">${k('site.invite.title')}</h2>
     <p class="site-prose">${k('site.invite.body')}</p>
-    <p class="site-cta">${invite}<span class="site-member">${k('site.invite.write')} <a href="${mail}">${esc(v.contact!)}</a></span></p>
+    <p class="site-cta">${go(true)}<span class="site-member">${label('site.invite.write')}<a href="${mail}">${esc(v.contact!)}</a></span></p>
   </section>` : ''}
 
   <footer class="site-foot">
-    <nav class="site-links" aria-label="Nomi">
+    ${/* V1-029 — Sign in is in the header and the hero; the foot is the policies. public-missed-06 —
+       the deletion page is for a business's customers, and its link says so. */ ''}<nav class="site-links" aria-label="Nomi">
       <a href="/privacy">${k('legal.privacyLink')}</a>
       <a href="/terms">${k('legal.termsLink')}</a>
-      <a href="/data-deletion">${k('legal.deletion.title')}</a>
-      <a href="${signIn}">${k('site.signIn')}</a>
+      <a href="/data-deletion">${k('site.foot.deletion')}</a>
     </nav>
     ${switcher(l, v.path)}
   </footer>
@@ -202,12 +211,15 @@ export const SITE_CSS = `
   .site-root h3 { font-size:var(--font-size-title); line-height:1.3; font-weight:600; color:var(--color-ink);
     margin:0 0 var(--space-8); }
   .site-root p { max-width:var(--measure-prose); }
+  .site-root h3 { text-wrap:balance; }
 
-  .site-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-16); flex-wrap:wrap; }
+  /* V1-019 — on a phone the name and Sign in share the first row and the language
+     switch has the next one to itself; on a wide screen all three are one row. */
+  .site-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
   .site-brand { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px;
     font-weight:700; font-size:var(--font-size-title); text-decoration:none; color:var(--color-ink); }
   .site-brand .mark { flex:none; }
-  .site-tools { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
+  .site-lang { flex:1 0 20rem; }
   .site-signin { display:inline-flex; align-items:center; min-height:44px; font-weight:600;
     font-size:var(--font-size-small); color:var(--color-ink); }
 
@@ -222,6 +234,7 @@ export const SITE_CSS = `
     border-radius:var(--radius-card); background:var(--color-ink); color:var(--color-surface);
     font-weight:600; text-decoration:none; }
   .site-go:hover { box-shadow:var(--shadow-lift2); }
+  .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink-secondary); }
   .site-member { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .site-member a { display:inline-block; padding-block:var(--space-12); font-weight:600; }
 
@@ -232,25 +245,29 @@ export const SITE_CSS = `
   .site-said.site-draft { align-items:flex-end; }
   .site-who { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap;
     font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .site-draft .site-who { justify-content:flex-end; }
+  .site-as { color:var(--color-assistant); }
   .site-bubble { margin:0; padding:var(--space-12) var(--space-16); border-radius:var(--radius-card);
     background:var(--color-paper); color:var(--color-ink);
     font-size:var(--font-size-small); max-width:var(--measure-form); }
   .site-draft .site-bubble { background:var(--color-paper); border:1px solid var(--color-border); }
   .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-waiting-wash);
     color:var(--color-waiting); border:1px solid var(--color-waiting-line); font-weight:600; }
-  .site-acts { display:flex; gap:var(--space-8); margin-top:var(--space-4); }
-  .site-fake { display:inline-flex; align-items:center; padding:var(--space-8) var(--space-16); border-radius:var(--radius-card);
-    border:1px solid var(--color-border); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); }
-  .site-fake-send { background:var(--color-ink); border-color:var(--color-ink); color:var(--color-surface); }
+  /* The product's waiting mark: a shape before the word, so the colour is not alone. */
+  .site-draft-tag::before { content:"○"; content:"○" / ""; margin-inline-end:var(--space-4); }
+  .site-acts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary);
+    text-align:end; text-wrap:balance; }
 
   .site-sec { border-top:1px solid var(--color-border); padding-top:var(--space-48); }
   .site-steps { list-style:none; margin:var(--space-24) 0 0; padding:0; display:grid; gap:var(--space-32);
     grid-template-columns:minmax(0, 1fr); counter-reset:site-step; }
   .site-steps li { counter-increment:site-step; margin:0; }
+  /* V1-022 — the number sits in a disc you can see, its edge on the heading's edge.
+     V1-028 — the same digits as every other page, Arabic included. */
   .site-steps li::before { content:counter(site-step); display:inline-flex; align-items:center; justify-content:center;
     inline-size:40px; block-size:40px; border-radius:var(--radius-chip); margin-bottom:var(--space-12);
-    background:var(--color-paper); color:var(--color-ink); font-weight:700; font-size:var(--font-size-title); }
-  html[lang="ar"] .site-steps li::before { content:counter(site-step, arabic-indic); }
+    background:var(--color-surface); border:1px solid var(--color-border);
+    color:var(--color-ink); font-weight:700; font-size:var(--font-size-title); }
 
   .site-cards { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-16); margin-top:var(--space-24); }
   .site-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card);
@@ -266,16 +283,21 @@ export const SITE_CSS = `
   .site-channels strong { color:var(--color-ink); font-size:var(--font-size-title); }
   .site-channels span { font-size:var(--font-size-small); }
 
-  .site-invite { border-top:0; padding:var(--space-32) var(--space-24); background:var(--color-paper);
-    border-radius:var(--radius-card); }
+  /* V1-020 — the invitation's indent is a box you can see. */
+  .site-invite { border-top:0; padding:var(--space-32) var(--space-24); background:var(--color-surface);
+    border:1px solid var(--color-border); border-radius:var(--radius-card); }
 
   .site-foot { display:flex; align-items:center; justify-content:space-between; gap:var(--space-16); flex-wrap:wrap;
     padding-top:var(--space-24); border-top:1px solid var(--color-border); }
-  .site-links { display:flex; gap:var(--space-8) var(--space-24); flex-wrap:wrap; font-size:var(--font-size-small); }
+  /* V1-029 — on a phone one link to a line, so none is left alone on the last. */
+  .site-links { display:flex; flex-direction:column; gap:0 var(--space-24); font-size:var(--font-size-small); }
   .site-links a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink-secondary); }
 
   @media (min-width: 48rem) {
     main.site { padding-inline:var(--space-32); }
+    .site-lang { flex:0 0 auto; order:1; margin-inline-start:auto; }
+    .site-links { flex-direction:row; flex-wrap:wrap; }
+    .site-signin { order:2; }
     .site-steps { grid-template-columns:repeat(3, minmax(0, 1fr)); }
     .site-cards { grid-template-columns:repeat(3, minmax(0, 1fr)); }
     .site-channels { grid-template-columns:repeat(2, minmax(0, 1fr)); }

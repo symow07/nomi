@@ -71,13 +71,15 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
   en: {
     thirtyDays: /within 30 days of the business recording the request/,
     businessRecords: /The business records your request in Nomi/,
-    operatorByHand: /Nomi's operator[^.]*carries out the deletion by hand/,
+    // Phase 9 (V1-074) — the typographic apostrophe; the same sentence.
+    operatorByHand: /Nomi’s operator[^.]*carries out the deletion by hand/,
     doneSeenByBusiness: /the business sees it marked as done/,
     erasedIdentity: /Who you are on every channel/,
     erasedMessages: /Every message between you and the business/,
     // The positioning rewrite: "quotes" became "price offers" — still the rows erase-buyer erases.
     erasedPrepared: /Replies prepared for you, and any price offers or sample requests/,
-    erasedNotes: /Notes and signals about your conversations/,
+    // Phase 9 (V1-070) — "signals" was the product's word; the same records, in the reader's.
+    erasedNotes: /Notes and markers about your conversations/,
     erasedConversations: /except what is needed to keep an order/,
     keptOrders: /Orders you placed[^.]*without your contact details or your messages/,
     keptDoNotContact: /never written to again/,
@@ -107,7 +109,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedIdentity: /هويتك على كل قناة/,
     erasedMessages: /كل رسالة متبادلة بينك وبين الشركة/,
     erasedPrepared: /الردود المُعدّة لك، وأي عروض أسعار أو طلبات عيّنات/,
-    erasedNotes: /الملاحظات والإشارات/,
+    erasedNotes: /الملاحظات والعلامات/,
     erasedConversations: /إلا ما يلزم للاحتفاظ بطلب شراء/,
     keptOrders: /طلبات الشراء المقدَّمة منك[^.]*دون بيانات التواصل معك ودون رسائلك/,
     keptDoNotContact: /عدم المراسلة/,
@@ -122,7 +124,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedIdentity: /Quién eres en cada canal/,
     erasedMessages: /Todos los mensajes entre tú y el negocio/,
     erasedPrepared: /Las respuestas preparadas para ti, y cualquier oferta de precio o solicitud de muestra/,
-    erasedNotes: /notas y señales/,
+    erasedNotes: /notas y marcas/,
     erasedConversations: /salvo lo necesario para conservar un pedido/,
     keptOrders: /Los pedidos que hiciste[^.]*sin tus datos de contacto ni tus mensajes/,
     keptDoNotContact: /nunca se le vuelva a escribir/,
@@ -137,7 +139,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedIdentity: /Qui vous êtes sur chaque canal/,
     erasedMessages: /Tous les messages échangés entre vous et l’entreprise/,
     erasedPrepared: /Les réponses préparées pour vous, ainsi que les devis et les demandes d’échantillons/,
-    erasedNotes: /notes et les signaux/,
+    erasedNotes: /notes et repères/,
     erasedConversations: /sauf ce qui est nécessaire pour conserver une commande/,
     keptOrders: /Les commandes que vous avez passées[^.]*sans vos coordonnées ni vos messages/,
     keptDoNotContact: /plus rien n’y soit jamais envoyé/,
@@ -209,9 +211,10 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
       // because a short heading ("What is kept") also occurs inside the intro.
       const h2 = (key: string) => `<h2>${w(key)}</h2>`;
       const li = (key: string) => `<li>${w(key)}</li>`;
+      // Phase 9 (V1-071) — step 1 is one route; writing to us is its own sentence after the steps.
       const order = [
-        h2('legal.deletion.how.title'), `<li>${w('legal.deletion.step1')}<br>${w('legal.deletion.viaUs')}</li>`,
-        li('legal.deletion.step2'), li('legal.deletion.step3'), li('legal.deletion.step4'),
+        h2('legal.deletion.how.title'), li('legal.deletion.step1'),
+        li('legal.deletion.step2'), li('legal.deletion.step3'), li('legal.deletion.step4'), `<p>${w('legal.deletion.viaUs')}</p>`,
         h2('legal.deletion.erased.title'), li('legal.deletion.erased.identity'), li('legal.deletion.erased.messages'),
         li('legal.deletion.erased.prepared'), li('legal.deletion.erased.notes'), li('legal.deletion.erased.conversations'),
         h2('legal.deletion.kept.title'), li('legal.deletion.kept.orders'), li('legal.deletion.kept.doNotContact'),
@@ -246,10 +249,15 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
     const facts = { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
     expect(messages.en['legal.privacy.howLong.body']).not.toMatch(/as long as the business uses Nomi/i);
     expect(messages.en['legal.privacy.howLong.body']).toMatch(/Until the business asks for its records to be deleted, or you ask for yours/);
-    expect(messages.en['legal.privacy.choices.body']).toMatch(/as the deletion page describes/);
+    // Phase 9 (public-missed-15) — the deletion page by its own name, and a link wherever it is named.
+    expect(messages.en['legal.privacy.choices.body']).toMatch(/as the page “\{deletion\}” describes/);
     for (const l of LOCALES) {
-      expect(withoutIsolates(renderPrivacy(l, null, facts))).toContain('href="/data-deletion"');
-      expect(withoutIsolates(renderPrivacy(l, null, facts))).toContain(esc(t(l, 'legal.privacy.howLong.body')));
+      const html = withoutIsolates(renderPrivacy(l, null, facts));
+      const link = `<a href="/data-deletion">${esc(t(l, 'legal.deletion.title'))}</a>`;
+      for (const key of ['legal.privacy.howLong.body', 'legal.privacy.choices.body'] as const) {
+        expect(html, `${l} ${key}`).toContain(esc(t(l, key, { deletion: '\u0000' })).replace('\u0000', link));
+      }
+      expect(html.split(link).length - 1, l).toBe(3);
     }
   });
 });

@@ -127,7 +127,8 @@ describe('BOT · the page', () => {
       expect(page).toContain(t(l, 'signup.botcheck.noscript'));
       expect(page.indexOf('cf-turnstile')).toBeLessThan(page.indexOf('type="submit"'));
       const none = signupPage({ locale: l, path: '/signup', mode: 'open', passwordMin: 10 });
-      expect(none).not.toContain('<script');
+      // The door's one script (the busy button) is the product's own; no provider's script without a check.
+      expect(none.replace(/<script src="\/assets\/live\.[0-9a-f]{16}\.js" defer><\/script>/, '')).not.toContain('<script');
       expect(none).not.toContain(t(l, 'signup.botcheck.noscript'));
     });
   }

@@ -5,7 +5,7 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { FLASH_REFUSALS, FLASH_CONFIRMATIONS, flashTone } from '../../src/core/owner/flashTone.js';
 import { countryCodes, countryOptions, canonicalCountry, isCountryCode } from '../../src/core/owner/business.js';
-import { errorPage } from '../../src/api/web/layout.js';
+import { errorPage, esc } from '../../src/api/web/layout.js';
 import { mintFlash, readFlash, flashBanner, saidFlash, FLASH_TTL_MS } from '../../src/api/web/flash.js';
 
 /**
@@ -43,8 +43,21 @@ describe('CC-19 · a wrong address, and a page that broke', () => {
   });
 
   it('a 404 offers a way out, and it is a place that exists', () => {
+    // Phase 9 (V1-075, V1-076) — signed out: the site and the door, and no workspace named;
+    // signed in: back to Today.
     const html = errorPage({ locale: 'ar', path: '/app/nope', kind: 'notfound' });
-    expect(html).toContain('href="/app"');
+    expect(html).toContain('href="/site"');
+    expect(html).toContain('href="/login"');
+    expect(html).not.toContain('href="/app"');
+    expect(html).toContain(esc(t('ar', 'error.notfound.public')));
+    expect(html).not.toContain(esc(t('ar', 'error.notfound.body')));
+    expect(errorPage({ locale: 'ar', path: '/nope', kind: 'notfound', site: '/' })).toContain('href="/"');
+    const mine = errorPage({ locale: 'ar', path: '/nope', kind: 'notfound', signedIn: true });
+    expect(mine).toContain('href="/app"');
+    expect(mine).toContain(esc(t('ar', 'error.home')));
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
+      expect(t(l, 'error.notfound.public'), l).not.toMatch(/workspace|工作台|مساحة عمل|espacio de trabajo|espace de travail/i);
+    }
     expect(html, 'never "go back" — going back is what produced this').not.toMatch(/history\.back|javascript:/);
   });
 

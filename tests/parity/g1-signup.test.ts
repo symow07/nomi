@@ -37,7 +37,7 @@ describe('G1 · the terms', () => {
       const l = locale as Locale;
       expect(renderLegalTerms(l, null)).toContain(esc(t(l, 'legal.terms.use.title')));
       const form = signupPage({ locale: l, path: '/signup', mode: 'open', passwordMin: 10 });
-      expect(form).toMatch(/<input type="checkbox" name="terms" required \/>/);
+      expect(form).toMatch(/<input id="su-terms" type="checkbox" name="terms" required \/>/);
       expect(form).toContain('<a href="/terms" target="_blank" rel="noopener">');
       expect(form).not.toContain('{terms}');
     });

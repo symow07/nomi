@@ -8,7 +8,7 @@ import { LOCALES, type Locale, DEFAULT_LOCALE } from '../../core/owner/i18n/loca
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 
-import { publicDocument, esc } from './layout.js';
+import { publicDocument, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
 import { sellsByQuantity } from '../../core/owner/sellingStyle.js';
@@ -449,12 +449,19 @@ export function notFoundPage(locale: Locale = DEFAULT_LOCALE, kind: 'proof' | 'u
   // and the ways out every visitor may have (the policies; for an unsubscribe
   // link, how to stop the mail anyway). Still nothing about the link: the same
   // words whether it never existed, was revoked, or belonged to anyone.
-  const title = t(locale, 'public.notFound.title');
+  // Phase 9 (V1-085, V1-086, public-missed-24) — each kind says what the link was
+  // for, why it may not work and what to do instead, under the mark; the tab
+  // names Nomi. A price link still names no seller: saying whose it was would
+  // tell a stranger that the link had existed.
+  const title = t(locale, kind === 'proof' ? 'public.notFound.proof.title' : 'public.notFound.title');
+  const said = kind === 'proof'
+    ? `<p class="muted">${esc(t(locale, 'public.notFound.proof.body'))}</p>\n<p>${esc(t(locale, 'public.notFound.proof.next'))}</p>`
+    : `<p class="muted">${esc(t(locale, 'public.notFound.body'))}</p>\n<p>${esc(t(locale, 'public.notFound.unsubscribe'))}</p>`;
   return publicDocument({
-    locale, title, noindex: true, mainClass: 'proof', extraCss: PROOF_CSS,
-    body: `<p class="muted">Nomi</p>
+    locale, title: `${title} · Nomi`, noindex: true, mainClass: 'proof', extraCss: PROOF_CSS + PUBLIC_TOP_CSS,
+    body: `${publicTop(locale, '/site', null)}
 <h1>${esc(title)}</h1>
-<p class="muted">${esc(t(locale, 'public.notFound.body'))}</p>
-${kind === 'unsubscribe' ? `<p>${esc(t(locale, 'public.notFound.unsubscribe'))}</p>\n` : ''}<p><a href="/privacy">${esc(t(locale, 'legal.privacy.title'))}</a> · <a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a></p>`,
+${said}
+<p><a href="/privacy">${esc(t(locale, 'legal.privacy.title'))}</a> · <a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a></p>`,
   });
 }

@@ -191,7 +191,12 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     expect(en).toContain('Access code'); expect(en).toContain('class="langsw"');
 
     const zh = loginPage({ locale: 'zh', path: '/login', error: true });
-    expect(zh).toContain('密码不对，再试一次。');
+    // Phase 9 (V1-036, V1-044) — the access code is 访问码, never 密码, the password's word.
+    expect(zh).toContain('访问码不对，再试一次。');
+    const form = zh.slice(zh.indexOf('<form'), zh.indexOf('</form>'));
+    expect(form).toContain('<label for="login-code">访问码</label>');
+    expect(form).not.toContain('密码');
+    expect(loginPage({ locale: 'zh', path: '/login' })).toContain('我有访问码');
 
     const ar = loginPage({ locale: 'ar', path: '/login' });
     expect(ar).toContain('<html lang="ar" dir="rtl">');

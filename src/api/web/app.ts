@@ -191,7 +191,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import {
-  shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper,
+  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -684,6 +684,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const siteHosts = siteHostsInForce(deps.siteHosts ?? [], deps.publicBaseUrl);
   const onSiteHost = (req: FastifyRequest): boolean =>
     siteHosts.size > 0 && siteHosts.has(hostOf(req.headers.host));
+  /** Phase 9 — where a public page's "Nomi" leads: the site, at `/` on its own host, `/site` on the app's. */
+  const siteOf = (req: FastifyRequest): string => (onSiteHost(req) ? '/' : '/site');
   app.addHook('onRequest', async (req, reply) => {
     if (!onSiteHost(req) || !isAppPath(req.url)) return;
     const to = appAddress(deps.publicBaseUrl, req.url);
@@ -823,7 +825,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }));
     }
     return reply.code(404).type('text/html; charset=utf-8')
-      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'notfound' }));
+      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'notfound', signedIn: Boolean(signedIn), site: siteOf(req) }));
   });
 
   app.setErrorHandler(async (err: FastifyError, req, reply) => {
@@ -840,7 +842,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return reply.code(500).send({ message: 'Internal Server Error', error: 'Internal Server Error', statusCode: 500 });
     }
     return reply.code(500).type('text/html; charset=utf-8')
-      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'crash', reference }));
+      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'crash', reference, signedIn: Boolean(sessionOf(req)), site: siteOf(req) }));
   });
 
   /**
@@ -1138,11 +1140,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Anthropic's own API — which is what an installation with no override calls.
   const legalFacts: LegalFacts = deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
   app.get('/privacy', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts)));
+    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
   app.get('/data-deletion', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null)));
+    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, siteOf(req))));
   app.get('/terms', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null)));
+    reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
 
   // ── The stylesheets (V1 close-out) and the one script (CC-26) ───────────
   // Named by their content, so this build's own address is kept by a browser
@@ -1233,12 +1235,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(next);
   };
 
-  app.get('/login', async (req, reply) =>
-    sessionOf(req)
-      ? reply.redirect('/app')
-      : reply.type('text/html; charset=utf-8').send(
-        loginPage({ locale: localeOf(req), path: req.url, signupOpen: (await signupModeNow()) !== 'closed', recoveryOn,
-          withCode: (req.query as { with?: string }).with === 'code' })));
+  app.get('/login', async (req, reply) => {
+    if (sessionOf(req)) return reply.redirect('/app');
+    const signupMode = await signupModeNow();
+    return reply.type('text/html; charset=utf-8').send(
+      loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
+        withCode: (req.query as { with?: string }).with === 'code' }));
+  });
 
   /**
    * A1 — a factory makes its own workspace.
@@ -1352,12 +1355,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * A locked login is told to wait WITHOUT its password being checked: the
      * lock must not become an oracle that still answers right-or-wrong.
      */
-    if (typeof body.email === 'string' && body.email.trim() !== '') {
+    // Phase 9 (V1-037) — the e-mail form sends both fields, and asks the page,
+    // not the browser, to say that one is empty; the code form sends neither.
+    if (typeof body.email === 'string' || typeof body.password === 'string') {
       const locale = localeOf(req);
-      const email = normalizeEmail(body.email);
+      const email = normalizeEmail(String(body.email ?? ''));
       const password = String(body.password ?? '');
-      const refuse = (status: number, problem: 'password' | 'locked' | 'slow') =>
-        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', recoveryOn }));
+      const refuse = (status: number, problem: LoginProblem) =>
+        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+      if (email === '') return refuse(400, 'email_missing');
+      if (password === '') return refuse(400, 'password_missing');
       if (!loginThrottle.allow(callerOf(req), Date.now())) return refuse(429, 'slow');
       const login = await lookupLogin(deps.db, email).catch(() => null);
       if (!login) { await spendAVerification(password); return refuse(401, 'password'); }
@@ -1409,7 +1416,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // the environment's business first, exactly as before, so nothing about
       // the pilot's staff depends on the new lookup.
       if (!loginThrottle.allow(callerOf(req), Date.now())) {
-        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', recoveryOn }));
+        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
       }
       const mine = code.trim() === '' ? null
         : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
@@ -1417,7 +1424,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : await personForCodeHash(deps.db, hashCode(deps.sessionSecret, code)).catch(() => null);
       if (!mine && !theirs) {
         return reply.code(401).type('text/html; charset=utf-8')
-          .send(loginPage({ locale: localeOf(req), path: '/login', error: true, signupOpen: signupMode !== 'closed', recoveryOn }));
+          .send(loginPage({ locale: localeOf(req), path: '/login?with=code', error: true, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
       }
       if (theirs) return signIn(reply, theirs.businessId, theirs.person);
       person = mine!;
@@ -1450,7 +1457,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.code(status).header('referrer-policy', 'no-referrer').header('cache-control', 'no-store')
       .type('text/html; charset=utf-8')
       .send(setPasswordPage({ locale: localeOf(req), path: '/login/set-password', passwordMin: PASSWORD_MIN,
-        passwordMax: PASSWORD_MAX, link, problem }));
+        passwordMax: PASSWORD_MAX, link, problem, recoveryOn, contact: deps.legalContact ?? null }));
 
   app.get('/login/set-password', quietDoor, async (req, reply) => {
     const raw = (req.query as { t?: unknown } | undefined)?.t;
@@ -1464,7 +1471,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as { t?: unknown; password?: unknown; repeat?: unknown };
     const signupMode = await signupModeNow();
     if (!loginThrottle.allow(callerOf(req), Date.now())) {
-      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', recoveryOn }));
+      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
     }
     const link = await setupLinkOf(b.t);
     if (!link) return setPwPage(req, reply, 404, null);
@@ -1480,7 +1487,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!email) return setPwPage(req, reply, 404, null);
     return html(reply, 200, loginPage({
       locale: localeOf(req), path: '/login', email, notice: t(localeOf(req), 'login.passwordSet'),
-      signupOpen: signupMode !== 'closed', recoveryOn,
+      signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
     }));
   });
 

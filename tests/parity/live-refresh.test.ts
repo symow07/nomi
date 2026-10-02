@@ -60,11 +60,22 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     expect(hrefs.size, 'one address for every page and every language').toBe(1);
   });
 
-  it('the door, the sign-up, the code, the error page and every public document run nothing', () => {
+  it('a door page that sends a form links the same one script, and nothing else; the error page and every public document run nothing', () => {
+    // Phase 9 (public-new-11) — on the door the script's only work is the button
+    // that sent the form: busy, and no second press. The pages work without it.
+    const shellScript = scriptsOf(page('en'))[0]![0];
     for (const html of [
       loginPage({ locale: 'en', path: '/login' }),
+      loginPage({ locale: 'en', path: '/login', withCode: true }),
       signupPage({ locale: 'ar', path: '/signup', mode: 'open', passwordMin: 10 }),
       verifyPage({ locale: 'zh', path: '/verify', maskedEmail: 'o***@example.com', purpose: 'device' }),
+    ]) {
+      const s = scriptsOf(html);
+      expect(s).toHaveLength(1);
+      expect(s[0]![0]).toBe(shellScript);
+      expect(html.indexOf('<script')).toBeLessThan(html.indexOf('</head>'));
+    }
+    for (const html of [
       errorPage({ locale: 'en', path: '/nope', kind: 'notfound' }),
       publicDocument({ locale: 'en', title: 'T', body: '<p>x</p>' }),
     ]) expect(html).not.toContain('<script');

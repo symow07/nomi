@@ -291,6 +291,7 @@ describe('M49 · buttons and empty states', () => {
     const CENTRED = new Map<string, string>([
       ['layout.ts  nav.side a.navlink', 'the phone tab bar: an icon over a word, in a cell'],
       ['layout.ts  .login .foot', 'the line under the centred sign-in card'],
+      ['layout.ts  .login .brand', 'Phase 9 (V1-040) — the mark and name over that card, centred like the pill above and the links below'],
       ['layout.ts  .login .other', 'A1 — the one link under that card: to sign-up from the door, and back'],
       // V1 step four: the rehearsal verdict's rule moved into the shell with the rest of pilot.ts.
       ['layout.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],
