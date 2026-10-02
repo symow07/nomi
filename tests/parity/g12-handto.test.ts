@@ -57,15 +57,25 @@ describe('G12 · the conversation says whose it is', () => {
     // An owner provisioned before logins was named after the business, and the
     // list offered "Westlake Canvas Co." as a person.
     const named = [{ ...owner, name: 'Westlake Canvas Co.' }, chen];
-    const held = detail({ people: named, heldBy: null, ownership: 'WAITING_HUMAN', lastHumanAction: null });
     for (const l of LOCALES) {
-      const asOwner = renderConversationDetail(held, l, NOW, null, { id: owner.id, isOwner: true });
+      // Held by Chen, the owner takes it back through "Hand to": the owner is "You".
+      const byChen = detail({ people: named, heldBy: chen.id, ownership: 'OWNER_CONTROLLED', lastHumanAction: null });
+      const asOwner = renderConversationDetail(byChen, l, NOW, null, { id: owner.id, isOwner: true });
       expect(asOwner, l).toContain(`<option value="${owner.id}">${esc(t(l, 'conv.by.you'))}</option>`);
       expect(asOwner, l).not.toContain('>Westlake Canvas Co.</option>');
-      const asChen = renderConversationDetail(held, l, NOW, null, { id: chen.id, isOwner: false });
+      // Held by the owner, Chen sees the owner as the row names them — and is not offered back to the holder.
+      const byOwner = detail({ people: named, heldBy: owner.id, ownership: 'OWNER_CONTROLLED', lastHumanAction: null });
+      const asChen = renderConversationDetail(byOwner, l, NOW, null, { id: chen.id, isOwner: false });
       expect(asChen, l).toContain(`<option value="${chen.id}">${esc(t(l, 'conv.by.you'))}</option>`);
-      expect(asChen, l).toContain('>Westlake Canvas Co.</option>');   // to Chen, the owner is who the row says
     }
+  });
+
+  it('phase 9 (V1-218, V1-251) · waiting for a person, "Hand to" never offers yourself: "Take over" is that', () => {
+    const waiting = detail({ people: [owner, chen], heldBy: null, ownership: 'WAITING_HUMAN', lastHumanAction: null });
+    const asOwner = renderConversationDetail(waiting, 'en', NOW, null, { id: owner.id, isOwner: true });
+    expect(asOwner).not.toContain(`<option value="${owner.id}">`);
+    expect(asOwner).toContain(`<option value="${chen.id}">`);
+    expect(asOwner).toContain('/takeover');
   });
 
   it('to the owner: his name, and what happened last', () => {
@@ -83,7 +93,7 @@ describe('G12 · the conversation says whose it is', () => {
   it('offers everyone but whoever already holds it — and nobody, when there is nobody else', () => {
     const html = renderConversationDetail(detail(), 'en', NOW, null, { id: owner.id, isOwner: true });
     expect(html).toContain('action="/app/inbox/conv-1/handto"');
-    expect(html).toContain(`value="${owner.id}"`);
+    expect(html).toContain(`value="${owner.id}"`);           // held by Chen: "Hand to [You]" is how the owner takes it back
     expect(html).not.toContain(`value="${chen.id}"`);        // he has it already
     const alone = renderConversationDetail(detail({ people: [owner], heldBy: owner.id }), 'en', NOW, null, { id: owner.id, isOwner: true });
     expect(alone).not.toContain('/handto');

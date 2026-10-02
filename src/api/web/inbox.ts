@@ -1464,12 +1464,18 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
    * conversation is theirs.
    */
   // …and only where there are colleagues: a business of one has nobody to hand it to.
-  const others = (d.people ?? []).length > 1 ? (d.people ?? []).filter((p) => p.id !== d.heldBy) : [];
+  // Phase 9 (V1-218, V1-251) — nor to yourself where taking it already has its
+  // own control ("Take over", or the draft card's "Hand to me"): a second one
+  // offering "Hand to [You]" did the same. Held by a colleague, it is the way.
+  const isViewer = (p: Person): boolean => (viewer.id ? p.id === viewer.id : p.isOwner);
+  const selfHasOwnControl = d.ownership !== 'OWNER_CONTROLLED';
+  const others = (d.people ?? []).length > 1
+    ? (d.people ?? []).filter((p) => p.id !== d.heldBy && !(selfHasOwnControl && isViewer(p))) : [];
   const handToForm = others.length === 0 ? '' : `
     <form method="post" action="/app/inbox/${cid}/handto" class="handto">
       <label class="muted" for="handto">${esc(t(locale, 'handto.label'))}</label>
       <select id="handto" name="personId" required>
-        ${others.map((p) => `<option value="${esc(p.id)}">${esc((viewer.id ? p.id === viewer.id : p.isOwner) ? t(locale, 'conv.by.you') : p.name)}</option>`).join('')}
+        ${others.map((p) => `<option value="${esc(p.id)}">${esc(isViewer(p) ? t(locale, 'conv.by.you') : p.name)}</option>`).join('')}
       </select>
       <button class="btn" type="submit">${esc(t(locale, 'handto.button'))}</button>
     </form>`;
