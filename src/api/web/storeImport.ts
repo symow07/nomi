@@ -216,7 +216,35 @@ export function renderColumns(locale: Locale, id: string, table: Table, currency
  * of its own ("Nothing was added") that lost it. A file cannot be put back in
  * its box by any page, so its sentence says to choose it again.
  */
-export type StoreFormRefusal = { readonly form: 'store' | 'file'; readonly reason: StoreRefusal; readonly stated?: string; readonly address?: string };
+export type StoreFormRefusal = {
+  readonly form: 'store' | 'file'; readonly reason: StoreRefusal; readonly stated?: string; readonly address?: string;
+  /** Phase 9 (new-07) — the currency tick as it was sent, kept with the address. */
+  readonly currencyConfirmed?: boolean;
+};
+
+const TAG: Record<Locale, string> = { en: 'en', zh: 'zh-CN', ar: 'ar', es: 'es', fr: 'fr' };
+/**
+ * Phase 9 (V1-327, V1-330) — the workspace's currency in words, the code
+ * beside it: "US Dollar (USD)", "美元（USD）". The box said "…in USD".
+ */
+export function currencyWords(locale: Locale, code: string): string {
+  let name: string | undefined;
+  try { name = new Intl.DisplayNames([TAG[locale]], { type: 'currency' }).of(code); } catch { name = undefined; }
+  if (!name || name === code) return code;
+  return locale === 'zh' ? `${name}（${code}）` : `${name} (${code})`;
+}
+
+/**
+ * Phase 9 (V1-323) — a file box in the page's own words. The browser draws
+ * its own ("Choose Files  No file chosen") in the browser's language, in
+ * English on a Chinese or an Arabic page; it stays the control (focusable, read
+ * by its label) but is not drawn, and two lines say whether one was chosen —
+ * by the box's own validity, with no script.
+ */
+export function filePick(locale: Locale, input: string, words: { readonly choose: MessageKey; readonly none: MessageKey; readonly some: MessageKey }): string {
+  return `<label class="filepick">${input}<span class="btn" aria-hidden="true">${esc(t(locale, words.choose))}</span>
+      <span class="filepick-none muted">${esc(t(locale, words.none))}</span><span class="filepick-some">${esc(t(locale, words.some))}</span></label>`;
+}
 
 export function renderStoreForms(locale: Locale, currency: string, refused: StoreFormRefusal | null = null): string {
   const on = (f: 'store' | 'file') => refused?.form === f;
@@ -228,7 +256,8 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
         <label class="pq"><span>${esc(t(locale, 'import.store.address'))}</span> <input type="text" name="address" inputmode="url" autocomplete="url" placeholder="myshop.com" dir="ltr" required${
           on('store') ? `${bad('store-err')} autofocus value="${esc(refused?.address ?? '')}"` : ''} /></label>
         ${on('store') ? renderStoreRefusal(locale, refused!.reason, refused!.stated, 'store-err') : ''}
-        <label class="pcheck"><input type="checkbox" name="currency" /> ${esc(t(locale, 'import.store.currency', { currency }))}</label>
+        <label class="pcheck"><input type="checkbox" name="currency"${on('store') && refused?.currencyConfirmed ? ' checked' : ''} /> ${esc(t(locale, 'import.store.currency', { currency: currencyWords(locale, currency) }))}</label>
+        <p class="caption muted">${esc(t(locale, 'import.store.currency.hint'))}</p>
         <button class="btn" type="submit">${esc(t(locale, 'import.store.read'))}</button>
       </form>
     </div>
@@ -236,8 +265,8 @@ export function renderStoreForms(locale: Locale, currency: string, refused: Stor
       <h2>${esc(t(locale, 'import.file.title'))}</h2>
       <p>${esc(t(locale, 'import.file.intro'))}</p>
       <form method="post" action="/app/products/add/file" enctype="multipart/form-data">
-        <input class="photo-in" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required${
-          on('file') ? `${bad('file-err')} autofocus` : ''} />
+        ${filePick(locale, `<input class="photo-in" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required${
+          on('file') ? `${bad('file-err')} autofocus` : ''} />`, { choose: 'import.file.choose', none: 'import.file.none', some: 'import.file.some' })}
         ${on('file') ? renderStoreRefusal(locale, refused!.reason, refused!.stated, 'file-err') : ''}
         <button class="btn" type="submit">${esc(t(locale, 'import.file.read'))}</button>
       </form>

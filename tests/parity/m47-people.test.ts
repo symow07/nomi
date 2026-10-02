@@ -182,14 +182,14 @@ describe('M47 · the page', () => {
     expect(isOnline({ lastSeenAt: new Date(NOW.getTime() - ONLINE_WITHIN_MS) }, NOW), 'five minutes ago is not now').toBe(false);
 
     const html = renderPeople(view, 'en', null, NOW);
-    expect(html).toContain('2 people work here. 1 online now.');
+    expect(html).toContain('2 people here, 1 online now.');
     expect(html.split('Online now').length - 1, 'one pill, for the one who is').toBe(1);
     expect(html).toContain('Last seen');
     expect(html).toContain('Signs in with e-mail');
     expect(html).toContain('Signs in with an access code');
     const never = renderPeople({ people: [{ ...staff, addedAt: NOW, signsInWithEmail: false, lastSeenAt: null }], justIssued: null }, 'en', null, NOW);
     expect(never).toContain('Not seen here yet');
-    expect(never).toContain('1 people work here. 0 online now.');
+    expect(never).toContain('1 person here, 0 online now.');   // phase 9 (V1-516): the count in its own form
   });
 
   it('lists everyone, marks the owner, and offers to remove only the others', () => {

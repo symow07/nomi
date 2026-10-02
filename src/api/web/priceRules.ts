@@ -8,7 +8,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 
-import { esc, back } from './layout.js';
+import { esc, back, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import { ownSku } from '../../core/owner/sku.js';
@@ -438,15 +438,19 @@ export function renderPriceRules(
   const err = (f: PriceRuleField): string =>
     // CC-20 — a refusal is announced as one, like every other field error.
     errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `prices.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+  // Phase 9 (new-14) — ONE filled Save on the page: the product opened to
+  // change, or else the answer for everything. Every other Save is outlined.
+  const opened = draft.productId ? v.products.find((p) => p.productId === draft.productId) ?? null : null;
 
   const form = (
-    productId: string | null, current: PriceRules | null, title: string, sub: string,
+    productId: string | null, current: PriceRules | null, title: string, sub: string, primary: boolean,
+    heading: 'h2' | 'h3' = 'h3', close = '',
   ): string => `
     <form method="post" action="/app/business/prices" class="pform">
       <input type="hidden" name="productId" value="${esc(productId ?? '')}" />
-      <h3 class="sub3">${esc(title)}</h3>
-      <p class="fdesc">${esc(sub)}</p>
-      <label class="pq"><span>${esc(t(locale, 'prices.q.floor', { name, currency: v.currency }))}</span>
+      ${title ? `<${heading} class="${heading === 'h2' ? 'pr-h2' : 'sub3'}">${esc(title)}</${heading}>` : ''}
+      ${sub ? `<p class="fdesc">${esc(sub)}</p>` : ''}
+      <label class="pq"><span>${esc(t(locale, productId ? 'prices.q.floor' : 'prices.q.floorAll', { name, currency: v.currency }))}</span>
         <input name="floor" inputmode="decimal" required
                value="${current ? esc(String(current.floor.amount)) : ''}" />${err('floor')}</label>
       <label class="pq"><span>${esc(t(locale, 'prices.q.maxDiscount', { name }))}</span>
@@ -455,7 +459,7 @@ export function renderPriceRules(
       <label class="pq"><span>${esc(t(locale, 'prices.q.askAbove', { name }))}</span>
         <input name="askAbovePct" inputmode="decimal" required
                value="${current ? esc(String(current.askAbovePct)) : ''}" />${err('askAbovePct')}</label>
-      <button class="btn send" type="submit">${esc(t(locale, 'prices.save'))}</button>
+      <div class="acts"><button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'prices.save'))}</button>${close}</div>
     </form>`;
 
   // Products she cannot sell yet come first — they are the reason to be here.
@@ -472,16 +476,20 @@ export function renderPriceRules(
   const covered = v.products.filter((p) => p.listPrice !== null && p.own === null && p.inheritsDefault && !beyondDefault(p));
 
   const isCovered = (p: ProductRules): boolean => covered.includes(p);
-  // Phase 9 — a discount comes only from one she wrote below (computeQuote
-  // reads nothing else), so her ask line and ceiling are limits on THOSE. A
-  // product no written discount reaches says that nothing comes off it.
+  // Phase 9 — a discount comes only from one she wrote (computeQuote reads
+  // nothing else), so her ask line and ceiling are limits on THOSE. A product
+  // no written discount reaches says that nothing comes off it.
   const discounted = (p: ProductRules): boolean =>
     v.volume.some((d) => d.productId === null || d.productId === p.productId);
   const productRow = (p: ProductRules): string => {
     const label = productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku;
     const open = draft.productId === p.productId;
-    return `<li class="row lines">
-      <div class="dhead muted"><bdi>${esc(label)}</bdi>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? ` <span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}
+    const anchor = `p-${p.productId}`;
+    // Phase 9 (missed-13) — opening a product lands on its own form, and the form can be closed again.
+    const close = open ? `<a class="deeper" href="/app/business/prices#${esc(anchor)}">${esc(t(locale, 'prices.close'))}</a>` : '';
+    // Phase 9 (V1-352) — the product's name is what a row is read by: in ink, at the page's size.
+    return `<li class="row lines" id="${esc(anchor)}">
+      <div class="pr-name"><b><bdi>${esc(label)}</bdi></b>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? ` <span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}
         ${p.listPrice !== null ? `<span class="muted">${esc(show.money(locale, p.listPrice))}</span>` : ''}</div>
       ${p.own
         ? `<p class="fdesc">${esc(t(locale, discounted(p) ? 'prices.stated' : 'prices.stated.noDiscount', {
@@ -490,39 +498,47 @@ export function renderPriceRules(
           ? `<p class="fdesc">${esc(t(locale, 'prices.inherited.line', { floor: show.money(locale, v.businessDefault.floor) }))}</p>`
           : `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>`}
       ${open || (p.own === null && !isCovered(p))
-        ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '')
-        : `<a class="blink" href="/app/business/prices?product=${encodeURIComponent(p.productId)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}</a>`}
+        ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '', open, 'h3', close)
+        // Phase 9 (V1-353) — a door, like every other page's, that lands on the product's own row.
+        : `<a class="deeper" href="/app/business/prices?product=${encodeURIComponent(p.productId)}#${esc(anchor)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}<span class="go" aria-hidden="true">›</span></a>`}
     </li>`;
   };
 
-  return `<h1 class="page">${esc(t(locale, 'prices.title'))}</h1>
+  // Phase 9 (V1-351) — with every product answered for on its own and no
+  // answer for everything, the empty form for everything is folded away, not
+  // the first thing on the page; it opens with one tap.
+  const allOwn = v.businessDefault === null && needing.length === 0 && covered.length === 0 && answered.length > 0;
+  const everything = form(null, v.businessDefault, '', t(locale, 'prices.default.sub', { name }), opened === null, 'h2');
+
+  // Phase 9 (V1-353) — the way back is at the top, as on every other page.
+  return `${back('/app/business', t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(t(locale, 'prices.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'prices.lede', { name }))}</p>
 
-    <section class="fblock">
-      ${form(null, v.businessDefault,
-        t(locale, 'prices.default.title'), t(locale, 'prices.default.sub', { name }))}
+    <section class="fblock pr-block" id="everything">
+      <h2>${esc(t(locale, 'prices.default.title'))}</h2>
+      ${allOwn ? `<details class="pr-fold"><summary>${esc(t(locale, 'prices.default.open'))}</summary>${everything}</details>` : everything}
     </section>
 
-    ${needing.length > 0 ? `<section class="fblock">
+    ${needing.length > 0 ? `<section class="fblock pr-block">
       <h2>${esc(t(locale, 'prices.needing.title', { name }))}</h2>
       <p class="fdesc">${esc(t(locale, 'prices.needing.sub', { n: needing.length, name }))}</p>
       <ul class="rows">${needing.map(productRow).join('')}</ul>
     </section>` : ''}
 
-    ${answered.length > 0 ? `<section class="fblock">
+    ${answered.length > 0 ? `<section class="fblock pr-block">
       <h2>${esc(t(locale, 'prices.answered.title'))}</h2>
       <ul class="rows">${answered.map(productRow).join('')}</ul>
     </section>` : ''}
 
-    ${covered.length > 0 ? `<section class="fblock">
+    ${covered.length > 0 ? `<section class="fblock pr-block">
       <h2>${esc(t(locale, 'prices.inherited.title'))}</h2>
       <ul class="rows">${covered.map(productRow).join('')}</ul>
     </section>` : ''}
 
     ${volumeSection(v, locale, volumeErrors)}
-
-    ${back('/app/business', t(locale, 'nav.factory'))}
+    ${deeper('/app/settings/data/price-rules', t(locale, 'prices.copy'), '', 'download')}
     `;
 }
 
@@ -542,7 +558,7 @@ function volumeSection(
     errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
 
   const rows = v.volume.map((d) => `<li class="row lines">
-      <div class="dhead muted"><bdi>${esc(t(locale, 'prices.volume.row', {
+      <div class="pr-name"><bdi>${esc(t(locale, 'prices.volume.row', {
         qty: show.quantity(locale, d.minQty), pct: d.discountPct,
         product: d.productLabel ?? t(locale, 'prices.volume.everyProduct'),
       }))}</bdi></div>
@@ -553,12 +569,13 @@ function volumeSection(
       </form>
     </li>`).join('');
 
-  return `<section class="fblock">
+  return `<section class="fblock pr-block">
     <h2>${esc(t(locale, 'prices.volume.title'))}</h2>
     <p class="fdesc">${esc(t(locale, 'prices.volume.sub', { name }))}</p>
     ${v.volume.length
       ? `<ul class="rows">${rows}</ul>`
-      : `<p class="fwarn">${esc(t(locale, 'prices.volume.none', { name }))}</p>`}
+      // Phase 9 (new-15) — no discount is a valid choice, not a thing waiting for her: no amber mark.
+      : `<p class="fempty">${esc(t(locale, 'prices.volume.none', { name }))}</p>`}
     <form method="post" action="/app/business/prices/volume" class="pform">
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.product'))}</span>
         <select name="productId">

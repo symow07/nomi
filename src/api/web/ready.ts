@@ -8,6 +8,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { esc, deeper } from './layout.js';
+import { STEP_LINK } from './onboarding.js';
 import * as show from './values.js';
 
 /**
@@ -47,26 +48,38 @@ export async function loadReady(db: Db, live: BusinessId): Promise<ReadyView> {
 
 export function renderReady(v: ReadyView, locale: Locale): string {
   const name = assistantName(locale);
-  const row = (ok: boolean, label: string, gap = false) => `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}"><span class="mk" aria-hidden="true">${
-    ok ? '✓' : gap ? '—' : '○'}</span><span class="lbl">${esc(label)}</span></li>`;
+  // Phase 9 (today-onboarding-new-11, missed-15) — an open item is the waiting
+  // ○ in its amber, as on Setup and Today; the marks share one column, so a
+  // ✓ and a ○ start their words at the same edge.
+  const mark = (ok: boolean, gap = false) => `<span class="mk${ok || gap ? '' : ' dot warn'}" aria-hidden="true">${ok ? '✓' : gap ? '—' : '○'}</span>`;
+  const row = (ok: boolean, label: string, gap = false) => `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}">${mark(ok, gap)}<span class="lbl">${esc(label)}</span></li>`;
   const checks = v.items.map((i) => row(v.seen.has(i) && !NOT_YET.has(i), t(locale, `practice.check.${i}` as MessageKey, { name }), NOT_YET.has(i))).join('');
   const done = readyComplete(v);
+  // Phase 9 (V1-147, V1-150, V1-108) — each thing that must be in place is
+  // named as the checklists name it, with its state in words beside the mark
+  // (never a negative sentence beside an empty circle), and, while it is not
+  // in place, its own door — the step's own words.
+  const fact = (ok: boolean, label: string, state: string, door: string) => `<li class="chk ${ok ? 'ok' : ''}">${mark(ok)}<span class="lbl">${esc(label)}</span>
+      <span class="rd-state">${esc(state)}</span>${ok ? '' : door}</li>`;
+  const alone = v.earned && v.named;
   return `<h1 class="page">${esc(t(locale, 'ready.title'))}</h1>
   <p class="muted">${esc(t(locale, 'ready.intro', { name }))}</p>
   <section class="block" aria-labelledby="ready-checks">
     <h2 id="ready-checks">${esc(t(locale, 'ready.checks'))} · <span class="count">${esc(show.isolate(locale, `${readyDone(v)}/${readyTotal(v)}`))}</span></h2>
-    <ul class="checks">${checks}</ul>
+    <ul class="checks rd">${checks}</ul>
     ${done ? `<p class="fok">${esc(t(locale, 'ready.done'))}</p>` : ''}
     ${deeper('/app/sandbox', t(locale, 'ready.practise'))}
   </section>
   <section class="block" aria-labelledby="ready-facts">
     <h2 id="ready-facts">${esc(t(locale, 'ready.facts'))}</h2>
-    <ul class="checks">
-      ${row(v.named, t(locale, v.named ? 'ready.name.done' : 'ready.name.todo', { name }))}
-      ${row(v.connected, t(locale, v.connected ? 'ready.channel.done' : 'ready.channel.todo'))}
-      ${/* Phase 9 (V1-145) — sending alone needs both: earned AND the name confirmed (commitTurn's gates). */ ''}${row(v.earned && v.named, t(locale,
-        !v.earned ? 'ready.alone.not' : v.named ? 'ready.alone.earned' : 'ready.alone.needsName', { name }))}
+    <ul class="checks rd facts">
+      ${fact(v.named, t(locale, 'pilot.attest.assistant_named'), t(locale, v.named ? 'ready.name.done' : 'ready.name.todo', { name }),
+        deeper(STEP_LINK.name, t(locale, 'factory.next.name', { name })))}
+      ${fact(v.connected, t(locale, 'nav.channels'), t(locale, v.connected ? 'ready.channel.done' : 'ready.channel.todo'),
+        deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name })))}
+      ${/* Phase 9 (V1-145) — sending alone needs both: earned AND the name confirmed (commitTurn's gates). */ ''}${fact(alone, t(locale, 'ready.alone.label', { name }),
+        t(locale, !v.earned ? 'ready.alone.not' : v.named ? 'ready.alone.earned' : 'ready.alone.needsName', { name }),
+        v.earned ? '' : deeper('/app/employee', t(locale, 'ready.alone.go', { name })))}
     </ul>
-    <div class="doors">${v.named ? '' : deeper('/app/onboarding', t(locale, 'pilot.title'))}${v.connected ? '' : deeper('/app/channels', t(locale, 'nav.channels'))}</div>
   </section>`;
 }

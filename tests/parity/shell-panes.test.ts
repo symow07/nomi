@@ -37,7 +37,7 @@ describe('the rail', () => {
   it('"Customers" heads its two pages; the customer list carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
     const html = page('/app/inbox/c-1');
     expect(html).toMatch(/<span class="navhead" id="nav-customers">Customers<\/span>/);
-    expect(html).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page" aria-label="Customer list, 3 customers need you">Customer list<span class="navcount" aria-hidden="true">3<\/span><\/a>/);
+    expect(html).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page" aria-label="Customer list, 3 customers need you">Customer list<span class="navcount" aria-hidden="true">3 waiting<\/span><\/a>/);
     expect(html).toMatch(/<a href="\/app\/calendar" class="subnav">Calendar<\/a>/);
     const cal = page('/app/calendar');
     expect(cal).toMatch(/<a href="\/app\/calendar" class="subnav active" aria-current="page">/);
@@ -89,7 +89,9 @@ describe('the list pane', () => {
   it('the current conversation is marked; each row is name, last message, time; its state is the heading above it', () => {
     const html = renderListPane(list, 'en', NOW, 'c-1');
     expect(html).toMatch(/<a class="crow is-\w+[^"]* on" href="\/app\/inbox\/c-1#latest" aria-current="page">/);
-    expect(html).toContain(`<li class="lp-group" aria-hidden="true">${t('en', 'buyers.group.needsYou')}</li>`);
+    // Phase 9 (V1-233) — headed as the list page heads them: under the Needs-you tab the tab is the heading.
+    expect(html).not.toContain('class="lp-group"');
+    expect(renderListPane({ ...list, filter: 'all' }, 'en', NOW, 'c-1')).toContain(`<li class="lp-group" aria-hidden="true">${t('en', 'buyers.group.needsYou')}</li>`);
     expect(html).not.toContain('class="tag');
     // the list page's own row: the assistant holds c-2, so its mark is the one magenta ✦
     expect(html).toMatch(/<a class="crow is-hers[^"]*" href="\/app\/inbox\/c-2#latest">\s*<span class="cr-mark" aria-hidden="true">✦<\/span>/);
@@ -143,7 +145,7 @@ describe('the customer panel', () => {
     expect(html).toContain('<h3>Promised</h3>');
     expect(html).toContain('<span class="as" aria-hidden="true">✦</span> <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
     expect(html).toContain('<bdi>Order W-1042</bdi>');
-    expect(html).toContain('<span class="dot warn" aria-hidden="true">○</span> Waiting for you');
+    expect(html).toContain('<span class="dot warn" aria-hidden="true">○</span> Needs you');
     expect(html).toContain('<span class="as" aria-hidden="true">✦</span> Lily replied');
     expect(html).toContain('<span class="pn-you" aria-hidden="true">●</span> You sent Lily’s draft');
     expect(html).toContain('Lily’s reply didn’t reach them <span class="dot bad" aria-hidden="true">✕</span>');

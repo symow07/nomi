@@ -4,7 +4,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { SELLING_DEFAULTS } from '../../core/owner/sellingStyle.js';
-import { INCOTERM_KEYS } from '../../core/safety/claims.js';
+import { OFFERED_INCOTERMS, incotermMeaning } from './settings.js';
 import { MAX_PAYMENT_TERMS } from '../../core/commerce/terms.js';
 import {
   questionsFor, linesFor, parseAnswer, tickedLines, nextQuestion, paysByTerms, isQuestion,
@@ -233,7 +233,11 @@ export function renderQuestion(
     case 'payment': {
       if (paysByTerms(v.facts)) {
         const terms = kept?.q === 'payment' && kept.terms ? kept.terms : v.state.terms;
-        const options = INCOTERM_KEYS.map((k) => `<option value="${esc(k)}"${terms?.incoterm === k ? ' selected' : ''}>${esc(k)}</option>`).join('');
+        // Phase 9 — the terms page's own list and words (V1-537): each term with
+        // what it means, and DDU only for a workspace that already chose it.
+        const choices: readonly string[] = terms && !(OFFERED_INCOTERMS as readonly string[]).includes(terms.incoterm)
+          ? [...OFFERED_INCOTERMS, terms.incoterm] : OFFERED_INCOTERMS;
+        const options = choices.map((k) => `<option value="${esc(k)}"${terms?.incoterm === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('');
         fields = `<label class="fld"><span class="muted">${esc(t(locale, 'terms.payment.label'))}</span>
             <input name="payment" maxlength="${MAX_PAYMENT_TERMS}" placeholder="${esc(t(locale, 'terms.payment.placeholder'))}" value="${val('payment', terms?.payment ?? '')}" />${errLine(locale, errors['payment'])}</label>
           <label class="fld"><span class="muted">${esc(t(locale, 'terms.incoterm.label'))}</span>

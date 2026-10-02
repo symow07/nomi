@@ -157,7 +157,7 @@ d('M35.1 · the owner issues and revokes the buyer link (requires DATABASE_URL)'
       headers: { 'content-type': 'application/x-www-form-urlencoded' } });
     const c = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     const res = await bare.inject({ method: 'GET', url: `/app/inbox/${CONV}`, headers: { cookie: c } });
-    expect(res.body).toContain('your public address is not set up yet');
+    expect(res.body).toContain('The link cannot be shown yet: your public address is not set up.');
     expect(res.body).not.toContain(`/p/${token}`);
     await bare.close();
   });

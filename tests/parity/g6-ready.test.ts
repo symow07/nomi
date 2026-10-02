@@ -98,6 +98,7 @@ describe('Phase 9 · "may send alone" is ticked only when it is true (V1-145)', 
       expect(facts, l).not.toContain('class="chk ok"');   // nothing in the facts is ticked: name, channel, sending alone
     }
     const both = renderReady(view([], { earned: true, named: true }), 'en');
-    expect(both).toMatch(/<li class="chk ok"><span class="mk" aria-hidden="true">✓<\/span><span class="lbl">[^<]*send alone/);
+    // Phase 9 (V1-147) — the row is named for what must be in place, its state in words beside it.
+    expect(both).toMatch(new RegExp(`<li class="chk ok"><span class="mk" aria-hidden="true">✓</span><span class="lbl">${t('en', 'ready.alone.label')}</span>\\s*<span class="rd-state">[^<]*send alone`));
   });
 });

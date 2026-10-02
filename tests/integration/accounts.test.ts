@@ -204,7 +204,8 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const asked = await signup(C);
     expect(asked.statusCode).toBe(400);
     expect(asked.body).toContain(t('en', 'signup.problem.zone_missing'));
-    expect(asked.body).toContain('<select id="su-zone" name="zone" required>');
+    // Sent back: the box is marked as the one to answer (phase 9, aria-invalid).
+    expect(asked.body).toMatch(/<select id="su-zone" name="zone" required[^>]*aria-invalid="true"[^>]*>/);
     expect(asked.body).toContain('value="America/Chicago"');
     expect(await zoneOfName(C.factory)).toBeUndefined();
     // A zone of another country is not an answer.
@@ -294,7 +295,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect((await get('/app/settings', cookieOf(r))).body).toContain(`Pilot ${RUN}`);
     const bad = await form('/login', { code: 'WRONG-CODE1' });
     expect(bad.statusCode).toBe(401);
-    expect(bad.body).toMatch(/role="alert"[\s\S]*name="code"/);   // the code's own card, saying so there
+    expect(bad.body).toMatch(/name="code"[\s\S]*role="alert"/);   // the code's own card, saying so under the field (Phase 9, V1-042)
   });
 
   it('A STAFF CODE NAMES ITS OWN BUSINESS, so a second factory\'s people can sign in', async () => {

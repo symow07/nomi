@@ -6,9 +6,10 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Person, type PersonError, validatePerson, OWNER_ONLY } from '../../core/conversation/people.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t } from './say.js';
+import { t, tn } from './say.js';
 
-import { esc } from './layout.js';
+import { back, esc } from './layout.js';
+import { fieldRow, rowsCard, cardActs } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import { renderAssistantsSection } from './assistants.js';
 import type { Assistant } from '../../core/owner/assistants.js';
@@ -259,8 +260,9 @@ export async function removePerson(
 export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null, now: Date = new Date()): string {
   // A4 — who is here. Said in words, never by colour alone.
   const online = v.people.filter((p) => isOnline(p, now)).length;
+  // Phase 9 (V1-517) — the one state here is a pill with its hairline; bare, it read as a stray bold word.
   const presence = (p: TeamMember): string => isOnline(p, now)
-    ? `<span class="pill owner">${esc(t(locale, 'people.online'))}</span>`
+    ? `<span class="pill stop">${esc(t(locale, 'people.online'))}</span>`
     : `<span class="muted">${esc(p.lastSeenAt
         ? t(locale, 'people.lastSeen', { when: show.when(locale, p.lastSeenAt, now) })
         : t(locale, 'people.notSeen'))}</span>`;
@@ -271,39 +273,56 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
         <p class="muted">${esc(t(locale, 'people.issued.once'))}</p>
       </div>`
     : '';
+  // Phase 9 (V1-520) — a person called by the business's name is asked for
+  // their own in a card of its own under the list, the same shape as adding
+  // someone: one field width on the page, not a form squeezed into a row.
+  const askName = v.people.filter((p) => namedLikeBusiness(p.name, v.business)).map((p) =>
+    `<form method="post" action="/app/settings/people/${esc(p.id)}/name" class="sform askname">
+      ${rowsCard(null, [
+        fieldRow({ label: t(locale, p.isOwner ? 'people.name.yours' : 'people.add.label'), forId: `pp-name-${esc(p.id)}`,
+          desc: t(locale, p.isOwner ? 'people.name.askYou' : 'people.name.askThem'),
+          control: `<input id="pp-name-${esc(p.id)}" name="name" required maxlength="60" />` }),
+        // One filled act on the page (phase 4): adding someone. A name asked for
+        // here is a quiet Save, however many people it is asked of.
+        cardActs(`<button class="btn" type="submit">${esc(t(locale, 'people.name.save'))}</button>`),
+      ])}
+    </form>`).join('');
 
-  return `<h1 class="page">${esc(t(locale, 'people.title'))}</h1>
+  // Phase 9 (V1-512) — the way back to Setup, as Business profile has.
+  return `${back('/app/settings', t(locale, 'nav.settings'))}
+    <h1 class="page">${esc(t(locale, 'people.title'))}</h1>
     ${flashBanner(flash)}
     ${issued}
     <section class="block">
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
-      <p class="note">${esc(t(locale, 'people.summary', { n: v.people.length, online }))}</p>
+      <p class="note">${esc(t(locale, 'people.summary', { people: tn(locale, 'setup.state.people', v.people.length), online: show.count(locale, online) }))}</p>
       <ul class="rows">${v.people.map((p) => `<li class="row">
-        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}
-          <span class="muted">${esc(show.date(locale, p.addedAt))}</span></span>
-          <span class="caption"><span class="muted">${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
+        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}</span>
+          <span class="caption"><span class="muted">${esc(t(locale, 'people.added', { date: show.date(locale, p.addedAt) }))} · ${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${esc(t(locale, 'people.remove'))}</button></form>`}
-        ${namedLikeBusiness(p.name, v.business) ? `<form method="post" action="/app/settings/people/${esc(p.id)}/name" class="pform askname">
-          <label class="fld"><span>${esc(t(locale, p.isOwner ? 'people.name.askYou' : 'people.name.askThem'))}</span>
-            <input name="name" required maxlength="60" /></label>
-          <button class="btn" type="submit">${esc(t(locale, 'people.name.save'))}</button>
-        </form>` : ''}
       </li>`).join('')}</ul>
-      <form method="post" action="/app/settings/people" class="pform">
-        <label class="fld"><span class="muted">${esc(t(locale, 'people.add.label'))}</span>
-          <input name="name" required maxlength="60"
-            placeholder="${esc(t(locale, 'people.add.placeholder'))}" /></label>
-        <button class="btn send" type="submit">${esc(t(locale, 'people.add.button'))}</button>
+      ${askName}
+    </section>
+    ${/* Phase 9 (V1-509, V1-519) — adding someone is its own section with its own heading, and says first that a code will be shown to hand over. */ ''}<section class="block" id="add">
+      <h2>${esc(t(locale, 'people.add.title'))}</h2>
+      <p class="muted">${esc(t(locale, 'people.add.hint'))}</p>
+      <form method="post" action="/app/settings/people" class="sform">
+        ${rowsCard(null, [
+          fieldRow({ label: t(locale, 'people.add.label'), forId: 'pp-add-name',
+            control: `<input id="pp-add-name" name="name" required maxlength="60"
+              placeholder="${esc(t(locale, 'people.add.placeholder'))}" />` }),
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'people.add.button'))}</button>`),
+        ])}
       </form>
     </section>
     ${v.assistants ? renderAssistantsSection(v.assistants, locale) : ''}
-    <section class="block">
+    ${/* Phase 9 (V1-518) — what only the owner may do is a list to read, not rows that look tappable. */ ''}<section class="block">
       <h2>${esc(t(locale, 'people.ownerOnly.title'))}</h2>
       <p class="muted">${esc(t(locale, 'people.ownerOnly.intro'))}</p>
-      <ul class="rows">${OWNER_ONLY.map((a) =>
-        `<li class="row muted">${esc(t(locale, `people.ownerOnly.${a}` as MessageKey))}</li>`).join('')}</ul>
+      <ul class="owner-only">${OWNER_ONLY.map((a) =>
+        `<li>${esc(t(locale, `people.ownerOnly.${a}` as MessageKey))}</li>`).join('')}</ul>
       <p class="muted">${esc(t(locale, 'people.ownerOnly.rest'))}</p>
     </section>`;
 }

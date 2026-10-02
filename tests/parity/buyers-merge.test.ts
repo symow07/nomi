@@ -149,7 +149,8 @@ describe('A · the read model Customers brought, in the dense row (phase 1 of th
     expect(row).toContain('<span class="cr-name" dir="auto"><bdi>Buyer c-hers</bdi></span>');
     // each part isolated, so Arabic cannot run a Latin name, a quantity and a price together
     // CC-13 — a figure and its unit are two words in English (a no-break space between them).
-    expect(row).toContain('<span class="cr-detail"><bdi>Vacuum cup</bdi> · <bdi>500\u00a0pcs</bdi> · <bdi>$2.40</bdi></span>');
+    // Phase 9 (inbox-calendar-new-02) — the product and its figures apart, so a phone keeps the product and drops the figures.
+    expect(row).toContain('<span class="cr-detail"><bdi class="cr-prod">Vacuum cup</bdi><span class="cr-fig"> · <bdi>500\u00a0pcs</bdi></span><span class="cr-fig"> · <bdi>$2.40</bdi></span></span>');
     expect(row).toContain('<span class="cr-text" dir="auto">last words of c-hers</span>');
     expect(row).toMatch(/<span class="cr-when">[^<]*13:30<\/span>/);
     // the whole message is no longer printed as a paragraph in the speech face
@@ -243,7 +244,9 @@ describe('A · the groups and the tabs', () => {
     const heads = [...h.matchAll(/<h2 class="bgroup-h">([^<]+)<\/h2>/g)].map((m) => m[1]);
     expect(heads).toEqual([
       esc(t('en', 'buyers.group.deletion')), esc(t('en', 'buyers.group.needsYou')),
-      esc(t('en', 'buyers.group.yours')), esc(t('en', 'buyers.group.hers', { name: 'Noor' })),
+      esc(t('en', 'buyers.group.yours')),
+      // Phase 9 (V1-173) — the assistant's open conversations a customer wrote last are headed apart, as the list ranks them.
+      esc(t('en', 'buyers.group.hersWaiting', { name: 'Noor' })), esc(t('en', 'buyers.group.hers', { name: 'Noor' })),
     ]);
     const at = (id: string) => h.indexOf(`/app/inbox/${id}#latest`);
     expect(at('c-del')).toBeLessThan(at('c-wait'));

@@ -22,7 +22,7 @@ import type { PracticeTrust } from '../../src/trust/practiceChecks.js';
 import { renderInboxList, renderConversationDetail, type InboxList, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderKnowledgeIndex, renderProductKnowledge, type ProductKnowledge } from '../../src/api/web/knowledge.js';
-import { renderKnowledgeOps, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
+import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderSite, SITE_CSS } from '../../src/api/web/site.js';
@@ -198,30 +198,33 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
 
   it('products: the colon and the gap per language, every figure spaced from its unit', () => {
     const en = withoutIsolates(renderProductList([item()], 'en'));
-    expect(en).toContain(`<bdi>5,000${NBSP}pcs</bdi>: <bdi>$0.92</bdi> · Min. order: <bdi>1,000${NBSP}pcs</bdi>`);
+    // Phase 9 (V1-299) — the price of one unit; the quantity it starts from only where that is above the minimum.
+    expect(en).toContain(`From 5,000${NBSP}pcs: <bdi>$0.92/pc</bdi> · Min. order: <bdi>1,000${NBSP}pcs</bdi>`);
     const ar = withoutIsolates(renderProductList([item()], 'ar'));
     // The design pass §9: Arabic money is the locale's own form, read as one unit.
-    expect(ar).toContain(`<bdi>5,000${NBSP}قطعة</bdi>: <bdi>\u200F0.92${NBSP}US$</bdi> · `);
+    expect(ar).toContain(`ابتداءً من 5,000${NBSP}قطعة: <bdi>\u200F0.92${NBSP}US$ لكل قطعة</bdi> · `);
     const zh = withoutIsolates(renderProductList([item()], 'zh'));
-    expect(zh).toContain('<bdi>5000个</bdi>：<bdi>$0.92</bdi>　最低起订：<bdi>1000个</bdi>');
+    expect(zh).toContain('5000个起：<bdi>$0.92/个</bdi>　最低起订：<bdi>1000个</bdi>');
     for (const [l, html] of [['en', en], ['ar', ar]] as const) {
       expect(html, l).not.toMatch(/[：　]/);
     }
     const page = withoutIsolates(renderProductDetail(detail(), 'ar'));
     expect(page).toContain(`500–2,000${NBSP}قطعة`);
-    expect(page).toContain(`2,000+${NBSP}قطعة`);
-    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>\u200F0.92${NBSP}US$/قطعة</bdi>`);   // recent quotes, each figure isolated
-    expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000+个');
+    // Phase 9 (missed-02) — "2,000 and up" in words: a bare "2,000+" is drawn "+2,000" in Arabic.
+    expect(page).toContain(`2,000${NBSP}قطعة فأكثر`);
+    expect(page).not.toContain('2,000+');
+    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>\u200F0.92${NBSP}US$ لكل قطعة</bdi>`);   // recent quotes, each figure isolated
+    expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000个起');
   });
 
-  it('contacts: the gap between the facts is " · " in English and Arabic; Chinese keeps its own', () => {
+  it('contacts: the gap between the facts is " · " in every language (phase 9, V1-553: the full-width gaps read as a hole in Chinese)', () => {
     const row = contact({ title: 'Buyer' });
     for (const l of ['en', 'ar'] as const) {
       const html = withoutIsolates(renderContacts(contacts([row]), l, null));
       expect(html, l).not.toMatch(/[：　]/);
       expect(html, l).toContain(`${esc(t(l, 'contacts.channel.email'))} · ${esc(t(l, 'contacts.source.manual'))}`);
     }
-    expect(withoutIsolates(renderContacts(contacts([row]), 'zh', null))).toContain(`${t('zh', 'contacts.channel.email')}　·　${t('zh', 'contacts.source.manual')}`);
+    expect(withoutIsolates(renderContacts(contacts([row]), 'zh', null))).toContain(`${t('zh', 'contacts.channel.email')} · ${t('zh', 'contacts.source.manual')}`);
   });
 
   it('an order: the quantity in the page\'s own unit word, and the tracking line\'s colon', () => {
@@ -234,12 +237,13 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     expect(withoutIsolates(renderOrder(order(), 'ar', null))).toContain(`5,000${NBSP}قطعة`);
   });
 
+  // Phase 9 (V1-258) — per ONE piece, still in the page's language: "/pc", "/个", "/قطعة", "/ud.".
   it('practice: each chip\'s colon, and the price per unit in the page\'s language (it said "/pc" everywhere)', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderSandbox(practice(), l, { flash: null }));
       expect(html, l).toContain(esc(labelled(l, t(l, 'sandbox.xray.skill'), t(l, 'capability.quote' as MessageKey))));
-      expect(html, l).toContain(`${l === 'ar' ? `\u200F0.85${NBSP}US$` : '$0.85'}/${esc(t(l, 'product.unit.pcs'))}`);
-      expect(html, l).not.toContain('/pc<');
+      expect(html, l).toContain(`${l === 'ar' ? `\u200F0.85${NBSP}US$` : '$0.85'}/${esc(t(l, 'product.unit.pc'))}`);
+      if (l !== 'en') expect(html, l).not.toContain('/pc<');
     }
   });
 
@@ -296,7 +300,7 @@ describe("CC-14 · the shell leads with the business's own name; the product's i
     expect(html).toContain('<bdi>Westlake Canvas Co.</bdi><small>Nomi</small>');
   });
 
-  it('the phone chrome is option A as built: the rail row holds the mark alone; the name heads Today, and only Today', () => {
+  it('the phone chrome is option A as built: the rail row holds the mark alone; the name heads every page on a phone (phase 9, V1-105)', () => {
     const css = linkedCss(page('en'));
     const phone = css.slice(css.indexOf('@media (max-width: 720px)'));
     expect(phone).toContain('nav.side .brand .brandname { display:none; }');   // the rail row unchanged
@@ -308,8 +312,9 @@ describe("CC-14 · the shell leads with the business's own name; the product's i
       expect(main, l).toMatch(/^<main id="main"><p class="business-name"><bdi>Westlake Canvas Co\.<\/bdi><\/p><h1 class="page">/);
       const nav = today.slice(today.indexOf('<nav class="side">'), today.indexOf('</nav>'));
       expect(nav, l).not.toContain('business-name');
+      // Phase 9 (V1-105) — Setup, Getting started, Before going live and the rest named no workspace on a phone.
       for (const other of ['/app/inbox', '/app/settings', '/app/employee', '/app/business', '/app/inbox/c1'])
-        expect(page(l, other), `${l} ${other}`).not.toContain('class="business-name"');
+        expect(page(l, other), `${l} ${other}`).toContain('<p class="business-name"><bdi>Westlake Canvas Co.</bdi></p>');
     }
     expect(page('en', '/app', null)).not.toContain('class="business-name"');
   });
@@ -340,7 +345,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
       expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/business" class="navlink active" aria-current="page"/);
-      expect(withoutIsolates(renderKnowledgeOps(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week"');
+      // Phase 9 (V1-358) — the period's tabs sit with its counts at the foot of the page, and keep it there.
+      expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week#period"');
     }
     const results: AnalyticsData = {
       range: 'month', hasActivity: false,
@@ -366,7 +372,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       }
       expect(pages.conversation, l).toContain('<h1 class="who">🇳🇬 <b><bdi>Aisha Bello</bdi></b>');
       expect(pages.buyer, l).toContain('<h1 class="who">🇦🇪 <b><bdi>Ahmed</bdi></b>');
-      expect(pages.product, l).toMatch(/<h1 class="who"><b>(Canvas Tote Bag|帆布袋)<\/b>/);
+      // Phase 9 (V1-310) — the product's name is the page's title, drawn like every page's.
+      expect(pages.product, l).toMatch(/<h1 class="page"><bdi>(Canvas Tote Bag|帆布袋)<\/bdi><\/h1>/);
     }
     // Drawn the size it always was: the header's own rule, the heading's margins taken off.
     const css = linkedCss(shelled('en'));
@@ -374,7 +381,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     expect(css).toContain('.dhead h1.who { margin:0; font-weight:400; }');
   });
 
-  it('the door pages have one heading each; the sign-in page\'s is its brand line, drawn as before', () => {
+  it('the door pages have one heading each, the task they ask (Phase 9, V1-032: the sign-in page\'s was its brand line)', () => {
     for (const l of LOCALES) {
       const doors = {
         login: loginPage({ locale: l, path: '/login' }),
@@ -383,12 +390,15 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
         notfound: errorPage({ locale: l, path: '/nope', kind: 'notfound' }),
       };
       for (const [what, html] of Object.entries(doors)) expect(html.match(/<h1[\s>]/g), `${l} ${what}`).toHaveLength(1);
-      expect(doors.login, l).toContain(`<h1 class="brand">Nomi<small class="muted">${esc(t(l, 'login.brandTagline'))}</small></h1>`);
-      expect(doors.signup, l).toContain('<div class="brand">Nomi');
+      expect(doors.login, l).toContain(`<h1>${esc(t(l, 'login.title'))}</h1>`);
+      expect(loginPage({ locale: l, path: '/login', withCode: true }), l).toContain(`<h1>${esc(t(l, 'login.code.title'))}</h1>`);
+      // The brand is the site's mark and name, on every door, and no longer a heading.
+      for (const html of Object.values(doors)) {
+        expect(html, l).toMatch(new RegExp(`<div class="brand"><svg class="mark"[^>]*aria-hidden="true"[\\s\\S]*?</svg><span>Nomi</span><small class="muted">${esc(t(l, 'login.brandTagline'))}</small></div>`));
+      }
     }
-    // The brand's own rule outranks the card heading's, so the line looks as it did.
     const door = linkedCss(loginPage({ locale: 'en', path: '/login' }));
-    expect(door).toContain('.login .brand { font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-8); padding:0; }');
+    expect(door).toContain('.login .brand { flex-direction:column; justify-content:center; gap:var(--space-4); text-align:center;');
   });
 
   it('the knowledge page says its title once (it printed it twice), with its lede under it', () => {
@@ -653,7 +663,8 @@ describe('CC-09 · the public site exists (#80); what is left is the owner\'s', 
     for (const l of LOCALES) {
       const html = withoutIsolates(renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false }));
       expect(html, l).toContain('data-surface="site"');
-      expect(html, l).toContain('href="mailto:hello@example.test"');
+      // Phase 9 (public-missed-02) — the mail opens with a subject and the questions to answer.
+      expect(html, l).toContain('href="mailto:hello@example.test?subject=');
       expect(html, l).not.toContain('/signup');
     }
     // How the domain goes live is written down for the owner, step by step.

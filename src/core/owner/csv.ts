@@ -28,6 +28,18 @@
 /** A cell, as this product has it: text, a number, or nothing at all. */
 export type Cell = string | number | boolean | Date | null | undefined;
 
+/**
+ * Phase 9 (V1-383) — how the fields are parted and how a decimal is written.
+ * RFC 4180's comma and point are the default. A spreadsheet set up where a
+ * decimal is written with a comma (Spain, France) splits fields on ";" and
+ * reads "1.0500" as ten thousand five hundred, so a file for an owner there is
+ * written its way (the caller decides: `csvDialectFor` in values.ts).
+ */
+export type CsvDialect = { readonly sep: ',' | ';'; readonly decimal: '.' | ',' };
+export const RFC4180: CsvDialect = { sep: ',', decimal: '.' };
+/** A figure as this product writes one into a cell ("1.05", "-0.5"): the only text whose point is a decimal. */
+const PLAIN_DECIMAL = /^[+-]?\d+\.\d+$/;
+
 const STARTS_A_FORMULA = /^[=+\-@\t\r]/;
 /** What a spreadsheet would read as a number anyway, so it needs no apostrophe. */
 const IS_A_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
@@ -37,27 +49,28 @@ const IS_A_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
  * cell, never the word "null": a buyer with no name has no name, and a file
  * that says `null` teaches the owner to read it as a value.
  */
-export function csvCell(v: Cell): string {
+export function csvCell(v: Cell, d: CsvDialect = RFC4180): string {
   if (v === null || v === undefined) return '';
   // An instant is written as ISO-8601 in UTC: unambiguous, sortable as text,
   // and the one format every spreadsheet and every script agrees on. A local
   // rendering would need a zone this product does not ask her for.
   const raw = v instanceof Date ? v.toISOString() : String(v);
   const safe = STARTS_A_FORMULA.test(raw) && !IS_A_NUMBER.test(raw) ? `'${raw}` : raw;
-  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  const local = d.decimal === ',' && (typeof v === 'number' || PLAIN_DECIMAL.test(safe)) ? safe.replace('.', ',') : safe;
+  return (d.sep === ';' ? /[";\r\n]/ : /[",\r\n]/).test(local) ? `"${local.replace(/"/g, '""')}"` : local;
 }
 
 /** One row. */
-export const csvRow = (cells: readonly Cell[]): string => cells.map(csvCell).join(',');
+export const csvRow = (cells: readonly Cell[], d: CsvDialect = RFC4180): string => cells.map((c) => csvCell(c, d)).join(d.sep);
 
 /**
  * A header and its rows, CRLF-separated as the format says. No trailing
  * newline decision is left to the caller: a file that ends without one reads
  * as truncated to some tools, so it always ends with one.
  */
-export function csvRows(header: readonly string[], rows: Iterable<readonly Cell[]>): string {
-  const out = [csvRow(header)];
-  for (const r of rows) out.push(csvRow(r));
+export function csvRows(header: readonly string[], rows: Iterable<readonly Cell[]>, d: CsvDialect = RFC4180): string {
+  const out = [csvRow(header, d)];
+  for (const r of rows) out.push(csvRow(r, d));
   return `${out.join('\r\n')}\r\n`;
 }
 
@@ -65,8 +78,8 @@ export function csvRows(header: readonly string[], rows: Iterable<readonly Cell[
 export const CSV_BOM = '﻿';
 
 /** The same, as a file: the mark, then the rows. */
-export const csvFile = (header: readonly string[], rows: Iterable<readonly Cell[]>): string =>
-  CSV_BOM + csvRows(header, rows);
+export const csvFile = (header: readonly string[], rows: Iterable<readonly Cell[]>, d: CsvDialect = RFC4180): string =>
+  CSV_BOM + csvRows(header, rows, d);
 
 /**
  * A filename a browser and three operating systems will all accept, and that

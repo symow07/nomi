@@ -189,26 +189,15 @@ export function renderUsageFact(f: UsageFact | undefined, locale: Locale, now: D
 
 const reasonLabel = (l: Locale, r: GapReason) => t(l, `knowledge.gap.reason.${r}` as MessageKey);
 
-/** `flash` (phase 5): what the last action said — a fact taught or set aside here, with its Undo. */
+/**
+ * `flash` (phase 5): what the last action said — a fact taught or set aside here, with its Undo.
+ *
+ * Phase 9 (V1-358) — the page opens on what there is to do: the questions
+ * waiting for an answer, then (`renderKnowledgeIndex`) what is taught and the
+ * form to teach more. The period's counts come last (`renderKnowledgePeriod`):
+ * they were first, four zeros and two empty panels before anything to do.
+ */
 export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date, flash: Flash | null = null): string {
-  const tab = (r: Range) =>
-    `<a class="tab ${ops.range === r ? 'on' : ''}"${ops.range === r ? ' aria-current="page"' : ''} href="/app/knowledge?range=${r}">${esc(t(locale, `knowledge.ops.range.${r}` as MessageKey))}</a>`;
-  const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
-
-  const stat = (labelKey: MessageKey, n: number) =>
-    `<div class="stat"><div class="v">${esc(show.count(locale, n))}</div><div class="l">${esc(t(locale, labelKey))}</div></div>`;
-  const report = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.thisPeriod'))}</h2>
-    <div class="stats">
-      ${stat('knowledge.report.facts', ops.report.factsAdded)}
-      ${stat('knowledge.report.corrected', ops.report.answersCorrected)}
-      ${stat('knowledge.report.certs', ops.report.certsAuthorized)}
-      ${stat('knowledge.report.archived', ops.report.archived)}
-    </div>
-    ${ops.report.commonRequests.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.commonRequests'))}</h3>
-      <ul class="reqs">${ops.report.commonRequests.map((q) =>
-        `<li><span class="q">${esc(q.question)}</span> <span class="muted">×${q.count}</span></li>`).join('')}</ul>` : ''}
-  </div>`;
-
   const gapCard = (g: Gap) => {
     const teachHref = g.productId
       ? `/app/knowledge/${encodeURIComponent(g.productId)}?teach=${encodeURIComponent(g.question)}`
@@ -224,22 +213,51 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date,
         ${deeper(testHref, t(locale, 'knowledge.gap.test'))}</div>
     </div>`;
   };
+  // Phase 9 (V1-359) — "every question was answered from what you taught" only
+  // when a customer asked something; with no question at all, that is what it says.
+  const noGaps = ops.report.commonRequests.length === 0 ? 'knowledge.ops.noQuestions' : 'knowledge.ops.noGaps';
   const gaps = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.gaps'))}</h2>
-    ${ops.gaps.length ? ops.gaps.map(gapCard).join('') : `<div class="empty muted">${esc(t(locale, 'knowledge.ops.noGaps'))}</div>`}
-  </div>`;
-
-  const activity = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.activity'))}</h2>
-    ${ops.activity.length ? `<ul class="ki-acts">${ops.activity.map((a) =>
-      `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
-        <span>${esc(a.label)}</span> <span class="muted">${esc(show.when(locale, a.at, now))}</span></li>`).join('')}</ul>`
-      : `<div class="empty muted">${esc(t(locale, 'knowledge.ops.noActivity'))}</div>`}
+    ${ops.gaps.length ? ops.gaps.map(gapCard).join('') : `<div class="empty">${esc(t(locale, noGaps, { period: periodWord(locale, ops.range) }))}</div>`}
   </div>`;
 
   // The page's one title and its lede; the list of what was taught follows
   // (`renderKnowledgeIndex`), under this same heading.
   return `<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'knowledge.intro'))}</p>
-    ${tabs}${report}${gaps}${activity}`;
+    ${gaps}`;
+}
+
+/** The period, as a sentence names it: "this week", "today so far", "this month". */
+const periodWord = (locale: Locale, r: Range): string => t(locale, `knowledge.ops.period.${r}` as MessageKey);
+
+/**
+ * Phase 9 (V1-358, V1-367, V1-370) — what changed in a period, at the foot of
+ * the page. Its heading names the period; the tab for today is "So far today",
+ * not the nav's "Today"; with nothing in the period, one line — no zero tiles.
+ */
+export function renderKnowledgePeriod(ops: KnowledgeOps, locale: Locale, now: Date): string {
+  const tab = (r: Range) =>
+    `<a class="tab ${ops.range === r ? 'on' : ''}"${ops.range === r ? ' aria-current="page"' : ''} href="/app/knowledge?range=${r}#period">${esc(t(locale, `knowledge.ops.range.${r}` as MessageKey))}</a>`;
+  const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
+  const stat = (labelKey: MessageKey, n: number) =>
+    `<div class="stat"><div class="v">${esc(show.count(locale, n))}</div><div class="l">${esc(t(locale, labelKey, {}))}</div></div>`;
+  const counted = ops.report.factsAdded + ops.report.answersCorrected + ops.report.certsAuthorized + ops.report.archived > 0;
+  const report = counted ? `<div class="stats">
+      ${stat('knowledge.report.facts', ops.report.factsAdded)}
+      ${stat('knowledge.report.corrected', ops.report.answersCorrected)}
+      ${stat('knowledge.report.certs', ops.report.certsAuthorized)}
+      ${stat('knowledge.report.archived', ops.report.archived)}
+    </div>` : '';
+  const asked = ops.report.commonRequests.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.commonRequests'))}</h3>
+      <ul class="reqs">${ops.report.commonRequests.map((q) =>
+        `<li><span class="q">${esc(q.question)}</span> <span class="muted">×${q.count}</span></li>`).join('')}</ul>` : '';
+  const activity = ops.activity.length ? `<h3 class="sub">${esc(t(locale, 'knowledge.ops.activity'))}</h3><ul class="ki-acts">${ops.activity.map((a) =>
+      `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
+        <span>${esc(a.label)}</span> <span class="muted">${esc(show.when(locale, a.at, now))}</span></li>`).join('')}</ul>` : '';
+  return `<div class="block" id="period"><h2>${esc(t(locale, 'knowledge.ops.thisPeriod', { period: periodWord(locale, ops.range) }))}</h2>
+    ${tabs}
+    ${report || asked || activity ? `${report}${asked}${activity}` : `<div class="empty">${esc(t(locale, 'knowledge.ops.noActivity', { period: periodWord(locale, ops.range) }))}</div>`}
+  </div>`;
 }
 
 

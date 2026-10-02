@@ -373,7 +373,8 @@ describe('M20.4 · F-04 · scripted practice needs no tenant, and says what it p
     const { runScriptedPractice, renderPractice } = await import('../../src/api/web/sandbox.js');
     const r = await runScriptedPractice();
     const html = renderPractice(r, 'en').replace(/<style>[\s\S]*?<\/style>/g, '');
-    expect(html).toContain(`${r.passed} / ${r.total}`);
+    // Phase 9 (V1-290) — and says what it counts.
+    expect(html).toContain(t('en', 'practice.scripted.count', { passed: r.passed, total: r.total }));
     expect(html).not.toMatch(/\d+\s*%/);
     for (const banned of ['score', 'grade', 'rating']) expect(html.toLowerCase()).not.toContain(banned);
   });
@@ -431,7 +432,8 @@ describe('Phase 9 (V1-288) · each Practice switch says what is on now', () => {
     for (const l of LOCALES) {
       const run = renderSandbox(view(), l, { flash: null, settings: { alone: false, stopped: false, ownerStopped: false } });
       expect(run, l).toContain(t(l, 'practice.mode.levels'));
-      expect(run.replace(/[\u2066-\u2069]/g, ''), l).toMatch(new RegExp(t(l, 'practice.stop.running', { name: 'X' }).split('X').map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.+')));
+      // the name in force here is the unchosen one, as the page says it
+      expect(run.replace(/[\u2066-\u2069]/g, ''), l).toContain(t(l, 'practice.stop.running'));
       const stopped = renderSandbox(view(), l, { flash: null, settings: { alone: false, stopped: true, ownerStopped: false } });
       expect(stopped, l).toContain(t(l, 'practice.stop.stopped'));
     }

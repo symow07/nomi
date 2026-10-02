@@ -1,8 +1,9 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
-import { formatMoneyCompact } from '../../core/owner/format.js';
-import { workspaceZone } from './zone.js';
+import { currencySymbol } from '../../core/types/money.js';
+import { workspaceZone, workspaceCountry } from './zone.js';
+import { RFC4180, type CsvDialect } from '../../core/owner/csv.js';
 
 /**
  * RIGHT TO LEFT, BY DESIGN (the design pass §9, 2026-09-30).
@@ -82,19 +83,78 @@ const arabicMoney = (m: Money, fraction: number): string =>
     .formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount)
     .map((p) => (p.type === 'currency' ? `\u2066${p.value}${PDI}` : p.value)).join('');
 
-/** Money: "$1.95" in English and Chinese, "1.95 US$" (the locale's own form) in Arabic. */
+/**
+ * Phase 9 (V1-009, V1-404) — an amount written the way the READER's language
+ * writes it IN THE WORKSPACE'S COUNTRY: Spanish in Mexico "$1.05", in Spain
+ * "1,05 $"; French "1 234,05 $"; English and Chinese as before almost
+ * everywhere. The figure's separators and where the sign stands come from the
+ * language and the country (`Intl`); the sign itself stays the product's own
+ * ($ is $, ￥ is ￥ — `currencySymbol`), never translated. Owner pages only:
+ * outside a workspace (a public page, a test drawing a fragment) or for a
+ * workspace with no country on record, an amount is written as it always was.
+ * Nothing sent to a customer is written here — the send path has its own.
+ */
+const LANG: Readonly<Record<Exclude<Locale, 'ar'>, string>> = { en: 'en', zh: 'zh', es: 'es', fr: 'fr' };
+const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): string | null => {
+  const country = workspaceCountry();
+  if (!country || !/^[A-Z]{2}$/.test(country)) return null;
+  let parts: Intl.NumberFormatPart[];
+  try {
+    parts = new Intl.NumberFormat(`${LANG[locale]}-${country}`, {
+      style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction,
+    }).formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount);
+  } catch { return null; }
+  const at = parts.findIndex((p) => p.type === 'currency');
+  const figure = parts.filter((p) => ['minusSign', 'integer', 'group', 'decimal', 'fraction'].includes(p.type)).map((p) => p.value).join('');
+  const first = parts.findIndex((p) => p.type === 'integer');
+  const sign = currencySymbol(m.currency);
+  return at !== -1 && at > first ? `${figure}\u00a0${sign.trim()}` : `${sign}${figure}`;
+};
+
+/** Money: "$1.95" in English and Chinese, "1,95 $" in Spanish in Spain, "1.95 US$" (the locale's own form) in Arabic. */
 export const money = (locale: Locale, m: Money): string =>
-  isolate(locale, rtl(locale) ? arabicMoney(m, 2) : f.formatMoney(m));
+  isolate(locale, locale === 'ar' ? arabicMoney(m, 2) : localMoney(locale, m, 2) ?? f.formatMoney(m));
 
-/** Money in whole units, for a summary line. */
-export const moneyWhole = (locale: Locale, m: Money): string =>
-  isolate(locale, rtl(locale) ? arabicMoney(m, 0) : formatMoneyCompact(m));
+/**
+ * Phase 9 (V1-169, V1-229, V1-300, V1-307) — a quantity by the same rule as an
+ * amount: the reader's language in the workspace's country. Spanish in Spain
+ * "5000" and "12.000", in Mexico "5,000"; French "5 000". English keeps
+ * "5,000" everywhere, as its amounts do (Intl would write "5.000" for English
+ * in Spain); Chinese keeps its 万 and Arabic its confirmed form; with no
+ * country on record, as before. The
+ * send path writes its own figures (`core/owner/i18n/format.ts`) and is not
+ * changed here.
+ */
+const localQty = (locale: Locale, n: number): string | null => {
+  if (locale !== 'es' && locale !== 'fr') return null;
+  const country = workspaceCountry();
+  if (!country || !/^[A-Z]{2}$/.test(country)) return null;
+  try { return new Intl.NumberFormat(`${LANG[locale]}-${country}`).format(n); } catch { return null; }
+};
 
-/** A quantity alone: "5,000", "1.2万", "5,000". */
-export const quantity = (locale: Locale, n: number): string => isolate(locale, f.formatQty(locale, n));
+/**
+ * Phase 9 (V1-383) — the export's fields and decimals by the same rule: where
+ * the reader's language writes a decimal comma in the workspace's country
+ * (Spanish in Spain, French), ";" between fields and "1,05"; elsewhere — and
+ * in Mexico, and in English — RFC 4180's "," and "1.05".
+ */
+export const csvDialectFor = (locale: Locale): CsvDialect => {
+  if (locale !== 'es' && locale !== 'fr') return RFC4180;
+  const country = workspaceCountry();
+  if (!country || !/^[A-Z]{2}$/.test(country)) return RFC4180;
+  let decimal: string | undefined;
+  try { decimal = new Intl.NumberFormat(`${LANG[locale]}-${country}`).formatToParts(1.5).find((p) => p.type === 'decimal')?.value; } catch { return RFC4180; }
+  return decimal === ',' ? { sep: ';', decimal: ',' } : RFC4180;
+};
 
-/** A quantity and what it counts, as one: "5,000 pcs", "5000个", "5,000 قطعة". */
-export const quantityOf = (locale: Locale, n: number, unit: string): string => isolate(locale, f.formatQtyUnit(locale, n, unit));
+/** A quantity alone: "5,000", "1.2万", "5,000"; "5000" in Spanish in Spain. */
+export const quantity = (locale: Locale, n: number): string => isolate(locale, localQty(locale, n) ?? f.formatQty(locale, n));
+
+/** A quantity and what it counts, as one: "5,000 pcs", "5000个", "5,000 قطعة"; "5000 uds." in Spain. */
+export const quantityOf = (locale: Locale, n: number, unit: string): string => {
+  const local = localQty(locale, n);
+  return isolate(locale, local === null ? f.formatQtyUnit(locale, n, unit) : f.withUnit(locale, local, unit));
+};
 
 /** A figure already written (a range, "5,000+") and its unit, as one. */
 export const figureOf = (locale: Locale, figure: string, unit: string): string => isolate(locale, f.withUnit(locale, figure, unit));
@@ -109,6 +169,8 @@ export const count = (locale: Locale, n: number): string =>
 
 /** A date: "Tue, Sep 29", "9月29日周二", "الثلاثاء، 29 سبتمبر". */
 export const date = (locale: Locale, d: Date): string => isolate(locale, f.formatDate(locale, d, workspaceZone()));
+/** Phase 9 (V1-193) — a date with its year. */
+export const dateYear = (locale: Locale, d: Date): string => isolate(locale, f.formatDateYear(locale, d, workspaceZone()));
 
 /** A day in full, for a page's title line. */
 export const dayLong = (locale: Locale, d: Date): string => isolate(locale, f.formatDayLong(locale, d, workspaceZone()));
@@ -118,6 +180,9 @@ export const time = (locale: Locale, d: Date): string => isolate(locale, f.forma
 
 /** "Today 09:15", "Yesterday 23:40", "Jul 17 09:15". */
 export const when = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatRelative(locale, d, now, workspaceZone()));
+
+/** Phase 9 (V1-267) — "Today", "Yesterday", "Tue, Sep 29": a day on its own, for a divider or a first contact. */
+export const day = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatDay(locale, d, now, workspaceZone()));
 
 /** "14:02", "Yesterday", "Sep 28" — a list's corner. */
 export const shortWhen = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatShortWhen(locale, d, now, workspaceZone()));

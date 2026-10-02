@@ -57,16 +57,25 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
   const option = (value: string, label: string, chosen: string | null): string =>
     `<option value="${esc(value)}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`;
   const pick = `<option value="">${esc(t(locale, 'signup.pick'))}</option>`;
+  // Phase 9 (V1-475) — in Chinese 中国 leads the list: in pinyin order it was the 248th of 250.
+  const countries = countryOptions(locale);
+  const ordered = locale === 'zh' ? [...countries.filter((c) => c.code === 'CN'), ...countries.filter((c) => c.code !== 'CN')] : countries;
+  // Phase 9 (V1-472, settings-a-new-07) — the heading names the three things
+  // the page holds, as Setup's row does; (V1-473) and the page says what each
+  // is used for, and when a change counts.
   return `${back('/app/settings', backLabel)}
-    <h1 class="page">${esc(t(locale, 'business.kind.label'))}</h1>
+    <h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>
     ${flashBanner(flash)}
+    <p class="lede">${esc(t(locale, 'business.kind.lede'))}</p>
     <form method="post" action="/app/settings/business" class="sform">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'signup.kind'), forId: 'bk-kind',
           control: `<select id="bk-kind" name="kind" required>${pick}${BUSINESS_KINDS.map((k) =>
             option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select>` }),
+        // Phase 9 (V1-474) — the country, and where the town goes instead: two questions, not one asked twice.
         fieldRow({ label: t(locale, 'signup.country'), forId: 'bk-country',
-          control: `<select id="bk-country" name="country" required autocomplete="country">${pick}${countryOptions(locale).map((c) =>
+          desc: t(locale, 'business.kind.countryDesc', { location: t(locale, 'settings.field.location'), profile: t(locale, 'settings.profile.title') }),
+          control: `<select id="bk-country" name="country" required autocomplete="country">${pick}${ordered.map((c) =>
             option(c.code, c.name, v.country === null ? null : canonicalCountry(v.country))).join('')}</select>` }),
         fieldRow({ label: t(locale, 'signup.website'), forId: 'bk-website',
           control: `<input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"

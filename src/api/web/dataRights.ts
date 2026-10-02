@@ -9,6 +9,7 @@ import { deletionDueBy } from '../../core/ops/deletions.js';
 import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, exportFileName, type ExportSubject } from './dataExport.js';
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { fieldRow, rowsCard, cardActs } from './rows.js';
 import type { Viewer } from '../../core/conversation/people.js';
 import { waitingAsks, type WaitingAsk } from '../../db/deletionAsks.js';
 import * as show from './values.js';
@@ -72,6 +73,8 @@ export type DataRightsView = {
   readonly asks?: readonly WaitingAsk[];
   /** The name she must type to confirm — her own business's. */
   readonly businessName: string;
+  /** Phase 9 (V1-496) — the address the legal pages name (`LEGAL_CONTACT_EMAIL`), for "write to us". Absent: no such sentence. */
+  readonly contact?: string | null;
 };
 
 type RequestRow = {
@@ -307,21 +310,27 @@ export function renderDataRights(
   // Nine links in one run is a wall on a phone. Two headings, because the two
   // halves answer different questions — what happened, and what you set up —
   // and the second half is the one an owner leaving would not think to ask for.
-  const links = (subjects: readonly ExportSubject[]) =>
-    `<ul class="chips">${subjects.map((s) => `<li>
-      ${deeper(`/app/settings/data/${exportFileName(s)}.csv`, t(locale, `data.export.subject.${s}` as MessageKey), '', 'download')}
+  // Phase 9 (V1-492, V1-497) — each file a row of a card with its own
+  // "Download", the settings pages' pattern: a run of chevrons read as a
+  // breadcrumb trail. Each half its own section, with the space sections have.
+  const links = (subjects: readonly ExportSubject[]) => `<ul class="scard dl-files">${subjects.map((s) => `<li class="row">
+      <span>${esc(t(locale, `data.export.subject.${s}` as MessageKey))}</span>
+      ${deeper(`/app/settings/data/${exportFileName(s)}.csv`, t(locale, 'data.export.download'), '', 'download')}
     </li>`).join('')}</ul>`;
   const CONFIG: readonly ExportSubject[] = ['price-rules', 'selling-terms', 'teaching'];
   const record = EXPORT_SUBJECTS.filter((s) => !CONFIG.includes(s));
 
   const files = `<section class="block">
     <h2>${esc(t(locale, 'data.export.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'data.export.lead'))}</p>
+    <p class="lede">${esc(t(locale, 'data.export.lead'))}</p>
     ${links(record)}
+  </section>
+  <section class="block">
     <h2>${esc(t(locale, 'data.export.configTitle'))}</h2>
-    <p class="muted">${esc(t(locale, 'data.export.configLead'))}</p>
+    <p class="lede">${esc(t(locale, 'data.export.configLead'))}</p>
     ${links(CONFIG)}
-    <p class="muted">${esc(t(locale, 'data.export.limit', { n: EXPORT_MAX_ROWS }))}</p>
+    ${/* Phase 9 (V1-500, V1-496) — the limit as a figure is written, and who "us" is, where an address is known. */ ''}<p class="muted">${esc(t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }))}${
+      v.contact ? ` ${esc(t(locale, 'data.export.limitWrite', { email: v.contact }))}` : ''}</p>
   </section>`;
 
   // G9a's rule, applied here: a page that refuses on submit is worse than a
@@ -340,13 +349,18 @@ export function renderDataRights(
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'data.deletion.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
         </form>`
-      : `<form method="post" action="/app/settings/data/delete" class="pform">
-          <div class="fld"><label for="dr-name">${esc(t(locale, 'data.deletion.typeName', { name: v.businessName }))}</label>
-            <input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" /></div>
-          <div class="fld"><label for="dr-note">${esc(t(locale, 'data.deletion.why'))}</label>
-            <input id="dr-note" name="note" maxlength="500" autocomplete="off" /></div>
-          ${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
-            data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button>
+      // Phase 9 (settings-a-new-13, V1-493) — the request as the settings pages'
+      // card of rows; its button red, for what it takes away (it was a grey
+      // outline that read as disabled).
+      : `<form method="post" action="/app/settings/data/delete">
+          ${rowsCard(null, [
+            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: v.businessName }), forId: 'dr-name',
+              control: '<input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" />' }),
+            fieldRow({ label: t(locale, 'data.deletion.why'), forId: 'dr-note',
+              control: '<input id="dr-note" name="note" maxlength="500" autocomplete="off" />' }),
+            cardActs(`${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button>`),
+          ])}
         </form>`;
 
   const workspace = v.requests.filter((r) => r.scope === 'workspace');
@@ -367,8 +381,7 @@ export function renderDataRights(
     ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [])}
     <section class="block">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'data.deletion.lead'))}</p>
-      <p class="muted">${esc(t(locale, 'data.deletion.byHand'))}</p>
+      <p class="lede">${esc(t(locale, 'data.deletion.lead'))} ${esc(t(locale, 'data.deletion.byHand'))}</p>
       ${ask}
     </section>
     ${history}
@@ -431,9 +444,8 @@ function buyerRequests(
   }).join('');
   return `<section class="block" id="buyers">
     <h2>${esc(t(locale, 'data.buyers.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'data.buyers.lead'))}</p>
-    <p class="muted">${esc(t(locale, 'data.buyers.fromChat'))}</p>
-    ${noted || rows ? `<ul class="rows">${noted}${rows}</ul>` : `<p class="muted">${esc(t(locale, 'data.buyers.none'))}</p>`}
+    <p class="lede">${esc(t(locale, 'data.buyers.lead'))} ${esc(t(locale, 'data.buyers.fromChat'))}</p>
+    ${/* Phase 9 (settings-a-new-14) — nobody yet is a state: the empty panel, not one more grey line. */ ''}${noted || rows ? `<ul class="rows">${noted}${rows}</ul>` : `<div class="empty whole">${esc(t(locale, 'data.buyers.none'))}</div>`}
   </section>`;
 }
 

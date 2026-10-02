@@ -4,7 +4,7 @@ import { countryName, orderStatusName, type MessageKey } from '../../core/owner/
 import { dayStart } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl, signalMark } from './layout.js';
-import { buyersHref, channelName, productName, customerRow, type InboxList, type ConversationSummary, type InboxFilter } from './inbox.js';
+import { buyersHref, channelName, productName, customerRow, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
 import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
@@ -27,6 +27,13 @@ import * as show from './values.js';
 /** The list beside the conversation: the tabs, the rows by who needs whom, the search. */
 export function renderListPane(
   data: InboxList, locale: Locale, now: Date, currentId: string, people: readonly Person[] = [],
+  /**
+   * Phase 9 (V1-257) — the open conversation, as a row. Shown first, under its
+   * own heading, when the tab beside it does not list it: Carlos's conversation
+   * was open beside a "Needs you" list that did not hold him, and nothing said
+   * where the owner was.
+   */
+  current: ConversationSummary | null = null,
 ): string {
   const name = assistantName(locale);
   const tab = (f: InboxFilter, n: number | undefined) => {
@@ -54,14 +61,20 @@ export function renderListPane(
   const needsYou = rest.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
   const yours = rest.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
   const hers = rest.filter((c) => !needsYou.includes(c) && !yours.includes(c));
-  const group = (title: string, rows: readonly ConversationSummary[]) => rows.length === 0 ? ''
-    : `<li class="lp-group" aria-hidden="true">${esc(title)}</li>${rows.map(row).join('')}`;
+  // Phase 9 (V1-233) — headed as the list page heads them: every group on All,
+  // only an order and a deletion elsewhere. Under "Needs you 2" a conversation
+  // the reader holds counts, and was headed "Your team is handling".
+  const heads = data.filter === 'all';
+  const group = (title: string, rows: readonly ConversationSummary[], always = false) => rows.length === 0 ? ''
+    : `${heads || always ? `<li class="lp-group" aria-hidden="true">${esc(title)}</li>` : ''}${rows.map(row).join('')}`;
+  const here = current && !all.some((c) => c.conversationId === currentId)
+    ? `<ul class="crows lp-rows lp-current"><li class="lp-group" aria-hidden="true">${esc(t(locale, 'pane.current'))}</li>${row(current)}</ul>` : '';
   const rows = all.length === 0
     // Phase 9 — an empty FILTER is not an empty business: each says what it is.
     ? `<p class="muted lp-empty">${esc(data.query ? t(locale, 'buyers.search.none', { q: data.query })
         : t(locale, data.filter === 'pending' ? 'buyers.empty.calm' : data.filter === 'mine' ? 'inbox.empty.mine'
           : data.filter === 'deletion' ? 'inbox.empty.deletion' : data.filter === 'blocked' ? 'refused.none' : 'inbox.empty.none'))}</p>`
-    : `<ul class="crows lp-rows">${group(t(locale, 'buyers.group.order'), orders)}${group(t(locale, 'buyers.group.deletion'), deletion)}${
+    : `<ul class="crows lp-rows">${group(t(locale, 'buyers.group.order'), orders, true)}${group(t(locale, 'buyers.group.deletion'), deletion, true)}${
         group(t(locale, 'buyers.group.needsYou'), needsYou)}${
         group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), yours)}${
         group(t(locale, 'buyers.group.hers', { name }), hers)}</ul>`;
@@ -70,10 +83,29 @@ export function renderListPane(
       <input type="search" name="q" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
       <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
     </form>`;
-  return `<aside class="listpane" aria-label="${esc(t(locale, 'pane.label'))}">
-      <h2 class="lp-h">${esc(t(locale, 'pane.label'))}</h2>
-      ${tabs}${rows}${more}${search}
+  // Phase 9 (conversation-missed-02) — the list's own name, as its page and the back link say it: it was "Conversations" here.
+  return `<aside class="listpane" aria-label="${esc(t(locale, 'nav.inbox'))}">
+      <h2 class="lp-h">${esc(t(locale, 'nav.inbox'))}</h2>
+      ${here}${tabs}${rows}${more}${search}
     </aside>`;
+}
+
+/**
+ * Phase 9 (V1-257) — the open conversation as the list would draw it, from the
+ * page's own reading of it, for when the list's first page does not hold it.
+ */
+export function paneRowOf(d: ConversationDetail): ConversationSummary {
+  const last = d.messages.at(-1) ?? null;
+  return {
+    conversationId: d.conversationId, buyer: d.buyer, country: d.country, status: d.status,
+    needsAction: d.pendingDraft !== null, ownership: d.ownership, heldBy: d.heldBy ?? null,
+    answeredBy: d.answeredBy ?? null, awaitingReview: d.pendingDraft !== null && d.ownership === 'AI',
+    handoffReason: d.handoffReasons[0] ?? null, deletionWaiting: Boolean(d.deletionAsk), orderWaiting: Boolean(d.orderProposal),
+    latestMessage: last?.text ?? null, latestAt: last?.at ?? null, product: d.product, quantity: d.quantity,
+    unitPrice: d.quote?.unitPrice ?? null, ...(d.channel ? { channel: d.channel } : {}),
+    unanswered: last?.direction === 'inbound',
+    ...(last ? { lastFrom: last.direction === 'inbound' ? 'buyer' as const : last.by === 'owner' ? 'person' as const : 'assistant' as const } : {}),
+  };
 }
 
 const MARK: Record<PanelActivity['kind'], 'as' | 'you' | 'none'> = {
@@ -105,11 +137,15 @@ export function renderCustomerPanel(
 
   const asked = p.askedAbout.map((a) => li(`<bdi>${esc(productName(locale, a) ?? '')}</bdi>`,
     esc(`${tn(locale, 'panel.times', a.count)} · ${show.shortWhen(locale, a.lastAt, now)}`)));
+  // Phase 9 (V1-234, V1-266) — a door to another conversation only: the one open
+  // beside the panel is the page already on the screen.
+  const elsewhere = (id: string): boolean => id !== conversationId;
   const prices = p.prices.map((q) => li(
     // Phase 9 (V1-226) — the price and what it is for on one line, when on the next:
     // run together, a narrow panel broke "LED String Lights 10m · 17:20" at random.
     `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''}<br><span class="muted small">${esc(show.shortWhen(locale, q.at, now))}</span>`,
-    `<a href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}<span class="go" aria-hidden="true">›</span></a>`));
+    // conversation-missed-05 — a door like every other, its chevron set off from its words.
+    elsewhere(q.conversationId) ? `<a class="pn-door" href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}<span class="go" aria-hidden="true">›</span></a>` : ''));
   const record = [
     ...p.samples.map((s) => li(`${esc(t(locale, 'panel.sample'))} · ${esc(t(locale, 'panel.sampleAsked', { date: show.date(locale, s.askedAt) }))}${
       s.handledAt ? ` · ${esc(t(locale, 'panel.sampleHandled', { date: show.date(locale, s.handledAt) }))}` : ''}`)),
@@ -118,9 +154,9 @@ export function renderCustomerPanel(
   ];
   const promises = p.promised.map((x) => li(
     `${x.byAssistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
-    `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))} <a href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>`));
+    `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))}${elsewhere(x.conversationId) ? ` <a class="pn-door" href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>` : ''}`));
   const dated = calendar.map((e) => li(`${esc(show.date(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
-    e.conversationId ? `<a href="${conversationUrl(e.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
+    e.conversationId && elsewhere(e.conversationId) ? `<a class="pn-door" href="${conversationUrl(e.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
   const act = p.activity.map((a) => {
     const mark = MARK[a.kind];
     const glyph = mark === 'as' ? '<span class="as" aria-hidden="true">✦</span>'
@@ -144,7 +180,8 @@ export function renderCustomerPanel(
       ${block('panel.onRecord', record)}
       ${block('panel.onCalendar', dated)}
       ${block('panel.activity', act)}
-      ${deeper(`/app/conversations/${encodeURIComponent(conversationId)}`, t(locale, 'panel.details'))}
+      ${/* Phase 9 (V1-234) — the buyer's page by the one name the conversation page gives it. */ ''}${
+        deeper(`/app/conversations/${encodeURIComponent(conversationId)}`, t(locale, 'conv.file.title'))}
     </aside>`;
 }
 

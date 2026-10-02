@@ -148,7 +148,9 @@ d('RT · a shop, end to end (requires DATABASE_URL)', () => {
     expect(list.body).toContain('$12.00');
     expect(list.body).not.toContain('Min. order');
     const page = await get(`/app/products/${PID}`);
-    expect(page.body).not.toContain('Min. order');
+    // The edit form names its box "Min. order" (one name per thing, phase 9); outside
+    // the form, nothing on the page says a minimum.
+    expect(page.body.replace(/<form\b[\s\S]*?<\/form>/g, '')).not.toContain('Min. order');
     // A minimum she set is shown.
     expect((await post(`/app/products/${PID}/edit`, 'moq=3&isActive=on')).statusCode).toBe(302);
     expect((await get('/app/products')).body).toMatch(/Min\. order[\s\S]{0,80}3/);

@@ -17,7 +17,7 @@ import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './o
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
-import { esc, deeper, back } from './layout.js';
+import { esc, deeper, back, signalMark } from './layout.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -198,6 +198,8 @@ export const STUCK_AFTER_MINUTES = 15;
 export type Reliability = {
   readonly stuckOutbound: number;
   readonly oldestQueuedAt: Date | null;
+  /** Phase 9 (V1-125) — replies that ever went out; absent, unknown (read as some). */
+  readonly sent?: number;
 };
 
 export type PilotRunbook = {
@@ -254,13 +256,14 @@ export async function loadPilotRunbook(
   // the documented STUCK_AFTER_MINUTES.
   const reliability: Reliability = bid.ok
     ? await withTenantTx(db, bid.value, async (tx) => {
-        const r = (await sql<{ n: number; oldest: Date | null }>`
-          select count(*)::int as n, min(created_at) as oldest
+        const r = (await sql<{ n: number; oldest: Date | null; sent: number }>`
+          select count(*) filter (where status = 'queued' and created_at < now() - (${STUCK_AFTER_MINUTES} || ' minutes')::interval)::int as n,
+                 min(created_at) filter (where status = 'queued' and created_at < now() - (${STUCK_AFTER_MINUTES} || ' minutes')::interval) as oldest,
+                 count(*) filter (where status in ('sent', 'delivered', 'read'))::int as sent
             from outbound_messages
-           where business_id = ${bid.value} and status = 'queued'
-             and created_at < now() - (${STUCK_AFTER_MINUTES} || ' minutes')::interval
+           where business_id = ${bid.value}
         `.execute(tx)).rows[0]!;
-        return { stuckOutbound: r.n, oldestQueuedAt: r.oldest };
+        return { stuckOutbound: r.n, oldestQueuedAt: r.oldest, sent: r.sent };
       })
     : { stuckOutbound: 0, oldestQueuedAt: null };
 
@@ -435,8 +438,14 @@ export async function runValidation(db: Db, businessIdRaw: string): Promise<{ pa
 
 // ── renderer (pure, localized, escaped) ──────────────────────────────────────
 
+/**
+ * Phase 9 (today-onboarding-new-11) — a row's mark: ✓ done, or the waiting ○
+ * in its amber, as Setup and Today draw the same state (it was graphite here).
+ */
+const mk = (done: boolean): string => done ? '<span class="mk">✓</span>' : '<span class="mk dot warn">○</span>';
+
 const DETECTED_LINK: Record<DetectedKey, string> = {
-  profile: '/app/settings', products: '/app/products', priceRules: '/app/business/prices',
+  profile: '/app/settings/profile', products: '/app/products', priceRules: '/app/business/prices',
   knowledge: '/app/knowledge', claims: '/app/knowledge', sandbox: '/app/sandbox',
   channel: '/app/channels',
 };
@@ -444,13 +453,13 @@ const DETECTED_LINK: Record<DetectedKey, string> = {
 function detectedRow(key: DetectedKey, done: boolean, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
   const label = esc(t(locale, `pilot.item.${key}` as MessageKey));
   if (done) {
-    return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label}</span>
+    return `<div class="pr done">${mk(true)} <span class="lbl">${label}</span>
       <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))}</span></div>`;
   }
   const extra = key === 'claims' && viewer.isOwner
-    ? `<form method="post" action="/app/onboarding/attest" class="inline"><input type="hidden" name="which" value="claims_reviewed" /><button class="btn ghost" type="submit">${esc(t(locale, 'pilot.claims.none'))}</button></form>`
+    ? `<form method="post" action="/app/onboarding/attest" class="inline"><input type="hidden" name="which" value="claims_reviewed" /><button class="btn" type="submit">${esc(t(locale, 'pilot.claims.none'))}</button></form>`
     : '';
-  return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+  return `<div class="pr todo">${mk(false)} <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, `pilot.blocker.${key}` as MessageKey))}</span>
       ${(key === 'priceRules' && !viewer.isOwner) ? '' : deeper(DETECTED_LINK[key], t(locale, 'pilot.open'))}${extra}</div></div>`;
 }
@@ -469,10 +478,10 @@ function nomiChecksRow(d: PilotReadiness, locale: Locale): string {
   const label = esc(t(locale, 'pilot.nomiChecks'));
   if (backup && keys) {
     const at = backup > keys ? backup : keys;
-    return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label}</span>
+    return `<div class="pr done">${mk(true)} <span class="lbl">${label}</span>
       <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(show.date(locale, at))}</span></div>`;
   }
-  return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+  return `<div class="pr todo">${mk(false)} <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.nomiChecks.todo'))}</span></div></div>`;
 }
 
@@ -481,13 +490,13 @@ function attestRow(
 ): string {
   const label = esc(t(locale, `pilot.attest.${key}` as MessageKey));
   if (at) {
-    return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label}</span>
+    return `<div class="pr done">${mk(true)} <span class="lbl">${label}</span>
       <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(show.date(locale, at))}</span></div>`;
   }
   // Phase 4 — each answer here is a condition for going live: the owner's.
-  if (!viewer.isOwner) return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+  if (!viewer.isOwner) return `<div class="pr todo">${mk(false)} <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span></div></div>`;
-  return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+  return `<div class="pr todo">${mk(false)} <span class="lbl">${label}</span>
     <form method="post" action="/app/onboarding/attest" class="inline">
       <input type="hidden" name="which" value="${key}" />
       <button class="btn" type="submit">${esc(t(locale, 'pilot.attest.confirm'))}</button>
@@ -507,14 +516,16 @@ function attestRow(
 function assistantNameRow(d: PilotReadiness, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
   const label = esc(t(locale, 'pilot.attest.assistant_named'));
   if (d.attest.assistantNamedAt) {
-    return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label} · ${esc(d.assistantName)}</span>
+    return `<div class="pr done" id="name">${mk(true)} <span class="lbl">${label} · ${esc(d.assistantName)}</span>
       <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(show.date(locale, d.attest.assistantNamedAt))}</span></div>`;
   }
-  if (!viewer.isOwner) return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+  if (!viewer.isOwner) return `<div class="pr todo" id="name">${mk(false)} <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span></div></div>`;
-  return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+  // Phase 9 (V1-133, V1-134) — the name row is laid out one way in every language: its
+  // label, the line under it, then the field with Confirm beside it.
+  return `<div class="pr todo under" id="name">${mk(false)} <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.assistant.hint'))}</span>
-      <form method="post" action="/app/onboarding/assistant-name" class="inline">
+      <form method="post" action="/app/onboarding/assistant-name" class="pr-name">
         <input type="text" name="name" maxlength="${NAME_MAX}" required
                value="${esc(d.assistantName)}" aria-label="${label}" />
         <button class="btn" type="submit">${esc(t(locale, 'pilot.attest.confirm'))}</button>
@@ -528,7 +539,8 @@ export function renderPilotReadiness(
   // G6 — the fixed-scenario check is not a self-serve workspace's: "Ready for customers" stands for it.
   const detectedOrder: DetectedKey[] = d.ready
     ? ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'channel']
-    : ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'sandbox', 'channel'];
+    // Phase 9 (V1-123) — the practice check is listed once, under the final checks, with its button.
+    : ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'channel'];
   const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale, viewer)).join('');
 
   const v = d.validation;
@@ -536,7 +548,7 @@ export function renderPilotReadiness(
     ? `${esc(t(locale, 'pilot.validate.result', { pass: v.pass, total: v.total, date: show.date(locale, v.at) }))}`
     : esc(t(locale, 'pilot.validate.never'));
   const validate = `<div class="pr ${d.detected.sandbox ? 'done' : 'todo'}">
-      <span class="mk">${d.detected.sandbox ? '✓' : '○'}</span>
+      ${mk(d.detected.sandbox)}
       <span class="lbl">${esc(t(locale, 'pilot.item.sandbox'))}</span>
       <div class="pr-b"><span class="muted">${valLine}</span>
         ${viewer.isOwner ? `<form method="post" action="/app/onboarding/validate" class="inline"><button class="btn" type="submit">${esc(t(locale, 'pilot.validate'))}</button></form>` : ''}</div>
@@ -547,13 +559,13 @@ export function renderPilotReadiness(
   // installation's own facts (backup, secrets) are the operator's.
   if (d.ready) {
     const r = d.ready;
-    const readyRow = `<div class="pr ${r.complete ? 'done' : 'todo'}"><span class="mk">${r.complete ? '✓' : '○'}</span>
+    const readyRow = `<div class="pr ${r.complete ? 'done' : 'todo'}">${mk(r.complete)}
       <span class="lbl">${esc(t(locale, 'pilot.item.ready'))}</span>
       <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.ready.count', { done: r.done, total: r.total }))}</span>
         ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</div></div>`;
     const verdict = d.readyToLaunch
-      ? `<div class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</div>`
-      : `<div class="verdict">${esc(t(locale, 'pilot.notReady'))}</div>`;
+      ? `<p class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</p>`
+      : `<p class="verdict">${signalMark('waiting')} ${esc(t(locale, 'pilot.notReady'))}</p>`;
     return `
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
@@ -574,9 +586,10 @@ export function renderPilotReadiness(
     attestRow('owner_ready', d.attest.ownerReadyAt, locale, viewer),
   ].join('');
 
+  // Phase 9 (V1-130) — a state line, not a box that looks pressable.
   const verdict = d.readyToLaunch
-    ? `<div class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</div>`
-    : `<div class="verdict">${esc(t(locale, 'pilot.notReady'))}</div>`;
+    ? `<p class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</p>`
+    : `<p class="verdict">${signalMark('waiting')} ${esc(t(locale, 'pilot.notReady'))}</p>`;
 
   return `
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
@@ -597,8 +610,7 @@ export function renderPilotReadiness(
 // sections. ✓ / ○ and real counts only — no scores, percentages, or grades.
 
 function rbCount(label: MessageKey, n: number, href: string | null, locale: Locale): string {
-  const link = href ? ` <a class="rblink" href="${href}">${esc(t(locale, 'pilot.open'))}</a>` : '';
-  return `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n">${n}</b>${link}</div>`;
+  return `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n">${n}</b>${href ? deeper(href, t(locale, 'pilot.open'), 'rbgo') : ''}</div>`;
 }
 
 function duringSection(ops: OperationsSnapshot, locale: Locale): string {
@@ -626,7 +638,7 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
   const steps = ['buyer', 'draft', 'approve', 'takeover', 'reply', 'resume', 'teach']
     .map((s) => `<li>${esc(t(locale, `runbook.step.${s}` as MessageKey))}</li>`).join('');
   const mark = (step: RehearsalStep, label: MessageKey) =>
-    `<div class="pr ${r.done[step] ? 'done' : 'todo'}"><span class="mk">${r.done[step] ? '✓' : '○'}</span> <span class="lbl">${esc(t(locale, label))}</span></div>`;
+    `<div class="pr ${r.done[step] ? 'done' : 'todo'}">${mk(r.done[step])} <span class="lbl">${esc(t(locale, label))}</span></div>`;
   const progress = [
     mark('takeover', 'runbook.rehearse.takeover'),
     mark('ownerReply', 'runbook.rehearse.ownerReply'),
@@ -635,9 +647,10 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
     mark('validationPassed', 'runbook.rehearse.validation'),
   ].join('');
   return `<div class="block">
-    <h2>${esc(t(locale, 'runbook.practice.title'))} · ${esc(show.isolate(locale, `${r.completed}/${r.total}`))}</h2>
+    <h2>${esc(t(locale, 'runbook.practice.title'))}</h2>
     <p class="muted">${esc(t(locale, 'runbook.practice.intro'))}</p>
     <ol class="rbsteps">${steps}</ol>
+    <h3 class="rbsub">${esc(t(locale, 'runbook.practice.done'))}</h3>
     ${progress}
     ${deeper('/app/sandbox', t(locale, 'runbook.practice.open'))}
   </div>`;
@@ -645,7 +658,7 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
 
 function afterSection(locale: Locale): string {
   const link = (label: MessageKey, href: string) =>
-    `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span>${deeper(href, t(locale, 'pilot.open'), 'rblink')}</div>`;
+    `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span>${deeper(href, t(locale, 'pilot.open'), 'rbgo')}</div>`;
   return `<div class="block">
     <h2>${esc(t(locale, 'runbook.after.title'))}</h2>
     <p class="muted">${esc(t(locale, 'runbook.after.intro'))}</p>
@@ -668,7 +681,7 @@ function feedbackSection(f: PilotFeedback, locale: Locale): string {
   }
   const row = (label: string, item: FeedbackItem) =>
     `<div class="rbrow"><span class="lbl">${esc(label)}</span><b class="n">${item.count}</b>
-      ${item.lastAt ? `<span class="muted rblink">${esc(show.date(locale, item.lastAt))}</span>` : ''}</div>`;
+      ${item.lastAt ? `<span class="muted rbwhen">${esc(show.date(locale, item.lastAt))}</span>` : ''}</div>`;
   const reasons = f.handoffReasons.length
     ? `<h3 class="rbsub">${esc(t(locale, 'feedback.reasons'))}</h3>` +
       // reuse the M16.1 handoff wording — one vocabulary for one concept
@@ -721,7 +734,7 @@ function metaSection(m: MetaReadiness, locale: Locale, templateState: TemplateSt
   const rows = m.credentials.map((c) => {
     const done = c.state === 'ok';
     return `<div class="pr ${done ? 'done' : 'todo'}">
-      <span class="mk">${done ? '✓' : '○'}</span>
+      ${mk(done)}
       <span class="lbl">${esc(t(locale, `meta.cred.${c.key}` as MessageKey))}</span>
       <div class="pr-b"><span class="muted">${esc(t(locale, `meta.state.${c.state}` as MessageKey))}</span></div>
     </div>`;
@@ -732,7 +745,7 @@ function metaSection(m: MetaReadiness, locale: Locale, templateState: TemplateSt
     <h2>${esc(t(locale, 'meta.title'))}</h2>
     <p class="muted">${esc(t(locale, 'meta.intro'))}</p>
     ${rows}
-    <div class="verdict ${m.live ? 'ok' : ''}">${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</div>
+    <p class="verdict${m.live ? ' ok' : ''}">${m.live ? '✓' : signalMark('waiting')} ${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</p>
     ${blockers ? `<ul class="rbsteps muted">${blockers}</ul>` : ''}
     ${templateRow(locale, templateState)}
   </div>`;
@@ -754,7 +767,7 @@ function templateRow(locale: Locale, state: TemplateState): string {
   // defect as the send path's, on the surface meant to reveal it.
   const r = templateReadiness(state);
   return `<div class="pr ${r.canReopenWindow ? 'done' : 'todo'}">
-    <span class="mk">${r.canReopenWindow ? '✓' : '○'}</span>
+    ${mk(r.canReopenWindow)}
     <span class="lbl">${esc(t(locale, 'meta.template.label'))}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale,
       r.canReopenWindow ? 'meta.template.approved' : 'meta.template.none'))}</span></div>
@@ -768,11 +781,11 @@ function templateRow(locale: Locale, state: TemplateState): string {
 function healthSection(r: Reliability, locale: Locale): string {
   if (r.stuckOutbound === 0) {
     return `<div class="block"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
-      <div class="ok">✓ ${esc(t(locale, 'ops.health.ok'))}</div></div>`;
+      ${r.sent === 0 ? `<p class="muted">${esc(t(locale, 'ops.health.none'))}</p>` : `<div class="ok">✓ ${esc(t(locale, 'ops.health.ok'))}</div>`}</div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
     <div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.stuck'))}</span><b class="n">${r.stuckOutbound}</b>
-      <a class="rblink" href="/app/channels">${esc(t(locale, 'pilot.open'))}</a></div>
+      ${deeper('/app/channels', t(locale, 'pilot.open'), 'rbgo')}</div>
     ${r.oldestQueuedAt ? `<div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.oldest'))}</span><b class="n">${esc(show.date(locale, r.oldestQueuedAt))}</b></div>` : ''}
     <p class="muted">${esc(t(locale, 'ops.health.whatToDo'))}</p>
   </div>`;

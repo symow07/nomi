@@ -30,14 +30,19 @@ const block = (cond: string): string => {
 };
 
 describe('phase 7 · the phone nav is one line', () => {
-  it('"My business" and an unnamed assistant carry a shorter phone label; a named one is short already', () => {
-    for (const l of LOCALES) {
+  it('one name per entry at every width where it fits (phase 9, cross-new-02); French keeps a shorter phone label; a named assistant is short already', () => {
+    // Measured at 360–430 px (the mark gives up its place up to 440 px): the
+    // full names fit one line in en, zh, ar and es; French does not.
+    for (const l of ['en', 'zh', 'ar', 'es'] as const) {
       const html = nav(page(l));
-      expect(html, l).toContain(`<span class="nl-short">${t(l, 'nav.short.factory')}</span>`);
-      expect(html, l).toContain(`<span class="nl-long">${t(l, 'nav.factory')}</span>`);
+      expect(html, l).not.toContain('nl-short');
+      expect(html, l).toContain(`>${t(l, 'nav.factory')}<`);
     }
-    expect(nav(page('en'))).toContain('<span class="nl-short">Assistant</span>');
-    const named = withAssistantName('Lily', () => nav(page('en')));
+    const fr = nav(page('fr'));
+    expect(fr).toContain(`<span class="nl-short">${t('fr', 'nav.short.factory')}</span>`);
+    expect(fr).toContain(`<span class="nl-long">${t('fr', 'nav.factory')}</span>`);
+    expect(fr).toContain('<span class="nl-short">Assistant</span>');
+    const named = withAssistantName('Lily', () => nav(page('fr')));
     expect(named).not.toContain('<span class="nl-short">Assistant</span>');
     expect(named).toContain('>Lily<');
   });

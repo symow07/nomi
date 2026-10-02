@@ -85,11 +85,21 @@ export function countryCodes(): readonly string[] {
  */
 export const isCountryCode = (v: string): boolean => countryCodes().includes(canonicalCountry(v));
 
-/** The list for a `<select>`, named and sorted in the reader's own language. */
+/**
+ * Phase 9 (V1-054) — places where nobody lives to register a business: offered
+ * nowhere, still READ as a country (a stored one keeps validating).
+ */
+const UNINHABITED: ReadonlySet<string> = new Set(['AQ', 'BV', 'GS', 'HM', 'IO', 'TF', 'UM']);
+
+/**
+ * The list for a `<select>`, named and sorted in the reader's own language.
+ * Nothing is chosen for her: the country sets the time zone and the currency,
+ * and a guess left unread would set both wrong.
+ */
 export function countryOptions(locale: string): readonly { readonly code: string; readonly name: string }[] {
   const names = new Intl.DisplayNames([locale === 'zh' ? 'zh-Hans' : locale], { type: 'region' });
   const collator = new Intl.Collator(locale === 'zh' ? 'zh-Hans' : locale);
-  return countryCodes().map((code) => ({ code, name: names.of(code) ?? code }))
+  return countryCodes().filter((code) => !UNINHABITED.has(code)).map((code) => ({ code, name: names.of(code) ?? code }))
     .sort((x, y) => collator.compare(x.name, y.name));
 }
 

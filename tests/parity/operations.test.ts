@@ -134,7 +134,9 @@ describe('Today, by time (render)', () => {
     // Phase 4 — Buyers' own row: ○ for whoever waits for the owner, ● for one the owner holds.
     expect(html).toMatch(/class="crow is-needs[^"]*"[\s\S]*?<span class="cr-mark" aria-hidden="true">○<\/span>/);
     expect(html).toMatch(/class="crow is-yours[^"]*"[\s\S]*?<span class="cr-mark" aria-hidden="true">●<\/span>/);
-    expect(html).toContain(`<span class="sr">${t('en', 'buyers.group.yours')}</span>`);
+    // Phase 9 (today-onboarding-new-04) — Today has no group headings: the row the owner holds says so in words.
+    expect(html).toContain(`<span class="cr-why"><bdi>${t('en', 'buyers.group.yours')}</bdi></span>`);
+    expect(html).not.toContain(`<span class="sr">${t('en', 'buyers.group.yours')}</span>`);
     // in the list's own order
     expect(html.indexOf('Maya Rahman')).toBeLessThan(html.indexOf('Omar Haddad'));
     // more than it names: one door to all of them, with the count

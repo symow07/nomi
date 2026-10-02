@@ -324,13 +324,52 @@ const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', e
  * the same time; the place tells them apart.
  */
 export function zoneLabel(locale: Locale, zone: string): string {
-  const place = zone.split('/').slice(1).reverse().join(', ').replace(/_/g, ' ') || zone;
-  let kept = '';
+  const place = zonePlace(zone);
+  const kept = zoneKept(locale, zone);
+  return kept ? `${place} — ${kept}` : place;
+}
+
+/** The place a zone is named after, as the tz database names it: "Buenos Aires, Argentina". */
+export const zonePlace = (zone: string): string =>
+  zone.split('/').slice(1).reverse().join(', ').replace(/_/g, ' ') || zone;
+
+/** The time a zone keeps, in the owner's language ("北美东部时间"); '' when this build cannot name it. */
+export function zoneKept(locale: Locale, zone: string): string {
   try {
-    kept = new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: zone, timeZoneName: 'longGeneric' })
+    return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: zone, timeZoneName: 'longGeneric' })
       .formatToParts(new Date(0)).find((p) => p.type === 'timeZoneName')?.value ?? '';
   } catch {
-    kept = '';
+    return '';
   }
-  return kept ? `${place} — ${kept}` : place;
+}
+
+/**
+ * Phase 9 (V1-522, V1-528) — the profile's full list, when the workspace has
+ * no country to narrow it: every zone an owner could keep a shop in, without
+ * the research stations of Antarctica and Svalbard, under the region the tz
+ * database files it in. A zone the workspace already keeps stays offered.
+ */
+export const REGIONS = ['Africa', 'America', 'Asia', 'Atlantic', 'Australia', 'Europe', 'Indian', 'Pacific'] as const;
+export type ZoneRegion = (typeof REGIONS)[number];
+const STATIONS = /^(Antarctica|Arctic)\//;
+export const regionOf = (zone: string): ZoneRegion | null =>
+  REGIONS.find((r) => zone.startsWith(`${r}/`)) ?? null;
+export const SHOP_ZONES: readonly string[] = ALL_ZONES.filter((z) => !STATIONS.test(z) && regionOf(z) !== null);
+
+/**
+ * The groups the full list is shown in. A continent is named by the owner's
+ * language itself (`Intl.DisplayNames`, its UN M.49 code: Oceania holds
+ * Australia and the Pacific); the two oceans' islands, which no continent
+ * holds, by the catalogue (`settings.zone.region.<key>`).
+ */
+export const ZONE_GROUPS: readonly { readonly regions: readonly ZoneRegion[]; readonly m49?: string; readonly key?: 'Atlantic' | 'Indian' }[] = [
+  { regions: ['Africa'], m49: '002' }, { regions: ['America'], m49: '019' }, { regions: ['Asia'], m49: '142' },
+  { regions: ['Atlantic'], key: 'Atlantic' }, { regions: ['Europe'], m49: '150' }, { regions: ['Indian'], key: 'Indian' },
+  { regions: ['Australia', 'Pacific'], m49: '009' },
+];
+
+/** The one country the table files this zone under, or null when it is several or none. */
+export function countryOfZone(zone: string): string | null {
+  const found = Object.entries(ZONES).filter(([, zs]) => zs.includes(zone)).map(([c]) => c);
+  return found.length === 1 ? found[0]! : null;
 }

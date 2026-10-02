@@ -43,7 +43,98 @@ under "Decided" below.
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · #209 (the conversation page, the draft card, Practice) · #210 (My business, Your assistant, channels, the Customers list, an order, Results) · next: products and knowledge, the public pages, the outreach area, then every S3 and S4 |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · #209 (the conversation page, the draft card, Practice) · #210 (My business, Your assistant, channels, the Customers list, an order, Results) · #211 (every other area, S2 to S4) · next: the final walk |
+
+**Phase 9, part six (#211): every other area, S2 to S4 (about 500 findings).**
+
+Six agents worked six areas in parallel, from #210's head. I merged their branches and reviewed what touches money, the legal pages or the send path. I fixed what fell between areas and ran the four checks on the whole.
+
+**Where the merged list stands after this part** (ledger in the scratchpad, 703 findings):
+
+| State | Count |
+|---|---|
+| Fixed | 671 |
+| Fixed in part | 3 |
+| Decided, not changed (reasons below) | 5 |
+| The owner's decision | 12 |
+| Not a defect (reasons below) | 10 |
+| The final walk's (the guide's stills) | 2 |
+
+**By area.**
+- **Products and knowledge** (98):
+  - one way to write a price;
+  - the import review reads a plain price, and each row says what it needs;
+  - the price limits page is headed, ordered and reachable, with one filled Save;
+  - certifications are named in words, with On or Off in words, and switched in one place;
+  - the exports are in the owner's language, one figure to a cell.
+- **The public pages** (77): the door, the policies, the site and the dead links say what is true. The policy pages open like the site, with a language switch.
+- **Settings and the outreach area** (73):
+  - Who works here says each act once;
+  - the profile marks what setup needs;
+  - rate, samples and terms say what they set, with each Incoterm in words and DDU no longer offered;
+  - Contacts files each person under the gate's own answer;
+  - a tick box is no longer drawn like a text box.
+- **Today, setting up, the whole product** (86):
+  - the phone nav says one name per entry at every width;
+  - Setup rows describe without repeating their label;
+  - a field sent back is marked on every form;
+  - the step names correspond across the guide, Today and the checklists (V1-108).
+- **A conversation and Practice** (66):
+  - the draft card says which figure and which window;
+  - "No reply needed" moves to its own line and asks first, because it throws the reply away and has no undo;
+  - the customer's page says how to reach them and what happens to their data;
+  - Practice says what each count counts.
+- **The Customers list, the calendar, Results, an order, settings-a** (102):
+  - the list heads its runs, marks a search match and explains its marks;
+  - the calendar moves in words, its categories are one choice, and an empty week is said rather than drawn;
+  - Results says each count once;
+  - an order's proforma can be downloaded as text.
+
+**Money and numbers by country** (V1-009, V1-404, V1-169, V1-229, V1-300, V1-307, V1-350, V1-383).
+- **Amounts and quantities** on an owner's page are written the reader's way in the workspace's country:
+  - Spanish in Spain "1,05 $" and "5000 uds."; in Mexico "$1.05" and "5,000 uds.";
+  - French "1 234,05 $" and "5 000".
+- **English, Chinese and Arabic** are unchanged. Intl would write English in Spain as "5.000", which an English reader would misread, so English is excluded.
+- **Data exports** use ";" and "1,05" where the language writes a decimal comma in that country. Everywhere else they keep RFC 4180.
+- **The send path** writes its own figures (`core/owner/i18n/format.ts`) and was not changed.
+
+**My calls, as the owner allowed.**
+- **The door pages run no script**, as CC-26 decided, because they hold the password and code fields. The busy button a door would have drawn is not built (public-new-11).
+- **Saving a product's price** now moves the lowest quantity price, the one the box shows (V1-305). It used to add a price "from 1" that no quote of 500 or more read, so the owner's new price changed nothing. A new database test proves it, and the scripted pre-pilot ran 12/12 before and after.
+- **"No reply needed" asks first**, because it throws the reply away with no undo.
+- **Where two areas renamed one thing two ways**, the page's own title decided: Contacts; and "What you do, your country and your website".
+- **Before going live's "Practice check"** is now "Practice: the standard test conversations". It stood beside Practice's own safety checks under nearly the same name (V1-290).
+- **The contact list said a first e-mail would go "once your sending address is checked".** Nothing here can write first yet, so it says that and points to where each condition is listed.
+
+**Found by the integration run, and fixed:**
+- Who works here had four filled buttons on a workspace with several people.
+- A certification's "ISO 9001" sat inside Arabic words without an isolate.
+- Twelve expectations still described the pages before this part.
+
+**Decided, not changed (5):**
+- public-new-11: the door runs no script.
+- V1-072: nothing is sent to a customer on a deletion request (rule 18).
+- V1-021: the public pages use system fonts, so they arrive with nothing to fetch.
+- V1-296: Practice's replay choices keep the safety-case names, so a check can be replayed by the name the owner just saw.
+- settings-b new-12: a permanent act asks on a page, so it still asks with scripting off.
+
+**Not defects (10):** four were artefacts of Chromium's full-page capture. The other six are written up in the agents' reports, each with its evidence.
+
+**Fixed in part (3):**
+- V1-313: a customer name cannot be removed from a product. `product_aliases` has no archive column and the app role cannot delete, so it needs a migration, and the names feed how a customer's words are matched.
+- V1-522: a city in a country with several time zones keeps its English name; this build has no translated city names.
+- conversation-missed-10: below.
+
+**Waiting on the owner (12):**
+- **The legal pages' facts:** the operator's legal name, country and postal address; the governing law (V1-015, V1-057, V1-063); the fees (V1-065).
+- **Four terms wordings** (V1-067, V1-068, public-missed-18, -19). Any change to the terms' English is a new `TERMS_VERSION` and a new date; the proposed words are in `fix/p-public.report.md`.
+- **A time for backups in the deletion promise** (public-missed-21).
+- **Whether forbidden-word matching should respect word edges** (V1-504), which changes what is sent.
+- **Navigation D's split** between the assistant and My business (V1-366).
+- **The mark's two cuts** (V1-106).
+- **Also:** certifications can be switched by staff as well as the owner; rule 11 lets staff teach facts, so I did not change who may.
+
+**Found, not fixed (the send path):** `handToPerson` (`src/pipeline/received.ts`) records a late "not answered" hand-over even after the owner answered and handed the conversation back. The Practice card then says "Handed to you because: a message that could not be answered" under the owner's own reply (conversation-missed-10).
 
 **Phase 9, part five (#210) — My business, Your assistant, the channel pages, the Customers list, an order, Results, two settings pages (111 findings).**
 

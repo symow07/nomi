@@ -144,14 +144,15 @@ export function renderPageFactsForm(locale: Locale, kept: PageFactsKept | null =
   const bad = kept ? ' aria-invalid="true" aria-describedby="pf-err" autofocus' : '';
   return `<div class="block" id="from-page">
     <h2>${esc(t(locale, 'pageFacts.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'pageFacts.intro'))}</p>
+    ${/* Phase 9 (V1-365) — the section's description at the lede's size, its field as wide as the teach form's. */ ''}
+    <p class="fdesc">${esc(t(locale, 'pageFacts.intro'))}</p>
     <form method="post" action="/app/knowledge/from-page" class="pform">
-      <label for="pf-address">${esc(t(locale, 'pageFacts.address'))}</label>
+      <label class="pq" for="pf-address"><span>${esc(t(locale, 'pageFacts.address'))}</span></label>
       <input id="pf-address" type="text" name="address" inputmode="url" autocapitalize="none" spellcheck="false" dir="ltr" maxlength="500" placeholder="myshop.com/pages/shipping"${
         kept ? ` value="${esc(kept.address)}"` : ''}${kept && !kept.text ? bad : ''} />
       ${kept ? `<p class="perr" role="alert" id="pf-err">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p>` : ''}
       <details${kept?.text ? ' open' : ''}><summary>${esc(t(locale, 'pageFacts.pasteInstead'))}</summary>
-        <textarea name="text" rows="6" dir="auto" maxlength="60000"${kept?.text ? bad : ''}>${esc(kept?.text ?? '')}</textarea></details>
+        <textarea name="text" rows="6" dir="auto" maxlength="60000" aria-label="${esc(t(locale, 'pageFacts.pasteInstead'))}"${kept?.text ? bad : ''}>${esc(kept?.text ?? '')}</textarea></details>
       <button class="btn" type="submit">${esc(t(locale, 'pageFacts.read'))}</button>
     </form>
   </div>`;

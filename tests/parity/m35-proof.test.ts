@@ -245,12 +245,20 @@ describe('M35 · the link is the only credential, so it must be unguessable', ()
     for (const l of LOCALES) {
       for (const kind of ['proof', 'unsubscribe'] as const) {
         const html = notFoundPage(l, kind);
+        // Phase 9 (V1-085, V1-086, public-missed-24) — each kind in its own words, under the mark, the tab naming Nomi.
+        const title = t(l, kind === 'proof' ? 'public.notFound.proof.title' : 'public.notFound.title');
         expect(html, `${l} ${kind}`).toContain(`<html lang="${l}"`);
-        expect(html, `${l} ${kind}`).toContain(t(l, 'public.notFound.title'));
+        expect(html, `${l} ${kind}`).toContain(`<h1>${title}</h1>`);
+        expect(html, `${l} ${kind}`).toContain(`<title>${title} · Nomi</title>`);
+        expect(html, `${l} ${kind}`).toMatch(/<header class="pub-top"><a class="pub-brand" href="\/site"><svg class="mark"/);
         expect(html, `${l} ${kind}`).toContain('href="/privacy"');
         expect(html, `${l} ${kind}`).toContain('href="/data-deletion"');
         expect(html.includes(t(l, 'public.notFound.unsubscribe')), `${l} ${kind}`).toBe(kind === 'unsubscribe');
+        expect(html.includes(t(l, 'public.notFound.proof.next')), `${l} ${kind}`).toBe(kind === 'proof');
+        // No switch: the address carries the link's token, and it is not passed on.
+        expect(html, `${l} ${kind}`).not.toContain('/locale?');
       }
+      expect(t(l, 'public.notFound.proof.title'), l).not.toBe(t(l, 'public.notFound.title'));
       expect(notFoundPage(l, 'unsubscribe').includes('dir="rtl"')).toBe(l === 'ar');
     }
     const src = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');

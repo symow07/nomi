@@ -2,9 +2,8 @@ import { workspaceZone } from './zone.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { addDays, dayKey, dayStart, hourIn, formatWeekday } from '../../core/owner/i18n/format.js';
-import { t } from './say.js';
+import { t, assistantName, outreachShown } from './say.js';
 import { esc, deeper, back, conversationUrl, signalMark } from './layout.js';
-import { flag } from './inbox.js';
 import {
   CALENDAR_CATEGORIES, edgeOf, type CalendarCategory, type CalendarEntry, type CalendarView, type CalendarBuyer,
 } from '../../db/calendar.js';
@@ -154,15 +153,52 @@ export function line(locale: Locale, e: CalendarEntry): string {
   }
 }
 
-function who(locale: Locale, e: CalendarEntry): string {
-  if (e.buyer) {
-    const cn = countryName(locale, e.buyer.country);
-    const f = flag(e.buyer.country);
-    // One inline run, so the country stays beside the name instead of wrapping under the chip.
-    return `<span>${f ? `${f} ` : ''}<b><bdi>${esc(e.buyer.name ?? t(locale, 'common.buyer'))}</bdi></b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}</span>`;
+
+/**
+ * Phase 9 (inbox-calendar-new-11, missed-17, missed-18) — WHAT A DATE IS, past
+ * its kind: the figure, the state, the span — or nothing, when the kind says it
+ * all. Every view says the kind once, in the same words (`calendar.kind.*`),
+ * and this after it: "✦ Price worked out · $1.95 each, quantity 2,000" — never
+ * "Price worked out · Price worked out: …", and never an order's record code.
+ * `line` above stays the whole sentence, for the pages that show one line alone.
+ */
+export function detailOf(locale: Locale, e: CalendarEntry): string {
+  const d = e.detail;
+  switch (e.kind) {
+    case 'sample_asked': return d.open ? t(locale, 'calendar.line.sampleOpen') : '';
+    case 'sample_handled': return '';
+    case 'order_state': {
+      const state = orderStatusName(locale, d.orderState ?? '');
+      return d.trackingReference ? `${state} · ${t(locale, 'calendar.line.tracking', { ref: d.trackingReference })}` : state;
+    }
+    case 'price_worked_out':
+      return t(locale, 'calendar.detail.price', { price: d.price ? show.money(locale, d.price) : '', qty: show.quantity(locale, d.quantity ?? 0) });
+    case 'reply_due': return t(locale, d.overdue ? 'calendar.line.replyOverdue' : 'calendar.line.replyDue');
+    case 'followup_due': return d.sequenceName ?? '';
+    case 'closure':
+      return t(locale, 'calendar.range', {
+        from: show.date(locale, dayStart(d.closureFrom ?? e.day, workspaceZone())),
+        to: show.date(locale, dayStart(d.closureTo ?? e.day, workspaceZone())),
+      });
+    case 'conversation_closed': case 'own': return '';
+    case 'promise_follow_up': case 'promise_price_end': case 'promise_delivery':
+      return t(locale, 'calendar.line.promise', { said: d.said ?? '' });
   }
-  if (e.identity) return `<b><bdi>${esc(e.identity)}</bdi></b>`;
-  return '';
+}
+
+/** Who or what a date is about: the customer, the owner's own title, a closure's name, an address. */
+const nameOf = (locale: Locale, e: CalendarEntry): string => e.kind === 'own' ? e.detail.title ?? ''
+  : e.kind === 'closure' ? e.detail.closureLabel ?? ''
+  : e.buyer?.name ?? e.identity ?? t(locale, 'common.buyer');
+
+/**
+ * The name, and the customer's country after it. Phase 9 (missed-19) — no
+ * flag: only some countries had one and nothing said what one meant (phase 1
+ * took them off the Customers row for the same reason).
+ */
+function who(locale: Locale, e: CalendarEntry): string {
+  const cn = e.buyer ? countryName(locale, e.buyer.country) : null;
+  return `<span><b><bdi>${esc(nameOf(locale, e))}</bdi></b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}</span>`;
 }
 
 /** Where an entry opens: its order, else its conversation (at the newest message, CC-25), else nowhere. */
@@ -178,18 +214,38 @@ const removeForm = (locale: Locale, e: CalendarEntry): string => e.kind === 'own
       <button class="btn ghost" type="submit">${esc(t(locale, 'calendar.remove'))}</button></form>`
   : '';
 
-function entry(locale: Locale, e: CalendarEntry, showKind: boolean): string {
+/**
+ * A date's STATE, as a shape and a colour (phase 4): ○ owed, ✕ owed and late,
+ * ✓ done (phase 9, inbox-calendar-new-13 — done was grey text alone, the word
+ * only for a screen reader). ✦ is the assistant's hand: a price it worked out,
+ * a promise it made.
+ */
+function marksOf(locale: Locale, e: CalendarEntry, now: Date): { readonly done: boolean; readonly marks: string } {
+  const done = isDone(e, now);
+  const promise = e.kind.startsWith('promise_');
+  const owed = !done && (e.kind === 'reply_due' || (e.kind === 'sample_asked' && e.detail.open === true)
+    || (promise && e.day <= dayKey(now, workspaceZone())));
+  const state = owed ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} `
+    : done ? `${signalMark('ok')}<span class="sr">${esc(t(locale, 'calendar.done'))}</span> ` : '';
+  const hand = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant) ? '<span class="as" aria-hidden="true">✦</span> ' : '';
+  return { done, marks: `${state}${hand}` };
+}
+
+/** The kind once, in every view's own words, and what it is after it. */
+const kindAndDetail = (locale: Locale, e: CalendarEntry): string => {
+  const more = detailOf(locale, e);
+  return `${esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}${more ? ` · <bdi>${esc(more)}</bdi>` : ''}`;
+};
+
+/** The list view's row: when, who, the kind and what it is; a door where it came from a conversation. */
+function entry(locale: Locale, e: CalendarEntry, now: Date): string {
   const when = e.allDay ? t(locale, 'calendar.allDay') : show.time(locale, e.at);
-  // The kind leads the event's own line, in its words — not a pill before the
-  // name (a pill is a state here, and the name leads a row).
-  const kind = showKind
-    ? `<span class="cal-kind" data-cat="${esc(e.category)}">${esc(t(locale, `calendar.cat.${e.category}` as MessageKey))}</span> · `
-    : '';
+  const { done, marks } = marksOf(locale, e, now);
   const body = `<span class="person">
         <span class="cal-head">${who(locale, e)}</span>
-        <span class="small">${kind}${esc(line(locale, e))}</span></span>`;
+        <span class="small"><span class="cal-kind" data-cat="${esc(e.category)}">${marks}${kindAndDetail(locale, e)}</span></span></span>`;
   const to = doorOf(e);
-  return `<li class="row ${edgeOf(e)}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}">
+  return `<li class="row ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}">
       <span class="cal-when">${esc(when)}</span>
       ${to
         ? `<a class="grow cal-go" href="${to}">${body}<span class="go" aria-hidden="true">›</span></a>`
@@ -199,27 +255,18 @@ function entry(locale: Locale, e: CalendarEntry, showKind: boolean): string {
 
 /**
  * One date on the grid: the name first, then the kind of date and its time.
- * Its edge says where it came from; a ● says a reply is due; ✦ marks a price
- * the assistant worked out. A date from a conversation opens there; the
- * owner's own can be taken off.
+ * Its edge says where it came from; its marks say its state and the
+ * assistant's hand. A date from a conversation opens there; the owner's own
+ * can be taken off.
  */
 function chip(locale: Locale, e: CalendarEntry, now: Date, compact = false): string {
-  const past = e.allDay ? e.day < dayKey(now, workspaceZone()) : e.at.getTime() < now.getTime();
-  const name = e.kind === 'own' ? e.detail.title ?? ''
-    : e.kind === 'closure' ? e.detail.closureLabel ?? ''
-    : e.buyer?.name ?? e.identity ?? t(locale, 'common.buyer');
-  // A state: a reply owed; a promise not yet kept whose day has come.
-  const promise = e.kind.startsWith('promise_');
-  const due = e.kind === 'reply_due' || (promise && !e.detail.kept && e.day <= dayKey(now, workspaceZone()));
-  const state = due ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} ` : '';
-  // The assistant's hand: a price it worked out, a promise it made.
-  const mark = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant)
-    ? '<span class="as" aria-hidden="true">✦</span> ' : '';
-  const kind = e.kind === 'own' ? '' : `<span class="wk-k">${state}${mark}${esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}</span>`;
+  // Phase 9 — greyed when DONE, the day list's rule: a reply still owed is not grey because its hour has passed.
+  const { done, marks } = marksOf(locale, e, now);
+  const kind = e.kind === 'own' ? '' : `<span class="wk-k">${marks}${esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}</span>`;
   const time = e.allDay || compact ? ''
     : `<span class="wk-t">${esc(show.time(locale, e.at))}${e.detail.endsAt ? `–${esc(show.time(locale, e.detail.endsAt))}` : ''}</span>`;
-  const body = `<b><bdi>${esc(name)}</bdi></b>${kind}${time}`;
-  const attrs = `class="wk-e ${edgeOf(e)}${past ? ' past' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}" title="${esc(line(locale, e))}"`;
+  const body = `<b><bdi>${esc(nameOf(locale, e))}</bdi></b>${kind}${time}`;
+  const attrs = `class="wk-e ${edgeOf(e)}${done ? ' past' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}" title="${esc(line(locale, e))}"`;
   const to = doorOf(e);
   return to ? `<a ${attrs} href="${to}">${body}</a>` : `<div ${attrs}>${body}${compact ? '' : removeForm(locale, e)}</div>`;
 }
@@ -269,7 +316,7 @@ export function isDone(e: CalendarEntry, now: Date): boolean {
 /**
  * Phase 7 — THE DAY, AS ONE LIST in time order (the all-day dates first): the
  * hour, the kind's icon, the name — whole, never cut, a Latin name inside
- * Arabic isolated — and what it is. What is done is greyed, not hidden; what
+ * Arabic isolated — and what it is. What is done is greyed and marked ✓; what
  * is owed carries its signal. It was a grid of empty hours with the day's few
  * dates somewhere in it.
  */
@@ -277,20 +324,11 @@ function dayList(locale: Locale, v: CalendarView, day: string, now: Date): strin
   const here = v.entries.filter((e) => (e.allDay ? covers(e, day) : e.day === day))
     .slice().sort((a, b) => (a.allDay === b.allDay ? a.at.getTime() - b.at.getTime() : a.allDay ? -1 : 1));
   if (here.length === 0) return '';
-  const today = dayKey(now, workspaceZone());
   return `<ol class="dl">${here.map((e) => {
-    const done = isDone(e, now);
-    const promise = e.kind.startsWith('promise_');
-    const owed = !done && (e.kind === 'reply_due' || (e.kind === 'sample_asked' && e.detail.open) || (promise && e.day <= today));
-    const state = owed ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} ` : done ? `<span class="sr">${esc(t(locale, 'calendar.done'))}</span>` : '';
-    const mark = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant) ? '<span class="as" aria-hidden="true">✦</span> ' : '';
-    const name = e.kind === 'own' ? e.detail.title ?? ''
-      : e.kind === 'closure' ? e.detail.closureLabel ?? ''
-      : e.buyer?.name ?? e.identity ?? t(locale, 'common.buyer');
+    const { done, marks } = marksOf(locale, e, now);
     const hour = e.allDay ? t(locale, 'calendar.allDay')
       : `${show.time(locale, e.at)}${e.detail.endsAt ? `–${show.time(locale, e.detail.endsAt)}` : ''}`;
-    const body = `<span class="dl-body"><b><bdi>${esc(name)}</bdi></b><span class="small">${state}${mark}${
-      esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}${e.kind === 'own' ? '' : ` · <bdi>${esc(line(locale, e))}</bdi>`}</span></span>`;
+    const body = `<span class="dl-body"><b><bdi>${esc(nameOf(locale, e))}</bdi></b><span class="small">${marks}${kindAndDetail(locale, e)}</span></span>`;
     const to = doorOf(e);
     return `<li class="dl-row ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}">
         <span class="dl-hour">${esc(hour)}</span>${kindIcon(e)}
@@ -304,27 +342,29 @@ const covers = (e: CalendarEntry, day: string): boolean => e.kind === 'closure'
   ? (e.detail.closureFrom ?? e.day) <= day && day <= (e.detail.closureTo ?? e.day)
   : e.day === day;
 
-/** Days as columns, hours as rows: the week, or one day. */
+/** Phase 9 (V1-204, inbox-calendar-new-10) — today, in a word as well as a line, on the week's head and in the month's cell. */
+const todayWord = (locale: Locale): string => `<span class="cal-now">${esc(t(locale, 'calendar.this.day'))}</span>`;
+
+/**
+ * Days as columns, hours as rows: the week. Phase 9 (V1-204) — only the hours
+ * that hold a date get a row, each named by its hour: seventeen rows for six
+ * dates ran a phone page to 2,000 px of empty hours.
+ */
 function grid(locale: Locale, v: CalendarView, days: readonly string[], now: Date): string {
   const allDay = v.entries.filter((e) => e.allDay);
   const timed = v.entries.filter((e) => !e.allDay);
-  const hours = timed.map((e) => hourIn(e.at, workspaceZone()));
-  const first = Math.min(8, ...hours);
-  const last = Math.max(18, ...hours);
+  const hours = [...new Set(timed.map((e) => hourIn(e.at, workspaceZone())))].sort((a, b) => a - b);
   const head = `<tr><th scope="col" class="wk-corner"><span class="sr">${esc(t(locale, 'calendar.allDay'))}</span></th>${days.map((d) => {
     const today = d === v.today;
     return `<th scope="col"${today ? ' class="today" aria-current="date"' : ''}><a href="${esc(href({ view: 'day', at: d, category: v.category, buyer: v.buyer?.id ?? null }))}">${
-      esc(formatWeekday(locale, d))} <b>${esc(show.count(locale, Number(d.slice(8))))}</b></a></th>`;
+      esc(formatWeekday(locale, d))} <b>${esc(show.count(locale, Number(d.slice(8))))}</b></a>${today ? todayWord(locale) : ''}</th>`;
   }).join('')}</tr>`;
   const allRow = allDay.length
     ? `<tr class="wk-all"><th scope="row">${esc(t(locale, 'calendar.allDay'))}</th>${days.map((d) =>
         `<td>${allDay.filter((e) => covers(e, d)).map((e) => chip(locale, e, now)).join('')}</td>`).join('')}</tr>`
     : '';
-  const rows: string[] = [];
-  for (let h = first; h <= last; h++) {
-    rows.push(`<tr><th scope="row">${esc(show.isolate(locale, String(h).padStart(2, '0')))}</th>${days.map((d) =>
-      `<td>${timed.filter((e) => e.day === d && hourIn(e.at, workspaceZone()) === h).map((e) => chip(locale, e, now)).join('')}</td>`).join('')}</tr>`);
-  }
+  const rows = hours.map((h) => `<tr><th scope="row">${esc(show.isolate(locale, String(h).padStart(2, '0')))}</th>${days.map((d) =>
+    `<td>${timed.filter((e) => e.day === d && hourIn(e.at, workspaceZone()) === h).map((e) => chip(locale, e, now)).join('')}</td>`).join('')}</tr>`);
   return `<div class="wk-scroll"><table class="wk"><thead>${head}</thead><tbody>${allRow}${rows.join('')}</tbody></table></div>`;
 }
 
@@ -347,7 +387,7 @@ function month(locale: Locale, v: CalendarView, at: string, now: Date): string {
     const more = here.length - shown.length;
     const today = d === v.today;
     return `<td class="${inMonth(d) ? '' : 'other'}${today ? ' today' : ''}"${today ? ' aria-current="date"' : ''}>
-        <a class="mo-d" href="${esc(href({ view: 'day', at: d, category: v.category, buyer: v.buyer?.id ?? null }))}">${esc(show.count(locale, Number(d.slice(8))))}</a>
+        <a class="mo-d" href="${esc(href({ view: 'day', at: d, category: v.category, buyer: v.buyer?.id ?? null }))}">${esc(show.count(locale, Number(d.slice(8))))}</a>${today ? todayWord(locale) : ''}
         ${shown.map((e) => chip(locale, e, now, true)).join('')}
         ${more > 0 ? `<a class="mo-more" href="${esc(href({ view: 'day', at: d, category: v.category, buyer: v.buyer?.id ?? null }))}">${esc(t(locale, 'calendar.more', { n: more }))}</a>` : ''}
       </td>`;
@@ -358,7 +398,8 @@ function month(locale: Locale, v: CalendarView, at: string, now: Date): string {
 /**
  * Add one of the owner's own dates: folded away until it is wanted. Phase 6/7
  * — sent back (`kept`), it is open, the field that was wrong says why under
- * it, and what was typed is still there.
+ * it, and what was typed is still there. Phase 9 (V1-203) — near the top of
+ * every view, above the dates: it was a small fold under the whole grid.
  */
 const addForm = (locale: Locale, day: string, kept: Kept | null = null): string => `<details class="cal-add"${kept ? ' open' : ''}>
     <summary>${esc(t(locale, 'calendar.add'))}</summary>
@@ -383,8 +424,9 @@ export type CalendarPage = { readonly view?: CalendarViewKind; readonly at?: str
 
 export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPage = {}): string {
   const view = page.view ?? 'list';
-  return view === 'list' ? renderList(v, locale, page.kept ?? null)
-    : renderGrid(v, locale, view, page.at ?? v.from, page.now ?? dayStart(v.today, workspaceZone()), page.kept ?? null);
+  const now = page.now ?? dayStart(v.today, workspaceZone());
+  return view === 'list' ? renderList(v, locale, now, page.kept ?? null)
+    : renderGrid(v, locale, view, page.at ?? v.from, now, page.kept ?? null);
 }
 
 /** Month · Week · Day · List, keeping the category and the buyer. */
@@ -397,40 +439,74 @@ function viewTabs(locale: Locale, v: CalendarView, view: CalendarViewKind, at: s
   }).join('')}</nav>`;
 }
 
-/** Category: All, and each kind this window holds for this buyer — the chosen one stays, so it can be seen to be on. */
-function categoryTabs(locale: Locale, v: CalendarView, keep: (c: CalendarCategory | null) => string): string {
-  const shown = CALENDAR_CATEGORIES.filter((c) => v.categories.includes(c) || c === v.category);
-  const tab = (c: CalendarCategory | null) => {
-    const on = v.category === c;
-    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="page"' : ''} href="${esc(keep(c))}">${
-      esc(t(locale, c === null ? 'calendar.cat.all' : `calendar.cat.${c}` as MessageKey))}</a>`;
-  };
-  return shown.length || v.category !== null
-    ? `<nav class="tabs cal-tabs" aria-label="${esc(t(locale, 'calendar.filter.category'))}">${tab(null)}${shown.map(tab).join('')}</nav>` : '';
-}
-
-/** Buyer: a GET form, folded away until it is in use. */
-function buyerForm(locale: Locale, v: CalendarView, hidden: Record<string, string | null>): string {
-  const buyerId = v.buyer?.id ?? null;
-  return v.buyers.length || v.buyer ? `<details class="cal-buyer"${v.buyer ? ' open' : ''}>
-      <summary>${esc(v.buyer ? t(locale, 'calendar.buyer.chosen', { buyer: buyerLabel(locale, v.buyer) }) : t(locale, 'calendar.buyer.choose'))}</summary>
+/**
+ * Phase 9 (V1-202, inbox-calendar-new-15) — ONE kind or ONE customer, chosen
+ * in one fold: a second row of pills the shape of the views' (wrapping on a
+ * phone) became a line that says what is shown. Every kind is offered in every
+ * view — "Orders" no longer comes and goes with the range — except follow-ups,
+ * which exist only where the outreach area is on (rule 8).
+ */
+function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, string | null>, clear: string): string {
+  const kinds = CALENDAR_CATEGORIES.filter((c) => c !== 'followups' || outreachShown() || v.categories.includes(c) || v.category === c);
+  const buyers = [...v.buyers, ...(v.buyer && !v.buyers.some((b) => b.id === v.buyer!.id) ? [v.buyer] : [])];
+  const chosen = [v.category ? t(locale, `calendar.cat.${v.category}` as MessageKey) : '', v.buyer ? buyerLabel(locale, v.buyer) : ''].filter(Boolean).join(' · ');
+  return `<details class="cal-filter">
+      <summary>${esc(chosen ? t(locale, 'calendar.filter.chosen', { what: chosen }) : t(locale, 'calendar.filter.choose'))}</summary>
       <form method="get" action="/app/calendar" class="pform">
         ${Object.entries(hidden).filter(([, val]) => val).map(([k, val]) => `<input type="hidden" name="${k}" value="${esc(val!)}" />`).join('')}
-        <label class="fld"><span class="muted">${esc(t(locale, 'calendar.buyer.label'))}</span>
+        <label class="fld"><span class="muted">${esc(t(locale, 'calendar.filter.kind'))}</span>
+          <select name="category">
+            <option value="">${esc(t(locale, 'calendar.cat.allKinds'))}</option>
+            ${kinds.map((c) => `<option value="${c}"${c === v.category ? ' selected' : ''}>${esc(t(locale, `calendar.cat.${c}` as MessageKey))}</option>`).join('')}
+          </select></label>
+        ${buyers.length ? `<label class="fld"><span class="muted">${esc(t(locale, 'calendar.buyer.label'))}</span>
           <select name="who">
             <option value="">${esc(t(locale, 'calendar.buyer.all'))}</option>
-            ${[...v.buyers, ...(v.buyer && !v.buyers.some((b) => b.id === v.buyer!.id) ? [v.buyer] : [])].map((b) =>
-              `<option value="${esc(b.id)}"${b.id === buyerId ? ' selected' : ''}>${esc(`${flag(b.country) ? `${flag(b.country)} ` : ''}${buyerLabel(locale, b)}`)}</option>`).join('')}
-          </select></label>
+            ${buyers.map((b) => `<option value="${esc(b.id)}"${b.id === v.buyer?.id ? ' selected' : ''}>${esc(buyerLabel(locale, b))}</option>`).join('')}
+          </select></label>` : ''}
         <button class="btn" type="submit">${esc(t(locale, 'calendar.buyer.show'))}</button>
+        ${chosen ? deeper(esc(clear), t(locale, 'calendar.empty.clear')) : ''}
       </form>
-    </details>` : '';
+    </details>`;
 }
 
-/** Where a date came from, drawn with the edges themselves. */
+/**
+ * What the page's marks mean, drawn with the marks themselves: where a date
+ * came from (its edge), the assistant's hand (✦), owed (○) and done (✓).
+ * Phase 9 (V1-200, inbox-calendar-new-14, missed-16) — on every view, and the
+ * edge drawn as a small square-cornered swatch, not a pill that read as a switch.
+ */
 const legend = (locale: Locale): string => `<p class="cal-legend small">
-    <span class="wk-e solid" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.solid'))}
-    <span class="wk-e dashed" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.dashed'))}</p>`;
+    <span class="cal-li"><span class="cal-sw solid" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.solid'))}</span>
+    <span class="cal-li"><span class="cal-sw dashed" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.dashed'))}</span>
+    <span class="cal-li"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'calendar.legend.assistant', { name: assistantName(locale) }))}</span>
+    <span class="cal-li">${signalMark('waiting')} ${esc(t(locale, 'calendar.legend.owed'))}</span>
+    <span class="cal-li">${signalMark('ok')} ${esc(t(locale, 'calendar.legend.done'))}</span></p>`;
+
+/**
+ * Phase 9 (V1-199, missed-16) — how every view moves, the same way and in
+ * words: the period's name first, then "‹ Last week · This week · Next week ›".
+ * The arrows were bare, and the bold "Today" between them read as the label.
+ */
+function periodMove(locale: Locale, unit: CalendarViewKind, span: string, prev: string, here: string, next: string): string {
+  return `<div class="cal-period">
+      <p class="cal-span">${esc(span)}</p>
+      <nav class="cal-move" aria-label="${esc(t(locale, 'calendar.move'))}">
+        ${back(esc(prev), t(locale, `calendar.prev.${unit}` as MessageKey))}
+        <a class="tab cal-today" href="${esc(here)}">${esc(t(locale, `calendar.this.${unit}` as MessageKey))}</a>
+        ${deeper(esc(next), t(locale, `calendar.next.${unit}` as MessageKey))}
+      </nav>
+    </div>`;
+}
+
+/** The page's head, the same on every view: the title and the views, what it holds, how to move, what to show, what to add, what the marks mean. */
+const pageHead = (locale: Locale, v: CalendarView, view: CalendarViewKind, at: string, move: string, filter: string, add: string): string =>
+  `<div class="cal-top"><h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>${viewTabs(locale, v, view, at)}</div>
+    <p class="muted cal-lede">${esc(t(locale, 'calendar.lede'))}</p>
+    ${move}
+    ${filter}
+    ${add}
+    ${legend(locale)}`;
 
 function renderGrid(v: CalendarView, locale: Locale, view: Exclude<CalendarViewKind, 'list'>, at: string, now: Date, kept: Kept | null = null): string {
   const buyer = v.buyer?.id ?? null;
@@ -438,59 +514,50 @@ function renderGrid(v: CalendarView, locale: Locale, view: Exclude<CalendarViewK
   const span = view === 'month' ? show.month(locale, at)
     : view === 'day' ? show.date(locale, dayStart(at, workspaceZone()))
     : t(locale, 'calendar.range', { from: show.date(locale, dayStart(v.from, workspaceZone())), to: show.date(locale, dayStart(addDays(v.to, -1), workspaceZone())) });
-  // ‹ Today › beside the dates: the arrows are doors, mirrored in Arabic by `.go`.
-  const move = `<nav class="cal-move" aria-label="${esc(t(locale, 'calendar.move'))}">
-      <a class="back" href="${esc(href({ view, at: step(-1), category: v.category, buyer }))}" aria-label="${esc(t(locale, 'calendar.prev'))}"><span class="go" aria-hidden="true">‹</span></a>
-      <a class="cal-today" href="${esc(href({ view, category: v.category, buyer }))}">${esc(t(locale, 'calendar.todayDoor'))}</a>
-      <a class="deeper" href="${esc(href({ view, at: step(1), category: v.category, buyer }))}" aria-label="${esc(t(locale, 'calendar.next'))}"><span class="go" aria-hidden="true">›</span></a>
-      <span class="cal-span">${esc(span)}</span>
-    </nav>`;
+  const move = periodMove(locale, view, span,
+    href({ view, at: step(-1), category: v.category, buyer }), href({ view, category: v.category, buyer }), href({ view, at: step(1), category: v.category, buyer }));
   const days: string[] = [];
   if (view !== 'month') for (let d = v.from; d < v.to; d = addDays(d, 1)) days.push(d);
   const empty = v.entries.length === 0
     // Phase 9 — an empty state is a panel everywhere (phase 6 missed these five).
     ? `<div class="empty">${esc(t(locale, view === 'week' ? 'calendar.empty.week' : view === 'day' ? 'calendar.empty.day' : 'calendar.empty.month'))}</div>` : '';
-  return `<div class="cal-top"><h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>${viewTabs(locale, v, view, at)}</div>
-    ${move}
-    ${categoryTabs(locale, v, (c) => href({ view, at, category: c, buyer }))}
-    ${buyerForm(locale, v, { view: view === 'week' ? null : view, at, category: v.category })}
-    ${legend(locale)}
+  const filter = filterForm(locale, v, { view: view === 'week' ? null : view, at }, href({ view, at }));
+  const add = addForm(locale, view === 'month' ? (v.today.slice(0, 7) === at.slice(0, 7) ? v.today : at) : view === 'day' ? at : (v.today >= v.from && v.today < v.to ? v.today : v.from), kept);
+  // Phase 9 (V1-204) — a week with nothing dated says so, without a table of empty hours under it.
+  const body = view === 'month' ? month(locale, v, at, now) : view === 'day' ? dayList(locale, v, at, now) : empty ? '' : grid(locale, v, days, now);
+  return `${pageHead(locale, v, view, at, move, filter, add)}
     ${empty}
-    ${view === 'month' ? month(locale, v, at, now) : view === 'day' ? dayList(locale, v, at, now) : grid(locale, v, days, now)}
-    ${addForm(locale, view === 'month' ? (v.today.slice(0, 7) === at.slice(0, 7) ? v.today : at) : view === 'day' ? at : (v.today >= v.from && v.today < v.to ? v.today : v.from), kept)}`;
+    ${body}`;
 }
 
-/** The list: the three-week agenda, day by day. */
-function renderList(v: CalendarView, locale: Locale, kept: Kept | null = null): string {
+/**
+ * The list: the three-week agenda, day by day. Phase 9 (inbox-calendar-missed-20)
+ * — at the prose measure, its head included, so the views' tabs end where its
+ * rows do.
+ */
+function renderList(v: CalendarView, locale: Locale, now: Date, kept: Kept | null = null): string {
   const isDefault = v.from === defaultFrom(v.today);
   const last = addDays(v.to, -1);
   const buyerId = v.buyer?.id ?? null;
-  const tabs = categoryTabs(locale, v, (c) => href({ view: 'list', from: isDefault ? null : v.from, category: c, buyer: buyerId }));
-
-  // The window, and the doors either side of it.
-  const range = `<p class="small cal-span">${esc(t(locale, 'calendar.range', {
+  const span = t(locale, 'calendar.range', {
     from: show.date(locale, dayStart(v.from, workspaceZone())), to: show.date(locale, dayStart(last, workspaceZone())),
-  }))}</p>`;
+  });
   const earlier = addDays(v.from, -WINDOW_DAYS);
   const later = addDays(v.from, WINDOW_DAYS);
-  const pager = `<nav class="pager" aria-label="${esc(t(locale, 'calendar.filter.window'))}">
-      ${back(esc(href({ view: 'list', from: earlier === defaultFrom(v.today) ? null : earlier, category: v.category, buyer: buyerId })), t(locale, 'calendar.earlier'))}
-      ${isDefault ? '' : deeper(esc(href({ view: 'list', category: v.category, buyer: buyerId })), t(locale, 'calendar.now'))}
-      ${deeper(esc(href({ view: 'list', from: later === defaultFrom(v.today) ? null : later, category: v.category, buyer: buyerId })), t(locale, 'calendar.later'))}
-    </nav>`;
-
-  const head = `<div class="cal-top"><h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>${viewTabs(locale, v, 'list', v.today)}</div>
-    <p class="muted">${esc(t(locale, 'calendar.lede'))}</p>
-    ${tabs}${buyerForm(locale, v, { view: 'list', from: isDefault ? null : v.from, category: v.category })}${range}`;
+  const move = periodMove(locale, 'list', span,
+    href({ view: 'list', from: earlier === defaultFrom(v.today) ? null : earlier, category: v.category, buyer: buyerId }),
+    href({ view: 'list', category: v.category, buyer: buyerId }),
+    href({ view: 'list', from: later === defaultFrom(v.today) ? null : later, category: v.category, buyer: buyerId }));
+  const filter = filterForm(locale, v, { view: 'list', from: isDefault ? null : v.from }, href({ view: 'list', from: isDefault ? null : v.from }));
+  const head = pageHead(locale, v, 'list', v.today, move, filter, addForm(locale, v.today, kept));
 
   if (v.entries.length === 0) {
     const narrowed = v.category !== null || v.buyer !== null;
-    return `${head}
+    return `<div class="measure-prose">${head}
       <div class="empty">${esc(t(locale, narrowed ? 'calendar.empty.filtered' : 'calendar.empty'))}
         <div>${narrowed
           ? deeper(esc(href({ view: 'list', from: isDefault ? null : v.from })), t(locale, 'calendar.empty.clear'))
-          : deeper('/app/inbox', t(locale, 'calendar.empty.door'))}</div></div>
-      ${pager}${addForm(locale, v.today, kept)}`;
+          : deeper('/app/inbox', t(locale, 'calendar.empty.door'))}</div></div></div>`;
   }
 
   // One heading per day that holds something — and today always, in words,
@@ -506,10 +573,10 @@ function renderList(v: CalendarView, locale: Locale, kept: Kept | null = null): 
     return `<section>
       <h2 class="cal-day"${day === v.today ? ' aria-current="date"' : ''}>${esc(title)}</h2>
       ${items.length
-        ? `<ul class="rows">${items.map((e) => entry(locale, e, v.category === null)).join('')}</ul>`
+        ? `<ul class="rows">${items.map((e) => entry(locale, e, now)).join('')}</ul>`
         : `<div class="empty">${esc(t(locale, 'calendar.todayNothing'))}</div>`}
     </section>`;
   }).join('');
 
-  return `${head}${sections}${pager}${addForm(locale, v.today, kept)}`;
+  return `<div class="measure-prose">${head}${sections}</div>`;
 }

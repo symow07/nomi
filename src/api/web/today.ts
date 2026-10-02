@@ -6,7 +6,7 @@ import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/c
 import { loadCalendar, type CalendarEntry } from '../../db/calendar.js';
 import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import { loadInboxList, customerRow, channelName, type ConversationSummary } from './inbox.js';
+import { loadInboxList, customerRow, channelName, rowState, type ConversationSummary } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import { t, tn, assistantName } from './say.js';
 import { esc, deeper, conversationUrl, signalMark } from './layout.js';
@@ -98,9 +98,9 @@ export async function loadToday(
   };
 }
 
-/** One line that is a door: what it says, and an arrow. */
+/** One line that is a door: what it says, and the product's one chevron (phase 9, V1-012: it was "→"). */
 const door = (href: string, inner: string): string =>
-  `<li><a class="tline" href="${href}">${inner}<span class="go" aria-hidden="true">→</span></a></li>`;
+  `<li><a class="tline" href="${href}">${inner}<span class="go" aria-hidden="true">›</span></a></li>`;
 
 /**
  * The first block's people: Buyers' own row (phase 1 of the UI rebuild) — the
@@ -109,7 +109,16 @@ const door = (href: string, inner: string): string =>
  * on the newest message.
  */
 export function renderNeedsLines(d: TodayData, locale: Locale): string {
-  return d.needs.rows.map((c) => `<li>${customerRow(locale, c, { now: d.now })}</li>`).join('');
+  return d.needs.rows.map((c) => {
+    const row = customerRow(locale, c, { now: d.now });
+    // Phase 9 (today-onboarding-new-04) — Today has no group headings, so a
+    // conversation the owner holds says so in words, where the list says it
+    // under its heading: the ● alone meant something only to a screen reader.
+    if (rowState(c) !== 'yours' || !row.includes('<span class="cr-why"></span>')) return `<li>${row}</li>`;
+    const yours = esc(t(locale, 'buyers.group.yours'));
+    return `<li>${row.replace('<span class="cr-why"></span>', `<span class="cr-why"><bdi>${yours}</bdi></span>`)
+      .replace(`<span class="sr">${yours}</span>`, '')}</li>`;
+  }).join('');
 }
 
 /** The last 24 hours: the assistant's lines marked with its ✦, the owner's plain. Zeros are not said. */

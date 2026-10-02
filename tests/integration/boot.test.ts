@@ -382,7 +382,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // yf_locale cookie → Chinese
     const zh = await prod.app.inject({ method: 'GET', url: '/login', headers: { cookie: 'yf_locale=zh' } });
     expect(zh.body).toContain('<html lang="zh"');
-    expect(zh.body).toContain('进入密码');
+    expect(zh.body).toContain('我有访问码');   // Phase 9 (V1-036): the code is not the password's 密码
     // /locale sets the cookie and honors next; open-redirect is rejected
     const set = await prod.app.inject({ method: 'GET', url: '/locale?set=zh&next=/login' });
     expect(set.statusCode).toBe(302);
@@ -719,7 +719,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(moved.headers['location']).toBe('/app/inbox?q=Ivan');
     const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?q=Ivan', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Ivan Petrov');
+    // The match is marked in the name (phase 9, V1-182): "<mark>Ivan</mark> Petrov".
+    expect(res.body).toContain('<mark class="hit">Ivan</mark> Petrov');
     expect(res.body).not.toContain('Ahmed Al-Rashid');
   });
 
@@ -754,7 +755,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Results');   // English default
     expect(res.body).toContain('Overview');
-    expect(res.body).toContain('New customers');
+    expect(res.body).toMatch(/new customers?</);   // Phase 9 (V1-209) — the count's words agree with it
     expect(res.body).toContain('Activity');
     expect(res.body).toContain(esc(t('en', 'analytics.section.employee')));
     // No fabricated chart. Scoped to <main> because the shell's own header

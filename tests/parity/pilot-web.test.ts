@@ -140,11 +140,13 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
     expect(html).not.toContain(t('en', 'ops.card.waiting'));   // no count rows in the quiet state
   });
 
-  it('rehearsal progress: ✓ for practiced, ○ for not, with an n/total header and sandbox link', () => {
+  it('rehearsal progress: ✓ for practiced, ○ for not, under their own heading — no second n/total beside the nav\'s — and the sandbox link', () => {
     const html = renderPilotRunbook(rb(), 'en', null);
     expect(html).toContain('Take-over practiced');   // done → ✓
     expect(html).toContain('✓'); expect(html).toContain('○');
-    expect(html).toContain('2/5');                    // a fraction, not a percentage
+    // Phase 9 (V1-124) — the heading carries no "2/5" that means something else than the nav's count.
+    expect(html).not.toContain('2/5');
+    expect(html).toContain(`<h3 class="rbsub">${t('en', 'runbook.practice.done')}</h3>`);
     // P5 — every workspace practises on its own copy: the door is always there
     expect(html).toContain('href="/app/sandbox"');
   });

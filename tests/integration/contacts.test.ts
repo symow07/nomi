@@ -342,7 +342,9 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
      * twice rather than showing a green state it cannot honour. It opens when
      * the adapter lands and the conditions in M52 are met.
      */
-    expect(res.body).toContain('does not allow a first message');
+    // The gate's answer, in words that promise nothing (phase 9 grouped the list under it).
+    expect(res.body).toContain(esc(t('en', 'contacts.why.channel_cannot_initiate')));
+    expect(res.body).toContain('No first e-mail can go out yet');
     expect(res.body).not.toContain(esc(t('en', 'contacts.canWrite')));
     // And NOT "you have not said {name} may write first" — that would name a
     // decision she cannot make yet, about a switch e-mail does not have.

@@ -3,7 +3,28 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import type { Cell } from '../../core/owner/csv.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { dayKey } from '../../core/owner/i18n/format.js';
+import { zoneOf } from '../../db/zone.js';
 import { t } from './say.js';
+import { unitLabel } from './products.js';
+
+/**
+ * Phase 9 (V1-380, V1-381, V1-382, V1-384) — the products and the price limits
+ * are files an owner READS: their headers and the words in them are in her
+ * language, every figure is a figure in its own column ("1.05", not "1.0500"
+ * or "500+: 1.0500 USD | 2000+: …" in one cell), a yes is "Yes", a date is
+ * the day it was. The file names stay plain ASCII ("nomi-products-…"): a name
+ * in Chinese or Arabic is mangled by some mail clients and older archivers,
+ * and the name says nothing the header does not.
+ */
+const said = (locale: Locale, k: string): string => t(locale, k as MessageKey);
+/** Money as a spreadsheet reads it: two decimals, more only where the price has them ("0.125"). */
+export const plainMoney = (v: string | number | null): string | null =>
+  v === null ? null : Number(v).toFixed(4).replace(/(\.\d{2}\d*?)0+$/, '$1');
+/** A percentage as a plain figure: "8", "12.5". */
+const plainPct = (v: string | number | null): string | null => (v === null ? null : String(Number(v)));
+const yesNo = (locale: Locale, v: boolean): string => said(locale, v ? 'data.export.yes' : 'data.export.no');
 
 /**
  * CC-12 — an owner can take their own data out.
@@ -143,31 +164,52 @@ const messages: Loader = async (tx, businessId) => {
   };
 };
 
-/** Her catalogue, with its first price tier — the number a buyer is quoted. */
+/**
+ * Her catalogue: each product with its price for one, the names customers use
+ * for it, and when it was added. Its quantity prices are rows of the
+ * price-limits file, one figure to a cell (V1-382).
+ */
 const products: Loader = async (tx, businessId, locale) => {
+  const zone = await zoneOf(tx, businessId);
   const r = await sql<{
     sku: string; name: string; name_zh: string | null; description: string | null; category: string | null;
     unit: string; moq: number | null; currency: string; price: string | null; lead_time_days: number | null;
-    customizable: boolean; is_active: boolean; tiers: string | null; created_at: Date;
+    is_active: boolean; created_at: Date; names: string | null;
   }>`
     select p.sku, p.name, p.name_zh, p.description, p.category, p.unit, p.moq, p.currency,
-           p.price_usd_per_unit as price, p.lead_time_days, p.customizable, p.is_active, p.created_at,
-           (select string_agg(t.min_qty || '+: ' || t.unit_price_usd || ' ' || t.currency, ' | ' order by t.min_qty)
-              from price_tiers t where t.product_id = p.id) as tiers
+           p.price_usd_per_unit as price, p.lead_time_days, p.is_active, p.created_at,
+           (select string_agg(a.alias, '; ' order by a.alias) from product_aliases a
+             where a.product_id = p.id and lower(a.alias) <> lower(p.name)
+               and (p.name_zh is null or a.alias <> p.name_zh)) as names
       from products p
      where p.business_id = ${businessId}
      order by p.created_at
      limit ${EXPORT_MAX_ROWS}`.execute(tx);
+  return productsSheet(r.rows, locale, zone);
+};
+
+/** One product as the file has it — the query's row, before it is written. */
+export type ProductExportRow = {
+  sku: string; name: string; name_zh: string | null; description: string | null; category: string | null;
+  unit: string; moq: number | null; currency: string; price: string | null; lead_time_days: number | null;
+  is_active: boolean; created_at: Date; names: string | null;
+};
+
+/** The products file from its rows: pure, so a test reads exactly what an owner downloads. */
+export function productsSheet(rows: readonly ProductExportRow[], locale: Locale, zone: string): ExportSheet {
+  const h = (k: string) => said(locale, `data.export.col.${k}`);
   return {
-    header: ['sku', 'name', 'other name', 'description', 'category', 'unit', 'minimum order', 'currency',
-      'price', 'quantity prices', 'days to deliver', 'customizable', 'offered', 'added'],
-    rows: r.rows.map((x) => [
+    header: [h('sku'), h('name'), said(locale, 'product.edit.nameZh'), said(locale, 'import.row.names'), h('description'),
+      h('category'), h('unit'), said(locale, 'product.list.moq'), h('currency'), h('price'), said(locale, 'product.edit.leadTime'),
+      h('offered'), h('added')],
+    rows: rows.map((x) => [
       // 0081 — never a blank where a minimum would go: the owner's words for none.
-      x.sku, x.name, x.name_zh, x.description, x.category, x.unit, x.moq ?? t(locale, 'product.noMinimum'), x.currency,
-      x.price, x.tiers, x.lead_time_days, x.customizable, x.is_active, x.created_at,
+      x.sku, x.name, x.name_zh, x.names, x.description, x.category, unitLabel(locale, x.unit),
+      x.moq ?? t(locale, 'product.noMinimum'), x.currency, plainMoney(x.price), x.lead_time_days,
+      yesNo(locale, x.is_active), dayKey(x.created_at, zone),
     ]),
   };
-};
+}
 
 /** Orders, with the buyer named rather than keyed, and the latest state. */
 const orders: Loader = async (tx, businessId) => {
@@ -278,9 +320,7 @@ const contacts: Loader = async (tx, businessId) => {
  * surface writes `negotiation_rules` at all (the known gap the roadmap names),
  * and rendering them as prose would invent an interface that does not exist.
  */
-const priceRules: Loader = async (tx, businessId) => {
-  const rows: Cell[][] = [];
-
+const priceRules: Loader = async (tx, businessId, locale) => {
   const floors = await sql<{
     product: string | null; floor: string; currency: string; max_discount_pct: string; human_required_above_pct: string;
   }>`
@@ -290,38 +330,22 @@ const priceRules: Loader = async (tx, businessId) => {
       left join products p on p.id = pp.product_id
      where pp.business_id = ${businessId}
      order by p.name nulls first`.execute(tx);
-  for (const x of floors.rows) {
-    // CUR — with its currency, like the volume prices below: a bare number is
-    // no longer only ever dollars.
-    rows.push(['Least you accept', x.product ?? 'everything', '', `${x.floor} ${x.currency}`,
-      `most you will come down: ${x.max_discount_pct}% · ask you above: ${x.human_required_above_pct}%`]);
-  }
 
   const tiers = await sql<{ product: string; min_qty: number; max_qty: number | null; price: string; currency: string }>`
     select p.name as product, t.min_qty, t.max_qty, t.unit_price_usd as price, t.currency
       from price_tiers t join products p on p.id = t.product_id
      where p.business_id = ${businessId}
      order by p.name, t.min_qty`.execute(tx);
-  for (const x of tiers.rows) {
-    rows.push(['Volume price', x.product,
-      x.max_qty === null ? `${x.min_qty}+` : `${x.min_qty}–${x.max_qty}`,
-      `${x.price} ${x.currency}`, '']);
-  }
 
-  const negotiation = await sql<{ priority: number; condition: unknown; action: unknown; is_active: boolean }>`
-    select priority, condition, action, is_active from negotiation_rules
-     where business_id = ${businessId} order by priority`.execute(tx);
-  for (const x of negotiation.rows) {
-    rows.push(['When you discount', '', JSON.stringify(x.condition), JSON.stringify(x.action),
-      x.is_active ? '' : 'switched off']);
-  }
+  const negotiation = await sql<{ priority: number; condition: unknown; action: unknown; is_active: boolean; product: string | null }>`
+    select n.priority, n.condition, n.action, n.is_active,
+           (select p.name from products p where p.id::text = n.condition->>'productId') as product
+      from negotiation_rules n
+     where n.business_id = ${businessId} order by n.priority`.execute(tx);
 
   const bundles = await sql<{ name: string; grants: unknown; is_active: boolean }>`
     select name, grants, is_active from bundle_rules
      where business_id = ${businessId} order by name`.execute(tx);
-  for (const x of bundles.rows) {
-    rows.push(['Bundle', x.name, '', JSON.stringify(x.grants), x.is_active ? '' : 'switched off']);
-  }
 
   const subs = await sql<{ product: string | null; instead: string | null; reason: string; rank: number }>`
     select p.name as product, s2.name as instead, r.reason, r.rank
@@ -329,15 +353,62 @@ const priceRules: Loader = async (tx, businessId) => {
       left join products p on p.id = r.product_id
       left join products s2 on s2.id = r.substitute_id
      where r.business_id = ${businessId} order by p.name, r.rank`.execute(tx);
-  for (const x of subs.rows) {
-    rows.push(['Offer instead', x.product, x.reason, x.instead, `order: ${x.rank}`]);
-  }
 
+  return priceRulesSheet({ floors: floors.rows, tiers: tiers.rows, negotiation: negotiation.rows, bundles: bundles.rows, subs: subs.rows }, locale);
+};
+
+/** What the price-limits file is made of: the rows of its five tables, as the queries read them. */
+export type PriceRulesParts = {
+  readonly floors: readonly { product: string | null; floor: string; currency: string; max_discount_pct: string; human_required_above_pct: string }[];
+  readonly tiers: readonly { product: string; min_qty: number; max_qty: number | null; price: string; currency: string }[];
+  readonly negotiation: readonly { condition: unknown; action: unknown; is_active: boolean; product: string | null }[];
+  readonly bundles: readonly { name: string; grants: unknown; is_active: boolean }[];
+  readonly subs: readonly { product: string | null; instead: string | null; reason: string; rank: number }[];
+};
+
+/**
+ * The price-limits file, pure. Phase 9 (V1-380, V1-382) — one figure to a
+ * column, every column named for what it holds: what the row is, the product,
+ * from and up to which quantity, the price, its currency, the discount, the
+ * most that may come off, the line above which she is asked, a note.
+ */
+export function priceRulesSheet(p: PriceRulesParts, locale: Locale): ExportSheet {
+  const rows: Cell[][] = [];
+  const kind = (k: string) => said(locale, `data.export.rule.${k}`);
+  const everything = said(locale, 'prices.volume.everyProduct');
+  const off = (active: boolean) => (active ? '' : said(locale, 'data.export.rule.switchedOff'));
+  for (const x of p.floors) {
+    rows.push([kind('floor'), x.product ?? everything, null, null, plainMoney(x.floor), x.currency, null,
+      plainPct(x.max_discount_pct), plainPct(x.human_required_above_pct), null]);
+  }
+  for (const x of p.tiers) {
+    rows.push([kind('tier'), x.product, x.min_qty, x.max_qty, plainMoney(x.price), x.currency, null, null, null, null]);
+  }
+  // A discount she wrote ("from 1,000, 4% off") is its figures; any other rule
+  // of this table no owner page writes, and it stays as it is stored, in the note.
+  for (const x of p.negotiation) {
+    const c = (x.condition ?? {}) as { qtyGte?: unknown };
+    const a = (x.action ?? {}) as { kind?: unknown; value?: unknown };
+    if (a.kind === 'discount_pct' && typeof c.qtyGte === 'number' && typeof a.value === 'number') {
+      rows.push([kind('discount'), x.product ?? everything, c.qtyGte, null, null, null, plainPct(a.value), null, null, off(x.is_active)]);
+    } else {
+      rows.push([kind('other'), x.product ?? '', null, null, null, null, null, null, null,
+        [JSON.stringify(x.condition), JSON.stringify(x.action), off(x.is_active)].filter(Boolean).join(' · ')]);
+    }
+  }
+  for (const x of p.bundles) {
+    rows.push([kind('bundle'), x.name, null, null, null, null, null, null, null, [JSON.stringify(x.grants), off(x.is_active)].filter(Boolean).join(' · ')]);
+  }
+  for (const x of p.subs) {
+    rows.push([kind('instead'), x.product, null, null, null, null, null, null, null,
+      [x.instead, x.reason, t(locale, 'data.export.rule.order', { n: x.rank })].filter(Boolean).join(' · ')]);
+  }
+  const h = (k: string) => said(locale, `data.export.col.${k}`);
   return {
-    header: ['rule', 'applies to', 'when', 'what', 'note'],
+    header: [h('kind'), h('product'), h('from'), h('to'), h('price'), h('currency'), h('discount'), h('maxOff'), h('askAbove'), h('note')],
     rows: rows.slice(0, EXPORT_MAX_ROWS),
   };
-};
+}
 
 /**
  * How she sells: the terms on a proforma, what a sample costs, the days the

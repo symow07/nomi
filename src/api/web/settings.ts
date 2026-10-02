@@ -1,9 +1,9 @@
-import { zoneChoices, zoneLabel, isZone, ALL_ZONES } from '../../core/owner/zones.js';
+import { zoneChoices, zoneLabel, zonePlace, zoneKept, zonesOf, countryOfZone, regionOf, isZone, ALL_ZONES, SHOP_ZONES, ZONE_GROUPS } from '../../core/owner/zones.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
@@ -24,6 +24,7 @@ import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvali
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
+import { STEP_LINK } from './onboarding.js';
 
 /** Phase 4 — in place of a form only the owner may send: the values stay
  *  on the page to read, and this says whose decision they are. */
@@ -219,7 +220,13 @@ export type SetupView = {
  * for you, ✕ did not happen); a value that only names something (a kind, an
  * e-mail, a count of people) carries none.
  */
-type SetupRow = { readonly href: string; readonly label: string; readonly desc: string; readonly value: string; readonly tone?: 'ok' | 'warn' | 'bad' | undefined };
+type SetupRow = {
+  readonly href: string; readonly label: string; readonly desc: string; readonly value: string; readonly tone?: 'ok' | 'warn' | 'bad' | undefined;
+  /** Phase 9 (today-onboarding-new-25) — other words an owner may search by ("password", "team"); never shown. */
+  readonly find?: string;
+  /** Phase 9 (V1-155) — one of the five counted steps, drawn as a step under Getting started. */
+  readonly step?: true;
+};
 
 /** Lower case, width-folded, so a search matches what is shown whatever way it was typed. */
 const fold = (s: string): string => s.normalize('NFKC').toLocaleLowerCase();
@@ -242,50 +249,62 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       : (['none', 'cardSaved', 'trial', 'active', 'past_due', 'lapsed'] as const).includes(v.billing.status as never)
         ? t(locale, `setup.value.billing.${v.billing.status}` as MessageKey) : '')
     : '';
+  const find = (k: MessageKey): string => t(locale, k);
+  // Phase 9 (V1-155) — while setting up is unfinished, the five steps the nav
+  // counts are on the page it opens, each with where it stands and its door,
+  // named as Today and the guide name them.
+  const steps: readonly SetupRow[] = setup && setup.next !== null
+    ? setup.steps.map((x, i) => ({ href: STEP_LINK[x.step], label: `${show.count(locale, i + 1)}. ${t(locale, `factory.next.${x.step}` as MessageKey)}`,
+        desc: '', value: t(locale, x.done ? 'guide.done' : 'guide.todo'), tone: toneOf(x.done), step: true as const }))
+    : [];
+  // Phase 9 (today-onboarding-new-23) — a row not answered yet waits for the owner, and says so the same way on every row.
+  const answered = (done: number, total: number): 'ok' | 'warn' => (done >= total ? 'ok' : 'warn');
   const groups: readonly { readonly id: string; readonly title: string; readonly rows: readonly SetupRow[] }[] = [
     { id: 'start', title: t(locale, 'setup.group.start'), rows: [
       { href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready,
-        tone: setup ? toneOf(setup.next === null) : undefined },
+        tone: setup ? toneOf(setup.next === null) : undefined, find: find('setup.find.guide') },
+      ...steps,
       { href: '/app/onboarding', label: t(locale, 'nav.onboarding'), desc: t(locale, 'setup.desc.onboarding'),
-        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed'), tone: toneOf(step('name')) },
+        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed'), tone: toneOf(step('name')), find: find('setup.find.onboarding') },
     ] },
     { id: 'business', title: t(locale, 'setup.group.business'), rows: [
       { href: '/app/settings/profile', label: t(locale, 'settings.profile.title'), desc: t(locale, 'setup.desc.profile'),
-        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo'), tone: toneOf(step('profile')) },
+        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo'), tone: toneOf(step('profile')), find: find('setup.find.profile') },
       { href: '/app/settings/business', label: t(locale, 'business.kind.label'), desc: t(locale, 'setup.desc.kind'),
-        value: v.kind ?? t(locale, 'setup.state.notAnswered') },
+        value: v.kind ?? t(locale, 'setup.state.notAnswered'), tone: v.kind ? undefined : 'warn', find: find('setup.find.kind') },
       ...(v.howYouSell ? [{ href: '/app/business/selling', label: t(locale, 'hs.title'), desc: t(locale, 'setup.desc.selling'),
-        value: t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total }) }] : []),
+        value: t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total }),
+        tone: answered(v.howYouSell.answered, v.howYouSell.total) }] : []),
     ] },
     { id: 'reach', title: t(locale, 'setup.group.reach'), rows: [
       { href: '/app/channels', label: t(locale, 'nav.channels'), desc: t(locale, 'setup.desc.channels'),
-        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'), tone: toneOf(step('channels')) },
+        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'), tone: toneOf(step('channels')), find: find('setup.find.channels') },
       { href: '/app/settings/alerts', label: t(locale, 'alerts.phone.title'), desc: t(locale, 'setup.desc.alerts'),
         value: !v.alerts ? '' : !v.alerts.available ? t(locale, 'setup.value.unavailable')
           : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
-        tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined },
+        tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined, find: find('setup.find.alerts') },
     ] },
     { id: 'people', title: t(locale, 'setup.group.people'), rows: [
       { href: '/app/settings/people', label: t(locale, 'people.title'), desc: t(locale, 'setup.desc.people'),
-        value: tn(locale, 'setup.state.people', v.people) },
+        value: tn(locale, 'setup.state.people', v.people), find: find('setup.find.people') },
       { href: '/app/settings/account', label: t(locale, 'account.title'), desc: t(locale, 'setup.desc.account'),
-        value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode') },
+        value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode'), find: find('setup.find.account') },
     ] },
     { id: 'account', title: t(locale, 'setup.group.account'), rows: [
-      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing, tone: billingTone },
+      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing, tone: billingTone, find: find('setup.find.billing') },
       { href: '/app/settings/data', label: t(locale, 'data.title'), desc: t(locale, 'setup.desc.data'),
         value: v.dataWaiting === null || v.dataWaiting === undefined ? ''
           : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
-        tone: v.dataWaiting ? 'warn' : undefined },
+        tone: v.dataWaiting ? 'warn' : undefined, find: find('setup.find.data') },
     ] },
   ];
 
   const q = (v.query ?? '').trim();
   const hit = (...words: string[]): boolean => q === '' || words.some((w) => fold(w).includes(fold(q)));
-  const row = (r: SetupRow): string => `<li><a class="srow" href="${r.href}">
-      <span class="sr-main"><span class="sr-label">${esc(r.label)}</span><span class="sr-desc">${esc(r.desc)}</span></span>
+  const row = (r: SetupRow): string => `<li${r.step ? ' class="sr-step"' : ''}><a class="srow" href="${r.href}">
+      <span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${r.desc ? `<span class="sr-desc">${esc(r.desc)}</span>` : ''}</span>
       ${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
-  const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value)) })).filter((g) => g.rows.length > 0);
+  const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value, r.find ?? '')) })).filter((g) => g.rows.length > 0);
   const language = hit(t(locale, 'settings.language.title'))
     ? `<section class="sgroup" aria-labelledby="sg-language"><h2 class="sgroup-h" id="sg-language">${esc(t(locale, 'settings.language.title'))}</h2>
         <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings')}</span></div></div></section>` : '';
@@ -295,7 +314,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       ${q ? `<a class="clear" href="/app/settings">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
     </form>`;
   const body = shown.length === 0 && !language
-    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}</div>`
+    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}<div>${deeper('/app/settings', t(locale, 'setup.search.all'))}</div></div>`
     : `${language}${shown.map((g) => `<section class="sgroup" aria-labelledby="sg-${g.id}"><h2 class="sgroup-h" id="sg-${g.id}">${esc(g.title)}</h2>
         <ul class="scard">${g.rows.map(row).join('')}</ul></section>`).join('')}`;
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
@@ -303,7 +322,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     ${search}
     ${body}
     <div class="block signout"><form method="post" action="/logout">
-      <button class="btn ghost" type="submit">${esc(t(locale, 'header.logout'))}</button>
+      ${/* Phase 9 (V1-154) — a button that looks like one, at the cards' edge. */ ''}<button class="btn" type="submit">${esc(t(locale, 'header.logout'))}</button>
     </form></div>`;
 }
 
@@ -329,12 +348,38 @@ export async function saveZone(db: Db, businessIdRaw: string, zone: string): Pro
   return 'saved';
 }
 
+const INTL_LOCALE: Record<Locale, string> = { en: 'en', zh: 'zh-CN', ar: 'ar', es: 'es', fr: 'fr' };
+
 /** TZ — the zone, as a row of the profile's one form (phase 3: one save, not three). */
 function zoneRow(c: ZoneChoice, locale: Locale): string {
-  const choices = zoneChoices(c.country ?? '').length ? zoneChoices(c.country ?? '') : ALL_ZONES;
-  const all = choices.includes(c.zone) ? choices : [c.zone, ...choices];
-  return fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc: t(locale, 'settings.zone.why'),
-    control: `<select id="pf-zone" name="zone">${all.map((z) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(zoneLabel(locale, z))}</option>`).join('')}</select>` });
+  const own = zoneChoices(c.country ?? '');
+  const option = (z: string, label: string) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(label)}</option>`;
+  const row = (control: string) => fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc: t(locale, 'settings.zone.why'), control });
+  // A country narrows the list to its own zones, told apart by their places.
+  if (own.length > 0 && own !== ALL_ZONES) {
+    const all = own.includes(c.zone) ? own : [c.zone, ...own];
+    return row(`<select id="pf-zone" name="zone">${all.map((z) => option(z, zoneLabel(locale, z))).join('')}</select>`);
+  }
+  // Phase 9 (V1-522, V1-528) — without one, every zone a shop keeps (no
+  // research stations), under its region, named by its country in the
+  // owner's language; the city only where a country keeps several.
+  const open = (zh: boolean, s: string) => (zh ? `（${s}）` : ` (${s})`);
+  const named = (z: string): string => {
+    const cc = countryOfZone(z);
+    const country = cc ? countryName(locale, cc) : null;
+    const place = country ? (zonesOf(cc).length > 1 ? `${country}${open(locale === 'zh', zonePlace(z))}` : country) : zonePlace(z);
+    const kept = zoneKept(locale, z);
+    return kept ? `${place} — ${kept}` : place;
+  };
+  const order = new Intl.Collator(locale).compare;
+  const lone = SHOP_ZONES.includes(c.zone) ? '' : option(c.zone, zoneLabel(locale, c.zone));
+  const continents = new Intl.DisplayNames([INTL_LOCALE[locale]], { type: 'region' });
+  const groups = ZONE_GROUPS.map((g) => {
+    const zs = SHOP_ZONES.filter((z) => g.regions.some((r) => regionOf(z) === r)).map((z) => ({ z, label: named(z) })).sort((a, b) => order(a.label, b.label));
+    const label = g.m49 ? continents.of(g.m49) ?? '' : t(locale, `settings.zone.region.${g.key}` as MessageKey);
+    return `<optgroup label="${esc(label)}">${zs.map((x) => option(x.z, x.label)).join('')}</optgroup>`;
+  }).join('');
+  return row(`<select id="pf-zone" name="zone">${lone}${groups}</select>`);
 }
 
 /**
@@ -394,32 +439,42 @@ export function renderProfile(
     const detail = e === 'tooLong' ? { n: CAP[f as keyof typeof CAP] ?? 200 } : {};
     return `<span class="fielderr" role="alert">${esc(t(locale, `settings.err.${e}` as MessageKey, detail))}</span>`;
   };
-  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '') => fieldRow({
-    label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined,
+  // Phase 9 (V1-523) — what the setup step still needs, marked where it is
+  // missing: a description, a location, and one way to be reached (setup.ts).
+  const needs = {
+    description: !p.description, location: !p.location, contact: !p.contactEmail && !p.contactPhone,
+  };
+  const need = (missing: boolean): string | undefined => (missing ? t(locale, 'settings.profile.need') : undefined);
+  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '', extra: { need?: string | undefined; desc?: string } = {}) => fieldRow({
+    label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined, need: extra.need, desc: extra.desc,
     control: `<input id="pf-${id}" name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />` });
 
   const languages = fieldRow({ label: t(locale, 'settings.field.languages'),
     control: `<div class="langs">${SERVED_LANGUAGES.map((l) =>
       `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> <bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi></label>`).join('')}</div>` });
+  // Phase 9 (V1-524) — who reads what: the description reaches the assistant
+  // (speakerContext's "what it sells"); the contact details reach nobody.
   const description = fieldRow({ label: t(locale, 'settings.field.description'), forId: 'pf-description', error: errLine('description') || undefined,
+    need: need(needs.description), desc: t(locale, 'settings.desc.description'),
     control: `<textarea id="pf-description" name="description" rows="3">${esc(val('description', p.description))}</textarea>` });
-  // The categories the import found: what they are, as words — nothing to press.
-  const categories = fieldRow({ label: t(locale, 'settings.field.categories'),
+  // The categories the import found: what they are, as words — nothing to
+  // press. Phase 9 (V1-525): where they come from, and where to change one.
+  const categories = fieldRow({ label: t(locale, 'settings.field.categories'), desc: t(locale, 'settings.categories.from'),
     control: `<span class="fr-value">${p.categories.length ? p.categories.map((c) => `<bdi>${esc(c)}</bdi>`).join(' · ')
-      : `<span class="muted">${esc(t(locale, 'settings.categories.empty'))}</span>`}</span>` });
+      : `<span class="muted">${esc(t(locale, 'settings.categories.empty'))}</span>`}</span>${deeper('/app/products', t(locale, 'nav.products'))}` });
 
   // Phase 3 — ONE form, ONE save: the profile, the zone and the currency
   // were three forms with a Save each; the route saves all three.
   const form = `<form method="post" action="/app/settings" class="sform">
     ${rowsCard(t(locale, 'profile.group.business'), [
       field('name', 'settings.field.name', 'name', p.name), description,
-      field('location', 'settings.field.location', 'location', p.location),
+      field('location', 'settings.field.location', 'location', p.location, '', { need: need(needs.location) }),
       field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
       languages,
     ])}
     ${rowsCard(t(locale, 'profile.group.contact'), [
-      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail),
-      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder')),
+      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail, '', { need: need(needs.contact), desc: t(locale, 'settings.desc.contact') }),
+      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'), { need: need(needs.contact) }),
     ])}
     ${rowsCard(t(locale, 'profile.group.zone'), [
       ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []), categories,
@@ -427,9 +482,11 @@ export function renderProfile(
     ${saveBar(t(locale, 'settings.alerts.save'))}
   </form>`;
 
+  const missing = needs.description || needs.location || needs.contact;
   return `${back('/app/settings', t(locale, 'nav.settings'))}
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
+    ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}
     ${form}`;
 }
 
@@ -527,11 +584,32 @@ export async function restoreForbidden(
   });
 }
 
+/**
+ * Phase 9 (V1-502) — the floor as the page shows it: by the language each word
+ * is in, one line a language, so the 43 words are a few lines to scan rather
+ * than a column 1,800 px long. The words themselves are `FORBIDDEN_FLOOR`'s, in
+ * its order; a parity test holds that these lines are exactly that list.
+ */
+export const FLOOR_BY_LANGUAGE: readonly { readonly language: string; readonly words: readonly string[] }[] = [
+  { language: 'en', words: ['fuck', 'shit', 'bastard', 'idiot', 'stupid', 'moron', 'liar'] },
+  { language: 'zh', words: ['傻逼', '白痴', '蠢货', '滚', '骗子'] },
+  { language: 'ar', words: ['غبي', 'كذاب', 'أحمق'] },
+  { language: 'es', words: ['mierda', 'estúpido', 'estúpida', 'imbécil', 'mentiroso', 'mentirosa', 'cabrón', 'gilipollas', 'pendejo'] },
+  { language: 'fr', words: ['merde', 'putain', 'connard', 'connasse', 'menteur', 'menteuse', 'crétin', 'salaud'] },
+  { language: 'pt', words: ['merda', 'porra', 'caralho', 'babaca', 'otário', 'otária', 'imbecil', 'cretino', 'cretina', 'vagabundo', 'vagabunda'] },
+];
+const languageOf = (locale: Locale, code: string): string => {
+  try { return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { return code; }
+};
+const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
+
 export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
   const name = assistantName(locale);
-  return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
+  // Phase 9 (V1-506) — the way back to the page it is reached from: the assistant's.
+  return `${back('/app/employee', t(locale, 'nav.employee'))}
+    <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
-    <p class="lede muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
+    <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
     ${/* Phase 9 (V1-504) — how a word is matched (anywhere, inside longer words too), said where words are added. */ ''}<p class="muted small">${esc(t(locale, 'forbidden.howMatched'))}</p>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
@@ -543,16 +621,21 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
       ])}
     </form>
     ${v.own.length === 0
-      ? `<div class="empty">${esc(t(locale, 'forbidden.empty'))}</div>`
+      ? `<div class="empty whole">${esc(t(locale, 'forbidden.empty'))}</div>`
       : rowsCard(null, v.own.map((x) => fieldRow({ label: x.term,
           control: `${x.note ? `<span class="fr-value muted"><bdi>${esc(x.note)}</bdi></span>` : ''}<form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
               <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
             </form>` })))}
-    ${/* Phase 3 — the floor is a fact, not the page: folded, with its count, the words inside for whoever opens it. */ ''}<details class="block floor-fold">
-      <summary><b>${esc(t(locale, 'forbidden.floor.title'))}</b> <span class="muted">· <bdi>${esc(show.count(locale, v.floor.length))}</bdi></span></summary>
+    ${/* Phase 3 — the floor is a fact, not the page: folded, the words inside for whoever opens it.
+        Phase 9 (settings-a-new-18) — what it is and what the number counts are on the fold, and why it is there is said outside it. */ ''}<div class="block floor">
+      <h2>${esc(t(locale, 'forbidden.floor.title'))}</h2>
       <p class="muted">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
-      <ul class="fterms floor">${v.floor.map((x) => `<li><bdi>${esc(x)}</bdi></li>`).join('')}</ul>
-    </details>`;
+      <details class="floor-fold">
+        <summary>${esc(tn(locale, 'forbidden.floor.count', v.floor.length))}</summary>
+        <dl class="floor-langs">${FLOOR_BY_LANGUAGE.map((g) => `<div><dt>${esc(languageOf(locale, g.language))}</dt><dd>${
+          g.words.filter((w) => v.floor.includes(w)).map((w) => `<bdi>${esc(w)}</bdi>`).join(esc(LIST_GAP[locale]))}</dd></div>`).join('')}</dl>
+      </details>
+    </div>`;
 }
 
 /* ── M43b · the rate she will honour ─────────────────────────────────────── */
@@ -644,21 +727,28 @@ export async function setRate(
 
 export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
+  // Phase 9 (V1-529, V1-530) — the page is reached from My business, and leads back there.
+  const backTo = back('/app/business', t(locale, 'nav.factory'));
   if (!v.pair) {
-    return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+    // Phase 9 (V1-529, V1-531, V1-532, new-06) — nothing to convert is a state,
+    // drawn as one: the currency by its name, and the door to where it is set.
+    return `${backTo}
+    <h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
     ${flashBanner(flash)}
-    <section class="block"><p class="muted">${esc(t(locale, 'rate.none', { from: v.currency }))}</p></section>`;
+    <div class="empty notset" role="status">${esc(t(locale, 'rate.none', { from: currencyLabel(locale, v.currency) }))}
+      <div>${deeper('/app/settings/profile#zone', t(locale, 'settings.profile.title'))}</div></div>`;
   }
   const { from, to } = v.pair;
   const stated = (r: OwnerRate): string =>
     `${esc(t(locale, 'rate.current', { rate: r.rate, from: r.from, to: r.to }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: show.date(locale, r.statedAt) }))}</span>`;
-  return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+  return `${backTo}
+    <h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'rate.intro', { name, from, to }))}</p>
       ${v.current
         ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
-        : `<div class="empty">${esc(t(locale, 'rate.empty', { to }))}</div>`}
+        : `<div class="empty notset">${esc(t(locale, 'rate.empty', { to }))}</div>`}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform">
         ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate', error: keptError(kept, 'rate', 'rt-rate-err'),
           control: `<input id="rt-rate" name="rate" inputmode="decimal" required value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` })])}
@@ -753,29 +843,34 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
-  return `<h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
+  // Phase 9 (V1-482) — the words a customer gets, as the reply is told to say
+  // them (`closureNote`): the closure's name, and that no date can be promised.
+  const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.add.placeholder') });
+  // Phase 9 (V1-478, settings-a-new-09) — the way back to My business, which
+  // links here; the intro is the settings pages' one lede.
+  return `${back('/app/business', t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
     ${flashBanner(flash)}
-    <section class="block">
-      <p class="muted">${esc(t(locale, 'closures.intro', { name }))}</p>
-      <form method="post" action="/app/settings/closures">
-        ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
-            control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
-          fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', error: keptError(kept, 'from', 'cl-from-err'),
-            control: `<input id="cl-from" name="from" type="date" required value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'cl-from-err')} />` }),
-          fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', error: keptError(kept, 'to', 'cl-to-err'),
-            control: `<input id="cl-to" name="to" type="date" required value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'cl-to-err')} />` }),
-          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
-        ])}
-      </form>
-      ${v.closures.length === 0
-        ? `<div class="empty">${esc(t(locale, 'closures.empty', { name }))}</div>`
-        : `<ul class="closures">${v.closures.map((c) => `<li>
-            <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
-            <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
-              <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
-            </form></li>`).join('')}</ul>`}
-    </section>`;
+    <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
+    <p class="muted small closure-said">${esc(example)}</p>
+    <form method="post" action="/app/settings/closures">
+      ${rowsCard(null, [
+        fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
+          control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
+        fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', error: keptError(kept, 'from', 'cl-from-err'),
+          control: `<input id="cl-from" name="from" type="date" required value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'cl-from-err')} />` }),
+        fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', error: keptError(kept, 'to', 'cl-to-err'),
+          control: `<input id="cl-to" name="to" type="date" required value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'cl-to-err')} />` }),
+        cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
+      ])}
+    </form>
+    ${v.closures.length === 0
+      ? `<div class="empty whole">${esc(t(locale, 'closures.empty', { name }))}</div>`
+      : `<ul class="closures">${v.closures.map((c) => `<li>
+          <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
+          <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
+            <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
+          </form></li>`).join('')}</ul>`}`;
 }
 
 /* ── M45 · samples ───────────────────────────────────────────────────────── */
@@ -800,6 +895,8 @@ export type SamplesView = {
   readonly policy: SamplePolicy | null;
   /** Open requests, oldest first — the one waiting longest is the one to do. */
   readonly waiting: readonly SampleRequestRow[];
+  /** Phase 9 (V1-535) — the workspace's one currency, named on the price field; absent, the stated policy's. */
+  readonly currency?: Currency;
 };
 
 export async function loadSamples(db: Db, businessIdRaw: string): Promise<SamplesView> {
@@ -819,7 +916,7 @@ export async function loadSamples(db: Db, businessIdRaw: string): Promise<Sample
        where sr.business_id = ${bid.value}::uuid and sr.handled_at is null
        order by sr.requested_at asc limit 50`.execute(tx);
     return {
-      policy,
+      policy, currency: await currencyOf(tx, bid.value),
       waiting: r.rows.map((x) => ({
         id: x.id, conversationId: x.conversation_id, buyer: x.buyer,
         askedText: x.asked_text, requestedAt: x.requested_at, address: x.address,
@@ -888,26 +985,40 @@ export async function saveTerms(
   });
 }
 
+/**
+ * Phase 9 (V1-537, V1-006-terms) — the delivery terms an owner chooses from,
+ * each with what it means, in the order of how much the seller takes on. DDU
+ * left the Incoterms in 2010 (DAP replaced it): the guard still knows it, so
+ * a workspace that chose it keeps it, but it is not offered to anyone new.
+ */
+export const OFFERED_INCOTERMS = ['EXW', 'FCA', 'FOB', 'CFR', 'CIF', 'DAP', 'DDP'] as const;
+export const incotermMeaning = (locale: Locale, code: string): string =>
+  INCOTERM_KEYS.includes(code) ? `${code} — ${t(locale, `terms.incoterm.${code}` as MessageKey)}` : code;
+
 export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
   const stated = v.terms
     ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
+       <p class="muted">${esc(incotermMeaning(locale, v.terms.incoterm))}</p>
        <p class="muted">${esc(t(locale, 'terms.setOn', { date: show.date(locale, v.terms.statedAt) }))}</p>`
-    : `<div class="empty">${esc(t(locale, 'terms.none', { name }))}</div>`;
-  const options = INCOTERM_KEYS.map((k) =>
-    `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(k)}</option>`).join('');
-  return `<h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
+    : `<div class="empty notset">${esc(t(locale, 'terms.none', { name }))}</div>`;
+  const choices: readonly string[] = v.terms && !(OFFERED_INCOTERMS as readonly string[]).includes(v.terms.incoterm)
+    ? [...OFFERED_INCOTERMS, v.terms.incoterm] : OFFERED_INCOTERMS;
+  const options = choices.map((k) =>
+    `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('');
+  return `${back('/app/business', t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
       ${stated}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="sform">
         ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', error: keptError(kept, 'payment', 'tm-payment-err'),
+          /* Phase 9 (V1-539) — the example is a line under the name, which wraps; a placeholder was cut off on a phone. */ fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', desc: t(locale, 'terms.payment.example'), error: keptError(kept, 'payment', 'tm-payment-err'),
             control: `<input id="tm-payment" name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
-              placeholder="${esc(t(locale, 'terms.payment.placeholder'))}" value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
+              value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
           fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }), error: keptError(kept, 'incoterm', 'tm-incoterm-err'),
-            control: `<select id="tm-incoterm" name="incoterm" required${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${v.terms ? '' : '<option value="" selected disabled></option>'}${options}</select>` }),
+            control: `<select id="tm-incoterm" name="incoterm" required${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${v.terms ? '' : `<option value="" selected disabled>${esc(t(locale, 'terms.incoterm.choose'))}</option>`}${options}</select>` }),
         ])}
         ${saveBar(t(locale, 'terms.save'))}
       </form>` : ownerDecides(locale)}
@@ -957,7 +1068,8 @@ export function renderSamples(
       } <span class="muted">${esc(t(locale, v.policy.creditedOnFirstOrder
         ? 'samples.current.credited' : 'samples.current.notCredited'))}</span></p>
       <p class="muted">${esc(t(locale, 'samples.setOn', { date: show.date(locale, v.policy.statedAt) }))}</p>`
-    : `<div class="empty">${esc(t(locale, 'samples.empty', { name }))}</div>`;
+    : `<div class="empty notset">${esc(t(locale, 'samples.empty', { name }))}</div>`;
+  const currency = v.currency ?? v.policy?.price.currency ?? null;
 
   const waiting = v.waiting.length === 0
     ? `<div class="empty">${esc(t(locale, 'samples.requests.empty'))}</div>`
@@ -978,17 +1090,20 @@ export function renderSamples(
         </div>
       </li>`).join('')}</ul>`;
 
-  return `<h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
+  // Phase 9 (V1-534) — reached from My business ("Samples ›"), and back there.
+  return `${back('/app/business', t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
       ${stated}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform">
         ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
+          /* Phase 9 (V1-535) — the price says which money it is in. */ fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
+            desc: currency ? t(locale, 'samples.price.desc', { currency: currencyLabel(locale, currency) }) : t(locale, 'samples.price.free'),
             control: `<input id="sm-price" name="price" inputmode="decimal" required value="${kept ? keptValue(kept, 'price') : v.policy ? esc(String(v.policy.price.amount)) : ''}"${keptInvalid(kept, 'price', 'sm-price-err')} />` }),
-          fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
-            control: `<input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} />` }),
+          /* Phase 9 (new-08) — the tick at the start of its column, its label the 44px target. */ fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
+            control: `<span class="chkbox"><input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} /></span>` }),
         ])}
         ${saveBar(t(locale, 'samples.save'))}
       </form>` : ownerDecides(locale)}

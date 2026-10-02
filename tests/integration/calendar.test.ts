@@ -59,7 +59,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
   });
   /** Every entry's provenance on a page: `table:id` → column. */
   const sources = (html: string): Map<string, string> =>
-    new Map([...html.matchAll(/<li class="row (?:solid|dashed)" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
+    new Map([...html.matchAll(/<li class="row (?:solid|dashed)(?: done)?" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
   const area = (on: boolean) => as(BIZ, (t) => sql`update businesses set outreach_area = ${on} where id = ${BIZ}::uuid`.execute(t));
 
   beforeAll(async () => {
@@ -242,7 +242,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       quotes: ['created_at'], handoffs: ['sla_deadline_at'], factory_closures: ['starts_on'], conversations: ['closed_at'],
       sequence_enrollments: ['next_due_at'],
     };
-    const rows = [...r.body.matchAll(/<li class="row (?:solid|dashed)" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
+    const rows = [...r.body.matchAll(/<li class="row (?:solid|dashed)(?: done)?" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
     expect(rows.length).toBeGreaterThan(0);
     for (const [, table, rowId, col] of rows) {
       expect(ALLOWED[table!], table).toContain(col);
@@ -294,12 +294,12 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     const off = await get('/app/calendar?view=list');
     expect(off.body).not.toContain(`sequence_enrollments:`);
     expect(off.body).not.toContain(`buyer-${RUN}@example.com`);
-    expect(off.body).not.toContain(`category=followups`);
+    expect(off.body).not.toContain('<option value="followups"');   // the category is a choice since V1-202
     await area(true);
     const on = await get('/app/calendar?view=list');
     expect(sources(on.body).get(`sequence_enrollments:${id['enrol']}`)).toBe('next_due_at');
     expect(on.body).toContain(`buyer-${RUN}@example.com`);
-    expect(on.body).toContain('category=followups');
+    expect(on.body).toContain('<option value="followups"');
     // No conversation yet: nothing to open, so no door on that row.
     const row = new RegExp(`<li class="row" data-src="sequence_enrollments:${id['enrol']}"[\\s\\S]*?</li>`).exec(on.body)?.[0] ?? '';
     expect(row).not.toContain('href=');

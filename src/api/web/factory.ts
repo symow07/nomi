@@ -663,7 +663,8 @@ export function renderFactory(
   const pricesBody = pr.businessDefault === null && pr.products.every((p) => p.own === null)
     ? `<p class="fwarn">${esc(t(locale, 'factory.prices.none', { name }))}</p>`
     : `<div class="fprices">${pr.businessDefault
-        ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
+        // Phase 9 — the sentence says only what is true here: no discount written, nothing comes off.
+        ? `<p class="fdesc">${esc(t(locale, noDiscount ? 'prices.stated.noDiscount' : 'prices.stated', {
             floor: show.money(locale, pr.businessDefault.floor), max: pr.businessDefault.maxDiscountPct,
             ask: pr.businessDefault.askAbovePct, name }))}</p>`
         : ''}

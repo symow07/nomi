@@ -48,22 +48,24 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
     const zh = renderCustomerFile(file, 'zh', NOW);
     expect(zh).toContain('沟通记录'); expect(zh).toContain('客户发来一张图片');
     // V1 close-out — the figures are isolated, one each, so they keep their order in Arabic.
-    expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '<bdi>5000个</bdi> · <bdi>$0.92/个</bdi>' })); expect(zh).toContain('你确认发送');
+    // Phase 9 (V1-278) — per piece, each figure a run that does not wrap apart.
+    expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '<bdi class="fig">5000个</bdi> · <bdi class="fig">$0.92/个</bdi>' })); expect(zh).toContain('你确认发送');
     const en = renderCustomerFile(file, 'en', NOW);
     // CC-13 — English spaces a figure from its unit (no-break); Chinese, above, sets them together.
-    expect(en).toContain('Customer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '<bdi>5,000\u00a0pcs</bdi> · <bdi>$0.92/pcs</bdi>' }));
+    expect(en).toContain('Customer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '<bdi class="fig">5,000\u00a0pcs</bdi> · <bdi class="fig">$0.92/pc</bdi>' }));
     expect(en).toContain('You approved sending');
     expect(renderCustomerFile({ ...file, timeline: [] }, 'en', NOW)).toContain('No history yet');
   });
 
   it('business context: products, quote, order, corrections (capability names)', () => {
     const en = renderCustomerFile(file, 'en', NOW);
-    expect(en).toContain('Business'); expect(en).toContain('ZX-100'); expect(en).toContain('$0.92/pcs');
+    // Phase 9 (V1-281) — the heading says what the block holds; the price is per piece.
+    expect(en).toContain('Products and price'); expect(en).toContain('ZX-100'); expect(en).toContain('$0.92/pc<');
     expect(en).toContain('ORD-1'); expect(en).toContain('Confirmed');
     expect(en).toContain('You corrected'); expect(en).toContain('Quoting');   // capability 'quote' localized
     expect(renderCustomerFile(file, 'zh', NOW)).toContain('报价');
     const empty = renderCustomerFile({ ...file, context: { products: [], latestQuote: null, order: null, corrections: [] } }, 'en', NOW);
-    expect(empty).not.toContain('>Business<');
+    expect(empty).not.toContain('>Products and price<');
   });
 
   it('needsOwner links to the inbox — no approval form here', () => {
@@ -97,7 +99,8 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
   it('a buyer\'s words inside a history line keep their own direction — isolated, and still escaped', () => {
     const ar = renderCustomerFile({ ...file, timeline: [m({ kind: 'buyer_text', at: NOW, text: 'Price for 5,000 pcs?' })] }, 'ar', NOW);
     // …and the customer by name (UI-PASS 5), isolated too — never the lone role word.
-    expect(ar).toContain(`<bdi>${file.buyer}</bdi>: <bdi>Price for 5,000 pcs?</bdi>`);
+    // Phase 9 (V1-276) — and on its own line, in its own direction.
+    expect(ar).toContain(`<bdi>${file.buyer}</bdi>: <bdi class="said" dir="auto">Price for 5,000 pcs?</bdi>`);
     expect(ar).not.toContain('المشتري: ');
   });
 

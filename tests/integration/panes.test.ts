@@ -100,7 +100,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
 
   it('the rail counts who needs the owner, read fresh on every page', async () => {
     const html = await page('/app');
-    expect(html).toMatch(/class="subnav"[^>]*aria-label="Customer list, 1 customer needs you">Customer list<span class="navcount" aria-hidden="true">1<\/span>/);
+    expect(html).toMatch(/class="subnav"[^>]*aria-label="Customer list, 1 customer needs you">Customer list<span class="navcount" aria-hidden="true">1 waiting<\/span>/);
     // Omar's conversation is handed to a person: the rail says so on the next page, not a minute later
     await tx((x) => sql`update conversations set assigned_to = 'unclaimed' where id = ${omar}::uuid`.execute(x));
     expect(await page('/app')).toContain('aria-hidden="true">2</span>');
@@ -109,7 +109,8 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
 
   it('a conversation stands between its list and its customer', async () => {
     const html = await page(`/app/inbox/${maya}`);
-    expect(html).toContain('<main id="main" class="wide"><div class="panes"><aside class="listpane"');
+    // V1-105 — on a phone every page says whose workspace it is, so its line may come first.
+    expect(html).toMatch(/<main id="main" class="wide">(?:<p class="business-name"><bdi>[^<]*<\/bdi><\/p>)?<div class="panes"><aside class="listpane"/);
     expect(html).toMatch(new RegExp(`<a class="crow is-\\w+[^"]* on" href="/app/inbox/${maya}#latest" aria-current="page">`));
     // the list opens on its own default tab: someone needs the owner, so "Needs you" — Omar is under All
     expect(html).not.toContain(`href="/app/inbox/${omar}#latest"`);
@@ -129,7 +130,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
     expect(panel).toContain('<bdi>$34.90</bdi> · <bdi>Rose Face Serum</bdi>');
     expect(panel).toContain('Sample · asked ');
     const activity = panel.slice(panel.indexOf('<h3>Activity</h3>'));
-    const order = ['Waiting for you', 'didn’t reach them', 'You answered yourself', 'You sent', 'replied'].map((s) => activity.indexOf(s));
+    const order = ['Needs you', 'didn’t reach them', 'You answered yourself', 'You sent', 'replied'].map((s) => activity.indexOf(s));
     for (const i of order) expect(i).toBeGreaterThan(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));   // newest first
     expect(activity).toContain('<span class="pn-you" aria-hidden="true">●</span> You sent');

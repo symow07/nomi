@@ -13,7 +13,7 @@ import * as show from './values.js';
  * one derivation of what is done), in order, each with where it stands, one
  * door to do it, and a short video of doing it — recorded from these very
  * pages (`tools/record-guide.mjs`), with captions in the owner's language. The
- * captions are also the page's own text ("Read instead"), so nothing is lost
+ * captions are also the page's own text, under each video, so nothing is lost
  * without the video, a sound, or a fast connection.
  *
  * The videos are files in `assets/guide/`, named `<step>.<locale>.webm` with
@@ -70,13 +70,17 @@ export function renderGuide(v: GuideView, locale: Locale, name: string, videos: 
           <source src="/assets/guide/${step}.${locale}.webm" type="video/webm">
           <track kind="captions" src="/assets/guide/${step}.${locale}.vtt" srclang="${locale}" label="${esc(t(locale, 'guide.captions'))}" default>
         </video>
-        ${LENGTHS[`${step}.${locale}`] ? `<p class="caption muted">${esc(t(locale, 'guide.length', { length: show.seconds(locale, LENGTHS[`${step}.${locale}`]!) }))}</p>` : ''}
-        <details><summary>${esc(t(locale, 'guide.read'))}</summary><ol>${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol></details>`
-      : `<ol>${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>`;
+        ${LENGTHS[`${step}.${locale}`] ? `<p class="caption muted">${esc(t(locale, 'guide.length', { length: show.seconds(locale, LENGTHS[`${step}.${locale}`]!) }))}</p>` : ''}`
+      : '';
+    // Phase 9 (V1-117, V1-118) — the words are under the video, as the page
+    // says, not folded behind a "Read instead" that had to be opened.
+    // Phase 9 (V1-114) — the number stays beside the first line of a heading
+    // that wraps; the state sits at the end of its words.
     return `<li class="guide-step${done ? ' done' : ''}${v.next === step ? ' next' : ''}" id="${step}">
-      <h2><span class="muted">${esc(show.count(locale, i + 1))}.</span> ${esc(t(locale, `factory.next.${step}` as MessageKey, { name }))}
-        <span class="pill ${done ? 'ok' : 'warn'}">${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></h2>
+      <h2 class="gs-h"><span class="gs-n muted">${esc(show.count(locale, i + 1))}.</span><span class="gs-t">${esc(t(locale, `factory.next.${step}` as MessageKey, { name }))}
+        <span class="pill ${done ? 'ok' : 'warn'}">${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></span></h2>
       ${video}
+      <ol class="gs-words">${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
       ${done ? '' : deeper(STEP_LINK[step], t(locale, 'guide.do'), v.next === step ? 'next' : '')}
     </li>`;
   }).join('');

@@ -58,6 +58,15 @@ describe('A2 · countries', () => {
     expect(isCountryCode('ma'), 'the validator upper-cases first; the list itself is exact').toBe(false);
   });
 
+  it('Phase 9 (V1-054) — the dropdown offers no place where nobody lives, and a stored one still reads as a country', () => {
+    for (const locale of ['en', 'zh', 'ar', 'es', 'fr']) {
+      const offered = countryOptions(locale).map((c) => c.code);
+      for (const c of ['AQ', 'BV', 'GS', 'HM', 'IO', 'TF', 'UM']) expect(offered, `${locale} ${c}`).not.toContain(c);
+      for (const c of ['MA', 'CN', 'US', 'AE', 'FR', 'MX']) expect(offered, `${locale} ${c}`).toContain(c);
+    }
+    expect(isCountryCode('AQ')).toBe(true);
+  });
+
   it('named and sorted in the reader\'s own language', () => {
     expect(countryOptions('en').find((c) => c.code === 'MA')?.name).toBe('Morocco');
     expect(countryOptions('zh').find((c) => c.code === 'MA')?.name).toBe('摩洛哥');

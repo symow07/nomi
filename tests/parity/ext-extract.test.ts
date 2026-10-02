@@ -71,7 +71,8 @@ describe('EXT · the answer, read defensively', () => {
 describe('EXT · the tick rule', () => {
   const ctx = { kind: 'paste', currency: 'USD', countryCurrency: null, country: null, defaultUnit: 'pcs' } as unknown as ReviewContext;
   const row = (over: Partial<ImportRow> = {}): ImportRow => ({
-    key: 'l1', line: 'Silk scarf 24.50', photo: null, sku: null, name: 'Silk scarf', nameZh: null, price: 24.5, unit: 'pcs', moq: null,
+    // Phase 9 — the line carries its sign: a price read with none waits for a tick of its own (`no_sign`).
+    key: 'l1', line: 'Silk scarf $24.50', photo: null, sku: null, name: 'Silk scarf', nameZh: null, price: 24.5, unit: 'pcs', moq: null,
     names: [], refused: null, removed: false, ticked: false, challenge: null, reopened: false, edited: false, ...over,
   });
   it('a row the extractor read always waits for its own tick, and is flagged when read less surely', () => {

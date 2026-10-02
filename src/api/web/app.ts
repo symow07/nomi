@@ -92,7 +92,7 @@ import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
 } from './priceRules.js';
-import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
+import { loadOrder, recordOrderUpdate, renderOrder, proformaText, proformaFileName } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renamePerson, renderPeople, personForCode, ownerPerson, hashCode,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
@@ -141,10 +141,10 @@ import {
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
-import { loadCustomerFile, renderCustomerFile, renameBuyer } from './conversations.js';
+import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
-import { renderListPane, renderCustomerPanel, renderPanes } from './panes.js';
+import { renderListPane, renderCustomerPanel, renderPanes, paneRowOf } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
@@ -170,7 +170,7 @@ import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
   teachKnowledge, correctKnowledge, archiveKnowledge, restoreKnowledge, setCertification, type KnowledgeFlash,
 } from './knowledge.js';
-import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
+import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, renderKnowledgePeriod, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
   loadPracticeView, renderSandbox, sayInPractice, parseTotal,
@@ -191,7 +191,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import {
-  shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper,
+  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -684,6 +684,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const siteHosts = siteHostsInForce(deps.siteHosts ?? [], deps.publicBaseUrl);
   const onSiteHost = (req: FastifyRequest): boolean =>
     siteHosts.size > 0 && siteHosts.has(hostOf(req.headers.host));
+  /** Phase 9 — where a public page's "Nomi" leads: the site, at `/` on its own host, `/site` on the app's. */
+  const siteOf = (req: FastifyRequest): string => (onSiteHost(req) ? '/' : '/site');
   app.addHook('onRequest', async (req, reply) => {
     if (!onSiteHost(req) || !isAppPath(req.url)) return;
     const to = appAddress(deps.publicBaseUrl, req.url);
@@ -819,11 +821,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const locale = localeOf(req);
       return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'error.notfound.title'), active: 'home',
-        bodyHtml: `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><div class="empty">${esc(t(locale, 'error.notfound.body'))}<div>${deeper('/app', t(locale, 'nav.home'))}</div></div>`,
+        bodyHtml: notFoundInside(locale),
       }));
     }
     return reply.code(404).type('text/html; charset=utf-8')
-      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'notfound' }));
+      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'notfound', signedIn: Boolean(signedIn), site: siteOf(req) }));
   });
 
   app.setErrorHandler(async (err: FastifyError, req, reply) => {
@@ -840,7 +842,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return reply.code(500).send({ message: 'Internal Server Error', error: 'Internal Server Error', statusCode: 500 });
     }
     return reply.code(500).type('text/html; charset=utf-8')
-      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'crash', reference }));
+      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'crash', reference, signedIn: Boolean(sessionOf(req)), site: siteOf(req) }));
   });
 
   /**
@@ -1138,11 +1140,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Anthropic's own API — which is what an installation with no override calls.
   const legalFacts: LegalFacts = deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
   app.get('/privacy', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts)));
+    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
   app.get('/data-deletion', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null)));
+    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, siteOf(req))));
   app.get('/terms', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null)));
+    reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
 
   // ── The stylesheets (V1 close-out) and the one script (CC-26) ───────────
   // Named by their content, so this build's own address is kept by a browser
@@ -1233,12 +1235,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(next);
   };
 
-  app.get('/login', async (req, reply) =>
-    sessionOf(req)
-      ? reply.redirect('/app')
-      : reply.type('text/html; charset=utf-8').send(
-        loginPage({ locale: localeOf(req), path: req.url, signupOpen: (await signupModeNow()) !== 'closed', recoveryOn,
-          withCode: (req.query as { with?: string }).with === 'code' })));
+  app.get('/login', async (req, reply) => {
+    if (sessionOf(req)) return reply.redirect('/app');
+    const signupMode = await signupModeNow();
+    return reply.type('text/html; charset=utf-8').send(
+      loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
+        withCode: (req.query as { with?: string }).with === 'code' }));
+  });
 
   /**
    * A1 — a factory makes its own workspace.
@@ -1352,12 +1355,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * A locked login is told to wait WITHOUT its password being checked: the
      * lock must not become an oracle that still answers right-or-wrong.
      */
-    if (typeof body.email === 'string' && body.email.trim() !== '') {
+    // Phase 9 (V1-037) — the e-mail form sends both fields, and asks the page,
+    // not the browser, to say that one is empty; the code form sends neither.
+    if (typeof body.email === 'string' || typeof body.password === 'string') {
       const locale = localeOf(req);
-      const email = normalizeEmail(body.email);
+      const email = normalizeEmail(String(body.email ?? ''));
       const password = String(body.password ?? '');
-      const refuse = (status: number, problem: 'password' | 'locked' | 'slow') =>
-        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', recoveryOn }));
+      const refuse = (status: number, problem: LoginProblem) =>
+        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+      if (email === '') return refuse(400, 'email_missing');
+      if (password === '') return refuse(400, 'password_missing');
       if (!loginThrottle.allow(callerOf(req), Date.now())) return refuse(429, 'slow');
       const login = await lookupLogin(deps.db, email).catch(() => null);
       if (!login) { await spendAVerification(password); return refuse(401, 'password'); }
@@ -1409,7 +1416,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // the environment's business first, exactly as before, so nothing about
       // the pilot's staff depends on the new lookup.
       if (!loginThrottle.allow(callerOf(req), Date.now())) {
-        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', recoveryOn }));
+        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
       }
       const mine = code.trim() === '' ? null
         : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
@@ -1417,7 +1424,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : await personForCodeHash(deps.db, hashCode(deps.sessionSecret, code)).catch(() => null);
       if (!mine && !theirs) {
         return reply.code(401).type('text/html; charset=utf-8')
-          .send(loginPage({ locale: localeOf(req), path: '/login', error: true, signupOpen: signupMode !== 'closed', recoveryOn }));
+          .send(loginPage({ locale: localeOf(req), path: '/login?with=code', error: true, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
       }
       if (theirs) return signIn(reply, theirs.businessId, theirs.person);
       person = mine!;
@@ -1450,7 +1457,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.code(status).header('referrer-policy', 'no-referrer').header('cache-control', 'no-store')
       .type('text/html; charset=utf-8')
       .send(setPasswordPage({ locale: localeOf(req), path: '/login/set-password', passwordMin: PASSWORD_MIN,
-        passwordMax: PASSWORD_MAX, link, problem }));
+        passwordMax: PASSWORD_MAX, link, problem, recoveryOn, contact: deps.legalContact ?? null }));
 
   app.get('/login/set-password', quietDoor, async (req, reply) => {
     const raw = (req.query as { t?: unknown } | undefined)?.t;
@@ -1464,7 +1471,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as { t?: unknown; password?: unknown; repeat?: unknown };
     const signupMode = await signupModeNow();
     if (!loginThrottle.allow(callerOf(req), Date.now())) {
-      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', recoveryOn }));
+      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
     }
     const link = await setupLinkOf(b.t);
     if (!link) return setPwPage(req, reply, 404, null);
@@ -1480,7 +1487,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!email) return setPwPage(req, reply, 404, null);
     return html(reply, 200, loginPage({
       locale: localeOf(req), path: '/login', email, notice: t(localeOf(req), 'login.passwordSet'),
-      signupOpen: signupMode !== 'closed', recoveryOn,
+      signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
     }));
   });
 
@@ -1794,7 +1801,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings',
     async (s, req, reply, locale) => renderDataRights(
-      await loadDataRights(deps.db, s.businessId), locale, takeFlash(req, reply),
+      { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null }, locale, takeFlash(req, reply),
       personOf(s), t(locale, 'nav.settings'))));
 
   /**
@@ -1832,7 +1839,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // It is her data, freshly read. Nothing between here and her laptop may
       // keep a copy to hand to the next person who asks.
       .header('cache-control', 'no-store')
-      .send(csvFile(sheet.header, sheet.rows));
+      .send(csvFile(sheet.header, sheet.rows, show.csvDialectFor(localeOf(req))));
   });
 
   app.post('/app/settings/data/delete', async (req, reply) => {
@@ -2055,7 +2062,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
       bodyHtml: withAssistantName(detail.assistantName, () => renderPanes(
-        renderListPane(list, locale, now, conversationId, people),
+        // Phase 9 (V1-257) — and the open conversation, when the tab beside it does not list it.
+        renderListPane(list, locale, now, conversationId, people,
+          everyone.conversations.find((c) => c.conversationId === conversationId) ?? paneRowOf(detail)),
         renderConversationDetail(withProof, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
@@ -2893,7 +2902,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (table.ok) return reply.redirect(`/app/products/import/${table.id}/columns`, 303);
     }
     const id = await startPasteImport(deps.db, s.businessId, personOf(s).id, text);
-    return reply.redirect(id ? `/app/products/import/${id}` : '/app/products/add', 303);
+    // Phase 9 (V1-321) — a paste with no line that could be a product says so; it reloaded and said nothing.
+    return id ? reply.redirect(`/app/products/import/${id}`, 303) : flashTo(reply, '/app/products/add', 'product.add.nothingRead');
   });
   /**
    * Phase 6 — a form on the add page that came to nothing: the add page again,
@@ -2901,7 +2911,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * its own that lost what she typed (the audit's two separate refusal pages).
    */
   const addAgain = async (req: FastifyRequest, reply: FastifyReply, s: OwnerSession,
-    refused: { readonly photo: string } | { readonly store: StoreFormRefusal }) => {
+    refused: { readonly photo: string; readonly hand?: string | null } | { readonly store: StoreFormRefusal }) => {
     const locale = localeOf(req);
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.teach'), active: 'products',
@@ -2918,7 +2928,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await startStoreImport(deps.db, s.businessId, personOf(s).id, deps.storeFetcher ?? publicFetcher,
       { address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' });
     if (!out.ok) {
-      return addAgain(req, reply, s, { store: { form: 'store', reason: out.reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? '') } });
+      return addAgain(req, reply, s, { store: { form: 'store', reason: out.reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' } });
     }
     return reply.redirect(`/app/products/import/${out.id}`, 303);
   });
@@ -2961,11 +2971,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
     const locale = localeOf(req);
-    const refuse = (reason: PhotoRefusal, photo?: number, left?: number) =>
-      addAgain(req, reply, s, { photo: renderPhotoRefusal(reason, locale, photo, left) });
-
     const photos: PhotoIn[] = [];
     let hand: string | null = null;
+    // Phase 9 (new-07) — sent back with the answer to "printed or handwritten?" still chosen.
+    const refuse = (reason: PhotoRefusal, photo?: number, left?: number) =>
+      addAgain(req, reply, s, { photo: renderPhotoRefusal(reason, locale, photo, left), hand });
+
     try {
       // Ten files, and the one question beside them: files and parts raised
       // together, or the registration's 6 parts would cut a ten-photo list short.
@@ -3514,7 +3525,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
     const flash = takeFlash(req, reply);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: file.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
+      title: customerFileTitle(locale, file), active: 'inbox',
       bodyHtml: renderCustomerFile(file, locale, new Date(), flash, personOf(s)),
     }));
   });
@@ -3897,6 +3908,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await saveBusinessKind(deps.db, s.businessId,
       { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') }, personOf(s).id);
+    facts.evict(s.businessId);   // Phase 9 (V1-009) — the country decides how an amount is written on every page
     return flashTo(reply, '/app/settings/business', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
   });
 
@@ -3983,6 +3995,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!v) return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') });
     return renderOrder(v, locale, takeFlash(req, reply));
   }));
+
+  // Phase 9 (V1-188) — the proforma as a file, the same text the page shows:
+  // "copy it into your own paperwork" had nothing to take it with.
+  app.get('/app/orders/:id/proforma.txt', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const id = (req.params as { id: string }).id;
+    const v = UUID.test(id) ? await loadOrder(deps.db, s.businessId, id) : null;
+    const text = v ? proformaText(v) : null;
+    if (!v || !text) return reply.callNotFound();
+    return reply.type('text/plain; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${proformaFileName(v)}"`)
+      .header('cache-control', 'no-store')
+      .send(`${text}\n`);
+  });
 
   app.post('/app/orders/:id/update', async (req, reply) => {
     const s = sessionOf(req);
@@ -4519,9 +4546,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       enrichmentsFor(pd, bid.value, view.contacts.filter((c) => c.channel === 'email').map((c) => c.identity)),
       keyStatus(pd, bid.value),
     ]) : [new Map(), { kind: 'none' } as const];
+    // Phase 9 (V1-544) — the search and the page, from the address.
+    const q = req.query as { q?: unknown; page?: unknown };
     return renderContacts({
       ...view, companies,
       canLookUp: status.kind === 'stored' && status.readable && deps.prospectSourceFor !== undefined,
+      query: typeof q.q === 'string' ? q.q : '', page: typeof q.page === 'string' && /^\d{1,4}$/.test(q.page) ? Number(q.page) : 1,
     }, locale, takeFlash(req, reply));
   }));
 
@@ -4617,7 +4647,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = req.query as { channel?: string; identity?: string };
     const found = (await loadContacts(deps.db, sess.businessId)).contacts
       .find((c) => c.channel === q.channel && c.identity === q.identity);
-    if (!found) return renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale, null);
+    // Phase 9 (V1-556) — an address that names nobody on the list says so.
+    if (!found) return renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale, saidFlash(locale, 'contacts.said.notOnList'));
     return renderSuppressConfirm(found, locale);
   }));
 
@@ -4645,7 +4676,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = req.query as { channel?: string; identity?: string };
     const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
     const found = view.contacts.find((c) => c.channel === q.channel && c.identity === q.identity);
-    if (!found || found.channel !== 'email') return renderContacts(view, locale, null);
+    // Phase 9 (V1-554) — nobody by that address, or someone a first message
+    // cannot reach from here (it goes by e-mail only): said, not a silent list.
+    if (!found) return renderContacts(view, locale, saidFlash(locale, 'contacts.said.notOnList'));
+    if (found.channel !== 'email') return renderContacts(view, locale, saidFlash(locale, 'contacts.said.emailOnly'));
     // Deployment mode has no outbound worker at all (src/main.ts): a row queued
     // here would sit until messaging is switched on and then leave, days after
     // she wrote it. Said now, before she types, rather than after.
@@ -4719,8 +4753,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     repliesObservable: false,
   });
 
-  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) =>
-    renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, takeFlash(req, reply))));
+  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) => {
+    // Phase 9 (V1-564) — who could be added today: the SAME `reachOf` the contacts page and the enrol list use.
+    const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
+    const ready = view.contacts.filter((c) => c.channel === 'email' && reachOf(view, c).ok).length;
+    return renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, takeFlash(req, reply), { ready });
+  }));
 
   app.post('/app/sequences', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -4944,10 +4982,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
+    // Phase 9 (V1-358) — what to do first; the period's counts last.
     return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
-        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '');
+        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
+      + renderKnowledgePeriod(ops, locale, new Date());
   };
   app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);

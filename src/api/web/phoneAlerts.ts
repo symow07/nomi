@@ -6,6 +6,7 @@ import { sendPush, type VapidKeys, type PushFetch } from '../../net/webPush.js';
 import { t } from './say.js';
 import { esc, back } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { fieldRow, rowsCard } from './rows.js';
 import * as show from './values.js';
 
 /**
@@ -61,15 +62,16 @@ export async function testPhones(db: Db, businessIdRaw: string, personId: string
 }
 
 export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Flash | null): string {
+  // Phase 9 (settings-a-new-06) — the phones as the settings pages' rows, in a card;
+  // (settings-a-new-04) none yet says where to turn them on.
   const phones = v.phones.length === 0
-    ? `<div class="empty">${esc(t(locale, 'alerts.phone.none'))}</div>`
-    : `<ul class="rows">${v.phones.map((p) => `<li class="row lines">
-        <div><b dir="auto">${esc(p.device ?? t(locale, 'alerts.phone.unknownDevice'))}</b>
-          <span class="muted small">${esc(t(locale, 'alerts.phone.since', { date: show.date(locale, p.createdAt) }))}</span></div>
-        <form method="post" action="/app/settings/alerts/phone/${esc(p.id)}/remove" class="inline">
+    ? `<div class="empty whole">${esc(t(locale, 'alerts.phone.none'))}</div>`
+    : `${rowsCard(null, v.phones.map((p) => fieldRow({
+        label: p.device ?? t(locale, 'alerts.phone.unknownDevice'),
+        desc: t(locale, 'alerts.phone.since', { date: show.date(locale, p.createdAt) }),
+        control: `<form method="post" action="/app/settings/alerts/phone/${esc(p.id)}/remove" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-                  data-confirm="${esc(t(locale, 'alerts.phone.removeConfirm'))}">${esc(t(locale, 'alerts.phone.remove'))}</button></form>
-      </li>`).join('')}</ul>
+                  data-confirm="${esc(t(locale, 'alerts.phone.removeConfirm'))}">${esc(t(locale, 'alerts.phone.remove'))}</button></form>` })))}
       <form method="post" action="/app/settings/alerts/test"><button class="btn" type="submit">${esc(t(locale, 'alerts.phone.test'))}</button></form>`;
   const turnOn = v.publicKey
     ? `<button class="btn send" type="button" hidden data-push-key="${esc(v.publicKey)}" data-push-save="/app/settings/alerts/phone">${esc(t(locale, 'alerts.phone.turnOn'))}</button>
@@ -80,7 +82,8 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
   // Phase 9 (settings-a-missed-03) — with no way to send an alert here, the
   // page says so FIRST, then what it will do; it promised "your phone shows
   // it" above a grey "not available here yet", over an empty list of phones.
-  return `<div class="dhead">${back('/app/settings', t(locale, 'nav.settings'))}</div>
+  // Phase 9 (V1-468) — the way back drawn as on its sibling pages, so the heading sits where theirs does.
+  return `${back('/app/settings', t(locale, 'nav.settings'))}
     <h1 class="page">${esc(t(locale, 'alerts.phone.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, v.publicKey ? 'alerts.phone.lede' : 'alerts.phone.ledeOff'))}</p>

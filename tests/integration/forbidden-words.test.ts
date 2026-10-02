@@ -111,7 +111,7 @@ d('M37.5 · her forbidden list, end to end (requires DATABASE_URL)', () => {
     const res = await app.inject({ method: 'GET', url: '/app/settings/forbidden', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Guangzhou Textile');
-    expect(res.body).toContain('Always enforced');
+    expect(res.body).toContain('Rude words and insults, kept out of every reply');
   });
 
   it('REMOVING archives, never deletes — the record survives her changing her mind', async () => {

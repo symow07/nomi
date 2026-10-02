@@ -100,7 +100,8 @@ d('K1 · the kept import review (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(302);
     const again = await get(kept);
     expect(again.body).toContain('value="Canvas tote"');
-    expect(again.body).toContain('value="shopper, 帆布袋"');
+    // The names box is a textarea since phase 9 (one name a line); her words are kept in it.
+    expect(again.body).toMatch(/<textarea name="names:[^"]+"[^>]*>shopper(?:, |\n)帆布袋<\/textarea>/);
     expect(again.body).toContain(t('en', 'import.row.removed'));
     expect(await count('products')).toBe(0);
   });
