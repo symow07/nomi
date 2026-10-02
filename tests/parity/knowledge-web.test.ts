@@ -54,7 +54,7 @@ describe('M13 · knowledge UI (localized renderer)', () => {
     // The panel itself writes claims_policy; CE is on, in words and with its mark.
     const all = renderKnowledgeIndex(index, 'en');
     expect(all).toContain('action="/app/knowledge/cert"');
-    expect(all).toMatch(/<b>CE marking<\/b> <span class="pill ok">On<\/span>/);
+    expect(all).toMatch(/<b><bdi>CE marking<\/bdi><\/b> <span class="pill ok">On<\/span>/);   // isolated: a code inside Arabic words (surface walk)
     expect(all).toContain('value="FDA"');   // an off cert is still offered
   });
 

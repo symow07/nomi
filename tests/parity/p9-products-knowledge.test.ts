@@ -652,8 +652,8 @@ describe('What your assistant knows', () => {
     for (const l of LOCALES) {
       const html = page(l);
       expect(html, l).not.toMatch(/>food_grade<|>BPA_free<|for all 12[^<]*food_grade/);
-      expect(html, l).toContain(`<b>${esc(t(l, 'claim.food_grade'))}</b> <span class="pill">${esc(t(l, 'knowledge.cert.off'))}</span>`);
-      expect(html, l).toContain(`<b>${esc(t(l, 'claim.CE'))}</b> <span class="pill ok">${esc(t(l, 'knowledge.cert.on'))}</span>`);
+      expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.food_grade'))}</bdi></b> <span class="pill">${esc(t(l, 'knowledge.cert.off'))}</span>`);
+      expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.CE'))}</bdi></b> <span class="pill ok">${esc(t(l, 'knowledge.cert.on'))}</span>`);
       // The question names it in words, and the button — which the ask-first dialog repeats — says what it does.
       expect(html, l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: t(l, 'claim.food_grade'), n: 12 })))}">${esc(t(l, 'knowledge.cert.turnOn'))}</button>`);
     }

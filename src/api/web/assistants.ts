@@ -148,7 +148,7 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
           ${/* Phase 9 (V1-510) — the fold is a control and says what it changes. */ ''}<details class="act-fold"><summary class="btn">${esc(t(locale, a.isDefault ? 'assistants.change' : 'assistants.change.channels'))}</summary>
             <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="sform">
               ${rowsCard(null, [...fields(locale, a, `as-${a.id.slice(0, 8)}`),
-                cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'assistants.save'))}</button>`)])}
+                cardActs(`<button class="btn" type="submit">${esc(t(locale, 'assistants.save'))}</button>`)])}
             </form>
           </details></span>
         ${a.isDefault ? '' : `<form method="post" action="/app/settings/people/assistants/${esc(a.id)}/archive" class="inline">
@@ -158,7 +158,7 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
       <details class="act-fold"><summary class="btn">${esc(t(locale, 'assistants.add.summary'))}</summary>
         <form method="post" action="/app/settings/people/assistants" class="sform">
           ${rowsCard(null, [...fields(locale, null, 'as-new'),
-            cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>`)])}
+            cardActs(`<button class="btn" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>`)])}
         </form>
       </details>
     </section>`;

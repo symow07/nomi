@@ -282,7 +282,9 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
         fieldRow({ label: t(locale, p.isOwner ? 'people.name.yours' : 'people.add.label'), forId: `pp-name-${esc(p.id)}`,
           desc: t(locale, p.isOwner ? 'people.name.askYou' : 'people.name.askThem'),
           control: `<input id="pp-name-${esc(p.id)}" name="name" required maxlength="60" />` }),
-        cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'people.name.save'))}</button>`),
+        // One filled act on the page (phase 4): adding someone. A name asked for
+        // here is a quiet Save, however many people it is asked of.
+        cardActs(`<button class="btn" type="submit">${esc(t(locale, 'people.name.save'))}</button>`),
       ])}
     </form>`).join('');
 

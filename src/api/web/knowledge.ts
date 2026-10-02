@@ -219,7 +219,7 @@ function certRows(l: Locale, certs: readonly string[], n: number, productId: str
     const label = claimName(l, k);
     const q = t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: label, n });
     return `<li class="row">
-      <span class="cert-name"><b>${esc(label)}</b> <span class="pill${on ? ' ok' : ''}">${esc(t(l, on ? 'knowledge.cert.on' : 'knowledge.cert.off'))}</span></span>
+      <span class="cert-name"><b><bdi>${esc(label)}</bdi></b> <span class="pill${on ? ' ok' : ''}">${esc(t(l, on ? 'knowledge.cert.on' : 'knowledge.cert.off'))}</span></span>
       <form method="post" action="/app/knowledge/cert" class="inline">
         <input type="hidden" name="productId" value="${esc(productId)}" />
         <input type="hidden" name="key" value="${esc(k)}" />
