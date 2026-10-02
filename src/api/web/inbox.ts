@@ -2103,7 +2103,8 @@ export function renderConversationDetail(
       viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
       ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
       <input type="hidden" name="testing" value="${d.ownerTesting ? 'off' : 'on'}" />
-      <button class="btn ghost quiet" type="submit">${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
+      ${/* Phase 9 (V1-219, V1-255) — an act, said as one, and asked first when it takes a conversation out of the count. */ ''}<button class="btn ghost quiet" type="submit"${d.ownerTesting ? ''
+        : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'conv.testing.confirm'))}"`}>${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
     ${log}
     ${flashHtml}
     ${acts}`;

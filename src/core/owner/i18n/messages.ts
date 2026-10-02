@@ -1179,8 +1179,8 @@ const EN = {
   'conv.phase.escalated': 'Needs you',
   'conv.phase.closed': 'Closed',
   'conv.file.title': 'About this customer',
-  'conv.testing.mark': 'This is me testing',
-  'conv.testing.unmark': 'This is a real customer',
+  'conv.testing.mark': 'Mark as my own test',
+  'conv.testing.unmark': 'Mark as a real customer',
   'conv.testing.on': 'Marked as you testing: replies here count toward nothing.',
   'conv.testing.flash.on': 'Marked as you testing. Replies in this conversation count toward nothing.',
   'conv.testing.flash.off': 'Marked as a real customer. Replies in this conversation count again.',
@@ -3365,6 +3365,7 @@ const EN = {
   'contacts.flash.notLive': 'Messaging is not switched on here yet, so nothing was written or sent.',
   'product.add.empty': 'Nothing was read: the box was empty. Paste your list, then press the button again.',
   'ready.alone.needsName': 'Sending alone is earned, and opens once the name customers read is confirmed',
+  'conv.testing.confirm': 'Mark this conversation as you testing? Its replies stop counting toward sending alone. You can undo it here.',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -4503,8 +4504,8 @@ const ZH: Record<MessageKey, string> = {
   'conv.phase.escalated': '需要你',
   'conv.phase.closed': '已结束',
   'conv.file.title': '关于这位客户',
-  'conv.testing.mark': '这是我在测试',
-  'conv.testing.unmark': '这是真实客户',
+  'conv.testing.mark': '标记为我自己的测试',
+  'conv.testing.unmark': '标记为真实客户',
   'conv.testing.on': '已标为你在测试：这里的回复一概不计。',
   'conv.testing.flash.on': '已标为你在测试。这段对话里的回复一概不计。',
   'conv.testing.flash.off': '已标为真实客户。这段对话里的回复重新计入。',
@@ -6641,6 +6642,7 @@ const ZH: Record<MessageKey, string> = {
   'contacts.flash.notLive': '这里的消息通道还没打开，所以什么都没写、也没发。',
   'product.add.empty': '什么都没读到：框里是空的。把清单粘贴进去，再按一次。',
   'ready.alone.needsName': '已经可以自己发消息了，确认客户看到的名字之后才会开启',
+  'conv.testing.confirm': '把这段对话标记为你自己在测试？这里的回复不再计入自己发送的进度。之后可以在这里改回来。',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -7775,8 +7777,8 @@ const AR: Record<MessageKey, string> = {
   'conv.phase.escalated': 'يحتاج إليك',
   'conv.phase.closed': 'منتهية',
   'conv.file.title': 'عن العميل',
-  'conv.testing.mark': 'هذا اختبار مني',
-  'conv.testing.unmark': 'هذا عميل حقيقي',
+  'conv.testing.mark': 'وضع علامة: اختبار مني',
+  'conv.testing.unmark': 'وضع علامة: عميل حقيقي',
   'conv.testing.on': 'وُسمت بأنها اختبار منك: لا تُحتسب الردود هنا.',
   'conv.testing.flash.on': 'وُسمت بأنها اختبار منك. لا تُحتسب الردود في هذه المحادثة.',
   'conv.testing.flash.off': 'وُسمت بأنها عميل حقيقي. تُحتسب الردود في هذه المحادثة من جديد.',
@@ -9911,6 +9913,7 @@ const AR: Record<MessageKey, string> = {
   'contacts.flash.notLive': 'المراسلة غير مُفعّلة هنا بعد، فلم يُكتب شيء ولم يُرسَل.',
   'product.add.empty': 'لم يُقرأ شيء: المربع فارغ. يُرجى لصق القائمة ثم الضغط على الزر مجددًا.',
   'ready.alone.needsName': 'الإرسال دون انتظارك مُستحَق، ويُفتح بعد تأكيد الاسم الذي يقرؤه العملاء',
+  'conv.testing.confirm': 'وضع علامة على هذه المحادثة كاختبار منك؟ لن تُحسب ردودها في التقدّم نحو الإرسال دون انتظارك، ويمكن التراجع عن ذلك هنا.',
 };
 
 /**
@@ -11036,8 +11039,8 @@ const ES: Record<MessageKey, string> = {
   'conv.phase.escalated': 'Te necesita',
   'conv.phase.closed': 'Cerrada',
   'conv.file.title': 'Sobre tu cliente',
-  'conv.testing.mark': 'Soy yo haciendo pruebas',
-  'conv.testing.unmark': 'Es cliente real',
+  'conv.testing.mark': 'Marcar como prueba mía',
+  'conv.testing.unmark': 'Marcar como cliente real',
   'conv.testing.on': 'Se marcó como prueba tuya: las respuestas de aquí no cuentan para nada.',
   'conv.testing.flash.on': 'Se marcó como prueba tuya. Las respuestas de esta conversación no cuentan para nada.',
   'conv.testing.flash.off': 'Se marcó como cliente real. Las respuestas de esta conversación vuelven a contar.',
@@ -13122,6 +13125,7 @@ const ES: Record<MessageKey, string> = {
   'contacts.flash.notLive': 'Los mensajes todavía no están activados aquí, así que no se escribió ni se envió nada.',
   'product.add.empty': 'No se leyó nada: el cuadro estaba vacío. Pega tu lista y vuelve a pulsar el botón.',
   'ready.alone.needsName': 'El envío sin ti ya está ganado, y se abre cuando confirmes el nombre que leen tus clientes',
+  'conv.testing.confirm': '¿Marcar esta conversación como una prueba tuya? Sus respuestas dejan de contar para el envío sin ti. Puedes deshacerlo aquí.',
 };
 
 
@@ -14252,8 +14256,8 @@ const FR: Record<MessageKey, string> = {
   'conv.phase.escalated': 'Vous attend',
   'conv.phase.closed': 'Clôturée',
   'conv.file.title': 'À propos de ce client',
-  'conv.testing.mark': 'C’est moi qui teste',
-  'conv.testing.unmark': 'C’est un vrai client',
+  'conv.testing.mark': 'Marquer comme mon propre test',
+  'conv.testing.unmark': 'Marquer comme vrai client',
   'conv.testing.on': 'Test de votre part : les réponses ici ne comptent pas.',
   'conv.testing.flash.on': 'Test de votre part, c’est noté. Les réponses de cette conversation ne comptent pas.',
   'conv.testing.flash.off': 'Vrai client, c’est noté. Les réponses de cette conversation comptent de nouveau.',
@@ -16338,6 +16342,7 @@ const FR: Record<MessageKey, string> = {
   'contacts.flash.notLive': 'La messagerie n’est pas encore activée ici : rien n’a été écrit ni envoyé.',
   'product.add.empty': 'Rien n’a été lu : la zone était vide. Collez votre liste, puis appuyez de nouveau sur le bouton.',
   'ready.alone.needsName': 'L’envoi sans vous est acquis et s’ouvre une fois confirmé le nom que lisent vos clients',
+  'conv.testing.confirm': 'Marquer cette conversation comme votre propre test ? Ses réponses ne comptent plus pour l’envoi sans vous. Vous pouvez revenir en arrière ici.',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };
