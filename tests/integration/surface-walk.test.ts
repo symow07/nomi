@@ -270,7 +270,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop)$|^\/app\/channels\/outreach$/;
     const words = (html: string) => html
       .replace(/<(textarea|script|template)\b[\s\S]*?<\/\1>/g, ' ')
-      .replace(/<div[^>]*class="[^"]*\b(bubble|proposed|buyer-m)\b[^"]*"[^>]*>[\s\S]*?<\/div>/g, ' ')
+      .replace(/<div[^>]*class="[^"]*\b(bubble|proposed)\b[^"]*"[^>]*>[\s\S]*?<\/div>/g, ' ')
+      // a customer's own words in a list row are theirs, not the page's
+      .replace(/<span class="cr-text"[^>]*>[\s\S]*?<\/span>/g, ' ')
       .replace(/<p class="voice">[\s\S]*?<\/p>/g, ' ')
       .replace(/\svalue="[^"]*"/g, ' ')
       .replace(/<[^>]+>/g, ' ');

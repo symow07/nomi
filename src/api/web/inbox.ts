@@ -1059,6 +1059,89 @@ export const buyersHref = (o: {
 };
 
 /**
+ * Phase 1 of the UI rebuild (the owner, 2026-10-02) — THE ROW. One
+ * conversation in two lines, 56–72 px in every script, so a laptop shows ten
+ * or more and a phone six or more. Line one: the state mark, who, what they
+ * asked about where there is room, and the time, always in the same place at
+ * the line's end. Line two: the last message, one line, cut where it runs out,
+ * and why it needs the owner. Decision 5's row (name, last message, time) is
+ * kept; its four stacked lines and the whole message are not.
+ *
+ * The mark is a shape as well as a colour, so it reads in greyscale: ○ needs
+ * you, ● a person here has it, ✦ the assistant has it. A customer still
+ * waiting for an answer is written in full ink and weight; an answered one in
+ * grey. The message is the list's glimpse of it, drawn in the interface's face:
+ * the speech face is for the transcript, where a message is read whole.
+ *
+ * Right to left: the grid follows the page's direction, so the mark and the
+ * name sit on the right and the time on the left. The name and the message
+ * each take their own direction from their own words (`dir="auto"`) and keep
+ * the page's alignment while they fit (`match-parent`), so an English message
+ * on an Arabic page is cut at its end, never at its start.
+ */
+export type RowState = 'needs' | 'yours' | 'hers';
+export const rowState = (c: ConversationSummary): RowState =>
+  c.orderWaiting === true || c.deletionWaiting === true || c.ownership === 'WAITING_HUMAN' || c.awaitingReview ? 'needs'
+    : c.ownership === 'OWNER_CONTROLLED' ? 'yours' : 'hers';
+export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: '○', yours: '●', hers: '✦' };
+
+export type RowOptions = {
+  readonly now: Date;
+  readonly people?: readonly Person[];
+  readonly showChannel?: boolean;
+  /** The list beside a conversation: no product line, and the open one marked as the current page. */
+  readonly pane?: { readonly current: boolean };
+};
+
+export function customerRow(locale: Locale, c: ConversationSummary, o: RowOptions): string {
+  const people = o.people ?? [];
+  const name = assistantName(locale);
+  const state = rowState(c);
+  // Why it needs the owner (the reason that was stored, never inferred); who
+  // holds it when that is somebody else; which assistant, when there are several.
+  const why = state === 'needs' ? needsWhy(locale, c)
+    : state === 'yours' && people.length > 0 ? (() => {
+        const who = heldByName(c.heldBy, people, {
+          ai: name, waiting: t(locale, 'people.held.waiting'),
+          owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+        });
+        return who ? t(locale, 'people.holding', { who }) : '';
+      })()
+    : state === 'hers' && c.answeredBy ? t(locale, 'buyers.group.hers', { name: c.answeredBy }) : '';
+  // For a screen reader, what the mark says — unless the visible label already says it.
+  const said = state === 'needs' ? t(locale, 'buyers.group.needsYou')
+    : why ? ''
+    : state === 'yours' ? t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours')
+    : t(locale, 'buyers.group.hers', { name });
+  const prod = productName(locale, c.product);
+  // Each part isolated on its own, so Arabic cannot run a Latin name, a
+  // quantity and a price into one string.
+  const detail = o.pane ? '' : [
+    prod ?? '',
+    c.quantity !== null ? show.quantityOf(locale, c.quantity, t(locale, 'product.unit.pcs')) : '',
+    c.unitPrice !== null ? show.money(locale, c.unitPrice) : '',
+  ].filter(Boolean).map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ');
+  // Who wrote the newest message, when it was not the customer: you, in words;
+  // the assistant, by its mark — only where the row's own mark does not say it already.
+  const speaker = c.lastFrom === 'person' ? `<bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ': '}`
+    : c.lastFrom === 'assistant' && state !== 'hers' ? '<span class="as" aria-hidden="true">✦</span> ' : '';
+  const when = [
+    o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
+    c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '',
+  ].filter(Boolean).join(' · ');
+  const current = o.pane?.current === true;
+  // CC-25 — a customer opens on the newest message, the reply waiting under it.
+  return `<a class="crow is-${state}${c.unanswered ? ' unanswered' : ''}${current ? ' on' : ''}" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
+      <span class="cr-mark" aria-hidden="true">${ROW_MARK[state]}</span>
+      <span class="cr-l1"><span class="cr-name" dir="auto"><bdi>${esc(c.buyer ?? t(locale, 'common.buyer'))}</bdi></span>${detail ? `<span class="cr-detail">${detail}</span>` : ''}</span>
+      <span class="cr-when">${when}</span>
+      <span class="cr-l2">${c.latestMessage ? `${speaker}<span class="cr-text" dir="auto">${esc(preview(c.latestMessage))}</span>` : ''}</span>
+      <span class="cr-why">${why ? `<bdi>${esc(why)}</bdi>` : ''}</span>
+      ${said ? `<span class="sr">${esc(said)}</span>` : ''}
+    </a>`;
+}
+
+/**
  * A — Buyers: every conversation the business has, one list (Customers was
  * the same people a second time). A search box over it; the tabs; the groups
  * by who is speaking; one page at a time, with doors to the pages either side
@@ -1127,7 +1210,9 @@ export function renderInboxList(
   // carried it; it moved here with the list.
   const doors = `<div class="doors">${deeper('/app/calendar', t(locale, 'calendar.door'))}${
     outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}</div>`;
-  const head = `${title}${search}${tabs}${found}${where}`;
+  // Phase 1 (2026-10-02) — the title and the search share a line where there
+  // is room for both, so the first conversation starts higher on the screen.
+  const head = `<div class="lhead">${title}${tabs}${search}</div>${found}${where}`;
 
   if (data.conversations.length === 0) {
     const body = q
@@ -1168,68 +1253,15 @@ export function renderInboxList(
   const yours    = rest.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
   const hers     = rest.filter((c) => !needsYou.includes(c) && !yours.includes(c));
 
-  const badge = (c: ConversationSummary): string => {
-    if (c.orderWaiting) return `<span class="tag now">${esc(t(locale, 'buyers.badge.order'))}</span>`;
-    if (c.ownership === 'WAITING_HUMAN') {
-      // Say the reason that was STORED. Asserting "asked for a person" for a
-      // complaint or an unclear photo invents a fact about the buyer — on the
-      // one product whose promise is that she never does that.
-      const label = c.handoffReason
-        ? t(locale, `takeover.reason.${c.handoffReason}` as MessageKey)
-        : t(locale, 'buyers.badge.waitingUnknown');
-      return `<span class="tag now">${esc(label)}</span>`;
-    }
-    if (c.awaitingReview) return `<span class="tag now">${esc(t(locale, 'buyers.badge.review'))}</span>`;
-    if (c.ownership === 'OWNER_CONTROLLED') {
-      // WHICH human. With nobody added, `heldByName` resolves the old sentinel
-      // and the label is the one this page always showed.
-      const who = people.length === 0 ? null : heldByName(c.heldBy, people, {
-        ai: assistantName(locale), waiting: t(locale, 'people.held.waiting'),
-        owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
-      });
-      return `<span class="tag you">${esc(who ? t(locale, 'people.holding', { who }) : t(locale, 'buyers.badge.yours'))}</span>`;
-    }
-    return '';
-  };
-
   // A5's rule, for the channel: named on every row only once there is more than one.
   const showChannel = (data.channels ?? 0) > 1;
-  const row = (c: ConversationSummary) => {
-    const prod = productName(locale, c.product);
-    // Each part isolated on its own: one isolate around the whole line let
-    // Arabic reorder a Latin product name, a quantity and a price into one
-    // run ("5,0001.45$"). The separators sit between them, in the page's direction.
-    const detail = [
-      prod ?? '',
-      c.quantity !== null ? show.quantityOf(locale, c.quantity, pcs) : '',
-      c.unitPrice !== null ? show.money(locale, c.unitPrice) : '',
-    ].filter(Boolean).map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ');
-    // Who wrote the newest message: you, or the assistant by name. Not the
-    // customer — the row is already their name, and a role word standing alone
-    // ("مشترٍ") is not a name (the design pass, UI-PASS 5).
-    const speaker = c.lastFrom === 'buyer' ? null
-      : c.lastFrom === 'person' ? t(locale, 'conv.by.you')
-      : c.lastFrom === 'assistant' ? (c.answeredBy ?? name) : null;
-    const meta = [
-      c.latestAt ? esc(show.when(locale, c.latestAt, now)) : '',
-      speaker ? `<bdi>${esc(speaker)}</bdi>` : '',
-      showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
-      c.answeredBy && speaker !== c.answeredBy ? `<bdi>${esc(t(locale, 'conv.answeredBy', { who: c.answeredBy }))}</bdi>` : '',
-    ].filter(Boolean).join(' · ');
-    // CC-25 — a buyer opens on the newest message, the reply waiting under it.
-    return `<a class="buyer${c.unanswered ? ' unanswered' : ''}" href="${conversationUrl(c.conversationId)}">
-      <div class="buyer-top"><span class="who">${buyerWho(locale, c.buyer, c.country)}</span>${badge(c)}</div>
-      ${detail ? `<div class="buyer-d muted">${detail}</div>` : ''}
-      ${c.latestMessage ? `<div class="buyer-m voice" dir="auto"><bdi>${esc(preview(c.latestMessage))}</bdi></div>` : ''}
-      ${meta ? `<div class="buyer-t muted">${meta}</div>` : ''}
-    </a>`;
-  };
+  const row = (c: ConversationSummary) => `<li>${customerRow(locale, c, { now, people, showChannel })}</li>`;
 
   const heads = data.filter === 'all';
   const group = (label: string, items: readonly ConversationSummary[], always = false) =>
     items.length ? `<section class="bgroup">
       ${heads || always ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
-      <div class="list">${items.map(row).join('')}</div></section>` : '';
+      <ul class="crows">${items.map(row).join('')}</ul></section>` : '';
 
   // A — the doors either side of this page, and where it sits in the whole.
   const pager = page && (page.prev || page.next)

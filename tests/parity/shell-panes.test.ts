@@ -81,13 +81,16 @@ describe('the list pane', () => {
 
   it('the current conversation is marked; each row is name, last message, time; its state is the heading above it', () => {
     const html = renderListPane(list, 'en', NOW, 'c-1');
-    expect(html).toMatch(/<a class="lp-row on" href="\/app\/inbox\/c-1#latest" aria-current="page">/);
+    expect(html).toMatch(/<a class="crow is-\w+[^"]* on" href="\/app\/inbox\/c-1#latest" aria-current="page">/);
     expect(html).toContain(`<li class="lp-group" aria-hidden="true">${t('en', 'buyers.group.needsYou')}</li>`);
     expect(html).not.toContain('class="tag');
-    // the one magenta in the list: the assistant wrote last
-    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<span class="as" aria-hidden="true">✦<\/span> <bdi dir="auto">last from c-2/);
+    // the list page's own row: the assistant holds c-2, so its mark is the one magenta ✦
+    expect(html).toMatch(/<a class="crow is-hers[^"]*" href="\/app\/inbox\/c-2#latest">\s*<span class="cr-mark" aria-hidden="true">✦<\/span>/);
+    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<span class="cr-text" dir="auto">last from c-2/);
     const first = html.slice(html.indexOf('href="/app/inbox/c-1#latest"'));
     expect(first.slice(0, first.indexOf('</a>'))).not.toContain('✦');
+    // beside a conversation there is no product line
+    expect(html).not.toContain('class="cr-detail"');
   });
 
   it('an empty tab is not shown: Mine only with colleagues, the problem tabs only while one exists', () => {

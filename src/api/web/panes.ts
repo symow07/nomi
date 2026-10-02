@@ -4,7 +4,7 @@ import { countryName, orderStatusName, type MessageKey } from '../../core/owner/
 import { dayStart } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl } from './layout.js';
-import { buyersHref, channelName, productName, type InboxList, type ConversationSummary, type InboxFilter } from './inbox.js';
+import { buyersHref, channelName, productName, customerRow, type InboxList, type ConversationSummary, type InboxFilter } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
 import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
@@ -41,16 +41,10 @@ export function renderListPane(
     data.blockedCount > 0 ? tab('blocked', data.blockedCount) : ''}${
     (data.deletionCount ?? 0) > 0 ? tab('deletion', data.deletionCount) : ''}</nav>`;
 
-  const row = (c: ConversationSummary) => {
-    const on = c.conversationId === currentId;
-    // The one magenta in the list: the last message was the assistant's.
-    const mine = c.lastFrom === 'assistant' ? '<span class="as" aria-hidden="true">✦</span> ' : '';
-    return `<li><a class="lp-row${on ? ' on' : ''}" href="${conversationUrl(c.conversationId)}"${on ? ' aria-current="page"' : ''}>
-        <span class="lp-top"><b><bdi>${esc(c.buyer ?? t(locale, 'common.buyer'))}</bdi></b>${
-          c.latestAt ? `<span class="lp-when">${esc(show.shortWhen(locale, c.latestAt, now))}</span>` : ''}</span>
-        ${c.latestMessage ? `<span class="lp-last">${mine}<bdi dir="auto">${esc(Array.from(c.latestMessage).slice(0, 60).join(''))}</bdi></span>` : ''}
-      </a></li>`;
-  };
+  // Phase 1 — the list page's own row, so the two lists cannot drift apart:
+  // the state mark, who, the time, one line of the last message.
+  const row = (c: ConversationSummary) =>
+    `<li>${customerRow(locale, c, { now, people, pane: { current: c.conversationId === currentId } })}</li>`;
   // The list page's groups, in its order (`buyersList.ts` ranks by them): a
   // row's state is the heading it sits under, said once, not a chip on each.
   const all = data.conversations;
@@ -64,7 +58,7 @@ export function renderListPane(
     : `<li class="lp-group" aria-hidden="true">${esc(title)}</li>${rows.map(row).join('')}`;
   const rows = all.length === 0
     ? `<p class="muted lp-empty">${esc(t(locale, data.filter === 'pending' ? 'buyers.empty.calm' : 'inbox.empty.none'))}</p>`
-    : `<ul class="lp-rows">${group(t(locale, 'buyers.group.order'), orders)}${group(t(locale, 'buyers.group.deletion'), deletion)}${
+    : `<ul class="crows lp-rows">${group(t(locale, 'buyers.group.order'), orders)}${group(t(locale, 'buyers.group.deletion'), deletion)}${
         group(t(locale, 'buyers.group.needsYou'), needsYou)}${
         group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), yours)}${
         group(t(locale, 'buyers.group.hers', { name }), hers)}</ul>`;

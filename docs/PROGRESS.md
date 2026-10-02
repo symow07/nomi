@@ -34,8 +34,8 @@ under "Decided" below.
 | Phase | What | State |
 |---|---|---|
 | 0 | Vendor screenshots out of the repository; the audit and the benchmark in | #197 |
-| 1 | The inbox row: 56–72 px, sender · one-line preview · time in a fixed place · a state mark; ≥ 10 on a 1440×900 laptop, ≥ 6 on a phone; RTL and CJK truncation verified | next |
-| 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | — |
+| 1 | The inbox row: 56–72 px, sender · one-line preview · time in a fixed place · a state mark; ≥ 10 on a 1440×900 laptop, ≥ 6 on a phone; RTL and CJK truncation verified | #198 |
+| 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | next |
 | 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | — |
 | 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | — |
 | 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | — |
@@ -44,12 +44,44 @@ under "Decided" below.
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
 | 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
 
+**Phase 1 (#198) — the inbox row.**
+
+The 149 px four-line card becomes a two-line row on one ruled sheet.
+- **Line one:** the state mark, the name, the product line (wide screens only), and the time at the line's end.
+- **Line two:** the last message on one line, cut where it runs out, and why the conversation needs the owner.
+
+The list beside a conversation uses the same row.
+
+**Measured with `tools/ui-measure.mjs`** (new; a dev tool, not a CI gate) on the seeded usability workspace, All tab:
+
+| | Row height | 1440×900 laptop | 390×844 phone |
+|---|---|---|---|
+| English / Spanish | 57 px | 12 | 8 |
+| Chinese | 63 px | 10 | 7 |
+| Arabic | 65 px | 10 | 6 |
+
+The same tool checks every row in every language:
+- the time sits at the line's end (left in Arabic);
+- no cut name or message hides its own beginning;
+- no page is wider than the screen.
+
+Zero problems.
+
+**Decided by me (named undecidables and calls on the way):**
+- **Row height:** whatever two lines of the script's own line height need, with 6 px above and below. That is 57 / 63 / 65 px, all inside 56–72. Arabic and Chinese keep their taller line heights (1.75 / 1.7) and the same sizes as English (name and message 15 px, time 13 px). No script is smaller or lighter.
+- **The state mark is a shape:** ○ needs you (amber), ● a person here has it (graphite), ✦ the assistant has it (magenta). A customer still waiting for an answer has the name in 600 and the message in full ink; answered rows are 400 and grey. Both signals survive greyscale.
+- **The list's message is in the interface face, not the speech serif.** The serif stays for the transcript, where a message is read whole. The owner named the serif paragraph as the root cause; this departs from V1's "anything a person says is serif" for the list only.
+- **The country flag left the row.** Some customers had one and others did not; the country is on the customer panel and the customer's page.
+- **What else the row says, and where:** the channel, when there are several, sits before the time; who holds it (when there are colleagues) and the reason it waits sit at the end of line two.
+- On a laptop the title, the tabs and the search share one line, so the first row starts at 114 px instead of 227 px.
+
 **Phase 0 (#197).** The 32 screenshots of other products were removed from `docs/ui-benchmark/`. They were never committed: checked on every branch of the working clone and of GitHub. My report of 2026-10-02 said 33 and 7; it was 32 vendor and 8 of Nomi's own. They were moved to the session scratchpad, not deleted, as the rules ask. `docs/UI-BENCHMARK.md` keeps every measurement, basis tag and source URL, and says the images were removed and why.
 
 ## Where things stand
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #198 | **Phase 1 — the inbox row**: two lines, 57/63/65 px (en/zh/ar), a state mark that is a shape, the time in a fixed place; 12/10/10 conversations on a laptop, 8/7/6 on a phone; the list beside a conversation uses the same row; `tools/ui-measure.mjs`. No migration | 120 |
 | 2026-10-02 | #197 | **The UI audit and the benchmark, in the repository; the vendor screenshots out.** `docs/UI-AUDIT.md` (566 findings, 17 screenshots of Nomi) and `docs/UI-BENCHMARK.md` (seven products, 8 screenshots of Nomi). The 32 screenshots of other companies' products were removed before any commit; they never entered history. Docs only | 120 |
 | 2026-10-02 | #195 | **EXT: a PDF is offered only where the model provider can read it.** EXT's live check, run once the provider answered again (2026-10-01 23:30 UTC): the closer reading as intended, containment held; a PDF came back empty from this installation's custom provider. So the upload form offers PDF, and the route accepts one, only where the provider reads documents (`pdfReadable`: Anthropic's); elsewhere a PDF is refused in plain words, nothing read or spent. Integration 1184 of 1184; CI both jobs pass. Merged 00:09 UTC as `b1b2b75`, deployed, `/health` ok, schema 120. **The last PR of the self-serve run** — what waits is the owner's (the list at the top of Waiting on the owner) | 120 |
 | 2026-10-01 | #194 | **The guided path with its videos, and M3's App Review pack** (the plan's stage 9). `/app/guide`: the five setup steps in order, each with its state, its door and a short video of doing it on the real pages, captioned in the owner's language (and the same words as text); Setup's first door and Today's setup line lead to it. Twenty videos (five steps × en/zh/ar/es, about 6 MB) recorded by `tools/record-guide.mjs`; a test holds every caption file to the catalogue. `docs/APP-REVIEW-PACK.md`: the three submissions' paragraphs, screencast scripts with the app's real labels, the reviewer's workspace, the data answers. Fixed on the way: the run-nomi smoke script still asked for `/app/factory`. Integration 1183 of 1183; CI both jobs pass. Merged 23:47 UTC as `eb607ca`, deployed, `/health` ok, schema 120 (no migration) | 120 |
