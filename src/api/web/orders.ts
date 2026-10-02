@@ -14,6 +14,7 @@ import { labelled } from '../../core/owner/i18n/format.js';
 import { isGeneratedSku } from '../../core/owner/sku.js';
 import { unitLabel } from './products.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
+import { productName } from './inbox.js';
 import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 
@@ -36,6 +37,8 @@ export type OrderView = {
   readonly conversationId: string;
   readonly buyer: string | null;
   readonly productName: string | null;
+  /** Phase 9 (V1-192) — the product's Chinese name, as the Customers list shows it to a Chinese page. */
+  readonly productNameZh?: string | null;
   readonly productSku: string;
   readonly quantity: number;
   readonly unit: string;
@@ -66,12 +69,12 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
   return withTenantTx(db, bid.value, async (tx) => {
     const o = (await sql<{
       id: string; reference: string; conversation_id: string; buyer: string | null; seller: string;
-      name: string | null; sku: string; quantity: number; unit: string;
+      name: string | null; name_zh: string | null; sku: string; quantity: number; unit: string;
       unit_price: string | null; total: string | null; currency: string;
       client_email: string | null; payment_terms: string | null; incoterm: string | null; confirmed_at: Date | null;
     }>`
       select o.id, o.order_reference as reference, o.conversation_id::text as conversation_id,
-             cl.display_name as buyer, p.name, p.sku, o.quantity, o.unit,
+             cl.display_name as buyer, p.name, p.name_zh, p.sku, o.quantity, o.unit,
              o.agreed_unit_price_usd as unit_price, o.total_value_usd as total, o.currency,
              o.client_email, o.payment_terms, o.incoterm, o.confirmed_at, b.name as seller
         from orders o
@@ -132,7 +135,7 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
 
     return {
       orderId: o.id, reference: o.reference, conversationId: o.conversation_id,
-      buyer: o.buyer, productName: o.name, productSku: o.sku,
+      buyer: o.buyer, productName: o.name, productNameZh: o.name_zh, productSku: o.sku,
       quantity: Number(o.quantity), unit: o.unit,
       unitPriceAmount: o.unit_price === null ? null : Number(o.unit_price),
       totalAmount: o.total === null ? null : Number(o.total),
@@ -191,6 +194,50 @@ export async function recordOrderUpdate(
   });
 }
 
+/**
+ * M46 — the proforma, from the row. Its numbers are the order's own; this does
+ * no arithmetic, which is why it can be shown verbatim — and, since phase 9
+ * (V1-188), downloaded as the same text (`/app/orders/:id/proforma.txt`).
+ *
+ * G6 — and its TERMS are hers, or there is no proforma. Every order used to
+ * carry "30% deposit, 70% before shipment" and every proforma said FOB;
+ * neither came from her. Null without her terms, or without a price.
+ *
+ * CC-31 — the proforma goes to the buyer: it names her own article number,
+ * and leaves off one the import made up ("Canvas bag (NEW-mfp2k3x4-0)").
+ */
+export function proformaText(v: OrderView): string | null {
+  const total = v.totalAmount === null ? null : moneyFromRow(v.totalAmount, v.currency);
+  const unitPrice = v.unitPriceAmount === null ? null : moneyFromRow(v.unitPriceAmount, v.currency);
+  if (!unitPrice || !total || !v.paymentTerms || !v.incoterm) return null;
+  const text = renderInvoiceEn({ ...buildInvoice({
+    quote: {
+      productId: '' as never,
+      quantity: { value: v.quantity, unit: v.unit },
+      unitPrice, discountPct: 0, total,
+      moq: v.quantity, leadTimeDays: null, leadTimeBlocked: null,
+      requiresHuman: false, contradicts: null, appliedRules: [],
+    },
+    sellerName: v.sellerName,
+    sellerPrefix: 'PI',
+    buyerName: v.buyer ?? '',
+    productName: v.productName ?? v.productSku,
+    productSku: v.productSku,
+    incoterm: v.incoterm,
+    paymentTermsZh: v.paymentTerms,
+    paymentTermsEn: v.paymentTerms,
+    conversationRef: v.conversationId,
+    // M45/G15 — the deduction she promised, on the document she promised
+    // it on. Only when the two currencies agree; see the note on the page.
+    sampleCredit: v.sampleCredit?.kind === 'credit' ? v.sampleCredit.amount : null,
+    now: v.confirmedAt ?? v.history[v.history.length - 1]?.at ?? new Date(0),
+  }), piNumber: v.reference });
+  return isGeneratedSku(v.productSku) ? text.replace(` (${v.productSku})`, '') : text;
+}
+
+/** The proforma's file name: its reference, in the characters any file system takes. */
+export const proformaFileName = (v: OrderView): string => `proforma-${v.reference.replace(/[^A-Za-z0-9._-]+/g, '-')}.txt`;
+
 export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   // G18 — the order's own money, in the order's own currency. Both of these
@@ -200,68 +247,51 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
   // nobody — `moneyFromRow` returns null rather than guessing.
   const total = v.totalAmount === null ? null : moneyFromRow(v.totalAmount, v.currency);
   const unitPrice = v.unitPriceAmount === null ? null : moneyFromRow(v.unitPriceAmount, v.currency);
-  const latest = v.history[0] ?? null;
   const stateName = (s: OrderState) => t(locale, `order.state.${s}` as MessageKey);
+  // Phase 9 (V1-189) — the confirmation is where an order's story starts. With
+  // nothing recorded since, the page said "Nothing recorded yet" under a menu
+  // reading "Confirmed" and a summary saying when it was confirmed.
+  const confirmedInHistory = v.history.some((u) => u.state === 'confirmed');
+  const confirmation = v.confirmedAt && !confirmedInHistory ? { state: 'confirmed' as const, at: v.confirmedAt } : null;
+  const latest: { readonly state: OrderState; readonly at: Date } | null = v.history[0] ?? confirmation;
 
   const facts = [
     [t(locale, 'order.field.buyer'), v.buyer ?? t(locale, 'common.buyer')],
-    [t(locale, 'order.field.product'), v.productName ?? v.productSku],
+    // Phase 9 (V1-192) — the product's name in the page's language, as the Customers list gives it.
+    [t(locale, 'order.field.product'), productName(locale, { name: v.productName, nameZh: v.productNameZh ?? null }) ?? v.productSku],
     // CC-13 — the unit in the page's language, spaced the locale's way ("5,000 pcs", "5000个").
     [t(locale, 'order.field.quantity'), show.quantityOf(locale, v.quantity, unitLabel(locale, v.unit))],
     ...(total ? [[t(locale, 'order.field.total'), show.money(locale, total)]] : []),
-    ...(v.confirmedAt ? [[t(locale, 'order.field.confirmed'), show.date(locale, v.confirmedAt)]] : []),
+    // Phase 9 (V1-193) — with its year: an order outlives the year it was confirmed in.
+    ...(v.confirmedAt ? [[t(locale, 'order.field.confirmed'), show.dateYear(locale, v.confirmedAt)]] : []),
   ].map(([l, val]) => `<div class="frow"><span class="flabel">${esc(l!)}</span><span class="fval"><bdi>${esc(val!)}</bdi></span></div>`).join('');
 
-  const history = v.history.length === 0
-    ? `<div class="empty">${esc(t(locale, 'order.history.empty'))}</div>`
-    : `<ul class="rows">${v.history.map((u) => `<li class="row lines">
+  const rows = [
+    ...v.history.map((u) => `<li class="row lines">
         <div><b>${esc(stateName(u.state))}</b> <span class="muted">${esc(show.date(locale, u.at))}</span></div>
         ${u.trackingReference ? `<div class="muted"><bdi>${esc(labelled(locale, t(locale, 'order.field.tracking'), u.trackingReference))}</bdi></div>` : ''}
         ${u.note ? `<div class="muted measure-prose"><bdi>${esc(u.note)}</bdi></div>` : ''}
-      </li>`).join('')}</ul>`;
+      </li>`),
+    ...(confirmation ? [`<li class="row lines">
+        <div><b>${esc(stateName('confirmed'))}</b> <span class="muted">${esc(show.date(locale, confirmation.at))}</span></div>
+        <div class="muted">${esc(t(locale, v.history.length ? 'order.history.confirmedFirst' : 'order.history.confirmed'))}</div>
+      </li>`] : []),
+  ];
+  const history = rows.length === 0
+    ? `<div class="empty">${esc(t(locale, 'order.history.empty'))}</div>`
+    : `<ul class="rows">${rows.join('')}</ul>`;
 
-  // M46 — the proforma, from the row. Its numbers are the order's own; this
-  // renderer does no arithmetic, which is why it can be shown verbatim.
-  //
-  // G6 — and its TERMS are hers, or there is no proforma. Every order used to
-  // carry "30% deposit, 70% before shipment" and every proforma said FOB;
-  // neither came from her. Without her terms on the order, the page says what
-  // is missing and where she states it, instead of printing a guess.
-  const hasTerms = !!v.paymentTerms && !!v.incoterm;
-  // CC-31 — the proforma goes to the buyer: it names her own article number,
-  // and leaves off one the import made up ("Canvas bag (NEW-mfp2k3x4-0)").
-  const withoutMadeUpSku = (text: string): string =>
-    isGeneratedSku(v.productSku) ? text.replace(` (${v.productSku})`, '') : text;
-  const proforma = unitPrice && total && hasTerms
+  const text = proformaText(v);
+  const proforma = text
     ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}${locale === 'en' ? '' : ` ${esc(t(locale, 'order.invoice.english'))}`}</p>
-        ${/* Phase 9 (V1-185–187) — an English document reads left to right and wraps on a phone, never cut at either edge. */ ''}<pre class="doc" dir="ltr">${esc(withoutMadeUpSku(renderInvoiceEn({ ...buildInvoice({
-          quote: {
-            productId: '' as never,
-            quantity: { value: v.quantity, unit: v.unit },
-            unitPrice, discountPct: 0, total,
-            moq: v.quantity, leadTimeDays: null, leadTimeBlocked: null,
-            requiresHuman: false, contradicts: null, appliedRules: [],
-          },
-          sellerName: v.sellerName,
-          sellerPrefix: 'PI',
-          buyerName: v.buyer ?? '',
-          productName: v.productName ?? v.productSku,
-          productSku: v.productSku,
-          incoterm: v.incoterm ?? '',
-          paymentTermsZh: v.paymentTerms ?? '',
-          paymentTermsEn: v.paymentTerms ?? '',
-          conversationRef: v.conversationId,
-          // M45/G15 — the deduction she promised, on the document she promised
-          // it on. Only when the two currencies agree; see the note below.
-          sampleCredit: v.sampleCredit?.kind === 'credit' ? v.sampleCredit.amount : null,
-          now: v.confirmedAt ?? v.history[v.history.length - 1]?.at ?? new Date(0),
-        }), piNumber: v.reference })))}</pre>
+        ${/* Phase 9 (V1-188) — a way to take it: the same text, as a file. */ ''}${deeper(`/app/orders/${esc(encodeURIComponent(v.orderId))}/proforma.txt`, t(locale, 'order.invoice.download'), '', 'download')}
+        ${/* Phase 9 (V1-185–187) — an English document reads left to right and wraps on a phone, never cut at either edge. */ ''}<pre class="doc" dir="ltr">${esc(text)}</pre>
         ${v.sampleCredit?.kind === 'mismatch'
           ? `<p class="muted">${esc(t(locale, 'order.invoice.sampleMismatch', {
               amount: show.money(locale, v.sampleCredit.amount) }))}</p>`
           : ''}</section>`
-    : unitPrice && total && !hasTerms
+    : unitPrice && total
       ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
           <p class="muted">${esc(t(locale, 'order.invoice.noTerms'))}</p>
           ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`

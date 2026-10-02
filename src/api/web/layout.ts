@@ -347,7 +347,7 @@ ${cssVariables()}
   nav.side .subnav { display:flex; align-items:center; width:100%; min-height:40px;
     padding: var(--space-8) var(--space-12) var(--space-8) var(--space-24); border:0; border-radius: var(--radius-card);
     background:transparent; color: var(--color-ink-secondary); font: inherit; font-size: var(--font-size-small);
-    text-align:start; cursor:pointer; margin-bottom: var(--space-4); }
+    text-align:start; cursor:pointer; margin-bottom: var(--space-4); flex-wrap:wrap; }
   .navout { margin:0; }
   nav.side .navout .subnav { padding-inline-start: var(--space-12); }
   nav.side .subnav:hover { background: var(--color-surface); color: var(--color-ink); }
@@ -408,7 +408,8 @@ ${LANGSW_CSS}
      different number: these two classes are the only prose measures there are. */
   .measure-prose { max-width: var(--measure-prose); }
   .measure-form { max-width: var(--measure-form); }
-  h1.page { font-size: var(--font-size-title); margin: 0 0 var(--space-16); }
+  /* Phase 9 (settings-a-new-19, settings-a-missed-17) — a heading that wraps breaks into even lines, never one word alone. */
+  h1.page { font-size: var(--font-size-title); margin: 0 0 var(--space-16); text-wrap:balance; }
   /* The hairline in --shadow-lift1 does what a 1px border used to; two would
      read as a double rule at the same edge. */
   .card { background:var(--color-surface); border:0; border-radius:var(--radius-card);
@@ -416,7 +417,7 @@ ${LANGSW_CSS}
   /* Phase F: section headings speak to the owner in her own sentence case.
      The 13px tracked-uppercase eyebrow was the one SaaS tell the product had. */
   .card h2, .block h2, main h2 { font-size:var(--font-size-base); font-weight:600;
-    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; }
+    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; text-wrap:balance; }
 
   /* Counts. Never a KPI tile — a plain line, the way Today has always drawn it. */
   .stats { display:flex; flex-direction:column; }
@@ -513,7 +514,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
     font-size:var(--font-size-small); }
-  .tab.on { background:var(--color-paper); border-color:var(--color-border); color:var(--color-ink); font-weight:600; }
+  /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an ink edge and weight, not a paler grey than its neighbours. */
+  .tab.on { background:var(--color-surface); border-color:var(--color-ink); box-shadow:inset 0 0 0 1px var(--color-ink); color:var(--color-ink); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
@@ -522,7 +524,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
     color:var(--color-ink); white-space:pre; margin:0; }
-  pre.doc { white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; }
+  /* Phase 9 (V1-193) — at the prose measure, as wide as the form above it reads, not the whole column. */
+  pre.doc { white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; max-width:var(--measure-prose); }
   /* One "go deeper" link for the whole product; the chevron mirrors in RTL. */
   /* Each "go deeper" is its own ROW. Inline-flex put three of them on one
      line on the settings page, where they read as one run-on sentence with
@@ -857,11 +860,20 @@ const STYLE_PAGES = `
   @media (max-width: 560px) { .langs { grid-template-columns:repeat(2, max-content); } }
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-  .fterms li { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
-  .fterms li:last-child { border-bottom:0; }
-  .fterms.floor li { color:var(--color-ink-secondary); }
-  .fterms .fnote { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* Phase 9 (V1-502) — the fixed words, one line a language, inside their fold. */
+  .floor-fold summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:var(--font-size-small); }
+  .floor-langs { margin:var(--space-8) 0 0; }
+  .floor-langs div { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-12); padding:var(--space-4) 0; font-size:var(--font-size-small); }
+  .floor-langs dt { font-weight:600; min-width:7em; }
+  .floor-langs dd { margin:0; flex:1 1 16em; color:var(--color-ink-secondary); }
+  /* Phase 9 (V1-492) — a file to take, one row of a card each: its name, and its own Download at the row's end. */
+  .dl-files { max-width:var(--measure-prose); }
+  .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
+  /* Phase 9 (settings-a-new-10) — on a settings page an empty panel spans the column, as the cards above it do. */
+  .empty.whole { max-width:100%; }
+  /* Phase 9 (V1-483) — in Arabic a date or a time sits on the reading side of its field, like every word around it
+     (the browser draws the field left to right, so its end is the right). */
+  [dir="rtl"] input[type="date"], [dir="rtl"] input[type="time"] { text-align:end; }
   .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .rate-hist li:last-child { border-bottom:0; }
@@ -1228,9 +1240,6 @@ const STYLE_PAGES = `
   .empty.notset { max-width:100%; margin-bottom:var(--space-16); text-wrap:pretty; }
 
   /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
-  .cal-tabs { flex-wrap:wrap; }
-  .cal-buyer { margin-bottom:var(--space-12); }
-  .cal-span { margin:var(--space-8) 0 0; color:var(--color-ink-secondary); }
   .cal-day { margin:var(--space-24) 0 0; }
   .cal-when { flex:none; min-width:4.5em; color:var(--color-ink-secondary); font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; }
   .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
@@ -1243,15 +1252,25 @@ const STYLE_PAGES = `
   .cal-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
   .cal-top h1.page { margin:0; }
   .cal-views { margin:0; }
-  .cal-move { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin:var(--space-12) 0; }
-  .cal-move .back, .cal-move .deeper { min-width:44px; justify-content:center; }
+  /* Phase 9 (V1-199) — the period's name, then how to move from it, in words, the same on every view. */
+  .cal-lede { margin:var(--space-8) 0 0; }
+  .cal-period .cal-span { margin:var(--space-12) 0 0; font-weight:600; color:var(--color-ink); font-size:var(--font-size-base); }
+  .cal-move { display:flex; align-items:center; gap:var(--space-4) var(--space-16); flex-wrap:wrap; margin:var(--space-4) 0 var(--space-8); }
   .cal-today { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-12); font-weight:600; font-size:var(--font-size-small); }
-  .cal-move .cal-span { margin:0 var(--space-8); }
-  .cal-legend { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0; }
-  .cal-legend .wk-e { display:inline-block; width:var(--space-24); min-height:var(--space-16); padding:0; margin:0; }
+  /* Phase 9 (V1-200) — the legend draws each mark it explains; an edge is a small square-cornered swatch, not a pill. */
+  .cal-legend { display:flex; align-items:center; gap:var(--space-4) var(--space-16); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0; }
+  .cal-li { display:inline-flex; align-items:center; gap:var(--space-4); }
+  .cal-sw { display:inline-block; inline-size:var(--space-16); block-size:var(--space-12); border:1px solid var(--color-ink-secondary); border-inline-start-width:3px; border-radius:2px; }
+  .cal-sw.dashed { border-style:dashed; }
+  /* Phase 9 (V1-202) — what to show, and adding a date: two folds under the period, above the dates. */
+  .cal-filter, .cal-add { margin:var(--space-4) 0; }
+  .cal-filter summary { cursor:pointer; font-size:var(--font-size-small); min-height:44px; display:flex; align-items:center; gap:var(--space-8); }
+  /* Phase 9 (V1-204, inbox-calendar-new-10) — today said in a word, beside its date. */
+  .cal-now { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); margin-inline-start:var(--space-4); }
   /* Phase 7 — a grid wider than the screen SAYS so: a shade at each edge that
      has more beyond it (it goes when that edge is reached), and a thin bar. */
-  .wk-scroll { overflow-x:auto; margin:var(--space-12) 0; scrollbar-width:thin; scrollbar-color:var(--color-ink-secondary) transparent;
+  /* Phase 9 — positioned, so a screen reader's words inside a date ("Done:") scroll with it and never widen the page. */
+  .wk-scroll { position:relative; overflow-x:auto; margin:var(--space-12) 0; scrollbar-width:thin; scrollbar-color:var(--color-ink-secondary) transparent;
     overscroll-behavior-x:contain; background-color:var(--color-surface);
     background-image:linear-gradient(to right, var(--color-surface), transparent), linear-gradient(to left, var(--color-surface), transparent),
       linear-gradient(to right, var(--color-ink-secondary), transparent), linear-gradient(to left, var(--color-ink-secondary), transparent);
@@ -1276,16 +1295,21 @@ const STYLE_PAGES = `
   .wk-e.dashed { border-style:dashed; }
   .wk-e.past { color:var(--color-ink-secondary); border-color:var(--color-border); }
   /* Phase 7 — a name is never cut: it wraps (a Latin name inside Arabic too, isolated by its bdi). */
-  .wk-e b { font-weight:600; overflow-wrap:break-word; }
-  .wk-k, .wk-t { overflow-wrap:break-word; }
+  .wk-e b { font-weight:600; overflow-wrap:break-word; text-wrap:balance; }
+  /* Phase 9 (inbox-calendar-new-08) — a kind that wraps breaks into even lines, never one word left alone. */
+  .wk-k, .wk-t { overflow-wrap:break-word; text-wrap:balance; }
   .wk-t { font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
   a.wk-e:hover, a.wk-e:focus-visible { background:var(--color-paper); }
   .cal-rm { margin:var(--space-4) 0 0; }
   .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
   .row.dashed .grow { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  /* Phase 9 (inbox-calendar-new-14) — a date from a conversation has its solid edge in the lists too, as the legend says. */
+  .row.solid .grow { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  .row.done { color:var(--color-ink-secondary); }
+  .row.done .cal-head b { font-weight:400; }
   .mo td { height:7em; }
   .mo td.other { background:var(--color-paper); }
-  .mo td.today .mo-d { box-shadow:inset 0 -2px 0 var(--color-ink); font-weight:600; }
+  .mo td.today .mo-d { border:1.5px solid var(--color-ink); border-radius:var(--radius-chip); font-weight:600; }
   .mo-d { display:inline-flex; min-width:1.75em; min-height:1.75em; align-items:center; justify-content:center;
     font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; margin-bottom:var(--space-4); }
   .mo-more { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -1303,6 +1327,7 @@ const STYLE_PAGES = `
   .dl-body { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .dl-body b { font-weight:600; overflow-wrap:break-word; }
   .dl-row.dashed .dl-go { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  .dl-row.solid .dl-go { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
   /* Done is greyed, never hidden. */
   .dl-row.done { color:var(--color-ink-secondary); }
   .dl-row.done .dl-body b { font-weight:400; }
@@ -1312,6 +1337,12 @@ const STYLE_PAGES = `
   .search { display:flex; align-items:center; gap:var(--space-8); margin:0 0 var(--space-16); max-width:var(--measure-prose); }
   .search input { flex:1; min-width:0; appearance:none; }
   .search .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Phase 9 (V1-171) — the button stands as tall as the field it sends, so their edges meet. */
+  .search .btn { align-self:stretch; }
+  /* Phase 9 (V1-181, inbox-calendar-missed-06) — the way back from a search is a link in what was found, never beside the field. */
+  .found .clear { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  /* Phase 9 (V1-182) — the searched words, marked by weight and a line: no colour of their own. */
+  mark.hit { background:transparent; color:inherit; font-weight:700; text-decoration:underline; text-underline-offset:2px; }
   /* Grouped by who is speaking. Phase 1 (2026-10-02): the list takes the
      whole column, one ruled sheet of rows, so a laptop shows ten or more. */
   .lhead { display:flex; flex-direction:column; }
@@ -1355,9 +1386,15 @@ const STYLE_PAGES = `
   .cr-why { grid-row:2; grid-column:3; justify-self:end; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .is-needs .cr-why { color:var(--color-waiting); font-weight:600; }
+  /* Phase 9 (inbox-calendar-new-02) — on a phone the product stays on line one, cut at its end; its figures go. */
   @media (max-width: 720px) {
-    .cr-detail { display:none; }
+    .cr-fig { display:none; }
   }
+  /* Phase 9 (inbox-calendar-new-03) — what the row marks mean, under the rows. */
+  .cr-key { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-16); margin:var(--space-8) 0 var(--space-12); }
+  .ck-i { display:inline-flex; align-items:baseline; gap:var(--space-4); }
+  /* Phase 9 (V1-166) — a door the rail already holds on a wide screen is the phone's alone. */
+  @media (min-width: 721px) { .deeper.on-phone { display:none; } }
   .dhead .who { font-size:var(--font-size-small); }
   /* CC-20 — on the conversation, the buyer's and the product's page, the name
      in the header is the page's title (an h1), drawn the size it always was. */
@@ -1857,6 +1894,8 @@ export function hubFor(path: string, active: string): string {
     for (const g of CONTEXTUAL_ROUTES_BY_HUB) for (const r of g.routes) consider(r, { hub: g.hub });
     // A — the buyer's pages sit under the address Customers had; they are Buyers'.
     consider(MERGED_INTO_BUYERS, { hub: '/app/inbox' });
+    // Phase 9 (V1-191) — an order is one customer's, opened from their conversation: Customers' too.
+    consider('/app/orders', { hub: '/app/inbox' });
     return best ?? {};
   };
 
@@ -1939,12 +1978,13 @@ export function shell(input: {
   // finding customers, first e-mails) lights the list on a wide screen too:
   // the phone lit "Customers" while the rail lit nothing.
   const inConversations = url === '/app/inbox' || url.startsWith('/app/inbox/') || url.startsWith(`${MERGED_INTO_BUYERS}/`)
-    || (here === 'inbox' && !inCalendar);
+    || url.startsWith('/app/orders/') || (here === 'inbox' && !inCalendar);
   const needs = needsYouCount();
   const sub = (href: string, key: MessageKey, on: boolean, count: number | null) =>
     `<a href="${href}" class="subnav${on ? ' active' : ''}"${on ? ' aria-current="page"' : ''}${
       count ? ` aria-label="${esc(t(locale, key))}, ${esc(tn(locale, 'nav.needsYou', count))}"` : ''}>${esc(t(locale, key))}${
-      count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, String(count)))}</span>` : ''}</a>`;
+      // Phase 9 (V1-172) — the number says what it counts, to everyone: "3 waiting".
+      count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, t(locale, 'nav.waiting', { n: count })))}</span>` : ''}</a>`;
   const nav = `<div class="navgroup">${link(byId('home'))}${link(byId('inbox'))}
       <div class="navhub" role="group" aria-labelledby="nav-customers">
         <span class="navhead" id="nav-customers">${esc(t(locale, 'nav.customers'))}</span>

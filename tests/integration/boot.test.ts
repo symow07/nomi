@@ -754,7 +754,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Results');   // English default
     expect(res.body).toContain('Overview');
-    expect(res.body).toContain('New customers');
+    expect(res.body).toMatch(/new customers?</);   // Phase 9 (V1-209) — the count's words agree with it
     expect(res.body).toContain('Activity');
     expect(res.body).toContain(esc(t('en', 'analytics.section.employee')));
     // No fabricated chart. Scoped to <main> because the shell's own header

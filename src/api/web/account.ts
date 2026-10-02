@@ -20,9 +20,10 @@ export type AccountView = { readonly email: string | null; readonly passwordMin:
 
 export function renderAccount(v: AccountView, locale: Locale, flash: Flash | null, backLabel: string): string {
   // Phase 3 — the sign-in as rows: who signs in, then the one form to change the password.
+  // Phase 9 (settings-a-new-01) — the row names what it holds, not the page's own title again.
   const body = v.email === null
-    ? rowsCard(null, [fieldRow({ label: t(locale, 'account.title'), control: `<span class="fr-value">${esc(t(locale, 'account.codeOnly'))}</span>` })])
-    : `${rowsCard(null, [fieldRow({ label: t(locale, 'account.title'), control: `<span class="fr-value"><bdi>${esc(t(locale, 'account.email', { email: v.email }))}</bdi></span>` })])}
+    ? rowsCard(null, [fieldRow({ label: t(locale, 'account.row.password'), control: `<span class="fr-value">${esc(t(locale, 'account.codeOnly'))}</span>` })])
+    : `${rowsCard(null, [fieldRow({ label: t(locale, 'account.row.email'), control: `<span class="fr-value"><bdi>${esc(v.email)}</bdi></span>` })])}
        <form method="post" action="/app/settings/account/password" class="sform">
          ${rowsCard(null, [
            fieldRow({ label: t(locale, 'account.current'), forId: 'acc-current',

@@ -210,10 +210,14 @@ describe('M46 · the owner page', () => {
 
   it('an order with nothing recorded says so rather than showing an empty list', () => {
     for (const locale of LOCALES) {
-      const html = renderOrder(view({ history: [] }), locale, null);
+      const html = renderOrder(view({ history: [], confirmedAt: null }), locale, null);
       const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
       expect(visible, locale).toContain(t(locale, 'order.history.empty'));
       expect(visible, locale).toContain(t(locale, 'order.update.save'));
+      // Phase 9 (V1-189) — a confirmed order has a story already: its confirmation, not "nothing recorded".
+      const confirmed = renderOrder(view({ history: [], confirmedAt: new Date('2026-09-30T06:00:00Z') }), locale, null);
+      expect(confirmed, locale).not.toContain(t(locale, 'order.history.empty'));
+      expect(confirmed, locale).toContain(t(locale, 'order.history.confirmed'));
     }
   });
 

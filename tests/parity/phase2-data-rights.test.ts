@@ -88,8 +88,9 @@ describe('CC-12 · she can take her own data out', () => {
 
   it('the ceiling is said out loud rather than silently truncating', () => {
     const html = renderDataRights(VIEW, 'en', null, OWNER_VIEW, 'Settings');
-    // Phase 9 (V1-385) — the ceiling written as the locale writes a number.
-    expect(html).toContain(t('en', 'data.export.limit', { n: EXPORT_MAX_ROWS.toLocaleString('en-US') }));
+    // Phase 9 (V1-500) — the figure written the language's way: "20,000".
+    expect(html).toContain(t('en', 'data.export.limit', { n: '20,000' }));
+    expect(EXPORT_MAX_ROWS).toBe(20000);
   });
 
   it('taking a copy is on the audit trail — the subject and the count, never a value', () => {
@@ -105,8 +106,9 @@ describe('CC-02 · deletion is a request, and the page says so', () => {
       const html = renderDataRights(VIEW, locale, null, OWNER_VIEW, 'x');
       expect(html).toContain(t(locale, 'data.deletion.byHand'));
     }
-    // In English, in as many words.
-    expect(messages.en['data.deletion.byHand']).toMatch(/not a button that erases/i);
+    // In English, in as many words. Phase 9 (settings-a-missed-15) — said as what the button does
+    // (it sends a request), no longer as what it is not, right above it.
+    expect(messages.en['data.deletion.byHand']).toMatch(/button below sends your request/i);
     expect(messages.en['data.deletion.byHand']).toMatch(/by hand/i);
   });
 

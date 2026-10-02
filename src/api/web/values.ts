@@ -109,6 +109,8 @@ export const count = (locale: Locale, n: number): string =>
 
 /** A date: "Tue, Sep 29", "9月29日周二", "الثلاثاء، 29 سبتمبر". */
 export const date = (locale: Locale, d: Date): string => isolate(locale, f.formatDate(locale, d, workspaceZone()));
+/** Phase 9 (V1-193) — a date with its year. */
+export const dateYear = (locale: Locale, d: Date): string => isolate(locale, f.formatDateYear(locale, d, workspaceZone()));
 
 /** A day in full, for a page's title line. */
 export const dayLong = (locale: Locale, d: Date): string => isolate(locale, f.formatDayLong(locale, d, workspaceZone()));

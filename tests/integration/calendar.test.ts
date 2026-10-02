@@ -59,7 +59,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
   });
   /** Every entry's provenance on a page: `table:id` → column. */
   const sources = (html: string): Map<string, string> =>
-    new Map([...html.matchAll(/<li class="row (?:solid|dashed)" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
+    new Map([...html.matchAll(/<li class="row (?:solid|dashed)(?: done)?" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
   const area = (on: boolean) => as(BIZ, (t) => sql`update businesses set outreach_area = ${on} where id = ${BIZ}::uuid`.execute(t));
 
   beforeAll(async () => {
@@ -242,7 +242,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       quotes: ['created_at'], handoffs: ['sla_deadline_at'], factory_closures: ['starts_on'], conversations: ['closed_at'],
       sequence_enrollments: ['next_due_at'],
     };
-    const rows = [...r.body.matchAll(/<li class="row (?:solid|dashed)" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
+    const rows = [...r.body.matchAll(/<li class="row (?:solid|dashed)(?: done)?" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
     expect(rows.length).toBeGreaterThan(0);
     for (const [, table, rowId, col] of rows) {
       expect(ALLOWED[table!], table).toContain(col);

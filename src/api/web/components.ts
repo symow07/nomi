@@ -1,6 +1,6 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t } from './say.js';
+import { t, assistantName } from './say.js';
 import { esc, deeper, back } from './layout.js';
 import { flashBanner } from './flash.js';
 import * as show from './values.js';
@@ -22,9 +22,12 @@ export function renderComponents(locale: Locale): string {
   const section = (key: string, inner: string): string => `<div class="block"><h2>${s(key)}</h2>${inner}</div>`;
   const label = s('sample.label');
 
+  // Phase 9 (settings-a-new-11) — on a card, where the neutral pill is drawn (paper on paper it was invisible),
+  // with the assistant's mark beside the four states.
   const chips = `
-    <p><span class="pill ok">${label}</span><span class="pill warn">${label}</span>
-       <span class="pill bad">${label}</span><span class="pill owner">${label}</span></p>
+    <div class="card"><p><span class="pill ok">${label}</span><span class="pill warn">${label}</span>
+       <span class="pill bad">${label}</span><span class="pill owner">${label}</span>
+       <span class="as">✦ ${esc(assistantName(locale))}</span></p></div>
     <div class="chips"><span class="chip">${s('sample.option')}</span><span class="chip">${s('sample.option')}</span></div>`;
 
   const buttonRow = (state: 'rest' | 'hover' | 'focus' | 'disabled'): string => {
@@ -59,8 +62,9 @@ export function renderComponents(locale: Locale): string {
   const notices = flashBanner({ text: t(locale, 'components.sample.help'), bad: false })
     + flashBanner({ text: t(locale, 'components.sample.help'), bad: true });
   const empty = `<div class="empty">${s('empty')}</div><div class="ok-line">✓ ${s('sample.help')}</div>`;
-  const tabs = `<div class="tabs"><a class="tab on" href="/app/settings/components">${s('state.rest')}</a>
-    <a class="tab" href="/app/settings/components">${s('sample.more')}</a></div>`;
+  // Phase 9 (V1-488) — samples, not doors: they reloaded this page.
+  const tabs = `<div class="tabs"><span class="tab on">${s('state.rest')}</span>
+    <span class="tab">${s('sample.more')}</span></div>`;
 
   const speech = `
     <div class="timeline">
@@ -87,7 +91,9 @@ export function renderComponents(locale: Locale): string {
     <p class="note">${s('sample.help')}</p>
     <p class="subline">${s('sample.help')}</p>`;
 
-  return `<h1 class="page">${s('title')}</h1>
+  // Phase 9 (V1-491) — the way back, at the top like every Setup page.
+  return `${back('/app/settings', t(locale, 'nav.settings'))}
+    <h1 class="page">${s('title')}</h1>
     <p class="muted measure-prose">${s('lead')}</p>
     ${section('chips', chips)}
     ${section('buttons', buttons)}

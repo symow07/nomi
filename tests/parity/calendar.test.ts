@@ -75,23 +75,29 @@ describe('V2 · the calendar page, by structure', () => {
       const html = renderCalendar(view(), locale);
       expect(html).toContain(`<h1 class="page">`);
       expect(html).toContain(t(locale, 'nav.calendar'));
-      // All + the six categories present, All on.
-      const cats = html.slice(html.indexOf('<nav class="tabs cal-tabs"'), html.indexOf('</nav>', html.indexOf('<nav class="tabs cal-tabs"')));
-      const tabs = [...cats.matchAll(/<a class="tab( on)?"/g)];
-      expect(tabs).toHaveLength(7);
+      // Phase 9 (V1-202, inbox-calendar-new-15) — one kind or one customer, in one
+      // fold: every kind is offered in every view, whatever the range holds.
+      const kinds0 = /<select name="category">([\s\S]*?)<\/select>/.exec(html)?.[1] ?? '';
+      expect([...kinds0.matchAll(/<option value="([^"]*)"/g)].map((m) => m[1])).toEqual(
+        ['', 'promised', 'samples', 'orders', 'negotiation', 'followups', 'yours', 'closures', 'conversations']);
+      expect(html).not.toContain('cal-tabs');
       // the list is its own view since the design pass: its doors say so
-      expect(cats).toMatch(/<a class="tab on" aria-current="page" href="\/app\/calendar\?view=list">/);
+      expect(html).toMatch(/<a class="tab on" aria-current="page" href="\/app\/calendar\?view=list">/);
       // One row per entry, each naming its source row. The kind of date is the
       // first word of the entry's own line (decision 5, 2026-09-28: the
       // calendar's label is its own choice) — never a pill, which in V1 is a
       // state, and never before the name, which leads every row.
-      const rows = [...html.matchAll(/<li class="row (?:solid|dashed)" data-src="([^"]+)" data-col="([^"]+)"[\s\S]*?<\/li>/g)];
+      const rows = [...html.matchAll(/<li class="row (?:solid|dashed)(?: done)?" data-src="([^"]+)" data-col="([^"]+)"[\s\S]*?<\/li>/g)];
       expect(rows.map((r) => `${r[1]}#${r[2]}`).sort()).toEqual(
         ENTRIES.map((x) => `${x.source.table}:${x.source.id}#${x.source.column}`).sort());
-      const kinds = [...html.matchAll(/<span class="small"><span class="cal-kind" data-cat="([^"]+)">([^<]+)<\/span> · /g)];
+      // Phase 9 (inbox-calendar-missed-18) — the kind in the words every view uses (`calendar.kind.*`), not the tab's plural.
+      const kinds = [...html.matchAll(/<span class="small"><span class="cal-kind" data-cat="([^"]+)">([\s\S]*?)<\/span><\/span>/g)];
       expect(kinds).toHaveLength(ENTRIES.length);
       expect(kinds.map((m) => m[1]).sort()).toEqual(ENTRIES.map((x) => x.category).sort());
-      for (const m of kinds) expect(m[2]).toBe(t(locale, `calendar.cat.${m[1]}` as never));
+      for (const x of ENTRIES) {
+        const k = kinds.find((m) => m[2]!.includes(t(locale, `calendar.kind.${x.kind}` as never)));
+        expect(k, `${locale}: ${x.kind}`).toBeDefined();
+      }
       for (const [row] of rows) {
         expect(row, 'no pill in a calendar row').not.toMatch(/class="(?:tag|chip|pill)\b/);
         expect(row.indexOf('cal-head'), 'the name comes before the kind').toBeLessThan(row.indexOf('cal-kind'));
@@ -103,10 +109,12 @@ describe('V2 · the calendar page, by structure', () => {
       expect(html).toContain(t(locale, 'calendar.today', { date: '' }).replace(/\s*·\s*$/, ''));
     });
 
-    it(`${locale}: under a category tab every entry shares the kind, so the word is left out`, () => {
+    it(`${locale}: under one kind every entry still says its kind, in the words of every other view (phase 9, missed-18)`, () => {
       const html = renderCalendar({ ...view(), category: 'samples' }, locale);
-      expect(html).toMatch(/<li class="row (?:solid|dashed)"/);
-      expect(html).not.toContain('class="cal-kind"');
+      expect(html).toMatch(/<li class="row (?:solid|dashed)/);
+      expect(html).toContain(t(locale, 'calendar.kind.sample_asked'));
+      // the fold says what is shown
+      expect(html).toContain(`<summary>${t(locale, 'calendar.filter.chosen', { what: t(locale, 'calendar.cat.samples') })}</summary>`);
     });
 
     it(`${locale}: doors go to the conversation, or the order; a closure has none`, () => {
@@ -180,10 +188,11 @@ describe('V2 · the calendar page, by structure', () => {
     }
   });
 
-  it('a chosen buyer opens the filter and is selected', () => {
+  it('a chosen buyer is said on the filter\'s fold and selected in it', () => {
     const html = renderCalendar(view({ buyer: OLGA }), 'en');
-    expect(html).toContain('<details class="cal-buyer" open>');
+    expect(html).toContain('<summary>Showing: Olga · Russia</summary>');
     expect(html).toContain(`<option value="${OLGA.id}" selected>`);
+    expect(html).toContain('href="/app/calendar?view=list">Show everything');
     // The positioning rewrite: the calendar asks ?who= (an old ?buyer= link still works).
     expect(html).toContain(`who=${OLGA.id}`);
   });

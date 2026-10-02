@@ -45,6 +45,13 @@ export function formatDate(locale: Locale, d: Date, zone: string): string {
   }).format(d);
 }
 
+/** Phase 9 (V1-193) — the same, with its year: "Wed, Sep 30, 2026", for a date a record keeps past the year. */
+export function formatDateYear(locale: Locale, d: Date, zone: string): string {
+  return new Intl.DateTimeFormat(INTL_TAG[locale], {
+    timeZone: zone, year: 'numeric', month: 'short', day: 'numeric', weekday: 'short',
+  }).format(d);
+}
+
 /** "Tuesday, September 29" / "9月29日星期二" / "الثلاثاء، 29 سبتمبر" — Today's own date, in the business timezone. */
 export function formatDayLong(locale: Locale, d: Date, zone: string): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], {
