@@ -22,9 +22,9 @@ import { tenantRepos } from '../../db/repos.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, tn, assistantName } from './say.js';
 
-import { esc, deeper } from './layout.js';
+import { esc, deeper, signalMark } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import { loadBusinessProfile, type BusinessProfile } from './settings.js';
@@ -174,6 +174,12 @@ export type FactoryView = {
     readonly needPrice: number;
     /** A handful, for recognition only — localized at render time. */
     readonly names: readonly { readonly name: string | null; readonly nameZh: string | null }[];
+    /**
+     * Phase 9 — every product's Chinese name by its name, so the rehearsal's
+     * lists (which carry the name only) say the same names as "What you sell"
+     * on a Chinese page. Absent: the names as they are.
+     */
+    readonly namesZh?: Readonly<Record<string, string>>;
   };
   readonly promises: FactoryPromises;
   readonly connection: {
@@ -418,6 +424,7 @@ export async function loadFactory(
       total: sold.length,
       needPrice: sold.filter((p) => !p.learned).length,
       names: sold.slice(0, 4).map((p) => ({ name: p.name, nameZh: p.nameZh })),
+      namesZh: Object.fromEntries(sold.filter((p) => p.name && p.nameZh).map((p) => [p.name, p.nameZh!])),
     },
     promises,
     connection: {
@@ -480,17 +487,41 @@ const FINDING_FIX: Record<FindingReason, string> = {
   claim_not_authorised: '/app/knowledge',
 };
 
+/** Phase 9 — the door's words for each kind of gap: what the owner does there. */
+const FINDING_DOOR: Record<FindingReason, MessageKey> = {
+  no_price: 'factory.rehearsal.fix.prices',
+  no_price_at_moq: 'factory.rehearsal.fix.prices',
+  floor_above_price: 'factory.rehearsal.fix.prices',
+  nothing_taught: 'factory.rehearsal.fix.teach',
+  answer_withheld: 'factory.rehearsal.fix.teach',
+  claim_not_authorised: 'factory.rehearsal.fix.claims',
+};
+
+/**
+ * Phase 9 — a list of product names that never breaks inside a name or starts
+ * a line with its separator: each name and the "·" after it are one unit, and
+ * a line breaks only between units. In Arabic each Latin name stays whole
+ * where it falls in the right-to-left line (V1-386), instead of its halves
+ * landing at the two ends of two lines.
+ */
+export const nameList = (names: readonly string[], more = false): string =>
+  names.map((n, i) => `<span class="fitem"><bdi>${esc(n)}</bdi>${i < names.length - 1 ? ' ·' : more ? ' …' : ''}</span>`).join(' ');
+
 /**
  * The rehearsal, in the owner's words. It leads with the LIST, never a tally:
  * "three findings" is a grade, "she cannot quote the canvas tote" is a task.
  * An empty list says exactly what was checked and nothing more — a factory that
  * has taught her nothing still gets findings, so silence here is earned.
  */
-function rehearsalBlock(r: RehearsalReport, locale: Locale, name: string): string {
+function rehearsalBlock(r: RehearsalReport, locale: Locale, name: string, namesZh: Readonly<Record<string, string>> = {}): string {
   if (r.productsChecked === 0) return '';
+  // Phase 9 — under a list of gaps, "Checked all 12 of your products" told the
+  // owner nothing; it is said where it qualifies something: beside "nothing
+  // missing", or when only some of the products were checked.
   const scope = r.productsTotal > r.productsChecked
     ? t(locale, 'factory.rehearsal.scopeSome', { n: r.productsChecked, total: r.productsTotal })
-    : t(locale, 'factory.rehearsal.scopeAll', { n: r.productsChecked });
+    : r.findings.length === 0 ? t(locale, 'factory.rehearsal.scopeAll', { n: r.productsChecked }) : null;
+  const shownName = (n: string) => productName(locale, { name: n, nameZh: namesZh[n] ?? null }) ?? n;
 
   // Grouped by reason, not one line per product. A new factory has the same gap
   // on every product it sells; twelve identical sentences read as an indictment,
@@ -505,15 +536,18 @@ function rehearsalBlock(r: RehearsalReport, locale: Locale, name: string): strin
 
   const body = groups.size === 0
     ? `<p class="fok">${esc(t(locale, 'factory.rehearsal.none', { name }))}</p>`
+    // Phase 9 — the sentence is text, not an underlined link set larger than
+    // the heading above it; the way to close the gap is its own door.
     : [...groups].map(([reason, names]) => `<div class="fgap">
-        <a class="blink" href="${FINDING_FIX[reason]}">${esc(t(locale, `factory.rehearsal.${reason}` as MessageKey, { name }))}</a>
-        ${names.length ? `<p class="fnames">${names.map((n) => `<bdi>${esc(n)}</bdi>`).join(' · ')}</p>` : ''}
+        <p class="fgap-s">${esc(t(locale, `factory.rehearsal.${reason}` as MessageKey, { name }))}</p>
+        ${names.length ? `<p class="fnames">${nameList(names.map(shownName))}</p>` : ''}
+        ${deeper(FINDING_FIX[reason], t(locale, FINDING_DOOR[reason], { name }))}
       </div>`).join('');
 
   return `<h3 class="sub3">${esc(t(locale, 'factory.rehearsal.title', { name }))}</h3>
     <p class="fdesc">${esc(t(locale, 'factory.rehearsal.lede', { name }))}</p>
     <div class="rehear">${body}</div>
-    <p class="fdesc muted">${esc(scope)}</p>`;
+    ${scope ? `<p class="fdesc muted">${esc(scope)}</p>` : ''}`;
 }
 
 /** A fact the owner told her. Absent facts are simply not shown. */
@@ -532,12 +566,16 @@ const fact = (label: string, value: string | null): string =>
  * in the interface voice. That is the whole rule, applied here for the first
  * time.
  */
-const section = (title: string, question: string, body: string, href: string | null, more: string): string =>
+const section = (title: string, answer: string, body: string, href: string | null, more: string): string =>
   `<section class="fblock">
-    <div class="fhead"><h2>${esc(title)}</h2><p class="fq">${esc(question)}</p></div>
+    <div class="fhead"><h2>${esc(title)}</h2>${answer}</div>
     ${body}
     ${href ? deeper(href, more) : ''}
   </section>`;
+
+/** Phase 9 — a count's noun in the form its language gives that count ("12 منتجًا", "1 product"). */
+const countNoun = (locale: Locale, base: string, n: number): string =>
+  t(locale, `${base}.${new Intl.PluralRules(locale).select(n)}` as MessageKey);
 
 export function renderFactory(
   f: FactoryView, locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
@@ -572,11 +610,10 @@ export function renderFactory(
   // 2 · What you sell — a count the owner can verify, not a catalogue dump.
   const sellBody = f.products.total === 0
     ? `<p class="fempty">${esc(t(locale, 'factory.sell.empty', { name }))}</p>`
-    : `<div class="fcount">${esc(show.count(locale, f.products.total))}<span class="fcount-l">${esc(t(locale, 'factory.sell.items'))}</span></div>
+    : `<div class="fcount">${esc(show.count(locale, f.products.total))}<span class="fcount-l">${esc(countNoun(locale, 'factory.sell.items', f.products.total))}</span></div>
        ${f.products.names.length
-        ? `<p class="fnames">${f.products.names
-            .map((n) => productName(locale, n)).filter((n): n is string => n !== null)
-            .map((n) => `<bdi>${esc(n)}</bdi>`).join(' · ')}${f.products.total > f.products.names.length ? ' …' : ''}</p>`
+        ? `<p class="fnames">${nameList(f.products.names
+            .map((n) => productName(locale, n)).filter((n): n is string => n !== null), f.products.total > f.products.names.length)}</p>`
         : ''}
        ${f.products.needPrice > 0
         ? `<p class="fwarn">${esc(t(locale, 'factory.sell.needPrice', { n: f.products.needPrice, name }))}</p>`
@@ -647,9 +684,8 @@ export function renderFactory(
   const waHint = lc === 'not_connected' && elsewhere
     ? t(locale, 'factory.reach.other.notConnected', { name })
     : t(locale, `channel.state.${lc}.hint` as MessageKey, { name });
-  const conn = `<span class="fconn-i" aria-hidden="true">📱</span>
-      <div>
-        <div class="fconn-t">WhatsApp</div>
+  const conn = `<div>
+        <div class="fconn-t">${esc(t(locale, 'reach.channel.whatsapp'))}</div>
         <div class="fconn-s">${esc(t(locale, `channel.state.${lc}` as MessageKey, { name }))}</div>
         <div class="fconn-h muted">${esc(waHint)}</div>
       </div>`;
@@ -699,20 +735,20 @@ export function renderFactory(
       ? `<form method="post" action="/app/business/pilot/end" class="inline"><button class="btn send" type="submit"
            onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'pilot.mode.endConfirm', { name }))}">${esc(t(locale, 'pilot.mode.end'))}</button></form>`
       : `<form method="post" action="/app/business/pilot/resume" class="inline"><button class="btn" type="submit">${esc(t(locale, 'pilot.mode.resume'))}</button></form>`}`;
+  // Phase 9 — amber ○ is "this waits for you": a connection that stopped. A
+  // number never connected is not waiting on anything; it is a door, plain.
   const whatsappBlock = `
     ${lc === 'active' || lc === 'ready'
       ? `<div class="fconn on">${conn}</div>`
-      : `<a class="fconn off" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
+      : `<a class="fconn ${lc === 'not_connected' ? 'todo' : 'off'}" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
     ${lc !== 'not_connected' && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
     ${allowlist}
     ${pilotBlock}`;
 
   // The other places she can be reached, each as the same card: tappable to the
   // Channels page while it still needs her, still once it is connected.
-  const ICON: Record<ReachChannel['channel'], string> = { instagram: '📷', messenger: '💬', email: '✉️' };
   const otherBlock = (o: ReachChannel): string => {
-    const card = `<span class="fconn-i" aria-hidden="true">${ICON[o.channel]}</span>
-      <div>
+    const card = `<div>
         <div class="fconn-t">${esc(t(locale, `reach.channel.${o.channel}` as MessageKey))}</div>
         <div class="fconn-s">${esc(t(locale, o.state === 'connected' ? 'connect.state.connected'
           : o.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'))}</div>
@@ -729,7 +765,7 @@ export function renderFactory(
       </div>`;
     return o.state === 'connected'
       ? `<div class="fconn on">${card}</div>`
-      : `<a class="fconn off" href="/app/channels">${card}<span class="go" aria-hidden="true">›</span></a>`;
+      : `<a class="fconn ${o.state === 'attention' ? 'off' : 'todo'}" href="/app/channels">${card}<span class="go" aria-hidden="true">›</span></a>`;
   };
 
   // In the order she named them at sign-up; the rest after, in the page's own order.
@@ -740,11 +776,16 @@ export function renderFactory(
     .sort((a, b) => a.r - b.r)
     .map((b) => b.html).join('');
 
+  // Phase 9 — the instruction to add a number comes with the place to add it.
   const reachBody = `
     ${blocks}
     ${f.connection.ownerPhone
       ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
-      : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>`}`;
+      : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>
+         ${viewer.isOwner ? deeper('/app/channels#alerts', t(locale, 'factory.reach.addAlerts')) : ''}`}`;
+  // One door to the Channels page from this section: each card that needs the
+  // owner already is one; the section's own door only when none is.
+  const anyCardIsDoor = lc === 'not_connected' || lc === 'paused' || others.some((o) => o.state !== 'connected');
 
   // 5 · Can she be activated now? — answered by the SAME preconditions the
   //     activate action obeys. Either the list of blockers is empty, or it says
@@ -858,12 +899,25 @@ export function renderFactory(
         ? `<h3 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h3>${elsewhereBody}` : ''}`
     : `${elsewhereBody
         ? `<div data-golive="elsewhere">${elsewhereBody}</div>`
-        : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>${deeper('/app/channels', t(locale, 'nav.channels'))}`}
+        : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>`}
        ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`);
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These
   // are things the assistant cannot answer yet; none is a reason to stay off.
-  const rehearsed = f.rehearsal ? rehearsalBlock(f.rehearsal, locale, name) : '';
+  const rehearsed = f.rehearsal ? rehearsalBlock(f.rehearsal, locale, name, f.products.namesZh) : '';
+
+  // Phase 9 — the section's heading asks a question; this line answers it,
+  // from the same facts the section lists below (and the activate action
+  // obeys): stopped, answering, ready to start, or how many things are first.
+  const answer = held
+    ? `<p class="fready">${signalMark('waiting')} ${esc(t(locale, 'factory.ready.answer.held', { name }))}</p>`
+    : r.live || liveElsewhere.length > 0
+      ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.live', { name }))}</p>`
+      : !waRelevant
+        ? `<p class="fready">${esc(t(locale, 'factory.ready.answer.nothing', { name }))}</p>`
+        : r.canActivate
+          ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.ready', { name }))}</p>`
+          : `<p class="fready">${signalMark('waiting')} ${esc(tn(locale, 'factory.ready.answer.notYet', r.blockers.length, { name }))}</p>`;
 
   // D — HOW you sell, beside WHAT you sell. Four pages that lived under
   // Settings, where an owner who edits a price every week had to go looking
@@ -872,27 +926,34 @@ export function renderFactory(
   // CUR — the rate door only where there is something to convert: a workspace
   // that sells in another currency than its country's own (`ratePairOf`).
   const home = currencyOfCountry(f.connection.country);
+  // Phase 9 — the first door is the questions (it repeated the heading); the
+  // rest change one of the same facts directly, and say so.
   const sellHowBody = `<div class="doors">
-    ${viewer.isOwner ? deeper('/app/business/selling', t(locale, 'hs.title')) : ''}
+    ${viewer.isOwner ? deeper('/app/business/selling', t(locale, 'factory.sellhow.questions')) : ''}
+  </div>
+  ${viewer.isOwner ? `<p class="fdesc">${esc(t(locale, 'factory.sellhow.direct'))}</p>` : ''}
+  <div class="doors">
     ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
     ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
     ${home !== null && home !== f.prices.currency ? deeper('/app/settings/rate', t(locale, 'rate.title')) : ''}
   </div>`;
 
+  // Phase 9 — the details are edited on the profile page, the same page the
+  // first next step opens (it was Setup's hub, a second place for one thing).
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
     ${next}
-    ${section(t(locale, 'factory.about.title'), t(locale, 'factory.about.q'), aboutBody, '/app/settings', t(locale, 'factory.about.more'))}
-    ${section(t(locale, 'factory.sell.title'), t(locale, 'factory.sell.q'), sellBody, '/app/products', t(locale, 'factory.sell.more'))}
-    ${section(t(locale, 'factory.promise.title'), t(locale, 'factory.promise.q', { name }), promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
-    ${section(t(locale, 'factory.prices.title'), t(locale, 'factory.prices.q', { name }), pricesBody,
+    ${section(t(locale, 'factory.about.title'), '', aboutBody, '/app/settings/profile', t(locale, 'factory.about.more'))}
+    ${section(t(locale, 'factory.sell.title'), '', sellBody, '/app/products', t(locale, 'factory.sell.more'))}
+    ${section(t(locale, 'factory.promise.title'), '', promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
+    ${section(t(locale, 'factory.prices.title'), '', pricesBody,
       // G9a — the price-rules page is the owner's; no link to a refusal.
       viewer.isOwner ? '/app/business/prices' : null, t(locale, 'factory.prices.more'))}
-    ${section(t(locale, 'factory.sellhow.title'), t(locale, 'factory.sellhow.q'), sellHowBody, null, '')}
-    ${section(t(locale, 'factory.reach.title'), t(locale, 'factory.reach.q'), reachBody, '/app/channels', t(locale, 'factory.reach.more'))}
-    ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}
+    ${section(t(locale, 'factory.sellhow.title'), '', sellHowBody, null, '')}
+    ${section(t(locale, 'factory.reach.title'), '', reachBody, anyCardIsDoor ? null : '/app/channels', t(locale, 'factory.reach.more'))}
+    ${section(t(locale, 'factory.ready.title'), answer, readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}
     `;
 }
 

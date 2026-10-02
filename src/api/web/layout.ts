@@ -931,7 +931,10 @@ const STYLE_PAGES = `
   .fblock:first-of-type { border-top:0; padding-top:0; }
   .fhead { margin-bottom:var(--space-12); }
   .fhead h2 { margin:0; font-size:var(--font-size-base); font-weight:600; color:var(--color-ink); }
-  .fq { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  /* Phase 9 — the one line under a heading that answers it ("Not yet: 2 things first"). */
+  .fready { margin:var(--space-8) 0 0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
+  /* The next step stands apart from the first section, not on its heading. */
+  .lede + .deeper.next { margin-bottom:var(--space-16); }
   .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
   .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
   .fdesc-lead { margin:0 0 var(--space-12); }
@@ -941,6 +944,8 @@ const STYLE_PAGES = `
   .fcount { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8); font-variant-numeric:tabular-nums; }
   .fcount-l { font-size:var(--font-size-small); font-weight:400; color:var(--color-ink-secondary); }
   .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
+  /* Phase 9 — a name and its separator are one unit: a line breaks between names, never inside one or before a "·". */
+  .fitem { display:inline-block; }
   .fwarn { color:var(--color-waiting); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fok { color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
@@ -955,6 +960,7 @@ const STYLE_PAGES = `
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
   .rehear { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-12); }
   .fgap .fnames { margin-top:var(--space-4); }
+  .fgap-s { margin:0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
   .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
   .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
   .alform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
@@ -965,14 +971,19 @@ const STYLE_PAGES = `
   .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
   .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  .fconn-i { font-size:var(--font-size-title); }
   .fconn.on .fconn-s { color:var(--color-ok); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
   .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:14px; padding:14px 16px; }
   .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-waiting); }
   .fconn.off .fconn-s { color:var(--color-waiting); }
   .fconn.off .go { margin-inline-start:auto; }
+  /* Phase 9 — never connected is not waiting on anything: a plain door, no wash and no mark. */
+  .fconn.todo { border:1px solid var(--color-border); border-radius:14px; padding:14px 16px; }
+  .fconn.todo:hover, .fconn.todo:focus-visible { border-color:var(--color-ink-secondary); }
+  .fconn.todo .go { margin-inline-start:auto; }
   .fblock .deeper { margin-top:var(--space-8); }
+  /* Doors in a column keep the column's own gap, as everywhere else. */
+  .fblock .doors .deeper { margin-top:0; }
 
   /* ── products.ts — moved here whole in step four: page-specific names, defined once. */
   .pq input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }

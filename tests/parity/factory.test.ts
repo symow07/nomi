@@ -81,10 +81,9 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(at('What you sell')).toBeGreaterThan(at('About your business'));
     expect(at('What you promise customers')).toBeGreaterThan(at('What you sell'));
     expect(at('Where customers reach you')).toBeGreaterThan(at('What you promise customers'));
-    // each section carries the owner's own question
-    for (const q of ['Who are we?', 'What do we sell?', 'Where can customers reach us?',
-                     say('en', 'factory.promise.q')].map((q) => esc(q)))
-      expect(html).toContain(q);
+    // Phase 9 (V1-390) — no grey question restating each heading in another voice.
+    for (const q of ['Who are we?', 'What do we sell?', 'Where can customers reach us?', 'class="fq"'])
+      expect(html).not.toContain(q);
   });
 
   it('shows the real business facts it was given, and omits the ones it was not', () => {
@@ -194,7 +193,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(on).toContain('+971 50 ••• 4444');
     const off = withoutIsolates(renderFactory(fresh, 'en'));
     expect(off).toContain('Not connected');
-    expect(off).toContain('cannot receive or answer a customer');
+    expect(off).toContain('Customers who write to your WhatsApp are not answered until it is connected.');
   });
 
   it('a finished factory shows no next step; a new one shows exactly one', () => {
@@ -218,7 +217,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('every section offers a way through to the surface that owns it', () => {
     // P5 — Practice is every workspace's own: its door is always drawn.
     const html = withoutIsolates(renderFactory(complete, 'en'));
-    for (const href of ['/app/settings', '/app/products', '/app/knowledge', '/app/channels', '/app/onboarding', '/app/sandbox'])
+    for (const href of ['/app/settings/profile', '/app/products', '/app/knowledge', '/app/channels', '/app/onboarding', '/app/sandbox'])
       expect(html, href).toContain(`href="${href}"`);
   });
 
@@ -239,10 +238,10 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   it('renders fully in every locale and each keeps its own words', () => {
     for (const l of LOCALES) expect(withoutIsolates(renderFactory(complete, l)).length).toBeGreaterThan(800);
     const zh = withoutIsolates(renderFactory(complete, 'zh'));
-    expect(zh).toContain('我的生意'); expect(zh).toContain('我们是谁？'); expect(zh).toContain('你对客户的承诺');
+    expect(zh).toContain('我的生意'); expect(zh).toContain('关于你的生意'); expect(zh).toContain('你对客户的承诺');
     expect(zh).not.toContain('About your business');
     const ar = withoutIsolates(renderFactory(complete, 'ar'));
-    expect(ar).toContain('نشاطي التجاري'); expect(ar).toContain('من نحن؟'); expect(ar).toContain(shown('ar', 'factory.promise.title'));
+    expect(ar).toContain('نشاطي التجاري'); expect(ar).toContain(shown('ar', 'factory.about.title')); expect(ar).toContain(shown('ar', 'factory.promise.title'));
     expect(ar).not.toContain('About your business');
   });
 
@@ -257,7 +256,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('uses the shell’s one “go deeper” link rather than a page-local variant', () => {
     const html = withoutIsolates(renderFactory(complete, 'en'));
-    expect(html).toContain('<a class="deeper" href="/app/settings">');
+    expect(html).toContain('<a class="deeper" href="/app/settings/profile">');
     expect(html).toContain('<span class="go" aria-hidden="true">›</span>');
     expect(html).not.toContain('class="fmore"');
   });
@@ -270,10 +269,13 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   });
 
   it('a channel that cannot carry a message is its own remedy — the block links to the fix', () => {
-    for (const lc of ['not_connected', 'paused'] as const) {
-      const html = withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'ar'));
-      expect(html, lc).toContain('<a class="fconn off" href="/app/channels"');
-    }
+    // Phase 9 (new-01) — a paused number waits for the owner (amber ○); one never
+    // connected waits on nothing, so it is a plain door with no state colour.
+    const of = (lc: FactoryView['readiness']['lifecycle']) =>
+      withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'ar'));
+    expect(of('paused')).toContain('<a class="fconn off" href="/app/channels"');
+    expect(of('not_connected')).toContain('<a class="fconn todo" href="/app/channels"');
+    expect(of('not_connected')).not.toContain('fconn off');
     for (const lc of ['ready', 'active'] as const) {
       const html = withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'en'));
       expect(html, lc).toContain('<div class="fconn on"');
@@ -628,7 +630,7 @@ describe('M20.3.1 · activation truth, localized', () => {
 
   it('each state reads as itself, and says what it means for the owner’s day', () => {
     expect(at('not_connected', 'en')).toContain('Not connected');
-    expect(at('not_connected', 'en')).toContain('cannot receive or answer a customer');
+    expect(at('not_connected', 'en')).toContain('are not answered until it is connected');
     expect(at('ready', 'en')).toContain(shown('en', 'channel.state.ready.hint'));
     expect(at('active', 'en')).toContain(shown('en', 'channel.state.active.hint'));
     expect(at('paused', 'en')).toContain('Paused');
@@ -724,5 +726,161 @@ describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
     const html = view([]);
     expect(html).not.toContain('type="file"');
     expect(html).not.toContain('<textarea');
+  });
+});
+
+/* ── Phase 9 · B5 — My business, as the re-audit read it ─────────────────── */
+
+describe('Phase 9 · B5 · My business', () => {
+  const NAMES = ['Canvas Tote Bag 38x40cm', 'Stainless Steel Thermos 500ml', 'Ceramic Coffee Mug 350ml', 'LED String Lights 10m',
+    'Foldable Storage Box 40L', 'Kids Water Bottle with Straw'];
+  // The audit's workspace: twelve products, no WhatsApp, nothing taught, no number for alerts.
+  const audit: FactoryView = {
+    ...complete,
+    products: { total: 12, needPrice: 0, names: NAMES.slice(0, 4).map((n, i) => ({ name: n, nameZh: ['帆布袋', '保温杯', '陶瓷杯', 'LED灯串'][i]! })),
+      namesZh: { 'Canvas Tote Bag 38x40cm': '帆布袋', 'Stainless Steel Thermos 500ml': '保温杯' } },
+    connection: { channel: channel(false), ownerPhone: null, channelsUsed: [] },
+    nextStep: 'channels',
+    readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], lifecycle: 'not_connected',
+      live: false, activatedAt: null, activatedBy: null, allowance: { pctUsed: null, used: false, renewsAt: new Date('2026-10-03T00:00:00Z') } },
+    rehearsal: { findings: [...NAMES.map((n) => ({ reason: 'nothing_taught' as const, productName: n, probeId: null })),
+      { reason: 'claim_not_authorised' as const, productName: null, probeId: null }], violations: [], probesRun: 30, productsChecked: 12, productsTotal: 12 },
+  };
+  const page = (l: Locale, v: FactoryView = audit) => withoutIsolates(renderFactory(v, l));
+  const text = (html: string) => html.replace(/<[^>]*>/g, ' ');
+  const css = readFileSync(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
+
+  it('V1-386 · V1-401 · a name and its "·" are one unit: no line breaks inside a name or starts with "·"', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      const lists = html.match(/<p class="fnames">[\s\S]*?<\/p>/g) ?? [];
+      expect(lists.length, l).toBe(2);
+      for (const list of lists) {
+        expect(list, l).not.toMatch(/<\/span>\s*·/);                       // no separator outside a unit
+        expect(list, l).toMatch(/^<p class="fnames">(<span class="fitem"><bdi>[^<]+<\/bdi>( ·| …)?<\/span> ?)+<\/p>$/);
+      }
+    }
+    expect(css).toMatch(/\.fitem \{ display:inline-block; \}/);
+    expect(say('zh', 'factory.rehearsal.claim_not_authorised')).not.toContain('——');
+  });
+
+  it('V1-388 · the heading’s question is answered, from the same facts as the list under it', () => {
+    for (const l of LOCALES) {
+      expect(page(l), l).toContain(esc(say(l, 'factory.ready.answer.nothing')));
+      const wa = page(l, { ...audit, connection: { ...audit.connection, channelsUsed: ['whatsapp'] } });
+      expect(wa, l).toContain(esc(say(l, 'factory.ready.answer.notYet.two').replace('{n}', '2')));
+      const ready = page(l, { ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'ready' }, connection: { ...audit.connection, channel: channel(true) } });
+      expect(ready, l).toContain(esc(say(l, 'factory.ready.answer.ready')));
+      const live = page(l, { ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'active', live: true } });
+      expect(live, l).toContain(esc(say(l, 'factory.ready.answer.live')));
+      const stopped = page(l, { ...audit, readiness: { ...audit.readiness, assistantStop: { stoppedAt: new Date(), stoppedBy: null } } });
+      expect(stopped, l).toContain(esc(say(l, 'factory.ready.answer.held')));
+    }
+  });
+
+  it('V1-389 · the allowance says what it limits, with no "workspace" and no money word', () => {
+    for (const l of LOCALES) expect(page(l), l).toContain(esc(say(l, 'business.allowance.none')));
+    expect(say('en', 'business.allowance.none')).toMatch(/messages/);
+    expect(say('en', 'business.allowance.title') + say('en', 'business.allowance.none')).not.toMatch(/workspace|allowance/i);
+    expect(say('ar', 'business.allowance.title')).not.toContain('رصيد');
+    expect(say('zh', 'business.allowance.none')).not.toContain('工作台');
+    expect(say('es', 'business.allowance.none')).not.toContain('espacio de trabajo');
+  });
+
+  it('V1-390 · V1-399 · no grey sub-question in any voice, in any language', () => {
+    for (const l of LOCALES) expect(page(l), l).not.toContain('class="fq"');
+    expect(page('es')).not.toContain('¿tu asistente');
+  });
+
+  it('V1-391 · V1-402 · missed-04 · the price section is named like the page it opens; "floor" is not a word here', () => {
+    for (const l of LOCALES) expect(say(l, 'factory.prices.title'), l).toBe(say(l, 'prices.title'));
+    expect(say('zh', 'factory.prices.title')).toBe('你的价格底线');
+    expect(say('ar', 'factory.prices.title')).toBe('حدود أسعارك');
+    expect(text(page('en'))).not.toMatch(/\bfloor\b/);
+    expect(say('zh', 'factory.sellhow.title')).toBe(say('zh', 'hs.title'));
+  });
+
+  it('V1-392 · the first door is the questions, not the heading again; the rest say they are the same facts', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).toContain(`href="/app/business/selling">${esc(say(l, 'factory.sellhow.questions'))}`);
+      expect(say(l, 'factory.sellhow.questions'), l).not.toBe(say(l, 'factory.sellhow.title'));
+      expect(html, l).toContain(esc(say(l, 'factory.sellhow.direct')));
+    }
+    expect(page('en')).not.toContain('exchange rate</p>');
+  });
+
+  it('V1-393 · one door per place: the details open the profile; the channels section has one way to Channels', () => {
+    const html = page('en');
+    expect(html).toContain(`href="/app/settings/profile">${esc(say('en', 'factory.about.more'))}`);
+    expect(html).not.toContain('href="/app/settings">');
+    const reach = html.slice(html.indexOf(esc(say('en', 'factory.reach.title'))), html.indexOf(esc(say('en', 'factory.ready.title'))));
+    expect(reach.split('href="/app/channels"').length - 1).toBe(1);
+    expect(reach).not.toContain(esc(say('en', 'factory.reach.more')));
+    const none = page('en', { ...audit, connection: { ...audit.connection, channelsUsed: [] } });
+    const ready = none.slice(none.indexOf(esc(say('en', 'factory.ready.title'))));
+    expect(ready).not.toContain(`href="/app/channels">${esc(say('en', 'nav.channels'))}`);
+  });
+
+  it('V1-394 · "add your number" comes with the place to add it', () => {
+    const html = page('en');
+    const at = html.indexOf(esc(say('en', 'factory.reach.noAlerts')));
+    expect(at).toBeGreaterThan(-1);
+    expect(html.slice(at)).toMatch(/^[^]*?href="\/app\/channels#alerts">Add your number for alerts/);
+  });
+
+  it('V1-395 · a gap is a sentence and a door, not an underlined heading; no "checked all 12" under a list', () => {
+    const html = page('en');
+    expect(html).not.toContain('class="blink" href="/app/knowledge"');
+    expect(html).toContain(`<p class="fgap-s">${esc(say('en', 'factory.rehearsal.nothing_taught'))}</p>`);
+    expect(html).toContain(`href="/app/knowledge">${esc(say('en', 'factory.rehearsal.fix.teach'))}`);
+    expect(html).not.toContain('Checked all 12 of your products');
+    expect(css).toMatch(/\.fgap-s \{[^}]*font-size:var\(--font-size-small\)/);
+  });
+
+  it('V1-396 · the door names the list it opens', () => {
+    for (const l of LOCALES) expect(page(l), l).toContain(`href="/app/onboarding">${esc(say(l, 'factory.ready.more'))}`);
+    expect(say('en', 'factory.ready.more')).not.toMatch(/whole list/);
+  });
+
+  it('V1-397 · one language for the names on a Chinese page', () => {
+    const zh = page('zh');
+    const gaps = zh.slice(zh.indexOf(esc(say('zh', 'factory.rehearsal.title'))));
+    expect(gaps).toContain('<bdi>帆布袋</bdi>');
+    expect(gaps).toContain('<bdi>保温杯</bdi>');
+    expect(gaps).not.toContain('Canvas Tote Bag');
+  });
+
+  it('V1-398 · Arabic: no detached «لـ» before a name on this page', () => {
+    const ar = text(page('ar'));
+    expect(ar).not.toMatch(/لـ /);
+  });
+
+  it('V1-400 · the next step stands apart from the first heading; doors in a column keep its gap', () => {
+    expect(css).toMatch(/\.lede \+ \.deeper\.next \{ margin-bottom:var\(--space-16\); \}/);
+    expect(css).toMatch(/\.fblock \.doors \.deeper \{ margin-top:0; \}/);
+  });
+
+  it('new-01 · missed-02 · a WhatsApp never connected is a plain door, and speaks of WhatsApp only', () => {
+    const html = page('en');
+    expect(html).toContain('<a class="fconn todo" href="/app/channels"');
+    expect(html).toContain('Customers who write to your WhatsApp are not answered until it is connected.');
+    expect(html).not.toContain('cannot receive or answer a customer');
+    expect(css).toMatch(/\.fconn\.todo \{ border:1px solid var\(--color-border\)/);
+    expect(css).not.toMatch(/'\.fconn\.todo/);    // not one of the signals' selectors
+  });
+
+  it('missed-03 · the count’s noun agrees with the count in Arabic', () => {
+    expect(page('ar')).toContain('<span class="fcount-l">منتجًا</span>');
+    expect(page('ar', { ...audit, products: { ...audit.products, total: 3 } })).toContain('<span class="fcount-l">منتجات</span>');
+    expect(page('en', { ...audit, products: { ...audit.products, total: 1 } })).toContain('<span class="fcount-l">product</span>');
+  });
+
+  it('V1-403 · no pictures for the channels', () => {
+    for (const l of LOCALES) expect(page(l), l).not.toMatch(/📱|📷|💬|✉️/u);
+  });
+
+  it('V1-428 · the door to Practice says what the page is called, here and on the assistant’s page', () => {
+    for (const l of LOCALES) expect(say(l, 'factory.ready.practice'), l).toBe(say(l, 'nav.sandbox'));
   });
 });
