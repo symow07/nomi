@@ -628,8 +628,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);  // Phase C: the page IS the assistant
     expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C
     expect(res.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
-    expect(res.body).toContain('Growth');
-    expect(res.body).toContain('Promotion');
+    // Phase 9 (V1-422) — the history and the next step, in plain words.
+    expect(res.body).toContain(esc(t('en', 'employee.growth.title')));
+    expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
     // demo: greet is promoted (auto) → appears under Can do now as Greeting
     expect(res.body).toContain('Greeting');
     expect(res.body).not.toContain('置信度');       // no invented score
