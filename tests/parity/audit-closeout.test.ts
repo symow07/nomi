@@ -296,7 +296,7 @@ describe("CC-14 · the shell leads with the business's own name; the product's i
     expect(html).toContain('<bdi>Westlake Canvas Co.</bdi><small>Nomi</small>');
   });
 
-  it('the phone chrome is option A as built: the rail row holds the mark alone; the name heads Today, and only Today', () => {
+  it('the phone chrome is option A as built: the rail row holds the mark alone; the name heads every page on a phone (phase 9, V1-105)', () => {
     const css = linkedCss(page('en'));
     const phone = css.slice(css.indexOf('@media (max-width: 720px)'));
     expect(phone).toContain('nav.side .brand .brandname { display:none; }');   // the rail row unchanged
@@ -308,8 +308,9 @@ describe("CC-14 · the shell leads with the business's own name; the product's i
       expect(main, l).toMatch(/^<main id="main"><p class="business-name"><bdi>Westlake Canvas Co\.<\/bdi><\/p><h1 class="page">/);
       const nav = today.slice(today.indexOf('<nav class="side">'), today.indexOf('</nav>'));
       expect(nav, l).not.toContain('business-name');
+      // Phase 9 (V1-105) — Setup, Getting started, Before going live and the rest named no workspace on a phone.
       for (const other of ['/app/inbox', '/app/settings', '/app/employee', '/app/business', '/app/inbox/c1'])
-        expect(page(l, other), `${l} ${other}`).not.toContain('class="business-name"');
+        expect(page(l, other), `${l} ${other}`).toContain('<p class="business-name"><bdi>Westlake Canvas Co.</bdi></p>');
     }
     expect(page('en', '/app', null)).not.toContain('class="business-name"');
   });

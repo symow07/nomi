@@ -363,6 +363,8 @@ ${cssVariables()}
   /* CC-14 — the business's own name leads the block, and a long one wraps
      inside the rail rather than widening it. */
   .brand .brandname { min-width:0; overflow-wrap:anywhere; }
+  /* Phase 9 (V1-014, V1-099) — a Chinese name is one word: it breaks at its spaces, and only past the rail's width anywhere. */
+  :lang(zh) .brand .brandname bdi { word-break:keep-all; }
   /* On a phone the rail is one row with no room for a name, so the name heads
      Today instead: one line that scrolls away with the page. Drawn on the
      phone only; the rail carries it everywhere else. */
@@ -413,6 +415,9 @@ ${LANGSW_CSS}
      The 13px tracked-uppercase eyebrow was the one SaaS tell the product had. */
   .card h2, .block h2, main h2 { font-size:var(--font-size-base); font-weight:600;
     color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; }
+  /* Phase 9 (missed-19, missed-21) — a heading that wraps leaves no word alone on its last line; nor does a paragraph. */
+  h1.page, main h2, main h3 { text-wrap:balance; }
+  main p, main li { text-wrap:pretty; }
 
   /* Counts. Never a KPI tile — a plain line, the way Today has always drawn it. */
   .stats { display:flex; flex-direction:column; }
@@ -581,7 +586,15 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .today-date { font-weight:400; }
   .today-worth { margin-top:var(--space-12); }
+  .today-worth .grow { text-wrap:pretty; }
   .today-foot { font-size:var(--font-size-small); margin:var(--space-16) 0 0; }
+  .today-foot p { margin:0; }
+  /* Phase 9 (V1-102) — the next step and its video, side by side where they fit. */
+  .today-next { display:flex; flex-wrap:wrap; column-gap:var(--space-24); }
+  /* Phase 9 (V1-094) — on a phone a line's door goes under its sentence, so the sentence keeps the width. */
+  @media (max-width: 560px) {
+    .today-worth .row { flex-direction:column; align-items:flex-start; gap:0; }
+  }
   /* The chevron above mirrors because it POINTS — "onward" is to the left in
      Arabic. The mark does NOT, and its absence here is deliberate rather than an
      oversight: a brand mark is a constant, the same object in every language,
@@ -785,6 +798,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
       font-size:var(--font-size-caption); text-align:center; }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
     nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
+    /* Phase 9 (V1-014) — the entries sit edge to edge (each keeps its own padding), so "Customers" can carry its count on the one line. */
+    nav.side { gap:0; }
+    nav.side .navcount { margin-inline-start:var(--space-4); }
     .nl-long { display:none; }
     .nl-short { display:inline; }
     @supports (animation-timeline: scroll()) {
@@ -799,9 +815,18 @@ ${SIGNAL_CSS}${MOTION_CSS}
     .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
     .flabel { min-width:0; font-size:var(--font-size-caption); }
   }
-  /* Phase 7 — the narrowest phones: the five entries before the small mark. */
+  /* Phase 7 — the narrowest phones: the five entries before the small mark.
+     Phase 9 (V1-014, cross-new-02) — up to 440 px, now that "Customers" carries
+     its count and each entry has one name at every width (measured at 360–430
+     in five languages); below 400 px the entries sit edge to edge. */
   @media (max-width: 379px) {
     nav.side .brand { display:none; }
+  }
+  @media (max-width: 440px) {
+    nav.side .brand { display:none; }
+  }
+  @media (max-width: 400px) {
+    nav.side a.navlink { padding-inline:0; }
   }
   /* V1 step three — the compaction the sticky phone nav plays over the first
      160px of scroll (see the phone block). Spacing from the scale only. */
@@ -817,12 +842,20 @@ ${SIGNAL_CSS}${MOTION_CSS}
  */
 const STYLE_PAGES = `
   /* ── settings.ts — moved here whole in step four: page-specific names, defined once. */
+  /* Phase 9 (V1-155) — the five steps under Getting started: rows of the same card, lighter, so the step reads as part of it. */
+  .scard > li.sr-step .srow { min-height:44px; padding-block:var(--space-4); padding-inline-start:var(--space-24); }
+  .sr-step .sr-label { font-weight:400; }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
-  .guide { list-style:none; margin:var(--space-16) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
+  .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
   .guide-step { border:1px solid var(--color-border); border-radius:12px; padding:var(--space-16); background:var(--color-surface); }
   .guide-step.next { border-color:var(--color-ink-secondary); }
-  .guide-step h2 { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; margin:0 0 var(--space-12); }
+  /* Phase 9 (V1-114) — the number holds the first line of a heading that wraps; the state ends its words. */
+  .guide-step h2.gs-h { display:flex; align-items:baseline; gap:var(--space-8); margin:0 0 var(--space-12); }
+  .gs-n { flex:none; }
+  .gs-t { flex:1 1 auto; min-width:0; text-wrap:pretty; }
+  .gs-t .pill { margin:0; margin-inline-start:var(--space-8); }
   .guide-step ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose); }
+  .guide-step ol li + li { margin-top:var(--space-4); }
   .guide-video { display:block; width:100%; max-width:var(--measure-prose); border-radius:8px; background:var(--color-paper); margin-bottom:var(--space-8); }
   /* ── channels.ts — WA-S, writing after 24 hours, under the number it belongs to. */
   .ch-reopen { margin-top:var(--space-16); border-top:1px solid var(--color-border); padding-top:var(--space-12); }
@@ -851,35 +884,64 @@ const STYLE_PAGES = `
 
   /* ── pilot.ts — moved here whole in step four: page-specific names, defined once. */
   .rbsub { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
-  .rbrow { display:flex; align-items:center; gap:var(--space-8); padding:8px 0; border-bottom:1px solid var(--color-paper); }
+  /* Phase 9 (V1-127, V1-128) — a count follows its label; a door ("Open ›") ends the row, as on every row of this page. */
+  .rbrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:4px 0; border-bottom:1px solid var(--color-paper); }
   .rbrow:last-child { border-bottom:0; }
-  .rbrow .lbl { font-size:var(--font-size-small); }
-  .rbrow .n { margin-inline-start:auto; font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); }
+  .rbrow .lbl { font-size:var(--font-size-small); text-wrap:pretty; }
+  .rbrow .n { font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); font-variant-numeric:tabular-nums; }
+  .rbrow .rbgo, .rbrow .rbwhen { margin-inline-start:auto; }
   .rblink { font-size:var(--font-size-caption); }
   .rbsteps { margin:var(--space-8) 0 var(--space-16); padding-inline-start:20px; color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .rbsteps li { padding:2px 0; }
   .rbrow .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
+  /* Phase 9 (V1-143) — an Arabic value is words, not code: the page's own face, at its labels' size. */
+  :lang(ar) .rbrow .mono { font-family:inherit; font-size:var(--font-size-small); line-height:inherit; }
   /* Engine evidence: raw on purpose — it is read by whoever fixes the defect. */
   .ev { border:1px solid var(--color-warn-line); background:var(--color-warn-wash); border-radius:12px; padding:12px 14px; margin-top:var(--space-12); }
   .ev-h { display:flex; gap:var(--space-8); flex-wrap:wrap; }
   .ev-h .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
   .ev-d { font-size:var(--font-size-caption); color:var(--color-warn); margin-top:var(--space-8); }
   .ev-p { font:var(--font-size-caption)/1.5 "SF Mono", ui-monospace, Menlo, monospace; color:var(--color-ink-secondary); margin:var(--space-8) 0 0; overflow-x:auto; unicode-bidi:plaintext; direction:ltr; text-align:start; }
-  .pr { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-paper); }
+  /* Phase 9 (V1-133–V1-135, V1-142, missed-15) — a checklist row is a grid: the
+     mark in a column of its own (a ✓ and a ○ start their words at one edge, and a
+     long label never leaves its mark alone on a line), the label, and what the
+     row says or offers at its end; on a phone that last part goes under the
+     label, from the label's own edge. */
+  .pr { display:grid; grid-template-columns:1.5em minmax(10em, 1fr) minmax(0, auto); align-items:center;
+    gap:var(--space-4) var(--space-8); padding:12px 0; border-bottom:1px solid var(--color-paper); }
   .pr:last-child { border-bottom:0; }
-  .pr .mk { font-size:var(--font-size-base); font-weight:700; }
+  .pr > .mk { grid-column:1; justify-self:center; font-size:var(--font-size-base); font-weight:700; }
+  .pr > .lbl { grid-column:2; font-size:var(--font-size-small); text-wrap:pretty; }
+  .pr > .lbl:first-child { grid-column:1 / 3; }
+  .pr > :not(.mk):not(.lbl):not(.pr-note) { grid-column:3; justify-self:end; }
   .pr.done .mk { color:var(--color-ok); }
-  .pr.todo .mk { color:var(--color-ink-secondary); }
+  .pr.todo .mk:not(.dot) { color:var(--color-ink-secondary); }
   .pr.unknown .mk { color:var(--color-ink-secondary); }
-  .pr-note { flex-basis:100%; font-size:var(--font-size-caption); color:var(--color-ink-secondary); padding-inline-start:var(--space-24); }
+  .pr-note { grid-column:2 / -1; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .help-links { margin:var(--space-8) 0 0; padding-inline-start:18px; font-size:var(--font-size-small); }
-  .pr .lbl { font-size:var(--font-size-small); }
-  .pr-b { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin-inline-start:auto; }
+  .pr-b { display:flex; align-items:center; justify-content:flex-end; gap:var(--space-4) var(--space-8); flex-wrap:wrap; }
+  .pr .deeper, .pr .btn { flex:none; }
+  /* The name row: its label, the line under it, then the field with Confirm beside it — in every language. */
+  .pr.under > .pr-b { grid-column:2 / -1; justify-self:stretch; flex-direction:column; align-items:flex-start; }
+  .pr-name { display:flex; flex-wrap:nowrap; align-items:center; gap:var(--space-8); width:100%; max-width:var(--measure-form); }
+  .pr-name input { flex:1 1 auto; min-width:0; }
+  @media (max-width: 560px) {
+    .pr { grid-template-columns:1.5em minmax(0, 1fr); }
+    .pr > :not(.mk):not(.lbl):not(.pr-note) { grid-column:2; justify-self:start; }
+    .pr-b { justify-content:flex-start; }
+  }
   .badge { font-size:var(--font-size-caption); padding:3px 10px; border-radius:999px; }
   .badge.sys { background:var(--color-ok-wash); color:var(--color-ok); }
   .badge.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
-  .verdict { margin-top:var(--space-16); padding:14px; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); text-align:center; font-weight:600; }
-  .verdict.ok { background:var(--color-ok-wash); color:var(--color-ok); border-color:var(--color-ok-line); }
+  /* Phase 9 (V1-130, missed-17) — where the page stands, said as a state line with its mark: not a box that looks pressable. */
+  .verdict { margin:var(--space-16) 0 0; font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); text-wrap:pretty; }
+  .verdict.ok { color:var(--color-ok); }
+  /* ── ready.ts — Phase 9: the marks in one column, the state in words, its door under it. */
+  .checks.rd .chk { grid-template-columns:1.25em minmax(0, 1fr); }
+  .checks.rd .mk { justify-self:center; }
+  .checks.rd .lbl { text-wrap:pretty; }
+  .checks.rd .st { grid-column:2; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-wrap:pretty; }
+  .checks.rd .deeper { grid-column:2; padding:0; min-height:44px; }
 
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
@@ -1101,8 +1163,6 @@ const STYLE_PAGES = `
   .help-line { font-size:var(--font-size-small); margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
   .help-links a { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
   .help-links .ext { margin-inline-start:var(--space-4); font-size:var(--font-size-small); }
-  .guide { padding-inline-start:20px; line-height:2; }
-  .guide li { margin-bottom:var(--space-4); }
 
   /* ── knowledge.ts — moved here whole in step four: page-specific names, defined once. */
   /* The two scopes sit side by side, so each says which one it is. */
@@ -1743,6 +1803,38 @@ export function hubFor(path: string, active: string): string {
   return active;
 }
 
+/**
+ * Phase 9 (V1-012, V1-110, V1-151) — the way back to the page a page is
+ * reached from, for the pages that drew none: the settings pages reached from
+ * My business, the assistant's or Setup, and setting up's own pages. Every
+ * other page reached from a hub already starts with its "‹". The shell adds
+ * it only where the page has none, so a page that draws its own keeps it.
+ */
+export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly label: MessageKey }>> = {
+  '/app/settings/closures': { href: '/app/business', label: 'nav.factory' },
+  '/app/settings/rate': { href: '/app/business', label: 'nav.factory' },
+  '/app/settings/samples': { href: '/app/business', label: 'nav.factory' },
+  '/app/settings/terms': { href: '/app/business', label: 'nav.factory' },
+  '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
+  '/app/settings/people': { href: '/app/settings', label: 'nav.settings' },
+  '/app/guide': { href: '/app/settings', label: 'nav.settings' },
+  '/app/onboarding': { href: '/app/settings', label: 'nav.settings' },
+  '/app/ready': { href: '/app/onboarding', label: 'nav.onboarding' },
+};
+const wayBack = (locale: Locale, path: string, body: string): string => {
+  const to = BACK_TO[(path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '')];
+  return to && !body.includes('class="back"') ? back(to.href, t(locale, to.label)) : '';
+};
+
+/**
+ * Phase 9 (V1-158–V1-162) — a mistyped /app address for an owner who is
+ * signed in: the page inside the workspace (its rail, its name, its tab), what
+ * is missing, and the door to Today. The door page (`errorPage`) is for
+ * whoever is not signed in.
+ */
+export const notFoundInside = (locale: Locale): string =>
+  `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><div class="empty">${esc(t(locale, 'error.notfound.body'))}<div>${deeper('/app', t(locale, 'error.home'))}</div></div>`;
+
 export function shell(input: {
   readonly title: string;
   readonly active: string;
@@ -1778,10 +1870,14 @@ export function shell(input: {
     // not a colour — nothing here is wrong, it is simply not finished. It
     // disappears when the last step is done, and the entry stays.
     const count = n.id === 'settings' && setup && setup.next !== null ? setup : null;
-    const badge = count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, `${count.done}/${count.total}`))}</span>` : '';
+    // Phase 9 (V1-014, V1-098) — on a phone "Customers" is the entry, so it
+    // carries the one number the rail's list carries: who needs the owner now.
+    const waiting = n.id === 'inbox' ? needsYouCount() : null;
+    const badge = count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, `${count.done}/${count.total}`))}</span>`
+      : waiting ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, String(waiting)))}</span>` : '';
     const aria = count
       ? ` aria-label="${esc(label)}, ${esc(t(locale, 'nav.setup.progress', { done: count.done, total: count.total }))}"`
-      : '';
+      : waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
     // PHASE 7 OF THE UI REBUILD (2026-10-02) — on a phone the five entries
     // share ONE line, and none breaks in two: "Your assistant" (while it has no
     // name) and "My business" have a shorter phone form. The stylesheet shows
@@ -1839,8 +1935,8 @@ export function shell(input: {
   const brandname = business
     ? `<span class="brandname"><bdi>${esc(business)}</bdi><small>Nomi</small></span>`
     : `<span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span>`;
-  const home = ((input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app') === '/app';
-  const heading = business && home ? `<p class="business-name"><bdi>${esc(business)}</bdi></p>` : '';
+  // Phase 9 (V1-105) — on a phone every page says whose workspace it is, not Today alone.
+  const heading = business ? `<p class="business-name"><bdi>${esc(business)}</bdi></p>` : '';
   // Phase 9 (V1-003) — the tab names the PAGE: its own heading when it has one
   // (an account page, a closure list, an order, a product), the area's name
   // only where the page has none. Every Setup page was "Setup · …".
@@ -1863,7 +1959,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${askDialog(locale)}</body></html>`;
 }

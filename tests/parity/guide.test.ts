@@ -30,14 +30,15 @@ describe('Guide · the page', () => {
     expect(html).toContain(`href="${STEP_LINK.name}"`);
     expect(html).toMatch(/class="guide-step next" id="name"/);
   });
-  it('without a video, the words; with one, the video, its captions track, and the words to read instead', () => {
+  it('without a video, the words; with one, the video, its captions track, and the same words under it (phase 9: shown, not folded)', () => {
     const none = renderGuide(half, 'es', 'tu asistente', () => false);
     expect(none).not.toContain('<video');
     expect(none).toContain(esc(t('es', 'guide.products.cap.2')));
     const withVideo = renderGuide(half, 'es', 'tu asistente', (step) => step === 'products');
     expect(withVideo).toContain('src="/assets/guide/products.es.webm"');
     expect(withVideo).toContain('<track kind="captions" src="/assets/guide/products.es.vtt" srclang="es"');
-    expect(withVideo).toContain(`<summary>${esc(t('es', 'guide.read'))}</summary>`);
+    expect(withVideo).toContain(esc(t('es', 'guide.products.cap.2')));
+    expect(withVideo).not.toContain('<summary>');
     expect(withVideo.match(/<video/g)).toHaveLength(1);
   });
   it('every step has its captions in every language', () => {

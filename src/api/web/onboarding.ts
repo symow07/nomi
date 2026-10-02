@@ -17,7 +17,8 @@ import { NOTHING_DONE, setupProgress, type SetupProgress, type SetupStep } from 
 
 export type OnboardingStep = SetupStep;
 export const STEP_LINK: Record<OnboardingStep, string> = {
-  profile: '/app/settings/profile', products: '/app/products', name: '/app/onboarding',
+  // Phase 9 (V1-112) — the name step opens at the name's own field, not the page's top.
+  profile: '/app/settings/profile', products: '/app/products', name: '/app/onboarding#name',
   channels: '/app/channels', first_success: '/app/inbox',
 };
 

@@ -91,8 +91,10 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // "prices go to me" completes the products step too: one more. WA (0120) —
     // three more: her own WhatsApp number connected (the callback, and the
     // number chosen) and disconnected. Phase 3 of the UI rebuild — the zone is
-    // saved with the profile's one form now: one more.
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(20);
+    // saved with the profile's one form now: one more. Phase 9 (V1-009) — the
+    // country, saved with the kind of business, decides how an amount is
+    // written on every page: one more.
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(21);
   });
 });
 
