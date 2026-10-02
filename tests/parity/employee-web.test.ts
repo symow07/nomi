@@ -418,6 +418,8 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
     const ditem = css.match(/\n {2}\.ditem \{[^}]*\}/)?.[0] ?? '';
     expect(ditem).not.toContain('border');
     expect(ditem).not.toContain('background');
+    // new-10 — the task list keeps the prose measure, like the panels around it.
+    expect(css).toMatch(/\n {2}\.dgroup \{[^}]*max-width:var\(--measure-prose\)/);
   });
 
   it('V1-425 · the rules and the disclosure are at the size of the text around them, in plain words', () => {
@@ -460,6 +462,13 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
     expect(renderEmployee(mix, 'es', null, { ...quiet, neededYou: 1 })).toContain('<b class="hnum">1</b> conversación necesitó tu ayuda');
     // V1-429 — the counts say their span.
     for (const l of LOCALES) expect(t(l, 'her.recent.title'), l).not.toMatch(/Recently|最近|مؤخر|Reciente|Récemment/);
+  });
+
+  it('the history never speaks as the assistant ("I went back…"): a step back it made itself says so', () => {
+    for (const l of LOCALES) {
+      const html = renderEmployee({ ...mix, growth: [{ kind: 'self_demote', capability: 'quote', at: new Date('2026-09-30T00:00:00Z'), why: 'repeated_corrections' }] }, l, null, quiet);
+      expect(visible(html), l).not.toMatch(/\bI went\b|我退回|عدتُ|volví a preguntarte|je repasse/);
+    }
   });
 
   it('V1-431 · new-13 · missed-14 · the undo is not red; "Now:" takes the colon; no straight quotes', () => {
