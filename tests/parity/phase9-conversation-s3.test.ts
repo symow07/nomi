@@ -9,7 +9,7 @@ import { renderCustomerFile, customerFileTitle, type CustomerFile } from '../../
 import type { CustomerPanel } from '../../src/db/customerPanel.js';
 import { conversationDetail } from './fixtures.js';
 import { linkedCss } from './linked-css.js';
-import { formatList, labelled } from '../../src/core/owner/i18n/format.js';
+import { formatList, labelled, formatDay } from '../../src/core/owner/i18n/format.js';
 
 /**
  * Phase 9, round two — the conversation area's S3 and S4 findings
@@ -365,5 +365,102 @@ describe('V1-249 · the ✦ before a row\'s last message says whose it is', () =
       const page = renderConversationDetail(draft(), l, NOW, null);
       expect(page, l).toContain(`<span aria-hidden="true">✦</span> ${esc(t(l, 'card.drafted'))}`);
     }
+  });
+});
+
+// ── the customer's file ─────────────────────────────────────────────────────
+
+describe('V1-270 · the buyer\'s page and the conversation say the assistant the same way', () => {
+  it('the same name on the price line as on the draft card, chosen or not', async () => {
+    const { withAssistantName, t: say } = await import('../../src/api/web/say.js');
+    for (const l of LOCALES) {
+      for (const name of [null, 'Lily']) {
+        const run = <T,>(fn: () => T): T => (name ? withAssistantName(name, fn) : fn());
+        const page = run(() => plain(renderConversationDetail(draft(), l, NOW, null)));
+        const buyer = run(() => plain(renderCustomerFile(file(), l, NOW)));
+        expect(page, `${l} ${name}`).toContain(esc(plain(run(() => say(l, 'card.drafted')))));
+        expect(buyer, `${l} ${name}`).toContain(esc(plain(run(() => say(l, 'conv.tl.quote', { detail: '\u0000' })))).split('\u0000')[0]!);
+      }
+    }
+  });
+});
+
+describe('V1-272 · the customer\'s page shows how to reach them', () => {
+  it('the number on its channel, left to right in every language', () => {
+    for (const l of LOCALES) {
+      const html = renderCustomerFile(file({ address: '2345000000261' }), l, NOW);
+      expect(html, l).toContain(`<div class="muted subline">${esc(t(l, 'conv.channel.whatsapp'))} <bdi dir="ltr">+2345000000261</bdi></div>`);
+    }
+    expect(renderCustomerFile(file({ channel: 'email', address: 'aisha@example.com' }), 'ar', NOW)).toContain('<bdi dir="ltr">aisha@example.com</bdi>');
+    expect(renderCustomerFile(file({ address: null }), 'en', NOW)).not.toContain('dir="ltr"');
+  });
+});
+
+describe('V1-273, conversation-missed-09 · deleting their data, said plainly, with the door to Your data', () => {
+  it('no hedge, no operator working by hand; the page it names is one door away', () => {
+    for (const l of LOCALES) {
+      const html = renderCustomerFile(file(), l, NOW);
+      expect(plain(html), l).toContain(esc(t(l, 'conv.deletion.lead')));
+      expect(html, l).toContain(`href="/app/settings/data">${esc(t(l, 'data.title'))}<span class="go"`);
+      const waiting = renderCustomerFile(file({ deletionAsk: { askedAt: ago(30), words: 'please delete my data' } as never }), l, NOW);
+      expect(waiting, l).toContain(`href="/app/settings/data">${esc(t(l, 'data.title'))}<span class="go"`);
+    }
+    for (const k of ['conv.deletion.lead', 'conv.deletion.waiting'] as const) {
+      expect(t('en', k)).not.toMatch(/operator|by hand|usually/);
+      expect(t('zh', k)).not.toMatch(/运营方|手动|通常/);
+      expect(t('ar', k)).not.toMatch(/مشغّل|يدويًا|عادةً/);
+      expect(t('es', k)).not.toMatch(/opera Nomi|a mano|suele/);
+      expect(t('fr', k)).not.toMatch(/équipe Nomi|à la main|généralement/);
+    }
+  });
+});
+
+describe('V1-274, V1-276 · History shows the message whole to a word, on its own line', () => {
+  it('the customer\'s words in their own direction, on a line of their own', () => {
+    const long = 'Hello, what is your price for 5,000 pcs of the LED string lights 10m? We need delivery to Lagos before December.';
+    for (const l of LOCALES) {
+      const html = renderCustomerFile(file({ timeline: [{ kind: 'buyer_text', at: ago(35), text: long, qty: null, unitPrice: null, orderStatus: null }] }), l, NOW);
+      expect(html, l).toContain(`<bdi class="said" dir="auto">${esc(long)}</bdi>`);
+    }
+    expect(linkedCss(shell({ title: 'x', active: 'inbox', locale: 'ar', path: '/app/conversations/x', bodyHtml: '' }))).toContain('.tl .said { display:block; }');
+  });
+});
+
+describe('V1-275, V1-282 · the name hint: the language\'s own quotes, the word kept whole', () => {
+  it('“客户”, “Customer”, «Cliente» — never straight quotes', () => {
+    for (const l of LOCALES) {
+      const html = renderCustomerFile(file(), l, NOW);
+      const hint = html.slice(html.indexOf('<div class="muted hint">'), html.indexOf('</div>', html.indexOf('<div class="muted hint">')));
+      expect(hint, l).toContain(`<bdi class="fig">${esc(t(l, 'common.buyer'))}</bdi>`);
+      expect(hint, l).not.toContain('&quot;');
+    }
+    expect(t('zh', 'conv.file.nameHint', { buyer: '客户' })).toContain('“客户”');
+    expect(t('en', 'conv.file.nameHint', { buyer: 'Customer' })).toContain('“Customer”');
+    expect(t('es', 'conv.file.nameHint', { buyer: 'Cliente' })).toContain('«Cliente»');
+  });
+});
+
+describe('V1-277, V1-278, V1-280, V1-281 · the products and the price', () => {
+  it('per piece and whole; headed for what it holds; one key–value layout on the page', () => {
+    for (const l of LOCALES) {
+      const html = plain(renderCustomerFile(file(), l, NOW));
+      expect(html, l).toContain(`<h2>${esc(t(l, 'conv.ctx.title'))}</h2>`);
+      expect(html, l).toContain(`/${esc(t(l, 'product.unit.pc'))}</bdi>`);
+      expect(html, l).toContain(`<bdi class="fig">${esc(t(l, 'product.detail.total'))} `);
+    }
+    expect(t('en', 'conv.ctx.title')).toBe('Products and price');
+    const sheet = linkedCss(shell({ title: 'x', active: 'inbox', locale: 'en', path: '/app/conversations/x', bodyHtml: '' }));
+    expect(sheet).toMatch(/\.prow, \.cx \{[^}]*display:grid; grid-template-columns:minmax\(0, 11em\) minmax\(0, 1fr\);/);
+    expect(sheet).not.toMatch(/\.prow \{ display:flex; justify-content:space-between;/);
+  });
+});
+
+describe('conversation-missed-07, conversation-new-08 · the same day one way; the customer\'s mark seen', () => {
+  it('"First contact: Today" beside History\'s "Today 17:18"; the customer\'s dot drawn at a size you can see', () => {
+    for (const l of LOCALES) {
+      const html = plain(renderCustomerFile(file(), l, NOW));
+      expect(html, l).toContain(`<span class="muted">${esc(t(l, 'conv.file.firstContact'))}</span><b>${esc(plain(formatDay(l, ago(35), NOW, 'UTC')))}</b>`);
+    }
+    expect(linkedCss(shell({ title: 'x', active: 'inbox', locale: 'en', path: '/x', bodyHtml: '' }))).toContain('.tl li.tl-buyer .ic, .tl li.tl-event .ic { font-size:var(--font-size-title); }');
   });
 });

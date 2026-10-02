@@ -1486,11 +1486,14 @@ const STYLE_PAGES = `
   .name-row input { flex:1; min-width:0; }
   .name-form .hint { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   /* A label and its value stay together at desktop: the prose measure, like every row. */
-  .prow, .cx { max-width:var(--measure-prose); border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
-  .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; }
-  .cx { display:flex; gap:var(--space-12); padding:var(--space-8) 0; }
+  /* Phase 9 (V1-280) — one layout for every label and its value on this page: the value beside its
+     label in a column of its own. The first block pushed its values to the far edge, the second did not. */
+  .prow, .cx { max-width:var(--measure-prose); border-bottom:1px solid var(--color-border); font-size:var(--font-size-small);
+    display:grid; grid-template-columns:minmax(0, 11em) minmax(0, 1fr); gap:var(--space-4) var(--space-12);
+    align-items:baseline; padding:var(--space-8) 0; }
+  @media (max-width: 560px) { .prow, .cx { grid-template-columns:minmax(0, 8em) minmax(0, 1fr); } }
   .prow:last-child, .cx:last-child { border-bottom:0; }
-  .cx-l { color:var(--color-ink-secondary); min-width:72px; }
+  .cx-l { color:var(--color-ink-secondary); }
   /* The history: a line down the reading edge, each kind told by its mark, not by a colour. */
   .tl { list-style:none; padding:0; margin:0; max-width:var(--measure-prose); }
   .tl li { display:flex; gap:var(--space-12); position:relative; padding:10px 0; padding-inline-start:16px;
@@ -1498,6 +1501,10 @@ const STYLE_PAGES = `
   .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-paper);
     display:inline-flex; justify-content:center; width:20px; font-size:var(--font-size-small); line-height:1; }
   .tl .tx { font-size:var(--font-size-small); }
+  /* Phase 9 (V1-276) — what someone said, on its own line in its own direction. */
+  .tl .said { display:block; }
+  /* Phase 9 (conversation-new-08) — the customer's mark is a dot you can see; each line names its speaker in words. */
+  .tl li.tl-buyer .ic, .tl li.tl-event .ic { font-size:var(--font-size-title); }
 
   /* ── sequences.ts — moved here whole in step four: page-specific names, defined once. */
   .sqs { list-style:none; margin:var(--space-12) 0; padding:0; }
