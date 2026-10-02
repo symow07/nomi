@@ -2049,8 +2049,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const inList = (await list('all')).conversations.find((c) => c.conversationId === aiId)!;
       expect(inList.ownership).toBe('OWNER_CONTROLLED');
-      expect((await import('../../src/api/web/inbox.js')).renderInboxList(await list('all'), 'en', new Date()))
-        .toContain('You are replying');
+      // Phase 1 — the row's ● mark says a person here has it; in words, for a screen reader and the group heading
+      const listHtml = (await import('../../src/api/web/inbox.js')).renderInboxList(await list('all'), 'en', new Date());
+      expect(listHtml).toContain(esc(t('en', 'buyers.group.yours')));
+      expect(listHtml).toMatch(new RegExp(`<a class="crow is-yours[^"]*" href="/app/inbox/${aiId}#latest">`));
 
       await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: aiId, actor: 'owner' });
       expect((await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!.ownership).toBe('AI');
