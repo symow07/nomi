@@ -23,6 +23,7 @@ import type { Db } from '../../src/db/client.js';
 import { productsSheet, priceRulesSheet, plainMoney } from '../../src/api/web/dataExport.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { csvRows } from '../../src/core/owner/csv.js';
+import { buttonsAndDoors } from './buttons-and-doors.js';
 
 /**
  * Phase 9, round two — Products, the product page, the add page and the
@@ -753,5 +754,24 @@ describe('The price-list export', () => {
     const view: Parameters<typeof renderDataRights>[0] = { requests: [], businessName: 'Atlas' };
     expect(renderDataRights(view, 'en', null, { isOwner: true }, 'Setup')).toContain('20,000 rows');
     expect(renderDataRights(view, 'en', null, { isOwner: true }, 'Setup')).not.toContain('20000');
+  });
+});
+
+describe('Every page of this area keeps the rule: buttons do things, doors go places', () => {
+  it('products, a product, adding, the review, price limits, knowledge', () => {
+    const k: KnowledgeIndex = { products: [{ id: 'p1', name: 'Tote', count: 1 }], business: [], certs: ['CE'], appliesToProducts: 3 };
+    const pages = {
+      list: renderProductList([{ id: 'p1', name: 'Tote', nameZh: null, sku: 'ZX-1', moq: 1, unit: 'pcs', entryQty: 1, entryPrice: usd(1), learned: true, status: 'learned', imageMatchable: true, isActive: true }], 'en'),
+      product: renderProductDetail({ currency: 'USD', id: 'de300000-0000-4000-8000-000000000101', name: 'Tote', nameZh: null, sku: 'ZX-1', category: null, unit: 'pcs', moq: null,
+        leadTimeDays: null, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: false,
+        tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(1) }], aliases: ['tote'], images: [], recentQuotes: [] }, 'en'),
+      add: renderAddForm('en', { isOwner: true }, 'USD', { id: 'i1', createdAt: new Date(), lines: 2 }),
+      review: renderImportReview(reviewModel('Canvas tote 18.00\nSPRING SALE'), 'en', { canExtract: true }),
+      prices: renderPriceRules({ currency: 'USD', volume: [], businessDefault: null, unanswered: 1,
+        products: [{ productId: 'a1', sku: 'S', name: 'Lamp', nameZh: null, listPrice: usd(3.5), own: null, inheritsDefault: false, isActive: false }] }, 'en'),
+      knowledge: renderKnowledgeIndex(k, 'en') + renderPageFactsForm('en'),
+      knowledgeProduct: renderProductKnowledge({ productId: 'p1', productName: 'Tote', items: [], certs: [], appliesToProducts: 3 }, 'en', null),
+    };
+    for (const [name, html] of Object.entries(pages)) expect(buttonsAndDoors(html), name).toEqual([]);
   });
 });
