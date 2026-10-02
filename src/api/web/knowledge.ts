@@ -143,6 +143,27 @@ export async function archiveKnowledge(db: Db, businessIdRaw: string, id: string
   return { code: 'archived' };
 }
 
+/**
+ * Phase 5 — Undo: an archived fact is one the assistant knows again — unless
+ * it was archived by a correction (a newer version names it), which is not
+ * this button's to reverse. The product it belongs to, for the way back.
+ */
+export async function restoreKnowledge(
+  db: Db, businessIdRaw: string, id: string,
+): Promise<{ code: 'restored' | 'invalid'; productId: string | null }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'invalid', productId: null };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ product_id: string | null }>`
+      update product_knowledge k set status = 'active', updated_at = now()
+       where k.id = ${id}::uuid and k.status = 'archived'
+         and not exists (select 1 from product_knowledge n where n.supersedes_id = k.id)
+      returning k.product_id`.execute(tx);
+    const row = r.rows[0];
+    return row ? { code: 'restored' as const, productId: row.product_id } : { code: 'invalid' as const, productId: null };
+  });
+}
+
 /** Certifications live in claims_policy. Toggle authorises/withdraws the claim. */
 export async function setCertification(db: Db, businessIdRaw: string, key: string, allowed: boolean): Promise<{ code: KnowledgeFlash | 'invalid' }> {
   const bid = parseBusinessId(businessIdRaw);
@@ -204,8 +225,7 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
     <form method="post" action="/app/knowledge/archive" class="inline">
       <input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
-      <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)"
-        data-confirm="${esc(t(locale, 'knowledge.archive.confirm', { label: i.label }))}">${esc(t(locale, 'knowledge.archive'))}</button>
+      <button class="btn ghost" type="submit">${esc(t(locale, 'knowledge.archive'))}</button>
     </form>
   </div>`;
 }

@@ -14,7 +14,7 @@ import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
-import { approvalCard, orderCard, loadConversationDetail, type ConversationDetail } from './inbox.js';
+import { approvalCard, workingLine, orderCard, loadConversationDetail, type ConversationDetail } from './inbox.js';
 import { expectTotal, NOT_YET, type ChecklistItem, type PracticeTotal } from '../../db/practiceChecklist.js';
 import { unitLabel } from './products.js';
 import { formatList } from '../../core/owner/i18n/format.js';
@@ -390,7 +390,11 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
   </div>`;
 }
 
-export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: Flash | null; prefill?: string; now?: Date; settings?: PracticeSettings; checklist?: PracticeChecklistView }): string {
+export function renderSandbox(view: SandboxView, locale: Locale, opts: {
+  flash: Flash | null; prefill?: string; now?: Date; settings?: PracticeSettings; checklist?: PracticeChecklistView;
+  /** Phase 5 — the assistant is at work on the customer's newest line (`assistantWorking`, live.ts). */
+  working?: boolean;
+}): string {
   const name = assistantName(locale);
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
@@ -441,6 +445,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: 
    */
   const acts = older ? '' : `
     ${order}
+    ${opts.working && view.ownership === 'AI' && !draftCard.trim() ? workingLine(locale) : ''}
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${sandboxTakeoverCard(view, locale)}
     ${renderTrust(view.lastTurn, locale)}

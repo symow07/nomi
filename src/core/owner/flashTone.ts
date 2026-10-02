@@ -80,7 +80,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'domain.flash.failed', 'domain.flash.invalid', 'employee.flash.confirm_order_blocked',
   'employee.flash.failed', 'forbidden.flash.duplicate', 'forbidden.flash.empty', 'forbidden.flash.failed',
   'inbox.flash.already_resolved', 'inbox.flash.not_found', 'inbox.flash.sentNotLive',
-  'inbox.flash.unknown', 'inbox.flash.empty', 'knowledge.flash.invalid', 'order.flash.failed', 'order.flash.unknown_state',
+  'inbox.flash.unknown', 'inbox.flash.empty', 'knowledge.flash.invalid', 'knowledge.flash.notRestored', 'order.flash.failed', 'order.flash.unknown_state',
   'outreach.flash.failed', 'people.flash.failed', 'people.flash.name_missing',
   // Not a failure of hers — the product is not ready to offer it yet. Still
   // a refusal in tone: she asked for something and did not get it.
@@ -126,13 +126,13 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // R2 — a conversation marked as the owner testing, or as a real customer again.
   'conv.testing.flash.on', 'conv.testing.flash.off',
   // 0082 — a date of the owner's own, put on the calendar or taken off it.
-  'calendar.flash.added', 'calendar.flash.removed',
+  'calendar.flash.added', 'calendar.flash.removed', 'calendar.flash.restored',
   'order.flash.confirmed', 'order.flash.set_aside',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'channel.flash.connected',
   'channel.flash.disconnected', 'channel.flash.reconnected', 'channel.flash.test_degraded',
-  'channel.flash.test_ok', 'closures.flash.added', 'closures.flash.removed', 'connect.flash.connected',
+  'channel.flash.test_ok', 'closures.flash.added', 'closures.flash.removed', 'closures.flash.restored', 'connect.flash.connected',
   'connect.flash.disconnected', 'connect.meta.flash.connected', 'connect.meta.flash.connectedNoIg',
   'connect.meta.flash.disconnected', 'contacts.flash.added', 'contacts.flash.archived',
   // WA — the own number connected or let go; pilot mode ended or back.
@@ -147,9 +147,9 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'contacts.flash.attested', 'contacts.flash.queued', 'contacts.flash.suppressed',
   'contacts.lookup.flash.found', 'contacts.lookup.flash.reused', 'conv.assistant.flash.changed',
   'conv.flash.nameCleared', 'conv.flash.nameSaved', 'domain.flash.checked', 'domain.flash.saved',
-  'employee.flash.promoted', 'employee.flash.revoked', 'forbidden.flash.added', 'forbidden.flash.removed',
+  'employee.flash.promoted', 'employee.flash.revoked', 'forbidden.flash.added', 'forbidden.flash.removed', 'forbidden.flash.restored',
   'inbox.flash.edited_sent', 'inbox.flash.revoked', 'inbox.flash.sent', 'inbox.flash.skipped',
-  'knowledge.flash.archived', 'knowledge.flash.cert', 'knowledge.flash.corrected',
+  'knowledge.flash.archived', 'knowledge.flash.restored', 'knowledge.flash.cert', 'knowledge.flash.corrected',
   'knowledge.flash.taught', 'order.flash.recorded', 'outreach.flash.cap', 'outreach.flash.off',
   'outreach.flash.on', 'people.flash.added', 'people.flash.removed', 'people.flash.renamed', 'pilot.flash.attested',
   'pilot.flash.validated', 'prices.flash.saved', 'prices.flash.savedActivated',

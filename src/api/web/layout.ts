@@ -210,6 +210,56 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
 `;
 
 /**
+ * PHASE 5 OF THE UI REBUILD (2026-10-02) — MOTION. The three durations of the
+ * tokens and the one curve (`--motion-ease`), and nothing else:
+ *
+ *   fast   (120 ms)  a press, a hover, a fold or a menu opening
+ *   normal (200 ms)  a notice arriving, the draft appearing, Undo
+ *   max    (300 ms)  the assistant at work: one breath of its three dots
+ *
+ * Every rule that moves anything sits inside `prefers-reduced-motion:
+ * no-preference`, so a reader who asked for less gets none of it; the block
+ * after it stops anything else that would move. `phase5-motion.test.ts` holds
+ * both, and that no duration is written as a number.
+ */
+const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
+    .btn, .crow, .srow, a.navlink, .tab, .deeper, .chip, summary {
+      transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
+        box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
+    .btn:active { transform:scale(0.98); transition:transform var(--motion-fast) var(--motion-ease); }
+    details[open] > :not(summary) { animation:nomi-arrive var(--motion-fast) var(--motion-ease) both; }
+    .flash, #approve, .working { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    .working .dots i { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
+    .working .dots i + i { animation-delay:var(--motion-fast); }
+    .working .dots i + i + i { animation-delay:var(--motion-normal); }
+    dialog.ask[open] { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    dialog.ask[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
+      animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
+  }
+  @keyframes nomi-arrive { from { opacity:0; transform:translateY(-4px); } }
+  @keyframes nomi-rise { from { opacity:0; transform:translateY(8px); } }
+  @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
+  @keyframes nomi-fade { from { opacity:0; } }
+  /* The assistant at work: its mark, what it is doing, three dots. */
+  .working { display:flex; align-items:baseline; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .working .dots { display:inline-flex; gap:var(--space-4); }
+  .working .dots i { width:6px; height:6px; border-radius:var(--radius-chip); background:var(--color-ink-secondary); }
+  /* Asking first: the product's own dialog over a dimmed page. */
+  dialog.ask { border:0; border-radius:var(--radius-card); padding:var(--space-24); max-width:var(--measure-form);
+    inline-size:min(var(--measure-form), calc(100vw - var(--space-32))); box-shadow:var(--shadow-lift2);
+    background:var(--color-surface); color:var(--color-ink); }
+  dialog.ask::backdrop { background:var(--color-ink); opacity:0.35; }
+  .ask-q { margin:0 0 var(--space-16); }
+  .ask-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
+  /* Undo, inside the notice that says what was done. */
+  .flash.has-undo { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
+  .flash .undo { margin:0; }
+`;
+
+/**
  * The switcher's rules, defined once: the shell carries them, and so does a
  * public document that shows the switch (the site, Phase 5) — it does not get
  * the shell's stylesheet, and a second copy of these rules would drift.
@@ -353,7 +403,7 @@ ${LANGSW_CSS}
   .pill.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .pill.warn { background:var(--color-waiting-wash); color:var(--color-waiting); }
   .pill.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
-${SIGNAL_CSS}
+${SIGNAL_CSS}${MOTION_CSS}
   /* One button (the design pass, 2026-09-29). The primary act is the one
      graphite FILL on a screen; every other button is outlined in Stone on
      white; a quiet one is words; red takes something away. No button is
@@ -1690,8 +1740,22 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div></body></html>`;
+</div>${askDialog(locale)}</body></html>`;
 }
+
+/**
+ * PHASE 5 OF THE UI REBUILD (2026-10-02) — the product's own way of asking
+ * first, in place of the browser's grey box. Every button that asks (CC-29's
+ * idiom: its question in `data-confirm`) opens this, with the button's own
+ * word on the button that goes ahead and Cancel focused. The page's script
+ * fills it and opens it (liveScript.ts); with no script, or a browser without
+ * dialogs, the button still asks the old way. Closed, it is not there.
+ */
+const askDialog = (locale: Locale): string =>
+  `<dialog class="ask" aria-labelledby="ask-q" data-ask><p class="ask-q" id="ask-q" data-ask-q></p><div class="ask-acts">`
+  // Its fill (or its red) is set when it opens, from the button that asked: closed, it is no page's primary act.
+  + `<button type="button" class="btn" data-ask-yes>${esc(t(locale, 'common.goAhead'))}</button>`
+  + `<button type="button" class="btn" data-ask-no autofocus>${esc(t(locale, 'common.cancel'))}</button></div></dialog>`;
 
 /**
  * A1 — the two pages a stranger may see: the door, and how to get a key.

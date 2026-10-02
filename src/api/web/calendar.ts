@@ -168,11 +168,13 @@ function who(locale: Locale, e: CalendarEntry): string {
 const doorOf = (e: CalendarEntry): string | null => e.orderId ? `/app/orders/${encodeURIComponent(e.orderId)}`
   : e.conversationId ? conversationUrl(e.conversationId) : null;
 
-/** An owner's own date is taken off here: a button — it changes something — and it asks first (CC-29). */
+/**
+ * An owner's own date is taken off here: a button — it changes something. It
+ * does not ask first: the notice that follows carries Undo (phase 5).
+ */
 const removeForm = (locale: Locale, e: CalendarEntry): string => e.kind === 'own' && e.detail.entryId
   ? `<form method="post" action="/app/calendar/entries/${esc(e.detail.entryId)}/remove" class="cal-rm">
-      <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)"
-        data-confirm="${esc(t(locale, 'calendar.remove.confirm', { title: e.detail.title ?? '' }))}">${esc(t(locale, 'calendar.remove'))}</button></form>`
+      <button class="btn ghost" type="submit">${esc(t(locale, 'calendar.remove'))}</button></form>`
   : '';
 
 function entry(locale: Locale, e: CalendarEntry, showKind: boolean): string {

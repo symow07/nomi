@@ -6,6 +6,7 @@ import { DELETION_WAITING, IS_BLOCKED } from '../../db/buyersList.js';
 import { readAttention, type AttentionCounts } from './operations.js';
 import { isRefusal, UNCERTAIN } from './refusals.js';
 import { conversationUrl } from './layout.js';
+import { QUEUES } from '../../queue/boss.js';
 import type { LiveWatch } from './flash.js';
 
 /**
@@ -62,8 +63,12 @@ export type LiveKind = 'conversation' | 'buyers' | 'today' | 'channels' | 'pract
 /** What the line can say: one sentence each (`live.<what>` in the catalogue). */
 export type LiveNews = 'message' | 'reply' | 'changed' | 'list' | 'today' | 'channels' | 'practice';
 
-/** What the page's script is told. `what` only when there is news. */
-export type LiveSaid = { readonly news: false } | { readonly news: true; readonly what: LiveNews };
+/**
+ * What the page's script is told. `what` only when there is news. `working`
+ * (phase 5) only on a conversation or Practice, and only while the assistant is
+ * at work on it (`assistantWorking`).
+ */
+export type LiveSaid = ({ readonly news: false } | { readonly news: true; readonly what: LiveNews }) & { readonly working?: true };
 
 const COUNT = '(?:0|[1-9][0-9]{0,9})';
 const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -206,6 +211,36 @@ export async function ordersWaitingCount(db: Db, bid: BusinessId): Promise<numbe
      where business_id = ${bid} and state = 'pending'`.execute(tx)).rows[0]?.n ?? 0);
 }
 
+/**
+ * PHASE 5 OF THE UI REBUILD (2026-10-02) — IS THE ASSISTANT AT WORK ON THIS
+ * CONVERSATION? A customer's message no turn has taken yet, from the last
+ * fifteen minutes, in a conversation the assistant holds: a fragment with no
+ * `processed_in` (0009's own "pending"), or the message still in the queue —
+ * before the worker has recorded it, and a voice note or a photo, which a turn
+ * takes whole and never as a fragment. Then the page says so in place — the
+ * line where the reply will be — and its script asks every few seconds, and
+ * draws the reply into the page when it lands, without a reload.
+ *
+ * Fifteen minutes because a turn that has not run by then has failed, and a
+ * failed turn hands the conversation to a person (`not_answered`, PR 110): a
+ * line saying the assistant is writing must never outlive the writing. A
+ * conversation a person holds never shows it — the assistant is not answering.
+ */
+export const WORKING_WINDOW_MIN = 15;
+export async function assistantWorking(db: Db, bid: BusinessId, conversationId: string): Promise<boolean> {
+  if (!UUID.test(conversationId)) return false;
+  return withTenantTx(db, bid, async (tx) => (await sql<{ working: boolean }>`
+    select exists (select 1 from conversations c
+       where c.id = ${conversationId}::uuid and c.business_id = ${bid} and c.assigned_to is null
+         and (exists (select 1 from message_fragments f
+                       where f.conversation_id = c.id and f.processed_in is null
+                         and f.received_at > now() - make_interval(mins => ${WORKING_WINDOW_MIN}))
+              or exists (select 1 from pgboss.job j
+                          where j.name = ${QUEUES.inbound} and j.singleton_key = ${conversationId}
+                            and j.state in ('created', 'retry', 'active')
+                            and j.created_on > now() - make_interval(mins => ${WORKING_WINDOW_MIN})))) as working`.execute(tx)).rows[0]?.working === true);
+}
+
 /** What the address answers: the status, and what the page's script is told. */
 export type LiveAnswer = { readonly status: 200 | 400 | 404; readonly said: LiveSaid; readonly orders?: number };
 
@@ -226,23 +261,32 @@ export async function liveAnswer(
     : kind === 'channels' ? await channelsMark(db, bid)
     : todayMark(await readAttention(db, bid));
   if (now === null) return { status: 404, said: { news: false } };
+  const news = liveNews(kind, since, now);
+  // Phase 5 — a conversation and Practice also say whether the assistant is at work on it.
+  const said: LiveSaid = (kind === 'conversation' || kind === 'practice') && await assistantWorking(db, bid, conversationId)
+    ? { ...news, working: true } : news;
   // A practice copy's orders are not the workspace's: the rail's count is left as it is.
-  if (kind === 'practice') return { status: 200, said: liveNews(kind, since, now) };
-  return { status: 200, said: liveNews(kind, since, now), orders: await ordersWaitingCount(db, bid) };
+  if (kind === 'practice') return { status: 200, said };
+  return { status: 200, said, orders: await ordersWaitingCount(db, bid) };
 }
 
-/** A conversation watches its own address; the door lands on its newest message (CC-25). */
-export const conversationWatch = (conversationId: string, mark: string): LiveWatch => ({
+/**
+ * A conversation watches its own address; the door lands on its newest message
+ * (CC-25). `working` (phase 5): the page was drawn with the assistant at work.
+ */
+export const conversationWatch = (conversationId: string, mark: string, working = false): LiveWatch => ({
   ask: `/app/live/conversation/${encodeURIComponent(conversationId)}?since=${mark}`,
   door: conversationUrl(conversationId),
   says: [{ what: 'message', key: 'live.message' }, { what: 'reply', key: 'live.reply' }, { what: 'changed', key: 'live.changed' }],
+  ...(working ? { working: true } : {}),
 });
 
 /** P3 — Practice watches the copy's practice conversation; the door is Practice, on its newest line. */
-export const practiceWatch = (mark: string): LiveWatch => ({
+export const practiceWatch = (mark: string, working = false): LiveWatch => ({
   ask: `/app/live/practice?since=${mark}`,
   door: '/app/sandbox#latest',
   says: [{ what: 'practice', key: 'live.practice' }, { what: 'reply', key: 'live.reply' }, { what: 'changed', key: 'live.changed' }],
+  ...(working ? { working: true } : {}),
 });
 
 /** Buyers watches the whole list; the door is the first page of the tab and the search she is on. */

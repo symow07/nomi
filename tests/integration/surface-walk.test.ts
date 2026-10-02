@@ -268,6 +268,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const ASK = 'onclick="return confirm(this.dataset.confirm)"';
     const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop)$|^\/app\/channels\/outreach$/;
+    // Phase 5 — these set something aside at once, and the notice that follows carries Undo
+    // (audit-closeout.test.ts holds which, and that each route offers it).
+    const UNDONE = /^\/app\/settings\/forbidden\/[0-9a-f-]{36}\/remove$|^\/app\/settings\/closures\/[0-9a-f-]{36}\/remove$|^\/app\/knowledge\/archive$|^\/app\/calendar\/entries\/[0-9a-f-]{36}\/remove$/;
     const words = (html: string) => html
       .replace(/<(textarea|script|template)\b[\s\S]*?<\/\1>/g, ' ')
       .replace(/<div[^>]*class="[^"]*\b(bubble|proposed)\b[^"]*"[^>]*>[\s\S]*?<\/div>/g, ' ')
@@ -313,7 +316,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         if (fills > 1 && target !== '/app/settings/components') problems.push(`${at}: ${fills} filled buttons — one primary act per page`);
         for (const f of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)) {
           const action = f[1]!.replace(/&amp;/g, '&').split('?')[0]!;
-          if (TAKES.test(action) && !f[0].includes(ASK)) problems.push(`${at}: ${action} does not ask first`);
+          if (TAKES.test(action) && !UNDONE.test(action) && !f[0].includes(ASK)) problems.push(`${at}: ${action} does not ask first`);
         }
         if (target !== '/app/settings/components') {
           for (const p of buttonsAndDoors(html)) problems.push(`${at}: ${p}`);

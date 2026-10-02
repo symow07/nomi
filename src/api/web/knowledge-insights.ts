@@ -9,6 +9,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 
 import { deeper, esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 
 /**
@@ -188,7 +189,8 @@ export function renderUsageFact(f: UsageFact | undefined, locale: Locale, now: D
 
 const reasonLabel = (l: Locale, r: GapReason) => t(l, `knowledge.gap.reason.${r}` as MessageKey);
 
-export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date): string {
+/** `flash` (phase 5): what the last action said — a fact taught or set aside here, with its Undo. */
+export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date, flash: Flash | null = null): string {
   const tab = (r: Range) =>
     `<a class="tab ${ops.range === r ? 'on' : ''}"${ops.range === r ? ' aria-current="page"' : ''} href="/app/knowledge?range=${r}">${esc(t(locale, `knowledge.ops.range.${r}` as MessageKey))}</a>`;
   const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
@@ -235,7 +237,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
 
   // The page's one title and its lede; the list of what was taught follows
   // (`renderKnowledgeIndex`), under this same heading.
-  return `<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>
+  return `<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'knowledge.intro'))}</p>
     ${tabs}${report}${gaps}${activity}`;
 }

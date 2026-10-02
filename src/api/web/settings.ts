@@ -506,6 +506,27 @@ export async function removeForbidden(
   });
 }
 
+/**
+ * Phase 5 — Undo: a removed word is back on the list, unless the same word was
+ * added again since (one live entry per word, 0029's index).
+ */
+export async function restoreForbidden(
+  db: Db, businessIdRaw: string, id: string,
+): Promise<{ code: 'restored' | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string }>`
+      update forbidden_terms f set archived_at = null
+       where f.id = ${id}::uuid and f.business_id = ${bid.value}::uuid and f.archived_at is not null
+         and not exists (select 1 from forbidden_terms o
+                          where o.business_id = f.business_id and o.archived_at is null
+                            and lower(btrim(o.term)) = lower(btrim(f.term)))
+      returning f.id`.execute(tx);
+    return { code: r.rows[0] ? 'restored' as const : 'failed' as const };
+  });
+}
+
 export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
@@ -524,8 +545,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
       ? `<p class="muted empty-p">${esc(t(locale, 'forbidden.empty'))}</p>`
       : rowsCard(null, v.own.map((x) => fieldRow({ label: x.term,
           control: `${x.note ? `<span class="fr-value muted"><bdi>${esc(x.note)}</bdi></span>` : ''}<form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
-              <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-                data-confirm="${esc(t(locale, 'forbidden.removeConfirm', { term: x.term }))}">${esc(t(locale, 'forbidden.remove'))}</button>
+              <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
             </form>` })))}
     ${/* Phase 3 — the floor is a fact, not the page: folded, with its count, the words inside for whoever opens it. */ ''}<details class="block floor-fold">
       <summary><b>${esc(t(locale, 'forbidden.floor.title'))}</b> <span class="muted">· <bdi>${esc(show.count(locale, v.floor.length))}</bdi></span></summary>
@@ -713,6 +733,21 @@ export async function removeClosure(
   });
 }
 
+/** Phase 5 — Undo: a removed closure is on the calendar of shut days again. */
+export async function restoreClosure(
+  db: Db, businessIdRaw: string, id: string,
+): Promise<{ code: 'restored' | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string }>`
+      update factory_closures set archived_at = null
+       where id = ${id}::uuid and business_id = ${bid.value}::uuid and archived_at is not null
+      returning id`.execute(tx);
+    return { code: r.rows[0] ? 'restored' as const : 'failed' as const };
+  });
+}
+
 export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
@@ -735,8 +770,7 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
         : `<ul class="closures">${v.closures.map((c) => `<li>
             <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
             <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
-              <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-                data-confirm="${esc(t(locale, 'closures.removeConfirm', { label: c.label }))}">${esc(t(locale, 'closures.remove'))}</button>
+              <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
             </form></li>`).join('')}</ul>`}
     </section>`;
 }
