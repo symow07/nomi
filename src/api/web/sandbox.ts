@@ -339,7 +339,8 @@ function practiceModeCard(settings: PracticeSettings, locale: Locale): string {
     ? `<p class="muted">${esc(t(locale, 'practice.stop.ownerStopped'))}</p>`
     : settings.stopped
       ? `<p>${esc(t(locale, 'practice.stop.stopped'))}</p>${toggle('/app/sandbox/stop', false, t(locale, 'practice.stop.off', { name }))}`
-      : toggle('/app/sandbox/stop', true, t(locale, 'practice.stop.on', { name }));
+      // Phase 9 (V1-288) — the state, then the switch: the toggle alone said nothing of what is on now.
+      : `<p class="muted">${esc(t(locale, 'practice.stop.running', { name }))}</p>${toggle('/app/sandbox/stop', true, t(locale, 'practice.stop.on', { name }))}`;
   return `<div class="card sbx-mode"><h2>${esc(t(locale, 'practice.mode.title'))}</h2>${mode}${stop}</div>`;
 }
 

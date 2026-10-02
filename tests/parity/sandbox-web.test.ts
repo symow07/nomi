@@ -425,3 +425,15 @@ describe('Phase 9 (V1-287) · Practice\'s checks speak the owner\'s language, no
     }
   });
 });
+
+describe('Phase 9 (V1-288) · each Practice switch says what is on now', () => {
+  it('running: the state line before the Stop switch; stopped: the stopped line', () => {
+    for (const l of LOCALES) {
+      const run = renderSandbox(view(), l, { flash: null, settings: { alone: false, stopped: false, ownerStopped: false } });
+      expect(run, l).toContain(t(l, 'practice.mode.levels'));
+      expect(run.replace(/[⁦-⁩]/g, ''), l).toMatch(new RegExp(t(l, 'practice.stop.running', { name: 'X' }).split('X').map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.+')));
+      const stopped = renderSandbox(view(), l, { flash: null, settings: { alone: false, stopped: true, ownerStopped: false } });
+      expect(stopped, l).toContain(t(l, 'practice.stop.stopped'));
+    }
+  });
+});

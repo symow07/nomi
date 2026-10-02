@@ -3366,6 +3366,7 @@ const EN = {
   'product.add.empty': 'Nothing was read: the box was empty. Paste your list, then press the button again.',
   'ready.alone.needsName': 'Sending alone is earned, and opens once the name customers read is confirmed',
   'conv.testing.confirm': 'Mark this conversation as you testing? Its replies stop counting toward sending alone. You can undo it here.',
+  'practice.stop.running': '{name} answers in Practice.',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -6643,6 +6644,7 @@ const ZH: Record<MessageKey, string> = {
   'product.add.empty': '什么都没读到：框里是空的。把清单粘贴进去，再按一次。',
   'ready.alone.needsName': '已经可以自己发消息了，确认客户看到的名字之后才会开启',
   'conv.testing.confirm': '把这段对话标记为你自己在测试？这里的回复不再计入自己发送的进度。之后可以在这里改回来。',
+  'practice.stop.running': '{name}正在「练习」里回复。',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -9914,6 +9916,7 @@ const AR: Record<MessageKey, string> = {
   'product.add.empty': 'لم يُقرأ شيء: المربع فارغ. يُرجى لصق القائمة ثم الضغط على الزر مجددًا.',
   'ready.alone.needsName': 'الإرسال دون انتظارك مُستحَق، ويُفتح بعد تأكيد الاسم الذي يقرؤه العملاء',
   'conv.testing.confirm': 'وضع علامة على هذه المحادثة كاختبار منك؟ لن تُحسب ردودها في التقدّم نحو الإرسال دون انتظارك، ويمكن التراجع عن ذلك هنا.',
+  'practice.stop.running': 'يجري الرد في «تدريب» من {name}.',
 };
 
 /**
@@ -13126,6 +13129,7 @@ const ES: Record<MessageKey, string> = {
   'product.add.empty': 'No se leyó nada: el cuadro estaba vacío. Pega tu lista y vuelve a pulsar el botón.',
   'ready.alone.needsName': 'El envío sin ti ya está ganado, y se abre cuando confirmes el nombre que leen tus clientes',
   'conv.testing.confirm': '¿Marcar esta conversación como una prueba tuya? Sus respuestas dejan de contar para el envío sin ti. Puedes deshacerlo aquí.',
+  'practice.stop.running': '{name} responde en Práctica.',
 };
 
 
@@ -16343,6 +16347,7 @@ const FR: Record<MessageKey, string> = {
   'product.add.empty': 'Rien n’a été lu : la zone était vide. Collez votre liste, puis appuyez de nouveau sur le bouton.',
   'ready.alone.needsName': 'L’envoi sans vous est acquis et s’ouvre une fois confirmé le nom que lisent vos clients',
   'conv.testing.confirm': 'Marquer cette conversation comme votre propre test ? Ses réponses ne comptent plus pour l’envoi sans vous. Vous pouvez revenir en arrière ici.',
+  'practice.stop.running': '{name} répond dans l’Entraînement.',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };
