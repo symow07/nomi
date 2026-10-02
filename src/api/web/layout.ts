@@ -366,9 +366,12 @@ ${cssVariables()}
     font-size:var(--font-size-caption); letter-spacing:0; margin-top:var(--space-4); }
   /* CC-14 — the business's own name leads the block, and a long one wraps
      inside the rail rather than widening it. */
-  .brand .brandname { min-width:0; overflow-wrap:anywhere; }
-  /* Phase 9 (V1-014, V1-099) — a Chinese name is one word: it breaks at its spaces, and only past the rail's width anywhere. */
-  :lang(zh) .brand .brandname bdi { word-break:keep-all; }
+  /* Phase 9 (V1-014, V1-099) — a Chinese name is one word: it breaks only at
+     its spaces. One too long to sit beside the mark goes under it, where the
+     rail's whole width is its own; a word longer than the rail still breaks. */
+  .brand { flex-wrap:wrap; }
+  .brand .brandname { flex:1 1 0; max-width:100%; overflow-wrap:break-word; }
+  .brand .brandname bdi { word-break:keep-all; }
   /* On a phone the rail is one row with no room for a name, so the name heads
      Today instead: one line that scrolls away with the page. Drawn on the
      phone only; the rail carries it everywhere else. */

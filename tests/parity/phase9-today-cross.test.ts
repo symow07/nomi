@@ -129,7 +129,9 @@ describe('Phase 9 · the shell', () => {
     expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*nav\.side \{ gap:0; \}/);
   });
   it('V1-099 · a Chinese business name breaks at its space in the rail, not inside a word', () => {
-    expect(css).toContain(':lang(zh) .brand .brandname bdi { word-break:keep-all; }');
+    expect(css).toContain('.brand .brandname bdi { word-break:keep-all; }');
+    expect(css).toContain('.brand .brandname { flex:1 1 0; max-width:100%; overflow-wrap:break-word; }');
+    expect(css).toContain('.brand { flex-wrap:wrap; }');
   });
   it('V1-105 · on a phone every page says whose workspace it is', () => {
     for (const path of ['/app', '/app/settings', '/app/guide', '/app/onboarding', '/app/onboarding/technical', '/app/ready'])
