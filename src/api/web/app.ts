@@ -4726,8 +4726,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     repliesObservable: false,
   });
 
-  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) =>
-    renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, takeFlash(req, reply))));
+  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) => {
+    // Phase 9 (V1-564) — who could be added today: the SAME `reachOf` the contacts page and the enrol list use.
+    const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
+    const ready = view.contacts.filter((c) => c.channel === 'email' && reachOf(view, c).ok).length;
+    return renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, takeFlash(req, reply), { ready });
+  }));
 
   app.post('/app/sequences', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

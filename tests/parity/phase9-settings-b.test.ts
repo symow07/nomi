@@ -610,3 +610,82 @@ describe('settings-b-outreach-missed-02 · adding a customer is its own word too
     }
   });
 });
+
+// ── Find customers, first e-mails ──────────────────────────────────────────
+import { renderProspects } from '../../src/api/web/prospects.js';
+import { renderSequenceList } from '../../src/api/web/sequences.js';
+
+const storedKey = { kind: 'stored' as const, fingerprint: 'ab12cd34ef56', createdBy: 'Mei', createdAt: NOW, readable: true };
+const prospects = (l: (typeof LOCALES)[number], status: Parameters<typeof renderProspects>[0]['status'] = { kind: 'none' }) =>
+  renderProspects({ status, filter: null, outcome: null }, l, null);
+
+describe('V1-559, settings-b-outreach-missed-13 · the Apollo key: what Apollo is, where the key is made, the way there', () => {
+  it('in every locale, with the link out; the field is not the heading again', () => {
+    for (const l of LOCALES) {
+      const html = prospects(l);
+      expect(html, l).toContain(esc(t(l, 'prospects.key.none')));
+      expect(html, l).toContain('href="https://www.apollo.io/" rel="noopener noreferrer" target="_blank"');
+      expect(t(l, 'prospects.key.field'), l).not.toBe(t(l, 'prospects.key.title'));
+    }
+    expect(t('en', 'prospects.key.none')).toMatch(/paid directory/);
+    expect(t('en', 'prospects.key.none')).toMatch(/Settings, then Integrations/);
+  });
+});
+
+describe('V1-560, V1-561 · before a key, the page says what the search will be', () => {
+  it('a preview panel without a key; the search itself once one is in', () => {
+    for (const l of LOCALES) expect(prospects(l), l).toContain(`<div class="empty notset">${esc(t(l, 'prospects.preview'))}</div>`);
+    const open = prospects('en', storedKey);
+    expect(open).not.toContain(t('en', 'prospects.preview'));
+    expect(open).toContain('<form method="get" action="/app/prospects" class="sform">');
+    expect(t('en', 'prospects.intro')).not.toMatch(/their row says so/);
+  });
+  it('zh reads as said, not as a rule', () => {
+    expect(t('zh', 'prospects.intro')).not.toContain('没有任何记录说你可以联系对方');
+  });
+});
+
+describe('V1-564, V1-565, settings-b-outreach-new-14 · first e-mails say what they need, and the form is a card', () => {
+  it('e-mail only, to people who may be written to first; with nobody ready, said, with the door to Contacts', () => {
+    for (const l of LOCALES) {
+      const html = renderSequenceList([], l, null, { ready: 0 });
+      expect(html, l).toContain(esc(t(l, 'seq.needs')));
+      expect(html, l).toContain(esc(t(l, 'seq.noneReady')));
+      expect(html, l).toMatch(/class="deeper" href="\/app\/contacts"/);
+      expect(html, l).not.toContain('class="sqform"');
+      expect(html, l).toMatch(/<div class="fr-acts"><button class="btn send" type="submit">/);
+    }
+    expect(renderSequenceList([], 'en', null, { ready: 2 })).not.toContain(t('en', 'seq.noneReady'));
+  });
+  it('the empty list says what will be listed, and where to start', () => {
+    expect(t('en', 'seq.empty')).toMatch(/listed here/);
+    expect(t('en', 'seq.empty')).toMatch(/below/);
+    expect(t('es', 'seq.empty')).not.toMatch(/ninguna/);
+  });
+});
+
+describe('V1-566 · the thing being made has one name in every language', () => {
+  it('"a first e-mail and its follow-ups" — not a group, not a sequence', () => {
+    expect(t('en', 'seq.new.title')).toMatch(/first e-mail and its follow-ups/);
+    expect(t('zh', 'seq.new.title')).not.toContain('组');
+    expect(t('ar', 'seq.new.title')).not.toContain('مجموعة');
+    expect(t('es', 'seq.new.title')).not.toMatch(/secuencia/);
+    expect(t('fr', 'seq.new.title')).not.toMatch(/séquence/);
+  });
+});
+
+describe('settings-b-outreach-new-09 · one place for a form\'s act on every page here: its end side', () => {
+  it('no form on these pages puts its filled button at the start of a column form', () => {
+    const pages = [
+      people('en'), noRate('en'), samples('en'), terms('en'), profile('en'),
+      renderContacts(cview([card]), 'en', null), prospects('en'), prospects('en', storedKey), renderSequenceList([], 'en', null),
+    ];
+    for (const html of pages) {
+      for (const cls of ['pform', 'cform', 'sqform']) expect(html).not.toContain(`class="${cls}"`);
+      const acts = html.match(/<button class="btn send" type="submit">/g)?.length ?? 0;
+      const ended = (html.match(/<div class="(fr-acts|savebar)"><button class="btn send" type="submit">/g)?.length ?? 0);
+      expect(ended, html.slice(0, 80)).toBe(acts);
+    }
+    for (const l of LOCALES) expect(t(l, 'terms.save'), l).toBe(t(l, 'samples.save'));
+  });
+});
