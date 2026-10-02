@@ -126,6 +126,23 @@ export const isOutreachRoute = (url: string): boolean => {
  * .fmore, .link, a bare <a> — so the same affordance looked different on every
  * page. One shape, one style, mirrored in RTL by `.go`.
  */
+/**
+ * Phase 5 / 6 — something at work, said in place: what is happening and three
+ * dots that breathe (still for a reader who asked for less motion); a polite
+ * status, heard once. The assistant's work carries its ✦; anything else
+ * (Stripe confirming a card) does not.
+ */
+export const atWork = (text: string, assistant = false): string =>
+  `<div class="block working" role="status">${assistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<span>${esc(text)}</span>`
+  + `<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
+
+/**
+ * Phase 6 — a page that is not there says so as a state, not a bare heading
+ * and one word: what is missing, the likely reason, and the way back.
+ */
+export const missingPage = (locale: Locale, title: string, door: { readonly href: string; readonly label: string }): string =>
+  `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
+
 export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
   `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
 
@@ -233,6 +250,7 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     .working .dots i + i { animation-delay:var(--motion-fast); }
     .working .dots i + i + i { animation-delay:var(--motion-normal); }
     dialog.ask[open] { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    .btn[aria-busy="true"]::after { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     dialog.ask[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -254,6 +272,9 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   dialog.ask::backdrop { background:var(--color-ink); opacity:0.35; }
   .ask-q { margin:0 0 var(--space-16); }
   .ask-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
+  /* Phase 6 — a form on its way: its button says so, and does not take a second press. */
+  .btn[aria-busy="true"] { cursor:progress; }
+  .btn[aria-busy="true"]::after { content:"…"; margin-inline-start:var(--space-4); }
   /* Undo, inside the notice that says what was done. */
   .flash.has-undo { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
   .flash .undo { margin:0; }
@@ -561,10 +582,15 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .muted { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   /* M49 — one empty state, aligned like everything else. It was centred while
      the page around it was left-aligned, which is the single clearest way to
-     make a considered page look like an accident. It mirrors in RTL on its own. */
-  .empty { text-align:start; color:var(--color-ink-secondary);
-    font-size:var(--font-size-small); padding:var(--space-24) 0;
-    max-width:var(--measure-prose); }
+     make a considered page look like an accident. It mirrors in RTL on its own.
+     Phase 6 — and a panel of its own, so it never reads as the caption of the
+     button above it: what will be here, why it is not yet, and where there is
+     one, the door to the next step. */
+  .empty { text-align:start; color:var(--color-ink); font-size:var(--font-size-small);
+    padding:var(--space-16); margin:var(--space-12) 0 0; max-width:var(--measure-prose);
+    background:var(--color-surface); border:1px dashed var(--color-border); border-radius:var(--radius-card); }
+  .empty .muted { color:var(--color-ink-secondary); }
+  .empty .deeper, .empty .doors { margin-top:var(--space-8); }
 
   /* ── Speech: the two voices. ─────────────────────────────────────────────
      Anything a PERSON says — the buyer's words, her drafts, her sent replies —
@@ -627,6 +653,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
   .perr { color:var(--color-warn); font-size:var(--font-size-caption); margin:0; }
+  /* Phase 6 — a form's refusal under the field it concerns: why, the rule it follows, the way on. */
+  .perr-block { margin:var(--space-8) 0; display:flex; flex-direction:column; gap:var(--space-4); }
+  .perr-block p { margin:0; }
   .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); color:var(--color-ink); }
   .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
@@ -854,7 +883,6 @@ const STYLE_PAGES = `
   .hrow:last-child { border-bottom:0; }
   .hnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em; font-variant-numeric:tabular-nums; }
   .hlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-  .empty-p { margin:0 0 var(--space-12); }
   .gaps { display:flex; flex-direction:column; gap:var(--space-8); }
   a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper); border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
   a.gap:hover, a.gap:focus-visible { border-color:var(--color-ink-secondary); }

@@ -101,7 +101,8 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // Phase 5 — drawing the assistant's answer into the page in place, without
     // a reload (the redraw and one watcher at a time), and asking first in the
     // product's own dialog instead of the browser's box: 10,500 became 16,000.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(16_000);
+    // Phase 6 — a busy button on a form on its way, and a limit to asking: 17,500.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(17_500);
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();
     // It ships to the owner's browser like the stylesheet, and is held to the same list.
     // The exceptions are the browser's own two names for the answer's format — the

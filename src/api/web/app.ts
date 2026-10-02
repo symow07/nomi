@@ -50,7 +50,7 @@ import {
   defaultFilter, buyersHref, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, billingMark, billingWatch, type LiveKind,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -73,7 +73,8 @@ import {
 } from './importFlow.js';
 import type { CatalogExtractor } from '../../core/onboard/catalogImport.js';
 import { looksLikeXlsx, xlsxRows, rowsAsCsv } from '../../net/xlsx.js';
-import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, renderStoreRefusal } from './storeImport.js';
+import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, type StoreFormRefusal } from './storeImport.js';
+import type { Kept } from './rows.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
 import { parseTable } from '../../core/onboard/csvTable.js';
 import {
@@ -187,9 +188,9 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader } from '../../llm/ports.js';
-import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, renderPageFactsRefusal } from './pageFacts.js';
+import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import {
-  shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
+  shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -901,6 +902,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         page(req, { title: t(locale, `nav.${active}` as MessageKey), active, ...(typeof drawn === 'string' ? { bodyHtml: drawn } : drawn) }),
       );
     };
+
+  /**
+   * PHASE 6 OF THE UI REBUILD (2026-10-02) — a form sent back: the same page
+   * (status 400), the refusal under the field it is about, and what was typed
+   * still in the form. Which field each refusal is about; any other refusal
+   * stays a notice after a redirect, as before.
+   */
+  const FIELD_OF: Readonly<Record<string, string>> = {
+    'forbidden.flash.empty': 'term', 'forbidden.flash.duplicate': 'term',
+    'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
+    'closures.flash.label_missing': 'label', 'closures.flash.from_missing': 'from', 'closures.flash.not_a_date': 'from',
+    'closures.flash.to_missing': 'to', 'closures.flash.ends_before_starts': 'to',
+    'terms.flash.payment_missing': 'payment', 'terms.flash.payment_too_long': 'payment', 'terms.flash.incoterm_invalid': 'incoterm',
+    'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.negative': 'price',
+  };
+  const keptFrom = (locale: Locale, key: string, values: Record<string, unknown>): Kept | null => {
+    const field = FIELD_OF[key];
+    if (!field) return null;
+    const typed: Record<string, string> = {};
+    for (const [k, v] of Object.entries(values)) if (typeof v === 'string') typed[k] = v;
+    return { values: typed, field, text: t(locale, key as MessageKey) };
+  };
+  const sentBack = (req: FastifyRequest, reply: FastifyReply, active: string, bodyHtml: string) =>
+    reply.code(400).type('text/html; charset=utf-8').send(page(req, { title: t(localeOf(req), `nav.${active}` as MessageKey), active, bodyHtml }));
 
   // ── M35 · the proof link: the ONE public page inside the app ─────────────
   //
@@ -1648,11 +1673,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
                (select count(*)::int from assistants where business_id = ${bid.value}::uuid and archived_at is null) as assistants`.execute(tx)).rows[0],
     }));
     const card = (req.query as { card?: string }).card;
+    // Phase 6 — back from Stripe with a card Stripe has not confirmed yet: the page watches for it.
+    const confirming = card === 'saved' && !facts.state.cardSavedAt && Boolean(deps.stripe) && facts.state.billed;
     return renderBilling({
       configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
       people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
       returned: card === 'saved' || card === 'cancelled' ? card : null,
-    }, locale, takeFlash(req, reply), t(locale, 'nav.settings'));
+    }, locale, takeFlash(req, reply), t(locale, 'nav.settings'))
+      + (confirming ? liveRegion(locale, billingWatch(await billingMark(deps.db, bid.value), true)) : '');
   }));
 
   /** The plan, then Stripe's page to save a card — or, with one saved, only the plan. */
@@ -1975,7 +2003,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? { ...loaded, working: await assistantWorking(deps.db, bid.value, conversationId) } : loaded;
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
+      bodyHtml: missingPage(locale, t(locale, 'inbox.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') }),
     }));
     const flash = takeFlash(req, reply);
     // G11 — the proof link as a buyer would open it, built from the address
@@ -2048,6 +2076,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/live/buyers', quiet, liveAsk('buyers'));
   app.get('/app/live/conversation/:conversationId', quiet, liveAsk('conversation'));
   app.get('/app/live/channels', quiet, liveAsk('channels'));
+  app.get('/app/live/billing', quiet, liveAsk('billing'));
 
   // CH2 — what to check at each step of connecting a Page, and why.
   app.get('/app/help/meta', authed('channels', async (_s, _req, locale) => ({
@@ -2795,7 +2824,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
     return d ? renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s))
-      : `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div>`;
+      : missingPage(locale, t(locale, 'product.notFound'), { href: '/app/products', label: t(locale, 'product.detail.back') });
   }));
   /**
    * K1 — a pasted list becomes an import that is KEPT (0094): the owner lands on
@@ -2816,6 +2845,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = await startPasteImport(deps.db, s.businessId, personOf(s).id, text);
     return reply.redirect(id ? `/app/products/import/${id}` : '/app/products/add', 303);
   });
+  /**
+   * Phase 6 — a form on the add page that came to nothing: the add page again,
+   * with the reason under that form and the address as typed. It was a page of
+   * its own that lost what she typed (the audit's two separate refusal pages).
+   */
+  const addAgain = async (req: FastifyRequest, reply: FastifyReply, s: OwnerSession,
+    refused: { readonly photo: string } | { readonly store: StoreFormRefusal }) => {
+    const locale = localeOf(req);
+    return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'product.teach'), active: 'products',
+      bodyHtml: renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
+        await openImportOf(deps.db, s.businessId), null, await pricesGoToOwner(deps.db, s.businessId), deps.pdfReadable === true, refused),
+    }));
+  };
   /** K8 — her store's address: its public product list, read into a kept import. */
   app.post('/app/products/add/store', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
@@ -2825,9 +2868,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await startStoreImport(deps.db, s.businessId, personOf(s).id, deps.storeFetcher ?? publicFetcher,
       { address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' });
     if (!out.ok) {
-      return reply.type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'import.store.refusedTitle'), active: 'products', bodyHtml: renderStoreRefusal(locale, out.reason, out.stated),
-      }));
+      return addAgain(req, reply, s, { store: { form: 'store', reason: out.reason, ...(out.stated ? { stated: out.stated } : {}), address: String(b['address'] ?? '') } });
     }
     return reply.redirect(`/app/products/import/${out.id}`, 303);
   });
@@ -2836,9 +2877,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
     const locale = localeOf(req);
-    const refuse = () => reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'import.store.refusedTitle'), active: 'products', bodyHtml: renderStoreRefusal(locale, 'not_a_table'),
-    }));
+    const refuse = () => addAgain(req, reply, s, { store: { form: 'file', reason: 'not_a_table' } });
     let text = '';
     try {
       const file = await req.file();
@@ -2873,10 +2912,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const locale = localeOf(req);
     const refuse = (reason: PhotoRefusal, photo?: number, left?: number) =>
-      reply.type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'product.photo.refusedTitle'), active: 'products',
-        bodyHtml: renderPhotoRefusal(reason, locale, photo, left),
-      }));
+      addAgain(req, reply, s, { photo: renderPhotoRefusal(reason, locale, photo, left) });
 
     const photos: PhotoIn[] = [];
     let hand: string | null = null;
@@ -3418,7 +3454,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const file = await loadCustomerFile(deps.db, s.businessId, conversationId);
     if (!file) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="block">${back('/app/inbox', t(locale, 'inbox.detail.back'))}</div>`,
+      bodyHtml: missingPage(locale, t(locale, 'conv.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') }),
     }));
     const flash = takeFlash(req, reply);
     return reply.type('text/html; charset=utf-8').send(page(req, {
@@ -3808,6 +3844,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const body = (req.body ?? {}) as { term?: string; note?: string };
     const r = await addForbidden(deps.db, sess.businessId, String(body.term ?? ''), String(body.note ?? ''));
+    const kept = keptFrom(locale, `forbidden.flash.${r.code}`, body);
+    if (kept) return sentBack(req, reply, 'settings', renderForbidden(await loadForbidden(deps.db, sess.businessId), locale, null, kept));
     return flashTo(reply, '/app/settings/forbidden', `forbidden.flash.${r.code}` as MessageKey);
   });
 
@@ -3823,9 +3861,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const raw = (req.body as { rate?: string } | undefined)?.rate ?? null;
     const r = await setRate(deps.db, s.businessId, raw, new Date());
-    return r.code === 'set'
-      ? flashTo(reply, '/app/settings/rate', 'rate.flash.set', { rate: r.rate.rate, from: r.rate.from, to: r.rate.to })
-      : flashTo(reply, '/app/settings/rate', `rate.flash.${r.code}` as MessageKey);
+    if (r.code === 'set') return flashTo(reply, '/app/settings/rate', 'rate.flash.set', { rate: r.rate.rate, from: r.rate.from, to: r.rate.to });
+    const kept = keptFrom(locale, `rate.flash.${r.code}`, { rate: raw ?? '' });
+    if (kept) return sentBack(req, reply, 'settings', renderRate(await loadRates(deps.db, s.businessId), locale, null, personOf(s), kept));
+    return flashTo(reply, '/app/settings/rate', `rate.flash.${r.code}` as MessageKey);
   });
 
   // M44 — the days her factory is shut. She states them; nothing is assumed.
@@ -3841,9 +3880,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await addClosure(deps.db, s.businessId, {
       label: b['label'] ?? null, from: b['from'] ?? null, to: b['to'] ?? null,
     });
-    return r.code === 'added'
-      ? flashTo(reply, '/app/settings/closures', 'closures.flash.added', { label: r.label })
-      : flashTo(reply, '/app/settings/closures', `closures.flash.${r.code}` as MessageKey);
+    if (r.code === 'added') return flashTo(reply, '/app/settings/closures', 'closures.flash.added', { label: r.label });
+    const kept = keptFrom(locale, `closures.flash.${r.code}`, b);
+    if (kept) return sentBack(req, reply, 'settings', renderClosures(await loadClosures(deps.db, s.businessId), locale, null, kept));
+    return flashTo(reply, '/app/settings/closures', `closures.flash.${r.code}` as MessageKey);
   });
 
   app.post('/app/settings/closures/:id/remove', async (req, reply) => {
@@ -3871,8 +3911,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/orders/:id', authed('inbox', async (sess, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const v = await loadOrder(deps.db, sess.businessId, id);
-    if (!v) return `<h1 class="page">${esc(t(locale, 'order.notFound'))}</h1>`
-      + `<div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`;
+    if (!v) return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') });
     return renderOrder(v, locale, takeFlash(req, reply));
   }));
 
@@ -4719,6 +4758,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       payment: b['payment'] ?? null, incoterm: b['incoterm'] ?? null,
       actor: personOf(s).id, now: new Date(),
     });
+    const kept = keptFrom(locale, `terms.flash.${r.code}`, b);
+    if (kept) return sentBack(req, reply, 'settings', renderTerms(await loadTerms(deps.db, s.businessId), locale, null, personOf(s), kept));
     return flashTo(reply, '/app/settings/terms', `terms.flash.${r.code}` as MessageKey);
   });
 
@@ -4738,6 +4779,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await saveSamplePolicy(deps.db, s.businessId, {
       price: b['price'] ?? null, credited: b['credited'] === 'on', now: new Date(),
     });
+    const kept = keptFrom(locale, `samples.flash.${r.code}`, b);
+    if (kept) return sentBack(req, reply, 'settings', renderSamples(await loadSamples(deps.db, s.businessId), locale, null, new Date(), personOf(s), kept));
     return flashTo(reply, '/app/settings/samples', `samples.flash.${r.code}` as MessageKey);
   });
 
@@ -4825,14 +4868,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The Knowledge surface leads with a READ-ONLY operations view (M14) — the
   // weekly report, questions to answer (derived gaps), recent changes — then
   // the teach surface (M13). All numbers are real counts; no invented metrics.
-  app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
-    const range = parseKnowledgeRange((req.query as { range?: string }).range);
-    const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
+  /** The knowledge page; `kept` (phase 6) — a page that came to nothing, said under its own form. */
+  const knowledgeBody = async (s: OwnerSession, req: FastifyRequest, reply: FastifyReply, locale: Locale, kept: PageFactsKept | null = null) => {
+    const range = parseKnowledgeRange((req.query as { range?: string } | undefined)?.range);
+    const prefill = typeof (req.query as { teach?: string } | undefined)?.teach === 'string' ? (req.query as { teach: string }).teach : '';
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
-    return renderKnowledgeOps(ops, locale, new Date(), takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
-      + (deps.pageFactsReader ? renderPageFactsForm(locale) : '');
+    return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
+      + (deps.pageFactsReader ? renderPageFactsForm(locale, kept) : '');
+  };
+  app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
+    return knowledgeBody(s, req, reply, locale);
   }));
 
   /**
@@ -4848,13 +4895,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
     }, { address: String(b.address ?? ''), text: String(b.text ?? '') });
     if (out.ok) return reply.redirect(`/app/knowledge/from-page/${out.id}`, 303);
+    // Phase 6 — the knowledge page again, the reason under the form and what was typed still in it.
     return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'pageFacts.refusedTitle'), active: 'knowledge', bodyHtml: renderPageFactsRefusal(locale, out.reason),
+      title: t(locale, 'nav.knowledge'), active: 'knowledge',
+      bodyHtml: await knowledgeBody(s, req, reply, locale, { address: String(b.address ?? ''), text: String(b.text ?? ''), reason: out.reason }),
     }));
   });
   app.get('/app/knowledge/from-page/:id', authed('knowledge', async (s, req, locale, reply) => {
     const p = await loadProposal(deps.db, s.businessId, (req.params as { id: string }).id);
-    if (!p) { reply.code(404); return `<h1 class="page">${esc(t(locale, 'pageFacts.notFound'))}</h1>`; }
+    if (!p) { reply.code(404); return missingPage(locale, t(locale, 'pageFacts.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') }); }
     return renderProposal(p, locale, takeFlash(req, reply));
   }));
   app.post('/app/knowledge/from-page/:id/confirm', async (req, reply) => {
@@ -4880,7 +4929,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const d = await loadProductKnowledge(deps.db, s.businessId, id);
     if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/knowledge">${esc(t(locale, 'knowledge.back'))}</a></div>`,
+      bodyHtml: missingPage(locale, t(locale, 'product.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
     }));
     const usage = await loadUsageFacts(deps.db, s.businessId, id);
     const flash = takeFlash(req, reply);

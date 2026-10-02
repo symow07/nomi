@@ -15603,3 +15603,64 @@ the assistant; the buttons are verbal nouns.
 - zh: 已放回日程。
 - ar: أُعيد إلى التقويم.
 - es: De vuelta en el calendario.
+
+## 2026-10-02 — the UI rebuild, phase 6 (states): every new line
+
+The "Mine" empty state, the not-found line, the guide video's length, Billing's live lines;
+`practice.sent` is shorter now (the line under it shows the work). Read the Arabic for gender.
+
+### `inbox.empty.mine`
+
+- en: You are not holding any conversation.
+- zh: 你手上没有对话。
+- ar: لا محادثة بعهدتك الآن.
+- es: No tienes ninguna conversación ahora.
+
+### `inbox.empty.mineBody`
+
+- en: A conversation is yours when you take it over, or when {name} hands it to you.
+- zh: 你接手的对话，或{name}交给你的对话，会出现在这里。
+- ar: تصبح المحادثة بعهدتك عند استلامها، أو عند إحالتها إليك من {name}.
+- es: Una conversación es tuya cuando la tomas, o cuando {name} te la pasa.
+
+### `inbox.empty.seeNeeds`
+
+- en: See who needs you
+- zh: 看看谁在等你
+- ar: عرض ما ينتظرك
+- es: Ver quién te necesita
+
+### `common.notFoundBody`
+
+- en: It may have been removed, or the link is not quite right.
+- zh: 可能已经被删掉了，或者链接不对。
+- ar: ربما أُزيل، أو أن الرابط غير صحيح.
+- es: Puede que se haya quitado, o que el enlace no sea correcto.
+
+### `guide.length`
+
+- en: Video · {length}
+- zh: 视频 · {length}
+- ar: فيديو · {length}
+- es: Vídeo · {length}
+
+### `billing.live.changed`
+
+- en: Stripe has answered.
+- zh: Stripe 已经回复了。
+- ar: وصل ردّ Stripe.
+- es: Stripe ya respondió.
+
+### `billing.live.slow`
+
+- en: Stripe has not confirmed the card yet. Open this page again later; if it still does not show, write to us.
+- zh: Stripe 还没有确认这张卡。稍后再打开本页；如果还是没有，请联系我们。
+- ar: لم يؤكّد Stripe البطاقة بعد. يُرجى فتح هذه الصفحة لاحقًا، وإن لم تظهر، يُرجى مراسلتنا.
+- es: Stripe aún no ha confirmado la tarjeta. Abre esta página más tarde; si sigue sin aparecer, escríbenos.
+
+### `practice.sent`
+
+- en: Sent.
+- zh: 发出了。
+- ar: أُرسلت.
+- es: Enviado.

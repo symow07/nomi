@@ -38,6 +38,13 @@
  *      and draws that page's main into this one: no reload, the words being
  *      typed kept in their box, the reply brought into view if the line was in
  *      view. If the page cannot be had, the line is shown instead, as above.
+ *      Phase 6: fifteen minutes at most; then the page's own last word (its
+ *      `slow` line, where it has one — Billing's) instead of asking forever.
+ *   7. Phase 6 — a form on its way: the button that sent it is marked busy
+ *      (`aria-busy`, three dots after its word), and a second press does not
+ *      send it again. A page that stays where it is (a download) gives the
+ *      button back after twelve seconds; coming back to a page from history
+ *      gives every button back.
  *   6. Phase 5 — asking first in the product's own dialog (`askDialog`,
  *      layout.ts) instead of the browser's grey box: a click on a button that
  *      asks (`data-confirm`) is caught before the button's own handler, the
@@ -67,6 +74,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   var HIDDEN = 60000;
   /* Phase 5: while the assistant is at work on the page's conversation. */
   var WORKING = 4000;
+  /* Phase 6: and for fifteen minutes at most; then the page's own last word, if it has one. */
+  var WORKING_ROUNDS = 225;
 
   /* The tab's own memory: it goes when the tab closes and is never sent. */
   var memory = (function () {
@@ -296,6 +305,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var working = region.getAttribute('data-live-working') === '1';
     var every = working ? WORKING : EVERY;
     var lined = false;
+    var rounds = 0;
     var wait = every;
     var timer = 0;
     var over = false;
@@ -307,6 +317,11 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     function stop() { over = true; clearTimeout(timer); }
     function look() {
       if (over || asking || (doc.visibilityState === 'hidden' && !(counting && mayTell()))) return;
+      if (working && ++rounds > WORKING_ROUNDS) {
+        stop();
+        if (doc.querySelector('template[data-live-news="slow"]')) show(region, 'slow');
+        return;
+      }
       asking = true;
       var init = {
         credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
@@ -398,10 +413,36 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     box.addEventListener('click', function (e) { if (e.target === box) shut(); });
   }
 
+  /* Phase 6: a form on its way says so on the button that sent it, and is not
+     sent twice. A page that stays (a download) gives the button back after a while. */
+  var SENDING = 12000;
+  function sending() {
+    doc.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (e.defaultPrevented || !form || !form.setAttribute || !form.getAttribute) return;
+      if (form.getAttribute('data-sending') === '1') { e.preventDefault(); return; }
+      form.setAttribute('data-sending', '1');
+      var b = e.submitter || (form.querySelector ? form.querySelector('button') : 0);
+      if (b && b.setAttribute) b.setAttribute('aria-busy', 'true');
+      setTimeout(function () {
+        form.removeAttribute('data-sending');
+        if (b && b.removeAttribute) b.removeAttribute('aria-busy');
+      }, SENDING);
+    });
+    window.addEventListener('pageshow', function (e) {
+      if (!e.persisted) return;
+      var forms = doc.querySelectorAll('[data-sending]');
+      for (var i = 0; i < forms.length; i++) forms[i].removeAttribute('data-sending');
+      var buttons = doc.querySelectorAll('[aria-busy]');
+      for (var j = 0; j < buttons.length; j++) buttons[j].removeAttribute('aria-busy');
+    });
+  }
+
   keepWords();
   askToTell();
   phone();
   asking();
+  sending();
   begin();
   window.addEventListener('pagehide', keepNow);
   window.addEventListener('load', function () {

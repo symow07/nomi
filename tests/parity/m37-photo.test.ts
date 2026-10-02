@@ -144,8 +144,8 @@ describe('M37 · an unreadable page is refused WHOLE', () => {
         const html = renderPhotoRefusal(reason, locale);
         const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
         expect(visible, `${locale} ${reason}`).toContain(t(locale, `product.photo.refused.${reason}` as MessageKey));
-        // the way out is on the page, and it is a link she can tap
-        expect(html, `${locale} ${reason}`).toContain('href="/app/products/add"');
+        // the way out is on the page, and it is a link she can tap — within the add page now (phase 6)
+        expect(html, `${locale} ${reason}`).toMatch(/href="\/app\/products\/add#(?:paste|photo)"/);
         expect(visible).toContain(t(locale, reason === 'not_configured'
           ? 'product.photo.pasteInstead' : 'product.photo.retake'));
       }

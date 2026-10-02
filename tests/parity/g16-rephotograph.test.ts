@@ -180,7 +180,7 @@ describe('G16 · each upload failure says what it is', () => {
       for (const r of reasons) {
         const html = renderPhotoRefusal(r, locale);
         expect(html).toContain(esc(t(locale, `product.photo.refused.${r}`)));
-        expect(html).toContain('href="/app/products/add"');
+        expect(html).toMatch(/href="\/app\/products\/add#(?:paste|photo)"/);
       }
     }
   });

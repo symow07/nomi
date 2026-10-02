@@ -1,0 +1,22 @@
+{
+  "channels.ar": 16,
+  "channels.en": 16,
+  "channels.es": 16,
+  "channels.zh": 16,
+  "first_success.ar": 24,
+  "first_success.en": 24,
+  "first_success.es": 24,
+  "first_success.zh": 23,
+  "name.ar": 16,
+  "name.en": 16,
+  "name.es": 16,
+  "name.zh": 16,
+  "products.ar": 25,
+  "products.en": 25,
+  "products.es": 25,
+  "products.zh": 24,
+  "profile.ar": 19,
+  "profile.en": 20,
+  "profile.es": 20,
+  "profile.zh": 19
+}

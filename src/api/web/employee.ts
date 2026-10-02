@@ -219,7 +219,7 @@ const countRow = (value: number, label: string): string =>
 function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Locale): string {
   if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
     return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
-      <p class="muted empty-p">${esc(t(locale, 'her.knows.none'))}</p>
+      <div class="empty">${esc(t(locale, 'her.knows.none'))}</div>
       ${deeper('/app/knowledge', t(locale, 'knowledge.teach'))}</div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
@@ -236,7 +236,7 @@ function recentSection(c: HerContext | undefined, locale: Locale): string {
   if (!c) return '';
   const quiet = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
   return `<div class="block"><h2>${esc(t(locale, 'her.recent.title'))}</h2>
-    ${quiet ? `<p class="muted empty-p">${esc(t(locale, 'her.recent.quiet'))} ${esc(t(locale, 'her.recent.noneWhy'))}</p>`
+    ${quiet ? `<div class="empty">${esc(t(locale, 'her.recent.quiet'))} ${esc(t(locale, 'her.recent.noneWhy'))}</div>`
       : `<div class="hrows">
           ${countRow(c.handled, t(locale, 'ops.activity.handled'))}
           ${countRow(c.draftsPrepared, t(locale, 'ops.activity.drafts'))}
@@ -253,7 +253,7 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
     // that never happened — a fabricated success on the trust surface itself.
     const pristine = c.handled === 0;
     return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
-      <p class="muted empty-p">${pristine ? '' : '✓ '}${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</p>
+      <div class="empty">${pristine ? '' : '✓ '}${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</div>
       ${pristine ? deeper('/app/knowledge', t(locale, 'her.teach.go')) : ''}</div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
@@ -338,7 +338,7 @@ export function renderEmployee(
   const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
   const duties = `<div class="block"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
     ${e.canDo.length === 0 && e.needConfirm.length === 0
-      ? `<p class="muted empty-p">${esc(t(locale, 'her.handles.none'))}</p>` : ''}
+      ? `<div class="empty">${esc(t(locale, 'her.handles.none'))}</div>` : ''}
     ${list(t(locale, 'her.handles.alone'), '✓', e.canDo.map(capName), 'ok', t(locale, 'employee.duties.none'))}
     ${list(t(locale, 'her.handles.waits'), '○', e.needConfirm.map(capName), 'warn', t(locale, 'employee.duties.none'))}
     ${list(t(locale, 'her.handles.always'), '○', cannotDo, 'no', t(locale, 'employee.duties.none'))}

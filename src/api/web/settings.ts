@@ -20,7 +20,7 @@ import { currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js'
 import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 
 import { switcher, deeper, back, esc, conversationUrl } from './layout.js';
-import { fieldRow, rowsCard, saveBar, cardActs } from './rows.js';
+import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
@@ -527,22 +527,22 @@ export async function restoreForbidden(
   });
 }
 
-export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null): string {
+export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
   const name = assistantName(locale);
   return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
     <p class="lede muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
-        fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term',
-          control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" />` }),
+        fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
+          control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" value="${keptValue(kept, 'term')}"${keptInvalid(kept, 'term', 'fb-term-err')} />` }),
         fieldRow({ label: t(locale, 'forbidden.add.note'), forId: 'fb-note',
-          control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" />` }),
+          control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" value="${keptValue(kept, 'note')}" />` }),
         cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>`),
       ])}
     </form>
     ${v.own.length === 0
-      ? `<p class="muted empty-p">${esc(t(locale, 'forbidden.empty'))}</p>`
+      ? `<div class="empty">${esc(t(locale, 'forbidden.empty'))}</div>`
       : rowsCard(null, v.own.map((x) => fieldRow({ label: x.term,
           control: `${x.note ? `<span class="fr-value muted"><bdi>${esc(x.note)}</bdi></span>` : ''}<form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
               <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
@@ -641,7 +641,7 @@ export async function setRate(
   });
 }
 
-export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
+export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
   if (!v.pair) {
     return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
@@ -657,10 +657,10 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null, vie
       <p class="muted">${esc(t(locale, 'rate.intro', { name, from, to }))}</p>
       ${v.current
         ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
-        : `<p class="muted empty-p">${esc(t(locale, 'rate.empty', { to }))}</p>`}
+        : `<div class="empty">${esc(t(locale, 'rate.empty', { to }))}</div>`}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform">
-        ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate',
-          control: '<input id="rt-rate" name="rate" inputmode="decimal" required />' })])}
+        ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate', error: keptError(kept, 'rate', 'rt-rate-err'),
+          control: `<input id="rt-rate" name="rate" inputmode="decimal" required value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` })])}
         ${saveBar(t(locale, 'rate.add.button'))}
       </form>` : ownerDecides(locale)}
     </section>
@@ -748,7 +748,7 @@ export async function restoreClosure(
   });
 }
 
-export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null): string {
+export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
@@ -758,15 +758,17 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
       <p class="muted">${esc(t(locale, 'closures.intro', { name }))}</p>
       <form method="post" action="/app/settings/closures">
         ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'),
-            control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" />` }),
-          fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', control: '<input id="cl-from" name="from" type="date" required />' }),
-          fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', control: '<input id="cl-to" name="to" type="date" required />' }),
+          fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
+            control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
+          fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', error: keptError(kept, 'from', 'cl-from-err'),
+            control: `<input id="cl-from" name="from" type="date" required value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'cl-from-err')} />` }),
+          fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', error: keptError(kept, 'to', 'cl-to-err'),
+            control: `<input id="cl-to" name="to" type="date" required value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'cl-to-err')} />` }),
           cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
         ])}
       </form>
       ${v.closures.length === 0
-        ? `<p class="muted empty-p">${esc(t(locale, 'closures.empty', { name }))}</p>`
+        ? `<div class="empty">${esc(t(locale, 'closures.empty', { name }))}</div>`
         : `<ul class="closures">${v.closures.map((c) => `<li>
             <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
             <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
@@ -885,12 +887,12 @@ export async function saveTerms(
   });
 }
 
-export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
+export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
   const stated = v.terms
     ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
        <p class="muted">${esc(t(locale, 'terms.setOn', { date: show.date(locale, v.terms.statedAt) }))}</p>`
-    : `<p class="muted empty-p">${esc(t(locale, 'terms.none', { name }))}</p>`;
+    : `<div class="empty">${esc(t(locale, 'terms.none', { name }))}</div>`;
   const options = INCOTERM_KEYS.map((k) =>
     `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(k)}</option>`).join('');
   return `<h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
@@ -900,11 +902,11 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, v
       ${stated}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="sform">
         ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment',
+          fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', error: keptError(kept, 'payment', 'tm-payment-err'),
             control: `<input id="tm-payment" name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
-              placeholder="${esc(t(locale, 'terms.payment.placeholder'))}" value="${v.terms ? esc(v.terms.paymentTerms) : ''}" />` }),
-          fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }),
-            control: `<select id="tm-incoterm" name="incoterm" required>${v.terms ? '' : '<option value="" selected disabled></option>'}${options}</select>` }),
+              placeholder="${esc(t(locale, 'terms.payment.placeholder'))}" value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
+          fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }), error: keptError(kept, 'incoterm', 'tm-incoterm-err'),
+            control: `<select id="tm-incoterm" name="incoterm" required${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${v.terms ? '' : '<option value="" selected disabled></option>'}${options}</select>` }),
         ])}
         ${saveBar(t(locale, 'terms.save'))}
       </form>` : ownerDecides(locale)}
@@ -943,7 +945,7 @@ export async function markSampleHandled(
 }
 
 export function renderSamples(
-  v: SamplesView, locale: Locale, flash: Flash | null, now: Date, viewer: Viewer = OWNER_VIEW,
+  v: SamplesView, locale: Locale, flash: Flash | null, now: Date, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null,
 ): string {
   const name = assistantName(locale);
   const stated = v.policy
@@ -954,10 +956,10 @@ export function renderSamples(
       } <span class="muted">${esc(t(locale, v.policy.creditedOnFirstOrder
         ? 'samples.current.credited' : 'samples.current.notCredited'))}</span></p>
       <p class="muted">${esc(t(locale, 'samples.setOn', { date: show.date(locale, v.policy.statedAt) }))}</p>`
-    : `<p class="muted empty-p">${esc(t(locale, 'samples.empty', { name }))}</p>`;
+    : `<div class="empty">${esc(t(locale, 'samples.empty', { name }))}</div>`;
 
   const waiting = v.waiting.length === 0
-    ? `<p class="muted empty-p">${esc(t(locale, 'samples.requests.empty'))}</p>`
+    ? `<div class="empty">${esc(t(locale, 'samples.requests.empty'))}</div>`
     : `<ul class="sreqs">${v.waiting.map((r) => `<li>
         <div class="sreq-h"><b><bdi>${esc(r.buyer ?? t(locale, 'common.buyer'))}</bdi></b>
           <span class="muted">${esc(t(locale, 'samples.requests.asked', { when: show.when(locale, r.requestedAt, now) }))}</span></div>
@@ -982,8 +984,8 @@ export function renderSamples(
       ${stated}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform">
         ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price',
-            control: `<input id="sm-price" name="price" inputmode="decimal" required value="${v.policy ? esc(String(v.policy.price.amount)) : ''}" />` }),
+          fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
+            control: `<input id="sm-price" name="price" inputmode="decimal" required value="${kept ? keptValue(kept, 'price') : v.policy ? esc(String(v.policy.price.amount)) : ''}"${keptInvalid(kept, 'price', 'sm-price-err')} />` }),
           fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
             control: `<input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} />` }),
         ])}

@@ -10,7 +10,7 @@ import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catal
 import { diffAgainstCatalogue, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import { rowsFromParsed, asExtracted, liveRows, type ImportRow } from '../../core/onboard/importReview.js';
 import { defaultUnitFor, sellsByQuantity } from '../../core/owner/sellingStyle.js';
-import { renderStoreForms } from './storeImport.js';
+import { renderStoreForms, type StoreFormRefusal } from './storeImport.js';
 import { savePriceRulesTx } from './priceRules.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -629,6 +629,8 @@ export function renderAddForm(
   pricesToOwner = false,
   /** EXT — the page reader can read a PDF on this installation (its model provider takes documents). */
   pdfReadable = false,
+  /** Phase 6 — a form on this page that came to nothing: its sentence goes under it, the page is the same. */
+  refused: { readonly photo: string } | { readonly store: StoreFormRefusal } | null = null,
 ): string {
   if (!viewer.isOwner) {
     return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
@@ -638,17 +640,17 @@ export function renderAddForm(
   return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     ${flashBanner(flash)}
     ${renderOpenImport(locale, open)}
-    <div class="block">
+    <div class="block" id="paste">
       <p>${esc(t(locale, 'product.add.intro'))}</p>
       <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${[1, 2, 3].map((i) =>
         esc(t(locale, `product.add.example${i}` as MessageKey, { price: EXAMPLE_PRICES[currency][i - 1]! }))).join('<br>')}</p>
       <form method="post" action="/app/products/add/review">
-        <textarea name="text" rows="8" placeholder="${esc(t(locale, 'product.add.placeholder'))}" autofocus></textarea>
+        <textarea name="text" rows="8" placeholder="${esc(t(locale, 'product.add.placeholder'))}"${refused ? '' : ' autofocus'}></textarea>
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.add.note'))}</p>
     </div>
-    <div class="block">
+    <div class="block" id="photo">
       <h2>${esc(t(locale, 'product.add.photoTitle'))}</h2>
       <p>${esc(t(locale, 'product.add.photoIntro'))}</p>
       <form method="post" action="/app/products/add/photo" enctype="multipart/form-data">
@@ -656,12 +658,14 @@ export function renderAddForm(
           <label class="pcheck"><input type="radio" name="hand" value="printed" required /> ${esc(t(locale, 'import.hand.printed'))}</label>
           <label class="pcheck"><input type="radio" name="hand" value="handwritten" /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
         </fieldset>
-        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp${pdfReadable ? ',application/pdf' : ''}" multiple required />
+        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp${pdfReadable ? ',application/pdf' : ''}" multiple required${
+          refused && 'photo' in refused ? ' aria-invalid="true" aria-describedby="photo-err" autofocus' : ''} />
+        ${refused && 'photo' in refused ? refused.photo : ''}
         <button class="btn" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>
-    ${renderStoreForms(locale, currency)}
+    ${renderStoreForms(locale, currency, refused && 'store' in refused ? refused.store : null)}
     ${renderPricesToMe(locale, pricesToOwner)}`;
 }
 
@@ -938,11 +942,12 @@ export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale, photo?:
     : `product.photo.refused.${reason}`;
   const params = reason === 'daily_limit' ? { n: left ?? 0, max: PHOTO_READS_A_DAY }
     : photo !== undefined ? { n: photo } : undefined;
-  return `<h1 class="page">${esc(t(locale, 'product.photo.refusedTitle'))}</h1>
-    <div class="block">
-      <p>${esc(t(locale, key as MessageKey, params))}</p>
+  // Phase 6 — under the photo form it concerns, on the same page; the way on is
+  // a door within it: to the paste box, or back to the photo field.
+  const paste = reason === 'not_configured' || reason === 'daily_limit' || reason === 'allowance_used';
+  return `<div class="perr-block" id="photo-err">
+      <p class="perr" role="alert">${esc(t(locale, key as MessageKey, params))}</p>
       <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
-      ${deeper('/app/products/add', t(locale, reason === 'not_configured' || reason === 'daily_limit' || reason === 'allowance_used'
-        ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
+      ${deeper(paste ? '/app/products/add#paste' : '/app/products/add#photo', t(locale, paste ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
     </div>`;
 }

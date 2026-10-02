@@ -33,5 +33,21 @@ export const rowsCard = (title: string | null, rows: readonly string[], id?: str
 export const saveBar = (label: string): string =>
   `<div class="savebar"><button class="btn send" type="submit">${esc(label)}</button></div>`;
 
+/**
+ * PHASE 6 OF THE UI REBUILD (2026-10-02) — A FORM SENT BACK. A refusal that is
+ * about one field is said under that field, on the same page, with everything
+ * typed still in the form; it was a notice at the top of the page after a
+ * redirect that emptied the form.
+ */
+export type Kept = { readonly values: Readonly<Record<string, string>>; readonly field: string; readonly text: string };
+/** What was typed in `name`, escaped for an attribute; '' when nothing was kept. */
+export const keptValue = (k: Kept | null | undefined, name: string): string => esc(k?.values[name] ?? '');
+/** The field's own error, when it is the one that was wrong. */
+export const keptError = (k: Kept | null | undefined, field: string, id: string): string | undefined =>
+  k && k.field === field ? `<span class="fielderr" role="alert" id="${esc(id)}">${esc(k.text)}</span>` : undefined;
+/** The control's attributes when it is the one that was wrong: marked, described, and where the cursor goes. */
+export const keptInvalid = (k: Kept | null | undefined, field: string, id: string): string =>
+  k && k.field === field ? ` aria-invalid="true" aria-describedby="${esc(id)}" autofocus` : '';
+
 /** The act at the end of a card that adds something (a closure, a word): inside the card, not a bar. */
 export const cardActs = (inner: string): string => `<div class="fr-acts">${inner}</div>`;
