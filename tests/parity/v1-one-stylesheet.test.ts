@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import { createHash } from 'node:crypto';
 import { renderComponents } from '../../src/api/web/components.js';
-import { shell, loginPage, errorPage, publicDocument, CONTEXTUAL_ROUTES_BY_HUB, stylesheetAt } from '../../src/api/web/layout.js';
+import { shell, loginPage, errorPage, publicDocument, CONTEXTUAL_ROUTES_BY_HUB, hubFor, stylesheetAt } from '../../src/api/web/layout.js';
 import { registerWebApp, PUBLIC_ROUTES } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { sheetLinks, linkedCss } from './linked-css.js';
@@ -195,9 +195,10 @@ describe('V1 · the components page', () => {
     }
   });
 
-  it('lives in Setup\'s hub group, and Setup no longer lists it: a page for whoever builds the product, not an owner\'s setting', () => {
+  it('lights Setup by its address, and nothing on Setup links it: a page for whoever builds the product, not an owner\'s setting', () => {
     const settings = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings');
-    expect(settings?.routes).toContain('/app/settings/components');
-    expect(read('settings.ts')).not.toContain("href: '/app/settings/components'");
+    expect(settings?.routes).not.toContain('/app/settings/components');
+    expect(hubFor('/app/settings/components', 'none')).toBe('settings');
+    expect(read('settings.ts')).not.toContain('/app/settings/components');
   });
 });

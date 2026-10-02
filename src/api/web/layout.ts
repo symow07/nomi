@@ -82,8 +82,11 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/settings', routes: [
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
-    '/app/settings/components',
   ] },
+  // Phase 3 of the UI rebuild — the component gallery (`/app/settings/components`)
+  // is no longer a door on Setup: it is a page for whoever builds the product
+  // (the screenshots tool walks it), not a setting. It still lights Setup, by
+  // sitting under its address.
   // Phase 4b — the machine room is reached from Getting ready, and lights Setup through it.
   { hub: '/app/onboarding', routes: ['/app/onboarding/technical', '/app/ready'] },
   // C4.b — follow-ups are written for the people on her list, so they are
