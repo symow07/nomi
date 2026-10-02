@@ -12,3 +12,16 @@ const store = new AsyncLocalStorage<string>();
 export const withZone = <T>(zone: string, fn: () => T): T => store.run(zone, fn);
 
 export const workspaceZone = (): string => store.getStore() ?? 'UTC';
+
+/**
+ * Phase 9 (V1-009, V1-404) — the workspace's country (`businesses.country`,
+ * asked at sign-up), for the way an amount is written on its pages: Spanish
+ * in Mexico writes 1.05, in Spain 1,05. Set with the zone, for the same
+ * reason. Outside a workspace, or for one with no country on record, there is
+ * none, and an amount is written as it always was.
+ */
+const country = new AsyncLocalStorage<string | null>();
+
+export const withCountry = <T>(code: string | null, fn: () => T): T => country.run(code, fn);
+
+export const workspaceCountry = (): string | null => country.getStore() ?? null;

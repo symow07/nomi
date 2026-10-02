@@ -3897,6 +3897,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await saveBusinessKind(deps.db, s.businessId,
       { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') }, personOf(s).id);
+    facts.evict(s.businessId);   // Phase 9 (V1-009) — the country decides how an amount is written on every page
     return flashTo(reply, '/app/settings/business', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
   });
 

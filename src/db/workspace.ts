@@ -22,6 +22,8 @@ export type WorkspaceFacts = {
   readonly setup: SetupProgress;
   /** TZ — the workspace's own time zone. */
   readonly zone: string;
+  /** Phase 9 (V1-009) — the workspace's country (ISO code), for how its pages write an amount; null if none on record. */
+  readonly country: string | null;
 };
 
 /**
@@ -44,5 +46,7 @@ export async function workspaceFacts(tx: Tx, businessId: BusinessId): Promise<Wo
   const outreach = await outreachAreaShown(tx, businessId);
   const setup = await setupProgress(tx, businessId);
   const zone = await zoneOf(tx, businessId);
-  return { name: who.name, several: who.several, outreach, setup, zone };
+  const country = (await sql<{ country: string | null }>`
+    select country from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.country ?? null;
+  return { name: who.name, several: who.several, outreach, setup, zone, country };
 }
