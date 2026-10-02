@@ -126,8 +126,8 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     const door = linkedCss(loginPage({ locale: 'en', path: '/login' }));
     const shellCss = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
     expect(door).toContain('.login .card');
-    expect(door).not.toContain('.buyer-top');
-    expect(shellCss).toContain('.buyer-top');
+    expect(door).not.toContain('.cr-name');
+    expect(shellCss).toContain('.cr-name');
     expect(shellCss).not.toContain('.login .card');
   });
 

@@ -82,7 +82,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
 
   /** The conversations a Buyers page lists, in page order. */
   const listed = (html: string): string[] =>
-    [...html.matchAll(/<a class="buyer[^"]*" href="\/app\/inbox\/([0-9a-f-]{36})#latest">/g)].map((m) => m[1]!);
+    [...html.matchAll(/<a class="crow[^"]*" href="\/app\/inbox\/([0-9a-f-]{36})#latest">/g)].map((m) => m[1]!);
   /** Where a pager door goes, as the browser would follow it. */
   const door = (html: string, cls: 'deeper' | 'back'): string | null => {
     const pager = /<nav class="pager"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? '';
@@ -298,20 +298,23 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
   });
 
   it('the row carries what Customers did: the channel, who wrote last, the last contact', async () => {
-    const { formatRelative } = await import('../../src/core/owner/i18n/format.js');
+    const { formatShortWhen } = await import('../../src/core/owner/i18n/format.js');
     // The last contact as the business's clock says it: minutes ago is
     // "Yesterday" in the first minutes after its midnight (CI hit 00:01
     // Shanghai on 2026-09-30), so the words are the formatter's for the row's
     // own instant, never a fixed "Today".
-    const lastContact = async (conv: string) => formatRelative('en', await as(BIZ, (x) => sql<{ at: Date }>`
+    const lastContact = async (conv: string) => formatShortWhen('en', await as(BIZ, (x) => sql<{ at: Date }>`
       select max(sent_at) as at from messages where conversation_id = ${conv}::uuid`.execute(x).then((q) => q.rows[0]!.at)), new Date(), 'Asia/Shanghai');
     const r = await get('/app/inbox?q=zhang');
-    const row = /<a class="buyer unanswered" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec(r.body)?.[1] ?? '';
+    const row = /<a class="crow is-\w+ unanswered" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec(r.body)?.[1] ?? '';
     expect(row, 'Zhang wrote last and is still waiting').not.toBe('');
     // UI-PASS 5: the row is the customer's name already; who wrote last is said only when it is not them.
-    expect(row).toContain(`<div class="buyer-t muted">${await lastContact(zhang)} · Instagram</div>`);
-    const omar = /<a class="buyer" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec((await get('/app/inbox?q=Omar')).body)?.[1] ?? '';
-    expect(omar).toMatch(new RegExp(`<div class="buyer-t muted">${await lastContact(dubai)} · <bdi>[^<]+</bdi> · WhatsApp</div>`));
+    // Phase 1 — the time in its fixed place at the end of the first line, the channel before it.
+    expect(row).toContain(`<span class="cr-when">Instagram · ${await lastContact(zhang)}</span>`);
+    const omar = /<a class="crow is-\w+" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec((await get('/app/inbox?q=Omar')).body)?.[1] ?? '';
+    expect(omar).toContain(`<span class="cr-when">WhatsApp · ${await lastContact(dubai)}</span>`);
+    // the assistant wrote last: its mark is on the row (as the holder's mark, or before the message)
+    expect(omar).toContain('✦');
   });
 
   it('in Arabic the list is right to left, and says where the page sits in its own words', async () => {

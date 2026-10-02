@@ -999,19 +999,50 @@ const STYLE_PAGES = `
   .search { display:flex; align-items:center; gap:var(--space-8); margin:0 0 var(--space-16); max-width:var(--measure-prose); }
   .search input { flex:1; min-width:0; appearance:none; }
   .search .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  /* Grouped by who is speaking; the list keeps the prose measure at desktop. */
-  .bgroup { margin-bottom:var(--space-24); max-width:var(--measure-prose); }
-  .bgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
-  /* The row, as decision 5 keeps it: a tile per buyer. */
-  a.buyer { display:block; background:var(--color-surface); border:1px solid var(--color-border);
-    border-radius:var(--radius-card); padding:var(--space-16); }
-  a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-ink-secondary); }
-  .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
-  .buyer-d { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  /* The buyer's own words with nothing after them: full ink, the transcript's rule for whose words lead. */
-  .buyer.unanswered .buyer-m { color:var(--color-ink); }
-  .buyer-t { font-size:var(--font-size-caption); margin-top:var(--space-12); }
+  /* Grouped by who is speaking. Phase 1 (2026-10-02): the list takes the
+     whole column, one ruled sheet of rows, so a laptop shows ten or more. */
+  .lhead { display:flex; flex-direction:column; }
+  .lhead .search { order:1; }
+  .lhead .tabs { order:2; }
+  @media (min-width: 1100px) {
+    .lhead { flex-direction:row; flex-wrap:wrap; align-items:center; gap:var(--space-12) var(--space-24); margin-bottom:var(--space-16); }
+    .lhead .dhead.listhead, .lhead .search, .lhead .tabs { margin:0; order:0; }
+    .lhead .search { margin-inline-start:auto; flex:0 1 26rem; }
+  }
+  .bgroup { margin-bottom:var(--space-12); }
+  .bgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-4); }
+  .crows { list-style:none; margin:0; padding:0; background:var(--color-surface); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); overflow:hidden; }
+  .crows > li + li { border-top:1px solid var(--color-border); }
+  /* The row: two lines in every script (56 to 72 px). The grid follows the
+     page's direction, so in Arabic the mark is on the right and the time on the left. */
+  a.crow { display:grid; grid-template-columns:1.25em minmax(0, 1fr) fit-content(40%); column-gap:var(--space-8); row-gap:0;
+    align-items:baseline; min-height:56px; padding:6px var(--space-12); color:var(--color-ink);
+    border-inline-start:3px solid transparent; }
+  a.crow:hover, a.crow:focus-visible { background:var(--color-paper); }
+  a.crow.on { background:var(--color-paper); border-inline-start-color:var(--color-ink); }
+  .cr-mark { grid-row:1; grid-column:1; justify-self:center; font-size:var(--font-size-caption); line-height:1; }
+  .is-needs .cr-mark { color:var(--color-waiting); }
+  .is-yours .cr-mark { color:var(--color-ink); }
+  .is-hers .cr-mark { color:var(--color-assistant); }
+  .cr-l1 { grid-row:1; grid-column:2; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; font-size:var(--font-size-small); }
+  .cr-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
+  .crow.unanswered .cr-name { font-weight:600; }
+  .cr-detail { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .cr-when { grid-row:1; grid-column:3; justify-self:end; white-space:nowrap; font-size:var(--font-size-caption);
+    color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
+  .cr-l2 { grid-row:2; grid-column:2; display:flex; align-items:baseline; gap:var(--space-4); min-width:0;
+    font-size:var(--font-size-small); color:var(--color-ink-secondary); white-space:nowrap; }
+  .cr-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:match-parent; }
+  /* A customer still waiting for an answer: full ink, as the transcript writes whose words lead. */
+  .crow.unanswered .cr-text { color:var(--color-ink); }
+  .cr-why { grid-row:2; grid-column:3; justify-self:end; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .is-needs .cr-why { color:var(--color-waiting); font-weight:600; }
+  @media (max-width: 720px) {
+    .cr-detail { display:none; }
+  }
   .dhead .who { font-size:var(--font-size-small); }
   /* CC-20 — on the conversation, the buyer's and the product's page, the name
      in the header is the page's title (an h1), drawn the size it always was. */
@@ -1065,16 +1096,13 @@ const STYLE_PAGES = `
   .lp-h { font-size:var(--font-size-small); font-weight:600; margin:0 var(--space-16) var(--space-8); }
   .listpane .tabs { padding:0 var(--space-16); flex-wrap:wrap; }
   .tab-n { margin-inline-start:var(--space-4); font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
-  .lp-rows { list-style:none; margin:var(--space-8) 0; padding:0; }
+  .listpane .crows { margin:var(--space-8) 0; background:none; border:0; border-radius:0; }
+  .listpane a.crow { padding-inline:var(--space-12) var(--space-16); }
+  .listpane a.crow:hover, .listpane a.crow:focus-visible, .listpane a.crow.on { background:var(--color-surface); }
+  .listpane .crows > li.lp-group, .listpane .crows > li.lp-group + li { border-top:0; }
+  /* Beside a conversation the group heading says why; the narrow column keeps the name and the message. */
+  .listpane .cr-why { display:none; }
   .lp-group { padding:var(--space-12) var(--space-16) var(--space-4); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .lp-row { display:flex; flex-direction:column; gap:var(--space-4); padding:var(--space-8) var(--space-16) var(--space-8) var(--space-12);
-    border-inline-start:3px solid transparent; color:var(--color-ink); }
-  .lp-row:hover, .lp-row:focus-visible { background:var(--color-surface); }
-  .lp-row.on { background:var(--color-surface); border-inline-start-color:var(--color-ink); }
-  .lp-top { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-8); font-size:var(--font-size-small); min-width:0; }
-  .lp-top b { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .lp-when { flex:none; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
-  .lp-last { font-size:var(--font-size-caption); color:var(--color-ink-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .lp-empty { padding:var(--space-8) var(--space-16); }
   .listpane .search, .listpane .deeper { margin:var(--space-16); }
   .panel h2 { font-size:var(--font-size-title); margin:0; }

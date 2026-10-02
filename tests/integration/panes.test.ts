@@ -110,7 +110,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
   it('a conversation stands between its list and its customer', async () => {
     const html = await page(`/app/inbox/${maya}`);
     expect(html).toContain('<main id="main" class="wide"><div class="panes"><aside class="listpane"');
-    expect(html).toMatch(new RegExp(`<a class="lp-row on" href="/app/inbox/${maya}#latest" aria-current="page">`));
+    expect(html).toMatch(new RegExp(`<a class="crow is-\\w+[^"]* on" href="/app/inbox/${maya}#latest" aria-current="page">`));
     // the list opens on its own default tab: someone needs the owner, so "Needs you" — Omar is under All
     expect(html).not.toContain(`href="/app/inbox/${omar}#latest"`);
     expect(html).toMatch(/<a class="tab on" aria-current="page" href="\/app\/inbox\?filter=pending">Needs you<span class="tab-n">1<\/span><\/a>/);

@@ -141,31 +141,51 @@ describe('A · paging — the doors either side keep the tab and the search, and
   });
 });
 
-describe('A · the read model Customers brought, in the row as it is (decision 5)', () => {
-  it('the row keeps its fields — who and the tag, what they asked about, the last message, the time', () => {
+describe('A · the read model Customers brought, in the dense row (phase 1 of the UI rebuild)', () => {
+  it('the row is two lines: the mark, who, what they asked about, the time; then one line of the last message', () => {
     const h = html('en');
-    const row = /<a class="buyer[^"]*" href="\/app\/inbox\/c-hers#latest">([\s\S]*?)<\/a>/.exec(h)?.[1] ?? '';
-    expect(row).toMatch(/<div class="buyer-top"><span class="who">🇦🇪 <b><bdi>Buyer c-hers<\/bdi><\/b><span class="muted"> · /);
+    const row = /<a class="crow[^"]*" href="\/app\/inbox\/c-hers#latest">([\s\S]*?)<\/a>/.exec(h)?.[1] ?? '';
+    expect(row).toContain('<span class="cr-mark" aria-hidden="true">✦</span>');
+    expect(row).toContain('<span class="cr-name" dir="auto"><bdi>Buyer c-hers</bdi></span>');
     // each part isolated, so Arabic cannot run a Latin name, a quantity and a price together
     // CC-13 — a figure and its unit are two words in English (a no-break space between them).
-    expect(row).toContain('<div class="buyer-d muted"><bdi>Vacuum cup</bdi> · <bdi>500\u00a0pcs</bdi> · <bdi>$2.40</bdi></div>');
-    expect(row).toContain('<div class="buyer-m voice" dir="auto"><bdi>last words of c-hers</bdi></div>');
-    expect(row).toMatch(/<div class="buyer-t muted">Today 13:30 · /);
+    expect(row).toContain('<span class="cr-detail"><bdi>Vacuum cup</bdi> · <bdi>500\u00a0pcs</bdi> · <bdi>$2.40</bdi></span>');
+    expect(row).toContain('<span class="cr-text" dir="auto">last words of c-hers</span>');
+    expect(row).toMatch(/<span class="cr-when">[^<]*13:30<\/span>/);
+    // the whole message is no longer printed as a paragraph in the speech face
+    expect(row).not.toContain('voice');
+    // the order the eye reads it in: mark, name, time, then the message
+    const at = (s: string) => row.indexOf(s);
+    expect(at('cr-mark')).toBeLessThan(at('cr-name'));
+    expect(at('cr-name')).toBeLessThan(at('cr-when'));
+    expect(at('cr-when')).toBeLessThan(at('cr-text'));
+  });
+
+  it('the state mark is a shape as well as a colour: ○ needs you, ● a person here has it, ✦ the assistant has it', () => {
+    const h = html('en');
+    const mark = (id: string) => new RegExp(`<a class="crow is-(\\w+)[^"]*" href="/app/inbox/${id}#latest">\\s*<span class="cr-mark" aria-hidden="true">(.)</span>`).exec(h);
+    expect(mark('c-hers')?.slice(1, 3)).toEqual(['hers', '✦']);
+    expect(mark('c-yours')?.slice(1, 3)).toEqual(['yours', '●']);
+    const needs = [...h.matchAll(/<a class="crow is-needs[^"]*"[^>]*>\s*<span class="cr-mark" aria-hidden="true">(.)<\/span>/g)];
+    expect(needs.length).toBeGreaterThan(0);
+    for (const m of needs) expect(m[1]).toBe('○');
+    // and a screen reader hears the state in words
+    expect(h).toContain(`<span class="sr">${esc(t('en', 'buyers.group.needsYou'))}</span>`);
   });
 
   it('the channel is named on the row once the workspace talks on more than one — and not before', () => {
     const several = html('en');
-    expect(several).toContain(`· ${t('en', 'conv.channel.instagram')}`);
-    expect(several).toContain(`· ${t('en', 'conv.channel.email')}`);
-    expect(several).toContain(`· ${t('en', 'conv.channel.whatsapp')}`);
+    expect(several).toContain(`<span class="cr-when">${t('en', 'conv.channel.instagram')} · `);
+    expect(several).toContain(`<span class="cr-when">${t('en', 'conv.channel.email')} · `);
+    expect(several).toContain(`<span class="cr-when">${t('en', 'conv.channel.whatsapp')} · `);
     const one = html('en', { channels: 1 });
-    for (const c of ['whatsapp', 'instagram', 'email']) expect(one).not.toContain(`· ${t('en', `conv.channel.${c}` as MessageKey)}`);
+    for (const c of ['whatsapp', 'instagram', 'email']) expect(one).not.toContain(`<span class="cr-when">${t('en', `conv.channel.${c}` as MessageKey)}`);
   });
 
-  it('who wrote last is said in the transcript\'s words, and a buyer still waiting reads in full ink', () => {
+  it('who wrote last is said in the transcript\'s words, and a buyer still waiting reads in full ink and weight', () => {
     for (const l of LOCALES) {
       const h = withAssistantName('Noor', () => html(l));
-      const rowOf = (id: string) => new RegExp(`<a class="buyer( unanswered)?" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a>`).exec(h);
+      const rowOf = (id: string) => new RegExp(`<a class="crow is-\\w+( unanswered)?" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a>`).exec(h);
       const quiet = rowOf('c-quiet')!;
       expect(quiet[1], `${l}: the buyer spoke last`).toBe(' unanswered');
       // The design pass (UI-PASS 5): the row is already the customer's name;
@@ -173,12 +193,14 @@ describe('A · the read model Customers brought, in the row as it is (decision 5
       expect(quiet[2], l).not.toContain(`<bdi>${esc(t(l, 'common.buyer'))}</bdi>`);
       const hers = rowOf('c-hers')!;
       expect(hers[1], `${l}: answered`).toBeUndefined();
-      expect(hers[2], l).toContain('<bdi>Noor</bdi>');
+      // the assistant holds it and wrote last: its mark says so once, and its name is there for a screen reader
+      expect(hers[2], l).toContain(esc(t(l, 'buyers.group.hers', { name: 'Noor' })));
       const yours = rowOf('c-yours')!;
       expect(yours[2], l).toContain(`<bdi>${esc(t(l, 'conv.by.you'))}</bdi>`);
     }
     const css = read('src/api/web/layout.ts');
-    expect(css).toMatch(/\.buyer\.unanswered \.buyer-m \{ color:var\(--color-ink\); \}/);
+    expect(css).toMatch(/\.crow\.unanswered \.cr-text \{ color:var\(--color-ink\); \}/);
+    expect(css).toMatch(/\.crow\.unanswered \.cr-name \{ font-weight:600; \}/);
   });
 
   it('with several assistants, the row names the one answering once, not twice', () => {
@@ -186,21 +208,22 @@ describe('A · the read model Customers brought, in the row as it is (decision 5
     const a = /href="\/app\/inbox\/c-a#latest">([\s\S]*?)<\/a>/.exec(h)![1]!;
     expect(a.match(/Noor/g)?.length).toBe(1);
     const b = /href="\/app\/inbox\/c-b#latest">([\s\S]*?)<\/a>/.exec(h)![1]!;
-    expect(b).toContain(esc(t('en', 'conv.answeredBy', { who: 'Noor' })));
+    expect(b).toContain(esc(t('en', 'buyers.group.hers', { name: 'Noor' })));
+    expect(b.match(/Noor/g)?.length).toBe(1);
   });
 
   it('the glimpse of a long message is cut by characters — never through an emoji', () => {
     const long = `${'a'.repeat(89)}😀 and the rest`;
     const h = html('en', { conversations: [conv('c-long', { latestMessage: long })] });
-    expect(h).toContain(`<bdi>${'a'.repeat(89)}😀</bdi>`);
+    expect(h).toContain(`<span class="cr-text" dir="auto">${'a'.repeat(89)}😀</span>`);
     expect(h).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
   });
 
   it('a row with no message yet shows no speaker and no empty line', () => {
     const { lastFrom: _none, ...fresh } = conv('c-new', { latestMessage: null, latestAt: null });
     const h = html('en', { conversations: [fresh], channels: 1 });
-    expect(h).not.toContain('class="buyer-m voice"');
-    expect(h).not.toContain('class="buyer-t muted"');
+    expect(h).not.toContain('class="cr-text"');
+    expect(h).toContain('<span class="cr-when"></span>');
   });
 });
 
@@ -290,8 +313,9 @@ describe('A · three languages, right to left', () => {
   it('Arabic: the page is right to left, a buyer\'s words keep their own direction, a Latin name keeps its order', () => {
     const page = shell({ title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: html('ar') });
     expect(page).toContain('<html lang="ar" dir="rtl"');
-    expect(html('ar')).toContain('<div class="buyer-m voice" dir="auto">');
-    expect(html('ar')).toContain('<b><bdi>Buyer c-hers</bdi></b>');
+    // the name and the message each take their own direction, so an English message is cut at its end
+    expect(html('ar')).toContain('<span class="cr-text" dir="auto">');
+    expect(html('ar')).toContain('<span class="cr-name" dir="auto"><bdi>Buyer c-hers</bdi></span>');
     // the position says "to", not a dash two numbers would reorder around
     expect(t('ar', 'buyers.page.position')).not.toMatch(/[–-]/);
     expect(html('ar')).toContain(esc(t('ar', 'buyers.page.position', { from: '51', to: '56', total: '130' })));
