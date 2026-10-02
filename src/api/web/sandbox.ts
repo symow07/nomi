@@ -216,7 +216,8 @@ const invLabel = (locale: Locale, id: InvariantId): string => t(locale, `sandbox
 export const caseName = (locale: Locale, id: string): string => t(locale, `sandbox.case.${id}` as MessageKey);
 
 function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
-  if (!trust) return `<div class="card sbx-trust"><h2>${esc(t(locale, 'sandbox.trust.title'))}</h2><div class="empty muted">${esc(t(locale, 'sandbox.trust.none'))}</div></div>`;
+  // Phase 9 (conversation-new-14) — before a message, the card's own line: a dashed box half its width read as a drop zone.
+  if (!trust) return `<div class="card sbx-trust"><h2>${esc(t(locale, 'sandbox.trust.title'))}</h2><p class="muted">${esc(t(locale, 'sandbox.trust.none'))}</p></div>`;
   const allPass = trust.checks.every((c) => c.pass);
   const deliveryKey = trust.appliedMode === 'auto' ? 'sandbox.xray.deliveryAuto' : trust.appliedMode === 'draft' ? 'sandbox.xray.deliveryDraft' : 'sandbox.xray.deliveryNone';
   const rows = trust.checks.map((c) =>
@@ -229,7 +230,7 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
   const chips = [
     `<span class="chip">${esc(labelled(locale, t(locale, 'sandbox.xray.skill'), capabilityName(locale, trust.capability)))}</span>`,
     `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(t(locale, deliveryKey as MessageKey))}</span>`,
-    trust.quote ? `<span class="chip"><bdi>${esc(show.money(locale, quoteUnit(trust.quote)))}/${esc(unitLabel(locale, trust.quote.unit ?? 'pcs'))}</bdi></span>` : '',
+    trust.quote ? `<span class="chip"><bdi>${esc(show.money(locale, quoteUnit(trust.quote)))}/${esc((trust.quote.unit ?? 'pcs') === 'pcs' ? t(locale, 'product.unit.pc') : unitLabel(locale, trust.quote.unit!))}</bdi></span>` : '',
     trust.guardViolations > 0 ? `<span class="chip warn">${trust.guardViolations}</span>` : '',
     trust.scenarioId
       ? `<span class="chip badge">${esc(labelled(locale, t(locale, 'sandbox.scenario.badge'), caseName(locale, trust.scenarioId)))}</span>`
@@ -260,7 +261,7 @@ export { parseTotal };
  * else waits for the owner: a reply to approve, or a conversation the owner
  * holds, takes the one fill, and the box is outlined.
  */
-function renderComposer(locale: Locale, prefill = '', totals = true, primary = true): string {
+function renderComposer(locale: Locale, prefill = '', totals = true, primary = true, currency: Currency = 'USD'): string {
   // M16.4b: the owner reads an owner-facing name; the engineering title in
   // src/trust/scenarios.ts is unchanged and stays internal (tests, CI). A
   // situation sends its customer's words, and the assistant answers them live.
@@ -280,9 +281,9 @@ function renderComposer(locale: Locale, prefill = '', totals = true, primary = t
     <form method="post" action="/app/sandbox/message" class="msgbar">
       <label class="muted" for="buyer">${esc(t(locale, 'sandbox.composer.label'))}</label>
       <textarea id="buyer" name="text" rows="2" placeholder="${esc(t(locale, 'sandbox.composer.placeholder'))}" required>${esc(prefill)}</textarea>
-      ${totals ? `<label class="muted" for="expected">${esc(t(locale, 'practice.total.label'))}</label>
-      <input id="expected" name="expected" inputmode="decimal" dir="ltr" autocomplete="off" />
-      <p class="muted">${esc(t(locale, 'practice.total.hint'))}</p>` : ''}
+      ${totals ? `<label class="muted" for="expected">${esc(t(locale, 'practice.total.label', { currency }))}</label>
+      <p class="muted small" id="expected-hint">${esc(t(locale, 'practice.total.hint'))}</p>
+      <input id="expected" name="expected" inputmode="decimal" dir="ltr" autocomplete="off" aria-describedby="expected-hint" />` : ''}
       <div class="msgacts">
         <button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
@@ -354,7 +355,7 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
   // Phase 9 (V1-286) — folded, and placed after the practice conversation: the
   // page opened with 41 case titles and the box to write in 3,000 px down.
   return `<details class="card pchecks">
-    <summary><h2>${esc(t(locale, 'practice.scripted.title'))} · <span class="pcount">${esc(show.isolate(locale, `${report.passed} / ${report.total}`))}</span></h2></summary>
+    <summary><h2>${esc(t(locale, 'practice.scripted.title'))} · <span class="pcount">${esc(t(locale, 'practice.scripted.count', { passed: report.passed, total: report.total }))}</span></h2></summary>
     <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: assistantName(locale) }))}</p>
     <ul class="pcases">${rows}</ul>
     <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: assistantName(locale) }))}</p>
@@ -394,7 +395,7 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
         : t(locale, x.agreed ? 'practice.total.agreed' : 'practice.total.differs',
             { expected: money(x.expected, x.currency), quoted: money(x.quoted, x.currency) }))}</span></li>`).join('');
   return `<div class="card sbx-checklist">
-    <h2>${esc(t(locale, 'practice.checklist.title'))} · <span class="count">${esc(show.isolate(locale, `${done}/${c.items.length}`))}</span></h2>
+    <h2>${esc(t(locale, 'practice.checklist.title'))} · <span class="count">${esc(t(locale, 'practice.checklist.count', { done, total: c.items.length }))}</span></h2>
     <ul class="checks">${rows}</ul>
     ${totals ? `<h3>${esc(t(locale, 'practice.total.title'))}</h3><ul class="checks">${totals}</ul>` : ''}
   </div>`;
@@ -406,7 +407,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
   working?: boolean;
 }): string {
   const name = assistantName(locale);
-  const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
+  const banner = `<div class="sbx-banner" role="note">${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
   // CC-25 — the notice is where every practice action lands, as on a
   // conversation: under the newest line, carrying the `latest` mark itself.
@@ -461,18 +462,16 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
     ${sandboxTakeoverCard(view, locale)}
     ${renderTrust(view.lastTurn, locale)}
     ${renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true,
-      view.ownership !== 'OWNER_CONTROLLED' && !draftCard.trim())}
+      view.ownership !== 'OWNER_CONTROLLED' && !draftCard.trim(), opts.checklist?.currency ?? 'USD')}
     ${opts.checklist ? checklistCard(opts.checklist, locale) : ''}`;
 
+  const reset = `<form method="post" action="/app/sandbox/reset" class="inline"><button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+        data-confirm="${esc(t(locale, 'sandbox.reset.confirm'))}">${esc(t(locale, 'sandbox.reset'))}</button></form>`;
   return `
-    <div class="dhead spread">
-      <form method="post" action="/app/sandbox/reset"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)"
-        data-confirm="${esc(t(locale, 'sandbox.reset.confirm'))}">${esc(t(locale, 'sandbox.reset'))}</button></form>
-    </div>
     ${banner}
     ${intro}
     ${opts.settings ? practiceModeCard(opts.settings, locale) : ''}
-    <div class="block"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${log}</div>
+    <div class="block"><div class="dhead spread sbx-log-h"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${reset}</div>${log}</div>
     ${flashHtml}
     ${acts}
     `;

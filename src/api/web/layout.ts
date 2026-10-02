@@ -1546,6 +1546,10 @@ const STYLE_PAGES = `
   .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
   .sbx-mode { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
+  /* Phase 9 (conversation-missed-15) — the card's gap is its only space: a heading's and a paragraph's own margins left a 35 px band. */
+  .sbx-mode > h2, .sbx-mode > p { margin:0; }
+  /* Phase 9 (V1-291) — Start over sits with the conversation it erases, a button among buttons. */
+  .sbx-log-h h2 { margin:0; }
   .sbx-checklist .chk.gap .mk { color:var(--color-ink-secondary); }
   .modebar { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-small); }
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
@@ -1558,7 +1562,9 @@ const STYLE_PAGES = `
   .sbx-trust { border-color:var(--color-waiting-line); }
   .sbx-trust.pass { border-color:var(--color-ok-line); }
   .sbx-trust.fail { border-color:var(--color-warn-line); }
-  .sbx-trust .verdict { font-weight:700; text-transform:none; letter-spacing:0; }
+  /* Phase 9 (V1-294) — the verdict in the heading is a word, not the general verdict box (padding, border, radius, centred). */
+  .sbx-trust .verdict { font-weight:700; text-transform:none; letter-spacing:0; margin:0; padding:0; border:0; border-radius:0;
+    background:none; text-align:start; }
   .sbx-trust.pass .verdict { color:var(--color-ok); }
   .sbx-trust.fail .verdict { color:var(--color-warn); }
   .chip.auto { background:var(--color-ok-wash); color:var(--color-ok); border-color:var(--color-ok-line); }

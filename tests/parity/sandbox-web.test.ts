@@ -373,7 +373,8 @@ describe('M20.4 · F-04 · scripted practice needs no tenant, and says what it p
     const { runScriptedPractice, renderPractice } = await import('../../src/api/web/sandbox.js');
     const r = await runScriptedPractice();
     const html = renderPractice(r, 'en').replace(/<style>[\s\S]*?<\/style>/g, '');
-    expect(html).toContain(`${r.passed} / ${r.total}`);
+    // Phase 9 (V1-290) — and says what it counts.
+    expect(html).toContain(t('en', 'practice.scripted.count', { passed: r.passed, total: r.total }));
     expect(html).not.toMatch(/\d+\s*%/);
     for (const banned of ['score', 'grade', 'rating']) expect(html.toLowerCase()).not.toContain(banned);
   });

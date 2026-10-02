@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
-import { t } from '../../src/core/owner/i18n/messages.js';
+import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { renderSandbox, renderPractice, type SandboxView } from '../../src/api/web/sandbox.js';
 import { usd } from '../../src/core/types/money.js';
 import { esc, shell } from '../../src/api/web/layout.js';
 import { renderConversationDetail, type ConversationDetail, type ConversationSummary, type InboxList } from '../../src/api/web/inbox.js';
@@ -402,7 +403,7 @@ describe('V1-273, conversation-missed-09 · deleting their data, said plainly, w
       const html = renderCustomerFile(file(), l, NOW);
       expect(plain(html), l).toContain(esc(t(l, 'conv.deletion.lead')));
       expect(html, l).toContain(`href="/app/settings/data">${esc(t(l, 'data.title'))}<span class="go"`);
-      const waiting = renderCustomerFile(file({ deletionAsk: { askedAt: ago(30), words: 'please delete my data' } as never }), l, NOW);
+      const waiting = renderCustomerFile(file({ deletionAsk: { id: 'a-1', askedAt: ago(30), asks: 1, conversationId: 'conv-here', words: 'please delete my data', buyer: 'Aisha Bello' } }), l, NOW);
       expect(waiting, l).toContain(`href="/app/settings/data">${esc(t(l, 'data.title'))}<span class="go"`);
     }
     for (const k of ['conv.deletion.lead', 'conv.deletion.waiting'] as const) {
@@ -462,5 +463,116 @@ describe('conversation-missed-07, conversation-new-08 · the same day one way; t
       expect(html, l).toContain(`<span class="muted">${esc(t(l, 'conv.file.firstContact'))}</span><b>${esc(plain(formatDay(l, ago(35), NOW, 'UTC')))}</b>`);
     }
     expect(linkedCss(shell({ title: 'x', active: 'inbox', locale: 'en', path: '/x', bodyHtml: '' }))).toContain('.tl li.tl-buyer .ic, .tl li.tl-event .ic { font-size:var(--font-size-title); }');
+  });
+});
+
+// ── Practice ────────────────────────────────────────────────────────────────
+
+const practiceView = (over: Partial<SandboxView> = {}): SandboxView => ({
+  hasConversation: true, conversationId: 'pc-1',
+  messages: [
+    { direction: 'inbound', text: 'Do you make canvas tote bags?', isImage: false },
+    { direction: 'outbound', text: 'Owner here — yes, we can do that.', isImage: false, by: 'owner' },
+  ],
+  transcript: { earlier: null, older: false }, lastTurn: null, ownership: 'WAITING_HUMAN', ...over,
+});
+const settings = { alone: false, stopped: false, ownerStopped: false };
+const report = { cases: [{ id: 'x', title: 'x', category: 'x', passed: true, checks: [] }], passed: 41, total: 41 };
+
+describe('V1-290, conversation-missed-13 · each count says what it counts; the checklist says it is for going live', () => {
+  it('"41 of 41 pass", "1 of 8 tried", and a title that names going live', () => {
+    for (const l of LOCALES) {
+      const checks = plain(renderPractice(report, l));
+      expect(checks, l).toContain(esc(t(l, 'practice.scripted.count', { passed: 41, total: 41 })));
+      expect(checks, l).not.toContain('41 / 41');
+      const html = plain(renderSandbox(practiceView(), l, { flash: null, settings,
+        checklist: { items: ['quoted', 'found_by_name'], seen: new Set(['quoted']), totals: [], currency: 'USD' } }));
+      expect(html, l).toContain(esc(t(l, 'practice.checklist.count', { done: 1, total: 2 })));
+      expect(html, l).toContain(esc(t(l, 'practice.checklist.title')));
+    }
+    expect(t('en', 'practice.checklist.title')).toMatch(/^Before going live/);
+    expect(t('es', 'practice.checklist.title')).not.toContain('lo que ya viste');
+  });
+});
+
+describe('conversation-missed-11, V1-291, V1-298 · three headings, three names; Start over a button; no emoji', () => {
+  it('the transcript is "Conversation", Start over sits with it, outlined and asking first; the banner opens with words', () => {
+    for (const l of LOCALES) {
+      const html = renderSandbox(practiceView(), l, { flash: null, settings });
+      expect(html, l).toContain(`<div class="dhead spread sbx-log-h"><h2>${esc(t(l, 'inbox.detail.log'))}</h2><form method="post" action="/app/sandbox/reset" class="inline"><button class="btn" type="submit"`);
+      expect(html, l).not.toContain(`<h2>${esc(t(l, 'nav.sandbox'))}</h2>`);
+      expect(html, l).not.toContain('btn ghost');
+      expect(html, l).not.toContain('🧪');
+      expect(t(l, 'inbox.detail.log'), l).not.toBe(t(l, 'nav.sandbox'));
+      expect(t(l, 'practice.scripted.title'), l).not.toBe(t(l, 'nav.sandbox'));
+    }
+    expect(t('en', 'practice.handoff.nothingSent')).toBe('Nothing was sent to the customer after their last message.');
+  });
+});
+
+describe('V1-293, conversation-missed-12 · Chinese Practice: what is on now, what the button changes; 客户 throughout', () => {
+  it('no 独立发送 jargon, and no 顾客', () => {
+    for (const k of ['practice.mode.levels', 'practice.mode.alone', 'practice.mode.aloneOn', 'practice.mode.aloneOff'] as const) {
+      expect(t('zh', k), k).not.toContain('独立发送');
+    }
+    expect(t('zh', 'practice.mode.aloneOn')).toBe('改为不等你确认就发出');
+    for (const k of ['practice.checklist.title', 'practice.check.found_by_name', 'practice.check.person_handoff', 'practice.check.order_tapped', 'practice.mode.alone'] as const) {
+      expect(t('zh', k), k).not.toContain('顾客');
+    }
+  });
+});
+
+describe('V1-294, conversation-missed-15, conversation-new-14 · the Practice cards\' own spacing', () => {
+  it('the verdict is a word in the heading; the mode card\'s gap is its only space; the empty trust check is a line', () => {
+    const sheet = linkedCss(shell({ title: 'x', active: 'sandbox', locale: 'en', path: '/app/sandbox', bodyHtml: '' }));
+    expect(sheet).toMatch(/\.sbx-trust \.verdict \{[^}]*margin:0; padding:0; border:0; border-radius:0;\s*background:none; text-align:start; \}/);
+    expect(sheet).toContain('.sbx-mode > h2, .sbx-mode > p { margin:0; }');
+    for (const l of LOCALES) {
+      const html = renderSandbox(practiceView(), l, { flash: null, settings });
+      expect(html, l).toContain(`<p class="muted">${esc(t(l, 'sandbox.trust.none'))}</p>`);
+      expect(html, l).not.toContain(`<div class="empty muted">${esc(t(l, 'sandbox.trust.none'))}</div>`);
+    }
+  });
+});
+
+describe('V1-295 · nothing in Practice shouts', () => {
+  it('no word in capitals for emphasis', () => {
+    for (const l of LOCALES) expect(t(l, 'practice.scripted.notproves'), l).not.toMatch(/\b[A-ZÁÉÍÓÚ]{2,}\b/);
+  });
+});
+
+describe('V1-296, V1-297 · the situation\'s button says what it does; the expected total says its currency', () => {
+  it('"Send it as the customer"; "…in USD (optional)" with its explanation between label and field', () => {
+    for (const l of LOCALES) {
+      const html = renderSandbox(practiceView({ ownership: 'AI', messages: [] }), l, { flash: null, settings,
+        checklist: { items: ['quoted'], seen: new Set(), totals: [], currency: 'AED' } });
+      expect(html, l).toContain(`>${esc(t(l, 'sandbox.scenario.load'))}</button>`);
+      const label = html.indexOf(`>${esc(t(l, 'practice.total.label', { currency: 'AED' }))}</label>`);
+      const hint = html.indexOf('id="expected-hint"');
+      const field = html.indexOf('<input id="expected"');
+      expect(label, l).toBeGreaterThan(-1);
+      expect(label, l).toBeLessThan(hint);
+      expect(hint, l).toBeLessThan(field);
+      expect(html, l).toContain('aria-describedby="expected-hint"');
+    }
+    expect(t('en', 'sandbox.scenario.load')).toBe('Send it as the customer');
+  });
+});
+
+describe('conversation-missed-10 · the hand-off card in Practice: the act named as everywhere', () => {
+  it('after "Handed to you", the button is the one "I\'ll reply" every page uses', () => {
+    for (const l of LOCALES) {
+      const html = renderSandbox(practiceView({ messages: [{ direction: 'inbound', text: 'Hi', isImage: false }] }), l, { flash: null, settings });
+      expect(html, l).toContain(`>${esc(t(l, 'card.handToMe'))}</button>`);
+      expect(html, l).toContain(esc(t(l, 'practice.handoff.nothingSent')));
+    }
+  });
+});
+
+describe('conversation-missed-16 · the Arabic case title: Arabic quotes, and the question it is about', () => {
+  it('«نعم» and «هل أتحدث مع شخص حقيقي؟»', () => {
+    const s = t('ar', 'sandbox.case.identity-bare-no-never-reaches-the-buyer' as MessageKey);
+    expect(s).not.toMatch(/[“”]/);
+    expect(s).toContain('«هل أتحدث مع شخص حقيقي؟»');
   });
 });
