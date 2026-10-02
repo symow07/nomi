@@ -3426,6 +3426,8 @@ const EN = {
   'alerts.phone.ledeOff': 'Alerts on your phone are not switched on here yet. When they are, a customer waiting for you — a reply to approve, or someone who wants a person — shows on your phone, even with Nomi closed.',
   'forbidden.howMatched': 'A word is caught wherever it appears, even inside a longer word: “liar” also catches “familiar”. For precision, write the whole phrase.',
   'buyers.badge.reviewShort': 'Reply to review',
+  'order.heading': 'Order {ref}',
+  'order.invoice.english': 'The proforma is in English, as most buyers expect it.',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -6763,6 +6765,8 @@ const ZH: Record<MessageKey, string> = {
   'alerts.phone.ledeOff': '这里还没有开启手机提醒。开启后，有客户在等你——要你确认的回复，或者想找人的客户——即使没打开 Nomi，手机也会提醒你。',
   'forbidden.howMatched': '只要出现就会被拦下，哪怕在别的词里面：“滚”也会拦下“滚筒”。想更准确，就写完整的短语。',
   'buyers.badge.reviewShort': '看看这条回复',
+  'order.heading': '订单 {ref}',
+  'order.invoice.english': '形式发票用英文写，这是大多数买家习惯的格式。',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -10094,6 +10098,8 @@ const AR: Record<MessageKey, string> = {
   'alerts.phone.ledeOff': 'تنبيهات الهاتف غير مُفعَّلة هنا بعد. عند تفعيلها، يظهر على هاتفك كل عميل بانتظارك — ردّ بانتظار موافقتك، أو من يطلب التحدث إلى شخص — حتى مع إغلاق Nomi.',
   'forbidden.howMatched': 'تُلتقَط الكلمة أينما وردت، حتى داخل كلمة أطول. وللدقة، يُرجى كتابة العبارة كاملة.',
   'buyers.badge.reviewShort': 'ردّ للمراجعة',
+  'order.heading': 'الطلب {ref}',
+  'order.invoice.english': 'الفاتورة المبدئية بالإنجليزية، كما يتوقعها معظم المشترين.',
 };
 
 /**
@@ -13366,6 +13372,8 @@ const ES: Record<MessageKey, string> = {
   'alerts.phone.ledeOff': 'Los avisos en el teléfono todavía no están activados aquí. Cuando lo estén, verás en tu teléfono a cada cliente que te espera —una respuesta por aprobar, o alguien que quiere hablar con una persona—, aunque Nomi esté cerrado.',
   'forbidden.howMatched': 'Una palabra se detecta dondequiera que aparezca, incluso dentro de otra más larga: «liar» también detecta «familiar». Para más precisión, escribe la frase completa.',
   'buyers.badge.reviewShort': 'Respuesta por revisar',
+  'order.heading': 'Pedido {ref}',
+  'order.invoice.english': 'La factura proforma va en inglés, como la espera la mayoría de los compradores.',
 };
 
 
@@ -16643,6 +16651,8 @@ const FR: Record<MessageKey, string> = {
   'alerts.phone.ledeOff': 'Les alertes sur téléphone ne sont pas encore activées ici. Une fois activées, chaque client qui vous attend — une réponse à valider, ou quelqu’un qui veut parler à une personne — s’affiche sur votre téléphone, même Nomi fermé.',
   'forbidden.howMatched': 'Un mot est repéré partout, même à l’intérieur d’un mot plus long : « liar » repère aussi « familiar ». Pour plus de précision, écrivez l’expression entière.',
   'buyers.badge.reviewShort': 'Réponse à relire',
+  'order.heading': 'Commande {ref}',
+  'order.invoice.english': 'La facture proforma est en anglais, comme l’attendent la plupart des acheteurs.',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };

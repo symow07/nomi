@@ -513,6 +513,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
     color:var(--color-ink); white-space:pre; margin:0; }
+  pre.doc { white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; }
   /* One "go deeper" link for the whole product; the chevron mirrors in RTL. */
   /* Each "go deeper" is its own ROW. Inline-flex put three of them on one
      line on the settings page, where they read as one run-on sentence with

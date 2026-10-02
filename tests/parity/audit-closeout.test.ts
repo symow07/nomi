@@ -663,3 +663,16 @@ describe('CC-09 · the public site exists (#80); what is left is the owner\'s', 
     }
   });
 });
+
+describe('Phase 9 · the order page (V1-184–V1-187)', () => {
+  it('says it is an order, keeps the proforma readable on a phone, and says outside English that it is English', async () => {
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    for (const l of LOCALES) {
+      const html = withoutIsolates(renderOrder(order(), l, null));
+      expect(html, l).toMatch(/<h1 class="page">[^<]*<bdi>/);
+      expect(html, l).toContain(t(l, 'order.heading', { ref: '' }).trim().slice(0, 4));
+      expect(html, l).toContain('<pre class="doc" dir="ltr">');
+      expect(html.includes(t(l, 'order.invoice.english')), l).toBe(l !== 'en');
+    }
+  });
+});
