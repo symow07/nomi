@@ -28,7 +28,8 @@ under "Decided" below.
   - Phone width is the primary target.
 - **Mine to decide (named by the owner):** the exact row height within 56–72 px, which secondary actions leave the draft's button row, the settings group names, the motion curve. Each is recorded below as it is taken.
 - **The evidence it rests on.**
-  - `docs/UI-AUDIT.md`: 566 findings at main `4fa90d3`.
+  - `docs/UI-AUDIT-V1.md`: the first audit, 566 findings at main `4fa90d3`, kept unchanged for comparison.
+  - `docs/UI-AUDIT.md`: since phase 8, the merged list (703 findings at main `6d390b8`) that phase 9 works.
   - `docs/UI-BENCHMARK.md`: Nomi measured against Front, Intercom, Crisp, Linear, Missive, Help Scout and respond.io.
 
 | Phase | What | State |
@@ -41,8 +42,41 @@ under "Decided" below.
 | 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | #202 |
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
-| 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | next |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+| 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | next |
+
+**Phase 8 (#205) — the re-audit.**
+
+**The three counts.**
+
+| | Count |
+|---|---|
+| **Dropped** from the first audit's 566 | **31**: fixed by the rebuild 24, the element rebuilt so the finding no longer applies 4, the element removed 3 |
+| **Still reproducing** | **535** (restated in today's words, V1 IDs kept) |
+| **Newly introduced** by the rebuild | **75** (marked NEW) |
+
+Also found: **93** defects that were there before the rebuild and the first audit missed (marked NEW (missed); not counted as introduced).
+
+**The merged list:** 703 findings: 8 S1 · 115 S2 · 377 S3 · 203 S4 (the first audit: 12 · 117 · 315 · 122).
+
+**What it says plainly.** The rebuild changed the structure (rows, the draft card, settings, colour, motion, states, the phone) and those findings dropped. Almost every finding about what the pages *say* still reproduces, because phases 1–7 did not touch the words: the contradictions, the developer words, the missing French, the leaked English. Those are phase 9's.
+
+**The eight S1s**, phase 9's first work:
+1. Your assistant: "Handled without you ✓ Greeting" beside "every reply keeps coming to you first" (V1-417).
+2. Channels: the e-mail form's "The name on your signature" is the domain's key name (V1-433).
+3. Connect WhatsApp: the first step has no field and no button (V1-450).
+4. Connect WhatsApp: it describes a Test button and switches the page does not have (V1-451).
+5. Practice: the owner's own reply captioned as the assistant's (V1-285).
+6. French: no page renders in French (V1-001).
+7. Your price limits: "Up to 5% off is decided without you" above "no discount is ever offered" (V1-347).
+8. Today: a whole September set against two days of October and announced as a fall (V1-087).
+
+**How it was done**, the first audit's method:
+- 62 pages and three calendar views the rebuild added, in five languages, at phone (390×844) and desktop (1280×900): 650 captures, each checked by script (overflow, clipping, leaked English, unlabelled controls, sizes).
+- Nine reviewers: one per area as before, and one for the whole product who walked by hand the forms sent back, the ask-first dialog, the draft card, Practice and Undo.
+- 25 screenshots of Nomi in `docs/ui-audit-v2/`.
+
+**Correction to phase 6's entry:** it said every empty state is now a panel. Twelve became panels; five did not (Today's two one-line empties, the calendar's "Nothing this week/day/month" and the list's "Nothing today"). The re-audit found them (NEW (missed), S2), and phase 9 fixes them.
 
 **Phase 7 (#204) — the phone.**
 
@@ -81,7 +115,7 @@ under "Decided" below.
 - **Shared pieces:** `Kept`, `keptValue`, `keptError` and `keptInvalid` (rows.ts), and the `FIELD_OF` table in app.ts, which says which field each refusal is about. Any other refusal stays a notice.
 
 **Empty.**
-- Every empty state is now a panel of its own (dashed edge, padding, a gap above). It no longer reads as the caption of the button above it; twelve one-line paragraphs became panels.
+- Twelve one-line empty states became panels of their own (dashed edge, padding, a gap above), so none reads as the caption of the button above it. *(Corrected in phase 8: this line first said every empty state; five were missed — see phase 8.)*
 - "Mine" with nothing held says so and points at who is waiting. It said "No conversations yet… share your WhatsApp number" in a workspace with 71 (the benchmark's finding).
 - Six "not found" pages (product, conversation ×2, order, a page's proposal, knowledge's product) were a bare heading and one link. They now say what is missing, the likely reason, and the way back (`missingPage`).
 
@@ -289,6 +323,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #205 | **Phase 8 — the re-audit**: the rebuilt app audited again by the first audit's method (62 pages + 3 calendar views, five languages, two widths, 650 captures, nine reviewers, a hand walk). One merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`. Dropped 31, still reproducing 535, newly introduced 75 (and 93 the first audit missed); 703 in all, 8 of them S1. Phase 6's "every empty state is a panel" corrected: five were not. Docs only | 120 |
 | 2026-10-02 | #204 | **Phase 7 — the phone**: the top nav on one line in four languages at 360 and 390 px (a shorter phone label for two entries); the calendar's grids scroll visibly with the hours pinned, no name is cut, a crowded month day says "+N more", the day is one time-ordered list with a kind icon and done dates greyed; the add-a-date form comes back inline. No migration | 120 |
 | 2026-10-02 | #203 | **Phase 6 — states**: four separate refusal pages became inline errors under their field with what was typed kept; five settings forms come back the same way; empty states are panels, "Mine" no longer claims an empty business, six not-found pages say why; a busy button on every form; the guide's videos have stills and lengths; Practice and Billing no longer promise what never comes; fast asking ends after 15 minutes. No migration | 120 |
 | 2026-10-02 | #202 | **Phase 5 — motion**: the three durations used with one decelerating curve, all of it only for readers who did not ask for less motion; Undo instead of confirm for four set-aside things (word, closure, fact, date); the product's own ask-first dialog instead of the browser's box; the assistant at work shown in place, and its reply drawn into the page without a reload. No migration | 120 |
