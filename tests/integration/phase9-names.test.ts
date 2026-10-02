@@ -55,6 +55,14 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
     expect((await tx((t) => readBuyerCounts(t, owner))).waiting).toBe(0);
     expect((await tx((t) => readBuyerCounts(t, chen))).waiting).toBe(1);
     expect((await tx((t) => readBuyerCounts(t))).waiting).toBe(1);     // no reader known: everyone's, as before
+    // Taken over with nobody named (the 'owner' sentinel): the owner's, and nobody else's.
+    await tx((t) => sql`update conversations set assigned_to = 'owner' where id = ${CONV}`.execute(t));
+    const ownerSees = await tx((t) => readBuyerCounts(t, owner));
+    expect([ownerSees.waiting, ownerSees.mine]).toEqual([1, 1]);
+    const chenSees = await tx((t) => readBuyerCounts(t, chen));
+    expect([chenSees.waiting, chenSees.mine]).toEqual([0, 0]);
+    const codeSees = await tx((t) => readBuyerCounts(t, 'owner'));   // the access code with no person on record
+    expect([codeSees.waiting, codeSees.mine]).toEqual([1, 1]);
     await tx((t) => sql`update conversations set assigned_to = null where id = ${CONV}`.execute(t));
   });
 
