@@ -391,3 +391,12 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     expect(app).toContain("app.get('/app/conversations/:conversationId'");
   });
 });
+
+describe('Phase 9 (inbox-calendar-new-04) · a Latin preview in Arabic sits under the name, cut at its own end', () => {
+  it('its direction is its own (dir=auto), and on a right-to-left page it aligns to the end of its own line', async () => {
+    const { linkedCss } = await import('./linked-css.js');
+    const { shell } = await import('../../src/api/web/layout.js');
+    const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: '' }));
+    expect(css).toContain('[dir="rtl"] .cr-text:dir(ltr) { text-align:end; }');
+  });
+});

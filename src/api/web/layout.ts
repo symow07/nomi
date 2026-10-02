@@ -1282,6 +1282,8 @@ const STYLE_PAGES = `
   .cr-l2 { grid-row:2; grid-column:2; display:flex; align-items:baseline; gap:var(--space-4); min-width:0;
     font-size:var(--font-size-small); color:var(--color-ink-secondary); white-space:nowrap; }
   .cr-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:match-parent; }
+  /* Phase 9 (inbox-calendar-new-04) — a Latin preview on a right-to-left page sits under the name, and is still cut at its own end. */
+  [dir="rtl"] .cr-text:dir(ltr) { text-align:end; }
   /* A customer still waiting for an answer: full ink, as the transcript writes whose words lead. */
   .crow.unanswered .cr-text { color:var(--color-ink); }
   .cr-why { grid-row:2; grid-column:3; justify-self:end; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis;
