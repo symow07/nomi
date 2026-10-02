@@ -3364,6 +3364,7 @@ const EN = {
   'contacts.flash.no_channel': 'Nothing here can reach that address. Check it, or add them with another one.',
   'contacts.flash.notLive': 'Messaging is not switched on here yet, so nothing was written or sent.',
   'product.add.empty': 'Nothing was read: the box was empty. Paste your list, then press the button again.',
+  'ready.alone.needsName': 'Sending alone is earned, and opens once the name customers read is confirmed',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -6639,6 +6640,7 @@ const ZH: Record<MessageKey, string> = {
   'contacts.flash.no_channel': '这里发不到那个地址。核对一下，或者换一个加进来。',
   'contacts.flash.notLive': '这里的消息通道还没打开，所以什么都没写、也没发。',
   'product.add.empty': '什么都没读到：框里是空的。把清单粘贴进去，再按一次。',
+  'ready.alone.needsName': '已经可以自己发消息了，确认客户看到的名字之后才会开启',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -9908,6 +9910,7 @@ const AR: Record<MessageKey, string> = {
   'contacts.flash.no_channel': 'لا شيء هنا يصل إلى ذلك العنوان. يُرجى التحقّق منه، أو الإضافة بعنوان آخر.',
   'contacts.flash.notLive': 'المراسلة غير مُفعّلة هنا بعد، فلم يُكتب شيء ولم يُرسَل.',
   'product.add.empty': 'لم يُقرأ شيء: المربع فارغ. يُرجى لصق القائمة ثم الضغط على الزر مجددًا.',
+  'ready.alone.needsName': 'الإرسال دون انتظارك مُستحَق، ويُفتح بعد تأكيد الاسم الذي يقرؤه العملاء',
 };
 
 /**
@@ -13118,6 +13121,7 @@ const ES: Record<MessageKey, string> = {
   'contacts.flash.no_channel': 'Nada de aquí puede llegar a esa dirección. Revísala, o añade a esta persona con otra dirección.',
   'contacts.flash.notLive': 'Los mensajes todavía no están activados aquí, así que no se escribió ni se envió nada.',
   'product.add.empty': 'No se leyó nada: el cuadro estaba vacío. Pega tu lista y vuelve a pulsar el botón.',
+  'ready.alone.needsName': 'El envío sin ti ya está ganado, y se abre cuando confirmes el nombre que leen tus clientes',
 };
 
 
@@ -16333,6 +16337,7 @@ const FR: Record<MessageKey, string> = {
   'contacts.flash.no_channel': 'Rien ici ne permet d’atteindre cette adresse. Vérifiez-la, ou ajoutez cette personne avec une autre adresse.',
   'contacts.flash.notLive': 'La messagerie n’est pas encore activée ici : rien n’a été écrit ni envoyé.',
   'product.add.empty': 'Rien n’a été lu : la zone était vide. Collez votre liste, puis appuyez de nouveau sur le bouton.',
+  'ready.alone.needsName': 'L’envoi sans vous est acquis et s’ouvre une fois confirmé le nom que lisent vos clients',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };

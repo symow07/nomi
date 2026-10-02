@@ -87,3 +87,16 @@ describe('G6 · the machine room is the installation\'s', () => {
     expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s), s.businessId === deps.businessId)');
   });
 });
+
+describe('Phase 9 · "may send alone" is ticked only when it is true (V1-145)', () => {
+  it('earned but the name unconfirmed: not ticked, and it says the name is what is left', () => {
+    for (const l of LOCALES) {
+      const html = withoutIsolates(renderReady(view([], { earned: true, named: false }), l));
+      const facts = html.slice(html.indexOf('id="ready-facts"'));
+      expect(facts, l).toContain(esc(t(l, 'ready.alone.needsName')));
+      expect(facts, l).not.toContain('class="chk ok"');   // nothing in the facts is ticked: name, channel, sending alone
+    }
+    const both = renderReady(view([], { earned: true, named: true }), 'en');
+    expect(both).toMatch(/<li class="chk ok"><span class="mk" aria-hidden="true">✓<\/span><span class="lbl">[^<]*send alone/);
+  });
+});

@@ -64,7 +64,8 @@ export function renderReady(v: ReadyView, locale: Locale): string {
     <ul class="checks">
       ${row(v.named, t(locale, v.named ? 'ready.name.done' : 'ready.name.todo', { name }))}
       ${row(v.connected, t(locale, v.connected ? 'ready.channel.done' : 'ready.channel.todo'))}
-      ${row(v.earned, t(locale, v.earned ? 'ready.alone.earned' : 'ready.alone.not', { name }))}
+      ${/* Phase 9 (V1-145) — sending alone needs both: earned AND the name confirmed (commitTurn's gates). */ ''}${row(v.earned && v.named, t(locale,
+        !v.earned ? 'ready.alone.not' : v.named ? 'ready.alone.earned' : 'ready.alone.needsName', { name }))}
     </ul>
     <div class="doors">${v.named ? '' : deeper('/app/onboarding', t(locale, 'pilot.title'))}${v.connected ? '' : deeper('/app/channels', t(locale, 'nav.channels'))}</div>
   </section>`;
