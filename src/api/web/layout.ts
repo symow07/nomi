@@ -1127,7 +1127,10 @@ const STYLE_PAGES = `
   /* ── knowledge.ts — moved here whole in step four: page-specific names, defined once. */
   /* The two scopes sit side by side, so each says which one it is. */
   /* A scope caption explains; it is not a state, so it gets no colour. */
-  .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-4) 0 var(--space-12); }
+  /* Phase 9 (missed-20) — a short line never leaves one character alone on the next. */
+  .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-4) 0 var(--space-12); text-wrap:pretty; }
+  /* Phase 9 (new-17) — lists, cards and empty panels share the one measure, so nothing on the page is narrower than its neighbours. */
+  .klist, .kitem, .gap { max-width:var(--measure-prose); }
   .klist { display:flex; flex-direction:column; gap:var(--space-8); }
   .krow { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
   .krow:hover { border-color:var(--color-border); }
@@ -1139,9 +1142,9 @@ const STYLE_PAGES = `
   .teach h3 { margin:0; font-size:var(--font-size-small); }
   input[type=text], textarea, select { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
   .kbtns { display:flex; gap:var(--space-8); }
-  .certs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .cert { padding:8px 14px; border-radius:999px; border:1px solid var(--color-border); background:var(--color-paper); color:var(--color-ink-secondary); cursor:pointer; font-size:var(--font-size-caption); }
-  .cert.on { background:var(--color-ok-wash); color:var(--color-ok); border-color:var(--color-ok-line); }
+  /* Phase 9 (V1-372) — a certification is a row: its name, on or off in words, and the button that switches it. */
+  .cert-name { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); }
+  .cert-name .pill { margin:0; }
 
   /* ── knowledge-insights.ts — moved here whole in step four: page-specific names, defined once. */
   h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }

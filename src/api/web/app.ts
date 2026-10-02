@@ -170,7 +170,7 @@ import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
   teachKnowledge, correctKnowledge, archiveKnowledge, restoreKnowledge, setCertification, type KnowledgeFlash,
 } from './knowledge.js';
-import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
+import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, renderKnowledgePeriod, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
   loadPracticeView, renderSandbox, sayInPractice, parseTotal,
@@ -4946,10 +4946,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
+    // Phase 9 (V1-358) — what to do first; the period's counts last.
     return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
-        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '');
+        : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
+      + renderKnowledgePeriod(ops, locale, new Date());
   };
   app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);

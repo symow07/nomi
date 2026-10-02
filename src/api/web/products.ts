@@ -791,7 +791,7 @@ export function renderPricesToMe(locale: Locale, on: boolean): string {
       <p>${esc(t(locale, on ? 'product.pricesToMe.on' : 'product.pricesToMe.intro', { name }))}</p>
       <form method="post" action="/app/products/prices-to-me">
         <input type="hidden" name="on" value="${on ? '0' : '1'}" />
-        <button class="btn" type="submit"${on ? '' : ` data-confirm="${esc(t(locale, 'product.pricesToMe.confirmOn', { name }))}"`}>${esc(t(locale, on ? 'product.pricesToMe.turnOff' : 'product.pricesToMe.turnOn', { name }))}</button>
+        <button class="btn" type="submit"${on ? '' : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'product.pricesToMe.confirmOn', { name }))}"`}>${esc(t(locale, on ? 'product.pricesToMe.turnOff' : 'product.pricesToMe.turnOn', { name }))}</button>
       </form>
     </div>`;
 }

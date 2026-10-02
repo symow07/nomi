@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import {
-  renderProductList, renderProductDetail, renderAddForm, renderPricesToMe, renderOpenImport, isUuid,
+  renderProductList, renderProductDetail, renderAddForm, renderPricesToMe, renderOpenImport, isUuid, loadProductDetail,
   type ProductListItem, type ProductDetail,
 } from '../../src/api/web/products.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
@@ -15,6 +15,11 @@ import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
 import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
+import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
+import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
+import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
+import { readFileSync } from 'node:fs';
+import type { Db } from '../../src/db/client.js';
 
 /**
  * Phase 9, round two — Products, the product page, the add page and the
@@ -246,7 +251,7 @@ describe('Products — the add page', () => {
   it('V1-326 — "prices go to me" says what it does, and asks first', () => {
     for (const l of LOCALES) {
       const off = renderPricesToMe(l, false);
-      expect(off, l).toContain(`data-confirm="${esc(t(l, 'product.pricesToMe.confirmOn'))}">${esc(t(l, 'product.pricesToMe.turnOn'))}</button>`);
+      expect(off, l).toContain(`onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(l, 'product.pricesToMe.confirmOn'))}">${esc(t(l, 'product.pricesToMe.turnOn'))}</button>`);
       expect(renderPricesToMe(l, true), l).not.toContain('data-confirm');
     }
     expect(t('en', 'product.pricesToMe.turnOn')).toBe('Send every price question to me');
@@ -374,7 +379,7 @@ describe('The import review', () => {
   it('V1-341 / new-12 — "Start again" is the red-outlined act, and its question names the same act', () => {
     for (const l of LOCALES) {
       const html = review(l);
-      expect(html, l).toContain(`<button class="btn danger" type="submit" data-confirm="${esc(t(l, 'import.dropConfirm'))}">${esc(t(l, 'import.drop'))}</button>`);
+      expect(html, l).toContain(`<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(l, 'import.dropConfirm'))}">${esc(t(l, 'import.drop'))}</button>`);
       expect(t(l, 'import.dropConfirm').replace(/^¿/, '').startsWith(t(l, 'import.drop')), l).toBe(true);
       expect(html, l).not.toContain('quiet');
     }
@@ -543,5 +548,147 @@ describe('Your price limits', () => {
     }
     const withOne = plain(renderFactory({ ...f, prices: { ...f.prices, volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 100, discountPct: 4, asksFirst: false }] } }, 'en'));
     expect(withOne).toContain('Of the discounts you have written, up to 7% goes out without you');
+  });
+});
+
+describe('What your assistant knows', () => {
+  const NOW = new Date('2026-10-02T12:00:00Z');
+  const quiet: KnowledgeOps = {
+    range: 'week', hasActivity: false,
+    report: { factsAdded: 0, answersCorrected: 0, certsAuthorized: 0, archived: 0, commonRequests: [] }, gaps: [], activity: [],
+  };
+  const index: KnowledgeIndex = {
+    products: [{ id: 'p2', name: 'Canvas Tote Bag 38x40cm', nameZh: '帆布袋', count: 0 }, { id: 'p1', name: 'Bamboo Cutting Board', nameZh: '竹砧板', count: 2 }],
+    business: [], certs: ['CE'], appliesToProducts: 12,
+  };
+  // The page as app.ts draws it (knowledgeBody): what to do, what is taught, the page reader, the period last.
+  const page = (l: Locale, ops: KnowledgeOps = quiet) => plain(renderKnowledgeOps(ops, l, NOW) + renderKnowledgeIndex(index, l)
+    + renderPageFactsForm(l) + renderKnowledgePeriod(ops, l, NOW));
+
+  it('V1-358 — the page opens on what there is to do; the period\'s counts come last, and no zero tiles', () => {
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/renderKnowledgeOps\(ops[\s\S]{0,400}renderKnowledgeIndex\(index[\s\S]{0,600}renderKnowledgePeriod\(ops/);
+    for (const l of LOCALES) {
+      const html = page(l);
+      const at = (s: string) => html.indexOf(s);
+      expect(at(esc(t(l, 'knowledge.ops.gaps'))), l).toBeLessThan(at(esc(t(l, 'knowledge.teach'))));
+      expect(at(esc(t(l, 'knowledge.teach'))), l).toBeLessThan(at('id="period"'));
+      expect(at('id="from-page"'), l).toBeLessThan(at('id="period"'));
+      expect(html, l).not.toContain('class="stats"');
+    }
+  });
+
+  it('V1-359 — with no question asked, it never says each one was answered from what was taught', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).toContain(esc(t(l, 'knowledge.ops.noQuestions', { period: t(l, 'knowledge.ops.period.week') })));
+      expect(html, l).not.toContain(esc(t(l, 'knowledge.ops.noGaps', { period: t(l, 'knowledge.ops.period.week') })));
+    }
+  });
+
+  it('V1-360 / V1-361 — each product row says what its number counts; Chinese shows and sorts Chinese names', () => {
+    const en = page('en');
+    expect(en).toContain('2 facts taught');
+    expect(en).toContain('Nothing taught yet<span class="go"');
+    const zh = page('zh');
+    expect(zh).toContain('<bdi>竹砧板</bdi>');
+    expect(zh).toContain('<bdi>帆布袋</bdi>');
+    expect(zh).not.toContain('Bamboo Cutting Board');
+    expect(zh.indexOf('帆布袋')).toBeLessThan(zh.indexOf('竹砧板'));   // 帆 before 竹 in Chinese order
+  });
+
+  it('V1-363 / V1-368 / V1-377 — every teach field is named by a label wrapping it, at the page\'s size', () => {
+    for (const html of [page('en'), plain(renderProductKnowledge(product(), 'en', null))]) {
+      expect(html).toMatch(/<label class="pq"><span>Type<\/span><select name="kind"/);
+      expect(html).toMatch(/<label class="pq"><span>Title<\/span>\s*<input type="text" name="label"/);
+      expect(html).toMatch(/<label class="pq"><span>The fact or answer<\/span>\s*<textarea name="content"/);
+      expect(html).not.toContain('<label class="muted">');
+    }
+    expect(page('en')).toContain('aria-label="Or paste the page');
+  });
+
+  it('V1-364 — the business is taught business things, a product product things', () => {
+    const biz = page('en').split('action="/app/knowledge/teach"')[1]!.split('</select>')[0]!;
+    expect(biz).not.toContain('value="specification"');
+    expect(biz).not.toContain('value="material"');
+    expect(biz).not.toContain('value="usage"');
+    expect(biz).toContain('value="faq"');
+    expect(plain(renderProductKnowledge(product(), 'en', null))).toContain('value="specification"');
+  });
+
+  it('V1-365 — the page reader\'s description at the lede\'s size; its field as wide as the teach fields', () => {
+    const html = page('en');
+    expect(html).toContain(`<p class="fdesc">${esc(t('en', 'pageFacts.intro'))}</p>`);
+    expect(html).toMatch(/action="\/app\/knowledge\/from-page" class="pform"/);
+    expect(html).toMatch(/action="\/app\/knowledge\/teach" class="pform teach"/);
+  });
+
+  it('V1-367 / V1-370 — the period is named, the tab for today is not the nav\'s "Today", and the count says what it counts', () => {
+    const counted = { ...quiet, hasActivity: true, report: { ...quiet.report, factsAdded: 1, certsAuthorized: 1 } };
+    const en = plain(renderKnowledgePeriod(counted, 'en', NOW));
+    expect(en).toContain('<h2>What changed this week</h2>');
+    expect(en).toContain('>So far today</a>');
+    expect(en).toContain('Certifications your assistant may now mention');
+    expect(t('zh', 'knowledge.ops.thisPeriod', { period: t('zh', 'knowledge.ops.period.month') })).toBe('本月的变动');
+  });
+
+  it('V1-369 / missed-20 — the Chinese titles end on a noun; a short line never leaves one character alone', () => {
+    expect(t('zh', 'nav.knowledge')).toMatch(/知道的事$/);
+    expect(t('zh', 'knowledge.taught.title')).not.toMatch(/的$/);
+    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'zh', path: '/app/knowledge', bodyHtml: page('zh') }));
+    expect(css).toMatch(/\.scope \{[^}]*text-wrap:pretty; \}/);
+  });
+
+  it('new-17 — lists, cards and empty panels share one measure', () => {
+    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'en', path: '/app/knowledge', bodyHtml: page('en') }));
+    expect(css).toContain('.klist, .kitem, .gap { max-width:var(--measure-prose); }');
+  });
+
+  it('V1-371 / V1-372 / new-18 / V1-374 — a certification in words, on or off in words, switched by a button that says so', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).not.toMatch(/>food_grade<|>BPA_free<|for all 12[^<]*food_grade/);
+      expect(html, l).toContain(`<b>${esc(t(l, 'claim.food_grade'))}</b> <span class="pill">${esc(t(l, 'knowledge.cert.off'))}</span>`);
+      expect(html, l).toContain(`<b>${esc(t(l, 'claim.CE'))}</b> <span class="pill ok">${esc(t(l, 'knowledge.cert.on'))}</span>`);
+      // The question names it in words, and the button — which the ask-first dialog repeats — says what it does.
+      expect(html, l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: t(l, 'claim.food_grade'), n: 12 })))}">${esc(t(l, 'knowledge.cert.turnOn'))}</button>`);
+    }
+    // A plain button: it takes the page's font (`.btn { font:inherit }`), not the browser's.
+    expect(page('en')).not.toMatch(/class="cert( on)? ?"/);
+    expect(page('en')).toMatch(/<button class="btn" type="submit" onclick="return confirm\(this.dataset.confirm\)" data-confirm="Turn on/);
+  });
+
+  it('V1-373 / V1-376 — one product\'s page says which certifications are on and leads to where they are switched, and to the product', () => {
+    const html = plain(renderProductKnowledge(product(), 'en', null));
+    expect(html).not.toContain('action="/app/knowledge/cert"');
+    expect(html).toContain('href="/app/knowledge#certs"');
+    expect(html).toContain('href="/app/products/de300000-0000-4000-8000-000000000101"');
+    expect(plain(renderProductKnowledge({ ...product(), certs: [] }, 'en', null))).toContain(t('en', 'knowledge.cert.noneHere'));
+  });
+
+  it('V1-375 — on a Chinese page the product is called by its Chinese name, as on its own page', () => {
+    const zh = plain(renderProductKnowledge(product(), 'zh', null));
+    expect(zh).toContain('<h1 class="page"><bdi>帆布袋</bdi></h1>');
+    expect(zh).toContain('「帆布袋」');
+  });
+
+  it('V1-377 / V1-378 — the back link names the page it opens, above the title', () => {
+    for (const l of LOCALES) {
+      const html = plain(renderProductKnowledge(product(), l, null));
+      expect(html, l).toMatch(new RegExp(`^\\s*<a class="back" href="/app/knowledge">[\\s\\S]*?${esc(t(l, 'nav.knowledge')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</a>\\s*<h1 class="page">`));
+    }
+  });
+
+  it('missed-03 — a knowledge address cut short is "not found", never a crash', async () => {
+    const BIZ = 'de300000-0000-4000-8000-000000000001';
+    // Answered before any query: no database is needed to say so.
+    const noDb = null as unknown as Db;
+    expect(await loadProductKnowledge(noDb, BIZ, 'de300000-0000-4000-8000-00000000010')).toBeNull();
+    expect(await loadProductDetail(noDb, BIZ, 'de300000-0000-4000-8000-00000000010')).toBeNull();
+  });
+
+  const product = (): ProductKnowledge => ({
+    productId: 'de300000-0000-4000-8000-000000000101', productName: 'Canvas Tote Bag 38x40cm', productNameZh: '帆布袋',
+    items: [], certs: ['CE', 'food_grade'], appliesToProducts: 12,
   });
 });

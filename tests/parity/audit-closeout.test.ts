@@ -22,7 +22,7 @@ import type { PracticeTrust } from '../../src/trust/practiceChecks.js';
 import { renderInboxList, renderConversationDetail, type InboxList, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderKnowledgeIndex, renderProductKnowledge, type ProductKnowledge } from '../../src/api/web/knowledge.js';
-import { renderKnowledgeOps, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
+import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderSite, SITE_CSS } from '../../src/api/web/site.js';
@@ -343,7 +343,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
       expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/business" class="navlink active" aria-current="page"/);
-      expect(withoutIsolates(renderKnowledgeOps(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week"');
+      // Phase 9 (V1-358) — the period's tabs sit with its counts at the foot of the page, and keep it there.
+      expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week#period"');
     }
     const results: AnalyticsData = {
       range: 'month', hasActivity: false,

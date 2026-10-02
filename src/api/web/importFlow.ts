@@ -748,7 +748,7 @@ export function renderImportReview(
     ${/* Phase 9 (V1-341, new-12) — it throws the list away, so it looks like it: the red outline,
          never the filled button "Add these products" wears; the question names the same act. */ ''}
     <form method="post" action="${base(imp.id)}/drop" class="block">
-      <button class="btn danger" type="submit" data-confirm="${esc(t(locale, 'import.dropConfirm'))}">${esc(t(locale, 'import.drop'))}</button>
+      <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'import.dropConfirm'))}">${esc(t(locale, 'import.drop'))}</button>
     </form>`;
 }
 

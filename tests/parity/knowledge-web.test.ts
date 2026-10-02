@@ -9,6 +9,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 const index: KnowledgeIndex = {
   products: [{ id: 'p1', name: 'Non-woven bag', count: 2 }],
   business: [{ id: 'b1', kind: 'restriction', label: 'Export', content: 'No sales to individuals.', source: 'owner_confirmed' }],
+  certs: ['CE'], appliesToProducts: 12,
 };
 
 const product: ProductKnowledge = {
@@ -45,10 +46,16 @@ describe('M13 · knowledge UI (localized renderer)', () => {
     expect(html).toContain(t('en', 'knowledge.source.owner_corrected'));   // "You corrected"
     expect(html).toContain('action="/app/knowledge/correct"');
     expect(html).toContain('action="/app/knowledge/archive"');
-    // certifications panel writes claims_policy; CE is on
-    expect(html).toContain('action="/app/knowledge/cert"');
-    expect(html).toMatch(/class="cert on"[^>]*>✓ CE/);
-    expect(html).toContain('value="FDA"');   // an off cert is still offered
+    // Phase 9 (V1-373) — the certifications are switched where they all are, the
+    // knowledge page; this product's page says which are on, and leads there.
+    expect(html).not.toContain('action="/app/knowledge/cert"');
+    expect(html).toContain(t('en', 'knowledge.cert.onHere', { list: 'CE marking' }));
+    expect(html).toContain('href="/app/knowledge#certs"');
+    // The panel itself writes claims_policy; CE is on, in words and with its mark.
+    const all = renderKnowledgeIndex(index, 'en');
+    expect(all).toContain('action="/app/knowledge/cert"');
+    expect(all).toMatch(/<b>CE marking<\/b> <span class="pill ok">On<\/span>/);
+    expect(all).toContain('value="FDA"');   // an off cert is still offered
   });
 
   it('correct/archive forms carry the product id for the redirect', () => {
@@ -58,7 +65,7 @@ describe('M13 · knowledge UI (localized renderer)', () => {
   });
 
   it('localizes the certifications hint + zh/ar chrome', () => {
-    expect(renderProductKnowledge(product, 'zh', null)).toContain(t('zh', 'knowledge.cert.hint'));
+    expect(renderKnowledgeIndex(index, 'zh')).toContain(t('zh', 'knowledge.cert.hint'));
     expect(renderProductKnowledge(product, 'ar', null)).toContain(t('ar', 'knowledge.cert.title'));
   });
 });
@@ -81,10 +88,12 @@ describe('M22 (F-03) · claims scope is stated, not implied', () => {
     productId: 'p1', productName: 'Canvas tote',
     items: [], certs: ['CE'], appliesToProducts: 12,
   };
+  // Phase 9 (V1-373) — the switches live on the knowledge page, which is about the whole business.
+  const all: KnowledgeIndex = { products: [], business: [], certs: ['CE'], appliesToProducts: 12 };
 
   it('says plainly that certifications cover the whole catalogue', () => {
-    const html = renderProductKnowledge(d, 'en', null);
-    expect(html).toContain('These apply to everything you sell — all 12 of your products, not only this one.');
+    expect(renderKnowledgeIndex(all, 'en')).toContain('These apply to everything you sell — all 12 of your products.');
+    expect(renderProductKnowledge(d, 'en', null)).toContain('These certifications are on for everything you sell: CE marking.');
   });
 
   it('and that taught facts do not — the two scopes read differently', () => {
@@ -92,29 +101,29 @@ describe('M22 (F-03) · claims scope is stated, not implied', () => {
     expect(html).toContain(t('en', 'knowledge.taught.title'));
     expect(html).toContain('used only when a customer asks about Canvas tote');
     // Both scopes are named on the same screen, so neither can be assumed.
-    expect(html.indexOf('everything you sell')).toBeLessThan(html.indexOf('only when a customer asks about'));
+    expect(html).toContain('everything you sell');
   });
 
-  it('a catalogue-wide change is confirmed, from a page showing one product', () => {
-    const html = renderProductKnowledge(d, 'en', null);
+  it('a catalogue-wide change is confirmed', () => {
+    const html = renderKnowledgeIndex(all, 'en');
     expect(html).toContain('for all 12 of your products');
     expect(html).toContain('onclick="return confirm(this.dataset.confirm)"');
   });
 
   it('turning one OFF is confirmed too — she stops confirming it to anyone', () => {
-    const html = renderProductKnowledge(d, 'en', null);
-    expect(html).toContain('Turn off CE for all 12 of your products?');   // CE is on
-    expect(html).toContain('Turn on FDA for all 12 of your products?');   // FDA is not
+    const html = renderKnowledgeIndex(all, 'en');
+    expect(html).toContain('Turn off CE marking for all 12 of your products?');   // CE is on
+    expect(html).toContain('Turn on FDA approval for all 12 of your products?');   // FDA is not
   });
 
   it('states the default-deny rule without claiming a scope', () => {
-    expect(renderProductKnowledge(d, 'en', null))
+    expect(renderKnowledgeIndex(all, 'en'))
       .toContain('Anything not turned on here is refused, however a customer asks.');
   });
 
   it('reads in every locale', () => {
     for (const l of LOCALES) {
-      const html = renderProductKnowledge(d, l, null);
+      const html = renderKnowledgeIndex(all, l);
       expect(html).toContain('12');                       // the real count, every locale
       if (l !== 'en') expect(html).not.toContain('everything you sell');
     }

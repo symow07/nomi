@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  renderKnowledgeOps, renderUsageFact,
+  renderKnowledgeOps, renderKnowledgePeriod, renderUsageFact,
   type KnowledgeOps, type UsageFact,
 } from '../../src/api/web/knowledge-insights.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -24,9 +24,11 @@ const ops = (over: Partial<KnowledgeOps> = {}): KnowledgeOps => ({
 describe('M14 · knowledge operations (localized renderer)', () => {
   it('range tabs, report counts, common requests — in en/zh/ar', () => {
     for (const l of LOCALES) {
-      const html = withoutIsolates(renderKnowledgeOps(ops(), l, NOW));
-      expect(html).toContain('href="/app/knowledge?range=today"');
-      expect(html).toMatch(/class="tab on"[^>]*href="\/app\/knowledge\?range=week"/); // week is current
+      // Phase 9 (V1-358) — the period's part of the page, drawn at its foot.
+      const html = withoutIsolates(renderKnowledgePeriod(ops(), l, NOW));
+      // The tabs keep the reader at the period's part of the page.
+      expect(html).toContain('href="/app/knowledge?range=today#period"');
+      expect(html).toMatch(/class="tab on"[^>]*href="\/app\/knowledge\?range=week#period"/); // week is current
       expect(html).toContain(t(l, 'knowledge.report.facts'));
       expect(html).toContain('>3<');                       // facts added count (real number)
       expect(html).toContain(t(l, 'knowledge.ops.commonRequests'));
@@ -49,10 +51,16 @@ describe('M14 · knowledge operations (localized renderer)', () => {
   });
 
   it('recent changes show the change type; empty states are honest', () => {
-    expect(withoutIsolates(renderKnowledgeOps(ops(), 'en', NOW))).toContain(t('en', 'knowledge.activity.corrected'));
-    const quiet = withoutIsolates(renderKnowledgeOps(ops({ gaps: [], activity: [] }), 'en', NOW));
-    expect(quiet).toContain(t('en', 'knowledge.ops.noGaps'));
-    expect(quiet).toContain(t('en', 'knowledge.ops.noActivity'));
+    expect(withoutIsolates(renderKnowledgePeriod(ops(), 'en', NOW))).toContain(t('en', 'knowledge.activity.corrected'));
+    // Questions were asked and every reply drew on what was taught: said so.
+    const answered = withoutIsolates(renderKnowledgeOps(ops({ gaps: [], activity: [] }), 'en', NOW));
+    expect(answered).toContain(t('en', 'knowledge.ops.noGaps', { period: 'this week' }));
+    // Phase 9 (V1-359) — nothing asked at all: never "answered from what you taught".
+    const none = { factsAdded: 0, answersCorrected: 0, certsAuthorized: 0, archived: 0, commonRequests: [] };
+    const quiet = ops({ gaps: [], activity: [], hasActivity: false, report: none });
+    expect(withoutIsolates(renderKnowledgeOps(quiet, 'en', NOW))).toContain(t('en', 'knowledge.ops.noQuestions', { period: 'this week' }));
+    expect(withoutIsolates(renderKnowledgeOps(quiet, 'en', NOW))).not.toContain('what you taught');
+    expect(withoutIsolates(renderKnowledgePeriod(quiet, 'en', NOW))).toContain(t('en', 'knowledge.ops.noActivity', { period: 'this week' }));
   });
 
   it('usage facts are plain counts — used, last used, revised, source; never a score', () => {
