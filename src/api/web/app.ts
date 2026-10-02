@@ -65,7 +65,7 @@ import {
 } from './channels.js';
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail, businessKind,
-  renderAddForm, updateProduct, renderPhotoRefusal, type PhotoRefusal,
+  renderAddForm, updateProduct, removeProductName, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
 import {
   startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
@@ -3153,6 +3153,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // M29 — the owner edits her own product. Archive-never-erase: "stop offering
   // this" is is_active=false, and every changed field is audited old → new.
+  // Phase 9 (V1-313) — one name customers use, taken off; the owner's, as the product's other facts are.
+  app.post('/app/products/:id/names/remove', async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const back = `/app/products/${encodeURIComponent(id)}`;
+    const s = await ownerOnly(req, reply, 'price_rules', back);
+    if (!s) return reply;
+    const alias = String(((req.body ?? {}) as Record<string, string | undefined>)['alias'] ?? '');
+    const ok = await removeProductName(deps.db, s.businessId, id, personOf(s).id, alias);
+    return flashTo(reply, `${back}#names`, ok ? 'product.alias.removed' : 'product.alias.notRemoved');
+  });
+
   app.post('/app/products/:id/edit', async (req, reply) => {
     // Phase 4 — a product's price, MOQ and whether it is offered are money.
     const id = (req.params as { id: string }).id;

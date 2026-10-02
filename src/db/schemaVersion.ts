@@ -309,7 +309,9 @@ import type { Db } from './client.js';
  *      `terms_accepted_at`, `self_serve_count()`, `signups_since()`. Every
  *      sign-up writes them; against a 98 database no workspace can be made.
  */
-export const REQUIRED_SCHEMA_VERSION = 121;
+// 122 = a customer's name taken off a product (0122): `remove_product_alias`.
+//       The product page's Remove calls it; against a 121 database it fails.
+export const REQUIRED_SCHEMA_VERSION = 122;
 
 export type SchemaState = {
   readonly required: number;
