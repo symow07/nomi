@@ -93,7 +93,12 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
       [{ title: 'Fair', day: '2031-02-30' }, 'that is not a date'],
       [{ title: 'Fair', day: '2031-03-05', from: '14:00', to: '10:00' }, 'it ends before it starts'],
     ] as const) {
-      expect(flashSaid(await post('/app/calendar/entries', fields), SECRET)).toContain(said);
+      // Phase 7 — the calendar again (400), the add form open, the reason under its field, what was typed kept.
+      const r = await post('/app/calendar/entries', fields);
+      expect(r.statusCode).toBe(400);
+      expect(r.body).toContain('<details class="cal-add" open>');
+      expect(r.body).toContain(said);
+      if (fields.title) expect(r.body).toContain(`value="${fields.title}"`);
     }
     expect(await rows()).toHaveLength(before);
   });
