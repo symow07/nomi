@@ -7,11 +7,14 @@ import {
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc, shell } from '../../src/api/web/layout.js';
+import * as show from '../../src/api/web/values.js';
 import { linkedCss } from './linked-css.js';
 import { reviewModel } from './reviewPage.js';
 import { renderImportReview } from '../../src/api/web/importFlow.js';
 import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
+import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
+import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
 
 /**
  * Phase 9, round two — Products, the product page, the add page and the
@@ -425,5 +428,120 @@ describe('The import review', () => {
     expect(review('zh')).not.toMatch(/。<\/b> /);
     expect(t('es', 'import.needYou.other')).not.toContain('van primero');
     for (const l of LOCALES) expect(t(l, 'import.countYours'), l).not.toMatch(/count|数一数|عدّ|Cuenta|Comptez/i);
+  });
+});
+
+describe('Your price limits', () => {
+  const RULES = { floor: usd(0.72), maxDiscountPct: 8, askAbovePct: 5 };
+  const own = (id: string, name: string, price: number) => ({
+    productId: id, sku: `GEN-${id}`, name, nameZh: null, listPrice: usd(price), own: RULES, inheritsDefault: false, isActive: true,
+  });
+  const view = (over: Partial<PriceRulesView> = {}): PriceRulesView => ({
+    currency: 'USD', volume: [], businessDefault: null, unanswered: 0,
+    products: [own('a1', 'Canvas Tote Bag', 1.05), own('a2', 'Bamboo board', 3.5)], ...over,
+  });
+  const page = (l: Locale, v: PriceRulesView = view(), draft: { productId?: string | null } = {}) => plain(renderPriceRules(v, l, null, {}, draft));
+
+  it('V1-349 — the products with limits of their own are headed as that, never a bare "Set"', () => {
+    for (const l of LOCALES) expect(page(l), l).toContain(`<h2>${esc(t(l, 'prices.answered.title'))}</h2>`);
+    expect(t('en', 'prices.answered.title')).toBe('Products with their own limits');
+    expect(t('zh', 'prices.answered.title')).not.toBe('已经定好的');
+  });
+
+  it('V1-351 — with every product answered and no answer for everything, that empty form is folded away; its question is about anything you sell', () => {
+    const en = page('en');
+    expect(en).toMatch(/<details class="pr-fold"><summary>Set one answer for everything<\/summary>/);
+    expect(t('en', 'prices.q.floorAll', { currency: 'USD' })).toContain('one of anything you sell');
+    expect(en).not.toContain('one of these');
+    // A product still waiting: the form stands open, as before.
+    const waiting = page('en', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] }));
+    expect(waiting).not.toContain('pr-fold');
+    expect(t('en', 'prices.default.sub')).toContain('A product priced below it needs an answer of its own');
+  });
+
+  it('V1-352 / V1-353 — sections are h2s, a product\'s name is in ink, each "change" is a door; the way back is at the top', () => {
+    const en = page('en');
+    expect(en).toMatch(/^<a class="back" href="\/app\/business">/);
+    expect(en).toContain(`<h2>${t('en', 'prices.default.title')}</h2>`);
+    expect(en).not.toContain('class="sub3">For everything');
+    expect(en).toContain('<div class="pr-name"><b><bdi>Canvas Tote Bag</bdi></b>');
+    expect(en).toContain('href="/app/business/prices?product=a1#p-a1">Change these limits<span class="go" aria-hidden="true">›</span></a>');
+    expect(en).not.toContain('class="blink"');
+  });
+
+  it('V1-354 — one name: the export is "Your price limits" too', () => {
+    for (const l of LOCALES) expect(t(l, 'data.export.subject.price-rules'), l).toBe(t(l, 'prices.title'));
+  });
+
+  it('V1-355 — the discount asks "from what quantity", never "pieces" for every product', () => {
+    const en = page('en', view({ businessDefault: RULES, volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 1000, discountPct: 4, asksFirst: false }] }));
+    expect(en).toContain('From what quantity?');
+    expect(en).toContain('Everything you sell — from 1,000: 4% off');
+    for (const l of LOCALES) expect(t(l, 'prices.volume.q.minQty'), l).not.toMatch(/pieces|个起？|قطعة|unidades|unités/);
+  });
+
+  it('V1-356 / V1-331 — Arabic joins لـ to مساعدك on this page', () => {
+    const ar = page('ar', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] }));
+    expect(ar).toContain('لمساعدك');
+    expect(ar).not.toMatch(/لـ\s*مساعدك/);
+  });
+
+  it('V1-357 — the Chinese question is plain', () => {
+    expect(t('zh', 'prices.q.floor', { currency: 'USD' })).toBe('每个最低接受多少钱？（USD）');
+  });
+
+  it('missed-13 — opening a product lands on its row; its form can be closed; the page has one filled Save (new-14)', () => {
+    const en = page('en', view(), { productId: 'a1' });
+    expect(en).toContain('<li class="row lines" id="p-a1">');
+    expect(en).toContain('<a class="deeper" href="/app/business/prices#p-a1">Close without saving</a>');
+    expect(en.match(/class="btn send"/g)).toHaveLength(1);
+    const opened = en.slice(en.indexOf('id="p-a1"'));
+    expect(opened.indexOf('class="btn send"')).toBeLessThan(opened.indexOf('</li>'));
+    // Nothing opened: the answer for everything carries the one fill.
+    expect(page('en', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] })).match(/class="btn send"/g)).toHaveLength(1);
+  });
+
+  it('new-15 — "no discount" is a valid choice, said without the waiting mark', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).toContain(`<p class="fempty">${esc(t(l, 'prices.volume.none'))}</p>`);
+      expect(html, l).not.toContain(`<p class="fwarn">${esc(t(l, 'prices.volume.none'))}`);
+    }
+  });
+
+  it('missed-16 — a section\'s rule is as wide as its rows', () => {
+    const css = linkedCss(shell({ title: 'x', active: 'factory', locale: 'en', path: '/app/business/prices', bodyHtml: page('en') }));
+    expect(css).toContain('.pr-block { max-width:var(--measure-prose); }');
+    expect(page('en').match(/<section class="fblock pr-block"/g)!.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('V1-379 — the page leads to a copy of its limits', () => {
+    expect(page('en')).toContain('href="/app/settings/data/price-rules" download>Take a copy of your price limits');
+  });
+
+  it('extra-prices-stated — no sentence points at discounts "below" where none is below, here or on My business', () => {
+    for (const l of LOCALES) {
+      for (const k of ['prices.stated', 'prices.stated.noDiscount'] as const) {
+        expect(t(l, k), `${l} ${k}`).not.toMatch(/below,|written below|wrote below|下面你|أدناه|abajo|plus bas/);
+      }
+    }
+    const channel = { kind: 'whatsapp' as const, connected: true, status: 'connected' as const, healthOk: true, displayId: '+971 50 ••• 4444', lastActivityAt: null, problem: null, activated: false };
+    const f = {
+      profile: { name: 'Shop', description: 'x', location: 'Yiwu', workingHours: 'Mon–Sat', contactEmail: 's@x.example', contactPhone: null, languagesServed: ['en'], categories: [] },
+      products: { total: 1, needPrice: 0, names: [{ name: 'Cup', nameZh: null }] },
+      promises: { certs: [], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false, askPct: 5, askVaries: false },
+      connection: { channel, ownerPhone: '971500001111' }, nextStep: null,
+      readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null, recipients: [] },
+      rehearsal: { findings: [], violations: [], probesRun: 1, productsChecked: 1, productsTotal: 1 },
+      prices: { currency: 'USD', businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 }, products: [], unanswered: 0, volume: [] },
+    } as unknown as FactoryView;
+    for (const l of LOCALES) {
+      const html = plain(renderFactory(f, l));
+      const said = (k: 'prices.stated' | 'prices.stated.noDiscount') => esc(plain(t(l, k, { floor: show.money(l, usd(0.35)), max: 10, ask: 7 })));
+      expect(html, l).toContain(said('prices.stated.noDiscount'));
+      expect(html, l).not.toContain(said('prices.stated'));
+    }
+    const withOne = plain(renderFactory({ ...f, prices: { ...f.prices, volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 100, discountPct: 4, asksFirst: false }] } }, 'en'));
+    expect(withOne).toContain('Of the discounts you have written, up to 7% goes out without you');
   });
 });

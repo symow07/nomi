@@ -988,6 +988,11 @@ const STYLE_PAGES = `
   .fblock .deeper { margin-top:var(--space-8); }
   /* Doors in a column keep the column's own gap, as everywhere else. */
   .fblock .doors .deeper { margin-top:0; }
+  /* priceRules.ts, phase 9 — a section's rule is as wide as its rows (missed-16); a product's
+     name is the row's loudest word (V1-352); the answer for everything folds away when unused (V1-351). */
+  .pr-block { max-width:var(--measure-prose); }
+  .pr-name { font-size:var(--font-size-small); color:var(--color-ink); display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-8); }
+  .pr-fold > summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:var(--font-size-small); }
 
   /* ── products.ts — moved here whole in step four: page-specific names, defined once. */
   .pq input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
