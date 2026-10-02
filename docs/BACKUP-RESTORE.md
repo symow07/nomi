@@ -139,8 +139,8 @@ folder pruned.
 UTC; with no completed run younger than 36 hours it sends the owner
 `notify.backup_stale` — **by e-mail to the sign-in address always**, and by
 WhatsApp too where a channel is live (that channel is the thing that can be
-down, so the alert does not depend on it). Getting ready shows "Backup tested
-· Checked for you · date" from the same table. Independently, Healthchecks.io
+down, so the alert does not depend on it). Getting ready shows "Checked by Nomi
+· date" from the same table (with the keys, phase 9). Independently, Healthchecks.io
 alerts when the job's ping is late, and Railway marks a failed run `FAILED`.
 
 ## How long copies are kept
@@ -298,10 +298,11 @@ Then point a **non-production** instance at the restored database and open
 
 ## What "backup tested" means on the readiness page
 
-`/app/onboarding` has an owner attestation **Backup tested**. It records that
-*you* confirmed it — it is not system-detected, and the page says so ("Confirmed
-by you" vs "Verified by system"). Only tick it after running the verify block
-above against a real restore. Re-test after any migration that adds a table.
+Since phase 9 this is the operator's, not the owner's: a scheduled backup whose
+drill passed counts by itself, and otherwise the operator stamps it with
+`node tools/installation-checks.mjs --business <uuid> --backup-tested`. The
+owner's Getting ready shows one row, "Checked by Nomi", with no button. Only
+stamp it after running the verify block above against a real restore. Re-test after any migration that adds a table.
 
 What satisfies it: `bash tools/verify-restore.sh <pair>` exiting 0 with 4/4, on
 a pair fetched from the bucket and decrypted. That is what makes

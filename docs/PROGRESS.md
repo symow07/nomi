@@ -43,7 +43,64 @@ under "Decided" below.
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | next |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · next: French |
+
+**Phase 9, part one (#206) — the items the owner named, and what each one really was.**
+
+Each answer below was found in the code first; then every page was made to say what the code does. "Fixed" means the page itself was checked again, in four languages, by a test that fails without the change.
+
+**French renders nowhere.**
+- **Which PRs:** #124 ("Spanish and French") and #182 ("the language packs: es and fr completed") shipped French as a *customer's* language: the disclosure sentence (unread, so French replies always wait for the owner), the safety checks, the "wants a person" frames and the fixed sentences. The "five languages" lines in this file (#128's row, and "Languages: en, zh, ar, es, fr" under Decided) mean customers' languages.
+- **What never shipped:** a French owner UI. The owner's locales are en, zh, ar and es (#192 added Spanish as the fourth). With `yf_locale=fr` or `Accept-Language: fr`, every page renders `lang="en"`. Checked again on 2026-10-03 against the running app: en, zh, ar, es each render in their own language; fr renders English.
+- **es, zh, ar — the same hole?** Their catalogues are complete (the catalogue test holds every key in every locale). The re-audit's 650 captures found each in its own language on 126 of 130, and the other four were two customer-facing pages: a dead proof link and a dead unsubscribe link said "Not found / This link is not available." in English, left to right, in every language. Fixed here: both now follow the reader's language (RTL in Arabic), name Nomi, and link the privacy and data-deletion pages; the unsubscribe one says how to stop a business's mail anyway. Still the same words whatever the link was, so the 404 tells nobody anything.
+- **The fix for French** is the fifth owner locale. It is the next PR.
+
+**The 5% discount, stated two ways.**
+- **The code:** `computeQuote` takes a discount only from a rule the owner wrote ("Discounts for buying more"). The ask-first line and the ceiling only limit such a discount.
+- **Right:** "no discount is ever offered" while none is written.
+- **Wrong:** every product's "Up to 5% off is decided without you … never more than 8%", and My business's "never discounts more than 8%" / "Above 5% off, you are asked".
+- **Now:** a product no written discount reaches says nothing comes off it, and what a discount you write may do. The section says each product is quoted at its own price for the quantity asked (the product page's quantity prices are prices, not discounts). My business says "offers no discount: you have not written one" instead of a ceiling that limits nothing. Its "You have not confirmed anything" now says what it means: no certificate or claim.
+
+**"Every reply waits for you" versus "Handled without you".**
+- **The code:** `commitTurn` drafts a capability set to auto while no language's sentence is signed off, while the name is unconfirmed, or while the workspace has not earned that rung.
+- **Right:** "every reply keeps coming to you first".
+- **Wrong:** "Handled without you ✓ Greeting", the card's "Handling some without you", and "Already handling customers".
+- **Now:** "Handled without you" lists only what goes out alone today. Anything set but held is listed as "Set to go without you, still waiting for you", with the reason. The stage and the promotion block follow what is in force.
+
+**"No conversations yet" in a workspace with 71.**
+- #203 fixed the "Mine" tab. Re-checked; two more places still said it:
+  - Your assistant's "Recently" counts this calendar month, so on 2 October it said "No conversations yet". It is now titled "This month" and says "Nothing yet this month".
+  - The list beside a conversation said it for any empty tab. Each tab now says its own thing, and only a truly empty list says "No conversations yet".
+- **Wrong:** "No conversations yet", wherever the workspace had conversations.
+
+**Connect WhatsApp had no field and no button.**
+- The page shows only on an installation that can connect no number by itself (no Embedded Signup, no configured number).
+- It now has the number field and one button, "Send to Nomi". That mails the installation's operator the number and the owner's sign-in address; a wrong number comes back marked, with what was typed kept.
+- Without a mailer it names the contact address. Without that, it says plainly that connecting WhatsApp is not open yet.
+- The steps say what happens. The Test button and the "on/off" it promised are on the Channels page once connected, and it says so.
+
+**The e-mail form asked for "The name on your signature".**
+- That field is the DKIM key name. It is now "Key name for the signature record (optional)", with "nomi" shown and said to be the default.
+- The other field asks for the domain, "the part of your e-mail address after the @", which is what it always wanted.
+
+**Getting ready asked the owner to confirm "Backup tested" and "Secrets rotated".**
+- **The gate is unchanged:** going live still needs both.
+- **Who answers it moved.** The operator stamps them with the new `tools/installation-checks.mjs`; a scheduled backup's passed drill counts as tested.
+- **The owner sees** one row, "Checked by Nomi before you go live", with no button. The owner's confirm route no longer takes either.
+- My business's blocker says Nomi's team has not finished its checks, with nothing to open.
+
+**Setup listed a component gallery as "How it looks".**
+- Phase 3 (#200) took it off Setup; re-checked, no page links to it.
+- It was still served at its address to every owner. Now only the installation's own workspace gets it, as with the machine room; anyone else gets 404.
+
+**Practice labelled the owner's own reply "Your assistant".**
+- A reply the owner sent after taking over is captioned "You".
+- The customer's line is captioned "The customer (you)", where it carried the composer's button word, "Send as customer".
+
+**And the eighth S1: Today's month line.**
+- "82 last month, 38 this month" set a whole September against two days of October, and counted messages while saying "customers".
+- It now compares the days of this month so far with the same days of last month, and counts customers.
+- Before day 7 it says nothing.
 
 **Phase 8 (#205) — the re-audit.**
 
@@ -323,7 +380,8 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-10-02 | #205 | **Phase 8 — the re-audit**: the rebuilt app audited again by the first audit's method (62 pages + 3 calendar views, five languages, two widths, 650 captures, nine reviewers, a hand walk). One merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`. Dropped 31, still reproducing 535, newly introduced 75 (and 93 the first audit missed); 703 in all, 8 of them S1. Phase 6's "every empty state is a panel" corrected: five were not. Docs only | 120 |
+| 2026-10-03 | #206 | **Phase 9, part one — the named items**: French found to be a customer's language only (#124, #182), never an owner's (en/zh/ar/es since #192); the dead proof and unsubscribe pages now follow the reader's language; the discount, what goes out alone and "No conversations yet" each made to say what the code does; Connect WhatsApp's field and button (the number mailed to the operator); the e-mail form's labels; backups and keys Nomi's (`tools/installation-checks.mjs`), not the owner's; the gallery the installation's only; Practice's captions; Today's month line like with like. 7 of the 8 S1s. No migration | 120 |
+| 2026-10-02 | #205 | **Phase 8 — the re-audit**: the rebuilt app audited again by the first audit's method (62 pages + 3 calendar views, five languages, two widths, 650 captures, nine reviewers, a hand walk). One merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`. Dropped 31, still reproducing 535, newly introduced 75 (and 93 the first audit missed); 703 in all, 8 of them S1. Phase 6's "every empty state is a panel" corrected: five were not. CI both jobs pass. Merged as `7a71515`, deployed, `/health` ok. Docs only | 120 |
 | 2026-10-02 | #204 | **Phase 7 — the phone**: the top nav on one line in four languages at 360 and 390 px (a shorter phone label for two entries); the calendar's grids scroll visibly with the hours pinned, no name is cut, a crowded month day says "+N more", the day is one time-ordered list with a kind icon and done dates greyed; the add-a-date form comes back inline. No migration | 120 |
 | 2026-10-02 | #203 | **Phase 6 — states**: four separate refusal pages became inline errors under their field with what was typed kept; five settings forms come back the same way; empty states are panels, "Mine" no longer claims an empty business, six not-found pages say why; a busy button on every form; the guide's videos have stills and lengths; Practice and Billing no longer promise what never comes; fast asking ends after 15 minutes. No migration | 120 |
 | 2026-10-02 | #202 | **Phase 5 — motion**: the three durations used with one decelerating curve, all of it only for readers who did not ask for less motion; Undo instead of confirm for four set-aside things (word, closure, fact, date); the product's own ask-first dialog instead of the browser's box; the assistant at work shown in place, and its reply drawn into the page without a reload. No migration | 120 |
