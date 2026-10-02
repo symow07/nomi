@@ -46,4 +46,17 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
     const after = await loadConversationDetail(db, BIZ, CONV);
     expect(after?.assistantName).toBe('Lily');
   });
+
+  it('V1-088 · Today counts a customer who wrote in the last 24 hours, once however many lines', async () => {
+    const { loadToday } = await import('../../src/api/web/today.js');
+    const quiet = await loadToday(db, BIZ, undefined, new Date(), false);
+    expect(quiet.last24.wrote).toBe(0);
+    await tx(async (t) => {
+      for (const text of ['Hello', 'Do you ship to Lagos?'])
+        await sql`insert into messages (conversation_id, direction, text_content, sent_at)
+                  values (${CONV}, 'inbound', ${text}, now() - interval '2 hours')`.execute(t);
+    });
+    const after = await loadToday(db, BIZ, undefined, new Date(), false);
+    expect(after.last24.wrote).toBe(1);
+  });
 });

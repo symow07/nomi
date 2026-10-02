@@ -36,6 +36,8 @@ export type TodayData = {
   readonly needs: { readonly total: number; readonly rows: readonly ConversationSummary[] };
   /** The last 24 hours, counted. */
   readonly last24: {
+    /** Phase 9 (V1-088) — customers who wrote. Absent reads as none. */
+    readonly wrote?: number;
     /** Customers the assistant's replies reached. */
     readonly answered: number;
     /** Replies the assistant wrote that the owner sent (as written, or edited). */
@@ -65,8 +67,12 @@ export async function loadToday(
     loadInboxList(db, businessId, 'pending', viewerId),
     withTenantTx(db, bid.value, async (tx) => ({
       channels: await connectedChannels(tx, bid.value),
-      last: (await sql<{ answered: number; sent: number; handed: number; yourself: number }>`
+      last: (await sql<{ wrote: number; answered: number; sent: number; handed: number; yourself: number }>`
         select
+          -- Phase 9 (V1-088) — who wrote comes first: a customer waiting is not "nothing".
+          (select count(distinct m.conversation_id)::int from messages m
+             join conversations c on c.id = m.conversation_id
+            where c.business_id = ${bid.value} and m.direction = 'inbound' and m.sent_at > now() - interval '24 hours') as wrote,
           (select count(distinct conversation_id)::int from outbound_messages
             where business_id = ${bid.value} and origin = 'employee'
               and status in ('sent', 'delivered', 'read') and sent_at > now() - interval '24 hours') as answered,
@@ -112,6 +118,7 @@ export function renderLastDay(d: TodayData, locale: Locale): string {
   const hand = `<span class="as" aria-hidden="true">✦</span> `;
   const l = d.last24;
   const lines = [
+    (l.wrote ?? 0) > 0 ? door('/app/inbox?filter=all', esc(tn(locale, 'today.last.wrote', l.wrote ?? 0))) : '',
     l.answered > 0 ? door('/app/inbox?filter=all', `${hand}${esc(tn(locale, 'today.last.answered', l.answered, { name }))}`) : '',
     l.sent > 0 ? door('/app/inbox?filter=all', `${hand}${esc(tn(locale, 'today.last.sent', l.sent, { name }))}`) : '',
     l.handed > 0 ? door('/app/inbox?filter=pending', `${hand}${esc(tn(locale, 'today.last.handed', l.handed, { name }))}`) : '',
