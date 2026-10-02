@@ -107,7 +107,8 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(lastRow).toBeGreaterThan(firstRow);
     expect(out, 'log out comes after every row').toBeGreaterThan(lastRow);
     expect(html).not.toContain('href="/logout"');
-    expect(html.slice(out, html.indexOf('</form>', out))).toMatch(/<button class="btn ghost" type="submit">/);
+    // Phase 9 (V1-154) — a button that looks like one: outlined, at the cards' edge, not ghost text.
+    expect(html.slice(out, html.indexOf('</form>', out))).toMatch(/<button class="btn" type="submit">/);
     expect(loginPage({ locale: 'en', path: '/login' })).toContain('class="langsw"');
   });
 

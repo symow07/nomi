@@ -359,7 +359,7 @@ export function renderOperationsHome(
   // e-mail always says so; this browser can too, if the owner asks it. Hidden
   // until the page's script finds a browser that can (liveScript.ts).
   const tellMe = `<div class="block" data-notify hidden>
-    <button type="button" class="btn ghost" data-notify-ask hidden>${esc(t(locale, 'live.notify.ask'))}</button>
+    ${/* Phase 9 (V1-093) — a button that looks like one, at the content's edge: it was grey ghost text. */ ''}<button type="button" class="btn" data-notify-ask hidden>${esc(t(locale, 'live.notify.ask'))}</button>
     <p class="caption muted" data-notify-on hidden>${esc(t(locale, 'live.notify.on'))}</p>
   </div>`;
 
@@ -392,10 +392,12 @@ export function renderOperationsHome(
   // installation that cannot send is not "on"), and Setup while it is
   // unfinished — one line each, at the foot.
   const setup = setupState();
+  // Phase 9 (V1-100, V1-102) — the count is the guide's, named as the guide is;
+  // the next step and the video that shows it sit together under it.
   const finishSetup = setup && setup.next !== null
-    ? `<p class="today-foot setup">${signalMark('waiting')} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span> ${
-        deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))} ${
-        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</p>`
+    ? `<div class="today-foot setup"><p>${signalMark('waiting')} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
+        <div class="today-next">${deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
+        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
     : '';
   // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
   const notLive = !live ? `<p class="block muted notlive">${signalMark('waiting')} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';

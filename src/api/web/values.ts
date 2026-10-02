@@ -2,7 +2,8 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { formatMoneyCompact } from '../../core/owner/format.js';
-import { workspaceZone } from './zone.js';
+import { currencySymbol } from '../../core/types/money.js';
+import { workspaceZone, workspaceCountry } from './zone.js';
 
 /**
  * RIGHT TO LEFT, BY DESIGN (the design pass §9, 2026-09-30).
@@ -82,13 +83,41 @@ const arabicMoney = (m: Money, fraction: number): string =>
     .formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount)
     .map((p) => (p.type === 'currency' ? `\u2066${p.value}${PDI}` : p.value)).join('');
 
-/** Money: "$1.95" in English and Chinese, "1.95 US$" (the locale's own form) in Arabic. */
+/**
+ * Phase 9 (V1-009, V1-404) — an amount written the way the READER's language
+ * writes it IN THE WORKSPACE'S COUNTRY: Spanish in Mexico "$1.05", in Spain
+ * "1,05 $"; French "1 234,05 $"; English and Chinese as before almost
+ * everywhere. The figure's separators and where the sign stands come from the
+ * language and the country (`Intl`); the sign itself stays the product's own
+ * ($ is $, ￥ is ￥ — `currencySymbol`), never translated. Owner pages only:
+ * outside a workspace (a public page, a test drawing a fragment) or for a
+ * workspace with no country on record, an amount is written as it always was.
+ * Nothing sent to a customer is written here — the send path has its own.
+ */
+const LANG: Readonly<Record<Exclude<Locale, 'ar'>, string>> = { en: 'en', zh: 'zh', es: 'es', fr: 'fr' };
+const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): string | null => {
+  const country = workspaceCountry();
+  if (!country || !/^[A-Z]{2}$/.test(country)) return null;
+  let parts: Intl.NumberFormatPart[];
+  try {
+    parts = new Intl.NumberFormat(`${LANG[locale]}-${country}`, {
+      style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction,
+    }).formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount);
+  } catch { return null; }
+  const at = parts.findIndex((p) => p.type === 'currency');
+  const figure = parts.filter((p) => ['minusSign', 'integer', 'group', 'decimal', 'fraction'].includes(p.type)).map((p) => p.value).join('');
+  const first = parts.findIndex((p) => p.type === 'integer');
+  const sign = currencySymbol(m.currency);
+  return at !== -1 && at > first ? `${figure}\u00a0${sign.trim()}` : `${sign}${figure}`;
+};
+
+/** Money: "$1.95" in English and Chinese, "1,95 $" in Spanish in Spain, "1.95 US$" (the locale's own form) in Arabic. */
 export const money = (locale: Locale, m: Money): string =>
-  isolate(locale, rtl(locale) ? arabicMoney(m, 2) : f.formatMoney(m));
+  isolate(locale, locale === 'ar' ? arabicMoney(m, 2) : localMoney(locale, m, 2) ?? f.formatMoney(m));
 
 /** Money in whole units, for a summary line. */
 export const moneyWhole = (locale: Locale, m: Money): string =>
-  isolate(locale, rtl(locale) ? arabicMoney(m, 0) : formatMoneyCompact(m));
+  isolate(locale, locale === 'ar' ? arabicMoney(m, 0) : localMoney(locale, m, 0) ?? formatMoneyCompact(m));
 
 /** A quantity alone: "5,000", "1.2万", "5,000". */
 export const quantity = (locale: Locale, n: number): string => isolate(locale, f.formatQty(locale, n));

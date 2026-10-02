@@ -24,6 +24,7 @@ import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvali
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
+import { STEP_LINK } from './onboarding.js';
 
 /** Phase 4 — in place of a form only the owner may send: the values stay
  *  on the page to read, and this says whose decision they are. */
@@ -219,7 +220,13 @@ export type SetupView = {
  * for you, ✕ did not happen); a value that only names something (a kind, an
  * e-mail, a count of people) carries none.
  */
-type SetupRow = { readonly href: string; readonly label: string; readonly desc: string; readonly value: string; readonly tone?: 'ok' | 'warn' | 'bad' | undefined };
+type SetupRow = {
+  readonly href: string; readonly label: string; readonly desc: string; readonly value: string; readonly tone?: 'ok' | 'warn' | 'bad' | undefined;
+  /** Phase 9 (today-onboarding-new-25) — other words an owner may search by ("password", "team"); never shown. */
+  readonly find?: string;
+  /** Phase 9 (V1-155) — one of the five counted steps, drawn as a step under Getting started. */
+  readonly step?: true;
+};
 
 /** Lower case, width-folded, so a search matches what is shown whatever way it was typed. */
 const fold = (s: string): string => s.normalize('NFKC').toLocaleLowerCase();
@@ -242,50 +249,62 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       : (['none', 'cardSaved', 'trial', 'active', 'past_due', 'lapsed'] as const).includes(v.billing.status as never)
         ? t(locale, `setup.value.billing.${v.billing.status}` as MessageKey) : '')
     : '';
+  const find = (k: MessageKey): string => t(locale, k);
+  // Phase 9 (V1-155) — while setting up is unfinished, the five steps the nav
+  // counts are on the page it opens, each with where it stands and its door,
+  // named as Today and the guide name them.
+  const steps: readonly SetupRow[] = setup && setup.next !== null
+    ? setup.steps.map((x, i) => ({ href: STEP_LINK[x.step], label: `${show.count(locale, i + 1)}. ${t(locale, `factory.next.${x.step}` as MessageKey)}`,
+        desc: '', value: t(locale, x.done ? 'guide.done' : 'guide.todo'), tone: toneOf(x.done), step: true as const }))
+    : [];
+  // Phase 9 (today-onboarding-new-23) — a row not answered yet waits for the owner, and says so the same way on every row.
+  const answered = (done: number, total: number): 'ok' | 'warn' => (done >= total ? 'ok' : 'warn');
   const groups: readonly { readonly id: string; readonly title: string; readonly rows: readonly SetupRow[] }[] = [
     { id: 'start', title: t(locale, 'setup.group.start'), rows: [
       { href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready,
-        tone: setup ? toneOf(setup.next === null) : undefined },
+        tone: setup ? toneOf(setup.next === null) : undefined, find: find('setup.find.guide') },
+      ...steps,
       { href: '/app/onboarding', label: t(locale, 'nav.onboarding'), desc: t(locale, 'setup.desc.onboarding'),
-        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed'), tone: toneOf(step('name')) },
+        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed'), tone: toneOf(step('name')), find: find('setup.find.onboarding') },
     ] },
     { id: 'business', title: t(locale, 'setup.group.business'), rows: [
       { href: '/app/settings/profile', label: t(locale, 'settings.profile.title'), desc: t(locale, 'setup.desc.profile'),
-        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo'), tone: toneOf(step('profile')) },
+        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo'), tone: toneOf(step('profile')), find: find('setup.find.profile') },
       { href: '/app/settings/business', label: t(locale, 'business.kind.label'), desc: t(locale, 'setup.desc.kind'),
-        value: v.kind ?? t(locale, 'setup.state.notAnswered') },
+        value: v.kind ?? t(locale, 'setup.state.notAnswered'), tone: v.kind ? undefined : 'warn', find: find('setup.find.kind') },
       ...(v.howYouSell ? [{ href: '/app/business/selling', label: t(locale, 'hs.title'), desc: t(locale, 'setup.desc.selling'),
-        value: t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total }) }] : []),
+        value: t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total }),
+        tone: answered(v.howYouSell.answered, v.howYouSell.total) }] : []),
     ] },
     { id: 'reach', title: t(locale, 'setup.group.reach'), rows: [
       { href: '/app/channels', label: t(locale, 'nav.channels'), desc: t(locale, 'setup.desc.channels'),
-        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'), tone: toneOf(step('channels')) },
+        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'), tone: toneOf(step('channels')), find: find('setup.find.channels') },
       { href: '/app/settings/alerts', label: t(locale, 'alerts.phone.title'), desc: t(locale, 'setup.desc.alerts'),
         value: !v.alerts ? '' : !v.alerts.available ? t(locale, 'setup.value.unavailable')
           : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
-        tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined },
+        tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined, find: find('setup.find.alerts') },
     ] },
     { id: 'people', title: t(locale, 'setup.group.people'), rows: [
       { href: '/app/settings/people', label: t(locale, 'people.title'), desc: t(locale, 'setup.desc.people'),
-        value: tn(locale, 'setup.state.people', v.people) },
+        value: tn(locale, 'setup.state.people', v.people), find: find('setup.find.people') },
       { href: '/app/settings/account', label: t(locale, 'account.title'), desc: t(locale, 'setup.desc.account'),
-        value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode') },
+        value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode'), find: find('setup.find.account') },
     ] },
     { id: 'account', title: t(locale, 'setup.group.account'), rows: [
-      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing, tone: billingTone },
+      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing, tone: billingTone, find: find('setup.find.billing') },
       { href: '/app/settings/data', label: t(locale, 'data.title'), desc: t(locale, 'setup.desc.data'),
         value: v.dataWaiting === null || v.dataWaiting === undefined ? ''
           : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
-        tone: v.dataWaiting ? 'warn' : undefined },
+        tone: v.dataWaiting ? 'warn' : undefined, find: find('setup.find.data') },
     ] },
   ];
 
   const q = (v.query ?? '').trim();
   const hit = (...words: string[]): boolean => q === '' || words.some((w) => fold(w).includes(fold(q)));
-  const row = (r: SetupRow): string => `<li><a class="srow" href="${r.href}">
-      <span class="sr-main"><span class="sr-label">${esc(r.label)}</span><span class="sr-desc">${esc(r.desc)}</span></span>
+  const row = (r: SetupRow): string => `<li${r.step ? ' class="sr-step"' : ''}><a class="srow" href="${r.href}">
+      <span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${r.desc ? `<span class="sr-desc">${esc(r.desc)}</span>` : ''}</span>
       ${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
-  const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value)) })).filter((g) => g.rows.length > 0);
+  const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value, r.find ?? '')) })).filter((g) => g.rows.length > 0);
   const language = hit(t(locale, 'settings.language.title'))
     ? `<section class="sgroup" aria-labelledby="sg-language"><h2 class="sgroup-h" id="sg-language">${esc(t(locale, 'settings.language.title'))}</h2>
         <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings')}</span></div></div></section>` : '';
@@ -295,7 +314,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       ${q ? `<a class="clear" href="/app/settings">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
     </form>`;
   const body = shown.length === 0 && !language
-    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}</div>`
+    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}<div>${deeper('/app/settings', t(locale, 'setup.search.all'))}</div></div>`
     : `${language}${shown.map((g) => `<section class="sgroup" aria-labelledby="sg-${g.id}"><h2 class="sgroup-h" id="sg-${g.id}">${esc(g.title)}</h2>
         <ul class="scard">${g.rows.map(row).join('')}</ul></section>`).join('')}`;
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
@@ -303,7 +322,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     ${search}
     ${body}
     <div class="block signout"><form method="post" action="/logout">
-      <button class="btn ghost" type="submit">${esc(t(locale, 'header.logout'))}</button>
+      ${/* Phase 9 (V1-154) — a button that looks like one, at the cards' edge. */ ''}<button class="btn" type="submit">${esc(t(locale, 'header.logout'))}</button>
     </form></div>`;
 }
 

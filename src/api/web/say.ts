@@ -3,7 +3,7 @@ import { t as sayPlain, tn as countedPlain, ASSISTANT_FALLBACK, type MessageKey 
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { SetupProgress } from '../../db/setup.js';
 import { rtl, isolate, hasFigure, isolateFigures } from './values.js';
-import { withZone } from './zone.js';
+import { withZone, withCountry } from './zone.js';
 
 /**
  * A5.2 — her name, for THIS request. D — and the two other facts every page
@@ -44,13 +44,15 @@ export type RequestScope = {
   readonly needsYou?: number | null;
   /** TZ — the workspace's time zone; every date and time on its pages is said in it. */
   readonly zone?: string;
+  /** Phase 9 (V1-009) — the workspace's country, for how an amount is written on its pages. */
+  readonly country?: string | null;
 };
 
 const scope = new AsyncLocalStorage<RequestScope>();
 
 /** Run `fn` with these facts in force — the preHandler's call, once per request. */
 export const withWorkspace = <T>(facts: RequestScope, fn: () => T): T =>
-  scope.run(facts, () => withZone(facts.zone ?? 'UTC', fn));
+  scope.run(facts, () => withZone(facts.zone ?? 'UTC', () => withCountry(facts.country ?? null, fn)));
 
 /**
  * Run `fn` with this name in force. A blank name leaves things as they were.

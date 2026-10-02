@@ -174,6 +174,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
       'chip',   // an authorised claim (.fchip) or a granted autonomy (.chip.auto)
       '.rf',    // the refusal explanation panel — a refused send IS a state
       'unsure', // 0052 — a send nobody can account for is a state, and an amber one
+      'aria-invalid', // phase 9 (cross-new-03) — a field sent back is a state the owner reacts to
     ];
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);
