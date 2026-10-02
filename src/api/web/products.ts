@@ -590,7 +590,7 @@ export function renderProductDetail(
     ${flashBanner(flash)}
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
       <h1 class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''}${skuMark(d.sku)}</h1>${statusPill(locale, d.status)}</div>
-    ${d.imageMatchable ? `<div class="p-tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}
+    ${d.imageMatchable ? `<div class="p-tag big">${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
@@ -657,7 +657,7 @@ export function renderAddForm(
           <label class="pcheck"><input type="radio" name="hand" value="handwritten" /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
         </fieldset>
         <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp${pdfReadable ? ',application/pdf' : ''}" multiple required />
-        <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
+        <button class="btn" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>

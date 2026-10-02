@@ -6,10 +6,10 @@ import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/c
 import { loadCalendar, type CalendarEntry } from '../../db/calendar.js';
 import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import { loadInboxList, needsWhy, channelName, type ConversationSummary } from './inbox.js';
+import { loadInboxList, customerRow, channelName, type ConversationSummary } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import { t, tn, assistantName } from './say.js';
-import { esc, deeper, conversationUrl } from './layout.js';
+import { esc, deeper, conversationUrl, signalMark } from './layout.js';
 import * as show from './values.js';
 
 /**
@@ -96,11 +96,14 @@ export async function loadToday(
 const door = (href: string, inner: string): string =>
   `<li><a class="tline" href="${href}">${inner}<span class="go" aria-hidden="true">→</span></a></li>`;
 
-/** The first block's people: who, why, since when — each opens on the newest message. */
+/**
+ * The first block's people: Buyers' own row (phase 1 of the UI rebuild) — the
+ * state's shape and colour, who, the newest line, why it waits and since when
+ * — so a customer waiting looks the same on Today as on the list. Each opens
+ * on the newest message.
+ */
 export function renderNeedsLines(d: TodayData, locale: Locale): string {
-  return d.needs.rows.map((c) => door(conversationUrl(c.conversationId),
-    `<span class="tl-who"><bdi>${esc(c.buyer ?? t(locale, 'common.buyer'))}</bdi></span>
-     <span class="tl-why">${esc(needsWhy(locale, c))}${c.latestAt ? ` · ${esc(show.shortWhen(locale, c.latestAt, d.now))}` : ''}</span>`)).join('');
+  return d.needs.rows.map((c) => `<li>${customerRow(locale, c, { now: d.now })}</li>`).join('');
 }
 
 /** The last 24 hours: the assistant's lines marked with its ✦, the owner's plain. Zeros are not said. */
@@ -135,7 +138,7 @@ export function renderComingUp(d: TodayData, locale: Locale): string {
 export function renderSending(d: TodayData, locale: Locale, paused: boolean): string {
   if (d.sending.length === 0) return '';
   const state = t(locale, paused ? 'today.sending.paused' : 'today.sending.on');
-  const each = d.sending.map((c) => `${esc(channelName(locale, c))} <span class="dot${paused ? ' warn' : ' ok'}" aria-hidden="true">●</span> ${esc(state)}`);
+  const each = d.sending.map((c) => `${esc(channelName(locale, c))} ${signalMark(paused ? 'waiting' : 'ok')} ${esc(state)}`);
   return `<p class="today-foot"><span class="muted">${esc(t(locale, 'today.sending'))}</span> ${each.join(' · ')}</p>`;
 }
 

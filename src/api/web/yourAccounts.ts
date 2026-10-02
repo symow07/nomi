@@ -30,7 +30,7 @@ export type YourAccounts = {
 };
 
 type Mark = 'done' | 'todo' | 'bad' | 'unknown';
-const MARK: Record<Mark, string> = { done: '✓', todo: '○', bad: '✗', unknown: '–' };
+const MARK: Record<Mark, string> = { done: '✓', todo: '○', bad: '✕', unknown: '–' };
 
 const step = (locale: Locale, mark: Mark, label: MessageKey, said: string, help: string): string => `
     <div class="pr ${mark}"><span class="mk" aria-hidden="true">${MARK[mark]}</span>

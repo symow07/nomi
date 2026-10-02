@@ -3,7 +3,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { addDays, dayKey, dayStart, hourIn, formatWeekday } from '../../core/owner/i18n/format.js';
 import { t } from './say.js';
-import { esc, deeper, back, conversationUrl } from './layout.js';
+import { esc, deeper, back, conversationUrl, signalMark } from './layout.js';
 import { flag } from './inbox.js';
 import {
   CALENDAR_CATEGORIES, edgeOf, type CalendarCategory, type CalendarEntry, type CalendarView, type CalendarBuyer,
@@ -208,7 +208,7 @@ function chip(locale: Locale, e: CalendarEntry, now: Date, compact = false): str
   // A state: a reply owed; a promise not yet kept whose day has come.
   const promise = e.kind.startsWith('promise_');
   const due = e.kind === 'reply_due' || (promise && !e.detail.kept && e.day <= dayKey(now, workspaceZone()));
-  const state = due ? `<span class="dot ${e.detail.overdue ? 'bad' : 'warn'}" aria-hidden="true">●</span> ` : '';
+  const state = due ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} ` : '';
   // The assistant's hand: a price it worked out, a promise it made.
   const mark = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant)
     ? '<span class="as" aria-hidden="true">✦</span> ' : '';

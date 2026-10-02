@@ -308,6 +308,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         if (!/<body><a class="skip" href="#main">[^<]+<\/a>/.test(html) || !/<main id="main"(?: class="wide")?>/.test(html)) problems.push(`${at}: no skip link to main`);
         const h1 = html.match(/<h1[\s>]/g)?.length ?? 0;
         if (h1 !== 1) problems.push(`${at}: ${h1} headings of the first rank`);
+        // Phase 4 of the UI rebuild — graphite fills ONE act on a page: the one it exists for.
+        const fills = html.match(/class="btn send\b/g)?.length ?? 0;
+        if (fills > 1 && target !== '/app/settings/components') problems.push(`${at}: ${fills} filled buttons — one primary act per page`);
         for (const f of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)) {
           const action = f[1]!.replace(/&amp;/g, '&').split('?')[0]!;
           if (TAKES.test(action) && !f[0].includes(ASK)) problems.push(`${at}: ${action} does not ask first`);

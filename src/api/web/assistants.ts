@@ -127,12 +127,12 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
       <ul class="rows">${assistants.map((a) => `<li class="row top">
         <span class="person"><span><bdi>${esc(a.name)}</bdi>
           <span class="pill">${esc(t(locale, `assistants.role.${a.role}` as MessageKey))}</span>${
-          a.isDefault ? ` <span class="pill ok">${esc(t(locale, 'assistants.default.pill'))}</span>` : ''}</span>
+          a.isDefault ? ` <span class="pill owner">${esc(t(locale, 'assistants.default.pill'))}</span>` : ''}</span>
           <span class="muted">${esc(answers(a))}</span>
           <details><summary>${esc(t(locale, 'assistants.change'))}</summary>
             <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="pform">
               ${fields(locale, a, `as-${a.id.slice(0, 8)}`)}
-              <button class="btn send" type="submit">${esc(t(locale, 'assistants.save'))}</button>
+              <button class="btn" type="submit">${esc(t(locale, 'assistants.save'))}</button>
             </form>
           </details></span>
         ${a.isDefault ? '' : `<form method="post" action="/app/settings/people/assistants/${esc(a.id)}/archive" class="inline">
@@ -142,7 +142,7 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
       <details><summary>${esc(t(locale, 'assistants.add.summary'))}</summary>
         <form method="post" action="/app/settings/people/assistants" class="pform">
           ${fields(locale, null, 'as-new')}
-          <button class="btn send" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>
+          <button class="btn" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>
         </form>
       </details>
     </section>`;

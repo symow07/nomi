@@ -166,7 +166,7 @@ describe('D · the doors moved, the pages did not', () => {
     expect(rows['/app/settings/people']).toContain('1 person');
     expect(html).not.toContain('method="post" action="/app/settings"');   // the form lives on its own page
     expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ kind: 'Retailer', people: 4 }, 'en', null)))
-      .toContain(`<span class="sr-value"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
+      .toContain(`<span class="sr-value ok"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
   });
 
   it('phase 3 · labelled groups, one card of rows each, and a search that finds a row by its name, its line or its value', () => {

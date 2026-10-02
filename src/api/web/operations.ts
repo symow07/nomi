@@ -14,7 +14,7 @@ import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
-import { esc, deeper } from './layout.js';
+import { esc, deeper, signalMark } from './layout.js';
 import { renderNeedsLines, renderLastDay, renderComingUp, renderSending, toCalendar, type TodayData } from './today.js';
 import * as show from './values.js';
 
@@ -345,7 +345,7 @@ export function renderOperationsHome(
     : today.needs.total > 0 ? tn(locale, 'nav.needsYou', today.needs.total) : t(locale, 'ops.attention.title');
   const now = `<section class="block today-now" aria-labelledby="today-now">
     <h2 id="today-now">${esc(heading)}</h2>
-    ${today.needs.rows.length ? `<ul class="tlines">${renderNeedsLines(today, locale)}</ul>` : ''}
+    ${today.needs.rows.length ? `<ul class="crows">${renderNeedsLines(today, locale)}</ul>` : ''}
     ${more ? `<div class="doors">${more}</div>` : ''}
     ${lead ? `<div class="today-worth">${lead}</div>` : ''}
     ${quietNow && !s.assistantStoppedAt && !s.opsSilenced && !live
@@ -393,11 +393,12 @@ export function renderOperationsHome(
   // unfinished — one line each, at the foot.
   const setup = setupState();
   const finishSetup = setup && setup.next !== null
-    ? `<p class="today-foot setup"><span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span> ${
+    ? `<p class="today-foot setup">${signalMark('waiting')} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span> ${
         deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))} ${
         deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</p>`
     : '';
-  const notLive = !live ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
+  // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
+  const notLive = !live ? `<p class="block muted notlive">${signalMark('waiting')} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))} <span class="muted today-date">· ${esc(show.dayLong(locale, today.now))}</span></h1>
   ${silenced}

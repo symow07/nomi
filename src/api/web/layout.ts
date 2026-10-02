@@ -5,6 +5,7 @@ import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount, tn } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
+import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate } from './values.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { INSTALL_LINKS } from './phone.js';
@@ -165,6 +166,50 @@ export function switcher(locale: Locale, path: string): string {
 }
 
 /**
+ * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS (`signal` in
+ * tokens.ts): ok ✓, waiting ○, failed ✕, the assistant ✦. Colour does those
+ * jobs and no others, and never alone: each is a shape as well as a hue.
+ *
+ * `signalMark` draws the shape as its own element, for a line that a shape
+ * opens (a state line, a calendar entry, Today's sending line). The class
+ * names are the stylesheet's older ones — `warn` is the amber of waiting,
+ * `bad` the red of failed — kept so one word does not mean two things in two
+ * places of the same file.
+ */
+export type Signal = keyof typeof DESIGN_TOKENS.signal;
+const SIGNAL_CLASS: Readonly<Record<Signal, string>> = { ok: 'ok', waiting: 'warn', failed: 'bad', assistant: 'as' };
+export const signalMark = (s: Signal): string =>
+  `<span class="dot ${SIGNAL_CLASS[s]}" aria-hidden="true">${DESIGN_TOKENS.signal[s]}</span>`;
+
+/**
+ * Where the stylesheet draws a signal's shape BEFORE a state's own words — a
+ * pill, a field's error, a setting's value. The second `content` gives the
+ * shape an empty alternative, so a screen reader says the words alone; a
+ * browser that does not know that form keeps the first.
+ * `phase4-colour.test.ts` holds that every use of a signal colour is either
+ * here or named there with the way its shape is drawn.
+ */
+export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
+  ok: ['.pill.ok', '.pill.taught', '.fconn.on .fconn-s', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
+  waiting: ['.pill.warn', '.pill.reason', '.fconn.off .fconn-s', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob'],
+  failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
+  assistant: ['.pill.as'],
+};
+const markBefore = (s: Signal, selectors: readonly string[]): string => {
+  const shape = DESIGN_TOKENS.signal[s];
+  return `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:"${shape}"; content:"${shape}" / ""; margin-inline-end:var(--space-4); font-weight:600; }`;
+};
+const SIGNAL_CSS = `  /* Phase 4 — the four signals: a colour and a shape. */
+  .dot { font-weight:600; }
+  .dot.ok { color:var(--color-ok); }
+  .dot.warn { color:var(--color-waiting); }
+  .dot.bad { color:var(--color-warn); }
+  .dot.as { color:var(--color-assistant); }
+  .pill.as { background:transparent; color:var(--color-assistant); padding-inline:0; }
+${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFORE[s])).join('\n')}
+`;
+
+/**
  * The switcher's rules, defined once: the shell carries them, and so does a
  * public document that shows the switch (the site, Phase 5) — it does not get
  * the shell's stylesheet, and a second copy of these rules would drift.
@@ -308,7 +353,7 @@ ${LANGSW_CSS}
   .pill.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .pill.warn { background:var(--color-waiting-wash); color:var(--color-waiting); }
   .pill.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
-
+${SIGNAL_CSS}
   /* One button (the design pass, 2026-09-29). The primary act is the one
      graphite FILL on a screen; every other button is outlined in Stone on
      white; a quiet one is words; red takes something away. No button is
@@ -419,6 +464,10 @@ ${LANGSW_CSS}
   .sr-label { font-weight:600; font-size:var(--font-size-small); }
   .sr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .sr-value { flex:0 1 auto; max-width:45%; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-align:end; overflow-wrap:anywhere; }
+  /* A value that is a state says which, with its shape (the four signals); any other value stays quiet. */
+  .sr-value.ok { color:var(--color-ok); font-weight:600; }
+  .sr-value.warn { color:var(--color-waiting); font-weight:600; }
+  .sr-value.bad { color:var(--color-warn); font-weight:600; }
   .srow .go { flex:none; }
   .sr-ctl { flex:0 1 auto; min-width:0; }
   /* A setting as a row inside its card: what it is on the start side, its
@@ -452,8 +501,6 @@ ${LANGSW_CSS}
   .today-date { font-weight:400; }
   .today-worth { margin-top:var(--space-12); }
   .today-foot { font-size:var(--font-size-small); margin:var(--space-16) 0 0; }
-  .today-foot .dot.ok { color:var(--color-ok); }
-  .today-foot .dot.warn { color:var(--color-waiting); }
   /* The chevron above mirrors because it POINTS — "onward" is to the left in
      Arabic. The mark does NOT, and its absence here is deliberate rather than an
      oversight: a brand mark is a constant, the same object in every language,
@@ -582,7 +629,6 @@ ${LANGSW_CSS}
   .tag { display:inline-flex; align-items:center; padding:5px 11px; border-radius:var(--radius-chip);
     font-size:var(--font-size-caption); font-weight:600; white-space:nowrap;
     background:var(--color-paper); color:var(--color-ink-secondary); }
-  .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
   .tag.you { background:transparent; color:var(--color-ink); font-weight:600; }
   /* The doors either side of one page of a list, and where it sits in the whole. */
   .pager { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-24); margin-top:var(--space-24); }
@@ -726,7 +772,6 @@ const STYLE_PAGES = `
   .pr .mk { font-size:var(--font-size-base); font-weight:700; }
   .pr.done .mk { color:var(--color-ok); }
   .pr.todo .mk { color:var(--color-ink-secondary); }
-  .pr.bad .mk { color:var(--color-warn); }
   .pr.unknown .mk { color:var(--color-ink-secondary); }
   .pr-note { flex-basis:100%; font-size:var(--font-size-caption); color:var(--color-ink-secondary); padding-inline-start:var(--space-24); }
   .help-links { margin:var(--space-8) 0 0; padding-inline-start:18px; font-size:var(--font-size-small); }
@@ -920,6 +965,7 @@ const STYLE_PAGES = `
   .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
   .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
+  .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
   .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
   .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }
@@ -1025,8 +1071,6 @@ const STYLE_PAGES = `
   .wk-k, .wk-t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .wk-t { font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
   a.wk-e:hover, a.wk-e:focus-visible { background:var(--color-paper); }
-  .wk-e .dot.warn { color:var(--color-waiting); }
-  .wk-e .dot.bad { color:var(--color-warn); }
   .cal-rm { margin:var(--space-4) 0 0; }
   .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
   .row.dashed .grow { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
@@ -1125,9 +1169,6 @@ const STYLE_PAGES = `
   .approve .src { margin:0; margin-inline-start:auto; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .stateline { margin:0; font-size:var(--font-size-small); }
   .stateline b { font-weight:600; }
-  .stateline .dot.warn { color:var(--color-waiting); }
-  .stateline .dot.ok { color:var(--color-ok); }
-  .stateline .dot.bad { color:var(--color-warn); }
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   /* The panes (the design pass): the list, the conversation, the customer.
      Below 1100 px the conversation stands alone, as it always did; the list
@@ -1156,7 +1197,6 @@ const STYLE_PAGES = `
   .pn-r { flex:none; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   .pn-you { color:var(--color-ink); }
   .pn-none { color:var(--color-ink-secondary); }
-  .pn-rows .dot.bad { color:var(--color-warn); }
   @media (min-width: 1100px) {
     main.wide { max-width:100%; padding:0; }
     .panes { display:grid; grid-template-columns:300px minmax(0, 1fr); align-items:start; min-height:100vh; }
@@ -1198,12 +1238,12 @@ const STYLE_PAGES = `
   .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
   .rf { padding:var(--space-12) 0; border-top:1px solid var(--color-waiting-wash); }
   .rf:first-of-type { border-top:0; padding-top:0; }
-  .rf-w { font-size:var(--font-size-small); color:var(--color-waiting); }
+  .rf-w { font-size:var(--font-size-small); color:var(--color-ink); font-weight:600; }
   .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
   .rf-d { font-size:var(--font-size-small); color:var(--color-ink); margin-top:var(--space-8); }
   .rf-t { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .unsure-q { margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12);
-    border-inline-start:2px solid var(--color-waiting); background:var(--color-surface);
+    border-inline-start:2px solid var(--color-ink-secondary); background:var(--color-surface);
     font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); white-space:pre-wrap; }
   .unsure-a { display:flex; gap:var(--space-8); margin-top:var(--space-12); flex-wrap:wrap; }
   /* M34 — a heard message says so. The label and the superseded reading are
@@ -1256,7 +1296,7 @@ const STYLE_PAGES = `
   .tl li { display:flex; gap:var(--space-12); position:relative; padding:10px 0; padding-inline-start:16px;
     margin-inline-start:var(--space-8); border-inline-start:2px solid var(--color-border); }
   .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-paper);
-    font-size:var(--font-size-small); line-height:1; }
+    display:inline-flex; justify-content:center; width:20px; font-size:var(--font-size-small); line-height:1; }
   .tl .tx { font-size:var(--font-size-small); }
 
   /* ── sequences.ts — moved here whole in step four: page-specific names, defined once. */
@@ -1292,7 +1332,7 @@ const STYLE_PAGES = `
   .pcase.bad .pmark { color:var(--color-warn); }
   .ptitle { color:var(--color-ink-secondary); }
   .pproves { margin:var(--space-12) 0 0; max-width:var(--measure-prose); line-height:1.6; }
-  .sbx-banner { background:var(--color-waiting-wash); color:var(--color-waiting); border:1px solid var(--color-waiting-line); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
+  .sbx-banner { background:var(--color-paper); color:var(--color-ink); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
   .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
   .sbx-mode { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
@@ -1686,6 +1726,7 @@ const DOOR_STYLE = `
   label.check input { width:auto; margin:0; }
   .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
   .fld-err { color:var(--color-warn); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
+${markBefore('failed', ['.err', '.fld-err'])}
   .hint { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
   label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); display:block; }
   details { margin-top:var(--space-24); border-top:1px solid var(--color-border); padding-top:var(--space-16); }

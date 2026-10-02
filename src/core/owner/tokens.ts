@@ -205,6 +205,24 @@ export const DESIGN_TOKENS = {
     lift2: '0 2px 4px rgba(26,26,26,0.05), 0 10px 24px rgba(26,26,26,0.09), 0 0 0 1px rgba(26,26,26,0.05)',
   },
   motionMs: { fast: 120, normal: 200, max: 300 },  // spec: ≤300ms, skippable
+  /**
+   * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Colour does
+   * these four jobs and no others, the same on every page; graphite does one
+   * more, the FILL of the page's one primary action. Each signal has a SHAPE
+   * as well as a colour, so it is still said in greyscale, to an eye that
+   * does not tell the hues apart, and on a phone in the sun:
+   *
+   *   ok         ✓  green    it went, it is on, it is done
+   *   waiting    ○  amber    it waits for you
+   *   failed     ✕  red      it did not happen, it did not reach them
+   *   assistant  ✦  magenta  the assistant did this
+   *
+   * The stylesheet draws the shape before a state's words (`::before`, read
+   * from here); a renderer that draws a shape on its own takes it from
+   * `signalMark` (layout.ts). `phase4-colour.test.ts` holds every use of a
+   * signal colour in the stylesheet to one of these, with its shape.
+   */
+  signal: { ok: '✓', waiting: '○', failed: '✕', assistant: '✦' },
   /** Status chip: canonical five statuses (vocabulary.STATUS) → semantic color key. */
   statusChip: {
     已处理: 'ok',

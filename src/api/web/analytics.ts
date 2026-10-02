@@ -166,7 +166,7 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 
   const dealsHtml = d.commerce.orders > 0
     ? `<div class="chips">
-        ${d.commerce.deals.map((x) => `<span class="pill ok">${esc(orderStatusName(locale, x.status))} ${esc(show.count(locale, x.n))}</span>`).join('')}
+        ${d.commerce.deals.map((x) => `<span class="chip">${esc(orderStatusName(locale, x.status))} ${esc(show.count(locale, x.n))}</span>`).join('')}
       </div>${d.commerce.totals.length ? `<p class="small muted">${esc(t(locale, 'analytics.commerce.totalValue', {
           value: d.commerce.totals.map((m) => show.moneyWhole(locale, m)).join(' · '),
         }))}</p>` : ''}`

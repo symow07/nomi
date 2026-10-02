@@ -6,7 +6,8 @@ import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { BUSINESS_KINDS, canonicalCountry, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
 import { back, esc } from './layout.js';
-import { flashBanner, type Flash } from './flash.js';import { fieldRow, rowsCard, saveBar } from './rows.js';
+import { flashBanner, type Flash } from './flash.js';
+import { fieldRow, rowsCard, saveBar } from './rows.js';
 
 
 /**

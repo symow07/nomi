@@ -214,7 +214,12 @@ export type SetupView = {
   readonly query?: string;
 };
 
-type SetupRow = { readonly href: string; readonly label: string; readonly desc: string; readonly value: string };
+/**
+ * Phase 4 — a value that is a STATE carries its signal (✓ done or on, ○ waits
+ * for you, ✕ did not happen); a value that only names something (a kind, an
+ * e-mail, a count of people) carries none.
+ */
+type SetupRow = { readonly href: string; readonly label: string; readonly desc: string; readonly value: string; readonly tone?: 'ok' | 'warn' | 'bad' | undefined };
 
 /** Lower case, width-folded, so a search matches what is shown whatever way it was typed. */
 const fold = (s: string): string => s.normalize('NFKC').toLocaleLowerCase();
@@ -224,6 +229,10 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
   const step = (k: string): boolean | null => setup?.steps.find((x) => x.step === k)?.done ?? null;
   const state = (done: boolean | null, yes: MessageKey, no: MessageKey): string =>
     done === null ? '' : t(locale, done ? yes : no);
+  const toneOf = (done: boolean | null): 'ok' | 'warn' | undefined => done === null ? undefined : done ? 'ok' : 'warn';
+  const billingTone = !v.billing || !v.billing.configured ? undefined
+    : v.billing.exempt || ['cardSaved', 'trial', 'active'].includes(v.billing.status) ? 'ok' as const
+    : ['past_due', 'lapsed'].includes(v.billing.status) ? 'bad' as const : undefined;
   const ready = setup
     ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))
     : '';
@@ -235,13 +244,14 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     : '';
   const groups: readonly { readonly id: string; readonly title: string; readonly rows: readonly SetupRow[] }[] = [
     { id: 'start', title: t(locale, 'setup.group.start'), rows: [
-      { href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready },
+      { href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready,
+        tone: setup ? toneOf(setup.next === null) : undefined },
       { href: '/app/onboarding', label: t(locale, 'nav.onboarding'), desc: t(locale, 'setup.desc.onboarding'),
-        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed') },
+        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed'), tone: toneOf(step('name')) },
     ] },
     { id: 'business', title: t(locale, 'setup.group.business'), rows: [
       { href: '/app/settings/profile', label: t(locale, 'settings.profile.title'), desc: t(locale, 'setup.desc.profile'),
-        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo') },
+        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo'), tone: toneOf(step('profile')) },
       { href: '/app/settings/business', label: t(locale, 'business.kind.label'), desc: t(locale, 'setup.desc.kind'),
         value: v.kind ?? t(locale, 'setup.state.notAnswered') },
       ...(v.howYouSell ? [{ href: '/app/business/selling', label: t(locale, 'hs.title'), desc: t(locale, 'setup.desc.selling'),
@@ -249,10 +259,11 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     ] },
     { id: 'reach', title: t(locale, 'setup.group.reach'), rows: [
       { href: '/app/channels', label: t(locale, 'nav.channels'), desc: t(locale, 'setup.desc.channels'),
-        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected') },
+        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'), tone: toneOf(step('channels')) },
       { href: '/app/settings/alerts', label: t(locale, 'alerts.phone.title'), desc: t(locale, 'setup.desc.alerts'),
         value: !v.alerts ? '' : !v.alerts.available ? t(locale, 'setup.value.unavailable')
-          : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones) },
+          : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
+        tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined },
     ] },
     { id: 'people', title: t(locale, 'setup.group.people'), rows: [
       { href: '/app/settings/people', label: t(locale, 'people.title'), desc: t(locale, 'setup.desc.people'),
@@ -261,10 +272,11 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
         value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode') },
     ] },
     { id: 'account', title: t(locale, 'setup.group.account'), rows: [
-      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing },
+      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing, tone: billingTone },
       { href: '/app/settings/data', label: t(locale, 'data.title'), desc: t(locale, 'setup.desc.data'),
         value: v.dataWaiting === null || v.dataWaiting === undefined ? ''
-          : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting) },
+          : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
+        tone: v.dataWaiting ? 'warn' : undefined },
     ] },
   ];
 
@@ -272,7 +284,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
   const hit = (...words: string[]): boolean => q === '' || words.some((w) => fold(w).includes(fold(q)));
   const row = (r: SetupRow): string => `<li><a class="srow" href="${r.href}">
       <span class="sr-main"><span class="sr-label">${esc(r.label)}</span><span class="sr-desc">${esc(r.desc)}</span></span>
-      ${r.value ? `<span class="sr-value"><bdi>${esc(r.value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
+      ${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
   const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value)) })).filter((g) => g.rows.length > 0);
   const language = hit(t(locale, 'settings.language.title'))
     ? `<section class="sgroup" aria-labelledby="sg-language"><h2 class="sgroup-h" id="sg-language">${esc(t(locale, 'settings.language.title'))}</h2>

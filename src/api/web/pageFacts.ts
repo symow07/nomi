@@ -143,7 +143,7 @@ export function renderPageFactsForm(locale: Locale): string {
       <input id="pf-address" type="text" name="address" inputmode="url" autocapitalize="none" spellcheck="false" dir="ltr" maxlength="500" placeholder="myshop.com/pages/shipping" />
       <details><summary>${esc(t(locale, 'pageFacts.pasteInstead'))}</summary>
         <textarea name="text" rows="6" dir="auto" maxlength="60000"></textarea></details>
-      <button class="btn send" type="submit">${esc(t(locale, 'pageFacts.read'))}</button>
+      <button class="btn" type="submit">${esc(t(locale, 'pageFacts.read'))}</button>
     </form>
   </div>`;
 }

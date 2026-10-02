@@ -73,7 +73,7 @@ describe('Guide · the files', () => {
 
 describe('Guide · where it is reached', () => {
   it('Setup\'s first door, and Today\'s "finish setting up" line', () => {
-    expect(src('src/api/web/settings.ts')).toContain("{ href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready }");
+    expect(src('src/api/web/settings.ts')).toContain("{ href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready,");
     expect(src('src/api/web/operations.ts')).toContain("deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))");
   });
 });

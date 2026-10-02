@@ -32,7 +32,7 @@ describe('M9.4 · channel center (localized)', () => {
   it('connected: status, masked number, activity, health, manage actions — per locale', () => {
     const en = renderChannels(connected, 'en', null);
     expect(en).toContain('WhatsApp');
-    expect(en).toContain('Connected ✓');
+    expect(en).toContain('<span class="pill ok">Connected</span>');   // the ✓ is the pill's own (phase 4)
     expect(en).toContain('+86 579****0001');       // MASKED — never a secret
     expect(en).toContain('Today');                 // localized relative time
     expect(en).toContain('Health');
@@ -40,9 +40,9 @@ describe('M9.4 · channel center (localized)', () => {
     expect(en).toContain('action="/app/channels/whatsapp/disconnect"');
 
     const zh = renderChannels(connected, 'zh', null);
-    expect(zh).toContain('已连接 ✓'); expect(zh).toContain('今天');
+    expect(zh).toContain('<span class="pill ok">已连接</span>'); expect(zh).toContain('今天');
     const ar = renderChannels(connected, 'ar', null);
-    expect(ar).toContain('متصل ✓'); expect(ar).toContain('اليوم');
+    expect(ar).toContain('<span class="pill ok">متصل</span>'); expect(ar).toContain('اليوم');
   });
 
   it('not connected: description + connect entry, no fake credential form', () => {
