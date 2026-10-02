@@ -266,3 +266,15 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
     }
   });
 });
+
+describe('Phase 9 · the runbook counts say what they count (V1-011, V1-120, V1-122)', () => {
+  it('hand-offs and replies to review are two lines that add up to Today\'s "need you"; the window is named; no pilot talk', () => {
+    for (const l of LOCALES) {
+      expect(t(l, 'ops.card.waiting'), l).not.toBe(t(l, 'inbox.filter.pending'));
+    }
+    expect(t('en', 'runbook.during.title')).not.toMatch(/pilot/i);
+    expect(t('en', 'runbook.during.quiet')).not.toMatch(/conversations have come in/);
+    expect(t('en', 'runbook.during.activity', { name: 'Lily' })).toMatch(/this week/);
+    expect(t('en', 'connect.mail.notHere')).not.toMatch(/installation|app\b/);
+  });
+});
