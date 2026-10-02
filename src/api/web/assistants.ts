@@ -2,7 +2,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t } from './say.js';
+import { t, assistantName } from './say.js';
 import {
   ASSISTANT_CHANNELS, ASSISTANT_ROLES, NAME_MAX, NOTE_MAX, validateAssistant,
   type Assistant, type AssistantProblem,
@@ -11,7 +11,8 @@ import {
   addAssistant, archiveAssistant, ensureDefaultAssistant, listAssistants, updateAssistant,
   type AssistantWrite,
 } from '../../db/assistants.js';
-import { esc } from './layout.js';
+import { deeper, esc } from './layout.js';
+import { fieldRow, rowsCard, cardActs } from './rows.js';
 
 /**
  * A5 — the assistants section of the team page, and the three things the owner
@@ -96,53 +97,68 @@ export function assistantFlash(outcome: AssistantOutcome, verb: 'added' | 'saved
 
 const channelName = (locale: Locale, c: string): string => t(locale, `business.channel.${c}` as MessageKey);
 
-function fields(locale: Locale, a: Assistant | null, idPrefix: string): string {
+/**
+ * Phase 9 (V1-514) — an assistant's form is a card of rows, like every other
+ * form on the page: one label style (the row's name), the control at the end
+ * side, the act at the card's end. The channels are a grid of two, so no
+ * channel is left alone on a line of its own.
+ */
+function fields(locale: Locale, a: Assistant | null, idPrefix: string): string[] {
   const roleOptions = ASSISTANT_ROLES.map((r) =>
     `<option value="${r}"${(a?.role ?? 'sales') === r ? ' selected' : ''}>${esc(t(locale, `assistants.role.${r}` as MessageKey))}</option>`).join('');
   // The main one is given no channels: it answers whatever nobody else was given.
-  const boxes = a?.isDefault ? '' : `<fieldset class="choices"><legend class="muted">${esc(t(locale, 'assistants.channels.label'))}</legend>
+  const boxes = a?.isDefault ? [] : [fieldRow({ label: t(locale, 'assistants.channels.label'),
+    control: `<fieldset class="choices as-chans" aria-label="${esc(t(locale, 'assistants.channels.label'))}">
       ${ASSISTANT_CHANNELS.map((c) => `<label class="as-box"><input type="checkbox" name="channel_${c}"${
-        a?.channels.includes(c) ? ' checked' : ''} /> <span>${esc(channelName(locale, c))}</span></label>`).join('')}</fieldset>`;
-  return `<div class="fld"><label for="${idPrefix}-name">${esc(t(locale, 'assistants.field.name'))}</label>
-      <input id="${idPrefix}-name" name="name" required maxlength="${NAME_MAX}" value="${esc(a?.name ?? '')}" /></div>
-    <div class="fld"><label for="${idPrefix}-role">${esc(t(locale, 'assistants.field.role'))}</label>
-      <select id="${idPrefix}-role" name="role">${roleOptions}</select></div>
-    ${boxes}
-    <div class="fld"><label for="${idPrefix}-note">${esc(t(locale, 'assistants.field.note'))}</label>
-      <textarea id="${idPrefix}-note" name="note" rows="2" maxlength="${NOTE_MAX}">${esc(a?.note ?? '')}</textarea>
-      <span class="muted">${esc(t(locale, 'assistants.field.note.hint'))}</span></div>`;
+        a?.channels.includes(c) ? ' checked' : ''} /> <span>${esc(channelName(locale, c))}</span></label>`).join('')}</fieldset>` })];
+  return [
+    fieldRow({ label: t(locale, 'assistants.field.name'), forId: `${idPrefix}-name`,
+      control: `<input id="${idPrefix}-name" name="name" required maxlength="${NAME_MAX}" value="${esc(a?.name ?? '')}" />` }),
+    fieldRow({ label: t(locale, 'assistants.field.role'), forId: `${idPrefix}-role`,
+      control: `<select id="${idPrefix}-role" name="role">${roleOptions}</select>` }),
+    ...boxes,
+    fieldRow({ label: t(locale, 'assistants.field.note'), forId: `${idPrefix}-note`, desc: t(locale, 'assistants.field.note.hint'),
+      control: `<textarea id="${idPrefix}-note" name="note" rows="2" maxlength="${NOTE_MAX}">${esc(a?.note ?? '')}</textarea>` }),
+  ];
 }
 
 export function renderAssistantsSection(assistants: readonly Assistant[], locale: Locale): string {
-  const main = assistants.find((a) => a.isDefault);
+  // Phase 9 (V1-511) — one name on the page. The main assistant's row name
+  // counts only once it is confirmed (rule 7): until then the page says
+  // "your assistant", as the rest of the product does, and the row says the
+  // name is not confirmed yet and where to confirm it.
+  const confirmed = (a: Assistant): boolean => !a.isDefault || assistantName(locale) === a.name;
   const answers = (a: Assistant): string => a.isDefault
     ? t(locale, 'assistants.default')
     : a.channels.length === 0
       ? t(locale, 'assistants.noChannels')
       : t(locale, 'assistants.answersOn', { channels: a.channels.map((c) => channelName(locale, c)).join(' · ') });
+  // Phase 9 (V1-517) — the job and "Main" are labels, said in words on the caption line; a pill is for a state.
+  const about = (a: Assistant): string => [t(locale, `assistants.role.${a.role}` as MessageKey),
+    ...(a.isDefault ? [t(locale, 'assistants.default.pill')] : []), answers(a)].map(esc).join(' · ');
 
   return `<section class="block" id="assistants">
       <h2>${esc(t(locale, 'assistants.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'assistants.intro', { who: main?.name ?? '' }))}</p>
+      <p class="muted">${esc(t(locale, 'assistants.intro'))}</p>
       <ul class="rows">${assistants.map((a) => `<li class="row top">
-        <span class="person"><span><bdi>${esc(a.name)}</bdi>
-          <span class="pill">${esc(t(locale, `assistants.role.${a.role}` as MessageKey))}</span>${
-          a.isDefault ? ` <span class="pill owner">${esc(t(locale, 'assistants.default.pill'))}</span>` : ''}</span>
-          <span class="muted">${esc(answers(a))}</span>
-          <details><summary>${esc(t(locale, 'assistants.change'))}</summary>
-            <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="pform">
-              ${fields(locale, a, `as-${a.id.slice(0, 8)}`)}
-              <button class="btn" type="submit">${esc(t(locale, 'assistants.save'))}</button>
+        <span class="person"><span><bdi>${esc(a.name)}</bdi></span>
+          <span class="caption muted">${about(a)}</span>
+          ${confirmed(a) ? '' : `<span class="caption muted">${esc(t(locale, 'assistants.unconfirmed'))}</span>
+          ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}`}
+          ${/* Phase 9 (V1-510) — the fold is a control and says what it changes. */ ''}<details class="as-fold"><summary class="btn">${esc(t(locale, a.isDefault ? 'assistants.change' : 'assistants.change.channels'))}</summary>
+            <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="sform">
+              ${rowsCard(null, [...fields(locale, a, `as-${a.id.slice(0, 8)}`),
+                cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'assistants.save'))}</button>`)])}
             </form>
           </details></span>
         ${a.isDefault ? '' : `<form method="post" action="/app/settings/people/assistants/${esc(a.id)}/archive" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'assistants.archive.confirm', { who: a.name }))}">${esc(t(locale, 'assistants.archive'))}</button></form>`}
       </li>`).join('')}</ul>
-      <details><summary>${esc(t(locale, 'assistants.add.summary'))}</summary>
-        <form method="post" action="/app/settings/people/assistants" class="pform">
-          ${fields(locale, null, 'as-new')}
-          <button class="btn" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>
+      <details class="as-fold"><summary class="btn">${esc(t(locale, 'assistants.add.summary'))}</summary>
+        <form method="post" action="/app/settings/people/assistants" class="sform">
+          ${rowsCard(null, [...fields(locale, null, 'as-new'),
+            cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>`)])}
         </form>
       </details>
     </section>`;
