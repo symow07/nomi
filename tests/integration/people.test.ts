@@ -453,7 +453,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Online now');
     expect(page.body).toContain('Signs in with an access code');
-    expect(page.body).toMatch(/\d+ people work here\. \d+ online now\./);
+    expect(page.body).toMatch(/\d+ (person|people) here, \d+ online now\./);
   });
 
   it('S1 · REMOVING SOMEONE SIGNS THEM OUT NOW — the cookie they hold stops opening anything', async () => {

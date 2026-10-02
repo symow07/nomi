@@ -1,4 +1,5 @@
 import { canonicalCountry } from '../owner/business.js';
+import { displayPhone } from './phone.js';
 
 /**
  * Phase 4b (audit CC-15) — the international calling code of the country a
@@ -65,4 +66,23 @@ const CALLING_CODES: Readonly<Record<string, string>> = {
 export function callingCode(country: string | null | undefined): string | null {
   if (!country) return null;
   return CALLING_CODES[canonicalCountry(country.trim().toUpperCase())] ?? null;
+}
+
+const CODES: ReadonlySet<string> = new Set(Object.values(CALLING_CODES));
+
+/**
+ * Phase 9 (V1-551) — a number as an owner reads it: its country's calling code
+ * set apart, "+212 600000105". Calling codes are a prefix code (no code begins
+ * another), so the first one that matches is the one. The rest stays as it
+ * is: how a country groups its digits is its own, and a guessed grouping
+ * would be a wrong one somewhere. Digits only in; anything else comes back
+ * with its "+" and nothing more.
+ */
+export function withCallingCode(digits: string): string {
+  if (!/^[0-9]{7,15}$/.test(digits)) return displayPhone(digits);
+  for (const n of [1, 2, 3]) {
+    const code = digits.slice(0, n);
+    if (CODES.has(code)) return `+${code} ${digits.slice(n)}`;
+  }
+  return displayPhone(digits);
 }

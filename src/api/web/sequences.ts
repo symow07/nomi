@@ -12,7 +12,8 @@ import { t } from './say.js';
 
 import { MAX_HOLD_DAYS } from '../../core/outreach/sequence.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
-import { back, esc, conversationUrl } from './layout.js';
+import { back, deeper, esc, conversationUrl } from './layout.js';
+import { fieldRow, rowsCard, cardActs } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 
@@ -135,6 +136,8 @@ const statePill = (locale: Locale, state: SequenceSummary['state']): string =>
 
 export function renderSequenceList(
   list: readonly SequenceSummary[], locale: Locale, flash: Flash | null,
+  /** Phase 9 (V1-564) — how many on Contacts could be added today: e-mail contacts the outreach gate says yes to. */
+  opts: { readonly ready?: number } = {},
 ): string {
   const rows = list.map((s) => `<li class="sq ${s.state === 'archived' ? 'gone' : ''}">
       <div class="sq-h"><a class="sq-name" href="/app/sequences/${esc(s.id)}"><bdi>${esc(s.name)}</bdi></a>
@@ -150,14 +153,17 @@ export function renderSequenceList(
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'seq.intro'))}</p>
-      ${list.length === 0 ? `<div class="empty">${esc(t(locale, 'seq.empty'))}</div>` : `<ul class="sqs">${rows}</ul>`}
+      ${/* Phase 9 (V1-564) — what they need before anyone can be sent one: e-mail, and someone who may be written to first. */ ''}<p class="note">${esc(t(locale, 'seq.needs'))}</p>
+      ${opts.ready === 0 ? `<p class="muted">${esc(t(locale, 'seq.noneReady'))}</p>${deeper('/app/contacts', t(locale, 'contacts.title'))}` : ''}
+      ${/* Phase 9 (new-14) — the empty list says what will be here and where to start. */ ''}${list.length === 0 ? `<div class="empty">${esc(t(locale, 'seq.empty'))}</div>` : `<ul class="sqs">${rows}</ul>`}
     </section>
-    <section class="block">
+    <section class="block" id="new">
       <h2>${esc(t(locale, 'seq.new.title'))}</h2>
-      <form method="post" action="/app/sequences" class="sqform">
-        <label class="fld"><span class="muted">${esc(t(locale, 'seq.new.name'))}</span>
-          <input name="name" required maxlength="120" /></label>
-        <button class="btn send" type="submit">${esc(t(locale, 'seq.new.button'))}</button>
+      ${/* Phase 9 (V1-565) — a card of rows, the act at its end. */ ''}<form method="post" action="/app/sequences" class="sform">
+        ${rowsCard(null, [
+          fieldRow({ label: t(locale, 'seq.new.name'), forId: 'sq-name', control: '<input id="sq-name" name="name" required maxlength="120" />' }),
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'seq.new.button'))}</button>`),
+        ])}
       </form>
     </section>`;
 }
@@ -214,7 +220,7 @@ function enrollmentLine(locale: Locale, e: Enrollment, seqId: string): string {
   const thread = e.conversationId
     ? `<a href="${conversationUrl(e.conversationId)}">${esc(t(locale, 'seq.enrolment.thread'))}</a>` : '';
   const stop = live ? `<form method="post" action="/app/sequences/${esc(seqId)}/enrollments/${esc(e.id)}/stop" class="inline">
-      <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+      <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
         data-confirm="${esc(t(locale, 'seq.enrolment.stopConfirm', { who: e.displayName ?? e.identity }))}">${esc(t(locale, 'seq.enrolment.stop'))}</button></form>` : '';
   return `<li class="en ${live ? '' : 'gone'}"><div class="en-h"><span class="who">${who}</span>${state}</div>
     ${ask}${thread || stop || confirm ? `<div class="en-a">${confirm}${thread}${stop}</div>` : ''}</li>`;
@@ -290,7 +296,7 @@ export function renderSequenceDetail(
     <section class="block">
       <p class="muted">${esc(t(locale, 'seq.archive.hint'))}</p>
       <form method="post" action="/app/sequences/${id}/archive" class="inline">
-        <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+        <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'seq.archive.confirm'))}">${esc(t(locale, 'seq.archive.button'))}</button>
       </form>
     </section>`;

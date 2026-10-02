@@ -4530,9 +4530,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       enrichmentsFor(pd, bid.value, view.contacts.filter((c) => c.channel === 'email').map((c) => c.identity)),
       keyStatus(pd, bid.value),
     ]) : [new Map(), { kind: 'none' } as const];
+    // Phase 9 (V1-544) — the search and the page, from the address.
+    const q = req.query as { q?: unknown; page?: unknown };
     return renderContacts({
       ...view, companies,
       canLookUp: status.kind === 'stored' && status.readable && deps.prospectSourceFor !== undefined,
+      query: typeof q.q === 'string' ? q.q : '', page: typeof q.page === 'string' && /^\d{1,4}$/.test(q.page) ? Number(q.page) : 1,
     }, locale, takeFlash(req, reply));
   }));
 
@@ -4628,7 +4631,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = req.query as { channel?: string; identity?: string };
     const found = (await loadContacts(deps.db, sess.businessId)).contacts
       .find((c) => c.channel === q.channel && c.identity === q.identity);
-    if (!found) return renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale, null);
+    // Phase 9 (V1-556) — an address that names nobody on the list says so.
+    if (!found) return renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale, saidFlash(locale, 'contacts.said.notOnList'));
     return renderSuppressConfirm(found, locale);
   }));
 
@@ -4656,7 +4660,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = req.query as { channel?: string; identity?: string };
     const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
     const found = view.contacts.find((c) => c.channel === q.channel && c.identity === q.identity);
-    if (!found || found.channel !== 'email') return renderContacts(view, locale, null);
+    // Phase 9 (V1-554) — nobody by that address, or someone a first message
+    // cannot reach from here (it goes by e-mail only): said, not a silent list.
+    if (!found) return renderContacts(view, locale, saidFlash(locale, 'contacts.said.notOnList'));
+    if (found.channel !== 'email') return renderContacts(view, locale, saidFlash(locale, 'contacts.said.emailOnly'));
     // Deployment mode has no outbound worker at all (src/main.ts): a row queued
     // here would sit until messaging is switched on and then leave, days after
     // she wrote it. Said now, before she types, rather than after.
@@ -4730,8 +4737,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     repliesObservable: false,
   });
 
-  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) =>
-    renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, takeFlash(req, reply))));
+  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) => {
+    // Phase 9 (V1-564) — who could be added today: the SAME `reachOf` the contacts page and the enrol list use.
+    const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
+    const ready = view.contacts.filter((c) => c.channel === 'email' && reachOf(view, c).ok).length;
+    return renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, takeFlash(req, reply), { ready });
+  }));
 
   app.post('/app/sequences', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

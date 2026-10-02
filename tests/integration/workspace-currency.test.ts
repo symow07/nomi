@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHmac } from 'node:crypto';
 import pg from 'pg';
 import { flashSaid } from './tenant.js';
+import { currencyLabel } from '../../src/core/owner/currencies.js';
 import { importAt, submitReview } from './importReview.js';
 import { offlineModels } from '../pipeline/fakes.js';
 import { signUpWithCode, type Outbox, PASSING_BOT_CHECK } from './signUpWithCode.js';
@@ -156,7 +157,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
   });
 
   it('THE RATE PAGE HAS NOTHING TO CONVERT for a workspace selling in its country\'s own money', async () => {
-    expect((await get('/app/settings/rate')).body).toContain(t('en', 'rate.none', { from: 'AED' }));
+    expect((await get('/app/settings/rate')).body).toContain(t('en', 'rate.none', { from: currencyLabel('en', 'AED') }));
     const r = await form('/app/settings/rate', { rate: '3.67' }, cookie);
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
     expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);

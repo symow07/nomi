@@ -217,14 +217,14 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000个起');
   });
 
-  it('contacts: the gap between the facts is " · " in English and Arabic; Chinese keeps its own', () => {
+  it('contacts: the gap between the facts is " · " in every language (phase 9, V1-553: the full-width gaps read as a hole in Chinese)', () => {
     const row = contact({ title: 'Buyer' });
     for (const l of ['en', 'ar'] as const) {
       const html = withoutIsolates(renderContacts(contacts([row]), l, null));
       expect(html, l).not.toMatch(/[：　]/);
       expect(html, l).toContain(`${esc(t(l, 'contacts.channel.email'))} · ${esc(t(l, 'contacts.source.manual'))}`);
     }
-    expect(withoutIsolates(renderContacts(contacts([row]), 'zh', null))).toContain(`${t('zh', 'contacts.channel.email')}　·　${t('zh', 'contacts.source.manual')}`);
+    expect(withoutIsolates(renderContacts(contacts([row]), 'zh', null))).toContain(`${t('zh', 'contacts.channel.email')} · ${t('zh', 'contacts.source.manual')}`);
   });
 
   it('an order: the quantity in the page\'s own unit word, and the tracking line\'s colon', () => {

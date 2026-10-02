@@ -466,10 +466,15 @@ ${SIGNAL_CSS}${MOTION_CSS}
            max-width:var(--measure-form); margin-top:var(--space-12); }
   .fld { display:flex; flex-direction:column; gap:var(--space-4);
          font-size:var(--font-size-small); color:var(--color-ink); }
-  .pform input, .pform textarea, .pform select {
+  /* Phase 9 — a text field's box, for text-like fields only: a tick or a
+     radio given its padding, border and height drew a stretched, padded box
+     and pushed the last choice of a row onto a line of its own. A choice is
+     reached through its label, which is the 44px target. */
+  .pform input:not([type="checkbox"]):not([type="radio"]), .pform textarea, .pform select {
     background:var(--color-surface); border:1px solid var(--color-ink-secondary);
     border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit;
     min-height:44px; resize:vertical; }
+  .pform label.check { display:flex; align-items:center; gap:var(--space-8); min-height:44px; }
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
             font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .chkbox input { min-height:0; }
@@ -556,8 +561,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .srow .go { flex:none; }
   .sr-ctl { flex:0 1 auto; min-width:0; }
   /* A setting as a row inside its card: what it is on the start side, its
-     control on the end side; stacked on a phone. One save per form, in a bar
-     that stays at the foot of the screen while the form scrolls. */
+     control on the end side; stacked on a phone. One save per form, at the
+     form's end. Phase 9 (settings-b-outreach-new-04): the bar no longer
+     sticks to the foot of the screen, where it lay across the form's first
+     screen and read as the save of whichever card it covered. */
   .scard > .setrow + .setrow, .scard > .setrow + .fr-acts { border-top:1px solid var(--color-border); }
   .setrow { display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:var(--space-8) var(--space-16);
     align-items:start; padding:var(--space-12) var(--space-16); }
@@ -567,10 +574,12 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .fr-c { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .fr-c > input:not([type="checkbox"]):not([type="radio"]), .fr-c > select, .fr-c > textarea { width:100%; }
   .fr-c > .fr-value { padding-top:var(--space-8); }
+  /* A tick in the control column sits at its start, beside the line that names it, never centred in the column. */
+  .fr-c > input[type="checkbox"], .fr-c > input[type="radio"], .fr-c > .chkbox { align-self:flex-start; }
   .setrow.bad .fr-c > input, .setrow.bad .fr-c > textarea, .setrow.bad .fr-c > select { border-color:var(--color-warn); }
   .fr-acts { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:var(--space-8); padding:var(--space-12) var(--space-16); }
-  .savebar { position:sticky; bottom:0; z-index:1; display:flex; justify-content:flex-end; gap:var(--space-8);
-    margin:var(--space-8) 0 0; padding:var(--space-12) 0; background:var(--color-paper); border-top:1px solid var(--color-border); }
+  .savebar { display:flex; justify-content:flex-end; gap:var(--space-8);
+    margin:var(--space-8) 0 0; padding:var(--space-12) 0; border-top:1px solid var(--color-border); }
   @media (max-width: 720px) {
     .setrow { grid-template-columns:minmax(0, 1fr); }
     .fr-l { padding-top:0; }
@@ -686,7 +695,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
   .chips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .chip { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
-  .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-small); }
+  .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-small); min-height:44px; }
   .facts { margin-top:var(--space-16); display:flex; flex-direction:column; gap:var(--space-8); }
   .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .note { font-size:var(--font-size-small); margin-top:var(--space-8); margin-bottom:var(--space-12); }
@@ -843,7 +852,9 @@ const STYLE_PAGES = `
   .ch-reopen { margin-top:var(--space-16); border-top:1px solid var(--color-border); padding-top:var(--space-12); }
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
-  .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
+  /* Phase 9 (V1-527) — the languages in even columns, not ragged rows: three on a wide screen, two on a phone. */
+  .langs { display:grid; grid-template-columns:repeat(3, max-content); gap:0 var(--space-24); }
+  @media (max-width: 560px) { .langs { grid-template-columns:repeat(2, max-content); } }
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
@@ -1198,6 +1209,23 @@ const STYLE_PAGES = `
   .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
   .wform textarea { width:100%; font:inherit; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
+  /* Phase 9 (V1-543, V1-544) — the list grouped by its answer, the reason said once at each group's head. */
+  .ctgroup { margin-top:var(--space-24); }
+  .ctgroup-h { margin:0 0 var(--space-4); }
+  .ctgroup > p { margin:0 0 var(--space-4); max-width:var(--measure-prose); }
+  .ctgroup > .cts { margin-top:var(--space-8); }
+  /* ── Phase 9 · Who works here, the rate, samples and terms (settings-b). */
+  .askname { margin-top:var(--space-16); }
+  .owner-only { margin:var(--space-8) 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose);
+    font-size:var(--font-size-small); color:var(--color-ink); }
+  .owner-only li + li { margin-top:var(--space-4); }
+  .act-fold { margin-top:var(--space-8); }
+  .act-fold > .sform { margin-top:var(--space-8); }
+  .as-chans { display:grid; grid-template-columns:repeat(2, max-content); gap:0 var(--space-16); }
+  .fr-need { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
+  /* A setting not made yet (the rate, samples, terms): a panel as wide as the
+     card under it, apart from it, its last line never one word alone. */
+  .empty.notset { max-width:100%; margin-bottom:var(--space-16); text-wrap:pretty; }
 
   /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
   .cal-tabs { flex-wrap:wrap; }
@@ -1906,8 +1934,12 @@ export function shell(input: {
    * customers need the owner now. Log out is a button: it changes something.
    */
   const url = (input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app';
-  const inConversations = url === '/app/inbox' || url.startsWith('/app/inbox/') || url.startsWith(`${MERGED_INTO_BUYERS}/`);
   const inCalendar = url === '/app/calendar';
+  // Phase 9 (V1-547) — a page reached from the list (who may be written to,
+  // finding customers, first e-mails) lights the list on a wide screen too:
+  // the phone lit "Customers" while the rail lit nothing.
+  const inConversations = url === '/app/inbox' || url.startsWith('/app/inbox/') || url.startsWith(`${MERGED_INTO_BUYERS}/`)
+    || (here === 'inbox' && !inCalendar);
   const needs = needsYouCount();
   const sub = (href: string, key: MessageKey, on: boolean, count: number | null) =>
     `<a href="${href}" class="subnav${on ? ' active' : ''}"${on ? ' aria-current="page"' : ''}${

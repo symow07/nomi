@@ -8,6 +8,7 @@ import { t } from './say.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { fieldRow, rowsCard, cardActs } from './rows.js';
 import * as show from './values.js';
 
 /**
@@ -96,18 +97,23 @@ function keyBlock(locale: Locale, status: KeyStatus, viewer: Viewer): string {
       : t(locale, 'prospects.noSource.unreadable_key');
   if (status.kind === 'no_key_store') return `<section class="block"><h2>${esc(t(locale, 'prospects.key.title'))}</h2>
     <p class="muted">${esc(state)}</p></section>`;
+  // Phase 9 (V1-559) — what Apollo is and where its key is made, with the way to it.
+  const apollo = `<a class="deeper" href="https://www.apollo.io/" rel="noopener noreferrer" target="_blank"><bdi>apollo.io</bdi><span class="go ext" aria-hidden="true">↗</span><span class="sr">${esc(t(locale, 'prospects.apollo.opens'))}</span></a>`;
+  // Phase 9 (V1-550 for this page, new-09) — a card of rows, the act at its end.
   const controls = !viewer.isOwner
     ? `<p class="muted">${esc(t(locale, 'staff.prospects.keyOwner'))}</p>`
-    : `<form method="post" action="/app/prospects/key" class="pform">
-        <label class="fld"><span class="muted">${esc(t(locale, 'prospects.key.field'))}</span>
-          <input name="apiKey" type="password" autocomplete="off" spellcheck="false" required maxlength="128" dir="ltr" /></label>
-        <button class="btn send" type="submit">${esc(t(locale, status.kind === 'stored' ? 'prospects.key.replace' : 'prospects.key.save'))}</button>
+    : `<form method="post" action="/app/prospects/key" class="sform">
+        ${rowsCard(null, [
+          fieldRow({ label: t(locale, 'prospects.key.field'), forId: 'pr-key',
+            control: `<input id="pr-key" name="apiKey" type="password" autocomplete="off" spellcheck="false" required maxlength="128" dir="ltr" />` }),
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, status.kind === 'stored' ? 'prospects.key.replace' : 'prospects.key.save'))}</button>`),
+        ])}
       </form>
       ${status.kind === 'stored' ? `<form method="post" action="/app/prospects/key/remove" class="inline">
-        <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+        <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'prospects.key.removeConfirm'))}">${esc(t(locale, 'prospects.key.remove'))}</button></form>` : ''}`;
   return `<section class="block"><h2>${esc(t(locale, 'prospects.key.title'))}</h2>
-    <p class="muted">${esc(state)}</p>${controls}</section>`;
+    <p class="muted">${esc(state)}</p>${status.kind === 'none' ? apollo : ''}${controls}</section>`;
 }
 
 export function renderProspects(
@@ -146,22 +152,25 @@ export function renderProspects(
   return `${back('/app/contacts', t(locale, 'contacts.title'))}
     <h1 class="page">${esc(t(locale, 'prospects.title'))}</h1>
     ${flashBanner(flash)}
-    <section class="block"><p class="muted">${esc(t(locale, 'prospects.intro'))}</p></section>
+    <section class="block"><p class="muted">${esc(t(locale, 'prospects.intro'))}</p>
+      ${/* Phase 9 (V1-560) — before a key, what the search will be, not results nobody can see. */ ''}${canSearch ? '' : `<div class="empty notset">${esc(t(locale, 'prospects.preview'))}</div>`}</section>
     ${keyBlock(locale, v.status, viewer)}
     ${canSearch ? `<section class="block">
       <h2>${esc(t(locale, 'prospects.search.title'))}</h2>
-      <form method="get" action="/app/prospects" class="pform">
+      <form method="get" action="/app/prospects" class="sform">
         <input type="hidden" name="search" value="1" />
-        <label class="fld"><span class="muted">${esc(t(locale, 'prospects.search.titles'))}</span>
-          <input name="titles" dir="auto" maxlength="400" value="${esc(f?.titles.join(', ') ?? '')}" /></label>
-        <label class="fld"><span class="muted">${esc(t(locale, 'prospects.search.countries'))}</span>
-          <input name="countries" dir="auto" maxlength="400" value="${esc(f?.countries.join(', ') ?? '')}" /></label>
-        <label class="fld"><span class="muted">${esc(t(locale, 'prospects.search.keywords'))}</span>
-          <input name="keywords" dir="auto" maxlength="120" value="${esc(f?.keywords ?? '')}" /></label>
-        <label class="fld"><span class="muted">${esc(t(locale, 'prospects.search.size'))}</span>
-          <select name="size">${SIZE_RANGES.map((s) => `<option value="${s}" ${f?.size === s ? 'selected' : ''}>${
-            esc(t(locale, `prospects.size.${s === '' ? 'any' : s.replace('-', '_')}` as MessageKey))}</option>`).join('')}</select></label>
-        <button class="btn send" type="submit">${esc(t(locale, 'prospects.search.button'))}</button>
+        ${rowsCard(null, [
+          fieldRow({ label: t(locale, 'prospects.search.titles'), forId: 'pr-titles',
+            control: `<input id="pr-titles" name="titles" dir="auto" maxlength="400" value="${esc(f?.titles.join(', ') ?? '')}" />` }),
+          fieldRow({ label: t(locale, 'prospects.search.countries'), forId: 'pr-countries',
+            control: `<input id="pr-countries" name="countries" dir="auto" maxlength="400" value="${esc(f?.countries.join(', ') ?? '')}" />` }),
+          fieldRow({ label: t(locale, 'prospects.search.keywords'), forId: 'pr-keywords',
+            control: `<input id="pr-keywords" name="keywords" dir="auto" maxlength="120" value="${esc(f?.keywords ?? '')}" />` }),
+          fieldRow({ label: t(locale, 'prospects.search.size'), forId: 'pr-size',
+            control: `<select id="pr-size" name="size">${SIZE_RANGES.map((s) => `<option value="${s}" ${f?.size === s ? 'selected' : ''}>${
+              esc(t(locale, `prospects.size.${s === '' ? 'any' : s.replace('-', '_')}` as MessageKey))}</option>`).join('')}</select>` }),
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'prospects.search.button'))}</button>`),
+        ])}
       </form>
       <p class="muted note">${esc(t(locale, 'prospects.add.hint'))}</p>
       ${results}
