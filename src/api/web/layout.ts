@@ -277,7 +277,11 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     background:var(--color-surface); color:var(--color-ink); }
   dialog.ask::backdrop { background:var(--color-ink); opacity:0.35; }
   .ask-q { margin:0 0 var(--space-16); }
-  .ask-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
+  /* Phase 9 (cross-new-04) — the two buttons share one row on a phone: a long word wraps inside its own button. */
+  .ask-acts { display:flex; gap:var(--space-8); flex-wrap:nowrap; align-items:stretch; }
+  .ask-acts .btn { min-width:0; }
+  .ask-acts [data-ask-yes] { flex:1 1 auto; }
+  .ask-acts [data-ask-no] { flex:none; }
   /* Phase 6 — a form on its way: its button says so, and does not take a second press. */
   .btn[aria-busy="true"] { cursor:progress; }
   .btn[aria-busy="true"]::after { content:"…"; margin-inline-start:var(--space-4); }
@@ -471,6 +475,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     background:var(--color-surface); border:1px solid var(--color-ink-secondary);
     border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit;
     min-height:44px; resize:vertical; }
+  /* Phase 9 (cross-new-03) — a field sent back is marked by its edge on every form, the calendar's too, not only a settings row. */
+  main input[aria-invalid="true"], main textarea[aria-invalid="true"], main select[aria-invalid="true"] { border-color:var(--color-warn); }
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
             font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .chkbox input { min-height:0; }
@@ -845,6 +851,8 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-155) — the five steps under Getting started: rows of the same card, lighter, so the step reads as part of it. */
   .scard > li.sr-step .srow { min-height:44px; padding-block:var(--space-4); padding-inline-start:var(--space-24); }
   .sr-step .sr-label { font-weight:400; }
+  /* Phase 9 — five languages on the switch: it wraps inside Setup's card rather than running past it on a phone. */
+  .scard .langsw { flex-wrap:wrap; }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
   .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
   .guide-step { border:1px solid var(--color-border); border-radius:12px; padding:var(--space-16); background:var(--color-surface); }
@@ -940,7 +948,7 @@ const STYLE_PAGES = `
   .checks.rd .chk { grid-template-columns:1.25em minmax(0, 1fr); }
   .checks.rd .mk { justify-self:center; }
   .checks.rd .lbl { text-wrap:pretty; }
-  .checks.rd .st { grid-column:2; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-wrap:pretty; }
+  .checks.rd .rd-state { grid-column:2; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-wrap:pretty; }
   .checks.rd .deeper { grid-column:2; padding:0; min-height:44px; }
 
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */

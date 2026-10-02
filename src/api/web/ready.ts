@@ -60,7 +60,7 @@ export function renderReady(v: ReadyView, locale: Locale): string {
   // (never a negative sentence beside an empty circle), and, while it is not
   // in place, its own door — the step's own words.
   const fact = (ok: boolean, label: string, state: string, door: string) => `<li class="chk ${ok ? 'ok' : ''}">${mark(ok)}<span class="lbl">${esc(label)}</span>
-      <span class="st">${esc(state)}</span>${ok ? '' : door}</li>`;
+      <span class="rd-state">${esc(state)}</span>${ok ? '' : door}</li>`;
   const alone = v.earned && v.named;
   return `<h1 class="page">${esc(t(locale, 'ready.title'))}</h1>
   <p class="muted">${esc(t(locale, 'ready.intro', { name }))}</p>
