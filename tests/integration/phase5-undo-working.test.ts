@@ -166,5 +166,15 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
     await admin.query(`update message_fragments set received_at = now() - interval '16 minutes' where id = $1`, [fid]);
     expect((await get(`/app/live/conversation/${cid}?since=${mark}`)).json()).not.toHaveProperty('working');   // fifteen minutes and no turn: not "writing"
     expect((await prod.app.inject({ method: 'GET', url: `/app/inbox/${cid}`, headers: { cookie } })).body).toContain(t('en', 'inbox.draft.none'));
+
+    // A message still in the queue — before the worker records it, or a voice note, which never becomes a
+    // fragment — is the assistant at work too. Held back an hour so no worker takes it during the test.
+    const { QUEUES } = await import('../../src/queue/boss.js');
+    const job = await prod.boss.send(QUEUES.inbound, { businessId: bid, conversationId: cid, messageId: `wamid.p5q.${RUN}`, text: '', messageType: 'audio' },
+      { singletonKey: cid, startAfter: 3600 });
+    expect(job).toBeTruthy();
+    expect((await get(`/app/live/conversation/${cid}?since=${mark}`)).json()).toMatchObject({ working: true });
+    await prod.boss.cancel(QUEUES.inbound, job!);
+    expect((await get(`/app/live/conversation/${cid}?since=${mark}`)).json()).not.toHaveProperty('working');
   });
 });

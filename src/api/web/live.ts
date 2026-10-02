@@ -6,6 +6,7 @@ import { DELETION_WAITING, IS_BLOCKED } from '../../db/buyersList.js';
 import { readAttention, type AttentionCounts } from './operations.js';
 import { isRefusal, UNCERTAIN } from './refusals.js';
 import { conversationUrl } from './layout.js';
+import { QUEUES } from '../../queue/boss.js';
 import type { LiveWatch } from './flash.js';
 
 /**
@@ -212,9 +213,11 @@ export async function ordersWaitingCount(db: Db, bid: BusinessId): Promise<numbe
 
 /**
  * PHASE 5 OF THE UI REBUILD (2026-10-02) — IS THE ASSISTANT AT WORK ON THIS
- * CONVERSATION? A customer's message no turn has taken yet (0009's own
- * "pending": a fragment with no `processed_in`), from the last fifteen minutes,
- * in a conversation the assistant holds. Then the page says so in place — the
+ * CONVERSATION? A customer's message no turn has taken yet, from the last
+ * fifteen minutes, in a conversation the assistant holds: a fragment with no
+ * `processed_in` (0009's own "pending"), or the message still in the queue —
+ * before the worker has recorded it, and a voice note or a photo, which a turn
+ * takes whole and never as a fragment. Then the page says so in place — the
  * line where the reply will be — and its script asks every few seconds, and
  * draws the reply into the page when it lands, without a reload.
  *
@@ -227,11 +230,15 @@ export const WORKING_WINDOW_MIN = 15;
 export async function assistantWorking(db: Db, bid: BusinessId, conversationId: string): Promise<boolean> {
   if (!UUID.test(conversationId)) return false;
   return withTenantTx(db, bid, async (tx) => (await sql<{ working: boolean }>`
-    select exists (
-      select 1 from message_fragments f join conversations c on c.id = f.conversation_id
-       where f.conversation_id = ${conversationId}::uuid and c.business_id = ${bid}
-         and c.assigned_to is null and f.processed_in is null
-         and f.received_at > now() - make_interval(mins => ${WORKING_WINDOW_MIN})) as working`.execute(tx)).rows[0]?.working === true);
+    select exists (select 1 from conversations c
+       where c.id = ${conversationId}::uuid and c.business_id = ${bid} and c.assigned_to is null
+         and (exists (select 1 from message_fragments f
+                       where f.conversation_id = c.id and f.processed_in is null
+                         and f.received_at > now() - make_interval(mins => ${WORKING_WINDOW_MIN}))
+              or exists (select 1 from pgboss.job j
+                          where j.name = ${QUEUES.inbound} and j.singleton_key = ${conversationId}
+                            and j.state in ('created', 'retry', 'active')
+                            and j.created_on > now() - make_interval(mins => ${WORKING_WINDOW_MIN})))) as working`.execute(tx)).rows[0]?.working === true);
 }
 
 /** What the address answers: the status, and what the page's script is told. */

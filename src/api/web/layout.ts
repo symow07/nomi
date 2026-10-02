@@ -1753,7 +1753,8 @@ ${scriptTo(LIVE_JS)}</head>
  */
 const askDialog = (locale: Locale): string =>
   `<dialog class="ask" aria-labelledby="ask-q" data-ask><p class="ask-q" id="ask-q" data-ask-q></p><div class="ask-acts">`
-  + `<button type="button" class="btn send" data-ask-yes>${esc(t(locale, 'common.goAhead'))}</button>`
+  // Its fill (or its red) is set when it opens, from the button that asked: closed, it is no page's primary act.
+  + `<button type="button" class="btn" data-ask-yes>${esc(t(locale, 'common.goAhead'))}</button>`
   + `<button type="button" class="btn" data-ask-no autofocus>${esc(t(locale, 'common.cancel'))}</button></div></dialog>`;
 
 /**
