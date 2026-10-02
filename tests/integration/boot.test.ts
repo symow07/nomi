@@ -1467,7 +1467,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // The design pass: the people themselves, the Buyers list's own "Needs you".
       expect(today.needs.total).toBeGreaterThanOrEqual(1);
       expect(html).toContain(`<h2 id="today-now">${esc(tn('en', 'nav.needsYou', today.needs.total))}</h2>`);
-      expect(html).toContain('class="tl-who"');          // each one named…
+      // each one named, as Buyers' own row (phase 4), a door to the newest message
+      expect(html).toMatch(/<a class="crow is-needs[^"]*" href="\/app\/inbox\/[0-9a-f-]{36}#latest">/);
       expect(html).not.toContain(SECRET);           // draft body is never rendered
       expect(html).not.toContain(BUYERTAG);         // buyer identifier is never rendered
     });
