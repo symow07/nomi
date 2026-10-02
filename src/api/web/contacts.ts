@@ -272,8 +272,9 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       : t(locale, `contacts.source.${c.source}` as MessageKey);
     // Nothing on file is a fact of its own, and the attest button beside it acts on it.
     const unsaid = !decision.ok && !stopped ? t(locale, 'contacts.consent.none') : '';
-    const facts = [t(locale, `contacts.channel.${c.channel}` as MessageKey), how, unsaid, c.title ?? '', c.company ?? '']
-      .filter(Boolean).map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ');
+    // The page's own words as they are; what the business typed (a title, a company) isolated.
+    const facts = [...[t(locale, `contacts.channel.${c.channel}` as MessageKey), how, unsaid].filter(Boolean).map(esc),
+      ...[c.title, c.company].filter((x): x is string => !!x).map((x) => `<bdi>${esc(x)}</bdi>`)].join(' · ');
     /**
      * C4.a — the one act the group's answer allows: write, where the gate has
      * just said yes (a LINK to a page: a first message is written, not dashed
@@ -395,8 +396,9 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
  * PHASE 9 (V1-557, V1-558, new-12) — it asks the way the product's own dialog
  * asks: the question, what it changes and what it does not (they are still
  * answered when they write — suppression binds only a first message and a
- * follow-up, `gateOutreach`), the act's own words in red, and Cancel beside
- * it with the focus, so the reflex lands on going back.
+ * follow-up, `gateOutreach`), the act's own words in red, and the way back
+ * beside it with the focus, so the reflex lands on going back. Going back is a
+ * door, not a button: it changes nothing.
  */
 export function renderSuppressConfirm(
   who: { readonly channel: ContactChannel; readonly identity: string; readonly displayName: string | null },
@@ -410,7 +412,7 @@ export function renderSuppressConfirm(
         <input type="hidden" name="channel" value="${esc(who.channel)}" />
         <input type="hidden" name="identity" value="${esc(who.identity)}" />
         <button class="btn danger" type="submit">${esc(t(locale, 'contacts.suppress.confirm'))}</button>
-        <a class="btn" href="/app/contacts" autofocus>${esc(t(locale, 'common.cancel'))}</a>
+        <a class="back" href="/app/contacts" autofocus><span class="go" aria-hidden="true">‹</span>${esc(t(locale, 'contacts.suppress.cancel'))}</a>
       </form>
     </section>`;
 }

@@ -393,7 +393,7 @@ describe('settings-b-outreach-new-07 · a not-set panel sits apart from the card
   it('on Samples, Terms and the rate', () => {
     for (const l of LOCALES) for (const html of [samples(l), terms(l), noRate(l)]) expect(html, l).toContain('class="empty notset"');
     const rule = rulesFor('.empty.notset').join(';');
-    expect(rule).toContain('max-width:none');
+    expect(rule).toContain('max-width:100%');
     expect(rule).toContain('margin-bottom:var(--space-16)');
   });
 });
@@ -587,12 +587,12 @@ describe('V1-554, V1-556 · an address that names nobody, or someone not reached
 });
 
 describe('V1-557, V1-558, settings-b-outreach-new-12 · never again: what it changes, asked as the dialog asks', () => {
-  it('says the customer is still answered; the act in red, then Cancel with the focus, as in the dialog', () => {
+  it('says the customer is still answered; the act in red, then the way back with the focus', () => {
     for (const l of LOCALES) {
       const html = renderSuppressConfirm({ channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra' }, l);
       expect(html, l).toContain(esc(t(l, 'contacts.suppress.hint')));
       const danger = html.indexOf(`<button class="btn danger" type="submit">${esc(t(l, 'contacts.suppress.confirm'))}</button>`);
-      const cancel = html.indexOf(`<a class="btn" href="/app/contacts" autofocus>${esc(t(l, 'common.cancel'))}</a>`);
+      const cancel = html.indexOf(`<a class="back" href="/app/contacts" autofocus><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'contacts.suppress.cancel'))}</a>`);
       expect(danger, l).toBeGreaterThan(-1);
       expect(cancel, l).toBeGreaterThan(danger);
     }

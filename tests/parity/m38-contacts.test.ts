@@ -250,11 +250,11 @@ describe('M38 · her page', () => {
       { channel: 'email', identity: 'ahmed@example.com', displayName: 'Ahmed' }, 'en');
     expect(confirm).toContain(t('en', 'contacts.suppress.hint'));
     expect(confirm).toContain('<form method="post" action="/app/contacts/suppress"');
-    expect(confirm).toContain(t('en', 'common.cancel'));
+    expect(confirm).toContain(t('en', 'contacts.suppress.cancel'));
     // Going back has the focus: the reflex that carries her through every
     // other page must not land on the one action she cannot take back. Phase 9
-    // (V1-558, new-12): asked as the product's dialog asks — the act in red, Cancel beside it.
-    expect(confirm).toContain('<a class="btn" href="/app/contacts" autofocus>');
+    // (V1-558, new-12): the act in red, the way back beside it with the focus.
+    expect(confirm).toContain('<a class="back" href="/app/contacts" autofocus>');
     expect(confirm).toMatch(/class="btn danger" type="submit"/);
   });
 

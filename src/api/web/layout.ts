@@ -1187,7 +1187,7 @@ const STYLE_PAGES = `
   .fr-need { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
   /* A setting not made yet (the rate, samples, terms): a panel as wide as the
      card under it, apart from it, its last line never one word alone. */
-  .empty.notset { max-width:none; margin-bottom:var(--space-16); text-wrap:pretty; }
+  .empty.notset { max-width:100%; margin-bottom:var(--space-16); text-wrap:pretty; }
 
   /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
   .cal-tabs { flex-wrap:wrap; }
