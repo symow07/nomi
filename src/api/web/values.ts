@@ -151,8 +151,10 @@ export const csvDialectFor = (locale: Locale): CsvDialect => {
 export const quantity = (locale: Locale, n: number): string => isolate(locale, localQty(locale, n) ?? f.formatQty(locale, n));
 
 /** A quantity and what it counts, as one: "5,000 pcs", "5000个", "5,000 قطعة"; "5000 uds." in Spain. */
-export const quantityOf = (locale: Locale, n: number, unit: string): string =>
-  isolate(locale, f.withUnit(locale, localQty(locale, n) ?? f.formatQty(locale, n), unit));
+export const quantityOf = (locale: Locale, n: number, unit: string): string => {
+  const local = localQty(locale, n);
+  return isolate(locale, local === null ? f.formatQtyUnit(locale, n, unit) : f.withUnit(locale, local, unit));
+};
 
 /** A figure already written (a range, "5,000+") and its unit, as one. */
 export const figureOf = (locale: Locale, figure: string, unit: string): string => isolate(locale, f.withUnit(locale, figure, unit));
