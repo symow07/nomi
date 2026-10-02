@@ -20,6 +20,9 @@ import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '..
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
 import { readFileSync } from 'node:fs';
 import type { Db } from '../../src/db/client.js';
+import { productsSheet, priceRulesSheet, plainMoney } from '../../src/api/web/dataExport.js';
+import { renderDataRights } from '../../src/api/web/dataRights.js';
+import { csvRows } from '../../src/core/owner/csv.js';
 
 /**
  * Phase 9, round two — Products, the product page, the add page and the
@@ -690,5 +693,65 @@ describe('What your assistant knows', () => {
   const product = (): ProductKnowledge => ({
     productId: 'de300000-0000-4000-8000-000000000101', productName: 'Canvas Tote Bag 38x40cm', productNameZh: '帆布袋',
     items: [], certs: ['CE', 'food_grade'], appliesToProducts: 12,
+  });
+});
+
+describe('The price-list export', () => {
+  const productRow = {
+    sku: 'ZX-100', name: 'Canvas Tote Bag', name_zh: '帆布袋', description: null, category: 'bags', unit: 'pcs', moq: 500,
+    currency: 'USD', price: '1.0500', lead_time_days: 15, is_active: true, created_at: new Date('2026-10-02T09:53:15.273Z'),
+    names: 'canvas bag; حقيبة قماش; 帆布包',
+  };
+  const parts = {
+    floors: [{ product: 'Canvas Tote Bag', floor: '0.7200', currency: 'USD', max_discount_pct: '8.00', human_required_above_pct: '5.00' }],
+    tiers: [{ product: 'Canvas Tote Bag', min_qty: 500, max_qty: null, price: '1.0500', currency: 'USD' },
+      { product: 'Canvas Tote Bag', min_qty: 2000, max_qty: null, price: '0.9200', currency: 'USD' }],
+    negotiation: [{ condition: { qtyGte: 1000 }, action: { kind: 'discount_pct', value: 4 }, is_active: true, product: null }],
+    bundles: [], subs: [],
+  };
+
+  it('V1-380 — headers and words in the owner\'s language; the files differ by language', () => {
+    const files = LOCALES.map((l) => csvRows(productsSheet([productRow], l, 'UTC').header, productsSheet([productRow], l, 'UTC').rows)
+      + csvRows(priceRulesSheet(parts, l).header, priceRulesSheet(parts, l).rows));
+    expect(new Set(files).size).toBe(LOCALES.length);
+    expect(productsSheet([productRow], 'zh', 'UTC').header).toContain('货号');
+    expect(priceRulesSheet(parts, 'ar').rows[0]![0]).toBe(t('ar', 'data.export.rule.floor'));
+    expect(priceRulesSheet(parts, 'en').header).not.toContain('when');
+  });
+
+  it('V1-381 — figures as figures, words as words, a date as its day', () => {
+    const [row] = productsSheet([productRow], 'en', 'UTC').rows;
+    expect(row).toContain('1.05');
+    expect(row).not.toContain('1.0500');
+    expect(row).toContain('Yes');
+    expect(row).toContain('2026-10-02');
+    expect(row).toContain('pcs');
+    expect(productsSheet([productRow], 'zh', 'UTC').rows[0]).toContain('个');
+    expect(plainMoney('0.1250')).toBe('0.125');
+    expect(plainMoney('18.0000')).toBe('18.00');
+  });
+
+  it('V1-382 — one figure to a cell: each quantity price its own row; the limits in their own columns', () => {
+    const sheet = priceRulesSheet(parts, 'en');
+    expect(sheet.header).toEqual(['What it is', 'Product', 'From quantity', 'Up to quantity', 'Price for one', 'Currency', 'Discount (%)',
+      'Most that may come off (%)', 'You are asked above (%)', 'Note']);
+    expect(sheet.rows[0]).toEqual(['Lowest price you accept', 'Canvas Tote Bag', null, null, '0.72', 'USD', null, '8', '5', null]);
+    expect(sheet.rows[1]).toEqual(['Quantity price', 'Canvas Tote Bag', 500, null, '1.05', 'USD', null, null, null, null]);
+    expect(sheet.rows[3]).toEqual(['Discount for buying more', 'Everything you sell', 1000, null, null, null, '4', null, null, '']);
+    const body = csvRows(sheet.header, sheet.rows);
+    expect(body).not.toContain('|');
+    expect(body).not.toContain('most you will come down');
+  });
+
+  it('V1-384 — the names customers use are in the products file, in every script', () => {
+    const sheet = productsSheet([productRow], 'en', 'UTC');
+    expect(sheet.header).toContain(t('en', 'import.row.names'));
+    expect(csvRows(sheet.header, sheet.rows)).toContain('حقيبة قماش');
+  });
+
+  it('V1-385 — the row ceiling is written as the locale writes a number', () => {
+    const view: Parameters<typeof renderDataRights>[0] = { requests: [], businessName: 'Atlas' };
+    expect(renderDataRights(view, 'en', null, { isOwner: true }, 'Setup')).toContain('20,000 rows');
+    expect(renderDataRights(view, 'en', null, { isOwner: true }, 'Setup')).not.toContain('20000');
   });
 });

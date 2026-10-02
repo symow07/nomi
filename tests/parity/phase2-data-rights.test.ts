@@ -88,7 +88,8 @@ describe('CC-12 · she can take her own data out', () => {
 
   it('the ceiling is said out loud rather than silently truncating', () => {
     const html = renderDataRights(VIEW, 'en', null, OWNER_VIEW, 'Settings');
-    expect(html).toContain(t('en', 'data.export.limit', { n: EXPORT_MAX_ROWS }));
+    // Phase 9 (V1-385) — the ceiling written as the locale writes a number.
+    expect(html).toContain(t('en', 'data.export.limit', { n: EXPORT_MAX_ROWS.toLocaleString('en-US') }));
   });
 
   it('taking a copy is on the audit trail — the subject and the count, never a value', () => {

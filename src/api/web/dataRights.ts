@@ -321,7 +321,8 @@ export function renderDataRights(
     <h2>${esc(t(locale, 'data.export.configTitle'))}</h2>
     <p class="muted">${esc(t(locale, 'data.export.configLead'))}</p>
     ${links(CONFIG)}
-    <p class="muted">${esc(t(locale, 'data.export.limit', { n: EXPORT_MAX_ROWS }))}</p>
+    ${/* Phase 9 (V1-385) — the ceiling as the locale writes a number: "20,000". */ ''}
+    <p class="muted">${esc(t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }))}</p>
   </section>`;
 
   // G9a's rule, applied here: a page that refuses on submit is worse than a
