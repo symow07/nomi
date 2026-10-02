@@ -231,3 +231,92 @@ describe('settings-b-outreach-missed-03 · Arabic: "your customers", plural', ()
     expect(t('ar', 'assistants.title')).not.toContain('عميلك');
   });
 });
+
+// ── Business profile ───────────────────────────────────────────────────────
+import { renderProfile, type BusinessProfile } from '../../src/api/web/settings.js';
+
+const fullProfile: BusinessProfile = {
+  name: 'Yiwu Hongfa', description: 'Daily-use goods', location: 'Yiwu', workingHours: '9-18',
+  contactEmail: 'sales@example.com', contactPhone: null, languagesServed: ['en'], categories: ['bags', 'home'],
+};
+const bareProfile: BusinessProfile = {
+  name: 'Yiwu Hongfa', description: null, location: null, workingHours: null,
+  contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
+};
+const profile = (l: (typeof LOCALES)[number], p: BusinessProfile = bareProfile, zone = 'Asia/Shanghai', country: string | null = null) =>
+  renderProfile(p, l, null, {}, {}, { zone, country }, { currency: 'USD', fixed: true });
+const optionsOf = (html: string) => [...html.matchAll(/<option value="([^"]+)"[^>]*>([^<]*)<\/option>/g)].map((m) => ({ z: m[1]!, label: m[2]! }));
+
+describe('V1-522, V1-528 · the full zone list: grouped, in the owner\'s language, no research stations', () => {
+  it('without a country, the zones sit under their continent, named in the owner\'s language', () => {
+    expect(profile('zh')).toContain('<optgroup label="亚洲">');
+    expect(profile('ar')).toContain('<optgroup label="أوروبا">');
+    expect(profile('es')).toContain('<optgroup label="Europa">');
+    for (const l of LOCALES) expect(profile(l).match(/<optgroup /g)?.length, l).toBe(7);
+  });
+  it('a country with one zone is named wholly in the owner\'s language; a city only where a country has several', () => {
+    const dubai = (l: (typeof LOCALES)[number]) => optionsOf(profile(l)).find((o) => o.z === 'Asia/Dubai')!.label;
+    for (const l of ['zh', 'ar'] as const) expect(dubai(l), l).not.toMatch(/[A-Za-z]/);
+    expect(optionsOf(profile('zh')).find((o) => o.z === 'Asia/Shanghai')!.label).toMatch(/^中国（Shanghai） — /);
+    expect(optionsOf(profile('en')).find((o) => o.z === 'Europe/Paris')!.label).toMatch(/^France — /);
+  });
+  it('no station in Antarctica or Svalbard is offered — unless it is the zone already kept', () => {
+    for (const l of LOCALES) expect(optionsOf(profile(l)).filter((o) => /^(Antarctica|Arctic)\//.test(o.z)), l).toEqual([]);
+    expect(optionsOf(profile('en', bareProfile, 'Antarctica/Troll')).filter((o) => o.z === 'Antarctica/Troll')).toHaveLength(1);
+  });
+  it('a country\'s own zones stay a short flat list', () => {
+    const us = profile('en', bareProfile, 'America/New_York', 'US');
+    expect(us).not.toContain('<optgroup');
+    expect(optionsOf(us).every((o) => o.z.startsWith('America/') || o.z.startsWith('Pacific/'))).toBe(true);
+  });
+});
+
+describe('V1-523 · the page marks what the setup step still needs', () => {
+  it('an empty profile says what finishes the step, and marks each missing field', () => {
+    for (const l of LOCALES) {
+      const html = profile(l);
+      expect(html, l).toContain(esc(t(l, 'settings.profile.needs')));
+      expect(html.split(`<span class="fr-need">${esc(t(l, 'settings.profile.need'))}</span>`).length - 1, l).toBe(4);
+    }
+  });
+  it('a finished one marks nothing', () => {
+    const html = profile('en', fullProfile);
+    expect(html).not.toContain('fr-need');
+    expect(html).not.toContain(t('en', 'settings.profile.needs'));
+  });
+});
+
+describe('V1-524, V1-525 · who reads what, and where the categories come from', () => {
+  it('the description says the assistant reads it; the contact details say nobody is given them', () => {
+    for (const l of LOCALES) {
+      const html = withWorkspace(SCOPE, () => profile(l, fullProfile));
+      expect(html, l).toContain(esc(t(l, 'settings.desc.description')));
+      expect(html, l).toContain(esc(t(l, 'settings.desc.contact')));
+      expect(html, l).toContain(esc(t(l, 'settings.categories.from')));
+      expect(html, l).toMatch(/class="deeper" href="\/app\/products"/);
+    }
+  });
+});
+
+describe('V1-526 · the fixed currency explains itself in the owner\'s words', () => {
+  it('no talk of converting', () => {
+    expect(t('en', 'settings.currency.fixed')).not.toMatch(/convert/i);
+    expect(t('zh', 'settings.currency.fixed')).not.toContain('换算');
+    expect(t('es', 'settings.currency.fixed')).not.toMatch(/convert/i);
+  });
+});
+
+describe('V1-527 · the languages sit in even columns', () => {
+  it('a grid of three, two on a phone', () => {
+    expect(rulesFor('.langs').join(';')).toContain('grid-template-columns:repeat(3, max-content)');
+    expect(css).toMatch(/@media \(max-width: 560px\) \{ \.langs \{ grid-template-columns:repeat\(2, max-content\); \} \}/);
+  });
+});
+
+describe('settings-b-outreach-missed-05 · typographic quotes around "today"', () => {
+  it('in English and Spanish', () => {
+    expect(t('en', 'settings.zone.why')).toContain('“today”');
+    expect(t('es', 'settings.zone.why')).toContain('«hoy»');
+    for (const l of LOCALES) expect(t(l, 'settings.zone.why'), l).not.toContain('"');
+  });
+});

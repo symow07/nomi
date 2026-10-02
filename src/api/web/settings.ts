@@ -1,9 +1,9 @@
-import { zoneChoices, zoneLabel, isZone, ALL_ZONES } from '../../core/owner/zones.js';
+import { zoneChoices, zoneLabel, zonePlace, zoneKept, zonesOf, countryOfZone, regionOf, isZone, ALL_ZONES, SHOP_ZONES, ZONE_GROUPS } from '../../core/owner/zones.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
@@ -329,12 +329,38 @@ export async function saveZone(db: Db, businessIdRaw: string, zone: string): Pro
   return 'saved';
 }
 
+const INTL_LOCALE: Record<Locale, string> = { en: 'en', zh: 'zh-CN', ar: 'ar', es: 'es', fr: 'fr' };
+
 /** TZ — the zone, as a row of the profile's one form (phase 3: one save, not three). */
 function zoneRow(c: ZoneChoice, locale: Locale): string {
-  const choices = zoneChoices(c.country ?? '').length ? zoneChoices(c.country ?? '') : ALL_ZONES;
-  const all = choices.includes(c.zone) ? choices : [c.zone, ...choices];
-  return fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc: t(locale, 'settings.zone.why'),
-    control: `<select id="pf-zone" name="zone">${all.map((z) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(zoneLabel(locale, z))}</option>`).join('')}</select>` });
+  const own = zoneChoices(c.country ?? '');
+  const option = (z: string, label: string) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(label)}</option>`;
+  const row = (control: string) => fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc: t(locale, 'settings.zone.why'), control });
+  // A country narrows the list to its own zones, told apart by their places.
+  if (own.length > 0 && own !== ALL_ZONES) {
+    const all = own.includes(c.zone) ? own : [c.zone, ...own];
+    return row(`<select id="pf-zone" name="zone">${all.map((z) => option(z, zoneLabel(locale, z))).join('')}</select>`);
+  }
+  // Phase 9 (V1-522, V1-528) — without one, every zone a shop keeps (no
+  // research stations), under its region, named by its country in the
+  // owner's language; the city only where a country keeps several.
+  const open = (zh: boolean, s: string) => (zh ? `（${s}）` : ` (${s})`);
+  const named = (z: string): string => {
+    const cc = countryOfZone(z);
+    const country = cc ? countryName(locale, cc) : null;
+    const place = country ? (zonesOf(cc).length > 1 ? `${country}${open(locale === 'zh', zonePlace(z))}` : country) : zonePlace(z);
+    const kept = zoneKept(locale, z);
+    return kept ? `${place} — ${kept}` : place;
+  };
+  const order = new Intl.Collator(locale).compare;
+  const lone = SHOP_ZONES.includes(c.zone) ? '' : option(c.zone, zoneLabel(locale, c.zone));
+  const continents = new Intl.DisplayNames([INTL_LOCALE[locale]], { type: 'region' });
+  const groups = ZONE_GROUPS.map((g) => {
+    const zs = SHOP_ZONES.filter((z) => g.regions.some((r) => regionOf(z) === r)).map((z) => ({ z, label: named(z) })).sort((a, b) => order(a.label, b.label));
+    const label = g.m49 ? continents.of(g.m49) ?? '' : t(locale, `settings.zone.region.${g.key}` as MessageKey);
+    return `<optgroup label="${esc(label)}">${zs.map((x) => option(x.z, x.label)).join('')}</optgroup>`;
+  }).join('');
+  return row(`<select id="pf-zone" name="zone">${lone}${groups}</select>`);
 }
 
 /**
@@ -394,32 +420,42 @@ export function renderProfile(
     const detail = e === 'tooLong' ? { n: CAP[f as keyof typeof CAP] ?? 200 } : {};
     return `<span class="fielderr" role="alert">${esc(t(locale, `settings.err.${e}` as MessageKey, detail))}</span>`;
   };
-  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '') => fieldRow({
-    label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined,
+  // Phase 9 (V1-523) — what the setup step still needs, marked where it is
+  // missing: a description, a location, and one way to be reached (setup.ts).
+  const needs = {
+    description: !p.description, location: !p.location, contact: !p.contactEmail && !p.contactPhone,
+  };
+  const need = (missing: boolean): string | undefined => (missing ? t(locale, 'settings.profile.need') : undefined);
+  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '', extra: { need?: string | undefined; desc?: string } = {}) => fieldRow({
+    label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined, need: extra.need, desc: extra.desc,
     control: `<input id="pf-${id}" name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />` });
 
   const languages = fieldRow({ label: t(locale, 'settings.field.languages'),
     control: `<div class="langs">${SERVED_LANGUAGES.map((l) =>
       `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> <bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi></label>`).join('')}</div>` });
+  // Phase 9 (V1-524) — who reads what: the description reaches the assistant
+  // (speakerContext's "what it sells"); the contact details reach nobody.
   const description = fieldRow({ label: t(locale, 'settings.field.description'), forId: 'pf-description', error: errLine('description') || undefined,
+    need: need(needs.description), desc: t(locale, 'settings.desc.description'),
     control: `<textarea id="pf-description" name="description" rows="3">${esc(val('description', p.description))}</textarea>` });
-  // The categories the import found: what they are, as words — nothing to press.
-  const categories = fieldRow({ label: t(locale, 'settings.field.categories'),
+  // The categories the import found: what they are, as words — nothing to
+  // press. Phase 9 (V1-525): where they come from, and where to change one.
+  const categories = fieldRow({ label: t(locale, 'settings.field.categories'), desc: t(locale, 'settings.categories.from'),
     control: `<span class="fr-value">${p.categories.length ? p.categories.map((c) => `<bdi>${esc(c)}</bdi>`).join(' · ')
-      : `<span class="muted">${esc(t(locale, 'settings.categories.empty'))}</span>`}</span>` });
+      : `<span class="muted">${esc(t(locale, 'settings.categories.empty'))}</span>`}</span>${deeper('/app/products', t(locale, 'nav.products'))}` });
 
   // Phase 3 — ONE form, ONE save: the profile, the zone and the currency
   // were three forms with a Save each; the route saves all three.
   const form = `<form method="post" action="/app/settings" class="sform">
     ${rowsCard(t(locale, 'profile.group.business'), [
       field('name', 'settings.field.name', 'name', p.name), description,
-      field('location', 'settings.field.location', 'location', p.location),
+      field('location', 'settings.field.location', 'location', p.location, '', { need: need(needs.location) }),
       field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
       languages,
     ])}
     ${rowsCard(t(locale, 'profile.group.contact'), [
-      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail),
-      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder')),
+      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail, '', { need: need(needs.contact), desc: t(locale, 'settings.desc.contact') }),
+      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'), { need: need(needs.contact) }),
     ])}
     ${rowsCard(t(locale, 'profile.group.zone'), [
       ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []), categories,
@@ -427,9 +463,11 @@ export function renderProfile(
     ${saveBar(t(locale, 'settings.alerts.save'))}
   </form>`;
 
+  const missing = needs.description || needs.location || needs.contact;
   return `${back('/app/settings', t(locale, 'nav.settings'))}
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
+    ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}
     ${form}`;
 }
 

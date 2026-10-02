@@ -837,7 +837,9 @@ const STYLE_PAGES = `
   .ch-reopen { margin-top:var(--space-16); border-top:1px solid var(--color-border); padding-top:var(--space-12); }
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
-  .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
+  /* Phase 9 (V1-527) — the languages in even columns, not ragged rows: three on a wide screen, two on a phone. */
+  .langs { display:grid; grid-template-columns:repeat(3, max-content); gap:0 var(--space-24); }
+  @media (max-width: 560px) { .langs { grid-template-columns:repeat(2, max-content); } }
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
@@ -1177,6 +1179,7 @@ const STYLE_PAGES = `
   .as-fold { margin-top:var(--space-8); }
   .as-fold > .sform { margin-top:var(--space-8); }
   .as-chans { display:grid; grid-template-columns:repeat(2, max-content); gap:0 var(--space-16); }
+  .fr-need { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
 
   /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
   .cal-tabs { flex-wrap:wrap; }
