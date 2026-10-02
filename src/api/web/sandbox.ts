@@ -221,13 +221,14 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
   const deliveryKey = trust.appliedMode === 'auto' ? 'sandbox.xray.deliveryAuto' : trust.appliedMode === 'draft' ? 'sandbox.xray.deliveryDraft' : 'sandbox.xray.deliveryNone';
   const rows = trust.checks.map((c) =>
     `<li class="chk ${c.pass ? 'ok' : 'bad'}"><span class="mk">${c.pass ? '✓' : '✕'}</span>
-       <span class="lbl">${esc(invLabel(locale, c.invariant))}</span>
-       <span class="dt muted">${esc(c.detail)}</span></li>`).join('');
+       <span class="lbl">${esc(invLabel(locale, c.invariant))}</span></li>`).join('');
+  // Phase 9 (V1-287) — a check's internal detail ("guardViolations=0, deterministic=…")
+  // is the engine's, in English; the owner reads the check's own words and its mark.
   // CC-13 — each label and its value with the locale's own colon ("Skill: …", "技能：…"),
   // and the unit in the page's language, as on every other price ("$0.85/pcs", "$0.85/个").
   const chips = [
     `<span class="chip">${esc(labelled(locale, t(locale, 'sandbox.xray.skill'), capabilityName(locale, trust.capability)))}</span>`,
-    `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(labelled(locale, t(locale, 'sandbox.xray.delivery'), t(locale, deliveryKey as MessageKey)))}</span>`,
+    `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(t(locale, deliveryKey as MessageKey))}</span>`,
     trust.quote ? `<span class="chip"><bdi>${esc(show.money(locale, quoteUnit(trust.quote)))}/${esc(unitLabel(locale, trust.quote.unit ?? 'pcs'))}</bdi></span>` : '',
     trust.guardViolations > 0 ? `<span class="chip warn">${trust.guardViolations}</span>` : '',
     trust.scenarioId
@@ -349,14 +350,15 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
       <span class="pmark">${c.passed ? '✓' : '✕'}</span>
       <span class="ptitle">${esc(t(locale, `sandbox.case.${c.id}` as MessageKey))}</span>
     </li>`).join('');
-  return `<div class="card">
-    <h2>${esc(t(locale, 'practice.scripted.title'))}</h2>
+  // Phase 9 (V1-286) — folded, and placed after the practice conversation: the
+  // page opened with 41 case titles and the box to write in 3,000 px down.
+  return `<details class="card pchecks">
+    <summary><h2>${esc(t(locale, 'practice.scripted.title'))} · <span class="pcount">${esc(show.isolate(locale, `${report.passed} / ${report.total}`))}</span></h2></summary>
     <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: assistantName(locale) }))}</p>
-    <div class="pcount">${esc(show.isolate(locale, `${report.passed} / ${report.total}`))}</div>
     <ul class="pcases">${rows}</ul>
     <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: assistantName(locale) }))}</p>
     <p class="muted pproves">${esc(t(locale, 'practice.scripted.notproves', { name: assistantName(locale) }))}</p>
-  </div>`;
+  </details>`;
 }
 
 /**

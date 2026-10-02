@@ -1444,6 +1444,9 @@ const STYLE_PAGES = `
 
   /* ── sandbox.ts — moved here whole in step four: page-specific names, defined once. */
   .pcount { font-size:var(--font-size-display); font-weight:600; color:var(--color-ink); font-variant-numeric:tabular-nums; margin:var(--space-4) 0 var(--space-12); }
+  .pchecks > summary { cursor:pointer; }
+  .pchecks > summary h2 { display:inline; }
+  .pchecks > summary .pcount { font-size:inherit; margin:0; }
   .pcases { list-style:none; margin:0; padding:0; }
   .pcase { display:flex; gap:var(--space-8); padding:7px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .pcase:last-child { border-bottom:0; }
