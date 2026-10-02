@@ -67,6 +67,17 @@ export const NEEDS_OWNER = sql<boolean>`(c.assigned_to is not null
   or ${DELETION_WAITING} or ${ORDER_WAITING})`;
 
 /**
+ * Phase 9 (V1-163) — the same, as one reader sees it: a conversation a
+ * COLLEAGUE holds is theirs, not this reader's "Needs you" (it sits under
+ * "Your team is handling" on All). Waiting for a person, or held by the reader,
+ * still counts; with no reader known, everyone's — as before.
+ */
+export const needsOwnerFor = (viewerId?: string): RawBuilder<boolean> => viewerId === undefined ? NEEDS_OWNER
+  : sql<boolean>`((c.assigned_to is not null and (c.assigned_to = ${WAITING_HUMAN_AGENT} or c.assigned_to = ${viewerId}))
+  or (c.assigned_to is null and exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending'))
+  or ${DELETION_WAITING} or ${ORDER_WAITING})`;
+
+/**
  * M22 — holding a message that never reached the buyer, in the last week.
  */
 export const IS_BLOCKED = sql<boolean>`exists (
@@ -77,7 +88,7 @@ export const IS_BLOCKED = sql<boolean>`exists (
 
 /** Which rows a tab holds, decided BEFORE any page is cut. 'mine' with no viewer is nobody's. */
 export const eligibleFor = (filter: BuyersFilter, viewerId?: string): RawBuilder<boolean> =>
-  filter === 'pending' ? NEEDS_OWNER
+  filter === 'pending' ? needsOwnerFor(viewerId)
     : filter === 'blocked' ? IS_BLOCKED
     : filter === 'mine' ? (viewerId ? sql<boolean>`c.assigned_to = ${viewerId}` : sql<boolean>`false`)
     : filter === 'deletion' ? DELETION_WAITING
@@ -268,7 +279,7 @@ export async function readBuyerCounts(tx: Tx, viewerId?: string): Promise<{
   readonly deletion: number; readonly channels: number;
 }> {
   return (await sql<{ waiting: number; blocked: number; mine: number; deletion: number; channels: number }>`
-    select count(*) filter (where ${NEEDS_OWNER})::int as waiting,
+    select count(*) filter (where ${needsOwnerFor(viewerId)})::int as waiting,
            count(*) filter (where ${IS_BLOCKED})::int as blocked,
            count(*) filter (where ${eligibleFor('mine', viewerId)})::int as mine,
            count(*) filter (where ${DELETION_WAITING})::int as deletion,

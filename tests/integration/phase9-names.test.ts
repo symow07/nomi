@@ -47,6 +47,17 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
     expect(after?.assistantName).toBe('Lily');
   });
 
+  it('V1-163 · a conversation a colleague holds is theirs, not the owner\'s "Needs you"', async () => {
+    const { readBuyerCounts } = await import('../../src/db/buyersList.js');
+    const chen = (await tx((t) => sql<{ id: string }>`insert into people (business_id, name, is_owner) values (${BIZ}, 'Chen', false) returning id::text as id`.execute(t))).rows[0]!.id;
+    const owner = (await tx((t) => sql<{ id: string }>`insert into people (business_id, name, is_owner) values (${BIZ}, 'Owner', true) returning id::text as id`.execute(t))).rows[0]!.id;
+    await tx((t) => sql`update conversations set assigned_to = ${chen} where id = ${CONV}`.execute(t));
+    expect((await tx((t) => readBuyerCounts(t, owner))).waiting).toBe(0);
+    expect((await tx((t) => readBuyerCounts(t, chen))).waiting).toBe(1);
+    expect((await tx((t) => readBuyerCounts(t))).waiting).toBe(1);     // no reader known: everyone's, as before
+    await tx((t) => sql`update conversations set assigned_to = null where id = ${CONV}`.execute(t));
+  });
+
   it('V1-088 · Today counts a customer who wrote in the last 24 hours, once however many lines', async () => {
     const { loadToday } = await import('../../src/api/web/today.js');
     const quiet = await loadToday(db, BIZ, undefined, new Date(), false);

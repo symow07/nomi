@@ -737,7 +737,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      */
     const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
       if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
-      withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx)).then(
+      // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
+      withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)).then(
         (c) => withWorkspace({ ...f, needsYou: c.waiting }, done),
         () => withWorkspace(f, done),
       );
