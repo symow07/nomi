@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { readReply, differsOn } from '../../src/core/owner/reading.js';
 import { tn, t } from '../../src/core/owner/i18n/messages.js';
-import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
+import { renderConversationDetail, replyRows, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { moneyFromRow } from '../../src/core/types/money.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
 import { withoutIsolates } from './isolates.js';
@@ -90,29 +91,49 @@ describe('the card, drawn', () => {
     expect(card(renderConversationDetail(base, 'en', NOW, null))).not.toContain('writing in');
   });
 
-  it('who asked, where and when; what was understood; how it was read, closed; the reply once; one Send', () => {
+  it('phase 2 · decision first: who drafted it and where it goes; the reply once; the acts; how it was read, last and closed', () => {
     const html = withoutIsolates(renderConversationDetail(base, 'en', NOW, null));
     const c = card(html);
-    expect(c).toMatch(/<b><bdi>Maya Rahman<\/bdi><\/b> asked · Instagram · Today \d\d:\d\d/);
-    expect(c).toContain('<span class="as"><span aria-hidden="true">✦</span> Your assistant drafted</span>');
-    expect(c).toContain('<blockquote class="said" dir="auto"><bdi>how much for 10 of the rose serum?</bdi></blockquote>');
-    expect(c).toContain('<bdi>a price question</bdi> · <bdi>Rose Face Serum</bdi> · <bdi>10 bottles</bdi> · <bdi>English</bdi>');
-    expect(c).toMatch(/<details><summary><span class="t">How your assistant read this<\/span><span class="c">5 reasons<\/span><\/summary>/);
+    expect(c).toContain('<div class="top"><span class="as"><span aria-hidden="true">✦</span> Your assistant drafted</span><span class="k">goes on Instagram, as written</span></div>');
+    // the customer's message is in the transcript directly above: the card does not repeat it, nor who asked and when
+    expect(c).not.toContain('how much for 10 of the rose serum?');
+    expect(html.split('how much for 10 of the rose serum?')).toHaveLength(2);
+    expect(c).not.toContain('asked ·');
+    // what was understood and how it was read: one quiet line under the acts, opening downward
+    expect(c).toMatch(/<details class="reading"><summary><span class="t">How your assistant read this<\/span><span class="c">5 reasons<\/span><\/summary><p class="und">/);
+    expect(c).toContain('<bdi>a price question</bdi> · <bdi>Rose Face Serum</bdi> · <bdi>10\u00a0bottles</bdi> · <bdi>English</bdi>');
     expect(c).toContain('<bdi>$34.90</bdi><span>your price for Rose Face Serum</span>');
     expect(c).toContain('<bdi>$349.00</bdi><span>the total, at your prices</span>');
     expect(c).toContain('<bdi>Ships from Leeds</bdi><span>something you taught</span>');
     expect(c).toContain('checked twice');
-    expect(c).toContain('Every figure has a source');
+    expect(c.indexOf('class="acts"')).toBeLessThan(c.indexOf('class="reading"'));
     expect(c).toMatch(/Instagram takes replies until \d\d:\d\d tomorrow/);
     expect(html.split('The Rose Face Serum is $34.90 each')).toHaveLength(2);   // once, in the box
+    // one filled button; the rest outlined alike; no Edit (the box is always editable)
+    expect(c.match(/class="btn send"/g)).toHaveLength(1);
+    expect(c).not.toContain(t('en', 'card.edit'));
+    expect(c).not.toContain('<label class="btn"');
+    expect(c).not.toContain('quiet');
     expect(buttonsAndDoors(html)).toEqual([]);
+  });
+
+  it('phase 2 · the card stays in the page\'s order: it never docks over the transcript, and the box shows the whole draft', () => {
+    const css = readFileSync(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
+    const rules = css.split('}').filter((r) => /#approve\b/.test(r));
+    expect(rules.length).toBeGreaterThan(0);
+    for (const r of rules) expect(r, r).not.toMatch(/position\s*:\s*(sticky|fixed|absolute)/);
+    expect(css).toMatch(/\.approve textarea \{[^}]*field-sizing:content/);
+    // where the browser cannot grow the box, it opens with rows enough for the draft at a phone's width
+    expect(replyRows('Short.')).toBe(3);
+    expect(replyRows('x'.repeat(200))).toBe(7);
+    expect(replyRows('x'.repeat(2000))).toBe(10);
   });
 
   it('what made it wait is the card\'s state line, drawn before the rest', () => {
     const held = withoutIsolates(renderConversationDetail({ ...base, pendingDraft: { ...base.pendingDraft!, heldBecause: 'discount_needs_owner' } }, 'en', NOW, null));
     const c = card(held);
     expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●<\/span> <b>Waiting for you<\/b> /);
-    expect(c.indexOf('class="stateline"')).toBeLessThan(c.indexOf('class="said"'));
+    expect(c.indexOf('class="stateline"')).toBeLessThan(c.indexOf('<textarea'));
   });
 
   it('a figure nothing accounts for, and a second reading that differed, are said plainly', () => {
@@ -123,20 +144,20 @@ describe('the card, drawn', () => {
     }, 'en', NOW, null));
     const c = card(html);
     expect(c).toContain('<span class="mk warn" aria-hidden="true">○</span><bdi>29</bdi><span>no source found</span>');
-    expect(c).toContain('Not every figure has a source');
+    expect(c).toMatch(/<span class="c warn"><span aria-hidden="true">○<\/span> Not every figure has a source<\/span><\/summary>/);
     expect(c).toContain('a second, separate reading differed on the product');
   });
 
   it('in Chinese and Arabic: the same card, the customer\'s words kept in their own direction, nobody gendered', () => {
     const zh = card(withoutIsolates(renderConversationDetail(base, 'zh', NOW, null)));
-    expect(zh).toContain('<b><bdi>Maya Rahman</bdi></b> 在 Instagram 上问');
+    expect(zh).toContain(t('zh', 'card.goes', { channel: 'Instagram' }));
     expect(zh).toContain('<bdi>问价</bdi> · <bdi>玫瑰精华</bdi>');
     expect(zh).toContain('5 条依据');
     const ar = card(withoutIsolates(renderConversationDetail(base, 'ar', NOW, null)));
-    expect(ar).toContain('سؤال من <b><bdi>Maya Rahman</bdi></b>');
     expect(ar).toContain('5 أسباب');
     expect(ar).toContain(t('ar', 'card.handToMe'));
-    expect(ar).toContain('<blockquote class="said" dir="auto">');
+    // the reply box takes the draft's own direction
+    expect(ar).toMatch(/<textarea id="reply" name="edit" rows="\d+" dir="auto"/);
   });
 
   it('the page\'s other cards are states of the one card: a dot, the state\'s own words, then why and what to do', () => {
@@ -153,7 +174,7 @@ describe('the card, drawn', () => {
     const late = { ...base, messages: [{ ...base.messages[0]!, at: new Date(NOW.getTime() - (22 * 60 + 40) * 60_000) }] };
     const en = card(withoutIsolates(renderConversationDetail(late, 'en', NOW, null)));
     expect(en).toContain('<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>Closing soon</b> Instagram takes replies for 1 hour, 20 minutes more</p>');
-    expect(en.indexOf('Closing soon')).toBeLessThan(en.indexOf('class="said"'));
+    expect(en.indexOf('Closing soon')).toBeLessThan(en.indexOf('<textarea'));
     expect(card(withoutIsolates(renderConversationDetail(late, 'zh', NOW, null)))).toContain('Instagram 还能回复 1小时20分钟');
     // with the day still ahead, nothing to say about it but the time it closes
     expect(card(withoutIsolates(renderConversationDetail(base, 'en', NOW, null)))).not.toContain('Closing soon');
@@ -166,7 +187,7 @@ describe('the card, drawn', () => {
     expect(c).not.toContain('checked twice');
     // …and the quote the page holds still sources its figures
     expect(c).toContain('<bdi>$34.90</bdi><span>your price for Rose Face Serum</span>');
-    expect(c).toContain('Every figure has a source');
+    expect(c).not.toContain('Not every figure');
     expect(c).toContain('name="command" value="send"');
   });
 });

@@ -1607,12 +1607,19 @@ function expiredCard(d: ConversationDetail, locale: Locale): string {
 }
 
 /**
- * THE APPROVAL CARD (the design pass, 2026-09-29; the plan's §1). One card,
- * one decision: who asked what and when; what was understood; how the reply
- * was read, closed until asked for; the reply ONCE, in the only box on the
- * page; and the acts in one row — Send (the one fill), Edit (a label that
- * puts the cursor in the box), Hand to me, and "No reply needed" quietly at
- * the far end.
+ * THE APPROVAL CARD (the design pass, 2026-09-29; rebuilt in phase 2 of the UI
+ * rebuild, 2026-10-02). One card, one decision, drawn decision first: who
+ * drafted it and where it goes; what made it wait, if anything; the reply ONCE,
+ * in the only box on the page; the acts — Send (the one fill), then Hand to me
+ * and No reply needed, both outlined; and last, one quiet line that opens to
+ * what was understood and how the reply was read.
+ *
+ * Phase 2 took out what the page already shows or what did nothing: the
+ * customer's message is directly above the card in the transcript, so the card
+ * no longer repeats it, nor who asked and when; "Edit" only put the cursor in
+ * a box that is always editable, so it went; and the card stays in the page's
+ * own order on every width — it no longer docks over the transcript, so
+ * opening "How … read this" pushes nothing over the customer's words.
  *
  * ONE FORM, ONE SEND. The box is the reply: Send posts what is in it, and the
  * route sends it as it was drafted or as the owner's edit, through the same
@@ -1652,13 +1659,10 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   const lastIn = [...d.messages].reverse().find((m) => m.direction === 'inbound') ?? null;
   const r = d.reading ?? null;
 
-  // Who asked, where, when — the customer's name set apart from the words round it.
-  const who = `<b><bdi>${esc(d.buyer ?? t(locale, 'card.customer'))}</bdi></b>`;
-  const asked = lastIn?.at && channel
-    ? esc(t(locale, 'card.asked', { customer: '\u0000', channel, time: show.when(locale, lastIn.at, now) })).replace('\u0000', who)
-    : who;
-  const top = `<div class="top"><span>${asked}</span><span class="as"><span aria-hidden="true">✦</span> ${
-    esc(t(locale, 'card.drafted', { name }))}</span></div>`;
+  // Who drafted it, and where Send sends it. Who asked and when is the
+  // transcript's caption directly above the card; it is not said twice.
+  const top = `<div class="top"><span class="as"><span aria-hidden="true">✦</span> ${
+    esc(t(locale, 'card.drafted', { name }))}</span>${channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>`;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
   const waits = (sentence: string) => `<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>${
@@ -1688,9 +1692,6 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
       <button class="btn" type="submit">${esc(t(locale, 'card.foreign.translate', { language: languageName(locale, locale) }))}</button></form>` : ''}
     </div>`;
   })() : '';
-
-  const said = lastIn && !lastIn.received && lastIn.text.trim()
-    ? `<blockquote class="said" dir="auto"><bdi>${esc(lastIn.text)}</bdi></blockquote>` : '';
 
   // Understood: what they want, the product, the quantity (only if they gave one), the language.
   const prod = productName(locale, d.product);
@@ -1737,9 +1738,15 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
           fields: formatList(locale, r.differsOn.map((f) => t(locale, `card.field.${f}` as MessageKey))),
         }))]),
   ];
-  const how = reasons.length
-    ? `<details><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span><span class="c">${
-        esc(tn(locale, 'card.reasons.count', reasons.length))}</span></summary><ul class="reasons">${reasons.join('')}</ul></details>`
+  // One quiet line under the acts, opening downward: what was understood, and
+  // how the reply was read. A figure nothing accounts for is said on the line
+  // itself, with the ○ that marks it in the list it opens.
+  const unsourced = read.lines.some((l) => l.kind === 'figure' && l.source === 'unsourced');
+  const how = reasons.length || und
+    ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
+        unsourced ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unsourced'))}</span>`
+          : reasons.length ? `<span class="c">${esc(tn(locale, 'card.reasons.count', reasons.length))}</span>` : ''}</summary>${
+        und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
     : '';
 
   // The reply's window, where the channel has one: until when it can still go.
@@ -1752,8 +1759,6 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     ? `<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>${esc(t(locale, 'card.closingSoon'))}</b> ${
         esc(t(locale, 'card.closingIn', { channel, left: show.timeLeft(locale, until.getTime() - now.getTime()) }))}</p>`
     : '';
-  const figures = read.lines.some((l) => l.kind === 'figure')
-    ? `<span>${esc(t(locale, read.everyFigureSourced ? 'card.sourced' : 'card.unsourced'))}</span>` : '';
 
   return `<section class="card draft" id="approve" aria-labelledby="approve-h">
       <h2 id="approve-h" class="sr">${esc(t(locale, 'buyers.review.title', { name }))}</h2>
@@ -1761,26 +1766,34 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
       ${closing}
       ${state}
       ${foreign}
-      ${said}
-      ${und}
-      ${how}
       <form method="post" action="${esc(to.act)}" class="approve">
         <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
-        <div class="lab"><label for="reply" class="k">${esc(t(locale, 'card.reply'))}</label>${
-          channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>
+        <label for="reply" class="sr">${esc(t(locale, 'card.reply'))}</label>
         ${p.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
         ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
-             CC-26 — and what is typed in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="reply" name="edit" rows="4" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
-        ${figures || window ? `<div class="src">${figures}${window}</div>` : ''}
+             CC-26 — and what is typed in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="reply" name="edit" rows="${replyRows(p.ownerEdit ?? p.draftText)}" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
         <div class="acts">
           <button class="btn send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
-          <label class="btn" for="reply">${esc(t(locale, 'card.edit'))}</label>
           <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
-          <button class="btn ghost quiet" type="submit" name="command" value="不回">${esc(t(locale, 'card.noReply'))}</button>
+          <button class="btn" type="submit" name="command" value="不回">${esc(t(locale, 'card.noReply'))}</button>
+          ${window ? `<p class="src">${window}</p>` : ''}
         </div>
       </form>
+      ${how}
     </section>`;
 }
+
+/**
+ * Phase 2 — the reply box shows the whole draft: where the browser can, it
+ * grows to its text (`field-sizing: content`); elsewhere it opens with enough
+ * rows for the draft at a phone's width (about 32 characters a line), never
+ * fewer than three nor more than ten. A draft cut off just above Send was the
+ * audit's complaint.
+ */
+export const replyRows = (text: string): number => {
+  const lines = text.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(Array.from(l).length / 32)), 0);
+  return Math.min(10, Math.max(3, lines));
+};
 
 /** A language's name in the owner's language ("English", "英语", "الإنجليزية"); the code if unknown. */
 export function languageName(locale: Locale, code: string): string {

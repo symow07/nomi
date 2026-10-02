@@ -106,9 +106,10 @@ describe('M9.3 · conversation detail (localized)', () => {
     expect(html.match(/name="command" value="send"/g)).toHaveLength(1);        // one Send
     expect(html).toContain('name="command" value="不回"');                    // No reply needed: the wire's skip
     expect(html).toContain('formaction="/app/inbox/conv-1/takeover"');        // Hand to me
-    expect(html).toContain('<label class="btn" for="reply">');                // Edit puts the cursor in the box
+    expect(html).not.toContain('<label class="btn" for="reply">');               // Phase 2 — Edit went: the box is always editable
     expect(html).not.toContain('value="收回"');                               // on the assistant's page now
-    for (const k of ['inbox.action.send', 'card.edit', 'card.handToMe', 'card.noReply'] as const) expect(html).toContain(shown('en', k));
+    for (const k of ['inbox.action.send', 'card.handToMe', 'card.noReply'] as const) expect(html).toContain(shown('en', k));
+    expect(html.match(/class="btn send"/g)).toHaveLength(1);                 // one filled button, the rest outlined alike
   });
 
   it('quote/order context localized, omitted cleanly when absent', () => {
@@ -328,11 +329,11 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
 });
 
 describe('Phase D · the reply is a colleague’s work, not a queue item', () => {
-  it('review card names the customer who asked, and marks the reply as the assistant\'s', () => {
+  it('review card marks the reply as the assistant\'s; who asked is the transcript\'s, just above', () => {
     const html = renderConversationDetail(detailWithDraft, 'en', NOW, null);
     expect(html).toContain(shown('en', 'buyers.review.title'));
     const top = html.slice(html.indexOf('<div class="top">'), html.indexOf('</div>', html.indexOf('<div class="top">')));
-    expect(top).toContain('<b><bdi>Ahmed</bdi></b>');
+    expect(top).not.toContain('<b><bdi>Ahmed</bdi></b>');
     expect(top).toContain(`<span class="as"><span aria-hidden="true">✦</span> ${shown('en', 'card.drafted')}</span>`);
     expect(html).toContain('For 5,000 pcs: $0.92/pc FOB Ningbo.');
     expect(html).not.toContain('Pending draft');
