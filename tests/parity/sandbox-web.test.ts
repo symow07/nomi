@@ -390,3 +390,24 @@ describe('M20.4 · F-04 · scripted practice needs no tenant, and says what it p
     expect(renderPractice(r, 'ar')).toContain('فحوص السلامة');
   });
 });
+
+describe('Phase 9 · each Practice line is captioned by who wrote it', () => {
+  // V1-285: the owner's own reply (after taking over) was captioned as the
+  // assistant's; V1-289: the customer's line carried the composer's button word.
+  const msgs = view({ messages: [
+    { direction: 'inbound', text: 'Do you make canvas tote bags?', isImage: false },
+    { direction: 'outbound', text: 'Yes — from 500 pieces.', isImage: false },
+    { direction: 'outbound', text: 'Owner here — yes, we can do that.', isImage: false, by: 'owner' },
+  ] });
+  it('the customer, the assistant, and the owner as "You" — in every locale', () => {
+    for (const l of LOCALES) {
+      const html = renderSandbox(msgs, l, { flash: null });
+      const caps = [...html.matchAll(/<div class="ts muted">([\s\S]*?)<\/div>/g)].map((m) => m[1]!);
+      expect(caps, l).toHaveLength(3);
+      expect(caps[0], l).toContain(t(l, 'sandbox.by.customer'));
+      expect(caps[0], l).not.toContain(t(l, 'sandbox.composer.send'));
+      expect(caps[1], l).toContain('✦');
+      expect(caps[2], l).toBe(t(l, 'conv.by.you'));
+    }
+  });
+});

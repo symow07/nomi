@@ -460,7 +460,8 @@ export async function loadFactory(
 const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
   schema_stale: '/app/onboarding',
   not_ready: '/app/onboarding',
-  secrets_not_rotated: '/app/onboarding',
+  // Phase 9 — the operator's to do (tools/installation-checks.mjs): nothing for the owner to open.
+  secrets_not_rotated: null,
   assistant_not_named: '/app/onboarding',
   no_channel: '/app/channels',
   no_allowlist: null,

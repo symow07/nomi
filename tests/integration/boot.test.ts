@@ -1182,8 +1182,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('an owner attestation stamps a timestamp (confirmed by owner, not detected)', async () => {
       const { loadPilotReadiness, attest } = await import('../../src/api/web/pilot.js');
-      await attest(prod.db, DEMO_BIZ, 'backup_tested');
-      const after = (await loadPilotReadiness(prod.db, DEMO_BIZ)).attest.backupTestedAt;
+      await attest(prod.db, DEMO_BIZ, 'owner_ready');
+      const after = (await loadPilotReadiness(prod.db, DEMO_BIZ)).attest.ownerReadyAt;
       expect(after).not.toBeNull();   // a real timestamp, owner-confirmed
     });
 

@@ -3695,9 +3695,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
     if (!s) return reply;
     const which = String((req.body as { which?: string } | undefined)?.which ?? '') as AttestKey;
-    if (which in ({ backup_tested: 1, secrets_rotated: 1, owner_ready: 1, claims_reviewed: 1 } as Record<string, number>)) {
-      await attest(deps.db, s.businessId, which);
+    // Phase 9 — backup_tested and secrets_rotated are the operator's
+    // (tools/installation-checks.mjs), never an owner's tick.
+    if (!(which in ({ owner_ready: 1, claims_reviewed: 1 } as Record<string, number>))) {
+      return reply.redirect('/app/onboarding', 302);   // nothing was confirmed, so nothing says so
     }
+    await attest(deps.db, s.businessId, which);
     return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
   });
 

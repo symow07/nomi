@@ -482,7 +482,7 @@ describe('M20.2 · the activation readiness surface', () => {
   it('not ready: states each blocker the gate reported, and nothing else', () => {
     const html = withReadiness({ canActivate: false, blockers: ['no_channel', 'secrets_not_rotated'] });
     expect(html).toContain('Connect WhatsApp.');
-    expect(html).toContain('Confirm you have changed your keys.');
+    expect(html).toContain(shown('en', 'activation.blocker.secrets_not_rotated'));
     expect(html).not.toContain(shown('en', 'activation.blocker.not_ready'));        // not a reported blocker
     expect(html).not.toContain('whenever you say so');
   });
@@ -490,8 +490,11 @@ describe('M20.2 · the activation readiness surface', () => {
   it('not ready: each blocker links to the place that fixes it', () => {
     expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }))
       .toContain('<a class="blink" href="/app/channels">');
-    expect(withReadiness({ canActivate: false, blockers: ['secrets_not_rotated'] }))
+    expect(withReadiness({ canActivate: false, blockers: ['assistant_not_named'] }))
       .toContain('<a class="blink" href="/app/onboarding">');
+    // Phase 9 — the keys are the operator's: nothing for the owner to open.
+    expect(withReadiness({ canActivate: false, blockers: ['secrets_not_rotated'] }))
+      .not.toContain('<a class="blink" href="/app/onboarding">');
   });
 
   it('a blocker with no surface yet states the requirement instead of a dead link', () => {

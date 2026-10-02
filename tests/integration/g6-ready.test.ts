@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { spawnSync } from 'node:child_process';
 
 /**
  * G6 — over Postgres and real requests: a workspace that signed itself up
@@ -79,11 +80,37 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     const page = (await get(shopCookie, '/app/onboarding')).body;
     expect(page).toContain(t('en', 'pilot.item.ready'));
     expect(page).toContain('href="/app/ready"');
-    for (const k of ['pilot.attest.backup_tested', 'pilot.attest.secrets_rotated', 'pilot.item.sandbox'] as const) {
+    for (const k of ['pilot.nomiChecks', 'pilot.item.sandbox'] as const) {
       expect(page, k).not.toContain(t('en', k));
     }
-    // The installation's own workspace keeps them.
-    expect((await get(pilotCookie, '/app/onboarding')).body).toContain(t('en', 'pilot.attest.secrets_rotated'));
+    // The installation's own workspace keeps the condition — as Nomi's row, not the owner's chore.
+    expect((await get(pilotCookie, '/app/onboarding')).body).toContain(t('en', 'pilot.nomiChecks'));
+  });
+
+  it('PHASE 9 · backups and keys are the operator\'s: the owner\'s tick is refused, the tool stamps them', async () => {
+    const keys = async () => (await admin.query(
+      `select secrets_rotated_at as k, backup_tested_at as b from onboarding_state where business_id = $1`, [PILOT])).rows[0] ?? { k: null, b: null };
+    const before = await keys();
+    for (const which of ['secrets_rotated', 'backup_tested']) {
+      const r = await app.inject({ method: 'POST', url: '/app/onboarding/attest', payload: `which=${which}`,
+        headers: { ...FORM, cookie: pilotCookie } });
+      expect(r.statusCode, which).toBe(302);
+    }
+    expect(await keys()).toEqual(before);                         // nothing the owner pressed stamped them
+    let page = (await get(pilotCookie, '/app/onboarding')).body;
+    expect(page).not.toMatch(/value="(backup_tested|secrets_rotated)"/);
+    expect(page).toContain(t('en', 'pilot.nomiChecks.todo'));
+
+    const run = spawnSync(process.execPath, ['tools/installation-checks.mjs', '--business', PILOT, '--backup-tested', '--secrets-rotated'], {
+      env: { ...process.env, MIGRATE_DATABASE_URL: MIGRATE_URL }, encoding: 'utf8', timeout: 60_000,
+    });
+    expect(run.status, run.stderr).toBe(0);
+    const after = await keys();
+    expect(after.k).not.toBeNull();
+    expect(after.b).not.toBeNull();
+    page = (await get(pilotCookie, '/app/onboarding')).body;
+    expect(page).not.toContain(t('en', 'pilot.nomiChecks.todo'));
+    expect(page).toContain(t('en', 'pilot.verifiedBySystem'));
   });
 
   it('READY FOR CUSTOMERS: what was seen, counted, and that sending alone waits to be earned', async () => {

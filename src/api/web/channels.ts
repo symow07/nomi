@@ -487,7 +487,8 @@ function domainForm(locale: Locale, domain: SendingDomain | null): string {
       <input name="domain" required maxlength="253" value="${esc(domain?.domain ?? '')}"
         placeholder="${esc(t(locale, 'domain.field.placeholder'))}" /></label>
     <label class="fld"><span class="muted">${esc(t(locale, 'domain.field.selector'))}</span>
-      <input name="selector" maxlength="63" value="${esc(domain?.dkimSelector ?? '')}" /></label>
+      <input name="selector" maxlength="63" placeholder="nomi" value="${esc(domain?.dkimSelector ?? '')}" />
+      <span class="muted small">${esc(t(locale, 'domain.field.selector.hint'))}</span></label>
     <button class="btn" type="submit">${esc(t(locale, 'domain.save'))}</button>
   </form>`;
 }

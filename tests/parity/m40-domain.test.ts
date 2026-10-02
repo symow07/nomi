@@ -232,3 +232,19 @@ describe('M40.1 · what she reads', () => {
     expect(staff).toContain(t('en', 'domain.intro'));
   });
 });
+
+describe('Phase 9 · the form names what each field really wants (V1-433)', () => {
+  it('a domain, not an address; the key name is optional, defaults to "nomi", and says so', async () => {
+    for (const l of LOCALES) {
+      const html = renderDomain(l, null, new Date('2026-10-02T00:00:00Z'));
+      expect(html, l).toContain(t(l, 'domain.field.domain'));
+      expect(html, l).toContain('@');
+      expect(html, l).toContain('name="selector" maxlength="63" placeholder="nomi"');
+      expect(html, l).toContain(t(l, 'domain.field.selector.hint'));
+      expect(t(l, 'domain.field.selector.hint'), l).toContain('nomi');
+    }
+    // the route's default is the word the hint promises
+    const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(app).toMatch(/String\(b\['selector'\] \?\? ''\)\.trim\(\)\.toLowerCase\(\) \|\| 'nomi'/);
+  });
+});
