@@ -192,3 +192,19 @@ describe('what the model reads', () => {
     });
   }
 });
+
+describe('Phase 9 · the name joins the sentence the way its script does (V1-008, V1-010)', () => {
+  it('Chinese: no stray spaces around 你的助手 or a Chinese name; a Latin name keeps them', () => {
+    const k = (Object.entries(messages.zh) as [MessageKey, string][]).find(([, v]) => /[一-鿿] \{name\}/.test(v))![0];
+    expect(t('zh', k)).not.toMatch(/ 你的助手|你的助手 /);
+    expect(t('zh', k, { name: '小雅' })).not.toMatch(/ 小雅|小雅 /);
+    expect(t('zh', k, { name: 'Lily' })).toMatch(/ Lily/);
+  });
+  it('Arabic: لـ joins مساعدك and an Arabic name, and stays apart before a Latin one', () => {
+    const k = (Object.entries(messages.ar) as [MessageKey, string][]).find(([, v]) => /لـ\s*\{name\}/.test(v))![0];
+    expect(t('ar', k)).toContain('لمساعدك');
+    expect(t('ar', k)).not.toContain('لـ مساعدك');
+    expect(t('ar', k, { name: 'ياسمين' })).toContain('لياسمين');
+    expect(t('ar', k, { name: 'Lily' })).toContain('لـ Lily');
+  });
+});

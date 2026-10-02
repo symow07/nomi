@@ -16327,6 +16327,12 @@ const capitalise = (s: string): string => s.charAt(0).toLocaleUpperCase() + s.sl
  */
 function fillName(locale: Locale, s: string, name: string): string {
   const fallback = ASSISTANT_FALLBACK[locale];
+  // Phase 9 (V1-008, V1-010) — the name joins the sentence the way its script
+  // does. Chinese sets a Latin name off with spaces ("告诉 Lily。") but a Chinese
+  // one, or 你的助手, runs on ("告诉你的助手。"); Arabic writes the prefix لـ apart
+  // before a Latin name ("لـ Lily") and joined to an Arabic one ("لمساعدك").
+  if (locale === 'zh' && !/[A-Za-z0-9]/.test(name)) s = s.replace(/ ?\{name\} ?/g, '{name}');
+  if (locale === 'ar' && /^[\u0600-\u06FF]/.test(name)) s = s.replace(/لـ\s*\{name\}/g, 'ل{name}');
   if (name.toLocaleLowerCase() !== fallback.toLocaleLowerCase()) return s.split('{name}').join(name);
   return s.replace(/\{name\}/g, (_m, at: number) =>
     /^\s*$|[.!?]\s*$/.test(s.slice(0, at)) ? capitalise(fallback) : fallback);
