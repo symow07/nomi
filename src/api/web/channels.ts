@@ -830,7 +830,7 @@ export function renderConnectGuide(locale: Locale, o: ConnectGuideOptions = {}):
           <label class="pq"><span>${esc(t(locale, 'channel.connect.number'))}</span>
             <input name="number" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" required maxlength="32"
                    value="${esc(o.kept ?? '')}"${o.invalid ? ' aria-invalid="true" aria-describedby="number-error" autofocus' : ''} />
-            ${o.invalid ? `<p class="perr" id="number-error" role="alert">${esc(t(locale, 'channel.connect.error.number'))}</p>` : ''}</label>
+            ${o.invalid ? `<p class="perr" role="alert" id="number-error">${esc(t(locale, 'channel.connect.error.number'))}</p>` : ''}</label>
           <button class="btn send" type="submit">${esc(t(locale, 'channel.connect.send'))}</button>
         </form>`
       : o.contact
