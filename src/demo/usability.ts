@@ -111,7 +111,9 @@ const EXCHANGES: readonly (readonly Line[])[] = [
    ['outbound', '{product} with your logo: {price}/pc for {qty} pcs, lead time {lead} days. Please send the logo file and we will make a mock-up.'],
    ['inbound', 'Sending it now.']],
   [['inbound', 'Looking for LED string lights 10m, {qty} pcs, warm white.'],
-   ['outbound', '{product}, warm white, {qty} pcs: {price}/pc FOB Ningbo, lead time {lead} days. CE certified.'],
+   // Phase 9 (V1-253) — a SENT reply states nothing unconfirmed: the claims guard refuses one before
+   // any send, so a seeded "CE certified." showed a reply the product could never have sent.
+   ['outbound', '{product}, warm white, {qty} pcs: {price}/pc FOB Ningbo, lead time {lead} days.'],
    ['inbound', 'What plug type?'],
    ['outbound', 'EU, UK or US plug, same price.']],
   [['inbound', 'Do you have solar garden lamps? Need {qty} for a distributor.'],

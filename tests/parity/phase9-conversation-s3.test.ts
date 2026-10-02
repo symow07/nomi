@@ -576,3 +576,13 @@ describe('conversation-missed-16 · the Arabic case title: Arabic quotes, and th
     expect(s).toContain('«هل أتحدث مع شخص حقيقي؟»');
   });
 });
+
+describe('V1-253 · the demo shows no sent reply the claims guard would have refused', () => {
+  it('no seeded sent reply says "CE certified"; the waiting draft still does, and its card names it unconfirmed', async () => {
+    const { USABILITY_CONVERSATIONS, USABILITY_DRAFT_TEXT } = await import('../../src/demo/usability.js');
+    const sent = USABILITY_CONVERSATIONS.flatMap((c) => c.messages.filter((m) => m.dir === 'outbound').map((m) => m.text));
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent.filter((x) => /CE certified/i.test(x))).toEqual([]);
+    expect(USABILITY_DRAFT_TEXT).toContain('CE certified');
+  });
+});
