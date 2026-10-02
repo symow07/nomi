@@ -65,7 +65,7 @@ d('UI-fr · the owner reads French (requires DATABASE_URL + MIGRATE_DATABASE_URL
 
   it('A SIGN-UP MADE IN FRENCH STAYS FRENCH; a draft may be translated into it', async () => {
     const made = (await admin.query(
-      `select business_id::text as id from provision_workspace($1, 'fr', 'Camille', $2, 'scrypt$not-a-real-hash', null, false, '{"zone":"Europe/Paris","currency":"EUR"}'::jsonb)`,
+      `select business_id::text as id from provision_workspace($1, 'fr', 'Camille', $2, 'scrypt$not-a-real-hash', null, false, '{"zone":"Europe/Paris","currency":"USD"}'::jsonb)`,
       [`Atelier ${RUN}`, `fr-${RUN}@example.test`])).rows[0].id as string;
     expect((await admin.query(`select owner_locale, default_language from businesses where id = $1`, [made])).rows[0])
       .toEqual({ owner_locale: 'fr', default_language: 'fr' });
