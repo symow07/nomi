@@ -12,10 +12,6 @@ export const formatRmb = (n: number): string =>
 export const formatMoney = (m: Money): string =>
   `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Summary money: whole units — minor units are noise on a phone digest line. */
-export const formatMoneyCompact = (m: Money): string =>
-  `${currencySymbol(m.currency)}${Math.round(m.amount).toLocaleString('en-US')}`;
-
 /**
  * Quantities the way a Yiwu owner says them: ≥10,000 in 万.
  * 5000 → "5000" · 12000 → "1.2万" · 200000 → "20万"

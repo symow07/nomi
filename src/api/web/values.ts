@@ -1,7 +1,6 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
-import { formatMoneyCompact } from '../../core/owner/format.js';
 import { currencySymbol } from '../../core/types/money.js';
 import { workspaceZone, workspaceCountry } from './zone.js';
 
@@ -114,10 +113,6 @@ const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): 
 /** Money: "$1.95" in English and Chinese, "1,95 $" in Spanish in Spain, "1.95 US$" (the locale's own form) in Arabic. */
 export const money = (locale: Locale, m: Money): string =>
   isolate(locale, locale === 'ar' ? arabicMoney(m, 2) : localMoney(locale, m, 2) ?? f.formatMoney(m));
-
-/** Money in whole units, for a summary line. */
-export const moneyWhole = (locale: Locale, m: Money): string =>
-  isolate(locale, locale === 'ar' ? arabicMoney(m, 0) : localMoney(locale, m, 0) ?? formatMoneyCompact(m));
 
 /** A quantity alone: "5,000", "1.2万", "5,000". */
 export const quantity = (locale: Locale, n: number): string => isolate(locale, f.formatQty(locale, n));

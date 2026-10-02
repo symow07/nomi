@@ -43,7 +43,6 @@ describe('Phase 9 · an amount is written the reader\'s way in the workspace\'s 
     expect(inCountry('MX', () => show.money('es', usd))).toBe('$1.05');
     expect(inCountry('ES', () => show.money('es', usd))).toBe('1,05\u00a0$');
     expect(inCountry('AR', () => show.money('es', big))).toBe('$1.234,05');
-    expect(inCountry('ES', () => show.moneyWhole('es', big))).toBe('1234\u00a0$');
   });
   it('French writes the comma and the sign after; English and Chinese as before; Arabic as the native reader confirmed', () => {
     expect(inCountry('FR', () => show.money('fr', big)).replace(/\u202f/g, ' ')).toBe('1 234,05\u00a0$');
