@@ -76,6 +76,18 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect((await get(pilotCookie, '/app/onboarding')).body).toContain('href="/app/onboarding/technical"');
   });
 
+  it('PHASE 9 · V1-007 · a mistyped /app address keeps a signed-in owner in the workspace; signed out it is the door page', async () => {
+    const html = { accept: 'text/html' };
+    const inside = await app.inject({ method: 'GET', url: '/app/no-such-page', headers: { ...html, cookie: shopCookie } });
+    expect(inside.statusCode).toBe(404);
+    expect(inside.body).toContain('<nav class="side"');
+    expect(inside.body).toContain(t('en', 'error.notfound.title'));
+    expect(inside.body).toContain('href="/app"');
+    const outside = await app.inject({ method: 'GET', url: '/app/no-such-page', headers: html });
+    expect(outside.statusCode).toBe(404);
+    expect(outside.body).not.toContain('<nav class="side"');
+  });
+
   it('PHASE 9 · the component gallery is the installation\'s too: 404 for any other owner, and no door to it', async () => {
     expect((await get(shopCookie, '/app/settings/components')).statusCode).toBe(404);
     expect((await get(pilotCookie, '/app/settings/components')).statusCode).toBe(200);

@@ -146,6 +146,10 @@ export const missingPage = (locale: Locale, title: string, door: { readonly href
 export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
   `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
 
+/** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
+export const unescapeHtml = (s: string): string =>
+  s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&');
+
 /**
  * THE ASSISTANT'S HAND (the design pass, 2026-09-29): its name where it is
  * the author, after a ✦, in magenta — the one colour that means something by
@@ -153,10 +157,6 @@ export const deeper = (href: string, label: string, extra = '', attrs = ''): str
  * (`palette.test.ts`). The ✦ is hidden from a screen reader, which hears the
  * name. `name` arrives escaped or is escaped here.
  */
-/** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
-export const unescapeHtml = (s: string): string =>
-  s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&');
-
 export const byAssistant = (name: string): string =>
   `<span class="as"><span aria-hidden="true">✦</span> ${esc(name)}</span>`;
 

@@ -191,7 +191,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import {
-  shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage,
+  shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -809,6 +809,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.setNotFoundHandler(async (req, reply) => {
     if (!wantsHtml(req)) {
       return reply.code(404).send({ message: `Route ${req.method}:${req.url} not found`, error: 'Not Found', statusCode: 404 });
+    }
+    // Phase 9 (V1-007) — a signed-in owner who mistyped an /app address stays
+    // in the workspace: the shell, the rail, a way back. It showed the
+    // signed-out door page ("Your digital employee's workspace", no rail).
+    const signedIn = sessionOf(req);
+    if (signedIn && (req.url === '/app' || req.url.startsWith('/app/'))) {
+      const locale = localeOf(req);
+      return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'error.notfound.title'), active: 'home',
+        bodyHtml: `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><div class="empty">${esc(t(locale, 'error.notfound.body'))}<div>${deeper('/app', t(locale, 'nav.home'))}</div></div>`,
+      }));
     }
     return reply.code(404).type('text/html; charset=utf-8')
       .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'notfound' }));
