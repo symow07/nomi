@@ -50,11 +50,39 @@ describe('Legal pages · what a stranger may read', () => {
     for (const { html } of pages('privacy@nomidoes.test')) {
       expect(html('en')).toContain('href="mailto:privacy@nomidoes.test"');
     }
-    for (const { html } of pages(null)) {
+    for (const { name, html } of pages(null)) {
       const h = html('en');
       expect(h).not.toContain('mailto:');
-      expect(h).toContain(esc(t('en', 'legal.contact.same')));
+      // Phase 9 (V1-064) — the line for a person who wrote to a business is not the
+      // terms' (they are the business's own): with no address, the terms have no section.
+      if (name === 'terms') expect(h).not.toContain(esc(t('en', 'legal.contact.title')));
+      else expect(h).toContain(esc(t('en', 'legal.contact.same')));
     }
+    // Phase 9 (V1-059, V1-062, public-missed-22) — the address in the language's own
+    // sentence and stop; the business line on privacy only, where it is not step 1 again.
+    for (const l of LOCALES) {
+      const write = esc(t(l, 'legal.contact.write', { email: '\u0000' })).replace('\u0000', '<a href="mailto:privacy@nomidoes.test">privacy@nomidoes.test</a>');
+      for (const { name, html } of pages('privacy@nomidoes.test')) {
+        expect(html(l), `${name} ${l}`).toContain(`<p>${write}</p>`);
+        expect(html(l).includes(esc(t(l, 'legal.contact.same'))), `${name} ${l}`).toBe(name === 'privacy');
+      }
+    }
+    expect(t('zh', 'legal.contact.write')).toBe('写信到 {email}。');
+    for (const l of LOCALES) expect(t(l, 'legal.contact.same'), l).not.toMatch(/saying so|说明即可|بذلك|lo diga|en ce sens/);
+  });
+
+  it('each opens like the site: the mark and the name, a way to the site, the language switch back to the same page', () => {
+    for (const { name, html } of pages('privacy@nomidoes.test')) {
+      for (const l of LOCALES) {
+        const h = html(l);
+        expect(h, `${name} ${l}`).toMatch(/<main><header class="pub-top"><a class="pub-brand" href="\/site"><svg class="mark"[^>]*aria-hidden="true"/);
+        expect(h, `${name} ${l}`).toContain(`href="/locale?set=${l === 'en' ? 'zh' : 'en'}&next=/${name}"`);
+        expect(h, `${name} ${l}`).toMatch(/<h1>[^<]+<\/h1>/);
+      }
+    }
+    expect(renderPrivacy('en', null, FACTS, '/')).toContain('<a class="pub-brand" href="/">');
+    // The title reads as one: a size above the section heads (public-missed-16).
+    expect(renderPrivacy('en', null, FACTS)).toMatch(/h1 \{ font-size:var\(--font-size-display\)/);
   });
 
   it('each page links to the others, and each says when it was last changed', () => {

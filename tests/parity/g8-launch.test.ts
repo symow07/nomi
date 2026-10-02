@@ -14,8 +14,9 @@ describe('G8 · the site, for the first group', () => {
   for (const locale of LOCALES) {
     it(`${locale} · invitation, drafts until earned, assisted — and the button still asks for an invitation`, () => {
       const html = renderSite({ locale, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false });
-      for (const k of ['site.first.title', 'site.first.invite', 'site.first.drafts', 'site.first.assisted'] as const) {
-        expect(html, k).toContain(esc(t(locale, k)));
+      // Phase 9 (V1-016) — "drafts until earned" is said once, where it is explained: the card on what goes out alone.
+      for (const k of ['site.first.title', 'site.first.invite', 'site.first.assisted', 'site.yours.alone.body'] as const) {
+        expect(html, k).toContain(esc(t(locale, k)).replace(/(^|[^\p{L}])([eE])-mail/gu, '$1$2\u2011mail'));
       }
       expect(html).toContain(esc(t(locale, 'site.cta.invite')));
     });

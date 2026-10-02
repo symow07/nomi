@@ -293,9 +293,13 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
  */
 export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
-  .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
+  /* Phase 9 (public-missed-09) — the same pill on the site, the door and the shell:
+     names, not underlined links. */
+  .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-8);
     border-radius:var(--radius-chip); font-size:var(--font-size-caption);
-    color:var(--color-ink-secondary); white-space:nowrap; }
+    color:var(--color-ink-secondary); white-space:nowrap; text-decoration:none; }
+  /* Five names fit a 360 px phone with the narrow padding; a wider screen gets the roomier one. */
+  @media (min-width: 25rem) { .langsw a { padding:0 var(--space-12); } }
   /* The switcher is chrome. A solid jade fill made it the loudest object
      on a page whose subject was somebody's business. */
   .langsw a.on { background:var(--color-surface); color:var(--color-ink); font-weight:600; }
@@ -1642,9 +1646,11 @@ ${cssVariables()}
          font: var(--font-size-base)/var(--line-height) var(--font-family);
          -webkit-text-size-adjust:100%; }
   main { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-48) var(--space-16); }
-  h1 { font-size:var(--font-size-title); line-height:1.25; margin:0 0 var(--space-12); font-weight:600; }
+  h1 { font-size:var(--font-size-display); line-height:1.25; margin:0 0 var(--space-16); font-weight:600; }
   h2 { font-size:inherit; font-weight:600; margin:var(--space-32) 0 var(--space-8); }
   p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
+  p, li { text-wrap:pretty; }
+  h1, h2 { text-wrap:balance; }
   ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
   a { color:var(--color-ink); }
   .updated { margin-top:var(--space-48); }
@@ -1681,6 +1687,23 @@ ${input.description ? `<meta name="description" content="${esc(input.description
 </style>
 </head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
 }
+
+/**
+ * Phase 9 (V1-058, V1-066, V1-073, V1-086) — a public page opens the way the site
+ * does: the mark and the name, which lead to the site, and the language switch
+ * (`path`, where it returns; none on a page whose address is a one-time link).
+ * All of it arrives in the page — the mark is drawn inline, nothing is fetched.
+ */
+export const publicTop = (locale: Locale, home: string, path: string | null): string =>
+  `<header class="pub-top"><a class="pub-brand" href="${esc(home)}">${markSmall(28, null)}<span>Nomi</span></a>`
+  + `${path ? switcher(locale, path) : ''}</header>`;
+export const PUBLIC_TOP_CSS = `${LANGSW_CSS}
+  .pub-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16);
+    flex-wrap:wrap; margin:calc(-1 * var(--space-24)) 0 var(--space-32); }
+  .pub-brand { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px; font-weight:700;
+    font-size:var(--font-size-title); color:var(--color-ink); text-decoration:none; }
+  .pub-brand .mark { flex:none; }
+`;
 
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
@@ -1916,9 +1939,22 @@ const DOOR_STYLE = `
   .login { max-width: var(--measure-form); margin: 10vh auto; padding: 0 var(--space-16); }
   .login .top-sw { display:flex; justify-content:center; margin-bottom:var(--space-16); }
   .login .card { padding: var(--space-24); }
-  .login .brand { font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-8); padding:0; }
-  .login h1 { font-size:var(--font-size-base); margin:0 0 var(--space-8); }
+  .login .brand { flex-direction:column; justify-content:center; gap:var(--space-4); text-align:center;
+    font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-8); padding:0; }
+  /* Phase 9 (V1-040 and public-missed-10) — above: the site's mark and name, centred like
+     the pill above them and the links below. */
+  .login .brand small { margin-top:0; }
+  .login h1 { font-size:var(--font-size-title); margin:0 0 var(--space-8); }
   .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
+  /* No word or character left alone on a line (V1-056): a short lead in even lines, the rest pretty. */
+  .login .lead { text-wrap:balance; }
+  .login .hint, .login .err, .login .fld-err { text-wrap:pretty; }
+  /* V1-031, V1-045, V1-049 — a field, a list and a button are drawn in the page's face,
+     not the browser's own. */
+  input, select, button, textarea { font-family:inherit; }
+  /* V1-034, V1-050 — a link on the door looks like one. */
+  .login .card a, .login .other a, .login .foot a { color:var(--color-ink); text-decoration:underline;
+    text-underline-offset:0.2em; }
   input { width:100%; padding:12px 14px; border-radius:var(--radius-card);
     border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
@@ -1936,8 +1972,16 @@ const DOOR_STYLE = `
   fieldset.checks legend { color:var(--color-ink-secondary); font-size:var(--font-size-caption); padding:0; margin-bottom:var(--space-8); }
   label.check { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px; margin-inline-end:var(--space-16); color:var(--color-ink); }
   label.check input { width:auto; margin:0; }
+  /* V1-053 — the terms box keeps the form's own gap above the button. */
+  label.check.terms { display:flex; margin-bottom:var(--space-16); }
   .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
+  .err ul { margin:var(--space-4) 0 0; padding-inline-start:var(--space-24); }
+  .err li { margin:0; }
   .fld-err { color:var(--color-warn); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
+  /* public-missed-13 — the field refused is marked at its own edge (the terms box's
+     refusal keeps the gap its margin leaves). */
+  .err-field { border-color:var(--color-warn); }
+  label.check .err-field { outline:2px solid var(--color-warn); outline-offset:2px; }
 ${markBefore('failed', ['.err', '.fld-err'])}
   .hint { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
   label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); display:block; }
@@ -1946,8 +1990,10 @@ ${markBefore('failed', ['.err', '.fld-err'])}
   details form { margin-top:var(--space-8); }
   .login .other { text-align:center; margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
   .login .other.small { margin-top:var(--space-8); }
-  .login .other.small a { color:var(--color-ink-secondary); }
-  .login .foot { text-align:center; font-size:var(--font-size-caption); }
+  /* V1-038, V1-039 — the door's foot is where to read more, not a slogan. */
+  .login .foot { display:flex; justify-content:center; flex-wrap:wrap; gap:0 var(--space-16);
+    margin-top:var(--space-24); font-size:var(--font-size-caption); }
+  .login .foot a { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink-secondary); }
   .forgot { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); }
 `;
 
@@ -1955,11 +2001,19 @@ ${markBefore('failed', ['.err', '.fld-err'])}
 const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
 
 /**
- * CC-20 — every door page has one heading. Sign-up, the code and the error
- * pages carry theirs in the card; the sign-in page has none there, so its
- * brand line is its heading (`brandIsTitle`), drawn exactly as before.
+ * CC-20 — every door page has one heading, in its card: the task it asks
+ * (Phase 9, V1-032 — the sign-in page's was the brand line).
+ *
+ * Phase 9 — the brand is the site's: its mark beside the name (public-missed-10).
+ * The foot is three doors a stranger may want — the site, the privacy page and
+ * the terms (V1-038, V1-039, V1-051). `site` is where the site is read: `/site`
+ * on the app's own host, the default.
+ *
+ * The door runs no script (CC-26): it holds the password and the code fields,
+ * and nothing on it needs one (public-new-11 was decided that way).
  */
-const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, brandIsTitle = false): string => `<!doctype html>
+type DoorOptions = { readonly site?: string };
+const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, o: DoorOptions = {}): string => `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · ${esc(title)}</title>
@@ -1968,13 +2022,13 @@ ${linkTo(DOOR_SHEET)}
 ${typeLink(locale)}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
-  <${brandIsTitle ? 'h1' : 'div'} class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></${brandIsTitle ? 'h1' : 'div'}>
+  <div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
   <div class="card">${card}</div>
   ${other}
-  <p class="muted foot">${esc(t(locale, 'login.footer'))}</p>
+  <nav class="foot" aria-label="Nomi"><a href="${esc(o.site ?? '/site')}">${esc(t(locale, 'door.site'))}</a><a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a><a href="/terms">${esc(t(locale, 'legal.termsLink'))}</a></nav>
 </div></body></html>`;
 
-export type LoginProblem = 'code' | 'password' | 'locked' | 'slow';
+export type LoginProblem = 'code' | 'password' | 'locked' | 'slow' | 'email_missing' | 'password_missing';
 
 /**
  * Where a page's header wants the live line (UI-PASS 6): the list's title row,
@@ -1989,6 +2043,11 @@ export function loginPage(input: {
   /** Kept for the callers that only know "it failed": the access-code sentence. */
   readonly error?: boolean; readonly problem?: LoginProblem;
   readonly email?: string; readonly signupOpen?: boolean;
+  /**
+   * Phase 9 (V1-033) — how sign-up is open, so the door's link says it: "New
+   * here?" only where anyone may; "Have an invitation?" where a code is needed.
+   */
+  readonly signupMode?: 'open' | 'invite' | 'closed';
   /** 0078 — said once, above the form: "your password is saved, sign in with it". */
   readonly notice?: string | null;
   /** PWR — the door can e-mail a link (the installation sends system mail). */
@@ -2003,36 +2062,53 @@ export function loginPage(input: {
     : problem === 'locked' ? t(locale, 'login.locked')
     : problem === 'slow' ? t(locale, 'login.slow')
     : problem === 'code' ? t(locale, 'login.error') : null;
+  // Phase 9 (V1-037, V1-042) — a refusal that is about one field is said under
+  // it and tied to it; the sign-in form asks the page, not the browser, so an
+  // empty field is answered in the page's language.
+  const missing = problem === 'email_missing' ? 'email' : problem === 'password_missing' ? 'password' : null;
+  const tied = (id: string, on: boolean): string => (on ? ` class="err-field" aria-invalid="true" aria-describedby="${id}-err"` : '');
+  const under = (id: string, words: string): string => `<div class="fld-err" id="${id}-err" role="alert">${esc(words)}</div>`;
   // THE DESIGN PASS (UI-PASS 10): the door leads with the e-mail. The access
   // code is for the pilot's owner and staff codes; most owners never need it,
   // so it is no longer a question on the page but a small door at its foot,
   // to a card of its own — and a door back.
+  // Phase 9 (V1-041, V1-043) — the card says what the code is and where it comes
+  // from. The code is shown as it is typed: it is made to be read out and copied
+  // off a message (no O/0, no I/l/1), like the e-mailed code on /verify. It
+  // posts to the address it is on, so a wrong code comes back to this card.
   const codeCard = `
-    ${problem === 'code' ? `<div class="err" role="alert">${esc(sentence ?? '')}</div>` : ''}
-    <form method="post" action="/login">
+    <h1>${esc(t(locale, 'login.code.title'))}</h1>
+    <p class="lead">${esc(t(locale, 'login.code.lead'))}</p>
+    <form method="post" action="/login?with=code">
       <label for="login-code">${esc(t(locale, 'login.passwordLabel'))}</label>
-      <input id="login-code" type="password" name="code" required autocomplete="off" autofocus />
-      <button type="submit">${esc(t(locale, 'login.codeSubmit'))}</button>
+      <input id="login-code" type="text" name="code" required autocomplete="off" autocapitalize="characters"
+        spellcheck="false" autofocus${tied('login-code', problem === 'code')} />
+      ${problem === 'code' ? under('login-code', sentence ?? '') : ''}
+      <button type="submit">${esc(t(locale, 'login.submit'))}</button>
     </form>`;
   const card = codeMode ? codeCard : `
+    <h1>${esc(t(locale, 'login.title'))}</h1>
     ${input.notice ? `<div class="hint" role="status">${esc(input.notice)}</div>` : ''}
     ${sentence ? `<div class="err" role="alert">${esc(sentence)}</div>` : ''}
-    <form method="post" action="/login">
+    <form method="post" action="/login" novalidate>
       <label for="login-email">${esc(t(locale, 'login.emailLabel'))}</label>
       <input id="login-email" type="email" name="email" value="${esc(input.email ?? '')}" required
-        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus />
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false"${missing === 'password' ? '' : ' autofocus'}${tied('login-email', missing === 'email')} />
+      ${missing === 'email' ? under('login-email', t(locale, 'login.problem.email_missing')) : ''}
       <label for="login-password">${esc(t(locale, 'login.secretLabel'))}</label>
-      <input id="login-password" type="password" name="password" required autocomplete="current-password" />
+      <input id="login-password" type="password" name="password" required autocomplete="current-password"${missing === 'password' ? ' autofocus' : ''}${tied('login-password', missing === 'password')} />
+      ${missing === 'password' ? under('login-password', t(locale, 'login.problem.password_missing')) : ''}
       <button type="submit">${esc(t(locale, 'login.submit'))}</button>
     </form>
     ${input.recoveryOn ? `<p class="forgot"><a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>` : ''}`;
+  const toSignup = input.signupMode === 'invite' ? 'login.toSignup.invite' : 'login.toSignup';
   const other = [
-    input.signupOpen === false || codeMode ? '' : `<p class="other"><a href="/signup">${esc(t(locale, 'login.toSignup'))}</a></p>`,
+    input.signupOpen === false || input.signupMode === 'closed' || codeMode ? '' : `<p class="other"><a href="/signup">${esc(t(locale, toSignup))}</a></p>`,
     codeMode
       ? `<p class="other"><a href="/login">${esc(t(locale, 'login.withEmail'))}</a></p>`
       : `<p class="other small"><a href="/login?with=code">${esc(t(locale, 'login.codeToggle'))}</a></p>`,
   ].join('');
-  return doorFrame(locale, input.path, t(locale, 'login.title'), card, other, true);
+  return doorFrame(locale, input.path, codeMode ? t(locale, 'login.code.title') : t(locale, 'login.title'), card, other);
 }
 
 export type SignupPageInput = {
@@ -2068,11 +2144,38 @@ export function signupPage(input: SignupPageInput): string {
     return doorFrame(locale, input.path, t(locale, 'signup.title'),
       `<h1>${esc(t(locale, 'signup.title'))}</h1><p class="lead">${esc(t(locale, 'signup.closed'))}</p>${contact}`, other);
   }
-  const fieldErr = (k: keyof typeof p): string => (p[k] ? `<div class="fld-err" role="alert">${esc(p[k]!)}</div>` : '');
+  // Phase 9 (public-missed-12, public-missed-13) — a refused field is marked at
+  // its edge and tied to its sentence; the first one refused takes the cursor,
+  // and a line at the top lists each, as a door to it.
+  const FIELD_ID: Readonly<Record<keyof typeof p, string>> = {
+    invite: 'su-invite', factory: 'su-factory', kind: 'su-kind', sells: 'su-sells', country: 'su-country',
+    zone: 'su-zone', currency: 'su-currency', website: 'su-website', teamSize: 'su-team', name: 'su-name',
+    email: 'su-email', password: 'su-password', terms: 'su-terms',
+  };
+  const FIELD_LABEL: Readonly<Record<keyof typeof p, MessageKey>> = {
+    invite: 'signup.invite', factory: 'signup.factory', kind: 'signup.kind', sells: 'signup.sells', country: 'signup.country',
+    zone: 'signup.zone', currency: 'signup.currency', website: 'signup.website', teamSize: 'signup.teamSize', name: 'signup.name',
+    email: 'signup.email', password: 'signup.password', terms: 'signup.termsLink',
+  };
+  const ORDER: readonly (keyof typeof p)[] = [...(input.mode === 'invite' ? ['invite' as const] : []),
+    'factory', 'kind', 'sells', 'country', 'zone', 'currency', 'website', 'teamSize', 'name', 'email', 'password', 'terms'];
+  const refused = ORDER.filter((k) => p[k]);
+  const cameBack = refused.length > 0 || Boolean(input.error);
+  // Where the cursor starts: the first refusal; else the invitation while it is empty; else the business's name.
+  const first: keyof typeof p = refused[0] ?? (input.mode === 'invite' && !v.invite ? 'invite' : 'factory');
+  const at = (k: keyof typeof p): string =>
+    `${p[k] ? ` class="err-field" aria-invalid="true" aria-describedby="${FIELD_ID[k]}-err"` : ''}${k === first ? ' autofocus' : ''}`;
+  const fieldErr = (k: keyof typeof p): string => (p[k] ? `<div class="fld-err" id="${FIELD_ID[k]}-err" role="alert">${esc(p[k]!)}</div>` : '');
+  const summary = refused.length ? `<div class="err" role="alert">${esc(t(locale, 'signup.problem.summary'))}<ul>${refused.map((k) =>
+    `<li><a href="#${FIELD_ID[k]}">${esc(t(locale, FIELD_LABEL[k]))}</a></li>`).join('')}</ul></div>` : '';
+  const mailTo = (key: MessageKey): string => (input.contact
+    ? esc(t(locale, key, { email: '\u0000' })).replace('\u0000', `<a href="mailto:${esc(input.contact)}">${esc(input.contact)}</a>`) : '');
+  // Phase 9 (V1-047) — in invite mode the code comes first: nothing else can be
+  // sent without it. It says where it is, and how to ask for one.
   const invite = input.mode === 'invite' ? `
       <label for="su-invite">${esc(t(locale, 'signup.invite'))}</label>
-      <input id="su-invite" type="text" name="invite" value="${esc(v.invite ?? '')}" required autocomplete="off" autocapitalize="none" spellcheck="false" />
-      ${fieldErr('invite') || `<div class="hint">${esc(t(locale, 'signup.inviteHint'))}</div>`}` : '';
+      <input id="su-invite" type="text" name="invite" value="${esc(v.invite ?? '')}" required autocomplete="off" autocapitalize="none" spellcheck="false"${at('invite')} />
+      ${fieldErr('invite') || `<div class="hint">${esc(t(locale, 'signup.inviteHint'))}${input.contact ? ` ${mailTo('signup.inviteAsk')}` : ''}</div>`}` : '';
   // A2 — about the business. Every answer but two is a choice from a list.
   const option = (value: string, label: string, chosen: string | undefined): string =>
     `<option value="${esc(value)}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`;
@@ -2081,38 +2184,38 @@ export function signupPage(input: SignupPageInput): string {
   const about = `
       <h2>${esc(t(locale, 'signup.about'))}</h2>
       <label for="su-factory">${esc(t(locale, 'signup.factory'))}</label>
-      <input id="su-factory" type="text" name="factory" value="${esc(v.factory ?? '')}" required maxlength="120" autocomplete="organization" autofocus />
+      <input id="su-factory" type="text" name="factory" value="${esc(v.factory ?? '')}" required maxlength="120" autocomplete="organization"${at('factory')} />
       ${fieldErr('factory')}
       <label for="su-kind">${esc(t(locale, 'signup.kind'))}</label>
-      <select id="su-kind" name="kind" required>${pick}${BUSINESS_KINDS.map((k) =>
+      <select id="su-kind" name="kind" required${at('kind')}>${pick}${BUSINESS_KINDS.map((k) =>
         option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select>
       ${fieldErr('kind')}
       <label for="su-sells">${esc(t(locale, 'signup.sells'))}</label>
-      <input id="su-sells" type="text" name="sells" value="${esc(v.sells ?? '')}" required maxlength="300"
-        placeholder="${esc(t(locale, 'signup.sells.placeholder'))}" />
-      ${fieldErr('sells')}
+      <input id="su-sells" type="text" name="sells" value="${esc(v.sells ?? '')}" required maxlength="300"${at('sells')} />
+      ${/* V1-048 — the example is a line under the field: a placeholder was cut at every width. */
+        fieldErr('sells') || `<div class="hint">${esc(t(locale, 'signup.sells.hint'))}</div>`}
       <label for="su-country">${esc(t(locale, 'signup.country'))}</label>
-      <select id="su-country" name="country" required autocomplete="country">${pick}${countryOptions(locale).map((c) =>
+      <select id="su-country" name="country" required autocomplete="country"${at('country')}>${pick}${countryOptions(locale).map((c) =>
         option(c.code, c.name, v.country)).join('')}</select>
       ${fieldErr('country')}
       ${/* TZ — asked only where the country has several zones; a country with one gets it. */
         zoneChoices(v.country).length > 1 ? `
       <label for="su-zone">${esc(t(locale, 'signup.zone'))}</label>
-      <select id="su-zone" name="zone" required>${pick}${zoneChoices(v.country).map((z) =>
+      <select id="su-zone" name="zone" required${at('zone')}>${pick}${zoneChoices(v.country).map((z) =>
         option(z, zoneLabel(locale, z), v.zone)).join('')}</select>
       ${fieldErr('zone')}` : ''}
       ${/* CUR — asked only where the country's own money is not on the list; a country whose is sells in it. */
         asksCurrency(v.country) ? `
       <label for="su-currency">${esc(t(locale, 'signup.currency'))}</label>
-      <select id="su-currency" name="currency" required>${pick}${CURRENCY_CHOICES.map((c) =>
+      <select id="su-currency" name="currency" required${at('currency')}>${pick}${CURRENCY_CHOICES.map((c) =>
         option(c, currencyLabel(locale, c), v.currency)).join('')}</select>
       ${fieldErr('currency')}` : ''}
       <label for="su-website">${esc(t(locale, 'signup.website'))}</label>
       <input id="su-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
-        inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" placeholder="yourbusiness.com" />
+        inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" placeholder="${esc(t(locale, 'signup.website.placeholder'))}"${at('website')} />
       ${fieldErr('website')}
       <label for="su-team">${esc(t(locale, 'signup.teamSize'))}</label>
-      <select id="su-team" name="teamSize" required>${pick}${TEAM_SIZES.map((s) =>
+      <select id="su-team" name="teamSize" required${at('teamSize')}>${pick}${TEAM_SIZES.map((s) =>
         option(s, t(locale, `business.team.${s}` as MessageKey), v.teamSize)).join('')}</select>
       ${fieldErr('teamSize')}
       <fieldset class="checks"><legend>${esc(t(locale, 'signup.channels'))}</legend>
@@ -2123,21 +2226,23 @@ export function signupPage(input: SignupPageInput): string {
     <h1>${esc(t(locale, 'signup.title'))}</h1>
     <p class="lead">${esc(t(locale, 'signup.lead'))}</p>
     ${input.error ? `<div class="err" role="alert">${esc(input.error)}</div>` : ''}
+    ${summary}
     <form method="post" action="/signup">
+      ${invite}
       ${about}
       <h2>${esc(t(locale, 'signup.you'))}</h2>
       <label for="su-name">${esc(t(locale, 'signup.name'))}</label>
-      <input id="su-name" type="text" name="name" value="${esc(v.name ?? '')}" required maxlength="80" autocomplete="name" />
+      <input id="su-name" type="text" name="name" value="${esc(v.name ?? '')}" required maxlength="80" autocomplete="name"${at('name')} />
       ${fieldErr('name')}
       <label for="su-email">${esc(t(locale, 'signup.email'))}</label>
       <input id="su-email" type="email" name="email" value="${esc(v.email ?? '')}" required maxlength="254"
-        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" />
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false"${at('email')} />
       ${fieldErr('email')}
       <label for="su-password">${esc(t(locale, 'signup.password'))}</label>
-      <input id="su-password" type="password" name="password" required minlength="${input.passwordMin}" autocomplete="new-password" />
-      ${fieldErr('password') || `<div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>`}
-      ${invite}
-      <label class="check"><input type="checkbox" name="terms" required${v.terms ? ' checked' : ''} />
+      <input id="su-password" type="password" name="password" required minlength="${input.passwordMin}" autocomplete="new-password"${at('password')} />
+      ${/* A typed password is never sent back; a page that came back says so (public-missed-12). */
+        fieldErr('password') || `<div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}${cameBack ? ` ${esc(t(locale, 'signup.passwordAgain'))}` : ''}</div>`}
+      <label class="check terms"><input id="su-terms" type="checkbox" name="terms" required${v.terms ? ' checked' : ''}${at('terms')} />
         <span>${esc(t(locale, 'signup.terms', { terms: '\u0000' })).replace('\u0000', `<a href="/terms" target="_blank" rel="noopener">${esc(t(locale, 'signup.termsLink'))}</a>`)}</span></label>
       ${fieldErr('terms')}
       ${input.botCheck ? `<div class="${esc(input.botCheck.className)}" data-sitekey="${esc(input.botCheck.siteKey)}"></div>
@@ -2172,12 +2277,27 @@ export function setPasswordPage(input: {
   /** Null: the link is not good (used, lapsed or unknown). */
   readonly link: { readonly token: string; readonly email: string } | null;
   readonly problem?: SetPasswordProblem | null;
+  /** Phase 9 (V1-079) — the door can e-mail a new link (the installation sends system mail). */
+  readonly recoveryOn?: boolean;
+  /** …and where Nomi's team is written to, when it cannot. */
+  readonly contact?: string | null;
 }): string {
   const { locale } = input;
   const other = `<p class="other"><a href="/login">${esc(t(locale, 'setpw.toLogin'))}</a></p>`;
   if (!input.link) {
-    return doorFrame(locale, input.path, t(locale, 'setpw.title'),
-      `<h1>${esc(t(locale, 'setpw.title'))}</h1><p class="lead">${esc(t(locale, 'setpw.gone'))}</p>`, other);
+    // Phase 9 (V1-078–V1-080) — the heading says what happened, and the way on is
+    // one that works for someone with no password: a new link to the address
+    // they sign in with, or Nomi's team, who made the first one. Signing in is
+    // for whoever already chose a password with it.
+    const gone = t(locale, 'setpw.gone.title');
+    const how = input.recoveryOn
+      ? `<p class="lead">${esc(t(locale, 'setpw.gone.ask'))}</p><p><a href="/login/forgot">${esc(t(locale, 'setpw.gone.newLink'))}</a></p>`
+      : input.contact
+        ? `<p class="lead">${esc(t(locale, 'setpw.gone.write', { email: '\u0000' })).replace('\u0000', `<a href="mailto:${esc(input.contact)}">${esc(input.contact)}</a>`)}</p>`
+        : '';
+    return doorFrame(locale, input.path, gone,
+      `<h1>${esc(gone)}</h1><p class="lead">${esc(t(locale, 'setpw.gone'))}</p>${how}`,
+      `<p class="other"><a href="/login">${esc(t(locale, 'setpw.gone.signIn'))}</a></p>`);
   }
   const problem = input.problem
     ? t(locale, `setpw.problem.${input.problem}` as MessageKey, { n: input.problem === 'long' ? input.passwordMax : input.passwordMin })
@@ -2285,14 +2405,25 @@ export function errorPage(input: {
   readonly kind: 'notfound' | 'crash';
   /** Shown only for `crash`, so a report can be tied to one log line. */
   readonly reference?: string | null;
+  /**
+   * Phase 9 (V1-075, V1-076) — whether the reader has a workspace to go back to.
+   * Signed out, the page speaks of no workspace, and offers the site and the door.
+   */
+  readonly signedIn?: boolean;
+  /** Where the site is read from this host: `/` on the site's own, `/site` elsewhere. */
+  readonly site?: string;
 }): string {
   const { locale, kind } = input;
   const title = t(locale, kind === 'notfound' ? 'error.notfound.title' : 'error.crash.title');
+  const body = kind === 'crash' ? 'error.crash.body' : input.signedIn ? 'error.notfound.body' : 'error.notfound.public';
   const card = `
     <h1>${esc(title)}</h1>
-    <p class="lead">${esc(t(locale, kind === 'notfound' ? 'error.notfound.body' : 'error.crash.body'))}</p>
+    <p class="lead">${esc(t(locale, body))}</p>
     ${kind === 'crash' && input.reference
       ? `<p class="hint">${esc(t(locale, 'error.reference', { ref: input.reference }))}</p>` : ''}`;
-  const other = `<p class="other"><a href="/app">${esc(t(locale, 'error.home'))}</a></p>`;
-  return doorFrame(locale, input.path, title, card, other);
+  const other = input.signedIn
+    ? `<p class="other"><a href="/app">${esc(t(locale, 'error.home'))}</a></p>`
+    : `<p class="other"><a href="${esc(input.site ?? '/site')}">${esc(t(locale, 'error.toSite'))}</a></p>`
+      + `<p class="other small"><a href="/login">${esc(t(locale, 'login.title'))}</a></p>`;
+  return doorFrame(locale, input.path, title, card, other, input.site ? { site: input.site } : {});
 }

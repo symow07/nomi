@@ -379,7 +379,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     expect(css).toContain('.dhead h1.who { margin:0; font-weight:400; }');
   });
 
-  it('the door pages have one heading each; the sign-in page\'s is its brand line, drawn as before', () => {
+  it('the door pages have one heading each, the task they ask (Phase 9, V1-032: the sign-in page\'s was its brand line)', () => {
     for (const l of LOCALES) {
       const doors = {
         login: loginPage({ locale: l, path: '/login' }),
@@ -388,12 +388,15 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
         notfound: errorPage({ locale: l, path: '/nope', kind: 'notfound' }),
       };
       for (const [what, html] of Object.entries(doors)) expect(html.match(/<h1[\s>]/g), `${l} ${what}`).toHaveLength(1);
-      expect(doors.login, l).toContain(`<h1 class="brand">Nomi<small class="muted">${esc(t(l, 'login.brandTagline'))}</small></h1>`);
-      expect(doors.signup, l).toContain('<div class="brand">Nomi');
+      expect(doors.login, l).toContain(`<h1>${esc(t(l, 'login.title'))}</h1>`);
+      expect(loginPage({ locale: l, path: '/login', withCode: true }), l).toContain(`<h1>${esc(t(l, 'login.code.title'))}</h1>`);
+      // The brand is the site's mark and name, on every door, and no longer a heading.
+      for (const html of Object.values(doors)) {
+        expect(html, l).toMatch(new RegExp(`<div class="brand"><svg class="mark"[^>]*aria-hidden="true"[\\s\\S]*?</svg><span>Nomi</span><small class="muted">${esc(t(l, 'login.brandTagline'))}</small></div>`));
+      }
     }
-    // The brand's own rule outranks the card heading's, so the line looks as it did.
     const door = linkedCss(loginPage({ locale: 'en', path: '/login' }));
-    expect(door).toContain('.login .brand { font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-8); padding:0; }');
+    expect(door).toContain('.login .brand { flex-direction:column; justify-content:center; gap:var(--space-4); text-align:center;');
   });
 
   it('the knowledge page says its title once (it printed it twice), with its lede under it', () => {
@@ -658,7 +661,8 @@ describe('CC-09 · the public site exists (#80); what is left is the owner\'s', 
     for (const l of LOCALES) {
       const html = withoutIsolates(renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false }));
       expect(html, l).toContain('data-surface="site"');
-      expect(html, l).toContain('href="mailto:hello@example.test"');
+      // Phase 9 (public-missed-02) — the mail opens with a subject and the questions to answer.
+      expect(html, l).toContain('href="mailto:hello@example.test?subject=');
       expect(html, l).not.toContain('/signup');
     }
     // How the domain goes live is written down for the owner, step by step.

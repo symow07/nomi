@@ -4,7 +4,7 @@ import { TERMS_KEYS } from '../../core/legal/terms.js';
 import { processorLabel, type Processor } from '../../core/legal/processors.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
-import { publicDocument, esc } from './layout.js';
+import { publicDocument, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 
 /** G1 — the version of the terms a sign-up agrees to: their English words, digested (src/core/legal/terms.ts). */
 export const TERMS_VERSION: string = createHash('sha256')
@@ -30,13 +30,33 @@ export const TERMS_VERSION: string = createHash('sha256')
  * What these pages promise, `docs/LEGAL.md` says how the operator keeps.
  */
 
-const SHELL = (locale: Locale, title: string, body: string): string =>
-  publicDocument({ locale, title: `${title} · Nomi`, body });
+/**
+ * Phase 9 (V1-058, V1-066, V1-073) — each page opens like the site: the mark
+ * and the name, leading to the site (`home`), and the language switch, which
+ * returns to the same page (`path`).
+ */
+const SHELL = (locale: Locale, title: string, body: string, home: string, path: string): string =>
+  publicDocument({ locale, title: `${title} · Nomi`, body: `${publicTop(locale, home, path)}${body}`, extraCss: PUBLIC_TOP_CSS });
 
-const contact = (l: Locale, email: string | null): string => `
+/** A sentence from the catalogue with one placeholder made a link — the rest escaped. */
+const withLink = (l: Locale, key: string, param: string, href: string, label: string): string =>
+  esc(t(l, key as Parameters<typeof t>[1], { [param]: '\u0000' })).replace('\u0000', `<a href="${esc(href)}">${esc(label)}</a>`);
+
+/**
+ * How to reach us. The address, with the language's own full stop (V1-062).
+ * `business`: the line for a person who wrote to a business — the privacy page's
+ * (V1-059); the deletion page's only where there is no address, since its first
+ * step already says it (public-missed-22); never the terms', which are the
+ * business's own (V1-064). A page with neither has no section at all.
+ */
+const contact = (l: Locale, email: string | null, business: boolean): string => {
+  const write = email ? `<p>${withLink(l, 'legal.contact.write', 'email', `mailto:${email}`, email)}</p>` : '';
+  const ask = business ? `<p>${esc(t(l, 'legal.contact.same'))}</p>` : '';
+  return write || ask ? `
   <h2>${esc(t(l, 'legal.contact.title'))}</h2>
-  ${email ? `<p>${esc(t(l, 'legal.contact.write'))} <a href="mailto:${esc(email)}">${esc(email)}</a>.</p>` : ''}
-  <p>${esc(t(l, 'legal.contact.same'))}</p>`;
+  ${write}
+  ${ask}` : '';
+};
 
 /**
  * When the page last changed. The terms keep their own date: a date that moved
@@ -53,9 +73,12 @@ const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' | 'le
  */
 export type LegalFacts = { readonly processor: Processor; readonly hosting: Processor };
 
-export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts): string {
+export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts, home = '/site'): string {
   const section = (title: string, body: string): string =>
     `<h2>${esc(t(l, title as Parameters<typeof t>[1]))}</h2><p>${esc(t(l, body as Parameters<typeof t>[1]))}</p>`;
+  // public-missed-15 — the deletion page by its own name, and a link wherever it is named.
+  const toDeletion = (title: string, body: string): string =>
+    `<h2>${esc(t(l, title as Parameters<typeof t>[1]))}</h2><p>${withLink(l, body, 'deletion', '/data-deletion', t(l, 'legal.deletion.title'))}</p>`;
   return SHELL(l, t(l, 'legal.privacy.title'), `
     <h1>${esc(t(l, 'legal.privacy.title'))}</h1>
     <p>${esc(t(l, 'legal.privacy.intro'))}</p>
@@ -77,11 +100,11 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
       <li>${esc(t(l, 'legal.privacy.who.mail'))}</li>
     </ul>
     <p>${esc(t(l, 'legal.privacy.who.nobody'))}</p>
-    ${section('legal.privacy.howLong.title', 'legal.privacy.howLong.body')}
-    ${section('legal.privacy.choices.title', 'legal.privacy.choices.body')}
-    <p><a href="/data-deletion">${esc(t(l, 'legal.privacy.deletionLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
-    ${contact(l, email)}
-    ${updated(l, 'legal.updated.privacy')}`);
+    ${toDeletion('legal.privacy.howLong.title', 'legal.privacy.howLong.body')}
+    ${toDeletion('legal.privacy.choices.title', 'legal.privacy.choices.body')}
+    <p><a href="/data-deletion">${esc(t(l, 'legal.deletion.title'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
+    ${contact(l, email, true)}
+    ${updated(l, 'legal.updated.privacy')}`, home, '/privacy');
 }
 
 /**
@@ -89,7 +112,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
  * "Terms of Service URL" is about. The people who write in are covered by the
  * privacy page, and the first paragraph says so.
  */
-export function renderLegalTerms(l: Locale, email: string | null): string {
+export function renderLegalTerms(l: Locale, email: string | null, home = '/site'): string {
   const k = (key: string) => esc(t(l, key as Parameters<typeof t>[1]));
   const list = (keys: readonly string[]) => `<ul>${keys.map((x) => `<li>${k(x)}</li>`).join('')}</ul>`;
   return SHELL(l, t(l, 'legal.terms.title'), `
@@ -106,9 +129,9 @@ export function renderLegalTerms(l: Locale, email: string | null): string {
     <h2>${k('legal.terms.fees.title')}</h2><p>${k('legal.terms.fees.body')}</p>
     <h2>${k('legal.terms.liability.title')}</h2><p>${k('legal.terms.liability.body')}</p>
     <h2>${k('legal.terms.changes.title')}</h2><p>${k('legal.terms.changes.body')}</p>
-    ${contact(l, email)}
+    ${contact(l, email, false)}
     <p><a href="/privacy">${k('legal.privacyLink')}</a></p>
-    ${updated(l, 'legal.updated.terms')}`);
+    ${updated(l, 'legal.updated.terms')}`, home, '/terms');
 }
 
 /**
@@ -135,7 +158,7 @@ export function renderLegalTerms(l: Locale, email: string | null): string {
  * tests/parity/deletion-page.test.ts holds every one of these in all three
  * languages, and holds the old promises out.
  */
-export function renderDataDeletion(l: Locale, email: string | null): string {
+export function renderDataDeletion(l: Locale, email: string | null, home = '/site'): string {
   const k = (key: string) => esc(t(l, key as Parameters<typeof t>[1]));
   const list = (keys: readonly string[]) => keys.map((x) => `<li>${k(x)}</li>`).join('');
   return SHELL(l, t(l, 'legal.deletion.title'), `
@@ -143,9 +166,11 @@ export function renderDataDeletion(l: Locale, email: string | null): string {
     <p>${k('legal.deletion.intro')}</p>
     <h2>${k('legal.deletion.how.title')}</h2>
     <ol>
-      <li>${k('legal.deletion.step1')}${email ? `<br>${k('legal.deletion.viaUs')}` : ''}</li>
+      <li>${k('legal.deletion.step1')}</li>
       ${list(['legal.deletion.step2', 'legal.deletion.step3', 'legal.deletion.step4'])}
     </ol>
+    ${/* V1-071 — the other way to ask is its own sentence, not a second route inside step 1. */
+      email ? `<p>${k('legal.deletion.viaUs')}</p>` : ''}
     <h2>${k('legal.deletion.erased.title')}</h2>
     <ul>${list([
       'legal.deletion.erased.identity', 'legal.deletion.erased.messages', 'legal.deletion.erased.prepared',
@@ -156,7 +181,7 @@ export function renderDataDeletion(l: Locale, email: string | null): string {
       'legal.deletion.kept.orders', 'legal.deletion.kept.doNotContact', 'legal.deletion.kept.record',
       'legal.deletion.kept.meta', 'legal.deletion.kept.elsewhere', 'legal.deletion.kept.backups',
     ])}</ul>
-    ${contact(l, email)}
+    ${contact(l, email, !email)}
     <p><a href="/privacy">${k('legal.privacyLink')}</a> · <a href="/terms">${k('legal.termsLink')}</a></p>
-    ${updated(l, 'legal.updated.privacy')}`);
+    ${updated(l, 'legal.updated.privacy')}`, home, '/data-deletion');
 }

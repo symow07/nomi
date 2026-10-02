@@ -382,7 +382,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // yf_locale cookie → Chinese
     const zh = await prod.app.inject({ method: 'GET', url: '/login', headers: { cookie: 'yf_locale=zh' } });
     expect(zh.body).toContain('<html lang="zh"');
-    expect(zh.body).toContain('进入密码');
+    expect(zh.body).toContain('我有访问码');   // Phase 9 (V1-036): the code is not the password's 密码
     // /locale sets the cookie and honors next; open-redirect is rejected
     const set = await prod.app.inject({ method: 'GET', url: '/locale?set=zh&next=/login' });
     expect(set.statusCode).toBe(302);

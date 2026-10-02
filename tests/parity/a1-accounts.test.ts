@@ -127,7 +127,9 @@ describe('A1 · the two pages a stranger may see', () => {
 
   it('a wrong access code shows the code\'s card and says so THERE', () => {
     const html = loginPage({ locale: 'en', path: '/login', error: true });
-    expect(html).toMatch(/role="alert"[\s\S]*name="code"/);
+    // Phase 9 (V1-042) — under the field and tied to it, and the form posts back to this card.
+    expect(html).toMatch(/name="code"[^>]*class="err-field" aria-invalid="true" aria-describedby="login-code-err"[\s\S]*<div class="fld-err" id="login-code-err" role="alert">/);
+    expect(html).toContain('action="/login?with=code"');
     expect(html).not.toContain('name="email"');
     expect(html.split(t('en', 'login.error')).length - 1).toBe(1);
   });
