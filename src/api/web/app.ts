@@ -1082,7 +1082,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/u', async (req, reply) => {
     const token = String((req.query as { t?: string }).t ?? '');
     const claim = claimFrom(deps.sessionSecret, token);
-    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage(localeOf(req), 'unsubscribe'));
     return reply.type('text/html; charset=utf-8')
       .header('cache-control', 'no-store')
       .header('referrer-policy', 'no-referrer')
@@ -1094,7 +1094,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const token = String((req.query as { t?: string }).t ?? '')
       || String((req.body as { t?: string } | undefined)?.t ?? '');
     const claim = claimFrom(deps.sessionSecret, token);
-    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage(localeOf(req), 'unsubscribe'));
     // The result is not shown to him. Whether the write succeeded or the
     // database was unreachable, the page he sees is the same — an error here
     // would tell a visitor something about a tenant he has no business knowing,
@@ -1110,7 +1110,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/p/:token', async (req, reply) => {
     const token = String((req.params as { token: string }).token ?? '');
     const view = token.length >= 32 ? await loadProof(deps.db, token) : null;
-    if (!view) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    if (!view) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage(localeOf(req), 'proof'));
     return reply.type('text/html; charset=utf-8')
       .header('cache-control', 'no-store')
       .header('referrer-policy', 'no-referrer')
