@@ -682,21 +682,28 @@ export async function setRate(
 
 export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
+  // Phase 9 (V1-529, V1-530) — the page is reached from My business, and leads back there.
+  const backTo = back('/app/business', t(locale, 'nav.factory'));
   if (!v.pair) {
-    return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+    // Phase 9 (V1-529, V1-531, V1-532, new-06) — nothing to convert is a state,
+    // drawn as one: the currency by its name, and the door to where it is set.
+    return `${backTo}
+    <h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
     ${flashBanner(flash)}
-    <section class="block"><p class="muted">${esc(t(locale, 'rate.none', { from: v.currency }))}</p></section>`;
+    <div class="empty notset" role="status">${esc(t(locale, 'rate.none', { from: currencyLabel(locale, v.currency) }))}
+      <div>${deeper('/app/settings/profile#zone', t(locale, 'settings.profile.title'))}</div></div>`;
   }
   const { from, to } = v.pair;
   const stated = (r: OwnerRate): string =>
     `${esc(t(locale, 'rate.current', { rate: r.rate, from: r.from, to: r.to }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: show.date(locale, r.statedAt) }))}</span>`;
-  return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+  return `${backTo}
+    <h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'rate.intro', { name, from, to }))}</p>
       ${v.current
         ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
-        : `<div class="empty">${esc(t(locale, 'rate.empty', { to }))}</div>`}
+        : `<div class="empty notset">${esc(t(locale, 'rate.empty', { to }))}</div>`}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform">
         ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate', error: keptError(kept, 'rate', 'rt-rate-err'),
           control: `<input id="rt-rate" name="rate" inputmode="decimal" required value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` })])}
@@ -838,6 +845,8 @@ export type SamplesView = {
   readonly policy: SamplePolicy | null;
   /** Open requests, oldest first — the one waiting longest is the one to do. */
   readonly waiting: readonly SampleRequestRow[];
+  /** Phase 9 (V1-535) — the workspace's one currency, named on the price field; absent, the stated policy's. */
+  readonly currency?: Currency;
 };
 
 export async function loadSamples(db: Db, businessIdRaw: string): Promise<SamplesView> {
@@ -857,7 +866,7 @@ export async function loadSamples(db: Db, businessIdRaw: string): Promise<Sample
        where sr.business_id = ${bid.value}::uuid and sr.handled_at is null
        order by sr.requested_at asc limit 50`.execute(tx);
     return {
-      policy,
+      policy, currency: await currencyOf(tx, bid.value),
       waiting: r.rows.map((x) => ({
         id: x.id, conversationId: x.conversation_id, buyer: x.buyer,
         askedText: x.asked_text, requestedAt: x.requested_at, address: x.address,
@@ -926,26 +935,40 @@ export async function saveTerms(
   });
 }
 
+/**
+ * Phase 9 (V1-537, V1-006-terms) — the delivery terms an owner chooses from,
+ * each with what it means, in the order of how much the seller takes on. DDU
+ * left the Incoterms in 2010 (DAP replaced it): the guard still knows it, so
+ * a workspace that chose it keeps it, but it is not offered to anyone new.
+ */
+export const OFFERED_INCOTERMS = ['EXW', 'FCA', 'FOB', 'CFR', 'CIF', 'DAP', 'DDP'] as const;
+export const incotermMeaning = (locale: Locale, code: string): string =>
+  INCOTERM_KEYS.includes(code) ? `${code} — ${t(locale, `terms.incoterm.${code}` as MessageKey)}` : code;
+
 export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
   const stated = v.terms
     ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
+       <p class="muted">${esc(incotermMeaning(locale, v.terms.incoterm))}</p>
        <p class="muted">${esc(t(locale, 'terms.setOn', { date: show.date(locale, v.terms.statedAt) }))}</p>`
-    : `<div class="empty">${esc(t(locale, 'terms.none', { name }))}</div>`;
-  const options = INCOTERM_KEYS.map((k) =>
-    `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(k)}</option>`).join('');
-  return `<h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
+    : `<div class="empty notset">${esc(t(locale, 'terms.none', { name }))}</div>`;
+  const choices: readonly string[] = v.terms && !(OFFERED_INCOTERMS as readonly string[]).includes(v.terms.incoterm)
+    ? [...OFFERED_INCOTERMS, v.terms.incoterm] : OFFERED_INCOTERMS;
+  const options = choices.map((k) =>
+    `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('');
+  return `${back('/app/business', t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
       ${stated}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="sform">
         ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', error: keptError(kept, 'payment', 'tm-payment-err'),
+          /* Phase 9 (V1-539) — the example is a line under the name, which wraps; a placeholder was cut off on a phone. */ fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', desc: t(locale, 'terms.payment.example'), error: keptError(kept, 'payment', 'tm-payment-err'),
             control: `<input id="tm-payment" name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
-              placeholder="${esc(t(locale, 'terms.payment.placeholder'))}" value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
+              value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
           fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }), error: keptError(kept, 'incoterm', 'tm-incoterm-err'),
-            control: `<select id="tm-incoterm" name="incoterm" required${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${v.terms ? '' : '<option value="" selected disabled></option>'}${options}</select>` }),
+            control: `<select id="tm-incoterm" name="incoterm" required${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${v.terms ? '' : `<option value="" selected disabled>${esc(t(locale, 'terms.incoterm.choose'))}</option>`}${options}</select>` }),
         ])}
         ${saveBar(t(locale, 'terms.save'))}
       </form>` : ownerDecides(locale)}
@@ -995,7 +1018,8 @@ export function renderSamples(
       } <span class="muted">${esc(t(locale, v.policy.creditedOnFirstOrder
         ? 'samples.current.credited' : 'samples.current.notCredited'))}</span></p>
       <p class="muted">${esc(t(locale, 'samples.setOn', { date: show.date(locale, v.policy.statedAt) }))}</p>`
-    : `<div class="empty">${esc(t(locale, 'samples.empty', { name }))}</div>`;
+    : `<div class="empty notset">${esc(t(locale, 'samples.empty', { name }))}</div>`;
+  const currency = v.currency ?? v.policy?.price.currency ?? null;
 
   const waiting = v.waiting.length === 0
     ? `<div class="empty">${esc(t(locale, 'samples.requests.empty'))}</div>`
@@ -1016,17 +1040,20 @@ export function renderSamples(
         </div>
       </li>`).join('')}</ul>`;
 
-  return `<h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
+  // Phase 9 (V1-534) — reached from My business ("Samples ›"), and back there.
+  return `${back('/app/business', t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
       ${stated}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform">
         ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
+          /* Phase 9 (V1-535) — the price says which money it is in. */ fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
+            desc: currency ? t(locale, 'samples.price.desc', { currency: currencyLabel(locale, currency) }) : t(locale, 'samples.price.free'),
             control: `<input id="sm-price" name="price" inputmode="decimal" required value="${kept ? keptValue(kept, 'price') : v.policy ? esc(String(v.policy.price.amount)) : ''}"${keptInvalid(kept, 'price', 'sm-price-err')} />` }),
-          fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
-            control: `<input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} />` }),
+          /* Phase 9 (new-08) — the tick at the start of its column, its label the 44px target. */ fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
+            control: `<span class="chkbox"><input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} /></span>` }),
         ])}
         ${saveBar(t(locale, 'samples.save'))}
       </form>` : ownerDecides(locale)}

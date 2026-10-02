@@ -320,3 +320,130 @@ describe('settings-b-outreach-missed-05 · typographic quotes around "today"', (
     for (const l of LOCALES) expect(t(l, 'settings.zone.why'), l).not.toContain('"');
   });
 });
+
+// ── The rate, samples, terms ───────────────────────────────────────────────
+import { renderRate, renderSamples, renderTerms, OFFERED_INCOTERMS } from '../../src/api/web/settings.js';
+import { currencyLabel } from '../../src/core/owner/currencies.js';
+
+const noRate = (l: (typeof LOCALES)[number]) => renderRate({ current: null, previous: [], pair: null, currency: 'USD' }, l, null);
+const samples = (l: (typeof LOCALES)[number]) => renderSamples({ policy: null, waiting: [], currency: 'USD' }, l, null, NOW);
+const terms = (l: (typeof LOCALES)[number], stated: { incoterm: string } | null = null) =>
+  renderTerms({ terms: stated ? { paymentTerms: '30% with order', incoterm: stated.incoterm, statedAt: NOW } : null }, l, null);
+
+describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate page is not a dead end', () => {
+  it('nothing to convert is a panel, with the currency by its name and the door to where it is set, and the way back', () => {
+    for (const l of LOCALES) {
+      const html = noRate(l);
+      expect(html.indexOf('<a class="back" href="/app/business">'), l).toBe(0);
+      expect(html, l).toContain('<div class="empty notset" role="status">');
+      expect(html, l).toContain(esc(currencyLabel(l, 'USD')));
+      expect(html, l).toMatch(/class="deeper" href="\/app\/settings\/profile#zone"/);
+    }
+    expect(text(noRate('en'))).toContain('Your prices are in US Dollar (USD)');
+    // ar: the last two words never part
+    expect(t('ar', 'rate.none', { from: 'x' })).toContain('سعر صرف');
+    expect(rulesFor('.empty.notset').join(';')).toContain('text-wrap:pretty');
+  });
+  it('with a rate to set, the way back too', () => {
+    const html = renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
+    expect(html.indexOf('<a class="back" href="/app/business">')).toBe(0);
+  });
+});
+
+describe('V1-533 · Chinese: no stray spaces around the stand-in name on Samples', () => {
+  it('the intro and the panel run on', () => {
+    const html = samples('zh');
+    expect(html).toContain('告诉你的助手一个样品多少钱');
+    expect(html).toContain('你还没跟你的助手说过样品的事');
+    expect(html).not.toMatch(/ 你的助手|你的助手 /);
+  });
+});
+
+describe('V1-534, V1-541 · Samples and Terms lead back to My business, where they are opened from', () => {
+  it('in every locale', () => {
+    for (const l of LOCALES) {
+      for (const html of [samples(l), terms(l)]) {
+        expect(html.indexOf(`<a class="back" href="/app/business"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'nav.factory'))}</a>`), l).toBe(0);
+      }
+    }
+  });
+});
+
+describe('V1-535 · the sample price says which money it is in', () => {
+  it('the line under the field names the currency', () => {
+    for (const l of LOCALES) expect(samples(l), l).toContain(esc(t(l, 'samples.price.desc', { currency: currencyLabel(l, 'USD') })));
+    expect(t('en', 'samples.price.label')).not.toMatch(/\(0/);
+  });
+});
+
+describe('V1-536, V1-538 · the intro and the panel do not say the same thing twice', () => {
+  it('Samples: the intro no longer repeats that nothing is said', () => {
+    expect(t('en', 'samples.intro')).not.toMatch(/Until you do/);
+    for (const l of LOCALES) expect(t(l, 'samples.intro').length, l).toBeLessThan(t('en', 'samples.intro').length * 2);
+  });
+  it('Terms: the intro says what a proforma is; the panel only what follows from none', () => {
+    expect(t('en', 'terms.intro')).toMatch(/^A proforma is the invoice/);
+    expect(t('en', 'terms.intro')).not.toMatch(/until you/i);
+    expect(t('en', 'terms.none')).not.toMatch(/until you/i);
+    for (const l of LOCALES) expect(t(l, 'terms.intro'), l).not.toContain(t(l, 'terms.none').slice(0, 12));
+  });
+});
+
+describe('settings-b-outreach-new-07 · a not-set panel sits apart from the card, as wide as it', () => {
+  it('on Samples, Terms and the rate', () => {
+    for (const l of LOCALES) for (const html of [samples(l), terms(l), noRate(l)]) expect(html, l).toContain('class="empty notset"');
+    const rule = rulesFor('.empty.notset').join(';');
+    expect(rule).toContain('max-width:none');
+    expect(rule).toContain('margin-bottom:var(--space-16)');
+  });
+});
+
+describe('settings-b-outreach-new-08 · the tick sits at the start, beside its name', () => {
+  it('wrapped in its 44px label box, held to the start of the control column', () => {
+    expect(samples('en')).toContain('<span class="chkbox"><input id="sm-credited" type="checkbox" name="credited"');
+    expect(css).toMatch(/\.fr-c > input\[type="checkbox"\], \.fr-c > input\[type="radio"\], \.fr-c > \.chkbox \{ align-self:flex-start; \}/);
+  });
+});
+
+describe('V1-537, V1-006-terms · the delivery term is a choice the owner can read', () => {
+  it('each term says what it means; the blank first choice says what to do; DDU is not offered', () => {
+    for (const l of LOCALES) {
+      const html = terms(l);
+      expect(html, l).toContain(`<option value="" selected disabled>${esc(t(l, 'terms.incoterm.choose'))}</option>`);
+      const opts = optionsOf(html);
+      expect(opts.map((o) => o.z), l).toEqual([...OFFERED_INCOTERMS]);
+      for (const o of opts) expect(o.label, `${l} ${o.z}`).toBe(esc(`${o.z} — ${t(l, `terms.incoterm.${o.z}` as never)}`));
+    }
+  });
+  it('a workspace that chose DDU keeps it, said for what it is', () => {
+    const html = terms('en', { incoterm: 'DDU' });
+    expect(html).toContain('<option value="DDU" selected>DDU — an old name for DAP, no longer in use</option>');
+    expect(html).toContain('<p class="muted">DDU — an old name for DAP, no longer in use</p>');
+  });
+  it('the stated term is said in words too', () => {
+    for (const l of LOCALES) expect(terms(l, { incoterm: 'FOB' }), l).toContain(`<p class="muted">${esc(`FOB — ${t(l, 'terms.incoterm.FOB')}`)}</p>`);
+  });
+});
+
+describe('V1-539 · the payment example is never cut off', () => {
+  it('it is a line under the name, not a placeholder', () => {
+    for (const l of LOCALES) {
+      const html = terms(l);
+      expect(html, l).toContain(esc(t(l, 'terms.payment.example')));
+      expect(html.slice(html.indexOf('id="tm-payment"'), html.indexOf('/>', html.indexOf('id="tm-payment"'))), l).not.toContain('placeholder=');
+    }
+  });
+});
+
+describe('V1-540, V1-542, settings-b-outreach-missed-10 · the terms page in Arabic and Chinese', () => {
+  it('ar: لـ joins مساعدك in the hint; the not-set panel is one short sentence', () => {
+    expect(terms('ar')).toContain('ويمكن لمساعدك ذكره');
+    expect(terms('ar')).not.toContain('لـمساعدك');
+    expect(t('ar', 'terms.none').length).toBeLessThan(50);   // it was 58 with the name in, and its last word fell alone
+  });
+  it('zh: one word for delivery', () => {
+    expect(t('zh', 'terms.title')).toContain('交货');
+    expect(t('zh', 'terms.title')).not.toContain('交付');
+    expect(t('zh', 'terms.incoterm.label')).toContain('交货');
+  });
+});

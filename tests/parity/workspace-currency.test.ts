@@ -155,7 +155,8 @@ describe('CUR · the rate page converts only where there is something to convert
   const view = (over: Partial<RateView>): RateView => ({ current: null, previous: [], pair: null, currency: 'AED', ...over });
   it('no pair: one sentence, and no form', () => {
     const html = renderRate(view({}), 'en', null);
-    expect(html).toContain(t('en', 'rate.none', { from: 'AED' }));
+    // Phase 9 (V1-531) — the currency by its name, as on Business profile.
+    expect(html).toContain(t('en', 'rate.none', { from: currencyLabel('en', 'AED') }));
     expect(html).not.toContain('name="rate"');
   });
   it('a pair: the rate is between those two', () => {

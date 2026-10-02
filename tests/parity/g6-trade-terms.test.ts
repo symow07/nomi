@@ -85,7 +85,9 @@ describe('G6 · the settings page', () => {
   it('offers exactly the guard’s incoterms, and posts to its own route', () => {
     const html = renderTerms({ terms: null }, 'en', null);
     const offered = [...html.matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]);
-    expect(offered).toEqual(INCOTERM_KEYS);
+    // Phase 9 (V1-537): every one the guard knows except DDU, retired in 2010 —
+    // still the guard's, kept for a workspace that chose it (phase9-settings-b).
+    expect([...offered].sort()).toEqual(INCOTERM_KEYS.filter((k) => k !== 'DDU').sort());
     expect(html).toContain('action="/app/settings/terms"');
   });
 

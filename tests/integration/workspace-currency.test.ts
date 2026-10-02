@@ -156,7 +156,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
   });
 
   it('THE RATE PAGE HAS NOTHING TO CONVERT for a workspace selling in its country\'s own money', async () => {
-    expect((await get('/app/settings/rate')).body).toContain(t('en', 'rate.none', { from: 'AED' }));
+    expect((await get('/app/settings/rate')).body).toContain(t('en', 'rate.none', { from: currencyLabel('en', 'AED') }));
     const r = await form('/app/settings/rate', { rate: '3.67' }, cookie);
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
     expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);
