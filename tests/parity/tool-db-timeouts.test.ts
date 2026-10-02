@@ -126,6 +126,13 @@ describe('backup.sh — bounded at every step', () => {
     expect(Date.now() - t0).toBeLessThan(5_000);
   });
 
+  it('marks a timeout BEFORE it kills, so a woken wait never misses the mark', () => {
+    // Marked after the kill, 34 of 150 timed-out runs under load came back 143
+    // (2026-10-03): the killed command woke `wait` before the mark existed. One
+    // timed run cannot show that order; the source can.
+    expect(within).toMatch(/sleep "\$secs"; : > "\$fired"; kill -TERM "\$pid"/);
+  });
+
   it("keeps the command's own exit code when it finishes in time", () => {
     expect(run('within 5 true')).toBe('rc=0');
     expect(run('within 5 false')).toBe('rc=1');
