@@ -38,11 +38,68 @@ under "Decided" below.
 | 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | #199 |
 | 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | #200 |
 | 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | #201 |
-| 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | next |
-| 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | — |
+| 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | #202 |
+| 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | next |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | — |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
 | 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+
+**Phase 5 (#202) — motion.**
+
+**Durations and curve.** The three durations the tokens defined and nothing used are now used, with one curve:
+
+| Duration | What uses it |
+|---|---|
+| fast, 120 ms | a press, a hover, a fold or a menu opening, the dialog's dimmed page |
+| normal, 200 ms | a notice (and its Undo) arriving, the draft card appearing, the dialog, the "at work" line |
+| max, 300 ms | one breath of the "at work" dots |
+
+- Every rule that moves sits inside `prefers-reduced-motion: no-preference`; a `reduce` block stops anything else. The script scrolls smoothly only for a reader who has not asked for less.
+- `tests/parity/phase5-motion.test.ts` holds:
+  - nothing moves outside that block;
+  - no duration is written as a number;
+  - each of the three is used.
+
+**Undo over confirm.** Four things that are only set aside now go at once, and the notice after carries **Undo**:
+- a forbidden word;
+- a closure;
+- a taught fact;
+- an owner's date on the calendar.
+
+How Undo works:
+- It posts to the thing's own `…/restore`. The address is signed into the notice, in one allowed shape only.
+- A word added again in the meantime is not doubled.
+- A fact that a correction replaced is not brought back.
+
+**The product's own "ask first" dialog.** Everything else that asks first still asks, now in the product's own dialog instead of the browser's grey box:
+- the question;
+- a button carrying the asking button's own word (red where it takes something away);
+- Cancel, focused;
+- Escape or a click beside it cancels.
+
+With no script, or in a browser without dialogs, the browser's box still asks.
+
+**The assistant at work, in place.**
+- **When it shows:** a customer's message that no turn has taken yet (`message_fragments.processed_in` is null, from the last 15 minutes), in a conversation the assistant holds.
+- **Where it shows:** the line "{name} is writing a reply" appears exactly where the reply will appear, under the customer's message, on the conversation page and in Practice.
+- **Polling:** the page asks every 4 s instead of 20.
+- **When the work is done:** the page fetches its own address and draws that page's main into itself. There is no reload, typed words stay in their box, and the reply is brought into view if the line was in view. If the page cannot be fetched, the old line ("a reply is waiting") is shown instead.
+- **Verified by eye:** en laptop and ar phone.
+- **Tests:** a script test runs the redraw against a small page, with negative controls.
+
+**Measured:**
+- The one script grew from 10,473 to about 15,300 bytes (its budget, 10,500 → 16,000, is argued in the test); it is cached for good per build.
+- Parity: 3,792 tests, plus 18 for phase 5.
+- The phase 5 integration file: 6 of 6 against real Postgres (undo for each of the four; the "at work" line on, then off once a person holds the conversation, then off after 15 minutes).
+
+**Decided by me (named undecidable — the motion curve):** `cubic-bezier(0.2, 0, 0, 1)`, decelerating. A thing starts at once and settles; nothing overshoots or bounces. One curve for everything, so nothing in the product moves two ways.
+
+**Also decided by me:**
+- **Which acts undo and which still ask.** Undo where taking away is only setting aside. Asking stays for anything that disconnects, stops sending, widens what goes out alone, erases, or takes away someone's access, or a price tier (the owner's money).
+- **The 15-minute window.** A turn that has not run by then has failed, and a failed turn hands the conversation to a person (`not_answered`, #110). So the line never outlives the work.
+- **The 4-second poll**, only while the line shows.
+
+**Found on the way and fixed:** Knowledge never showed its own notices. Teaching or archiving a business-wide fact redirected to a page that dropped the sentence, so nothing confirmed it. It shows them now, with Undo.
 
 **Phase 4 (#201) — colour and hierarchy.**
 
@@ -173,6 +230,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #202 | **Phase 5 — motion**: the three durations used with one decelerating curve, all of it only for readers who did not ask for less motion; Undo instead of confirm for four set-aside things (word, closure, fact, date); the product's own ask-first dialog instead of the browser's box; the assistant at work shown in place, and its reply drawn into the page without a reload. No migration | 120 |
 | 2026-10-02 | #201 | **Phase 4 — colour and hierarchy**: four signals, each a colour and a shape (✓ ○ ✕ ✦); 92 pieces of coloured text with no shape → 0 in four languages; one filled button per page (six pages had two to four); misused colour removed; Setup's states and Today's waiting customers carry their signal; `tools/ui-colour.mjs`. No migration | 120 |
 | 2026-10-02 | #200 | **Phase 3 — settings**: Setup in six labelled groups, each row with its current value, and a server-side search; the settings pages as label / control rows in cards with one save each (the profile's three forms one); the component gallery off Setup; 48 new lines in four languages. No migration | 120 |
 | 2026-10-02 | #199 | **Phase 2 — the draft card**: decision first; the customer's message no longer repeated, nor covered (the card no longer docks over the transcript); one fill (Send), Hand to me and No reply needed outlined alike, Edit gone; the reply box grows to its text; the reasons one quiet line under the acts. 298 px on a laptop (was 447). No migration | 120 |
