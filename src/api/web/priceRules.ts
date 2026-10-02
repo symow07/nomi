@@ -472,6 +472,11 @@ export function renderPriceRules(
   const covered = v.products.filter((p) => p.listPrice !== null && p.own === null && p.inheritsDefault && !beyondDefault(p));
 
   const isCovered = (p: ProductRules): boolean => covered.includes(p);
+  // Phase 9 — a discount comes only from one she wrote below (computeQuote
+  // reads nothing else), so her ask line and ceiling are limits on THOSE. A
+  // product no written discount reaches says that nothing comes off it.
+  const discounted = (p: ProductRules): boolean =>
+    v.volume.some((d) => d.productId === null || d.productId === p.productId);
   const productRow = (p: ProductRules): string => {
     const label = productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku;
     const open = draft.productId === p.productId;
@@ -479,7 +484,7 @@ export function renderPriceRules(
       <div class="dhead muted"><bdi>${esc(label)}</bdi>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? ` <span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}
         ${p.listPrice !== null ? `<span class="muted">${esc(show.money(locale, p.listPrice))}</span>` : ''}</div>
       ${p.own
-        ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
+        ? `<p class="fdesc">${esc(t(locale, discounted(p) ? 'prices.stated' : 'prices.stated.noDiscount', {
              floor: show.money(locale, p.own.floor), max: p.own.maxDiscountPct, ask: p.own.askAbovePct, name }))}</p>`
         : isCovered(p) && v.businessDefault
           ? `<p class="fdesc">${esc(t(locale, 'prices.inherited.line', { floor: show.money(locale, v.businessDefault.floor) }))}</p>`

@@ -589,19 +589,23 @@ export function renderFactory(
   const hi = f.promises.floorHigh;
   const ceil = f.promises.ceilingPct;
   const ask = f.promises.askPct ?? null;
+  // Phase 9 — nothing comes off a price unless she wrote a discount (the price
+  // page says the same); with none, the ceiling and ask line limit nothing.
+  const noDiscount = f.prices.volume.length === 0;
   const priceRules = [
     lo !== null && hi !== null
       ? (lo.amount === hi.amount && lo.currency === hi.currency
         ? t(locale, 'factory.promise.floor', { price: show.money(locale, lo), name })
         : t(locale, 'factory.promise.floorRange', { low: show.money(locale, lo), high: show.money(locale, hi), name }))
       : null,
-    ceil !== null
+    noDiscount ? t(locale, 'factory.promise.noDiscount', { name }) : null,
+    !noDiscount && ceil !== null
       ? t(locale, f.promises.ceilingVaries ? 'factory.promise.ceilingVaries' : 'factory.promise.ceiling',
         { ceil, name })
       : null,
     // G7a — a gate now, so a promise. Not stated when it can never fire: an
     // ask line at the ceiling is a question the clamp means she never asks.
-    ask !== null && ceil !== null && ask < ceil
+    !noDiscount && ask !== null && ceil !== null && ask < ceil
       ? t(locale, f.promises.askVaries ? 'factory.promise.askVaries' : 'factory.promise.ask', { ask, name })
       : null,
   ].filter((x): x is string => x !== null);

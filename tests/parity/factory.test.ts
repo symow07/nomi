@@ -48,8 +48,11 @@ const complete: FactoryView = {
   readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
   rehearsal: { findings: [], violations: [], probesRun: 26, productsChecked: 12, productsTotal: 12 },
+  // A discount she wrote: without one, nothing ever comes off and the ceiling
+  // and ask line limit nothing (phase 9 — see the no-discount test below).
   prices: { currency: 'USD', businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 },
-    products: [], unanswered: 0, volume: [] },
+    products: [], unanswered: 0,
+    volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 10000, discountPct: 4, asksFirst: false }] },
 };
 
 /** A factory on its first day. */
@@ -166,8 +169,22 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const none = withoutIsolates(renderFactory({ ...complete, promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false } }, 'en'));
     expect(none).not.toContain('never quotes below');
     expect(none).not.toContain('never discounts more than');
-    expect(none).toContain('You have not confirmed anything');
+    expect(none).toContain(shown('en', 'factory.promise.none'));
     expect(none).toContain(shown('en', 'factory.promise.never'));       // the rule holds even with nothing allowed
+  });
+
+  it('phase 9 · with no discount written, it says nothing comes off — never a ceiling that limits nothing', () => {
+    // computeQuote takes a discount only from a rule she wrote; the price page
+    // says the same, so the two pages can no longer disagree.
+    for (const l of LOCALES) {
+      const rules = withoutIsolates(renderFactory({ ...complete, prices: { ...complete.prices, volume: [] } }, l))
+        .match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
+      expect(rules, l).toContain(shown(l, 'factory.promise.noDiscount'));
+      expect(rules, l).not.toContain(shown(l, 'factory.promise.ask', { ask: 5 }));
+    }
+    const en = withoutIsolates(renderFactory({ ...complete, prices: { ...complete.prices, volume: [] } }, 'en'));
+    expect(en).toContain('offers no discount: you have not written one.');
+    expect(en).not.toContain('never discounts more than');
   });
 
   it('connection says which of the four states it is in, and what that means', () => {
