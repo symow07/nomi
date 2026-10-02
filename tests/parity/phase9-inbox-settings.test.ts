@@ -9,6 +9,10 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
+import { renderCalendar } from '../../src/api/web/calendar.js';
+import { type CalendarEntry, type CalendarView } from '../../src/db/calendar.js';
+import { dayKey, dayStart, addDays } from '../../src/core/owner/i18n/format.js';
+import { money as showMoney } from '../../src/api/web/values.js';
 
 /**
  * Phase 9, round two — the Customers list, an order, the calendar, Results and
@@ -192,5 +196,159 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
       const page = withWorkspace({ ...SCOPE, needsYou: 3 }, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/inbox', bodyHtml: '' }));
       expect(withoutIsolates(page), l).toContain(`<span class="navcount" aria-hidden="true">${shown(l, 'nav.waiting', { n: 3 })}</span>`);
     }
+  });
+});
+
+/* ── The calendar (V1-199–V1-204, inbox-calendar-new-08/10–15, missed-16–20) ── */
+
+const CAL_NOW = new Date('2026-10-02T09:30:00Z');            // Fri 17:30 in the business's zone
+const CAL_ZONE = 'Asia/Shanghai';
+const calAt = (ymd: string, hhmm: string): Date => new Date(dayStart(ymd, CAL_ZONE).getTime() + (Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3))) * 60_000);
+const CAL_TODAY = dayKey(CAL_NOW, CAL_ZONE);
+const MONDAY = addDays(CAL_TODAY, -4);
+const NADIA = { id: '11111111-1111-4111-8111-111111111111', name: 'Nadia Rahimi', country: 'AE' };
+const ANNA = { id: '22222222-2222-4222-8222-222222222222', name: 'Anna Kowalska', country: 'PL' };
+const C1 = '33333333-3333-4333-8333-333333333333';
+const ce = (x: Partial<CalendarEntry> & Pick<CalendarEntry, 'category' | 'kind' | 'at' | 'source'>): CalendarEntry => ({
+  day: dayKey(x.at, CAL_ZONE), allDay: false, conversationId: C1, orderId: null, buyer: NADIA, identity: null, detail: {}, ...x,
+});
+const DATES: CalendarEntry[] = [
+  ce({ category: 'samples', kind: 'sample_asked', at: calAt(MONDAY, '09:12'), source: { table: 'sample_requests', id: 's1', column: 'requested_at' } }),
+  ce({ category: 'negotiation', kind: 'price_worked_out', at: calAt(addDays(MONDAY, 2), '02:19'), detail: { price: usd(1.95), quantity: 2000 },
+    source: { table: 'quotes', id: 'q1', column: 'created_at' } }),
+  ce({ category: 'orders', kind: 'order_state', at: calAt(addDays(MONDAY, 3), '17:53'), orderId: 'o1', buyer: ANNA,
+    detail: { orderReference: 'USAB-de300000-0001', orderState: 'confirmed' }, source: { table: 'order_updates', id: 'u1', column: 'at' } }),
+  ce({ category: 'negotiation', kind: 'reply_due', at: calAt(CAL_TODAY, '19:00'), source: { table: 'handoffs', id: 'h1', column: 'sla_deadline_at' } }),
+];
+const calView = (from: string, to: string, over: Partial<CalendarView> = {}): CalendarView => ({
+  from, to, today: CAL_TODAY, category: null, buyer: null, buyers: [NADIA, ANNA],
+  categories: ['samples', 'orders', 'negotiation'], entries: DATES.filter((x) => x.day >= from && x.day < to), ...over,
+});
+const drawCal = (l: Locale, view: 'week' | 'month' | 'day' | 'list', over: Partial<CalendarView> = {}): string => withZone(CAL_ZONE, () => withoutIsolates(
+  view === 'week' ? renderCalendar(calView(MONDAY, addDays(MONDAY, 7), over), l, { view, at: CAL_TODAY, now: CAL_NOW })
+    : view === 'month' ? renderCalendar(calView('2026-09-28', '2026-11-02', over), l, { view, at: '2026-10-01', now: CAL_NOW })
+    : view === 'day' ? renderCalendar(calView(addDays(MONDAY, 2), addDays(MONDAY, 3), over), l, { view, at: addDays(MONDAY, 2), now: CAL_NOW })
+    : renderCalendar(calView(addDays(CAL_TODAY, -7), addDays(CAL_TODAY, 14), over), l, { view, now: CAL_NOW })));
+const VIEWS4 = ['week', 'month', 'day', 'list'] as const;
+const UNIT = { week: 'week', month: 'month', day: 'day', list: 'list' } as const;
+
+describe('the calendar', () => {
+  it('V1-199 · inbox-calendar-missed-16 · every view moves the same way, in words, under the name of the period', () => {
+    for (const l of LOCALES) for (const v of VIEWS4) {
+      const h = drawCal(l, v);
+      const move = /<nav class="cal-move"[^>]*>([\s\S]*?)<\/nav>/.exec(h)?.[1] ?? '';
+      expect(move, `${l}/${v}`).toContain(`<span class="go" aria-hidden="true">‹</span>${esc(t(l, `calendar.prev.${UNIT[v]}` as MessageKey))}</a>`);
+      expect(move, `${l}/${v}`).toContain(`${esc(t(l, `calendar.next.${UNIT[v]}` as MessageKey))}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(move, `${l}/${v}`).toContain(`<a class="tab cal-today" href=`);
+      expect(h.indexOf('<p class="cal-span">'), `${l}/${v}`).toBeLessThan(h.indexOf('<nav class="cal-move"'));
+      expect(h.indexOf('<nav class="cal-move"'), `${l}/${v}: at the top`).toBeLessThan(h.indexOf('cal-legend'));
+      // the same lede and legend on every view; no second way of moving at the foot of the list
+      expect(h, `${l}/${v}`).toContain(`<p class="muted cal-lede">${esc(t(l, 'calendar.lede'))}</p>`);
+      expect(h, `${l}/${v}`).toContain('<p class="cal-legend small">');
+      expect(h, `${l}/${v}`).not.toContain('<nav class="pager"');
+    }
+  });
+
+  it('V1-200 · inbox-calendar-new-14 · the legend draws each mark it explains — ✦, owed, done — and its edges are swatches, not pills', () => {
+    for (const l of LOCALES) {
+      const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'day'))![1]!;
+      expect(legend, l).toContain(`<span class="as" aria-hidden="true">✦</span> ${shown(l, 'calendar.legend.assistant')}`);
+      expect(legend, l).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${shown(l, 'calendar.legend.owed')}`);
+      expect(legend, l).toContain(`<span class="dot ok" aria-hidden="true">✓</span> ${shown(l, 'calendar.legend.done')}`);
+      expect(legend, l).toContain('<span class="cal-sw solid" aria-hidden="true"></span>');
+      expect(legend, l).not.toContain('wk-e');
+    }
+    expect(CSS).toMatch(/\.cal-sw \{[^}]*border-radius:2px; \}/);
+    // the lists' rows carry the solid edge the legend names, as dashed ones carry theirs
+    expect(CSS).toMatch(/\.dl-row\.solid \.dl-go \{ border-inline-start:2px solid/);
+    expect(CSS).toMatch(/\.row\.solid \.grow \{ border-inline-start:2px solid/);
+  });
+
+  it('V1-201 · inbox-calendar-new-13 · done is a ✓ as well as grey, in every view; in Arabic an order is not "a request"', () => {
+    for (const l of LOCALES) {
+      const day = drawCal(l, 'day');
+      expect(day, l).toMatch(/<li class="dl-row solid done"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span><span class="sr">/);
+      expect(drawCal(l, 'week'), l).toMatch(/<a class="wk-e solid past" data-src="quotes:q1"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span>/);
+      // a reply still owed is never greyed or ticked, whatever the hour
+      expect(drawCal(l, 'week'), l).toMatch(/<a class="wk-e solid" data-src="handoffs:h1"[^>]*>[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
+    }
+    expect(t('ar', 'calendar.kind.order_state')).toBe('طلب شراء');
+    expect(t('ar', 'calendar.kind.order_state')).not.toBe(t('ar', 'calendar.kind.sample_asked').split(' ')[0]);
+  });
+
+  it('V1-202 · inbox-calendar-new-15 · one fold chooses a kind or a customer, offering the same kinds in every view', () => {
+    const options = (h: string) => [...(/<select name="category">([\s\S]*?)<\/select>/.exec(h)?.[1] ?? '').matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
+    for (const l of LOCALES) {
+      const all = VIEWS4.map((v) => drawCal(l, v));
+      for (const h of all) {
+        expect(h, l).not.toContain('cal-tabs');
+        expect(h, l).toContain(`<details class="cal-filter">\n      <summary>${shown(l, 'calendar.filter.choose')}</summary>`);
+        expect(options(h), l).toEqual(['', 'promised', 'samples', 'orders', 'negotiation', 'yours', 'closures', 'conversations']);
+      }
+      // the views' tabs are the only row of pills
+      expect([...all[0]!.matchAll(/<nav class="tabs/g)], l).toHaveLength(1);
+    }
+    const chosen = drawCal('en', 'week', { category: 'samples', buyer: NADIA });
+    expect(chosen).toContain('<summary>Showing: Samples · Nadia Rahimi · UAE</summary>');
+  });
+
+  it('V1-203 · adding a date is near the top of every view, above the dates', () => {
+    for (const v of VIEWS4) {
+      const h = drawCal('en', v);
+      const body = Math.min(...['<table', '<ol class="dl"', '<h2 class="cal-day"'].map((s) => h.indexOf(s)).filter((i) => i >= 0));
+      expect(h.indexOf('<details class="cal-add"'), v).toBeGreaterThan(0);
+      expect(h.indexOf('<details class="cal-add"'), v).toBeLessThan(body);
+    }
+  });
+
+  it('inbox-calendar-new-08 · a card\'s kind breaks into even lines, never leaving one word alone', () => {
+    expect(CSS).toMatch(/\.wk-k, \.wk-t \{ overflow-wrap:break-word; text-wrap:balance; \}/);
+    expect(CSS).toMatch(/\.wk-e b \{[^}]*text-wrap:balance;/);
+  });
+
+  it('inbox-calendar-new-11 · inbox-calendar-new-12 · a row says its kind once, and a quantity never leaves its number', () => {
+    for (const l of LOCALES) {
+      const row = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(drawCal(l, 'day'))![0];
+      const kind = t(l, 'calendar.kind.price_worked_out');
+      expect(row.split(kind).length - 1, l).toBe(1);
+      expect(row, l).toContain(`${esc(kind)} · <bdi>${esc(t(l, 'calendar.detail.price', { price: withZone(CAL_ZONE, () => withoutIsolates(showMoney(l, usd(1.95)))), qty: l === 'zh' ? '2000' : '2,000' }))}</bdi>`);
+      expect(t(l, 'calendar.detail.price'), l).toMatch(/ \{qty\}$/);
+    }
+  });
+
+  it('inbox-calendar-missed-17 · inbox-calendar-missed-18 · the list names a date as the other views do, with no record code', () => {
+    for (const l of LOCALES) {
+      const h = drawCal(l, 'list');
+      const order = /<li class="row[^"]*" data-src="order_updates:u1"[\s\S]*?<\/li>/.exec(h)![0];
+      expect(order, l).not.toContain('USAB-de300000-0001');
+      expect(order, l).toContain(`${esc(t(l, 'calendar.kind.order_state'))} · <bdi>${esc(t(l, 'order.status.confirmed' as MessageKey))}</bdi>`);
+      const price = /<li class="row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(h)![0];
+      expect(price, l).toContain(`<span class="as" aria-hidden="true">✦</span> ${esc(t(l, 'calendar.kind.price_worked_out'))}`);
+      expect(price, l).not.toContain(`>${esc(t(l, 'calendar.cat.negotiation'))} · `);
+    }
+  });
+
+  it('inbox-calendar-missed-19 · no flag beside some customers and not others, in the rows or the customer choice', () => {
+    for (const l of LOCALES) for (const v of VIEWS4) expect(drawCal(l, v), `${l}/${v}`).not.toMatch(/[\u{1F1E6}-\u{1F1FF}]/u);
+  });
+
+  it('inbox-calendar-missed-20 · the list keeps the prose measure, its head included', () => {
+    const h = drawCal('en', 'list');
+    expect(h.startsWith('<div class="measure-prose"><div class="cal-top">')).toBe(true);
+    expect(drawCal('en', 'week').startsWith('<div class="measure-prose">')).toBe(false);
+  });
+
+  it('V1-204 · inbox-calendar-new-10 · the week has a row only for an hour that holds a date; today is said in a word', () => {
+    const h = drawCal('en', 'week');
+    const hours = [...h.matchAll(/<tr><th scope="row">(\d\d)<\/th>/g)].map((m) => m[1]);
+    expect(hours).toEqual(['02', '09', '17', '19']);
+    expect(h).toMatch(/<th scope="col" class="today" aria-current="date"><a [^>]*>[^<]*<b>2<\/b><\/a><span class="cal-now">Today<\/span><\/th>/);
+    // nothing dated this week: the panel, and no table of empty hours
+    const none = drawCal('en', 'week', { entries: [], categories: [] });
+    expect(none).toContain(`<div class="empty">${t('en', 'calendar.empty.week')}</div>`);
+    expect(none).not.toContain('<table class="wk">');
+    const month = drawCal('en', 'month');
+    expect(month).toMatch(/<td class=" today" aria-current="date">\s*<a class="mo-d" [^>]*>2<\/a><span class="cal-now">Today<\/span>/);
+    expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ border:1\.5px solid var\(--color-ink\);/);
   });
 });

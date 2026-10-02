@@ -104,13 +104,15 @@ describe('the week, by default', () => {
     expect(buttonsAndDoors(html)).toEqual([]);
   });
 
-  it('‹ Today › move a week; in Arabic the same doors, mirrored by the chevrons', () => {
+  it('‹ Last week · This week · Next week › move a week, in words (phase 9, V1-199); in Arabic the same doors, mirrored by the chevrons', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
-    expect(html).toContain(`href="/app/calendar?at=${addDays(TODAY, -7)}" aria-label="Earlier"`);
-    expect(html).toContain(`href="/app/calendar?at=${addDays(TODAY, 7)}" aria-label="Later"`);
-    expect(html).toContain('<a class="cal-today" href="/app/calendar">Today</a>');
+    expect(html).toContain(`<a class="back" href="/app/calendar?at=${addDays(TODAY, -7)}"><span class="go" aria-hidden="true">‹</span>Last week</a>`);
+    expect(html).toContain(`<a class="deeper" href="/app/calendar?at=${addDays(TODAY, 7)}">Next week<span class="go" aria-hidden="true">›</span></a>`);
+    expect(html).toContain('<a class="tab cal-today" href="/app/calendar">This week</a>');
+    // the period's name comes first, as the label of what the doors move
+    expect(html.indexOf('<p class="cal-span">')).toBeLessThan(html.indexOf('<nav class="cal-move"'));
     const ar = draw(week(), 'ar', { view: 'week', at: TODAY, now: NOW });
-    expect(ar).toContain(t('ar', 'calendar.todayDoor'));
+    expect(ar).toContain(t('ar', 'calendar.this.week'));
     expect(ar).toContain('<span class="go" aria-hidden="true">‹</span>');
   });
 

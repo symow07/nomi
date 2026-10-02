@@ -1163,9 +1163,6 @@ const STYLE_PAGES = `
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
 
   /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
-  .cal-tabs { flex-wrap:wrap; }
-  .cal-buyer { margin-bottom:var(--space-12); }
-  .cal-span { margin:var(--space-8) 0 0; color:var(--color-ink-secondary); }
   .cal-day { margin:var(--space-24) 0 0; }
   .cal-when { flex:none; min-width:4.5em; color:var(--color-ink-secondary); font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; }
   .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
@@ -1178,15 +1175,25 @@ const STYLE_PAGES = `
   .cal-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
   .cal-top h1.page { margin:0; }
   .cal-views { margin:0; }
-  .cal-move { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin:var(--space-12) 0; }
-  .cal-move .back, .cal-move .deeper { min-width:44px; justify-content:center; }
+  /* Phase 9 (V1-199) — the period's name, then how to move from it, in words, the same on every view. */
+  .cal-lede { margin:var(--space-8) 0 0; }
+  .cal-period .cal-span { margin:var(--space-12) 0 0; font-weight:600; color:var(--color-ink); font-size:var(--font-size-base); }
+  .cal-move { display:flex; align-items:center; gap:var(--space-4) var(--space-16); flex-wrap:wrap; margin:var(--space-4) 0 var(--space-8); }
   .cal-today { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-12); font-weight:600; font-size:var(--font-size-small); }
-  .cal-move .cal-span { margin:0 var(--space-8); }
-  .cal-legend { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0; }
-  .cal-legend .wk-e { display:inline-block; width:var(--space-24); min-height:var(--space-16); padding:0; margin:0; }
+  /* Phase 9 (V1-200) — the legend draws each mark it explains; an edge is a small square-cornered swatch, not a pill. */
+  .cal-legend { display:flex; align-items:center; gap:var(--space-4) var(--space-16); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0; }
+  .cal-li { display:inline-flex; align-items:center; gap:var(--space-4); }
+  .cal-sw { display:inline-block; inline-size:var(--space-16); block-size:var(--space-12); border:1px solid var(--color-ink-secondary); border-inline-start-width:3px; border-radius:2px; }
+  .cal-sw.dashed { border-style:dashed; }
+  /* Phase 9 (V1-202) — what to show, and adding a date: two folds under the period, above the dates. */
+  .cal-filter, .cal-add { margin:var(--space-4) 0; }
+  .cal-filter summary { cursor:pointer; font-size:var(--font-size-small); min-height:44px; display:flex; align-items:center; gap:var(--space-8); }
+  /* Phase 9 (V1-204, inbox-calendar-new-10) — today said in a word, beside its date. */
+  .cal-now { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); margin-inline-start:var(--space-4); }
   /* Phase 7 — a grid wider than the screen SAYS so: a shade at each edge that
      has more beyond it (it goes when that edge is reached), and a thin bar. */
-  .wk-scroll { overflow-x:auto; margin:var(--space-12) 0; scrollbar-width:thin; scrollbar-color:var(--color-ink-secondary) transparent;
+  /* Phase 9 — positioned, so a screen reader's words inside a date ("Done:") scroll with it and never widen the page. */
+  .wk-scroll { position:relative; overflow-x:auto; margin:var(--space-12) 0; scrollbar-width:thin; scrollbar-color:var(--color-ink-secondary) transparent;
     overscroll-behavior-x:contain; background-color:var(--color-surface);
     background-image:linear-gradient(to right, var(--color-surface), transparent), linear-gradient(to left, var(--color-surface), transparent),
       linear-gradient(to right, var(--color-ink-secondary), transparent), linear-gradient(to left, var(--color-ink-secondary), transparent);
@@ -1211,16 +1218,21 @@ const STYLE_PAGES = `
   .wk-e.dashed { border-style:dashed; }
   .wk-e.past { color:var(--color-ink-secondary); border-color:var(--color-border); }
   /* Phase 7 — a name is never cut: it wraps (a Latin name inside Arabic too, isolated by its bdi). */
-  .wk-e b { font-weight:600; overflow-wrap:break-word; }
-  .wk-k, .wk-t { overflow-wrap:break-word; }
+  .wk-e b { font-weight:600; overflow-wrap:break-word; text-wrap:balance; }
+  /* Phase 9 (inbox-calendar-new-08) — a kind that wraps breaks into even lines, never one word left alone. */
+  .wk-k, .wk-t { overflow-wrap:break-word; text-wrap:balance; }
   .wk-t { font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
   a.wk-e:hover, a.wk-e:focus-visible { background:var(--color-paper); }
   .cal-rm { margin:var(--space-4) 0 0; }
   .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
   .row.dashed .grow { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  /* Phase 9 (inbox-calendar-new-14) — a date from a conversation has its solid edge in the lists too, as the legend says. */
+  .row.solid .grow { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  .row.done { color:var(--color-ink-secondary); }
+  .row.done .cal-head b { font-weight:400; }
   .mo td { height:7em; }
   .mo td.other { background:var(--color-paper); }
-  .mo td.today .mo-d { box-shadow:inset 0 -2px 0 var(--color-ink); font-weight:600; }
+  .mo td.today .mo-d { border:1.5px solid var(--color-ink); border-radius:var(--radius-chip); font-weight:600; }
   .mo-d { display:inline-flex; min-width:1.75em; min-height:1.75em; align-items:center; justify-content:center;
     font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; margin-bottom:var(--space-4); }
   .mo-more { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -1238,6 +1250,7 @@ const STYLE_PAGES = `
   .dl-body { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .dl-body b { font-weight:600; overflow-wrap:break-word; }
   .dl-row.dashed .dl-go { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  .dl-row.solid .dl-go { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
   /* Done is greyed, never hidden. */
   .dl-row.done { color:var(--color-ink-secondary); }
   .dl-row.done .dl-body b { font-weight:400; }
