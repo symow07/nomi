@@ -188,7 +188,8 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 /** ── Renderer (pure, mobile-first, localized) ─────────────────────────────── */
 
 const GROWTH_ICON: Record<GrowthKind, string> = {
-  promote: '⭐', revoke: '⚠️', self_demote: '○', spotcheck_pass: '✓', spotcheck_improve: '⚠️', spotcheck_issue: '⚠️', learned_edit: '⭐',
+  // Phase 4 — the four signals' shapes, not pictures in their own colours: ✓ it is so, ○ it waits, ✕ it went wrong.
+  promote: '✓', revoke: '✕', self_demote: '○', spotcheck_pass: '✓', spotcheck_improve: '○', spotcheck_issue: '✕', learned_edit: '✓',
 };
 
 const list = (title: string, mark: string, items: readonly string[], cls: string, emptyLabel: string): string =>

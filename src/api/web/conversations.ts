@@ -7,7 +7,7 @@ import { orderStatusName, capabilityName, type MessageKey } from '../../core/own
 import { t, assistantName } from './say.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import { buyerWho, channelName, productName } from './inbox.js';
-import { esc, deeper, back, conversationUrl } from './layout.js';
+import { esc, deeper, back, conversationUrl, signalMark, type Signal } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
 import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
@@ -252,9 +252,19 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
 
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
 
-const TL_ICON: Record<MilestoneKind, string> = {
-  buyer_text: '💬', buyer_image: '💬', reply: '💠', quote: '💰', order: '✅',
-  owner_approved: '👤', owner_edited: '👤', owner_skipped: '👤', lead_hot: '⭐', handoff: '🙋',
+/**
+ * Phase 4 — the timeline's marks are the product's own, not pictures in their
+ * own colours: ✦ the assistant did it, ● you did, ✓ it is done (an order),
+ * ○ it waits for you (a hand-off), and a plain • for what the customer did.
+ * The words of each line say it; the mark only lets the eye run down them.
+ */
+const TL_MARK: Record<MilestoneKind, Signal | 'you' | 'them'> = {
+  buyer_text: 'them', buyer_image: 'them', reply: 'assistant', quote: 'assistant', order: 'ok',
+  owner_approved: 'you', owner_edited: 'you', owner_skipped: 'you', lead_hot: 'them', handoff: 'waiting',
+};
+const tlMark = (k: MilestoneKind): string => {
+  const m = TL_MARK[k];
+  return m === 'you' ? '<span aria-hidden="true">●</span>' : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
 };
 const TL_CLASS: Record<MilestoneKind, string> = {
   buyer_text: 'buyer', buyer_image: 'buyer', reply: 'reply', quote: 'quote', order: 'order',
@@ -262,7 +272,7 @@ const TL_CLASS: Record<MilestoneKind, string> = {
 };
 
 const statusPill = (label: string, tone: Tone): string =>
-  `<span class="pill ${tone}">${tone === 'warn' ? '● ' : ''}${esc(label)}</span>`;
+  `<span class="pill ${tone}">${esc(label)}</span>`;
 
 /**
  * One history line, as markup: the sentence in the page's language, and what
@@ -436,7 +446,7 @@ export function renderCustomerFile(
 
   const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
     ${f.timeline.length
-      ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
+      ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${tlMark(m.kind)}</span>
           <div><div class="tx">${milestoneHtml(locale, m, f.buyer)}</div>${m.at ? `<div class="muted ts">${esc(show.when(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
         ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(conversationUrl(f.conversationId), t(locale, 'conv.tl.whole'))}`
       : `<div class="empty muted">${esc(t(locale, 'conv.tl.empty'))}</div>`}</div>`;

@@ -22,7 +22,7 @@ import { t, assistantName, outreachShown } from './say.js';
 
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
-import { back, deeper, esc } from './layout.js';
+import { back, deeper, esc, signalMark } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { connectedChannels } from '../../db/connectedChannels.js';
 import { callingCode } from '../../core/channel/callingCodes.js';
@@ -130,7 +130,7 @@ function reopenBlock(locale: Locale, rows: readonly { readonly language: string;
     <p class="muted ch-desc">${esc(t(locale, 'channel.wa.template.lede'))}</p>
     ${rows.length ? `<ul class="rows">${rows.map((r) => `<li class="row"><bdi>${esc(TEMPLATE_LANGUAGE[r.language] ?? r.language)}</bdi>
       <span class="muted"> · ${esc(t(locale, templateStatusKey(r.status)))}</span></li>`).join('')}</ul>` : ''}
-    ${!owner ? '' : `${open ? `<form method="post" action="/app/channels/whatsapp/templates/submit" style="display:inline"><button class="btn send" type="submit">${esc(t(locale, 'channel.wa.template.submit'))}</button></form>` : ''}
+    ${!owner ? '' : `${open ? `<form method="post" action="/app/channels/whatsapp/templates/submit" style="display:inline"><button class="btn" type="submit">${esc(t(locale, 'channel.wa.template.submit'))}</button></form>` : ''}
     ${rows.length ? `<form method="post" action="/app/channels/whatsapp/templates/check" style="display:inline"><button class="btn" type="submit">${esc(t(locale, 'channel.wa.template.check'))}</button></form>` : ''}`}
   </div>`;
 }
@@ -418,7 +418,8 @@ function problemBlock(locale: Locale, code: Exclude<ChannelProblem, null>): stri
   const youKey = `channel.problem.${code}.youDo` as MessageKey;
   const hasYou = code !== 'send_failing';
   const youDo = hasYou ? t(locale, youKey) : '';
-  return `<div class="prob">${esc(what)}<br>${esc(doing)}${hasYou ? `<br><b>${esc(youDo)}</b>` : ''}</div>`;
+  // Phase 4 — waiting for the owner (○ amber) where there is something to do; otherwise it did not happen (✕ red).
+  return `<div class="prob${hasYou ? '' : ' bad'}">${esc(what)}<br>${esc(doing)}${hasYou ? `<br><b>${esc(youDo)}</b>` : ''}</div>`;
 }
 
 /**
@@ -487,7 +488,7 @@ function domainForm(locale: Locale, domain: SendingDomain | null): string {
         placeholder="${esc(t(locale, 'domain.field.placeholder'))}" /></label>
     <label class="fld"><span class="muted">${esc(t(locale, 'domain.field.selector'))}</span>
       <input name="selector" maxlength="63" value="${esc(domain?.dkimSelector ?? '')}" /></label>
-    <button class="btn send" type="submit">${esc(t(locale, 'domain.save'))}</button>
+    <button class="btn" type="submit">${esc(t(locale, 'domain.save'))}</button>
   </form>`;
 }
 
@@ -575,9 +576,9 @@ export function renderReach(
     const loginButton = (key: 'reach.inbound.connectMeta' | 'reach.inbound.connect') => viewer.isOwner
       ? (link?.connectHref
         ? `<form method="get" action="${esc(link.connectHref)}" class="inline">
-            <button class="btn send" type="submit">${esc(t(locale, key))}</button></form>`
+            <button class="btn" type="submit">${esc(t(locale, key))}</button></form>`
         : `<form method="post" action="/app/channels/${esc(channel)}/connect" class="inline">
-            <button class="btn send" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`)
+            <button class="btn" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`)
       : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
     const connect = cap.coldInitiate !== 'never' || !cap.availableHere || !link?.configured ? ''
       : link.connected
@@ -624,7 +625,7 @@ export function renderReach(
         <form method="post" action="/app/channels/outreach" class="inline">
           <input type="hidden" name="channel" value="${esc(channel)}" />
           <input type="hidden" name="enabled" value="${on ? 'false' : 'true'}" />
-          <button class="btn ${on ? 'stop' : 'send'}" type="submit" onclick="return confirm(this.dataset.confirm)"
+          <button class="btn${on ? ' stop' : ''}" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, on ? 'outreach.turnOffConfirm' : 'outreach.turnOnConfirm', {
               channel: t(locale, `reach.channel.${channel}` as MessageKey) }))}"
             >${esc(t(locale, on ? 'outreach.turnOff' : 'outreach.turnOn'))}</button>
@@ -683,7 +684,7 @@ export function renderMetaPanel(review: MetaReview, locale: Locale): string {
     : t(locale, 'meta.panel.reviewing');
   return `<div class="block">
     <h2>${esc(t(locale, 'meta.panel.title'))}</h2>
-    <p class="stateline"><span class="dot ${review.state === 'approved' ? 'ok' : 'warn'}" aria-hidden="true">●</span> ${esc(said)}</p>
+    <p class="stateline">${signalMark(review.state === 'approved' ? 'ok' : 'waiting')} ${esc(said)}</p>
     <h3>${esc(t(locale, 'meta.rules.title'))}</h3>
     <ul class="muted">
       <li>${esc(t(locale, 'meta.rules.window'))}</li>
@@ -741,7 +742,8 @@ export function renderChannels(
            <div class="muted ch-desc">${esc(t(locale, 'channel.connect.configured', { name: assistantName(locale) }))}</div>`
         : deeper('/app/channels/whatsapp/connect', t(locale, 'channel.action.connect'));
 
-  const pill = w.connected ? `${esc(t(locale, 'channel.status.connected'))} ✓` : esc(t(locale, `channel.status.${w.status}` as MessageKey));
+  // Phase 4 — the pill's ✓ is the stylesheet's (`.pill.ok`), not a second one in the words.
+  const pill = w.connected ? esc(t(locale, 'channel.status.connected')) : esc(t(locale, `channel.status.${w.status}` as MessageKey));
 
   const whatsappCard = `
     <div class="card ch">
@@ -770,7 +772,7 @@ export function renderChannels(
     ${viewer.isOwner ? `<form method="post" action="/app/settings/owner-phone" class="ownerform">
       <label class="muted" for="ownerphone">${esc(t(locale, 'settings.alerts.label'))}</label>
       <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(phonePlaceholder(locale, data.country))}" />
-      <button class="btn send">${esc(t(locale, 'settings.alerts.save'))}</button>
+      <button class="btn">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>` : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`}
     <p class="muted" style="font-size:var(--font-size-caption)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
     ${deeper('/app/settings/alerts', t(locale, 'meta.phoneAlerts'))}

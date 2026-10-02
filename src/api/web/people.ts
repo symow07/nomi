@@ -260,7 +260,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
   // A4 — who is here. Said in words, never by colour alone.
   const online = v.people.filter((p) => isOnline(p, now)).length;
   const presence = (p: TeamMember): string => isOnline(p, now)
-    ? `<span class="pill ok">${esc(t(locale, 'people.online'))}</span>`
+    ? `<span class="pill owner">${esc(t(locale, 'people.online'))}</span>`
     : `<span class="muted">${esc(p.lastSeenAt
         ? t(locale, 'people.lastSeen', { when: show.when(locale, p.lastSeenAt, now) })
         : t(locale, 'people.notSeen'))}</span>`;
@@ -288,7 +288,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
         ${namedLikeBusiness(p.name, v.business) ? `<form method="post" action="/app/settings/people/${esc(p.id)}/name" class="pform askname">
           <label class="fld"><span>${esc(t(locale, p.isOwner ? 'people.name.askYou' : 'people.name.askThem'))}</span>
             <input name="name" required maxlength="60" /></label>
-          <button class="btn send" type="submit">${esc(t(locale, 'people.name.save'))}</button>
+          <button class="btn" type="submit">${esc(t(locale, 'people.name.save'))}</button>
         </form>` : ''}
       </li>`).join('')}</ul>
       <form method="post" action="/app/settings/people" class="pform">

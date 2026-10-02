@@ -213,7 +213,7 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
   const allPass = trust.checks.every((c) => c.pass);
   const deliveryKey = trust.appliedMode === 'auto' ? 'sandbox.xray.deliveryAuto' : trust.appliedMode === 'draft' ? 'sandbox.xray.deliveryDraft' : 'sandbox.xray.deliveryNone';
   const rows = trust.checks.map((c) =>
-    `<li class="chk ${c.pass ? 'ok' : 'bad'}"><span class="mk">${c.pass ? '✓' : '✗'}</span>
+    `<li class="chk ${c.pass ? 'ok' : 'bad'}"><span class="mk">${c.pass ? '✓' : '✕'}</span>
        <span class="lbl">${esc(invLabel(locale, c.invariant))}</span>
        <span class="dt muted">${esc(c.detail)}</span></li>`).join('');
   // CC-13 — each label and its value with the locale's own colon ("Skill: …", "技能：…"),
@@ -222,7 +222,7 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
     `<span class="chip">${esc(labelled(locale, t(locale, 'sandbox.xray.skill'), capabilityName(locale, trust.capability)))}</span>`,
     `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(labelled(locale, t(locale, 'sandbox.xray.delivery'), t(locale, deliveryKey as MessageKey)))}</span>`,
     trust.quote ? `<span class="chip"><bdi>${esc(show.money(locale, quoteUnit(trust.quote)))}/${esc(unitLabel(locale, trust.quote.unit ?? 'pcs'))}</bdi></span>` : '',
-    trust.guardViolations > 0 ? `<span class="chip warn">⚠ ${trust.guardViolations}</span>` : '',
+    trust.guardViolations > 0 ? `<span class="chip warn">${trust.guardViolations}</span>` : '',
     trust.scenarioId
       ? `<span class="chip badge">${esc(labelled(locale, t(locale, 'sandbox.scenario.badge'), caseName(locale, trust.scenarioId)))}</span>`
       : '',
@@ -247,7 +247,12 @@ const parseTotal = (raw: unknown, currency: Currency): number | null => {
 };
 export { parseTotal };
 
-function renderComposer(locale: Locale, prefill = '', totals = true): string {
+/**
+ * Phase 4 — the customer's box is the page's primary act only while nothing
+ * else waits for the owner: a reply to approve, or a conversation the owner
+ * holds, takes the one fill, and the box is outlined.
+ */
+function renderComposer(locale: Locale, prefill = '', totals = true, primary = true): string {
   // M16.4b: the owner reads an owner-facing name; the engineering title in
   // src/trust/scenarios.ts is unchanged and stays internal (tests, CI). A
   // situation sends its customer's words, and the assistant answers them live.
@@ -271,7 +276,7 @@ function renderComposer(locale: Locale, prefill = '', totals = true): string {
       <input id="expected" name="expected" inputmode="decimal" dir="ltr" autocomplete="off" />
       <p class="muted">${esc(t(locale, 'practice.total.hint'))}</p>` : ''}
       <div class="msgacts">
-        <button class="btn send" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
+        <button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
     </form>
   </div>`;
@@ -283,10 +288,10 @@ function renderComposer(locale: Locale, prefill = '', totals = true): string {
  *  conversation, resolved server-side. */
 function sandboxTakeoverCard(view: SandboxView, locale: Locale): string {
   if (!view.hasConversation) return '';
-  const take = `<form method="post" action="/app/sandbox/takeover" class="inline"><button class="btn ${view.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+  const take = `<form method="post" action="/app/sandbox/takeover" class="inline"><button class="btn" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
   switch (view.ownership) {
     case 'AI':
-      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${take}</div>`;
+      return `<div class="card takeover"><span class="pill as">${esc(t(locale, 'takeover.status.ai'))}</span>${take}</div>`;
     case 'WAITING_HUMAN': {
       // P4 — why it came to you, and whether the customer heard anything: the
       // newest line is theirs, so nothing was sent after it.
@@ -334,7 +339,7 @@ function practiceModeCard(settings: PracticeSettings, locale: Locale): string {
 export function renderPractice(report: PracticeReport, locale: Locale): string {
   const rows = report.cases.map((c) => `
     <li class="pcase ${c.passed ? 'ok' : 'bad'}">
-      <span class="pmark">${c.passed ? '✓' : '✗'}</span>
+      <span class="pmark">${c.passed ? '✓' : '✕'}</span>
       <span class="ptitle">${esc(t(locale, `sandbox.case.${c.id}` as MessageKey))}</span>
     </li>`).join('');
   return `<div class="card">
@@ -373,7 +378,7 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
   const money = (n: number, currency: string | null) =>
     show.money(locale, { amount: n, currency: parseCurrency(currency ?? '') ?? c.currency ?? 'USD' });
   const totals = c.totals.map((x) => `<li class="chk ${x.agreed === true ? 'ok' : x.agreed === false ? 'bad' : ''}"><span class="mk" aria-hidden="true">${
-    x.agreed === true ? '✓' : x.agreed === false ? '✗' : '○'}</span><span class="lbl">${esc(
+    x.agreed === true ? '✓' : x.agreed === false ? '✕' : '○'}</span><span class="lbl">${esc(
       x.quoted === null
         ? t(locale, 'practice.total.waiting', { expected: money(x.expected, x.currency) })
         : t(locale, x.agreed ? 'practice.total.agreed' : 'practice.total.differs',
@@ -439,7 +444,8 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: 
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${sandboxTakeoverCard(view, locale)}
     ${renderTrust(view.lastTurn, locale)}
-    ${renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true)}
+    ${renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true,
+      view.ownership !== 'OWNER_CONTROLLED' && !draftCard.trim())}
     ${opts.checklist ? checklistCard(opts.checklist, locale) : ''}`;
 
   return `

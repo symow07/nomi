@@ -565,7 +565,7 @@ function volumeSection(
         <input name="minQty" inputmode="numeric" required />${err('minQty')}</label>
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.discount'))}</span>
         <input name="discountPct" inputmode="decimal" required />${err('discountPct')}</label>
-      <button class="btn send" type="submit">${esc(t(locale, 'prices.volume.add'))}</button>
+      <button class="btn" type="submit">${esc(t(locale, 'prices.volume.add'))}</button>
     </form>
   </section>`;
 }

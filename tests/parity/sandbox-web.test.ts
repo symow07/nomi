@@ -140,7 +140,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
       checks: [{ invariant: 'noUnsupportedClaim', pass: false, detail: 'LEAKED: CE certified' }],
     }) }), 'en', { flash: null });
     expect(failing).toContain(t('en', 'sandbox.trust.someFail'));
-    expect(failing).toContain('✗');
+    expect(failing).toContain('✕');
   });
 
   it('a scenario turn is badged with its owner-facing name', () => {

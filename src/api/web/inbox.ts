@@ -17,7 +17,7 @@ import { formatList, labelled } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
-import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT } from './layout.js';
+import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -978,8 +978,9 @@ export async function loadConversationDetail(
 // The conversation's own state — only meaningful while SHE holds it. Once a
 // human is involved, `statusOf` calls every assigned conversation 'paused',
 // which contradicts the ownership the page states; ownership is the truth.
+// Phase 4 — waiting is ○ amber, done is ✓ green; paused is neither, and says so in grey.
 const statusPill = (locale: Locale, status: InboxStatus, needs: boolean): string =>
-  `<span class="pill ${needs ? 'warn' : 'ok'}">${needs ? '● ' : ''}${esc(t(locale, `inbox.status.${status}` as MessageKey))}</span>`;
+  `<span class="pill ${needs ? 'warn' : status === 'paused' ? 'muted' : 'ok'}">${esc(t(locale, `inbox.status.${status}` as MessageKey))}</span>`;
 
 /**
  * The buyer, in one inline run: flag, name, country. The name is isolated, so
@@ -1458,7 +1459,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
 
   switch (d.ownership) {
     case 'AI':
-      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
+      return `<div class="card takeover"><span class="pill as">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
     case 'WAITING_HUMAN':
       return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}${handToForm}</div>`;
     case 'OWNER_CONTROLLED':
@@ -1588,7 +1589,7 @@ function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer)
  * state; the dot only marks it, so nothing rests on colour alone.
  */
 const stateHead = (tone: 'warn' | 'bad', title: string): string =>
-  `<p class="stateline rf-h"><span class="dot ${tone}" aria-hidden="true">●</span> <b>${esc(title)}</b></p>`;
+  `<p class="stateline rf-h">${signalMark(tone === 'warn' ? 'waiting' : 'failed')} <b>${esc(title)}</b></p>`;
 
 /**
  * G5b — a reply that waited past the day its channel allows. It was never
@@ -1665,7 +1666,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     esc(t(locale, 'card.drafted', { name }))}</span>${channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>`;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
-  const waits = (sentence: string) => `<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>${
+  const waits = (sentence: string) => `<p class="stateline" role="note">${signalMark('waiting')} <b>${
     esc(t(locale, 'card.waiting'))}</b> ${esc(sentence)}</p>`;
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
@@ -1756,7 +1757,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     ? `<span>${esc(t(locale, 'card.window', { channel, time: show.until(locale, until, now) }))}</span>` : '';
   // CH5 — the window's clock: under two hours left, the card says so first, in words.
   const closing = channel && until && until > now && until.getTime() - now.getTime() <= CLOSING_SOON_MS
-    ? `<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>${esc(t(locale, 'card.closingSoon'))}</b> ${
+    ? `<p class="stateline" role="note">${signalMark('waiting')} <b>${esc(t(locale, 'card.closingSoon'))}</b> ${
         esc(t(locale, 'card.closingIn', { channel, left: show.timeLeft(locale, until.getTime() - now.getTime()) }))}</p>`
     : '';
 

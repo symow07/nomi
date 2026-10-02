@@ -3,7 +3,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { dayStart } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
-import { esc, deeper, conversationUrl } from './layout.js';
+import { esc, deeper, conversationUrl, signalMark } from './layout.js';
 import { buyersHref, channelName, productName, customerRow, type InboxList, type ConversationSummary, type InboxFilter } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
@@ -117,9 +117,9 @@ export function renderCustomerPanel(
   const act = p.activity.map((a) => {
     const mark = MARK[a.kind];
     const glyph = mark === 'as' ? '<span class="as" aria-hidden="true">✦</span>'
-      : mark === 'you' ? '<span class="pn-you" aria-hidden="true">●</span>' : '<span class="pn-none" aria-hidden="true">○</span>';
+      : mark === 'you' ? '<span class="pn-you" aria-hidden="true">●</span>' : signalMark('waiting');
     const said = a.kind === 'not_reached'
-      ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} <span class="dot bad" aria-hidden="true">●</span>`
+      ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} ${signalMark('failed')}`
       : esc(t(locale, `panel.act.${a.kind}` as MessageKey, { name }));
     return li(`${glyph} ${said}`, esc(a.kind === 'waiting' ? t(locale, 'panel.now') : show.shortWhen(locale, a.at, now)));
   });

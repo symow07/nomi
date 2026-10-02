@@ -37,12 +37,54 @@ under "Decided" below.
 | 1 | The inbox row: 56–72 px, sender · one-line preview · time in a fixed place · a state mark; ≥ 10 on a 1440×900 laptop, ≥ 6 on a phone; RTL and CJK truncation verified | #198 |
 | 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | #199 |
 | 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | #200 |
-| 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | next |
-| 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | — |
+| 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | #201 |
+| 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | next |
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | — |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | — |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
 | 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+
+**Phase 4 (#201) — colour and hierarchy.**
+
+Colour now does **four jobs and no others**, the same on every page, and **never alone** — each job has a shape (tokens.ts `signal`):
+
+| Job | Colour | Shape |
+|---|---|---|
+| It went, it is on, it is done | green `#0F7B3E` | ✓ |
+| It waits for you | amber `#A64C08` | ○ |
+| It did not happen, it did not reach them | red `#B42318` | ✕ |
+| The assistant did this | magenta `#A82860`, text only | ✦ |
+
+Graphite `#1C1B1F` does one more job: the **fill of the one primary act** on a page.
+
+How it holds:
+- The stylesheet draws the shape before a state's words (pills, field errors, refusal notices, connection states, Setup's values), with an empty alternative so a screen reader hears the words once. A line that a shape opens takes it from `signalMark`. The bare ● that said waiting, sent and failed by hue alone is gone.
+- `tests/parity/phase4-colour.test.ts` reads both stylesheets: every rule that paints text in a signal colour must draw that job's shape, or be named in the test with how its shape is drawn (a mark, the words, its row, a button's verb). Proven by removing one shape: the test fails.
+- `tools/ui-colour.mjs` is the census: every owner page, every piece of text in a signal colour, whether it carries a shape, and how many filled buttons.
+
+Wrong colour removed:
+- "{name} is handling this" is the assistant's ✦ (it was sent-green);
+- "Paused" grey (was green);
+- "Main", "Online now", and the order-status counts on Results are neutral (none is a state);
+- the practice banner is neutral (it was the waiting amber);
+- the buyer timeline's emoji (💬 💠 💰 ✅ 👤 ⭐ 🙋), and ⭐ ⚠️ 🎉 ✗ elsewhere, became the product's own marks.
+
+Where a state had no colour, it has its signal now: Setup's values (2 of 5 done ○, connected ✓, a failed payment ✕, requests waiting ○); Today's "needs you" list is Buyers' own row, so a waiting customer looks the same on both; Today's setup line and "messaging is not active" carry ○.
+
+**Measured** (census, local instance, 34 pages, 1440×900, en / zh / ar / es):
+
+| | Before | After |
+|---|---|---|
+| Text in a signal colour with no shape | 92 (the tool's first reading said 99; 7 were its own blind spots: buttons, a row's reason beside its mark, a 📷) | **0** in all four languages |
+| Pages with more than one filled button | 6 (prices 2, adding products 2, knowledge 2, practice 2, channels 4, people 4) | **0**; the integration page walk now refuses a second fill |
+
+Sixteen of the 34 pages carry no colour at all, before and after: forms and lists with nothing in a state (the profile, the product list when every product is in order, knowledge, terms). That is the rule working: colour appears where a state does, never as decoration.
+
+Greyscale checked by eye on Today (en, laptop), Setup (ar, phone) and the guide (en, phone): ○, ●, ✓ and ✦ tell the states apart with the colour gone.
+
+**Decided by me:** which act fills on each of the six pages — prices: Save (the rules), not "Add this" (a tier); adding products: reading the pasted list, not the photos; knowledge: Teach, not "Read the page"; practice: sending the customer's message, unless a reply waits for approval or the owner holds the conversation (then that act fills); channels: connecting or reconnecting WhatsApp, never "let your assistant write first" (that one is consequential, so outlined, with its confirm); people: adding someone.
+
+**Left for phase 9** (they are contradictions, not colour): the conversation page still shows "○ Awaiting you" beside "✦ {name} is handling this"; Practice still labels the owner's own reply "Your assistant".
 
 **Phase 3 (#200) — settings.**
 
@@ -131,6 +173,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #201 | **Phase 4 — colour and hierarchy**: four signals, each a colour and a shape (✓ ○ ✕ ✦); 92 pieces of coloured text with no shape → 0 in four languages; one filled button per page (six pages had two to four); misused colour removed; Setup's states and Today's waiting customers carry their signal; `tools/ui-colour.mjs`. No migration | 120 |
 | 2026-10-02 | #200 | **Phase 3 — settings**: Setup in six labelled groups, each row with its current value, and a server-side search; the settings pages as label / control rows in cards with one save each (the profile's three forms one); the component gallery off Setup; 48 new lines in four languages. No migration | 120 |
 | 2026-10-02 | #199 | **Phase 2 — the draft card**: decision first; the customer's message no longer repeated, nor covered (the card no longer docks over the transcript); one fill (Send), Hand to me and No reply needed outlined alike, Edit gone; the reply box grows to its text; the reasons one quiet line under the acts. 298 px on a laptop (was 447). No migration | 120 |
 | 2026-10-02 | #198 | **Phase 1 — the inbox row**: two lines, 57/63/65 px (en/zh/ar), a state mark that is a shape, the time in a fixed place; 12/10/10 conversations on a laptop, 8/7/6 on a phone; the list beside a conversation uses the same row; `tools/ui-measure.mjs`. No migration | 120 |

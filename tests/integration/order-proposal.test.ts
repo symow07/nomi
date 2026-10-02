@@ -225,9 +225,10 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     const today = await get('/app');
     // The design pass: Today's first block is the Buyers list's own "Needs
     // you", in its order — the order first, named, a door to its conversation.
-    const first = today.body.indexOf('<a class="tline" href="/app/inbox/');
+    // Phase 4 — the row is Buyers' own.
+    const first = today.body.indexOf('<a class="crow ');
     expect(first).toBeGreaterThan(-1);
-    expect(today.body.slice(first)).toMatch(new RegExp(`^<a class="tline" href="/app/inbox/${confirmConv}#latest">[\\s\\S]*?Order waiting`));
+    expect(today.body.slice(first)).toMatch(new RegExp(`^<a class="crow is-needs[^"]*" href="/app/inbox/${confirmConv}#latest">[\\s\\S]*?Order waiting`));
     expect(today.body).toMatch(/data-live-orders="[1-9][0-9]*"/);
     const live = await get('/app/live/today?since=0.0.0.0.0.0');
     expect(live.statusCode).toBe(200);

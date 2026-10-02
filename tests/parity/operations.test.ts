@@ -131,7 +131,10 @@ describe('Today, by time (render)', () => {
     expect(html).toContain('<bdi>Maya Rahman</bdi>');
     expect(html).toContain(t('en', 'buyers.badge.review', { name: ASSISTANT_FALLBACK.en }).slice(0, 6));
     expect(html).toContain(t('en', 'takeover.reason.human_requested'));   // the stored reason, never inferred
-    expect(html).toContain(t('en', 'buyers.badge.yours'));
+    // Phase 4 — Buyers' own row: ○ for whoever waits for the owner, ● for one the owner holds.
+    expect(html).toMatch(/class="crow is-needs[^"]*"[\s\S]*?<span class="cr-mark" aria-hidden="true">○<\/span>/);
+    expect(html).toMatch(/class="crow is-yours[^"]*"[\s\S]*?<span class="cr-mark" aria-hidden="true">●<\/span>/);
+    expect(html).toContain(`<span class="sr">${t('en', 'buyers.group.yours')}</span>`);
     // in the list's own order
     expect(html.indexOf('Maya Rahman')).toBeLessThan(html.indexOf('Omar Haddad'));
     // more than it names: one door to all of them, with the count
@@ -174,9 +177,9 @@ describe('Today, by time (render)', () => {
 
   it('sending: the channels customers reach, on — or paused while stopped or silenced', () => {
     const on = renderOperationsHome(live(emptyFactory), 'en', busy);
-    expect(on).toContain(`${t('en', 'today.sending')}</span> Instagram <span class="dot ok" aria-hidden="true">●</span> ${t('en', 'today.sending.on')}`);
+    expect(on).toContain(`${t('en', 'today.sending')}</span> Instagram <span class="dot ok" aria-hidden="true">✓</span> ${t('en', 'today.sending.on')}`);
     const stopped = renderOperationsHome({ ...live(emptyFactory), assistantStoppedAt: NOW }, 'en', busy);
-    expect(stopped).toContain(`<span class="dot warn" aria-hidden="true">●</span> ${t('en', 'today.sending.paused')}`);
+    expect(stopped).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${t('en', 'today.sending.paused')}`);
     expect(renderOperationsHome(live(emptyFactory), 'en', { ...busy, sending: [] })).not.toContain(t('en', 'today.sending'));
     // A channel connected to an installation that cannot send is not "on":
     // the page says messaging is not active instead (found in the screenshots).

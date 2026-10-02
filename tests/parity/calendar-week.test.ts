@@ -90,9 +90,9 @@ describe('the week, by default', () => {
     expect(edgeOf({ kind: 'sample_asked', conversationId: CONV, orderId: null })).toBe('solid');
   });
 
-  it('colour is left for state and the assistant: ● on a reply that is due, ✦ on a price it worked out', () => {
+  it('colour is left for state and the assistant: ○ on a reply that is due, ✦ on a price it worked out', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
-    expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="wk-k"><span class="dot warn" aria-hidden="true">●<\/span> Reply due<\/span>/);
+    expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="wk-k"><span class="dot warn" aria-hidden="true">○<\/span> Reply due<\/span>/);
     expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="wk-k"><span class="as" aria-hidden="true">✦<\/span> Price worked out<\/span>/);
   });
 

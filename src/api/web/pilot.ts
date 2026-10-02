@@ -531,7 +531,7 @@ export function renderPilotReadiness(
       <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.ready.count', { done: r.done, total: r.total }))}</span>
         ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</div></div>`;
     const verdict = d.readyToLaunch
-      ? `<div class="verdict ok">🎉 ${esc(t(locale, 'pilot.allReady'))}</div>`
+      ? `<div class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</div>`
       : `<div class="verdict">${esc(t(locale, 'pilot.notReady'))}</div>`;
     return `
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
@@ -560,7 +560,7 @@ export function renderPilotReadiness(
   ].join('');
 
   const verdict = d.readyToLaunch
-    ? `<div class="verdict ok">🎉 ${esc(t(locale, 'pilot.allReady'))}</div>`
+    ? `<div class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</div>`
     : `<div class="verdict">${esc(t(locale, 'pilot.notReady'))}</div>`;
 
   return `
