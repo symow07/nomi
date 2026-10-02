@@ -895,6 +895,9 @@ const STYLE_PAGES = `
   .guide-step ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose); }
   .guide-step ol li + li { margin-top:var(--space-4); }
   .guide-video { display:block; width:100%; max-width:var(--measure-prose); border-radius:8px; background:var(--color-paper); margin-bottom:var(--space-8); }
+  /* Phase 9 (today-onboarding-new-09) — a phone plays the step recorded at its own width. */
+  .guide-video.narrow { display:none; }
+  @media (max-width: 560px) { .guide-video.wide { display:none; } .guide-video.narrow { display:block; } }
   /* ── channels.ts — WA-S, writing after 24 hours, under the number it belongs to. */
   .ch-reopen { margin-top:var(--space-16); border-top:1px solid var(--color-border); padding-top:var(--space-12); }
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }

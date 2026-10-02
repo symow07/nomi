@@ -34,8 +34,12 @@ const BASE = (opt('base') ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
 const CODE = opt('code') ?? process.env.OWNER_ACCESS_CODE ?? 'smoke-code';
 const OUT = path.join(ROOT, 'assets', 'guide');
 const STEPS = (opt('steps') ?? 'profile,products,name,channels,first_success').split(',');
-const LOCALES = (opt('locales') ?? 'en,zh,ar,es').split(',');
-const SIZE = { width: 1024, height: 640 };
+const LOCALES = (opt('locales') ?? 'en,zh,ar,es,fr').split(',');
+// Phase 9 (today-onboarding-new-09) — `--phone`: the same steps at a phone's width, recorded at twice its density.
+const PHONE = argv.includes('--phone');
+const SIZE = PHONE ? { width: 390, height: 844 } : { width: 1024, height: 640 };
+const FRAME = PHONE ? { width: 780, height: 1688 } : SIZE;
+const SUFFIX = PHONE ? '.phone' : '';
 
 const { messages, t } = await import('../dist/core/owner/i18n/messages.js');
 /** The catalogue's own words, through `t` — so "your assistant" is capitalised where a sentence starts. */
@@ -161,7 +165,7 @@ for (const locale of LOCALES) {
   LOCALE = locale;
   for (const step of STEPS) {
     await rm(tmp, { recursive: true, force: true });
-    const context = await browser.newContext({ viewport: SIZE, recordVideo: { dir: tmp, size: SIZE }, locale: locale === 'zh' ? 'zh-CN' : locale });
+    const context = await browser.newContext({ viewport: SIZE, ...(PHONE ? { deviceScaleFactor: 2 } : {}), recordVideo: { dir: tmp, size: FRAME }, locale: locale === 'zh' ? 'zh-CN' : locale });
     await context.addCookies([{ name: 'yf_locale', value: locale, url: BASE }]);
     await context.addInitScript(POINTER);
     // Signed in with the access code, through the context, before any page is drawn.
@@ -179,7 +183,7 @@ for (const locale of LOCALES) {
     // The recording began before sign-in. With ffmpeg the sign-in is cut off and
     // the video starts with the step; without it, the captions start later instead.
     const signIn = t0 - videoStart;
-    const file = path.join(OUT, `${step}.${locale}.webm`);
+    const file = path.join(OUT, `${step}.${locale}${SUFFIX}.webm`);
     let lead = signIn;
     if (ffmpeg) {
       const r = spawnSync(ffmpeg, ['-y', '-loglevel', 'error', '-ss', (signIn / 1000).toFixed(2), '-i', raw, '-an',
@@ -192,8 +196,8 @@ for (const locale of LOCALES) {
       const from = c.at + lead; const to = (cues[i + 1]?.at ?? end) + lead;
       vtt.push(`${i + 1}`, `${ts(from)} --> ${ts(to)}`, words(locale, step, c.n), '');
     });
-    await writeFile(path.join(OUT, `${step}.${locale}.vtt`), vtt.join('\n'));
-    console.log(`${step}.${locale}: ${cues.length} captions, ${((end) / 1000).toFixed(1)} s`);
+    await writeFile(path.join(OUT, `${step}.${locale}${SUFFIX}.vtt`), vtt.join('\n'));
+    console.log(`${step}.${locale}${SUFFIX}: ${cues.length} captions, ${((end) / 1000).toFixed(1)} s`);
   }
 }
 await browser.close();
