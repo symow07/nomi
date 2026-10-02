@@ -161,8 +161,10 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
     <div class="stats">
       ${stat(d.activity.inbound, 'analytics.activity.inbound')}
       ${stat(d.activity.replied, 'analytics.activity.replied')}
-      ${stat(d.activity.waiting, 'analytics.activity.waiting')}
     </div></div>`;
+  // Phase 9 (V1-205) — "Awaiting you" counted only the drafts waiting for review
+  // and disagreed with the rail's "Needs you"; the same count stands, named for
+  // what it is, under the assistant's work ("Replies waiting for your OK").
 
   const dealsHtml = d.commerce.orders > 0
     ? `<div class="chips">
