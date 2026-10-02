@@ -328,7 +328,8 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const mark = landing(empty);
     expect(empty.slice(mark)).toMatch(/^<div class="flash" role="status" id="latest">/);   // good news, not drawn as a refusal
     expect(mark).toBeGreaterThan(at(empty, '<div class="empty muted">'));
-    expect(mark).toBeGreaterThan(at(empty, 'class="pcases"'));   // below the safety-check card
+    // Phase 9 (V1-286) — the safety checks are folded under the conversation now: the notice comes first.
+    expect(at(empty, 'class="pcases"')).toBeGreaterThan(mark);
     expect(at(empty, 'id="compose"')).toBeGreaterThan(mark);
   });
 });

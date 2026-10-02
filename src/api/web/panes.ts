@@ -92,7 +92,9 @@ export function renderCustomerPanel(
   const language = p.language ? languageName(locale, p.language) : null;
   const facts = [
     // A WhatsApp number is stored as its digits; it is shown the way it is dialled.
-    `${esc(channelName(locale, p.channel))}${p.address ? ` <bdi>${esc(p.channel === 'whatsapp' && /^\d+$/.test(p.address) ? `+${p.address}` : p.address)}</bdi>` : ''}`,
+    // Phase 9 — an address (a number, an e-mail, a handle) reads left to right in
+    // every language: a bare <bdi> has no letter to go by, and Arabic put the + last.
+    `${esc(channelName(locale, p.channel))}${p.address ? ` <bdi dir="ltr">${esc(p.channel === 'whatsapp' && /^\d+$/.test(p.address) ? `+${p.address}` : p.address)}</bdi>` : ''}`,
     language ? esc(t(locale, 'panel.writesIn', { language })) : '',
     p.country ? esc(countryName(locale, p.country) ?? p.country) : '',
   ].filter(Boolean).join(' · ');
@@ -104,7 +106,9 @@ export function renderCustomerPanel(
   const asked = p.askedAbout.map((a) => li(`<bdi>${esc(productName(locale, a) ?? '')}</bdi>`,
     esc(`${tn(locale, 'panel.times', a.count)} · ${show.shortWhen(locale, a.lastAt, now)}`)));
   const prices = p.prices.map((q) => li(
-    `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''} · ${esc(show.shortWhen(locale, q.at, now))}`,
+    // Phase 9 (V1-226) — the price and what it is for on one line, when on the next:
+    // run together, a narrow panel broke "LED String Lights 10m · 17:20" at random.
+    `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''}<br><span class="muted small">${esc(show.shortWhen(locale, q.at, now))}</span>`,
     `<a href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}<span class="go" aria-hidden="true">›</span></a>`));
   const record = [
     ...p.samples.map((s) => li(`${esc(t(locale, 'panel.sample'))} · ${esc(t(locale, 'panel.sampleAsked', { date: show.date(locale, s.askedAt) }))}${

@@ -386,7 +386,8 @@ describe('M20.4 · F-04 · scripted practice needs no tenant, and says what it p
       expect(html.length).toBeGreaterThan(800);
       expect(html).not.toContain('sandbox.case.');       // every id resolved to copy
     }
-    expect(renderPractice(r, 'zh')).toContain('练习——安全检查');
+    expect(renderPractice(r, 'zh')).toContain('安全检查');   // phase 9 — one heading named Practice, not three
+    expect(renderPractice(r, 'en')).toMatch(/^<details class="card pchecks">/);
     expect(renderPractice(r, 'ar')).toContain('فحوص السلامة');
   });
 });
@@ -408,6 +409,31 @@ describe('Phase 9 · each Practice line is captioned by who wrote it', () => {
       expect(caps[0], l).not.toContain(t(l, 'sandbox.composer.send'));
       expect(caps[1], l).toContain('✦');
       expect(caps[2], l).toBe(t(l, 'conv.by.you'));
+    }
+  });
+});
+
+describe('Phase 9 (V1-287) · Practice\'s checks speak the owner\'s language, not the engine\'s', () => {
+  it('no internal detail and no "Skill"/"Delivery" labels, in any locale', () => {
+    const lastTurn = trust({ checks: [{ invariant: 'priceFloorRespected', pass: true, detail: 'guardViolations=0, deterministic=true' }] });
+    for (const l of LOCALES) {
+      const html = renderSandbox(view({ lastTurn }), l, { flash: null });
+      expect(html, l).not.toContain('guardViolations');
+      expect(html, l).not.toContain('deterministic');
+      expect(html, l).toContain(t(l, 'sandbox.xray.deliveryDraft'));
+      expect(html, l).not.toContain(`${t(l, 'sandbox.xray.delivery')}:`);
+    }
+  });
+});
+
+describe('Phase 9 (V1-288) · each Practice switch says what is on now', () => {
+  it('running: the state line before the Stop switch; stopped: the stopped line', () => {
+    for (const l of LOCALES) {
+      const run = renderSandbox(view(), l, { flash: null, settings: { alone: false, stopped: false, ownerStopped: false } });
+      expect(run, l).toContain(t(l, 'practice.mode.levels'));
+      expect(run.replace(/[\u2066-\u2069]/g, ''), l).toMatch(new RegExp(t(l, 'practice.stop.running', { name: 'X' }).split('X').map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.+')));
+      const stopped = renderSandbox(view(), l, { flash: null, settings: { alone: false, stopped: true, ownerStopped: false } });
+      expect(stopped, l).toContain(t(l, 'practice.stop.stopped'));
     }
   });
 });

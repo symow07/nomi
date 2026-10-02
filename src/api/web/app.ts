@@ -5085,10 +5085,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       } : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
-        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '') + renderPractice(practice, locale)
+        // Phase 9 (V1-286) — the conversation first; the safety checks folded under it.
+        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
             ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
-            : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
+            : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`)
+          + renderPractice(practice, locale),
         ...(mark ? { live: liveRegion(locale, practiceWatch(mark, working && view.ownership === 'AI')) } : {}),
       }));
     });

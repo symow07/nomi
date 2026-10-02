@@ -123,7 +123,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
     const html = await page(`/app/inbox/${maya}`);
     const panel = html.slice(html.indexOf('<aside class="panel"'), html.indexOf('</aside>', html.indexOf('<aside class="panel"')));
     expect(panel).toContain('<h2><bdi>Maya Rahman</bdi></h2>');
-    expect(panel).toMatch(/WhatsApp <bdi>\+44770090\d+<\/bdi> · writes in English/);
+    expect(panel).toMatch(/WhatsApp <bdi dir="ltr">\+44770090\d+<\/bdi> · writes in English/);
     expect(panel).toContain('1 conversation');
     expect(panel).toMatch(/<bdi>Rose Face Serum<\/bdi><\/span><span class="pn-r">2 times · /);
     expect(panel).toContain('<bdi>$34.90</bdi> · <bdi>Rose Face Serum</bdi>');

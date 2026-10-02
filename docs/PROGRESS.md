@@ -43,7 +43,38 @@ under "Decided" below.
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · next: the other areas, S2 first |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · #209 (the conversation page, the draft card, Practice) · next: the other areas, S2 first |
+
+**Phase 9, part four (#209) — a conversation, the draft card, the buyer file and Practice (19 findings).**
+
+**Contradictions on the page, resolved by what the code does.**
+- **The header pill and the hand-over card now agree** (V1-215, V1-250):
+  - with a reply waiting, the card says "{name} wrote a reply; it waits for your OK", as the header's "Awaiting you" does;
+  - "Handled" is now "Answered", which does not clash with "is handling this".
+- **"Hand to" no longer offers yourself** where taking the conversation already has its own control (Take over, or the draft card's Hand to me). When a colleague holds it, "Hand to [You]" is still how the owner takes it back (V1-218, V1-251).
+- **The buyer file:**
+  - its history says "{name} worked out a price", where it said "quoted" for a price still waiting for the owner, and the count is "Prices worked out" (V1-268);
+  - the deletion control records the customer's request, and no longer reads as the owner asking for one (V1-269).
+- **The assistant's name** on the card and in the captions follows #208's chosen-name rule (V1-216, V1-252).
+
+**The draft card says where things came from.**
+- **A figure nothing accounts for** is shown in the words around it: "300" alone was unreadable, while "…model ZX-300 ships…" shows it came from a model name (V1-220).
+- **A claim the draft makes** (a certification, a term, a guarantee) is on the card, with whether you confirmed it. Read by the same detector the claims guard uses (V1-221).
+  - A reply already *sent* cannot be changed. The guard refuses an unconfirmed claim before any send, so the sent "CE certified" exists only in the demo's seeded data (V1-253 in part).
+- **"This is me testing"** is now "Mark as my own test", and asks first with what it changes (V1-219, V1-255).
+
+**Practice.**
+- **It opens on the conversation.** The 41 safety checks are folded under it as "The safety checks · 41 / 41". The box to write in used to be 3,000–4,000 px down (V1-286).
+- **The checks speak the owner's words:**
+  - no engine detail such as "guardViolations=0, deterministic=…";
+  - "Kind of reply" in place of "Skill";
+  - the delivery state on its own (V1-287).
+- **Each switch says what is on now**, before offering to change it (V1-288).
+
+**Layout.**
+- A phone number reads left to right in Arabic (conversation-missed-01).
+- The panel's price row is "price · product", with the time on its own line (V1-226).
+- In Chinese the panel door is 客户资料, no longer the back link's 客户 (V1-225).
 
 **Phase 9, part three (#208) — the whole product, Today and setting up (21 findings).**
 
@@ -444,6 +475,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-03 | #209 | **Phase 9, part four — a conversation, the draft card, the buyer file, Practice**: 19 findings — the header and the hand-over card agree; Hand to never offers yourself twice; the buyer file says a price was worked out and that the customer asked for deletion; an unsourced figure is shown in its words and a claim with whether you confirmed it; marking your own test asks first; Practice opens on the conversation with the checks folded in the owner's words and each switch's state; Arabic phone numbers, the panel's price row, the Chinese door. No migration | 121 |
 | 2026-10-03 | #208 | **Phase 9, part three — the whole product, Today and setting up**: 21 findings — the tab names the page; one name for the customer area; "Getting ready" is "Before going live"; the name only once chosen on a conversation; step 5 says what completes it; Today counts who wrote and claims nothing it cannot know; Ready ticks sending alone only when true; the runbook names what it counts; the name joins Chinese and Arabic sentences properly; five empties are panels; a mistyped address stays in the workspace; an empty paste says so; no owner's page links to the machine room. No migration | 121 |
 | 2026-10-03 | #207 | **Phase 9, part two — French, the fifth owner language** (0121): the locale, formats and colon, Stripe, the draft translation, sign-up; the whole catalogue (3,194 lines, rule 6 in French); the site names French; the gender checks, the cognates by key, the deletion contract and `ui-fr` in French. The French disclosure's gate untouched. **Found by CI, root-caused:** boot's "registers NO outbound worker" had been false since P3 (deployment mode runs the outbound worker for Practice); it passed only when the worker's poll came later than its 400 ms wait. It now asserts what is true — a real conversation's reply is refused, never sent, and no channel exists — and passed twice in a row. Backup before it `nomi-backup-20261002T030023Z` (drill passed). CI both jobs pass. Merged as `877e508`, deployed, `/health` ok, production `schema_version` 121 | 121 |
 | 2026-10-03 | #206 | **Phase 9, part one — the named items**: French found to be a customer's language only (#124, #182), never an owner's (en/zh/ar/es since #192); the dead proof and unsubscribe pages now follow the reader's language; the discount, what goes out alone and "No conversations yet" each made to say what the code does; Connect WhatsApp's field and button (the number mailed to the operator); the e-mail form's labels; backups and keys Nomi's (`tools/installation-checks.mjs`), not the owner's; the gallery the installation's only; Practice's captions; Today's month line like with like. 7 of the 8 S1s. CI both jobs pass; integration 1201 of 1201 locally after one heading test was updated; pre-pilot 12/12 before and after. Merged as `817ff54`, deployed, `/health` ok. No migration | 120 |

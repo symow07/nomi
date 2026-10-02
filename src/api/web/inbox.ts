@@ -23,6 +23,7 @@ import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
+import { detectClaims } from '../../core/safety/claims.js';
 import { chosenName } from '../../db/assistants.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
 import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals.js';
@@ -646,6 +647,11 @@ export type ConversationDetail = {
    */
   readonly knowledgeUsed: readonly string[];
   /**
+   * Phase 9 (V1-221) — the claims this workspace confirmed ("certification:CE"),
+   * so the card can say when a reply states one that was not. Absent reads as none.
+   */
+  readonly claimsAllowed?: readonly string[];
+  /**
    * M43b — the rate SHE stated, or null.
    *
    * Carried on the read model rather than fetched by the renderer, because the
@@ -973,6 +979,7 @@ export async function loadConversationDetail(
          where business_id = ${bid.value}::uuid and archived_at is null`.execute(tx))
         .rows.map((p) => ({ id: p.id, name: p.name, isOwner: p.is_owner })),
       knowledgeUsed,
+      claimsAllowed: (await tenantRepos(tx, bid.value).catalog.claimsPolicy()).filter((c) => c.allowed).map((c) => `${c.kind}:${c.claimKey}`),
       channel: head.channel,
       // The quote's figures are read with or without a turn on record.
       reading: cardReadingOf(turn?.analysis ?? null, turn?.own_understanding ?? null, q),
@@ -1464,12 +1471,18 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
    * conversation is theirs.
    */
   // …and only where there are colleagues: a business of one has nobody to hand it to.
-  const others = (d.people ?? []).length > 1 ? (d.people ?? []).filter((p) => p.id !== d.heldBy) : [];
+  // Phase 9 (V1-218, V1-251) — nor to yourself where taking it already has its
+  // own control ("Take over", or the draft card's "Hand to me"): a second one
+  // offering "Hand to [You]" did the same. Held by a colleague, it is the way.
+  const isViewer = (p: Person): boolean => (viewer.id ? p.id === viewer.id : p.isOwner);
+  const selfHasOwnControl = d.ownership !== 'OWNER_CONTROLLED';
+  const others = (d.people ?? []).length > 1
+    ? (d.people ?? []).filter((p) => p.id !== d.heldBy && !(selfHasOwnControl && isViewer(p))) : [];
   const handToForm = others.length === 0 ? '' : `
     <form method="post" action="/app/inbox/${cid}/handto" class="handto">
       <label class="muted" for="handto">${esc(t(locale, 'handto.label'))}</label>
       <select id="handto" name="personId" required>
-        ${others.map((p) => `<option value="${esc(p.id)}">${esc((viewer.id ? p.id === viewer.id : p.isOwner) ? t(locale, 'conv.by.you') : p.name)}</option>`).join('')}
+        ${others.map((p) => `<option value="${esc(p.id)}">${esc(isViewer(p) ? t(locale, 'conv.by.you') : p.name)}</option>`).join('')}
       </select>
       <button class="btn" type="submit">${esc(t(locale, 'handto.button'))}</button>
     </form>`;
@@ -1478,7 +1491,9 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
 
   switch (d.ownership) {
     case 'AI':
-      return `<div class="card takeover"><span class="pill as">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
+      // Phase 9 (V1-215) — with a reply waiting for the owner, the card says so,
+      // as the header's "Awaiting you" does; "is handling this" contradicted it.
+      return `<div class="card takeover"><span class="pill as">${esc(t(locale, d.pendingDraft ? 'takeover.status.aiDraft' : 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
     case 'WAITING_HUMAN':
       return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}${handToForm}</div>`;
     case 'OWNER_CONTROLLED':
@@ -1743,15 +1758,35 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     l.source === 'price' && d.quote ? show.money(locale, d.quote.unitPrice)
     : l.source === 'total' && d.quote ? show.money(locale, d.quote.total)
     : l.value.toLocaleString('en-US', { maximumFractionDigits: 4 });
-  const line = (ok: boolean, said: string, source: string) =>
-    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${esc(source)}</span></li>`;
+  const line = (ok: boolean, said: string, source: string, where = '') =>
+    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${esc(source)}${
+      where ? ` <bdi class="muted">${esc(where)}</bdi>` : ''}</span></li>`;
+  // Phase 9 (V1-220) — where in the reply a figure stands: "300" alone was
+  // unreadable; "…model ZX-300 has…" says it came from the model's name.
+  const whereIn = (value: number): string => {
+    const text = p.draftText;
+    const forms = [String(value), value.toLocaleString('en-US')];
+    const at = forms.map((f) => text.indexOf(f)).filter((i) => i >= 0).sort((x, y) => x - y)[0];
+    if (at === undefined) return '';
+    const from = Math.max(0, text.lastIndexOf(' ', Math.max(0, at - 14)) + 1);
+    const toSpace = text.indexOf(' ', Math.min(text.length, at + String(value).length + 10));
+    const to = toSpace < 0 ? text.length : toSpace;
+    return `${from > 0 ? '…' : ''}${text.slice(from, to).trim()}${to < text.length ? '…' : ''}`;
+  };
   const reasons = [
     ...read.lines.map((l) => l.kind === 'product'
       ? line(true, `“${l.name}”`, t(locale, 'card.source.product'))
       : line(l.source !== 'unsourced', figure(l), l.source === 'price'
         ? (prod ? t(locale, 'card.source.price', { product: prod }) : t(locale, 'card.source.priceAny'))
-        : t(locale, `card.source.${l.source}` as MessageKey))),
+        : t(locale, `card.source.${l.source}` as MessageKey), l.source === 'unsourced' ? whereIn(l.value) : '')),
     ...d.knowledgeUsed.map((k) => line(true, k, t(locale, 'card.source.taught'))),
+    // Phase 9 (V1-221, V1-253) — a claim the reply makes (a certification, a
+    // term, a guarantee), and whether you confirmed it: "CE certified" stood in
+    // a draft with nothing on the card, while no certification was confirmed.
+    ...detectClaims(p.draftText).map((c) => {
+      const confirmed = (d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`);
+      return line(confirmed, `“${c.matchedText}”`, t(locale, confirmed ? 'card.source.claim' : 'card.source.claimUnconfirmed'));
+    }),
     ...(r?.differsOn === null || r?.differsOn === undefined ? []
       : r.differsOn.length === 0 ? [line(true, t(locale, 'card.checked'), t(locale, 'card.checked.same'))]
       : [line(false, t(locale, 'card.checked.differs'), t(locale, 'card.checked.differsOn', {
@@ -1762,9 +1797,11 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   // how the reply was read. A figure nothing accounts for is said on the line
   // itself, with the ○ that marks it in the list it opens.
   const unsourced = read.lines.some((l) => l.kind === 'figure' && l.source === 'unsourced');
+  const unconfirmed = detectClaims(p.draftText).some((c) => !(d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`));
   const how = reasons.length || und
     ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
         unsourced ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unsourced'))}</span>`
+          : unconfirmed ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unconfirmedClaim'))}</span>`
           : reasons.length ? `<span class="c">${esc(tn(locale, 'card.reasons.count', reasons.length))}</span>` : ''}</summary>${
         und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
     : '';
@@ -2097,7 +2134,8 @@ export function renderConversationDetail(
       viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
       ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
       <input type="hidden" name="testing" value="${d.ownerTesting ? 'off' : 'on'}" />
-      <button class="btn ghost quiet" type="submit">${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
+      ${/* Phase 9 (V1-219, V1-255) — an act, said as one, and asked first when it takes a conversation out of the count. */ ''}<button class="btn ghost quiet" type="submit"${d.ownerTesting ? ''
+        : ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'conv.testing.confirm'))}"`}>${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
     ${log}
     ${flashHtml}
     ${acts}`;
