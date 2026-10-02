@@ -16377,7 +16377,7 @@ const FR: Record<MessageKey, string> = {
   'card.source.claimUnconfirmed': 'vous ne l’avez pas confirmé',
   'card.unconfirmedClaim': 'Affirme quelque chose que vous n’avez pas confirmé',
   'alerts.phone.ledeOff': 'Les alertes sur téléphone ne sont pas encore activées ici. Une fois activées, chaque client qui vous attend — une réponse à valider, ou quelqu’un qui veut parler à une personne — s’affiche sur votre téléphone, même Nomi fermé.',
-  'forbidden.howMatched': 'Un mot est repéré partout où il apparaît, même à l’intérieur d’un mot plus long : « liar » repère aussi « familiar ». Pour plus de précision, écrivez l’expression entière.',
+  'forbidden.howMatched': 'Un mot est repéré partout, même à l’intérieur d’un mot plus long : « liar » repère aussi « familiar ». Pour plus de précision, écrivez l’expression entière.',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };
