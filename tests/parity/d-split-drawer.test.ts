@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shell, NAV, CONTEXTUAL_ROUTES_BY_HUB, CONTEXTUAL_ROUTES, hubFor, isOutreachRoute, OUTREACH_PREFIXES } from '../../src/api/web/layout.js';
+import { shell, esc, NAV, CONTEXTUAL_ROUTES_BY_HUB, CONTEXTUAL_ROUTES, hubFor, isOutreachRoute, OUTREACH_PREFIXES } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, outreachShown, setupState, type RequestScope } from '../../src/api/web/say.js';
 import { renderSetup } from '../../src/api/web/settings.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
@@ -154,18 +154,48 @@ describe('D · the doors moved, the pages did not', () => {
     expect(html).toContain(`<h1 class="page">${t('en', 'nav.settings')}</h1>`);
   });
 
-  it('UI-PASS 7 · each door says where it stands; the profile\'s form is not on Setup', () => {
+  it('phase 3 · each row says what the setting is, what it is set to now, and opens it; the profile\'s form is not on Setup', () => {
     const html = withWorkspace(facts(), () => renderSetup({ kind: null, people: 1 }, 'en', null));
-    const doorTo = (href: string) => /<a class="tline" href="([^"]+)">[\s\S]*?<\/a>/g;
-    const doors = Object.fromEntries([...html.matchAll(doorTo(''))].map((m) => [m[1], m[0]]));
-    // The guided path (/app/guide) is Setup's first door now, and carries where setup stands.
-    expect(doors['/app/guide']).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
-    expect(doors['/app/onboarding']).toBeDefined();
-    expect(doors['/app/settings/business']).toContain(t('en', 'setup.state.notAnswered'));
-    expect(doors['/app/settings/people']).toContain('1 person');
-    expect(html).not.toContain('action="/app/settings"');   // the form lives on its own page
+    const rows = Object.fromEntries([...html.matchAll(/<a class="srow" href="([^"]+)">[\s\S]*?<\/a>/g)].map((m) => [m[1], m[0]]));
+    // The guided path (/app/guide) is Setup's first row, and carries where setup stands.
+    expect(Object.keys(rows)[0]).toBe('/app/guide');
+    expect(rows['/app/guide']).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    expect(rows['/app/guide']).toContain(`<span class="sr-desc">${t('en', 'setup.desc.guide')}</span>`);
+    expect(rows['/app/onboarding']).toBeDefined();
+    expect(rows['/app/settings/business']).toContain(t('en', 'setup.state.notAnswered'));
+    expect(rows['/app/settings/people']).toContain('1 person');
+    expect(html).not.toContain('method="post" action="/app/settings"');   // the form lives on its own page
     expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ kind: 'Retailer', people: 4 }, 'en', null)))
-      .toContain(`<span class="tl-why">${t('en', 'setup.state.done')}</span>`);
+      .toContain(`<span class="sr-value"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
+  });
+
+  it('phase 3 · labelled groups, one card of rows each, and a search that finds a row by its name, its line or its value', () => {
+    const v = { kind: 'Retailer', people: 2, alerts: { available: true, phones: 0 }, signIn: { email: 'owner@example.test' },
+      billing: { configured: false, exempt: false, status: 'none' }, dataWaiting: 1 };
+    const html = withWorkspace(facts(), () => renderSetup(v, 'en', null));
+    const groups = [...html.matchAll(/<h2 class="sgroup-h" id="sg-([a-z]+)">([^<]+)<\/h2>/g)].map((m) => m[1]);
+    expect(groups).toEqual(['language', 'start', 'business', 'reach', 'people', 'account']);
+    expect(html.match(/<ul class="scard">/g)).toHaveLength(5);
+    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
+    expect(html).toContain('<span class="sr-value"><bdi>owner@example.test</bdi></span>');
+    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.notSetUp')}</bdi></span>`);
+    expect(html).toContain('1 request waiting');
+    // the search is a plain form: the page is filtered on the server
+    expect(html).toMatch(/<form class="search" method="get" action="\/app\/settings" role="search">/);
+    const found = withWorkspace(facts(), () => renderSetup({ ...v, query: 'BILL' }, 'en', null));
+    // a group's own name finds the whole group, in whatever case it is typed
+    expect([...found.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/billing', '/app/settings/data']);
+    const plan = withWorkspace(facts(), () => renderSetup({ ...v, query: 'plan' }, 'en', null));
+    expect([...plan.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/billing']);
+    expect(found).not.toContain('sg-language');
+    const byLine = withWorkspace(facts(), () => renderSetup({ ...v, query: 'time zone' }, 'en', null));
+    expect([...byLine.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/profile']);
+    const none = withWorkspace(facts(), () => renderSetup({ ...v, query: 'zzzz' }, 'en', null));
+    expect(none).toContain(esc(t('en', 'setup.search.none', { q: 'zzzz' })));
+    expect(none).toContain('<a class="clear" href="/app/settings">');
+    // in Chinese the search reads Chinese
+    const zh = withWorkspace(facts(), () => renderSetup({ ...v, query: '提醒' }, 'zh', null));
+    expect([...zh.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toContain('/app/settings/alerts');
   });
 });
 

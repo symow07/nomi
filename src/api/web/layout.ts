@@ -82,8 +82,11 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/settings', routes: [
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
-    '/app/settings/components',
   ] },
+  // Phase 3 of the UI rebuild — the component gallery (`/app/settings/components`)
+  // is no longer a door on Setup: it is a page for whoever builds the product
+  // (the screenshots tool walks it), not a setting. It still lights Setup, by
+  // sitting under its address.
   // Phase 4b — the machine room is reached from Getting ready, and lights Setup through it.
   { hub: '/app/onboarding', routes: ['/app/onboarding/technical', '/app/ready'] },
   // C4.b — follow-ups are written for the people on her list, so they are
@@ -402,6 +405,49 @@ ${LANGSW_CSS}
   .tline:hover, .tline:focus-visible { text-decoration:underline; text-underline-offset:3px; }
   .tline .go { margin-inline-start:auto; }
   .tl-who { font-weight:600; }
+  /* Settings in labelled groups (phase 3 of the UI rebuild): one card of rows
+     per group; a row names the setting, says it in one line, shows what it is
+     set to now at the line's end, and opens it. */
+  .sgroup { margin:0 0 var(--space-24); }
+  .sgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-8); }
+  .scard { list-style:none; margin:0; padding:0; background:var(--color-surface); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); overflow:hidden; }
+  .scard > li + li, .scard > .srow + .srow { border-top:1px solid var(--color-border); }
+  .srow { display:flex; align-items:center; gap:var(--space-12); min-height:56px; padding:var(--space-8) var(--space-16); color:var(--color-ink); }
+  a.srow:hover, a.srow:focus-visible { background:var(--color-paper); }
+  .sr-main { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
+  .sr-label { font-weight:600; font-size:var(--font-size-small); }
+  .sr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .sr-value { flex:0 1 auto; max-width:45%; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-align:end; overflow-wrap:anywhere; }
+  .srow .go { flex:none; }
+  .sr-ctl { flex:0 1 auto; min-width:0; }
+  /* A setting as a row inside its card: what it is on the start side, its
+     control on the end side; stacked on a phone. One save per form, in a bar
+     that stays at the foot of the screen while the form scrolls. */
+  .scard > .setrow + .setrow, .scard > .setrow + .fr-acts { border-top:1px solid var(--color-border); }
+  .setrow { display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:var(--space-8) var(--space-16);
+    align-items:start; padding:var(--space-12) var(--space-16); }
+  .fr-l { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; padding-top:var(--space-8); }
+  .fr-name { font-weight:600; font-size:var(--font-size-small); }
+  .fr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fr-c { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .fr-c > input:not([type="checkbox"]):not([type="radio"]), .fr-c > select, .fr-c > textarea { width:100%; }
+  .fr-c > .fr-value { padding-top:var(--space-8); }
+  .setrow.bad .fr-c > input, .setrow.bad .fr-c > textarea, .setrow.bad .fr-c > select { border-color:var(--color-warn); }
+  .fr-acts { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:var(--space-8); padding:var(--space-12) var(--space-16); }
+  .savebar { position:sticky; bottom:0; z-index:1; display:flex; justify-content:flex-end; gap:var(--space-8);
+    margin:var(--space-8) 0 0; padding:var(--space-12) 0; background:var(--color-paper); border-top:1px solid var(--color-border); }
+  @media (max-width: 720px) {
+    .setrow { grid-template-columns:minmax(0, 1fr); }
+    .fr-l { padding-top:0; }
+    .savebar .btn, .fr-acts .btn { flex:1 1 auto; }
+  }
+  /* On a phone the value goes under the line that says what the setting is, the door staying at the end. */
+  @media (max-width: 560px) {
+    a.srow { flex-wrap:wrap; row-gap:0; }
+    a.srow .sr-main { flex-basis:0; }
+    .sr-value { order:3; flex-basis:100%; max-width:100%; text-align:start; }
+  }
   .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .today-date { font-weight:400; }
   .today-worth { margin-top:var(--space-12); }

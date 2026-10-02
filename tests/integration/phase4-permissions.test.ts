@@ -203,6 +203,14 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
 
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
+  it('PHASE 3 · staff saving the profile through its one form change the profile, never the currency', async () => {
+    const currency = () => tx((t) => sql<{ currency: string }>`select currency from businesses where id = ${BIZ}`.execute(t).then((r) => r.rows[0]!.currency));
+    const before = await currency();
+    const res = await post(staffCookie, '/app/settings', `name=${encodeURIComponent('Phase Four Factory')}&currency=${before === 'SAR' ? 'AED' : 'SAR'}`);
+    expect(res.statusCode).toBe(302);
+    expect(await currency()).toBe(before);
+  });
+
   it('STAFF ARE REFUSED every gated write, with the owner notice — and NOTHING is written', async () => {
     const before = await snapshot();
     for (const [url, payload] of GATED) {

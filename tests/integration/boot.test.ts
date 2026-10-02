@@ -976,7 +976,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: 'name=&location=Ningbo' });
     expect(bad.statusCode).toBe(200);
-    expect(bad.body).toContain('class="fld bad"');          // the failing field is named
+    expect(bad.body).toContain('class="setrow bad"');       // the failing field is named
     expect(bad.body).toContain('Ningbo');                   // her other input survived
     expect(await nameOf()).toBe('Acme Exports');            // unchanged
 
@@ -2647,7 +2647,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(r.body).toContain('浙江义乌');
       expect(r.body).toContain(ph('8657985001234'));
       // and the failing field is named
-      expect(r.body).toContain('class="fld bad"');
+      expect(r.body).toContain('class="setrow bad"');
       expect(r.body).toContain('role="alert"');
       // nothing was written
       const row = await q((tx) => sql<{ n: number }>`

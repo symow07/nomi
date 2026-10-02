@@ -20,6 +20,7 @@ import { currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js'
 import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 
 import { switcher, deeper, back, esc, conversationUrl } from './layout.js';
+import { fieldRow, rowsCard, saveBar, cardActs } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
@@ -181,12 +182,18 @@ export async function saveBusinessProfile(
 export type ProfileDraft = Partial<Record<ProfileField, string>> & { readonly languagesServed?: readonly string[] };
 
 /**
- * THE DESIGN PASS (UI-PASS 7) — Setup is doors, each with its state: where
- * setup stands, which channels, the business profile, what kind of business,
- * who is here. The profile's form has its own page (\`renderProfile\`); the
- * language switch stays first, the one thing here an owner looks for in a
- * hurry; Log out is the rail's, and here only on a phone, where the rail is a
- * row of five.
+ * PHASE 3 OF THE UI REBUILD (2026-10-02) — Setup in labelled groups. Each
+ * group is one card of rows; each row says what the setting is (its name and
+ * one line under it), what it is set to now, and opens it. A search finds a
+ * row by its name, its line or its value, in the owner's language, without
+ * the script: the page is filtered on the server.
+ *
+ * The groups (my call, named by the owner as mine to decide): setting up;
+ * your business; customers and alerts; people and sign-in; billing and data.
+ * The language switch leads, the one thing here an owner looks for in a hurry.
+ * "How it looks" — the components gallery — is a developer's page and is no
+ * longer listed; its address still works for whoever builds the product.
+ * Log out is the rail's, and here only on a phone.
  */
 export type SetupView = {
   /** "What kind of business" as the owner last answered it; null = not yet. */
@@ -195,36 +202,94 @@ export type SetupView = {
   readonly people: number;
   /** HS — how many of How you sell's questions are answered; null for staff (the page is the owner's). */
   readonly howYouSell?: { readonly answered: number; readonly total: number } | null;
+  /** Phase 3 — alerts on this person's phones: whether this installation can send them, and how many phones. */
+  readonly alerts?: { readonly available: boolean; readonly phones: number } | null;
+  /** Phase 3 — how this person signs in: their e-mail, or the access code when they have no login. */
+  readonly signIn?: { readonly email: string | null } | null;
+  /** Phase 3 — billing as it stands (the owner's); null for staff. */
+  readonly billing?: { readonly configured: boolean; readonly exempt: boolean; readonly status: string } | null;
+  /** Phase 3 — customers' deletion requests waiting for the owner; null for staff. */
+  readonly dataWaiting?: number | null;
+  /** The search, as typed. */
+  readonly query?: string;
 };
+
+type SetupRow = { readonly href: string; readonly label: string; readonly desc: string; readonly value: string };
+
+/** Lower case, width-folded, so a search matches what is shown whatever way it was typed. */
+const fold = (s: string): string => s.normalize('NFKC').toLocaleLowerCase();
 
 export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): string {
   const setup = setupState();
   const step = (k: string): boolean | null => setup?.steps.find((x) => x.step === k)?.done ?? null;
   const state = (done: boolean | null, yes: MessageKey, no: MessageKey): string =>
     done === null ? '' : t(locale, done ? yes : no);
-  const door = (href: string, label: string, said = ''): string =>
-    `<li><a class="tline" href="${href}"><span class="tl-who">${esc(label)}</span>${
-      said ? ` <span class="tl-why">${esc(said)}</span>` : ''}<span class="go" aria-hidden="true">→</span></a></li>`;
   const ready = setup
     ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))
     : '';
+  const billing = v.billing
+    ? (!v.billing.configured ? t(locale, 'setup.value.notSetUp')
+      : v.billing.exempt ? t(locale, 'setup.value.billing.exempt')
+      : (['none', 'cardSaved', 'trial', 'active', 'past_due', 'lapsed'] as const).includes(v.billing.status as never)
+        ? t(locale, `setup.value.billing.${v.billing.status}` as MessageKey) : '')
+    : '';
+  const groups: readonly { readonly id: string; readonly title: string; readonly rows: readonly SetupRow[] }[] = [
+    { id: 'start', title: t(locale, 'setup.group.start'), rows: [
+      { href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready },
+      { href: '/app/onboarding', label: t(locale, 'nav.onboarding'), desc: t(locale, 'setup.desc.onboarding'),
+        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed') },
+    ] },
+    { id: 'business', title: t(locale, 'setup.group.business'), rows: [
+      { href: '/app/settings/profile', label: t(locale, 'settings.profile.title'), desc: t(locale, 'setup.desc.profile'),
+        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo') },
+      { href: '/app/settings/business', label: t(locale, 'business.kind.label'), desc: t(locale, 'setup.desc.kind'),
+        value: v.kind ?? t(locale, 'setup.state.notAnswered') },
+      ...(v.howYouSell ? [{ href: '/app/business/selling', label: t(locale, 'hs.title'), desc: t(locale, 'setup.desc.selling'),
+        value: t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total }) }] : []),
+    ] },
+    { id: 'reach', title: t(locale, 'setup.group.reach'), rows: [
+      { href: '/app/channels', label: t(locale, 'nav.channels'), desc: t(locale, 'setup.desc.channels'),
+        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected') },
+      { href: '/app/settings/alerts', label: t(locale, 'alerts.phone.title'), desc: t(locale, 'setup.desc.alerts'),
+        value: !v.alerts ? '' : !v.alerts.available ? t(locale, 'setup.value.unavailable')
+          : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones) },
+    ] },
+    { id: 'people', title: t(locale, 'setup.group.people'), rows: [
+      { href: '/app/settings/people', label: t(locale, 'people.title'), desc: t(locale, 'setup.desc.people'),
+        value: tn(locale, 'setup.state.people', v.people) },
+      { href: '/app/settings/account', label: t(locale, 'account.title'), desc: t(locale, 'setup.desc.account'),
+        value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode') },
+    ] },
+    { id: 'account', title: t(locale, 'setup.group.account'), rows: [
+      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing },
+      { href: '/app/settings/data', label: t(locale, 'data.title'), desc: t(locale, 'setup.desc.data'),
+        value: v.dataWaiting === null || v.dataWaiting === undefined ? ''
+          : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting) },
+    ] },
+  ];
+
+  const q = (v.query ?? '').trim();
+  const hit = (...words: string[]): boolean => q === '' || words.some((w) => fold(w).includes(fold(q)));
+  const row = (r: SetupRow): string => `<li><a class="srow" href="${r.href}">
+      <span class="sr-main"><span class="sr-label">${esc(r.label)}</span><span class="sr-desc">${esc(r.desc)}</span></span>
+      ${r.value ? `<span class="sr-value"><bdi>${esc(r.value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
+  const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value)) })).filter((g) => g.rows.length > 0);
+  const language = hit(t(locale, 'settings.language.title'))
+    ? `<section class="sgroup" aria-labelledby="sg-language"><h2 class="sgroup-h" id="sg-language">${esc(t(locale, 'settings.language.title'))}</h2>
+        <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings')}</span></div></div></section>` : '';
+  const search = `<form class="search" method="get" action="/app/settings" role="search">
+      <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'setup.search.placeholder'))}" aria-label="${esc(t(locale, 'setup.search.label'))}" />
+      <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
+      ${q ? `<a class="clear" href="/app/settings">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
+    </form>`;
+  const body = shown.length === 0 && !language
+    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}</div>`
+    : `${language}${shown.map((g) => `<section class="sgroup" aria-labelledby="sg-${g.id}"><h2 class="sgroup-h" id="sg-${g.id}">${esc(g.title)}</h2>
+        <ul class="scard">${g.rows.map(row).join('')}</ul></section>`).join('')}`;
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
-    <div class="block"><h2>${esc(t(locale, 'settings.language.title'))}</h2>${switcher(locale, '/app/settings')}</div>
-    <ul class="tlines setup-doors">
-      ${door('/app/guide', t(locale, 'guide.title'), ready)}
-      ${door('/app/onboarding', t(locale, 'nav.onboarding'))}
-      ${door('/app/channels', t(locale, 'nav.channels'), state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'))}
-      ${door('/app/settings/profile', t(locale, 'settings.profile.title'), state(step('profile'), 'setup.state.done', 'setup.state.toDo'))}
-      ${door('/app/settings/business', t(locale, 'business.kind.label'), v.kind ?? t(locale, 'setup.state.notAnswered'))}
-      ${v.howYouSell ? door('/app/business/selling', t(locale, 'hs.title'), t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total })) : ''}
-      ${door('/app/settings/alerts', t(locale, 'alerts.phone.title'))}
-      ${door('/app/settings/people', t(locale, 'people.title'), tn(locale, 'setup.state.people', v.people))}
-      ${door('/app/settings/account', t(locale, 'account.title'))}
-      ${door('/app/settings/billing', t(locale, 'billing.title'))}
-      ${door('/app/settings/data', t(locale, 'data.title'))}
-      ${door('/app/settings/components', t(locale, 'components.title'))}
-    </ul>
+    ${search}
+    ${body}
     <div class="block signout"><form method="post" action="/logout">
       <button class="btn ghost" type="submit">${esc(t(locale, 'header.logout'))}</button>
     </form></div>`;
@@ -252,16 +317,12 @@ export async function saveZone(db: Db, businessIdRaw: string, zone: string): Pro
   return 'saved';
 }
 
-function zoneForm(c: ZoneChoice, locale: Locale): string {
+/** TZ — the zone, as a row of the profile's one form (phase 3: one save, not three). */
+function zoneRow(c: ZoneChoice, locale: Locale): string {
   const choices = zoneChoices(c.country ?? '').length ? zoneChoices(c.country ?? '') : ALL_ZONES;
   const all = choices.includes(c.zone) ? choices : [c.zone, ...choices];
-  return `<div class="block" id="zone"><h2>${esc(t(locale, 'settings.zone.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'settings.zone.why'))}</p>
-    <form method="post" action="/app/settings/zone" class="pform">
-      <label class="fld"><span class="muted">${esc(t(locale, 'settings.zone.label'))}</span>
-        <select name="zone">${all.map((z) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(zoneLabel(locale, z))}</option>`).join('')}</select></label>
-      <button class="btn send" type="submit">${esc(t(locale, 'settings.alerts.save'))}</button>
-    </form></div>`;
+  return fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc: t(locale, 'settings.zone.why'),
+    control: `<select id="pf-zone" name="zone">${all.map((z) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(zoneLabel(locale, z))}</option>`).join('')}</select>` });
 }
 
 /**
@@ -294,21 +355,15 @@ export async function saveCurrency(db: Db, businessIdRaw: string, raw: string): 
   });
 }
 
-function currencyForm(c: CurrencyChoice, locale: Locale, viewer: Viewer): string {
-  const head = `<h2>${esc(t(locale, 'settings.currency.title'))}</h2>`;
+/** CUR — the currency, as a row of the profile's one form: a choice only for the owner, and only until the first price. */
+function currencyRow(c: CurrencyChoice, locale: Locale, viewer: Viewer): string {
   if (c.fixed || !viewer.isOwner) {
-    return `<div class="block" id="currency">${head}
-      <p><bdi>${esc(currencyLabel(locale, c.currency))}</bdi></p>
-      <p class="muted">${esc(t(locale, c.fixed ? 'settings.currency.fixed' : 'settings.currency.why'))}</p>
-      ${viewer.isOwner ? '' : ownerDecides(locale)}</div>`;
+    return fieldRow({ label: t(locale, 'settings.currency.label'),
+      desc: t(locale, c.fixed ? 'settings.currency.fixed' : 'settings.currency.why'),
+      control: `<span class="fr-value"><bdi>${esc(currencyLabel(locale, c.currency))}</bdi></span>${viewer.isOwner ? '' : ownerDecides(locale)}` });
   }
-  return `<div class="block" id="currency">${head}
-    <p class="muted">${esc(t(locale, 'settings.currency.why'))}</p>
-    <form method="post" action="/app/settings/currency" class="pform">
-      <label class="fld"><span class="muted">${esc(t(locale, 'settings.currency.label'))}</span>
-        <select name="currency">${CURRENCY_CHOICES.map((x) => `<option value="${x}"${x === c.currency ? ' selected' : ''}>${esc(currencyLabel(locale, x))}</option>`).join('')}</select></label>
-      <button class="btn send" type="submit">${esc(t(locale, 'settings.alerts.save'))}</button>
-    </form></div>`;
+  return fieldRow({ label: t(locale, 'settings.currency.label'), forId: 'pf-currency', desc: t(locale, 'settings.currency.why'),
+    control: `<select id="pf-currency" name="currency">${CURRENCY_CHOICES.map((x) => `<option value="${x}"${x === c.currency ? ' selected' : ''}>${esc(currencyLabel(locale, x))}</option>`).join('')}</select>` });
 }
 
 export function renderProfile(
@@ -327,38 +382,43 @@ export function renderProfile(
     const detail = e === 'tooLong' ? { n: CAP[f as keyof typeof CAP] ?? 200 } : {};
     return `<span class="fielderr" role="alert">${esc(t(locale, `settings.err.${e}` as MessageKey, detail))}</span>`;
   };
-  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '') =>
-    `<label class="fld ${errors[f] ? 'bad' : ''}"><span class="muted">${esc(t(locale, label))}</span>
-      <input name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />${errLine(f)}</label>`;
+  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '') => fieldRow({
+    label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined,
+    control: `<input id="pf-${id}" name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />` });
 
-  const languages = `<div class="fld"><span class="muted">${esc(t(locale, 'settings.field.languages'))}</span>
-    <div class="langs">${SERVED_LANGUAGES.map((l) =>
-      `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> <bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi></label>`).join('')}</div></div>`;
+  const languages = fieldRow({ label: t(locale, 'settings.field.languages'),
+    control: `<div class="langs">${SERVED_LANGUAGES.map((l) =>
+      `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> <bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi></label>`).join('')}</div>` });
+  const description = fieldRow({ label: t(locale, 'settings.field.description'), forId: 'pf-description', error: errLine('description') || undefined,
+    control: `<textarea id="pf-description" name="description" rows="3">${esc(val('description', p.description))}</textarea>` });
+  // The categories the import found: what they are, as words — nothing to press.
+  const categories = fieldRow({ label: t(locale, 'settings.field.categories'),
+    control: `<span class="fr-value">${p.categories.length ? p.categories.map((c) => `<bdi>${esc(c)}</bdi>`).join(' · ')
+      : `<span class="muted">${esc(t(locale, 'settings.categories.empty'))}</span>`}</span>` });
 
-  const form = `<div class="block">
-    <form method="post" action="/app/settings" class="pform">
-      ${field('name', 'settings.field.name', 'name', p.name)}
-      <label class="fld"><span class="muted">${esc(t(locale, 'settings.field.description'))}</span>
-        <textarea name="description" rows="3">${esc(val('description', p.description))}</textarea>${errLine('description')}</label>
-      ${field('location', 'settings.field.location', 'location', p.location)}
-      ${field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph'))}
-      ${languages}
-      ${field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail)}
-      ${field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'))}
-      <button class="btn send" type="submit">${esc(t(locale, 'settings.alerts.save'))}</button>
-    </form>
-  </div>`;
-
-  const categories = `<div class="block"><h2>${esc(t(locale, 'settings.field.categories'))}</h2>
-    ${p.categories.length
-      ? `<div class="cats">${p.categories.map((c) => `<span class="cat">${esc(c)}</span>`).join('')}</div>`
-      : `<div class="muted empty">${esc(t(locale, 'settings.categories.empty'))}</div>`}
-  </div>`;
+  // Phase 3 — ONE form, ONE save: the profile, the zone and the currency
+  // were three forms with a Save each; the route saves all three.
+  const form = `<form method="post" action="/app/settings" class="sform">
+    ${rowsCard(t(locale, 'profile.group.business'), [
+      field('name', 'settings.field.name', 'name', p.name), description,
+      field('location', 'settings.field.location', 'location', p.location),
+      field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
+      languages,
+    ])}
+    ${rowsCard(t(locale, 'profile.group.contact'), [
+      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail),
+      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder')),
+    ])}
+    ${rowsCard(t(locale, 'profile.group.zone'), [
+      ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []), categories,
+    ], 'zone')}
+    ${saveBar(t(locale, 'settings.alerts.save'))}
+  </form>`;
 
   return `${back('/app/settings', t(locale, 'nav.settings'))}
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
-    ${form}${zone ? zoneForm(zone, locale) : ''}${currency ? currencyForm(currency, locale, viewer) : ''}${categories}`;
+    ${form}`;
 }
 
 
@@ -438,32 +498,28 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
   const name = assistantName(locale);
   return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
-    <section class="block">
-      <p class="muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
-      <form method="post" action="/app/settings/forbidden" class="fld">
-        <label><span class="muted">${esc(t(locale, 'forbidden.add.label'))}</span>
-          <input name="term" required maxlength="80"
-            placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" /></label>
-        <label><span class="muted">${esc(t(locale, 'forbidden.add.note'))}</span>
-          <input name="note" maxlength="${MAX_FORBIDDEN_NOTE}"
-            placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" /></label>
-        <button class="btn send" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>
-      </form>
-      ${v.own.length === 0
-        ? `<p class="muted empty-p">${esc(t(locale, 'forbidden.empty'))}</p>`
-        : `<ul class="fterms">${v.own.map((x) => `<li>
-            <span><bdi>${esc(x.term)}</bdi>${x.note
-              ? `<span class="fnote muted"><bdi>${esc(x.note)}</bdi></span>` : ''}</span>
-            <form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
+    <p class="lede muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
+    <form method="post" action="/app/settings/forbidden">
+      ${rowsCard(null, [
+        fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term',
+          control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" />` }),
+        fieldRow({ label: t(locale, 'forbidden.add.note'), forId: 'fb-note',
+          control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" />` }),
+        cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>`),
+      ])}
+    </form>
+    ${v.own.length === 0
+      ? `<p class="muted empty-p">${esc(t(locale, 'forbidden.empty'))}</p>`
+      : rowsCard(null, v.own.map((x) => fieldRow({ label: x.term,
+          control: `${x.note ? `<span class="fr-value muted"><bdi>${esc(x.note)}</bdi></span>` : ''}<form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
               <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
                 data-confirm="${esc(t(locale, 'forbidden.removeConfirm', { term: x.term }))}">${esc(t(locale, 'forbidden.remove'))}</button>
-            </form></li>`).join('')}</ul>`}
-    </section>
-    <section class="block">
-      <h2>${esc(t(locale, 'forbidden.floor.title'))}</h2>
+            </form>` })))}
+    ${/* Phase 3 — the floor is a fact, not the page: folded, with its count, the words inside for whoever opens it. */ ''}<details class="block floor-fold">
+      <summary><b>${esc(t(locale, 'forbidden.floor.title'))}</b> <span class="muted">· <bdi>${esc(show.count(locale, v.floor.length))}</bdi></span></summary>
       <p class="muted">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
       <ul class="fterms floor">${v.floor.map((x) => `<li><bdi>${esc(x)}</bdi></li>`).join('')}</ul>
-    </section>`;
+    </details>`;
 }
 
 /* ── M43b · the rate she will honour ─────────────────────────────────────── */
@@ -570,10 +626,10 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null, vie
       ${v.current
         ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
         : `<p class="muted empty-p">${esc(t(locale, 'rate.empty', { to }))}</p>`}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="fld">
-        <label><span class="muted">${esc(t(locale, 'rate.add.label', { from, to }))}</span>
-          <input name="rate" inputmode="decimal" required /></label>
-        <button class="btn send" type="submit">${esc(t(locale, 'rate.add.button'))}</button>
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform">
+        ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate',
+          control: '<input id="rt-rate" name="rate" inputmode="decimal" required />' })])}
+        ${saveBar(t(locale, 'rate.add.button'))}
       </form>` : ownerDecides(locale)}
     </section>
     ${v.previous.length
@@ -653,16 +709,14 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'closures.intro', { name }))}</p>
-      <form method="post" action="/app/settings/closures" class="pform">
-        <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.label'))}</span>
-          <input name="label" required maxlength="80"
-            placeholder="${esc(t(locale, 'closures.add.placeholder'))}" />
-          <span class="muted">${esc(t(locale, 'closures.add.shown'))}</span></label>
-        <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.from'))}</span>
-          <input name="from" type="date" required /></label>
-        <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.to'))}</span>
-          <input name="to" type="date" required /></label>
-        <button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>
+      <form method="post" action="/app/settings/closures">
+        ${rowsCard(null, [
+          fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'),
+            control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" />` }),
+          fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', control: '<input id="cl-from" name="from" type="date" required />' }),
+          fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', control: '<input id="cl-to" name="to" type="date" required />' }),
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
+        ])}
       </form>
       ${v.closures.length === 0
         ? `<p class="muted empty-p">${esc(t(locale, 'closures.empty', { name }))}</p>`
@@ -798,17 +852,15 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, v
     <section class="block">
       <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
       ${stated}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="pform">
-        <label class="fld"><span class="muted">${esc(t(locale, 'terms.payment.label'))}</span>
-          <input name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
-            placeholder="${esc(t(locale, 'terms.payment.placeholder'))}"
-            value="${v.terms ? esc(v.terms.paymentTerms) : ''}" /></label>
-        <label class="fld"><span class="muted">${esc(t(locale, 'terms.incoterm.label'))}</span>
-          <select name="incoterm" required>
-            ${v.terms ? '' : `<option value="" selected disabled></option>`}${options}
-          </select>
-          <span class="muted">${esc(t(locale, 'terms.incoterm.hint', { name }))}</span></label>
-        <button class="btn send" type="submit">${esc(t(locale, 'terms.save'))}</button>
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="sform">
+        ${rowsCard(null, [
+          fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment',
+            control: `<input id="tm-payment" name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
+              placeholder="${esc(t(locale, 'terms.payment.placeholder'))}" value="${v.terms ? esc(v.terms.paymentTerms) : ''}" />` }),
+          fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }),
+            control: `<select id="tm-incoterm" name="incoterm" required>${v.terms ? '' : '<option value="" selected disabled></option>'}${options}</select>` }),
+        ])}
+        ${saveBar(t(locale, 'terms.save'))}
       </form>` : ownerDecides(locale)}
     </section>`;
 }
@@ -882,13 +934,14 @@ export function renderSamples(
     <section class="block">
       <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
       ${stated}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="pform">
-        <label class="fld"><span class="muted">${esc(t(locale, 'samples.price.label'))}</span>
-          <input name="price" inputmode="decimal" required
-            value="${v.policy ? esc(String(v.policy.price.amount)) : ''}" /></label>
-        <label class="chkbox"><input type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} />
-          ${esc(t(locale, 'samples.credited.label'))}</label>
-        <button class="btn send" type="submit">${esc(t(locale, 'samples.save'))}</button>
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform">
+        ${rowsCard(null, [
+          fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price',
+            control: `<input id="sm-price" name="price" inputmode="decimal" required value="${v.policy ? esc(String(v.policy.price.amount)) : ''}" />` }),
+          fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
+            control: `<input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} />` }),
+        ])}
+        ${saveBar(t(locale, 'samples.save'))}
       </form>` : ownerDecides(locale)}
     </section>
     <section class="block">

@@ -36,13 +36,35 @@ under "Decided" below.
 | 0 | Vendor screenshots out of the repository; the audit and the benchmark in | #197 |
 | 1 | The inbox row: 56–72 px, sender · one-line preview · time in a fixed place · a state mark; ≥ 10 on a 1440×900 laptop, ≥ 6 on a phone; RTL and CJK truncation verified | #198 |
 | 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | #199 |
-| 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | next |
-| 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | — |
+| 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | #200 |
+| 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | next |
 | 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | — |
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | — |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | — |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
 | 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+
+**Phase 3 (#200) — settings.**
+
+Setup is no longer twelve identical doors. It is six labelled groups, each a card of rows; every row says what it is, one line on what is there, and **its current value** on the end side:
+- the language switch, first, as before;
+- **Setting up** — the guide, Getting ready (the assistant's name confirmed or not);
+- **Your business** — the profile (its city), the kind of business, how you sell;
+- **Customers and alerts** — channels (how many connected), alerts (how many phones);
+- **People and sign-in** — people (how many), your sign-in (e-mail or the access code);
+- **Billing and data** — the plan's state (owner only), your data (requests waiting, owner only);
+- log out, last, as before.
+
+**A search** at the top filters the rows on the server (no script): it matches a row's name, its line, its value and its group's name, in the page's language, folded for case and width. Nothing matching says so, with a way back.
+
+The settings pages are **rows in cards**: the name (and its line) on the start side, the control on the end side; on a phone the two stack. **One save per form**, in a bar that stays at the foot of the screen while the form scrolls:
+- the profile was up to three forms, each with its own save (the time zone; the currency, while it can still change; the business — the audit saw two Save buttons that "save different things") — now one form, three groups (The business · Contact details · Time zone and currency), one Save; the currency stays the owner's (a staff post cannot change it — an integration test, its guard switched off to prove it);
+- the kind of business, your sign-in, rate, closures, terms and samples — rows, one save each;
+- forbidden words — the add form a card of rows ending in its Add; the owner's own words rows; the fixed floor folded under its count.
+
+**Measured** (local instance, 1440×900 and 390×844, en / zh / ar): Setup 12 rows in 6 groups; the profile 10 rows in 3 groups, **one** submit button (was two or three); nothing wider than the screen in any of the six. The component gallery is no longer a door on Setup (it was "How it looks" — the audit's developer-tool finding; the page itself stays for the screenshots tool).
+
+**Decided by me (named undecidable — the group names):** Setting up · Your business · Customers and alerts · People and sign-in · Billing and data. Chosen by what the owner comes to change, not by how the code is laid out; "alerts" sits with customers because every alert is about a customer waiting. 48 new lines in four languages, listed for the native read in `docs/NATIVE-REVIEW-UI.md`.
 
 **Phase 2 (#199) — the draft card.**
 
@@ -109,6 +131,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #200 | **Phase 3 — settings**: Setup in six labelled groups, each row with its current value, and a server-side search; the settings pages as label / control rows in cards with one save each (the profile's three forms one); the component gallery off Setup; 48 new lines in four languages. No migration | 120 |
 | 2026-10-02 | #199 | **Phase 2 — the draft card**: decision first; the customer's message no longer repeated, nor covered (the card no longer docks over the transcript); one fill (Send), Hand to me and No reply needed outlined alike, Edit gone; the reply box grows to its text; the reasons one quiet line under the acts. 298 px on a laptop (was 447). No migration | 120 |
 | 2026-10-02 | #198 | **Phase 1 — the inbox row**: two lines, 57/63/65 px (en/zh/ar), a state mark that is a shape, the time in a fixed place; 12/10/10 conversations on a laptop, 8/7/6 on a phone; the list beside a conversation uses the same row; `tools/ui-measure.mjs`. No migration | 120 |
 | 2026-10-02 | #197 | **The UI audit and the benchmark, in the repository; the vendor screenshots out.** `docs/UI-AUDIT.md` (566 findings, 17 screenshots of Nomi) and `docs/UI-BENCHMARK.md` (seven products, 8 screenshots of Nomi). The 32 screenshots of other companies' products were removed before any commit; they never entered history. Docs only | 120 |

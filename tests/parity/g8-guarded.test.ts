@@ -105,7 +105,7 @@ describe('G8 · her note on a forbidden word', () => {
       floor: [...FORBIDDEN_FLOOR],
     }, 'en', null);
     expect(html).toContain('they copied our catalogue');
-    expect(html).toMatch(/<input name="note"/);
+    expect(html).toMatch(/<input id="fb-note" name="note"/);
     for (const l of LOCALES) {
       expect(t(l, 'forbidden.add.note'), l).not.toBe('forbidden.add.note');
       expect(t(l, 'forbidden.add.notePlaceholder'), l).not.toBe('forbidden.add.notePlaceholder');

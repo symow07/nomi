@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { shell, loginPage } from '../../src/api/web/layout.js';
+import { renderSetup } from '../../src/api/web/settings.js';
 import { MARK_FIGURE } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withSheets } from './linked-css.js';
@@ -92,23 +93,21 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(html).not.toContain('class="who"');
   });
 
-  it('the language switch is the first row of Setup, log out its last — a button — and the login page keeps its switcher', () => {
-    // V1 close-out (the review's noted item): log out sat second, as a door,
-    // between the language and Getting ready. It ends the session, so it is a
-    // button (decision 4: buttons do things), and it is the last thing on the
-    // page, after every door. The switch stays first.
-    const src = readFileSync(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
-    const ret = src.slice(src.indexOf('return `<h1 class="page">${esc(t(locale, \'nav.settings\'))}</h1>'));
-    const lang = ret.indexOf("switcher(locale, '/app/settings')");
-    const firstDoor = ret.indexOf("door('/app/onboarding'");
-    const lastDoor = ret.indexOf("door('/app/settings/components'");
-    const out = ret.indexOf('<form method="post" action="/logout">');
+  it('the language switch leads Setup, log out is its last thing — a button — and the login page keeps its switcher', () => {
+    // V1 close-out: log out ends the session, so it is a button and the last
+    // thing on the page, after every row. Phase 3 kept the order: the switch
+    // first, the groups of rows, log out.
+    const html = renderSetup({ kind: null, people: 1 }, 'en', null);
+    const lang = html.indexOf('class="langsw"');
+    const firstRow = html.indexOf('<a class="srow" href="/app/guide">');
+    const lastRow = html.indexOf('<a class="srow" href="/app/settings/data">');
+    const out = html.indexOf('<form method="post" action="/logout">');
     expect(lang).toBeGreaterThan(0);
-    expect(firstDoor).toBeGreaterThan(lang);
-    expect(lastDoor).toBeGreaterThan(firstDoor);
-    expect(out, 'log out comes after every door').toBeGreaterThan(lastDoor);
-    expect(ret).not.toContain("deeper('/logout'");
-    expect(ret.slice(out, ret.indexOf('</form>', out))).toMatch(/<button class="btn ghost" type="submit">/);
+    expect(firstRow).toBeGreaterThan(lang);
+    expect(lastRow).toBeGreaterThan(firstRow);
+    expect(out, 'log out comes after every row').toBeGreaterThan(lastRow);
+    expect(html).not.toContain('href="/logout"');
+    expect(html.slice(out, html.indexOf('</form>', out))).toMatch(/<button class="btn ghost" type="submit">/);
     expect(loginPage({ locale: 'en', path: '/login' })).toContain('class="langsw"');
   });
 
