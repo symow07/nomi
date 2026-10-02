@@ -76,6 +76,14 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect((await get(pilotCookie, '/app/onboarding')).body).toContain('href="/app/onboarding/technical"');
   });
 
+  it('PHASE 9 · the component gallery is the installation\'s too: 404 for any other owner, and no door to it', async () => {
+    expect((await get(shopCookie, '/app/settings/components')).statusCode).toBe(404);
+    expect((await get(pilotCookie, '/app/settings/components')).statusCode).toBe(200);
+    for (const cookie of [shopCookie, pilotCookie]) {
+      expect((await get(cookie, '/app/settings')).body).not.toContain('href="/app/settings/components"');
+    }
+  });
+
   it('GETTING READY shows a self-serve workspace only what applies: Ready for customers, not backups or secrets', async () => {
     const page = (await get(shopCookie, '/app/onboarding')).body;
     expect(page).toContain(t('en', 'pilot.item.ready'));

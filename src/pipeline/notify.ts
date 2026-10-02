@@ -542,6 +542,35 @@ export async function notifyOperatorOfConnectionAsk(
   return r.ok ? 'sent' : 'failed';
 }
 
+/**
+ * Phase 9 — an owner on an installation that cannot connect a number by
+ * itself gives the WhatsApp number it uses with customers. The operator hears
+ * at once, with the address to write back to; the mail is the request, so
+ * nothing new is stored.
+ */
+export async function notifyOperatorOfWhatsAppNumber(
+  deps: { readonly db: Db; readonly mail: OwnerMailer }, operatorBusinessIdRaw: string, askingBusinessIdRaw: string, number: string,
+): Promise<'sent' | 'skipped' | 'failed'> {
+  const op = parseBusinessId(operatorBusinessIdRaw);
+  const asking = parseBusinessId(askingBusinessIdRaw);
+  if (!op.ok || !asking.ok) return 'skipped';
+  const b = await withTenantTx(deps.db, asking.value, async (tx) => ({
+    name: (await sql<{ name: string }>`select name from businesses where id = ${asking.value}`.execute(tx)).rows[0]?.name ?? null,
+    email: await ownerLoginEmail(tx, asking.value),
+  }));
+  const to = await withTenantTx(deps.db, op.value, async (tx) => ({
+    locale: (await sql<{ owner_locale: string }>`select owner_locale from businesses where id = ${op.value}`.execute(tx)).rows[0]?.owner_locale ?? 'en',
+    email: await ownerLoginEmail(tx, op.value),
+  }));
+  if (!b.name || !to.email) return 'skipped';
+  const locale: Locale = parseLocale(to.locale) ?? 'en';
+  const r = await deps.mail.send({
+    to: to.email, subject: t(locale, 'notify.whatsapp_asked.subject', { business: b.name }),
+    text: t(locale, 'notify.whatsapp_asked', { business: b.name, number, email: b.email ?? '—' }),
+  });
+  return r.ok ? 'sent' : 'failed';
+}
+
 export async function notifyOperatorOfSignup(
   deps: { readonly db: Db; readonly mail: OwnerMailer }, operatorBusinessIdRaw: string, newBusinessIdRaw: string,
 ): Promise<'sent' | 'skipped' | 'failed'> {

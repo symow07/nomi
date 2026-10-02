@@ -10,7 +10,8 @@ import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
 import { whereSeenFrom } from '../../core/owner/whereSeen.js';
 import { renderApprovalCard } from './connectionApproval.js';
-import { notifyOperatorOfConnectionAsk } from '../../pipeline/notify.js';
+import { notifyOperatorOfConnectionAsk, notifyOperatorOfWhatsAppNumber } from '../../pipeline/notify.js';
+import { normalizePhone } from '../../core/channel/phone.js';
 import { loadReady, renderReady } from './ready.js';
 import { earnedRung } from '../../db/ramp.js';
 import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
@@ -1656,7 +1657,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // V1 step two — every component in every state, on one page, for review by
   // eye and by the screenshot tool. Signed-in, not owner-only: OWNER_ONLY is
   // the six business actions, and a page of buttons is not one of them.
-  app.get('/app/settings/components', authed('settings', (s, req, locale) => renderComponents(locale)));
+  // Phase 9 — the component gallery is a developer's page: no link reaches it
+  // (phase 3), and like the machine room only the installation's own workspace
+  // gets it at all. Every other owner is told there is no such page.
+  app.get('/app/settings/components', {
+    preHandler: async (req, reply) => {
+      const s = sessionOf(req);
+      if (s && s.businessId !== deps.businessId) return reply.callNotFound();
+    },
+  }, authed('settings', (s, req, locale) => renderComponents(locale)));
 
   /**
    * BILL (0117) — Billing: where the workspace stands, the plans, the doors to
@@ -2503,7 +2512,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // writing to her Page.
   const whatsappConfigured = deps.provider !== 'disabled';
   const messagingEnabled = deps.messagingEnabled ?? whatsappConfigured;
-  app.get('/app/channels/whatsapp/connect', authed('channels', (_s, _req, locale) => renderConnectGuide(locale)));
+  const guide = (s: OwnerSession, locale: Locale, more: { kept?: string; invalid?: boolean; flash?: Flash | null } = {}) =>
+    renderConnectGuide(locale, {
+      viewer: personOf(s), canAsk: !!deps.systemMail, contact: deps.legalContact ?? null, ...more,
+    });
+  app.get('/app/channels/whatsapp/connect', authed('channels', (s, req, locale, reply) => guide(s, locale, { flash: takeFlash(req, reply) })));
+  // Phase 9 — the guide's first step: the number goes to Nomi's team.
+  app.post('/app/channels/whatsapp/ask', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels/whatsapp/connect');
+    if (!s) return reply;
+    const raw = String((req.body as { number?: unknown } | undefined)?.number ?? '').slice(0, 32);
+    const number = normalizePhone(raw);
+    if (!number) return sentBack(req, reply, 'channels', guide(s, localeOf(req), { kept: raw, invalid: true }));
+    const r = deps.systemMail
+      ? await notifyOperatorOfWhatsAppNumber({ db: deps.db, mail: deps.systemMail }, deps.businessId, s.businessId, number)
+        .catch(() => 'failed' as const)
+      : 'skipped' as const;
+    return flashTo(reply, '/app/channels/whatsapp/connect',
+      r === 'sent' ? 'channel.connect.flash.sent' : 'channel.connect.flash.failed');
+  });
 
   const channelAction = (path: string, run: (businessId: string, actor: string) => Promise<import('./channels.js').ChannelActionResult>) =>
     app.post(path, async (req, reply) => {
