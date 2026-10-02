@@ -13,6 +13,7 @@ import { renderCalendar } from '../../src/api/web/calendar.js';
 import { type CalendarEntry, type CalendarView } from '../../src/db/calendar.js';
 import { dayKey, dayStart, addDays } from '../../src/core/owner/i18n/format.js';
 import { money as showMoney } from '../../src/api/web/values.js';
+import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
 
 /**
  * Phase 9, round two — the Customers list, an order, the calendar, Results and
@@ -350,5 +351,75 @@ describe('the calendar', () => {
     const month = drawCal('en', 'month');
     expect(month).toMatch(/<td class=" today" aria-current="date">\s*<a class="mo-d" [^>]*>2<\/a><span class="cal-now">Today<\/span>/);
     expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ border:1\.5px solid var\(--color-ink\);/);
+  });
+});
+
+/* ── Results (V1-206–V1-212) ── */
+
+const RESULTS: AnalyticsData = {
+  range: 'week', hasActivity: true,
+  summary: { newClients: 6, activeConvos: 5, quotes: 12, orders: 1 },
+  activity: { inbound: 6, replied: 3, waiting: 1 },
+  commerce: { quotes: 12, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd(11750)] },
+  employee: { handled: 1, waiting: 1, edits: 0 },
+};
+const results = (l: Locale, over: Partial<AnalyticsData> = {}) => withoutIsolates(renderAnalytics({ ...RESULTS, ...over }, l));
+const statsOf = (h: string) => [...h.matchAll(/<div class="stat"><div class="v">([^<]+)<\/div><div class="l">([^<]+)<\/div><\/div>/g)].map((m) => `${m[1]} ${m[2]}`);
+
+describe('Results', () => {
+  it('V1-206 · the period inside a sentence is lower case', () => {
+    expect(results('en')).toContain('<p class="sub">This covers this week.</p>');
+    expect(results('es')).toContain('<p class="sub">Esto abarca esta semana.</p>');
+    expect(results('en', { range: 'today' })).toContain('This covers today so far.');
+    const empty = withoutIsolates(renderAnalytics({ ...RESULTS, hasActivity: false, range: 'month' }, 'en'));
+    expect(empty).toContain('Not enough activity for this month yet.');
+  });
+
+  it('V1-207 · Results is Today\'s page and says so; its period chip is not a second "Today"', () => {
+    for (const l of LOCALES) {
+      const h = results(l);
+      expect(h, l).toContain(`<a class="back" href="/app"><span class="go" aria-hidden="true">‹</span>${shown(l, 'nav.home')}</a>`);
+      expect(t(l, 'analytics.range.today'), l).not.toBe(t(l, 'nav.home'));
+    }
+  });
+
+  it('V1-208 · each count is said once: prices and orders under their own heading only', () => {
+    for (const l of LOCALES) {
+      const rows = statsOf(results(l));
+      expect(rows.filter((r) => r.startsWith('12 ')), l).toHaveLength(1);
+      const overview = results(l).split(shown(l, 'analytics.section.activity'))[0]!;
+      expect(statsOf(overview), l).toHaveLength(2);
+    }
+    // "Quotes sent" counted every price worked out, sent or not: it says what it counts
+    expect(statsOf(results('en'))).toContain('12 prices worked out');
+  });
+
+  it('V1-209 · a count\'s words agree with it, in each language\'s own forms', () => {
+    const en = statsOf(results('en'));
+    expect(en).toEqual(expect.arrayContaining(['1 order placed', '1 reply waiting for your OK', '0 replies you changed before they went', '6 new customers']));
+    expect(statsOf(results('es'))).toEqual(expect.arrayContaining(['1 pedido realizado', '1 respuesta que espera tu visto bueno']));
+    expect(statsOf(results('ar', { summary: { ...RESULTS.summary, newClients: 12 } }))).toContain('12 عميلًا جديدًا');
+    expect(statsOf(results('ar', { summary: { ...RESULTS.summary, newClients: 2 } }))).toContain('2 عميلان جديدان');
+    for (const l of LOCALES) for (const r of statsOf(results(l))) expect(r, l).not.toMatch(/^1 (Orders|Pedidos|الطلبات)/);
+  });
+
+  it('V1-210 · the sales are a figure and its words, to the cent, like every other row — not a pill', () => {
+    for (const l of LOCALES) {
+      const h = results(l);
+      expect(h, l).not.toContain('class="chip"');
+      expect(h, l).toContain(`<div class="v">${withoutIsolates(esc(showMoney(l, usd(11750))))}</div><div class="l">${shown(l, 'analytics.commerce.value')}</div>`);
+      expect(h, l).toContain(`${esc(t(l, `analytics.n.order.${new Intl.PluralRules(l).select(1)}` as MessageKey))} · ${esc(t(l, 'order.status.confirmed' as MessageKey))}`);
+    }
+  });
+
+  it('V1-211 · the page keeps the prose measure, so its rules end where its rows do', () => {
+    expect(results('en').startsWith('<div class="measure-prose">')).toBe(true);
+  });
+
+  it('V1-212 · Chinese: no double 的 in the heading, and the corrections line is a whole phrase', () => {
+    const h = results('zh');
+    expect(h).not.toContain('的工作总结');
+    expect(h).toContain(`${esc(t('zh', 'analytics.section.employee'))}`);
+    expect(statsOf(h)).toContain('0 条你改过再发的回复');
   });
 });

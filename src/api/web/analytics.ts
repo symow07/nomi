@@ -8,7 +8,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { esc } from './layout.js';
+import { esc, back } from './layout.js';
 import * as show from './values.js';
 
 /**
@@ -131,65 +131,79 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
 
 /** ── Renderer (pure, mobile-first, localized) ─────────────────────────────── */
 
+/**
+ * Phase 9 (V1-209) — a count's words in the form its language gives that count
+ * ("1 order placed", "12 طلبًا"): the figure stands first, as on every stat row,
+ * and the words after it agree with it.
+ */
+const noun = (locale: Locale, base: string, n: number): string =>
+  t(locale, `${base}.${new Intl.PluralRules(locale).select(n)}` as MessageKey);
+
 export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   const name = assistantName(locale);
-  const rangeLabel = t(locale, `analytics.range.${d.range}` as MessageKey);
-  const stat = (value: number, key: MessageKey): string =>
-    `<div class="stat"><div class="v">${esc(show.count(locale, value))}</div><div class="l">${esc(t(locale, key))}</div></div>`;
+  // Phase 9 (V1-206) — the period inside a sentence is lower case: "This covers this week."
+  const during = t(locale, `analytics.during.${d.range}` as MessageKey);
+  const stat = (value: number, base: string): string =>
+    `<div class="stat"><div class="v">${esc(show.count(locale, value))}</div><div class="l">${esc(noun(locale, base, value))}</div></div>`;
 
   const tab = (r: Range) =>
     `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/analytics?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
   const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
-  const title = `<h1 class="page">${esc(t(locale, 'analytics.title'))}</h1>`;
+  // Phase 9 (V1-207) — Results is Today's page, and says so: the way back is
+  // to Today, the period's chip is "Today so far", not a second "Today".
+  const title = `${back('/app', t(locale, 'nav.home'))}<h1 class="page">${esc(t(locale, 'analytics.title'))}</h1>`;
 
   if (!d.hasActivity) {
-    return `${title}${tabs}
+    return `<div class="measure-prose">${title}${tabs}
       <div class="block"><div class="empty"><div class="stated-now">📈 ${esc(t(locale, 'analytics.empty.title'))}</div>
-        <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: rangeLabel, name }))}</p></div></div>
-      `;
+        <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: during, name }))}</p></div></div></div>`;
   }
 
+  // Phase 9 (V1-208) — each count once: the prices and orders are under their
+  // own heading, not a second time in the overview.
   const summary = `<div class="block"><h2>${esc(t(locale, 'analytics.section.summary'))}</h2>
     <div class="stats">
-      ${stat(d.summary.newClients, 'analytics.summary.newClients')}
-      ${stat(d.summary.activeConvos, 'analytics.summary.conversations')}
-      ${stat(d.summary.quotes, 'analytics.summary.quotes')}
-      ${stat(d.summary.orders, 'analytics.summary.orders')}
+      ${stat(d.summary.newClients, 'analytics.n.newClients')}
+      ${stat(d.summary.activeConvos, 'analytics.n.conversations')}
     </div></div>`;
 
   const activity = `<div class="block"><h2>${esc(t(locale, 'analytics.section.activity'))}</h2>
     <div class="stats">
-      ${stat(d.activity.inbound, 'analytics.activity.inbound')}
-      ${stat(d.activity.replied, 'analytics.activity.replied')}
+      ${stat(d.activity.inbound, 'analytics.n.inbound')}
+      ${stat(d.activity.replied, 'analytics.n.replied')}
     </div></div>`;
   // Phase 9 (V1-205) — "Awaiting you" counted only the drafts waiting for review
   // and disagreed with the rail's "Needs you"; the same count stands, named for
   // what it is, under the assistant's work ("Replies waiting for your OK").
 
-  const dealsHtml = d.commerce.orders > 0
-    ? `<div class="chips">
-        ${d.commerce.deals.map((x) => `<span class="chip">${esc(orderStatusName(locale, x.status))} ${esc(show.count(locale, x.n))}</span>`).join('')}
-      </div>${d.commerce.totals.length ? `<p class="small muted">${esc(t(locale, 'analytics.commerce.totalValue', {
-          value: d.commerce.totals.map((m) => show.moneyWhole(locale, m)).join(' · '),
-        }))}</p>` : ''}`
+  // Phase 9 (V1-210) — the sales in the page's one pattern, a figure and its
+  // words: how many orders are in each state, then what they come to, to the
+  // cent as the order page says it. A pill there read as a filter.
+  const deals = d.commerce.orders > 0
+    ? `<div class="stats">
+        ${d.commerce.deals.map((x) => `<div class="stat"><div class="v">${esc(show.count(locale, x.n))}</div><div class="l">${
+          esc(noun(locale, 'analytics.n.order', x.n))} · ${esc(orderStatusName(locale, x.status))}</div></div>`).join('')}
+        ${d.commerce.totals.map((m) => `<div class="stat"><div class="v">${esc(show.money(locale, m))}</div><div class="l">${esc(t(locale, 'analytics.commerce.value'))}</div></div>`).join('')}
+      </div>`
     : `<div class="muted">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
   const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>
-    <div class="stats two">
-      ${stat(d.commerce.quotes, 'analytics.commerce.quoteCount')}
-      ${stat(d.commerce.orders, 'analytics.commerce.orderCount')}
+    <div class="stats">
+      ${stat(d.commerce.quotes, 'analytics.n.prices')}
+      ${stat(d.commerce.orders, 'analytics.n.orders')}
     </div>
-    <div class="sub">${esc(t(locale, 'analytics.commerce.deals'))}</div>${dealsHtml}</div>`;
+    <div class="sub">${esc(t(locale, 'analytics.commerce.deals'))}</div>${deals}</div>`;
 
   const employee = `<div class="block"><h2>${esc(t(locale, 'analytics.section.employee', { name }))}</h2>
     <div class="stats">
-      ${stat(d.employee.handled, 'analytics.employee.handled')}
-      ${stat(d.employee.waiting, 'analytics.employee.waiting')}
-      ${stat(d.employee.edits, 'analytics.employee.edits')}
+      ${stat(d.employee.handled, 'analytics.n.handled')}
+      ${stat(d.employee.waiting, 'analytics.n.waiting')}
+      ${stat(d.employee.edits, 'analytics.n.edits')}
     </div>
     ${d.employee.answered ? `<p class="note">${esc(t(locale, 'analytics.employee.own', {
       own: d.employee.answered.hers, replies: d.employee.answered.replies }))}</p>` : ''}
-    <p class="sub">${esc(t(locale, 'analytics.employee.foot', { range: rangeLabel }))}</p></div>`;
+    <p class="sub">${esc(t(locale, 'analytics.employee.foot', { range: during }))}</p></div>`;
 
-  return `${title}${tabs}${summary}${activity}${commerce}${employee}`;
+  // Phase 9 (V1-211) — the page keeps the prose measure, so a section's rule
+  // ends where its rows do.
+  return `<div class="measure-prose">${title}${tabs}${summary}${activity}${commerce}${employee}</div>`;
 }
-

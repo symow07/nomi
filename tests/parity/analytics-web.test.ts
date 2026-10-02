@@ -31,8 +31,8 @@ describe('M9.8 · business review (localized)', () => {
   it('zh: four sections with real numbers', () => {
     const html = renderAnalytics(active, 'zh');
     expect(html).toContain('经营情况');
-    expect(html).toContain('新增客户'); expect(html).toContain('客户沟通');
-    expect(html).toContain('沟通情况'); expect(html).toContain('客户咨询');
+    expect(html).toContain('位新客户'); expect(html).toContain('段对话');
+    expect(html).toContain('沟通情况'); expect(html).toContain('条客户消息');
     expect(html).toContain('报价与订单'); expect(html).toContain(t('zh', 'analytics.section.employee'));
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
@@ -40,9 +40,9 @@ describe('M9.8 · business review (localized)', () => {
   it('en: four sections with real numbers', () => {
     const html = renderAnalytics(active, 'en');
     expect(html).toContain('Results');
-    expect(html).toContain('New customers'); expect(html).toContain('Activity');
-    expect(html).toContain('Customer messages'); expect(html).toContain(t('en', 'analytics.section.employee'));
-    expect(html).toContain('Replies you sent from');
+    expect(html).toContain('new customers'); expect(html).toContain('Activity');
+    expect(html).toContain('messages from customers'); expect(html).toContain(t('en', 'analytics.section.employee'));
+    expect(html).toContain('replies you sent from');
     // V1-205 — no second "waiting" count under Activity to disagree with the rail.
     expect(html).not.toContain('Awaiting you');
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
@@ -52,7 +52,7 @@ describe('M9.8 · business review (localized)', () => {
     for (const l of LOCALES) {
       const html = renderAnalytics(active, l);
       for (const w of ['Awaiting you', '等待确认', 'بانتظارك', 'Te esperan', 'Vous attendent']) expect(html, l).not.toContain(w);
-      expect(html, l).toContain(t(l, 'analytics.employee.waiting'));
+      expect(html, l).toContain(t(l, `analytics.n.waiting.${new Intl.PluralRules(l).select(4)}` as never));
     }
   });
 
@@ -64,11 +64,12 @@ describe('M9.8 · business review (localized)', () => {
   });
 
   it('real order value only when orders exist — localized status + note', () => {
-    expect(renderAnalytics(active, 'en')).toContain('Confirmed 1');
-    expect(renderAnalytics(active, 'en')).toContain('Sales value $4,600');
-    expect(renderAnalytics(active, 'zh')).toContain('已成交 1');
+    // Phase 9 (V1-210) — a figure and its words, as every other row: "1 order · Confirmed", "$4,600.00 in sales".
+    expect(renderAnalytics(active, 'en')).toContain('<div class="stat"><div class="v">1</div><div class="l">order · Confirmed</div></div>');
+    expect(renderAnalytics(active, 'en')).toContain('<div class="stat"><div class="v">$4,600.00</div><div class="l">in sales</div></div>');
+    expect(renderAnalytics(active, 'zh')).toContain('个订单 · 已成交');
     const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totals: [] } }, 'en');
-    expect(noOrders).not.toContain('Sales value');
+    expect(noOrders).not.toContain('in sales');
     expect(noOrders).toContain('No sales yet.');
   });
 
