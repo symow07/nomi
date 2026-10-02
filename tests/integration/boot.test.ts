@@ -3281,13 +3281,39 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('registers NO outbound worker (queue has no consumer)', async () => {
-    // With no registered worker the job stays available — we can fetch it
-    // ourselves. In active mode a worker would race to consume it first.
-    await prod.boss.send('message.outbound', { businessId: DEMO_BIZ, conversationId: DEMO_BIZ });
-    await new Promise((r) => setTimeout(r, 400));
-    const jobs = await prod.boss.fetch('message.outbound');
-    expect(jobs.length).toBeGreaterThanOrEqual(1);   // nobody consumed it
+  it('the outbound worker carries Practice only: a real conversation\'s reply is refused, never sent', async () => {
+    // This test used to assert that NO outbound worker is registered, by
+    // fetching a job 400 ms after sending it. Since P3 the worker runs in
+    // deployment mode (it carries Practice, the test above), so the assertion
+    // only held when its poll came later than 400 ms — a race that failed on
+    // CI for #207. What is actually true, and what matters: with no channel,
+    // a real conversation's reply is refused — by the gate (here the
+    // allowlist) or, past it, `channel_unavailable` — shown to the owner as a
+    // refusal, never sent; and no channel exists to send it on.
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { enqueueOutboundRow } = await import('../../src/db/channels.js');
+    const b = parseBusinessId(DEMO_BIZ); if (!b.ok) throw new Error('fixture');
+    const marker = `deployment mode, ${RUN_NS}: nothing carries this`;
+    const conv = await withTenantTx(prod.db, b.value, async (tx) => {
+      const c = (await sql<{ id: string }>`select id::text as id from conversations where business_id = ${DEMO_BIZ}
+        order by created_at limit 1`.execute(tx)).rows[0]!.id;
+      await enqueueOutboundRow(tx, b.value, c, marker, 'owner');
+      return c;
+    });
+    await prod.boss.send('message.outbound', { businessId: DEMO_BIZ, conversationId: conv });
+    let settled: { status: string; cancel_reason: string | null } | undefined;
+    for (let i = 0; i < 150 && !settled; i++) {
+      const r = await withTenantTx(prod.db, b.value, (tx) => sql<{ status: string; cancel_reason: string | null }>`
+        select status, cancel_reason from outbound_messages where conversation_id = ${conv}::uuid and body = ${marker}`
+        .execute(tx).then((x) => x.rows[0]));
+      if (r && r.status !== 'queued' && r.status !== 'sending') settled = r;
+      else await new Promise((res) => setTimeout(res, 200));
+    }
+    expect(settled, 'the worker decided the row').toBeDefined();
+    expect(settled?.status).not.toBe('sent');
+    expect(String(settled?.cancel_reason)).toMatch(/^canceled: \w+/);
+    expect(prod.channels).toEqual([]);
   });
 
   it('shuts down cleanly', async () => {
