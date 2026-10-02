@@ -1903,7 +1903,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);
       expect(res.body).toContain(esc(t('en', 'her.knows.title')));
       expect(res.body).toContain(esc(t('en', 'her.handles.title')));
-      expect(res.body).toContain('Recently');
+      expect(res.body).toContain(esc(t('en', 'her.recent.title')));
       expect(res.body).toContain(esc(t('en', 'her.teach.title')));
     });
 
