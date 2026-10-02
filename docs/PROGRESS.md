@@ -127,7 +127,9 @@ With no script, or in a browser without dialogs, the browser's box still asks.
 - **The 15-minute window.** A turn that has not run by then has failed, and a failed turn hands the conversation to a person (`not_answered`, #110). So the line never outlives the work.
 - **The 4-second poll**, only while the line shows.
 
-**Found on the way and fixed:** Knowledge never showed its own notices. Teaching or archiving a business-wide fact redirected to a page that dropped the sentence, so nothing confirmed it. It shows them now, with Undo.
+**Found on the way and fixed:**
+- **A flaky integration test, root-caused.** PR 202's first CI run failed one test, the blocked-number send: it expected 1 refusal and found 2. The test counted every send refusal in the shared demo business while the production workers ran beside it, so another test's queued send, refused in the same second, counted as well. It now counts only its own conversation's refusals (the audit row names its outbound message). The send path was not at fault.
+- Knowledge never showed its own notices. Teaching or archiving a business-wide fact redirected to a page that dropped the sentence, so nothing confirmed it. It shows them now, with Undo.
 
 **Phase 4 (#201) — colour and hierarchy.**
 
