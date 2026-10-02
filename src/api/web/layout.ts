@@ -1356,6 +1356,10 @@ const STYLE_PAGES = `
   .pn-r { flex:none; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   .pn-you { color:var(--color-ink); }
   .pn-none { color:var(--color-ink-secondary); }
+  /* Phase 9 (conversation-missed-05) — a door in the panel: in ink, its chevron set off from its words. */
+  .pn-door { display:inline-flex; align-items:center; gap:var(--space-4); color:var(--color-ink); font-size:var(--font-size-small); }
+  /* Phase 9 (V1-257) — the open conversation, when the tab does not list it: first, under its own heading. */
+  .listpane .lp-current { margin-top:0; }
   @media (min-width: 1100px) {
     main.wide { max-width:100%; padding:0; }
     .panes { display:grid; grid-template-columns:300px minmax(0, 1fr); align-items:start; min-height:100vh; }

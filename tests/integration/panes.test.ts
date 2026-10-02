@@ -129,7 +129,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
     expect(panel).toContain('<bdi>$34.90</bdi> · <bdi>Rose Face Serum</bdi>');
     expect(panel).toContain('Sample · asked ');
     const activity = panel.slice(panel.indexOf('<h3>Activity</h3>'));
-    const order = ['Waiting for you', 'didn’t reach them', 'You answered yourself', 'You sent', 'replied'].map((s) => activity.indexOf(s));
+    const order = ['Needs you', 'didn’t reach them', 'You answered yourself', 'You sent', 'replied'].map((s) => activity.indexOf(s));
     for (const i of order) expect(i).toBeGreaterThan(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));   // newest first
     expect(activity).toContain('<span class="pn-you" aria-hidden="true">●</span> You sent');

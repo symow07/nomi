@@ -419,6 +419,10 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
   </div>`;
 }
 
+/** Phase 9 (V1-284) — the tab says which of the customer's two pages this is: it read "Aisha Bello", as the conversation's did. */
+export const customerFileTitle = (locale: Locale, f: Pick<CustomerFile, 'buyer'>): string =>
+  `${f.buyer ?? t(locale, 'common.buyer')} · ${t(locale, 'conv.file.title')}`;
+
 export function renderCustomerFile(
   f: CustomerFile, locale: Locale, now: Date, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
 ): string {

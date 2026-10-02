@@ -1493,7 +1493,8 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     <form method="post" action="/app/inbox/${cid}/handto" class="handto">
       <label class="muted" for="handto">${esc(t(locale, 'handto.label'))}</label>
       <select id="handto" name="personId" required>
-        ${others.map((p) => `<option value="${esc(p.id)}">${esc(isViewer(p) ? t(locale, 'conv.by.you') : p.name)}</option>`).join('')}
+        ${/* Phase 9 (V1-243, V1-264) — the reader as the label's own object: "Pasar a mí", «إحالة إلى نفسي», not "Pasar a Tú". */ ''}${
+          others.map((p) => `<option value="${esc(p.id)}">${esc(isViewer(p) ? t(locale, 'handto.self') : p.name)}</option>`).join('')}
       </select>
       <button class="btn" type="submit">${esc(t(locale, 'handto.button'))}</button>
     </form>`;

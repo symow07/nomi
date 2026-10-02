@@ -81,7 +81,7 @@ describe('the card, drawn', () => {
     const held = (reason: 'disclosure_not_reviewed' | 'language_without_disclosure', language: string) =>
       ({ ...base, pendingDraft: { ...base.pendingDraft!, withheld: { reason, language } } });
     const es = withoutIsolates(card(renderConversationDetail(held('disclosure_not_reviewed', 'es'), 'en', NOW, null)));
-    expect(es).toContain('<b>Waiting for you</b>');
+    expect(es).toContain('<b>Needs you</b>');
     expect(es).toContain('does not send alone to customers writing in Spanish yet');
     const pt = withoutIsolates(card(renderConversationDetail(held('language_without_disclosure', 'pt'), 'zh', NOW, null)));
     expect(pt).toContain('目前没有葡萄牙语版的身份说明');
@@ -132,7 +132,7 @@ describe('the card, drawn', () => {
   it('what made it wait is the card\'s state line, drawn before the rest', () => {
     const held = withoutIsolates(renderConversationDetail({ ...base, pendingDraft: { ...base.pendingDraft!, heldBecause: 'discount_needs_owner' } }, 'en', NOW, null));
     const c = card(held);
-    expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">○<\/span> <b>Waiting for you<\/b> /);
+    expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">○<\/span> <b>Needs you<\/b> /);
     expect(c.indexOf('class="stateline"')).toBeLessThan(c.indexOf('<textarea'));
   });
 
