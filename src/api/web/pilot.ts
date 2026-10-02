@@ -819,18 +819,17 @@ out: ${esc(v.engine)}</pre>
 export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: Flash | null, feedback?: PilotFeedback,
   viewer: Viewer = OWNER_VIEW,
-  /** G6 — the installation's own workspace: only its owner reaches the machine room. */
-  operator = true,
 ): string {
+  // Phase 9 (V1-139, V1-140) — no door to the machine room from an owner's
+  // page: its credential shapes, build and importer notes are the operator's,
+  // and the installation's own workspace is also a business (Westlake). The
+  // page itself stays where it was, for the operator, by its address.
   return renderPilotReadiness(rb.readiness, locale, flash, viewer)
     + duringSection(rb.operations, locale)
     + healthSection(rb.reliability, locale)
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
-    + (feedback ? feedbackSection(feedback, locale) : '')
-    + (viewer.isOwner && operator
-      ? `<section class="block"><div class="doors">${deeper('/app/onboarding/technical', t(locale, 'pilot.technical.title'))}</div></section>`
-      : '');
+    + (feedback ? feedbackSection(feedback, locale) : '');
 }
 
 /**

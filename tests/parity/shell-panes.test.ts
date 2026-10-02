@@ -34,16 +34,16 @@ describe('the rail', () => {
     expect(nav.match(/class="navlink /g)).toHaveLength(5);
   });
 
-  it('"Customers" heads its two pages; Conversations carries the one number, and is lit here', () => {
+  it('"Customers" heads its two pages; the customer list carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
     const html = page('/app/inbox/c-1');
     expect(html).toMatch(/<span class="navhead" id="nav-customers">Customers<\/span>/);
-    expect(html).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page" aria-label="Conversations, 3 customers need you">Conversations<span class="navcount" aria-hidden="true">3<\/span><\/a>/);
+    expect(html).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page" aria-label="Customer list, 3 customers need you">Customer list<span class="navcount" aria-hidden="true">3<\/span><\/a>/);
     expect(html).toMatch(/<a href="\/app\/calendar" class="subnav">Calendar<\/a>/);
     const cal = page('/app/calendar');
     expect(cal).toMatch(/<a href="\/app\/calendar" class="subnav active" aria-current="page">/);
     // nobody waiting: no number at all, not a zero
     const calm = withWorkspace({ ...SCOPE, needsYou: 0 }, () => shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
-    expect(calm).toMatch(/<a href="\/app\/inbox" class="subnav">Conversations<\/a>/);
+    expect(calm).toMatch(/<a href="\/app\/inbox" class="subnav">Customer list<\/a>/);
   });
 
   it('Log out is a button in a form — it changes something', () => {
@@ -55,6 +55,13 @@ describe('the rail', () => {
     expect(page('/app/inbox/c-1')).toContain('<title>Maya Rahman · Hana Skincare</title>');
     expect(withWorkspace({ ...SCOPE, business: null }, () => shell({ title: 'Today', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })))
       .toContain('<title>Today · Nomi</title>');
+  });
+
+  it('phase 9 (V1-003) · a page with its own heading names itself in the tab, not its area', () => {
+    const body = '<h1 class="page">Days you are <bdi>closed</bdi> &amp; away</h1><p>…</p>';
+    const html = withWorkspace({ ...SCOPE, business: null }, () => shell({ title: 'Setup', active: 'settings', locale: 'en', path: '/app/settings/closures', bodyHtml: body }));
+    expect(html).toContain('<title>Days you are closed &amp; away · Nomi</title>');
+    expect(html).not.toContain('<title>Setup ·');
   });
 
   it('in Arabic the Customers head and its pages speak Arabic; on a phone the groups dissolve into the one row', () => {

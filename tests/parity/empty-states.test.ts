@@ -132,3 +132,15 @@ describe('Phase F · every empty surface says what happens next', () => {
     }
   });
 });
+
+describe('Phase 9 · the five empties phase 6 missed are panels too (cross-missed-01)', () => {
+  it('the week, the day, the month and the day list say "nothing" in a panel, never a grey line', () => {
+    const base = { from: '2026-07-26', to: '2026-08-16', today: '2026-08-02', category: null, buyer: null, buyers: [], categories: [], entries: [] };
+    for (const view of ['week', 'day', 'month', 'list'] as const) {
+      const html = renderCalendar({ ...base }, 'en', { view });
+      expect(html, view).not.toMatch(/<p class="muted">Nothing/);
+    }
+    const week = renderCalendar({ ...base }, 'en', { view: 'week' });
+    expect(week).toContain(`<div class="empty">${t('en', 'calendar.empty.week')}</div>`);
+  });
+});

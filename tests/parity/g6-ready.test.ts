@@ -79,11 +79,25 @@ describe('G6 · the Ready for customers page', () => {
 });
 
 describe('G6 · the machine room is the installation\'s', () => {
-  it('only the installation\'s own workspace reaches it, and only its owner sees the door', () => {
+  it('only the installation\'s own workspace reaches it, and no owner\'s page links to it (phase 9)', () => {
     const app = src('src/api/web/app.ts');
     const at = app.indexOf("app.get('/app/onboarding/technical', {");
     expect(at).toBeGreaterThan(-1);
     expect(app.slice(at, at + 300)).toContain('if (s && s.businessId !== deps.businessId) return reply.callNotFound();');
-    expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s), s.businessId === deps.businessId)');
+    expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s))');
+    expect(src('src/api/web/pilot.ts')).not.toContain("deeper('/app/onboarding/technical'");
+  });
+});
+
+describe('Phase 9 · "may send alone" is ticked only when it is true (V1-145)', () => {
+  it('earned but the name unconfirmed: not ticked, and it says the name is what is left', () => {
+    for (const l of LOCALES) {
+      const html = withoutIsolates(renderReady(view([], { earned: true, named: false }), l));
+      const facts = html.slice(html.indexOf('id="ready-facts"'));
+      expect(facts, l).toContain(esc(t(l, 'ready.alone.needsName')));
+      expect(facts, l).not.toContain('class="chk ok"');   // nothing in the facts is ticked: name, channel, sending alone
+    }
+    const both = renderReady(view([], { earned: true, named: true }), 'en');
+    expect(both).toMatch(/<li class="chk ok"><span class="mk" aria-hidden="true">✓<\/span><span class="lbl">[^<]*send alone/);
   });
 });

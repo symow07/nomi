@@ -131,20 +131,20 @@ describe('F2 / F4 · Getting ready is the checklist; the machine room is one doo
     reliability: { stuckOutbound: 0, oldestQueuedAt: null },
   };
 
-  it('no credential names on the owner’s page, in any locale; the door is there', () => {
+  it('no credential names on the owner’s page, in any locale; and no door to the machine room (phase 9)', () => {
     for (const l of LOCALES) {
       const html = renderPilotRunbook(rb, l, null);
       for (const k of ['meta.cred.accessToken', 'meta.cred.appSecret', 'meta.cred.verifyToken', 'meta.title', 'runbook.deploy.title', 'runbook.engine.title'] as const)
         expect(html.includes(t(l, k)), `${l}/${k}`).toBe(false);
-      expect(html).toContain('<a class="deeper" href="/app/onboarding/technical">');
+      expect(html).not.toContain('href="/app/onboarding/technical"');
       // the checklist and practice stay
       expect(html).toContain(t(l, 'pilot.prelaunch'));
       expect(html).toContain(t(l, 'runbook.practice.title'));
     }
   });
 
-  it('the technical page lights Setup, through Getting ready', () => {
-    expect(CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/onboarding')?.routes).toContain('/app/onboarding/technical');
+  it('the technical page is no hub\'s contextual route since phase 9 (no owner\'s page links to it); its address still lights Setup', () => {
+    expect(CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/onboarding')?.routes).not.toContain('/app/onboarding/technical');
     expect(hubFor('/app/onboarding/technical', 'x')).toBe('settings');
   });
 });

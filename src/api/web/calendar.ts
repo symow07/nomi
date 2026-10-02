@@ -448,7 +448,8 @@ function renderGrid(v: CalendarView, locale: Locale, view: Exclude<CalendarViewK
   const days: string[] = [];
   if (view !== 'month') for (let d = v.from; d < v.to; d = addDays(d, 1)) days.push(d);
   const empty = v.entries.length === 0
-    ? `<p class="muted">${esc(t(locale, view === 'week' ? 'calendar.empty.week' : view === 'day' ? 'calendar.empty.day' : 'calendar.empty.month'))}</p>` : '';
+    // Phase 9 — an empty state is a panel everywhere (phase 6 missed these five).
+    ? `<div class="empty">${esc(t(locale, view === 'week' ? 'calendar.empty.week' : view === 'day' ? 'calendar.empty.day' : 'calendar.empty.month'))}</div>` : '';
   return `<div class="cal-top"><h1 class="page">${esc(t(locale, 'nav.calendar'))}</h1>${viewTabs(locale, v, view, at)}</div>
     ${move}
     ${categoryTabs(locale, v, (c) => href({ view, at, category: c, buyer }))}
@@ -506,7 +507,7 @@ function renderList(v: CalendarView, locale: Locale, kept: Kept | null = null): 
       <h2 class="cal-day"${day === v.today ? ' aria-current="date"' : ''}>${esc(title)}</h2>
       ${items.length
         ? `<ul class="rows">${items.map((e) => entry(locale, e, v.category === null)).join('')}</ul>`
-        : `<p class="muted">${esc(t(locale, 'calendar.todayNothing'))}</p>`}
+        : `<div class="empty">${esc(t(locale, 'calendar.todayNothing'))}</div>`}
     </section>`;
   }).join('');
 

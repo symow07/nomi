@@ -142,7 +142,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
    * French changes is dropped from the list by the check below.
    */
   const SAME_WORD: Partial<Record<Locale, ReadonlySet<string>>> = {
-    fr: new Set(['nav.conversations', 'pane.label', 'panel.conversations.one', 'panel.conversations.two', 'panel.conversations.few',
+    fr: new Set(['pane.label', 'panel.conversations.one', 'panel.conversations.two', 'panel.conversations.few',
       'panel.conversations.many', 'panel.conversations.other', 'nav.short.employee', 'login.emailLabel', 'data.export.subject.messages',
       'buyers.page.nav', 'analytics.summary.conversations', 'product.detail.imagesTitle', 'proof.fact.total', 'proof.certs.title',
       'employee.promo.title', 'inbox.detail.log', 'order.card.email', 'billing.plan.assistants', 'settings.field.description',

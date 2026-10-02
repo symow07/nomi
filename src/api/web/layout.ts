@@ -88,8 +88,10 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // is no longer a door on Setup: it is a page for whoever builds the product
   // (the screenshots tool walks it), not a setting. It still lights Setup, by
   // sitting under its address.
-  // Phase 4b — the machine room is reached from Getting ready, and lights Setup through it.
-  { hub: '/app/onboarding', routes: ['/app/onboarding/technical', '/app/ready'] },
+  // Phase 4b — the machine room was reached from Getting ready. Phase 9: no
+  // owner's page links to it any more (it is the operator's, by its address),
+  // so it is not a contextual route of any hub; it lights nothing.
+  { hub: '/app/onboarding', routes: ['/app/ready'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
   { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
@@ -145,6 +147,10 @@ export const missingPage = (locale: Locale, title: string, door: { readonly href
 
 export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
   `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
+
+/** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
+export const unescapeHtml = (s: string): string =>
+  s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&');
 
 /**
  * THE ASSISTANT'S HAND (the design pass, 2026-09-29): its name where it is
@@ -1792,12 +1798,17 @@ export function shell(input: {
     : `<span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span>`;
   const home = ((input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app') === '/app';
   const heading = business && home ? `<p class="business-name"><bdi>${esc(business)}</bdi></p>` : '';
+  // Phase 9 (V1-003) — the tab names the PAGE: its own heading when it has one
+  // (an account page, a closure list, an order, a product), the area's name
+  // only where the page has none. Every Setup page was "Setup · …".
+  const ownHeading = /<h1 class="page"[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
+  const tabTitle = (ownHeading ? unescapeHtml(ownHeading.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '') || input.title;
   // CC-20 — the first stop for a keyboard or a screen reader: past the five
   // nav entries, straight to the page. Out of sight until it has focus.
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(input.title)} · ${esc(business ?? 'Nomi')}</title>
+<title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
 ${linkTo(APP_SHEET)}

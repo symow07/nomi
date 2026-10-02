@@ -73,7 +73,28 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect((await get(pilotCookie, '/app/onboarding/technical')).statusCode).toBe(200);
     const ready = await get(shopCookie, '/app/onboarding');
     expect(ready.body).not.toContain('href="/app/onboarding/technical"');
-    expect((await get(pilotCookie, '/app/onboarding')).body).toContain('href="/app/onboarding/technical"');
+    // Phase 9 — the installation's own workspace keeps the page, but no owner's page links to it.
+    expect((await get(pilotCookie, '/app/onboarding')).body).not.toContain('href="/app/onboarding/technical"');
+  });
+
+  it('PHASE 9 · V1-007 · a mistyped /app address keeps a signed-in owner in the workspace; signed out it is the door page', async () => {
+    const html = { accept: 'text/html' };
+    const inside = await app.inject({ method: 'GET', url: '/app/no-such-page', headers: { ...html, cookie: shopCookie } });
+    expect(inside.statusCode).toBe(404);
+    expect(inside.body).toContain('<nav class="side"');
+    expect(inside.body).toContain(t('en', 'error.notfound.title'));
+    expect(inside.body).toContain('href="/app"');
+    const outside = await app.inject({ method: 'GET', url: '/app/no-such-page', headers: html });
+    expect(outside.statusCode).toBe(404);
+    expect(outside.body).not.toContain('<nav class="side"');
+  });
+
+  it('PHASE 9 · V1-007 · an empty product paste says so instead of reloading in silence', async () => {
+    const { flashSaid } = await import('./tenant.js');
+    const r = await app.inject({ method: 'POST', url: '/app/products/add/review', payload: 'text=%20%20', headers: { ...FORM, cookie: pilotCookie } });
+    expect(r.statusCode).toBe(302);
+    expect(flashSaid(r, 'a-test-session-secret-of-sufficient-length')).toBe(t('en', 'product.add.empty'));
+    expect((await get(pilotCookie, '/app/products/add')).body).toMatch(/<textarea name="text" rows="8" required/);
   });
 
   it('PHASE 9 · the component gallery is the installation\'s too: 404 for any other owner, and no door to it', async () => {

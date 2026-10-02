@@ -150,14 +150,14 @@ describe('Today, by time (render)', () => {
     expect(html).toMatch(/<span class="as" aria-hidden="true">✦<\/span> [^<]*14/);
     expect(html).toContain(tn('en', 'today.last.yourself', 1));
     const quiet = renderOperationsHome(live(populated), 'en', { ...busy, last24: { answered: 0, sent: 0, handed: 0, yourself: 0 } });
-    expect(quiet).toContain(t('en', 'today.last.none'));
+    expect(quiet).toContain(`<div class="empty">${t('en', 'today.last.none')}</div>`);   // phase 9 — a panel, not a grey line
     // CC-05 — the way into Results stays, whatever the day held.
     expect(quiet).toContain('href="/app/analytics"');
   });
 
   it('coming up: the calendar\'s next things, or the fact that there are none — and a door to the calendar', () => {
     const html = renderOperationsHome(live(emptyFactory), 'en', NOTHING_TODAY(NOW));
-    expect(html).toContain(t('en', 'today.coming.none'));
+    expect(html).toContain(`<div class="empty">${t('en', 'today.coming.none')}</div>`);
     expect(html).toContain('href="/app/calendar"');
   });
 
@@ -171,7 +171,7 @@ describe('Today, by time (render)', () => {
     const html = renderOperationsHome(emptyFactory, 'en', NOTHING_TODAY(NOW));
     expect(html).toContain(t('en', 'today.calm.notLive.title'));
     expect(html).toContain('href="/app/business"');
-    expect(html).toContain('Messaging is not active yet');
+    expect(html).toContain(t('en', 'ops.system.notLive'));
     expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
   });
 
@@ -185,7 +185,7 @@ describe('Today, by time (render)', () => {
     // the page says messaging is not active instead (found in the screenshots).
     const off = renderOperationsHome(emptyFactory, 'en', busy);
     expect(off).not.toContain(t('en', 'today.sending'));
-    expect(off).toContain('Messaging is not active yet');
+    expect(off).toContain(t('en', 'ops.system.notLive'));
   });
 
   it('the date is today\'s, in the business\'s timezone, beside the title', () => {
@@ -236,5 +236,24 @@ describe('Today, by time (render)', () => {
     expect(html).not.toContain('<table');
     expect(html).not.toContain('<style');
     expect(html).not.toContain('@media');
+  });
+});
+
+describe('Phase 9 · Today counts who wrote, and claims nothing it cannot know (V1-088)', () => {
+  it('a customer who wrote is the block\'s first line, in every locale; "nothing" only when nobody did', async () => {
+    const { renderLastDay, NOTHING_TODAY } = await import('../../src/api/web/today.js');
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    const { tn } = await import('../../src/api/web/say.js');
+    const base = NOTHING_TODAY(new Date('2026-10-02T09:00:00Z'));
+    for (const l of LOCALES) {
+      const bare = (h: string) => h.replace(/[\u2066-\u2069]/g, '');
+      const wrote = bare(renderLastDay({ ...base, last24: { ...base.last24, wrote: 2 } }, l));
+      expect(wrote, l).toContain(bare(tn(l, 'today.last.wrote', 2)));
+      expect(wrote, l).not.toContain(bare(t(l, 'today.last.none')));
+      expect(bare(renderLastDay(base, l)), l).toContain(bare(t(l, 'today.last.none')));
+    }
+  });
+  it('"not live" says only what is true — nothing is sent — never that nothing is received', () => {
+    expect(t('en', 'ops.system.notLive')).not.toMatch(/receiv/i);
   });
 });

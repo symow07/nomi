@@ -66,7 +66,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'connect.flash.card', 'people.flash.seat_limit', 'assistants.flash.assistant_limit',
   'billing.flash.notConfigured', 'billing.flash.failed', 'billing.flash.noPlan', 'billing.flash.notBilled',
   // KS6 — the first connection waits for the operator; an address that is not one; an ask that did not go.
-  'connect.flash.approval', 'approval.flash.bad_page', 'approval.flash.failed', 'channel.connect.flash.failed',
+  'connect.flash.approval', 'approval.flash.bad_page', 'approval.flash.failed', 'channel.connect.flash.failed', 'product.add.empty',
   'connect.flash.rejected', 'connect.flash.unavailable', 'connect.meta.flash.no_pages',
   'connect.meta.flash.page_taken', 'connect.meta.flash.subscribe_failed', 'connect.meta.flash.unavailable',
   // WA — the own number did not connect, or WhatsApp is not live to open.

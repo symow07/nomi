@@ -191,7 +191,8 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     const noor = (await rows()).find((x) => x.name === 'Noor')!;
     const before = await app.inject({ method: 'GET', url: `/app/inbox/${wa.conversationId}`, headers: { cookie: ownerCookie } });
     expect(before.body).toContain(`action="/app/inbox/${wa.conversationId}/assistant"`);
-    expect(before.body).toContain('Answered by Lily');
+    // Phase 9 (V1-005) — Lily is the default name nobody confirmed (reset above): rule 7, not shown.
+    expect(before.body).not.toContain('Answered by Lily');
 
     const res = await post(ownerCookie, `/app/inbox/${wa.conversationId}/assistant`, `assistant=${noor.id}`);
     expect(res.statusCode).toBe(302);
