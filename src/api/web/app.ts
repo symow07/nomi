@@ -916,6 +916,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     'closures.flash.to_missing': 'to', 'closures.flash.ends_before_starts': 'to',
     'terms.flash.payment_missing': 'payment', 'terms.flash.payment_too_long': 'payment', 'terms.flash.incoterm_invalid': 'incoterm',
     'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.negative': 'price',
+    // Phase 7 — the calendar's own date.
+    'calendar.flash.title': 'title', 'calendar.flash.day': 'day', 'calendar.flash.time': 'from', 'calendar.flash.order': 'to',
   };
   const keptFrom = (locale: Locale, key: string, values: Record<string, unknown>): Kept | null => {
     const field = FIELD_OF[key];
@@ -3576,7 +3578,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/calendar');
     const r = readEntry((req.body ?? {}) as Record<string, unknown>, workspaceZone());
-    if (!r.ok) return flashTo(reply, '/app/calendar', `calendar.flash.${r.problem}` as MessageKey);
+    if (!r.ok) {
+      // Phase 7 — the calendar again, its add form open, the reason under the field and what was typed in it.
+      const locale = localeOf(req);
+      const kept = keptFrom(locale, `calendar.flash.${r.problem}`, (req.body ?? {}) as Record<string, unknown>);
+      if (!kept) return flashTo(reply, '/app/calendar', `calendar.flash.${r.problem}` as MessageKey);
+      const now = new Date();
+      const firstDay = firstDayOfWeek(await withTenantTx(deps.db, bid.value, (tx) => businessCountry(tx, bid.value)));
+      const q = parseCalendarQuery({}, now, firstDay);
+      return sentBack(req, reply, 'calendar', renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale,
+        { view: q.view, at: q.at, now, kept }));
+    }
     const entry = r.entry;
     await withTenantTx(deps.db, bid.value, (tx) => addEntry(tx, bid.value, entry, personOf(s).id));
     return flashTo(reply, `/app/calendar?at=${dayKey(entry.startsAt, workspaceZone())}`, 'calendar.flash.added');

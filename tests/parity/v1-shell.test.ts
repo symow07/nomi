@@ -133,6 +133,7 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     const rule = drawn().match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
     expect(rule).toContain('margin-inline-start:var(--space-8)');
     expect(rule).not.toContain('auto');
-    expect(phoneBlock()).toMatch(/nav\.side a\.navlink \{[^}]*flex-direction:row; flex-wrap:wrap/);
+    // Phase 7 — and on a phone the entry never breaks in two: one line, the count beside the word.
+    expect(phoneBlock()).toMatch(/nav\.side a\.navlink \{[^}]*flex-direction:row; flex-wrap:nowrap; white-space:nowrap/);
   });
 });

@@ -2,7 +2,7 @@ import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../..
 import { zoneChoices, zoneLabel } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey, ASSISTANT_FALLBACK } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount, tn } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
@@ -378,6 +378,7 @@ ${cssVariables()}
      link, the language pill and the button. Colour that appears everywhere
      marks nothing; jade now means only "this sends" and "this is a state". */
   nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600; }
+  .nl-short { display:none; }
   /* D — the setup count on the Setup entry: a figure at the far end of the
      row, in the secondary ink. Not a state, so no state colour. */
   /* V1 step three — the count sits BESIDE its word, not at the far end of the row. */
@@ -769,9 +770,13 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .mark-small { display:flex; }
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
-    nav.side a.navlink { flex:1; flex-direction:row; flex-wrap:wrap; gap:var(--space-4); margin:0;
+    nav.side a.navlink { flex:1 1 auto; flex-direction:row; flex-wrap:nowrap; white-space:nowrap; gap:var(--space-4); margin:0;
       padding:var(--space-8) var(--space-4); min-height:56px; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; }
+    /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
+    nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
+    .nl-long { display:none; }
+    .nl-short { display:inline; }
     @supports (animation-timeline: scroll()) {
       @media (prefers-reduced-motion: no-preference) {
         nav.side { animation: nav-compact linear both; animation-timeline: scroll(root); animation-range: 0 160px; }
@@ -783,6 +788,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
     .stats { grid-template-columns: repeat(2,1fr); }
     .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
     .flabel { min-width:0; font-size:var(--font-size-caption); }
+  }
+  /* Phase 7 — the narrowest phones: the five entries before the small mark. */
+  @media (max-width: 379px) {
+    nav.side .brand { display:none; }
   }
   /* V1 step three — the compaction the sticky phone nav plays over the first
      160px of scroll (see the phone block). Spacing from the scale only. */
@@ -1130,8 +1139,19 @@ const STYLE_PAGES = `
   .cal-move .cal-span { margin:0 var(--space-8); }
   .cal-legend { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0; }
   .cal-legend .wk-e { display:inline-block; width:var(--space-24); min-height:var(--space-16); padding:0; margin:0; }
-  .wk-scroll { overflow-x:auto; margin:var(--space-12) 0; }
-  .wk, .mo { width:100%; min-width:680px; border-collapse:collapse; table-layout:fixed; background:var(--color-surface); }
+  /* Phase 7 — a grid wider than the screen SAYS so: a shade at each edge that
+     has more beyond it (it goes when that edge is reached), and a thin bar. */
+  .wk-scroll { overflow-x:auto; margin:var(--space-12) 0; scrollbar-width:thin; scrollbar-color:var(--color-ink-secondary) transparent;
+    overscroll-behavior-x:contain; background-color:var(--color-surface);
+    background-image:linear-gradient(to right, var(--color-surface), transparent), linear-gradient(to left, var(--color-surface), transparent),
+      linear-gradient(to right, var(--color-ink-secondary), transparent), linear-gradient(to left, var(--color-ink-secondary), transparent);
+    background-position:left center, right center, left center, right center;
+    background-size:var(--space-32) auto, var(--space-32) auto, var(--space-8) auto, var(--space-8) auto;
+    background-repeat:no-repeat; background-attachment:local, local, scroll, scroll; }
+  /* Phase 7 — columns wide enough for a whole surname (a name wraps between words, never inside one). */
+  .wk, .mo { width:100%; min-width:780px; border-collapse:collapse; table-layout:fixed; background:transparent; }
+  /* The hours stay in view while the days scroll past them. */
+  .wk tbody th, .wk .wk-corner { position:sticky; inset-inline-start:0; z-index:1; background:var(--color-surface); }
   .wk th, .wk td, .mo th, .mo td { border:1px solid var(--color-border); vertical-align:top; padding:var(--space-4); }
   .wk thead th, .mo thead th { font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:start; padding:var(--space-8); }
   .wk thead th b { color:var(--color-ink); font-weight:600; }
@@ -1141,12 +1161,13 @@ const STYLE_PAGES = `
   .wk td { height:2.75em; }
   .wk-e { display:flex; flex-direction:column; gap:0; margin-bottom:var(--space-4); padding:var(--space-4) var(--space-8);
     border:1px solid var(--color-ink-secondary); border-inline-start-width:3px; border-radius:6px;
-    background:var(--color-surface); color:var(--color-ink); font-size:var(--font-size-caption); line-height:1.35; overflow:hidden; }
+    background:var(--color-surface); color:var(--color-ink); font-size:var(--font-size-caption); line-height:1.35; }
   .wk-e.solid { border-style:solid; }
   .wk-e.dashed { border-style:dashed; }
   .wk-e.past { color:var(--color-ink-secondary); border-color:var(--color-border); }
-  .wk-e b { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .wk-k, .wk-t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Phase 7 — a name is never cut: it wraps (a Latin name inside Arabic too, isolated by its bdi). */
+  .wk-e b { font-weight:600; overflow-wrap:break-word; }
+  .wk-k, .wk-t { overflow-wrap:break-word; }
   .wk-t { font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
   a.wk-e:hover, a.wk-e:focus-visible { background:var(--color-paper); }
   .cal-rm { margin:var(--space-4) 0 0; }
@@ -1161,6 +1182,20 @@ const STYLE_PAGES = `
   .cal-add { margin:var(--space-16) 0; }
   .cal-add summary { cursor:pointer; font-weight:600; font-size:var(--font-size-small); min-height:44px; display:flex; align-items:center; gap:var(--space-8); }
   .cal-times { display:flex; gap:var(--space-12); flex-wrap:wrap; }
+  /* Phase 7 — the day as ONE list in time order: the hour, the kind's icon, the name whole, what it is. */
+  .dl { list-style:none; margin:var(--space-12) 0; padding:0; background:var(--color-surface);
+    border:1px solid var(--color-border); border-radius:var(--radius-card); max-width:var(--measure-prose); }
+  .dl-row { display:flex; align-items:flex-start; gap:var(--space-12); padding:var(--space-12); border-top:1px solid var(--color-border); }
+  .dl-row:first-child { border-top:0; }
+  .dl-hour { flex:none; min-width:4.5em; font-size:var(--font-size-small); font-variant-numeric:tabular-nums; }
+  .dl-row .kind-icon { flex:none; margin-top:var(--space-4); color:var(--color-ink-secondary); }
+  .dl-go { flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); color:inherit; text-decoration:none; }
+  .dl-body { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .dl-body b { font-weight:600; overflow-wrap:break-word; }
+  .dl-row.dashed .dl-go { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  /* Done is greyed, never hidden. */
+  .dl-row.done { color:var(--color-ink-secondary); }
+  .dl-row.done .dl-body b { font-weight:400; }
 
   /* ── inbox.ts — Buyers (one list since A) and the conversation page; moved in at the V1 close-out. */
   /* The search: the field takes the room, its button and the way back beside it. */
@@ -1698,10 +1733,18 @@ export function shell(input: {
     const aria = count
       ? ` aria-label="${esc(label)}, ${esc(t(locale, 'nav.setup.progress', { done: count.done, total: count.total }))}"`
       : '';
+    // PHASE 7 OF THE UI REBUILD (2026-10-02) — on a phone the five entries
+    // share ONE line, and none breaks in two: "Your assistant" (while it has no
+    // name) and "My business" have a shorter phone form. The stylesheet shows
+    // one of the two; a screen reader hears only the one shown.
+    const short = n.id === 'factory' ? t(locale, 'nav.short.factory')
+      : n.id === 'employee' && !assistantsAreSeveral() && label.toLocaleLowerCase() === ASSISTANT_FALLBACK[locale].toLocaleLowerCase()
+        ? t(locale, 'nav.short.employee') : null;
+    const text = short && short !== label ? `<span class="nl-long">${esc(label)}</span><span class="nl-short">${esc(short)}</span>` : esc(label);
     // A11y — `aria-current="page"` is what tells a screen reader which of five
     // identical links is the one you are on. The class is for everyone else.
     return `<a href="${n.href}" class="navlink ${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}${aria}
-       >${esc(label)}${badge}</a>`;
+       >${text}${badge}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
   /**

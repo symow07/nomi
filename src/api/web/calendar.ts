@@ -9,6 +9,7 @@ import {
   CALENDAR_CATEGORIES, edgeOf, type CalendarCategory, type CalendarEntry, type CalendarView, type CalendarBuyer,
 } from '../../db/calendar.js';
 import * as show from './values.js';
+import { keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 
 /**
  * V2 — the calendar page. Pure: a `CalendarView` in, HTML out.
@@ -223,6 +224,81 @@ function chip(locale: Locale, e: CalendarEntry, now: Date, compact = false): str
   return to ? `<a ${attrs} href="${to}">${body}</a>` : `<div ${attrs}>${body}${compact ? '' : removeForm(locale, e)}</div>`;
 }
 
+/**
+ * PHASE 7 OF THE UI REBUILD (2026-10-02) — the KIND of a date as a small drawn
+ * icon (the day view's list): a sample, an order, a price, a reply, a
+ * follow-up, a closure, a closed conversation, the owner's own date, a promise.
+ * Drawn in the line's own colour, never a colour of its own — state stays the
+ * four signals' (✓ ○ ✕ ✦). Hidden from a screen reader: the line says the kind.
+ */
+const ICON_PATH: Readonly<Record<string, string>> = {
+  sample: '<path d="M2.5 5.5 8 2.5l5.5 3v5L8 13.5l-5.5-3zM2.5 5.5 8 8.5l5.5-3M8 8.5v5"/>',
+  order: '<path d="M1.5 4.5h8v6h-8zM9.5 6.5h3l2 2v2h-5z"/><circle cx="4.5" cy="11.5" r="1.25"/><circle cx="11.5" cy="11.5" r="1.25"/>',
+  price: '<path d="M8.5 2.5h5v5l-6 6-5-5z"/><circle cx="11" cy="5" r=".75"/>',
+  reply: '<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>',
+  followup: '<path d="M12.5 7.5a4.5 4.5 0 1 1-1.3-3.2M12.5 2.5v2.5H10"/>',
+  closure: '<path d="M2.5 3.5h11v10h-11zM2.5 6.5h11M5.5 2v3M10.5 2v3M6 8.5l4 3.5M10 8.5l-4 3.5"/>',
+  closed: '<path d="M2 3.5h12v3H2zM3 6.5v7h10v-7M6.5 9h3"/>',
+  own: '<circle cx="8" cy="8" r="2.5"/>',
+  promise: '<path d="M3 9.5c0-2.5 1-4 3-5M3 9.5h2.5v3H3zM9 9.5c0-2.5 1-4 3-5M9 9.5h2.5v3H9z"/>',
+};
+const ICON_OF: Readonly<Record<CalendarEntry['kind'], string>> = {
+  sample_asked: 'sample', sample_handled: 'sample', order_state: 'order', price_worked_out: 'price', reply_due: 'reply',
+  followup_due: 'followup', closure: 'closure', conversation_closed: 'closed', own: 'own',
+  promise_follow_up: 'promise', promise_price_end: 'promise', promise_delivery: 'promise',
+};
+export const kindIcon = (e: CalendarEntry): string =>
+  `<svg class="kind-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON_PATH[ICON_OF[e.kind]]}</svg>`;
+
+/**
+ * Phase 7 — is this date DONE: handled, kept, closed, or simply past? A reply
+ * owed, a sample nobody has dealt with, a promise not kept are never done
+ * however old: they are what the owner still has to do. Done dates are greyed
+ * in the day's list, never hidden.
+ */
+export function isDone(e: CalendarEntry, now: Date): boolean {
+  if (e.kind === 'reply_due') return false;
+  if (e.kind === 'sample_asked' && e.detail.open) return false;
+  if (e.kind.startsWith('promise_')) return e.detail.kept === true;
+  if (e.kind === 'sample_handled' || e.kind === 'conversation_closed') return true;
+  const today = dayKey(now, workspaceZone());
+  if (e.kind === 'closure') return (e.detail.closureTo ?? e.day) < today;
+  return e.allDay ? e.day < today : (e.detail.endsAt ?? e.at).getTime() < now.getTime();
+}
+
+/**
+ * Phase 7 — THE DAY, AS ONE LIST in time order (the all-day dates first): the
+ * hour, the kind's icon, the name — whole, never cut, a Latin name inside
+ * Arabic isolated — and what it is. What is done is greyed, not hidden; what
+ * is owed carries its signal. It was a grid of empty hours with the day's few
+ * dates somewhere in it.
+ */
+function dayList(locale: Locale, v: CalendarView, day: string, now: Date): string {
+  const here = v.entries.filter((e) => (e.allDay ? covers(e, day) : e.day === day))
+    .slice().sort((a, b) => (a.allDay === b.allDay ? a.at.getTime() - b.at.getTime() : a.allDay ? -1 : 1));
+  if (here.length === 0) return '';
+  const today = dayKey(now, workspaceZone());
+  return `<ol class="dl">${here.map((e) => {
+    const done = isDone(e, now);
+    const promise = e.kind.startsWith('promise_');
+    const owed = !done && (e.kind === 'reply_due' || (e.kind === 'sample_asked' && e.detail.open) || (promise && e.day <= today));
+    const state = owed ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} ` : done ? `<span class="sr">${esc(t(locale, 'calendar.done'))}</span>` : '';
+    const mark = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant) ? '<span class="as" aria-hidden="true">✦</span> ' : '';
+    const name = e.kind === 'own' ? e.detail.title ?? ''
+      : e.kind === 'closure' ? e.detail.closureLabel ?? ''
+      : e.buyer?.name ?? e.identity ?? t(locale, 'common.buyer');
+    const hour = e.allDay ? t(locale, 'calendar.allDay')
+      : `${show.time(locale, e.at)}${e.detail.endsAt ? `–${show.time(locale, e.detail.endsAt)}` : ''}`;
+    const body = `<span class="dl-body"><b><bdi>${esc(name)}</bdi></b><span class="small">${state}${mark}${
+      esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}${e.kind === 'own' ? '' : ` · <bdi>${esc(line(locale, e))}</bdi>`}</span></span>`;
+    const to = doorOf(e);
+    return `<li class="dl-row ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}">
+        <span class="dl-hour">${esc(hour)}</span>${kindIcon(e)}
+        ${to ? `<a class="dl-go" href="${to}">${body}<span class="go" aria-hidden="true">›</span></a>` : `<div class="dl-go">${body}${removeForm(locale, e)}</div>`}
+      </li>`;
+  }).join('')}</ol>`;
+}
+
 /** Does this all-day entry cover the day? A closure covers its whole span. */
 const covers = (e: CalendarEntry, day: string): boolean => e.kind === 'closure'
   ? (e.detail.closureFrom ?? e.day) <= day && day <= (e.detail.closureTo ?? e.day)
@@ -252,7 +328,12 @@ function grid(locale: Locale, v: CalendarView, days: readonly string[], now: Dat
   return `<div class="wk-scroll"><table class="wk"><thead>${head}</thead><tbody>${allRow}${rows.join('')}</tbody></table></div>`;
 }
 
-/** The month: its weeks, each day a door to that day, up to three dates in it. */
+/**
+ * The month: its weeks, each day a door to that day, up to TWO dates in it.
+ * Phase 7 — a crowded day says "+N more" (a door to that day's list) instead
+ * of stretching its row: every week of the month stays the same height.
+ */
+export const MONTH_SHOWN = 2;
 function month(locale: Locale, v: CalendarView, at: string, now: Date): string {
   const days: string[] = [];
   for (let d = v.from; d < v.to; d = addDays(d, 1)) days.push(d);
@@ -262,7 +343,7 @@ function month(locale: Locale, v: CalendarView, at: string, now: Date): string {
   const head = `<tr>${weeks[0]!.map((d) => `<th scope="col">${esc(formatWeekday(locale, d))}</th>`).join('')}</tr>`;
   const body = weeks.map((w) => `<tr>${w.map((d) => {
     const here = v.entries.filter((e) => (e.allDay ? covers(e, d) : e.day === d));
-    const shown = here.slice(0, 3);
+    const shown = here.slice(0, MONTH_SHOWN);
     const more = here.length - shown.length;
     const today = d === v.today;
     return `<td class="${inMonth(d) ? '' : 'other'}${today ? ' today' : ''}"${today ? ' aria-current="date"' : ''}>
@@ -274,28 +355,36 @@ function month(locale: Locale, v: CalendarView, at: string, now: Date): string {
   return `<div class="wk-scroll"><table class="mo"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
 
-/** Add one of the owner's own dates: folded away until it is wanted. */
-const addForm = (locale: Locale, day: string): string => `<details class="cal-add">
+/**
+ * Add one of the owner's own dates: folded away until it is wanted. Phase 6/7
+ * — sent back (`kept`), it is open, the field that was wrong says why under
+ * it, and what was typed is still there.
+ */
+const addForm = (locale: Locale, day: string, kept: Kept | null = null): string => `<details class="cal-add"${kept ? ' open' : ''}>
     <summary>${esc(t(locale, 'calendar.add'))}</summary>
     <form method="post" action="/app/calendar/entries" class="pform">
       <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.what'))}</span>
-        <input type="text" name="title" required maxlength="80" dir="auto" /></label>
+        <input type="text" name="title" required maxlength="80" dir="auto" value="${keptValue(kept, 'title')}"${keptInvalid(kept, 'title', 'ca-title-err')} /></label>
+      ${keptError(kept, 'title', 'ca-title-err') ?? ''}
       <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.day'))}</span>
-        <input type="date" name="day" required value="${esc(day)}" /></label>
+        <input type="date" name="day" required value="${kept ? keptValue(kept, 'day') : esc(day)}"${keptInvalid(kept, 'day', 'ca-day-err')} /></label>
+      ${keptError(kept, 'day', 'ca-day-err') ?? ''}
       <div class="cal-times">
-        <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.from'))}</span><input type="time" name="from" /></label>
-        <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.to'))}</span><input type="time" name="to" /></label>
+        <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.from'))}</span><input type="time" name="from" value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'ca-from-err')} /></label>
+        <label class="fld"><span class="muted">${esc(t(locale, 'calendar.add.to'))}</span><input type="time" name="to" value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'ca-to-err')} /></label>
       </div>
+      ${keptError(kept, 'from', 'ca-from-err') ?? ''}${keptError(kept, 'to', 'ca-to-err') ?? ''}
       <p class="muted">${esc(t(locale, 'calendar.add.hint'))}</p>
       <button class="btn" type="submit">${esc(t(locale, 'calendar.add.save'))}</button>
     </form>
   </details>`;
 
-export type CalendarPage = { readonly view?: CalendarViewKind; readonly at?: string; readonly now?: Date };
+export type CalendarPage = { readonly view?: CalendarViewKind; readonly at?: string; readonly now?: Date; readonly kept?: Kept | null };
 
 export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPage = {}): string {
   const view = page.view ?? 'list';
-  return view === 'list' ? renderList(v, locale) : renderGrid(v, locale, view, page.at ?? v.from, page.now ?? dayStart(v.today, workspaceZone()));
+  return view === 'list' ? renderList(v, locale, page.kept ?? null)
+    : renderGrid(v, locale, view, page.at ?? v.from, page.now ?? dayStart(v.today, workspaceZone()), page.kept ?? null);
 }
 
 /** Month · Week · Day · List, keeping the category and the buyer. */
@@ -343,7 +432,7 @@ const legend = (locale: Locale): string => `<p class="cal-legend small">
     <span class="wk-e solid" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.solid'))}
     <span class="wk-e dashed" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.dashed'))}</p>`;
 
-function renderGrid(v: CalendarView, locale: Locale, view: Exclude<CalendarViewKind, 'list'>, at: string, now: Date): string {
+function renderGrid(v: CalendarView, locale: Locale, view: Exclude<CalendarViewKind, 'list'>, at: string, now: Date, kept: Kept | null = null): string {
   const buyer = v.buyer?.id ?? null;
   const step = (n: number) => view === 'month' ? addMonths(at, n) : addDays(at, view === 'week' ? 7 * n : n);
   const span = view === 'month' ? show.month(locale, at)
@@ -366,12 +455,12 @@ function renderGrid(v: CalendarView, locale: Locale, view: Exclude<CalendarViewK
     ${buyerForm(locale, v, { view: view === 'week' ? null : view, at, category: v.category })}
     ${legend(locale)}
     ${empty}
-    ${view === 'month' ? month(locale, v, at, now) : grid(locale, v, days, now)}
-    ${addForm(locale, view === 'month' ? (v.today.slice(0, 7) === at.slice(0, 7) ? v.today : at) : view === 'day' ? at : (v.today >= v.from && v.today < v.to ? v.today : v.from))}`;
+    ${view === 'month' ? month(locale, v, at, now) : view === 'day' ? dayList(locale, v, at, now) : grid(locale, v, days, now)}
+    ${addForm(locale, view === 'month' ? (v.today.slice(0, 7) === at.slice(0, 7) ? v.today : at) : view === 'day' ? at : (v.today >= v.from && v.today < v.to ? v.today : v.from), kept)}`;
 }
 
 /** The list: the three-week agenda, day by day. */
-function renderList(v: CalendarView, locale: Locale): string {
+function renderList(v: CalendarView, locale: Locale, kept: Kept | null = null): string {
   const isDefault = v.from === defaultFrom(v.today);
   const last = addDays(v.to, -1);
   const buyerId = v.buyer?.id ?? null;
@@ -400,7 +489,7 @@ function renderList(v: CalendarView, locale: Locale): string {
         <div>${narrowed
           ? deeper(esc(href({ view: 'list', from: isDefault ? null : v.from })), t(locale, 'calendar.empty.clear'))
           : deeper('/app/inbox', t(locale, 'calendar.empty.door'))}</div></div>
-      ${pager}${addForm(locale, v.today)}`;
+      ${pager}${addForm(locale, v.today, kept)}`;
   }
 
   // One heading per day that holds something — and today always, in words,
@@ -421,5 +510,5 @@ function renderList(v: CalendarView, locale: Locale): string {
     </section>`;
   }).join('');
 
-  return `${head}${sections}${pager}${addForm(locale, v.today)}`;
+  return `${head}${sections}${pager}${addForm(locale, v.today, kept)}`;
 }

@@ -114,13 +114,13 @@ describe('the week, by default', () => {
     expect(ar).toContain('<span class="go" aria-hidden="true">‹</span>');
   });
 
-  it('the month shows its days, up to three dates each, and a door to the rest', () => {
+  it('the month shows its days, up to two dates each, and "+N more" — a door to the rest — instead of a taller row (phase 7)', () => {
     const busy = Array.from({ length: 5 }, (_, i) => e({ category: 'samples', kind: 'sample_asked', at: at(TODAY, `0${i + 1}:00`),
       source: { table: 'sample_requests', id: `m${i}`, column: 'requested_at' } }));
     const q = parseCalendarQuery({ view: 'month', at: TODAY }, NOW);
     const html = draw(week({ from: q.from, to: q.to, entries: busy }), 'en', { view: 'month', at: q.at, now: NOW });
     expect(html).toContain('<table class="mo">');
-    expect(html).toContain(`<a class="mo-more" href="/app/calendar?view=day&amp;at=${TODAY}">2 more</a>`);
+    expect(html).toContain(`<a class="mo-more" href="/app/calendar?view=day&amp;at=${TODAY}">+3 more</a>`);
     expect(html).toMatch(/<td class=" today" aria-current="date">/);
   });
 });
@@ -143,5 +143,69 @@ describe('an owner\'s own date, as the form sends it', () => {
     expect(readEntry({ title: 'Fair', day: '2026-09-30', from: '9am' }, 'Asia/Shanghai')).toEqual({ ok: false, problem: 'time' });
     expect(readEntry({ title: 'Fair', day: '2026-09-30', to: '10:00' }, 'Asia/Shanghai')).toEqual({ ok: false, problem: 'time' });
     expect(readEntry({ title: 'Fair', day: '2026-09-30', from: '14:00', to: '10:00' }, 'Asia/Shanghai')).toEqual({ ok: false, problem: 'order' });
+  });
+});
+
+/* ── PHASE 7 OF THE UI REBUILD (2026-10-02) — the calendar on a phone ─────── */
+
+describe('phase 7 · the day as one list in time order', () => {
+  const day = (ymd: string, entries: CalendarEntry[] = ENTRIES) =>
+    draw(week({ from: ymd, to: addDays(ymd, 1), entries }), 'en', { view: 'day', at: ymd, now: NOW });
+
+  it('the hour, a kind icon, the name whole, what it is — all-day dates first, then by time; no grid of empty hours', () => {
+    const late = e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '18:05'), detail: { price: usd(2), quantity: 5 },
+      source: { table: 'quotes', id: 'q2', column: 'created_at' } });
+    const html = day(TODAY, [late, ...ENTRIES]);
+    expect(html).toContain('<ol class="dl">');
+    expect(html).not.toContain('<table class="wk">');
+    const rows = [...html.matchAll(/<li class="dl-row[^"]*" data-src="([^"]+)"/g)].map((m) => m[1]);
+    expect(rows).toEqual(['quotes:q1', 'handoffs:h1', 'quotes:q2']);      // 12:40, 16:00, 18:05
+    expect(html).toContain('<svg class="kind-icon"');
+    expect(html).toContain('<b><bdi>Maya Rahman</bdi></b>');
+  });
+
+  it('done is greyed, never hidden; what is owed carries its signal however old', () => {
+    // "Now" is 12:00 on TODAY.
+    const mine = [
+      e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '09:00'), detail: { price: usd(1), quantity: 1 },
+        source: { table: 'quotes', id: 'past', column: 'created_at' } }),
+      e({ category: 'negotiation', kind: 'price_worked_out', at: at(TODAY, '15:00'), detail: { price: usd(1), quantity: 1 },
+        source: { table: 'quotes', id: 'later', column: 'created_at' } }),
+      e({ category: 'negotiation', kind: 'reply_due', at: at(TODAY, '08:00'), detail: { overdue: true },
+        source: { table: 'handoffs', id: 'owed', column: 'sla_deadline_at' } }),
+      e({ category: 'samples', kind: 'sample_handled', at: at(TODAY, '10:00'), source: { table: 'sample_requests', id: 'sent', column: 'handled_at' } }),
+    ];
+    const html = day(TODAY, mine);
+    const cls = (id: string) => new RegExp(`<li class="([^"]+)" data-src="[a-z_]+:${id}"`).exec(html)?.[1];
+    expect(cls('past')).toBe('dl-row solid done');
+    expect(cls('sent')).toBe('dl-row solid done');
+    expect(cls('later')).toBe('dl-row solid');
+    expect(cls('owed')).toBe('dl-row solid');                     // four hours late, and still owed
+    expect(html).toMatch(/data-src="handoffs:owed"[\s\S]*?<span class="dot bad" aria-hidden="true">✕<\/span>/);
+    expect(html).toMatch(/data-src="quotes:past"[\s\S]*?<span class="sr">Done:<\/span>/);
+  });
+});
+
+describe('phase 7 · on a phone the grids scroll visibly, and no name is cut', () => {
+  it('a chip\'s name wraps — never an ellipsis — and the hours stay in view', async () => {
+    expect(draw(week(), 'en', { view: 'week', at: TODAY, now: NOW })).toContain('<div class="wk-scroll"><table class="wk">');
+    const { shell } = await import('../../src/api/web/layout.js');
+    const { linkedCss } = await import('./linked-css.js');
+    const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })).replace(/\/\*[\s\S]*?\*\//g, '');
+    const rule = (sel: string) => new RegExp(`(?:^|\\s)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+    expect(rule('.wk-e b')).not.toMatch(/ellipsis|nowrap/);
+    expect(rule('.wk-k, .wk-t')).not.toMatch(/ellipsis|nowrap/);
+    expect(rule('.wk-e')).not.toContain('overflow:hidden');
+    expect(rule('.wk-scroll')).toContain('background-attachment:local, local, scroll, scroll');
+    expect(rule('.wk tbody th, .wk .wk-corner')).toContain('position:sticky');
+  });
+
+  it('the add form comes back open, the reason under its field, what was typed kept', () => {
+    const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW,
+      kept: { values: { title: 'Kiln', day: TODAY, from: '15:00', to: '14:00' }, field: 'to', text: t('en', 'calendar.flash.order') } });
+    expect(html).toContain('<details class="cal-add" open>');
+    expect(html).toContain('value="Kiln"');
+    expect(html).toContain('name="to" value="14:00" aria-invalid="true" aria-describedby="ca-to-err" autofocus');
+    expect(html).toContain(`<span class="fielderr" role="alert" id="ca-to-err">${t('en', 'calendar.flash.order')}</span>`);
   });
 });
