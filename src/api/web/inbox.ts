@@ -1484,7 +1484,9 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
 
   switch (d.ownership) {
     case 'AI':
-      return `<div class="card takeover"><span class="pill as">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
+      // Phase 9 (V1-215) — with a reply waiting for the owner, the card says so,
+      // as the header's "Awaiting you" does; "is handling this" contradicted it.
+      return `<div class="card takeover"><span class="pill as">${esc(t(locale, d.pendingDraft ? 'takeover.status.aiDraft' : 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
     case 'WAITING_HUMAN':
       return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}${handToForm}</div>`;
     case 'OWNER_CONTROLLED':

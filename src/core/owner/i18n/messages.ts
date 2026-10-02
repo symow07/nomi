@@ -1135,7 +1135,7 @@ const EN = {
   'inbox.status.awaiting': 'Awaiting you',
   'inbox.status.paused': 'Paused',
   'inbox.status.done': 'Done',
-  'inbox.status.handled': 'Handled',
+  'inbox.status.handled': 'Answered',
   'inbox.empty.allGood': 'All good — nothing to do',
   'inbox.empty.allGoodBody': 'No conversations need you.',
   'inbox.empty.seeAll': 'See all customers',
@@ -3367,6 +3367,7 @@ const EN = {
   'ready.alone.needsName': 'Sending alone is earned, and opens once the name customers read is confirmed',
   'conv.testing.confirm': 'Mark this conversation as you testing? Its replies stop counting toward sending alone. You can undo it here.',
   'practice.stop.running': '{name} answers in Practice.',
+  'takeover.status.aiDraft': '{name} wrote a reply; it waits for your OK',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -4466,7 +4467,7 @@ const ZH: Record<MessageKey, string> = {
   'inbox.status.awaiting': '等你确认',
   'inbox.status.paused': '已暂停',
   'inbox.status.done': '已完成',
-  'inbox.status.handled': '已处理',
+  'inbox.status.handled': '已回复',
   'inbox.empty.allGood': '一切正常，不用管',
   'inbox.empty.allGoodBody': '没有需要你处理的对话。',
   'inbox.empty.seeAll': '看全部客户',
@@ -6645,6 +6646,7 @@ const ZH: Record<MessageKey, string> = {
   'ready.alone.needsName': '已经可以自己发消息了，确认客户看到的名字之后才会开启',
   'conv.testing.confirm': '把这段对话标记为你自己在测试？这里的回复不再计入自己发送的进度。之后可以在这里改回来。',
   'practice.stop.running': '{name}正在「练习」里回复。',
+  'takeover.status.aiDraft': '{name}写好了回复，等你确认',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -7740,7 +7742,7 @@ const AR: Record<MessageKey, string> = {
   'inbox.status.awaiting': 'بانتظارك',
   'inbox.status.paused': 'متوقف',
   'inbox.status.done': 'مكتمل',
-  'inbox.status.handled': 'تمّت المعالجة',
+  'inbox.status.handled': 'تمّ الرد',
   'inbox.empty.allGood': 'كل شيء على ما يرام',
   'inbox.empty.allGoodBody': 'لا محادثات تحتاج إليك.',
   'inbox.empty.seeAll': 'عرض كل العملاء',
@@ -9917,6 +9919,7 @@ const AR: Record<MessageKey, string> = {
   'ready.alone.needsName': 'الإرسال دون انتظارك مُستحَق، ويُفتح بعد تأكيد الاسم الذي يقرؤه العملاء',
   'conv.testing.confirm': 'وضع علامة على هذه المحادثة كاختبار منك؟ لن تُحسب ردودها في التقدّم نحو الإرسال دون انتظارك، ويمكن التراجع عن ذلك هنا.',
   'practice.stop.running': 'يجري الرد في «تدريب» من {name}.',
+  'takeover.status.aiDraft': 'ردّ من {name} بانتظار موافقتك',
 };
 
 /**
@@ -11003,7 +11006,7 @@ const ES: Record<MessageKey, string> = {
   'inbox.status.awaiting': 'Te espera',
   'inbox.status.paused': 'En pausa',
   'inbox.status.done': 'Hecho',
-  'inbox.status.handled': 'Resuelto',
+  'inbox.status.handled': 'Respondido',
   'inbox.empty.allGood': 'Todo bien — nada que hacer',
   'inbox.empty.allGoodBody': 'Ninguna conversación te necesita.',
   'inbox.empty.seeAll': 'Ver todos los clientes',
@@ -13130,6 +13133,7 @@ const ES: Record<MessageKey, string> = {
   'ready.alone.needsName': 'El envío sin ti ya está ganado, y se abre cuando confirmes el nombre que leen tus clientes',
   'conv.testing.confirm': '¿Marcar esta conversación como una prueba tuya? Sus respuestas dejan de contar para el envío sin ti. Puedes deshacerlo aquí.',
   'practice.stop.running': '{name} responde en Práctica.',
+  'takeover.status.aiDraft': '{name} escribió una respuesta; espera tu visto bueno',
 };
 
 
@@ -14221,7 +14225,7 @@ const FR: Record<MessageKey, string> = {
   'inbox.status.awaiting': 'Vous attend',
   'inbox.status.paused': 'En pause',
   'inbox.status.done': 'Terminé',
-  'inbox.status.handled': 'Traité',
+  'inbox.status.handled': 'Répondu',
   'inbox.empty.allGood': 'Tout va bien — rien à faire',
   'inbox.empty.allGoodBody': 'Aucune conversation ne vous attend.',
   'inbox.empty.seeAll': 'Voir tous les clients',
@@ -16348,6 +16352,7 @@ const FR: Record<MessageKey, string> = {
   'ready.alone.needsName': 'L’envoi sans vous est acquis et s’ouvre une fois confirmé le nom que lisent vos clients',
   'conv.testing.confirm': 'Marquer cette conversation comme votre propre test ? Ses réponses ne comptent plus pour l’envoi sans vous. Vous pouvez revenir en arrière ici.',
   'practice.stop.running': '{name} répond dans l’Entraînement.',
+  'takeover.status.aiDraft': '{name} a écrit une réponse, qui attend votre accord',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR, es: ES, fr: FR };

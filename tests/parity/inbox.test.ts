@@ -165,7 +165,8 @@ describe('M16.2c · inbox human control surface (localized)', () => {
   it('AI state: employee-handling status + ONE take-over control; no reply/return', () => {
     // A reply waits: the card's "Hand to me" is the take-over, and nothing else offers it.
     const html = renderConversationDetail(detailIn('AI'), 'en', NOW, null);
-    expect(html).toContain(shown('en', 'takeover.status.ai'));
+    // Phase 9 (V1-215) — with a reply waiting, the card says the reply waits, as the header does.
+    expect(html).toContain(shown('en', 'takeover.status.aiDraft'));
     expect(html).toContain('formaction="/app/inbox/conv-1/takeover"');
     expect(html).not.toMatch(/ action="\/app\/inbox\/conv-1\/takeover"/);
     expect(html).toContain(shown('en', 'card.handToMe'));
@@ -173,6 +174,7 @@ describe('M16.2c · inbox human control surface (localized)', () => {
     expect(html).not.toContain('action="/app/inbox/conv-1/resume"');
     // Nothing waits: the take-over is the ownership card's own button.
     const quiet = renderConversationDetail({ ...detailIn('AI'), pendingDraft: null }, 'en', NOW, null);
+    expect(quiet).toContain(shown('en', 'takeover.status.ai'));
     expect(quiet).toContain(' action="/app/inbox/conv-1/takeover"');
     expect(quiet).toContain('Take over');
   });
