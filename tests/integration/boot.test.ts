@@ -2811,10 +2811,6 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
       const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
 
-      const before = await q((tx) => sql<{ n: number }>`
-        select count(*)::int n from channel_audit
-         where business_id=${DEMO_BIZ} and action='send_refused'`.execute(tx as never).then((x) => x.rows[0]!.n));
-
       const cid = await withTenantTx(prod.db, bid, async (tx) => {
         const c = await ensureConversation(tx, bid, BLOCKED, 'Not Allowlisted');
         await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
@@ -2846,14 +2842,17 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // hardcoded to 'blocked_not_allowlisted' for every reason, so a
       // not_activated refusal was recorded as an allowlist block and this test
       // passed anyway. Assert the reason, or the audit trail can lie again.
+      //
+      // THIS conversation's refusals only (found 2026-10-02, PR 202's CI): the
+      // count was every refusal in the demo business, and the production
+      // workers run beside this test — another test's queued send, refused in
+      // the same second, made it 2. The audit row names its outbound message.
       const rows = await q((tx) => sql<{ action: string; detail: { reason?: string } }>`
-        select action, detail from channel_audit
-         where business_id=${DEMO_BIZ} and action='send_refused'
-         order by at desc limit 1`.execute(tx as never).then((x) => x.rows));
-      const after = await q((tx) => sql<{ n: number }>`
-        select count(*)::int n from channel_audit
-         where business_id=${DEMO_BIZ} and action='send_refused'`.execute(tx as never).then((x) => x.rows[0]!.n));
-      expect(after).toBe(before + 1);
+        select a.action, a.detail from channel_audit a
+         where a.business_id=${DEMO_BIZ} and a.action='send_refused'
+           and a.detail->>'outboundId' in (select o.id::text from outbound_messages o where o.conversation_id=${cid})
+         order by a.at desc`.execute(tx as never).then((x) => x.rows));
+      expect(rows).toHaveLength(1);
       expect(rows[0]?.detail?.reason).toBe('not_allowlisted');
 
       // the transition trail records WHY — no silent drop
