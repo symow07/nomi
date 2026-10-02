@@ -155,6 +155,13 @@ describe('HS · the pages, in every language', () => {
     expect(maker).toContain('name="incoterm"');
     expect(renderQuestion(view('payment'), 'en', null)).toContain('name="told"');
   });
+  it('Phase 9 · the maker\'s delivery terms are the terms page\'s: each with what it means, no DDU for a new workspace', () => {
+    for (const l of LOCALES) {
+      const maker = renderQuestion(view('payment', { facts: { kind: 'manufacturer', profile: 'bulk', pricesToOwner: false, zone: 'UTC' } }), l, null);
+      expect(maker, l).toContain(`>FOB — ${t(l, 'terms.incoterm.FOB' as MessageKey)}</option>`);
+      expect(maker, l).not.toContain('value="DDU"');
+    }
+  });
   it('Setup shows the owner the door and where she is; staff do not see it', () => {
     const owner = renderSetup({ kind: null, people: 1, howYouSell: { answered: 3, total: 8 } }, 'en', null);
     expect(owner).toContain('href="/app/business/selling"');
