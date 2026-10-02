@@ -186,7 +186,7 @@ describe('Phase 9 · the shell', () => {
       expect(h, l).toContain(`<title>${esc(t(l, 'error.notfound.title'))} · 义乌宏发日用品厂 (demo)</title>`);
       expect(h, l).toContain(`<a class="deeper" href="/app">${esc(t(l, 'error.home'))}<span class="go" aria-hidden="true">›</span></a>`);
       expect(h, l).not.toContain(esc(t(l, 'login.brandTagline')));
-      expect(h, l).not.toContain(esc(t(l, 'login.footer')));
+      expect(h, l).not.toContain('<nav class="foot" aria-label="Nomi">');   // the door's foot (since the public batch, three doors)
       expect(h, l).not.toContain('class="langsw"');
     }
     expect(readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8')).toContain('bodyHtml: notFoundInside(locale),');
