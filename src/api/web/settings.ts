@@ -181,12 +181,18 @@ export async function saveBusinessProfile(
 export type ProfileDraft = Partial<Record<ProfileField, string>> & { readonly languagesServed?: readonly string[] };
 
 /**
- * THE DESIGN PASS (UI-PASS 7) — Setup is doors, each with its state: where
- * setup stands, which channels, the business profile, what kind of business,
- * who is here. The profile's form has its own page (\`renderProfile\`); the
- * language switch stays first, the one thing here an owner looks for in a
- * hurry; Log out is the rail's, and here only on a phone, where the rail is a
- * row of five.
+ * PHASE 3 OF THE UI REBUILD (2026-10-02) — Setup in labelled groups. Each
+ * group is one card of rows; each row says what the setting is (its name and
+ * one line under it), what it is set to now, and opens it. A search finds a
+ * row by its name, its line or its value, in the owner's language, without
+ * the script: the page is filtered on the server.
+ *
+ * The groups (my call, named by the owner as mine to decide): setting up;
+ * your business; customers and alerts; people and sign-in; billing and data.
+ * The language switch leads, the one thing here an owner looks for in a hurry.
+ * "How it looks" — the components gallery — is a developer's page and is no
+ * longer listed; its address still works for whoever builds the product.
+ * Log out is the rail's, and here only on a phone.
  */
 export type SetupView = {
   /** "What kind of business" as the owner last answered it; null = not yet. */
@@ -195,36 +201,94 @@ export type SetupView = {
   readonly people: number;
   /** HS — how many of How you sell's questions are answered; null for staff (the page is the owner's). */
   readonly howYouSell?: { readonly answered: number; readonly total: number } | null;
+  /** Phase 3 — alerts on this person's phones: whether this installation can send them, and how many phones. */
+  readonly alerts?: { readonly available: boolean; readonly phones: number } | null;
+  /** Phase 3 — how this person signs in: their e-mail, or the access code when they have no login. */
+  readonly signIn?: { readonly email: string | null } | null;
+  /** Phase 3 — billing as it stands (the owner's); null for staff. */
+  readonly billing?: { readonly configured: boolean; readonly exempt: boolean; readonly status: string } | null;
+  /** Phase 3 — customers' deletion requests waiting for the owner; null for staff. */
+  readonly dataWaiting?: number | null;
+  /** The search, as typed. */
+  readonly query?: string;
 };
+
+type SetupRow = { readonly href: string; readonly label: string; readonly desc: string; readonly value: string };
+
+/** Lower case, width-folded, so a search matches what is shown whatever way it was typed. */
+const fold = (s: string): string => s.normalize('NFKC').toLocaleLowerCase();
 
 export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): string {
   const setup = setupState();
   const step = (k: string): boolean | null => setup?.steps.find((x) => x.step === k)?.done ?? null;
   const state = (done: boolean | null, yes: MessageKey, no: MessageKey): string =>
     done === null ? '' : t(locale, done ? yes : no);
-  const door = (href: string, label: string, said = ''): string =>
-    `<li><a class="tline" href="${href}"><span class="tl-who">${esc(label)}</span>${
-      said ? ` <span class="tl-why">${esc(said)}</span>` : ''}<span class="go" aria-hidden="true">→</span></a></li>`;
   const ready = setup
     ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))
     : '';
+  const billing = v.billing
+    ? (!v.billing.configured ? t(locale, 'setup.value.notSetUp')
+      : v.billing.exempt ? t(locale, 'setup.value.billing.exempt')
+      : (['none', 'cardSaved', 'trial', 'active', 'past_due', 'lapsed'] as const).includes(v.billing.status as never)
+        ? t(locale, `setup.value.billing.${v.billing.status}` as MessageKey) : '')
+    : '';
+  const groups: readonly { readonly id: string; readonly title: string; readonly rows: readonly SetupRow[] }[] = [
+    { id: 'start', title: t(locale, 'setup.group.start'), rows: [
+      { href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready },
+      { href: '/app/onboarding', label: t(locale, 'nav.onboarding'), desc: t(locale, 'setup.desc.onboarding'),
+        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed') },
+    ] },
+    { id: 'business', title: t(locale, 'setup.group.business'), rows: [
+      { href: '/app/settings/profile', label: t(locale, 'settings.profile.title'), desc: t(locale, 'setup.desc.profile'),
+        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo') },
+      { href: '/app/settings/business', label: t(locale, 'business.kind.label'), desc: t(locale, 'setup.desc.kind'),
+        value: v.kind ?? t(locale, 'setup.state.notAnswered') },
+      ...(v.howYouSell ? [{ href: '/app/business/selling', label: t(locale, 'hs.title'), desc: t(locale, 'setup.desc.selling'),
+        value: t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total }) }] : []),
+    ] },
+    { id: 'reach', title: t(locale, 'setup.group.reach'), rows: [
+      { href: '/app/channels', label: t(locale, 'nav.channels'), desc: t(locale, 'setup.desc.channels'),
+        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected') },
+      { href: '/app/settings/alerts', label: t(locale, 'alerts.phone.title'), desc: t(locale, 'setup.desc.alerts'),
+        value: !v.alerts ? '' : !v.alerts.available ? t(locale, 'setup.value.unavailable')
+          : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones) },
+    ] },
+    { id: 'people', title: t(locale, 'setup.group.people'), rows: [
+      { href: '/app/settings/people', label: t(locale, 'people.title'), desc: t(locale, 'setup.desc.people'),
+        value: tn(locale, 'setup.state.people', v.people) },
+      { href: '/app/settings/account', label: t(locale, 'account.title'), desc: t(locale, 'setup.desc.account'),
+        value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode') },
+    ] },
+    { id: 'account', title: t(locale, 'setup.group.account'), rows: [
+      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing },
+      { href: '/app/settings/data', label: t(locale, 'data.title'), desc: t(locale, 'setup.desc.data'),
+        value: v.dataWaiting === null || v.dataWaiting === undefined ? ''
+          : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting) },
+    ] },
+  ];
+
+  const q = (v.query ?? '').trim();
+  const hit = (...words: string[]): boolean => q === '' || words.some((w) => fold(w).includes(fold(q)));
+  const row = (r: SetupRow): string => `<li><a class="srow" href="${r.href}">
+      <span class="sr-main"><span class="sr-label">${esc(r.label)}</span><span class="sr-desc">${esc(r.desc)}</span></span>
+      ${r.value ? `<span class="sr-value"><bdi>${esc(r.value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
+  const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value)) })).filter((g) => g.rows.length > 0);
+  const language = hit(t(locale, 'settings.language.title'))
+    ? `<section class="sgroup" aria-labelledby="sg-language"><h2 class="sgroup-h" id="sg-language">${esc(t(locale, 'settings.language.title'))}</h2>
+        <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings')}</span></div></div></section>` : '';
+  const search = `<form class="search" method="get" action="/app/settings" role="search">
+      <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'setup.search.placeholder'))}" aria-label="${esc(t(locale, 'setup.search.label'))}" />
+      <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
+      ${q ? `<a class="clear" href="/app/settings">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
+    </form>`;
+  const body = shown.length === 0 && !language
+    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}</div>`
+    : `${language}${shown.map((g) => `<section class="sgroup" aria-labelledby="sg-${g.id}"><h2 class="sgroup-h" id="sg-${g.id}">${esc(g.title)}</h2>
+        <ul class="scard">${g.rows.map(row).join('')}</ul></section>`).join('')}`;
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
-    <div class="block"><h2>${esc(t(locale, 'settings.language.title'))}</h2>${switcher(locale, '/app/settings')}</div>
-    <ul class="tlines setup-doors">
-      ${door('/app/guide', t(locale, 'guide.title'), ready)}
-      ${door('/app/onboarding', t(locale, 'nav.onboarding'))}
-      ${door('/app/channels', t(locale, 'nav.channels'), state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'))}
-      ${door('/app/settings/profile', t(locale, 'settings.profile.title'), state(step('profile'), 'setup.state.done', 'setup.state.toDo'))}
-      ${door('/app/settings/business', t(locale, 'business.kind.label'), v.kind ?? t(locale, 'setup.state.notAnswered'))}
-      ${v.howYouSell ? door('/app/business/selling', t(locale, 'hs.title'), t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total })) : ''}
-      ${door('/app/settings/alerts', t(locale, 'alerts.phone.title'))}
-      ${door('/app/settings/people', t(locale, 'people.title'), tn(locale, 'setup.state.people', v.people))}
-      ${door('/app/settings/account', t(locale, 'account.title'))}
-      ${door('/app/settings/billing', t(locale, 'billing.title'))}
-      ${door('/app/settings/data', t(locale, 'data.title'))}
-      ${door('/app/settings/components', t(locale, 'components.title'))}
-    </ul>
+    ${search}
+    ${body}
     <div class="block signout"><form method="post" action="/logout">
       <button class="btn ghost" type="submit">${esc(t(locale, 'header.logout'))}</button>
     </form></div>`;

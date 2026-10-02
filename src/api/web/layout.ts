@@ -402,6 +402,28 @@ ${LANGSW_CSS}
   .tline:hover, .tline:focus-visible { text-decoration:underline; text-underline-offset:3px; }
   .tline .go { margin-inline-start:auto; }
   .tl-who { font-weight:600; }
+  /* Settings in labelled groups (phase 3 of the UI rebuild): one card of rows
+     per group; a row names the setting, says it in one line, shows what it is
+     set to now at the line's end, and opens it. */
+  .sgroup { margin:0 0 var(--space-24); }
+  .sgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-8); }
+  .scard { list-style:none; margin:0; padding:0; background:var(--color-surface); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); overflow:hidden; }
+  .scard > li + li, .scard > .srow + .srow { border-top:1px solid var(--color-border); }
+  .srow { display:flex; align-items:center; gap:var(--space-12); min-height:56px; padding:var(--space-8) var(--space-16); color:var(--color-ink); }
+  a.srow:hover, a.srow:focus-visible { background:var(--color-paper); }
+  .sr-main { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
+  .sr-label { font-weight:600; font-size:var(--font-size-small); }
+  .sr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .sr-value { flex:0 1 auto; max-width:45%; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-align:end; overflow-wrap:anywhere; }
+  .srow .go { flex:none; }
+  .sr-ctl { flex:0 1 auto; min-width:0; }
+  /* On a phone the value goes under the line that says what the setting is, the door staying at the end. */
+  @media (max-width: 560px) {
+    a.srow { flex-wrap:wrap; row-gap:0; }
+    a.srow .sr-main { flex-basis:0; }
+    .sr-value { order:3; flex-basis:100%; max-width:100%; text-align:start; }
+  }
   .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .today-date { font-weight:400; }
   .today-worth { margin-top:var(--space-12); }

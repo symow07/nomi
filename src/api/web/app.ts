@@ -3690,13 +3690,27 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
-    const [kind, people, hub] = await Promise.all([loadBusinessKind(deps.db, s.businessId), loadPeople(deps.db, s.businessId),
-      personOf(s).isOwner ? loadHub(deps.db, s.businessId) : Promise.resolve(null)]);
+    const owner = personOf(s).isOwner;
+    const bid = parseBusinessId(s.businessId);
+    // Phase 3 — what each row is set to now: read here, so the page says it without opening anything.
+    const [kind, people, hub, phones, login, billing, data] = await Promise.all([
+      loadBusinessKind(deps.db, s.businessId), loadPeople(deps.db, s.businessId),
+      owner ? loadHub(deps.db, s.businessId) : Promise.resolve(null),
+      loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null).catch(() => null),
+      bid.ok ? loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : Promise.resolve(null),
+      owner && bid.ok ? withTenantTx(deps.db, bid.value, (tx) => billingState(tx)).catch(() => null) : Promise.resolve(null),
+      owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
+    ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.settings'), active: 'settings',
       bodyHtml: renderSetup({
         kind: kind.kind ? t(locale, `business.kind.${kind.kind}` as MessageKey) : null, people: people.length,
         howYouSell: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
+        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length } : null,
+        signIn: { email: login?.email ?? null },
+        billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
+        dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
+        query: String((req.query as { q?: string } | undefined)?.q ?? '').slice(0, 80),
       }, locale, flash),
     }));
   });
