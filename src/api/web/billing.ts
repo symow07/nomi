@@ -3,6 +3,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { back, esc, atWork } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { fieldRow, rowsCard } from './rows.js';
 import * as show from './values.js';
 import { priceText } from '../../core/billing/status.js';
 import type { BillingState, Plan } from '../../db/billing.js';
@@ -28,8 +29,16 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
   const head = `${back('/app/settings', backLabel)}
     <h1 class="page">${esc(t(locale, 'billing.title'))}</h1>
     ${flashBanner(flash)}`;
-  if (!v.configured) return `${head}<section class="block"><p class="muted">${esc(t(locale, 'billing.notConfigured'))}</p></section>`;
-  if (!v.state.billed) return `${head}<section class="block"><p class="muted">${esc(t(locale, 'billing.notBilled'))}</p></section>`;
+  // Phase 9 (settings-a-new-05, -06) — what Setup's row promises, the plan and
+  // what is charged, as the settings pages' rows: one grey line said neither.
+  const nothing = (lede: MessageKey): string => `${head}
+    <p class="lede">${esc(t(locale, lede))}</p>
+    ${rowsCard(null, [
+      fieldRow({ label: t(locale, 'billing.row.plan'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.noPlan'))}</span>` }),
+      fieldRow({ label: t(locale, 'billing.row.charged'), control: `<span class="fr-value">${esc(t(locale, 'billing.value.nothing'))}</span>` }),
+    ])}`;
+  if (!v.configured) return nothing('billing.notConfigured');
+  if (!v.state.billed) return nothing('billing.notBilled');
   const s = v.state;
   const date = (d: Date | null) => (d ? show.date(locale, d) : '—');
   const plan = v.plans.find((p) => p.id === s.planId) ?? null;

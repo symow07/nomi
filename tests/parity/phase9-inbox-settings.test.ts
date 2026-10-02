@@ -6,7 +6,7 @@ import { withWorkspace, withAssistantName, t as say } from '../../src/api/web/sa
 import { withZone } from '../../src/api/web/zone.js';
 import type { Person } from '../../src/core/conversation/people.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
 import { renderCalendar } from '../../src/api/web/calendar.js';
@@ -15,6 +15,15 @@ import { dayKey, dayStart, addDays } from '../../src/core/owner/i18n/format.js';
 import { money as showMoney } from '../../src/api/web/values.js';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { renderOrder, proformaText, proformaFileName, type OrderView } from '../../src/api/web/orders.js';
+import { renderAccount } from '../../src/api/web/account.js';
+import { renderBilling, type BillingView } from '../../src/api/web/billing.js';
+import { renderBusinessKind } from '../../src/api/web/businessKind.js';
+import { renderPhoneAlerts } from '../../src/api/web/phoneAlerts.js';
+import { renderComponents } from '../../src/api/web/components.js';
+import { renderDataRights } from '../../src/api/web/dataRights.js';
+import { renderClosures, renderForbidden, FLOOR_BY_LANGUAGE } from '../../src/api/web/settings.js';
+import { FORBIDDEN_FLOOR } from '../../src/core/safety/forbiddenWords.js';
+import type { Viewer } from '../../src/core/conversation/people.js';
 
 /**
  * Phase 9, round two — the Customers list, an order, the calendar, Results and
@@ -492,5 +501,189 @@ describe('an order', () => {
   it('V1-194 · Spanish reads as Spanish, not a word-for-word copy', () => {
     expect(t('es', 'order.update.tracking.placeholder')).toBe('El número que te dio la empresa de envíos');
     expect(t('es', 'order.invoice.intro')).not.toContain('Cópiala a tus propios documentos');
+  });
+});
+
+/* ── The settings pages (settings-a) ── */
+
+const OWNER: Viewer = { id: 'owner', isOwner: true };
+const DATA = { businessName: 'Atlas Trading', requests: [] };
+const PAGES: Record<string, (l: Locale) => string> = {
+  account: (l) => renderAccount({ email: null, passwordMin: 10 }, l, null, t(l, 'nav.settings')),
+  alerts: (l) => renderPhoneAlerts({ publicKey: 'BPk', phones: [] }, l, null),
+  billing: (l) => renderBilling({ configured: false, state: { billed: false } as BillingView['state'], plans: [], people: 1, assistants: 1, returned: null }, l, null, t(l, 'nav.settings')),
+  business: (l) => renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.settings')),
+  closures: (l) => renderClosures({ closures: [] }, l, null),
+  components: (l) => renderComponents(l),
+  data: (l) => renderDataRights(DATA, l, null, OWNER, t(l, 'nav.settings')),
+  forbidden: (l) => renderForbidden({ own: [], floor: FORBIDDEN_FLOOR }, l, null),
+};
+const draw = (page: string, l: Locale): string => withoutIsolates(PAGES[page]!(l));
+const textOf = (h: string) => h.replace(/<[^>]+>/g, ' ');
+
+describe('the settings pages', () => {
+  it('V1-465 · V1-470 · V1-476 · V1-478 · V1-499 · V1-506 · each tab names its page by its heading, not "Setup"', () => {
+    for (const l of LOCALES) for (const p of ['account', 'billing', 'business', 'closures', 'data', 'forbidden']) {
+      const body = PAGES[p]!(l);
+      const h1 = /<h1 class="page">([\s\S]*?)<\/h1>/.exec(body)![1]!.replace(/<[^>]+>/g, '');
+      const page = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: `/app/settings/${p}`, bodyHtml: body }));
+      expect(page, `${l}/${p}`).toContain(`<title>${h1} · Atlas Trading</title>`);
+    }
+  });
+
+  it('V1-478 · V1-506 · V1-491 · V1-468 · each page leads back to where it is reached from, drawn the same way, the heading under it', () => {
+    const backs: Record<string, string> = { closures: '/app/business', forbidden: '/app/employee', components: '/app/settings', alerts: '/app/settings' };
+    for (const l of LOCALES) for (const [p, href] of Object.entries(backs)) {
+      expect(draw(p, l).trimStart().startsWith(`<a class="back" href="${href}">`), `${l}/${p}`).toBe(true);
+    }
+    expect(draw('alerts', 'en')).not.toContain('<div class="dhead">');
+  });
+
+  it('settings-a-new-09 · one intro style: the lede, under the heading', () => {
+    for (const p of ['alerts', 'billing', 'business', 'closures', 'forbidden']) {
+      const h = draw(p, 'en');
+      expect(h, p).toMatch(/<\/h1>\s*<p class="lede">/);
+    }
+  });
+
+  it('settings-a-new-10 · an empty panel spans the column, as the cards above it do', () => {
+    for (const p of ['alerts', 'closures', 'forbidden', 'data']) expect(draw(p, 'en'), p).toContain('<div class="empty whole">');
+    expect(CSS).toMatch(/\.empty\.whole \{ max-width:100%; \}/);
+  });
+
+  it('V1-464 · V1-466 · settings-a-new-01 · settings-a-new-02 · your sign-in: the row names what it holds, in each language\'s own word for the code', () => {
+    for (const l of LOCALES) {
+      const h = draw('account', l);
+      expect(h, l).toContain(`<span class="fr-name">${shown(l, 'account.row.password')}</span>`);
+      expect(t(l, 'account.row.password'), l).not.toBe(t(l, 'account.title'));
+    }
+    expect(t('zh', 'account.codeOnly')).toBe('没有：你用登录码登录。');
+    expect(t('zh', 'account.codeOnly')).toContain(t('zh', 'setup.value.accessCode'));
+    expect(t('zh', 'account.codeOnly')).not.toContain('进入密码');
+    expect(t('ar', 'account.codeOnly').split('دخول').length - 1).toBe(1);
+  });
+
+  it('V1-467 · settings-a-new-04 · settings-a-new-06 · alerts: why the day-long window matters, where to turn a phone on, the phones as rows', () => {
+    expect(t('en', 'alerts.phone.lede')).toContain('so you can answer in time: Instagram, Messenger and WhatsApp let you answer only within a day');
+    for (const l of LOCALES) expect(draw('alerts', l), l).toContain(shown(l, 'alerts.phone.none'));
+    expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn alerts on there.');
+    const one = withoutIsolates(renderPhoneAlerts({ publicKey: 'BPk', phones: [{ id: '66666666-6666-4666-8666-666666666666', personId: null, endpoint: 'https://push.example/x', p256dh: 'k', auth: 'a', device: 'iPhone', createdAt: NOW }] }, 'en', null));
+    expect(one).toContain('<div class="scard"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
+  });
+
+  it('V1-469 · V1-471 · settings-a-new-05 · settings-a-new-06 · billing: the plan and what is charged, as rows; no software word', () => {
+    const installation: Record<Locale, string> = { en: 'installation', zh: '安装', ar: 'التثبيت', es: 'instalación', fr: 'installation' };
+    for (const l of LOCALES) {
+      const h = draw('billing', l);
+      expect(h, l).not.toContain(installation[l]);
+      expect(h, l).toContain(`<span class="fr-name">${shown(l, 'billing.row.plan')}</span>`);
+      expect(h, l).toContain(`<span class="fr-name">${shown(l, 'billing.row.charged')}</span>`);
+      expect(withoutIsolates(renderBilling({ configured: true, state: { billed: false } as BillingView['state'], plans: [], people: 1, assistants: 1, returned: null }, l, null, 'x')), l)
+        .toContain(`<span class="fr-value">${shown(l, 'billing.value.nothing')}</span>`);
+    }
+    expect(t('zh', 'billing.title')).toBe('账单');
+  });
+
+  it('V1-472 · V1-473 · V1-474 · V1-475 · settings-a-new-07 · kind of business: what the page holds, what it is for, the country not asked twice', () => {
+    for (const l of LOCALES) {
+      const h = draw('business', l);
+      expect(/<h1 class="page">([^<]*)<\/h1>/.exec(h)![1], l).toBe(shown(l, 'business.kind.title'));
+      expect(t(l, 'business.kind.title'), l).toBe(t(l, 'setup.desc.kind'));
+      expect(t(l, 'business.kind.title'), l).not.toBe(t(l, 'signup.kind'));
+      expect(h, l).toContain(`<p class="lede">${shown(l, 'business.kind.lede')}</p>`);
+      expect(h, l).toContain(esc(t(l, 'settings.field.location')));
+      expect(h, l).toContain(esc(t(l, 'settings.profile.title')));
+    }
+    const zh = draw('business', 'zh');
+    const options = [...(/<select id="bk-country"[^>]*>([\s\S]*?)<\/select>/.exec(zh)![1]!).matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
+    expect(options.slice(0, 2)).toEqual(['', 'CN']);
+  });
+
+  it('V1-480 · V1-482 · V1-484 · closures: the label asks what is meant, the page shows what a customer is told, Arabic in sentences', () => {
+    for (const l of LOCALES) {
+      expect(t(l, 'closures.add.label'), l).toMatch(/[?？؟]$/);
+      expect(draw('closures', l), l).toContain(shown(l, 'closures.example', { label: t(l, 'closures.add.placeholder') }));
+    }
+    expect(t('en', 'closures.example')).toContain('“We are closed for {label}, so no delivery date can be promised for this order yet.”');
+    expect(t('ar', 'closures.empty')).toContain('مدة التسليم');
+    expect(t('ar', 'closures.intro')).not.toMatch(/لا وعد|لا اختلاق/);
+  });
+
+  it('V1-483 · in Arabic a date or a time sits on the reading side of its field', () => {
+    expect(CSS).toMatch(/\[dir="rtl"\] input\[type="date"\], \[dir="rtl"\] input\[type="time"\] \{ text-align:end; \}/);
+  });
+
+  it('V1-488 · V1-489 · V1-491 · settings-a-new-11 · the component gallery: says its controls are samples, plain words, the neutral pill on a card', () => {
+    const h = draw('components', 'en');
+    expect(h).toContain('<div class="tabs"><span class="tab on">');
+    expect(t('en', 'components.lead')).toContain('pressing one does nothing');
+    expect(h).toMatch(/<div class="card"><p><span class="pill ok">[\s\S]*?<span class="pill owner">[\s\S]*?<span class="as">✦ /);
+    expect(t('ar', 'components.chips')).not.toBe('الرقائق');
+    expect(t('ar', 'components.doors')).not.toBe('الأبواب');
+    for (const w of ['常态', '悬停', '聚焦']) expect([t('zh', 'components.state.rest'), t('zh', 'components.state.hover'), t('zh', 'components.state.focus')]).not.toContain(w);
+    expect(t('zh', 'components.lead')).not.toContain('什么手机都行');
+  });
+
+  it('V1-492 · V1-497 · V1-500 · your data: each file a row with its own Download, two sections, the limit\'s figure written out', () => {
+    for (const l of LOCALES) {
+      const h = draw('data', l);
+      expect(h, l).not.toContain('<ul class="chips">');
+      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="deeper" href="\/app\/settings\/data\/[a-z-]+\.csv" download>/g)];
+      expect(files, l).toHaveLength(9);
+      // "What you set up" opens its own section, with the space sections have (it touched the rows above)
+      expect(h, l).toMatch(new RegExp(`</section>\\s*<section class="block">\\s*<h2>${esc(t(l, 'data.export.configTitle'))}</h2>`));
+    }
+    expect(draw('data', 'en')).toContain('up to 20,000 rows');
+  });
+
+  it('V1-493 · settings-a-new-13 · settings-a-missed-15 · asking for everything to be deleted: a card of rows, a red button, words that agree with it', () => {
+    const h = draw('data', 'en');
+    expect(h).toMatch(/<form method="post" action="\/app\/settings\/data\/delete">\s*<section class="sgroup"><div class="scard"><div class="setrow"><div class="fr-l"><label class="fr-name" for="dr-name">/);
+    expect(h).toContain('<button class="btn danger" type="submit"');
+    for (const l of LOCALES) {
+      expect(t(l, 'data.deletion.byHand'), l).not.toMatch(/not a button|不是一个按|ليس زرًّا|no es un botón|n’est pas un bouton/i);
+    }
+  });
+
+  it('V1-494 · V1-495 · V1-496 · V1-498 · V1-501 · settings-a-missed-16 · one name for the list, the team not the operator, an address for "us", Arabic kept together', () => {
+    for (const l of LOCALES) expect(t(l, 'data.export.subject.contacts'), l).toBe(t(l, 'contacts.title'));
+    expect(t('en', 'data.buyers.lead')).toContain('The Nomi team');
+    for (const w of ['operator', '运营方', 'مشغّل', 'opérateur']) for (const l of LOCALES) expect(t(l, 'data.buyers.lead'), l).not.toContain(w);
+    const withAddress = withoutIsolates(renderDataRights({ ...DATA, contact: 'privacy@nomi.example' }, 'en', null, OWNER, 'x'));
+    expect(withAddress).toContain('write to privacy@nomi.example and we will send the rest');
+    expect(draw('data', 'en')).not.toMatch(/write to us/);
+    expect(t('en', 'data.deletion.why')).toBe('Anything the Nomi team should know (optional)');
+    expect(t('ar', 'data.buyers.lead')).toContain('30 يومًا');
+    expect(t('ar', 'data.buyers.lead')).not.toContain('فـNomi');
+    expect(t('ar', 'data.export.configTitle')).not.toMatch(/إعداد/);
+    expect(t('en', 'data.buyers.fromChat')).not.toContain('usually');
+    expect(t('en', 'data.buyers.fromChat')).toContain('is not listed: record it yourself');
+  });
+
+  it('settings-a-new-14 · settings-a-missed-17 · nobody asked yet is a state; a heading that wraps does so evenly', () => {
+    expect(draw('data', 'en')).toContain(`<div class="empty whole">${esc(t('en', 'data.buyers.none'))}</div>`);
+    expect(t('es', 'data.buyers.title')).toBe('Clientes que pidieron borrar sus datos');
+    expect(CSS).toMatch(/main h2 \{[^}]*text-wrap:balance; \}/);
+    expect(CSS).toMatch(/h1\.page \{[^}]*text-wrap:balance; \}/);
+  });
+
+  it('V1-502 · settings-a-new-18 · the fixed words: what they are and how many on the fold, one line a language inside', () => {
+    expect(FLOOR_BY_LANGUAGE.flatMap((g) => g.words)).toEqual([...FORBIDDEN_FLOOR]);
+    for (const l of LOCALES) {
+      const h = draw('forbidden', l);
+      expect(h, l).toContain(`<h2>${shown(l, 'forbidden.floor.title')}</h2>`);
+      expect(h, l).toContain(`<summary>${withoutIsolates(esc(tn(l, 'forbidden.floor.count', FORBIDDEN_FLOOR.length)))}</summary>`);
+      // why it is there is said before the fold, not inside it
+      expect(h.indexOf(shown(l, 'forbidden.floor.body')), l).toBeLessThan(h.indexOf('<details class="floor-fold">'));
+      expect([...h.matchAll(/<dt>/g)], l).toHaveLength(FLOOR_BY_LANGUAGE.length);
+    }
+    expect(draw('forbidden', 'en')).toContain('<dt>English</dt><dd><bdi>fuck</bdi>, <bdi>shit</bdi>');
+  });
+
+  it('V1-503 · V1-508 · the hints fit at 360 px, and the note reads as one', () => {
+    // Measured in a browser at 360 px: es 243 px, fr 226 px in a 264 px field.
+    for (const l of ['es', 'fr'] as const) expect(Array.from(t(l, 'forbidden.add.placeholder')).length, l).toBeLessThanOrEqual(31);
+    expect(t('en', 'forbidden.add.note')).toBe('A note for yourself (optional)');
+    expect(t('zh', 'forbidden.add.note')).toBe(t('zh', 'order.update.note') + '（可不填）');
   });
 });

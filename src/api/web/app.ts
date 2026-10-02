@@ -1794,7 +1794,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings',
     async (s, req, reply, locale) => renderDataRights(
-      await loadDataRights(deps.db, s.businessId), locale, takeFlash(req, reply),
+      { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null }, locale, takeFlash(req, reply),
       personOf(s), t(locale, 'nav.settings'))));
 
   /**

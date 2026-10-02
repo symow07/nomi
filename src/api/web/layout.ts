@@ -404,7 +404,8 @@ ${LANGSW_CSS}
      different number: these two classes are the only prose measures there are. */
   .measure-prose { max-width: var(--measure-prose); }
   .measure-form { max-width: var(--measure-form); }
-  h1.page { font-size: var(--font-size-title); margin: 0 0 var(--space-16); }
+  /* Phase 9 (settings-a-new-19, settings-a-missed-17) — a heading that wraps breaks into even lines, never one word alone. */
+  h1.page { font-size: var(--font-size-title); margin: 0 0 var(--space-16); text-wrap:balance; }
   /* The hairline in --shadow-lift1 does what a 1px border used to; two would
      read as a double rule at the same edge. */
   .card { background:var(--color-surface); border:0; border-radius:var(--radius-card);
@@ -412,7 +413,7 @@ ${LANGSW_CSS}
   /* Phase F: section headings speak to the owner in her own sentence case.
      The 13px tracked-uppercase eyebrow was the one SaaS tell the product had. */
   .card h2, .block h2, main h2 { font-size:var(--font-size-base); font-weight:600;
-    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; }
+    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; text-wrap:balance; }
 
   /* Counts. Never a KPI tile — a plain line, the way Today has always drawn it. */
   .stats { display:flex; flex-direction:column; }
@@ -833,11 +834,20 @@ const STYLE_PAGES = `
   .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-  .fterms li { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
-  .fterms li:last-child { border-bottom:0; }
-  .fterms.floor li { color:var(--color-ink-secondary); }
-  .fterms .fnote { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* Phase 9 (V1-502) — the fixed words, one line a language, inside their fold. */
+  .floor-fold summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:var(--font-size-small); }
+  .floor-langs { margin:var(--space-8) 0 0; }
+  .floor-langs div { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-12); padding:var(--space-4) 0; font-size:var(--font-size-small); }
+  .floor-langs dt { font-weight:600; min-width:7em; }
+  .floor-langs dd { margin:0; flex:1 1 16em; color:var(--color-ink-secondary); }
+  /* Phase 9 (V1-492) — a file to take, one row of a card each: its name, and its own Download at the row's end. */
+  .dl-files { max-width:var(--measure-prose); }
+  .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
+  /* Phase 9 (settings-a-new-10) — on a settings page an empty panel spans the column, as the cards above it do. */
+  .empty.whole { max-width:100%; }
+  /* Phase 9 (V1-483) — in Arabic a date or a time sits on the reading side of its field, like every word around it
+     (the browser draws the field left to right, so its end is the right). */
+  [dir="rtl"] input[type="date"], [dir="rtl"] input[type="time"] { text-align:end; }
   .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .rate-hist li:last-child { border-bottom:0; }

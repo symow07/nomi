@@ -527,11 +527,32 @@ export async function restoreForbidden(
   });
 }
 
+/**
+ * Phase 9 (V1-502) — the floor as the page shows it: by the language each word
+ * is in, one line a language, so the 43 words are a few lines to scan rather
+ * than a column 1,800 px long. The words themselves are `FORBIDDEN_FLOOR`'s, in
+ * its order; a parity test holds that these lines are exactly that list.
+ */
+export const FLOOR_BY_LANGUAGE: readonly { readonly language: string; readonly words: readonly string[] }[] = [
+  { language: 'en', words: ['fuck', 'shit', 'bastard', 'idiot', 'stupid', 'moron', 'liar'] },
+  { language: 'zh', words: ['傻逼', '白痴', '蠢货', '滚', '骗子'] },
+  { language: 'ar', words: ['غبي', 'كذاب', 'أحمق'] },
+  { language: 'es', words: ['mierda', 'estúpido', 'estúpida', 'imbécil', 'mentiroso', 'mentirosa', 'cabrón', 'gilipollas', 'pendejo'] },
+  { language: 'fr', words: ['merde', 'putain', 'connard', 'connasse', 'menteur', 'menteuse', 'crétin', 'salaud'] },
+  { language: 'pt', words: ['merda', 'porra', 'caralho', 'babaca', 'otário', 'otária', 'imbecil', 'cretino', 'cretina', 'vagabundo', 'vagabunda'] },
+];
+const languageOf = (locale: Locale, code: string): string => {
+  try { return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { return code; }
+};
+const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
+
 export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
   const name = assistantName(locale);
-  return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
+  // Phase 9 (V1-506) — the way back to the page it is reached from: the assistant's.
+  return `${back('/app/employee', t(locale, 'nav.employee'))}
+    <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
-    <p class="lede muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
+    <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
     ${/* Phase 9 (V1-504) — how a word is matched (anywhere, inside longer words too), said where words are added. */ ''}<p class="muted small">${esc(t(locale, 'forbidden.howMatched'))}</p>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
@@ -543,16 +564,21 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
       ])}
     </form>
     ${v.own.length === 0
-      ? `<div class="empty">${esc(t(locale, 'forbidden.empty'))}</div>`
+      ? `<div class="empty whole">${esc(t(locale, 'forbidden.empty'))}</div>`
       : rowsCard(null, v.own.map((x) => fieldRow({ label: x.term,
           control: `${x.note ? `<span class="fr-value muted"><bdi>${esc(x.note)}</bdi></span>` : ''}<form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
               <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
             </form>` })))}
-    ${/* Phase 3 — the floor is a fact, not the page: folded, with its count, the words inside for whoever opens it. */ ''}<details class="block floor-fold">
-      <summary><b>${esc(t(locale, 'forbidden.floor.title'))}</b> <span class="muted">· <bdi>${esc(show.count(locale, v.floor.length))}</bdi></span></summary>
+    ${/* Phase 3 — the floor is a fact, not the page: folded, the words inside for whoever opens it.
+        Phase 9 (settings-a-new-18) — what it is and what the number counts are on the fold, and why it is there is said outside it. */ ''}<div class="block floor">
+      <h2>${esc(t(locale, 'forbidden.floor.title'))}</h2>
       <p class="muted">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
-      <ul class="fterms floor">${v.floor.map((x) => `<li><bdi>${esc(x)}</bdi></li>`).join('')}</ul>
-    </details>`;
+      <details class="floor-fold">
+        <summary>${esc(tn(locale, 'forbidden.floor.count', v.floor.length))}</summary>
+        <dl class="floor-langs">${FLOOR_BY_LANGUAGE.map((g) => `<div><dt>${esc(languageOf(locale, g.language))}</dt><dd>${
+          g.words.filter((w) => v.floor.includes(w)).map((w) => `<bdi>${esc(w)}</bdi>`).join(esc(LIST_GAP[locale]))}</dd></div>`).join('')}</dl>
+      </details>
+    </div>`;
 }
 
 /* ── M43b · the rate she will honour ─────────────────────────────────────── */
@@ -753,29 +779,34 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
-  return `<h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
+  // Phase 9 (V1-482) — the words a customer gets, as the reply is told to say
+  // them (`closureNote`): the closure's name, and that no date can be promised.
+  const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.add.placeholder') });
+  // Phase 9 (V1-478, settings-a-new-09) — the way back to My business, which
+  // links here; the intro is the settings pages' one lede.
+  return `${back('/app/business', t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
     ${flashBanner(flash)}
-    <section class="block">
-      <p class="muted">${esc(t(locale, 'closures.intro', { name }))}</p>
-      <form method="post" action="/app/settings/closures">
-        ${rowsCard(null, [
-          fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
-            control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
-          fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', error: keptError(kept, 'from', 'cl-from-err'),
-            control: `<input id="cl-from" name="from" type="date" required value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'cl-from-err')} />` }),
-          fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', error: keptError(kept, 'to', 'cl-to-err'),
-            control: `<input id="cl-to" name="to" type="date" required value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'cl-to-err')} />` }),
-          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
-        ])}
-      </form>
-      ${v.closures.length === 0
-        ? `<div class="empty">${esc(t(locale, 'closures.empty', { name }))}</div>`
-        : `<ul class="closures">${v.closures.map((c) => `<li>
-            <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
-            <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
-              <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
-            </form></li>`).join('')}</ul>`}
-    </section>`;
+    <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
+    <p class="muted small closure-said">${esc(example)}</p>
+    <form method="post" action="/app/settings/closures">
+      ${rowsCard(null, [
+        fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
+          control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
+        fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', error: keptError(kept, 'from', 'cl-from-err'),
+          control: `<input id="cl-from" name="from" type="date" required value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'cl-from-err')} />` }),
+        fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', error: keptError(kept, 'to', 'cl-to-err'),
+          control: `<input id="cl-to" name="to" type="date" required value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'cl-to-err')} />` }),
+        cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
+      ])}
+    </form>
+    ${v.closures.length === 0
+      ? `<div class="empty whole">${esc(t(locale, 'closures.empty', { name }))}</div>`
+      : `<ul class="closures">${v.closures.map((c) => `<li>
+          <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
+          <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
+            <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
+          </form></li>`).join('')}</ul>`}`;
 }
 
 /* ── M45 · samples ───────────────────────────────────────────────────────── */

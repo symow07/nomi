@@ -152,7 +152,7 @@ describe('M37.5 · the owner surface', () => {
   it('shows her list, and the floor she cannot switch off', () => {
     const html = renderForbidden(view, 'en', null);
     expect(html).toContain('Guangzhou Textile');
-    expect(html).toContain('Always enforced');
+    expect(html).toContain(t('en', 'forbidden.floor.title'));
     // The floor is rendered, not hidden: a guarantee she cannot see is one she
     // cannot rely on.
     expect(html).toContain(FORBIDDEN_FLOOR[0]!);
@@ -163,7 +163,7 @@ describe('M37.5 · the owner surface', () => {
     expect(html).toContain('action="/app/settings/forbidden"');
     expect(html).toContain('/app/settings/forbidden/a1b2/remove');
     // The floor list carries no form at all.
-    const floorBlock = html.slice(html.indexOf('Always enforced'));
+    const floorBlock = html.slice(html.indexOf(t('en', 'forbidden.floor.title')));
     expect(floorBlock).not.toContain('<form');
   });
 
