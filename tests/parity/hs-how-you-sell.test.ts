@@ -161,7 +161,8 @@ describe('HS · the pages, in every language', () => {
   });
   it('every route is the owner\'s (rule 11)', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toMatch(/app\.get\(HS_BASE, ownerPage\('price_rules'/);
+    // Phase 9 — the hub draws its own tab title ("How you sell"), so it calls the same gate directly.
+    expect(app).toMatch(/app\.get\(HS_BASE, async \(req, reply\) => \{\s*const s = await ownerOnly\(req, reply, 'price_rules'/);
     for (const route of ['`${HS_BASE}/:q`', '`${HS_BASE}/:q/confirm`', '`${HS_BASE}/:q/skip`']) {
       const at = app.indexOf(`app.post(${route}`);
       expect(at, route).toBeGreaterThan(0);

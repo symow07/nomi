@@ -177,11 +177,12 @@ describe('M39 · what she reads', () => {
     // On the tone, not the sentence: "you can write first ONCE THESE ARE IN
     // PLACE" contains the open sentence as a substring, so asserting on text
     // would pass for the wrong reason.
-    expect(whatsapp).toMatch(/class="pill warn"/);
+    // Phase 9 (new-16) — the headline waits on nothing the owner started: the plain pill, never the ✓.
+    expect(whatsapp).toMatch(/class="pill stop">You can write first once these are in place/);
     expect(whatsapp).not.toMatch(/class="pill ok">You can write first</);
     // one done, two still outstanding
     expect(whatsapp.split(t('en', 'reach.req.ready')).length - 1).toBe(1);
-    expect(whatsapp.split(t('en', 'reach.req.waiting')).length - 1).toBe(2);
+    expect(whatsapp.split(`class="pill stop">${t('en', 'reach.req.waiting')}`).length - 1).toBe(2);
   });
 
   it('the channels that cannot be written to first say what works instead', () => {

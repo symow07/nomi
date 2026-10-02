@@ -2101,8 +2101,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/live/billing', quiet, liveAsk('billing'));
 
   // CH2 — what to check at each step of connecting a Page, and why.
-  app.get('/app/help/meta', authed('channels', async (_s, _req, locale) => ({
-    title: t(locale, 'help.meta.title'), bodyHtml: renderMetaHelp(locale),
+  // Phase 9 — it lights Setup, where the Channels page it belongs to sits, and
+  // speaks of the step list only where this installation shows one (CH1).
+  app.get('/app/help/meta', authed('settings', async (_s, _req, locale) => ({
+    title: t(locale, 'help.meta.title'),
+    bodyHtml: renderMetaHelp(locale, { statusShown: !!(deps.metaConnect?.login && deps.metaConnect.credentialKey) }),
   })));
 
   // The ONLY mutation: resolve a pending draft through applyOwnerCommand.
@@ -2527,14 +2530,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     renderConnectGuide(locale, {
       viewer: personOf(s), canAsk: !!deps.systemMail, contact: deps.legalContact ?? null, ...more,
     });
-  app.get('/app/channels/whatsapp/connect', authed('channels', (s, req, locale, reply) => guide(s, locale, { flash: takeFlash(req, reply) })));
+  // Phase 9 — the tab says the page's own name, like its heading.
+  app.get('/app/channels/whatsapp/connect', authed('channels', (s, req, locale, reply) => ({
+    title: t(locale, 'channel.connect.title'), bodyHtml: guide(s, locale, { flash: takeFlash(req, reply) }) })));
   // Phase 9 — the guide's first step: the number goes to Nomi's team.
   app.post('/app/channels/whatsapp/ask', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels/whatsapp/connect');
     if (!s) return reply;
     const raw = String((req.body as { number?: unknown } | undefined)?.number ?? '').slice(0, 32);
     const number = normalizePhone(raw);
-    if (!number) return sentBack(req, reply, 'channels', guide(s, localeOf(req), { kept: raw, invalid: true }));
+    if (!number) {
+      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+        title: t(localeOf(req), 'channel.connect.title'), active: 'channels', bodyHtml: guide(s, localeOf(req), { kept: raw, invalid: true }) }));
+    }
     const r = deps.systemMail
       ? await notifyOperatorOfWhatsAppNumber({ db: deps.db, mail: deps.systemMail }, deps.businessId, s.businessId, number)
         .catch(() => 'failed' as const)
@@ -3165,10 +3173,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // ── HS (0096) How you sell: one question a page, every line ticked ────────
   // Money and going live are the owner's (rule 11): every route is `price_rules`.
-  app.get(HS_BASE, ownerPage('price_rules', 'factory', '/app/business', async (s, req, reply, locale) => {
+  // Phase 9 — the tab says "How you sell", like its heading and its questions' pages.
+  app.get(HS_BASE, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/business');
+    if (!s) return reply;
+    const locale = localeOf(req);
     const v = await loadHub(deps.db, s.businessId);
-    return v ? renderHub(v, locale, takeFlash(req, reply)) : '';
-  }));
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'hs.title'), active: 'factory', bodyHtml: v ? renderHub(v, locale, takeFlash(req, reply)) : '',
+    }));
+  });
   const hsQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? ''));
   app.get(`${HS_BASE}/:q`, async (req, reply) => {
     const q = hsQuestion(req);

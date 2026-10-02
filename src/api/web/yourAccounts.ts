@@ -67,8 +67,8 @@ export function renderYourAccounts(v: YourAccounts, locale: Locale): string {
     : step(locale, 'bad', 'accounts.subscribed', t(locale, 'accounts.subscribed.bad'), 'subscription'));
 
   const first = [
-    v.firstMessage.instagram ? t(locale, 'accounts.test.on', { channel: 'Instagram', date: show.date(locale, v.firstMessage.instagram) }) : null,
-    v.firstMessage.messenger ? t(locale, 'accounts.test.on', { channel: 'Messenger', date: show.date(locale, v.firstMessage.messenger) }) : null,
+    v.firstMessage.instagram ? t(locale, 'accounts.test.on', { channel: t(locale, 'reach.channel.instagram'), date: show.date(locale, v.firstMessage.instagram) }) : null,
+    v.firstMessage.messenger ? t(locale, 'accounts.test.on', { channel: t(locale, 'reach.channel.messenger'), date: show.date(locale, v.firstMessage.messenger) }) : null,
   ].filter((s): s is string => s !== null);
   rows.push(first.length > 0
     ? step(locale, 'done', 'accounts.test', first.join(' · '), 'test-message')

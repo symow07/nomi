@@ -404,11 +404,11 @@ export const channelFlash = (code: ChannelFlash): MessageKey =>
  *
  * The rest stay: for Telegram, WeCom and RED the missing part really is time.
  */
-const COMING_SOON: readonly ({ literal: string } | { key: MessageKey })[] = [
-  // G1 — the two sign-up asks about that Nomi cannot answer on yet.
-  { literal: 'TikTok' }, { literal: 'WeChat' },
-  { literal: 'Telegram' },
-  { key: 'channel.platform.wecom' }, { key: 'channel.platform.rednote' },
+const COMING_SOON: readonly MessageKey[] = [
+  // G1 — the two sign-up asks about that Nomi cannot answer on yet. Phase 9 —
+  // each is a word in the reader's language, like its siblings (微信 beside 企业微信).
+  'channel.platform.tiktok', 'channel.platform.wechat', 'channel.platform.telegram',
+  'channel.platform.wecom', 'channel.platform.rednote',
 ];
 
 function problemBlock(locale: Locale, code: Exclude<ChannelProblem, null>): string {
@@ -532,11 +532,15 @@ export function renderReach(
    * hold back on a channel that can only answer.
    */
   inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
+  /** Phase 9 — Instagram's and Messenger's 24 hours are said in their own block (`renderMetaPanel`), once. */
+  windowSaidElsewhere = false,
 ): string {
   const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
     const decision = mayInitiate(channel, satisfied);
-    const tone = decision.ok ? 'ok' : decision.error.kind === 'never' ? 'stop' : 'warn';
+    // Phase 9 — "you can write first once these are in place" waits on nothing
+    // the owner has started: the plain pill, like "you cannot write first".
+    const tone = decision.ok ? 'ok' : 'stop';
     const headline = decision.ok
       ? t(locale, 'reach.cold.open')
       : decision.error.kind === 'never'
@@ -545,10 +549,14 @@ export function renderReach(
 
     // What is still outstanding, and what is already done — both, because a
     // list of only the gaps reads as a wall and hides the progress she made.
+    // Phase 9 — a requirement not met waits on nothing the owner has started,
+    // so its pill is the plain one, not the amber "waits for you"; and each says
+    // what it takes and where (V1-437), beside its pill, not wrapped under it.
     const reqs = cap.requires.length === 0 ? '' : `<ul class="reqs">${cap.requires.map((r) => {
       const done = satisfied.has(r);
-      return `<li><span class="pill ${done ? 'ok' : 'warn'}">${esc(t(locale,
-        done ? 'reach.req.ready' : 'reach.req.waiting'))}</span> ${esc(t(locale, `reach.req.${r}` as MessageKey))}</li>`;
+      return `<li><span class="pill ${done ? 'ok' : 'stop'}">${esc(t(locale,
+        done ? 'reach.req.ready' : 'reach.req.waiting'))}</span><span class="req-t">${esc(t(locale, `reach.req.${r}` as MessageKey))}${
+        done ? '' : `<span class="req-how">${esc(t(locale, `reach.req.${r}.how` as MessageKey))}</span>`}</span></li>`;
     }).join('')}</ul>`;
 
     const instead = cap.instead.length === 0 ? '' : `
@@ -598,7 +606,7 @@ export function renderReach(
         : `${link.noInstagram ? `<div class="muted win">${esc(t(locale, 'reach.inbound.noInstagram'))}</div>` : ''}
           ${loginButton(link.connectHref ? 'reach.inbound.connectMeta' : 'reach.inbound.connect')}`;
 
-    const window = cap.replyWindowHours === null ? '' :
+    const window = cap.replyWindowHours === null || (windowSaidElsewhere && (channel === 'instagram' || channel === 'messenger')) ? '' :
       `<div class="muted win">${esc(t(locale, 'reach.window', { hours: String(cap.replyWindowHours) }))}</div>`;
 
     /**
@@ -631,6 +639,12 @@ export function renderReach(
               channel: t(locale, `reach.channel.${channel}` as MessageKey) }))}"
             >${esc(t(locale, on ? 'outreach.turnOff' : 'outreach.turnOn'))}</button>
         </form>
+        ${/* Phase 9 (V1-436) — while what the channel requires is not all in
+             place, the send gate refuses every first message whatever this
+             switch says. Turning it on early is still the owner's choice (it
+             takes effect once the list is done), so the switch stays; the
+             line beside it says what pressing it does now. */ ''}${decision.ok ? ''
+          : `<p class="muted warn-line">${esc(t(locale, on ? 'outreach.onNotYet' : 'outreach.notYet', { name: assistantName(locale) }))}</p>`}
         ${decision.ok ? capForm(locale, channel, caps.get(channel) ?? null) : ''}
       </div>`;
 
@@ -680,18 +694,23 @@ export type InboundLink = {
  * the page waits on it: Connect is offered either way.
  */
 export function renderMetaPanel(review: MetaReview, locale: Locale): string {
+  const name = assistantName(locale);
+  // Phase 9 — Meta's review is not the owner's to act on: a ✓ once it is
+  // done, and no "waits for you" mark while it is not. The heading is the
+  // two channels it is about; the rules sit straight under it (the h3 between
+  // was larger than the heading it sat under).
   const said = review.state === 'approved'
-    ? t(locale, 'meta.panel.approved', { date: show.date(locale, review.on) })
-    : t(locale, 'meta.panel.reviewing');
-  return `<div class="block">
+    ? `${signalMark('ok')} ${esc(t(locale, 'meta.panel.approved', { date: show.date(locale, review.on) }))}`
+    : esc(t(locale, 'meta.panel.reviewing'));
+  return `<div class="block" id="ig-messenger">
     <h2>${esc(t(locale, 'meta.panel.title'))}</h2>
-    <p class="stateline">${signalMark(review.state === 'approved' ? 'ok' : 'waiting')} ${esc(said)}</p>
-    <h3>${esc(t(locale, 'meta.rules.title'))}</h3>
-    <ul class="muted">
-      <li>${esc(t(locale, 'meta.rules.window'))}</li>
-      <li>${esc(t(locale, 'meta.rules.first'))}</li>
-      <li>${esc(t(locale, 'meta.rules.media'))}</li>
+    <p class="stateline">${said}</p>
+    <ul class="frules">
+      <li>${esc(t(locale, 'meta.rules.window', { name }))}</li>
+      <li>${esc(t(locale, 'meta.rules.first', { name }))}</li>
+      <li>${esc(t(locale, 'meta.rules.media', { name }))}</li>
     </ul>
+    ${deeper('/app/help/meta', t(locale, 'meta.panel.help'))}
   </div>`;
 }
 
@@ -741,16 +760,22 @@ export function renderChannels(
       : data.canConnect
         ? `<form method="post" action="/app/channels/whatsapp/connect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.connectNumber'))}</button></form>
            <div class="muted ch-desc">${esc(t(locale, 'channel.connect.configured', { name: assistantName(locale) }))}</div>`
-        : deeper('/app/channels/whatsapp/connect', t(locale, 'channel.action.connect'));
+        // Phase 9 (new-17) — connecting is the page's main act: its one filled button.
+        : viewer.isOwner
+          ? `<form method="get" action="/app/channels/whatsapp/connect" class="inline"><button class="btn send" type="submit">${esc(t(locale, 'channel.connect.title'))}</button></form>`
+          : deeper('/app/channels/whatsapp/connect', t(locale, 'channel.action.connect'));
 
   // Phase 4 — the pill's ✓ is the stylesheet's (`.pill.ok`), not a second one in the words.
   const pill = w.connected ? esc(t(locale, 'channel.status.connected')) : esc(t(locale, `channel.status.${w.status}` as MessageKey));
 
+  // Phase 9 — amber ○ is for a connection that needs the owner; a number never
+  // connected waits on nothing, so it takes the plain pill (new-01, V1-441).
+  const tone = w.connected ? 'ok' : w.status === 'not_connected' ? 'stop' : 'warn';
   const whatsappCard = `
-    <div class="card ch">
-      <div class="ch-h"><span class="ch-name">📱 WhatsApp</span>
-        <span class="pill ${w.connected ? 'ok' : 'warn'}">${pill}</span></div>
-      <div class="muted ch-desc">${esc(t(locale, 'channel.whatsapp.desc'))}</div>
+    <div class="card ch" id="whatsapp">
+      <div class="ch-h"><span class="ch-name">${esc(t(locale, 'reach.channel.whatsapp'))}</span>
+        <span class="pill ${tone}">${pill}</span></div>
+      <div class="muted ch-desc">${esc(t(locale, w.connected ? 'channel.whatsapp.desc' : 'channel.whatsapp.desc.none', { name: assistantName(locale) }))}</div>
       ${w.connected ? `<div class="ch-info">
         ${own?.display ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> <bdi dir="ltr">${esc(own.display)}</bdi></div>`
           : w.displayId ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> ${esc(w.displayId)}</div>` : ''}
@@ -765,9 +790,9 @@ export function renderChannels(
 
   // M39 — what each channel allows, before she connects one.
   const reach = renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
-    data.outreach, data.domain, viewer, data.outreachCaps, inbound);
+    data.outreach, data.domain, viewer, data.outreachCaps, inbound, metaReview !== null);
 
-  const alertsCard = `<div class="block">
+  const alertsCard = `<div class="block" id="alerts">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: assistantName(locale) }))}</p>
     ${viewer.isOwner ? `<form method="post" action="/app/settings/owner-phone" class="ownerform">
@@ -781,8 +806,8 @@ export function renderChannels(
 
   const soon = `<div class="block">
     <h2>${esc(t(locale, 'channel.soon.title'))}</h2>
-    <div class="soon">${COMING_SOON.map((c) => `<span class="soon-chip">${esc('literal' in c ? c.literal : t(locale, c.key))}</span>`).join('')}</div>
-    <p class="muted">${esc(t(locale, 'channel.soon.note'))}</p>
+    <p class="muted small">${esc(t(locale, 'channel.soon.note', {
+      list: new Intl.ListFormat(locale, { type: 'conjunction' }).format(COMING_SOON.map((k) => t(locale, k))) }))}</p>
   </div>`;
 
   return `<h1 class="page">${esc(t(locale, 'nav.channels'))}</h1>
@@ -837,18 +862,18 @@ export function renderConnectGuide(locale: Locale, o: ConnectGuideOptions = {}):
         ? `<p>${esc(t(locale, 'channel.connect.writeTo', { address: o.contact })).replace(esc(o.contact),
             `<a href="mailto:${esc(o.contact)}"><bdi dir="ltr">${esc(o.contact)}</bdi></a>`)}</p>`
         : `<p class="fwarn">${esc(t(locale, 'channel.connect.unavailable'))}</p>`;
-  return `<h1 class="page">${esc(t(locale, 'channel.connect.title'))}</h1>
+  return `<div class="dhead">${back('/app/channels', t(locale, 'nav.channels'))}</div>
+    <h1 class="page">${esc(t(locale, 'channel.connect.title'))}</h1>
     ${flashBanner(o.flash ?? null)}
+    <p class="lede">${esc(t(locale, 'channel.connect.intro', { name }))}</p>
     <div class="block">
-      <p class="lede">${esc(t(locale, 'channel.connect.intro', { name }))}</p>
-      <ol class="guide">
+      <ol class="wa-steps">
         <li>${esc(t(locale, 'channel.connect.step1'))}</li>
         <li>${esc(t(locale, 'channel.connect.step2'))}</li>
-        <li>${esc(t(locale, 'channel.connect.step3'))}</li>
+        <li>${esc(t(locale, 'channel.connect.step3', { page: t(locale, 'nav.channels') }))}</li>
       </ol>
       ${act}
       <p class="muted">${esc(t(locale, 'channel.connect.note'))}</p>
-      ${back('/app/channels', t(locale, 'channel.connect.back'))}
     </div>`;
 }
 

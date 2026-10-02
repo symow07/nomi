@@ -7,7 +7,7 @@ import type { KeyStatus } from '../../prospects/service.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, outreachShown } from './say.js';
+import { t, assistantName } from './say.js';
 
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { deeper, esc } from './layout.js';
@@ -89,7 +89,16 @@ const withAddress = (locale: Locale, key: MessageKey, address: string): string =
 
 type Row = { readonly name: string; readonly tone: 'ok' | 'warn' | 'stop'; readonly state: string; readonly body: string };
 
-function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewer: Viewer): Row {
+/**
+ * Phase 9 — an account this installation cannot connect is not a row with a
+ * developer's reason ("This installation has no app for it yet"): it is named
+ * once, in one plain line, so the owner knows it exists and is not offered
+ * here. Absent from the rows, it promises nothing.
+ */
+type Unavailable = { readonly unavailable: string };
+const isUnavailable = (r: Row | Unavailable): r is Unavailable => 'unavailable' in r;
+
+function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewer: Viewer): Row | Unavailable {
   const name = t(locale, `channel.platform.${provider}` as MessageKey);
   const mine = v.mail?.provider === provider ? v.mail : null;
   // E1 — reading is a grant she makes on purpose: a box, unticked, beside the
@@ -128,11 +137,10 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
             data-confirm="${esc(t(locale, 'connect.action.disconnectConfirm', { address: mine.address }))}">${esc(t(locale, 'connect.action.disconnect'))}</button></form>` : ''}`,
     };
   }
-  if (!v.connectable[provider]) {
-    return { name, tone: 'stop', state: t(locale, 'connect.state.notHere'), body: `<p class="muted">${esc(t(locale, 'connect.mail.notHere'))}</p>` };
-  }
+  if (!v.connectable[provider]) return { unavailable: name };
+  // Phase 9 — not connected yet waits on nothing: the plain pill, not amber.
   return {
-    name, tone: 'warn', state: t(locale, 'connect.state.notConnected'),
+    name, tone: 'stop', state: t(locale, 'connect.state.notConnected'),
     body: `<p class="muted">${esc(t(locale, `connect.mail.${provider}.what` as MessageKey))}</p>
       ${v.mail ? `<p class="muted">${withAddress(locale, 'connect.mail.replaces', v.mail.address)}</p>` : ''}
       ${viewer.isOwner ? start : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`}`,
@@ -166,21 +174,12 @@ export type InboundLinks = ReadonlyMap<OutreachChannel, InboundLink>;
 export function renderAccounts(
   v: AccountsView, locale: Locale, viewer: Viewer = OWNER_VIEW, inbound: InboundLinks = new Map(),
 ): string {
-  const apolloStored = v.apollo.kind === 'stored' && v.apollo.readable;
-  const rows: Row[] = [
+  // Phase 9 (V1-434) — Apollo is not one of the owner's accounts customers
+  // reach her through: its key is set where it is used, on Prospects.
+  const all: (Row | Unavailable)[] = [
     ...(v.smtpFrom ? [smtpRow(locale, v)] : []),
     mailRow(locale, v, 'google', viewer),
     mailRow(locale, v, 'microsoft', viewer),
-    // D — Apollo feeds the outreach area; where that area is off, its card is
-    // a door to nowhere, so it is not shown.
-    ...(outreachShown() ? [{
-      name: 'Apollo', tone: apolloStored ? 'ok' : v.apollo.kind === 'stored' ? 'warn' : 'warn',
-      state: t(locale, apolloStored ? 'connect.state.connected'
-        : v.apollo.kind === 'stored' ? 'connect.state.attention'
-        : v.apollo.kind === 'no_key_store' ? 'connect.state.notHere' : 'connect.state.notConnected'),
-      body: `<p class="muted">${esc(t(locale, 'connect.apollo.what'))}</p>
-        ${deeper('/app/prospects', t(locale, apolloStored ? 'connect.apollo.open' : 'connect.apollo.add'))}`,
-    } satisfies Row] : []),
     // M39 — what the platform permits, said as the registry says it: these two
     // can only ever answer someone who wrote first. C9 made them connectable,
     // and until 2026-09-17 this row went on saying "not connected" above a
@@ -188,28 +187,41 @@ export function renderAccounts(
     // stays on the card below, where the rule it is subject to is explained;
     // here is only the state, the same three states as the mail rows: no
     // account configured on this host, configured and hers to connect, connected.
-    ...(['instagram', 'messenger'] as const).map((ch): Row => {
+    // Phase 9 (missed-20) — the row says the account's state, not the rule
+    // about writing first (its card below says that), and where to go next:
+    // the card below to connect it, the help page for what to check.
+    ...(['instagram', 'messenger'] as const).map((ch): Row | Unavailable => {
       const link = inbound.get(ch);
       const here = CHANNEL_REGISTRY[ch].availableHere && link?.configured === true;
+      const name = t(locale, `reach.channel.${ch}` as MessageKey);
+      if (!here && !link?.connected) return { unavailable: name };
       return {
-        name: t(locale, `reach.channel.${ch}` as MessageKey),
-        tone: !here ? 'stop' : link?.connected ? 'ok' : 'warn',
-        state: t(locale, !here ? 'connect.state.notHere'
-          : link?.connected ? 'connect.state.connected' : 'connect.state.notConnected'),
-        body: `<p class="muted">${esc(t(locale, 'reach.cold.never'))}</p>${here && link?.connected
+        name,
+        tone: link?.connected ? (link.needsAttention ? 'warn' : 'ok') : 'stop',
+        state: t(locale, link?.connected ? (link.needsAttention ? 'connect.state.attention' : 'connect.state.connected') : 'connect.state.notConnected'),
+        body: `${link?.connected
           ? `<p class="muted">${esc(link.connectedAs
             ? t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs })
-            : t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</p>` : ''}`,
+            : t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</p>`
+          : `<p class="muted">${esc(t(locale, 'connect.inbound.below'))}</p>`}
+          ${deeper('/app/help/meta', t(locale, 'meta.panel.help'))}`,
       };
     }),
   ];
+  const rows = all.filter((r): r is Row => !isUnavailable(r));
+  const unavailable = all.filter(isUnavailable).map((r) => r.unavailable);
+  const mailHere = rows.some((r) => r.name === t(locale, 'channel.platform.google') || r.name === t(locale, 'channel.platform.microsoft')
+    || r.name === t(locale, 'connect.smtp.name'));
 
-  return `<div class="block">
+  return `<div class="block" id="accounts">
     <h2>${esc(t(locale, 'connect.title'))}</h2>
-    <p class="muted ch-desc">${esc(t(locale, 'connect.intro', { name: assistantName(locale) }))}</p>
-    <ul class="rows">${rows.map((r) => `<li class="row lines">
+    <p class="muted ch-desc">${esc(t(locale, 'connect.intro', { name: assistantName(locale) }))}${
+      mailHere ? `${locale === 'zh' ? '' : ' '}${esc(t(locale, 'connect.intro.mail'))}` : ''}</p>
+    ${rows.length ? `<ul class="rows">${rows.map((r) => `<li class="row lines">
       <div class="dhead spread"><span class="ch-name">${esc(r.name)}</span><span class="pill ${r.tone}">${esc(r.state)}</span></div>
       ${r.body}
-    </li>`).join('')}</ul>
+    </li>`).join('')}</ul>` : ''}
+    ${unavailable.length ? `<p class="muted small">${esc(t(locale, 'connect.unavailable', {
+      list: new Intl.ListFormat(locale, { type: 'conjunction' }).format(unavailable) }))}</p>` : ''}
   </div>`;
 }

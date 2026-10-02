@@ -78,6 +78,7 @@ describe('G1 · the cap, the mode, the operator', () => {
   });
   it('TikTok and WeChat are on Channels as "not yet"', () => {
     const channels = readFileSync(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
-    expect(channels).toContain("{ literal: 'TikTok' }, { literal: 'WeChat' },");
+    // Phase 9 — each is a word in the reader's language now (微信 in Chinese).
+    expect(channels).toContain("'channel.platform.tiktok', 'channel.platform.wechat',");
   });
 });

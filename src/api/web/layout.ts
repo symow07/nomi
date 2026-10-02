@@ -703,7 +703,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .caption { font-size:var(--font-size-caption); }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-  .pill.stop { background:var(--color-paper); color:var(--color-ink-secondary); }
+  /* The plain pill: a state that waits on nothing. Its hairline keeps it a pill on the page's own paper, not bare grey words. */
+  .pill.stop { background:var(--color-paper); color:var(--color-ink-secondary); border:1px solid var(--color-border); }
   /* The one-time access code on the People page; tests read it by this class. */
   .issued .code { font-size:var(--font-size-display); font-weight:600; letter-spacing:.08em; margin:var(--space-8) 0; }
   .choices { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
@@ -1043,6 +1044,13 @@ const STYLE_PAGES = `
   /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
   .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
   .reach .reqs li, .reach .instead li { padding:var(--space-4) 0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Phase 9 — a requirement's words wrap beside its pill, never back under it; what it takes sits under its name. */
+  .reach .reqs li { display:flex; align-items:baseline; gap:var(--space-8); }
+  .reach .reqs .pill { flex:none; margin:0; }
+  .req-t { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .req-how { font-size:var(--font-size-caption); }
+  /* One column on this page: the cards keep the measure the rows and the prose keep. */
+  .card.ch, .card.reach { max-width:var(--measure-prose); }
   .reach .win { font-size:var(--font-size-small); margin-top:var(--space-8); }
   .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8); border-top:1px solid var(--color-border); }
   .reach .outreach { margin-top:var(--space-12); padding-top:var(--space-12); border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-12); }
@@ -1071,8 +1079,13 @@ const STYLE_PAGES = `
   .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
   .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }
-  .soon-chip { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
+  .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
+  .wa-steps li { margin-bottom:var(--space-8); }
+  /* Phase 9 — the Meta help page: a step's title stands above its two lines; a link to Meta looks like a link and says it leaves. */
+  .help-line { font-size:var(--font-size-small); margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
+  .help-links a { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .help-links .ext { margin-inline-start:var(--space-4); font-size:var(--font-size-small); }
   .guide { padding-inline-start:20px; line-height:2; }
   .guide li { margin-bottom:var(--space-4); }
 
