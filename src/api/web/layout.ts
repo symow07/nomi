@@ -1054,40 +1054,35 @@ const STYLE_PAGES = `
      acts in one row with the quiet one at the far end. On a wide screen it
      stays in view at the foot of the conversation while the messages above
      it scroll; on a narrow one it sits in the page's own order. */
-  #approve { display:flex; flex-direction:column; gap:var(--space-12); }
+  #approve { display:flex; flex-direction:column; gap:var(--space-8); }
   #approve .top { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-4) var(--space-16);
     flex-wrap:wrap; font-size:var(--font-size-small); }
   #approve .top b { font-weight:600; }
   #approve .said { font-family:var(--font-voice); margin:0; white-space:pre-wrap; word-break:break-word; }
   #approve .und { display:flex; gap:var(--space-4) var(--space-12); flex-wrap:wrap; margin:0; font-size:var(--font-size-small); }
   #approve .k { color:var(--color-ink-secondary); }
-  #approve details { font-size:var(--font-size-small); }
-  #approve summary { display:flex; gap:var(--space-8); cursor:pointer; min-height:32px; align-items:center; }
+  #approve details { font-size:var(--font-size-small); border-top:1px solid var(--color-border); padding-top:var(--space-4); }
+  #approve summary { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); cursor:pointer; min-height:44px; align-items:center; }
   #approve summary .c { margin-inline-start:auto; color:var(--color-ink-secondary); }
+  #approve summary .c.warn { color:var(--color-waiting); font-weight:600; }
+  #approve details .und { margin:var(--space-4) 0 0; }
   .reasons { list-style:none; margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12); display:grid; gap:var(--space-4);
     background:var(--color-paper); border-radius:6px; }
   .reasons li { display:grid; grid-template-columns:1.2em minmax(6em, max-content) 1fr; gap:var(--space-8); align-items:baseline; }
   .reasons .mk.warn { color:var(--color-waiting); }
   .approve { display:flex; flex-direction:column; gap:var(--space-8); }
-  .approve .lab { display:flex; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-small); }
   .approve textarea { font-family:var(--font-voice); font-size:var(--font-size-base); color:var(--color-ink);
     background:var(--color-surface); border:1.5px solid var(--color-ink); border-radius:6px; padding:10px 14px;
-    width:100%; min-height:6.5em; max-height:40vh; resize:vertical; margin:0; }
-  .approve .src { display:flex; justify-content:space-between; gap:var(--space-4) var(--space-12); flex-wrap:wrap;
-    font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .approve .acts { align-items:center; margin:var(--space-4) 0 0; }
-  .approve .acts .quiet { margin-inline-start:auto; }
-  .approve label.btn { cursor:text; }
+    width:100%; min-height:4.5em; max-height:50vh; resize:vertical; margin:0; field-sizing:content; }
+  .approve .acts { align-items:center; margin:0; }
+  /* The window sits at the far end of the acts row, and under them where the row runs out of room. */
+  .approve .src { margin:0; margin-inline-start:auto; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .stateline { margin:0; font-size:var(--font-size-small); }
   .stateline b { font-weight:600; }
   .stateline .dot.warn { color:var(--color-waiting); }
   .stateline .dot.ok { color:var(--color-ok); }
   .stateline .dot.bad { color:var(--color-warn); }
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-  @media (min-width: 1100px) {
-    #approve { position:sticky; bottom:var(--space-16); z-index:2; box-shadow:var(--shadow-lift2);
-      max-height:calc(100vh - var(--space-32)); overflow-y:auto; }
-  }
   /* The panes (the design pass): the list, the conversation, the customer.
      Below 1100 px the conversation stands alone, as it always did; the list
      and the customer are drawn and left out, so nothing waits on a script. */

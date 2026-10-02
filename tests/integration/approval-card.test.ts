@@ -99,7 +99,9 @@ d('the approval card (requires DATABASE_URL)', () => {
   it('draws one card from the stored turn: understood, read twice, the reply once, one Send', async () => {
     await newDraft(conv, 'Hi Maya! Yes, it comes in 50 ml. Shall I send the link?');
     const html = await page(conv);
-    expect(html).toContain('<b><bdi>Maya Rahman</bdi></b> asked · Instagram');
+    // Phase 2 — who asked and when is the transcript's caption, just above; the card opens on who drafted it
+    expect(html).not.toContain('<b><bdi>Maya Rahman</bdi></b> asked ·');
+    expect(html).toContain('<span class="as"><span aria-hidden="true">✦</span> Your assistant drafted</span>');
     expect(html).toMatch(/<span class="k">Understood<\/span><span><bdi>a price question<\/bdi> · <bdi>50\u00a0ml<\/bdi> · <bdi>English<\/bdi><\/span>/);
     expect(html).toContain('checked twice');
     expect(html).toContain('a second, separate reading found the same');
