@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHmac } from 'node:crypto';
 import pg from 'pg';
 import { flashSaid } from './tenant.js';
+import { currencyLabel } from '../../src/core/owner/currencies.js';
 import { importAt, submitReview } from './importReview.js';
 import { offlineModels } from '../pipeline/fakes.js';
 import { signUpWithCode, type Outbox, PASSING_BOT_CHECK } from './signUpWithCode.js';

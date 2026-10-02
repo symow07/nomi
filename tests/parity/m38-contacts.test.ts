@@ -187,7 +187,7 @@ describe('M38 · her page', () => {
 
   it('a phone is shown to her in full — this is her own list, not a buyer’s view', () => {
     const html = renderContacts(view([row({ channel: 'whatsapp', identity: '971500001234' })]), 'en', null);
-    expect(html).toContain('+971500001234');
+    expect(html).toContain('+971 500001234');   // phase 9 (V1-551): the calling code set apart
     expect(html).not.toContain('****');
   });
 
@@ -241,19 +241,21 @@ describe('M38 · her page', () => {
     // A one-click irreversible action on every row of a list of live buyers is
     // what the first screenshot of this page actually showed. The row links;
     // the second page posts.
+    // Phase 9 (V1-546): a button that opens the question, never one that posts.
     const html = renderContacts(view([row({ consent: consent() })]), 'en', null);
-    expect(html).toContain('href="/app/contacts/suppress?channel=email&amp;identity=');
-    expect(html).not.toMatch(/<form[^>]*action="\/app\/contacts\/suppress"/);
+    expect(html).toContain('<form method="get" action="/app/contacts/suppress" class="inline">');
+    expect(html).not.toMatch(/<form method="post" action="\/app\/contacts\/suppress"/);
 
     const confirm = renderSuppressConfirm(
       { channel: 'email', identity: 'ahmed@example.com', displayName: 'Ahmed' }, 'en');
     expect(confirm).toContain(t('en', 'contacts.suppress.hint'));
     expect(confirm).toContain('<form method="post" action="/app/contacts/suppress"');
-    expect(confirm).toContain(t('en', 'contacts.suppress.cancel'));
-    // Going back is the PRIMARY button: the reflex that carries her through
-    // every other page must not land on the one action she cannot take back.
-    expect(confirm).toMatch(/class="back" href="\/app\/contacts"/);
-    expect(confirm).toMatch(/class="btn stop" type="submit"/);
+    expect(confirm).toContain(t('en', 'common.cancel'));
+    // Going back has the focus: the reflex that carries her through every
+    // other page must not land on the one action she cannot take back. Phase 9
+    // (V1-558, new-12): asked as the product's dialog asks — the act in red, Cancel beside it.
+    expect(confirm).toContain('<a class="btn" href="/app/contacts" autofocus>');
+    expect(confirm).toMatch(/class="btn danger" type="submit"/);
   });
 
   it('the attest hint appears only where the attest button does', () => {

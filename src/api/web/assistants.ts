@@ -145,7 +145,7 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
           <span class="caption muted">${about(a)}</span>
           ${confirmed(a) ? '' : `<span class="caption muted">${esc(t(locale, 'assistants.unconfirmed'))}</span>
           ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}`}
-          ${/* Phase 9 (V1-510) — the fold is a control and says what it changes. */ ''}<details class="as-fold"><summary class="btn">${esc(t(locale, a.isDefault ? 'assistants.change' : 'assistants.change.channels'))}</summary>
+          ${/* Phase 9 (V1-510) — the fold is a control and says what it changes. */ ''}<details class="act-fold"><summary class="btn">${esc(t(locale, a.isDefault ? 'assistants.change' : 'assistants.change.channels'))}</summary>
             <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="sform">
               ${rowsCard(null, [...fields(locale, a, `as-${a.id.slice(0, 8)}`),
                 cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'assistants.save'))}</button>`)])}
@@ -155,7 +155,7 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'assistants.archive.confirm', { who: a.name }))}">${esc(t(locale, 'assistants.archive'))}</button></form>`}
       </li>`).join('')}</ul>
-      <details class="as-fold"><summary class="btn">${esc(t(locale, 'assistants.add.summary'))}</summary>
+      <details class="act-fold"><summary class="btn">${esc(t(locale, 'assistants.add.summary'))}</summary>
         <form method="post" action="/app/settings/people/assistants" class="sform">
           ${rowsCard(null, [...fields(locale, null, 'as-new'),
             cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>`)])}

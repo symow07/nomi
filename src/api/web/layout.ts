@@ -1171,13 +1171,18 @@ const STYLE_PAGES = `
   .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
   .wform textarea { width:100%; font:inherit; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
+  /* Phase 9 (V1-543, V1-544) — the list grouped by its answer, the reason said once at each group's head. */
+  .ctgroup { margin-top:var(--space-24); }
+  .ctgroup-h { margin:0 0 var(--space-4); }
+  .ctgroup > p { margin:0 0 var(--space-4); max-width:var(--measure-prose); }
+  .ctgroup > .cts { margin-top:var(--space-8); }
   /* ── Phase 9 · Who works here, the rate, samples and terms (settings-b). */
   .askname { margin-top:var(--space-16); }
   .owner-only { margin:var(--space-8) 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose);
     font-size:var(--font-size-small); color:var(--color-ink); }
   .owner-only li + li { margin-top:var(--space-4); }
-  .as-fold { margin-top:var(--space-8); }
-  .as-fold > .sform { margin-top:var(--space-8); }
+  .act-fold { margin-top:var(--space-8); }
+  .act-fold > .sform { margin-top:var(--space-8); }
   .as-chans { display:grid; grid-template-columns:repeat(2, max-content); gap:0 var(--space-16); }
   .fr-need { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
   /* A setting not made yet (the rate, samples, terms): a panel as wide as the

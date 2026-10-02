@@ -447,3 +447,166 @@ describe('V1-540, V1-542, settings-b-outreach-missed-10 · the terms page in Ara
     expect(t('zh', 'terms.incoterm.label')).toContain('交货');
   });
 });
+
+// ── Contacts ───────────────────────────────────────────────────────────────
+import { renderContacts, renderSuppressConfirm, CONTACTS_PAGE, type ContactsView } from '../../src/api/web/contacts.js';
+import type { ContactRow } from '../../src/db/contacts.js';
+import { saidFlash } from '../../src/api/web/flash.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const AT = new Date('2026-08-01T02:00:00Z');
+const wa = (i: number): ContactRow => ({
+  id: null, channel: 'whatsapp', identity: `2126000${String(i).padStart(5, '0')}`, displayName: `Buyer ${i}`, company: null,
+  source: 'inbound', firstSeen: AT, archivedAt: null,
+  consent: { evidence: 'inbound_message', obtainedAt: AT, recordedBy: 'system' }, suppression: null,
+});
+const card: ContactRow = { id: 'k1', channel: 'email', identity: 'mei@gulf.example', displayName: 'Mei', company: 'Gulf Trading',
+  source: 'manual', firstSeen: AT, archivedAt: null, consent: null, suppression: null };
+const seventyOne = Array.from({ length: 71 }, (_, i) => wa(i + 1));
+const cview = (contacts: readonly ContactRow[], over: Partial<ContactsView> = {}): ContactsView =>
+  ({ contacts, outreach: new Map(), satisfied: new Set(), ...over });
+const rowsOf = (html: string) => html.split('<li class="ct ').length - 1;
+
+describe('V1-543, V1-545, V1-555 · the heading promises nothing the rows deny; each reason is said once', () => {
+  it('the page is "Contacts", and says up front how many can be written to first', () => {
+    for (const l of LOCALES) {
+      const html = renderContacts(cview(seventyOne), l, null);
+      expect(html, l).toContain(`<h1 class="page">${esc(t(l, 'contacts.title'))}</h1>`);
+      expect(html, l).toContain(esc(t(l, 'contacts.summary', { can: show.count(l, 0), total: show.count(l, 71) })));
+    }
+    expect(t('en', 'contacts.title')).toBe('Contacts');
+  });
+  it('WhatsApp people sit under one head that says, once, that a first message goes by e-mail only', () => {
+    for (const l of LOCALES) {
+      const html = renderContacts(cview(seventyOne), l, null);
+      expect(html.split(esc(t(l, 'contacts.why.reply_only'))).length - 1, l).toBe(1);
+      expect(html, l).not.toContain(esc(t(l, 'refused.why.channel_cannot_initiate')));
+      expect(html, l).not.toContain('class="pill ok"');
+      // how they came is said once on each row
+      expect(html.split(esc(t(l, 'contacts.evidence.inbound_message'))).length - 1, l).toBe(CONTACTS_PAGE);
+    }
+  });
+});
+
+describe('V1-544 · the list is searched and paged, and adding someone opens above it', () => {
+  it('25 a page, with where you are in the whole', () => {
+    const html = renderContacts(cview(seventyOne), 'en', null);
+    expect(rowsOf(html)).toBe(CONTACTS_PAGE);
+    expect(html).toContain('1–25 of 71');
+    expect(html).toContain('href="/app/contacts?page=2"');
+    const last = renderContacts(cview(seventyOne, { page: 3 }), 'en', null);
+    expect(rowsOf(last)).toBe(21);
+    expect(last).toContain('51–71 of 71');
+  });
+  it('a search by name or by digits narrows it', () => {
+    expect(rowsOf(renderContacts(cview(seventyOne, { query: 'Buyer 7' }), 'en', null))).toBe(3);   // Buyer 7, 70 and 71
+    expect(rowsOf(renderContacts(cview(seventyOne, { query: '00042' }), 'en', null))).toBe(1);
+    expect(renderContacts(cview(seventyOne, { query: 'nobody' }), 'en', null)).toContain(t('en', 'buyers.search.none', { q: 'nobody' }));
+  });
+  it('"Add someone you met" is before the list', () => {
+    const html = renderContacts(cview(seventyOne), 'en', null);
+    expect(html.indexOf(t('en', 'contacts.add.title'))).toBeLessThan(html.indexOf('<li class="ct '));
+  });
+});
+
+describe('V1-546 · never writing to someone again is a button, not a door', () => {
+  it('a quiet button that opens the question; no "›" door to it', () => {
+    const html = renderContacts(cview([wa(1)]), 'en', null);
+    expect(html).toContain(`<button class="btn ghost" type="submit">${esc(t('en', 'contacts.suppress.button'))}</button>`);
+    expect(html).not.toMatch(/class="deeper" href="\/app\/contacts\/suppress/);
+  });
+});
+
+describe('V1-548, V1-562, V1-563 · one name for the page, wherever it is named', () => {
+  it('the back links of finding customers and first e-mails say what the page says', async () => {
+    const { renderProspects } = await import('../../src/api/web/prospects.js');
+    const { renderSequenceList } = await import('../../src/api/web/sequences.js');
+    for (const l of LOCALES) {
+      const back = `<a class="back" href="/app/contacts"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'contacts.title'))}</a>`;
+      expect(renderProspects({ status: { kind: 'none' }, filter: null, outcome: null }, l, null), l).toContain(back);
+      expect(renderSequenceList([], l, null), l).toContain(back);
+      const doc = shell({ title: t(l, 'nav.sequences'), active: 'sequences', locale: l, path: '/app/sequences', bodyHtml: renderSequenceList([], l, null) });
+      expect(doc, l).toContain(`<title>${esc(t(l, 'seq.title'))} · Nomi</title>`);
+    }
+  });
+});
+
+describe('V1-549, settings-b-outreach-missed-11 · the intro says only what the form asks', () => {
+  it('no "how you met" in any language', () => {
+    expect(t('en', 'contacts.intro')).not.toMatch(/how you met/);
+    expect(t('es', 'contacts.intro')).not.toMatch(/conocieron/);
+    expect(t('zh', 'contacts.intro')).not.toMatch(/怎么认识/);
+    expect(t('ar', 'contacts.intro')).not.toMatch(/التعارف/);
+    expect(t('fr', 'contacts.intro')).not.toMatch(/origine du contact/);
+  });
+});
+
+describe('V1-550 · the add form is a card of rows with its act at the end', () => {
+  it('no full-width column form', () => {
+    const html = renderContacts(cview([]), 'en', null);
+    expect(html).not.toContain('class="cform"');
+    expect(html).toMatch(/<div class="fr-acts"><button class="btn send" type="submit">Add to the list<\/button><\/div>/);
+  });
+});
+
+describe('V1-551 · a phone number with its country code set apart', () => {
+  it('+212 600000105, +234 5000000261, +971 5000000200', async () => {
+    const { withCallingCode } = await import('../../src/core/channel/callingCodes.js');
+    expect(withCallingCode('212600000105')).toBe('+212 600000105');
+    expect(withCallingCode('2345000000261')).toBe('+234 5000000261');
+    expect(withCallingCode('9715000000200')).toBe('+971 5000000200');
+    expect(withCallingCode('14155550100')).toBe('+1 4155550100');
+    expect(renderContacts(cview([wa(105)]), 'en', null)).toContain('+212 600000105');
+  });
+});
+
+describe('V1-552, V1-553 · E-mail as the product writes it; Chinese without a doubled gap or a doubled phrase', () => {
+  it('en and ar', () => {
+    expect(t('en', 'contacts.channel.email')).toBe('E-mail');
+    expect(t('ar', 'contacts.channel.email')).toBe('البريد الإلكتروني');
+  });
+  it('zh', () => {
+    const html = renderContacts(cview([wa(1)]), 'zh', null);
+    expect(html).not.toContain('　·　');
+    expect(t('zh', 'contacts.source.inbound')).toBe(t('zh', 'contacts.evidence.inbound_message'));
+  });
+});
+
+describe('V1-554, V1-556 · an address that names nobody, or someone not reached by e-mail, says so', () => {
+  it('the routes draw the list with a sentence, and the sentence is drawn', () => {
+    const app = readFileSync(fileURLToPath(new URL('../../src/api/web/app.ts', import.meta.url)), 'utf8');
+    expect(app.match(/saidFlash\(locale, 'contacts\.said\.notOnList'\)/g)?.length).toBe(2);
+    expect(app).toContain("saidFlash(locale, 'contacts.said.emailOnly')");
+    for (const l of LOCALES) {
+      for (const k of ['contacts.said.notOnList', 'contacts.said.emailOnly'] as const) {
+        expect(renderContacts(cview(seventyOne), l, saidFlash(l, k)), `${l} ${k}`).toContain(esc(t(l, k)));
+      }
+    }
+  });
+});
+
+describe('V1-557, V1-558, settings-b-outreach-new-12 · never again: what it changes, asked as the dialog asks', () => {
+  it('says the customer is still answered; the act in red, then Cancel with the focus, as in the dialog', () => {
+    for (const l of LOCALES) {
+      const html = renderSuppressConfirm({ channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra' }, l);
+      expect(html, l).toContain(esc(t(l, 'contacts.suppress.hint')));
+      const danger = html.indexOf(`<button class="btn danger" type="submit">${esc(t(l, 'contacts.suppress.confirm'))}</button>`);
+      const cancel = html.indexOf(`<a class="btn" href="/app/contacts" autofocus>${esc(t(l, 'common.cancel'))}</a>`);
+      expect(danger, l).toBeGreaterThan(-1);
+      expect(cancel, l).toBeGreaterThan(danger);
+    }
+    expect(t('en', 'contacts.suppress.hint')).toMatch(/answered as usual/);
+    expect(t('ar', 'contacts.suppress.confirm')).not.toBe('نعم، أبدًا');
+    expect(rulesFor('.btn.danger').join(';')).toContain('color:var(--color-warn)');
+  });
+});
+
+describe('settings-b-outreach-missed-02 · adding a customer is its own word too', () => {
+  it('in every locale', () => {
+    for (const l of LOCALES) {
+      expect(t(l, 'contacts.add.button'), l).not.toBe(t(l, 'people.add.button'));
+      expect(t(l, 'contacts.add.button'), l).not.toBe(t(l, 'assistants.add.button'));
+    }
+  });
+});
