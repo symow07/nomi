@@ -173,7 +173,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
 
   it('recently: real counts including how often you were needed', () => {
     const html = renderEmployee(base, 'en', null, ctx);
-    expect(html).toContain('Recently');
+    expect(html).toContain(t('en', 'her.recent.title'));
     expect(html).toContain('>12<'); expect(html).toContain(t('en', 'ops.activity.handled'));
     expect(html).toContain('>8<');  expect(html).toContain('Replies prepared');
     expect(html).toContain('>2<');  expect(html).toContain('Needed your help');
@@ -182,7 +182,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   it('a quiet employee reads calm, not broken', () => {
     const html = renderEmployee(base, 'en', null,
       { ...ctx, handled: 0, draftsPrepared: 0, neededYou: 0 });
-    expect(html).toContain('No conversations yet.');
+    expect(html).toContain('Nothing yet this month.'); expect(html).not.toContain('No conversations yet');
   });
 
   it('what the assistant needs: every gap leads to the EXISTING teach flow', () => {
@@ -202,7 +202,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
 
   it('the new sections are omitted entirely without context', () => {
     const html = renderEmployee(base, 'en', null);
-    expect(html).not.toContain('Recently');
+    expect(html).not.toContain(t('en', 'her.recent.title'));
     expect(html).not.toContain(t('en', 'her.teach.title'));
   });
 
