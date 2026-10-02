@@ -719,7 +719,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(moved.headers['location']).toBe('/app/inbox?q=Ivan');
     const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?q=Ivan', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Ivan Petrov');
+    // The match is marked in the name (phase 9, V1-182): "<mark>Ivan</mark> Petrov".
+    expect(res.body).toContain('<mark class="hit">Ivan</mark> Petrov');
     expect(res.body).not.toContain('Ahmed Al-Rashid');
   });
 

@@ -62,12 +62,10 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
   }, 60_000);
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
-  it('the page opens on the week, Monday first for a business in the UK', async () => {
+  it('the page opens on the week; an empty week is said, not drawn as empty hours (V1-204)', async () => {
     const html = await page('/app/calendar');
-    expect(html).toContain('<table class="wk">');
     expect(html).toContain('<a class="tab on" aria-current="page" href="/app/calendar?at=');
-    const firstDay = /<thead><tr><th scope="col" class="wk-corner">[\s\S]*?<\/th><th scope="col"[^>]*><a href="\/app\/calendar\?view=day&amp;at=(\d{4}-\d{2}-\d{2})"/.exec(html)?.[1];
-    expect(new Date(`${firstDay}T00:00:00Z`).getUTCDay()).toBe(1);
+    expect(html).not.toContain('<table class="wk">');
   });
 
   it('a date put on the calendar is on the week, dashed, with its hours', async () => {
@@ -78,6 +76,10 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
     // who put it there, by person (G9b: an actor is an id, read as a name where shown)
     expect(row).toMatchObject({ title: 'Photo shoot', all_day: false, removed_at: null, created_by: expect.stringMatching(/^[0-9a-f-]{36}$/) });
     const html = await page('/app/calendar?at=2031-03-05');
+    // the week of a date: Monday first for a business in the UK
+    expect(html).toContain('<table class="wk">');
+    const firstDay = /<thead><tr><th scope="col" class="wk-corner">[\s\S]*?<\/th><th scope="col"[^>]*><a href="\/app\/calendar\?view=day&amp;at=(\d{4}-\d{2}-\d{2})"/.exec(html)?.[1];
+    expect(new Date(`${firstDay}T00:00:00Z`).getUTCDay()).toBe(1);
     expect(html).toContain(`<div class="wk-e dashed" data-src="calendar_entries:${row!.id}"`);
     expect(html).toContain('<b><bdi>Photo shoot</bdi></b><span class="wk-t">11:00–13:00</span>');
     // and in the list, under "Your dates"

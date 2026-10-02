@@ -109,7 +109,8 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
 
   it('a conversation stands between its list and its customer', async () => {
     const html = await page(`/app/inbox/${maya}`);
-    expect(html).toContain('<main id="main" class="wide"><div class="panes"><aside class="listpane"');
+    // V1-105 — on a phone every page says whose workspace it is, so its line may come first.
+    expect(html).toMatch(/<main id="main" class="wide">(?:<p class="business-name"><bdi>[^<]*<\/bdi><\/p>)?<div class="panes"><aside class="listpane"/);
     expect(html).toMatch(new RegExp(`<a class="crow is-\\w+[^"]* on" href="/app/inbox/${maya}#latest" aria-current="page">`));
     // the list opens on its own default tab: someone needs the owner, so "Needs you" — Omar is under All
     expect(html).not.toContain(`href="/app/inbox/${omar}#latest"`);

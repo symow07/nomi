@@ -204,7 +204,8 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const asked = await signup(C);
     expect(asked.statusCode).toBe(400);
     expect(asked.body).toContain(t('en', 'signup.problem.zone_missing'));
-    expect(asked.body).toContain('<select id="su-zone" name="zone" required>');
+    // Sent back: the box is marked as the one to answer (phase 9, aria-invalid).
+    expect(asked.body).toMatch(/<select id="su-zone" name="zone" required[^>]*aria-invalid="true"[^>]*>/);
     expect(asked.body).toContain('value="America/Chicago"');
     expect(await zoneOfName(C.factory)).toBeUndefined();
     // A zone of another country is not an answer.

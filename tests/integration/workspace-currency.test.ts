@@ -86,7 +86,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     const asked = await form('/signup', M);
     expect(asked.statusCode).toBe(400);
     expect(asked.body).toContain(t('en', 'signup.problem.currency_missing'));
-    expect(asked.body).toContain('<select id="su-currency" name="currency" required>');
+    expect(asked.body).toMatch(/<select id="su-currency" name="currency" required[^>]*aria-invalid="true"[^>]*>/);
     expect((await admin.query(`select 1 from businesses where name = $1`, [M.factory])).rowCount).toBe(0);
     const picked = await signUpWithCode(form, outbox, { ...M, currency: 'USD' });
     expect(picked.statusCode, picked.body.slice(0, 300)).toBe(302);

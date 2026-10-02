@@ -294,12 +294,12 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     const off = await get('/app/calendar?view=list');
     expect(off.body).not.toContain(`sequence_enrollments:`);
     expect(off.body).not.toContain(`buyer-${RUN}@example.com`);
-    expect(off.body).not.toContain(`category=followups`);
+    expect(off.body).not.toContain('<option value="followups"');   // the category is a choice since V1-202
     await area(true);
     const on = await get('/app/calendar?view=list');
     expect(sources(on.body).get(`sequence_enrollments:${id['enrol']}`)).toBe('next_due_at');
     expect(on.body).toContain(`buyer-${RUN}@example.com`);
-    expect(on.body).toContain('category=followups');
+    expect(on.body).toContain('<option value="followups"');
     // No conversation yet: nothing to open, so no door on that row.
     const row = new RegExp(`<li class="row" data-src="sequence_enrollments:${id['enrol']}"[\\s\\S]*?</li>`).exec(on.body)?.[0] ?? '';
     expect(row).not.toContain('href=');
