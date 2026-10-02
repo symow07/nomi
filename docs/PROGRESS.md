@@ -87,6 +87,12 @@ The business-and-channels agent finished its area before the usage limit (95 fin
 
 **Left:** V1-404 (money per country) waits with V1-009.
 
+**Found on the way, fixed.**
+- **The owner's own held conversation left their "Needs you".** The colleague rule matched the reader's id only. A take-over that names nobody writes the `'owner'` sentinel, and the access code signs the owner in as their person row, so the two never matched. The list now reads it the way the conversation page does. Found by the full integration run.
+- **Two flaky tests, root-caused:**
+  - **The M22 refusal test.** `demoPhone` keeps the country code and the digits after the tenth, so the test's 971500007701 *was* demo buyer 1's number. The test failed whenever P3 had left a refusal on that conversation, which depended on which of the seeded rows sharing one `created_at` P3 picked. Two other test numbers collided the same way. `runPhone` now refuses a number that lands on another one, and a parity test scans every integration file.
+  - **backup.sh's "124".** The watchdog wrote its mark after the kill, so a killed command could wake `wait` first: 34 of 150 runs under load came back 143. Marked before the kill, 0 of 150.
+
 **Phase 9, part four (#209) — a conversation, the draft card, the buyer file and Practice (19 findings).**
 
 **Contradictions on the page, resolved by what the code does.**
