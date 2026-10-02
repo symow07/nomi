@@ -73,7 +73,8 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect((await get(pilotCookie, '/app/onboarding/technical')).statusCode).toBe(200);
     const ready = await get(shopCookie, '/app/onboarding');
     expect(ready.body).not.toContain('href="/app/onboarding/technical"');
-    expect((await get(pilotCookie, '/app/onboarding')).body).toContain('href="/app/onboarding/technical"');
+    // Phase 9 — the installation's own workspace keeps the page, but no owner's page links to it.
+    expect((await get(pilotCookie, '/app/onboarding')).body).not.toContain('href="/app/onboarding/technical"');
   });
 
   it('PHASE 9 · V1-007 · a mistyped /app address keeps a signed-in owner in the workspace; signed out it is the door page', async () => {

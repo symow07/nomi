@@ -79,12 +79,13 @@ describe('G6 · the Ready for customers page', () => {
 });
 
 describe('G6 · the machine room is the installation\'s', () => {
-  it('only the installation\'s own workspace reaches it, and only its owner sees the door', () => {
+  it('only the installation\'s own workspace reaches it, and no owner\'s page links to it (phase 9)', () => {
     const app = src('src/api/web/app.ts');
     const at = app.indexOf("app.get('/app/onboarding/technical', {");
     expect(at).toBeGreaterThan(-1);
     expect(app.slice(at, at + 300)).toContain('if (s && s.businessId !== deps.businessId) return reply.callNotFound();');
-    expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s), s.businessId === deps.businessId)');
+    expect(app).toContain('renderPilotRunbook(data, locale, flash, feedback, personOf(s))');
+    expect(src('src/api/web/pilot.ts')).not.toContain("deeper('/app/onboarding/technical'");
   });
 });
 

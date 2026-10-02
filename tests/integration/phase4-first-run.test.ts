@@ -185,7 +185,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(ready).not.toContain(t('en', 'meta.cred.appSecret'));
     expect(ready).not.toContain(t('en', 'meta.cred.verifyToken'));
     expect(ready).not.toContain(esc(t('en', 'runbook.deploy.title')));
-    expect(ready).toContain('href="/app/onboarding/technical"');
+    expect(ready).not.toContain('href="/app/onboarding/technical"');   // phase 9: the page stays, the door goes
 
     const tech = await get(ig, igOwner, '/app/onboarding/technical');
     expect(tech.statusCode).toBe(200);

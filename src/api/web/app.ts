@@ -3668,7 +3668,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, feedback, personOf(s), s.businessId === deps.businessId),
+      bodyHtml: renderPilotRunbook(data, locale, flash, feedback, personOf(s)),
     }));
   });
 
