@@ -155,6 +155,13 @@ describe('the customer panel', () => {
     for (const h of ['Asked about', 'Prices worked out', 'Promised', 'On record', 'On the calendar', 'Activity']) expect(html).not.toContain(`<h3>${h}</h3>`);
   });
 
+  it('phase 9 · a price row: the price and its product on one line, the time on the next, no stray separator (V1-226)', () => {
+    const html = renderCustomerPanel(panel, [], 'en', NOW, 'c-1');
+    const row = html.slice(html.indexOf('$34.90'), html.indexOf('</li>', html.indexOf('$34.90')));
+    expect(row).toMatch(/Rose Face Serum<\/bdi><br><span class="muted small">/);
+    expect(row).not.toMatch(/ · [^<]*\d{1,2}:\d{2}/);
+  });
+
   it('phase 9 · a phone number reads left to right in Arabic too (conversation-missed-01)', () => {
     const html = renderCustomerPanel({ ...panel, channel: 'whatsapp', address: '2345000000261' }, [], 'ar', NOW, 'c-1');
     expect(html).toContain('<bdi dir="ltr">+2345000000261</bdi>');

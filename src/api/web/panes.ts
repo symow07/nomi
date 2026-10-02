@@ -106,7 +106,9 @@ export function renderCustomerPanel(
   const asked = p.askedAbout.map((a) => li(`<bdi>${esc(productName(locale, a) ?? '')}</bdi>`,
     esc(`${tn(locale, 'panel.times', a.count)} · ${show.shortWhen(locale, a.lastAt, now)}`)));
   const prices = p.prices.map((q) => li(
-    `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''} · ${esc(show.shortWhen(locale, q.at, now))}`,
+    // Phase 9 (V1-226) — the price and what it is for on one line, when on the next:
+    // run together, a narrow panel broke "LED String Lights 10m · 17:20" at random.
+    `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''}<br><span class="muted small">${esc(show.shortWhen(locale, q.at, now))}</span>`,
     `<a href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}<span class="go" aria-hidden="true">›</span></a>`));
   const record = [
     ...p.samples.map((s) => li(`${esc(t(locale, 'panel.sample'))} · ${esc(t(locale, 'panel.sampleAsked', { date: show.date(locale, s.askedAt) }))}${
