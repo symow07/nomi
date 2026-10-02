@@ -142,6 +142,16 @@ export function formatRelative(locale: Locale, d: Date, now: Date, zone: string)
   return `${formatDate(locale, d, zone)} ${time}`;
 }
 
+/**
+ * Phase 9 (V1-267) — the day alone, for a transcript's divider: "Today",
+ * "Yesterday", or the date. Every caption repeated "Today 12:13", "Today 12:48".
+ */
+export function formatDay(locale: Locale, d: Date, now: Date, zone: string): string {
+  if (dayKey(d, zone) === dayKey(now, zone)) return TODAY[locale];
+  if (dayKey(d, zone) === dayKey(new Date(now.getTime() - 86_400_000), zone)) return YESTERDAY[locale];
+  return formatDate(locale, d, zone);
+}
+
 /** CH5 — time left, in words: "1 hour, 20 minutes", "1小时20分钟", "ساعة واحدة و20 دقيقة". Whole minutes, never below one. */
 export function formatTimeLeft(locale: Locale, ms: number): string {
   const minutes = Math.max(1, Math.floor(ms / 60_000));
@@ -195,7 +205,12 @@ export function formatUntil(locale: Locale, d: Date, now: Date, zone: string): s
   const time = formatTime(locale, d, zone);
   if (dayKey(d, zone) === dayKey(now, zone)) return time;
   if (dayKey(d, zone) === dayKey(new Date(now.getTime() + 86_400_000), zone)) {
-    return locale === 'en' ? `${time} tomorrow` : `${TOMORROW[locale]} ${time}`;
+    // Phase 9 (V1-230) — said inside a sentence ("…until {time}"), so the day
+    // takes no capital: "hasta mañana a las 17:18", not "hasta Mañana 17:18".
+    return locale === 'en' ? `${time} tomorrow`
+      : locale === 'es' ? `mañana a las ${time}`
+      : locale === 'fr' ? `demain à ${time}`
+      : `${TOMORROW[locale]} ${time}`;
   }
   return `${formatDate(locale, d, zone)} ${time}`;
 }

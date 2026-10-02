@@ -521,10 +521,17 @@ describe('Release hardening · a permanent change asks first', () => {
     }
   });
 
-  it('none of the card\'s acts asks first: each is about this one reply', () => {
+  /**
+   * Phase 9 (V1-237, the owner's call given to the builder, 2026-10-03) — one
+   * act on the card puts the reply away for good: "No reply needed". Phase 5's
+   * rule keeps asking for what erases, so it asks; Send and "I'll reply" never do.
+   */
+  it('only "No reply needed" asks first: it puts this reply away for good; Send and I\'ll reply never ask', () => {
     const start = withDraft.indexOf('id="approve"');
     const card = withDraft.slice(start, withDraft.indexOf('</section>', start));
     expect(card).toContain('value="send"');
-    expect(card).not.toContain('onclick="return confirm');
+    expect(card.split('onclick="return confirm').length - 1).toBe(1);
+    const asking = card.slice(card.lastIndexOf('<button', card.indexOf('onclick="return confirm')));
+    expect(asking.slice(0, asking.indexOf('</button>'))).toContain('value="不回"');
   });
 });

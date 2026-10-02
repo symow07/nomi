@@ -617,7 +617,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* The buyer's words are FULL SIZE; every reply is one step down. The page
      belongs to the buyer's business — she works inside it. */
   .msg.inbound .bubble { font-size:var(--font-size-base);
-    background:var(--color-paper); border-start-start-radius:4px; }
+    background:var(--color-paper); border:1px solid var(--color-border); border-start-start-radius:4px; }
+  /* Phase 9 (V1-236, V1-261, V1-292) — the hairline every bubble has: on a phone, and in Practice,
+     the page is paper too, and the customer's words floated as indented text with no bubble. */
+  /* Phase 9 (V1-267) — the day once, where it changes; each caption then gives its time. */
+  .tday { align-self:center; margin:var(--space-8) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   /* Her sent replies: neutral. These carried an amber fill — colour on every
      message she ever sent, marking no state at all. */
   .msg.outbound .bubble { font-size:var(--font-size-small);
@@ -630,6 +634,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
      action it lands on the notice the action left, drawn under that message.
      The practice box is a landing of the same kind. */
   #latest, #compose, #main { scroll-margin-top:25vh; }
+  /* Phase 9 (V1-239) — on a laptop the newest message lands lower: a short conversation does not
+     move at all, so the header is never cut through; a long one keeps the reply under it in view. */
+  @media (min-width: 1100px) { #latest { scroll-margin-top:40vh; } }
   /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
      boxed rival: a quiet serif paragraph behind a jade hairline that means
      "hers, awaiting your decision". border-inline-start keeps the hairline on
@@ -660,7 +667,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
      page that used them differently, so a name has one meaning again. */
   .editform { display:flex; flex-direction:column; gap:var(--space-8); }
   .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
-  .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+  /* Phase 9 (V1-238, V1-263) — the hand-over card reads down: whose it is, why, then what to do.
+     In a row its state floated mid-card beside a stray label, with an empty band above. */
+  .takeover { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
+  .takeover > .pill { white-space:normal; margin:0; }
+  .takeover-note { margin:0; font-size:var(--font-size-small); }
   .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
   .perr { color:var(--color-warn); font-size:var(--font-size-caption); margin:0; }
   /* Phase 6 — a form's refusal under the field it concerns: why, the rule it follows, the way on. */
@@ -1308,22 +1319,35 @@ const STYLE_PAGES = `
     flex-wrap:wrap; font-size:var(--font-size-small); }
   #approve .top b { font-weight:600; }
   #approve .said { font-family:var(--font-voice); margin:0; white-space:pre-wrap; word-break:break-word; }
-  #approve .und { display:flex; gap:var(--space-4) var(--space-12); flex-wrap:wrap; margin:0; font-size:var(--font-size-small); }
+  /* Phase 9 (V1-240) — one sentence: "Understood as: a price question · …", its values running on after the label. */
+  #approve .und { margin:0; font-size:var(--font-size-small); }
   #approve .k { color:var(--color-ink-secondary); }
   #approve details { font-size:var(--font-size-small); border-top:1px solid var(--color-border); padding-top:var(--space-4); }
   #approve summary { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); cursor:pointer; min-height:44px; align-items:center; }
-  #approve summary .c { margin-inline-start:auto; color:var(--color-ink-secondary); }
+  /* Phase 9 (conversation-new-04) — what needs the owner follows the fold's own words, and starts its own line when it wraps: right-aligned under them, it read as cut off. */
+  #approve summary .c { color:var(--color-ink-secondary); }
   #approve summary .c.warn { color:var(--color-waiting); font-weight:600; }
   #approve details .und { margin:var(--space-4) 0 0; }
   .reasons { list-style:none; margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12); display:grid; gap:var(--space-4);
     background:var(--color-paper); border-radius:6px; }
   .reasons li { display:grid; grid-template-columns:1.2em minmax(6em, max-content) 1fr; gap:var(--space-8); align-items:baseline; }
   .reasons .mk.warn { color:var(--color-waiting); }
+  /* Phase 9 (V1-242) — a product's name stays whole where the line has room. */
+  .reasons .pname { display:inline-block; }
+  /* Phase 9 (conversation-missed-03) — on a phone the source goes under what it explains, not into a sliver of a column. */
+  @media (max-width: 560px) {
+    .reasons li { grid-template-columns:1.2em minmax(0, 1fr); row-gap:0; }
+    .reasons li > :last-child { grid-column:2; color:var(--color-ink-secondary); }
+  }
   .approve { display:flex; flex-direction:column; gap:var(--space-8); }
   .approve textarea { font-family:var(--font-voice); font-size:var(--font-size-base); color:var(--color-ink);
     background:var(--color-surface); border:1.5px solid var(--color-ink); border-radius:6px; padding:10px 14px;
     width:100%; min-height:4.5em; max-height:50vh; resize:vertical; margin:0; field-sizing:content; }
   .approve .acts { align-items:center; margin:0; }
+  /* Phase 9 (V1-237) — the quiet act on its own line under the two answers, the window at its far end. */
+  .acts-more { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
+  /* Phase 9 (V1-259, V1-260, V1-277) — a figure and its word never wrap apart: "total" stays with "$7,250.00". */
+  .fig { white-space:nowrap; }
   /* The window sits at the far end of the acts row, and under them where the row runs out of room. */
   .approve .src { margin:0; margin-inline-start:auto; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .stateline { margin:0; font-size:var(--font-size-small); }
@@ -1335,7 +1359,9 @@ const STYLE_PAGES = `
   .panes > .listpane, .panes > .panel, .panel-open, .panel-close { display:none; }
   .panes > .conv { min-width:0; }
   .lp-h { font-size:var(--font-size-small); font-weight:600; margin:0 var(--space-16) var(--space-8); }
-  .listpane .tabs { padding:0 var(--space-16); flex-wrap:wrap; }
+  /* Phase 9 (V1-248) — the three tabs on one line in every language: "Mías", «ما يخصّني» dropped to a second row. */
+  .listpane .tabs { padding:0 var(--space-16); flex-wrap:nowrap; gap:var(--space-4); overflow-x:auto; scrollbar-width:none; }
+  .listpane .tab { flex:none; padding:8px 12px; }
   .tab-n { margin-inline-start:var(--space-4); font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
   .listpane .crows { margin:var(--space-8) 0; background:none; border:0; border-radius:0; }
   .listpane a.crow { padding-inline:var(--space-12) var(--space-16); }
@@ -1346,6 +1372,9 @@ const STYLE_PAGES = `
   .lp-group { padding:var(--space-12) var(--space-16) var(--space-4); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .lp-empty { padding:var(--space-8) var(--space-16); }
   .listpane .search, .listpane .deeper { margin:var(--space-16); }
+  /* Phase 9 (V1-235) — the field takes the column's width, its button under it: beside it, the placeholder was cut. */
+  .listpane .search { flex-wrap:wrap; }
+  .listpane .search input { flex:1 1 100%; }
   .panel h2 { font-size:var(--font-size-title); margin:0; }
   .pn-head { padding-bottom:var(--space-12); margin-bottom:var(--space-16); border-bottom:1px solid var(--color-border); }
   .pn-facts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -1371,6 +1400,12 @@ const STYLE_PAGES = `
     .panes > .panel:target { display:block; position:fixed; inset-block:0; inset-inline-end:0; width:320px; z-index:5;
       overflow-y:auto; padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift2); }
     .panes > .panel:target .panel-close { display:inline-flex; margin-bottom:var(--space-12); font-size:var(--font-size-small); }
+    /* Phase 9 (V1-241) — opened, the panel takes a column of its own beside the conversation rather
+       than lying over the customer's words and the reply box, with Send still pressable beside it. */
+    .panes:has(> .panel:target) { grid-template-columns:300px minmax(0, 1fr) 300px; }
+    .panes:has(> .panel:target) > .panel { position:sticky; top:0; height:100vh; width:auto; z-index:auto; box-shadow:none;
+      border-inline-start:1px solid var(--color-border); }
+    .panes:has(> .panel:target) .panel-open { display:none; }
   }
   @media (min-width: 1440px) {
     .panes { grid-template-columns:300px minmax(560px, 1fr) 300px; }
@@ -1388,8 +1423,8 @@ const STYLE_PAGES = `
   /* Who holds it, and handing it on. The card a person holds is a column; its pill stays a pill. */
   .takeover.owner > .pill { align-self:flex-start; }
   .why, .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
-  .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
-    margin-top:var(--space-12); font-size:var(--font-size-small); }
+  .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); align-self:stretch;
+    margin:0; font-size:var(--font-size-small); }
   /* The name, the list of people and the button on one line where they fit: a select at the full width pushed its own button under it. */
   .handto select, .as-hand select { width:auto; flex:1 1 12em; min-width:0; max-width:var(--measure-form); }
   /* M22 — a refusal is information, not an alarm: amber, like a disconnected
@@ -1434,6 +1469,8 @@ const STYLE_PAGES = `
   .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
     margin-top:var(--space-12); font-size:var(--font-size-small); }
   .prooflink { overflow-wrap:anywhere; color:var(--color-ink-secondary); }
+  /* Phase 9 (V1-247) — the sentence before the button ends on more than a lone word: "…怎么来 / 的。". */
+  .proofrow > .muted { text-wrap:pretty; }
   /* A quiet button on the sunk box would be the box's own colour: it lifts to the surface. */
   .ctx .btn:not(.send):not(.danger) { background:var(--color-surface); box-shadow:var(--shadow-lift1); }
   .ctx .btn:not(.send):not(.danger):hover { background:var(--color-border); }
