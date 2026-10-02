@@ -480,7 +480,6 @@ describe('CC-29 · everything that takes something away asks first, the one way 
   const MUST_ASK: readonly [file: string, action: RegExp][] = [
     ['employee.ts', /\/capability\/\$\{[^}]+\}\/revoke$/],
     ['employee.ts', /\/capability\/\$\{[^}]+\}\/promote$/],
-    ['knowledge.ts', /^\/app\/knowledge\/archive$/],
     ['knowledge.ts', /^\/app\/knowledge\/cert$/],
     ['channels.ts', /^\/app\/connect\/meta\/disconnect$/],
     ['channels.ts', /^\/app\/channels\/outreach$/],
@@ -490,8 +489,6 @@ describe('CC-29 · everything that takes something away asks first, the one way 
     ['sequences.ts', /^\/app\/sequences\/\$\{id\}\/archive$/],
     ['contacts.ts', /^\/app\/contacts\/\$\{[^}]+\}\/archive$/],
     ['prospects.ts', /^\/app\/prospects\/key\/remove$/],
-    ['settings.ts', /\/forbidden\/\$\{[^}]+\}\/remove$/],
-    ['settings.ts', /\/closures\/\$\{[^}]+\}\/remove$/],
     ['priceRules.ts', /\/prices\/volume\/\$\{[^}]+\}\/archive$/],
     ['dataRights.ts', /^\/app\/settings\/data\/withdraw$/],
     ['dataRights.ts', /^\/app\/settings\/data\/delete$/],
@@ -520,10 +517,37 @@ describe('CC-29 · everything that takes something away asks first, the one way 
     }
   });
 
-  it('and nothing that takes something away slips past: any form whose address says so asks', () => {
+  /**
+   * PHASE 5 OF THE UI REBUILD (2026-10-02) — UNDO OVER CONFIRM. Where taking
+   * something away only sets it aside, it happens at once and the notice that
+   * follows carries Undo (its own `…/restore`, flash.ts `UNDO_ACTION`): a
+   * forbidden word, a closure, a taught fact, an owner's date on the calendar.
+   * Everything else on MUST_ASK still asks: it disconnects, stops sending,
+   * widens what goes out alone, erases, or takes away someone's access.
+   */
+  const UNDONE: readonly [file: string, action: RegExp, restore: string][] = [
+    ['settings.ts', /\/forbidden\/\$\{[^}]+\}\/remove$/, '/app/settings/forbidden/${id}/restore'],
+    ['settings.ts', /\/closures\/\$\{[^}]+\}\/remove$/, '/app/settings/closures/${id}/restore'],
+    ['knowledge.ts', /^\/app\/knowledge\/archive$/, '/app/knowledge/${id}/restore'],
+    ['calendar.ts', /\/calendar\/entries\/\$\{[^}]+\}\/remove$/, '/app/calendar/entries/${id}/restore'],
+  ];
+
+  it('and nothing that takes something away slips past: any form whose address says so asks — or offers Undo', () => {
     const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop)$|^\/app\/channels\/outreach$/;
-    const silent = forms.filter((f) => TAKES.test(f.action) && !f.text.includes(ASK)).map((f) => `${f.file} ${f.action}`);
+    const undone = (f: { file: string; action: string }) => UNDONE.some(([file, a]) => f.file === `${WEB}/${file}` && a.test(f.action));
+    const silent = forms.filter((f) => TAKES.test(f.action) && !f.text.includes(ASK) && !undone(f)).map((f) => `${f.file} ${f.action}`);
     expect(silent).toEqual([]);
+  });
+
+  it('phase 5 · those set aside at once do not ask, and the route offers the way back on its notice', () => {
+    const app = read(`${WEB}/app.ts`);
+    for (const [file, action, restore] of UNDONE) {
+      const found = forms.filter((f) => f.file === `${WEB}/${file}` && action.test(f.action));
+      expect(found.length, `${file} ${action}`).toBeGreaterThan(0);
+      for (const f of found) expect(f.text, `${file} ${f.action}`).not.toContain(ASK);
+      expect(app, restore).toContain(`\`${restore}\``);                       // the notice carries it
+      expect(app, restore).toContain(`app.post('${restore.replace('${id}', ':id')}'`);   // and it is a route
+    }
   });
 
   it('one idiom: every confirm is this one — no form-level handler, no question written into the script', () => {
@@ -555,16 +579,14 @@ describe('CC-29 · everything that takes something away asks first, the one way 
       const emp = withoutIsolates(renderEmployee(employee, l, null));
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.grantConfirm', { cap: t(l, 'capability.quote' as MessageKey) }))}"`);
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.revokeConfirm', { cap: t(l, 'capability.greet' as MessageKey) }))}"`);
-      const k = withoutIsolates(renderProductKnowledge(knowledge, l, null));
-      expect(k, l).toContain(`data-confirm="${esc(t(l, 'knowledge.archive.confirm', { label: 'Dimensions' }))}"`);
       const c = withoutIsolates(renderContacts(contacts([contact()]), l, null));
       expect(c, l).toContain(`data-confirm="${esc(t(l, 'contacts.archive.confirm', { who: 'Ahmed' }))}"`);
       const data = withoutIsolates(renderDataRights({ businessName: 'Atlas Trading', requests: [] }, l, null, OWNER_VIEW, 'x'));
       expect(asks(data, t(l, 'data.deletion.confirm')), l).toBe(true);
-      for (const key of ['employee.actions.grantConfirm', 'employee.actions.revokeConfirm', 'knowledge.archive.confirm', 'reach.inbound.disconnectConfirm',
+      for (const key of ['employee.actions.grantConfirm', 'employee.actions.revokeConfirm', 'reach.inbound.disconnectConfirm',
         'outreach.turnOnConfirm', 'outreach.turnOffConfirm', 'seq.enrolment.stopConfirm', 'seq.archive.confirm',
         'contacts.archive.confirm', 'prospects.key.removeConfirm', 'channel.action.disconnectConfirm',
-        'connect.action.disconnectConfirm', 'forbidden.removeConfirm', 'closures.removeConfirm',
+        'connect.action.disconnectConfirm',
         'prices.volume.removeConfirm', 'data.deletion.withdrawConfirm', 'data.buyers.withdrawConfirm',
         'conv.deletion.dismissConfirm'] as const) {
         expect(t(l, key), `${l} ${key}`).toMatch(l === 'zh' ? /？/ : /\?|؟/);   // each is a question

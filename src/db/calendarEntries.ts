@@ -71,6 +71,14 @@ export async function removeEntry(tx: Tx, businessId: BusinessId, id: string, by
   return Number(r.numAffectedRows ?? 0) > 0;
 }
 
+/** Phase 5 — Undo: a date taken off the calendar is back on it. */
+export async function restoreEntry(tx: Tx, businessId: BusinessId, id: string): Promise<boolean> {
+  const r = await sql`
+    update calendar_entries set removed_at = null, removed_by = null
+     where id = ${id}::uuid and business_id = ${businessId}::uuid and removed_at is not null`.execute(tx);
+  return Number(r.numAffectedRows ?? 0) > 0;
+}
+
 /**
  * The first day of the business's week (the plan's §5): Monday in China and
  * the UK, Sunday in Saudi Arabia and the US, Saturday in Egypt — from the

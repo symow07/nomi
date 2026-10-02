@@ -50,7 +50,7 @@ import {
   defaultFilter, buyersHref, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, type LiveKind,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -146,8 +146,8 @@ import { renderListPane, renderCustomerPanel, renderPanes } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
-import { readEntry, addEntry, removeEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
+import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
+import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
@@ -166,7 +166,7 @@ import { readDeployment } from './deployment.js';
 import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
 import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
-  teachKnowledge, correctKnowledge, archiveKnowledge, setCertification, type KnowledgeFlash,
+  teachKnowledge, correctKnowledge, archiveKnowledge, restoreKnowledge, setCertification, type KnowledgeFlash,
 } from './knowledge.js';
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
@@ -604,17 +604,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * of the page being DRAWN rather than the one that posted.
    */
   const noticeOnNextPage = (
-    reply: FastifyReply, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>,
+    reply: FastifyReply, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string,
   ): void => {
     const parts = typeof key === 'string' ? [{ key, ...(params ? { params } : {}) }] : key;
-    writeCookie(reply, FLASH_COOKIE, mintFlash(deps.sessionSecret, parts, Date.now()),
+    writeCookie(reply, FLASH_COOKIE, mintFlash(deps.sessionSecret, parts, Date.now(), undo),
       { path: '/', maxAgeSec: Math.ceil(FLASH_TTL_MS / 1000) });
   };
 
+  /** Phase 5 — `undo`: the thing's own `…/restore`, offered on the notice instead of asking first. */
   const flashTo = (
-    reply: FastifyReply, path: string, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>,
+    reply: FastifyReply, path: string, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>, undo?: string,
   ): FastifyReply => {
-    noticeOnNextPage(reply, key, params);
+    noticeOnNextPage(reply, key, params, undo);
     return reply.redirect(path);
   };
 
@@ -1968,7 +1969,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // between the two reads is announced once too often, never lost.
     const bid = parseBusinessId(s.businessId);
     const mark = bid.ok ? await conversationMark(deps.db, bid.value, conversationId) : null;
-    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId, now, before);
+    const loaded = await loadConversationDetail(deps.db, s.businessId, conversationId, now, before);
+    // Phase 5 — the assistant at work on it: said in place, and the page's script draws the reply in.
+    const detail = loaded && bid.ok && !loaded.transcript?.older
+      ? { ...loaded, working: await assistantWorking(deps.db, bid.value, conversationId) } : loaded;
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
@@ -2005,7 +2009,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>
-        withAssistantName(detail.assistantName, () => liveRegion(locale, { ...conversationWatch(conversationId, mark), orders }))) } : {}),
+        withAssistantName(detail.assistantName, () => liveRegion(locale, { ...conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'), orders }))) } : {}),
     }));
   });
 
@@ -3548,7 +3552,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     if (!bid.ok || !UUID.test(id)) return flashTo(reply, '/app/calendar', 'calendar.flash.notFound');
     const gone = await withTenantTx(deps.db, bid.value, (tx) => removeEntry(tx, bid.value, id, personOf(s).id));
-    return flashTo(reply, '/app/calendar', gone ? 'calendar.flash.removed' : 'calendar.flash.notFound');
+    return gone ? flashTo(reply, '/app/calendar', 'calendar.flash.removed', undefined, `/app/calendar/entries/${id}/restore`)
+      : flashTo(reply, '/app/calendar', 'calendar.flash.notFound');
+  });
+
+  // Phase 5 — Undo, from the notice that followed taking a date off.
+  app.post('/app/calendar/entries/:id/restore', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    const id = (req.params as { id: string }).id;
+    if (!bid.ok || !UUID.test(id)) return flashTo(reply, '/app/calendar', 'calendar.flash.notFound');
+    const back = await withTenantTx(deps.db, bid.value, (tx) => restoreEntry(tx, bid.value, id));
+    return flashTo(reply, '/app/calendar', back ? 'calendar.flash.restored' : 'calendar.flash.notFound');
   });
 
   // ── M11.2/M15.1 Pilot Readiness Hub: detected readiness + owner attestations ─
@@ -3835,8 +3850,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const r = await removeClosure(deps.db, s.businessId, (req.params as { id: string }).id);
-    return flashTo(reply, '/app/settings/closures', `closures.flash.${r.code}` as MessageKey);
+    const id = (req.params as { id: string }).id;
+    const r = await removeClosure(deps.db, s.businessId, id);
+    return r.code === 'removed'
+      ? flashTo(reply, '/app/settings/closures', 'closures.flash.removed', undefined, `/app/settings/closures/${id}/restore`)
+      : flashTo(reply, '/app/settings/closures', `closures.flash.${r.code}` as MessageKey);
+  });
+
+  // Phase 5 — Undo, from the notice that followed removing a closure.
+  app.post('/app/settings/closures/:id/restore', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const id = (req.params as { id: string }).id;
+    const r = UUID.test(id) ? await restoreClosure(deps.db, s.businessId, id) : { code: 'failed' as const };
+    return flashTo(reply, '/app/settings/closures', r.code === 'restored' ? 'closures.flash.restored' : 'closures.flash.failed');
   });
 
   // M46 — one order: what she recorded, the proforma, and the form that
@@ -4737,7 +4764,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
     const r = await removeForbidden(deps.db, sess.businessId, id);
-    return flashTo(reply, '/app/settings/forbidden', `forbidden.flash.${r.code}` as MessageKey);
+    return r.code === 'removed'
+      ? flashTo(reply, '/app/settings/forbidden', 'forbidden.flash.removed', undefined, `/app/settings/forbidden/${id}/restore`)
+      : flashTo(reply, '/app/settings/forbidden', `forbidden.flash.${r.code}` as MessageKey);
+  });
+
+  // Phase 5 — Undo, from the notice that followed removing a word.
+  app.post('/app/settings/forbidden/:id/restore', async (req, reply) => {
+    const sess = sessionOf(req);
+    if (!sess) return reply.redirect('/login');
+    const id = (req.params as { id: string }).id;
+    const r = UUID.test(id) ? await restoreForbidden(deps.db, sess.businessId, id) : { code: 'failed' as const };
+    return flashTo(reply, '/app/settings/forbidden', r.code === 'restored' ? 'forbidden.flash.restored' : 'forbidden.flash.failed');
   });
 
   app.post('/app/settings', async (req, reply) => {
@@ -4792,7 +4830,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
-    return renderKnowledgeOps(ops, locale, new Date()) + renderKnowledgeIndex(index, locale, prefill)
+    // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
+    return renderKnowledgeOps(ops, locale, new Date(), takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale) : '');
   }));
 
@@ -4854,10 +4893,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // Teach/correct/archive/cert → redirect back to the product page (or the index
   // for business-level rows) with a localized flash. All owner-authenticated.
+  // Phase 5 — Knowledge itself says what was done now, so a business-wide fact's notice lands there too.
   const kBack = (reply: FastifyReply, _req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') =>
-    (productId
-      ? flashTo(reply, `/app/knowledge/${encodeURIComponent(productId)}`, `knowledge.flash.${code}` as MessageKey)
-      : reply.redirect('/app/knowledge'));
+    flashTo(reply, productId ? `/app/knowledge/${encodeURIComponent(productId)}` : '/app/knowledge', `knowledge.flash.${code}` as MessageKey);
   app.post('/app/knowledge/teach', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };
@@ -4874,8 +4912,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/knowledge/archive', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { id?: string; productId?: string };
-    const r = await archiveKnowledge(deps.db, s.businessId, String(b.id ?? ''));
-    return kBack(reply, req, String(b.productId ?? ''), r.code);
+    const id = String(b.id ?? '');
+    const r = await archiveKnowledge(deps.db, s.businessId, id);
+    const productId = String(b.productId ?? '');
+    // Phase 5 — archived at once; the notice carries the way back, on the product's page or on Knowledge.
+    return UUID.test(id)
+      ? flashTo(reply, productId ? `/app/knowledge/${encodeURIComponent(productId)}` : '/app/knowledge',
+          `knowledge.flash.${r.code}` as MessageKey, undefined, `/app/knowledge/${id}/restore`)
+      : kBack(reply, req, productId, r.code);
+  });
+  app.post('/app/knowledge/:id/restore', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const id = (req.params as { id: string }).id;
+    const r = UUID.test(id) ? await restoreKnowledge(deps.db, s.businessId, id) : { code: 'invalid' as const, productId: null };
+    return r.code === 'restored' && r.productId
+      ? flashTo(reply, `/app/knowledge/${encodeURIComponent(r.productId)}`, 'knowledge.flash.restored')
+      : flashTo(reply, '/app/knowledge', r.code === 'restored' ? 'knowledge.flash.restored' : 'knowledge.flash.notRestored');
   });
   app.post('/app/knowledge/cert', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -4911,8 +4963,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const live = liveOf(s);
       const copy = live.ok ? await practiceCopyOf(deps.db, live.value) : null;
       // CC-26 — the mark is read BEFORE the page, so a reply that lands in between is news once more, never lost.
-      const mark = copy && live.ok ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy))
-        .then((cid) => (cid ? conversationMark(deps.db, copy, cid, 'both') : null)) : null;
+      const pcid = copy && live.ok ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy)) : null;
+      const mark = copy && pcid ? await conversationMark(deps.db, copy, pcid, 'both') : null;
+      // Phase 5 — the assistant at work on the customer's newest line: said in place, drawn in when it lands.
+      const working = copy && pcid ? await assistantWorking(deps.db, copy, pcid) : false;
       // CC-25 — `before` pages the practice transcript back, as on a conversation.
       const now = new Date();
       const view = await loadPracticeView(deps.db, copy, q.before, now);
@@ -4928,9 +4982,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '') + renderPractice(practice, locale)
           + (deps.enqueueInbound
-            ? renderSandbox(view, locale, { flash, prefill, now, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
+            ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
-        ...(mark ? { live: liveRegion(locale, practiceWatch(mark)) } : {}),
+        ...(mark ? { live: liveRegion(locale, practiceWatch(mark, working && view.ownership === 'AI')) } : {}),
       }));
     });
 

@@ -41,8 +41,22 @@ import { t } from './say.js';
 /** Good news, or a refusal. Nothing in between — two tones is a decision, not a palette. */
 export type FlashTone = 'ok' | 'bad';
 
-/** A notice as a PAGE receives it: already in the reader's language, and toned. */
-export type Flash = { readonly text: string; readonly bad: boolean };
+/**
+ * A notice as a PAGE receives it: already in the reader's language, and toned.
+ *
+ * PHASE 5 OF THE UI REBUILD (2026-10-02) — UNDO OVER CONFIRM. Where taking
+ * something away is only setting it aside (a forbidden word, a closure, a
+ * taught fact, a date on the calendar), it happens at once and the notice
+ * carries the way back: one button, posting to the thing's own `…/restore`.
+ * It lives as long as the notice does — until the next page.
+ */
+export type Flash = {
+  readonly text: string; readonly bad: boolean;
+  readonly undo?: { readonly action: string; readonly label: string } | undefined;
+};
+
+/** The only addresses an Undo may post to: a thing's own restore, by its id. */
+export const UNDO_ACTION = /^\/app\/(?:settings\/forbidden|settings\/closures|knowledge|calendar\/entries)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/restore$/;
 
 export const FLASH_COOKIE = 'yf_flash';
 /**
@@ -78,11 +92,11 @@ export type FlashPart = { readonly key: MessageKey; readonly params?: Record<str
  * token minted before a sentence was reclassified cannot outlive the decision.
  */
 export function mintFlash(
-  secret: string, parts: readonly FlashPart[], now: number,
+  secret: string, parts: readonly FlashPart[], now: number, undo?: string,
 ): string {
-  const payload = Buffer.from(
-    JSON.stringify([parts.map((p) => [p.key, p.params ?? null]), now + FLASH_TTL_MS]), 'utf8',
-  ).toString('base64url');
+  const body: unknown[] = [parts.map((p) => [p.key, p.params ?? null]), now + FLASH_TTL_MS];
+  if (undo !== undefined && UNDO_ACTION.test(undo)) body.push(undo);
+  const payload = Buffer.from(JSON.stringify(body), 'utf8').toString('base64url');
   return `${payload}.${flashMac(secret, payload)}`;
 }
 
@@ -101,8 +115,8 @@ export function readFlash(
   if (!sameHash(token.slice(dot + 1), flashMac(secret, payload))) return null;
   try {
     const parsed: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    if (!Array.isArray(parsed) || parsed.length !== 2) return null;
-    const [rawParts, exp] = parsed as unknown[];
+    if (!Array.isArray(parsed) || (parsed.length !== 2 && parsed.length !== 3)) return null;
+    const [rawParts, exp, undo] = parsed as unknown[];
     if (typeof exp !== 'number' || exp < now) return null;
     if (!Array.isArray(rawParts) || rawParts.length === 0) return null;
     const said: string[] = [];
@@ -124,7 +138,10 @@ export function readFlash(
       // Several sentences, one banner: a refusal anywhere in it makes it one.
       if (flashTone(key as MessageKey) === 'bad') bad = true;
     }
-    return { text: said.join(' '), bad };
+    // Phase 5 — the way back, only to an address of the one shape an Undo may have.
+    return typeof undo === 'string' && UNDO_ACTION.test(undo) && !bad
+      ? { text: said.join(' '), bad, undo: { action: undo, label: t(locale, 'common.undo') } }
+      : { text: said.join(' '), bad };
   } catch { return null; }
 }
 
@@ -147,7 +164,9 @@ export const saidFlash = (
  */
 export const flashBanner = (f: Flash | null, id?: string): string =>
   f === null ? ''
-    : `<div class="flash${f.bad ? ' bad' : ''}" role="${f.bad ? 'alert' : 'status'}"${id ? ` id="${esc(id)}"` : ''}>${esc(f.text)}</div>`;
+    : `<div class="flash${f.bad ? ' bad' : ''}${f.undo ? ' has-undo' : ''}" role="${f.bad ? 'alert' : 'status'}"${id ? ` id="${esc(id)}"` : ''}>${
+      f.undo ? `<span>${esc(f.text)}</span><form method="post" action="${esc(f.undo.action)}" class="undo"><button class="btn" type="submit">${
+        esc(f.undo.label)}</button></form>` : esc(f.text)}</div>`;
 
 /**
  * CC-26 — what a page watches while it is open, and what it says when that
@@ -167,6 +186,12 @@ export type LiveWatch = {
    * is told in the browser (liveScript.ts). Absent: the page does not tell.
    */
   readonly orders?: number;
+  /**
+   * Phase 5 — the page was drawn with the assistant at work on it: the script
+   * asks every few seconds, and when the work is done it draws the new page in
+   * place of this one, without a reload (liveScript.ts).
+   */
+  readonly working?: boolean;
 };
 
 /**
@@ -185,7 +210,7 @@ export type LiveWatch = {
  * it never reloads by itself, and nothing above it moves.
  */
 export const liveRegion = (locale: Locale, w: LiveWatch): string =>
-  `<div class="live" role="status" aria-live="polite" data-live="${esc(w.ask)}"${
+  `<div class="live" role="status" aria-live="polite" data-live="${esc(w.ask)}"${w.working ? ' data-live-working="1"' : ''}${
     w.orders === undefined ? '' : ` data-live-orders="${w.orders}" data-live-notify="${
       esc(t(locale, 'notify.order_proposed.subject'))}" data-live-notify-door="/app/inbox?filter=pending"`}></div>`
   + w.says.map((s) => `<template data-live-news="${esc(s.what)}"><div class="flash live-line">${

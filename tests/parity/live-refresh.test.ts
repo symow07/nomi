@@ -98,7 +98,10 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
   it('the script is small, parses, and says nothing the owner surface bans', () => {
     // G5b — turning on alerts on this phone lives here too (the page's one
     // script; the phone's worker is the second, `/sw.js`): 9,000 became 10,500.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(10_500);
+    // Phase 5 — drawing the assistant's answer into the page in place, without
+    // a reload (the redraw and one watcher at a time), and asking first in the
+    // product's own dialog instead of the browser's box: 10,500 became 16,000.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(16_000);
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();
     // It ships to the owner's browser like the stylesheet, and is held to the same list.
     // The exceptions are the browser's own two names for the answer's format — the

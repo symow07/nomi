@@ -206,6 +206,13 @@ export const DESIGN_TOKENS = {
   },
   motionMs: { fast: 120, normal: 200, max: 300 },  // spec: ≤300ms, skippable
   /**
+   * PHASE 5 OF THE UI REBUILD (2026-10-02) — THE ONE CURVE. Decelerating: a
+   * thing starts moving at once and settles into place, and nothing overshoots
+   * or bounces. One curve for everything that moves, so nothing in the product
+   * moves two ways. (The owner named the curve as mine to decide.)
+   */
+  motionEase: 'cubic-bezier(0.2, 0, 0, 1)',
+  /**
    * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Colour does
    * these four jobs and no others, the same on every page; graphite does one
    * more, the FILL of the page's one primary action. Each signal has a SHAPE

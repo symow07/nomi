@@ -96,10 +96,10 @@ describe('the week, by default', () => {
     expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="wk-k"><span class="as" aria-hidden="true">✦<\/span> Price worked out<\/span>/);
   });
 
-  it('an owner\'s date can be taken off: a button in a form that asks first; every other date is a door or nothing', () => {
+  it('an owner\'s date can be taken off: a button in a form, at once — the notice that follows carries Undo (phase 5); every other date is a door or nothing', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
     expect(html).toContain('action="/app/calendar/entries/55555555-5555-4555-8555-555555555555/remove"');
-    expect(html).toMatch(/onclick="return confirm\(this\.dataset\.confirm\)"\s+data-confirm="Take “Photo shoot” off the calendar\?"/);
+    expect(html).not.toContain('data-confirm');
     expect(html).toContain('<form method="post" action="/app/calendar/entries" class="pform">');
     expect(buttonsAndDoors(html)).toEqual([]);
   });

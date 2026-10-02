@@ -15533,3 +15533,73 @@ and the plural forms of `setup.value.phones.*` and `setup.value.requests.*`.
 - es: {n} solicitudes pendientes
 
 Reviewer: ______  Date: ______
+
+## 2026-10-02 — the UI rebuild, phase 5 (motion, undo, the assistant at work): every new line
+
+Undo in the notice after setting something aside; the product's own "ask first" dialog (its going-ahead
+button carries the asking button's own word; this is its fallback); the line shown where the assistant's
+reply will appear. Read the Arabic for gender: `conv.working` is a noun phrase so nothing agrees with
+the assistant; the buttons are verbal nouns.
+
+### `common.undo`
+
+- en: Undo
+- zh: 撤销
+- ar: تراجع
+- es: Deshacer
+
+### `common.goAhead`
+
+- en: Go ahead
+- zh: 继续
+- ar: متابعة
+- es: Continuar
+
+### `common.cancel`
+
+- en: Cancel
+- zh: 取消
+- ar: إلغاء
+- es: Cancelar
+
+### `conv.working`
+
+- en: {name} is writing a reply
+- zh: {name}正在写回复
+- ar: جارٍ إعداد ردّ من {name}
+- es: {name} está escribiendo una respuesta
+
+### `forbidden.flash.restored`
+
+- en: Back on the list.
+- zh: 已放回列表。
+- ar: عادت إلى القائمة.
+- es: De vuelta en la lista.
+
+### `closures.flash.restored`
+
+- en: Back on your closed days.
+- zh: 已放回停工日。
+- ar: أُعيد إلى أيام الإغلاق.
+- es: De vuelta en los días cerrados.
+
+### `knowledge.flash.restored`
+
+- en: Restored. It is in use again.
+- zh: 已恢复，重新生效。
+- ar: تمت الاستعادة، وهي قيد الاستخدام من جديد.
+- es: Restaurado. Vuelve a usarse.
+
+### `knowledge.flash.notRestored`
+
+- en: That could not be brought back — it may have been corrected since.
+- zh: 没能恢复——这条可能已经被改过了。
+- ar: تعذّرت الاستعادة؛ ربما صُحّحت منذ ذلك الحين.
+- es: No se pudo recuperar: puede que se haya corregido desde entonces.
+
+### `calendar.flash.restored`
+
+- en: Back on the calendar.
+- zh: 已放回日程。
+- ar: أُعيد إلى التقويم.
+- es: De vuelta en el calendario.

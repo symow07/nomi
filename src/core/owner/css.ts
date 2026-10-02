@@ -39,7 +39,7 @@ function colorVars(palette: Readonly<Record<string, string>>): readonly string[]
  * downstream references `var(--…)`; nothing downstream writes a literal.
  */
 export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
-  const { font, color, spacingPx, radiusPx, shadow, motionMs, measure } = tokens;
+  const { font, color, spacingPx, radiusPx, shadow, motionMs, motionEase, measure } = tokens;
 
   const lines: string[] = [
     // One scheme: form controls, scrollbars and the caret stay light even on
@@ -63,6 +63,7 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     ...Object.entries(measure).map(([k, v]) => decl(`measure-${kebab(k)}`, v)),
     ...Object.entries(shadow).map(([k, v]) => decl(`shadow-${kebab(k)}`, v)),
     ...Object.entries(motionMs).map(([k, v]) => decl(`motion-${kebab(k)}`, `${v}ms`)),
+    decl('motion-ease', motionEase),
   ];
 
   const perScript = (['zh', 'ar'] as const)

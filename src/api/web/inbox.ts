@@ -587,6 +587,8 @@ export type ConversationDetail = {
   readonly ownership: ConversationOwnership;
   /** R2 (0106) — the owner marked this conversation "this is me testing": it counts toward nothing. */
   readonly ownerTesting?: boolean;
+  /** Phase 5 — the assistant is at work on the customer's newest message (`assistantWorking`, live.ts). */
+  readonly working?: boolean;
   /** M47/G12 — WHICH human holds it, raw. The ownership model reads it; this names it. */
   readonly heldBy?: string | null;
   /**
@@ -974,6 +976,15 @@ export async function loadConversationDetail(
 }
 
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
+
+/**
+ * Phase 5 — the assistant at work, in place: its ✦, what it is doing, and three
+ * dots that breathe (still for a reader who asked for less motion). A polite
+ * status, so a screen reader hears it once. Practice draws the same line.
+ */
+export const workingLine = (locale: Locale): string =>
+  `<div class="block working" role="status"><span class="as" aria-hidden="true">✦</span> <span>${
+    esc(t(locale, 'conv.working', { name: assistantName(locale) }))}</span><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
 
 // The conversation's own state — only meaningful while SHE holds it. Once a
 // human is involved, `statusOf` calls every assigned conversation 'paused',
@@ -1870,7 +1881,12 @@ export function renderConversationDetail(
     </div>`;
 
   const draftCard = approvalCard(d, locale, now);
-  const noDraft = `<div class="block"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
+  // Phase 5 — while the assistant is at work on the newest message, the place
+  // its reply will take says so, directly under that message; the page's
+  // script draws the reply in when it lands. "No reply" is not said meanwhile.
+  const working = d.working === true && d.ownership === 'AI' ? workingLine(locale) : '';
+  const noDraft = working ? ''
+    : `<div class="block"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
 
   // Phase D — "why did she say that?", from the stored usage audit. Shown only
   // while SHE is speaking: once a human takes over it is no longer the question.
@@ -2036,6 +2052,7 @@ export function renderConversationDetail(
    */
   const acts = older ? '' : `
     ${orderCard(d, locale)}
+    ${working}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${takeoverCard(d, locale, now, viewer)}
     ${d.ownership === 'OWNER_CONTROLLED' || d.pendingDraft ? '' : noDraft}
