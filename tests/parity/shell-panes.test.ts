@@ -57,6 +57,13 @@ describe('the rail', () => {
       .toContain('<title>Today · Nomi</title>');
   });
 
+  it('phase 9 (V1-003) · a page with its own heading names itself in the tab, not its area', () => {
+    const body = '<h1 class="page">Days you are <bdi>closed</bdi> &amp; away</h1><p>…</p>';
+    const html = withWorkspace({ ...SCOPE, business: null }, () => shell({ title: 'Setup', active: 'settings', locale: 'en', path: '/app/settings/closures', bodyHtml: body }));
+    expect(html).toContain('<title>Days you are closed &amp; away · Nomi</title>');
+    expect(html).not.toContain('<title>Setup ·');
+  });
+
   it('in Arabic the Customers head and its pages speak Arabic; on a phone the groups dissolve into the one row', () => {
     const ar = page('/app/inbox/c-1', 'ar');
     expect(ar).toContain(`>${t('ar', 'nav.customers')}</span>`);

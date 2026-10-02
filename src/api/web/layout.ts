@@ -153,6 +153,10 @@ export const deeper = (href: string, label: string, extra = '', attrs = ''): str
  * (`palette.test.ts`). The ✦ is hidden from a screen reader, which hears the
  * name. `name` arrives escaped or is escaped here.
  */
+/** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
+export const unescapeHtml = (s: string): string =>
+  s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&');
+
 export const byAssistant = (name: string): string =>
   `<span class="as"><span aria-hidden="true">✦</span> ${esc(name)}</span>`;
 
@@ -1792,12 +1796,17 @@ export function shell(input: {
     : `<span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span>`;
   const home = ((input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app') === '/app';
   const heading = business && home ? `<p class="business-name"><bdi>${esc(business)}</bdi></p>` : '';
+  // Phase 9 (V1-003) — the tab names the PAGE: its own heading when it has one
+  // (an account page, a closure list, an order, a product), the area's name
+  // only where the page has none. Every Setup page was "Setup · …".
+  const ownHeading = /<h1 class="page"[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
+  const tabTitle = (ownHeading ? unescapeHtml(ownHeading.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '') || input.title;
   // CC-20 — the first stop for a keyboard or a screen reader: past the five
   // nav entries, straight to the page. Out of sight until it has focus.
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(input.title)} · ${esc(business ?? 'Nomi')}</title>
+<title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
 ${linkTo(APP_SHEET)}
