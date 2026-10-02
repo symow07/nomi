@@ -143,9 +143,17 @@ describe('the card, drawn', () => {
       reading: { ...base.reading!, differsOn: ['product'] },
     }, 'en', NOW, null));
     const c = card(html);
-    expect(c).toContain('<span class="mk warn" aria-hidden="true">○</span><bdi>29</bdi><span>no source found</span>');
+    // Phase 9 (V1-220) — and where in the reply it stands.
+    expect(c).toContain('<span class="mk warn" aria-hidden="true">○</span><bdi>29</bdi><span>no source found <bdi class="muted">Today only: $29.</bdi></span>');
     expect(c).toMatch(/<span class="c warn"><span aria-hidden="true">○<\/span> Not every figure has a source<\/span><\/summary>/);
     expect(c).toContain('a second, separate reading differed on the product');
+  });
+
+  it('phase 9 (V1-220) · a model code\'s number is shown in its words, so the owner sees where it came from', () => {
+    const html = withoutIsolates(renderConversationDetail({
+      ...base, pendingDraft: { ...base.pendingDraft!, draftText: 'Our sturdy model ZX-300 ships within a week.' },
+    }, 'en', NOW, null));
+    expect(card(html)).toMatch(/<bdi>300<\/bdi><span>no source found <bdi class="muted">[^<]*ZX-300[^<]*<\/bdi>/);
   });
 
   it('in Chinese and Arabic: the same card, the customer\'s words kept in their own direction, nobody gendered', () => {

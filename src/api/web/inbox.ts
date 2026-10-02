@@ -1751,14 +1751,27 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     l.source === 'price' && d.quote ? show.money(locale, d.quote.unitPrice)
     : l.source === 'total' && d.quote ? show.money(locale, d.quote.total)
     : l.value.toLocaleString('en-US', { maximumFractionDigits: 4 });
-  const line = (ok: boolean, said: string, source: string) =>
-    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${esc(source)}</span></li>`;
+  const line = (ok: boolean, said: string, source: string, where = '') =>
+    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${esc(source)}${
+      where ? ` <bdi class="muted">${esc(where)}</bdi>` : ''}</span></li>`;
+  // Phase 9 (V1-220) — where in the reply a figure stands: "300" alone was
+  // unreadable; "…model ZX-300 has…" says it came from the model's name.
+  const whereIn = (value: number): string => {
+    const text = p.draftText;
+    const forms = [String(value), value.toLocaleString('en-US')];
+    const at = forms.map((f) => text.indexOf(f)).filter((i) => i >= 0).sort((x, y) => x - y)[0];
+    if (at === undefined) return '';
+    const from = Math.max(0, text.lastIndexOf(' ', Math.max(0, at - 14)) + 1);
+    const toSpace = text.indexOf(' ', Math.min(text.length, at + String(value).length + 10));
+    const to = toSpace < 0 ? text.length : toSpace;
+    return `${from > 0 ? '…' : ''}${text.slice(from, to).trim()}${to < text.length ? '…' : ''}`;
+  };
   const reasons = [
     ...read.lines.map((l) => l.kind === 'product'
       ? line(true, `“${l.name}”`, t(locale, 'card.source.product'))
       : line(l.source !== 'unsourced', figure(l), l.source === 'price'
         ? (prod ? t(locale, 'card.source.price', { product: prod }) : t(locale, 'card.source.priceAny'))
-        : t(locale, `card.source.${l.source}` as MessageKey))),
+        : t(locale, `card.source.${l.source}` as MessageKey), l.source === 'unsourced' ? whereIn(l.value) : '')),
     ...d.knowledgeUsed.map((k) => line(true, k, t(locale, 'card.source.taught'))),
     ...(r?.differsOn === null || r?.differsOn === undefined ? []
       : r.differsOn.length === 0 ? [line(true, t(locale, 'card.checked'), t(locale, 'card.checked.same'))]
