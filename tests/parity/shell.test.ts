@@ -10,7 +10,7 @@ import { linkedCss, sheetLinks } from './linked-css.js';
  * Phase F — the shared shell, enforced. Every owner surface is drawn inside it,
  * so anything wrong here is wrong four times over.
  */
-const page = (locale: 'en' | 'zh' | 'ar' | 'es' = 'en', active = 'home') =>
+const page = (locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en', active = 'home') =>
   shell({ title: 'T', active, locale, path: '/app', avatar: '👩', bodyHtml: '<p>body</p>' });
 
 describe('Phase F · five destinations, and nothing else competing', () => {
@@ -37,7 +37,7 @@ describe('Phase F · five destinations, and nothing else competing', () => {
    * checks the SHAPE as well as the output, and a re-added icon fails to
    * compile before it ever reaches a page.
    */
-  const navOf = (l: 'en' | 'zh' | 'ar' | 'es') => page(l).split('<nav class="side"')[1]?.split('</nav>')[0] ?? '';
+  const navOf = (l: 'en' | 'zh' | 'ar' | 'es' | 'fr') => page(l).split('<nav class="side"')[1]?.split('</nav>')[0] ?? '';
 
   it('the nav carries words, not pictures', () => {
     for (const n of NAV) expect(Object.keys(n).sort()).toEqual(['href', 'id']);

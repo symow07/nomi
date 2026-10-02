@@ -554,7 +554,7 @@ export function renderFactory(
   // 1 · About your factory — what she can tell a buyer about you.
   const langs = p.languagesServed.length
     ? p.languagesServed
-        .filter((l): l is Locale => l === 'en' || l === 'zh' || l === 'ar' || l === 'es')
+        .filter((l): l is Locale => l === 'en' || l === 'zh' || l === 'ar' || l === 'es' || l === 'fr')
         .map((l) => LOCALE_LABEL[l]).join(' · ')
     : null;
   const aboutBody = p.name.trim() === ''

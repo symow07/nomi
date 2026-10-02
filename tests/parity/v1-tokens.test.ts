@@ -33,7 +33,7 @@ describe('V1 · type — decision 1', () => {
   });
 
   it('a line-height per script: 1.5 Latin, 1.7 Chinese, 1.75 Arabic, one for every locale', () => {
-    expect(DESIGN_TOKENS.font.lineHeight).toEqual({ en: 1.5, zh: 1.7, ar: 1.75, es: 1.5 });
+    expect(DESIGN_TOKENS.font.lineHeight).toEqual({ en: 1.5, zh: 1.7, ar: 1.75, es: 1.5, fr: 1.5 });
     for (const l of LOCALES) expect(DESIGN_TOKENS.font.lineHeight[l], l).toBeGreaterThan(1);
   });
 

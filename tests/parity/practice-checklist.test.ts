@@ -12,7 +12,7 @@ import { esc } from '../../src/api/web/layout.js';
 const view = (over: Partial<SandboxView> = {}): SandboxView => ({
   hasConversation: true, messages: [], lastTurn: null, ownership: 'AI', ...over,
 });
-const draw = (items: readonly ChecklistItem[], seen: readonly ChecklistItem[], locale: 'en' | 'zh' | 'ar' | 'es' = 'en') =>
+const draw = (items: readonly ChecklistItem[], seen: readonly ChecklistItem[], locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
   renderSandbox(view(), locale, { flash: null, checklist: { items, seen: new Set(seen), totals: [] } });
 
 describe('P4 · the checklist, per kind of business', () => {

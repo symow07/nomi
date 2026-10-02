@@ -100,7 +100,7 @@ export function stripeClient(config: StripeConfig, fetchImpl: StripeFetch = fetc
       `customer-${i.businessId}`, (b) => (str(b['id']) ? { id: str(b['id'])! } : null)),
     setupCheckout: (i) => call('POST', '/checkout/sessions', {
       mode: 'setup', customer: i.customerId, payment_method_types: ['card'], success_url: i.successUrl, cancel_url: i.cancelUrl,
-      locale: i.locale === 'zh' ? 'zh' : i.locale === 'es' ? 'es' : i.locale === 'ar' ? 'auto' : 'en', metadata: { business_id: i.businessId },
+      locale: i.locale === 'zh' ? 'zh' : i.locale === 'es' ? 'es' : i.locale === 'fr' ? 'fr' : i.locale === 'ar' ? 'auto' : 'en', metadata: { business_id: i.businessId },
       setup_intent_data: { metadata: { business_id: i.businessId } },
     }, null, (b) => (str(b['id']) && str(b['url']) ? { id: str(b['id'])!, url: str(b['url'])! } : null)),
     setupIntentPaymentMethod: (id) => call('GET', `/setup_intents/${encodeURIComponent(id)}`, null, null,
@@ -121,7 +121,7 @@ export function stripeClient(config: StripeConfig, fetchImpl: StripeFetch = fetc
       return str(b['id']) && num(b['unit_amount']) !== null && str(b['currency']) && (interval === 'month' || interval === 'year')
         ? { id: str(b['id'])!, amountMinor: num(b['unit_amount'])!, currency: str(b['currency'])!, interval, active: b['active'] === true } : null;
     }),
-    portal: (i) => call('POST', '/billing_portal/sessions', { customer: i.customerId, return_url: i.returnUrl, locale: i.locale === 'zh' ? 'zh' : i.locale === 'es' ? 'es' : 'auto' },
+    portal: (i) => call('POST', '/billing_portal/sessions', { customer: i.customerId, return_url: i.returnUrl, locale: i.locale === 'zh' ? 'zh' : i.locale === 'es' ? 'es' : i.locale === 'fr' ? 'fr' : 'auto' },
       null, (b) => (str(b['url']) ? { url: str(b['url'])! } : null)),
   };
 }

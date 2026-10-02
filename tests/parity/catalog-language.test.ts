@@ -99,7 +99,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
   });
 
   it('the retired surface names are gone', () => {
-    const retired: Record<Locale, RegExp> = { en: /\bInbox\b/, zh: /收件箱/, ar: /الوارد/, es: /bandeja de entrada/i };
+    const retired: Record<Locale, RegExp> = { en: /\bInbox\b/, zh: /收件箱/, ar: /الوارد/, es: /bandeja de entrada/i, fr: /boîte de réception/i };
     for (const l of LOCALES) {
       const hits = entries(l).filter(([, s]) => retired[l].test(s)).map(([k, s]) => `${l}/${k}: ${s}`);
       expect(hits, hits.join('\n')).toEqual([]);
@@ -135,6 +135,27 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     // A2 — "WhatsApp", "Instagram", "TikTok" on the sign-up form are the same names.
     || k.startsWith('business.channel.');
 
+  /**
+   * Phase 9 (0121) — French shares these words with English: they ARE the
+   * French words (Conversations, Photos, Total, Description…), not leftovers.
+   * Listed by key, so a new untranslated string still fails; a listed key whose
+   * French changes is dropped from the list by the check below.
+   */
+  const SAME_WORD: Partial<Record<Locale, ReadonlySet<string>>> = {
+    fr: new Set(['nav.conversations', 'pane.label', 'panel.conversations.one', 'panel.conversations.two', 'panel.conversations.few',
+      'panel.conversations.many', 'panel.conversations.other', 'nav.short.employee', 'login.emailLabel', 'data.export.subject.messages',
+      'buyers.page.nav', 'analytics.summary.conversations', 'product.detail.imagesTitle', 'proof.fact.total', 'proof.certs.title',
+      'employee.promo.title', 'inbox.detail.log', 'order.card.email', 'billing.plan.assistants', 'settings.field.description',
+      'product.detail.total', 'order.field.total', 'sandbox.scenario.badge', 'knowledge.teach.kind', 'knowledge.cert.title',
+      'knowledge.kind.restriction', 'product.edit.options', 'received.photo', 'received.document', 'nav.contacts',
+      'calendar.cat.conversations', 'calendar.add.day', 'site.channels.email', 'components.state.focus',
+      'product.detail.fromPhoto', 'import.photoLabel', 'import.columns.option', 'seq.step.label']),
+  };
+  it('the words French shares with English are still shared (else the list is stale)', () => {
+    for (const [l, keys] of Object.entries(SAME_WORD) as [Locale, ReadonlySet<string>][])
+      for (const k of keys) expect(messages[l][k as MessageKey], `${l}/${k}`).toBe(messages.en[k as MessageKey]);
+  });
+
   it('every key exists in every locale, and nothing is left untranslated', () => {
     const en = new Set(Object.keys(messages.en));
     for (const l of LOCALES) {
@@ -145,7 +166,8 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
         // whatever language it was given, and there is nothing to translate.
         .filter(([k, s]) => messages.en[k] === s && /[a-zA-Z]{4}/.test(s.replace(/\{\w+\}/g, '')))
         .filter(([k, v]) => !k.startsWith('claim.') && !k.startsWith('country.')
-          && !k.includes('unit') && !isOperator(k) && !isPlatformName(k) && !isExample(k) && k !== 'nav.channels')
+          && !k.includes('unit') && !isOperator(k) && !isPlatformName(k) && !isExample(k) && k !== 'nav.channels'
+          && !SAME_WORD[l]?.has(k))
         .map(([k, s]) => `${l}/${k}: ${s}`);
       expect(untranslated, untranslated.join('\n')).toEqual([]);
     }

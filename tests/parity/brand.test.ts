@@ -16,7 +16,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
  * matters: the inline geometry must equal the file's, byte for byte.
  */
 
-const page = (locale: 'en' | 'zh' | 'ar' | 'es' = 'en', avatar = markSmall(30, null)) =>
+const page = (locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en', avatar = markSmall(30, null)) =>
   shell({ title: 'T', active: 'home', locale, path: '/app', avatar, bodyHtml: '<p>body</p>' });
 
 /** The three shapes, pulled out of a source file with the fills ignored. */
@@ -52,7 +52,7 @@ describe('M30 · the inline mark cannot drift from assets/brand/', () => {
 });
 
 describe('M30 · the shell wears the mark', () => {
-  it('renders it in all three locales', () => {
+  it('renders it in every locale', () => {
     for (const l of LOCALES) {
       const html = page(l);
       expect(html, l).toContain('class="mark"');

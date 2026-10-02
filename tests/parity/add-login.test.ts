@@ -88,7 +88,7 @@ describe('it refuses before it touches anything', () => {
 
 describe('the page the link opens', () => {
   const link = { token: 'T'.repeat(43), email: 'owner@westlake.example' };
-  const page = (locale: 'en' | 'zh' | 'ar' | 'es', l: typeof link | null, problem: 'short' | 'mismatch' | null = null) =>
+  const page = (locale: 'en' | 'zh' | 'ar' | 'es' | 'fr', l: typeof link | null, problem: 'short' | 'mismatch' | null = null) =>
     setPasswordPage({ locale, path: '/login/set-password', passwordMin: 10, passwordMax: 200, link: l, problem });
 
   it('in every language: which account, a new password twice, the token only in a hidden field', () => {

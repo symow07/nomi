@@ -492,7 +492,7 @@ export const PUBLIC_ROUTES: readonly {
 export const LEGACY_BUSINESS = '/app/' + 'factory';
 
 /** G10 — the owner's language, as the model is asked to translate into it. */
-const TRANSLATE_INTO: Record<Locale, string> = { en: 'English', zh: 'Simplified Chinese', ar: 'Arabic', es: 'Spanish' };
+const TRANSLATE_INTO: Record<Locale, string> = { en: 'English', zh: 'Simplified Chinese', ar: 'Arabic', es: 'Spanish', fr: 'French' };
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const codec = makeSessionCodec(deps.sessionSecret);

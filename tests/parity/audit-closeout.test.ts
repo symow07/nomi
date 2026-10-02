@@ -175,6 +175,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     expect(labelled('en', 'Hired', 'Jul 9')).toBe('Hired: Jul 9');
     expect(labelled('ar', 'التوظيف', '9 يوليو')).toBe('التوظيف: 9 يوليو');
     expect(labelled('zh', '入职', '7月9日')).toBe('入职：7月9日');
+    expect(labelled('fr', 'Embauche', '9 juil.')).toBe('Embauche\u00a0: 9 juil.');   // phase 9 — the French colon
   });
 
   it('a figure and its unit: a no-break space in English and Arabic, nothing in Chinese — decided once', () => {
@@ -189,7 +190,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
   it("the assistant's page: \"Hired: …\" in each language's own colon", () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderEmployee(employee, l, null));
-      const hired = `${esc(t(l, 'employee.hired'))}${l === 'zh' ? '：' : ': '}`;
+      const hired = `${esc(t(l, 'employee.hired'))}${l === 'zh' ? '：' : l === 'fr' ? '\u00a0: ' : ': '}`;
       expect(html, l).toContain(hired);
       if (l !== 'zh') { expect(html, l).not.toContain('：'); expect(html, l).not.toContain('　'); }
     }
