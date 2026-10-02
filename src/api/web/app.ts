@@ -92,7 +92,7 @@ import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
 } from './priceRules.js';
-import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
+import { loadOrder, recordOrderUpdate, renderOrder, proformaText, proformaFileName } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renamePerson, renderPeople, personForCode, ownerPerson, hashCode,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
@@ -3983,6 +3983,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!v) return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') });
     return renderOrder(v, locale, takeFlash(req, reply));
   }));
+
+  // Phase 9 (V1-188) — the proforma as a file, the same text the page shows:
+  // "copy it into your own paperwork" had nothing to take it with.
+  app.get('/app/orders/:id/proforma.txt', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const id = (req.params as { id: string }).id;
+    const v = UUID.test(id) ? await loadOrder(deps.db, s.businessId, id) : null;
+    const text = v ? proformaText(v) : null;
+    if (!v || !text) return reply.callNotFound();
+    return reply.type('text/plain; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${proformaFileName(v)}"`)
+      .header('cache-control', 'no-store')
+      .send(`${text}\n`);
+  });
 
   app.post('/app/orders/:id/update', async (req, reply) => {
     const s = sessionOf(req);

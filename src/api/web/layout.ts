@@ -514,7 +514,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
     color:var(--color-ink); white-space:pre; margin:0; }
-  pre.doc { white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; }
+  /* Phase 9 (V1-193) — at the prose measure, as wide as the form above it reads, not the whole column. */
+  pre.doc { white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; max-width:var(--measure-prose); }
   /* One "go deeper" link for the whole product; the chevron mirrors in RTL. */
   /* Each "go deeper" is its own ROW. Inline-flex put three of them on one
      line on the settings page, where they read as one run-on sentence with
@@ -1755,6 +1756,8 @@ export function hubFor(path: string, active: string): string {
     for (const g of CONTEXTUAL_ROUTES_BY_HUB) for (const r of g.routes) consider(r, { hub: g.hub });
     // A — the buyer's pages sit under the address Customers had; they are Buyers'.
     consider(MERGED_INTO_BUYERS, { hub: '/app/inbox' });
+    // Phase 9 (V1-191) — an order is one customer's, opened from their conversation: Customers' too.
+    consider('/app/orders', { hub: '/app/inbox' });
     return best ?? {};
   };
 
@@ -1832,7 +1835,7 @@ export function shell(input: {
    * customers need the owner now. Log out is a button: it changes something.
    */
   const url = (input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app';
-  const inConversations = url === '/app/inbox' || url.startsWith('/app/inbox/') || url.startsWith(`${MERGED_INTO_BUYERS}/`);
+  const inConversations = url === '/app/inbox' || url.startsWith('/app/inbox/') || url.startsWith(`${MERGED_INTO_BUYERS}/`) || url.startsWith('/app/orders/');
   const inCalendar = url === '/app/calendar';
   const needs = needsYouCount();
   const sub = (href: string, key: MessageKey, on: boolean, count: number | null) =>

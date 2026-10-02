@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import { renderInboxList, type InboxList, type ConversationSummary } from '../../src/api/web/inbox.js';
-import { shell, esc } from '../../src/api/web/layout.js';
+import { shell, esc, hubFor } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, t as say } from '../../src/api/web/say.js';
 import { withZone } from '../../src/api/web/zone.js';
 import type { Person } from '../../src/core/conversation/people.js';
@@ -14,6 +14,7 @@ import { type CalendarEntry, type CalendarView } from '../../src/db/calendar.js'
 import { dayKey, dayStart, addDays } from '../../src/core/owner/i18n/format.js';
 import { money as showMoney } from '../../src/api/web/values.js';
 import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics.js';
+import { renderOrder, proformaText, proformaFileName, type OrderView } from '../../src/api/web/orders.js';
 
 /**
  * Phase 9, round two — the Customers list, an order, the calendar, Results and
@@ -421,5 +422,75 @@ describe('Results', () => {
     expect(h).not.toContain('的工作总结');
     expect(h).toContain(`${esc(t('zh', 'analytics.section.employee'))}`);
     expect(statsOf(h)).toContain('0 条你改过再发的回复');
+  });
+});
+
+/* ── An order (V1-188–V1-194, inbox-calendar-missed-07) ── */
+
+const ORDER_VIEW: OrderView = {
+  orderId: '44444444-4444-4444-8444-444444444444', reference: 'USAB-de300000-0001', conversationId: C1,
+  buyer: 'Nadia Rahimi', productName: 'Stainless Steel Thermos 500ml', productNameZh: '保温杯', productSku: 'ZX-200',
+  quantity: 5000, unit: 'pcs', unitPriceAmount: 2.35, totalAmount: 11750,
+  currency: 'USD', email: 'n@example.com', paymentTerms: '30 days', incoterm: 'FOB',
+  sellerName: 'Atlas Trading', confirmedAt: new Date('2026-09-30T06:00:00Z'), history: [],
+};
+const orderPage = (l: Locale, over: Partial<OrderView> = {}) => withZone(CAL_ZONE, () => withoutIsolates(renderOrder({ ...ORDER_VIEW, ...over }, l, null)));
+
+describe('an order', () => {
+  it('V1-188 · the proforma can be taken away: a download of the same text the page shows', () => {
+    for (const l of LOCALES) {
+      const h = orderPage(l);
+      expect(h, l).toContain(`<a class="deeper" href="/app/orders/${ORDER_VIEW.orderId}/proforma.txt" download>${shown(l, 'order.invoice.download')}`);
+      expect(h, l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
+    }
+    expect(proformaFileName({ ...ORDER_VIEW, reference: 'PI/2026 "x"' })).toBe('proforma-PI-2026-x-.txt');
+    expect(proformaText({ ...ORDER_VIEW, paymentTerms: null })).toBeNull();
+  });
+
+  it('V1-189 · a confirmed order with nothing recorded since says when it was confirmed, and its menu starts there', () => {
+    for (const l of LOCALES) {
+      const h = orderPage(l);
+      expect(h, l).not.toContain(shown(l, 'order.history.empty'));
+      expect(h, l).toContain(shown(l, 'order.history.confirmed'));
+      expect(h, l).toContain(`<option value="confirmed" selected>`);
+      expect(h, l).toContain(`<p class="stated-now">${shown(l, 'order.state.confirmed')} `);
+    }
+  });
+
+  it('V1-190 · inbox-calendar-missed-07 · the form says what it records, once, in plain sentences', () => {
+    expect(t('en', 'order.update.intro')).toBe('When a customer asks where their order is, your assistant tells them the stage you recorded here and the day you recorded it. Your assistant never works out a delivery date from it.');
+    for (const l of LOCALES) {
+      expect(t(l, 'order.update.title'), l).not.toBe(t(l, 'order.update.state'));
+      expect(t(l, 'order.update.save'), l).not.toBe(t(l, 'order.update.title'));
+    }
+    expect(t('en', 'order.update.save')).toBe('Record this stage');
+  });
+
+  it('V1-191 · an order lights the Customers list, and leads back to the customer', () => {
+    expect(hubFor('/app/orders/44444444-4444-4444-8444-444444444444', 'inbox')).toBe('inbox');
+    for (const l of LOCALES) {
+      const page = withWorkspace(SCOPE, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/orders/o1', bodyHtml: orderPage(l) }));
+      expect(page, l).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page"/);
+      expect(orderPage(l), l).toContain(`${shown(l, 'order.back')}</a>`);
+    }
+    expect(t('en', 'order.back')).toBe('Back to the customer');
+  });
+
+  it('V1-192 · Chinese: the product as the Customers list names it, the figures said to be below, no stray space', () => {
+    const zh = orderPage('zh');
+    expect(zh).toContain('<span class="fval"><bdi>保温杯</bdi></span>');
+    expect(t('zh', 'order.invoice.intro').startsWith('下面')).toBe(true);
+    expect(zh).not.toContain('你的助手 ');
+  });
+
+  it('V1-193 · the confirmation date has its year; the proforma keeps the prose measure', () => {
+    expect(orderPage('en')).toContain('<span class="fval"><bdi>Wed, Sep 30, 2026</bdi></span>');
+    expect(orderPage('es')).toMatch(/2026<\/bdi><\/span>/);
+    expect(CSS).toMatch(/pre\.doc \{ white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; max-width:var\(--measure-prose\); \}/);
+  });
+
+  it('V1-194 · Spanish reads as Spanish, not a word-for-word copy', () => {
+    expect(t('es', 'order.update.tracking.placeholder')).toBe('El número que te dio la empresa de envíos');
+    expect(t('es', 'order.invoice.intro')).not.toContain('Cópiala a tus propios documentos');
   });
 });
