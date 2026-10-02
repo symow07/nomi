@@ -35,14 +35,42 @@ under "Decided" below.
 |---|---|---|
 | 0 | Vendor screenshots out of the repository; the audit and the benchmark in | #197 |
 | 1 | The inbox row: 56–72 px, sender · one-line preview · time in a fixed place · a state mark; ≥ 10 on a 1440×900 laptop, ≥ 6 on a phone; RTL and CJK truncation verified | #198 |
-| 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | next |
-| 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | — |
+| 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | #199 |
+| 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | next |
 | 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | — |
 | 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | — |
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | — |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | — |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
 | 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+
+**Phase 2 (#199) — the draft card.**
+
+The card is drawn decision first:
+1. who drafted it (✦) and where Send sends it;
+2. what made it wait, if anything (the state lines, unchanged);
+3. the reply once, in a box that grows to its text;
+4. the acts;
+5. last, one quiet line, "How … read this", that opens downward to what was understood and the reasons.
+
+It no longer repeats the customer's message, or who asked and when; both are in the transcript directly above.
+
+**Measured**, reply box never cut (`field-sizing: content`, with a row count from the draft's length as the fallback):
+
+| | English / Spanish | Chinese | Arabic |
+|---|---|---|---|
+| Card height, 1440×900 | 298 px (was 447) | 287 px | 291 px |
+| Card height, phone, whole draft shown (was 575 and cut) | 433 px | 375 px | 424 px |
+
+At both widths in all four languages, the customer's last message and the whole card are on one screen at `#latest`. Nothing overlaps them, with "How … read this" open or closed.
+
+**Decided by me (named undecidables):**
+- **The acts row:**
+  - **Send** is the one fill.
+  - **Hand to me** and **No reply needed** are both outlined, the same style. No reply needed changes something (silence without taking over), so it earns a button, but it is no longer a quiet text button of a third style.
+  - **Edit went.** It only put the cursor in a box that is always editable; the box and its label say it.
+- **The card stays in the page's order on every width.** It no longer docks (sticky) over the transcript, so opening the reasons cannot cover the customer's words. The window's time sits at the end of the acts row.
+- **A figure with no source is said on the reading line itself** (○ Not every figure has a source). Opening it shows which figure, marked ○ in the list. It was a grey caption with no way to see which.
 
 **Phase 1 (#198) — the inbox row.**
 
@@ -81,6 +109,7 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #199 | **Phase 2 — the draft card**: decision first; the customer's message no longer repeated, nor covered (the card no longer docks over the transcript); one fill (Send), Hand to me and No reply needed outlined alike, Edit gone; the reply box grows to its text; the reasons one quiet line under the acts. 298 px on a laptop (was 447). No migration | 120 |
 | 2026-10-02 | #198 | **Phase 1 — the inbox row**: two lines, 57/63/65 px (en/zh/ar), a state mark that is a shape, the time in a fixed place; 12/10/10 conversations on a laptop, 8/7/6 on a phone; the list beside a conversation uses the same row; `tools/ui-measure.mjs`. No migration | 120 |
 | 2026-10-02 | #197 | **The UI audit and the benchmark, in the repository; the vendor screenshots out.** `docs/UI-AUDIT.md` (566 findings, 17 screenshots of Nomi) and `docs/UI-BENCHMARK.md` (seven products, 8 screenshots of Nomi). The 32 screenshots of other companies' products were removed before any commit; they never entered history. Docs only | 120 |
 | 2026-10-02 | #195 | **EXT: a PDF is offered only where the model provider can read it.** EXT's live check, run once the provider answered again (2026-10-01 23:30 UTC): the closer reading as intended, containment held; a PDF came back empty from this installation's custom provider. So the upload form offers PDF, and the route accepts one, only where the provider reads documents (`pdfReadable`: Anthropic's); elsewhere a PDF is refused in plain words, nothing read or spent. Integration 1184 of 1184; CI both jobs pass. Merged 00:09 UTC as `b1b2b75`, deployed, `/health` ok, schema 120. **The last PR of the self-serve run** — what waits is the owner's (the list at the top of Waiting on the owner) | 120 |
