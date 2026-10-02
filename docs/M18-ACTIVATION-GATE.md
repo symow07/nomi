@@ -87,7 +87,7 @@ Activation is permitted only when **all** of these are true:
 - [ ] `nomi_app` password rotated; old credential proven rejected
 - [ ] Admin/migration password rotated
 - [ ] `CREDENTIAL_KEY` checked (and re-encrypted if any credential rows exist)
-- [ ] **Secrets rotated** confirmed on `/app/onboarding` — this is what unblocks `activate()`
+- [ ] **Secrets rotated** stamped with `MIGRATE_DATABASE_URL=… node tools/installation-checks.mjs --business <uuid> --secrets-rotated` — this is what unblocks `activate()` (the owner's page no longer takes it, phase 9)
 - [ ] Railway access confirmed; production URL recorded
 - [ ] `verify-remote.sh` passes against the real deployment
 

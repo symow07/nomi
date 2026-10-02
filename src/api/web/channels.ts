@@ -487,7 +487,8 @@ function domainForm(locale: Locale, domain: SendingDomain | null): string {
       <input name="domain" required maxlength="253" value="${esc(domain?.domain ?? '')}"
         placeholder="${esc(t(locale, 'domain.field.placeholder'))}" /></label>
     <label class="fld"><span class="muted">${esc(t(locale, 'domain.field.selector'))}</span>
-      <input name="selector" maxlength="63" value="${esc(domain?.dkimSelector ?? '')}" /></label>
+      <input name="selector" maxlength="63" placeholder="nomi" value="${esc(domain?.dkimSelector ?? '')}" />
+      <span class="muted small">${esc(t(locale, 'domain.field.selector.hint'))}</span></label>
     <button class="btn" type="submit">${esc(t(locale, 'domain.save'))}</button>
   </form>`;
 }
@@ -798,16 +799,54 @@ export function renderChannels(
     `;
 }
 
-export function renderConnectGuide(locale: Locale): string {
+/**
+ * The page for an installation that can connect no number by itself (no
+ * Embedded Signup, no configured number — the Channels card links here only
+ * then). Phase 9: it described a Test button and switches it did not have,
+ * and its first step had nothing to type into. Now the first step IS the
+ * page: the number goes to Nomi's team by mail (`notifyOperatorOfWhatsAppNumber`),
+ * and the steps say only what happens. Without a mailer it names the address
+ * to write to, and without that, plainly that it is not open yet.
+ */
+export type ConnectGuideOptions = {
+  readonly viewer?: Viewer;
+  /** The installation can mail its operator. */
+  readonly canAsk?: boolean;
+  /** LEGAL_CONTACT_EMAIL, the fallback when it cannot. */
+  readonly contact?: string | null;
+  /** Sent back: what was typed, and that it was not a number. */
+  readonly kept?: string;
+  readonly invalid?: boolean;
+  readonly flash?: Flash | null;
+};
+
+export function renderConnectGuide(locale: Locale, o: ConnectGuideOptions = {}): string {
   const name = assistantName(locale);
+  const viewer = o.viewer ?? OWNER_VIEW;
+  const act = !viewer.isOwner
+    ? `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`
+    : o.canAsk
+      ? `<form method="post" action="/app/channels/whatsapp/ask" class="pform">
+          <label class="pq"><span>${esc(t(locale, 'channel.connect.number'))}</span>
+            <input name="number" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" required maxlength="32"
+                   value="${esc(o.kept ?? '')}"${o.invalid ? ' aria-invalid="true" aria-describedby="number-error" autofocus' : ''} />
+            ${o.invalid ? `<p class="perr" role="alert" id="number-error">${esc(t(locale, 'channel.connect.error.number'))}</p>` : ''}</label>
+          <button class="btn send" type="submit">${esc(t(locale, 'channel.connect.send'))}</button>
+        </form>`
+      : o.contact
+        ? `<p>${esc(t(locale, 'channel.connect.writeTo', { address: o.contact })).replace(esc(o.contact),
+            `<a href="mailto:${esc(o.contact)}"><bdi dir="ltr">${esc(o.contact)}</bdi></a>`)}</p>`
+        : `<p class="fwarn">${esc(t(locale, 'channel.connect.unavailable'))}</p>`;
   return `<h1 class="page">${esc(t(locale, 'channel.connect.title'))}</h1>
+    ${flashBanner(o.flash ?? null)}
     <div class="block">
-      <p>${esc(t(locale, 'channel.connect.intro', { name }))}</p>
+      <p class="lede">${esc(t(locale, 'channel.connect.intro', { name }))}</p>
       <ol class="guide">
         <li>${esc(t(locale, 'channel.connect.step1'))}</li>
         <li>${esc(t(locale, 'channel.connect.step2'))}</li>
         <li>${esc(t(locale, 'channel.connect.step3'))}</li>
       </ol>
+      ${act}
       <p class="muted">${esc(t(locale, 'channel.connect.note'))}</p>
       ${back('/app/channels', t(locale, 'channel.connect.back'))}
     </div>`;

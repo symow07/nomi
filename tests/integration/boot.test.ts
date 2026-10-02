@@ -1182,8 +1182,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('an owner attestation stamps a timestamp (confirmed by owner, not detected)', async () => {
       const { loadPilotReadiness, attest } = await import('../../src/api/web/pilot.js');
-      await attest(prod.db, DEMO_BIZ, 'backup_tested');
-      const after = (await loadPilotReadiness(prod.db, DEMO_BIZ)).attest.backupTestedAt;
+      await attest(prod.db, DEMO_BIZ, 'owner_ready');
+      const after = (await loadPilotReadiness(prod.db, DEMO_BIZ)).attest.ownerReadyAt;
       expect(after).not.toBeNull();   // a real timestamp, owner-confirmed
     });
 
@@ -1903,7 +1903,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);
       expect(res.body).toContain(esc(t('en', 'her.knows.title')));
       expect(res.body).toContain(esc(t('en', 'her.handles.title')));
-      expect(res.body).toContain('Recently');
+      expect(res.body).toContain(esc(t('en', 'her.recent.title')));
       expect(res.body).toContain(esc(t('en', 'her.teach.title')));
     });
 
@@ -2181,6 +2181,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         expect(f.promises.floorLow?.amount).not.toBe(Number(fallback.floor));
 
       const page = await html();
+      // Phase 9 — nothing comes off unless she wrote a discount; with none,
+      // the page says so instead of a ceiling that limits nothing.
+      if (f.prices.volume.length === 0) {
+        expect(page).toContain(esc(t('en', 'factory.promise.noDiscount', { name: '' })).split(':')[1]!.trim());
+        expect(page).not.toContain('never discounts more than');
+        return;
+      }
       expect(page).toContain('never discounts more than');
       // G7a — the ask-first line is a gate now (core/conversation/hold.ts), so
       // the page promises it — whenever it can fire before the ceiling does.

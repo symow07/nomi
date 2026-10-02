@@ -57,7 +57,10 @@ export function renderListPane(
   const group = (title: string, rows: readonly ConversationSummary[]) => rows.length === 0 ? ''
     : `<li class="lp-group" aria-hidden="true">${esc(title)}</li>${rows.map(row).join('')}`;
   const rows = all.length === 0
-    ? `<p class="muted lp-empty">${esc(t(locale, data.filter === 'pending' ? 'buyers.empty.calm' : 'inbox.empty.none'))}</p>`
+    // Phase 9 — an empty FILTER is not an empty business: each says what it is.
+    ? `<p class="muted lp-empty">${esc(data.query ? t(locale, 'buyers.search.none', { q: data.query })
+        : t(locale, data.filter === 'pending' ? 'buyers.empty.calm' : data.filter === 'mine' ? 'inbox.empty.mine'
+          : data.filter === 'deletion' ? 'inbox.empty.deletion' : data.filter === 'blocked' ? 'refused.none' : 'inbox.empty.none'))}</p>`
     : `<ul class="crows lp-rows">${group(t(locale, 'buyers.group.order'), orders)}${group(t(locale, 'buyers.group.deletion'), deletion)}${
         group(t(locale, 'buyers.group.needsYou'), needsYou)}${
         group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), yours)}${

@@ -455,8 +455,29 @@ function detectedRow(key: DetectedKey, done: boolean, locale: Locale, viewer: Vi
       ${(key === 'priceRules' && !viewer.isOwner) ? '' : deeper(DETECTED_LINK[key], t(locale, 'pilot.open'))}${extra}</div></div>`;
 }
 
+/**
+ * Phase 9 — the installation's own chores (a backup that restores, keys
+ * changed since the build) are a condition for going live, but they are not
+ * the owner's to do or to vouch for. The gate is unchanged (readyToLaunch and
+ * activation still ask for both); the operator stamps them with
+ * `tools/installation-checks.mjs`, and the owner reads one row that says Nomi
+ * does it, with no button. A scheduled backup's passed drill counts as tested.
+ */
+function nomiChecksRow(d: PilotReadiness, locale: Locale): string {
+  const backup = d.backupVerifiedAt ?? d.attest.backupTestedAt;
+  const keys = d.attest.secretsRotatedAt;
+  const label = esc(t(locale, 'pilot.nomiChecks'));
+  if (backup && keys) {
+    const at = backup > keys ? backup : keys;
+    return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label}</span>
+      <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(show.date(locale, at))}</span></div>`;
+  }
+  return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+    <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.nomiChecks.todo'))}</span></div></div>`;
+}
+
 function attestRow(
-  key: 'backup_tested' | 'secrets_rotated' | 'owner_ready', at: Date | null, locale: Locale, viewer: Viewer = OWNER_VIEW,
+  key: 'owner_ready', at: Date | null, locale: Locale, viewer: Viewer = OWNER_VIEW,
 ): string {
   const label = esc(t(locale, `pilot.attest.${key}` as MessageKey));
   if (at) {
@@ -549,13 +570,7 @@ export function renderPilotReadiness(
 
   const attests = [
     assistantNameRow(d, locale, viewer),
-    // Checked for the owner once the scheduled backup has proven a restore;
-    // the hand-made tick remains for an installation that predates the job.
-    d.backupVerifiedAt
-      ? `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${esc(t(locale, 'pilot.attest.backup_tested'))}</span>
-          <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(show.date(locale, d.backupVerifiedAt))}</span></div>`
-      : attestRow('backup_tested', d.attest.backupTestedAt, locale, viewer),
-    attestRow('secrets_rotated', d.attest.secretsRotatedAt, locale, viewer),
+    nomiChecksRow(d, locale),
     attestRow('owner_ready', d.attest.ownerReadyAt, locale, viewer),
   ].join('');
 

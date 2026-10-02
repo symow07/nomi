@@ -84,7 +84,7 @@ need to do on a real one.
 ## 4. Security gate — operator. **Blocking.**
 
 `M18-ACTIVATION-GATE.md`. Rotate the Anthropic key and both database passwords,
-then confirm **Secrets rotated** on `/app/onboarding`.
+then stamp it with `MIGRATE_DATABASE_URL=… node tools/installation-checks.mjs --business <uuid> --secrets-rotated` (since phase 9 the owner's page shows "Checked by Nomi" and has no button for it).
 
 This is enforced: `activate()` refuses with `secrets_not_rotated` until the
 confirmation exists. Activating with credentials that were pasted into a chat

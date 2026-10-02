@@ -167,3 +167,36 @@ describe('C10 · connect your own Page and Instagram, as the cards show it', () 
     expect(html).not.toContain('action="/app/connect/meta/disconnect"');
   });
 });
+
+describe('Phase 9 · the Connect WhatsApp page has the thing its first step asks for (V1-450, V1-451)', () => {
+  const STAFF: Viewer = { id: 'p2', isOwner: false };
+  it('with a mailer: a number field and one button, in every locale; no Test or switch it does not have', () => {
+    for (const l of LOCALES) {
+      const html = renderConnectGuide(l, { canAsk: true });
+      expect(html, l).toContain('action="/app/channels/whatsapp/ask"');
+      expect(html, l).toMatch(/<input name="number" type="tel"/);
+      expect(html, l).toContain(t(l, 'channel.connect.send'));
+      expect(html, l).not.toContain('action="/app/channels/whatsapp/test"');
+      expect((html.match(/<button/g) ?? []).length, l).toBe(1);
+    }
+    expect(renderConnectGuide('en', { canAsk: true })).not.toMatch(/on\/off|this page, managed by you/);
+  });
+  it('sent back: what was typed stays, the field is marked and says why', () => {
+    const html = renderConnectGuide('en', { canAsk: true, kept: '12ab', invalid: true });
+    expect(html).toContain('value="12ab"');
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain(t('en', 'channel.connect.error.number'));
+  });
+  it('without a mailer: the address to write to; without that, plainly not open yet', () => {
+    const mail = renderConnectGuide('en', { canAsk: false, contact: 'hello@nomi.test' });
+    expect(mail).toContain('href="mailto:hello@nomi.test"');
+    expect(mail).not.toContain('<form');
+    const none = renderConnectGuide('ar', { canAsk: false, contact: null });
+    expect(none).toContain(t('ar', 'channel.connect.unavailable'));
+  });
+  it('staff are told the owner decides, and get no form', () => {
+    const html = renderConnectGuide('en', { canAsk: true, viewer: STAFF });
+    expect(html).not.toContain('<form');
+    expect(html).toContain(t('en', 'staff.ownerDecides'));
+  });
+});

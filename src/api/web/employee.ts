@@ -324,7 +324,19 @@ export function renderEmployee(
 ): string {
   const name = assistantName(locale);
   const capName = (c: string) => capabilityName(locale, c);
-  const stageLabel = t(locale, `employee.stage.${e.stage}` as MessageKey);
+  // Phase 9 — "Handled without you" lists only what goes out alone TODAY.
+  // The send decision (commitTurn) drafts a capability set to auto while no
+  // language's sentence is signed off, the name is unconfirmed, or the
+  // workspace has not earned that rung; such a capability is listed as set,
+  // still waiting, with the reason — never as handled.
+  const heldBecause: MessageKey | null = !autonomyReleased() ? 'her.handles.held.why.release'
+    : !e.assistantNamed ? 'her.handles.held.why.name'
+    : e.earned === false ? 'her.handles.held.why.ramp' : null;
+  const goesAlone = (c: string): boolean => heldBecause === null && !(e.ramp && rungOf(c as never) > e.ramp.rung);
+  const alone = e.canDo.filter(goesAlone);
+  const setButHeld = e.canDo.filter((c) => !goesAlone(c));
+  const heldWhy = t(locale, heldBecause ?? 'her.handles.held.why.ramp', { ready: t(locale, 'pilot.title') });
+  const stageLabel = t(locale, `employee.stage.${alone.length ? e.stage : 'probation'}` as MessageKey);
 
   const card = `<div class="card emp">
     <div class="emp-h">
@@ -339,7 +351,9 @@ export function renderEmployee(
   const duties = `<div class="block"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
     ${e.canDo.length === 0 && e.needConfirm.length === 0
       ? `<div class="empty">${esc(t(locale, 'her.handles.none'))}</div>` : ''}
-    ${list(t(locale, 'her.handles.alone'), '✓', e.canDo.map(capName), 'ok', t(locale, 'employee.duties.none'))}
+    ${list(t(locale, 'her.handles.alone'), '✓', alone.map(capName), 'ok', t(locale, 'employee.duties.none'))}
+    ${setButHeld.length ? `${list(t(locale, 'her.handles.held'), '○', setButHeld.map(capName), 'warn', '')}
+      <p class="muted small">${esc(heldWhy)}</p>` : ''}
     ${list(t(locale, 'her.handles.waits'), '○', e.needConfirm.map(capName), 'warn', t(locale, 'employee.duties.none'))}
     ${list(t(locale, 'her.handles.always'), '○', cannotDo, 'no', t(locale, 'employee.duties.none'))}
   </div>`;
@@ -391,9 +405,10 @@ export function renderEmployee(
 
   const promo = `<div class="block"><h2>${esc(t(locale, 'employee.promo.title'))}</h2>
     <div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.current'))}</span> <b>${esc(stageLabel)}</b></div>
-    ${e.promoted
+    ${alone.length
       ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
-      : `<div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.next'))}</span> <b>${esc(t(locale, 'employee.stage.partial'))}</b></div>`}
+      : `<div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.next'))}</span> <b>${esc(t(locale, 'employee.stage.partial'))}</b></div>
+         ${setButHeld.length ? `<p class="muted small">${esc(heldWhy)}</p>` : ''}`}
     ${e.conditions.length ? `<div class="conds">${e.conditions.map((c) =>
       `<div class="cond ${c.met ? 'met' : ''}">${c.met ? '✓' : '○'} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey))}</div>`).join('')}</div>` : ''}
   </div>`;

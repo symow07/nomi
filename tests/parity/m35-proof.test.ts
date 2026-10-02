@@ -239,6 +239,26 @@ describe('M35 · the link is the only credential, so it must be unguessable', ()
     }
   });
 
+  it('phase 9 · the not-found page is in the reader\'s language, says the same thing whatever the link was, and leaves a way out', async () => {
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    for (const l of LOCALES) {
+      for (const kind of ['proof', 'unsubscribe'] as const) {
+        const html = notFoundPage(l, kind);
+        expect(html, `${l} ${kind}`).toContain(`<html lang="${l}"`);
+        expect(html, `${l} ${kind}`).toContain(t(l, 'public.notFound.title'));
+        expect(html, `${l} ${kind}`).toContain('href="/privacy"');
+        expect(html, `${l} ${kind}`).toContain('href="/data-deletion"');
+        expect(html.includes(t(l, 'public.notFound.unsubscribe')), `${l} ${kind}`).toBe(kind === 'unsubscribe');
+      }
+      expect(notFoundPage(l, 'unsubscribe').includes('dir="rtl"')).toBe(l === 'ar');
+    }
+    const src = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src.match(/notFoundPage\(localeOf\(req\), 'unsubscribe'\)/g)).toHaveLength(2);
+    expect(src).toContain("notFoundPage(localeOf(req), 'proof')");
+    expect(src).not.toContain('notFoundPage()');
+  });
+
   it('the route answers 404 and never 403', async () => {
     const src = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     const handler = src.slice(src.indexOf("app.get('/p/:token'"), src.indexOf('// ── Auth'));

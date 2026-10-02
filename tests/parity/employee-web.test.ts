@@ -173,7 +173,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
 
   it('recently: real counts including how often you were needed', () => {
     const html = renderEmployee(base, 'en', null, ctx);
-    expect(html).toContain('Recently');
+    expect(html).toContain(t('en', 'her.recent.title'));
     expect(html).toContain('>12<'); expect(html).toContain(t('en', 'ops.activity.handled'));
     expect(html).toContain('>8<');  expect(html).toContain('Replies prepared');
     expect(html).toContain('>2<');  expect(html).toContain('Needed your help');
@@ -182,7 +182,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   it('a quiet employee reads calm, not broken', () => {
     const html = renderEmployee(base, 'en', null,
       { ...ctx, handled: 0, draftsPrepared: 0, neededYou: 0 });
-    expect(html).toContain('No conversations yet.');
+    expect(html).toContain('Nothing yet this month.'); expect(html).not.toContain('No conversations yet');
   });
 
   it('what the assistant needs: every gap leads to the EXISTING teach flow', () => {
@@ -202,7 +202,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
 
   it('the new sections are omitted entirely without context', () => {
     const html = renderEmployee(base, 'en', null);
-    expect(html).not.toContain('Recently');
+    expect(html).not.toContain(t('en', 'her.recent.title'));
     expect(html).not.toContain(t('en', 'her.teach.title'));
   });
 
@@ -284,5 +284,34 @@ describe('M34.8 · a spot check shows the owner the work itself', () => {
   it('renders nothing at all when there is nothing to check', () => {
     const html = renderEmployee(base, 'en', null);
     expect(html).not.toContain('/app/employee/spot-check/');
+  });
+});
+
+describe('Phase 9 · "Handled without you" lists only what goes out alone today', () => {
+  // commitTurn drafts a capability set to auto while the name is unconfirmed
+  // or the rung is not earned; the page used to list it as handled anyway,
+  // beside a line saying every reply waits.
+  const between = (html: string, from: string, to: string) => html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)));
+  it('name unconfirmed: greet is set, still waiting, with the reason; nothing is handled', () => {
+    for (const l of LOCALES) {
+      const html = renderEmployee({ ...base, assistantNamed: false }, l, null);
+      const alone = between(html, t(l, 'her.handles.alone'), '</div></div>');
+      expect(alone, l).toContain(t(l, 'employee.duties.none'));
+      expect(html, l).toContain(t(l, 'her.handles.held'));
+      expect(html, l).toContain(t(l, 'her.handles.held.why.name', { ready: t(l, 'pilot.title') }));
+      expect(html, l).not.toContain(t(l, 'employee.promo.done'));
+      expect(html, l).toContain(t(l, 'employee.stage.probation'));
+    }
+  });
+  it('a rung not earned holds it the same way', () => {
+    const html = renderEmployee({ ...base, earned: false }, 'en', null);
+    expect(html).toContain(t('en', 'her.handles.held'));
+    expect(html).toContain(t('en', 'her.handles.held.why.ramp'));
+    expect(html).not.toContain(t('en', 'employee.promo.done'));
+  });
+  it('named and earned: greet is handled, and nothing is listed as held', () => {
+    const html = renderEmployee(base, 'en', null);
+    expect(html).not.toContain(t('en', 'her.handles.held'));
+    expect(html).toContain(t('en', 'employee.promo.done'));
   });
 });

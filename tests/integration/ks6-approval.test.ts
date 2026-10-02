@@ -213,4 +213,23 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
       await expect(withTenantTx(db, b.value, (tx) => stmt.execute(tx))).rejects.toThrow(/permission denied/);
     }
   });
+  it('PHASE 9 · CONNECT WHATSAPP: the number goes to the operator; a wrong one comes back marked, and nothing is sent', async () => {
+    const { cookie, email } = shops['before']!;
+    const page = await get(cookie, '/app/channels/whatsapp/connect');
+    expect(page.body).toContain('action="/app/channels/whatsapp/ask"');
+    expect(page.body).not.toContain('action="/app/channels/whatsapp/test"');
+    const before = outbox.length;
+    const bad = await post(cookie, '/app/channels/whatsapp/ask', { number: 'call me' });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.body).toContain('value="call me"');
+    expect(bad.body).toContain(t('en', 'channel.connect.error.number'));
+    expect(outbox.length).toBe(before);
+    const ok = await post(cookie, '/app/channels/whatsapp/ask', { number: '+971 50 555 0101' });
+    expect(flashSaid(ok, SECRET)).toBe(t('en', 'channel.connect.flash.sent'));
+    const told = outbox.at(-1)!;
+    expect(told.to).toBe(OPERATOR);
+    expect(told.subject).toBe(t('en', 'notify.whatsapp_asked.subject', { business: `KS6 before ${RUN}` }));
+    expect(told.text).toContain('+971505550101');
+    expect(told.text).toContain(email);
+  });
 });

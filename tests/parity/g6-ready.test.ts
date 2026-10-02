@@ -33,7 +33,7 @@ describe('G6 · Getting ready, for a workspace that signed itself up', () => {
       expect(html).toContain(esc(t(l, 'pilot.item.ready')));
       expect(html).toContain(esc(withoutIsolates(t(l, 'pilot.ready.count', { done: 3, total: 8 }))));
       expect(html).toContain('href="/app/ready"');
-      for (const k of ['pilot.attest.backup_tested', 'pilot.attest.secrets_rotated', 'pilot.item.sandbox'] as const) {
+      for (const k of ['pilot.nomiChecks', 'pilot.item.sandbox'] as const) {
         expect(html, k).not.toContain(esc(t(l, k)));
       }
       expect(html).not.toContain('action="/app/onboarding/validate"');
@@ -41,7 +41,9 @@ describe('G6 · Getting ready, for a workspace that signed itself up', () => {
   }
   it('a workspace the operator made keeps every row it had', () => {
     const html = renderPilotReadiness(pr(), 'en', null);
-    for (const k of ['pilot.attest.backup_tested', 'pilot.attest.secrets_rotated', 'pilot.item.sandbox'] as const) expect(html).toContain(esc(t('en', k)));
+    for (const k of ['pilot.nomiChecks', 'pilot.item.sandbox'] as const) expect(html).toContain(esc(t('en', k)));
+    // Phase 9 — the installation's chores are Nomi's: one row, no button for the owner.
+    expect(html).not.toMatch(/value="(backup_tested|secrets_rotated)"/);
     // The page is everyone's to read; the row that counts it is a self-serve workspace's.
     expect(html).toContain('href="/app/ready"');
     expect(html).not.toContain(esc(t('en', 'pilot.ready.count', { done: 0, total: 8 })));

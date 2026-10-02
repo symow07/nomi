@@ -36,14 +36,28 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
 
   it('owner attestations: ○ offers Confirm; ✓ shows "Confirmed by you"', () => {
     const none = renderPilotReadiness(pr(), 'en', null);
-    expect(none).toContain(t('en', 'pilot.attest.backup_tested'));
     expect(none).toContain('action="/app/onboarding/attest"');
-    expect(none).toContain('value="backup_tested"');
+    expect(none).toContain('value="owner_ready"');
     expect(none).toContain(t('en', 'pilot.attest.confirm'));
 
     const done = renderPilotReadiness(pr({ attest: { backupTestedAt: NOW, secretsRotatedAt: NOW, ownerReadyAt: NOW, assistantNamedAt: NOW } }), 'en', null);
     expect(done).toContain(t('en', 'pilot.confirmedByOwner'));   // "Confirmed by you"
-    expect(done).not.toContain('value="backup_tested"');          // no confirm button once done
+    expect(done).not.toContain('value="owner_ready"');            // no confirm button once done
+  });
+
+  it('phase 9 · backups and keys are Nomi\'s: one row, no button, "checked" once both are stamped', () => {
+    for (const l of LOCALES) {
+      const none = renderPilotReadiness(pr(), l, null);
+      expect(none, l).toContain(t(l, 'pilot.nomiChecks'));
+      expect(none, l).toContain(t(l, 'pilot.nomiChecks.todo'));
+      expect(none, l).not.toMatch(/value="(backup_tested|secrets_rotated)"/);
+    }
+    const half = renderPilotReadiness(pr({ attest: { backupTestedAt: NOW, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null } }), 'en', null);
+    expect(half).toContain(t('en', 'pilot.nomiChecks.todo'));
+    // a scheduled backup's passed drill counts as tested
+    const both = renderPilotReadiness(pr({ backupVerifiedAt: NOW, attest: { backupTestedAt: null, secretsRotatedAt: NOW, ownerReadyAt: null, assistantNamedAt: null } }), 'en', null);
+    expect(both).not.toContain(t('en', 'pilot.nomiChecks.todo'));
+    expect(both).toContain(t('en', 'pilot.verifiedBySystem'));
   });
 
   it('sandbox validation: run button + result, and it drives the Sandbox ✓', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../src/core/insights/changed.js';
+import { biggestChange, MONTH_DRIVERS, MONTH_CHANGE_MIN_DAYS, type MonthDriver } from '../../src/core/insights/changed.js';
 import { renderInsights, type InsightsData } from '../../src/api/web/insights.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -112,7 +112,7 @@ describe('M51.5 · it obeys the insight rule', () => {
     // because of a date line is a fact about our servers. TZ — the zone is the
     // workspace's own, read before the query.
     const src = await readFile(new URL('../../src/api/web/insights.ts', import.meta.url), 'utf8');
-    const block = src.slice(src.indexOf('with bounds as'), src.indexOf('select * from inquiries'));
+    const block = src.slice(src.indexOf('with b0 as'), src.indexOf('select * from inquiries'));
     expect(block).toContain('at time zone ${zone}');
     expect(block).not.toContain('Asia/Shanghai');
     expect(src).toContain('const zone = await zoneOf(tx, bid.value);');
@@ -122,7 +122,7 @@ describe('M51.5 · it obeys the insight rule', () => {
   it('it is LAST — the things to do come before the thing to know', async () => {
     const src = await readFile(new URL('../../src/api/web/insights.ts', import.meta.url), 'utf8');
     expect(src.indexOf("key: 'insight.productsNoPrice'"))
-      .toBeLessThan(src.indexOf('const changed = biggestChange('));
+      .toBeLessThan(src.indexOf('biggestChange(counts)'));
   });
 
   it('every string exists in all three locales', () => {
@@ -135,10 +135,31 @@ describe('M51.5 · it obeys the insight rule', () => {
     ];
     for (const locale of LOCALES) {
       for (const k of keys) {
-        const s = t(locale, k, { from: 1, to: 2, name: 'Lily' });
+        const s = t(locale, k, { from: 1, to: 2, name: 'Lily', days: 9 });
         expect(s.length, `${locale} ${k}`).toBeGreaterThan(1);
         expect(s, `${locale} ${k}`).not.toContain('{');
       }
+    }
+  });
+});
+
+describe('Phase 9 · like with like (V1-087)', () => {
+  it('the same days of last month, never a whole month against a few days; customers, not messages', async () => {
+    const src = await readFile(new URL('../../src/api/web/insights.ts', import.meta.url), 'utf8');
+    const block = src.slice(src.indexOf('with b0 as'), src.indexOf('select * from inquiries'));
+    expect(block).toContain('least(last_start + elapsed, this_start) as last_end');
+    expect(block.match(/<\s+\(b\.last_end at time zone \$\{zone\}\)/g)).toHaveLength(3);
+    expect(block).not.toMatch(/< +\(b\.this_start at time zone/);
+    expect(block).toContain('count(distinct m.conversation_id)');
+  });
+  it('nothing is said before day 7', async () => {
+    expect(MONTH_CHANGE_MIN_DAYS).toBe(7);
+    const src = await readFile(new URL('../../src/api/web/insights.ts', import.meta.url), 'utf8');
+    expect(src).toContain('days >= MONTH_CHANGE_MIN_DAYS ? biggestChange(counts) : null');
+  });
+  it('every sentence says over how many days, in every locale', () => {
+    for (const locale of LOCALES) for (const d of MONTH_DRIVERS) for (const dir of ['up', 'down']) {
+      expect(t(locale, `insight.monthChange.${d}.${dir}` as MessageKey, { from: 1, to: 2, name: 'Lily', days: 9 }), `${locale} ${d}`).toContain('9');
     }
   });
 });

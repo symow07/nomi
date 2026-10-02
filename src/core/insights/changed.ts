@@ -57,6 +57,12 @@ export type MonthChange = {
  * wrote, were quoted and ordered has no news in it, and inventing some would
  * be the fourth counts-with-nothing-to-do card this page exists to avoid.
  */
+/**
+ * Phase 9 (V1-087) — fewer than a week into the month, a change is noise; no
+ * month-on-month line is said before this many days have passed.
+ */
+export const MONTH_CHANGE_MIN_DAYS = 7;
+
 export function biggestChange(
   counts: Readonly<Record<MonthDriver, DriverCounts>>,
 ): MonthChange | null {

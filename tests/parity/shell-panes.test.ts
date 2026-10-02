@@ -158,3 +158,21 @@ describe('the customer panel', () => {
     expect(css).toMatch(/@media \(min-width: 1440px\) \{[\s\S]*?\.panes \{ grid-template-columns:300px minmax\(560px, 1fr\) 300px; \}/);
   });
 });
+
+describe('Phase 9 · an empty filter beside a conversation says what it is, never "No conversations yet"', () => {
+  it('mine, deletion, blocked and a search each say their own thing', async () => {
+    const { renderListPane } = await import('../../src/api/web/panes.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const base: InboxList = { filter: 'all', blockedCount: 0, waitingCount: 0, conversations: [] };
+    const said = (over: Partial<InboxList>) => renderListPane({ ...base, ...over }, 'en', new Date(), 'c-1');
+    expect(said({ filter: 'mine' })).toContain(t('en', 'inbox.empty.mine'));
+    expect(said({ filter: 'deletion' })).toContain(t('en', 'inbox.empty.deletion'));
+    expect(said({ filter: 'blocked' })).toContain(t('en', 'refused.none'));
+    expect(said({ query: 'zz' })).toContain(t('en', 'buyers.search.none', { q: 'zz' }));
+    const others: Partial<InboxList>[] = [{ filter: 'mine' }, { filter: 'deletion' }, { filter: 'blocked' }, { query: 'zz' }];
+    for (const over of others) {
+      expect(said(over)).not.toContain(t('en', 'inbox.empty.none'));
+    }
+    expect(said({})).toContain(t('en', 'inbox.empty.none'));   // only a truly empty list says it
+  });
+});

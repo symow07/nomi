@@ -97,7 +97,11 @@ export function quoteUnit(q: NonNullable<PracticeTrust['quote']>): Money {
 
 // ── read model ────────────────────────────────────────────────────────────────
 
-export type SandboxMessage = { readonly direction: 'inbound' | 'outbound'; readonly text: string; readonly isImage: boolean };
+export type SandboxMessage = {
+  readonly direction: 'inbound' | 'outbound'; readonly text: string; readonly isImage: boolean;
+  /** Phase 9 — the owner's own reply (taken over), so it is never captioned as the assistant's. */
+  readonly by?: 'owner';
+};
 
 /**
  * M20.4 (F-04) — scripted practice, run IN MEMORY: the golden safety set,
@@ -161,7 +165,10 @@ async function viewOf(tx: Tx, conversationId: string, before: unknown): Promise<
   const transcript = await loadTranscriptWindow(tx, conversationId, before);
   const messages = transcript.rows
     .filter((m) => m.text_content !== null)
-    .map((m): SandboxMessage => ({ direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, isImage: m.input_type === 'image' }));
+    .map((m): SandboxMessage => ({
+      direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, isImage: m.input_type === 'image',
+      ...(m.direction !== 'inbound' && m.origin === 'owner' ? { by: 'owner' as const } : {}),
+    }));
 
   const evt = (await sql<{ payload: PracticeTrust }>`
     select payload from conversation_events
@@ -414,7 +421,8 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
     ? `<div class="timeline">${view.messages.map((m, i) => `
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           <div dir="auto" class="bubble">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
-          <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.composer.send')) : byAssistant(name)}</div>
+          <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.by.customer'))
+            : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : byAssistant(name)}</div>
         </div>`).join('')}</div>`
     : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;

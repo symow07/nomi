@@ -10,7 +10,8 @@ import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
 import { whereSeenFrom } from '../../core/owner/whereSeen.js';
 import { renderApprovalCard } from './connectionApproval.js';
-import { notifyOperatorOfConnectionAsk } from '../../pipeline/notify.js';
+import { notifyOperatorOfConnectionAsk, notifyOperatorOfWhatsAppNumber } from '../../pipeline/notify.js';
+import { normalizePhone } from '../../core/channel/phone.js';
 import { loadReady, renderReady } from './ready.js';
 import { earnedRung } from '../../db/ramp.js';
 import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
@@ -1081,7 +1082,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/u', async (req, reply) => {
     const token = String((req.query as { t?: string }).t ?? '');
     const claim = claimFrom(deps.sessionSecret, token);
-    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage(localeOf(req), 'unsubscribe'));
     return reply.type('text/html; charset=utf-8')
       .header('cache-control', 'no-store')
       .header('referrer-policy', 'no-referrer')
@@ -1093,7 +1094,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const token = String((req.query as { t?: string }).t ?? '')
       || String((req.body as { t?: string } | undefined)?.t ?? '');
     const claim = claimFrom(deps.sessionSecret, token);
-    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage(localeOf(req), 'unsubscribe'));
     // The result is not shown to him. Whether the write succeeded or the
     // database was unreachable, the page he sees is the same — an error here
     // would tell a visitor something about a tenant he has no business knowing,
@@ -1109,7 +1110,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/p/:token', async (req, reply) => {
     const token = String((req.params as { token: string }).token ?? '');
     const view = token.length >= 32 ? await loadProof(deps.db, token) : null;
-    if (!view) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    if (!view) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage(localeOf(req), 'proof'));
     return reply.type('text/html; charset=utf-8')
       .header('cache-control', 'no-store')
       .header('referrer-policy', 'no-referrer')
@@ -1656,7 +1657,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // V1 step two — every component in every state, on one page, for review by
   // eye and by the screenshot tool. Signed-in, not owner-only: OWNER_ONLY is
   // the six business actions, and a page of buttons is not one of them.
-  app.get('/app/settings/components', authed('settings', (s, req, locale) => renderComponents(locale)));
+  // Phase 9 — the component gallery is a developer's page: no link reaches it
+  // (phase 3), and like the machine room only the installation's own workspace
+  // gets it at all. Every other owner is told there is no such page.
+  app.get('/app/settings/components', {
+    preHandler: async (req, reply) => {
+      const s = sessionOf(req);
+      if (s && s.businessId !== deps.businessId) return reply.callNotFound();
+    },
+  }, authed('settings', (s, req, locale) => renderComponents(locale)));
 
   /**
    * BILL (0117) — Billing: where the workspace stands, the plans, the doors to
@@ -2503,7 +2512,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // writing to her Page.
   const whatsappConfigured = deps.provider !== 'disabled';
   const messagingEnabled = deps.messagingEnabled ?? whatsappConfigured;
-  app.get('/app/channels/whatsapp/connect', authed('channels', (_s, _req, locale) => renderConnectGuide(locale)));
+  const guide = (s: OwnerSession, locale: Locale, more: { kept?: string; invalid?: boolean; flash?: Flash | null } = {}) =>
+    renderConnectGuide(locale, {
+      viewer: personOf(s), canAsk: !!deps.systemMail, contact: deps.legalContact ?? null, ...more,
+    });
+  app.get('/app/channels/whatsapp/connect', authed('channels', (s, req, locale, reply) => guide(s, locale, { flash: takeFlash(req, reply) })));
+  // Phase 9 — the guide's first step: the number goes to Nomi's team.
+  app.post('/app/channels/whatsapp/ask', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels/whatsapp/connect');
+    if (!s) return reply;
+    const raw = String((req.body as { number?: unknown } | undefined)?.number ?? '').slice(0, 32);
+    const number = normalizePhone(raw);
+    if (!number) return sentBack(req, reply, 'channels', guide(s, localeOf(req), { kept: raw, invalid: true }));
+    const r = deps.systemMail
+      ? await notifyOperatorOfWhatsAppNumber({ db: deps.db, mail: deps.systemMail }, deps.businessId, s.businessId, number)
+        .catch(() => 'failed' as const)
+      : 'skipped' as const;
+    return flashTo(reply, '/app/channels/whatsapp/connect',
+      r === 'sent' ? 'channel.connect.flash.sent' : 'channel.connect.flash.failed');
+  });
 
   const channelAction = (path: string, run: (businessId: string, actor: string) => Promise<import('./channels.js').ChannelActionResult>) =>
     app.post(path, async (req, reply) => {
@@ -3695,9 +3722,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
     if (!s) return reply;
     const which = String((req.body as { which?: string } | undefined)?.which ?? '') as AttestKey;
-    if (which in ({ backup_tested: 1, secrets_rotated: 1, owner_ready: 1, claims_reviewed: 1 } as Record<string, number>)) {
-      await attest(deps.db, s.businessId, which);
+    // Phase 9 — backup_tested and secrets_rotated are the operator's
+    // (tools/installation-checks.mjs), never an owner's tick.
+    if (!(which in ({ owner_ready: 1, claims_reviewed: 1 } as Record<string, number>))) {
+      return reply.redirect('/app/onboarding', 302);   // nothing was confirmed, so nothing says so
     }
+    await attest(deps.db, s.businessId, which);
     return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
   });
 

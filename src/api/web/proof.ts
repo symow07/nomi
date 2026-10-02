@@ -444,9 +444,17 @@ export async function loadProofLinkState(tx: Tx, conversationId: string): Promis
  * was revoked, not which factory it belonged to. A helpful message here would
  * be the oracle the 404 exists to remove.
  */
-export function notFoundPage(): string {
+export function notFoundPage(locale: Locale = DEFAULT_LOCALE, kind: 'proof' | 'unsubscribe' = 'proof'): string {
+  // Phase 9 (V1-081–084) — in the reader's language, with the product's name
+  // and the ways out every visitor may have (the policies; for an unsubscribe
+  // link, how to stop the mail anyway). Still nothing about the link: the same
+  // words whether it never existed, was revoked, or belonged to anyone.
+  const title = t(locale, 'public.notFound.title');
   return publicDocument({
-    locale: 'en', title: 'Not found', noindex: true, mainClass: 'proof', extraCss: PROOF_CSS,
-    body: '<h1>Not found</h1>\n<p class="muted">This link is not available.</p>',
+    locale, title, noindex: true, mainClass: 'proof', extraCss: PROOF_CSS,
+    body: `<p class="muted">Nomi</p>
+<h1>${esc(title)}</h1>
+<p class="muted">${esc(t(locale, 'public.notFound.body'))}</p>
+${kind === 'unsubscribe' ? `<p>${esc(t(locale, 'public.notFound.unsubscribe'))}</p>\n` : ''}<p><a href="/privacy">${esc(t(locale, 'legal.privacy.title'))}</a> · <a href="/data-deletion">${esc(t(locale, 'legal.deletion.title'))}</a></p>`,
   });
 }
