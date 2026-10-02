@@ -51,3 +51,12 @@ describe('phase 7 · the phone nav is one line', () => {
     expect(block('max-width: 379px')).toMatch(/nav\.side \.brand \{ display:none; \}/);
   });
 });
+
+describe('Phase 9 (V1-195, inbox-calendar-new-09) · a week or month wider than the phone opens on today', () => {
+  it('the one script brings today\'s column into view, and only inside the grid that scrolls', async () => {
+    const { LIVE_SCRIPT } = await import('../../src/api/web/liveScript.js');
+    expect(LIVE_SCRIPT).toContain("closest('.wk-scroll')");
+    expect(LIVE_SCRIPT).toMatch(/box\.scrollWidth <= box\.clientWidth\) return;/);
+    expect(LIVE_SCRIPT).toMatch(/toToday\(\);/);
+  });
+});

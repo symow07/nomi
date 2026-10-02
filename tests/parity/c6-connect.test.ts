@@ -264,7 +264,10 @@ describe('C6 · the accounts page', () => {
     expect(html).toContain('action="/app/connect/google/start"');
     expect(html).toContain('name="read"');
     expect(html).not.toContain('action="/app/connect/microsoft/start"');
-    expect(html).toContain(esc(t('en', 'connect.mail.notHere')));
+    // Phase 9 (missed-15) — named once, in one plain line; no developer's reason.
+    const line = html.slice(html.indexOf(esc(t('en', 'connect.unavailable').split('{list}')[0]!))).split('</p>')[0]!;
+    expect(line).toContain(esc(t('en', 'channel.platform.microsoft')));
+    expect(html).not.toContain('This installation');
   });
 
   it('only the owner is offered Connect and Disconnect', () => {
@@ -284,13 +287,14 @@ describe('C6 · the accounts page', () => {
 
   it('Instagram and Messenger: the registry\'s truth, and nothing to press', () => {
     const html = renderAccounts(base, 'zh');
-    expect(html).toContain(esc(t('zh', 'reach.channel.instagram')));
-    expect(html).toContain(esc(t('zh', 'reach.cold.never')));
-    // Nothing configured on this host: "not set up here", never "not connected"
-    // — the latter would suggest a button that is nowhere on the page.
-    const ig = html.slice(html.indexOf(`<span class="ch-name">${esc(t('zh', 'reach.channel.instagram'))}`)).split('</li>')[0]!;
-    expect(ig).toContain(esc(t('zh', 'connect.state.notHere')));
-    expect(ig).not.toContain(esc(t('zh', 'connect.state.notConnected')));
+    // Nothing configured on this host: named in the one "not available here" line,
+    // never a row reading "not connected" — that would suggest a button that is
+    // nowhere on the page — and never the writing-first rule (its card says that).
+    const line = html.slice(html.indexOf(esc(t('zh', 'connect.unavailable').split('{list}')[0]!))).split('</p>')[0]!;
+    expect(line).toContain(esc(t('zh', 'reach.channel.instagram')));
+    expect(line).toContain(esc(t('zh', 'reach.channel.messenger')));
+    expect(html).not.toContain(`<span class="ch-name">${esc(t('zh', 'reach.channel.instagram'))}`);
+    expect(html).not.toContain(esc(t('zh', 'reach.cold.never')));
   });
 
   it('C9 · THE ROW AGREES WITH THE CARD: a connected Page reads connected here too', () => {
@@ -302,7 +306,10 @@ describe('C6 · the accounts page', () => {
     const row = (ch: string) => html.slice(html.indexOf(`<span class="ch-name">${esc(t('en', `reach.channel.${ch}` as MessageKey))}`)).split('</li>')[0]!;
     expect(row('messenger')).toContain(`class="pill ok">${esc(t('en', 'connect.state.connected'))}`);
     expect(row('messenger')).toContain(esc(t('en', 'reach.inbound.connected', { name: ASSISTANT_FALLBACK.en })));
-    expect(row('instagram')).toContain(`class="pill warn">${esc(t('en', 'connect.state.notConnected'))}`);
+    // Phase 9 — not connected yet waits on nothing: the plain pill; the row says where to connect it.
+    expect(row('instagram')).toContain(`class="pill stop">${esc(t('en', 'connect.state.notConnected'))}`);
+    expect(row('instagram')).toContain(esc(t('en', 'connect.inbound.below')));
+    expect(row('instagram')).toContain('href="/app/help/meta"');
     // The button itself stays on the reach card, beside the rule it answers to.
     expect(html).not.toContain('/app/channels/messenger/connect');
   });

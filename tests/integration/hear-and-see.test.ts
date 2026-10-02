@@ -146,7 +146,7 @@ d('G2b · she hears a voice note and sees a photo in production (requires DATABA
   afterAll(async () => { await prod?.close(); });
 
   it('a voice note is downloaded, transcribed, recorded, and answered', async () => {
-    const w = sim.inboundAudio({ from: runPhone('971500009901') });
+    const w = sim.inboundAudio({ from: runPhone('971500009921') });
     expect((await post(w)).statusCode).toBe(200);
     const wamid = wamidOf(w);
 

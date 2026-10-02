@@ -51,7 +51,7 @@ describe('M9.3 · inbox list (localized)', () => {
     expect(html).toContain('客户'); expect(html).toContain('Ahmed');
     // the country is the customer panel's; the row is the state, who, the time and the message
     expect(html).not.toContain('🇦🇪');
-    expect(html).toContain(shown('zh', 'buyers.badge.review'));
+    expect(html).toContain(shown('zh', 'buyers.badge.reviewShort'));
     expect(html).toContain('保温杯'); expect(html).toContain('5000个'); expect(html).toContain('$0.92');
     // CC-25 — a buyer opens on the newest message, with the reply waiting under it.
     expect(html).toContain('href="/app/inbox/conv-1#latest"');
@@ -59,7 +59,7 @@ describe('M9.3 · inbox list (localized)', () => {
 
   it('en: localized chrome, latin product name', () => {
     const html = renderInboxList(listWithWork, 'en', NOW);
-    expect(html).toContain('Customers'); expect(html).toContain(shown('en', 'buyers.badge.review'));
+    expect(html).toContain('Customers'); expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));
     expect(html).toContain('Needs you'); expect(html).toContain('Vacuum cup');
     expect(html).toContain('5,000\u00a0pcs');   // CC-13 — a figure and its unit, spaced (no-break)
     expect(html).not.toContain('保温杯');
@@ -287,7 +287,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
   it('badges name the human action, never an internal state', () => {
     const html = renderInboxList(mixed, 'en', NOW);
     expect(html).toContain('the customer asked for a person');   // the STORED reason
-    expect(html).toContain(shown('en', 'buyers.badge.review'));     // awaiting the owner's OK
+    expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));     // awaiting the owner's OK
     expect(html).toContain('You are handling');     // OWNER_CONTROLLED: its mark, said in words
     expect(html).not.toContain('unclaimed');
     expect(html).not.toContain('draft_pending');
@@ -314,10 +314,10 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     const ar = renderInboxList(mixed, 'ar', NOW);
     // V1 close-out — the heading is the tab's own noun phrase ("بحاجة إليك"): the
     // verb it had ("يحتاجون") agreed with the buyers, which Arabic copy never does.
-    expect(ar).toContain('بحاجة إليك'); expect(ar).not.toContain('يحتاجون'); expect(ar).toContain(shown('ar', 'buyers.badge.review'));
-    expect(ar).not.toContain('Needs you'); expect(ar).not.toContain(shown('en', 'buyers.badge.review'));
+    expect(ar).toContain('بحاجة إليك'); expect(ar).not.toContain('يحتاجون'); expect(ar).toContain(shown('ar', 'buyers.badge.reviewShort'));
+    expect(ar).not.toContain('Needs you'); expect(ar).not.toContain(shown('en', 'buyers.badge.reviewShort'));
     const zh = renderInboxList(mixed, 'zh', NOW);
-    expect(zh).toContain('需要你处理'); expect(zh).toContain(shown('zh', 'buyers.badge.review'));
+    expect(zh).toContain('需要你处理'); expect(zh).toContain(shown('zh', 'buyers.badge.reviewShort'));
   });
 
   it('invents no metric: no rate, percentage, score or ranking — any locale', () => {

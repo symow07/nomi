@@ -11,10 +11,10 @@ import { SELF_DEMOTION_REASONS } from '../../pipeline/notify.js';
 import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, tn, assistantName } from './say.js';
 import { languageName } from './inbox.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
-import { esc, deeper } from './layout.js';
+import { esc, deeper, signalMark, type Signal } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
@@ -187,15 +187,20 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 
 /** ── Renderer (pure, mobile-first, localized) ─────────────────────────────── */
 
-const GROWTH_ICON: Record<GrowthKind, string> = {
-  // Phase 4 — the four signals' shapes, not pictures in their own colours: ✓ it is so, ○ it waits, ✕ it went wrong.
-  promote: '✓', revoke: '✕', self_demote: '○', spotcheck_pass: '✓', spotcheck_improve: '○', spotcheck_issue: '✕', learned_edit: '✓',
-};
-
-const list = (title: string, mark: string, items: readonly string[], cls: string, emptyLabel: string): string =>
-  items.length
-    ? `<div class="dgroup"><div class="dtitle">${esc(title)}</div>${items.map((i) => `<div class="ditem ${cls}">${mark} ${esc(i)}</div>`).join('')}</div>`
-    : `<div class="dgroup"><div class="dtitle">${esc(title)}</div><div class="ditem muted">${esc(emptyLabel)}</div></div>`;
+/*
+ * Phase 9 — the history ("What changed") carries no state marks: an event
+ * that happened is not a state, and ✕ is "it went wrong", not "it waits for
+ * you again". The words say what happened; the date says when.
+ *
+ * A task list is a list, not a stack of cards: nothing in it can be pressed.
+ * A state's shape is drawn in its own colour (`signalMark`); a group that is
+ * a standing rule ("always waits for you") carries no shape at all, so it is
+ * told apart from "waits for you" by more than its colour.
+ */
+const list = (title: string, mark: Signal | null, items: readonly string[], emptyLabel: string): string =>
+  `<div class="dgroup"><div class="dtitle">${esc(title)}</div>${items.length
+    ? `<ul class="ditems">${items.map((i) => `<li class="ditem">${mark ? `${signalMark(mark)} ` : ''}${esc(i)}</li>`).join('')}</ul>`
+    : `<p class="ditem muted">${esc(emptyLabel)}</p>`}</div>`;
 
 /**
  * Nomi Phase C — the rest of "who is she today?", composed by the route from
@@ -215,6 +220,20 @@ export type HerContext = {
 const countRow = (value: number, label: string): string =>
   `<div class="hrow"><span class="hnum">${value}</span><span class="hlabel">${esc(label)}</span></div>`;
 
+/**
+ * Phase 9 — a count said as a sentence in the form its language gives that
+ * number (Arabic: «ردّان جاهزان», «3 ردود», «11 ردًّا»; Spanish: "1 conversación
+ * necesitó" / "2 conversaciones necesitaron"), the figure itself in bold. A
+ * figure beside a fixed plural read as an error in Arabic.
+ */
+function countLine(locale: Locale, base: string, n: number): string {
+  const said = esc(tn(locale, base, n));
+  const figure = esc(new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale).format(n));
+  const at = said.indexOf(figure);
+  const html = at < 0 ? said : `${said.slice(0, at)}<b class="hnum">${figure}</b>${said.slice(at + figure.length)}`;
+  return `<div class="hrow"><span class="hlabel">${html}</span></div>`;
+}
+
 /** 1 · What does she know? Her learning, in her terms — never a "database". */
 function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Locale): string {
   if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
@@ -228,7 +247,7 @@ function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Loc
       ${c ? countRow(c.taughtRecently, t(locale, 'her.knows.recent')) : ''}
       ${c ? countRow(c.corrected, t(locale, 'her.knows.corrected')) : ''}
     </div>
-    ${deeper('/app/knowledge', t(locale, 'ops.open'))}</div>`;
+    ${deeper('/app/knowledge', t(locale, 'knowledge.teach'))}</div>`;
 }
 
 /** 3 · What did she do recently? Real counts, no rate. */
@@ -238,9 +257,9 @@ function recentSection(c: HerContext | undefined, locale: Locale): string {
   return `<div class="block"><h2>${esc(t(locale, 'her.recent.title'))}</h2>
     ${quiet ? `<div class="empty">${esc(t(locale, 'her.recent.quiet'))} ${esc(t(locale, 'her.recent.noneWhy'))}</div>`
       : `<div class="hrows">
-          ${countRow(c.handled, t(locale, 'ops.activity.handled'))}
-          ${countRow(c.draftsPrepared, t(locale, 'ops.activity.drafts'))}
-          ${countRow(c.neededYou, t(locale, 'her.recent.needed'))}
+          ${countLine(locale, 'her.count.handled', c.handled)}
+          ${countLine(locale, 'her.count.drafts', c.draftsPrepared)}
+          ${countLine(locale, 'her.count.needed', c.neededYou)}
          </div>`}</div>`;
 }
 
@@ -251,10 +270,12 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
     // Phase F: "she answered everything you taught" is only TRUE once she has
     // answered something. On a new account this rendered a green ✓ for work
     // that never happened — a fabricated success on the trust surface itself.
-    const pristine = c.handled === 0;
+    // Phase 9 — and "no customer has asked anything" only when nothing came
+    // in at all: two replies prepared means two customers asked. The advice
+    // to teach is the section above's, with its door; it is not said twice.
+    const pristine = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
     return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
-      <div class="empty">${pristine ? '' : '✓ '}${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</div>
-      ${pristine ? deeper('/app/knowledge', t(locale, 'her.teach.go')) : ''}</div>`;
+      <div class="empty">${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</div></div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
     <div class="gaps">${c.gaps.map((g) => `
@@ -338,11 +359,14 @@ export function renderEmployee(
   const heldWhy = t(locale, heldBecause ?? 'her.handles.held.why.ramp', { ready: t(locale, 'pilot.title') });
   const stageLabel = t(locale, `employee.stage.${alone.length ? e.stage : 'probation'}` as MessageKey);
 
+  // Phase 9 — the h1 above already names the assistant; the card says what
+  // it does today. Until the name is confirmed the card says that, rather
+  // than showing "Your assistant" in the place a name goes; the way to
+  // confirm it (the owner's: `messaging_activation`) is beside the levels it holds.
   const card = `<div class="card emp">
-    <div class="emp-h">
-      <div><div class="emp-name">${esc(name)}</div>
-        <div class="muted">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div></div></div>
-    ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted" style="margin-top:var(--space-8)">${esc(labelled(locale, t(locale, 'employee.hired'), show.date(locale, e.hireDate)))}</div>` : ''}
+    <div class="emp-stage">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div>
+    ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted emp-hired">${esc(labelled(locale, t(locale, 'employee.hired'), show.date(locale, e.hireDate)))}</div>` : ''}
+    ${e.assistantNamed ? '' : `<p class="fwarn">${esc(t(locale, 'employee.name.unconfirmed'))}</p>`}
   </div>`;
 
   // 2 · What can she handle? Permission and trust boundaries — never a measure
@@ -351,11 +375,11 @@ export function renderEmployee(
   const duties = `<div class="block"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
     ${e.canDo.length === 0 && e.needConfirm.length === 0
       ? `<div class="empty">${esc(t(locale, 'her.handles.none'))}</div>` : ''}
-    ${list(t(locale, 'her.handles.alone'), '✓', alone.map(capName), 'ok', t(locale, 'employee.duties.none'))}
-    ${setButHeld.length ? `${list(t(locale, 'her.handles.held'), '○', setButHeld.map(capName), 'warn', '')}
+    ${list(t(locale, 'her.handles.alone'), 'ok', alone.map(capName), t(locale, 'employee.duties.none'))}
+    ${setButHeld.length ? `${list(t(locale, 'her.handles.held'), 'waiting', setButHeld.map(capName), '')}
       <p class="muted small">${esc(heldWhy)}</p>` : ''}
-    ${list(t(locale, 'her.handles.waits'), '○', e.needConfirm.map(capName), 'warn', t(locale, 'employee.duties.none'))}
-    ${list(t(locale, 'her.handles.always'), '○', cannotDo, 'no', t(locale, 'employee.duties.none'))}
+    ${list(t(locale, 'her.handles.waits'), 'waiting', e.needConfirm.map(capName), t(locale, 'employee.duties.none'))}
+    ${list(t(locale, 'her.handles.always'), null, cannotDo, t(locale, 'employee.duties.none'))}
   </div>`;
 
   // M34.7 — 抽查. Placed right after what she is trusted with, because that is
@@ -398,29 +422,50 @@ export function renderEmployee(
                 why: t(locale, `demote.why.${g.why ?? 'repeated_corrections'}` as MessageKey),
               })
             : t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
-          return `<li>${GROWTH_ICON[g.kind]} ${esc(text)}<span class="muted"> · ${esc(show.date(locale, g.at))}</span></li>`;
+          return `<li>${esc(text)}<span class="muted"> · ${esc(show.date(locale, g.at))}</span></li>`;
         }).join('')}</ul>`
       : `<div class="muted empty">${esc(t(locale, 'employee.growth.empty'))}</div>`}
   </div>`;
 
   const promo = `<div class="block"><h2>${esc(t(locale, 'employee.promo.title'))}</h2>
-    <div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.current'))}</span> <b>${esc(stageLabel)}</b></div>
+    <div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.current'), stageLabel))}</div>
     ${alone.length
       ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
-      : `<div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.next'))}</span> <b>${esc(t(locale, 'employee.stage.partial'))}</b></div>
+      : `<div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')))}</div>
          ${setButHeld.length ? `<p class="muted small">${esc(heldWhy)}</p>` : ''}`}
     ${e.conditions.length ? `<div class="conds">${e.conditions.map((c) =>
-      `<div class="cond ${c.met ? 'met' : ''}">${c.met ? '✓' : '○'} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey))}</div>`).join('')}</div>` : ''}
+      `<div class="cond">${signalMark(c.met ? 'ok' : 'waiting')} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey, { name }))}</div>`).join('')}</div>` : ''}
   </div>`;
 
   // T1 — her choice, from day one. The ladder below stays as advice about what
   // she has EARNED; this is what the owner has DECIDED. Owner only, like it.
   const level = levelOf(Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode])));
+  // Phase 9 — what holds every level, said ABOVE the levels and at the size
+  // of the text around it: an unconfirmed name (hers to fix, so the waiting
+  // mark and the door), a sentence not yet read by a native speaker, and the
+  // languages whose customers always wait. Under Save, in grey small print
+  // ending in a bare "Open", it read as the end of the paragraph.
+  const holds = [
+    autonomyReleased() ? '' : `<p class="small">${esc(t(locale, 'autonomy.notReleased'))}</p>`,
+    e.assistantNamed ? '' : `<p class="fwarn">${esc(t(locale, 'autonomy.needsName'))}</p>${deeper('/app/onboarding', t(locale, 'autonomy.confirmName'))}`,
+    /* 2026-09-30 — per language: which customers get replies sent alone, and which always wait. */
+    autonomyReleased() && disclosureAwaitingReview().length ? `<p class="small">${esc(t(locale, 'autonomy.languages', {
+      ready: formatList(locale, disclosureReviewed().map((l) => languageName(locale, l))),
+      waiting: formatList(locale, disclosureAwaitingReview().map((l) => languageName(locale, l))),
+    }))}</p>` : '',
+  ].join('');
+  // The mix, in words: which kinds are set to go without the owner now.
+  const setAlone = e.capabilities.filter((c) => c.mode === 'auto').map((c) => capName(c.capability));
+  const mixed = level === null
+    ? `<p class="small">${esc(setAlone.length
+      ? t(locale, 'autonomy.mixed', { list: formatList(locale, setAlone) })
+      : t(locale, 'autonomy.mixed.none'))}</p>` : '';
   const autonomy = !viewer.isOwner ? '' : `<div class="block" id="on-her-own">
       <h2>${esc(t(locale, 'autonomy.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'autonomy.intro'))}</p>
+      <p class="muted small">${esc(t(locale, 'autonomy.intro'))}</p>
+      ${holds}
       ${chosenBlock(e, locale)}
-      <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
+      <p class="muted small disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
       <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
            fact that decides whether the switch below it does what it says. -->
       ${e.ramp ? rampBlock(e.ramp, locale) : ''}
@@ -428,20 +473,12 @@ export function renderEmployee(
       <p class="muted">${esc(t(locale, 'autonomy.notEarned.body', { name: assistantName(locale) }))}</p>
       ${level !== 'waits' ? `<form method="post" action="/app/employee/autonomy"><input type="hidden" name="level" value="waits" />
         <button class="btn" type="submit">${esc(t(locale, 'autonomy.notEarned.stepDown'))}</button></form>` : ''}` : `<form method="post" action="/app/employee/autonomy" class="levels">
+        ${mixed}
         ${AUTONOMY_LEVELS.filter((l) => !e.ramp || rungOfLevel(l) <= e.ramp.rung).map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
           <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
-        ${level === null ? `<p class="muted lnote">${esc(t(locale, 'autonomy.mixed'))}</p>` : ''}
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
       </form>`}
-      ${autonomyReleased() ? '' : `<p class="muted small">${esc(t(locale, 'autonomy.notReleased'))}</p>`}
-      ${/* 2026-09-30 — per language: which customers get replies sent alone, and which always wait. */ ''}${
-        autonomyReleased() && disclosureAwaitingReview().length ? `<p class="muted small">${esc(t(locale, 'autonomy.languages', {
-          ready: formatList(locale, disclosureReviewed().map((l) => languageName(locale, l))),
-          waiting: formatList(locale, disclosureAwaitingReview().map((l) => languageName(locale, l))),
-        }))}</p>` : ''}
-      ${e.assistantNamed ? '' : `<p class="muted small">${esc(t(locale, 'autonomy.needsName'))}
-        <a href="/app/onboarding">${esc(t(locale, 'pilot.open'))}</a></p>`}
     </div>`;
 
   const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
@@ -452,15 +489,16 @@ export function renderEmployee(
     ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'staff.ownerDecides'))}</div></div>`
     : (grantable.length || revocable.length)
     ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2>
-        ${/* CC-29 — each asks first, in this block's own words: grant, revoke. */ ''}${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
-            <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn danger" type="submit"
+        ${/* CC-29 — each asks first, in this block's own words: grant, revoke. Phase 9 — making a kind wait again is an ordinary choice the owner can undo: not red. */ ''}${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
+            <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
               onclick="return confirm(this.dataset.confirm)"
               data-confirm="${esc(t(locale, 'employee.actions.revokeConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
         ${grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
-            <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn send" type="submit"
+            <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
               onclick="return confirm(this.dataset.confirm)"
               data-confirm="${esc(t(locale, 'employee.actions.grantConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
-        <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'employee.actions.note'))}</p>
+        ${grantable.length === 0 ? `<p class="muted">${esc(t(locale, 'employee.actions.more', { name }))}</p>` : ''}
+        <p class="muted">${esc(t(locale, 'employee.actions.note'))}</p>
       </div>`
     : `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
 
@@ -469,7 +507,6 @@ export function renderEmployee(
   // not move; the doors did.
   const more = `<div class="block"><h2>${esc(t(locale, 'employee.more.title', { name }))}</h2>
     <div class="doors">
-      ${deeper('/app/knowledge', t(locale, 'nav.knowledge'))}
       ${deeper('/app/settings/forbidden', t(locale, 'forbidden.title', { name }))}
       ${deeper('/app/sandbox', t(locale, 'nav.sandbox'))}
     </div></div>`;

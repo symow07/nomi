@@ -469,6 +469,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
             font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .chkbox input { min-height:0; }
+  /* Phase 9 (V1-416) — a chosen radio or tick in the ink of the page, not the browser's own blue. */
+  input[type="radio"], input[type="checkbox"] { accent-color:var(--color-ink); }
   /* One figure, stated large: the rate she set, the sample price, the state an
      order is in. It is a READING, not a KPI tile. */
   .stated-now { font-size:var(--font-size-display); margin:var(--space-12) 0; }
@@ -511,6 +513,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
     color:var(--color-ink); white-space:pre; margin:0; }
+  pre.doc { white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; }
   /* One "go deeper" link for the whole product; the chevron mirrors in RTL. */
   /* Each "go deeper" is its own ROW. Inline-flex put three of them on one
      line on the settings page, where they read as one run-on sentence with
@@ -703,7 +706,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .caption { font-size:var(--font-size-caption); }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-  .pill.stop { background:var(--color-paper); color:var(--color-ink-secondary); }
+  /* The plain pill: a state that waits on nothing. Its hairline keeps it a pill on the page's own paper, not bare grey words. */
+  .pill.stop { background:var(--color-paper); color:var(--color-ink-secondary); border:1px solid var(--color-border); }
   /* The one-time access code on the People page; tests read it by this class. */
   .issued .code { font-size:var(--font-size-display); font-weight:600; letter-spacing:.08em; margin:var(--space-8) 0; }
   .choices { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
@@ -905,21 +909,20 @@ const STYLE_PAGES = `
   .gmeta { font-size:var(--font-size-caption); grid-column:1; }
   .gact { grid-row:1 / span 2; align-self:center; color:var(--color-ink); font-size:var(--font-size-small); white-space:nowrap; }
   @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
-  .emp-h { display:flex; align-items:center; gap:var(--space-12); }
-  .emp-name { font-size:var(--font-size-title); font-weight:700; }
-  .dgroup { margin-bottom:var(--space-16); }
-  .dtitle { font-weight:600; margin-bottom:var(--space-8); }
-  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-small); background:var(--color-paper); border:1px solid var(--color-border); }
-  .ditem.ok { color:var(--color-ok); }
-  .ditem.warn { color:var(--color-waiting); }
-  .ditem.no { color:var(--color-ink-secondary); }
+  /* Phase 9 — the card says what the assistant does today; the h1 above it is the name. */
+  .emp-stage { font-size:var(--font-size-small); font-weight:600; }
+  .emp-hired { margin-top:var(--space-8); }
+  /* A task list is a list, not a pile of cards: nothing in it can be pressed. The prose measure, like every list. */
+  .dgroup { margin-bottom:var(--space-16); max-width:var(--measure-prose); }
+  .dtitle { font-weight:600; margin-bottom:var(--space-4); }
+  .ditems { list-style:none; margin:0; padding:0; }
+  .ditem { padding:var(--space-4) 0; margin:0; font-size:var(--font-size-small); }
   .growth { list-style:none; padding:0; margin:0; }
   .growth li { padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .growth li:last-child { border-bottom:none; }
   .pstage { margin:var(--space-8) 0; font-size:var(--font-size-small); }
   .conds { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-8); }
   .cond { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .cond.met { color:var(--color-ok); }
   .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .actrow:last-of-type { border-bottom:none; }
 
@@ -932,7 +935,10 @@ const STYLE_PAGES = `
   .fblock:first-of-type { border-top:0; padding-top:0; }
   .fhead { margin-bottom:var(--space-12); }
   .fhead h2 { margin:0; font-size:var(--font-size-base); font-weight:600; color:var(--color-ink); }
-  .fq { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  /* Phase 9 — the one line under a heading that answers it ("Not yet: 2 things first"). */
+  .fready { margin:var(--space-8) 0 0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
+  /* The next step stands apart from the first section, not on its heading. */
+  .lede + .deeper.next { margin-bottom:var(--space-16); }
   .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
   .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
   .fdesc-lead { margin:0 0 var(--space-12); }
@@ -942,6 +948,8 @@ const STYLE_PAGES = `
   .fcount { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8); font-variant-numeric:tabular-nums; }
   .fcount-l { font-size:var(--font-size-small); font-weight:400; color:var(--color-ink-secondary); }
   .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
+  /* Phase 9 — a name and its separator are one unit: a line breaks between names, never inside one or before a "·". */
+  .fitem { display:inline-block; }
   .fwarn { color:var(--color-waiting); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fok { color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
@@ -956,6 +964,7 @@ const STYLE_PAGES = `
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
   .rehear { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-12); }
   .fgap .fnames { margin-top:var(--space-4); }
+  .fgap-s { margin:0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
   .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
   .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
   .alform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
@@ -966,14 +975,19 @@ const STYLE_PAGES = `
   .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
   .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  .fconn-i { font-size:var(--font-size-title); }
   .fconn.on .fconn-s { color:var(--color-ok); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
   .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:14px; padding:14px 16px; }
   .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-waiting); }
   .fconn.off .fconn-s { color:var(--color-waiting); }
   .fconn.off .go { margin-inline-start:auto; }
+  /* Phase 9 — never connected is not waiting on anything: a plain door, no wash and no mark. */
+  .fconn.todo { border:1px solid var(--color-border); border-radius:14px; padding:14px 16px; }
+  .fconn.todo:hover, .fconn.todo:focus-visible { border-color:var(--color-ink-secondary); }
+  .fconn.todo .go { margin-inline-start:auto; }
   .fblock .deeper { margin-top:var(--space-8); }
+  /* Doors in a column keep the column's own gap, as everywhere else. */
+  .fblock .doors .deeper { margin-top:0; }
 
   /* ── products.ts — moved here whole in step four: page-specific names, defined once. */
   .pq input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
@@ -1033,6 +1047,13 @@ const STYLE_PAGES = `
   /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
   .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
   .reach .reqs li, .reach .instead li { padding:var(--space-4) 0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Phase 9 — a requirement's words wrap beside its pill, never back under it; what it takes sits under its name. */
+  .reach .reqs li { display:flex; align-items:baseline; gap:var(--space-8); }
+  .reach .reqs .pill { flex:none; margin:0; }
+  .req-t { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .req-how { font-size:var(--font-size-caption); }
+  /* One column on this page: the cards keep the measure the rows and the prose keep. */
+  .card.ch, .card.reach { max-width:var(--measure-prose); }
   .reach .win { font-size:var(--font-size-small); margin-top:var(--space-8); }
   .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8); border-top:1px solid var(--color-border); }
   .reach .outreach { margin-top:var(--space-12); padding-top:var(--space-12); border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-12); }
@@ -1061,8 +1082,25 @@ const STYLE_PAGES = `
   .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
   .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }
-  .soon-chip { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  /* ── howYouSell.ts — Phase 9: the hub and its questions. */
+  .hs-count { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
+  .hs-start { margin:0 0 var(--space-8); }
+  /* The hub's rows run the column's width, like the sections of My business it opens from. */
+  .hs-rows { max-width:100%; }
+  /* A chip is one word on one line: its outline never splits across two. */
+  .hs-q .chip { display:inline-block; white-space:nowrap; }
+  .hs-pos { margin:0 0 var(--space-4); }
+  /* The usual choice is said on its own line, so no dash leads a line and no character is left alone at the end of one. */
+  .hs-usual { display:block; }
+  .hs-choices .pcheck span, .hs-hint { text-wrap:pretty; }
+  .hs-acts { margin:var(--space-16) 0 0; }
+  /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
+  .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
+  .wa-steps li { margin-bottom:var(--space-8); }
+  /* Phase 9 — the Meta help page: a step's title stands above its two lines; a link to Meta looks like a link and says it leaves. */
+  .help-line { font-size:var(--font-size-small); margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
+  .help-links a { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .help-links .ext { margin-inline-start:var(--space-4); font-size:var(--font-size-small); }
   .guide { padding-inline-start:20px; line-height:2; }
   .guide li { margin-bottom:var(--space-4); }
 
@@ -1244,6 +1282,8 @@ const STYLE_PAGES = `
   .cr-l2 { grid-row:2; grid-column:2; display:flex; align-items:baseline; gap:var(--space-4); min-width:0;
     font-size:var(--font-size-small); color:var(--color-ink-secondary); white-space:nowrap; }
   .cr-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:match-parent; }
+  /* Phase 9 (inbox-calendar-new-04) — a Latin preview on a right-to-left page sits under the name, and is still cut at its own end. */
+  [dir="rtl"] .cr-text:dir(ltr) { text-align:end; }
   /* A customer still waiting for an answer: full ink, as the transcript writes whose words lead. */
   .crow.unanswered .cr-text { color:var(--color-ink); }
   .cr-why { grid-row:2; grid-column:3; justify-self:end; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis;

@@ -76,11 +76,14 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
        <p class="fwarn" hidden data-push-cannot>${esc(t(locale, 'alerts.phone.cannot'))}</p>
        <p class="perr" role="alert" hidden data-push-failed>${esc(t(locale, 'alerts.phone.failed'))}</p>
        <p class="caption muted">${esc(t(locale, 'alerts.phone.iphone'))}</p>`
-    : `<p class="muted">${esc(t(locale, 'alerts.phone.off'))}</p>`;
+    : '';
+  // Phase 9 (settings-a-missed-03) — with no way to send an alert here, the
+  // page says so FIRST, then what it will do; it promised "your phone shows
+  // it" above a grey "not available here yet", over an empty list of phones.
   return `<div class="dhead">${back('/app/settings', t(locale, 'nav.settings'))}</div>
     <h1 class="page">${esc(t(locale, 'alerts.phone.title'))}</h1>
     ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'alerts.phone.lede'))}</p>
-    <section class="block">${turnOn}</section>
-    <section class="block"><h2>${esc(t(locale, 'alerts.phone.yours'))}</h2>${phones}</section>`;
+    <p class="lede">${esc(t(locale, v.publicKey ? 'alerts.phone.lede' : 'alerts.phone.ledeOff'))}</p>
+    ${turnOn ? `<section class="block">${turnOn}</section>` : ''}
+    ${v.publicKey || v.phones.length ? `<section class="block"><h2>${esc(t(locale, 'alerts.phone.yours'))}</h2>${phones}</section>` : ''}`;
 }

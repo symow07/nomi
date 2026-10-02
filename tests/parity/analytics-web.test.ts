@@ -42,8 +42,18 @@ describe('M9.8 · business review (localized)', () => {
     expect(html).toContain('Results');
     expect(html).toContain('New customers'); expect(html).toContain('Activity');
     expect(html).toContain('Customer messages'); expect(html).toContain(t('en', 'analytics.section.employee'));
-    expect(html).toContain('Inquiries handled');
+    expect(html).toContain('Replies you sent from');
+    // V1-205 — no second "waiting" count under Activity to disagree with the rail.
+    expect(html).not.toContain('Awaiting you');
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
+  });
+
+  it('V1-205 · inbox-calendar-missed-21 · no "Awaiting you" twin of the rail\'s "Needs you", in any language', () => {
+    for (const l of LOCALES) {
+      const html = renderAnalytics(active, l);
+      for (const w of ['Awaiting you', '等待确认', 'بانتظارك', 'Te esperan', 'Vous attendent']) expect(html, l).not.toContain(w);
+      expect(html, l).toContain(t(l, 'analytics.employee.waiting'));
+    }
   });
 
   it('ar: renders Arabic + the assistant\'s name (fallback when none chosen)', () => {

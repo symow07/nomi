@@ -43,7 +43,55 @@ under "Decided" below.
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · #209 (the conversation page, the draft card, Practice) · next: the other areas, S2 first |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · #209 (the conversation page, the draft card, Practice) · #210 (My business, Your assistant, channels, the Customers list, an order, Results) · next: products and knowledge, the public pages, the outreach area, then every S3 and S4 |
+
+**Phase 9, part five (#210) — My business, Your assistant, the channel pages, the Customers list, an order, Results, two settings pages (111 findings).**
+
+The business-and-channels agent finished its area before the usage limit (95 findings, 94 fixed). I checked each of its commits against the page, ran its tests, and fixed the Customers list, the order page and Results myself.
+
+**My business and How you sell (32).**
+- The ready section answers its own question from the same facts as the list under it ("Not yet: 2 things to do first, listed below."). The grey sub-questions that repeated each heading are gone (V1-388, V1-390).
+- "Your price limits" is named after the page it opens; "floor" is "the lowest price you set" (V1-391, V1-402).
+- Each gap is a sentence with its own door ("Teach {name} ›", "Set the prices ›") (V1-395). No emoji on the cards (V1-403). A never-connected WhatsApp is a plain door, not an amber warning (new-01).
+- How you sell asks nine plain questions, says "0 of 9 answered", and starts a new question with nothing chosen — the page no longer chooses for the owner (V1-405–V1-416).
+
+**Your assistant (23).**
+- Above the three levels it says in words which applies, or that none does and what is set (V1-418), and what holds them, with the door to confirm the name (V1-419, V1-420).
+- The game words are gone in five languages: "Promoted", "Probation", "Grant & revoke", 晋升, «الترقية» are now what happens ("X now goes out without you", "Every reply waits for you") (V1-422).
+- "No customer has asked anything" only when nothing came in this month (V1-423). The month's counts are sentences in each language's plural forms (missed-12).
+- The history never speaks as the assistant in the first person ("I went back to asking you first"); found beyond the list.
+
+**Where customers reach you, Connect WhatsApp, the Meta help page (40).**
+- One name for the page wherever it is referred to (V1-439, V1-453, V1-457).
+- Each requirement not met says what it takes and where; the two this page cannot see say "Not yet" honestly (V1-437).
+- What is not available is one plain line, not chips that look pressable, and the "Tell us" ask with nowhere to answer is gone (V1-443, missed-15).
+- Instagram and Messenger show the account's own state (missed-20); the 24 hours and the media rule are said once (V1-442).
+- "Connect WhatsApp" is the page's one filled button (new-17); the guide's steps are a numbered list (V1-452).
+- Arabic: «واتساب», «فيسبوك», «إنستغرام» from the catalogue; no detached «لـ» before the name on these pages (V1-398, V1-446, V1-460).
+
+**The Customers list (6).**
+- **A conversation a colleague holds is theirs** (V1-163): not counted in another reader's "Needs you", not listed under it, and not in the rail's count. The owner who holds it still sees it there. One rule, `needsOwnerFor(viewer)` in `src/db/buyersList.ts`, feeds the tab, the list and the rail.
+- **Previews are cut where a word ends, and say so** with "…" at every width (V1-164). The review reason has a short form that fits a 390 px phone (new-01).
+- **A Latin preview on an Arabic page** sits under the name and is still cut at its own end (new-04).
+
+**An order (4).** The heading says it is an order, the tab names it, and the proforma reads left to right, wraps on a phone and says it is in English (V1-184–V1-187).
+
+**The calendar (2).** A week or month wider than the phone opens scrolled to today (V1-195, new-09).
+
+**Results (2).** One waiting count, named for what it is. "Awaiting you" under Activity counted only drafts and disagreed with the rail's "Needs you"; it is gone, and the same figure stands under the assistant's work as "Replies waiting for your OK". "Inquiries handled" was the replies the owner sent from drafts, and now says so (V1-205, missed-21). With this, every count V1-011 named agrees.
+
+**Settings (3).**
+- Phone alerts lead with what is true here: not switched on yet, then what they will do (settings-a-missed-03).
+- The forbidden-words page says a word is also caught inside longer words: "滚" in "滚筒", "liar" in "familiar" (V1-504 in part). Whether matching should respect word edges changes what is sent, so it stays the owner's decision.
+- The closures page's Chinese has no stray spaces (V1-477; #208's name rule, re-rendered).
+
+**Left:** V1-404 (money per country) waits with V1-009.
+
+**Found on the way, fixed.**
+- **The owner's own held conversation left their "Needs you".** The colleague rule matched the reader's id only. A take-over that names nobody writes the `'owner'` sentinel, and the access code signs the owner in as their person row, so the two never matched. The list now reads it the way the conversation page does. Found by the full integration run.
+- **Two flaky tests, root-caused:**
+  - **The M22 refusal test.** `demoPhone` keeps the country code and the digits after the tenth, so the test's 971500007701 *was* demo buyer 1's number. The test failed whenever P3 had left a refusal on that conversation, which depended on which of the seeded rows sharing one `created_at` P3 picked. Two other test numbers collided the same way. `runPhone` now refuses a number that lands on another one, and a parity test scans every integration file.
+  - **backup.sh's "124".** The watchdog wrote its mark after the kill, so a killed command could wake `wait` first: 34 of 150 runs under load came back 143. Marked before the kill, 0 of 150.
 
 **Phase 9, part four (#209) — a conversation, the draft card, the buyer file and Practice (19 findings).**
 

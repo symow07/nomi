@@ -1036,7 +1036,9 @@ export function needsWhy(locale: Locale, c: ConversationSummary): string {
   if (c.ownership === 'WAITING_HUMAN') {
     return c.handoffReason ? t(locale, `takeover.reason.${c.handoffReason}` as MessageKey) : t(locale, 'buyers.badge.waitingUnknown');
   }
-  if (c.awaitingReview) return t(locale, 'buyers.badge.review', { name: c.answeredBy ?? assistantName(locale) });
+  // Phase 9 (inbox-calendar-new-01) — the short form unless the name tells two
+  // assistants apart: "Review your assistant's reply" ran to 412 px on a 390 px phone.
+  if (c.awaitingReview) return c.answeredBy ? t(locale, 'buyers.badge.review', { name: c.answeredBy }) : t(locale, 'buyers.badge.reviewShort');
   return t(locale, 'buyers.badge.yours');
 }
 
@@ -1054,7 +1056,16 @@ function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language
  * The row's glimpse of the last message: its first ninety characters, counted
  * as characters — cutting by UTF-16 units split an emoji into a broken glyph.
  */
-const preview = (text: string): string => Array.from(text).slice(0, 90).join('');
+// Phase 9 (V1-164) — cut where a word ends, and say it was cut: at 90 characters
+// mid-word, "…lead time 25" read as a whole sentence on a laptop.
+const PREVIEW_CHARS = 90;
+const preview = (text: string): string => {
+  const chars = Array.from(text);
+  if (chars.length <= PREVIEW_CHARS) return text;
+  const head = chars.slice(0, PREVIEW_CHARS).join('');
+  const space = head.lastIndexOf(' ');
+  return `${(space > PREVIEW_CHARS * 0.6 ? head.slice(0, space) : head).trimEnd()}…`;
+};
 
 /**
  * A — an address on the Buyers list that keeps what the owner is looking at:

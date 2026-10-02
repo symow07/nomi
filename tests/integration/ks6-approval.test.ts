@@ -130,7 +130,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     const page = await get(cookie, '/app/channels');
     expect(page.body).toContain('id="approval"');
     expect(page.body).toContain('action="/app/channels/approval"');
-    expect(page.body.indexOf('id="approval"')).toBeLessThan(page.body.indexOf('📱 WhatsApp'));
+    expect(page.body.indexOf('id="approval"')).toBeLessThan(page.body.indexOf('<span class="ch-name">WhatsApp</span>'));
     const bad = await post(cookie, '/app/channels/approval', { page: 'not an address' });
     expect(flashSaid(bad, SECRET)).toBe(t('en', 'approval.flash.bad_page'));
     expect((await admin.query(`select 1 from connection_approvals where business_id = $1`, [id])).rowCount).toBe(0);

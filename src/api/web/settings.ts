@@ -532,6 +532,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
   return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
     <p class="lede muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
+    ${/* Phase 9 (V1-504) — how a word is matched (anywhere, inside longer words too), said where words are added. */ ''}<p class="muted small">${esc(t(locale, 'forbidden.howMatched'))}</p>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),

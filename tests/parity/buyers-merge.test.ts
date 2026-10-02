@@ -215,8 +215,18 @@ describe('A · the read model Customers brought, in the dense row (phase 1 of th
   it('the glimpse of a long message is cut by characters — never through an emoji', () => {
     const long = `${'a'.repeat(89)}😀 and the rest`;
     const h = html('en', { conversations: [conv('c-long', { latestMessage: long })] });
-    expect(h).toContain(`<span class="cr-text" dir="auto">${'a'.repeat(89)}😀</span>`);
+    // Phase 9 (V1-164) — and says it was cut.
+    expect(h).toContain(`<span class="cr-text" dir="auto">${'a'.repeat(89)}😀…</span>`);
     expect(h).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  });
+
+  it('phase 9 (V1-164) · a long preview is cut where a word ends, and says so', () => {
+    const long = 'For 500 pcs the price is $1.05/pc and for 2,000 pcs it is $0.92/pc, lead time 25 days from the deposit';
+    const h = html('en', { conversations: [conv('c-cut', { latestMessage: long })] });
+    const text = /<span class="cr-text" dir="auto">([^<]*)<\/span>/.exec(h)![1]!;
+    expect(text.endsWith('…')).toBe(true);
+    expect(long.startsWith(text.slice(0, -1))).toBe(true);
+    expect(long[text.length - 1]).toBe(' ');   // the cut falls where a word ended
   });
 
   it('a row with no message yet shows no speaker and no empty line', () => {
@@ -379,5 +389,14 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     expect(handler).toMatch(/reply\.redirect\([^;]*'\/app\/inbox\?filter=all'\)/);
     expect(app).not.toContain('renderCustomerList');
     expect(app).toContain("app.get('/app/conversations/:conversationId'");
+  });
+});
+
+describe('Phase 9 (inbox-calendar-new-04) · a Latin preview in Arabic sits under the name, cut at its own end', () => {
+  it('its direction is its own (dir=auto), and on a right-to-left page it aligns to the end of its own line', async () => {
+    const { linkedCss } = await import('./linked-css.js');
+    const { shell } = await import('../../src/api/web/layout.js');
+    const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: '' }));
+    expect(css).toContain('[dir="rtl"] .cr-text:dir(ltr) { text-align:end; }');
   });
 });

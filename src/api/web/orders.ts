@@ -234,8 +234,8 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
     isGeneratedSku(v.productSku) ? text.replace(` (${v.productSku})`, '') : text;
   const proforma = unitPrice && total && hasTerms
     ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
-        <p class="muted">${esc(t(locale, 'order.invoice.intro'))}</p>
-        <pre>${esc(withoutMadeUpSku(renderInvoiceEn({ ...buildInvoice({
+        <p class="muted">${esc(t(locale, 'order.invoice.intro'))}${locale === 'en' ? '' : ` ${esc(t(locale, 'order.invoice.english'))}`}</p>
+        ${/* Phase 9 (V1-185–187) — an English document reads left to right and wraps on a phone, never cut at either edge. */ ''}<pre class="doc" dir="ltr">${esc(withoutMadeUpSku(renderInvoiceEn({ ...buildInvoice({
           quote: {
             productId: '' as never,
             quantity: { value: v.quantity, unit: v.unit },
@@ -268,7 +268,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
       : '';
 
   return `<div class="dhead">${back(conversationUrl(v.conversationId), t(locale, 'order.back'))}</div>
-    <h1 class="page"><bdi>${esc(v.reference)}</bdi></h1>
+    ${/* Phase 9 (V1-184) — the page says what it is; the reference alone read as a code. */ ''}<h1 class="page">${esc(t(locale, 'order.heading', { ref: '\u0000' })).replace('\u0000', `<bdi>${esc(v.reference)}</bdi>`)}</h1>
     ${flashBanner(flash)}
     <section class="block">
       ${latest ? `<p class="stated-now">${esc(stateName(latest.state))} <span class="muted">${

@@ -8,6 +8,8 @@ import { renderHub, renderQuestion, renderConfirm, type QuestionView } from '../
 import { renderSetup } from '../../src/api/web/settings.js';
 import { profileOf } from '../../src/core/owner/sellingStyle.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/api/web/say.js';
+import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * HS (0096) — "How you sell", pure: which questions a business is asked, how
@@ -161,11 +163,119 @@ describe('HS · the pages, in every language', () => {
   });
   it('every route is the owner\'s (rule 11)', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toMatch(/app\.get\(HS_BASE, ownerPage\('price_rules'/);
+    // Phase 9 — the hub draws its own tab title ("How you sell"), so it calls the same gate directly.
+    expect(app).toMatch(/app\.get\(HS_BASE, async \(req, reply\) => \{\s*const s = await ownerOnly\(req, reply, 'price_rules'/);
     for (const route of ['`${HS_BASE}/:q`', '`${HS_BASE}/:q/confirm`', '`${HS_BASE}/:q/skip`']) {
       const at = app.indexOf(`app.post(${route}`);
       expect(at, route).toBeGreaterThan(0);
       expect(app.slice(at, at + 300), route).toMatch(/ownerOnly\(req, reply, 'price_rules'/);
     }
+  });
+});
+
+/* ── Phase 9 · B5 — the hub and a question, as the re-audit read them ───── */
+
+describe('Phase 9 · B5 · How you sell', () => {
+  const css = readFileSync(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+  const MAKER_FACTS = { kind: 'manufacturer' as const, profile: profileOf('manufacturer'), pricesToOwner: false, zone: 'UTC' };
+  // The page isolates each figure in Arabic; the words are compared without the marks.
+  const bare = (html: string) => html.replace(/[\u2066-\u2069]/g, '');
+  const hub = (l: Locale, progress: QuestionView['progress'] = {}) =>
+    bare(renderHub({ facts: MAKER_FACTS, order: CATALOGUE_QUESTIONS, progress }, l, null));
+  const q = (l: Locale, over: Partial<QuestionView> = {}) => bare(renderQuestion({
+    facts: MAKER_FACTS, order: CATALOGUE_QUESTIONS, progress: {}, q: 'price', state: { ...STATE, quantityFirst: true }, ...over }, l, null));
+
+  it('V1-405 · V1-410 · new-05 · no chip where nothing is answered; a count says how far; a chip never splits', () => {
+    for (const l of LOCALES) {
+      const html = hub(l);
+      expect(html, l).not.toContain(t(l, 'hs.state.open'));
+      expect(html, l).toContain(bare(t(l, 'hs.count', { done: '0', total: '9' })));
+      const some = hub(l, { price: { state: 'answered', answer: { q: 'price', quantityFirst: true } } });
+      expect(some, l).toContain(`<span class="chip auto">${t(l, 'hs.state.answered')}</span>`);
+    }
+    expect(css).toMatch(/\.hs-q \.chip \{ display:inline-block; white-space:nowrap; \}/);
+  });
+
+  it('V1-406 · the tab says the page’s own name', () => {
+    expect(app).toMatch(/title: t\(locale, 'hs\.title'\), active: 'factory', bodyHtml: v \? renderHub/);
+  });
+
+  it('V1-407 · every row is a question', () => {
+    for (const l of LOCALES) for (const k of CATALOGUE_QUESTIONS.filter((x) => x !== 'price')) {
+      expect(t(l, `hs.q.${k}` as MessageKey), `${l} ${k}`).toMatch(/[?？؟]$/);
+    }
+  });
+
+  it('V1-408 · the same facts go by the same name: words to avoid are the words the assistant must never use', () => {
+    expect(t('en', 'hs.q.words')).toContain('must your assistant never use');
+    expect(t('en', 'forbidden.title')).toBe('Words your assistant must never use');
+  });
+
+  it('V1-409 · the way in is the page’s one filled button and names the question it opens', () => {
+    for (const l of LOCALES) {
+      const html = hub(l);
+      expect(html.split('class="btn send"').length - 1, l).toBe(1);
+      expect(html, l).toContain(`<form method="get" action="/app/business/selling/price" class="hs-start"><button class="btn send" type="submit">${bare(t(l, 'hs.start', { i: '1', n: '9' }))}</button></form>`);
+    }
+  });
+
+  it('V1-411 · missed-06 · the rows run the column; the back link is at the top, as on a question', () => {
+    expect(css).toMatch(/\.hs-rows \{ max-width:100%; \}/);
+    for (const l of LOCALES) {
+      const html = hub(l);
+      expect(html.indexOf('class="back"'), l).toBeLessThan(html.indexOf('<h1'));
+    }
+  });
+
+  it('V1-412 · an unanswered question starts with nothing chosen, and says what is in force', () => {
+    for (const l of LOCALES) {
+      const html = q(l);
+      expect(html, l).not.toMatch(/name="quantityFirst" value="(yes|no)" checked/);
+      expect(html, l).toContain(t(l, 'hs.price.now.yes'));
+      expect(html, l).toContain('name="quantityFirst" value="yes" required');
+      // answered, it keeps what she chose
+      const answered = q(l, { progress: { price: { state: 'answered', answer: { q: 'price', quantityFirst: true } } } });
+      expect(answered, l).toMatch(/name="quantityFirst" value="yes" checked/);
+    }
+    expect(renderQuestion({ facts: MAKER_FACTS, order: CATALOGUE_QUESTIONS, progress: {}, q: 'minimum',
+      state: { ...STATE, products: [{ id: 'p1', name: 'Tote', moq: null }] } as SellingState }, 'en', null)).not.toMatch(/name="mode" value="[a-z]+" checked/);
+  });
+
+  it('V1-413 · Next and Later sit in one row; Later needs no choice', () => {
+    for (const l of LOCALES) {
+      const html = q(l);
+      expect(html, l).toContain(`<div class="acts hs-acts"><button class="btn send" type="submit">${t(l, 'hs.next')}</button>`);
+      expect(html, l).toContain('formaction="/app/business/selling/price/skip" formnovalidate');
+    }
+  });
+
+  it('V1-414 · missed-08 · the lede is a sentence that adds something; the Arabic question reads naturally', () => {
+    for (const l of LOCALES) expect(t(l, 'hs.lede.price'), l).not.toBe(t(l, 'selling.quantityFirst.q'));
+    expect(t('en', 'hs.lede.price')).toMatch(/^Choose /);
+    expect(t('ar', 'selling.quantityFirst.q')).not.toContain('هل يُسأل عن الكمية أولًا في ردود');
+  });
+
+  it('V1-415 · the page says where it is in the list', () => {
+    for (const l of LOCALES) expect(q(l), l).toContain(`<p class="muted hs-pos">${bare(t(l, 'hs.position', { i: '1', n: '9' }))}</p>`);
+  });
+
+  it('the Arabic questions write no detached «لـ» before the name', () => {
+    for (const k of ['hs.offers', 'hs.lede.returns', 'hs.line.promise.on', 'hs.line.cert.on', 'hs.line.attr.on', 'hs.line.attr.off', 'hs.line.promiseNotAllowed'] as const) {
+      expect(t('ar', k), k).not.toMatch(/لـ ?(مساعدك|:)/);
+    }
+  });
+
+  it('V1-416 · a chosen radio is in the page’s ink', () => {
+    expect(css).toMatch(/input\[type="radio"\], input\[type="checkbox"\] \{ accent-color:var\(--color-ink\); \}/);
+  });
+
+  it('missed-07 · no dash leads the usual choice; lines are balanced so no character is left alone', () => {
+    for (const k of ['selling.usual.retail', 'selling.usual.bulk', 'selling.usual.services'] as const) {
+      for (const l of LOCALES) expect(t(l, k), `${l} ${k}`).not.toMatch(/^[—–-]/);
+    }
+    expect(q('zh')).toContain('class="muted small hs-usual"');
+    expect(css).toMatch(/\.hs-usual \{ display:block; \}/);
+    expect(css).toMatch(/\.hs-choices \.pcheck span, \.hs-hint \{ text-wrap:pretty; \}/);
   });
 });

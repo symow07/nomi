@@ -231,8 +231,9 @@ describe('D · the outreach area exists only where it is switched on', () => {
     expect(withWorkspace(off, () => renderInboxList(list, 'en', new Date()))).not.toContain('href="/app/contacts"');
     expect(withWorkspace(on, () => renderInboxList(list, 'en', new Date()))).toContain('href="/app/contacts"');
 
+    // Phase 9 (V1-434) — Apollo is not one of the owner's accounts: its key is set on Prospects, in the area itself.
     expect(withWorkspace(off, () => renderAccounts(accounts, 'en'))).not.toContain('/app/prospects');
-    expect(withWorkspace(on, () => renderAccounts(accounts, 'en'))).toContain('href="/app/prospects"');
+    expect(withWorkspace(on, () => renderAccounts(accounts, 'en'))).not.toContain('Apollo');
 
     const reach = (s: RequestScope) => withWorkspace(s, () => renderReach('en', new Set(['domain_verified', 'template_approved'] as never[]), new Map([['email', false]] as never)));
     expect(reach(off)).not.toContain('action="/app/channels/outreach"');

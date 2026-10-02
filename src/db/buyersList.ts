@@ -1,6 +1,6 @@
 import { sql, type RawBuilder } from 'kysely';
 import type { Tx } from './client.js';
-import { WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
+import { WAITING_HUMAN_AGENT, OWNER_AGENT } from '../core/conversation/ownership.js';
 
 /**
  * A — Buyers and Customers are ONE list (the owner's decision 5, 2026-09-28;
@@ -67,6 +67,17 @@ export const NEEDS_OWNER = sql<boolean>`(c.assigned_to is not null
   or ${DELETION_WAITING} or ${ORDER_WAITING})`;
 
 /**
+ * Phase 9 (V1-163) — the same, as one reader sees it: a conversation a
+ * COLLEAGUE holds is theirs, not this reader's "Needs you" (it sits under
+ * "Your team is handling" on All). Waiting for a person, or held by the reader,
+ * still counts; with no reader known, everyone's — as before.
+ */
+export const needsOwnerFor = (viewerId?: string): RawBuilder<boolean> => viewerId === undefined ? NEEDS_OWNER
+  : sql<boolean>`((c.assigned_to is not null and (c.assigned_to = ${WAITING_HUMAN_AGENT} or ${heldBy(viewerId)}))
+  or (c.assigned_to is null and exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending'))
+  or ${DELETION_WAITING} or ${ORDER_WAITING})`;
+
+/**
  * M22 — holding a message that never reached the buyer, in the last week.
  */
 export const IS_BLOCKED = sql<boolean>`exists (
@@ -75,11 +86,21 @@ export const IS_BLOCKED = sql<boolean>`exists (
      and o.cancel_reason is not null
      and o.created_at > now() - make_interval(days => 7))`;
 
+/**
+ * The reader holds it: by their own id, or — for the owner — by the sentinel
+ * a take-over writes when nobody is named (`OWNER_AGENT`, echo.ts and
+ * takeover.ts). The conversation page reads it the same way (`holderLabel`).
+ * The owner is read from `people`, so the id alone is enough here.
+ */
+const heldBy = (viewerId: string): RawBuilder<boolean> => sql<boolean>`(c.assigned_to = ${viewerId}
+  or (c.assigned_to = ${OWNER_AGENT} and (${viewerId} = ${OWNER_AGENT}
+      or exists (select 1 from people p where p.id::text = ${viewerId} and p.is_owner))))`;
+
 /** Which rows a tab holds, decided BEFORE any page is cut. 'mine' with no viewer is nobody's. */
 export const eligibleFor = (filter: BuyersFilter, viewerId?: string): RawBuilder<boolean> =>
-  filter === 'pending' ? NEEDS_OWNER
+  filter === 'pending' ? needsOwnerFor(viewerId)
     : filter === 'blocked' ? IS_BLOCKED
-    : filter === 'mine' ? (viewerId ? sql<boolean>`c.assigned_to = ${viewerId}` : sql<boolean>`false`)
+    : filter === 'mine' ? (viewerId ? heldBy(viewerId) : sql<boolean>`false`)
     : filter === 'deletion' ? DELETION_WAITING
     : sql<boolean>`true`;
 
@@ -268,7 +289,7 @@ export async function readBuyerCounts(tx: Tx, viewerId?: string): Promise<{
   readonly deletion: number; readonly channels: number;
 }> {
   return (await sql<{ waiting: number; blocked: number; mine: number; deletion: number; channels: number }>`
-    select count(*) filter (where ${NEEDS_OWNER})::int as waiting,
+    select count(*) filter (where ${needsOwnerFor(viewerId)})::int as waiting,
            count(*) filter (where ${IS_BLOCKED})::int as blocked,
            count(*) filter (where ${eligibleFor('mine', viewerId)})::int as mine,
            count(*) filter (where ${DELETION_WAITING})::int as deletion,

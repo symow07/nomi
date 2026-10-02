@@ -129,7 +129,7 @@ describe('Today, by time (render)', () => {
     expect(html).toContain(`<h2 id="today-now">${tn('en', 'nav.needsYou', 7)}</h2>`);
     expect(html).toContain('href="/app/inbox/c-1#latest"');
     expect(html).toContain('<bdi>Maya Rahman</bdi>');
-    expect(html).toContain(t('en', 'buyers.badge.review', { name: ASSISTANT_FALLBACK.en }).slice(0, 6));
+    expect(html).toContain(t('en', 'buyers.badge.reviewShort'));
     expect(html).toContain(t('en', 'takeover.reason.human_requested'));   // the stored reason, never inferred
     // Phase 4 — Buyers' own row: ○ for whoever waits for the owner, ● for one the owner holds.
     expect(html).toMatch(/class="crow is-needs[^"]*"[\s\S]*?<span class="cr-mark" aria-hidden="true">○<\/span>/);

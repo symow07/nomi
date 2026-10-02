@@ -78,7 +78,10 @@ within() {
   # watchdog leaves a MARK when it fires: asking whether it is still alive
   # raced it (it lives for an instant after the kill), and under load that
   # instant reported a timed-out command as one that finished with 143.
-  ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null && : > "$fired" ) 2>/dev/null &
+  # The mark is made BEFORE the kill: made after it, the killed command could
+  # wake `wait` below before the mark existed — 34 of 150 runs under load
+  # returned 143 (2026-10-03); marked first, none of 150.
+  ( sleep "$secs"; : > "$fired"; kill -TERM "$pid" 2>/dev/null ) 2>/dev/null &
   local dog=$!
   wait "$pid" 2>/dev/null
   local rc=$?

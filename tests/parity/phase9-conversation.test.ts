@@ -34,3 +34,13 @@ describe('V1-225 · the back link and the panel door never say the same word', (
     for (const l of LOCALES) expect(t(l, 'panel.open'), l).not.toBe(t(l, 'inbox.detail.back'));
   });
 });
+
+describe('V1-504 · the forbidden-words page says how a word is matched', () => {
+  it('in every locale, on the page itself', async () => {
+    const { renderForbidden } = await import('../../src/api/web/settings.js');
+    for (const l of LOCALES) {
+      const html = renderForbidden({ own: [], floor: [] }, l, null);
+      expect(html, l).toContain(t(l, 'forbidden.howMatched').slice(0, 10));
+    }
+  });
+});
