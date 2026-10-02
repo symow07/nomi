@@ -43,7 +43,48 @@ under "Decided" below.
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · next: the rest of the list, by area |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · next: the other areas, S2 first |
+
+**Phase 9, part three (#208) — the whole product, Today and setting up (21 findings).**
+
+The six fix agents started on 2026-10-03 all stopped on the account's usage limit before committing anything. They resume on 5 October; until then I work the list alone, area by area. Each item below was checked again on the page, by a test that fails without the change.
+
+**The tab, the names and the area.**
+- **The tab names the page** by its own heading; every Setup page was "Setup · …" (V1-003).
+- **One name for the area:** the rail's entry under "Customers" is "Customer list" (it said "Conversations"), and an empty search offers "See all customers" (V1-002).
+- **One name per thing in setting up** (V1-004, V1-121, V1-153):
+  - "Getting ready" is now **"Before going live"**, so it no longer sits beside "Getting started" as its twin.
+  - Its sections are "The groundwork" and "Final checks"; the first was also called "Setup".
+  - Every sentence that named the page now names it the new way, in five languages.
+
+**What the pages claim, made true.**
+- **The assistant's name** is said on a conversation only once chosen. The page read the row's default name, so it showed "Lily drafted" while the name step was still to do (V1-005).
+- **Step 5 of the guide** said to open Practice, but only a reply to a real customer completes it, because Practice runs in its own copy. The words and the caption files now say so (V1-109).
+- **Today's last 24 hours** now leads with how many customers wrote. A customer waiting since 17:18 had read as "Nothing in the last 24 hours" (V1-088).
+- **Today's "not live" line** says only what it knows: nothing is sent. It used to add "or received" (today-missed-01).
+- **"Ready for customers"** ticks "may send alone" only when sending alone is earned *and* the name is confirmed, as `commitTurn` requires (V1-145).
+- **The Before-going-live counts** now say what each counts:
+  - "Handed to you" and "Replies to review" are separate lines that together make Today's "need you";
+  - the activity is named as this week's;
+  - "During the pilot" became "How it is going" (V1-011 in part, V1-120, V1-122).
+
+**Smaller fixes.**
+- **The name in the sentence:**
+  - Chinese has no stray spaces around 你的助手 (V1-010).
+  - Arabic joins لـ to مساعدك or an Arabic name, and keeps it apart before a Latin one (V1-008).
+- **Empty states:** the five that phase 6 missed are now panels (cross-missed-01).
+- **Failures say something** (V1-007):
+  - a mistyped `/app` address keeps a signed-in owner in the workspace, with the rail;
+  - an empty product paste says the box was empty, and the box is now required.
+- **The machine room:** no owner's page links to it any more. Its credential shapes and importer notes are the operator's, and the installation's own workspace is also a business. The page itself stays at its address (V1-139, V1-140, today-new-16).
+- **"This installation has no app for it yet"** now reads "Not available here yet" (V1-006 in part).
+
+**Left in these two areas:**
+- V1-006's other words (raw claim codes, a raw category, "pcs" in fields, Incoterm codes) go with the products and terms batches.
+- V1-009, money in Spanish and French: whether it reads "1,05" or "1.05" depends on the country (Mexico writes 1.05), so it waits for formatting by the workspace's country.
+- V1-108, the step names: the guide and Today use the task form, the checklists the item form. That is kept, and the names now correspond.
+- today-new-08, the guide's stills, are re-recorded in the final walk.
+- **The guide has no French videos yet:** the French guide shows each step's words without one.
 
 **Phase 9, part two (#207) — French, the fifth owner language (0121; V1-001, the last S1).**
 
@@ -403,7 +444,8 @@ Zero problems.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-10-03 | #207 | **Phase 9, part two — French, the fifth owner language** (0121): the locale, formats and colon, Stripe, the draft translation, sign-up; the whole catalogue (3,194 lines, rule 6 in French); the site names French; the gender checks, the cognates by key, the deletion contract and `ui-fr` in French. The French disclosure's gate untouched. **Found by CI, root-caused:** boot's "registers NO outbound worker" had been false since P3 (deployment mode runs the outbound worker for Practice); it passed only when the worker's poll came later than its 400 ms wait. It now asserts what is true — a real conversation's reply is refused, never sent, and no channel exists — and passed twice in a row. Backup before it `nomi-backup-20261002T030023Z` (drill passed) | 121 |
+| 2026-10-03 | #208 | **Phase 9, part three — the whole product, Today and setting up**: 21 findings — the tab names the page; one name for the customer area; "Getting ready" is "Before going live"; the name only once chosen on a conversation; step 5 says what completes it; Today counts who wrote and claims nothing it cannot know; Ready ticks sending alone only when true; the runbook names what it counts; the name joins Chinese and Arabic sentences properly; five empties are panels; a mistyped address stays in the workspace; an empty paste says so; no owner's page links to the machine room. No migration | 121 |
+| 2026-10-03 | #207 | **Phase 9, part two — French, the fifth owner language** (0121): the locale, formats and colon, Stripe, the draft translation, sign-up; the whole catalogue (3,194 lines, rule 6 in French); the site names French; the gender checks, the cognates by key, the deletion contract and `ui-fr` in French. The French disclosure's gate untouched. **Found by CI, root-caused:** boot's "registers NO outbound worker" had been false since P3 (deployment mode runs the outbound worker for Practice); it passed only when the worker's poll came later than its 400 ms wait. It now asserts what is true — a real conversation's reply is refused, never sent, and no channel exists — and passed twice in a row. Backup before it `nomi-backup-20261002T030023Z` (drill passed). CI both jobs pass. Merged as `877e508`, deployed, `/health` ok, production `schema_version` 121 | 121 |
 | 2026-10-03 | #206 | **Phase 9, part one — the named items**: French found to be a customer's language only (#124, #182), never an owner's (en/zh/ar/es since #192); the dead proof and unsubscribe pages now follow the reader's language; the discount, what goes out alone and "No conversations yet" each made to say what the code does; Connect WhatsApp's field and button (the number mailed to the operator); the e-mail form's labels; backups and keys Nomi's (`tools/installation-checks.mjs`), not the owner's; the gallery the installation's only; Practice's captions; Today's month line like with like. 7 of the 8 S1s. CI both jobs pass; integration 1201 of 1201 locally after one heading test was updated; pre-pilot 12/12 before and after. Merged as `817ff54`, deployed, `/health` ok. No migration | 120 |
 | 2026-10-02 | #205 | **Phase 8 — the re-audit**: the rebuilt app audited again by the first audit's method (62 pages + 3 calendar views, five languages, two widths, 650 captures, nine reviewers, a hand walk). One merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`. Dropped 31, still reproducing 535, newly introduced 75 (and 93 the first audit missed); 703 in all, 8 of them S1. Phase 6's "every empty state is a panel" corrected: five were not. CI both jobs pass. Merged as `7a71515`, deployed, `/health` ok. Docs only | 120 |
 | 2026-10-02 | #204 | **Phase 7 — the phone**: the top nav on one line in four languages at 360 and 390 px (a shorter phone label for two entries); the calendar's grids scroll visibly with the hours pinned, no name is cut, a crowded month day says "+N more", the day is one time-ordered list with a kind icon and done dates greyed; the add-a-date form comes back inline. No migration | 120 |
