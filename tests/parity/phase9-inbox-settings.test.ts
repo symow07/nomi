@@ -85,7 +85,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
       const h = list(l);
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="cr-why"><bdi>${shown(l, 'buyers.row.noReply')}</bdi></span>`);
       expect(rowOf(h, 'c-closed'), l).not.toContain(shown(l, 'buyers.row.noReply'));
-      expect(rowOf(h, 'c-answered'), l).toContain('<span class="as" aria-hidden="true">✦</span> <span class="cr-text"');
+      // the mark, then who wrote it for a screen reader (the conversation batch), then the words
+      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span> <span class="cr-text"/);
       expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // a screen reader still hears who holds it
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="sr">${shown(l, 'buyers.group.hers')}</span>`);
