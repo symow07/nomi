@@ -15189,3 +15189,347 @@ está conectado»). `tests/parity/assistant-pronouns.test.ts` holds what a regex
   pages a customer reads) — counsel's and a native reader's.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-02 — the UI rebuild, phases 1–3 (#198–#200): every new line
+
+Setup in labelled groups (each row: a name, one line, the current value), its search, and the
+business profile's groups. New in all four languages; read the Arabic for gender (none intended)
+and the plural forms of `setup.value.phones.*` and `setup.value.requests.*`.
+
+### `profile.group.business`
+
+- en: The business
+- zh: 生意信息
+- ar: بيانات النشاط
+- es: El negocio
+
+### `profile.group.contact`
+
+- en: Contact details
+- zh: 联系方式
+- ar: بيانات التواصل
+- es: Datos de contacto
+
+### `profile.group.zone`
+
+- en: Time zone and currency
+- zh: 时区和货币
+- ar: المنطقة الزمنية والعملة
+- es: Zona horaria y moneda
+
+### `setup.search.label`
+
+- en: Search Setup
+- zh: 搜索设置
+- ar: البحث في الإعداد
+- es: Buscar en Ajustes
+
+### `setup.search.placeholder`
+
+- en: Find a setting
+- zh: 找一项设置
+- ar: إيجاد إعداد
+- es: Busca un ajuste
+
+### `setup.search.none`
+
+- en: Nothing in Setup matches “{q}”.
+- zh: 设置里没有和“{q}”相符的项。
+- ar: لا يوجد في الإعداد ما يطابق «{q}».
+- es: Nada en Ajustes coincide con «{q}».
+
+### `setup.group.start`
+
+- en: Setting up
+- zh: 准备工作
+- ar: خطوات البدء
+- es: Puesta en marcha
+
+### `setup.group.business`
+
+- en: Your business
+- zh: 你的生意
+- ar: نشاطك التجاري
+- es: Tu negocio
+
+### `setup.group.reach`
+
+- en: Customers and alerts
+- zh: 客户与提醒
+- ar: العملاء والتنبيهات
+- es: Clientes y avisos
+
+### `setup.group.people`
+
+- en: People and sign-in
+- zh: 人员与登录
+- ar: الأشخاص وتسجيل الدخول
+- es: Personas y acceso
+
+### `setup.group.account`
+
+- en: Billing and data
+- zh: 付款与数据
+- ar: الفوترة والبيانات
+- es: Facturación y datos
+
+### `setup.desc.guide`
+
+- en: Five steps to your first reply
+- zh: 五步完成第一条回复
+- ar: خمس خطوات حتى أول رد
+- es: Cinco pasos hasta la primera respuesta
+
+### `setup.desc.onboarding`
+
+- en: What is checked before customers are answered
+- zh: 回复客户之前要核对的事项
+- ar: ما يُراجَع قبل الرد على العملاء
+- es: Lo que se revisa antes de responder a clientes
+
+### `setup.desc.channels`
+
+- en: WhatsApp, Instagram, Messenger and e-mail
+- zh: WhatsApp、Instagram、Messenger 和邮件
+- ar: واتساب وإنستغرام وماسنجر والبريد الإلكتروني
+- es: WhatsApp, Instagram, Messenger y correo
+
+### `setup.desc.profile`
+
+- en: Name, description, hours, contact, time zone
+- zh: 名称、介绍、营业时间、联系方式、时区
+- ar: الاسم والوصف وساعات العمل والتواصل والمنطقة الزمنية
+- es: Nombre, descripción, horario, contacto, zona horaria
+
+### `setup.desc.kind`
+
+- en: Kind of business, country and website
+- zh: 生意类别、国家和网站
+- ar: نوع النشاط والبلد والموقع الإلكتروني
+- es: Tipo de negocio, país y sitio web
+
+### `setup.desc.selling`
+
+- en: Prices, minimums, delivery and payment
+- zh: 价格、起订量、交货和付款
+- ar: الأسعار والحد الأدنى والتوصيل والدفع
+- es: Precios, mínimos, entrega y pago
+
+### `setup.desc.alerts`
+
+- en: A notice on your phone when a customer waits
+- zh: 有客户在等时，手机上提醒你
+- ar: إشعار على الهاتف حين ينتظر عميل
+- es: Un aviso en tu teléfono cuando un cliente espera
+
+### `setup.desc.people`
+
+- en: Who answers here, and what only the owner decides
+- zh: 谁在这里回复，哪些事只有店主能决定
+- ar: صلاحيات الرد، وما يقرّره مالك الحساب وحده
+- es: Quién responde aquí y qué decide solo el dueño
+
+### `setup.desc.account`
+
+- en: How you sign in
+- zh: 你怎么登录
+- ar: طريقة تسجيل الدخول
+- es: Cómo entras
+
+### `setup.desc.billing`
+
+- en: Your plan and what is charged
+- zh: 你的套餐和扣费
+- ar: الخطة وما يُدفع
+- es: Tu plan y lo que se cobra
+
+### `setup.desc.data`
+
+- en: Copies of your data, and deletion requests
+- zh: 数据副本和删除请求
+- ar: نسخ من بياناتك وطلبات الحذف
+- es: Copias de tus datos y solicitudes de borrado
+
+### `setup.value.off`
+
+- en: Off
+- zh: 未开启
+- ar: متوقفة
+- es: Desactivados
+
+### `setup.value.unavailable`
+
+- en: Not available here
+- zh: 这里暂不可用
+- ar: غير متاحة هنا
+- es: No disponibles aquí
+
+### `setup.value.accessCode`
+
+- en: Access code
+- zh: 登录码
+- ar: رمز الدخول
+- es: Código de acceso
+
+### `setup.value.notSetUp`
+
+- en: Not set up
+- zh: 未设置
+- ar: غير مُعدّة
+- es: Sin configurar
+
+### `setup.value.nothingWaiting`
+
+- en: Nothing waiting
+- zh: 没有待处理的
+- ar: لا شيء بالانتظار
+- es: Nada pendiente
+
+### `setup.value.nameConfirmed`
+
+- en: Name confirmed
+- zh: 名字已确认
+- ar: تم تأكيد الاسم
+- es: Nombre confirmado
+
+### `setup.value.nameNotConfirmed`
+
+- en: Name not confirmed yet
+- zh: 名字还没确认
+- ar: لم يُؤكَّد الاسم بعد
+- es: Nombre sin confirmar
+
+### `setup.value.billing.none`
+
+- en: No plan yet
+- zh: 还没有套餐
+- ar: لا خطة بعد
+- es: Sin plan todavía
+
+### `setup.value.billing.cardSaved`
+
+- en: Card saved
+- zh: 银行卡已保存
+- ar: تم حفظ البطاقة
+- es: Tarjeta guardada
+
+### `setup.value.billing.trial`
+
+- en: Free trial
+- zh: 免费试用中
+- ar: تجربة مجانية
+- es: Prueba gratuita
+
+### `setup.value.billing.active`
+
+- en: Paid
+- zh: 已付款
+- ar: مدفوعة
+- es: Pagado
+
+### `setup.value.billing.past_due`
+
+- en: Payment did not go through
+- zh: 扣款没有成功
+- ar: لم يتم الدفع
+- es: El pago no se completó
+
+### `setup.value.billing.lapsed`
+
+- en: Paused: payment failed
+- zh: 已暂停：扣款失败
+- ar: متوقفة: تعذّر الدفع
+- es: En pausa: el pago falló
+
+### `setup.value.billing.exempt`
+
+- en: No charge
+- zh: 不收费
+- ar: بلا رسوم
+- es: Sin cargo
+
+### `setup.value.phones.zero`
+
+- en: On for {n} phones
+- zh: {n} 部手机已开启
+- ar: متوقفة
+- es: Activados en {n} teléfonos
+
+### `setup.value.phones.one`
+
+- en: On for 1 phone
+- zh: {n} 部手机已开启
+- ar: مفعّلة على هاتف واحد
+- es: Activados en 1 teléfono
+
+### `setup.value.phones.two`
+
+- en: On for {n} phones
+- zh: {n} 部手机已开启
+- ar: مفعّلة على هاتفين
+- es: Activados en {n} teléfonos
+
+### `setup.value.phones.few`
+
+- en: On for {n} phones
+- zh: {n} 部手机已开启
+- ar: مفعّلة على {n} هواتف
+- es: Activados en {n} teléfonos
+
+### `setup.value.phones.many`
+
+- en: On for {n} phones
+- zh: {n} 部手机已开启
+- ar: مفعّلة على {n} هاتفًا
+- es: Activados en {n} teléfonos
+
+### `setup.value.phones.other`
+
+- en: On for {n} phones
+- zh: {n} 部手机已开启
+- ar: مفعّلة على {n} هاتف
+- es: Activados en {n} teléfonos
+
+### `setup.value.requests.zero`
+
+- en: {n} requests waiting
+- zh: {n} 个请求待处理
+- ar: لا طلبات بالانتظار
+- es: {n} solicitudes pendientes
+
+### `setup.value.requests.one`
+
+- en: 1 request waiting
+- zh: {n} 个请求待处理
+- ar: طلب واحد بالانتظار
+- es: 1 solicitud pendiente
+
+### `setup.value.requests.two`
+
+- en: {n} requests waiting
+- zh: {n} 个请求待处理
+- ar: طلبان بالانتظار
+- es: {n} solicitudes pendientes
+
+### `setup.value.requests.few`
+
+- en: {n} requests waiting
+- zh: {n} 个请求待处理
+- ar: {n} طلبات بالانتظار
+- es: {n} solicitudes pendientes
+
+### `setup.value.requests.many`
+
+- en: {n} requests waiting
+- zh: {n} 个请求待处理
+- ar: {n} طلبًا بالانتظار
+- es: {n} solicitudes pendientes
+
+### `setup.value.requests.other`
+
+- en: {n} requests waiting
+- zh: {n} 个请求待处理
+- ar: {n} طلب بالانتظار
+- es: {n} solicitudes pendientes
+
+Reviewer: ______  Date: ______

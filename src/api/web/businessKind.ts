@@ -6,7 +6,8 @@ import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { BUSINESS_KINDS, canonicalCountry, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
 import { back, esc } from './layout.js';
-import { flashBanner, type Flash } from './flash.js';
+import { flashBanner, type Flash } from './flash.js';import { fieldRow, rowsCard, saveBar } from './rows.js';
+
 
 /**
  * A2 — what kind of business this is, after sign-up.
@@ -58,18 +59,18 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
   return `${back('/app/settings', backLabel)}
     <h1 class="page">${esc(t(locale, 'business.kind.label'))}</h1>
     ${flashBanner(flash)}
-    <section class="block">
-      <form method="post" action="/app/settings/business" class="pform">
-        <div class="fld"><label for="bk-kind">${esc(t(locale, 'signup.kind'))}</label>
-          <select id="bk-kind" name="kind" required>${pick}${BUSINESS_KINDS.map((k) =>
-            option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select></div>
-        <div class="fld"><label for="bk-country">${esc(t(locale, 'signup.country'))}</label>
-          <select id="bk-country" name="country" required autocomplete="country">${pick}${countryOptions(locale).map((c) =>
-            option(c.code, c.name, v.country === null ? null : canonicalCountry(v.country))).join('')}</select></div>
-        <div class="fld"><label for="bk-website">${esc(t(locale, 'signup.website'))}</label>
-          <input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
-            inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" /></div>
-        <button class="btn send" type="submit">${esc(t(locale, 'business.kind.save'))}</button>
-      </form>
-    </section>`;
+    <form method="post" action="/app/settings/business" class="sform">
+      ${rowsCard(null, [
+        fieldRow({ label: t(locale, 'signup.kind'), forId: 'bk-kind',
+          control: `<select id="bk-kind" name="kind" required>${pick}${BUSINESS_KINDS.map((k) =>
+            option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select>` }),
+        fieldRow({ label: t(locale, 'signup.country'), forId: 'bk-country',
+          control: `<select id="bk-country" name="country" required autocomplete="country">${pick}${countryOptions(locale).map((c) =>
+            option(c.code, c.name, v.country === null ? null : canonicalCountry(v.country))).join('')}</select>` }),
+        fieldRow({ label: t(locale, 'signup.website'), forId: 'bk-website',
+          control: `<input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
+            inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" />` }),
+      ])}
+      ${saveBar(t(locale, 'business.kind.save'))}
+    </form>`;
 }

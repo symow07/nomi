@@ -103,6 +103,16 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect((await get('/app/settings/profile')).body).toContain('<option value="AED" selected>');
   });
 
+  it('PHASE 3 · the profile\'s one form saves the zone and the currency with the rest', async () => {
+    const name = (await one<{ name: string }>(`select name from businesses where id = $1`, [bid])).name;
+    const r = await form('/app/settings', { name, zone: 'Asia/Dubai', currency: 'SAR' }, cookie);
+    expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'settings.flash.profileSaved'));
+    expect(await one(`select currency, timezone from businesses where id = $1`, [bid])).toEqual({ currency: 'SAR', timezone: 'Asia/Dubai' });
+    // back, for the tests that follow
+    await form('/app/settings', { name, currency: 'AED' }, cookie);
+    expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('AED');
+  });
+
   let pid = '';
   it('A PASTED LIST IS READ IN DIRHAMS: its own marks are prices, a dollar line is refused', async () => {
     const text = 'Oud oil AED 120\nMusk oil 45 درهم\nAmber $30';

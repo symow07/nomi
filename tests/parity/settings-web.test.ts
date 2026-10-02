@@ -137,7 +137,7 @@ describe('M20.4 · F-07 · a rejected save loses nothing and says which field', 
 
   it('marks the field that failed, and only that one', () => {
     const html = withoutIsolates(renderProfile(bare, 'en', null, typed, { contactPhone: 'phoneShape' }));
-    expect(html.match(/class="fld bad"/g) ?? []).toHaveLength(1);
+    expect(html.match(/class="setrow bad"/g) ?? []).toHaveLength(1);
     expect(html).toContain('role="alert"');
     expect(html).toContain('Start with + and the country code');
   });

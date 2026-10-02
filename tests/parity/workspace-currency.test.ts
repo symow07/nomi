@@ -177,17 +177,18 @@ describe('CUR · the currency changes only until the first price, and only by th
     renderProfile(profile, 'en', null, {}, {}, null, { currency: 'AED', fixed }, viewer);
   it('before a price: the owner chooses from the eight', () => {
     const html = draw(false);
-    expect(html).toContain('action="/app/settings/currency"');
+    // Phase 3 — a row of the profile's one form, saved with it
+    expect(html).toContain('<select id="pf-currency" name="currency">');
     expect(html).toContain('<option value="AED" selected>');
   });
   it('after a price: it is said, and fixed', () => {
     const html = draw(true);
-    expect(html).not.toContain('action="/app/settings/currency"');
+    expect(html).not.toContain('name="currency"');
     expect(html).toContain(t('en', 'settings.currency.fixed'));
   });
   it('staff see it and who decides', () => {
     const html = draw(false, STAFF);
-    expect(html).not.toContain('action="/app/settings/currency"');
+    expect(html).not.toContain('name="currency"');
     expect(html).toContain(t('en', 'staff.ownerDecides'));
   });
   it('the route is the owner\'s, and the check and the write share one lock', () => {

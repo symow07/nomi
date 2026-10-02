@@ -4754,6 +4754,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
     facts.evict(s.businessId);   // D — a complete profile is a setup step done
     if (r.code === 'saved') {
+      // Phase 3 — the profile page is ONE form: the zone and the currency ride
+      // with it. Each keeps its own rule: any zone this build knows; the
+      // currency only from the owner, and only until the first price is set.
+      if (typeof b['zone'] === 'string' && b['zone'] !== '') {
+        if ((await saveZone(deps.db, s.businessId, b['zone'])) !== 'saved') {
+          return flashTo(reply, '/app/settings/profile#zone', 'settings.flash.zoneInvalid');
+        }
+        facts.evict(s.businessId);
+      }
+      if (typeof b['currency'] === 'string' && b['currency'] !== '' && personOf(s).isOwner) {
+        const c = await saveCurrency(deps.db, s.businessId, b['currency']);
+        if (c !== 'saved') return flashTo(reply, '/app/settings/profile#zone', c === 'fixed' ? 'settings.flash.currencyFixed' : 'settings.flash.currencyInvalid');
+      }
       return flashTo(reply, '/app/settings/profile', 'settings.flash.profileSaved');
     }
     // M20.4 (F-07) — a rejected save re-RENDERS the owner's own submission with

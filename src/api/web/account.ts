@@ -1,7 +1,8 @@
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { back, esc } from './layout.js';
-import { flashBanner, type Flash } from './flash.js';
+import { flashBanner, type Flash } from './flash.js';import { fieldRow, rowsCard, saveBar } from './rows.js';
+
 
 /**
  * A1 — "how do I sign in, and how do I change it?"
@@ -17,19 +18,21 @@ import { flashBanner, type Flash } from './flash.js';
 export type AccountView = { readonly email: string | null; readonly passwordMin: number };
 
 export function renderAccount(v: AccountView, locale: Locale, flash: Flash | null, backLabel: string): string {
+  // Phase 3 — the sign-in as rows: who signs in, then the one form to change the password.
   const body = v.email === null
-    ? `<p class="muted">${esc(t(locale, 'account.codeOnly'))}</p>`
-    : `<p><bdi>${esc(t(locale, 'account.email', { email: v.email }))}</bdi></p>
-       <form method="post" action="/app/settings/account/password" class="pform">
-         <div class="fld"><label for="acc-current">${esc(t(locale, 'account.current'))}</label>
-           <input id="acc-current" type="password" name="current" required autocomplete="current-password" /></div>
-         <div class="fld"><label for="acc-new">${esc(t(locale, 'account.new'))}</label>
-           <input id="acc-new" type="password" name="next" required minlength="${v.passwordMin}" autocomplete="new-password" />
-           <span class="muted">${esc(t(locale, 'signup.passwordHint', { n: v.passwordMin }))}</span></div>
-         <button class="btn send" type="submit">${esc(t(locale, 'account.save'))}</button>
+    ? rowsCard(null, [fieldRow({ label: t(locale, 'account.title'), control: `<span class="fr-value">${esc(t(locale, 'account.codeOnly'))}</span>` })])
+    : `${rowsCard(null, [fieldRow({ label: t(locale, 'account.title'), control: `<span class="fr-value"><bdi>${esc(t(locale, 'account.email', { email: v.email }))}</bdi></span>` })])}
+       <form method="post" action="/app/settings/account/password" class="sform">
+         ${rowsCard(null, [
+           fieldRow({ label: t(locale, 'account.current'), forId: 'acc-current',
+             control: '<input id="acc-current" type="password" name="current" required autocomplete="current-password" />' }),
+           fieldRow({ label: t(locale, 'account.new'), forId: 'acc-new', desc: t(locale, 'signup.passwordHint', { n: v.passwordMin }),
+             control: `<input id="acc-new" type="password" name="next" required minlength="${v.passwordMin}" autocomplete="new-password" />` }),
+         ])}
+         ${saveBar(t(locale, 'account.save'))}
        </form>`;
   return `${back('/app/settings', backLabel)}
     <h1 class="page">${esc(t(locale, 'account.title'))}</h1>
     ${flashBanner(flash)}
-    <section class="block">${body}</section>`;
+    ${body}`;
 }

@@ -418,6 +418,27 @@ ${LANGSW_CSS}
   .sr-value { flex:0 1 auto; max-width:45%; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-align:end; overflow-wrap:anywhere; }
   .srow .go { flex:none; }
   .sr-ctl { flex:0 1 auto; min-width:0; }
+  /* A setting as a row inside its card: what it is on the start side, its
+     control on the end side; stacked on a phone. One save per form, in a bar
+     that stays at the foot of the screen while the form scrolls. */
+  .scard > .setrow + .setrow, .scard > .setrow + .fr-acts { border-top:1px solid var(--color-border); }
+  .setrow { display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:var(--space-8) var(--space-16);
+    align-items:start; padding:var(--space-12) var(--space-16); }
+  .fr-l { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; padding-top:var(--space-8); }
+  .fr-name { font-weight:600; font-size:var(--font-size-small); }
+  .fr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fr-c { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .fr-c > input:not([type="checkbox"]):not([type="radio"]), .fr-c > select, .fr-c > textarea { width:100%; }
+  .fr-c > .fr-value { padding-top:var(--space-8); }
+  .setrow.bad .fr-c > input, .setrow.bad .fr-c > textarea, .setrow.bad .fr-c > select { border-color:var(--color-warn); }
+  .fr-acts { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:var(--space-8); padding:var(--space-12) var(--space-16); }
+  .savebar { position:sticky; bottom:0; z-index:1; display:flex; justify-content:flex-end; gap:var(--space-8);
+    margin:var(--space-8) 0 0; padding:var(--space-12) 0; background:var(--color-paper); border-top:1px solid var(--color-border); }
+  @media (max-width: 720px) {
+    .setrow { grid-template-columns:minmax(0, 1fr); }
+    .fr-l { padding-top:0; }
+    .savebar .btn, .fr-acts .btn { flex:1 1 auto; }
+  }
   /* On a phone the value goes under the line that says what the setting is, the door staying at the end. */
   @media (max-width: 560px) {
     a.srow { flex-wrap:wrap; row-gap:0; }
