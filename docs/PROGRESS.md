@@ -13,10 +13,44 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The UI rebuild run (started 2026-10-02) — read this first
+
+**The owner's instruction (2026-10-02).**
+- **Order.** Rebuild first (phases 1–7, in order), then re-audit (phase 8), then fix the merged defect list (phase 9).
+- **How to work.**
+  - Merge my own green PRs.
+  - Come back only when it is all done, or on a genuine undecidable.
+  - Update this file after every merged PR.
+- **The goal:** software someone pays for, fast to open and quick to leave. Not time spent in the app: no badges, streaks or notifications that don't match a customer genuinely waiting.
+- **Not negotiable.**
+  - Arabic and Chinese stay complete and correct. No density change may break right-to-left or make Arabic or Chinese smaller or lower-contrast than English.
+  - No team machinery, no pipeline stages, no keyboard-first or hover-only controls, no 4–6 column layouts.
+  - Phone width is the primary target.
+- **Mine to decide (named by the owner):** the exact row height within 56–72 px, which secondary actions leave the draft's button row, the settings group names, the motion curve. Each is recorded below as it is taken.
+- **The evidence it rests on.**
+  - `docs/UI-AUDIT.md`: 566 findings at main `4fa90d3`.
+  - `docs/UI-BENCHMARK.md`: Nomi measured against Front, Intercom, Crisp, Linear, Missive, Help Scout and respond.io.
+
+| Phase | What | State |
+|---|---|---|
+| 0 | Vendor screenshots out of the repository; the audit and the benchmark in | #197 |
+| 1 | The inbox row: 56–72 px, sender · one-line preview · time in a fixed place · a state mark; ≥ 10 on a 1440×900 laptop, ≥ 6 on a phone; RTL and CJK truncation verified | next |
+| 2 | The draft card: fits with the customer's message visible; the message not repeated; one primary action | — |
+| 3 | Settings: labelled groups, label-left / control-right rows in cards, the current value on each row, a search, one save behaviour | — |
+| 4 | Colour and hierarchy: magenta only for what the assistant did, graphite for the primary action, colour with a fixed job on every page, every signal greyscale-safe | — |
+| 5 | Motion: the three timings used (100–250 ms), the assistant working in place, undo over confirm, `prefers-reduced-motion` everywhere | — |
+| 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | — |
+| 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | — |
+| 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | — |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | — |
+
+**Phase 0 (#197).** The 32 screenshots of other products were removed from `docs/ui-benchmark/`. They were never committed: checked on every branch of the working clone and of GitHub. My report of 2026-10-02 said 33 and 7; it was 32 vendor and 8 of Nomi's own. They were moved to the session scratchpad, not deleted, as the rules ask. `docs/UI-BENCHMARK.md` keeps every measurement, basis tag and source URL, and says the images were removed and why.
+
 ## Where things stand
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-02 | #197 | **The UI audit and the benchmark, in the repository; the vendor screenshots out.** `docs/UI-AUDIT.md` (566 findings, 17 screenshots of Nomi) and `docs/UI-BENCHMARK.md` (seven products, 8 screenshots of Nomi). The 32 screenshots of other companies' products were removed before any commit; they never entered history. Docs only | 120 |
 | 2026-10-02 | #195 | **EXT: a PDF is offered only where the model provider can read it.** EXT's live check, run once the provider answered again (2026-10-01 23:30 UTC): the closer reading as intended, containment held; a PDF came back empty from this installation's custom provider. So the upload form offers PDF, and the route accepts one, only where the provider reads documents (`pdfReadable`: Anthropic's); elsewhere a PDF is refused in plain words, nothing read or spent. Integration 1184 of 1184; CI both jobs pass. Merged 00:09 UTC as `b1b2b75`, deployed, `/health` ok, schema 120. **The last PR of the self-serve run** — what waits is the owner's (the list at the top of Waiting on the owner) | 120 |
 | 2026-10-01 | #194 | **The guided path with its videos, and M3's App Review pack** (the plan's stage 9). `/app/guide`: the five setup steps in order, each with its state, its door and a short video of doing it on the real pages, captioned in the owner's language (and the same words as text); Setup's first door and Today's setup line lead to it. Twenty videos (five steps × en/zh/ar/es, about 6 MB) recorded by `tools/record-guide.mjs`; a test holds every caption file to the catalogue. `docs/APP-REVIEW-PACK.md`: the three submissions' paragraphs, screencast scripts with the app's real labels, the reviewer's workspace, the data answers. Fixed on the way: the run-nomi smoke script still asked for `/app/factory`. Integration 1183 of 1183; CI both jobs pass. Merged 23:47 UTC as `eb607ca`, deployed, `/health` ok, schema 120 (no migration) | 120 |
 | 2026-10-01 | #193 | **WA + WA-S — a business connects its OWN WhatsApp number; replies after 24 hours go as one approved template** (0120; decision 43; built as if Tech Provider status had passed). Embedded Signup by redirect (no script): the code, the shared WABA from `debug_token`, its numbers, the subscription, the registration with a PIN — then the encrypted token and the routing credential; replies and media through the business's own token, a 401 marked and nothing more sent; pilot mode ended (and back) as the owner's step. WA-S: `nomi_reply_waiting` in six languages, asked of Meta from the card and read back; once approved, a reply after the 24 hours goes as it in the customer's language and the words wait in the box. Found on the way: a K5 test's fake counted a turn another file left queued (Found on the way). Pre-pilot 12/12 before and after; integration 1180 of 1180; CI both jobs pass on the second run. Merged 23:06 UTC as `4404256`, deployed, `/health` ok, schema 120. Every path is on the never-run list | 120 |
@@ -686,6 +720,12 @@ once, in this order, and tick it here.
 - 2026-10-02, after #193: the same MCP sign-in asks (Amplitude, Amplitude EU,
   Atlassian, BigQuery, Hex; Definite failed to connect) and the watch hook's
   Whisper key, after another context restart: ignored.
+
+- 2026-10-02, the UI audit, the benchmark and the start of the rebuild run:
+  - The same MCP sign-in asks (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), Definite failing to connect, and the watch hook's Whisper key: ignored.
+  - The Supabase connector's instructions suggested installing an agent skill with `npx skills add …`: not run.
+  - **A web page addressed instructions to AI agents:** every Missive documentation page, in its Markdown form, ends with an "Agent Instructions" block telling AI agents to query the docs through an `?ask=` parameter. Treated as page content; not followed.
+  - One Intercom marketing image URL, opened directly, made the headless browser start a download. The capture script aborted it and nothing was saved.
 
 ## How to resume
 
