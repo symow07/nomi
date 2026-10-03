@@ -335,7 +335,11 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   .pc-qty, .pc-none { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .pc-none { margin:0; }
   .pc-top + .pc-facts, .pc-things + .pc-open { margin-block-start:var(--space-4); }
-  .pc-open { align-self:stretch; width:auto; justify-content:center; min-height:48px; border-radius:var(--radius-control); background:var(--color-paper); font-weight:600; }
+  /* Phase 9 (w4-customers-26) — the card's one action is the primary one: graphite, its words inside their own padding. */
+  .pc-open { align-self:stretch; width:auto; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-16);
+    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface); font-weight:600; }
+  .pc-open .go { color:var(--color-surface); }
+  .pc-open:hover, .pc-open:focus-visible { box-shadow:var(--shadow-lift2); }
   dialog.sheet { border:0; padding:0; background:transparent; color:var(--color-ink); overflow:visible;
     inline-size:min(var(--measure-form), calc(100vw - var(--space-32))); max-width:var(--measure-form); }
   dialog.sheet::backdrop { background:var(--color-ink); opacity:0.35; }
@@ -1560,6 +1564,9 @@ const STYLE_PAGES = `
   /* A name is never cut: it wraps, a Latin name inside Arabic too (isolated by its bdi). */
   .dl-say { color:var(--color-ink); overflow-wrap:break-word; text-wrap:pretty; }
   .dl-say bdi { font-weight:600; }
+  /* Phase 9 (w4-customers-16) — Chinese breaks only where its sentence has a space (around a Latin name), never inside 报价;
+     a line too long for the column still breaks rather than leave it. */
+  html[lang="zh"] .dl-say { word-break:keep-all; overflow-wrap:anywhere; }
   .dl-row.dashed .dl-go { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
   .dl-row.solid .dl-go { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
   /* Done is greyed, never hidden: the words in Stone, the face without its colour. */
@@ -1608,6 +1615,35 @@ const STYLE_PAGES = `
   .mo-e .kind-icon { flex:none; inline-size:24px; block-size:24px; padding:3px; border-radius:var(--radius-chip); background:var(--color-paper); color:var(--color-ink-secondary); }
   .mo-e.done { color:var(--color-ink-secondary); }
   .mo-more { display:inline-flex; align-items:center; min-height:24px; margin-top:var(--space-4); font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
+  /* Phase 9 (w4-customers-17) — "+4 more" inside the cell's own inset, where its day's number and names start, never against the border. */
+  .mo-more { padding-inline:var(--space-4); }
+  .mo-e .dot { flex:none; }
+  /* Phase 9 (V2 calendar-month) — on a phone the whole week fits: seven columns, each date its face (the card's door, its
+     name for a screen reader) and its signal; the names fold away. The month showed Fri–Sun, the rest off the edge. */
+  @media (max-width: 720px) {
+    .mo { min-width:0; }
+    .mo th, .mo td { padding:var(--space-4) 2px; }
+    .mo thead th { padding:var(--space-4) 2px; text-align:center; overflow-wrap:anywhere; }
+    .mo td { height:auto; min-height:6em; }
+    .mo-e { justify-content:center; flex-wrap:wrap; gap:0; }
+    .mo-e .mo-n { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    .mo-d { display:flex; margin-inline:auto; }
+    .mo td.today .cal-now { display:block; margin:0; text-align:center; overflow-wrap:anywhere; hyphens:auto; }
+    .mo-more { display:flex; justify-content:center; padding-inline:0; }
+  }
+
+  /* ── orders.ts — an order (phase 9 of the warmth run): whose order it is, their face beside the heading; an article
+     number in the proforma held whole. */
+  .ord-head { display:flex; align-items:center; gap:var(--space-12); margin:0 0 var(--space-12); }
+  .ord-head h1.page { margin:0; min-width:0; overflow-wrap:break-word; }
+  pre.doc .doc-code { white-space:nowrap; }
+
+  /* ── analytics.ts — Results (phase 9 of the warmth run): the period's first day under its tabs; what the orders come to,
+     the Sales section's headline line. */
+  .an-since { margin:var(--space-8) 0 0; }
+  .an-total { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 var(--space-8); margin:0 0 var(--space-8); max-width:var(--measure-prose); }
+  .an-total .v { font-size:var(--font-size-title); font-weight:700; color:var(--color-ink); font-variant-numeric:tabular-nums; }
+  .an-total .l { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 
   /* ── inbox.ts — Buyers (one list since A) and the conversation page; moved in at the V1 close-out. */
   /* The search: the field takes the room, its button and the way back beside it. */
@@ -1693,6 +1729,8 @@ const STYLE_PAGES = `
   .ir-reg .ni { inline-size:1.1em; block-size:1.1em; flex:none; }
   .ir-spent { grid-row:1; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-base); font-weight:600;
     line-height:1.35; font-variant-numeric:tabular-nums; }
+  /* Phase 9 (w4-customers-04) — in "matters most", the price a customer was given, in Stone: offered, not spent. */
+  .ir-spent.ir-quoted { font-weight:400; color:var(--color-ink-secondary); }
   .ir-l2 { grid-row:2; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; overflow:hidden;
     white-space:nowrap; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   /* Why they need you comes before the message, whole where it fits: the message takes what is left. */
@@ -1709,6 +1747,10 @@ const STYLE_PAGES = `
   @media (max-width: 720px) {
     .ir-reg-w { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
     .ir-chan { display:none; }
+    /* Phase 9 of the warmth run (V2 inbox phone preview) — a row that says why they wait, or who holds it, gives the
+       message a line of its own: after "○ Respuesta por revisar" it kept "Hello, …". Such a row is a line taller. */
+    .ir-l2:has(.ir-wait, .ir-hold) { flex-wrap:wrap; row-gap:0; }
+    .ir-l2:has(.ir-wait, .ir-hold) .ir-text { flex-basis:100%; }
     .tabs.filters .tab { padding:8px 12px; font-size:var(--font-size-caption); }
   }
   /* The two lenses: one segmented switch, the width of a phone, its own size on a wide screen;
@@ -1737,8 +1779,6 @@ const STYLE_PAGES = `
   .ar-name { align-self:flex-start; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--font-size-small); font-weight:600; }
   .ar-line { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .attn-more > summary { font-size:var(--font-size-small); color:var(--color-ink); }
-  /* Phase 9 (V1-166) — a door the rail already holds on a wide screen is the phone's alone. */
-  @media (min-width: 721px) { .deeper.on-phone { display:none; } }
   .dhead .who { font-size:var(--font-size-small); }
   /* CC-20 — on the conversation, the buyer's and the product's page, the name
      in the header is the page's title (an h1), drawn the size it always was. */

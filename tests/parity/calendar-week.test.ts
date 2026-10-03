@@ -96,7 +96,7 @@ describe('the week', () => {
   it('colour is left for state and the assistant: ○ on a reply that is due, ✦ on a price it worked out', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
     expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn" aria-hidden="true">○<\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
-    expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><span class="as" aria-hidden="true">✦<\/span> Price worked out for <bdi>Maya Rahman<\/bdi><\/span>/);
+    expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><span class="as" aria-hidden="true">✦<\/span> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
   });
 
   it('an owner\'s date can be taken off: a button in a form, at once — the notice that follows carries Undo (phase 5); every other date is a door or nothing', () => {

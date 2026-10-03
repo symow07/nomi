@@ -115,7 +115,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
     // whole list, whoever needs the owner first. Maya (a reply to review) leads it; Omar is under her.
     expect(html).toMatch(new RegExp(`<div class="irow is-\\w+[^"]* on">(?:(?!<div class="irow)[\\s\\S])*?<a class="ir-main" href="/app/inbox/${maya}#latest" aria-current="page">`));
     expect(html.indexOf(`href="/app/inbox/${omar}#latest"`)).toBeGreaterThan(html.indexOf(`href="/app/inbox/${maya}#latest"`));
-    expect(html).toContain('<a class="tab on" aria-current="true" href="/app/inbox">Waiting now</a><a class="tab" href="/app/inbox?lens=value">Matters most</a>');
+    expect(html).toContain('<a class="tab on" aria-current="true" href="/app/inbox">Needs you first</a><a class="tab" href="/app/inbox?lens=value">Matters most</a>');
     expect(html).toContain('<title>Maya Rahman · Hana Skincare</title>');
     expect(buttonsAndDoors(html)).toEqual([]);
   });

@@ -33,7 +33,7 @@ import { orderConfirmedReply } from '../../core/conversation/templates.js';
 import { fixedLanguage } from '../../core/conversation/gateLanguage.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
-import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, lensOf, type BuyersFilter, type BuyersLens } from '../../db/buyersList.js';
+import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, lensOf, lastQuoteGiven, type BuyersFilter, type BuyersLens } from '../../db/buyersList.js';
 import { customerValues, REGULAR_ORDERS } from '../../db/customerValue.js';
 import { faceVersions } from '../../db/faces.js';
 import { readAttention, type AttentionItem } from '../../db/inboxAttention.js';
@@ -172,6 +172,11 @@ export type ConversationSummary = {
   readonly photo?: string | null;
   readonly spent?: Money | null;
   readonly regular?: boolean;
+  /**
+   * Phase 9 (w4-customers-04) — in "matters most", for a customer who has
+   * spent nothing, the price they were last given (`lastQuoteGiven`).
+   */
+  readonly quoted?: Money | null;
 };
 
 export type InboxList = {
@@ -305,6 +310,7 @@ export async function loadInboxList(
     // Phase 4 — what each customer spent, whether they are a regular, their photo: the shared readers.
     const clientIds = rows.map((r) => r.client_id);
     const [values, photos] = await Promise.all([customerValues(tx, clientIds), faceVersions(tx, clientIds)]);
+    const quotes = lens === 'value' ? await lastQuoteGiven(tx, clientIds.filter((id) => !values.get(id)?.spent)) : new Map<string, Money>();
     const conversations = page.ids.flatMap((id): ConversationSummary[] => {
       const r = byId.get(id);
       if (!r) return [];
@@ -334,13 +340,14 @@ export async function loadInboxList(
         photo: photos.get(r.client_id) ?? null,
         spent: values.get(r.client_id)?.spent ?? null,
         regular: values.get(r.client_id)?.regular === true,
+        ...(quotes.has(r.client_id) ? { quoted: quotes.get(r.client_id)! } : {}),
       }];
     });
 
     // A9 — THE COUNTS ARE OF EVERYTHING, never of the page: `defaultFilter`
     // decides which tab opens from `waitingCount`.
     const counts = await readBuyerCounts(tx, viewerId);
-    const attention = ask.attention === true ? await readAttention(tx, new Date()) : [];
+    const attention = ask.attention === true ? await readAttention(tx, new Date(), viewerId) : [];
     return {
       filter, lens, conversations, attention,
       waitingCount: counts.waiting,
@@ -1151,8 +1158,10 @@ function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language
  * as characters — cutting by UTF-16 units split an emoji into a broken glyph.
  */
 // Phase 9 (V1-164) — cut where a word ends, and say it was cut: at 90 characters
-// mid-word, "…lead time 25" read as a whole sentence on a laptop.
-const PREVIEW_CHARS = 90;
+// mid-word, "…lead time 25" read as a whole sentence on a laptop. The warmth
+// run's phase 9 — and long enough that the row's own width cuts it (with "…"),
+// not the server: at 90 a desktop row stopped with a fifth of it empty.
+const PREVIEW_CHARS = 200;
 const preview = (text: string): string => {
   const chars = Array.from(text);
   if (chars.length <= PREVIEW_CHARS) return text;
@@ -1160,6 +1169,9 @@ const preview = (text: string): string => {
   const space = head.lastIndexOf(' ');
   return `${(space > PREVIEW_CHARS * 0.6 ? head.slice(0, space) : head).trimEnd()}…`;
 };
+
+/** Their words asked something: a question mark in any of the scripts (`inboxAttention.ts`'s rule for "asked"). */
+const asksSomething = (text: string | null | undefined): boolean => typeof text === 'string' && /[?？؟]/.test(text);
 
 /**
  * A — an address on the Buyers list that keeps what the owner is looking at:
@@ -1325,7 +1337,9 @@ export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions):
   const who = c.buyer ?? t(locale, 'common.buyer');
   const current = o.pane?.current === true;
   // Phase 9 (V1-174) — a customer the assistant holds who wrote last, in an open conversation, has had no reply.
-  const noReply = state === 'hers' && c.unanswered === true && c.live !== false && !o.pane;
+  // The warmth run's phase 9 (w4-customers-03) — said only when their words asked something (the band's own
+  // rule, a question mark in any script): "Thanks, noted." is not owed a reply, and was stamped "No reply yet".
+  const noReply = state === 'hers' && c.unanswered === true && c.live !== false && !o.pane && asksSomething(c.latestMessage);
   // The deletion request in its own short words: the group's long sentence left no room on a phone.
   const reason = c.orderWaiting !== true && c.deletionWaiting === true ? t(locale, 'buyers.badge.deletion') : needsWhy(locale, c);
   // Who holds it, when that is somebody else; which assistant, when there are several (A5).
@@ -1352,8 +1366,13 @@ export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions):
   const regular = c.regular === true
     ? `<span class="ir-reg">${icon('regular')}<span class="ir-reg-w">${esc(t(locale, 'buyers.row.regular'))}</span></span>` : '';
   const amount = c.spent ? show.money(locale, c.spent) : '';
-  const spent = `<span class="ir-spent">${amount
-    ? `<bdi aria-hidden="true">${esc(amount)}</bdi><span class="sr">${esc(t(locale, 'buyers.row.spent', { amount }))}</span>` : ''}</span>`;
+  // Phase 9 (w4-customers-04) — in "matters most", a customer who spent nothing shows the price they were given, quieter.
+  const offered = !amount && c.quoted ? show.money(locale, c.quoted) : '';
+  const spent = amount
+    ? `<span class="ir-spent"><bdi aria-hidden="true">${esc(amount)}</bdi><span class="sr">${esc(t(locale, 'buyers.row.spent', { amount }))}</span></span>`
+    : offered
+    ? `<span class="ir-spent ir-quoted"><bdi aria-hidden="true">${esc(offered)}</bdi><span class="sr">${esc(t(locale, 'buyers.row.quoted', { amount: offered }))}</span></span>`
+    : '<span class="ir-spent"></span>';
   // The channel, once there is more than one, is a wide screen's: a phone keeps the time.
   const channel = o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '';
   const time = c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '';
@@ -1509,32 +1528,37 @@ export function renderInboxList(
   ].filter(Boolean);
   const filters = chips.length ? `<nav class="tabs filters" aria-label="${esc(t(locale, 'buyers.tabs'))}">${chips.join('')}${
     narrowed ? `<a class="clear" href="${esc(buyersHref({ lens }))}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>` : ''}</nav>` : '';
-  const lensBar = `<div class="lensbar">${lensSwitch(locale, lens, q)}${filters}</div>
+  // Phase 9 of the warmth run (w4-customers-07) — under a narrowing the list is the narrowing's: no lens shown
+  // selected beside it, and no caption describing a list that is not on the page. "See all customers" leads back.
+  const lensBar = narrowed ? `<div class="lensbar">${filters}</div>`
+    : `<div class="lensbar">${lensSwitch(locale, lens, q)}${filters}</div>
     <p class="caption muted lens-says">${esc(t(locale, lens === 'value' ? 'buyers.lens.valueSays' : 'buyers.lens.waitingSays'))}</p>`;
 
   // The band: slipping relationships, on the first page of the whole list only (the route reads it there).
   const band = attentionBand(data.attention ?? [], locale, now);
 
   // M38 — the wider list: everyone the assistant may write to. D — a door only
-  // where the outreach area exists. Phase 9 (V1-166) — the calendar's door is the phone's.
-  const doors = `<div class="doors">${deeper('/app/calendar', t(locale, 'calendar.door'), 'on-phone')}${
-    outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.door')) : ''}</div>`;
+  // where the outreach area exists. Phase 9 of the warmth run (V1-166) — no
+  // calendar door: the rail has Calendar on every width since phase 1, and on
+  // a phone the door repeated its tile; the contacts door says what it opens.
+  const doors = outreachShown() ? `<div class="doors">${deeper('/app/contacts', t(locale, 'contacts.door'))}</div>` : '';
   const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}`;
 
   if (data.conversations.length === 0) {
     const all = esc(buyersHref({ lens }));
     const body = q
       ? `<div class="empty">${esc(t(locale, 'buyers.search.noneBody'))}</div>`
+      // Phase 9 of the warmth run (w4-customers-07) — the way back is the one beside the narrowing's chip, once.
       : filter === 'pending'
       ? `<div class="empty"><div class="ok-line">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
-          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="${all}">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
+          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))}${filters ? '' : ` <a href="${all}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>`}</p></div>`
       // M22 — nothing was refused. Stated as the fact it is; not a ✓.
       : filter === 'deletion'
-      ? `<div class="empty">${esc(t(locale, 'inbox.empty.deletion'))}
-          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div></div>`
+      ? `<div class="empty">${esc(t(locale, 'inbox.empty.deletion'))}${filters ? '' : `
+          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div>`}</div>`
       : filter === 'blocked'
-      ? `<div class="empty">${esc(t(locale, 'refused.none'))}
-          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div></div>`
+      ? `<div class="empty">${esc(t(locale, 'refused.none'))}${filters ? '' : `
+          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div>`}</div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/business', t(locale, 'inbox.empty.setup'))}</div></div>`;
     return `${head}${body}${doors}`;
@@ -1550,10 +1574,12 @@ export function renderInboxList(
 
   let rows: string;
   if (lens === 'value') {
-    // Matters most: who has spent, the most first; then everyone with nothing spent yet, headed apart.
+    // Matters most: who has spent, the most first; phase 9 (w4-customers-04) — then who was given a price and
+    // has ordered nothing, the biggest price first; then everyone else, each headed apart.
     const spent = data.conversations.filter((c) => c.spent);
-    const none = data.conversations.filter((c) => !c.spent);
-    rows = `${group('', spent, false)}${group(t(locale, 'buyers.lens.noSpend'), none, true)}`;
+    const quoted = data.conversations.filter((c) => !c.spent && c.quoted);
+    const none = data.conversations.filter((c) => !c.spent && !c.quoted);
+    rows = `${group('', spent, false)}${group(t(locale, 'buyers.lens.quoted'), quoted, true)}${group(t(locale, 'buyers.lens.noSpend'), none, true)}`;
   } else {
     // Phase D — an owner thinks in people, and the question that orders them is
     // "who is speaking now?" — headed on the whole list; a narrowing's own chip

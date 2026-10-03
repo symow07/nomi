@@ -235,15 +235,16 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
   });
 
   it('the glimpse of a long message is cut by characters — never through an emoji', () => {
-    const long = `${'a'.repeat(89)}😀 and the rest`;
+    // The warmth run's phase 9 (V1-164) — 200 characters: the row's own width cuts the rest.
+    const long = `${'a'.repeat(199)}😀 and the rest`;
     const h = html('en', { conversations: [conv('c-long', { latestMessage: long })] });
     // Phase 9 (V1-164) — and says it was cut.
-    expect(h).toContain(`<span class="ir-text" dir="auto">${'a'.repeat(89)}😀…</span>`);
+    expect(h).toContain(`<span class="ir-text" dir="auto">${'a'.repeat(199)}😀…</span>`);
     expect(h).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
   });
 
   it('phase 9 (V1-164) · a long preview is cut where a word ends, and says so', () => {
-    const long = 'For 500 pcs the price is $1.05/pc and for 2,000 pcs it is $0.92/pc, lead time 25 days from the deposit';
+    const long = 'For 500 pcs the price is $1.05/pc and for 2,000 pcs it is $0.92/pc, lead time 25 days from the deposit. '.repeat(3);
     const h = html('en', { conversations: [conv('c-cut', { latestMessage: long })] });
     const text = /<span class="ir-text" dir="auto">([^<]*)<\/span>/.exec(h)![1]!;
     expect(text.endsWith('…')).toBe(true);
@@ -381,7 +382,8 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     const on = withWorkspace({ name: null, several: false, outreach: true, setup: null }, () => html('en'));
     expect(off).not.toContain('href="/app/contacts"');
     expect(on).toContain('href="/app/contacts"');
-    expect(on).toContain('href="/app/calendar"');
+    // phase 9 of the warmth run (V1-166) — no calendar door: the rail has Calendar on every width
+    expect(on).not.toContain('class="deeper on-phone"');
   });
 
   it('the buyer\'s own page stays where it was, one door from the conversation', () => {

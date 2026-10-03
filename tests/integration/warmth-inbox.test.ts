@@ -191,6 +191,11 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     expect(ids.slice(0, 3)).toEqual([conv['Ade'], conv['Cy'], conv['Bo']]);
     const head = r.body.indexOf('<h2 class="bgroup-h">Nothing spent yet</h2>');
     expect(head).toBeGreaterThan(r.body.indexOf(`/app/inbox/${conv['Bo']}#latest`));
+    // phase 9 of the warmth run (w4-customers-04) — between them, those given a price and not ordered on, headed apart
+    const quoted = r.body.indexOf('<h2 class="bgroup-h">Quoted, nothing ordered yet</h2>');
+    expect(quoted).toBeGreaterThan(r.body.indexOf(`/app/inbox/${conv['Bo']}#latest`));
+    expect(r.body.indexOf(`/app/inbox/${conv['Fay']}#latest`)).toBeGreaterThan(quoted);
+    expect(r.body.indexOf(`/app/inbox/${conv['Fay']}#latest`)).toBeLessThan(head);
     expect(r.body.indexOf(`/app/inbox/${conv['Dee']}#latest`)).toBeGreaterThan(head);
     // the rest by their last contact, the newest first: Ed (30 minutes) before Tan (an hour)
     expect(ids.indexOf(conv['Ed']!)).toBeLessThan(ids.indexOf(conv['Tan']!));
@@ -214,7 +219,7 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     do {
       const p = await as((x) => readBuyersPage(x, { filter: 'all', q: '', lens: 'value', after, size }));
       forward.push(p.rows.map((x) => x.clientId));
-      if (p.next) expect(p.next).toMatch(/^v-?\d+(\.\d+)?_(n|-?\d+)_[0-9a-f-]{36}$/);
+      if (p.next) expect(p.next).toMatch(/^v-?\d+(\.\d+)?_q-?\d+(\.\d+)?_(n|-?\d+)_[0-9a-f-]{36}$/);
       after = p.next;
       prev = p.prev;
     } while (after);
@@ -239,7 +244,7 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     for (const name of ['Hal', 'Ivy', 'Jo', 'Kim', 'Ade', 'Bo', 'Tan']) expect(at(name), name).toBe(-1);
     // each with its line; the one who spent most first, then the most recent
     expect(b).toMatch(/Cy<\/bdi><\/span><span class="ar-line">Regular, no order since /);
-    expect(b).toMatch(/Fay<\/bdi><\/span><span class="ar-line">Price sent [^<]+, no word since/);
+    expect(b).toMatch(/Fay<\/bdi><\/span><span class="ar-line">Quote sent [^<]+, no word since/);
     expect(b).toMatch(/Gus<\/bdi><\/span><span class="ar-line">Question sent [^<]+, no answer yet/);
     expect(at('Cy')).toBeLessThan(at('Fay'));
     expect(at('Fay')).toBeLessThan(at('Gus'));

@@ -49,8 +49,8 @@ const LIST: InboxList = {
   conversations: [
     conv('c-wait', { buyer: 'Omar Haddad', ownership: 'WAITING_HUMAN', heldBy: 'unclaimed', handoffReason: 'human_requested', lastFrom: 'buyer', unanswered: true }),
     conv('c-review', { buyer: 'Leila Haddad', awaitingReview: true, status: 'awaiting', needsAction: true, lastFrom: 'buyer', unanswered: true }),
-    conv('c-new', { buyer: 'Fatima Zahra', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(20) }),
-    conv('c-old', { buyer: 'Camila Rocha', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(60 * 24 * 15) }),
+    conv('c-new', { buyer: 'Fatima Zahra', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(20), latestMessage: 'Can you do 3 colours per set?' }),
+    conv('c-old', { buyer: 'Camila Rocha', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(60 * 24 * 15), latestMessage: 'Thanks, noted.' }),
     conv('c-answered', { buyer: 'Layla Mansour', latestAt: AGO(60) }),
     conv('c-closed', { buyer: 'Lucia Ferreira', lastFrom: 'buyer', unanswered: true, live: false, latestAt: AGO(60 * 24 * 2) }),
   ],
@@ -86,6 +86,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
       const h = list(l);
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="ir-hold"><bdi>${shown(l, 'buyers.row.noReply')}</bdi></span>`);
       expect(rowOf(h, 'c-closed'), l).not.toContain(shown(l, 'buyers.row.noReply'));
+      // the warmth run's phase 9 (w4-customers-03) — words that asked nothing are not owed a reply
+      expect(rowOf(h, 'c-old'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // the mark, then who wrote it for a screen reader (the conversation batch), then the words
       expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
@@ -181,12 +183,12 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(t('en', 'inbox.empty.seeAll')).toBe('See all customers');
   });
 
-  it('V1-166 · the calendar door is the phone\'s (the rail has it on a wide screen); the list of contacts says what it is for', () => {
+  it('V1-166 · no calendar door (the rail has Calendar on every width, and on a phone it repeated the tile); the list of contacts says what it is', () => {
     const h = withWorkspace(SCOPE, () => list('en'));
-    expect(h).toContain('<a class="deeper on-phone" href="/app/calendar">');
-    expect(CSS).toMatch(/@media \(min-width: 721px\) \{ \.deeper\.on-phone \{ display:none; \} \}/);
+    expect(h).not.toContain('href="/app/calendar"');
+    expect(CSS).not.toContain('.deeper.on-phone');
     expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.door'))}`);
-    expect(t('en', 'contacts.door')).toBe('Who you may write to first');
+    expect(t('en', 'contacts.door')).toBe('Contacts: who you may write to first');
   });
 
   it('V1-167 · V1-175 · Chinese: the search button is 搜索, the holder runs on without a space, the tab and its group say the same', () => {
@@ -266,7 +268,7 @@ describe('the calendar', () => {
       expect(move, `${l}/${v}`).toContain(`<a class="tab cal-today" href=`);
       expect(h.indexOf('<p class="cal-span">'), `${l}/${v}`).toBeLessThan(h.indexOf('<nav class="cal-move"'));
       expect(h.indexOf('<nav class="cal-move"'), `${l}/${v}: at the top`).toBeLessThan(h.indexOf('cal-legend'));
-      // the same lede and legend on every view (since the warmth run, in the page's one fold); no second way of moving at the foot of the list
+      // the same lede on every view (in the page's one fold) and the legend under the dates (phase 9 of the warmth run); no second way of moving at the foot of the list
       expect(h, `${l}/${v}`).toContain(`<div class="cal-key"><p class="muted cal-lede">${esc(t(l, 'calendar.lede'))}</p>`);
       expect(h, `${l}/${v}`).toContain('<p class="cal-legend small">');
       expect(h, `${l}/${v}`).not.toContain('<nav class="pager"');
@@ -275,7 +277,8 @@ describe('the calendar', () => {
 
   it('V1-200 · inbox-calendar-new-14 · the legend draws each mark it explains — ✦, owed, done — and its edges are swatches, not pills', () => {
     for (const l of LOCALES) {
-      const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'day'))![1]!;
+      // the week holds a mark of each kind (phase 9 of the warmth run, w4-customers-14: the legend explains only the marks its page shows)
+      const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'week'))![1]!;
       expect(legend, l).toContain(`<span class="as" aria-hidden="true">✦</span> ${shown(l, 'calendar.legend.assistant')}`);
       expect(legend, l).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${shown(l, 'calendar.legend.owed')}`);
       expect(legend, l).toContain(`<span class="dot ok" aria-hidden="true">✓</span> ${shown(l, 'calendar.legend.done')}`);
@@ -417,14 +420,14 @@ describe('Results', () => {
       const overview = results(l).split(shown(l, 'analytics.section.activity'))[0]!;
       expect(statsOf(overview), l).toHaveLength(2);
     }
-    // "Quotes sent" counted every price worked out, sent or not: it says what it counts
-    expect(statsOf(results('en'))).toContain('12 prices worked out');
+    // The warmth run's phase 9 (w4-customers-20) — Today's figure, in Today's words: quotes GIVEN, orders confirmed
+    expect(statsOf(results('en'))).toContain('12 quotes sent');
   });
 
   it('V1-209 · a count\'s words agree with it, in each language\'s own forms', () => {
     const en = statsOf(results('en'));
-    expect(en).toEqual(expect.arrayContaining(['1 order placed', '1 reply waiting for your OK', '0 replies you changed before they went', '6 new customers']));
-    expect(statsOf(results('es'))).toEqual(expect.arrayContaining(['1 pedido realizado', '1 respuesta que espera tu visto bueno']));
+    expect(en).toEqual(expect.arrayContaining(['1 order confirmed', '1 reply waiting for your OK', '0 replies you changed before they went', '6 new customers']));
+    expect(statsOf(results('es'))).toEqual(expect.arrayContaining(['1 pedido confirmado', '1 respuesta que espera tu visto bueno']));
     expect(statsOf(results('ar', { summary: { ...RESULTS.summary, newClients: 12 } }))).toContain('12 عميلًا جديدًا');
     expect(statsOf(results('ar', { summary: { ...RESULTS.summary, newClients: 2 } }))).toContain('2 عميلان جديدان');
     for (const l of LOCALES) for (const r of statsOf(results(l))) expect(r, l).not.toMatch(/^1 (Orders|Pedidos|الطلبات)/);
@@ -434,7 +437,8 @@ describe('Results', () => {
     for (const l of LOCALES) {
       const h = results(l);
       expect(h, l).not.toContain('class="chip"');
-      expect(h, l).toContain(`<div class="v">${withoutIsolates(esc(showMoney(l, usd(11750))))}</div><div class="l">${shown(l, 'analytics.commerce.value')}</div>`);
+      // the warmth run's phase 9 (w4-customers-22) — the Sales section's headline line, under its own heading
+      expect(h, l).toContain(`<p class="an-total"><span class="v">${withoutIsolates(esc(showMoney(l, usd(11750))))}</span> <span class="l">${shown(l, 'analytics.commerce.value')}</span></p>`);
       expect(h, l).toContain(`${esc(t(l, `analytics.n.order.${new Intl.PluralRules(l).select(1)}` as MessageKey))} · ${esc(t(l, 'order.status.confirmed' as MessageKey))}`);
     }
   });
@@ -467,7 +471,11 @@ describe('an order', () => {
     for (const l of LOCALES) {
       const h = orderPage(l);
       expect(h, l).toContain(`<a class="deeper" href="/app/orders/${ORDER_VIEW.orderId}/proforma.txt" download>${shown(l, 'order.invoice.download')}`);
-      expect(h, l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
+      // the same text the file holds; the warmth run's phase 9 (w4-customers-09) — the article number held whole
+      expect(h.replace(/<span class="doc-code">([^<]*)<\/span>/g, '$1'), l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
+      expect(h, l).toContain('<span class="doc-code">(ZX-200)</span>');
+      // w4-customers-12 — it says it saves a file, with a file's mark, not a door's chevron
+      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">↓</span></a>`);
     }
     expect(proformaFileName({ ...ORDER_VIEW, reference: 'PI/2026 "x"' })).toBe('proforma-PI-2026-x-.txt');
     expect(proformaText({ ...ORDER_VIEW, paymentTerms: null })).toBeNull();
@@ -510,8 +518,13 @@ describe('an order', () => {
   });
 
   it('V1-193 · the confirmation date has its year; the proforma keeps the prose measure', () => {
-    expect(orderPage('en')).toContain('<span class="fval"><bdi>Wed, Sep 30, 2026</bdi></span>');
-    expect(orderPage('es')).toMatch(/2026<\/bdi><\/span>/);
+    // the warmth run's phase 9 (w4-customers-11) — said once, with its year, by the line that says where it stands;
+    // a "Confirmed on" row only once something has happened since
+    expect(orderPage('en')).toContain('since Wed, Sep 30, 2026');
+    expect(orderPage('en')).not.toContain(shown('en', 'order.field.confirmed'));
+    const shipped = orderPage('en', { history: [{ state: 'shipped', at: new Date('2026-10-02T06:00:00Z'), note: null, trackingReference: null, by: 'owner' }] });
+    expect(shipped).toContain('<span class="fval"><bdi>Wed, Sep 30, 2026</bdi></span>');
+    expect(orderPage('es')).toMatch(/2026<\/span><\/p>/);
     expect(CSS).toMatch(/pre\.doc \{ white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; max-width:var\(--measure-prose\); \}/);
   });
 

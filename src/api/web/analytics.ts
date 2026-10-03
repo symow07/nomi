@@ -4,6 +4,8 @@ import { summarizePaths, type AnswerPath } from '../../core/conversation/answerP
 import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
+import { PRICE_GIVEN } from '../../db/quotesGiven.js';
+import { SPEND_STATUSES } from '../../db/customerValue.js';
 
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -24,6 +26,8 @@ export const parseRange = (r: string | undefined): Range => (r === 'today' || r 
 
 export type AnalyticsData = {
   readonly range: Range;
+  /** Phase 9 (w4-customers-21) — where the period starts, in the workspace's zone: "This month" since Oct 1 is shorter than "This week". */
+  readonly since?: Date;
   readonly hasActivity: boolean;
   readonly summary: { readonly newClients: number; readonly activeConvos: number; readonly quotes: number; readonly orders: number };
   readonly activity: { readonly inbound: number; readonly replied: number; readonly waiting: number };
@@ -71,15 +75,31 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
       select (date_trunc(${unit}, now() at time zone ${zone}) at time zone ${zone}) as c
     `.execute(tx)).rows[0]!.c;
 
+    // Phase 9 of the warmth run:
+    //   - w4-customers-19 — counted by CUSTOMER, the Inbox's rule (one
+    //     customer, one conversation): those who wrote or were written to in
+    //     the period, and the new ones among them. "40 new customers" stood
+    //     over "39 conversations".
+    //   - w4-customers-20 — the prices and the orders are Today's figures, by
+    //     Today's rules and in Today's words: a quote counts once it was GIVEN
+    //     (`PRICE_GIVEN`), an order once it stands and was confirmed in the
+    //     period (`SPEND_STATUSES`). One tap apart, the two pages said
+    //     "0 quotes sent" and "3 prices worked out" of the same day.
+    const spend = [...SPEND_STATUSES];
     const c = (await sql<{
       new_clients: number; active_convos: number; quotes: number; orders: number;
       inbound: number; replied: number; waiting: number; handled: number; edits: number;
     }>`
+      with talked as (
+        select distinct cv.client_id from messages m join conversations cv on cv.id = m.conversation_id
+         where m.sent_at >= ${cutoff} and cv.client_id is not null
+      )
       select
-        (select count(*)::int from clients where created_at >= ${cutoff}) as new_clients,
-        (select count(distinct conversation_id)::int from messages where sent_at >= ${cutoff}) as active_convos,
-        (select count(*)::int from quotes where created_at >= ${cutoff}) as quotes,
-        (select count(*)::int from orders where created_at >= ${cutoff}) as orders,
+        (select count(*)::int from talked t join clients cl on cl.id = t.client_id where cl.created_at >= ${cutoff}) as new_clients,
+        (select count(*)::int from talked) as active_convos,
+        (select count(*)::int from quotes q where q.created_at >= ${cutoff} and ${PRICE_GIVEN}) as quotes,
+        (select count(*)::int from orders o where o.status = any(${spend}::text[])
+            and coalesce(o.confirmed_at, o.created_at) >= ${cutoff}) as orders,
         (select count(*)::int from messages where direction = 'inbound'  and sent_at >= ${cutoff}) as inbound,
         (select count(*)::int from messages where direction = 'outbound' and sent_at >= ${cutoff}) as replied,
         (select count(*)::int from drafts where status = 'pending') as waiting,
@@ -91,13 +111,15 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
     const dealsRows = c.orders > 0
       ? (await sql<{ status: string; n: number }>`
           select status, count(*)::int as n
-            from orders where created_at >= ${cutoff} group by status order by status`.execute(tx)).rows
+            from orders o where o.status = any(${spend}::text[]) and coalesce(o.confirmed_at, o.created_at) >= ${cutoff}
+           group by status order by status`.execute(tx)).rows
       : [];
     const deals = dealsRows.map((r) => ({ status: r.status, n: r.n }));
     const totalRows = c.orders > 0
       ? (await sql<{ currency: string; val: string }>`
           select currency, coalesce(sum(total_value_usd), 0)::numeric as val
-            from orders where created_at >= ${cutoff} group by currency order by 2 desc`.execute(tx)).rows
+            from orders o where o.status = any(${spend}::text[]) and coalesce(o.confirmed_at, o.created_at) >= ${cutoff}
+           group by currency order by 2 desc`.execute(tx)).rows
       : [];
     // A row in a currency this build does not know is dropped, not defaulted:
     // `moneyFromRow` returns null rather than calling it dollars.
@@ -117,7 +139,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
     }))));
 
     return {
-      range, hasActivity,
+      range, hasActivity, since: cutoff,
       summary: { newClients: c.new_clients, activeConvos: c.active_convos, quotes: c.quotes, orders: c.orders },
       activity: { inbound: c.inbound, replied: c.replied, waiting: c.waiting },
       commerce: { quotes: c.quotes, orders: c.orders, deals, totals },
@@ -148,14 +170,16 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 
   const tab = (r: Range) =>
     `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/analytics?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
-  const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
+  // Phase 9 (w4-customers-21) — the period says where it starts: "This month" since Oct 1 read as smaller than "This week".
+  const since = d.since ? `<p class="caption muted an-since">${esc(t(locale, 'analytics.since', { date: show.date(locale, d.since) }))}</p>` : '';
+  const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>${since}`;
   // Phase 9 (V1-207) — Results is Today's page, and says so: the way back is
   // to Today, the period's chip is "Today so far", not a second "Today".
   const title = `${back('/app', t(locale, 'nav.home'))}<h1 class="page">${esc(t(locale, 'analytics.title'))}</h1>`;
 
   if (!d.hasActivity) {
     return `<div class="measure-prose">${title}${tabs}
-      <div class="block"><div class="empty"><div class="stated-now">📈 ${esc(t(locale, 'analytics.empty.title'))}</div>
+      ${/* Phase 9 of the warmth run (w4-customers-24) — the words alone: the emoji was the one picture of a chart on a page that has none. */ ''}<div class="block"><div class="empty"><div class="stated-now">${esc(t(locale, 'analytics.empty.title'))}</div>
         <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: during, name }))}</p></div></div></div>`;
   }
 
@@ -179,19 +203,24 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   // Phase 9 (V1-210) — the sales in the page's one pattern, a figure and its
   // words: how many orders are in each state, then what they come to, to the
   // cent as the order page says it. A pill there read as a filter.
+  // Phase 9 of the warmth run — w4-customers-22: Sales is a section with its
+  // heading, as every other is, and what the orders come to is its headline
+  // line, above the counts: as a row its wide figure pushed its words out of
+  // the column every other row keeps. w4-customers-20: the prices and the
+  // orders in Today's own words (`today.tally.*`), counted by Today's rules.
   const deals = d.commerce.orders > 0
-    ? `<div class="stats">
+    ? `${d.commerce.totals.map((m) => `<p class="an-total"><span class="v">${esc(show.money(locale, m))}</span> <span class="l">${esc(t(locale, 'analytics.commerce.value'))}</span></p>`).join('')}
+      <div class="stats">
         ${d.commerce.deals.map((x) => `<div class="stat"><div class="v">${esc(show.count(locale, x.n))}</div><div class="l">${
           esc(noun(locale, 'analytics.n.order', x.n))} · ${esc(orderStatusName(locale, x.status))}</div></div>`).join('')}
-        ${d.commerce.totals.map((m) => `<div class="stat"><div class="v">${esc(show.money(locale, m))}</div><div class="l">${esc(t(locale, 'analytics.commerce.value'))}</div></div>`).join('')}
       </div>`
     : `<div class="muted">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
   const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>
     <div class="stats">
-      ${stat(d.commerce.quotes, 'analytics.n.prices')}
-      ${stat(d.commerce.orders, 'analytics.n.orders')}
-    </div>
-    <div class="sub">${esc(t(locale, 'analytics.commerce.deals'))}</div>${deals}</div>`;
+      ${stat(d.commerce.quotes, 'today.tally.quotes')}
+      ${stat(d.commerce.orders, 'today.tally.orders')}
+    </div></div>
+    <div class="block"><h2>${esc(t(locale, 'analytics.commerce.deals'))}</h2>${deals}</div>`;
 
   const employee = `<div class="block"><h2>${esc(t(locale, 'analytics.section.employee', { name }))}</h2>
     <div class="stats">

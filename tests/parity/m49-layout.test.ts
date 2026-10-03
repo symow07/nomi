@@ -301,6 +301,9 @@ describe('M49 · buttons and empty states', () => {
       // The warmth run (phase 2) — Today's face row: each tile is a face over its one word.
       ['layout.ts  .td-face', 'a customer\'s face over the one word of what happened, in its tile'],
       ['layout.ts  .td-more', 'the row\'s last tile, "+N more", drawn like a face over its word'],
+      // Phase 9 of the warmth run — the month on a phone: seven narrow columns, each day a face over its signal.
+      ['layout.ts  .mo thead th', 'the weekday over its narrow column, on a phone where the week fits the screen'],
+      ['layout.ts  .mo td.today .cal-now', 'today\'s word under its date, centred in the day\'s narrow cell on a phone'],
     ]);
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {
