@@ -238,7 +238,6 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 /** Phase 7 — the screens one row each opens, in the menu's order. */
 export const EMPLOYEE_SCREENS = ['talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
 export type EmployeeScreen = typeof EMPLOYEE_SCREENS[number];
-export const isEmployeeScreen = (s: string): s is EmployeeScreen => (EMPLOYEE_SCREENS as readonly string[]).includes(s);
 export const screenHref = (s: EmployeeScreen): string => `/app/employee/${s}`;
 
 /** Each screen's heading — the row's own words, so the row, the tab and the heading say one thing. */
@@ -548,7 +547,7 @@ const menuRow = (r: MenuRow): string => {
 };
 const menuGroup = (id: string, title: string, rows: readonly MenuRow[]): string =>
   `<section class="sgroup" aria-labelledby="ag-${id}"><h2 class="sgroup-h" id="ag-${id}">${esc(title)}</h2>
-    <ul class="scard">${rows.map(menuRow).join('')}</ul></section>`;
+    <ul class="scard asst-menu">${rows.map(menuRow).join('')}</ul></section>`;
 
 /**
  * The landing: the name, the control, the menu. Three groups, named by me as
@@ -579,7 +578,8 @@ export function renderEmployee(
   const works: MenuRow[] = [
     { href: screenHref('name'), icon: 'assistant', label: t(locale, 'her.menu.name'),
       ...(e.assistantNamed ? { value: name } : { value: t(locale, 'her.menu.name.unconfirmed'), tone: 'warn' as const }) },
-    { href: screenHref('replies'), icon: 'setup', label: t(locale, 'her.handles.title'), value: st.stageLabel },
+    // Where it stands is a sentence here, so it is the line under the name, never a value cut short.
+    { href: screenHref('replies'), icon: 'setup', label: t(locale, 'her.handles.title'), desc: st.stageLabel },
     // What stands here is a choice waiting to be made, if any: the kinds that
     // may go out alone now, said as the screen says it (a line, not a value).
     { href: screenHref('one-kind'), icon: 'settings', label: t(locale, 'employee.actions.title'),
@@ -594,9 +594,9 @@ export function renderEmployee(
   ];
   const going: MenuRow[] = [
     { href: screenHref('month'), icon: 'calendar', label: t(locale, 'her.recent.title'),
-      ...(ctx ? { value: tn(locale, 'her.count.handled', ctx.handled) } : {}) },
+      ...(ctx ? { desc: tn(locale, 'her.count.handled', ctx.handled) } : {}) },
     { href: screenHref('next'), icon: 'flag', label: t(locale, 'employee.promo.title'),
-      value: e.conditions.length ? t(locale, 'nav.setup.progress', { done: met, total: e.conditions.length }) : st.stageLabel },
+      ...(e.conditions.length ? { value: t(locale, 'nav.setup.progress', { done: met, total: e.conditions.length }) } : { desc: st.stageLabel }) },
     { href: screenHref('history'), icon: 'history', label: t(locale, 'employee.growth.title'),
       value: e.growth[0] ? show.date(locale, e.growth[0].at) : nothingYet },
   ];
@@ -645,7 +645,7 @@ export function renderEmployeeScreen(
       ];
       return `${head}
         <p class="lede">${esc(t(locale, 'her.talk.lede'))}</p>
-        <ul class="scard">${rows.map(menuRow).join('')}</ul>`;
+        <ul class="scard asst-menu">${rows.map(menuRow).join('')}</ul>`;
     }
     // What still needs teaching, then what is known so far, with the door to
     // the whole of it (Knowledge, and each entry under it).

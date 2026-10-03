@@ -1097,6 +1097,8 @@ const STYLE_PAGES = `
   .actrow:last-of-type { border-bottom:none; }
   /* THE WARMTH RUN, phase 7 — the landing: the control stands apart from the menu under it; what holds every level (stopped, paused) leads it. */
   .level-control { margin-bottom:var(--space-24); }
+  /* A short value ("24 products", "3 words") is said whole; the name beside it wraps instead. A long one still stops at half the row. */
+  .asst-menu .sr-value { flex-shrink:0; }
   .held-all { margin-bottom:var(--space-12); }
   .held-all p { margin:0 0 var(--space-4); }
   /* The name screen: the name itself, at the size of a name. */

@@ -216,7 +216,9 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(learning).not.toContain(t('en', 'her.teach.unasked'));
     const landing = renderEmployee(base, 'en', null);
     const row = (href: string) => landing.slice(landing.indexOf(`href="${href}"`), landing.indexOf('</a>', landing.indexOf(`href="${href}"`)));
-    expect(row('/app/employee/month')).not.toContain('sr-value');
+    expect(row('/app/employee/month')).not.toMatch(/sr-value|sr-desc/);
+    expect(renderEmployee(base, 'en', null, { taughtRecently: 0, corrected: 0, handled: 12, draftsPrepared: 0, neededYou: 0, gaps: [] }))
+      .toContain(`<span class="sr-desc">${t('en', 'her.count.handled.other', { n: '12' })}</span>`);
     expect(row('/app/employee/learning')).not.toContain('sr-value');
   });
 

@@ -18,7 +18,7 @@ before you acted. Every control below works by changing one of its inputs.
 |---|---|---|
 | The whole factory | `/app/factory` → **Stop messaging** (停止发消息) | `not_activated` — binds the employee *and* the owner |
 | One conversation | `/app/inbox` → the conversation → **Take over** | `handed_off` — employee only; you keep replying as yourself |
-| One capability | `/app/employee` → the capability → **Revoke** | drops it to draft. This is the real "force_draft", per tenant |
+| One capability | `/app/employee` → **One kind at a time** (`/app/employee/one-kind`) → **Wait for my OK** | drops it to draft. This is the real "force_draft", per tenant |
 | One buyer | `/app/factory` → allowlist → remove the number | `not_allowlisted` — binds everyone, owner included |
 | The connection | `/app/channels` → **Disconnect** | queued employee messages are canceled at send time, by design |
 
@@ -181,7 +181,7 @@ select flag, capability, business_id, set_at from ops_flags where cleared_at is 
 
 ### 6. Employee said something wrong to a buyer
 - Contain first: **Take over** that conversation (`/app/inbox`) — she goes silent
-  there immediately — or **Revoke** the capability (`/app/employee`) if the
+  there immediately — or make the capability wait (`/app/employee/one-kind`) if the
   mistake is systemic rather than one-off. If it spans tenants, `force_draft` on
   that capability platform-wide (§ Ops kill switches).
 - Correct it yourself in the same thread, through the same send path.
@@ -192,7 +192,7 @@ select flag, capability, business_id, set_at from ops_flags where cleared_at is 
 
 ### 7. Meta quality rating drops
 - Stop proactive sends: `force_draft` on `follow_up` platform-wide (§ Ops kill
-  switches), or **Revoke** it at `/app/employee` for a single tenant.
+  switches), or make it wait at `/app/employee/one-kind` for a single tenant.
 - Audit last 50 outbound for spam-feel; check opt-in records. Re-enable gradually.
 
 ### 8. Replies accepted but not going out (M17.4)

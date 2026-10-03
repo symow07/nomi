@@ -99,6 +99,8 @@ const PAGES = list('pages', [
   { name: 'channels', path: '/app/channels' },
   { name: 'contacts', path: '/app/contacts' },
   { name: 'employee', path: '/app/employee' },
+  { name: 'employee-talk', path: '/app/employee/talk' },
+  { name: 'employee-replies', path: '/app/employee/replies' },
   { name: 'onboarding', path: '/app/onboarding' },
   { name: 'sandbox', path: '/app/sandbox' },
   { name: 'analytics', path: '/app/analytics' },

@@ -118,8 +118,12 @@ describe('phase 7 · the landing: the name, the control, the menu', () => {
         // every row says where it stands — a value, or (Practice) the line under its name
         expect(r.includes('<span class="sr-value') || r.includes('<span class="sr-desc">'), `${l}: ${text(r)}`).toBe(true);
       }
-      const valued = all.filter((r) => r.includes('<span class="sr-value'));
-      expect(valued.length, `${l}: all but Practice and the one-kind choice carry a value`).toBeGreaterThanOrEqual(all.length - 2);
+      // a short value at the row's end; where it stands as a sentence, the line under the name (never a value cut short)
+      const row = (href: string) => all.find((r) => r.startsWith(`<a class="srow sr-menu" href="${href}"`)) ?? '';
+      for (const href of ['/app/employee/talk', '/app/knowledge', '/app/employee/learning', '/app/settings/forbidden',
+        '/app/employee/name', '/app/employee/checks', '/app/employee/history']) expect(row(href), `${l}: ${href}`).toContain('<span class="sr-value');
+      for (const href of ['/app/employee/replies', '/app/employee/one-kind', '/app/sandbox', '/app/employee/month', '/app/employee/next'])
+        expect(row(href), `${l}: ${href}`).toContain('<span class="sr-desc">');
       // a waiting thing is said in the waiting colour, with its shape (the stylesheet draws ○ before .sr-value.warn)
       expect(html).toMatch(/href="\/app\/employee\/checks">[\s\S]*?<span class="sr-value warn">/);
       expect(html).toMatch(/href="\/app\/employee\/learning">[\s\S]*?<span class="sr-value warn">/);
