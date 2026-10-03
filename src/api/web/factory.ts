@@ -48,6 +48,7 @@ import { loadKillSwitches } from '../../db/opsFlags.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
 import { loadPriceRules, type PriceRulesView } from './priceRules.js';
+import { certRows } from './knowledge.js';
 import { OWNER_VIEW, actorName, type Person, type Viewer } from '../../core/conversation/people.js';
 import { loadPeople } from './people.js';
 import {
@@ -1036,6 +1037,12 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
  * What she promises customers — the claims guard's OWN allowlist in her words,
  * and the price rules it enforces. Everything not listed is refused; that rule
  * is stated, never implied.
+ *
+ * The warmth run, phase 9 (w4-products-knowledge-02) — the ONE place the
+ * certifications are switched on and off (`certRows`, the knowledge page's
+ * rows moved here whole): "anything not turned on here" is now true of the page
+ * that says it. What may be promised about returns, delivery and what is sold
+ * is answered in How you sell, and the page says so with its door.
  */
 function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
@@ -1066,15 +1073,17 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null): st
   ].filter((x): x is string => x !== null);
 
   return `${head(locale, t(locale, 'factory.promise.title'), flash)}
-    <section class="fblock">
-      ${f.promises.certs.length
-        ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'factory.promise.certsOn', { name }))}</p>
-           <div class="fchips">${f.promises.certs.map((c) =>
-             `<span class="fchip">${esc(claimName(locale, c))}</span>`).join('')}</div>`
-        : `<p class="fempty">${esc(t(locale, 'factory.promise.none', { name }))}</p>`}
-      ${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    <section class="fblock" id="certs" aria-labelledby="certs-h">
+      <h2 id="certs-h">${esc(t(locale, 'knowledge.cert.title'))}</h2>
+      <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }))}</p>
+      ${certRows(locale, f.promises.certs, f.products.total)}
       <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>
-      ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}
+    </section>
+    <section class="fblock">
+      ${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      <p class="fdesc">${esc(t(locale, 'factory.promise.elsewhere', { name }))}</p>
+      <div class="doors">${deeper(BUSINESS_SCREEN_PATH.how, t(locale, 'factory.sellhow.title'))}
+        ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}</div>
     </section>`;
 }
 

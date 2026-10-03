@@ -10,7 +10,7 @@ import { AUTONOMY_LEVELS, levelOf, isAutonomyLevel, type AutonomyLevel } from '.
 import { SELF_DEMOTION_REASONS } from '../../pipeline/notify.js';
 import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 import { languageName } from './inbox.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
@@ -285,21 +285,24 @@ export type HerContext = {
  * here, and opened there. Nothing on this screen is a form: a fact or a
  * product is changed in the one place it lives. Structurally typed, like
  * `HerContext`, so this module imports none of those pages.
+ *
+ * The warmth run, phase 9 (w4-products-knowledge-01, -03) — and everything
+ * else it answers from: what was taught (Knowledge), and the certifications,
+ * the one list that decides what may be claimed at all. The profile's row
+ * says where it stands as My business says it, never the business's name the
+ * page already shows.
  */
 export type TalkAbout = {
-  /** The business's own name, as the profile holds it. */
-  readonly business: string;
-  /** Which of the profile's details are given, as the profile page labels them. */
-  readonly given: readonly ('description' | 'location' | 'workingHours' | 'contactEmail' | 'contactPhone' | 'languages')[];
+  /** The profile holds what setting up asks of it — the rule My business's own row reads. */
+  readonly profileDone: boolean;
   /** How you sell: answered of asked; null where it could not be read. */
   readonly selling: { readonly answered: number; readonly total: number } | null;
   /** The products on sale, and a few of their names for recognition, already in the page's language. */
   readonly products: { readonly total: number; readonly names: readonly string[] };
-};
-
-const GIVEN_LABEL: Readonly<Record<TalkAbout['given'][number], MessageKey>> = {
-  description: 'settings.field.description', location: 'settings.field.location', workingHours: 'settings.field.workingHours',
-  contactEmail: 'settings.field.contactEmail', contactPhone: 'settings.field.contactPhone', languages: 'settings.field.languages',
+  /** Facts taught, about the business and its products (Knowledge). */
+  readonly taught: number;
+  /** The certifications switched on, by their key (`claimName` says them). */
+  readonly certs: readonly string[];
 };
 
 /** What a screen may be given beyond the profile and the month's counts. */
@@ -629,24 +632,30 @@ export function renderEmployeeScreen(
     case 'talk': {
       const k = extras.talk;
       if (!k) return `${head}<div class="empty">${esc(t(locale, 'her.menu.nothingYet'))}</div>`;
-      const given = k.given.map((g) => t(locale, GIVEN_LABEL[g]));
       const more = k.products.total > k.products.names.length;
+      // Each row is named as the page it opens is named, and lands on that page (w4-products-knowledge-04).
+      const certs = k.certs.map((c) => claimName(locale, c));
       const rows: MenuRow[] = [
         { href: '/app/settings/profile', icon: 'business', label: t(locale, 'settings.profile.title'),
-          desc: given.length ? formatList(locale, given) : t(locale, 'setup.state.notAnswered'), ...(k.business ? { value: k.business } : {}) },
+          value: t(locale, k.profileDone ? 'setup.state.done' : 'setup.state.toDo'), tone: k.profileDone ? 'ok' : 'warn' },
         ...(k.selling ? [{
-          // How you sell is money's, so the owner's (rule 11): staff read where it stands.
-          href: viewer.isOwner ? '/app/business/selling' : null, icon: 'setup' as const, label: t(locale, 'hs.title'),
+          // How you sell's own menu, which staff may open too (its questions stay the owner's, rule 11).
+          href: '/app/business/how-you-sell', icon: 'receipt' as const, label: t(locale, 'factory.sellhow.title'),
           desc: t(locale, 'setup.desc.selling'), value: t(locale, 'hs.progress', { done: k.selling.answered, total: k.selling.total }),
           tone: (k.selling.answered >= k.selling.total ? 'ok' : 'warn') as 'ok' | 'warn' }] : []),
-        { href: '/app/products', icon: 'tag', label: t(locale, 'factory.sell.title'),
+        { href: '/app/products', icon: 'box', label: t(locale, 'nav.products'),
           // A product's name carries its figures ("38x40cm", "500ml"): isolated, so Arabic does not reorder them.
           desc: k.products.names.length ? `${show.isolateFigures(locale, k.products.names.join(' · '))}${more ? ' …' : ''}` : t(locale, 'factory.sell.empty'),
           value: tn(locale, 'her.talk.products', k.products.total) },
+        { href: '/app/knowledge', icon: 'book', label: t(locale, 'nav.knowledge'),
+          value: k.taught > 0 ? tn(locale, 'knowledge.product.facts', k.taught) : t(locale, 'knowledge.product.none') },
+        // The certifications by name on the line under the row's name, which wraps; a value on a phone is one short line.
+        { href: '/app/business/promises', icon: 'shield', label: t(locale, 'factory.promise.title'),
+          ...(certs.length ? { desc: certs.join(' · ') } : { value: t(locale, 'business.value.noneConfirmed') }) },
       ];
       return `${head}
         <p class="lede">${esc(t(locale, 'her.talk.lede'))}</p>
-        <ul class="scard asst-menu">${rows.map(menuRow).join('')}</ul>`;
+        <ul class="scard asst-menu talk">${rows.map(menuRow).join('')}</ul>`;
     }
     // What still needs teaching, then what is known so far, with the door to
     // the whole of it (Knowledge, and each entry under it).

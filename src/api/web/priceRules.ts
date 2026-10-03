@@ -114,6 +114,10 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
              floor_price_usd, max_discount_pct, human_required_above_pct, currency
         from pricing_policy
        where business_id = ${bid.value} and product_id is null
+      -- The warmth run, phase 9 (w4-products-knowledge-05) — one order, every
+      -- visit: by name, then by id (imported products share a name rarely, an
+      -- updated_at often). It had none, so each visit drew its own.
+       order by name nulls first, product_id
     `.execute(tx)).rows;
 
     const businessRow = rows.find((r) => r.product_id === null);

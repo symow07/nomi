@@ -19,7 +19,16 @@ import { flashBanner, type Flash } from './flash.js';
  * writes claims_policy (the claims guard's allowlist), so teaching a cert both
  * records it AND authorises the employee to state it. Corrections ARCHIVE the
  * old row and add a new owner_corrected one (never delete, never overwrite).
+ *
+ * The warmth run, phase 9 (w4-products-knowledge-02) — ONE PLACE for each
+ * fact. The certifications are what the business may claim, a fact about the
+ * business: they are switched on My business › What you promise customers
+ * (`certRows`, drawn there), and this page says which are on, with a door to
+ * that screen. It no longer offers a second set of switches.
  */
+
+/** Where the certifications are switched on and off: My business › What you promise customers. */
+export const CERTS_HOME = '/app/business/promises';
 
 const KINDS: readonly KnowledgeKind[] = [
   'specification', 'material', 'production_note', 'faq', 'buyer_answer', 'usage', 'restriction',
@@ -207,17 +216,29 @@ function kindSelect(l: Locale, kinds: readonly KnowledgeKind[]): string {
 }
 
 /**
+ * The warmth run, phase 9 (w4-products-knowledge-14) — a name inside a
+ * sentence: "Turn on food-safe materials…", "Activer marquage CE…" — never a
+ * capital in the middle of a question. A name that starts with an initialism
+ * ("CE marking", "BPA free", "ISO 9001…") keeps its capitals.
+ */
+const inSentence = (l: Locale, name: string): string =>
+  (l === 'en' || l === 'es' || l === 'fr') && /^\p{Lu}\p{Ll}/u.test(name) ? name.charAt(0).toLocaleLowerCase(l) + name.slice(1) : name;
+
+/**
  * Phase 9 (V1-371, V1-372, new-18, V1-374, missed-19) — each certification is
  * a row: its name in words ("Food-safe materials", never "food_grade"), whether
  * it is on (✓ On, or Off — in words, not only in green), and a button that
  * says what pressing it does. The ask-first dialog's own button repeats that
  * word, so it reads "Turn on", never the code.
+ *
+ * The warmth run, phase 9 (w4-products-knowledge-02) — drawn on My business ›
+ * What you promise customers, the one place they are switched.
  */
-function certRows(l: Locale, certs: readonly string[], n: number, productId: string): string {
+export function certRows(l: Locale, certs: readonly string[], n: number, productId = ''): string {
   return `<ul class="rows certlist">${CERT_KEYS.map((k) => {
     const on = certs.includes(k);
     const label = claimName(l, k);
-    const q = t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: label, n });
+    const q = t(l, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn', { key: inSentence(l, label), n });
     return `<li class="row">
       <span class="cert-name"><b><bdi>${esc(label)}</bdi></b> <span class="pill${on ? ' ok' : ''}">${esc(t(l, on ? 'knowledge.cert.on' : 'knowledge.cert.off'))}</span></span>
       <form method="post" action="/app/knowledge/cert" class="inline">
@@ -229,34 +250,44 @@ function certRows(l: Locale, certs: readonly string[], n: number, productId: str
   }).join('')}</ul>`;
 }
 
+/**
+ * The certifications on this page and a product's: which are on, said once, and
+ * the door to the one place they are switched (w4-products-knowledge-02).
+ */
+function certsSaid(locale: Locale, certs: readonly string[]): string {
+  const on = CERT_KEYS.filter((k) => certs.includes(k)).map((k) => claimName(locale, k));
+  return `<p class="fdesc">${esc(on.length ? t(locale, 'knowledge.cert.onHere', { list: formatList(locale, on) }) : t(locale, 'knowledge.cert.noneHere'))}</p>`;
+}
+
 export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefill = ''): string {
   // Phase 9 (V1-361) — each product by the name the reader's Products page shows, in the reader's order.
   const collator = new Intl.Collator(COLLATE[locale]);
   const sorted = [...data.products].sort((a, b) => collator.compare(shownName(locale, a.name, a.nameZh), shownName(locale, b.name, b.nameZh)));
   // Phase 9 (V1-360) — each row says what its number counts.
+  // The warmth run, phase 9 (w4-products-knowledge-06) — each product is a menu
+  // row, as on every settings menu: the name, what is taught on the line under
+  // it (never run into the name, never cut on a phone), then the chevron.
   const products = sorted.length
-    ? `<div class="klist">${sorted.map((p) => `
-        <a class="krow" href="/app/knowledge/${encodeURIComponent(p.id)}">
-          <span><bdi>${esc(shownName(locale, p.name, p.nameZh))}</bdi></span><span class="muted">${esc(p.count > 0
-            ? tn(locale, 'knowledge.product.facts', p.count) : t(locale, 'knowledge.product.none'))}<span class="go" aria-hidden="true">›</span></span>
-        </a>`).join('')}</div>`
+    ? `<ul class="scard kmenu">${sorted.map((p) => `<li><a class="srow sr-menu sr-two" href="/app/knowledge/${encodeURIComponent(p.id)}">
+          <span class="sr-main"><span class="sr-label"><bdi>${esc(shownName(locale, p.name, p.nameZh))}</bdi></span>
+          <span class="sr-desc">${esc(p.count > 0 ? tn(locale, 'knowledge.product.facts', p.count) : t(locale, 'knowledge.product.none'))}</span></span>
+          <span class="go" aria-hidden="true">›</span></a></li>`).join('')}</ul>`
     : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
 
   const biz = data.business.map((i) => itemCard(i, locale, null)).join('');
-  const n = data.appliesToProducts ?? data.products.length;
   // CC-20 — no title of its own: this is the second half of the knowledge page,
   // under the one <h1> the page's first half draws (`renderKnowledgeOps`), which
   // carries this page's lede too. It printed the same title a second time.
+  // w4-products-knowledge-04 — the list is called what its own page is called: Products.
   return `
-    <div class="block"><h2>${esc(t(locale, 'knowledge.products'))}</h2>${products}</div>
+    <div class="block"><h2>${esc(t(locale, 'nav.products'))}</h2>${products}</div>
     <div class="block"><h2>${esc(t(locale, 'knowledge.business'))}</h2>
       ${biz || `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`}
       ${teachForm(locale, '', prefill, BUSINESS_KINDS)}
     </div>
     <div class="block" id="certs"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
-      <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n }))}</p>
-      <p class="fdesc">${esc(t(locale, 'knowledge.cert.hint'))}</p>
-      ${certRows(locale, data.certs ?? [], n, '')}
+      ${certsSaid(locale, data.certs ?? [])}
+      ${deeper(CERTS_HOME, t(locale, 'factory.promise.title'))}
     </div>
     `;
 }
@@ -313,12 +344,13 @@ export function renderProductKnowledge(
     ? d.items.map((i) => itemCard(i, locale, d.productId, renderUsageFact(opts.usage?.get(i.id), locale, now))).join('')
     : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
   // Phase 9 (V1-373) — a setting for every product is not on one product's page:
-  // which certifications are on is said here, and changed where they all are.
-  const on = CERT_KEYS.filter((k) => d.certs.includes(k)).map((k) => claimName(locale, k));
+  // which certifications are on is said here, and changed where they all are
+  // (My business › What you promise customers, w4-products-knowledge-02).
 
   // Phase 9 (V1-377, V1-378) — the back link names the page it opens, and stands
   // above the title, as on the product's own page; V1-376 — and that page is a door away.
-  return `
+  // The warmth run, phase 9 (new-17) — the page's one measure (`.kpage`), as on Knowledge itself.
+  return `<div class="kpage">
     ${back('/app/knowledge', t(locale, 'nav.knowledge'))}
     <h1 class="page"><bdi>${esc(title)}</bdi></h1>
     ${flashHtml}
@@ -327,9 +359,9 @@ export function renderProductKnowledge(
       <p class="scope">${esc(t(locale, 'knowledge.taught.scope', { product: title }))}</p>
       ${items}${teachForm(locale, d.productId, opts.prefill ?? '')}</div>
     <div class="block"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
-      <p class="fdesc">${esc(on.length ? t(locale, 'knowledge.cert.onHere', { list: formatList(locale, on) }) : t(locale, 'knowledge.cert.noneHere'))}</p>
-      <div class="doors">${deeper('/app/knowledge#certs', t(locale, 'knowledge.cert.change'))}
+      ${certsSaid(locale, d.certs)}
+      <div class="doors">${deeper(CERTS_HOME, t(locale, 'factory.promise.title'))}
         ${deeper(`/app/products/${encodeURIComponent(d.productId)}`, t(locale, 'knowledge.productDoor'))}</div>
     </div>
-    `;
+    </div>`;
 }

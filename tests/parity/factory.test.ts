@@ -125,11 +125,16 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('promises are the guard’s allowlist, named in the owner’s words not the guard’s keys', () => {
     const html = screen('promises', complete);
     expect(html).toContain('Food-safe materials'); expect(html).toContain('BPA free');
-    expect(html).not.toContain('food_grade');        // never an internal key
-    expect(html).toContain(shown('en', 'factory.promise.certsOn'));
-    expect(html).toContain(shown('en', 'factory.promise.never'));      // default-deny, in owner language
+    expect(html).not.toContain('>food_grade<');      // never an internal key on the page (the form's own value is not read)
+    // The warmth run, phase 9 (w4-products-knowledge-02) — the one place they are switched: each on, in words.
+    expect(html).toMatch(/<b><bdi>Food-safe materials<\/bdi><\/b> <span class="pill ok">On<\/span>/);
+    expect(html).toContain('action="/app/knowledge/cert"');
+    expect(html).toContain(shown('en', 'factory.promise.never'));      // default-deny, in owner language — true of this page now
     // meaning arrives before the tokens it explains
-    expect(html.indexOf(shown('en', 'factory.promise.certsOn'))).toBeLessThan(html.indexOf('Food-safe materials'));
+    expect(html.indexOf(shown('en', 'knowledge.cert.scopeAll', { n: complete.products.total }))).toBeLessThan(html.indexOf('Food-safe materials'));
+    // what may be promised about returns and delivery is said to be answered in How you sell, with its door
+    expect(html).toContain(shown('en', 'factory.promise.elsewhere'));
+    expect(html).toContain(`href="${BUSINESS_SCREEN_PATH.how}"`);
     // and the menu's row names them too, never by key
     expect(menu(complete)).toContain('<bdi>Food-safe materials · BPA free</bdi>');
   });
@@ -183,7 +188,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const none = screen('promises', { ...complete, promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false } });
     expect(none).not.toContain('never quotes below');
     expect(none).not.toContain('never discounts more than');
-    expect(none).toContain(shown('en', 'factory.promise.none'));
+    expect(none).not.toContain('class="pill ok"');                    // every certification says Off
     expect(none).toContain(shown('en', 'factory.promise.never'));       // the rule holds even with nothing allowed
   });
 
@@ -243,13 +248,14 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // M20.3 activate/deactivate; M20.4 the allowlist, because the blocker
     // pointed there and had nowhere to send her; 0070 the owner's Stop / Start
     // on every channel; WA (0120) who gets replies. Every other edit happens
-    // on the page that owns it.
+    // on the page that owns it. The warmth run, phase 9 (w4-products-knowledge-02):
+    // the certifications, whose one place is What you promise customers.
     expect(menu(complete)).not.toContain('<form');
     const live = { ...complete, readiness: { ...complete.readiness, lifecycle: 'active' as const, live: true } };
     const forms = [...everything(complete).matchAll(/<form[^>]*action="([^"]*)"/g), ...everything(live).matchAll(/<form[^>]*action="([^"]*)"/g)];
     expect(forms.length).toBeGreaterThan(0);
     for (const f of forms)
-      expect(f[1]).toMatch(/^\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove)|pilot\/(end|resume))$/);
+      expect(f[1]).toMatch(/^\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove)|pilot\/(end|resume))$|^\/app\/knowledge\/cert$/);
     expect(everything(complete)).not.toContain('<textarea');
     expect(everything(complete)).not.toContain('<table');
   });

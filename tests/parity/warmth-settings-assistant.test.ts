@@ -67,8 +67,8 @@ const ctx: HerContext = {
   gaps: [{ question: 'Do you ship to Dubai?', count: 4 }],
 };
 const talk: TalkAbout = {
-  business: 'Atlas Trading', given: ['description', 'location', 'workingHours'],
-  selling: { answered: 3, total: 8 }, products: { total: 24, names: ['Canvas tote', 'Steel mug', 'Cap'] },
+  profileDone: false, selling: { answered: 3, total: 8 }, products: { total: 24, names: ['Canvas tote', 'Steel mug', 'Cap'] },
+  taught: 5, certs: ['CE', 'food_grade'],
 };
 const STAFF = { isOwner: false } as const;
 
@@ -194,13 +194,44 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
   for (const l of LOCALES) {
     it(`${l} · read from My business, opened there, edited nowhere here`, () => {
       const html = withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk }));
-      for (const page of ['/app/settings/profile', '/app/business/selling', '/app/products']) expect(html, `${l}: ${page}`).toContain(`href="${page}"`);
+      for (const page of ['/app/settings/profile', '/app/business/how-you-sell', '/app/products', '/app/knowledge', '/app/business/promises']) {
+        expect(html, `${l}: ${page}`).toContain(`href="${page}"`);
+      }
       for (const tag of ['<form', '<input', '<textarea', '<select', 'method="post"']) expect(html, `${l}: ${tag}`).not.toContain(tag);
       // summarised: counts and a few names, not the lists themselves
       expect(withoutIsolates(html)).toContain(withoutIsolates(esc(tn(l, 'her.talk.products', 24))));
       expect(html).toContain('Canvas tote · Steel mug · Cap …');
-      expect(html).toContain('<bdi>Atlas Trading</bdi>');
       expect(withoutIsolates(html)).toContain(withoutIsolates(esc(t(l, 'hs.progress', { done: 3, total: 8 }))));
+    });
+    // The warmth run, phase 9 (w4-products-knowledge-01, -03, -04).
+    it(`${l} · everything it answers from: what was taught and what may be claimed too; each row named as its page, the profile's as My business says it`, () => {
+      const html = withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk }));
+      const row = (href: string) => [...html.matchAll(/<li(?: id="[^"]*")?>([\s\S]*?)<\/li>/g)].map((m) => m[1]!).find((r) => r.includes(`href="${href}"`)) ?? '';
+      expect(row('/app/knowledge'), l).toContain(esc(withAssistantName('Lily', () => t(l, 'nav.knowledge'))));
+      expect(withoutIsolates(row('/app/knowledge')), l).toContain(withoutIsolates(esc(tn(l, 'knowledge.product.facts', 5))));
+      expect(row('/app/business/promises'), l).toContain(esc(t(l, 'factory.promise.title')));
+      // The names on the line under the row's name, which wraps; never a long value a phone cuts short.
+      expect(row('/app/business/promises'), l).toContain(`<span class="sr-desc">${esc(t(l, 'claim.CE'))} · ${esc(t(l, 'claim.food_grade'))}</span>`);
+      expect(row('/app/business/promises'), l).not.toContain('sr-value');
+      // The profile says where it stands, with its mark, as My business does — not the business's name again.
+      expect(row('/app/settings/profile'), l).toContain(`<span class="sr-value warn"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi></span>`);
+      expect(row('/app/settings/profile'), l).not.toContain('sr-desc');
+      // Products are called Products, How you sell opens its own menu, as My business's rows do.
+      expect(row('/app/products'), l).toContain(`<span class="sr-label">${esc(t(l, 'nav.products'))}</span>`);
+      expect(row('/app/business/how-you-sell'), l).toContain(`<span class="sr-label">${esc(t(l, 'factory.sellhow.title'))}</span>`);
+      // The lede names all five, and never says "only My business".
+      expect(t(l, 'her.talk.lede')).not.toMatch(/My business|我的生意|نشاطي التجاري|Mi negocio|Mon activité/);
+    });
+    it(`${l} · on a phone a value wraps in its column, never cut short`, () => {
+      const css = linkedCss(shell({ title: 'T', active: 'employee', locale: l, path: '/app/employee/talk', bodyHtml: '' }));
+      expect(css).toContain('@media (max-width: 560px) { .asst-menu.talk .sr-menu .sr-value { white-space:normal; overflow:visible; text-overflow:clip; } }');
+      expect(withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk }))).toContain('<ul class="scard asst-menu talk">');
+    });
+    it(`${l} · nothing taught and nothing claimed is said as that`, () => {
+      const empty = withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk: { ...talk, taught: 0, certs: [], profileDone: true } }));
+      expect(empty).toContain(esc(t(l, 'knowledge.product.none')));
+      expect(empty).toContain(esc(t(l, 'business.value.noneConfirmed')));
+      expect(empty).toContain(`<span class="sr-value ok"><bdi>${esc(t(l, 'setup.state.done'))}</bdi></span>`);
     });
   }
   it('in Arabic a product\'s figures ("38x40cm", "500ml") are isolated, so the words around them cannot reorder them', () => {
@@ -211,7 +242,9 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
   it('a member of staff reads How you sell, and is not sent to a page that would refuse them', () => {
     const html = screen('talk', base, 'en', ctx, STAFF, { talk });
     expect(html).not.toContain('href="/app/business/selling"');
-    expect(html).toContain(esc(t('en', 'hs.title')));
+    // How you sell's own menu, which staff may open (the questions on it stay the owner's).
+    expect(html).toContain('href="/app/business/how-you-sell"');
+    expect(html).toContain(esc(t('en', 'factory.sellhow.title')));
     expect(html).toContain(esc(t('en', 'hs.progress', { done: 3, total: 8 })));
   });
 });

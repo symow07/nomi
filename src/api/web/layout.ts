@@ -1343,6 +1343,8 @@ const STYLE_PAGES = `
   .level-control { margin-bottom:var(--space-24); }
   /* A short value ("24 products", "3 words") is said whole; the name beside it wraps instead. A long one still stops at half the row. */
   .asst-menu .sr-value { flex-shrink:0; }
+  /* The warmth run, phase 9 (w4-products-knowledge-03) — on "what it can talk about", a value on a phone wraps in its column rather than being cut ("3 de 9 respondidas"). */
+  @media (max-width: 560px) { .asst-menu.talk .sr-menu .sr-value { white-space:normal; overflow:visible; text-overflow:clip; } }
   .held-all { margin-bottom:var(--space-12); }
   .held-all p { margin:0 0 var(--space-4); }
   /* The name screen: the name itself, at the size of a name. */
@@ -1412,6 +1414,15 @@ const STYLE_PAGES = `
   .prod-b { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .p-tag { display:block; color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .prod-add { margin:0 0 var(--space-16); }
+  /* w4-products-knowledge-12 — "printed or handwritten?" is a question, at the size of the page's other labels. */
+  .choices.hand legend { font-size:var(--font-size-small); color:var(--color-ink); }
+  /* The warmth run, phase 9 (V1-305) — the larger orders' prices: a group of the form's own fields, under their name. */
+  .tiers { border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-16); }
+  .tiers legend { padding:0; margin-bottom:var(--space-8); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); }
+  /* w4-products-knowledge-09 — taking a name off is a field of the page: the label and the box at the page's size and width, the button its own width. */
+  .alias-remove .btn { align-self:flex-start; }
+  /* w4-products-knowledge-10 — a recent quote's facts break between them, never inside one ("$1.05/个"). */
+  .q-fact { white-space:nowrap; }
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .info { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
@@ -1533,10 +1544,14 @@ const STYLE_PAGES = `
   /* Phase 9 (missed-20) — a short line never leaves one character alone on the next. */
   .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-4) 0 var(--space-12); text-wrap:pretty; }
   /* Phase 9 (new-17) — lists, cards and empty panels share the one measure, so nothing on the page is narrower than its neighbours. */
-  .klist, .kitem, .gap { max-width:var(--measure-prose); }
-  .klist { display:flex; flex-direction:column; gap:var(--space-8); }
-  .krow { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); padding:12px 16px; }
-  .krow:hover { border-color:var(--color-border); }
+  .kitem, .gap { max-width:var(--measure-prose); }
+  /* The warmth run, phase 9 (new-17) — the measure is set once, on each section in the section's own type size,
+     and everything inside runs its full width: the products, the panels, the cards, the teach fields and the section's rule end together. */
+  .kpage .block { max-width:var(--measure-prose); }
+  .kpage .kitem, .kpage .gap, .kpage .empty, .kpage .pform, .kpage .scard { max-width:100%; }
+  /* The period's choices keep each label on one line, and wrap as whole choices (w4-products-knowledge-14). */
+  .kpage #period .tabs { flex-wrap:wrap; }
+  .kpage #period .tab { white-space:nowrap; }
   .kitem { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px; margin-bottom:var(--space-12); }
   .kh { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .kh .src { margin-inline-start:auto; font-size:var(--font-size-caption); }
@@ -1548,6 +1563,10 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-372) — a certification is a row: its name, on or off in words, and the button that switches it. */
   .cert-name { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); }
   .cert-name .pill { margin:0; }
+  /* The warmth run, phase 9 (w4-products-knowledge-14) — a long name wraps beside its button, never under it: every button stays at the row's end. */
+  .certlist .row { flex-wrap:nowrap; }
+  .certlist .cert-name { flex:1 1 auto; min-width:0; }
+  .certlist form { flex:none; }
 
   /* ── knowledge-insights.ts — moved here whole in step four: page-specific names, defined once. */
   h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }

@@ -68,7 +68,7 @@ import {
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
 } from './channels.js';
 import {
-  loadProductList, loadProductDetail, renderProductList, renderProductDetail, businessKind,
+  loadProductList, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
   renderAddForm, updateProduct, removeProductName, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
 import {
@@ -211,7 +211,7 @@ import { renderAccount } from './account.js';
 import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindProblem } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
-import { exportSubjectOf, exportFileName, loadExport, recordExport } from './dataExport.js';
+import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
 import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
@@ -1889,7 +1889,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // space, and `nomi-buyers-2026-09-21.csv` has none today but the next
       // subject might. `attachment` so a browser saves rather than renders —
       // a CSV rendered inline is a page of somebody's private messages.
-      .header('content-disposition', `attachment; filename="${csvFilename(exportFileName(subject), now)}"`)
+      // The warmth run, phase 9 (V1-380) — named in the reader's plain-letter words, as its page names it.
+      .header('content-disposition', `attachment; filename="${csvFilename(downloadName(subject, localeOf(req)), now)}"`)
       // It is her data, freshly read. Nothing between here and her laptop may
       // keep a copy to hand to the next person who asks.
       .header('cache-control', 'no-store')
@@ -2987,8 +2988,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
-    return d ? renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s))
-      : missingPage(locale, t(locale, 'product.notFound'), { href: '/app/products', label: t(locale, 'product.detail.back') });
+    // The warmth run, phase 9 (w4-products-knowledge-16) — a product that is not here answers 404, as its knowledge page does.
+    if (!d) { reply.code(404); return renderProductMissing(locale); }
+    return renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s));
   }));
   /**
    * K1 — a pasted list becomes an import that is KEPT (0094): the owner lands on
@@ -3126,7 +3128,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** K1 — the review of one import, as she left it. */
   app.get('/app/products/import/:importId', ownerPage('price_rules', 'products', '/app/products', async (s, req, reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
-    if (!m) return notFoundImport(locale);
+    // w4-products-knowledge-16 — a list that is not here is not "already added": its own words, and 404.
+    if (!m) { reply.code(404); return notFoundImport(locale); }
     // K8 — a table whose columns are not mapped yet shows its columns first.
     const table = m.imp.kind === 'file' && m.imp.rows.length === 0 && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
     if (table) return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
@@ -3277,7 +3280,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     facts.evict(s.businessId);   // D — a first price is a setup step done
+    // The warmth run, phase 9 (V1-305) — the larger orders' prices, one box each ("tier:2000").
+    const tiers = Object.fromEntries(Object.entries(b).filter(([k]) => /^tier:\d+$/.test(k)).map(([k, v]) => [k.slice('tier:'.length), String(v ?? '')]));
     const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
+      tiers: Object.keys(tiers).length ? tiers : null,
       price: b['price'] ?? null,
       moq: b['moq'] ?? null,
       unit: b['unit'] ?? null,
@@ -3291,9 +3297,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     if (!r.ok) {
       const d = await loadProductDetail(deps.db, s.businessId, id);
+      // The warmth run, phase 9 (w4-products-knowledge-17) — the page sent back is the
+      // product's own page: its name is the tab's, as when it is opened (V1-320).
+      if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'product.notFound'), active: 'products', bodyHtml: renderProductMissing(locale),
+      }));
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'product.edit.title'), active: 'products',
-        bodyHtml: d ? renderProductDetail(d, locale, null, r.errors, b) : '',
+        title: productName(locale, d) ?? d.name, active: 'products',
+        bodyHtml: renderProductDetail(d, locale, null, r.errors, b, personOf(s)),
       }));
     }
     return flashTo(reply, `/app/products/${encodeURIComponent(id)}`,
@@ -3480,16 +3491,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * two pages cannot disagree.
    */
   const talkAbout = async (businessId: string, locale: Locale): Promise<TalkAbout> => {
-    const [profile, products, hub] = await Promise.all([
+    const [profile, products, hub, known] = await Promise.all([
       loadBusinessProfile(deps.db, businessId), loadProductList(deps.db, businessId), loadHub(deps.db, businessId),
+      loadKnowledgeIndex(deps.db, businessId),
     ]);
     const sold = products.filter((p) => p.isActive);
+    const filled = (v: string | null | undefined): boolean => Boolean(v?.trim());
     return {
-      business: profile.name,
-      given: [
-        ...(['description', 'location', 'workingHours', 'contactEmail', 'contactPhone'] as const).filter((k) => Boolean(profile[k]?.trim())),
-        ...(profile.languagesServed.length ? ['languages' as const] : []),
-      ],
+      // The rule My business's own profile row reads (factory.ts): a name, a description, a location and a way to be reached.
+      profileDone: filled(profile.name) && filled(profile.description) && filled(profile.location)
+        && (filled(profile.contactEmail) || filled(profile.contactPhone)),
+      taught: known.business.length + known.products.reduce((n, p) => n + p.count, 0),
+      certs: known.certs ?? [],
       selling: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
       products: {
         total: sold.length,
@@ -5243,11 +5256,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
     // Phase 9 (V1-358) — what to do first; the period's counts last.
-    return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
+    // The warmth run, phase 9 (new-17) — one wrapper, so the page keeps one measure (`.kpage`).
+    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
         : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
-      + renderKnowledgePeriod(ops, locale, new Date());
+      + renderKnowledgePeriod(ops, locale, new Date()) + '</div>';
   };
   app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);
@@ -5300,7 +5314,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const d = await loadProductKnowledge(deps.db, s.businessId, id);
     if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: missingPage(locale, t(locale, 'product.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
+      bodyHtml: renderProductMissing(locale, { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
     }));
     const usage = await loadUsageFacts(deps.db, s.businessId, id);
     const flash = takeFlash(req, reply);
@@ -5349,11 +5363,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? flashTo(reply, `/app/knowledge/${encodeURIComponent(r.productId)}`, 'knowledge.flash.restored')
       : flashTo(reply, '/app/knowledge', r.code === 'restored' ? 'knowledge.flash.restored' : 'knowledge.flash.notRestored');
   });
+  // The warmth run, phase 9 (w4-products-knowledge-02) — the certifications are
+  // switched in one place, My business › What you promise customers: the notice lands there.
   app.post('/app/knowledge/cert', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; key?: string; allowed?: string };
     const r = await setCertification(deps.db, s.businessId, String(b.key ?? ''), b.allowed === '1');
-    return kBack(reply, req, String(b.productId ?? ''), r.code);
+    return flashTo(reply, BUSINESS_SCREEN_PATH.promises, `knowledge.flash.${r.code}` as MessageKey);
   });
 
   // ── Practice (M12.2; per workspace since P3, docs/PRACTICE.md) ─────────────
