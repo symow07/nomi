@@ -2363,6 +2363,9 @@ export function renderConversationDetail(
   const timeline = d.messages.length
     ? `<div class="timeline">${d.messages.map((m, i) => `${divider(m, i)}
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
+          ${/* The fix wave (w4-conversation-17) — what the assistant said is marked BEFORE its words, as phase 5
+               meant: under a long reply the mark came after it. The caption under keeps the time. */ ''}${
+            m.direction === 'outbound' && m.by !== 'owner' ? `<div class="msg-by">${byAssistant(assistantName(locale))}</div>` : ''}
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div dir="auto" class="${bubbleClass(speakerOf(m))}"><bdi>${esc(m.text)}</bdi></div>`}
@@ -2371,8 +2374,7 @@ export function renderConversationDetail(
             // customer's, "You", the assistant's — never a role word; a
             // customer with no name yet is just their message.
             m.direction === 'inbound' ? (d.buyer ? `<bdi>${esc(d.buyer)}</bdi>` : '')
-            : m.by === 'owner' ? esc(t(locale, 'conv.by.you'))
-            : byAssistant(assistantName(locale))].filter(Boolean).join(' · ')}</div>
+            : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : ''].filter(Boolean).join(' · ')}</div>
         </div>`).join('')}</div>`
     // "No messages yet" only where it is true: not on a window further back,
     // and not on one whose every message was a reaction left out (G2c).

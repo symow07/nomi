@@ -838,6 +838,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
      conversation tells the two apart at a glance. A wash, never a frame: the hairline goes. */
   .msg.outbound .bubble.by-as { background:var(--color-assistant-wash); border-color:transparent; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* The fix wave (w4-conversation-17) — "✦ name" over the assistant's words, so the mark is read first. */
+  .msg-by { font-size:var(--font-size-caption); margin-bottom:var(--space-4); }
   .as { color:var(--color-assistant); }
   /* CC-25 — a link into a transcript lands on its newest message: clear of the
      sticky phone nav, with the message before it still in view. After an
@@ -1997,8 +1999,9 @@ const STYLE_PAGES = `
 
   /* ── sandbox.ts — moved here whole in step four: page-specific names, defined once. */
   .pcount { font-size:var(--font-size-display); font-weight:600; color:var(--color-ink); font-variant-numeric:tabular-nums; margin:var(--space-4) 0 var(--space-12); }
-  .pchecks > summary { cursor:pointer; }
-  .pchecks > summary h2 { display:inline; }
+  /* The fix wave (w4-conversation-24) — the chevron on the heading's first line, however the heading wraps. */
+  .pchecks > summary { cursor:pointer; align-items:baseline; }
+  .pchecks > summary h2 { display:inline; margin:0; flex:1 1 auto; min-width:0; }
   .pchecks > summary .pcount { font-size:inherit; margin:0; }
   .pcases { list-style:none; margin:0; padding:0; }
   .pcase { display:flex; gap:var(--space-8); padding:7px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
@@ -2022,6 +2025,10 @@ const STYLE_PAGES = `
   .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
   .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
+  /* The fix wave (w4-conversation-22) — the total's label, its field and the hint under it, one group. */
+  .sbx-total { display:flex; flex-direction:column; gap:var(--space-4); }
+  .sbx-total input { max-width:var(--measure-form); }
+  .sbx-total p { margin:0; font-size:var(--font-size-caption); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
   textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   .sbx-trust { border-color:var(--color-waiting-line); }

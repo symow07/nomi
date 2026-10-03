@@ -12,6 +12,8 @@ import { labelled } from '../../core/owner/i18n/format.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
+import { dayKey } from '../../core/owner/i18n/format.js';
+import { workspaceZone } from './zone.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 import { approvalCard, workingLine, orderCard, loadConversationDetail, bubbleClass, speakerOf, type ConversationDetail } from './inbox.js';
@@ -101,6 +103,8 @@ export type SandboxMessage = {
   readonly direction: 'inbound' | 'outbound'; readonly text: string; readonly isImage: boolean;
   /** Phase 9 — the owner's own reply (taken over), so it is never captioned as the assistant's. */
   readonly by?: 'owner';
+  /** The fix wave (V1-289) — when it was said: each line its time, under a day divider, as on a conversation. */
+  readonly at?: Date | null;
 };
 
 /**
@@ -167,6 +171,7 @@ async function viewOf(tx: Tx, conversationId: string, before: unknown): Promise<
     .filter((m) => m.text_content !== null)
     .map((m): SandboxMessage => ({
       direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, isImage: m.input_type === 'image',
+      at: m.sent_at,
       ...(m.direction !== 'inbound' && m.origin === 'owner' ? { by: 'owner' as const } : {}),
     }));
 
@@ -281,9 +286,10 @@ function renderComposer(locale: Locale, prefill = '', totals = true, primary = t
     <form method="post" action="/app/sandbox/message" class="msgbar">
       <label class="muted" for="buyer">${esc(t(locale, 'sandbox.composer.label'))}</label>
       <textarea id="buyer" name="text" rows="2" placeholder="${esc(t(locale, 'sandbox.composer.placeholder'))}" required>${esc(prefill)}</textarea>
-      ${totals ? `<label class="muted" for="expected">${esc(t(locale, 'practice.total.label', { currency }))}</label>
-      <p class="muted small" id="expected-hint">${esc(t(locale, 'practice.total.hint'))}</p>
-      <input id="expected" name="expected" inputmode="decimal" dir="ltr" autocomplete="off" aria-describedby="expected-hint" />` : ''}
+      ${/* The fix wave (w4-conversation-22) — the label, its field, then the hint under the field, as one group. */ ''}${
+        totals ? `<div class="sbx-total"><label class="muted" for="expected">${esc(t(locale, 'practice.total.label', { currency }))}</label>
+      <input id="expected" name="expected" inputmode="decimal" dir="ltr" autocomplete="off" aria-describedby="expected-hint" />
+      <p class="muted" id="expected-hint">${esc(t(locale, 'practice.total.hint'))}</p></div>` : ''}
       <div class="msgacts">
         <button class="btn${primary ? ' send' : ''}" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
@@ -421,12 +427,23 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
   const older = view.transcript?.older === true;
   const earlier = view.transcript?.earlier ?? null;
   const last = opts.flash === null ? view.messages.length - 1 : -1;
+  // The fix wave (V1-289) — the day once, where it changes, and each line its time, as on a conversation.
+  const now = opts.now ?? new Date();
+  const dayOf = (m: SandboxMessage): string | null => (m.at ? dayKey(m.at, workspaceZone()) : null);
+  const divider = (m: SandboxMessage, i: number): string => {
+    const k = dayOf(m);
+    return k !== null && (i === 0 || dayOf(view.messages[i - 1]!) !== k)
+      ? `<p class="tday"><span>${esc(show.day(locale, m.at!, now))}</span></p>` : '';
+  };
   const timeline = view.messages.length
-    ? `<div class="timeline">${view.messages.map((m, i) => `
+    ? `<div class="timeline">${view.messages.map((m, i) => `${divider(m, i)}
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
+          ${/* w4-conversation-17 — the assistant's mark before its words, as on a conversation. */ ''}${
+            m.direction === 'outbound' && m.by !== 'owner' ? `<div class="msg-by">${byAssistant(name)}</div>` : ''}
           <div dir="auto" class="${bubbleClass(speakerOf(m))}">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
-          <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.by.customer'))
-            : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : byAssistant(name)}</div>
+          <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
+            m.direction === 'inbound' ? esc(t(locale, 'sandbox.by.customer'))
+            : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : ''].filter(Boolean).join(' · ')}</div>
         </div>`).join('')}</div>`
     : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;

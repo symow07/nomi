@@ -11,6 +11,8 @@ import { renderConversationDetail, type ConversationDetail, type ConversationSum
 import { renderCustomerPanel, renderListPane, PANE_ROWS_IN_VIEW } from '../../src/api/web/panes.js';
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import type { CustomerPanel } from '../../src/db/customerPanel.js';
+import { renderSandbox, type SandboxView } from '../../src/api/web/sandbox.js';
+import { shownTotals, type PracticeTotal } from '../../src/db/practiceChecklist.js';
 import * as show from '../../src/api/web/values.js';
 import type { CatchUp } from '../../src/db/catchUp.js';
 import { conversationDetail } from './fixtures.js';
@@ -274,5 +276,40 @@ describe('V1-257 · the list beside a conversation says where the owner is, howe
       const near = renderListPane(list(30), l, NOW, `c-${PANE_ROWS_IN_VIEW - 1}`, [], row(`c-${PANE_ROWS_IN_VIEW - 1}`));
       expect(near, l).not.toContain('lp-current');
     }
+  });
+});
+
+describe('Practice (V1-289, w4-conversation-17, -23, -24)', () => {
+  const view: SandboxView = {
+    hasConversation: true, conversationId: 'p-1', lastTurn: null, ownership: 'AI',
+    messages: [
+      { direction: 'inbound', text: 'Do you make canvas tote bags?', isImage: false, at: ago(DAY + 5 * MIN) },
+      { direction: 'outbound', text: 'Yes — from 500 pieces.', isImage: false, at: ago(DAY + 4 * MIN) },
+      { direction: 'inbound', text: 'And with our logo?', isImage: false, at: ago(10 * MIN) },
+    ],
+  };
+  it('each line has its time, under a day divider, as on a conversation; the assistant\'s mark stands before its words', () => {
+    for (const l of LOCALES) {
+      const html = plain(withAssistantName('Mira', () => renderSandbox(view, l, { flash: null, now: NOW })));
+      expect(html.match(/<p class="tday">/g), l).toHaveLength(2);
+      expect(html, l).toContain(`<p class="tday"><span>${esc(plain(show.day(l, ago(10 * MIN), NOW)))}</span></p>`);
+      const caps = [...html.matchAll(/<div class="ts muted">([\s\S]*?)<\/div>/g)].map((m) => m[1]!);
+      expect(caps[0], l).toBe(`${esc(plain(show.time(l, ago(DAY + 5 * MIN))))} · ${esc(t(l, 'sandbox.by.customer'))}`);
+      expect(caps[1], l).toBe(esc(plain(show.time(l, ago(DAY + 4 * MIN)))));
+      expect(html.indexOf('<div class="msg-by">'), l).toBeLessThan(html.indexOf('Yes — from 500 pieces.'));
+    }
+  });
+
+  it('a waiting total is listed only while its line is still in Practice; decided ones always', () => {
+    const total = (id: string, agreed: boolean | null): PracticeTotal => ({ messageId: id, expected: 900, quoted: agreed === null ? null : 900, currency: 'USD', agreed });
+    const rows = [total('gone', null), total('here', null), total('old', true), total('older', false), total('oldest', true)];
+    expect(shownTotals(rows, new Set(['here'])).map((r) => r.messageId)).toEqual(['here', 'old', 'older']);
+    expect(shownTotals(rows, new Set()).map((r) => r.messageId)).toEqual(['old', 'older', 'oldest']);
+  });
+
+  it('the safety checks\' chevron sits on the heading\'s first line', () => {
+    const css = linkedCss(shell({ title: 'T', active: 'employee', locale: 'fr', path: '/app/sandbox', bodyHtml: '' }));
+    expect(css).toContain('.pchecks > summary { cursor:pointer; align-items:baseline; }');
+    expect(css).toContain('.pchecks > summary h2 { display:inline; margin:0; flex:1 1 auto; min-width:0; }');
   });
 });

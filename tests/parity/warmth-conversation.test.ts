@@ -268,11 +268,11 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
     ],
     ...over,
   });
-  /** One message of the transcript: its bubble and its caption. */
+  /** One message of the transcript: the assistant's label over it (w4-conversation-17), its bubble and its caption. */
   const msg = (html: string, words: string): string =>
-    new RegExp(`<div(?: id="latest")? class="msg [a-z]+">\\s*<div dir="auto" class="[^"]+"><bdi>${words}</bdi></div>\\s*<div class="ts muted">[\\s\\S]*?</div>`).exec(html)?.[0] ?? '';
+    new RegExp(`<div(?: id="latest")? class="msg [a-z]+">\\s*(?:<div class="msg-by">.*?</div>\\s*)?<div dir="auto" class="[^"]+"><bdi>${words}</bdi></div>\\s*<div class="ts muted">[\\s\\S]*?</div>`).exec(html)?.[0] ?? '';
 
-  it('the assistant\'s bubble is on its wash with "✦ name" under it; the customer\'s and a person\'s keep the plain bubble', () => {
+  it('the assistant\'s bubble is on its wash with "✦ name" over it; the customer\'s and a person\'s keep the plain bubble', () => {
     for (const l of LOCALES) {
       const html = page(thread(), l);
       for (const w of ['ASSISTANT-WORDS', 'FIRST-WORDS']) {

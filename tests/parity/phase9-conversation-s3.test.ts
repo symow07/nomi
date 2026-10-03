@@ -546,7 +546,7 @@ describe('V1-295 · nothing in Practice shouts', () => {
 });
 
 describe('V1-296, V1-297 · the situation\'s button says what it does; the expected total says its currency', () => {
-  it('"Send it as the customer"; "…in USD (optional)" with its explanation between label and field', () => {
+  it('"Send this situation"; "…in USD (optional)", its field, then its explanation under the field (w4-conversation-21, -22)', () => {
     for (const l of LOCALES) {
       const html = renderSandbox(practiceView({ ownership: 'AI', messages: [] }), l, { flash: null, settings,
         checklist: { items: ['quoted'], seen: new Set(), totals: [], currency: 'AED' } });
@@ -555,11 +555,14 @@ describe('V1-296, V1-297 · the situation\'s button says what it does; the expec
       const hint = html.indexOf('id="expected-hint"');
       const field = html.indexOf('<input id="expected"');
       expect(label, l).toBeGreaterThan(-1);
-      expect(label, l).toBeLessThan(hint);
-      expect(hint, l).toBeLessThan(field);
+      expect(label, l).toBeLessThan(field);
+      expect(field, l).toBeLessThan(hint);
       expect(html, l).toContain('aria-describedby="expected-hint"');
+      expect(html, l).toContain('<div class="sbx-total">');
+      // the two buttons on the card no longer say nearly the same thing
+      expect(t(l, 'sandbox.scenario.load'), l).not.toBe(t(l, 'sandbox.composer.send'));
     }
-    expect(t('en', 'sandbox.scenario.load')).toBe('Send it as the customer');
+    expect(t('en', 'sandbox.scenario.load')).toBe('Send this situation');
   });
 });
 

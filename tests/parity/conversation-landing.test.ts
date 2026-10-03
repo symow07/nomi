@@ -212,7 +212,7 @@ describe('CC-25 · the conversation page lands on the notice, under the newest m
     const html = renderConversationDetail(detail(), 'en', NOW, null);
     expect(notices(html)).toBe(0);
     expect(marks(html)).toBe(1);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>m-450<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>m-450<\/bdi>/);
   });
 
   it('while she holds the conversation, it sits over her own reply box', () => {
@@ -274,7 +274,7 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
         expect(html.slice(at(html, '<bdi>p-50</bdi>'), at(html, 'class="card draft"')), l).not.toMatch(/class="card|<form/);
         // after an action with nothing to say — a line sent, a case loaded — the newest line is the landing
         const quiet = renderSandbox(practice(), l, { flash: null });
-        expect(quiet, l).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>p-50<\/bdi>/);
+        expect(quiet, l).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>p-50<\/bdi>/);
         expect(at(quiet, 'id="latest"'), l).toBeLessThan(at(quiet, 'class="card draft"'));
       }
     }

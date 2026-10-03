@@ -162,10 +162,24 @@ export async function settleTotals(db: Db, live: BusinessId, copy: BusinessId | 
          where business_id = ${live}::uuid and message_id = ${w.message_id} and decided_at is null`.execute(tx));
     }
   }
-  return withTenantTx(db, live, async (tx) => (await sql<{ message_id: string; expected: string; quoted: string | null; currency: string | null; agreed: boolean | null }>`
+  const rows = await withTenantTx(db, live, async (tx) => (await sql<{ message_id: string; expected: string; quoted: string | null; currency: string | null; agreed: boolean | null }>`
     select message_id, expected::text as expected, quoted::text as quoted, currency, agreed from practice_totals
-     where business_id = ${live}::uuid order by created_at desc limit 3`.execute(tx)).rows.map((r) => ({
+     where business_id = ${live}::uuid order by created_at desc limit 20`.execute(tx)).rows.map((r) => ({
     messageId: r.message_id, expected: Number(r.expected), quoted: r.quoted === null ? null : Number(r.quoted),
     currency: r.currency, agreed: r.agreed,
   })));
+  // The fix wave (w4-conversation-23) — a total still waiting is shown only while its line is
+  // still in Practice: "Start over" erased the conversation, and its waiting total could never be
+  // answered, yet it stood in the list beside the new one, the same words twice. The row stays (the
+  // measure); the page leaves it out.
+  const waitingIds = rows.filter((r) => r.agreed === null).map((r) => r.messageId);
+  const alive = copy && waitingIds.length ? await withTenantTx(db, copy, async (tx) => new Set((await sql<{ id: string }>`
+    select m.external_id as id from messages m join conversations c on c.id = m.conversation_id
+     where c.business_id = ${copy}::uuid and m.external_id = any(${waitingIds}::text[])`.execute(tx)).rows.map((r) => r.id)))
+    : new Set<string>();
+  return shownTotals(rows, alive);
 }
+
+/** The totals the page lists: every one decided, a waiting one only while its line is still there; the newest three. */
+export const shownTotals = (rows: readonly PracticeTotal[], alive: ReadonlySet<string>): readonly PracticeTotal[] =>
+  rows.filter((r) => r.agreed !== null || alive.has(r.messageId)).slice(0, 3);

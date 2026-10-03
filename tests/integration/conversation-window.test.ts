@@ -81,7 +81,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
    */
   const latestDoor = (conv: string) => `<a class="deeper" href="/app/inbox/${conv}#latest"`;
   /** The message `id="latest"` sits on. */
-  const markedLatest = (html: string) => /id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>(m-\d{3})<\/bdi>/.exec(html)?.[1] ?? null;
+  const markedLatest = (html: string) => /id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>(m-\d{3})<\/bdi>/.exec(html)?.[1] ?? null;
   /** The cursor the page hands out for the window before this one. */
   const cursorOf = (html: string, conv: string) => /before=([^"#&]+)/.exec(earlierOf(html, conv) ?? '')?.[1] ?? '';
   /** What the owner reads and taps — the page without its stylesheets, whose `width:100%` is layout. */
@@ -261,7 +261,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
   it('a short conversation has no door at all, and its newest message is marked', async () => {
     const html = await page(`/app/inbox/${short}`);
     expect(html).toContain('<bdi>s-3</bdi>');
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>s-3<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>s-3<\/bdi>/);
     expect(html).not.toContain('?before=');
     expect(html).not.toContain(latestDoor(short));
   });

@@ -2463,7 +2463,7 @@ const EN = {
   'sandbox.by.customer': 'The customer (you)',
   'sandbox.scenario.label': 'Try a situation',
   'sandbox.scenario.none': 'Choose a situation…',
-  'sandbox.scenario.load': 'Send it as the customer',
+  'sandbox.scenario.load': 'Send this situation',
   'sandbox.scenario.badge': 'Situation',
   // M16.4b · owner-facing names for the practice cases. The engineering titles
   // in src/trust/scenarios.ts stay as they are — these are what the owner reads.
@@ -6272,7 +6272,7 @@ const ZH: Record<MessageKey, string> = {
   'sandbox.by.customer': '客户（由你扮演）',
   'sandbox.scenario.label': '试一个情况',
   'sandbox.scenario.none': '选一个情况……',
-  'sandbox.scenario.load': '以客户身份发出',
+  'sandbox.scenario.load': '发出这个情况',
   'sandbox.scenario.badge': '情况',
   // M16.4b · 演练用例的老板可读名称
   'sandbox.case.price-floor-clamp-under-aggressive-discount': '客户拼命压价',
@@ -10036,7 +10036,7 @@ const AR: Record<MessageKey, string> = {
   'sandbox.by.customer': 'العميل (بتجربة منك)',
   'sandbox.scenario.label': 'تجربة موقف',
   'sandbox.scenario.none': 'اختيار موقف…',
-  'sandbox.scenario.load': 'إرسالها كرسالة من العميل',
+  'sandbox.scenario.load': 'إرسال هذا الموقف',
   'sandbox.scenario.badge': 'موقف',
   // M16.4b · أسماء حالات التدريب كما يقرأها المالك
   'sandbox.case.price-floor-clamp-under-aggressive-discount': 'العميل يضغط بشدة لخفض السعر',
@@ -13768,7 +13768,7 @@ const ES: Record<MessageKey, string> = {
   'sandbox.by.customer': 'El cliente (tú)',
   'sandbox.scenario.label': 'Probar una situación',
   'sandbox.scenario.none': 'Elige una situación…',
-  'sandbox.scenario.load': 'Enviarla como cliente',
+  'sandbox.scenario.load': 'Enviar esta situación',
   'sandbox.scenario.badge': 'Situación',
   'sandbox.case.price-floor-clamp-under-aggressive-discount': 'Tu cliente insiste mucho en un descuento',
   'sandbox.case.below-floor-catalog-is-refused-not-quoted': 'Un precio por debajo de tu mínimo se rechaza',
@@ -17478,7 +17478,7 @@ const FR: Record<MessageKey, string> = {
   'sandbox.by.customer': 'Le client (vous)',
   'sandbox.scenario.label': 'Essayer une situation',
   'sandbox.scenario.none': 'Choisissez une situation…',
-  'sandbox.scenario.load': 'L’envoyer comme client',
+  'sandbox.scenario.load': 'Envoyer cette situation',
   'sandbox.scenario.badge': 'Situation',
   'sandbox.case.price-floor-clamp-under-aggressive-discount': 'Un client insiste pour obtenir une remise',
   'sandbox.case.below-floor-catalog-is-refused-not-quoted': 'Un prix fixé sous votre prix plancher est refusé',
