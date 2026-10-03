@@ -18,6 +18,8 @@ import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork } from './layout.js';
+import { face, faceLink } from './faces.js';
+import { icon } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -31,11 +33,13 @@ import { orderConfirmedReply } from '../../core/conversation/templates.js';
 import { fixedLanguage } from '../../core/conversation/gateLanguage.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
-import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, type BuyersFilter } from '../../db/buyersList.js';
+import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, lensOf, type BuyersFilter, type BuyersLens } from '../../db/buyersList.js';
+import { customerValues, REGULAR_ORDERS } from '../../db/customerValue.js';
+import { faceVersions } from '../../db/faces.js';
+import { readAttention, type AttentionItem } from '../../db/inboxAttention.js';
 import * as show from './values.js';
 import { isCountryCode } from '../../core/owner/business.js';
 import { workspaceZone } from './zone.js';
-import { faceLink } from './faces.js';
 import { stateOfPlay, type Speaker } from '../../core/conversation/stateOfPlay.js';
 import type { CatchUp } from '../../db/catchUp.js';
 
@@ -157,6 +161,17 @@ export type ConversationSummary = {
   readonly live?: boolean;
   /** A — who wrote the newest message. Absent: no message yet, or a summary from before A. */
   readonly lastFrom?: LastFrom;
+  /**
+   * The warmth run, phase 4 — the CUSTOMER the row stands for (one customer,
+   * one row), their photo's version (`faceVersions`; null draws the initial),
+   * what they have spent and whether Nomi counts them a regular
+   * (`customerValues`). Absent on a summary built without them: no face link,
+   * nothing spent, no mark.
+   */
+  readonly clientId?: string;
+  readonly photo?: string | null;
+  readonly spent?: Money | null;
+  readonly regular?: boolean;
 };
 
 export type InboxList = {
@@ -182,6 +197,14 @@ export type InboxList = {
   };
   /** A — how many channels the workspace's conversations are on; a row names its channel only past one. */
   readonly channels?: number;
+  /** Phase 4 — the order the list is in: who is waiting now (the default), or who matters most. */
+  readonly lens?: BuyersLens;
+  /**
+   * Phase 4 — the "needs attention" band: customers slipping away, never
+   * anyone waiting for the owner (`src/db/inboxAttention.ts`). Absent or
+   * empty: no band.
+   */
+  readonly attention?: readonly AttentionItem[];
 };
 
 function statusOf(row: { pending: number; assigned_to: string | null; closed_at: Date | null }): { status: InboxStatus; needs: boolean } {
@@ -201,6 +224,10 @@ export type InboxAsk = {
   readonly after?: unknown;
   /** A cursor from a "Previous page" door. */
   readonly before?: unknown;
+  /** Phase 4 — `lens=value` orders by what each customer spent; anything else is "waiting now". */
+  readonly lens?: unknown;
+  /** Phase 4 — read the "needs attention" band too (the first page of the whole list only). */
+  readonly attention?: boolean;
 };
 
 /**
@@ -217,20 +244,21 @@ export async function loadInboxList(
   ask: InboxAsk = {},
 ): Promise<InboxList> {
   const q = searchOf(ask.q);
+  const lens = lensOf(ask.lens);
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { filter, waitingCount: 0, blockedCount: 0, conversations: [], query: q };
+  if (!bid.ok) return { filter, lens, waitingCount: 0, blockedCount: 0, conversations: [], query: q };
 
   return withTenantTx(db, bid.value, async (tx) => {
-    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, after: ask.after, before: ask.before });
+    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, lens, after: ask.after, before: ask.before });
     const rows = page.ids.length === 0 ? [] : (await sql<{
-      id: string; buyer: string | null; country: string | null; channel: string;
+      id: string; client_id: string; buyer: string | null; country: string | null; channel: string;
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null;
       last_text: string | null; last_dir: string | null; last_at: Date | null; last_origin: string | null;
       pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
       answered_by: string | null; assistants: number; deletion_waiting: boolean; order_waiting: boolean; live: boolean;
     }>`
-      select c.id::text as id, cl.display_name as buyer, cl.country, c.channel, c.is_active as live,
+      select c.id::text as id, c.client_id::text as client_id, cl.display_name as buyer, cl.country, c.channel, c.is_active as live,
              -- Phase 9 (V1-005) — the name only once chosen (rule 7, chosenName):
              -- the row's default name said "Lily drafted" before the owner had chosen it.
              coalesce(
@@ -257,8 +285,10 @@ export async function loadInboxList(
         left join clients cl on cl.id = c.client_id
         left join conversation_state cs on cs.conversation_id = c.id
         left join products p on p.id = cs.identified_product_id
-        left join lateral (select text_content, direction, sent_at, external_id from messages m
-                            where m.conversation_id = c.id order by m.sent_at desc, m.id desc limit 1) lm on true
+        -- Phase 4 — the CUSTOMER's last contact: their newest message on any of their conversations.
+        left join lateral (select m.text_content, m.direction, m.sent_at, m.external_id
+                             from messages m join conversations c2 on c2.id = m.conversation_id
+                            where c2.client_id = c.client_id order by m.sent_at desc, m.id desc limit 1) lm on true
         left join lateral (select unit_price_usd, currency from quotes qq
                             where qq.conversation_id = c.id order by qq.created_at desc limit 1) q on true
         left join lateral (select kind from conversation_signals cs
@@ -272,6 +302,9 @@ export async function loadInboxList(
 
     // The page's order is the list's (`readBuyersPage`); the details come back in any order.
     const byId = new Map(rows.map((r) => [r.id, r]));
+    // Phase 4 — what each customer spent, whether they are a regular, their photo: the shared readers.
+    const clientIds = rows.map((r) => r.client_id);
+    const [values, photos] = await Promise.all([customerValues(tx, clientIds), faceVersions(tx, clientIds)]);
     const conversations = page.ids.flatMap((id): ConversationSummary[] => {
       const r = byId.get(id);
       if (!r) return [];
@@ -297,14 +330,19 @@ export async function loadInboxList(
         unanswered: lastFrom === 'buyer',
         live: r.live,
         ...(lastFrom ? { lastFrom } : {}),
+        clientId: r.client_id,
+        photo: photos.get(r.client_id) ?? null,
+        spent: values.get(r.client_id)?.spent ?? null,
+        regular: values.get(r.client_id)?.regular === true,
       }];
     });
 
     // A9 — THE COUNTS ARE OF EVERYTHING, never of the page: `defaultFilter`
     // decides which tab opens from `waitingCount`.
     const counts = await readBuyerCounts(tx, viewerId);
+    const attention = ask.attention === true ? await readAttention(tx, new Date()) : [];
     return {
-      filter, conversations,
+      filter, lens, conversations, attention,
       waitingCount: counts.waiting,
       blockedCount: counts.blocked,
       mineCount: counts.mine,
@@ -314,11 +352,6 @@ export async function loadInboxList(
       page: { from: page.from, to: page.to, total: page.total, next: page.next, prev: page.prev },
     };
   });
-}
-
-/** Default filter: open on pending when there's work, else all. */
-export function defaultFilter(waitingCount: number): InboxFilter {
-  return waitingCount > 0 ? 'pending' : 'all';
 }
 
 /**
@@ -1133,18 +1166,23 @@ const preview = (text: string): string => {
  * the tab, the search, the page. The search is written as typed; only the five
  * characters that would change what the address means are escaped, so a name
  * in any script puts no `%` into the page (the owner surface's rule) and the
- * browser encodes the rest on the way out. A cursor is digits, hex, `-` and
- * `_` already (`src/db/buyersList.ts`).
+ * browser encodes the rest on the way out. A cursor is digits, hex, `-`, `_`,
+ * a point and a `v` already (`src/db/buyersList.ts`).
+ *
+ * Phase 4 — and the lens: `lens=value` for "matters most"; "waiting now" is
+ * the list's own address and writes nothing. `filter=all` is never written
+ * any more: the whole list IS the list (an old address with it still answers).
  */
 export const buyersHref = (o: {
-  readonly filter?: InboxFilter; readonly q?: string;
+  readonly filter?: InboxFilter | undefined; readonly lens?: BuyersLens | undefined; readonly q?: string;
   readonly after?: string | null; readonly before?: string | null;
 }): string => {
   const typed = (v: string): string => v
     .replace(/[%&+#=]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
     .replace(/\s/g, '+');
   const parts = [
-    o.filter ? `filter=${o.filter}` : '',
+    o.filter && o.filter !== 'all' ? `filter=${o.filter}` : '',
+    o.lens === 'value' ? 'lens=value' : '',
     o.q ? `q=${typed(o.q)}` : '',
     o.after ? `after=${o.after}` : '',
     o.before ? `before=${o.before}` : '',
@@ -1258,15 +1296,170 @@ export function customerRow(locale: Locale, c: ConversationSummary, o: RowOption
 }
 
 /**
- * A — Buyers: every conversation the business has, one list (Customers was
- * the same people a second time). A search box over it; the tabs; the groups
- * by who is speaking; one page at a time, with doors to the pages either side
- * and where this one sits in the whole — the counts are of everything.
+ * THE WARMTH RUN, PHASE 4 (2026-10-03) — THE INBOX ROW. One customer, one row,
+ * 64 px with a 40 px face (the owner's decision):
  *
- * The row is decision 5's: it stays as it is (2026-09-28). What Customers
- * carried that the row did not is said in the row's own time line: who wrote
- * the last message — the transcript's idiom, so a reply never reads as the
- * buyer's words — and the channel, once there is more than one.
+ *   line one   their face (it opens their card), their name, the mark Nomi
+ *              puts on a regular — and, at the line's end, what they have
+ *              spent: the headline number, because this business has
+ *              customers who buy big once and customers who buy small often,
+ *              and spend is the only number comparable across both;
+ *   line two   why they need the owner, when they do — the waiting signal,
+ *              magenta ○ and its words (a deletion request its own words) —
+ *              then the last message, cut where it runs out; at its end, the
+ *              last contact.
+ *
+ * No order count: it lives in the profile card. Nothing spent shows nothing
+ * (no "0", no dash to read past). The mark on a regular is ink-secondary with
+ * a shape, never magenta: magenta is the assistant's, and "waiting".
+ *
+ * Right to left: the row follows the page's direction, the face on the right.
+ * The name and the message each take their own direction (`dir="auto"`), and
+ * every figure is isolated, so a Latin name or "US$" is never cut or turned
+ * around in Arabic.
+ */
+export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions): string {
+  const people = o.people ?? [];
+  const name = assistantName(locale);
+  const state = rowState(c);
+  const who = c.buyer ?? t(locale, 'common.buyer');
+  const current = o.pane?.current === true;
+  // Phase 9 (V1-174) — a customer the assistant holds who wrote last, in an open conversation, has had no reply.
+  const noReply = state === 'hers' && c.unanswered === true && c.live !== false && !o.pane;
+  // The deletion request in its own short words: the group's long sentence left no room on a phone.
+  const reason = c.orderWaiting !== true && c.deletionWaiting === true ? t(locale, 'buyers.badge.deletion') : needsWhy(locale, c);
+  // Who holds it, when that is somebody else; which assistant, when there are several (A5).
+  const holder = state === 'yours' && people.length > 0 ? (() => {
+      const by = heldByName(c.heldBy, people, {
+        ai: name, waiting: t(locale, 'people.held.waiting'),
+        owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+      });
+      return by ? t(locale, 'people.holding', { who: by }) : '';
+    })()
+    : noReply ? t(locale, 'buyers.row.noReply')
+    : state === 'hers' && c.answeredBy ? t(locale, 'buyers.group.hers', { name: c.answeredBy }) : '';
+  const why = state === 'needs'
+    ? `<span class="ir-wait">${signalMark('waiting')}<bdi>${esc(reason)}</bdi></span>`
+    : holder ? `<span class="ir-hold"><bdi>${esc(holder)}</bdi></span>` : '';
+  // Who wrote the newest message when it was not the customer: you, in words; the assistant, by its mark.
+  const speaker = c.lastFrom === 'person' ? `<span class="ir-by"><bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ':'}</span>`
+    : c.lastFrom === 'assistant' ? `<span class="ir-by"><span class="as" aria-hidden="true">✦</span><span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
+  // A search that found them by what they asked about says so where the message would be.
+  const prod = productName(locale, c.product);
+  const byProduct = !!o.query && !!prod && markHit(prod, o.query) !== esc(prod) && markHit(who, o.query) === esc(who);
+  const glimpse = byProduct ? `<bdi class="ir-text">${markHit(prod!, o.query)}</bdi>`
+    : c.latestMessage ? `${speaker}<span class="ir-text" dir="auto">${esc(preview(c.latestMessage))}</span>` : '';
+  const regular = c.regular === true
+    ? `<span class="ir-reg">${icon('regular')}<span class="ir-reg-w">${esc(t(locale, 'buyers.row.regular'))}</span></span>` : '';
+  const amount = c.spent ? show.money(locale, c.spent) : '';
+  const spent = `<span class="ir-spent">${amount
+    ? `<bdi aria-hidden="true">${esc(amount)}</bdi><span class="sr">${esc(t(locale, 'buyers.row.spent', { amount }))}</span>` : ''}</span>`;
+  // The channel, once there is more than one, is a wide screen's: a phone keeps the time.
+  const channel = o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '';
+  const time = c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '';
+  const when = channel && time ? `<span class="ir-chan">${channel} · </span>${time}` : channel ? `<span class="ir-chan">${channel}</span>` : time;
+  // For a screen reader, the state the list's heading says for the eye — unless the row says it already.
+  const said = state === 'needs' ? t(locale, 'buyers.group.needsYou')
+    : holder && !noReply ? ''
+    : state === 'yours' ? t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours')
+    : t(locale, 'buyers.group.hers', { name: c.answeredBy ?? name });
+  const theFace = c.clientId
+    ? faceLink({ clientId: c.clientId, name: c.buyer, photo: c.photo ?? null }, { size: 'm', label: t(locale, 'buyers.row.card', { who }), className: 'ir-face' })
+    : `<span class="ir-face">${face({ clientId: c.conversationId, name: c.buyer }, 'm')}</span>`;
+  // CC-25 — a customer opens on the newest message, the reply waiting under it.
+  return `<div class="irow is-${state}${c.unanswered ? ' unanswered' : ''}${current ? ' on' : ''}">${theFace}<a class="ir-main" href="${conversationUrl(c.conversationId)}"${current ? ' aria-current="page"' : ''}>
+      <span class="ir-l1"><span class="ir-name" dir="auto"><bdi>${markHit(who, o.query)}</bdi></span>${regular}</span>
+      ${spent}
+      <span class="ir-l2">${why}${glimpse}</span>
+      <span class="ir-when">${when}</span>${said ? `<span class="sr">${esc(said)}</span>` : ''}
+    </a></div>`;
+}
+
+/**
+ * The list's groups in "waiting now", by the same predicates the list is
+ * ORDERED by (`src/db/buyersList.ts`), so a page is a run of whole groups:
+ * an order waiting (0080), a deletion request (0076), needs you, a person
+ * here holds it, then the assistant's — those the customer wrote last first.
+ */
+export function waitingGroups(all: readonly ConversationSummary[]): {
+  readonly orders: readonly ConversationSummary[]; readonly deletion: readonly ConversationSummary[];
+  readonly needsYou: readonly ConversationSummary[]; readonly yours: readonly ConversationSummary[];
+  readonly hersWaiting: readonly ConversationSummary[]; readonly hersRest: readonly ConversationSummary[];
+} {
+  const orders = all.filter((c) => c.orderWaiting === true);
+  const deletion = all.filter((c) => !orders.includes(c) && c.deletionWaiting === true);
+  const rest = all.filter((c) => !orders.includes(c) && !deletion.includes(c));
+  const needsYou = rest.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
+  const yours = rest.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
+  const hers = rest.filter((c) => !needsYou.includes(c) && !yours.includes(c));
+  // Phase 9 (V1-173) — the assistant's open conversations a customer wrote last, headed apart.
+  const hersWaiting = hers.filter((c) => c.unanswered === true && c.live !== false);
+  return { orders, deletion, needsYou, yours, hersWaiting, hersRest: hers.filter((c) => !hersWaiting.includes(c)) };
+}
+
+/** How many of the "needs attention" band show before "N more". */
+export const ATTENTION_SHOWN = 5;
+
+/** A date in the band: the month and day, with the year once it is far enough back to need one. */
+const sinceDate = (locale: Locale, d: Date, now: Date): string =>
+  now.getTime() - d.getTime() > 330 * 86_400_000 ? show.dateYear(locale, d) : show.shortWhen(locale, d, now);
+
+/**
+ * Phase 4 — THE "NEEDS ATTENTION" BAND: relationships slipping, never today's
+ * urgency (who it holds, and why: `src/db/inboxAttention.ts`). Each customer
+ * with their face (it opens their card), their name and one line; the line
+ * and the name open their newest conversation, where a word to them is
+ * written. Five, then the rest folded under "N more". No band when nobody is
+ * slipping.
+ */
+export function attentionBand(items: readonly AttentionItem[], locale: Locale, now: Date): string {
+  if (items.length === 0) return '';
+  const row = (a: AttentionItem): string => {
+    const who = a.name ?? t(locale, 'common.buyer');
+    return `<li class="arow">${faceLink({ clientId: a.clientId, name: a.name, photo: a.photo }, { size: 's', label: t(locale, 'buyers.row.card', { who }), className: 'ar-face' })}`
+      + `<a class="ar-main" href="${conversationUrl(a.conversationId)}"><span class="ar-name" dir="auto"><bdi>${esc(who)}</bdi></span>`
+      + `<span class="ar-line">${esc(t(locale, `buyers.attention.${a.kind}` as MessageKey, { date: sinceDate(locale, a.since, now) }))}</span></a></li>`;
+  };
+  const first = items.slice(0, ATTENTION_SHOWN);
+  const more = items.slice(ATTENTION_SHOWN);
+  return `<section class="attn" aria-labelledby="attn-h">
+      <h2 class="attn-h" id="attn-h">${esc(t(locale, 'buyers.attention.title'))}</h2>
+      <ul class="arows">${first.map(row).join('')}</ul>${more.length ? `
+      <details class="attn-more"><summary>${esc(t(locale, 'buyers.attention.more', { n: show.quantity(locale, more.length) }))}</summary>
+        <ul class="arows">${more.map(row).join('')}</ul></details>` : ''}
+    </section>`;
+}
+
+/**
+ * Phase 4 — the switch between the two lenses: two segments, the app's own
+ * tabs, the lens in the address. Each keeps the search; neither keeps a
+ * narrowing (the whole list, in the other order).
+ */
+export function lensSwitch(locale: Locale, lens: BuyersLens, q: string): string {
+  const seg = (l: BuyersLens) => {
+    const on = lens === l;
+    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(buyersHref({ lens: l, q }))}">${esc(t(locale, `buyers.lens.${l}` as MessageKey))}</a>`;
+  };
+  return `<nav class="tabs lens" aria-label="${esc(t(locale, 'buyers.lens.label'))}">${seg('waiting')}${seg('value')}</nav>`;
+}
+
+/**
+ * THE INBOX (the warmth run, phase 4): the customer list and the inbox are one
+ * page — one customer, one conversation, one row — searchable, in two lenses
+ * the owner switches between:
+ *
+ *   WAITING NOW (the default) — everyone who needs the owner first, in the
+ *   list's groups (an order, a deletion request, waiting for a person, a reply
+ *   to review, held by a person here), then everyone else by newest contact;
+ *   MATTERS MOST — by what each customer has spent, the most first, then by
+ *   newest contact; the customers with nothing spent after, headed apart.
+ *
+ * Above both, the "needs attention" band (slipping relationships). Under the
+ * switch, the narrowings that hold something to act on: "Did not send" and
+ * "Deletion requests" while one exists (rule 18 — a deletion request is
+ * always findable), "Needs you" while it is the one asked for (Today's doors
+ * lead there). "All" is the list itself; "Mine" was team machinery and is
+ * gone (its old address leads to the list).
  */
 export function renderInboxList(
   data: InboxList, locale: Locale, now: Date,
@@ -1278,151 +1471,124 @@ export function renderInboxList(
   people: readonly Person[] = [],
 ): string {
   const name = assistantName(locale);
-  const pcs = t(locale, 'product.unit.pcs');
   const q = data.query ?? '';
+  const lens: BuyersLens = data.lens ?? 'waiting';
+  // "Mine" is no longer drawn (phase 4): a list asked for it reads as the whole list.
+  const filter: InboxFilter = data.filter === 'mine' ? 'all' : data.filter;
+  const narrowed = filter === 'all' ? undefined : filter;
   const count = (n: number | undefined) => (n ?? 0) > 0 ? ` (${show.quantity(locale, n ?? 0)})` : '';
-  const tab = (f: InboxFilter) => {
-    const on = data.filter === f;
-    const n = f === 'pending' ? count(data.waitingCount) : f === 'mine' ? count(data.mineCount)
-      : f === 'blocked' ? count(data.blockedCount) : f === 'deletion' ? count(data.deletionCount) : '';
-    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="page"' : ''} href="${esc(buyersHref({ filter: f }))}">${
-      esc(t(locale, `inbox.filter.${f}` as MessageKey))}${n}</a>`;
-  };
-  // M22 — `blocked` is not a permanent tab. It appears when something did not
-  // reach a buyer, or when the owner arrived here from Today's link, and
-  // disappears again once there is nothing to show. An always-present tab that
-  // is almost always empty trains the owner to ignore it.
-  const showBlocked = data.blockedCount > 0 || data.filter === 'blocked';
-  // G12 — 'Mine' appears once there is more than one person here. With a
-  // single owner every conversation is hers, and a tab that filters nothing
-  // is a tab that teaches her to ignore tabs.
-  const showMine = people.length > 1;
-  // 0076 — like `blocked`: there while a deletion request waits for the
-  // owner, or when Today's row brought her here, and gone again after.
-  const showDeletion = (data.deletionCount ?? 0) > 0 || data.filter === 'deletion';
-  const tabs = `<nav class="tabs" aria-label="${esc(t(locale, 'buyers.tabs'))}">${tab('pending')}${tab('all')}${
-    showMine ? tab('mine') : ''}${showBlocked ? tab('blocked') : ''}${showDeletion ? tab('deletion') : ''}</nav>`;
   const title = `<div class="dhead listhead"><h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>${LIVE_SLOT}</div>`;
 
-  // A — the search. A find, not a view: it looks across every buyer (the
-  // route reads a search with no tab as All), and the tabs leave it behind.
-  // Phase 9 (inbox-calendar-missed-06, V1-181) — the form is the field and its
-  // button, the same on every page; the way back from a search is a link in
-  // the line that says what was found, so nothing beside the field moves.
+  // A — the search. A find, not a view: it looks across every customer, in the
+  // lens the owner is in (the lens rides along; a narrowing does not).
   const search = `<form class="search" method="get" action="/app/inbox" role="search">
-      <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
+      ${lens === 'value' ? '<input type="hidden" name="lens" value="value" />' : ''}<input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
       <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
     </form>`;
   const page = data.page;
   const total = page?.total ?? data.conversations.length;
-  // Phase 9 (V1-183) — one way back from a search: this link. The empty
-  // result no longer carries a second door doing the same.
+  // Phase 9 (V1-183) — one way back from a search: this link.
   const found = q
     ? `<p class="caption muted found" role="status">${esc(data.conversations.length > 0
         ? t(locale, 'buyers.search.found', { q, n: show.quantity(locale, total) })
-        : t(locale, 'buyers.search.none', { q }))} · <a class="clear" href="/app/inbox">${esc(t(locale, 'buyers.search.clear'))}</a></p>` : '';
+        : t(locale, 'buyers.search.none', { q }))} · <a class="clear" href="${esc(buyersHref({ lens }))}">${esc(t(locale, 'buyers.search.clear'))}</a></p>` : '';
   const position = page ? t(locale, 'buyers.page.position', {
     from: show.quantity(locale, page.from), to: show.quantity(locale, page.to), total: show.quantity(locale, page.total),
   }) : '';
 
-  // M38 — the wider list: everyone the assistant may write to, not only who
-  // wrote in. D — a door only where the outreach area exists. A — Customers
-  // carried it; it moved here with the list. Phase 9 (V1-166) — the calendar's
-  // door is the phone's: on a wide screen the rail beside the list has it.
+  // The narrowings: each while it holds something to act on, or while it is the one asked for.
+  const chip = (f: Exclude<InboxFilter, 'all' | 'mine'>, n: number | undefined) => {
+    const on = filter === f;
+    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(buyersHref({ filter: f, lens }))}">${
+      esc(t(locale, `inbox.filter.${f}` as MessageKey))}${count(n)}</a>`;
+  };
+  const chips = [
+    filter === 'pending' ? chip('pending', data.waitingCount) : '',
+    data.blockedCount > 0 || filter === 'blocked' ? chip('blocked', data.blockedCount) : '',
+    (data.deletionCount ?? 0) > 0 || filter === 'deletion' ? chip('deletion', data.deletionCount) : '',
+  ].filter(Boolean);
+  const filters = chips.length ? `<nav class="tabs filters" aria-label="${esc(t(locale, 'buyers.tabs'))}">${chips.join('')}${
+    narrowed ? `<a class="clear" href="${esc(buyersHref({ lens }))}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>` : ''}</nav>` : '';
+  const lensBar = `<div class="lensbar">${lensSwitch(locale, lens, q)}${filters}</div>
+    <p class="caption muted lens-says">${esc(t(locale, lens === 'value' ? 'buyers.lens.valueSays' : 'buyers.lens.waitingSays'))}</p>`;
+
+  // The band: slipping relationships, on the first page of the whole list only (the route reads it there).
+  const band = attentionBand(data.attention ?? [], locale, now);
+
+  // M38 — the wider list: everyone the assistant may write to. D — a door only
+  // where the outreach area exists. Phase 9 (V1-166) — the calendar's door is the phone's.
   const doors = `<div class="doors">${deeper('/app/calendar', t(locale, 'calendar.door'), 'on-phone')}${
     outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.door')) : ''}</div>`;
-  // Phase 1 (2026-10-02) — the title and the search share a line where there
-  // is room for both, so the first conversation starts higher on the screen.
-  const head = `<div class="lhead">${title}${tabs}${search}</div>${found}`;
+  const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}`;
 
   if (data.conversations.length === 0) {
-    // Phase 9 (V1-179, inbox-calendar-new-05) — the panel follows the tabs with
-    // no rule between, and holds no door the tab right above it already is.
+    const all = esc(buyersHref({ lens }));
     const body = q
       ? `<div class="empty">${esc(t(locale, 'buyers.search.noneBody'))}</div>`
-      : data.filter === 'pending'
+      : filter === 'pending'
       ? `<div class="empty"><div class="ok-line">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
-          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="${esc(buyersHref({ filter: 'all' }))}">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
-      // M22 — nothing was refused. Stated as the fact it is; not a ✓, because
-      // "no message failed" is the normal state and not an achievement.
-      : data.filter === 'deletion'
+          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="${all}">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
+      // M22 — nothing was refused. Stated as the fact it is; not a ✓.
+      : filter === 'deletion'
       ? `<div class="empty">${esc(t(locale, 'inbox.empty.deletion'))}
-          <div>${deeper(esc(buyersHref({ filter: 'all' })), t(locale, 'inbox.empty.seeAll'))}</div></div>`
-      : data.filter === 'blocked'
+          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div></div>`
+      : filter === 'blocked'
       ? `<div class="empty">${esc(t(locale, 'refused.none'))}
-          <div>${deeper(esc(buyersHref({ filter: 'all' })), t(locale, 'inbox.empty.seeAll'))}</div></div>`
-      // Phase 6 — "Mine" empty is not an empty business: it said "No conversations
-      // yet … share your WhatsApp number" to a workspace with seventy-one.
-      : data.filter === 'mine'
-      ? `<div class="empty">${esc(t(locale, 'inbox.empty.mine'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.mineBody', { name: assistantName(locale) }))}</span></div>`
+          <div>${deeper(all, t(locale, 'inbox.empty.seeAll'))}</div></div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/business', t(locale, 'inbox.empty.setup'))}</div></div>`;
     return `${head}${body}${doors}`;
   }
 
-  // Phase D — an owner thinks in people, and the question that orders them is
-  // "who is speaking now?". Grouped through the ONE ownership model, never by an
-  // internal status code — and by the same four predicates the list is ORDERED
-  // by (`src/db/buyersList.ts`), so a page is a run of whole groups.
-  //
-  // 0076 — a buyer who asked for their data to be deleted is not one more
-  // hand-off in the pile: their own group, first and always headed, whoever
-  // holds the conversation, until the owner decides on the buyer's page.
-  //
-  // 0080 — and before them, a customer who said yes to an order: nothing was
-  // confirmed or sent, and it waits for the owner's tap. First and always
-  // headed, like the deletion group, whoever holds the conversation.
-  const orders   = data.conversations.filter((c) => c.orderWaiting === true);
-  const deletion = data.conversations.filter((c) => !orders.includes(c) && c.deletionWaiting === true);
-  const rest     = data.conversations.filter((c) => !orders.includes(c) && !deletion.includes(c));
-  const needsYou = rest.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
-  const yours    = rest.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
-  const hers     = rest.filter((c) => !needsYou.includes(c) && !yours.includes(c));
-  // Phase 9 (V1-173) — the list ranks the assistant's open conversations a
-  // customer wrote last ahead of the rest (`LIST_RANK` 6, then 7), so the page
-  // heads them apart: under one heading the times ran down twice.
-  const hersWaiting = hers.filter((c) => c.unanswered === true && c.live !== false);
-  const hersRest    = hers.filter((c) => !hersWaiting.includes(c));
-
   // A5's rule, for the channel: named on every row only once there is more than one.
   const showChannel = (data.channels ?? 0) > 1;
-  const row = (c: ConversationSummary) => `<li>${customerRow(locale, c, { now, people, showChannel, ...(q ? { query: q } : {}) })}</li>`;
-
-  const heads = data.filter === 'all';
-  const group = (label: string, items: readonly ConversationSummary[], always = false) =>
+  const row = (c: ConversationSummary) => `<li>${inboxRow(locale, c, { now, people, showChannel, ...(q ? { query: q } : {}) })}</li>`;
+  const group = (label: string, items: readonly ConversationSummary[], headed: boolean) =>
     items.length ? `<section class="bgroup">
-      ${heads || always ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
-      <ul class="crows">${items.map(row).join('')}</ul></section>` : '';
+      ${headed ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
+      <ul class="irows">${items.map(row).join('')}</ul></section>` : '';
+
+  let rows: string;
+  if (lens === 'value') {
+    // Matters most: who has spent, the most first; then everyone with nothing spent yet, headed apart.
+    const spent = data.conversations.filter((c) => c.spent);
+    const none = data.conversations.filter((c) => !c.spent);
+    rows = `${group('', spent, false)}${group(t(locale, 'buyers.lens.noSpend'), none, true)}`;
+  } else {
+    // Phase D — an owner thinks in people, and the question that orders them is
+    // "who is speaking now?" — headed on the whole list; a narrowing's own chip
+    // already says it, so there only an order and a deletion request are headed.
+    const g = waitingGroups(data.conversations);
+    const heads = filter === 'all';
+    rows = `${group(t(locale, 'buyers.group.order'), g.orders, true)}
+    ${group(t(locale, 'buyers.group.deletion'), g.deletion, true)}
+    ${group(t(locale, 'buyers.group.needsYou'), g.needsYou, heads)}
+    ${group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), g.yours, heads)}
+    ${group(t(locale, 'buyers.group.hersWaiting', { name }), g.hersWaiting, heads)}
+    ${group(t(locale, 'buyers.group.hers', { name }), g.hersRest, heads)}`;
+  }
 
   // A — the doors either side of this page, and where it sits in the whole.
-  // Phase 9 (V1-177) — above the rows as well as under them: fifty rows to
-  // scroll past was the only way to learn there was a second page.
+  // Phase 9 (V1-177) — above the rows as well as under them.
   const pager = page && (page.prev || page.next)
     ? `<nav class="pager" aria-label="${esc(t(locale, 'buyers.page.nav'))}">
-        ${page.prev ? back(esc(buyersHref({ filter: data.filter, q, before: page.prev.cursor })), t(locale, 'buyers.page.prev')) : ''}
+        ${page.prev ? back(esc(buyersHref({ filter: narrowed, lens, q, before: page.prev.cursor })), t(locale, 'buyers.page.prev')) : ''}
         <span class="caption muted">${esc(position)}</span>
-        ${page.next ? deeper(esc(buyersHref({ filter: data.filter, q, after: page.next })), t(locale, 'buyers.page.next')) : ''}
+        ${page.next ? deeper(esc(buyersHref({ filter: narrowed, lens, q, after: page.next })), t(locale, 'buyers.page.next')) : ''}
       </nav>` : '';
 
-  // Phase 9 (inbox-calendar-new-03) — what the marks mean, under the rows, in
-  // the groups' own words: ○ ● ✦ were explained only to a screen reader.
-  const mark = (cls: string, m: string, label: string) =>
-    `<span class="ck-i ${cls}"><span class="cr-mark" aria-hidden="true">${m}</span> ${esc(label)}</span>`;
-  const key = `<p class="cr-key caption muted">${[
-    mark('is-needs', ROW_MARK.needs, t(locale, 'buyers.group.needsYou')),
-    mark('is-yours', ROW_MARK.yours, t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours')),
-    mark('is-hers', ROW_MARK.hers, t(locale, 'buyers.group.hers', { name })),
-    mark('is-hers', ROW_MARK.hers, t(locale, 'buyers.key.wrote', { name })),
-  ].join('')}</p>`;
+  // What the marks on the rows mean, under them — only the marks this page shows.
+  const keys = [
+    data.conversations.some((c) => c.lastFrom === 'assistant')
+      ? `<span class="ck-i"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
+    data.conversations.some((c) => c.regular === true)
+      ? `<span class="ck-i ir-reg">${icon('regular')} ${esc(t(locale, 'buyers.key.regular', { n: show.quantity(locale, REGULAR_ORDERS) }))}</span>` : '',
+  ].filter(Boolean);
+  const key = keys.length ? `<p class="cr-key caption muted">${keys.join('')}</p>` : '';
 
   return `${head}
     ${pager}
-    ${group(t(locale, 'buyers.group.order'), orders, true)}
-    ${group(t(locale, 'buyers.group.deletion'), deletion, true)}
-    ${group(t(locale, 'buyers.group.needsYou'), needsYou)}
-    ${group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), yours)}
-    ${group(t(locale, 'buyers.group.hersWaiting', { name }), hersWaiting)}
-    ${group(t(locale, 'buyers.group.hers', { name }), hersRest)}
+    ${rows}
     ${key}
     ${pager}
     ${doors}`;

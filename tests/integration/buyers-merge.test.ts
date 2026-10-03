@@ -21,6 +21,14 @@ import { withoutIsolates, unisolatedFigures } from '../parity/isolates.js';
  *     buyer's page, lit as Buyers, one door from the conversation.
  *
  * The page, by structure and in three languages: tests/parity/buyers-merge.test.ts.
+ *
+ * The warmth run, phase 4 (2026-10-03) changed what these read, on purpose:
+ * the row is the customer's (`irow`, its conversation behind `ir-main`); the
+ * Inbox opens on the whole list in "waiting now" rather than on Needs you
+ * (whoever needs the owner leads it); "All" is the list's own address, so no
+ * door writes `filter=all` (an old address with it still answers). Each
+ * changed expectation is marked "phase 4". Two channels, one row; "matters
+ * most" paged by spend; the band: tests/integration/warmth-inbox.test.ts.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -82,7 +90,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
 
   /** The conversations a Buyers page lists, in page order. */
   const listed = (html: string): string[] =>
-    [...html.matchAll(/<a class="crow[^"]*" href="\/app\/inbox\/([0-9a-f-]{36})#latest">/g)].map((m) => m[1]!);
+    [...html.matchAll(/<a class="ir-main" href="\/app\/inbox\/([0-9a-f-]{36})#latest"/g)].map((m) => m[1]!);   // phase 4
   /** Where a pager door goes, as the browser would follow it. */
   const door = (html: string, cls: 'deeper' | 'back'): string | null => {
     const pager = /<nav class="pager"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? '';
@@ -158,13 +166,17 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     expect(ids.indexOf(needs.waiting)).toBeLessThan(ids.indexOf(needs.review));
     expect(ids.indexOf(needs.review)).toBeLessThan(ids.indexOf(needs.held));
     // …and the counts are of everything, not of the page
-    expect(r.body).toContain('Needs you (3)</a>');
     expect(r.body).toContain('1–50 of 61');
   });
 
-  it('…and Needs you opens by itself, holds exactly those three, and needs no second page', async () => {
-    const r = await get('/app/inbox');
-    expect(r.body).toContain('<a class="tab on" aria-current="page" href="/app/inbox?filter=pending">');
+  // phase 4 — the Inbox opens on the whole list in "waiting now" (they lead it already);
+  // "Needs you" is the narrowing Today's doors lead to, and still holds exactly them.
+  it('…the Inbox opens on the whole list, those three first; Needs you holds exactly them, and needs no second page', async () => {
+    const home = await get('/app/inbox');
+    expect(home.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox">');
+    expect(listed(home.body).slice(0, 3).sort()).toEqual([needs.waiting, needs.review, needs.held].sort());
+    const r = await get('/app/inbox?filter=pending');
+    expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?filter=pending">Needs you (3)</a>');
     expect(listed(r.body).sort()).toEqual([needs.waiting, needs.review, needs.held].sort());
     expect(r.body).not.toContain('class="pager"');
   });
@@ -174,7 +186,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const one = listed(first.body);
     expect(door(first.body, 'back')).toBeNull();
     const next = door(first.body, 'deeper');
-    expect(next).toMatch(/^\/app\/inbox\?filter=all&after=[0-7]_(n|-?\d+)_[0-9a-f-]{36}$/);
+    expect(next).toMatch(/^\/app\/inbox\?after=[0-7]_(n|-?\d+)_[0-9a-f-]{36}$/);   // phase 4: no filter=all
 
     const second = await get(next!);
     expect(second.statusCode).toBe(200);
@@ -187,7 +199,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
 
     // Back: the page before the second is the first, at its own address.
     const prev = door(second.body, 'back');
-    expect(prev).toBe('/app/inbox?filter=all');
+    expect(prev).toBe('/app/inbox');   // phase 4: the list's own address
     expect(listed((await get(prev!)).body)).toEqual(one);
   });
 
@@ -237,10 +249,10 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     expect(listed(r.body)).toEqual([zhang]);
     expect(r.body).toContain('1 found for “zhang”');
     expect(r.body).toContain('value="zhang"');
-    // a search with no tab looks at everyone, though buyers are waiting on Needs you
-    expect(r.body).toContain('<a class="tab on" aria-current="page" href="/app/inbox?filter=all">');
+    // a search looks at everyone, in the lens it was made in (phase 4: the lens keeps the search)
+    expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?q=zhang">');
     // the other workspace's Zhang Wei is not here: one row, and it is this workspace's
-    expect(r.body.match(/<span class="cr-name" dir="auto"><bdi><mark class="hit">Zhang<\/mark> Wei<\/bdi><\/span>/g)?.length).toBe(1);
+    expect(r.body.match(/<span class="ir-name" dir="auto"><bdi><mark class="hit">Zhang<\/mark> Wei<\/bdi><\/span>/g)?.length).toBe(1);
   });
 
   it('…and by number, however it is typed, and by the product asked about', async () => {
@@ -263,7 +275,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const r = await get('/app/inbox?q=noise');
     expect(listed(r.body)).toHaveLength(50);
     const next = door(r.body, 'deeper');
-    expect(next).toMatch(/^\/app\/inbox\?filter=all&q=noise&after=/);
+    expect(next).toMatch(/^\/app\/inbox\?q=noise&after=/);   // phase 4: no filter=all
     const two = listed((await get(next!)).body);
     expect(two).toHaveLength(NOISE - 3 - 50);
     expect(new Set([...listed(r.body), ...two]).size).toBe(NOISE - 3);
@@ -306,13 +318,14 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const lastContact = async (conv: string) => formatShortWhen('en', await as(BIZ, (x) => sql<{ at: Date }>`
       select max(sent_at) as at from messages where conversation_id = ${conv}::uuid`.execute(x).then((q) => q.rows[0]!.at)), new Date(), 'Asia/Shanghai');
     const r = await get('/app/inbox?q=zhang');
-    const row = /<a class="crow is-\w+ unanswered" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec(r.body)?.[1] ?? '';
+    // phase 4 — the customer's row: `irow`, the conversation behind `ir-main`
+    const row = /<div class="irow is-\w+ unanswered">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a><\/div>/.exec(r.body)?.[1] ?? '';
     expect(row, 'Zhang wrote last and is still waiting').not.toBe('');
     // UI-PASS 5: the row is the customer's name already; who wrote last is said only when it is not them.
-    // Phase 1 — the time in its fixed place at the end of the first line, the channel before it.
-    expect(row).toContain(`<span class="cr-when">Instagram · ${await lastContact(zhang)}</span>`);
-    const omar = /<a class="crow is-\w+" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec((await get('/app/inbox?q=Omar')).body)?.[1] ?? '';
-    expect(omar).toContain(`<span class="cr-when">WhatsApp · ${await lastContact(dubai)}</span>`);
+    // The last contact at the end of the second line, the channel before it (a wide screen's).
+    expect(row).toContain(`<span class="ir-when"><span class="ir-chan">Instagram · </span>${await lastContact(zhang)}</span>`);
+    const omar = /<div class="irow is-\w+">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a><\/div>/.exec((await get('/app/inbox?q=Omar')).body)?.[1] ?? '';
+    expect(omar).toContain(`<span class="ir-when"><span class="ir-chan">WhatsApp · </span>${await lastContact(dubai)}</span>`);
     // the assistant wrote last: its mark is on the row (as the holder's mark, or before the message)
     expect(omar).toContain('✦');
   });

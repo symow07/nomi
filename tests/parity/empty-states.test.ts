@@ -115,7 +115,9 @@ describe('Phase F · every empty surface says what happens next', () => {
     // the day's figures keep their door to Results, whatever the day held.
     expect(emptyToday).toContain('href="/app/analytics"');
     expect(emptyBuyers('all')).toContain('href="/app/business"');
-    expect(emptySearch).toContain('href="/app/inbox?filter=all"');   // every buyer, the search let go
+    // every buyer, the search let go — phase 4: the whole list is the list's own address
+    expect(emptySearch).toContain('href="/app/inbox"');
+    expect(emptySearch).not.toContain('filter=all');
     // the warmth run — an empty calendar's one door is adding a date to it
     expect(emptyCalendar).toContain('<details class="cal-add"><summary>Add a date</summary><form method="post" action="/app/calendar/entries"');
   });

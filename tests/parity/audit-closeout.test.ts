@@ -258,8 +258,10 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
       ];
       for (const html of pages) expect(said(html), l).not.toMatch(glued);
     }
-    // Chinese sets them together, as it always did.
-    expect(withoutIsolates(renderInboxList(list, 'zh', NOW))).toContain('<bdi>5000个</bdi>');
+    // Chinese sets them together, as it always did. The warmth run, phase 4: the Inbox row no
+    // longer prints a quantity (its one figure is what the customer spent); the conversation
+    // page still does, so the check moved there.
+    expect(withoutIsolates(renderConversationDetail(conversation, 'zh', NOW, null))).toContain('5000个');
   });
 });
 

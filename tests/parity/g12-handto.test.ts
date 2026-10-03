@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -123,12 +124,17 @@ describe('G12 · Mine', () => {
     ...over,
   });
 
-  it('the tab appears once there is more than one person — never for a lone owner', () => {
-    expect(renderInboxList(list(), 'en', NOW, people)).toContain('/app/inbox?filter=mine');
+  // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out. The tab is
+  // gone for everyone; who holds a conversation is still said on its row; the old
+  // address leads to the whole list (the route, app.ts).
+  it('the tab is never drawn — with a team or alone — and the row still names who holds it', () => {
+    expect(renderInboxList(list(), 'en', NOW, people)).not.toContain('filter=mine');
     expect(renderInboxList(list({ filter: 'all' }), 'en', NOW, [owner])).not.toContain('filter=mine');
+    expect(renderInboxList(list({ filter: 'all' }), 'en', NOW, people)).toContain(t('en', 'people.holding', { who: 'Xiao Chen' }));
   });
 
-  it('it counts what this reader is holding', () => {
-    expect(renderInboxList(list(), 'en', NOW, people)).toContain(`${t('en', 'inbox.filter.mine')} (1)`);
+  it('its old address answers with the whole list, keeping the lens and the search', () => {
+    const app = readFileSync(fileURLToPath(new URL('../../src/api/web/app.ts', import.meta.url)), 'utf8');
+    expect(app).toContain("if (requested === 'mine') return reply.redirect(buyersHref({ lens, q: searching ? searchOf(ask.q) : '' }));");
   });
 });

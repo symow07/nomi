@@ -52,6 +52,8 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '.as': ['mark', 'the ✦ beside what the assistant wrote, and its name beside the ✦'],
   '.is-needs .cr-mark': ['mark', 'ROW_MARK ○'], '.is-hers .cr-mark': ['mark', 'ROW_MARK ✦'],
   '.is-needs .cr-why': ['row', 'the row opens with ○'],
+  // The warmth run, phase 4 — the Inbox row's waiting words open with signalMark's ○.
+  '.ir-wait': ['text', 'signalMark ○ before the words'],
   '#approve summary .c.warn': ['text', '○ Not every figure has a source'],
   '.reasons .mk.warn': ['mark', '○ beside the figure with no source'],
   '.ok-line': ['text', '✓ before the calm sentence'],

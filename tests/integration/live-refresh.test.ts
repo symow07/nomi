@@ -248,8 +248,8 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     const r = await get('/app/inbox?filter=all');
     const url = askOf(r.body);
     expect(url).toMatch(/^\/app\/live\/buyers\?since=2\.[0-9a-f]{16}$/);
-    // the door is the first page of the tab she is on
-    expect(r.body).toContain('<a class="deeper live-door" href="/app/inbox?filter=all">');
+    // the door is the first page of the list she is on — phase 4: the whole list is its own address
+    expect(r.body).toContain('<a class="deeper live-door" href="/app/inbox">');
     expect((await ask(url)).said).toEqual({ news: false });
     await buyerWrites(BIZ, second, 'Does the 1L bottle come in amber?');
     expect((await ask(url)).said).toEqual({ news: true, what: 'list' });

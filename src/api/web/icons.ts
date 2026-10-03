@@ -18,6 +18,8 @@ export type IconId = 'today' | 'customers' | 'inbox' | 'calendar' | 'assistant' 
   // Phase 7 — the rows of My business and Setup.
   | 'chat' | 'power' | 'box' | 'coins' | 'shield' | 'receipt' | 'gift' | 'exchange'
   | 'bell' | 'globe' | 'person' | 'key' | 'card' | 'folder' | 'guide'
+  // Phase 4 — the Inbox's mark on a regular: a customer who keeps coming back.
+  | 'regular'
   | DateIconId;
 
 /**
@@ -34,6 +36,7 @@ export type DateIconId = 'date-sample' | 'date-order' | 'date-price' | 'date-rep
 const PATHS: Readonly<Record<IconId, string>> = {
   today: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   customers: '<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.9-3.5 3.5-5.5 6.5-5.5s5.6 2 6.5 5.5"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M17.5 14.8c2 .7 3.4 2.4 4 5.2"/>',
+  regular: '<path d="M20 12a8 8 0 1 1-2.34-5.66L20 8.5"/><path d="M20 4v4.5h-4.5"/>',
   inbox: '<path d="M3.5 13.5 6 5.5h12l2.5 8"/><path d="M3.5 13.5V18a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-4.5h-5L14 16h-4l-1.5-2.5z"/>',
   calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   assistant: '<path d="M11 3.5c.7 4.6 2.9 6.8 7.5 7.5-4.6.7-6.8 2.9-7.5 7.5-.7-4.6-2.9-6.8-7.5-7.5 4.6-.7 6.8-2.9 7.5-7.5z"/><path d="M19 15c.3 1.6 1 2.3 2.5 2.5-1.5.2-2.2.9-2.5 2.5-.3-1.6-1-2.3-2.5-2.5 1.5-.2 2.2-.9 2.5-2.5z"/>',
