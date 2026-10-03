@@ -348,7 +348,8 @@ describe('a crowded day says "+N more" instead of stretching', () => {
     for (const l of LOCALES) {
       const cell = withoutIsolates(cellOf(draw(l, {}, { entries: crowd(6) }), day));
       expect(cell.match(/<span class="mo-e /g), l).toHaveLength(MONTH_SHOWN);
-      expect(cell, l).toContain(`<a class="mo-more" href="/app/calendar?month=2026-10&amp;day=${day}">${withoutIsolates(t(l, 'calendar.more', { n: 6 - MONTH_SHOWN }))}</a>`);
+      // the sign and its figure are one isolated run: in Arabic "+4" never turns into "4+" when the cell wraps it
+      expect(cell, l).toContain(`<a class="mo-more" href="/app/calendar?month=2026-10&amp;day=${day}"><span>${withoutIsolates(t(l, 'calendar.more', { n: 6 - MONTH_SHOWN })).replace('+4', '<bdi>+4</bdi>')}</span></a>`);
       const three = cellOf(draw(l, {}, { entries: crowd(MONTH_WHOLE) }), day);
       expect(three.match(/<span class="mo-e /g), l).toHaveLength(MONTH_WHOLE);
       expect(three, l).not.toContain('mo-more');

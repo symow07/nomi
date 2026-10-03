@@ -1802,7 +1802,7 @@ const STYLE_PAGES = `
     .mo-e .mo-n { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
     .mo-d { display:flex; margin-inline:auto; }
     .mo td.today .cal-now { display:block; margin:0; text-align:center; overflow-wrap:anywhere; hyphens:auto; }
-    .mo-more { display:flex; justify-content:center; padding-inline:0; text-align:center; }
+    .mo-more { display:flex; justify-content:center; padding-inline:2px; text-align:center; }
   }
 
   /* ── orders.ts — an order (phase 9 of the warmth run): whose order it is, their face beside the heading; an article

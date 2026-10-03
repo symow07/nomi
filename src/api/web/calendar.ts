@@ -448,6 +448,14 @@ function monthItem(locale: Locale, e: CalendarEntry, now: Date): string {
   return `<span ${attrs} title="${esc(sentenceText(locale, e))}">${mark}${name}${kind}</span>`;
 }
 
+/**
+ * "+2 more", its sign and figure one run, isolated: in Arabic the "+" stays before its 2 however the cell
+ * wraps the words (the catalogue isolates the figure alone, and a sign left outside it is read right to left).
+ * One span holds the words, so the door's box lays them out as one line of text that may wrap.
+ */
+const moreSaid = (locale: Locale, n: number): string =>
+  `<span>${esc(t(locale, 'calendar.more', { n })).replace(/\+\u2068?([0-9]+)\u2069?/, '<bdi>+$1</bdi>')}</span>`;
+
 function monthGrid(locale: Locale, v: CalendarView, ask: CalendarAsk, now: Date): string {
   const days: string[] = [];
   for (let d = ask.gridFrom; d < ask.gridTo; d = addDays(d, 1)) days.push(d);
@@ -468,7 +476,7 @@ function monthGrid(locale: Locale, v: CalendarView, ask: CalendarAsk, now: Date)
     return `<td${cls ? ` class="${cls}"` : ''}${today ? ' aria-current="date"' : ''}>
         <a class="mo-d" href="${choose(d)}" aria-label="${esc(show.date(locale, dayStart(d, workspaceZone())))}"${chosen ? ' aria-current="true"' : ''}>${esc(show.count(locale, Number(d.slice(8))))}</a>${today ? todayWord(locale) : ''}
         ${shown.map((e) => monthItem(locale, e, now)).join('')}
-        ${more > 0 ? `<a class="mo-more" href="${choose(d)}">${esc(t(locale, 'calendar.more', { n: more }))}</a>` : ''}
+        ${more > 0 ? `<a class="mo-more" href="${choose(d)}">${moreSaid(locale, more)}</a>` : ''}
       </td>`;
   }).join('')}</tr>`).join('');
   return `<div class="wk-scroll"><table class="mo"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;

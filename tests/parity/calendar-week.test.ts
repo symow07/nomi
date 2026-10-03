@@ -136,12 +136,12 @@ describe('the week, a row of the month (the owner\'s correction, 2026-10-04: one
     const month = (entries: CalendarEntry[]) => draw(week({ entries }), 'en', { ask: ask(), now: NOW });
     const html = month(busy);
     expect(html).toContain('<table class="mo">');
-    expect(html).toContain(`<a class="mo-more" href="/app/calendar?month=2026-09&amp;day=${TODAY}">+3 more</a>`);
+    expect(html).toContain(`<a class="mo-more" href="/app/calendar?month=2026-09&amp;day=${TODAY}"><span><bdi>+3</bdi> more</span></a>`);
     expect(html).toMatch(/<td class="today" aria-current="date">/);
     // three are shown whole: "+1 more" would hide the very one it stands for
     expect(month(busy.slice(0, 3))).not.toContain('mo-more');
     expect(month(busy.slice(0, 3)).match(/<span class="mo-e /g)).toHaveLength(3);
-    expect(month(busy.slice(0, 4))).toContain('+2 more');
+    expect(month(busy.slice(0, 4))).toContain('<bdi>+2</bdi> more');
   });
 });
 
