@@ -143,11 +143,12 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect((await get(ig, igOwner, '/app/business')).body).toContain('href="/app/business/channels"');
     const html = (await get(ig, igOwner, '/app/business/channels')).body;
     expect(html).toContain(esc(t('en', 'reach.channel.instagram')));
-    expect(html).toContain('answers people who write here');             // reach.inbound.connected
-    expect(html).toMatch(new RegExp(`<span class="sr-label">${esc(t('en', 'reach.channel.instagram'))}</span>[^]*?<span class="sr-value ok"`));
+    // Phase 9 — Instagram and Messenger are one row (one Page connects both), its value the one that answers.
+    expect(html).toMatch(new RegExp(`<span class="sr-label">${esc(t('en', 'meta.panel.title'))}</span>[^]*?<span class="sr-value ok" dir="auto"><bdi>${esc(t('en', 'reach.channel.instagram'))}</bdi>`));
+    expect((await get(ig, igOwner, '/app/channels/meta')).body).toContain('answers people who write here');   // reach.inbound.connected
     // Messenger is offered here, not yet connected, and is a door to connect it
     expect(html).toContain(esc(t('en', 'reach.channel.messenger')));
-    expect(html).toContain('cannot answer customers who write here until it is connected');
+    expect(html).toContain('cannot answer customers who write here until it is connected');   // WhatsApp's line, while Instagram answers
     // the list of who may be messaged is WhatsApp's alone
     expect(html).not.toContain('action="/app/business/allowlist/add"');
     expect(html).not.toContain('href="/app/business/allowlist"');
@@ -163,7 +164,8 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(await channelsStep(IG_BIZ)).toBe(true);
     expect((await progress(IG_BIZ)).done).toBe(1);
     const html = (await get(ig, igOwner, '/app/business/channels')).body;
-    expect(html.split(`<span class="sr-value ok" dir="auto"><bdi>${esc(t('en', 'connect.state.connected'))}</bdi></span>`).length - 1).toBe(2);
+    // Phase 9 — one row for both: Connected, once.
+    expect(html.split(`<span class="sr-value ok" dir="auto"><bdi>${esc(t('en', 'connect.state.connected'))}</bdi></span>`).length - 1).toBe(1);
   });
 
   it('a refusal on an Instagram thread does not say WhatsApp (the decision itself is unchanged)', async () => {
@@ -179,7 +181,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
 
   it('the phone example comes from her country, never a Chinese number for everybody', async () => {
     // Atlas is in Morocco: the Channels page's alert number shows +212
-    const html = (await get(ig, igOwner, '/app/channels')).body;
+    const html = (await get(ig, igOwner, '/app/channels/alerts')).body;
     expect(html).toContain('placeholder="+212 …"');
     expect(html).not.toContain('+8613800000000');
   });

@@ -155,7 +155,8 @@ describe('Phase 9 · the shell', () => {
     const cases: [string, string, MessageKey][] = [
       ['/app/settings/closures', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/rate', '/app/business/how-you-sell', 'factory.sellhow.title'],
       ['/app/settings/samples', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/terms', '/app/business/how-you-sell', 'factory.sellhow.title'],
-      ['/app/products', '/app/business', 'nav.factory'], ['/app/channels', '/app/business/channels', 'factory.reach.title'],
+      // Phase 9 (w4-business-assistant-05) — /app/channels answers with its home; each channel's screen draws its own way back.
+      ['/app/products', '/app/business', 'nav.factory'],
       ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
       ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
       ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],

@@ -110,7 +110,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     for (const r of [await post(cookie, '/app/channels/whatsapp/connect'), await post(cookie, '/app/channels/messenger/connect'),
       await post(cookie, '/app/channels/instagram/connect'), await get(cookie, '/app/connect/meta/start'),
       await get(cookie, '/app/connect/meta/callback?code=x&state=y'), await post(cookie, '/app/connect/meta/choose', { state: 'x', page: '1' })]) {
-      expect(r.headers['location']).toBe('/app/channels');
+      expect(r.headers['location']).toBe('/app/business/channels');   // phase 9: the channels' home, where the approval card is
       expect(flashSaid(r, SECRET)).toBe(t('en', 'connect.flash.approval'));
       expect(flashWasRefusal(r, SECRET)).toBe(true);
     }
@@ -121,16 +121,16 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     for (const cookie of [pilotCookie, shops['before']!.cookie]) {
       const r = await get(cookie, '/app/connect/meta/start');
       expect(flashSaid(r, SECRET)).not.toBe(t('en', 'connect.flash.approval'));
-      expect((await get(cookie, '/app/channels')).body).not.toContain('id="approval"');
+      expect((await get(cookie, '/app/business/channels')).body).not.toContain('id="approval"');
     }
   });
 
   it('THE OWNER ASKS once, naming where the business can be seen; the operator hears at once and the daily list counts it', async () => {
     const { cookie, id } = shops['asks']!;
-    const page = await get(cookie, '/app/channels');
+    const page = await get(cookie, '/app/business/channels');
     expect(page.body).toContain('id="approval"');
     expect(page.body).toContain('action="/app/channels/approval"');
-    expect(page.body.indexOf('id="approval"')).toBeLessThan(page.body.indexOf('<span class="ch-name">WhatsApp</span>'));
+    expect(page.body.indexOf('id="approval"')).toBeLessThan(page.body.indexOf('<span class="sr-label">WhatsApp</span>'));
     const bad = await post(cookie, '/app/channels/approval', { page: 'not an address' });
     expect(flashSaid(bad, SECRET)).toBe(t('en', 'approval.flash.bad_page'));
     expect((await admin.query(`select 1 from connection_approvals where business_id = $1`, [id])).rowCount).toBe(0);
@@ -150,7 +150,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     const again = await post(cookie, '/app/channels/approval', { page: '@another' });
     expect(flashSaid(again, SECRET)).toBe(t('en', 'approval.flash.already'));
     expect((await admin.query(`select page from connection_approvals where business_id = $1`, [id])).rows[0].page).toBe('https://facebook.com/SoapHouse');
-    expect((await get(cookie, '/app/channels')).body).toContain(t('en', 'approval.where'));
+    expect((await get(cookie, '/app/business/channels')).body).toContain(t('en', 'approval.where'));
     const { signupDigestAlert } = await import('../../src/pipeline/signupDigest.js');
     expect((await signupDigestAlert(db, PILOT, new Date()))?.approvals).toBeGreaterThanOrEqual(1);
   });
@@ -174,7 +174,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     // Now the routes let it through: Meta is not configured here, so that is what the page says.
     const start = await get(cookie, '/app/connect/meta/start');
     expect(flashSaid(start, SECRET)).toBe(t('en', 'connect.flash.not_configured'));
-    expect((await get(cookie, '/app/channels')).body).not.toContain('id="approval"');
+    expect((await get(cookie, '/app/business/channels')).body).not.toContain('id="approval"');
   });
 
   it('A REFUSAL is said on the page, with the legal contact; refusing needs an ask', async () => {
@@ -182,7 +182,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
     expect(await op.decideConnection(admin, { businessId: id, decision: 'refused', by: 'operator' })).toBe('no_ask');
     expect(flashSaid(await post(cookie, '/app/channels/approval', { page: '@soap.house' }), SECRET)).toBe(t('en', 'approval.flash.asked'));
     expect(await op.decideConnection(admin, { businessId: id, decision: 'refused', by: 'operator', note: 'sells look like counterfeits' })).toBe('refused');
-    const page = (await get(cookie, '/app/channels')).body;
+    const page = (await get(cookie, '/app/business/channels')).body;
     expect(page).toContain(t('en', 'approval.refused'));
     expect(page).toContain('legal@nomi.example');
     expect(page).not.toContain('counterfeits');
@@ -197,7 +197,7 @@ d('KS6 · approval before the first connection (requires DATABASE_URL + MIGRATE_
   it('THE SWITCH OFF: nobody waits', async () => {
     expect(await op.clearOperatorFlag(admin, { flag: 'approve_connections', businessId: null })).toBe(1);
     expect(flashSaid(await get(shops['refused']!.cookie, '/app/connect/meta/start'), SECRET)).toBe(t('en', 'connect.flash.not_configured'));
-    expect((await get(shops['refused']!.cookie, '/app/channels')).body).not.toContain('id="approval"');
+    expect((await get(shops['refused']!.cookie, '/app/business/channels')).body).not.toContain('id="approval"');
     expect(await op.setOperatorFlag(admin, { flag: 'approve_connections', businessId: null, reason: `ks6 test ${RUN}`, by: 'test' })).toBe(1);
   });
 

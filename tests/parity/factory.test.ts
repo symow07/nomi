@@ -92,7 +92,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const rows = [...html.matchAll(/<a class="srow sr-menu[^"]*" href="([^"]+)">[\s\S]*?<span class="sr-label">([^<]+)<\/span>/g)].map((m) => [m[1], m[2]]);
     expect(rows).toEqual([
       ['/app/settings/profile', shown('en', 'settings.profile.title')],
-      ['/app/settings/business', shown('en', 'business.kind.label')],
+      // w4-whole-14 — a short form of the page's own name ("What you do, your country and your website").
+      ['/app/settings/business', shown('en', 'business.row.kind')],
       [BUSINESS_SCREEN_PATH.channels, shown('en', 'factory.reach.title')],
       [BUSINESS_SCREEN_PATH.ready, shown('en', 'business.row.live')],
       ['/app/products', shown('en', 'nav.products')],
@@ -112,7 +113,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // the facts themselves have ONE home, the profile page the row opens (two doors, one data)
     expect(menu(complete)).not.toContain('Vacuum cups and kitchen goods since 2011.');
     const noPlace = menu({ ...complete, profile: { ...complete.profile, location: null } });
-    expect(noPlace).toContain(`<span class="sr-value warn" dir="auto"><bdi>${shown('en', 'setup.state.toDo')}</bdi></span>`);
+    // w4-business-assistant-02 — a setting not finished is said in words; the waiting colour is for customers who wait.
+    expect(noPlace).toContain(`<span class="sr-value" dir="auto"><bdi>${shown('en', 'setup.state.toDo')}</bdi></span>`);
   });
 
   it('products are a real count with the honest pricing state', () => {
@@ -214,8 +216,12 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('a finished factory shows no next step; a new one shows exactly one', () => {
     // V1 review fix: the next step is a door like the others, marked `next` so it can be counted.
     expect(menu(complete)).not.toContain('class="deeper next"');
-    // Phase 7 — the channels step opens the channels' one home, My business's screen.
-    for (const [step, href] of [['profile', '/app/settings/profile'], ['products', '/app/products'], ['channels', BUSINESS_SCREEN_PATH.channels], ['first_success', '/app/inbox']] as const) {
+    // w4-business-assistant-03 — never a second door to a row of this menu: the
+    // profile, the products and where customers reach you are rows already.
+    for (const step of ['profile', 'products', 'channels'] as const) {
+      expect(menu({ ...fresh, nextStep: step }), step).not.toContain('class="deeper next"');
+    }
+    for (const [step, href] of [['name', '/app/onboarding#name'], ['first_success', '/app/inbox']] as const) {
       const html = menu({ ...fresh, nextStep: step });
       expect(html.split('class="deeper next"').length - 1, step).toBe(1);
       expect(html).toContain(`class="deeper next" href="${href}"`);
@@ -234,7 +240,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // P5 — Practice is every workspace's own: its door is always drawn.
     const all = everything(complete);
     for (const href of ['/app/settings/profile', '/app/settings/business', '/app/products', '/app/business/prices', '/app/knowledge',
-      '/app/channels', '/app/onboarding', '/app/sandbox', ...Object.values(BUSINESS_SCREEN_PATH)])
+      '/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts', '/app/onboarding', '/app/sandbox',
+      ...Object.values(BUSINESS_SCREEN_PATH)])
       expect(all, href).toContain(`href="${href}"`);
   });
 
@@ -294,7 +301,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
     // Phase 9 (new-01) — a paused number waits for the owner (○); one never
     // connected waits on nothing, so it carries no state colour.
     const wa = (lc: FactoryView['readiness']['lifecycle'], l: Locale = 'ar') => screen('channels', { ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, l)
-      .match(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels"><span class="sr-main"><span class="sr-label">${shown(l, 'reach.channel.whatsapp')}</span>[^]*?</a>`))![0];
+      .match(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels/whatsapp">[^]*?<span class="sr-label">${shown(l, 'reach.channel.whatsapp')}</span>[^]*?</a>`))![0];
     expect(wa('paused')).toContain(`<span class="sr-value warn" dir="auto"><bdi>${shown('ar', 'channel.state.paused')}</bdi></span>`);
     expect(wa('not_connected')).toContain(`<span class="sr-value" dir="auto"><bdi>${shown('ar', 'channel.state.not_connected')}</bdi></span>`);
     for (const lc of ['ready', 'active'] as const) expect(wa(lc, 'en'), lc).toContain('<span class="sr-value ok" dir="auto">');
@@ -506,7 +513,7 @@ describe('M20.2 · the activation readiness surface', () => {
 
   it('not ready: each blocker links to the place that fixes it', () => {
     expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }))
-      .toContain('<a class="blink" href="/app/channels">');
+      .toContain('<a class="blink" href="/app/channels/whatsapp">');
     expect(withReadiness({ canActivate: false, blockers: ['assistant_not_named'] }))
       .toContain('<a class="blink" href="/app/onboarding">');
     // Phase 9 — the keys are the operator's: nothing for the owner to open.
@@ -812,7 +819,8 @@ describe('Phase 9 · B5 · My business', () => {
   it('phase 7 · the menu’s Going live row says the same answer in a word, with its signal', () => {
     const value = (v: FactoryView) => menu(v).match(new RegExp(`href="${BUSINESS_SCREEN_PATH.ready}">[^]*?<span class="sr-value([^"]*)" dir="auto"><bdi>([^<]+)</bdi>`))!.slice(1, 3);
     expect(value(audit)).toEqual(['', shown('en', 'setup.state.notConnected')]);
-    expect(value({ ...audit, connection: { ...audit.connection, channelsUsed: ['whatsapp'] } })).toEqual([' warn', shown('en', 'business.live.notYet')]);
+    // w4-business-assistant-02 — not ready yet is a state of the settings, not a customer waiting: no waiting colour.
+    expect(value({ ...audit, connection: { ...audit.connection, channelsUsed: ['whatsapp'] } })).toEqual(['', shown('en', 'business.live.notYet')]);
     expect(value({ ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'ready' } })).toEqual([' ok', shown('en', 'business.live.ready')]);
     expect(value({ ...audit, readiness: { ...audit.readiness, lifecycle: 'active', live: true } })).toEqual([' ok', shown('en', 'business.live.on')]);
     expect(value({ ...audit, readiness: { ...audit.readiness, assistantStop: { stoppedAt: new Date(), stoppedBy: null } } })).toEqual([' warn', shown('en', 'business.live.stopped')]);
@@ -844,7 +852,8 @@ describe('Phase 9 · B5 · My business', () => {
   it('V1-392 · the first door is the questions, not the heading again; the rest say they are the same facts', () => {
     for (const l of LOCALES) {
       const html = screen('how', audit, l);
-      expect(html, l).toMatch(new RegExp(`href="/app/business/selling">[^]*?<span class="sr-label">${esc(say(l, 'hs.questions.title'))}</span><span class="sr-desc">${esc(say(l, 'factory.sellhow.questions'))}</span>`));
+      // w4-business-assistant-24 — the row is the list's name and where it stands; no line repeating it.
+      expect(html, l).toMatch(new RegExp(`href="/app/business/selling">[^]*?<span class="sr-label">${esc(say(l, 'hs.questions.title'))}</span></span>`));
       expect(say(l, 'hs.questions.title'), l).not.toBe(say(l, 'factory.sellhow.title'));
       expect(html, l).toContain(esc(say(l, 'factory.sellhow.direct')));
       for (const href of ['/app/settings/terms', '/app/settings/samples', '/app/settings/closures']) expect(html, `${l} ${href}`).toContain(`href="${href}"`);
@@ -860,8 +869,10 @@ describe('Phase 9 · B5 · My business', () => {
   it('V1-393 · one door per place: the details open the profile; each channel row opens Channels, with no second door', () => {
     expect(menu(audit)).toContain('<a class="srow sr-menu" href="/app/settings/profile">');
     expect(page('en')).not.toContain('href="/app/settings">');
+    // Phase 9 (w4-business-assistant-05) — each channel row opens its own screen, once.
     const reach = screen('channels', audit);
-    expect(reach.split('href="/app/channels"').length - 1).toBe(1 + (audit.connection.others ?? []).length);
+    for (const s of ['whatsapp', 'meta', 'email', 'alerts']) expect(reach.split(`href="/app/channels/${s}"`).length - 1, s).toBe(1);
+    expect(reach).not.toContain('href="/app/channels"');
     expect(reach).not.toContain(esc(say('en', 'factory.reach.more')));
     const ready = screen('ready', { ...audit, connection: { ...audit.connection, channelsUsed: [] } });
     expect(ready).not.toContain(`href="/app/channels">${esc(say('en', 'nav.channels'))}`);
@@ -869,11 +880,11 @@ describe('Phase 9 · B5 · My business', () => {
     expect(ready).toContain(`href="${BUSINESS_SCREEN_PATH.channels}">${esc(say('en', 'factory.reach.title'))}`);
   });
 
-  it('V1-394 · "add your number" comes with the place to add it', () => {
+  it('V1-394 · w4-business-assistant-06 · the alert number is a row of its own, its value as it stands; nothing says where alerts go', () => {
     const html = screen('channels', audit);
-    const at = html.indexOf(esc(say('en', 'factory.reach.noAlerts')));
-    expect(at).toBeGreaterThan(-1);
-    expect(html.slice(at)).toMatch(/^[^]*?href="\/app\/channels#alerts">Add your number for alerts/);
+    expect(html).toMatch(new RegExp(`href="/app/channels/alerts">[^]*?<span class="sr-label">${esc(say('en', 'channels.alerts.title'))}</span>`));
+    expect(html).not.toContain('You are alerted on');
+    expect(html).not.toContain('You are not alerted yet');
   });
 
   it('V1-395 · a gap is a sentence and a door, not an underlined heading; no "checked all 12" under a list', () => {
@@ -886,8 +897,8 @@ describe('Phase 9 · B5 · My business', () => {
   });
 
   it('V1-396 · the door names the list it opens', () => {
-    for (const l of LOCALES) expect(screen('ready', audit, l), l).toContain(`href="/app/onboarding">${esc(say(l, 'factory.ready.more'))}`);
-    expect(say('en', 'factory.ready.more')).not.toMatch(/whole list/);
+    // w4-business-assistant-04 — the door says the name of the page it opens.
+    for (const l of LOCALES) expect(screen('ready', audit, l), l).toContain(`href="/app/onboarding">${esc(say(l, 'pilot.title'))}`);
   });
 
   it('V1-397 · one language for the names on a Chinese page', () => {
@@ -910,7 +921,7 @@ describe('Phase 9 · B5 · My business', () => {
 
   it('new-01 · missed-02 · a WhatsApp never connected is a plain door, and speaks of WhatsApp only', () => {
     const html = screen('channels', audit);
-    expect(html).toMatch(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels"><span class="sr-main"><span class="sr-label">WhatsApp</span><span class="sr-desc">Customers who write to your WhatsApp are not answered until it is connected.</span></span><span class="sr-value" dir="auto"><bdi>`));
+    expect(html).toMatch(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels/whatsapp"><svg[^]*?</svg><span class="sr-main"><span class="sr-label">WhatsApp</span><span class="sr-desc">Customers who write to your WhatsApp are not answered until it is connected.</span></span><span class="sr-value" dir="auto"><bdi>`));
     expect(html).not.toContain('cannot receive or answer a customer');
     // phase 7 — the cards' rules went with the cards
     expect(css).not.toMatch(/\.fconn\.todo \{/);

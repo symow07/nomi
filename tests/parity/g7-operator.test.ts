@@ -19,7 +19,8 @@ describe('G7 · stop new connections (KS6\'s flag)', () => {
     // KS6 (0115) — the same question now also asks for the operator's approval of a first connection.
     // WA (0120) — and her own WhatsApp number's three steps: start, callback, the number chosen.
     expect(app.match(/const refused = await connectionRefusal\(s\.businessId\);\n    if \(refused\) return channelsFlash\(reply, refused\);/g)).toHaveLength(6);
-    expect(app.match(/if \(refused\) return flashTo\(reply, '\/app\/channels', refused\);/g)).toHaveLength(2);
+    // Phase 9 — a refused connection lands on the channels' home, where the approval card is.
+    expect(app.match(/if \(refused\) return flashTo\(reply, CHANNELS_HOME, refused\);/g)).toHaveLength(2);
     expect(app).toContain("return gate === 'stopped' ? 'connect.flash.paused'");
   });
   for (const l of LOCALES) {

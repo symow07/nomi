@@ -64,7 +64,8 @@ import { renderMetaHelp } from './help.js';
 import { checkMetaAccount } from '../../channels/meta/health.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } from '../../db/metaAccounts.js';
 import {
-  loadChannels, renderChannels, renderConnectGuide, channelFlash,
+  loadChannels, renderChannelScreen, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
+  channelScreenHref, channelScreenTitle, screenOfChannel,
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
 } from './channels.js';
 import {
@@ -2612,10 +2613,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post(path, async (req, reply) => {
       // Phase 4 — the number's lifecycle is the owner's, like connecting it:
       // a disconnect stops buyers' messages, a test writes to a real phone.
-      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+      const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp'));
       if (!s) return reply;
       const r = await run(s.businessId, personOf(s).id);
-      return flashTo(reply, '/app/channels', channelFlash(r.code));
+      return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
     });
   // G3 — connect the number the HOST is configured with. Owner-only under the
   // same decision as activation: it is the step that lets buyers' messages in.
@@ -2628,11 +2629,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   for (const kind of ['instagram', 'messenger'] as const) {
     app.post(`/app/channels/${kind}/connect`, async (req, reply) => {
-      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+      const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta'));
       if (!s) return reply;
       // G7 / KS6 — the same one question as the other connect routes (found 2026-10-01: this one never asked).
       const refused = await connectionRefusal(s.businessId);
-      if (refused) return flashTo(reply, '/app/channels', refused);
+      if (refused) return flashTo(reply, CHANNELS_HOME, refused);
       const configured = kind === 'instagram' ? deps.instagramAccountId : deps.messengerPageId;
       const r = await connectMetaChannel(deps.db, s.businessId, kind, configured ?? null, personOf(s).id);
       facts.evict(s.businessId);   // Phase 4b — any connected channel completes the setup step
@@ -2641,19 +2642,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : r.code === 'account_taken' ? 'reach.inbound.flash.taken'
         : r.code === 'not_configured' ? 'reach.inbound.flash.notConfigured'
         : 'channel.flash.failed';
-      return flashTo(reply, '/app/channels', key as MessageKey);
+      return flashTo(reply, channelScreenHref('meta'), key as MessageKey);
     });
   }
 
   app.post('/app/channels/whatsapp/connect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp'));
     if (!s) return reply;
     // G7 — the operator stopped new connections; KS6 — or the first one waits for approval.
     const refused = await connectionRefusal(s.businessId);
-    if (refused) return flashTo(reply, '/app/channels', refused);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
     facts.evict(s.businessId);   // D — a channel connected is a setup step done
-    return flashTo(reply, '/app/channels', channelFlash(r.code));
+    return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
   });
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
   channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
@@ -2666,31 +2667,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * mail; the decision comes back to the owner by e-mail (the five-minute sweep).
    */
   app.post('/app/channels/approval', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    const s = await ownerOnly(req, reply, 'messaging_activation', CHANNELS_HOME);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return flashTo(reply, '/app/channels', 'approval.flash.failed');
+    if (!bid.ok) return flashTo(reply, CHANNELS_HOME, 'approval.flash.failed');
     const raw = (req.body as { page?: unknown } | undefined)?.page;
     const page = whereSeenFrom(typeof raw === 'string' ? raw : '');
-    if (!page) return flashTo(reply, '/app/channels#approval', 'approval.flash.bad_page');
+    if (!page) return flashTo(reply, `${CHANNELS_HOME}#approval`, 'approval.flash.bad_page');
     const r = await withTenantTx(deps.db, bid.value, async (tx) =>
       (await approvalState(tx, bid.value)).needed ? askApproval(tx, page, personOf(s).name) : 'not_needed' as const)
       .catch(() => null);
-    if (r === null) return flashTo(reply, '/app/channels', 'approval.flash.failed');
+    if (r === null) return flashTo(reply, CHANNELS_HOME, 'approval.flash.failed');
     if (r === 'asked' && deps.systemMail) {
       void notifyOperatorOfConnectionAsk({ db: deps.db, mail: deps.systemMail }, deps.businessId, s.businessId).catch(() => undefined);
     }
-    return flashTo(reply, '/app/channels#approval', r === 'asked' ? 'approval.flash.asked' : r === 'not_needed' ? 'approval.flash.not_needed' : 'approval.flash.already');
+    return flashTo(reply, `${CHANNELS_HOME}#approval`, r === 'asked' ? 'approval.flash.asked' : r === 'not_needed' ? 'approval.flash.not_needed' : 'approval.flash.already');
   });
 
   // P3 follow-up: owner alert destination (minimal action, validated + audited).
   app.post('/app/settings/owner-phone', async (req, reply) => {
     // Phase 4 — where the owner's own alerts go is the owner's to change.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('alerts'));
     if (!s) return reply;
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await saveOwnerPhone(deps.db, s.businessId, phone, personOf(s).id);
-    return flashTo(reply, '/app/channels', `settings.flash.${r.code}` as MessageKey);
+    return flashTo(reply, channelScreenHref('alerts'), `settings.flash.${r.code}` as MessageKey);
   });
 
   /**
@@ -2750,43 +2751,53 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     };
   };
 
-  // Re-render the channels page with a flash after a redirect (?flash=).
+  /*
+   * Phase 9 (w4-business-assistant-05, -07; w4-whole-15) — the channels are a
+   * screen each, under their one home, My business › Where customers reach
+   * you. `/app/channels` answers with that home: an old link, a bookmark and
+   * the approval e-mail (CONNECTION_APPROVAL_PAGE) all still land.
+   */
   app.get('/app/channels', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
-    const locale = localeOf(req);
-    const flash = takeFlash(req, reply);
-    const loaded = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none',
-      deps.connectableNumber ?? null);
-    // C6 — every other account she links, read beside the WhatsApp card.
-    const bid = parseBusinessId(s.businessId);
-    // WA — her own WhatsApp number, and whether Embedded Signup is offered at all.
-    const waOwn = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => liveWhatsAppAccount(tx, bid.value)).catch(() => null) : null;
-    const waTemplates = bid.ok && waOwn ? await withTenantTx(deps.db, bid.value, (tx) => listReopenTemplates(tx, bid.value, waOwn.wabaId)).catch(() => []) : [];
-    const data = {
-      ...loaded, waSelfServe: waReady() !== null, waTemplates,
-      waOwn: waOwn ? { display: waOwn.display, verifiedName: waOwn.verifiedName, nameStatus: waOwn.nameStatus, needsAttention: waOwn.needsAttention !== null } : null,
-    };
-    const accounts = bid.ok ? await loadAccounts(deps.db, bid.value, {
-      clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
-      smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
-    }) : null;
-    // C9 — which inbound channels this host can offer, and which she connected.
-    const inbound = await inboundLinks(s.businessId);
-    const yours = await yourAccountsFor(s.businessId);
-    const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
-    // KS6 — before the first channel connects, the operator looks at the business.
-    const approval = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => approvalState(tx, bid.value)).catch(() => null) : null;
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.channels'), active: 'channels',
-      bodyHtml: renderChannels(data, locale, flash, personOf(s),
-        accounts ? renderAccounts(accounts, locale, personOf(s), inbound) : '', inbound,
-        yours ? renderYourAccounts(yours, locale) : '', deps.metaReview ?? null,
-        approval ? renderApprovalCard(approval, locale, personOf(s), deps.legalContact ?? null) : ''),
-      // CH1 — the page says when a first message arrives, or a connection changes.
-      ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
-    }));
+    if (!sessionOf(req)) return reply.redirect('/login');
+    return reply.redirect(CHANNELS_HOME);
   });
+  for (const screen of CHANNEL_SCREENS) {
+    app.get(channelScreenHref(screen), async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const flash = takeFlash(req, reply);
+      const bid = parseBusinessId(s.businessId);
+      const loaded = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none',
+        deps.connectableNumber ?? null);
+      // WA — her own WhatsApp number, and whether Embedded Signup is offered at all.
+      const waOwn = screen === 'whatsapp' && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => liveWhatsAppAccount(tx, bid.value)).catch(() => null) : null;
+      const waTemplates = bid.ok && waOwn ? await withTenantTx(deps.db, bid.value, (tx) => listReopenTemplates(tx, bid.value, waOwn.wabaId)).catch(() => []) : [];
+      const data = {
+        ...loaded, waSelfServe: waReady() !== null, waTemplates,
+        waOwn: waOwn ? { display: waOwn.display, verifiedName: waOwn.verifiedName, nameStatus: waOwn.nameStatus, needsAttention: waOwn.needsAttention !== null } : null,
+      };
+      // C9 — which inbound channels this host can offer, and which she connected.
+      const inbound = await inboundLinks(s.businessId);
+      // C6 — the mail accounts, on E-mail's screen.
+      const accounts = screen === 'email' && bid.ok ? await loadAccounts(deps.db, bid.value, {
+        clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
+        smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
+      }) : null;
+      // CH1 — each step of connecting a Page, on Instagram and Messenger's screen.
+      const yours = screen === 'meta' ? await yourAccountsFor(s.businessId) : null;
+      const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: channelScreenTitle(locale, screen), active: 'channels',
+        bodyHtml: renderChannelScreen(screen, data, locale, flash, personOf(s), {
+          ...(accounts ? { accountsHtml: renderAccounts(accounts, locale, personOf(s), inbound, 'mail') } : {}),
+          inbound, ...(yours ? { yourAccountsHtml: renderYourAccounts(yours, locale) } : {}), metaReview: deps.metaReview ?? null,
+        }),
+        // CH1 — the screen says when a first message arrives, or a connection changes.
+        ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
+      }));
+    });
+  }
 
   // ── Nomi Phase E · My factory ──────────────────────────────────────────────
   // One calm page over the EXISTING profile / products / claims / channel read
@@ -2812,7 +2823,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // home), who may be messaged, going live, what is promised, how you sell.
   const BUSINESS_SCREEN_TITLE: Readonly<Record<BusinessScreen, (locale: Locale) => string>> = {
     channels: (l) => t(l, 'factory.reach.title'), allowlist: (l) => t(l, 'allowlist.title'),
-    ready: (l) => t(l, 'factory.ready.title'), promises: (l) => t(l, 'factory.promise.title'),
+    ready: (l) => t(l, 'business.row.live'), promises: (l) => t(l, 'factory.promise.title'),
     how: (l) => t(l, 'factory.sellhow.title'),
   };
   for (const screen of Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[]) {
@@ -2822,8 +2833,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: screen === 'ready' }),
         screen === 'how' ? loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner) : Promise.resolve(undefined),
       ]);
+      // KS6 — the approval the first connection waits for leads the channels' home.
+      const bid = parseBusinessId(s.businessId);
+      const approval = screen === 'channels' && bid.ok
+        ? await withTenantTx(deps.db, bid.value, (tx) => approvalState(tx, bid.value)).catch(() => null) : null;
       return { title: BUSINESS_SCREEN_TITLE[screen](locale),
-        bodyHtml: renderBusinessScreen(screen, menu ? { ...view, menu } : view, locale, flash, personOf(s)) };
+        bodyHtml: renderBusinessScreen(screen, menu ? { ...view, menu } : view, locale, flash, personOf(s),
+          approval ? { approvalHtml: renderApprovalCard(approval, locale, personOf(s), deps.legalContact ?? null) } : {}) };
     }));
   }
 
@@ -4314,7 +4330,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * is silent. Setting it CLEARS any previous check — see `setSendingDomain`.
    */
   app.post('/app/channels/domain', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', channelScreenHref('email'));
     if (!sess) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
@@ -4324,20 +4340,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const shaped = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain)
       && /^[a-z0-9][a-z0-9-]*$/.test(selector);
     if (!bid.ok || !shaped) {
-      return flashTo(reply, '/app/channels', bid.ok ? 'domain.flash.invalid' : 'domain.flash.failed');
+      return flashTo(reply, channelScreenHref('email'), bid.ok ? 'domain.flash.invalid' : 'domain.flash.failed');
     }
     await withTenantTx(deps.db, bid.value, (tx) =>
       setSendingDomain(tx, bid.value, { domain, dkimSelector: selector, by: personOf(sess).name }));
-    return flashTo(reply, '/app/channels', 'domain.flash.saved');
+    return flashTo(reply, channelScreenHref('email'), 'domain.flash.saved');
   });
 
   app.post('/app/channels/domain/check', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', channelScreenHref('email'));
     if (!sess) return reply;
     const locale = localeOf(req);
     const bid = parseBusinessId(sess.businessId);
     if (!bid.ok) {
-      return flashTo(reply, '/app/channels', 'domain.flash.failed');
+      return flashTo(reply, channelScreenHref('email'), 'domain.flash.failed');
     }
     // The lookup is I/O and can fail; a failure returns empty lists, which read
     // as 'missing'. It is never allowed to read as "fine". The mechanism to
@@ -4348,9 +4364,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       db: deps.db, resolveDns: deps.resolveDns, sendingInclude: deps.sendingInclude ?? null,
     }, bid.value, new Date());
     if (!check) {
-      return flashTo(reply, '/app/channels', 'domain.flash.failed');
+      return flashTo(reply, channelScreenHref('email'), 'domain.flash.failed');
     }
-    return flashTo(reply, '/app/channels', 'domain.flash.checked');
+    return flashTo(reply, channelScreenHref('email'), 'domain.flash.checked');
   });
 
   /**
@@ -4361,19 +4377,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * be able to do on her behalf.
    */
   app.post('/app/channels/outreach', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', CHANNELS_HOME);
     if (!sess) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
     const channel = OUTREACH_CHANNELS.find((c) => c === b['channel']);
     const bid = parseBusinessId(sess.businessId);
     if (!channel || !bid.ok) {
-      return flashTo(reply, '/app/channels', 'outreach.flash.failed');
+      return flashTo(reply, CHANNELS_HOME, 'outreach.flash.failed');
     }
     const enabled = b['enabled'] === 'true';
     const done = await withTenantTx(deps.db, bid.value, (tx) =>
       setOutreach(tx, bid.value, { channel, enabled, by: personOf(sess).name }));
-    return flashTo(reply, '/app/channels', !done ? 'outreach.flash.failed' : enabled ? 'outreach.flash.on' : 'outreach.flash.off');
+    return flashTo(reply, channelScreenHref(screenOfChannel(channel)), !done ? 'outreach.flash.failed' : enabled ? 'outreach.flash.on' : 'outreach.flash.off');
   });
 
   /**
@@ -4384,7 +4400,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * stands, so changing the number never changes whether writing first is on.
    */
   app.post('/app/channels/outreach/cap', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', CHANNELS_HOME);
     if (!sess) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
@@ -4392,7 +4408,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(sess.businessId);
     const raw = typeof b['cap'] === 'string' ? b['cap'].trim() : '';
     const cap = raw === '' ? null : /^\d{1,5}$/.test(raw) && Number(raw) >= 1 ? Number(raw) : undefined;
-    const failed = () => flashTo(reply, '/app/channels', 'outreach.flash.failed');
+    const failed = () => flashTo(reply, channel ? channelScreenHref(screenOfChannel(channel)) : CHANNELS_HOME, 'outreach.flash.failed');
     if (!channel || !bid.ok || cap === undefined) return failed();
     const done = await withTenantTx(deps.db, bid.value, async (tx) => {
       const current = (await outreachSettings(tx, bid.value)).get(channel);
@@ -4401,7 +4417,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       });
     });
     if (!done) return failed();
-    return flashTo(reply, '/app/channels', 'outreach.flash.cap', { n: String(cap ?? DAILY_OUTREACH_CEILING) });
+    return flashTo(reply, channelScreenHref(screenOfChannel(channel)), 'outreach.flash.cap', { n: String(cap ?? DAILY_OUTREACH_CEILING) });
   });
 
   /**
@@ -4427,16 +4443,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const OAUTH_COOKIE = 'yf_oauth';
   const redirectUriFor = (provider: string) =>
     `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/${provider}/callback`;
-  const channelsFlash = (reply: FastifyReply, key: string, vars?: Record<string, string>) =>
-    flashTo(reply, '/app/channels', key as MessageKey, vars);
+  const channelsFlash = (reply: FastifyReply, key: string, vars?: Record<string, string>, to: string = CHANNELS_HOME) =>
+    flashTo(reply, to, key as MessageKey, vars);
 
   app.get('/app/connect/:provider/start', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
     const locale = localeOf(req);
     const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
     const client = provider ? deps.oauthClients?.[provider] : undefined;
     if (!provider || !client || !deps.publicBaseUrl || !deps.credentialKey) {
-      return channelsFlash(reply, 'connect.flash.not_configured');
+      return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('email'));
     }
     const { verifier, challenge } = pkcePair();
     const nonce = randomBytes(24).toString('base64url');
@@ -4448,7 +4464,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.get('/app/connect/:provider/callback', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
     const locale = localeOf(req);
     const q = req.query as { code?: string; state?: string; error?: string };
     const cookie = parseCookies(req.headers.cookie)[OAUTH_COOKIE];
@@ -4458,13 +4474,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
     if (!provider || !state || state.provider !== provider || state.personId !== personOf(s).id
         || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('email'));
     }
     if (q.error || typeof q.code !== 'string' || !q.code) {
-      return channelsFlash(reply, 'connect.flash.denied');
+      return channelsFlash(reply, 'connect.flash.denied', undefined, channelScreenHref('email'));
     }
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return channelsFlash(reply, 'connect.flash.rejected');
+    if (!bid.ok) return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('email'));
     const r = await completeMailConnection({
       db: deps.db, credentialKey: deps.credentialKey ?? null, clients: deps.oauthClients ?? {},
       fetchImpl: deps.oauthFetch ?? (fetch as unknown as OAuthFetch), now: () => new Date(),
@@ -4474,16 +4490,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     facts.evict(s.businessId);   // Phase 4b — a mailbox is a place buyers write: a setup step
     return r.outcome === 'connected'
-      ? channelsFlash(reply, 'connect.flash.connected', { address: r.address ?? '' })
-      : channelsFlash(reply, `connect.flash.${r.outcome}`);
+      ? channelsFlash(reply, 'connect.flash.connected', { address: r.address ?? '' }, channelScreenHref('email'))
+      : channelsFlash(reply, `connect.flash.${r.outcome}`, undefined, channelScreenHref('email'));
   });
 
   app.post('/app/connect/mail/disconnect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     const done = bid.ok && await disconnectMailbox(deps.db, { businessId: bid.value, by: personOf(s).name });
     facts.evict(s.businessId);
-    return channelsFlash(reply, done ? 'connect.flash.disconnected' : 'connect.flash.rejected');
+    return channelsFlash(reply, done ? 'connect.flash.disconnected' : 'connect.flash.rejected', undefined, channelScreenHref('email'));
   });
 
   /**
@@ -4499,22 +4515,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const metaReady = () => (deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect) ? deps.metaConnect : null;
   const metaFlash = (reply: FastifyReply, r: MetaConnectOutcome): FastifyReply => {
     switch (r.outcome) {
-      case 'connected': return channelsFlash(reply, r.instagram ? 'connect.meta.flash.connected' : 'connect.meta.flash.connectedNoIg', { page: r.page });
+      case 'connected': return channelsFlash(reply, r.instagram ? 'connect.meta.flash.connected' : 'connect.meta.flash.connectedNoIg', { page: r.page }, channelScreenHref('meta'));
       case 'no_pages': case 'page_taken': case 'subscribe_failed': case 'unavailable':
-        return channelsFlash(reply, `connect.meta.flash.${r.outcome}`);
-      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured');
-      default: return channelsFlash(reply, 'connect.flash.rejected');
+        return channelsFlash(reply, `connect.meta.flash.${r.outcome}`, undefined, channelScreenHref('meta'));
+      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
+      default: return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('meta'));
     }
   };
 
   app.get('/app/connect/meta/start', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     // G7 — the operator stopped new connections, or (KS6) the first one waits for approval: nothing is asked of Meta.
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
     const locale = localeOf(req);
     const mc = metaReady();
-    if (!mc || !deps.metaLogin) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!mc || !deps.metaLogin) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
     const nonce = randomBytes(24).toString('base64url');
     writeCookie(reply, META_COOKIE,
       mintMetaState(deps.sessionSecret, { nonce, personId: personOf(s).id, tokenCiphertext: null }, Date.now()),
@@ -4523,7 +4539,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.get('/app/connect/meta/callback', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     const locale = localeOf(req);
     const q = req.query as { code?: string; state?: string; error?: string };
     const cookie = parseCookies(req.headers.cookie)[META_COOKIE];
@@ -4534,12 +4550,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (refused) return channelsFlash(reply, refused);
     const state = readMetaState(deps.sessionSecret, cookie, Date.now());
     if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('meta'));
     }
-    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied');
+    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied', undefined, channelScreenHref('meta'));
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
-    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
     const r = await completeMetaConnection(mc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(), code: q.code.slice(0, 2048),
     });
@@ -4555,7 +4571,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/connect/meta/choose', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     // G7 — the last step of connecting a Page: refused while connections are stopped, or (KS6) not yet approved.
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
@@ -4563,18 +4579,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, unknown>;
     const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
     if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('meta'));
     }
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
-    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
     facts.evict(s.businessId);   // D — a Page connected is a setup step done
     const pageId = typeof b['page_id'] === 'string' ? b['page_id'].slice(0, 40) : '';
     const r = await completeMetaConnection(mc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(),
       userTokenCiphertext: state.tokenCiphertext, pageId,
     });
-    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected') : metaFlash(reply, r);
+    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('meta')) : metaFlash(reply, r);
   });
 
   /**
@@ -4592,20 +4608,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     switch (r.outcome) {
       case 'connected':
         return channelsFlash(reply, r.nameStatus && r.nameStatus !== 'APPROVED' && r.verifiedName ? 'connect.wa.flash.connectedNamePending' : 'connect.wa.flash.connected',
-          { number: r.display ?? '', verified: r.verifiedName ?? '' });
+          { number: r.display ?? '', verified: r.verifiedName ?? '' }, channelScreenHref('whatsapp'));
       case 'no_account': case 'no_number': case 'number_taken': case 'refused': case 'unavailable':
-        return channelsFlash(reply, `connect.wa.flash.${r.outcome}`);
-      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured');
-      default: return channelsFlash(reply, 'connect.flash.rejected');
+        return channelsFlash(reply, `connect.wa.flash.${r.outcome}`, undefined, channelScreenHref('whatsapp'));
+      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
+      default: return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('whatsapp'));
     }
   };
 
   app.get('/app/connect/whatsapp/start', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
     const wc = waReady();
-    if (!wc || !deps.waLogin) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!wc || !deps.waLogin) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const nonce = randomBytes(24).toString('base64url');
     writeCookie(reply, WA_COOKIE,
       mintMetaState(deps.sessionSecret, { nonce, personId: personOf(s).id, tokenCiphertext: null }, Date.now()),
@@ -4614,7 +4630,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.get('/app/connect/whatsapp/callback', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const locale = localeOf(req);
     const q = req.query as { code?: string; state?: string; error?: string };
     const cookie = parseCookies(req.headers.cookie)[WA_COOKIE];
@@ -4623,12 +4639,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (refused) return channelsFlash(reply, refused);
     const state = readMetaState(deps.sessionSecret, cookie, Date.now());
     if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('whatsapp'));
     }
-    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied');
+    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied', undefined, channelScreenHref('whatsapp'));
     const wc = waReady();
     const bid = parseBusinessId(s.businessId);
-    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const r = await completeWhatsAppConnection(wc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: waRedirectUri(), code: q.code.slice(0, 2048),
     });
@@ -4645,24 +4661,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/connect/whatsapp/choose', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
     const b = (req.body ?? {}) as Record<string, unknown>;
     const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
-    if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) return channelsFlash(reply, 'connect.flash.expired');
+    if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('whatsapp'));
     const wc = waReady();
     const bid = parseBusinessId(s.businessId);
-    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const wabaId = typeof b['waba_id'] === 'string' && /^[0-9]{5,30}$/.test(b['waba_id']) ? b['waba_id'] : '';
     const numberId = typeof b['number_id'] === 'string' ? b['number_id'].slice(0, 40) : '';
-    if (!wabaId || !numberId) return channelsFlash(reply, 'connect.flash.rejected');
+    if (!wabaId || !numberId) return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('whatsapp'));
     const r = await completeWhatsAppConnection(wc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: waRedirectUri(),
       tokenCiphertext: state.tokenCiphertext, wabaId, phoneNumberId: numberId,
     });
     if (r.outcome === 'connected') facts.evict(s.businessId);
-    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected') : waFlash(reply, r);
+    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('whatsapp')) : waFlash(reply, r);
   });
 
   /**
@@ -4680,9 +4696,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return token ? { wc, bid: bid.value, account, token } : null;
   };
   app.post('/app/channels/whatsapp/templates/submit', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const c = await waTemplateContext(s);
-    if (!c) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!c) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const biz = (await withTenantTx(deps.db, c.bid, (tx) => sql<{ name: string; served: string[] | null }>`
       select name, languages_served as served from businesses where id = ${c.bid}`.execute(tx))).rows[0];
     const have = new Map((await withTenantTx(deps.db, c.bid, (tx) => listReopenTemplates(tx, c.bid, c.account.wabaId))).map((r) => [r.language, r.status]));
@@ -4699,34 +4715,34 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       asked++;
     }
     return channelsFlash(reply, asked > 0 ? 'channel.wa.template.flash.submitted' : unavailable ? 'channel.wa.template.flash.unavailable' : 'channel.wa.template.flash.nothing',
-      { n: String(asked) });
+      { n: String(asked) }, channelScreenHref('whatsapp'));
   });
   app.post('/app/channels/whatsapp/templates/check', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const c = await waTemplateContext(s);
-    if (!c) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!c) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const statuses = await reopenTemplateStatuses({ wabaId: c.account.wabaId, token: c.token, graphVersion: c.wc.graphVersion }, c.wc.fetchImpl);
-    if (statuses === null) return channelsFlash(reply, 'channel.wa.template.flash.unavailable');
+    if (statuses === null) return channelsFlash(reply, 'channel.wa.template.flash.unavailable', undefined, channelScreenHref('whatsapp'));
     await withTenantTx(deps.db, c.bid, (tx) => recordStatuses(tx, c.bid, c.account.wabaId, statuses));
-    return channelsFlash(reply, 'channel.wa.template.flash.checked');
+    return channelsFlash(reply, 'channel.wa.template.flash.checked', undefined, channelScreenHref('whatsapp'));
   });
 
   app.post('/app/connect/whatsapp/disconnect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const wc = waReady();
     const bid = parseBusinessId(s.businessId);
     const done = wc !== null && bid.ok && await disconnectWhatsAppAccount(wc, { businessId: bid.value, by: personOf(s).name });
     facts.evict(s.businessId);
-    return channelsFlash(reply, done ? 'connect.wa.flash.disconnected' : 'connect.flash.rejected');
+    return channelsFlash(reply, done ? 'connect.wa.flash.disconnected' : 'connect.flash.rejected', undefined, channelScreenHref('whatsapp'));
   });
 
   app.post('/app/connect/meta/disconnect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
     const done = mc !== null && bid.ok && await disconnectMetaAccount(mc, { businessId: bid.value, by: personOf(s).name });
     facts.evict(s.businessId);
-    return channelsFlash(reply, done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected');
+    return channelsFlash(reply, done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected', undefined, channelScreenHref('meta'));
   });
 
   /**

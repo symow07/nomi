@@ -92,8 +92,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/business/how-you-sell', routes: [
     '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
   ] },
-  // …and the channels have ONE home, Where customers reach you: each of its rows opens Channels.
-  { hub: '/app/business/channels', routes: ['/app/channels'] },
+  // …and the channels have ONE home, Where customers reach you: each of its rows opens a channel's own screen (phase 9).
+  { hub: '/app/business/channels', routes: ['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts'] },
   // THE WARMTH RUN, phase 7 — the assistant's page is a menu: each row opens
   // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
   // row only while a check waits, so it is not walked from here).
@@ -1415,14 +1415,12 @@ const STYLE_PAGES = `
   /* ── howYouSell.ts — Phase 9: the hub and its questions. */
   .hs-count { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
   .hs-start { margin:0 0 var(--space-8); }
-  /* The hub's rows run the column's width, like the sections of My business it opens from. */
-  .hs-rows { max-width:100%; }
-  /* A chip is one word on one line: its outline never splits across two. */
-  .hs-q .chip { display:inline-block; white-space:nowrap; }
   .hs-pos { margin:0 0 var(--space-4); }
   /* The usual choice is said on its own line, so no dash leads a line and no character is left alone at the end of one. */
   .hs-usual { display:block; }
   .hs-choices .pcheck span, .hs-hint { text-wrap:pretty; }
+  /* The fix wave (w4-business-assistant-25) — the choices sit one under another in every language, short ones too. */
+  .hs-choices { flex-direction:column; }
   .hs-acts { margin:var(--space-16) 0 0; }
   /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
   .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
@@ -2300,7 +2298,6 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/terms': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
   // Phase 7 — the products and the channels are rows of My business now.
   '/app/products': { href: '/app/business', label: 'nav.factory' },
-  '/app/channels': { href: '/app/business/channels', label: 'factory.reach.title' },
   '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
   // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
   '/app/knowledge': { href: '/app/employee', label: 'nav.employee' },

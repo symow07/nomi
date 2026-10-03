@@ -196,11 +196,13 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
   it('staff are not SHOWN the controls that would only refuse them', async () => {
     const get = async (cookie: string, url: string) =>
       (await app.inject({ method: 'GET', url, headers: { cookie } })).body;
-    const owner = { factory: await get(ownerCookie, '/app/business'), channels: await get(ownerCookie, '/app/channels') };
+    // Phase 9 — a screen per channel: writing first on WhatsApp's and e-mail's, the sending domain on e-mail's.
+    const both = async (cookie: string) => (await get(cookie, '/app/channels/whatsapp')) + (await get(cookie, '/app/channels/email'));
+    const owner = { factory: await get(ownerCookie, '/app/business'), channels: await both(ownerCookie) };
     const staff = {
       factory: (await get(staffCookie, '/app/business')) + (await get(staffCookie, '/app/business/ready')),
       employee: await get(staffCookie, '/app/employee'),
-      channels: await get(staffCookie, '/app/channels'),
+      channels: await both(staffCookie),
     };
     // The owner's pages carry them, so their absence below is the viewer, not the data.
     expect(owner.factory).toContain('href="/app/business/prices"');

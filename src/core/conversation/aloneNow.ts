@@ -66,6 +66,3 @@ export function aloneNow(f: AloneFacts): AloneNow {
   const goes = (c: string): boolean => hold === null && !(f.rung !== undefined && rungOf(c as Capability) > f.rung);
   return { hold, alone: set.filter(goes), setButHeld: set.filter((c) => !goes(c)) };
 }
-
-/** Nothing is sent at all (not even drafted): the two holds that stop the assistant writing. */
-export const nothingSent = (hold: AloneHold | null): boolean => hold === 'silenced' || hold === 'stopped';

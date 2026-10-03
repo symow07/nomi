@@ -108,6 +108,13 @@ export type ChannelsData = {
   } | null;
   /** WA-S — the reopening template's languages on her own number, with Meta's answer for each. */
   readonly waTemplates?: readonly { readonly language: string; readonly status: string; readonly reason: string | null }[];
+  /**
+   * w4-whole-11 — WhatsApp is connected by the one definition
+   * (`connectedChannels`), while this installation has no provider to carry
+   * a message: the screen says Connected, and that sending waits on Nomi's
+   * team. `whatsapp.connected` stays the provider's answer (Test reads it).
+   */
+  readonly wiredOnly?: boolean;
 };
 
 /** WA-S — a template language as the owner reads it: the language's own name. */
@@ -190,7 +197,8 @@ export async function loadChannels(
     const wired = (await connectedChannels(tx, bid.value)).whatsapp;
 
     if (!row || !wired || !messagingEnabled) {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, outreachCaps, domain, canConnect, ...about };
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, outreachCaps, domain, canConnect, ...about,
+        ...(wired && !messagingEnabled ? { wiredOnly: true } : {}) };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -532,10 +540,16 @@ export function renderReach(
    * hold back on a channel that can only answer.
    */
   inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
-  /** Phase 9 — Instagram's and Messenger's 24 hours are said in their own block (`renderMetaPanel`), once. */
+  /** Phase 9 — Instagram's and Messenger's 24 hours are said on their own screen (`metaScreen`), once. */
   windowSaidElsewhere = false,
+  /**
+   * Phase 9 (w4-business-assistant-05) — the channels a screen of its own
+   * shows: each channel's card on the channel's own screen. Absent: all.
+   */
+  only?: readonly OutreachChannel[],
 ): string {
-  const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
+  const shown = only ? OUTREACH_CHANNELS.filter((c) => only.includes(c)) : OUTREACH_CHANNELS;
+  const rows = shown.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
     const decision = mayInitiate(channel, satisfied);
     // Phase 9 — "you can write first once these are in place" waits on nothing
@@ -552,11 +566,18 @@ export function renderReach(
     // Phase 9 — a requirement not met waits on nothing the owner has started,
     // so its pill is the plain one, not the amber "waits for you"; and each says
     // what it takes and where (V1-437), beside its pill, not wrapped under it.
+    // Phase 9 (w4-business-assistant-08) — what only WhatsApp's own settings
+    // can show is never marked "Not yet" here: the pill says it is not seen
+    // here. (w4-business-assistant-10) — the e-mail records are listed once a
+    // domain is saved; before that, the line says to save it first.
     const reqs = cap.requires.length === 0 ? '' : `<ul class="reqs">${cap.requires.map((r) => {
       const done = satisfied.has(r);
+      const unseen = !done && UNSEEN_HERE.has(r);
+      const how: MessageKey = r === 'verified_sending_domain' && domain === null
+        ? 'reach.req.verified_sending_domain.howNone' : `reach.req.${r}.how` as MessageKey;
       return `<li><span class="pill ${done ? 'ok' : 'stop'}">${esc(t(locale,
-        done ? 'reach.req.ready' : 'reach.req.waiting'))}</span><span class="req-t">${esc(t(locale, `reach.req.${r}` as MessageKey))}${
-        done ? '' : `<span class="req-how">${esc(t(locale, `reach.req.${r}.how` as MessageKey))}</span>`}</span></li>`;
+        done ? 'reach.req.ready' : unseen ? 'reach.req.unseen' : 'reach.req.waiting'))}</span><span class="req-t">${esc(t(locale, `reach.req.${r}` as MessageKey))}${
+        done ? '' : `<span class="req-how">${esc(t(locale, how))}</span>`}</span></li>`;
     }).join('')}</ul>`;
 
     const instead = cap.instead.length === 0 ? '' : `
@@ -575,36 +596,7 @@ export function renderReach(
      * settings there is no button, for the reason there is no Connect button
      * for a mail app this installation has no client for.
      */
-    const link = inbound.get(channel);
-    /**
-     * C10 — connected through Meta's login, it says AS WHOM, and the owner can
-     * disconnect it here; a token Meta refused says so and offers the login
-     * again. Connecting goes to the login when this installation offers one,
-     * else (C9) posts the host's own account.
-     */
-    const loginButton = (key: 'reach.inbound.connectMeta' | 'reach.inbound.connect') => viewer.isOwner
-      ? (link?.connectHref
-        ? `<form method="get" action="${esc(link.connectHref)}" class="inline">
-            <button class="btn" type="submit">${esc(t(locale, key))}</button></form>`
-        : `<form method="post" action="/app/channels/${esc(channel)}/connect" class="inline">
-            <button class="btn" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`)
-      : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
-    const connect = cap.coldInitiate !== 'never' || !cap.availableHere || !link?.configured ? ''
-      : link.connected
-        ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</div>
-          ${link.connectedAs ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs }))}</div>` : ''}
-          ${link.needsAttention ? `<div class="warn-line">${esc(t(locale, 'reach.inbound.attention'))}</div>${loginButton('reach.inbound.connectMeta')}` : ''}
-          ${!link.connectedAs && !link.needsAttention && link.connectHref && viewer.isOwner
-            // Connected through the HOST's account (C9), with the login now
-            // offered: she may still connect her own Page here, and the row
-            // moves from the environment's account to hers.
-            ? loginButton('reach.inbound.connectMeta') : ''}
-          ${link.connectedAs && viewer.isOwner && !link.needsAttention
-            ? `<form method="post" action="/app/connect/meta/disconnect" class="inline">
-                <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-                  data-confirm="${esc(t(locale, 'reach.inbound.disconnectConfirm', { page: link.connectedAs }))}">${esc(t(locale, 'reach.inbound.disconnect'))}</button></form>` : ''}`
-        : `${link.noInstagram ? `<div class="muted win">${esc(t(locale, 'reach.inbound.noInstagram'))}</div>` : ''}
-          ${loginButton(link.connectHref ? 'reach.inbound.connectMeta' : 'reach.inbound.connect')}`;
+    const connect = cap.coldInitiate !== 'never' ? '' : inboundConnect(locale, channel, inbound.get(channel), viewer);
 
     const window = cap.replyWindowHours === null || (windowSaidElsewhere && (channel === 'instagram' || channel === 'messenger')) ? '' :
       `<div class="muted win">${esc(t(locale, 'reach.window', { hours: String(cap.replyWindowHours) }))}</div>`;
@@ -663,10 +655,47 @@ export function renderReach(
   }).join('');
 
   return `<div class="block">
-    <h2>${esc(t(locale, 'reach.title'))}</h2>
+    <h2>${esc(shown.length === 1 ? t(locale, 'reach.title.one', { channel: t(locale, `reach.channel.${shown[0]!}` as MessageKey) }) : t(locale, 'reach.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'reach.intro'))}</p>
     ${rows}
   </div>`;
+}
+
+/** Phase 9 (w4-business-assistant-08) — the requirements only WhatsApp's own settings can show; `satisfiedRequirements` never answers them. */
+const UNSEEN_HERE: ReadonlySet<Requirement> = new Set<Requirement>(['business_verification', 'privacy_policy_url']);
+
+/**
+ * C9 / C10 — connecting the account buyers write to, on a channel where
+ * answering is the whole story. Connected through Meta's login, it says AS
+ * WHOM, and the owner can disconnect it here; a token Meta refused says so
+ * and offers the login again. Connecting goes to the login when this
+ * installation offers one, else (C9) posts the host's own account. Without an
+ * account in the host's settings there is no button.
+ */
+function inboundConnect(locale: Locale, channel: OutreachChannel, link: InboundLink | undefined, viewer: Viewer): string {
+  if (!CHANNEL_REGISTRY[channel].availableHere || !link?.configured) return '';
+  const loginButton = (key: 'reach.inbound.connectMeta' | 'reach.inbound.connect') => viewer.isOwner
+    ? (link.connectHref
+      ? `<form method="get" action="${esc(link.connectHref)}" class="inline">
+          <button class="btn" type="submit">${esc(t(locale, key))}</button></form>`
+      : `<form method="post" action="/app/channels/${esc(channel)}/connect" class="inline">
+          <button class="btn" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`)
+    : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
+  return link.connected
+    ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</div>
+      ${link.connectedAs ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs }))}</div>` : ''}
+      ${link.needsAttention ? `<div class="warn-line">${esc(t(locale, 'reach.inbound.attention'))}</div>${loginButton('reach.inbound.connectMeta')}` : ''}
+      ${!link.connectedAs && !link.needsAttention && link.connectHref && viewer.isOwner
+        // Connected through the HOST's account (C9), with the login now
+        // offered: she may still connect her own Page here, and the row
+        // moves from the environment's account to hers.
+        ? loginButton('reach.inbound.connectMeta') : ''}
+      ${link.connectedAs && viewer.isOwner && !link.needsAttention
+        ? `<form method="post" action="/app/connect/meta/disconnect" class="inline">
+            <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+              data-confirm="${esc(t(locale, 'reach.inbound.disconnectConfirm', { page: link.connectedAs }))}">${esc(t(locale, 'reach.inbound.disconnect'))}</button></form>` : ''}`
+    : `${link.noInstagram ? `<div class="muted win">${esc(t(locale, 'reach.inbound.noInstagram'))}</div>` : ''}
+      ${loginButton(link.connectHref ? 'reach.inbound.connectMeta' : 'reach.inbound.connect')}`;
 }
 
 /**
@@ -688,45 +717,58 @@ export type InboundLink = {
   readonly noInstagram?: boolean;
 };
 
-/**
- * CH4 — "Nomi and Meta": where Nomi stands with Meta (the operator's
- * `META_APP_REVIEW`), and the two channels' rules in plain words. Nothing on
- * the page waits on it: Connect is offered either way.
- */
-export function renderMetaPanel(review: MetaReview, locale: Locale): string {
-  const name = assistantName(locale);
-  // Phase 9 — Meta's review is not the owner's to act on: a ✓ once it is
-  // done, and no "waits for you" mark while it is not. The heading is the
-  // two channels it is about; the rules sit straight under it (the h3 between
-  // was larger than the heading it sat under).
-  const said = review.state === 'approved'
-    ? `${signalMark('ok')} ${esc(t(locale, 'meta.panel.approved', { date: show.date(locale, review.on) }))}`
-    : esc(t(locale, 'meta.panel.reviewing'));
-  return `<div class="block" id="ig-messenger">
-    <h2>${esc(t(locale, 'meta.panel.title'))}</h2>
-    <p class="stateline">${said}</p>
-    <ul class="frules">
-      <li>${esc(t(locale, 'meta.rules.window', { name }))}</li>
-      <li>${esc(t(locale, 'meta.rules.first', { name }))}</li>
-      <li>${esc(t(locale, 'meta.rules.media', { name }))}</li>
-    </ul>
-    ${deeper('/app/help/meta', t(locale, 'meta.panel.help'))}
-  </div>`;
-}
 
-export function renderChannels(
-  data: ChannelsData, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
-  /** C6 — the other accounts she links (`./connect.ts`), already rendered. */
-  accountsHtml = '',
-  /** C9 — the channels a buyer starts: configured by the host, connected by her. */
-  inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
-  /** CH1 — "Your accounts", already rendered: each step of connecting a Page. */
-  yourAccountsHtml = '',
+/**
+ * THE WARMTH RUN, phase 9 (w4-business-assistant-05, -07; w4-whole-15) —
+ * CHANNELS ARE SCREENS, ONE PER CHANNEL. The Channels page was one 4,000 px
+ * page (about eight phone screens) under a menu of the same name. Its one
+ * home is My business › Where customers reach you (`CHANNELS_HOME`, a menu:
+ * a row per channel, the alert number, what is not available yet); each row
+ * opens a screen named for what it holds, with every control and notice the
+ * page held:
+ *
+ *   whatsapp   the connection (connect, test, disconnect, reconnect, the
+ *              number, the name, writing after 24 hours) and what WhatsApp
+ *              allows (its three requirements, writing first);
+ *   meta       Instagram and Messenger together — one Facebook Page connects
+ *              both: where Meta's review stands, the rules said once, each
+ *              account's connection, what works instead, and the steps of
+ *              connecting a Page ("Your Facebook Page and Instagram");
+ *   email      the mail accounts and what e-mail allows (the sending domain,
+ *              writing first);
+ *   alerts     the owner's own WhatsApp number for alerts.
+ *
+ * `/app/channels` itself answers with the home (app.ts), so an old link or a
+ * notice sent there still lands; every action lands on the screen of its
+ * control.
+ */
+export type ChannelScreen = 'whatsapp' | 'meta' | 'email' | 'alerts';
+export const CHANNEL_SCREENS: readonly ChannelScreen[] = ['whatsapp', 'meta', 'email', 'alerts'];
+export const CHANNELS_HOME = '/app/business/channels';
+export const channelScreenHref = (s: ChannelScreen): string => `/app/channels/${s}`;
+/** The screen a channel's own controls are on. */
+export const screenOfChannel = (c: OutreachChannel): ChannelScreen =>
+  c === 'email' ? 'email' : c === 'instagram' || c === 'messenger' ? 'meta' : 'whatsapp';
+const CHANNEL_SCREEN_TITLE: Readonly<Record<ChannelScreen, MessageKey>> = {
+  whatsapp: 'reach.channel.whatsapp', meta: 'meta.panel.title', email: 'reach.channel.email', alerts: 'channels.alerts.title',
+};
+/** Each screen's heading — the home's row for it says the same words, and so does the tab. */
+export const channelScreenTitle = (locale: Locale, s: ChannelScreen): string => t(locale, CHANNEL_SCREEN_TITLE[s]);
+
+/** What a screen is given beyond the page's own data, read by the route. */
+export type ChannelScreenParts = {
+  /** E-mail — the mail accounts, already rendered (`renderAccounts(…, 'mail')`). */
+  readonly accountsHtml?: string;
+  /** C9 / C10 — the channels a buyer starts: configured by the host, connected by her. */
+  readonly inbound?: ReadonlyMap<OutreachChannel, InboundLink>;
+  /** CH1 — "Your Facebook Page and Instagram", already rendered: each step of connecting a Page. */
+  readonly yourAccountsHtml?: string;
   /** CH4 — where Nomi stands with Meta, the same for every workspace. */
-  metaReview: MetaReview | null = null,
-  /** KS6 — the operator's approval before the first connection, already rendered; first on the page. */
-  approvalHtml = '',
-): string {
+  readonly metaReview?: MetaReview | null;
+};
+
+/** The WhatsApp connection: where it stands, the number and its name, what to do, and writing after 24 hours. */
+function whatsappCard(data: ChannelsData, locale: Locale, viewer: Viewer): string {
   const w = data.whatsapp;
   const own = data.waOwn ?? null;
   // WA — her own number: connected through Meta's window, disconnected the same way, and connected again when Meta stopped accepting it.
@@ -736,8 +778,12 @@ export function renderChannels(
       : `<form method="post" action="/app/connect/whatsapp/disconnect" style="display:inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
            data-confirm="${esc(t(locale, 'channel.wa.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`)
     : null;
+  // w4-whole-11 — connected by the one definition, while this installation
+  // carries no WhatsApp message: said, with nothing for the owner to press.
+  const wiredOnly = !w.connected && data.wiredOnly === true;
   // Phase 4 — the number's lifecycle is the owner's; staff see whose it is.
   const actions = ownActions !== null ? ownActions
+    : wiredOnly ? ''
     : !viewer.isOwner && (w.connected || w.status === 'disconnected')
     ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
     : w.connected
@@ -766,16 +812,16 @@ export function renderChannels(
           : deeper('/app/channels/whatsapp/connect', t(locale, 'channel.action.connect'));
 
   // Phase 4 — the pill's ✓ is the stylesheet's (`.pill.ok`), not a second one in the words.
-  const pill = w.connected ? esc(t(locale, 'channel.status.connected')) : esc(t(locale, `channel.status.${w.status}` as MessageKey));
-
+  const pill = w.connected || wiredOnly ? esc(t(locale, 'channel.status.connected')) : esc(t(locale, `channel.status.${w.status}` as MessageKey));
   // Phase 9 — amber ○ is for a connection that needs the owner; a number never
   // connected waits on nothing, so it takes the plain pill (new-01, V1-441).
-  const tone = w.connected ? 'ok' : w.status === 'not_connected' ? 'stop' : 'warn';
-  const whatsappCard = `
+  const tone = w.connected || wiredOnly ? 'ok' : w.status === 'not_connected' ? 'stop' : 'warn';
+  // The screen's heading is the channel's name: the card says where it stands.
+  return `
     <div class="card ch" id="whatsapp">
-      <div class="ch-h"><span class="ch-name">${esc(t(locale, 'reach.channel.whatsapp'))}</span>
-        <span class="pill ${tone}">${pill}</span></div>
-      <div class="muted ch-desc">${esc(t(locale, w.connected ? 'channel.whatsapp.desc' : 'channel.whatsapp.desc.none', { name: assistantName(locale) }))}</div>
+      <div class="ch-h"><span class="pill ${tone}">${pill}</span></div>
+      <div class="muted ch-desc">${esc(wiredOnly ? t(locale, 'golive.waNoProvider')
+        : t(locale, w.connected ? 'channel.whatsapp.desc' : 'channel.whatsapp.desc.none', { name: assistantName(locale) }))}</div>
       ${w.connected ? `<div class="ch-info">
         ${own?.display ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> <bdi dir="ltr">${esc(own.display)}</bdi></div>`
           : w.displayId ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> ${esc(w.displayId)}</div>` : ''}
@@ -784,44 +830,109 @@ export function renderChannels(
         <div><span class="muted">${esc(t(locale, 'channel.field.health'))}</span> ${esc(w.healthOk ? t(locale, 'channel.health.ok') : t(locale, 'channel.health.attention'))}</div>
       </div>` : ''}
       ${w.problem ? problemBlock(locale, w.problem) : ''}
-      <div class="ch-acts">${actions}</div>
+      ${actions ? `<div class="ch-acts">${actions}</div>` : ''}
       ${own && !own.needsAttention && w.connected ? reopenBlock(locale, data.waTemplates ?? [], viewer.isOwner) : ''}
     </div>`;
+}
 
-  // M39 — what each channel allows, before she connects one.
-  const reach = renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
-    data.outreach, data.domain, viewer, data.outreachCaps, inbound, metaReview !== null);
+/**
+ * Instagram and Messenger — one Facebook Page connects both, so they share a
+ * screen. What only one of them could say is said once (w4-business-assistant-15):
+ * where Meta's review stands and the two channels' rules (nobody writes first
+ * there), then each account's connection, then what works instead.
+ */
+function metaScreen(locale: Locale, viewer: Viewer, parts: ChannelScreenParts): string {
+  const name = assistantName(locale);
+  const inbound = parts.inbound ?? new Map<OutreachChannel, InboundLink>();
+  const review = parts.metaReview ?? null;
+  const said = review === null ? ''
+    : review.state === 'approved'
+      ? `${signalMark('ok')} ${esc(t(locale, 'meta.panel.approved', { date: show.date(locale, review.on) }))}`
+      : esc(t(locale, 'meta.panel.reviewing'));
+  const card = (channel: 'instagram' | 'messenger'): string => {
+    const link = inbound.get(channel);
+    const here = CHANNEL_REGISTRY[channel].availableHere && link?.configured === true;
+    const state: MessageKey = link?.connected ? (link.needsAttention ? 'connect.state.attention' : 'connect.state.connected')
+      : here ? 'connect.state.notConnected' : 'connect.state.notHere';
+    const tone = link?.connected ? (link.needsAttention ? 'warn' : 'ok') : 'stop';
+    return `<div class="card reach" id="${channel}">
+      <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
+        <span class="pill ${tone}">${esc(t(locale, state))}</span></div>
+      ${here || link?.connected ? inboundConnect(locale, channel, link, viewer) : `<div class="muted win">${esc(t(locale, 'reach.notHere'))}</div>`}
+    </div>`;
+  };
+  const instead = CHANNEL_REGISTRY.instagram.instead;
+  return `<div class="block" id="ig-messenger">
+      ${said ? `<p class="stateline">${said}</p>` : ''}
+      <ul class="frules">
+        <li>${esc(t(locale, 'meta.rules.window', { name }))}</li>
+        <li>${esc(t(locale, 'meta.rules.first', { name }))}</li>
+        <li>${esc(t(locale, 'meta.rules.media', { name }))}</li>
+      </ul>
+      ${deeper('/app/help/meta', t(locale, 'meta.panel.help'))}
+    </div>
+    <div class="block">
+      ${card('instagram')}${card('messenger')}
+      <div class="instead"><span class="muted">${esc(t(locale, 'reach.instead.title'))}</span>
+        <ul>${instead.map((i) => `<li>${esc(t(locale, `reach.instead.${i}` as MessageKey, { name }))}</li>`).join('')}</ul></div>
+    </div>
+    ${parts.yourAccountsHtml ?? ''}`;
+}
 
-  const alertsCard = `<div class="block" id="alerts">
-    <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
+/**
+ * The owner's own WhatsApp number, for alerts. Where each alert goes — e-mail,
+ * this browser or WhatsApp — is a setting per person (phase 8, Notifications),
+ * so this screen says what the number is for, what it is now (beside the
+ * field, w4-business-assistant-18) and where the way is chosen; never "you
+ * are alerted on…" from the number alone (w4-business-assistant-06).
+ */
+function alertsScreen(data: ChannelsData, locale: Locale, viewer: Viewer): string {
+  return `<div class="block" id="alerts">
     <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: assistantName(locale) }))}</p>
+    <p class="muted small">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
     ${viewer.isOwner ? `<form method="post" action="/app/settings/owner-phone" class="ownerform">
       <label class="muted" for="ownerphone">${esc(t(locale, 'settings.alerts.label'))}</label>
       <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(phonePlaceholder(locale, data.country))}" />
       <button class="btn">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>` : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`}
-    <p class="muted" style="font-size:var(--font-size-caption)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
     ${deeper('/app/settings/alerts', t(locale, 'meta.phoneAlerts'))}
   </div>`;
+}
 
-  const soon = `<div class="block">
-    <h2>${esc(t(locale, 'channel.soon.title'))}</h2>
-    <p class="muted small">${esc(t(locale, 'channel.soon.note', {
-      list: new Intl.ListFormat(locale, { type: 'conjunction' }).format(COMING_SOON.map((k) => t(locale, k))) }))}</p>
-  </div>`;
+/**
+ * The home's foot: what is not available yet, in the reader's words (each a
+ * name of its own, isolated, so Arabic never reorders a Latin one), and what
+ * connecting never does.
+ */
+export function channelsFoot(locale: Locale): string {
+  return `<p class="muted small">${listOfNames(locale, 'channel.soon.note', COMING_SOON.map((k) => t(locale, k)))}</p>
+    <p class="muted small">${esc(t(locale, 'channel.footer'))}</p>`;
+}
 
-  return `<h1 class="page">${esc(t(locale, 'nav.channels'))}</h1>
-    ${flashBanner(flash)}
-    ${approvalHtml}
-    ${whatsappCard}
-    ${accountsHtml}
-    ${reach}
-    ${metaReview ? renderMetaPanel(metaReview, locale) : ''}
-    ${yourAccountsHtml}
-    ${alertsCard}
-    ${soon}
-    <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'channel.footer'))}</p>
-    `;
+/**
+ * Phase 9 (w4-business-assistant-09) — "Not available yet: A, B and C" with
+ * each name whole: a name with its own brackets ("Outlook (Microsoft 365)")
+ * stays one unit in a right-to-left line, its brackets the right way round.
+ */
+export function listOfNames(locale: Locale, key: MessageKey, names: readonly string[]): string {
+  const marks = names.map((_, i) => `\u0001${i}\u0002`);
+  const said = esc(t(locale, key, { list: new Intl.ListFormat(locale, { type: 'conjunction' }).format(marks) }));
+  return said.replace(/\u0001(\d+)\u0002/g, (_, i: string) => `<bdi>${esc(names[Number(i)] ?? '')}</bdi>`);
+}
+
+export function renderChannelScreen(
+  screen: ChannelScreen, data: ChannelsData, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
+  parts: ChannelScreenParts = {},
+): string {
+  const head = `${back(CHANNELS_HOME, t(locale, 'factory.reach.title'))}<h1 class="page">${esc(channelScreenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
+  const reach = (c: OutreachChannel) => renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
+    data.outreach, data.domain, viewer, data.outreachCaps, parts.inbound ?? new Map(), true, [c]);
+  switch (screen) {
+    case 'whatsapp': return `${head}${whatsappCard(data, locale, viewer)}${reach('whatsapp')}`;
+    case 'email': return `${head}${parts.accountsHtml ?? ''}${reach('email')}`;
+    case 'meta': return `${head}${metaScreen(locale, viewer, parts)}`;
+    case 'alerts': return `${head}${alertsScreen(data, locale, viewer)}`;
+  }
 }
 
 /**
@@ -862,7 +973,7 @@ export function renderConnectGuide(locale: Locale, o: ConnectGuideOptions = {}):
         ? `<p>${esc(t(locale, 'channel.connect.writeTo', { address: o.contact })).replace(esc(o.contact),
             `<a href="mailto:${esc(o.contact)}"><bdi dir="ltr">${esc(o.contact)}</bdi></a>`)}</p>`
         : `<p class="fwarn">${esc(t(locale, 'channel.connect.unavailable'))}</p>`;
-  return `<div class="dhead">${back('/app/channels', t(locale, 'nav.channels'))}</div>
+  return `<div class="dhead">${back(channelScreenHref('whatsapp'), t(locale, 'reach.channel.whatsapp'))}</div>
     <h1 class="page">${esc(t(locale, 'channel.connect.title'))}</h1>
     ${flashBanner(o.flash ?? null)}
     <p class="lede">${esc(t(locale, 'channel.connect.intro', { name }))}</p>

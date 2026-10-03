@@ -65,7 +65,8 @@ describe('D · five entries', () => {
     expect(under('/app/business/how-you-sell')).toEqual(expect.arrayContaining([
       '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
     ]));
-    expect(under('/app/business/channels')).toEqual(['/app/channels']);
+    // Phase 9 (w4-business-assistant-05) — a screen per channel, under the one home.
+    expect(under('/app/business/channels')).toEqual(['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts']);
     expect(under('/app/employee')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
     expect(under('/app/settings')).toEqual(['/app/business', '/app/settings/setup']);
     expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/settings/people', '/app/settings/language']));
@@ -88,7 +89,8 @@ describe('D · five entries', () => {
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/settings/people', 'x')).toBe('settings');
     expect(hubFor('/app/settings/data', 'x')).toBe('settings');
-    expect(hubFor('/app/channels', 'x')).toBe('settings');
+    expect(hubFor('/app/channels/whatsapp', 'x')).toBe('settings');
+    expect(hubFor('/app/channels/whatsapp/connect', 'x')).toBe('settings');
     expect(hubFor('/app/onboarding', 'x')).toBe('settings');
     // the outreach chain still resolves, for a workspace that has it — under
     // Buyers since A (contacts hung off Customers, which merged into Buyers)

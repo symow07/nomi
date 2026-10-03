@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { renderChannels, renderConnectGuide, type ChannelsData } from '../../src/api/web/channels.js';
+import {
+  renderChannelScreen, renderConnectGuide, channelsFoot, CHANNEL_SCREENS, type ChannelsData, type ChannelScreen, type InboundLink,
+} from '../../src/api/web/channels.js';
+import type { MetaReview } from '../../src/core/channel/metaReview.js';
+import type { OutreachChannel } from '../../src/core/channel/registry.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import type { Viewer } from '../../src/core/conversation/people.js';
 import { readFileSync } from 'node:fs';
-import { renderMetaPanel, renderReach } from '../../src/api/web/channels.js';
 import { renderAccounts, type AccountsView } from '../../src/api/web/connect.js';
 import { withWorkspace } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
@@ -33,9 +36,22 @@ const needsAttention: ChannelsData = {
   ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null,
 };
 
+/**
+ * Phase 9 (w4-business-assistant-05) — the Channels page is a screen per
+ * channel now. A test about WHAT is said reads every screen and the home's
+ * foot together (`everyScreen`); a test about WHERE renders one screen.
+ */
+const everyScreen = (
+  d: ChannelsData, l: (typeof LOCALES)[number], flash: Parameters<typeof renderChannelScreen>[3], viewer?: Viewer,
+  accountsHtml = '', inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(), yourAccountsHtml = '', metaReview: MetaReview | null = null,
+): string => CHANNEL_SCREENS.map((sc) => renderChannelScreen(sc, d, l, sc === 'whatsapp' ? flash : null, viewer,
+  { accountsHtml, inbound, yourAccountsHtml, metaReview })).join('\n') + channelsFoot(l);
+const one = (sc: ChannelScreen, d: ChannelsData, l: (typeof LOCALES)[number], viewer?: Viewer, accountsHtml = ''): string =>
+  renderChannelScreen(sc, d, l, null, viewer, { accountsHtml });
+
 describe('M9.4 · channel center (localized)', () => {
   it('connected: status, masked number, activity, health, manage actions — per locale', () => {
-    const en = renderChannels(connected, 'en', null);
+    const en = everyScreen(connected, 'en', null);
     expect(en).toContain('WhatsApp');
     expect(en).toContain('<span class="pill ok">Connected</span>');   // the ✓ is the pill's own (phase 4)
     expect(en).toContain('+86 579****0001');       // MASKED — never a secret
@@ -44,14 +60,14 @@ describe('M9.4 · channel center (localized)', () => {
     expect(en).toContain('action="/app/channels/whatsapp/test"');
     expect(en).toContain('action="/app/channels/whatsapp/disconnect"');
 
-    const zh = renderChannels(connected, 'zh', null);
+    const zh = everyScreen(connected, 'zh', null);
     expect(zh).toContain('<span class="pill ok">已连接</span>'); expect(zh).toContain('今天');
-    const ar = renderChannels(connected, 'ar', null);
+    const ar = everyScreen(connected, 'ar', null);
     expect(ar).toContain('<span class="pill ok">متصل</span>'); expect(ar).toContain('اليوم');
   });
 
   it('not connected: description + connect entry, no fake credential form', () => {
-    const html = renderChannels(notConnected, 'en', null);
+    const html = everyScreen(notConnected, 'en', null);
     expect(html).toContain('Connect the WhatsApp number your customers write to.');
     // Phase 9 (new-17) — connecting is the page's main act: its one filled button.
     expect(html).toContain('<form method="get" action="/app/channels/whatsapp/connect" class="inline"><button class="btn send" type="submit">Connect WhatsApp</button></form>');
@@ -60,35 +76,40 @@ describe('M9.4 · channel center (localized)', () => {
   });
 
   it('needs attention: three-part problem localized', () => {
-    expect(renderChannels(needsAttention, 'zh', null)).toContain('WhatsApp 需要重新登录');
-    const en = renderChannels(needsAttention, 'en', null);
+    expect(everyScreen(needsAttention, 'zh', null)).toContain('WhatsApp 需要重新登录');
+    const en = everyScreen(needsAttention, 'en', null);
     expect(en).toContain('WhatsApp needs to sign in again');
     expect(en).toContain(t('en', 'channel.problem.needs_relogin.doing'));
-    const ar = renderChannels(needsAttention, 'ar', null);
+    const ar = everyScreen(needsAttention, 'ar', null);
     expect(ar).toContain('يحتاج واتساب لتسجيل الدخول');
   });
 
-  it('coming-soon channels shown honestly, never as connected', () => {
-    const en = renderChannels(connected, 'en', null);
-    expect(en).toContain('Coming soon');
-    for (const c of ['Instagram', 'Messenger', 'Telegram', 'WeCom', 'RED']) expect(en).toContain(c);
-    expect(en).not.toMatch(/Instagram[^<]*Connected/);
-    expect(renderChannels(connected, 'zh', null)).toContain('企业微信'); // WeCom localized in zh
+  it('coming-soon channels shown honestly, never as connected; each name whole (w4-business-assistant-09, -16)', () => {
+    const foot = channelsFoot('en');
+    for (const c of ['Telegram', 'WeCom', 'RED']) expect(foot).toContain(`<bdi>${c}</bdi>`);
+    expect(foot).not.toContain('Instagram');
+    expect(everyScreen(connected, 'en', null)).not.toMatch(/Instagram[^<]*Connected/);
+    expect(channelsFoot('zh')).toContain('企业微信'); // WeCom localized in zh
+    // Arabic: every name in Arabic letters
+    expect(channelsFoot('ar').replace(/<[^>]+>/g, '')).not.toMatch(/[A-Za-z]/);
   });
 
-  it('owner alert-number card: localized, shows current number, posts to the settings action', () => {
-    const en = renderChannels(connected, 'en', null);
-    expect(en).toContain('<h2>Alerts</h2>');
+  it('owner alert-number screen: localized, shows current number beside the field, posts to the settings action', () => {
+    const en = one('alerts', connected, 'en');
+    expect(en).toContain(`<h1 class="page">${t('en', 'channels.alerts.title')}</h1>`);
     expect(en).toContain('action="/app/settings/owner-phone"');
     expect(en).toContain('+8613800000000');                 // current value shown
-    const none = renderChannels(notConnected, 'en', null);
+    // w4-business-assistant-18 — what it is now is said before the form, not under Save
+    expect(en.indexOf('+8613800000000')).toBeLessThan(en.indexOf('<form'));
+    const none = one('alerts', notConnected, 'en');
     expect(none).toContain('Not set');                        // honest empty state
-    expect(renderChannels(connected, 'zh', null)).toContain('<h2>提醒</h2>');
-    expect(renderChannels(connected, 'ar', null)).toContain('<h2>التنبيهات</h2>');
+    expect(none.indexOf('Not set')).toBeLessThan(none.indexOf('<form'));
+    expect(one('alerts', connected, 'zh')).toContain(`<h1 class="page">${t('zh', 'channels.alerts.title')}</h1>`);
+    expect(one('alerts', connected, 'ar')).toContain(`<h1 class="page">${t('ar', 'channels.alerts.title')}</h1>`);
   });
 
   it('flash renders after an action', () => {
-    expect(renderChannels(connected, 'en', { text: 'Disconnected. Lily…', bad: false })).toContain('Disconnected. Lily…');
+    expect(everyScreen(connected, 'en', { text: 'Disconnected. Lily…', bad: false })).toContain('Disconnected. Lily…');
   });
 
   it('connect guide localized, no secrets/technical setup', () => {
@@ -100,7 +121,7 @@ describe('M9.4 · channel center (localized)', () => {
   });
 
   it('RTL: connected page mirrors for ar (dir handled by shell; body uses logical CSS)', () => {
-    const ar = renderChannels(connected, 'ar', null);
+    const ar = everyScreen(connected, 'ar', null);
     expect(ar).not.toContain('padding-left');   // logical props only in this module
     expect(ar).not.toContain('<table');
   });
@@ -109,7 +130,8 @@ describe('M9.4 · channel center (localized)', () => {
 describe('M9.4 · security + language (every locale)', () => {
   it('no technical / AI vocabulary or secret-shaped content', () => {
     for (const l of LOCALES) {
-      const all = (renderChannels(connected, l, null) + renderChannels(needsAttention, l, null) + renderConnectGuide(l)).toLowerCase();
+      // The words the owner reads (addresses such as /app/help/meta are not words on the page).
+      const all = (everyScreen(connected, l, null) + everyScreen(needsAttention, l, null) + renderConnectGuide(l)).replace(/<[^>]+>/g, ' ').toLowerCase();
       for (const banned of ['ai', 'llm', 'model', 'api', 'token', 'webhook', 'app secret', 'phone number id',
         'access_token', 'meta', '360dialog', 'database', '模型', '人工智能', 'sk-', 'bearer']) {
         const hit = /^[a-z_ -]+$/.test(banned) ? new RegExp(`\\b${banned.replace(/-/g, '\\-')}\\b`).test(all) : all.includes(banned);
@@ -119,7 +141,7 @@ describe('M9.4 · security + language (every locale)', () => {
   });
 
   it('mobile-first: no tables', () => {
-    expect(renderChannels(connected, 'en', null)).not.toContain('<table');
+    expect(everyScreen(connected, 'en', null)).not.toContain('<table');
   });
 });
 
@@ -137,7 +159,7 @@ describe('C10 · connect your own Page and Instagram, as the cards show it', () 
   const links = (l: { configured: boolean; connected: boolean; connectHref?: string; connectedAs?: string; needsAttention?: boolean; noInstagram?: boolean }) =>
     new Map([['instagram', l], ['messenger', l]] as const);
   const render = (l: Parameters<typeof links>[0], viewer: Viewer = OWNER) =>
-    renderChannels(connected, 'en', null, viewer, '', links(l));
+    everyScreen(connected, 'en', null, viewer, '', links(l));
 
   it('connected through the host\'s account, with a login offered: the login button is still there', () => {
     const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start' });
@@ -216,7 +238,7 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
   const accounts: AccountsView = { mail: null, connectable: { google: false, microsoft: false }, sendingDomain: null, smtpFrom: null, apollo: { kind: 'none' } };
   const scope = { name: null, several: false, outreach: true, setup: null };
   const page = (l: (typeof LOCALES)[number], d: ChannelsData = notConnected) => withWorkspace(scope, () =>
-    renderChannels(d, l, null, undefined, renderAccounts(accounts, l), new Map(), '', { state: 'reviewing' }));
+    everyScreen(d, l, null, undefined, renderAccounts(accounts, l), new Map(), '', { state: 'reviewing' }));
 
   it('V1-434 · new-16 · Apollo is not one of the owner’s accounts here', () => {
     for (const l of LOCALES) expect(page(l), l).not.toContain('Apollo');
@@ -224,8 +246,8 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
 
   it('V1-435 · V1-438 · new-16 · the Meta block is about the owner’s customers, under the two channels’ name, with no amber and no h3', () => {
     for (const l of LOCALES) {
-      const panel = renderMetaPanel({ state: 'reviewing' }, l);
-      expect(panel, l).toContain(`<h2>${esc(t(l, 'meta.panel.title'))}</h2>`);
+      const panel = renderChannelScreen('meta', notConnected, l, null, undefined, { metaReview: { state: 'reviewing' } });
+      expect(panel, l).toContain(`<h1 class="page">${esc(t(l, 'meta.panel.title'))}</h1>`);
       expect(visible(panel), l).not.toMatch(/\bNomi\b/);
       expect(panel, l).not.toContain('dot warn');
       expect(panel, l).not.toContain('<h3');
@@ -237,9 +259,12 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
   it('V1-437 · each requirement not met says what it takes and where', () => {
     for (const l of LOCALES) {
       const html = page(l);
-      for (const r of ['verified_sending_domain', 'approved_template', 'business_verification', 'privacy_policy_url'] as const) {
+      for (const r of ['approved_template', 'business_verification', 'privacy_policy_url'] as const) {
         expect(html, `${l} ${r}`).toContain(`<span class="req-how">${esc(t(l, `reach.req.${r}.how`))}</span>`);
       }
+      // w4-business-assistant-10 — with no domain saved, nothing is listed yet: the line says to save it first.
+      expect(html, l).toContain(`<span class="req-how">${esc(t(l, 'reach.req.verified_sending_domain.howNone'))}</span>`);
+      expect(html, l).not.toContain(esc(t(l, 'reach.req.verified_sending_domain.how')));
     }
   });
 
@@ -262,7 +287,8 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
   it('V1-439 · V1-453 · one name for the page: the guide’s tab, its back link and its steps say it', () => {
     for (const l of LOCALES) {
       const guide = renderConnectGuide(l);
-      expect(guide, l).toContain(`<span class="go" aria-hidden="true">‹</span>${esc(t(l, 'nav.channels'))}</a>`);
+      // Phase 9 — the guide is reached from WhatsApp's own screen, and leads back to it.
+      expect(guide, l).toContain(`<a class="back" href="/app/channels/whatsapp"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'reach.channel.whatsapp'))}</a>`);
       expect(guide, l).toContain(esc(t(l, 'nav.channels')));
     }
     expect(app).toContain("title: t(locale, 'channel.connect.title'), bodyHtml: guide(s, locale, { flash: takeFlash(req, reply) })");
@@ -304,12 +330,15 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
     expect(t('en', 'channel.soon.note')).not.toMatch(/prioriti[sz]e|Tell us/);
   });
 
-  it('V1-444 · missed-19 · the alerts section names both ways, without internal words', () => {
+  it('V1-444 · missed-19 · w4-business-assistant-06, -18 · the alerts screen says what the number is for and where the way is chosen, without internal words', () => {
     for (const l of LOCALES) {
       const html = page(l);
-      expect(html, l).toContain(`<div class="block" id="alerts">\n    <h2>${esc(t(l, 'settings.alerts.title'))}</h2>`);
+      expect(html, l).toContain('<div class="block" id="alerts">');
       expect(html, l).toContain(`href="/app/settings/alerts">${esc(t(l, 'meta.phoneAlerts'))}`);
+      // never "you are alerted on …" from the number alone, and no "once WhatsApp is approved"
     }
+    expect(page('en')).not.toContain('You are alerted on');
+    expect(t('en', 'settings.alerts.desc')).not.toMatch(/approved/);
     expect(t('en', 'settings.alerts.desc')).not.toMatch(/handoff|signal/);
     expect(t('zh', 'settings.alerts.desc')).not.toContain('接手');
     expect(t('ar', 'settings.alerts.desc')).not.toContain('تحويل');
@@ -322,14 +351,14 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
     expect(ar).toContain('<span class="ch-name">واتساب</span>');
     expect(ar).not.toContain('📱');
     expect(visible(ar)).not.toContain('WhatsApp');
-    expect(withWorkspace(scope, () => renderChannels(notConnected, 'ar', null, { id: 'p2', isOwner: false }))).toContain('>ربط<');
+    expect(withWorkspace(scope, () => one('whatsapp', notConnected, 'ar', { id: 'p2', isOwner: false }))).toContain('>ربط<');
     expect(t('ar', 'meta.panel.reviewing')).not.toContain('تراجع Meta طلب');
     expect(t('ar', 'meta.rules.first')).not.toContain('لـ Nomi');
   });
 
-  it('new-17 · the page’s one filled button is Connect WhatsApp', () => {
+  it('new-17 · WhatsApp’s screen: its one filled button is Connect WhatsApp', () => {
     for (const l of LOCALES) {
-      const html = page(l);
+      const html = withWorkspace(scope, () => one('whatsapp', notConnected, l));
       expect(html.split('class="btn send"').length - 1, l).toBe(1);
       expect(html, l).toContain(`<button class="btn send" type="submit">${esc(t(l, 'channel.connect.title'))}</button>`);
     }
