@@ -428,9 +428,9 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
 
   /* One watcher at a time: a page drawn in place starts its own, and the old one stops. */
   var watcher = 0;
-  // Phase 9 (V1-195) — a week or a month wider than the screen opens on today.
+  // Phase 9 (V1-195) — a month wider than the screen opens on the chosen day, else on today.
   function toToday() {
-    var cell = doc.querySelector('[aria-current="date"]');
+    var cell = doc.querySelector('a[aria-current="true"]') || doc.querySelector('[aria-current="date"]');
     var box = cell && cell.closest ? cell.closest('.wk-scroll') : 0;
     if (!box || box.scrollWidth <= box.clientWidth) return;
     var b = box.getBoundingClientRect(), c = cell.getBoundingClientRect();

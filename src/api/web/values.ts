@@ -209,6 +209,9 @@ export const timeLeft = (locale: Locale, ms: number): string => isolate(locale, 
 /** Phase 6 — a video's length, in seconds. */
 export const seconds = (locale: Locale, s: number): string => isolate(locale, f.formatSeconds(locale, s));
 
+/** "Oct 2", for a day 'YYYY-MM-DD': where a row of the calendar's owed list sits in its month. */
+export const dayMonth = (locale: Locale, ymd: string): string => isolate(locale, f.formatDayMonth(locale, ymd));
+
 /** "September 2026". */
 export const month = (locale: Locale, ymd: string): string => isolate(locale, f.formatMonth(locale, ymd));
 

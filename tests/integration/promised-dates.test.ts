@@ -100,8 +100,9 @@ d('0083 · a sent reply\'s promises (requires DATABASE_URL)', () => {
     const { renderCalendar, parseCalendarQuery } = await import('../../src/api/web/calendar.js');
     const { dayKey, addDays } = await import('../../src/core/owner/i18n/format.js');
     const now = new Date();
-    const q = parseCalendarQuery({ view: 'day', at: addDays(dayKey(now, 'Asia/Shanghai'), 1) }, now);
-    const html = renderCalendar(await loadCalendar(db, BIZ, { ...q, outreach: false }, now), 'en', { view: 'day', at: q.at, now });
+    // The owner's correction (2026-10-04) — the day chosen in the month's grid: the list beside it is that day.
+    const q = parseCalendarQuery({ day: addDays(dayKey(now, 'Asia/Shanghai'), 1) }, now);
+    const html = renderCalendar(await loadCalendar(db, BIZ, { ...q, outreach: false }, now), 'en', { ask: q, now });
     // Phase 7 — the day is one list: the row from the conversation (solid), a door to it, the sentence as sent.
     expect(html).toMatch(new RegExp(`<li class="dl-row solid" data-src="promised_dates:[0-9a-f-]{36}" data-col="due_on"[^>]*>[\\s\\S]*?<a class="dl-go" href="/app/inbox/${cid}#latest">`));
     expect(html).toContain("“I'll check the 100 ml and get back to you tomorrow.”");
