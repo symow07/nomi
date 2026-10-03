@@ -99,15 +99,20 @@ let LOCALE = 'en';
 
 /** Each step: what is shown under each caption. `cue(n)` marks the caption's start. */
 const SCRIPTS = {
+  // The warmth run (w4-whole-10) — each video walks the way its first caption names: Settings, then the
+  // menu rows, tapped as an owner taps them; never an address typed in.
   async profile(page, cue) {
-    await page.goto(`${BASE}/app/settings`); cue(1); await pause(3000);
+    await page.goto(`${BASE}/app/settings`); cue(1); await pause(2400);
+    await press(page, 'main a[href="/app/business"]'); await pause(1400);
     await press(page, 'main a[href="/app/settings/profile"]'); cue(2); await pause(1600);
     await typeInto(page, 'main textarea[name="description"]', SAMPLE.about[LOCALE]);
     await pause(3000);
     cue(3); await point(page, 'main form:not([action="/logout"]) button[type="submit"]'); await pause(5000);
   },
   async products(page, cue) {
-    await page.goto(`${BASE}/app/products`); cue(1); await pause(3000);
+    await page.goto(`${BASE}/app/settings`); cue(1); await pause(2400);
+    await press(page, 'main a[href="/app/business"]'); await pause(1400);
+    await press(page, 'main a[href="/app/products"]'); await pause(1400);
     await press(page, 'main a[href="/app/products/add"]'); cue(2); await pause(1600);
     await typeInto(page, 'main textarea', SAMPLE.list[LOCALE]);
     await pause(1600);
@@ -119,17 +124,26 @@ const SCRIPTS = {
     } else await pause(5000);
   },
   async name(page, cue) {
-    await page.goto(`${BASE}/app/onboarding`); cue(1); await pause(3600);
-    cue(2); await point(page, 'main input[name="name"], main input[name="assistant_name"], main #name'); await pause(4000);
-    cue(3); await point(page, 'main form:not([action="/logout"]) button[type="submit"]'); await pause(5000);
+    await page.goto(`${BASE}/app/settings`); cue(1); await pause(2400);
+    await press(page, 'main a[href="/app/settings/setup"]'); await pause(1400);
+    await press(page, 'main a[href="/app/onboarding"]'); await pause(1600);
+    // One selector each: a selector list matches in page order, so a list would point at the page's first box or button.
+    cue(2); await point(page, 'main form[action="/app/onboarding/assistant-name"] input[name="name"]'); await pause(4000);
+    cue(3); await point(page, 'main form[action="/app/onboarding/assistant-name"] button[type="submit"]'); await pause(5000);
   },
   async channels(page, cue) {
-    await page.goto(`${BASE}/app/channels`); cue(1); await pause(3600);
-    cue(2); await point(page, 'main a[href="/app/connect/meta/start"], main a[href="/app/connect/whatsapp/start"], main form[action="/app/channels/whatsapp/connect"] button, main a[href="/app/channels/whatsapp/connect"]');
+    await page.goto(`${BASE}/app/settings`); cue(1); await pause(2400);
+    await press(page, 'main a[href="/app/business"]'); await pause(1400);
+    await press(page, 'main a[href="/app/business/channels"]'); await pause(2400);
+    cue(2);
+    await press(page, 'main a[href="/app/channels/meta"]'); await pause(1600);
+    await point(page, 'main a[href="/app/connect/meta/start"], main form[action*="/connect"] button, main a[href*="/connect"]');
     await pause(4400);
     cue(3); await pause(6000);
   },
   async first_success(page, cue) {
+    // Practice starts over first, so each language's video shows only its own customer's words.
+    await page.context().request.post(`${BASE}/app/sandbox/reset`, { maxRedirects: 0 });
     await page.goto(`${BASE}/app/sandbox`); cue(1); await pause(3000);
     await typeInto(page, 'main form[action="/app/sandbox/message"] textarea', SAMPLE.ask[LOCALE]);
     await pause(1200);
@@ -138,7 +152,8 @@ const SCRIPTS = {
     // The reply is drafted by the worker: the page is read again to show it.
     await page.reload(); await page.waitForLoadState('networkidle').catch(() => {});
     await point(page, 'main form[action="/app/sandbox/reply"] textarea, main .draft, main .bubble'); await pause(4000);
-    cue(3); await pause(5000);
+    // The step is done in the Inbox: the video ends there, where the caption says.
+    cue(3); await press(page, 'a[href="/app/inbox"]'); await pause(5000);
   },
 };
 
