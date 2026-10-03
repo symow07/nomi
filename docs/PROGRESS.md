@@ -15,6 +15,10 @@ under "Decided" below.
 
 ## The warmth run (started 2026-10-03) — read this first
 
+**State (2026-10-04): done.** All nine phases are merged and deployed (#216, #217, #218, #219), and production is at schema 125.
+- Of the re-audit's 281 findings, 259 are fixed, 10 are kept with their reason, 1 was not a defect, and the 11 owner's decisions are untouched.
+- What waits on the owner from this run is under "Waiting on the owner" (from the warmth run).
+
 **The owner's instruction (2026-10-03).** The rebuild fixed density and correctness. The owner's verdict on the result: it has no soul, it is black and white, the settings pages read as essays, and Today does not make it obvious what Nomi does. This run is about warmth, faces and structure:
 - nine phases (navigation, Today, the profile card, the Inbox, the conversation, the calendar, the settings model, notifications, a re-audit);
 - merge my own green PRs, and update this file after each;
@@ -64,7 +68,7 @@ under "Decided" below.
 | 6 | The calendar: List first, faces on every item, the chrome tucked away | #216 |
 | 7 | Settings as menus: My business, the assistant, Setup; the autonomy control on the assistant's first screen; channels' one home | #216 (the assistant's page) · #217 (My business, Setup) |
 | 8 | Notifications: in-app marker, toast and Today refreshing; the outside channel a setting; only two things interrupt | #217 |
-| 9 | Re-audit, merged list, fix it in full | the merged list (281) · the fix wave #218 · the guide recorded again (follow-up) |
+| 9 | Re-audit, merged list, fix it in full | the merged list (281) · the fix wave #218 · the guide recorded again #219 |
 
 **#216 — phases 1, 2, 3, 5, 6 and the assistant's half of 7.**
 
@@ -187,8 +191,7 @@ under "Decided" below.
 **Phase 9 — the fix wave (#218, 2026-10-03/04), the merged list fixed in full, S1 first.**
 - **How:** one fixer per area of the list, each on its own branch with a ledger (finding → fixed, kept, or the owner's; how; the test that holds it), all merged on one branch. Where two fixers met, one implementation was kept (below). Every "fixed" was re-checked on the thing itself, not by the failure stopping: a parity test in the five languages, and for the shared rules the rendered output.
 - **The 281, after the wave:**
-  - **Fixed: 258** (S1 2 · S2 34 · S3 106 · S4 116).
-  - **1 waits for the follow-up PR:** the guide (w4-whole-10, S2) is recorded again from the final screens.
+  - **Fixed: 259** (S1 2 · S2 35 · S3 106 · S4 116): 258 in #218, and the guide (w4-whole-10, S2) in #219, recorded again from the final screens.
   - **Kept, with the reason restated and still holding: 10.**
     - The policies, the site and the dead links arrive with nothing to fetch (V1-021).
     - The door runs no script (public-new-11).
@@ -247,7 +250,18 @@ under "Decided" below.
   - the scripted pre-pilot ran 12/12 on main before;
   - the scripted pre-pilot ran 12/12 after (at `3f9828b`; the commits after it touch nothing on the send path), each run on its own fresh cluster migrated by its own code;
   - check 6,779, trust 44/44 (41 scenarios), the build, and integration 1,246 of 1,246 with none skipped.
-- **The disk filled during the run.** The Mac had 431 of 460 GiB used and about 1 GiB free, and every shell call failed. 34 finished worktrees (all merged, all clean) were removed from the session scratchpad, which freed about 4 GiB. The rest of the disk is the owner's to clear.
+- **The disk filled during the run.** The Mac had 431 of 460 GiB used and about 1 GiB free, and every shell call failed. 34 finished worktrees (all merged, all clean) were removed from the session scratchpad, which freed about 4 GiB. Free space then swung between 1 and 5 GiB (swap was 4.9 of 6 GiB used, and iCloud's file provider was active); nothing of this run's held it. The rest of the disk is the owner's to clear.
+- **#218 merged** 2026-10-03 18:39 UTC as `0574a20`.
+  - CI reported on both jobs at `1dac9aa`: typecheck 1m46s, integration 20m55s.
+  - The backup before it was `nomi-backup-20261003T030458Z` (15.6 h old, drill passed).
+  - Deployed 18:41 UTC. `/health` returned `{"ok":true,"db":true,"worker":true,"provider":"active"}`, and production's schema is 125.
+- **The guide recorded again (#219, w4-whole-10).**
+  - **What was recorded:** 50 videos (five steps, five languages, desktop at 1024 px and phone at 390 px), recorded from the merged screens on a seeded local instance, with their captions and stills.
+  - **Each video follows the way its first caption names:** Settings, then the menu rows, tapped as an owner taps them.
+  - **Step five** ends on the Inbox, and its last caption now names the Inbox in five languages, held by a test. Before, it said "in Customers".
+  - **Practice starts over** before each language's step five, so a video shows only its own customer's words.
+  - **The channels video** shows the Meta login's button, as production does. The local instance draws it from placeholder login values; the recording points at the button and never presses it, so nothing reaches Meta.
+  - **Checked:** frames were taken from each step in several languages and at both widths: each tap lands on the row its caption names. The frames also showed the 1024 px rail defect fixed in #218.
 
 ## Two fixes the owner ordered (2026-10-03)
 
