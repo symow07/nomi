@@ -277,7 +277,7 @@ d('PWR2 · a self-service reset, to the standard (requires DATABASE_URL + MIGRAT
     expect(await until(() => mailsTo(BROKEN).length > before)).toBe(true);
     const mail = mailsTo(BROKEN).at(-1)!;
     expect(mail.subject).toBe(t('ar', 'forgot.mail.subject'));
-    expect(mail.text, 'the address isolated in the Arabic sentence').toContain(`⁨${BROKEN}⁩`);
+    expect(mail.text, 'the address isolated in the Arabic sentence').toContain(`\u2068${BROKEN}\u2069`);
     // the link bare on its own line: nothing around it a mail program could take into the address
     expect(mail.text.split('\n').filter((line) => line.includes('/login/set-password')))
       .toEqual([expect.stringMatching(/^https:\/\/nomi\.test\/login\/set-password\?t=[A-Za-z0-9_-]{43}&l=ar$/)]);
