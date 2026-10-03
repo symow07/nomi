@@ -2206,8 +2206,8 @@ export function languageName(locale: Locale, code: string): string {
 }
 
 /** A transcript this short sits whole in a laptop's first screen under the strip (V1-239). */
-export const FEW_MESSAGES = 6;
-export const FEW_CHARS = 600;
+const FEW_MESSAGES = 6;
+const FEW_CHARS = 600;
 
 /** The strip's separator: a line may break after it, never before it. */
 const CU_SEP = '&nbsp;· ';
