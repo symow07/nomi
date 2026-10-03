@@ -17,6 +17,12 @@ import { unitLabel } from './products.js';
  * the day it was. The file names stay plain ASCII ("nomi-products-…"): a name
  * in Chinese or Arabic is mangled by some mail clients and older archivers,
  * and the name says nothing the header does not.
+ *
+ * The warmth run, phase 9 (V1-380) — plain ASCII still, but in the reader's
+ * words where those are written in plain letters: Spanish and French name
+ * their files ("nomi-productos-…", "nomi-limites-de-prix-…"), and every file is
+ * called what its page calls it ("price-limits", never "price-rules"). Chinese
+ * and Arabic keep the English names, for the reason above, which still holds.
  */
 const said = (locale: Locale, k: string): string => t(locale, k as MessageKey);
 /** Money as a spreadsheet reads it: two decimals, more only where the price has them ("0.125"). */
@@ -85,6 +91,18 @@ export const isExportSubject = (v: string): v is ExportSubject =>
  */
 const FILE_NAME: Partial<Record<ExportSubject, string>> = { buyers: 'customers', quotes: 'prices-given' };
 export const exportFileName = (s: ExportSubject): string => FILE_NAME[s] ?? s;
+
+/** V1-380 — the name the saved file carries, in the reader's plain-letter words (see the note at the top). */
+const DOWNLOAD_NAME: Readonly<Record<'en' | 'es' | 'fr', Readonly<Record<ExportSubject, string>>>> = {
+  en: { buyers: 'customers', messages: 'messages', products: 'products', orders: 'orders', quotes: 'prices-given', contacts: 'contacts',
+    'price-rules': 'price-limits', 'selling-terms': 'selling-terms', teaching: 'what-was-taught' },
+  es: { buyers: 'clientes', messages: 'mensajes', products: 'productos', orders: 'pedidos', quotes: 'precios-dados', contacts: 'contactos',
+    'price-rules': 'limites-de-precio', 'selling-terms': 'condiciones-de-venta', teaching: 'lo-ensenado' },
+  fr: { buyers: 'clients', messages: 'messages', products: 'produits', orders: 'commandes', quotes: 'prix-donnes', contacts: 'contacts',
+    'price-rules': 'limites-de-prix', 'selling-terms': 'conditions-de-vente', teaching: 'ce-qui-a-ete-appris' },
+};
+export const downloadName = (s: ExportSubject, locale: Locale): string =>
+  DOWNLOAD_NAME[locale === 'es' || locale === 'fr' ? locale : 'en'][s];
 export function exportSubjectOf(file: string): ExportSubject | null {
   const found = EXPORT_SUBJECTS.find((s) => exportFileName(s) === file);
   return found ?? (isExportSubject(file) ? file : null);
@@ -172,11 +190,11 @@ const messages: Loader = async (tx, businessId) => {
 const products: Loader = async (tx, businessId, locale) => {
   const zone = await zoneOf(tx, businessId);
   const r = await sql<{
-    sku: string; name: string; name_zh: string | null; description: string | null; category: string | null;
+    sku: string; name: string; name_zh: string | null; description: string | null;
     unit: string; moq: number | null; currency: string; price: string | null; lead_time_days: number | null;
     is_active: boolean; created_at: Date; names: string | null;
   }>`
-    select p.sku, p.name, p.name_zh, p.description, p.category, p.unit, p.moq, p.currency,
+    select p.sku, p.name, p.name_zh, p.description, p.unit, p.moq, p.currency,
            p.price_usd_per_unit as price, p.lead_time_days, p.is_active, p.created_at,
            (select string_agg(a.alias, '; ' order by a.alias) from product_aliases a
              where a.product_id = p.id and lower(a.alias) <> lower(p.name)
@@ -190,21 +208,25 @@ const products: Loader = async (tx, businessId, locale) => {
 
 /** One product as the file has it — the query's row, before it is written. */
 export type ProductExportRow = {
-  sku: string; name: string; name_zh: string | null; description: string | null; category: string | null;
+  sku: string; name: string; name_zh: string | null; description: string | null;
   unit: string; moq: number | null; currency: string; price: string | null; lead_time_days: number | null;
   is_active: boolean; created_at: Date; names: string | null;
 };
 
-/** The products file from its rows: pure, so a test reads exactly what an owner downloads. */
+/**
+ * The products file from its rows: pure, so a test reads exactly what an owner downloads.
+ * The warmth run, phase 9 (V1-381) — no "Category": no page writes one and none
+ * shows one (V1-308); what it held was the demo's raw seed words ("bags").
+ */
 export function productsSheet(rows: readonly ProductExportRow[], locale: Locale, zone: string): ExportSheet {
   const h = (k: string) => said(locale, `data.export.col.${k}`);
   return {
     header: [h('sku'), h('name'), said(locale, 'product.edit.nameZh'), said(locale, 'import.row.names'), h('description'),
-      h('category'), h('unit'), said(locale, 'product.list.moq'), h('currency'), h('price'), said(locale, 'product.edit.leadTime'),
+      h('unit'), said(locale, 'product.list.moq'), h('currency'), h('price'), said(locale, 'product.edit.leadTime'),
       h('offered'), h('added')],
     rows: rows.map((x) => [
       // 0081 — never a blank where a minimum would go: the owner's words for none.
-      x.sku, x.name, x.name_zh, x.names, x.description, x.category, unitLabel(locale, x.unit),
+      x.sku, x.name, x.name_zh, x.names, x.description, unitLabel(locale, x.unit),
       x.moq ?? t(locale, 'product.noMinimum'), x.currency, plainMoney(x.price), x.lead_time_days,
       yesNo(locale, x.is_active), dayKey(x.created_at, zone),
     ]),

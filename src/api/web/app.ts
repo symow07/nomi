@@ -210,7 +210,7 @@ import { renderAccount } from './account.js';
 import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
-import { exportSubjectOf, exportFileName, loadExport, recordExport } from './dataExport.js';
+import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
 import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
@@ -1859,7 +1859,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // space, and `nomi-buyers-2026-09-21.csv` has none today but the next
       // subject might. `attachment` so a browser saves rather than renders —
       // a CSV rendered inline is a page of somebody's private messages.
-      .header('content-disposition', `attachment; filename="${csvFilename(exportFileName(subject), now)}"`)
+      // The warmth run, phase 9 (V1-380) — named in the reader's plain-letter words, as its page names it.
+      .header('content-disposition', `attachment; filename="${csvFilename(downloadName(subject, localeOf(req)), now)}"`)
       // It is her data, freshly read. Nothing between here and her laptop may
       // keep a copy to hand to the next person who asks.
       .header('cache-control', 'no-store')

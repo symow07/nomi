@@ -21,7 +21,7 @@ import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '..
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
 import { readFileSync } from 'node:fs';
 import type { Db } from '../../src/db/client.js';
-import { productsSheet, priceRulesSheet, plainMoney } from '../../src/api/web/dataExport.js';
+import { productsSheet, priceRulesSheet, plainMoney, downloadName, EXPORT_SUBJECTS } from '../../src/api/web/dataExport.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { csvRows } from '../../src/core/owner/csv.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
@@ -631,12 +631,16 @@ describe('Your price limits', () => {
   it('V1-351 — with every product answered and no answer for everything, that empty form is folded away; its question is about anything you sell', () => {
     const en = page('en');
     expect(en).toMatch(/<details class="pr-fold"><summary>Set one answer for everything<\/summary>/);
-    expect(t('en', 'prices.q.floorAll', { currency: 'USD' })).toContain('one of anything you sell');
+    // The warmth run, phase 9 (w4-products-knowledge-15) — plain: one unit of any product.
+    expect(t('en', 'prices.q.floorAll', { currency: 'USD' })).toBe('What is the least you would accept for one unit of any product? (USD)');
     expect(en).not.toContain('one of these');
     // A product still waiting: the form stands open, as before.
     const waiting = page('en', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] }));
     expect(waiting).not.toContain('pr-fold');
     expect(t('en', 'prices.default.sub')).toContain('A product priced below it needs an answer of its own');
+    // w4-products-knowledge-15 — "its lowest price" could only mean the product's; the figure meant is the one given here.
+    expect(t('en', 'prices.default.sub')).toContain('at or above the figure given here');
+    expect(t('es', 'prices.default.sub')).not.toContain('su mínimo');
   });
 
   it('V1-352 / V1-353 — sections are h2s, a product\'s name is in ink, each "change" is a door; the way back is at the top', () => {
@@ -917,6 +921,26 @@ describe('The price-list export', () => {
     expect(productsSheet([productRow], 'zh', 'UTC').header).toContain('货号');
     expect(priceRulesSheet(parts, 'ar').rows[0]![0]).toBe(t('ar', 'data.export.rule.floor'));
     expect(priceRulesSheet(parts, 'en').header).not.toContain('when');
+  });
+
+  it('V1-380 — a saved file is named in the reader\'s plain-letter words, as its page names it; Chinese and Arabic stay plain ASCII', () => {
+    expect(downloadName('price-rules', 'en')).toBe('price-limits');
+    expect(downloadName('products', 'es')).toBe('productos');
+    expect(downloadName('price-rules', 'fr')).toBe('limites-de-prix');
+    for (const l of LOCALES) for (const s of EXPORT_SUBJECTS) expect(downloadName(s, l), `${l} ${s}`).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
+    expect(downloadName('products', 'zh')).toBe('products');
+    expect(downloadName('products', 'ar')).toBe('products');
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toContain('csvFilename(downloadName(subject, localeOf(req)), now)');
+  });
+
+  it('V1-381 — no "Category" column: nothing the owner wrote fills it', () => {
+    for (const l of LOCALES) {
+      const sheet = productsSheet([productRow], l, 'UTC');
+      for (const word of ['Category', '类别', 'الفئة', 'Categoría', 'Catégorie']) expect(sheet.header, l).not.toContain(word);
+      expect(sheet.rows[0], l).not.toContain('bags');
+      expect(sheet.rows[0]!.length, l).toBe(sheet.header.length);
+    }
   });
 
   it('V1-381 — figures as figures, words as words, a date as its day', () => {
