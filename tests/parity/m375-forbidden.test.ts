@@ -59,14 +59,15 @@ describe('M37.5 · her own terms, in whatever language she typed them', () => {
     if (!r.ok) expect(r.error.terms[0]!.term).toBe('Guangzhou Textile');
   });
 
-  it('matches case-insensitively and inside a longer word', () => {
-    // A false positive costs one regeneration; a false negative is an insult
-    // delivered in writing. The asymmetry is why matching is blunt.
+  it('matches case-insensitively, and the floor catches the forms it lists', () => {
+    // V1-504 (2026-10-03): a word is matched as a word, so the floor lists the
+    // longer forms it must still catch ("fucking"); 傻逼 spans the dictionary's
+    // 傻|逼 and is caught before 的. forbidden-word-edges.test.ts has the rest.
     expect(guardForbidden({ reply: 'FUCKING late', ownerTerms: [] }).ok).toBe(false);
     expect(guardForbidden({ reply: '他傻逼的很', ownerTerms: [] }).ok).toBe(false);
   });
 
-  it('works with no word boundaries — Chinese does not delimit words with spaces', () => {
+  it('Chinese has no spaces: a word edge is where the dictionary puts one', () => {
     expect(guardForbidden({ reply: '这个价格不含税', ownerTerms: ['不含税'] }).ok).toBe(false);
   });
 

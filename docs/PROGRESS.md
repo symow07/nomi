@@ -38,6 +38,25 @@ under "Decided" below.
   - In its whole history the database holds two hand-overs (both "unlisted number"), no `not_answered` signal open or closed, and no conversation waiting for a person.
   - The case that found it (conversation-missed-10) happened in Practice on a local instance, where a turn with no model dies.
   - Nothing was edited.
+- **Merged** 2026-10-03 08:17 UTC. CI reported on both jobs (integration in 19m45s). Deployed, `/health` ok, schema 122 (no migration).
+
+**Fix 2 (#214): forbidden words are matched as words (V1-504), in every script.**
+- **Before:** a term was found by substring, so "liar" stopped "familiar" and 滚 stopped 滚筒, 滚轮 and 滚珠. A stopped reply is written again or handed to the owner, so innocent replies were held back.
+- **What a word edge is now, by script** (`findForbidden`, `src/core/safety/forbiddenWords.ts`):
+  - **Spaced scripts** (Latin, Cyrillic, Greek, Hebrew, Arabic): the letters on either side of the term are not letters of the same script. An apostrophe ("l'idiot"), a digit's edge or a letter of another script ("你是idiot") ends a word.
+  - **Arabic, also:** the prefixes and endings written onto a word do not make it a longer word. Prefixes: و ف ب ك ل, ال and their joins, يا. Endings: ة ه ي ين ون ان ات and the pronouns. So الغبي and كذابين are the word, but إحرام is not حرام. Hamza, alef maqsura and ta marbuta are folded and vowel marks dropped, so احمق is أحمق.
+  - **Unspaced scripts** (Chinese, Japanese, Thai): there are no spaces, so the edges are the platform dictionary's (Intl.Segmenter, ICU 78). A term may span several of its words (傻逼 is 傻|逼 to it). It is never caught inside a listed innocent compound, because ICU splits some of them (滚轮 into 滚|轮) while keeping 滚筒 and 滚珠 whole. Measured, not assumed: ICU also keeps 滚出去 as one word, so the floor names it.
+  - **Everywhere:** case and accents are folded ("ESTUPIDO" is "estúpido").
+- **The floor lists the forms substring matching used to catch implicitly.** For example: fucking, idiots, liars; idiota, estúpidos; connards, idiote; imbecis; 滚出去, 滚开, 滚蛋; أغبياء, حمقاء. It is written by language in one place (`FLOOR_BY_LANGUAGE`), which the forbidden-words page also reads, so the two cannot drift.
+- **The page** now says how a word is matched, and to add each form meant (cheap, cheaper; 最, 最好), in five languages. Since #210 it had said the opposite.
+- **Tests:**
+  - `forbidden-word-edges.test.ts`: in en, zh, ar, es and fr, the word alone, inside an innocent longer word, and at the start and end of a message. Then Chinese and Arabic separately: spanning words, particles, the owner's 最 against 最近, prefixes, endings, hamza and vowel marks, and the listed forms.
+  - `forbidden-word-edges-turn.test.ts`: the same through a whole turn, so it shows what reaches the customer.
+  - Every innocent example contains its word as a substring. On the old matcher, the innocent case fails in all five languages in both files.
+  - Golden scenarios 41/41; scripted pre-pilot 12/12 before (main) and after.
+- **What it changes for customers:** a reply that only contains a forbidden word inside another word now goes out as written. A form of a word the floor does not list ("bastardy") is no longer caught by containment; the owner's own list should name each form meant, as the page now says.
+
+**Where the merged list stands after both fixes:** 677 fixed, 5 decided, 10 not defects, and 11 the owner's to decide (part six lists them; conversation-missed-10 and V1-504 are done).
 
 ## The UI rebuild run (started 2026-10-02) — read this first
 
