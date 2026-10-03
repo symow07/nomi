@@ -111,7 +111,8 @@ describe('M9.3 · conversation detail (localized)', () => {
     expect(html).not.toContain('<label class="btn" for="reply">');               // Phase 2 — Edit went: the box is always editable
     expect(html).not.toContain('value="收回"');                               // on the assistant's page now
     for (const k of ['inbox.action.send', 'card.handToMe', 'card.noReply'] as const) expect(html).toContain(shown('en', k));
-    expect(html.match(/class="btn send"/g)).toHaveLength(1);                 // one filled button, the rest outlined alike
+    expect(html.match(/class="btn send needs"/g)).toHaveLength(1);           // one filled button (the warmth pass: deep, it answers a waiting reply), the rest outlined alike
+    expect(html).not.toContain('class="btn send"');
   });
 
   it('quote/order context localized, omitted cleanly when absent', () => {

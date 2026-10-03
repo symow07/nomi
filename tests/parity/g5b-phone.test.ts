@@ -7,6 +7,7 @@ import { renderConversationDetail, type ConversationDetail } from '../../src/api
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 
 /**
  * G5b — what a phone needs to hold Nomi, the page that turns alerts on, a
@@ -57,7 +58,8 @@ describe('G5b · the phone\'s worker', () => {
 describe('G5b · installable', () => {
   it('the manifest opens the app on its own, with the icons and the brand\'s colours', () => {
     const m = JSON.parse(appManifest());
-    expect(m).toMatchObject({ name: 'Nomi', start_url: '/app', display: 'standalone', theme_color: '#1C1B1F' });
+    // The warmth pass — the ink and the paper the app is drawn with, wherever they move to.
+    expect(m).toMatchObject({ name: 'Nomi', start_url: '/app', display: 'standalone', theme_color: DESIGN_TOKENS.color.ink, background_color: DESIGN_TOKENS.color.paper });
     expect(m.icons.map((i: { src: string }) => i.src)).toEqual(['/assets/icon-192.png', '/assets/icon-512.png']);
     expect(INSTALL_LINKS).toBe('<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/icon-192.png">');
   });

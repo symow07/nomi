@@ -445,10 +445,11 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     const camel = (k: string) => k.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
     it('every state reads at 4.5:1 or better as text on its own wash (waiting sat at 4.15)', () => {
-      for (const s of ['ok', 'waiting', 'warn']) {
+      // The warmth pass — waiting is the deep magenta, `needs`, on its own wash.
+      for (const s of ['ok', 'needs', 'warn']) {
         expect(ratio(C[s]!, C[`${s}Wash`]!), s).toBeGreaterThanOrEqual(4.5);
       }
-      // The assistant's magenta is text on either ground (6.7 and 6.1).
+      // The assistant's light magenta is text on either ground (5.5 and 5.0; warmth-pass.test.ts has the whole table).
       for (const bg of ['surface', 'paper']) expect(ratio(C['assistant']!, C[bg]!), `magenta on ${bg}`).toBeGreaterThanOrEqual(4.5);
       for (const bg of ['surface', 'paper']) {
         expect(ratio(C['inkSecondary']!, C[bg]!), `ink secondary on ${bg}`).toBeGreaterThanOrEqual(4.5);

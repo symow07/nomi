@@ -161,7 +161,7 @@ describe('phase 4 · the row: spend is the headline, no order count, the regular
       expect(h, l).toContain(shown(l, 'buyers.key.regular', { n: show.quantity(l, REGULAR_ORDERS) }));
     }
     expect(rule('.ir-reg')).toContain('color:var(--color-ink-secondary)');
-    expect(CSS).not.toMatch(/\.ir-reg[^{]*\{[^}]*--color-(assistant|waiting)/);
+    expect(CSS).not.toMatch(/\.ir-reg[^{]*\{[^}]*--color-(assistant|needs)/);
     // On a phone its word is still said, but the shape stands alone so the name keeps its room.
     expect(CSS).toMatch(/@media \(max-width: 720px\) \{\s*\.ir-reg-w \{ position:absolute;/);
   });
@@ -174,7 +174,7 @@ describe('phase 4 · the row: spend is the headline, no order count, the regular
       expect(wait.exec(rowOf(h, 1))?.[1], l).toBe(shown(l, 'buyers.badge.deletion'));
       for (const n of [3, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain('ir-wait');
     }
-    expect(rule('.ir-wait')).toContain('color:var(--color-waiting)');
+    expect(rule('.ir-wait')).toContain('color:var(--color-needs)');
   });
 });
 

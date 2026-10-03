@@ -110,8 +110,8 @@ describe('the card, drawn', () => {
     expect(c.indexOf('class="acts"')).toBeLessThan(c.indexOf('class="reading"'));
     expect(c).toMatch(/Instagram takes replies until \d\d:\d\d tomorrow/);
     expect(html.split('The Rose Face Serum is $34.90 each')).toHaveLength(2);   // once, in the box
-    // one filled button; the rest outlined alike; no Edit (the box is always editable)
-    expect(c.match(/class="btn send"/g)).toHaveLength(1);
+    // one filled button — the warmth pass: the deep fill of the act that answers a reply waiting for the owner; the rest outlined alike; no Edit (the box is always editable)
+    expect(c.match(/class="btn send needs"/g)).toHaveLength(1);
     expect(c).not.toContain(t('en', 'card.edit'));
     expect(c).not.toContain('<label class="btn"');
     expect(c).not.toContain('quiet');
