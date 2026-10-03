@@ -25,3 +25,6 @@ const country = new AsyncLocalStorage<string | null>();
 export const withCountry = <T>(code: string | null, fn: () => T): T => country.run(code, fn);
 
 export const workspaceCountry = (): string | null => country.getStore() ?? null;
+
+/** The fix wave (V1-404) — inside a workspace (with or without a country on record), not a public page or a fragment. */
+export const inWorkspace = (): boolean => country.getStore() !== undefined;

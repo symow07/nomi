@@ -2,7 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { currencySymbol } from '../../core/types/money.js';
-import { workspaceZone, workspaceCountry } from './zone.js';
+import { workspaceZone, workspaceCountry, inWorkspace } from './zone.js';
 import { RFC4180, type CsvDialect } from '../../core/owner/csv.js';
 
 /**
@@ -97,10 +97,16 @@ const arabicMoney = (m: Money, fraction: number): string =>
 const LANG: Readonly<Record<Exclude<Locale, 'ar'>, string>> = { en: 'en', zh: 'zh', es: 'es', fr: 'fr' };
 const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): string | null => {
   const country = workspaceCountry();
-  if (!country || !/^[A-Z]{2}$/.test(country)) return null;
+  // The fix wave (V1-404) — a workspace with no country on record: French
+  // writes the decimal comma wherever it is spoken, and Spanish in most of the
+  // countries that speak it, so each takes its language's own form ("0,30 $");
+  // English and Chinese keep the point, as everywhere.
+  const tag = country && /^[A-Z]{2}$/.test(country) ? `${LANG[locale]}-${country}`
+    : inWorkspace() && (locale === 'es' || locale === 'fr') ? LANG[locale] : null;
+  if (!tag) return null;
   let parts: Intl.NumberFormatPart[];
   try {
-    parts = new Intl.NumberFormat(`${LANG[locale]}-${country}`, {
+    parts = new Intl.NumberFormat(tag, {
       style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction,
     }).formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount);
   } catch { return null; }

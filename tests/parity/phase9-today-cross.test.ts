@@ -61,10 +61,18 @@ describe('Phase 9 · an amount is written the reader\'s way in the workspace\'s 
     expect(range).toContain('2,40\u00a0$');
     expect(range).not.toMatch(/\$\d/);
   });
-  it('outside a workspace, or with no country on record, an amount is written as it always was; the send path\'s formatter never changes', () => {
-    for (const l of LOCALES) expect(inCountry(null, () => show.money(l, usd)), l).toBe(show.money(l, usd));
+  it('outside a workspace an amount is written as it always was; the send path\'s formatter never changes', () => {
     expect(show.money('es', usd)).toBe('$1.05');
     expect(inCountry('ES', () => formatMoney(usd))).toBe('$1.05');
+  });
+  it('V1-404 (the fix wave) · a workspace with no country on record: Spanish and French in their language\'s own form; the others as before', () => {
+    expect(inCountry(null, () => show.money('es', usd))).toBe('1,05\u00a0$');
+    expect(inCountry(null, () => show.money('fr', usd))).toBe('1,05\u00a0$');
+    for (const l of ['en', 'zh', 'ar'] as const) expect(inCountry(null, () => show.money(l, usd)), l).toBe(show.money(l, usd));
+    const range = inCountry(null, () => t('es', 'factory.promise.floorRange',
+      { low: show.money('es', { amount: 0.3, currency: 'USD' }), high: show.money('es', { amount: 2.4, currency: 'USD' }), name: 'Lily' }));
+    expect(range).not.toMatch(/\$\d/);
+    expect(range).toContain('0,30\u00a0$');
   });
 });
 
