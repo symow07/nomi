@@ -59,11 +59,12 @@ describe('M9.3 · inbox list (localized)', () => {
     expect(html).toContain('href="/app/inbox/conv-1#latest"');
   });
 
-  it('en: localized chrome, latin product name', () => {
+  // The warmth run (phase 4): a row is the customer — face, name, spent, last contact; the
+  // product and its quantity left the row (the conversation's strip and the card carry them).
+  it('en: localized chrome', () => {
     const html = renderInboxList(listWithWork, 'en', NOW);
     expect(html).toContain('Inbox'); expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));
-    expect(html).toContain('Needs you'); expect(html).toContain('Vacuum cup');
-    expect(html).toContain('5,000\u00a0pcs');   // CC-13 — a figure and its unit, spaced (no-break)
+    expect(html).toContain('Needs you');
     expect(html).not.toContain('保温杯');
   });
 
