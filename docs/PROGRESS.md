@@ -59,11 +59,11 @@ under "Decided" below.
 | 1 | The rail: Today; Customers (Inbox, Calendar); the assistant; Settings (My business, Setup, Log out). Icons; the active entry a raised tile; one count, the customers waiting | #216 |
 | 2 | Today: the waiting band, what Nomi handled with a row of faces, the scoreboard | #216 |
 | 3 | The profile card, springing up from any face (a bottom sheet on a phone) | #216 |
-| 4 | The Inbox: one row per customer, two lenses, spend as the headline, regulars marked, the "needs attention" band | |
+| 4 | The Inbox: one row per customer, two lenses, spend as the headline, regulars marked, the "needs attention" band | #217 |
 | 5 | The conversation: the catch-up strip; the assistant's replies marked in magenta | #216 |
 | 6 | The calendar: List first, faces on every item, the chrome tucked away | #216 |
-| 7 | Settings as menus: My business, the assistant, Setup; the autonomy control on the assistant's first screen; channels' one home | #216 (the assistant's page) |
-| 8 | Notifications: in-app marker, toast and Today refreshing; the outside channel a setting; only two things interrupt | |
+| 7 | Settings as menus: My business, the assistant, Setup; the autonomy control on the assistant's first screen; channels' one home | #216 (the assistant's page) · #217 (My business, Setup) |
+| 8 | Notifications: in-app marker, toast and Today refreshing; the outside channel a setting; only two things interrupt | #217 |
 | 9 | Re-audit, merged list, fix it in full | |
 
 **#216 — phases 1, 2, 3, 5, 6 and the assistant's half of 7.**
@@ -114,6 +114,54 @@ under "Decided" below.
 - **Merged** 2026-10-03 11:45 UTC as `919289f`.
   - CI's first run failed one Arabic check on a populated workspace: the "can talk about" screen listed product names whose sizes ("38x40cm", "500ml") were not isolated. Fixed and given its own test; the second run passed both jobs (integration 20m7s).
   - Deployed; `/health` ok; schema 123 (0123); backup `nomi-backup-20261003T030458Z` taken before.
+
+**#217 — phase 4, the rest of phase 7, phase 8 (0124).**
+
+- **Phase 4, the Inbox.**
+  - **One customer, one row:** face (opens the card), name, a Regular mark, the amount spent as the headline number, the waiting signal where they wait, last contact. 64 px in all five languages. The order count is not on the row; it is in the card.
+  - **A row opens** the conversation that needs the owner, else the newest.
+  - **Two lenses, each a whole list** with its own paging, search and live door:
+    - "waiting now" (the default, today's ranking kept exactly);
+    - "matters most" (`?lens=value`: by spend, then newest; those with nothing spent after).
+  - **The "needs attention" band** sits on the first page. It never repeats a customer already waiting for the owner, and leaves out open deletion requests. Its kinds:
+    - went quiet after a quote (a quote given and a reply out, then nothing from them for 3–30 days);
+    - waiting on a reply (our last word asked something — `?`, `？` or `؟` — 3–30 days ago);
+    - a regular who has not ordered in a while.
+  - **Narrowings:**
+    - "Mine" (team machinery) redirects to the list;
+    - "All" is the list's own address;
+    - "Did not send" and "Deletion requests" stay while they hold someone;
+    - "Needs you" is drawn when it is the one in force (Today's doors lead there).
+- **Phase 7, My business and Setup.**
+  - **My business** is an 8-row menu in two cards. Each former section is one tap down, on the page that already owned it or on a new screen (`/app/business/{channels,allowlist,ready,promises,how-you-sell}`). How you sell is a menu of its own (the questions, terms, samples, closures, the rate).
+  - **Setup** is 8 rows in two cards. The search went with the length. The five step rows are a tap down on Getting started. The language switch is its own small screen (`/app/settings/language`).
+  - **Channels live only on My business › Where customers reach you.** Setup's channels step opens it.
+  - **The facts and products** are edited only at `/app/settings/profile` and `/app/products`; the assistant's "can talk about" screen links there.
+- **Phase 8, notifications.**
+  - **Outside Nomi, two things only:** an order waiting for the owner's tap, and a customer handed over (any reason, deletion requests included). These now wait in the app:
+    - a hot lead;
+    - a reply waiting for review;
+    - the assistant stepping back;
+    - the allowance at 80/100 (at 100 every held message is handed over, and that interrupts);
+    - the owner's copy of a message that may not have gone through (the operator still hears it through `app_errors`; the customer is on "Did not send" or handed over).
+  - **Kept as they are:** operator alerts, and the account's letters (billing, the erasure warning, a connection decided). They are not news about customers, and what they warn of cannot wait in an app the owner may not open.
+  - **The way out is a setting, per person** (0124 `people.alert_channel`: e-mail, this browser, WhatsApp, or the default).
+    - **The default** is WhatsApp once `META_APP_REVIEW` says approved and an alert number is set on a live channel; e-mail before. The day approval lands, everyone on the default moves to WhatsApp with nothing rewritten.
+    - **WhatsApp can be chosen now** wherever the alert number is set on a live channel. The page says that before approval a message more than a day after the owner's last WhatsApp may not arrive, and then it comes by e-mail.
+    - **The pilot is not left without its WhatsApp alerts.** 0124 records WhatsApp for every owner who had set an alert number.
+    - **One difference from before:** an ordinary hand-off now goes one way (WhatsApp), with e-mail only if WhatsApp fails. Before, it went both ways.
+    - **Deletion requests** are e-mailed to the owner always, on top of the chosen way (rule 18).
+    - **A failed way falls back to e-mail.**
+  - **Inside Nomi.** Every page asks the rail every 20 s while it is visible. When a customer newly waits:
+    - a magenta dot appears on Inbox and its count changes in place;
+    - one small card says who and why, and is the door to them. It goes after 6 s or on a tap, at the foot on a phone;
+    - Today redraws its own page in place.
+
+    No sound, no title counter, no badge for anything else. The in-tab browser notice for orders is retired (it bypassed the setting).
+- **Verification:**
+  - the scripted pre-pilot ran 12/12 on main before;
+  - the scripted pre-pilot ran 12/12 after;
+  - check passed 6,385, trust 44/44, the build passed, and integration ran 1,238 of 1,238 with none skipped.
 
 ## Two fixes the owner ordered (2026-10-03)
 
