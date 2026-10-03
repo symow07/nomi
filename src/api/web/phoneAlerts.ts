@@ -83,7 +83,7 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
   // page says so FIRST, then what it will do; it promised "your phone shows
   // it" above a grey "not available here yet", over an empty list of phones.
   // Phase 9 (V1-468) — the way back drawn as on its sibling pages, so the heading sits where theirs does.
-  return `${back('/app/settings', t(locale, 'nav.settings'))}
+  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'alerts.phone.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, v.publicKey ? 'alerts.phone.lede' : 'alerts.phone.ledeOff'))}</p>

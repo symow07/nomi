@@ -149,7 +149,13 @@ export const DESIGN_TOKENS = {
    */
   color: {
     ok: '#0F7B3E',
-    waiting: '#A64C08',
+    /**
+     * THE WARMTH RUN (2026-10-03) — "waiting for you" is magenta. The owner:
+     * magenta marks what the assistant did, plus the waiting-for-you signal
+     * and today's marker. The amber it had is retired; its shape (○) is what
+     * tells it from the assistant's ✦, in greyscale and to any eye.
+     */
+    waiting: '#A82860',
     warn: '#B42318',
     assistant: '#A82860',
     ink: '#1C1B1F',
@@ -168,8 +174,14 @@ export const DESIGN_TOKENS = {
     okLine: '#B7D7C5',
     warnWash: '#F6E5E3',
     warnLine: '#E9BDBA',
-    waitingWash: '#F5E7DD',
-    waitingLine: '#E5C3A9',
+    waitingWash: '#FBEEF3',
+    waitingLine: '#EBC3D3',
+    /**
+     * THE WARMTH RUN — the wash under what the assistant wrote, so a reader
+     * new to a conversation tells at a glance what Nomi said from what a
+     * person said. A wash, never a frame: no border is drawn in magenta.
+     */
+    assistantWash: '#FBEEF3',
   },
   spacingPx: [4, 8, 12, 16, 24, 32, 48] as const,   // V1: 64 retired, it was used nowhere
   /**
@@ -192,7 +204,29 @@ export const DESIGN_TOKENS = {
    * the base size does not silently make a line of prose longer to read.
    */
   measure: { column: '1040px', prose: '62ch', form: '40ch' },
-  radiusPx: { card: 12, chip: 999 },
+  /**
+   * THE WARMTH RUN (2026-10-03) — rounded for warmth. Every corner in the
+   * product is one of these: a control (a field, a button, a row), a card, a
+   * panel (a sheet, the calendar grid, a grouped menu), a chip, a face.
+   */
+  radiusPx: { control: 12, card: 16, panel: 20, chip: 999 },
+  /**
+   * THE WARMTH RUN — customers' faces. A customer the channel gives no photo
+   * of (e-mail, WhatsApp) is a coloured initial: one of these eight, chosen by
+   * their id so it never changes. None is magenta's (that colour has its
+   * jobs), green, amber or red's (the states'); each initial is ≥ 6:1 on its
+   * ground (`warmth-faces.test.ts` computes all eight).
+   */
+  faceTint: [
+    { bg: '#DCEBFA', fg: '#1D4E7E' },
+    { bg: '#D5EFEC', fg: '#155E57' },
+    { bg: '#E3EED6', fg: '#3D5A1C' },
+    { bg: '#F4EAD3', fg: '#6B4E12' },
+    { bg: '#F9E1D6', fg: '#8A3B17' },
+    { bg: '#E7E1F6', fg: '#4B3A84' },
+    { bg: '#E1E6EC', fg: '#34495E' },
+    { bg: '#DDE3FA', fg: '#2F3F8F' },
+  ],
   /**
    * One shadow is a box; three are a surface. Each lift is a contact shadow, a
    * diffuse body, and a hairline that does the work a 1px border used to —
@@ -212,6 +246,12 @@ export const DESIGN_TOKENS = {
    * moves two ways. (The owner named the curve as mine to decide.)
    */
   motionEase: 'cubic-bezier(0.2, 0, 0, 1)',
+  /**
+   * THE WARMTH RUN (2026-10-03) — one exception to the one curve: the profile
+   * card and the bottom sheet spring up (a small overshoot, over
+   * `motionMs.normal`). Nothing else uses it; under reduced motion nothing moves.
+   */
+  motionSpring: 'cubic-bezier(0.34, 1.3, 0.64, 1)',
   /**
    * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Colour does
    * these four jobs and no others, the same on every page; graphite does one

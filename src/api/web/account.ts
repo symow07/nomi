@@ -33,7 +33,7 @@ export function renderAccount(v: AccountView, locale: Locale, flash: Flash | nul
          ])}
          ${saveBar(t(locale, 'account.save'))}
        </form>`;
-  return `${back('/app/settings', backLabel)}
+  return `${back('/app/settings/setup', backLabel)}
     <h1 class="page">${esc(t(locale, 'account.title'))}</h1>
     ${flashBanner(flash)}
     ${body}`;

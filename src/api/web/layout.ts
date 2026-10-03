@@ -3,7 +3,7 @@ import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, ASSISTANT_FALLBACK } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount, tn } from './say.js';
+import { t, assistantName, assistantsAreSeveral, businessName, needsYouCount, tn } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate } from './values.js';
@@ -12,6 +12,7 @@ import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, fontAt } from './type.js';
+import { icon, type IconId } from './icons.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -42,14 +43,24 @@ import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, fontAt } from './type.js';
 export const NAV: readonly { readonly href: string; readonly id: string }[] = [
   { href: '/app',           id: 'home' },
   { href: '/app/inbox',     id: 'inbox' },
+  // THE WARMTH RUN (2026-10-03), phase 1 — the rail is exactly: Today;
+  // Customers, with Inbox and Calendar under it; the assistant, by the name the
+  // business gave it; Settings. My business and Setup are rows of Settings, and
+  // Log out is the foot of Settings, not of the rail.
+  { href: '/app/calendar',  id: 'calendar' },
   { href: '/app/employee',  id: 'employee' },
-  { href: '/app/business',   id: 'factory' },
-  // D (2026-09-21) — Setup: how this installation is wired. "What I sell" and
-  // "how this is wired" are different questions asked at different times, and
-  // they were one drawer. Five entries, no conditional sixth: while setup is
-  // incomplete this entry carries a count, and Today carries a card.
   { href: '/app/settings',  id: 'settings' },
 ];
+
+/**
+ * THE WARMTH RUN — each entry's shape (icons.ts), so the eye finds it before
+ * the word. The comment above (V1) took the emoji away for good reasons that
+ * still hold: these are drawn by the product, in the text's colour, the same
+ * on every device and beside every script.
+ */
+export const NAV_ICON: Readonly<Record<string, IconId>> = {
+  home: 'today', inbox: 'inbox', calendar: 'calendar', employee: 'assistant', settings: 'settings',
+};
 
 /**
  * Reached from a surface above rather than the nav. Nothing here was removed.
@@ -75,12 +86,13 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
     '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
   ] },
   { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox'] },
-  // V2 — the calendar: each entry opens a buyer, so it is reached from Buyers.
-  { hub: '/app/inbox', routes: ['/app/calendar'] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
   { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
+  // THE WARMTH RUN — My business is a row of Settings now, and the pages
+  // reached from it follow it there (the map chains).
   { hub: '/app/settings', routes: [
+    '/app/business', '/app/settings/setup',
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
   ] },
@@ -330,6 +342,30 @@ ${cssVariables()}
   a { color: inherit; text-decoration: none; }
   /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
   .voice { font-family: var(--font-voice); }
+  /* THE WARMTH RUN (2026-10-03) — a customer's face (faces.ts): their photo laid
+     on their coloured initial, round. The initial is always there under it, so a
+     photo that does not arrive leaves the initial, never a hole. */
+  .face { position:relative; display:inline-grid; place-items:center; flex:none; overflow:hidden;
+    border-radius:var(--radius-chip); inline-size:40px; block-size:40px; font-size:var(--font-size-base);
+    font-weight:600; line-height:1; user-select:none; }
+  .face-xs { inline-size:24px; block-size:24px; font-size:var(--font-size-caption); }
+  .face-s { inline-size:32px; block-size:32px; font-size:var(--font-size-small); }
+  .face-l { inline-size:56px; block-size:56px; font-size:var(--font-size-title); }
+  .face-xl { inline-size:96px; block-size:96px; font-size:var(--font-size-hero); }
+  .face-i { display:grid; place-items:center; inline-size:100%; block-size:100%; }
+  .face-i svg { inline-size:1.4em; block-size:1.4em; }
+  .face-p { position:absolute; inset:0; inline-size:100%; block-size:100%; object-fit:cover; }
+  .face.t1 { background:var(--face-1-bg); color:var(--face-1-fg); }
+  .face.t2 { background:var(--face-2-bg); color:var(--face-2-fg); }
+  .face.t3 { background:var(--face-3-bg); color:var(--face-3-fg); }
+  .face.t4 { background:var(--face-4-bg); color:var(--face-4-fg); }
+  .face.t5 { background:var(--face-5-bg); color:var(--face-5-fg); }
+  .face.t6 { background:var(--face-6-bg); color:var(--face-6-fg); }
+  .face.t7 { background:var(--face-7-bg); color:var(--face-7-fg); }
+  .face.t8 { background:var(--face-8-bg); color:var(--face-8-fg); }
+  .face-link { display:inline-flex; align-items:center; gap:var(--space-8); color:inherit; min-width:0; }
+  .face-link:focus-visible { outline:none; }
+  .face-link:focus-visible .face { outline:2px solid var(--color-ink); outline-offset:2px; }
   .layout { display: grid; grid-template-columns: 208px 1fr; min-height: 100vh; }
   /* A grid child does not shrink below its own content unless told to: its
      default min-width is auto, so one unbreakable string — a long sku, a URL a
@@ -342,22 +378,14 @@ ${cssVariables()}
   nav.side { background: var(--color-paper); border-inline-end: 1px solid var(--color-border);
     padding: var(--space-16) var(--space-12); display:flex; flex-direction:column;
     position:sticky; top:0; height:100vh; overflow-y:auto; }
-  .navgroup + .navgroup { margin-top: var(--space-16); }
+  .navgroup + .navgroup { margin-top: var(--space-12); }
   .navfoot { margin-top:auto; padding-top: var(--space-16); }
-  nav.side a.navlink[href="/app/inbox"] { display:none; }
   .navhub { display:flex; flex-direction:column; }
-  .navhead { padding: var(--space-8) var(--space-12) var(--space-4); font-size: var(--font-size-small);
-    color: var(--color-ink-secondary); }
-  nav.side .subnav { display:flex; align-items:center; width:100%; min-height:40px;
-    padding: var(--space-8) var(--space-12) var(--space-8) var(--space-24); border:0; border-radius: var(--radius-card);
-    background:transparent; color: var(--color-ink-secondary); font: inherit; font-size: var(--font-size-small);
-    text-align:start; cursor:pointer; margin-bottom: var(--space-4); flex-wrap:wrap; }
-  .navout { margin:0; }
-  nav.side .navout .subnav { padding-inline-start: var(--space-12); }
-  nav.side .subnav:hover { background: var(--color-surface); color: var(--color-ink); }
-  nav.side .subnav.active { background: var(--color-surface); color: var(--color-ink); font-weight:600; }
-  /* Log out is the rail's foot on a wide screen; Setup's last row is the phone's. One on each. */
-  @media (min-width: 721px) { .block.signout { display:none; } }
+  /* THE WARMTH RUN — "Customers" heads its two pages: its own shape and word,
+     not a door (the two under it are). */
+  .navhead { display:flex; align-items:center; gap:var(--space-12); padding: var(--space-8) var(--space-12) var(--space-4);
+    font-size: var(--font-size-small); color: var(--color-ink-secondary); }
+  .navhead .ni { inline-size:20px; block-size:20px; }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
   .brand .mark { flex:none; }
@@ -388,21 +416,25 @@ ${cssVariables()}
     background:var(--color-surface); color:var(--color-ink); box-shadow:var(--shadow-lift2);
     font-size:var(--font-size-small); font-weight:600; }
   .skip:focus, .skip:focus-visible { top:var(--space-8); }
-  nav.side a.navlink { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12);
-    min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
+  /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
+  nav.side a.navlink { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) var(--space-12);
+    min-height: 44px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
+  nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
+  nav.side .ni { flex:none; inline-size:22px; block-size:22px; }
+  [dir="rtl"] .ni.flips { transform:scaleX(-1); }
   nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
-  /* M49 — the active destination reads by WEIGHT and a recess, not by colour.
-     Green was being spent five times on one screen: this slab, a panel, every
-     link, the language pill and the button. Colour that appears everywhere
-     marks nothing; jade now means only "this sends" and "this is a state". */
-  nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600; }
+  /* The entry you are on is unmistakable without a colour: a raised white
+     tile on the rail's grey, its word in weight, its shape drawn heavier. */
+  nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600;
+    box-shadow: var(--shadow-lift1); }
+  nav.side a.navlink.active .ni { stroke-width:2.3; }
   .nl-short { display:none; }
-  /* D — the setup count on the Setup entry: a figure at the far end of the
-     row, in the secondary ink. Not a state, so no state colour. */
-  /* V1 step three — the count sits BESIDE its word, not at the far end of the row. */
-  nav.side .navcount { margin-inline-start:var(--space-8); font-size:var(--font-size-caption);
-    font-weight:500; color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
+  /* The rail's one number: customers waiting for the owner, in the waiting
+     signal's colour, beside its word. */
+  nav.side .navcount { margin-inline-start:auto; min-inline-size:1.6em; padding:0 var(--space-4); text-align:center;
+    font-size:var(--font-size-caption); font-weight:700; color:var(--color-waiting); background:var(--color-waiting-wash);
+    border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
      chrome; the language switch and log out are the first rows of Setup, and
      the login page keeps its own switcher. */
@@ -485,7 +517,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      reached through its label, which is the 44px target. */
   .pform input:not([type="checkbox"]):not([type="radio"]), .pform textarea, .pform select {
     background:var(--color-surface); border:1px solid var(--color-ink-secondary);
-    border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit;
+    border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit;
     min-height:44px; resize:vertical; }
   .pform label.check { display:flex; align-items:center; gap:var(--space-8); min-height:44px; }
   /* Phase 9 (cross-new-03) — a field sent back is marked by its edge on every form, the calendar's too, not only a settings row. */
@@ -577,6 +609,16 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .sr-value.bad { color:var(--color-warn); font-weight:600; }
   .srow .go { flex:none; }
   .sr-ctl { flex:0 1 auto; min-width:0; }
+  /* THE WARMTH RUN — a menu row (Settings, and the menus phase 7 makes of My
+     business, the assistant and Setup): its shape, its name, where it stands,
+     and the door. The value keeps to its line on a phone, cut short rather
+     than pushed under. A row that does something (Log out) is a button drawn
+     as a row, in its own card at the foot. */
+  .sr-menu > .ni { flex:none; inline-size:22px; block-size:22px; color:var(--color-ink-secondary); }
+  [dir="rtl"] .sr-menu > .ni.flips { transform:scaleX(-1); }
+  button.srow { inline-size:100%; border:0; background:none; font:inherit; color:var(--color-ink); text-align:start; cursor:pointer; }
+  button.srow:hover, button.srow:focus-visible { background:var(--color-paper); }
+  .sr-foot { margin-block-start:var(--space-24); }
   /* A setting as a row inside its card: what it is on the start side, its
      control on the end side; stacked on a phone. One save per form, at the
      form's end. Phase 9 (settings-b-outreach-new-04): the bar no longer
@@ -607,6 +649,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
     a.srow { flex-wrap:wrap; row-gap:0; }
     a.srow .sr-main { flex-basis:0; }
     .sr-value { order:3; flex-basis:100%; max-width:100%; text-align:start; }
+    a.srow.sr-menu { flex-wrap:nowrap; }
+    a.srow.sr-menu .sr-main { flex-basis:auto; }
+    .sr-menu .sr-value { order:0; flex-basis:auto; max-width:50%; text-align:end; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   }
   .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .today-date { font-weight:400; }
@@ -650,7 +695,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .timeline { display:flex; flex-direction:column; gap:var(--space-12); }
   .msg { max-width:82%; }
   .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
-  .bubble { font-family:var(--font-voice); padding:10px 14px; border-radius:14px;
+  .bubble { font-family:var(--font-voice); padding:10px 14px; border-radius:var(--radius-card);
     white-space:pre-wrap; word-break:break-word; }
   /* The buyer's words are FULL SIZE; every reply is one step down. The page
      belongs to the buyer's business — she works inside it. */
@@ -719,7 +764,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
   .chips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .chip { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
+  .chip { background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:5px 12px; font-size:var(--font-size-caption); }
   .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-small); min-height:44px; }
   .facts { margin-top:var(--space-16); display:flex; flex-direction:column; gap:var(--space-8); }
   .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -785,7 +830,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      disclosure, a textarea outside a form — get the same recess as an input. */
   main select, main textarea, main input:not([type=checkbox]):not([type=radio]) {
     background:var(--color-surface); border:1px solid var(--color-ink-secondary);
-    border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
+    border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   main textarea { resize:vertical; }
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
@@ -817,11 +862,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
        unsupported the nav is simply sticky at full size. */
     nav.side { position:sticky; top:0; z-index:2; display:flex; flex-direction:row; align-items:center; gap:var(--space-4);
       height:auto; overflow:visible; padding:10px 12px; border-inline-end:none; border-bottom:1px solid var(--color-border); }
-    /* The groups dissolve into the one row; "Customers" is its entry, and its
-       two pages and Log out are reached from the pages themselves. */
-    .navgroup, .navfoot { display:contents; }
-    .navhub, .navout { display:none; }
-    nav.side a.navlink[href="/app/inbox"] { display:flex; }
+    /* The groups dissolve into the one row of five: Today, Inbox, Calendar,
+       the assistant, Settings — each its icon over its word. "Customers", the
+       wide rail's heading, is not an entry. */
+    .navgroup, .navfoot, .navhub { display:contents; }
+    .navhead { display:none; }
     /* The mark belongs to the product, so it sits with the product's nav — small,
        and without the word beside it. */
     nav.side .brand { display:flex; padding:0; margin-inline-end:var(--space-4); }
@@ -829,9 +874,13 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .mark-small { display:flex; }
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
-    nav.side a.navlink { flex:1 1 auto; flex-direction:row; flex-wrap:nowrap; white-space:nowrap; gap:var(--space-4); margin:0;
-      padding:var(--space-8) var(--space-4); min-height:56px; align-items:center; justify-content:center;
-      font-size:var(--font-size-caption); text-align:center; }
+    nav.side a.navlink, nav.side a.navlink.sub { position:relative; flex:1 1 0; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
+      gap:2px; margin:0; padding:var(--space-4) 2px; min-height:56px; min-width:0; align-items:center; justify-content:center;
+      font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
+    nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
+    nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
+    /* The count rides the icon's corner on a phone: the word keeps its room. */
+    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
     nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
     /* Phase 9 (V1-014) — the entries sit edge to edge (each keeps its own padding), so "Customers" can carry its count on the one line. */
@@ -885,7 +934,7 @@ const STYLE_PAGES = `
   .scard .langsw { flex-wrap:wrap; }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
   .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
-  .guide-step { border:1px solid var(--color-border); border-radius:12px; padding:var(--space-16); background:var(--color-surface); }
+  .guide-step { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-16); background:var(--color-surface); }
   .guide-step.next { border-color:var(--color-ink-secondary); }
   /* Phase 9 (V1-114) — the number holds the first line of a heading that wraps; the state ends its words. */
   .guide-step h2.gs-h { display:flex; align-items:baseline; gap:var(--space-8); margin:0 0 var(--space-12); }
@@ -894,7 +943,7 @@ const STYLE_PAGES = `
   .gs-t .pill { margin:0; margin-inline-start:var(--space-8); }
   .guide-step ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose); }
   .guide-step ol li + li { margin-top:var(--space-4); }
-  .guide-video { display:block; width:100%; max-width:var(--measure-prose); border-radius:8px; background:var(--color-paper); margin-bottom:var(--space-8); }
+  .guide-video { display:block; width:100%; max-width:var(--measure-prose); border-radius:var(--radius-card); background:var(--color-paper); margin-bottom:var(--space-8); }
   /* Phase 9 (today-onboarding-new-09) — a phone plays the step recorded at its own width. */
   .guide-video.narrow { display:none; }
   @media (max-width: 560px) { .guide-video.wide { display:none; } .guide-video.narrow { display:block; } }
@@ -906,7 +955,7 @@ const STYLE_PAGES = `
   .langs { display:grid; grid-template-columns:repeat(3, max-content); gap:0 var(--space-24); }
   @media (max-width: 560px) { .langs { grid-template-columns:repeat(2, max-content); } }
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   /* Phase 9 (V1-502) — the fixed words, one line a language, inside their fold. */
   .floor-fold summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:var(--font-size-small); }
   .floor-langs { margin:var(--space-8) 0 0; }
@@ -931,7 +980,7 @@ const STYLE_PAGES = `
   .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
   .sreq-q { font-size:var(--font-size-small); margin-top:var(--space-4); max-width:var(--measure-prose); }
   .sreq-a { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); max-width:var(--measure-form); }
-  .sreq-a textarea { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .sreq-a textarea { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .sreq-do { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
 
   /* ── pilot.ts — moved here whole in step four: page-specific names, defined once. */
@@ -949,7 +998,7 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-143) — an Arabic value is words, not code: the page's own face, at its labels' size. */
   :lang(ar) .rbrow .mono { font-family:inherit; font-size:var(--font-size-small); line-height:inherit; }
   /* Engine evidence: raw on purpose — it is read by whoever fixes the defect. */
-  .ev { border:1px solid var(--color-warn-line); background:var(--color-warn-wash); border-radius:12px; padding:12px 14px; margin-top:var(--space-12); }
+  .ev { border:1px solid var(--color-warn-line); background:var(--color-warn-wash); border-radius:var(--radius-card); padding:12px 14px; margin-top:var(--space-12); }
   .ev-h { display:flex; gap:var(--space-8); flex-wrap:wrap; }
   .ev-h .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
   .ev-d { font-size:var(--font-size-caption); color:var(--color-warn); margin-top:var(--space-8); }
@@ -982,7 +1031,7 @@ const STYLE_PAGES = `
     .pr > :not(.mk):not(.lbl):not(.pr-note) { grid-column:2; justify-self:start; }
     .pr-b { justify-content:flex-start; }
   }
-  .badge { font-size:var(--font-size-caption); padding:3px 10px; border-radius:999px; }
+  .badge { font-size:var(--font-size-caption); padding:3px 10px; border-radius:var(--radius-chip); }
   .badge.sys { background:var(--color-ok-wash); color:var(--color-ok); }
   .badge.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
   /* Phase 9 (V1-130, missed-17) — where the page stands, said as a state line with its mark: not a box that looks pressable. */
@@ -1017,7 +1066,7 @@ const STYLE_PAGES = `
   .hnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em; font-variant-numeric:tabular-nums; }
   .hlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .gaps { display:flex; flex-direction:column; gap:var(--space-8); }
-  a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper); border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
+  a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px 16px; }
   a.gap:hover, a.gap:focus-visible { border-color:var(--color-ink-secondary); }
   .gq { font-size:var(--font-size-small); color:var(--color-ink); }
   .gmeta { font-size:var(--font-size-caption); grid-column:1; }
@@ -1067,7 +1116,7 @@ const STYLE_PAGES = `
   .fwarn { color:var(--color-waiting); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fok { color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px; background:var(--color-paper); color:var(--color-ink); border:1px solid var(--color-border); }
+  .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:var(--radius-chip); background:var(--color-paper); color:var(--color-ink); border:1px solid var(--color-border); }
   .frules { margin:var(--space-16) 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-small); line-height:1.6; }
   /* The promise the whole product rests on — read it before the fine print. */
   .fnever { margin:var(--space-16) 0 0; font-size:var(--font-size-small); line-height:1.6; color:var(--color-ink); max-width:var(--measure-prose); border-inline-start:2px solid var(--color-ink); padding-inline-start:14px; }
@@ -1081,7 +1130,7 @@ const STYLE_PAGES = `
   .fgap-s { margin:0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
   .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
   .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
-  .alform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .alform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
   .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
@@ -1091,12 +1140,12 @@ const STYLE_PAGES = `
   .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .fconn.on .fconn-s { color:var(--color-ok); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
-  .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:14px; padding:14px 16px; }
+  .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:var(--radius-card); padding:14px 16px; }
   .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-waiting); }
   .fconn.off .fconn-s { color:var(--color-waiting); }
   .fconn.off .go { margin-inline-start:auto; }
   /* Phase 9 — never connected is not waiting on anything: a plain door, no wash and no mark. */
-  .fconn.todo { border:1px solid var(--color-border); border-radius:14px; padding:14px 16px; }
+  .fconn.todo { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px 16px; }
   .fconn.todo:hover, .fconn.todo:focus-visible { border-color:var(--color-ink-secondary); }
   .fconn.todo .go { margin-inline-start:auto; }
   .fblock .deeper { margin-top:var(--space-8); }
@@ -1109,7 +1158,7 @@ const STYLE_PAGES = `
   .pr-fold > summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:var(--font-size-small); }
 
   /* ── products.ts — moved here whole in step four: page-specific names, defined once. */
-  .pq input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
+  .pq input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
   /* Products are a dense list (decision 2), not a card each. */
@@ -1124,7 +1173,7 @@ const STYLE_PAGES = `
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .info { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
+  .imgs img { width:96px; height:96px; object-fit:cover; border-radius:var(--radius-control); border:1px solid var(--color-border); }
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); }
   .qrow:last-child { border-bottom:none; }
   .rev { display:flex; align-items:center; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); flex-wrap:wrap; }
@@ -1139,7 +1188,7 @@ const STYLE_PAGES = `
   .filepick:focus-within .btn { outline:2px solid var(--color-ink); outline-offset:2px; }
   .filepick input:invalid ~ .filepick-some, .filepick input:valid ~ .filepick-none { display:none; }
   .filepick-some { font-size:var(--font-size-small); color:var(--color-ink); }
-  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
+  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
   /* The import review: the photos beside the rows from a wide screen, above them on a phone. */
   .imp { display:block; }
@@ -1147,7 +1196,7 @@ const STYLE_PAGES = `
   @media (min-width:1100px) { .imp.with-photos { grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); align-items:start; }
     .imp-photos { position:sticky; top:var(--space-16); } }
   .imp-photo { margin:0 0 var(--space-16); }
-  .imp-photo img { display:block; width:100%; height:auto; border:1px solid var(--color-border); border-radius:10px; background:var(--color-paper); }
+  .imp-photo img { display:block; width:100%; height:auto; border:1px solid var(--color-border); border-radius:var(--radius-control); background:var(--color-paper); }
   .imp-photo figcaption { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-top:var(--space-4); }
   .imp-row { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .imp-row:last-child { border-bottom:0; }
@@ -1156,7 +1205,7 @@ const STYLE_PAGES = `
   .imp-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .imp-warn { display:block; color:var(--color-waiting); font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .imp-typed, .imp-q { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); margin-top:var(--space-8); }
-  .imp-typed input, .imp-pct input, .imp-edit input, .imp-edit select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
+  .imp-typed input, .imp-pct input, .imp-edit input, .imp-edit select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
   .imp-typed input, .imp-pct input { width:8em; }
   /* Phase 9 (V1-340) — the figure and its sign stay on one line, in either direction. */
   .imp-pct { display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap; }
@@ -1171,12 +1220,12 @@ const STYLE_PAGES = `
   .imp-acts { display:flex; flex-wrap:wrap; gap:var(--space-12); align-items:center; margin:var(--space-16) 0; }
   .imp-floor { align-items:flex-start; padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   /* A store's table, a few rows of it, scrolling sideways inside its own box on a phone. */
-  .imp-table { overflow-x:auto; margin:var(--space-12) 0; border:1px solid var(--color-border); border-radius:10px; }
+  .imp-table { overflow-x:auto; margin:var(--space-12) 0; border:1px solid var(--color-border); border-radius:var(--radius-control); }
   .imp-table table { border-collapse:collapse; font-size:var(--font-size-caption); min-width:100%; }
   .imp-table th, .imp-table td { padding:6px 10px; border-bottom:1px solid var(--color-border); text-align:start; white-space:nowrap; }
   .imp-cols label { display:flex; flex-direction:column; gap:var(--space-4); margin:var(--space-12) 0; }
   .imp-cols label.pcheck { flex-direction:row; }
-  .imp-cols select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
+  .imp-cols select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
 
   /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
   .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
@@ -1210,12 +1259,12 @@ const STYLE_PAGES = `
   .ch-h .pill { white-space:normal; }
   .ch-name { font-size:var(--font-size-small); font-weight:700; }
   .ch-desc { font-size:var(--font-size-caption); margin:var(--space-8) 0 var(--space-12); }
-  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
+  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
-  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
+  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:var(--radius-control); padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
   .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
-  .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   /* ── howYouSell.ts — Phase 9: the hub and its questions. */
   .hs-count { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
   .hs-start { margin:0 0 var(--space-8); }
@@ -1244,15 +1293,15 @@ const STYLE_PAGES = `
   /* Phase 9 (new-17) — lists, cards and empty panels share the one measure, so nothing on the page is narrower than its neighbours. */
   .klist, .kitem, .gap { max-width:var(--measure-prose); }
   .klist { display:flex; flex-direction:column; gap:var(--space-8); }
-  .krow { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
+  .krow { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); padding:12px 16px; }
   .krow:hover { border-color:var(--color-border); }
-  .kitem { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
+  .kitem { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px; margin-bottom:var(--space-12); }
   .kh { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .kh .src { margin-inline-start:auto; font-size:var(--font-size-caption); }
   .kc { margin:var(--space-8) 0; white-space:pre-wrap; }
   .teach, .krow-actions { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   .teach h3 { margin:0; font-size:var(--font-size-small); }
-  input[type=text], textarea, select { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
+  input[type=text], textarea, select { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; }
   .kbtns { display:flex; gap:var(--space-8); }
   /* Phase 9 (V1-372) — a certification is a row: its name, on or off in words, and the button that switches it. */
   .cert-name { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); }
@@ -1262,7 +1311,7 @@ const STYLE_PAGES = `
   h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
   .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
   .reqs .q { color:var(--color-ink); }
-  .gap { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
+  .gap { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px; margin-bottom:var(--space-12); }
   .ki-q { font-size:var(--font-size-small); margin-bottom:var(--space-8); }
   .ki-meta { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-12); }
   .gacts { display:flex; gap:var(--space-8); }
@@ -1495,7 +1544,7 @@ const STYLE_PAGES = `
   #approve summary .c.warn { color:var(--color-waiting); font-weight:600; }
   #approve details .und { margin:var(--space-4) 0 0; }
   .reasons { list-style:none; margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12); display:grid; gap:var(--space-4);
-    background:var(--color-paper); border-radius:6px; }
+    background:var(--color-paper); border-radius:var(--radius-control); }
   .reasons li { display:grid; grid-template-columns:1.2em minmax(6em, max-content) 1fr; gap:var(--space-8); align-items:baseline; }
   .reasons .mk.warn { color:var(--color-waiting); }
   /* Phase 9 (V1-242) — a product's name stays whole where the line has room. */
@@ -1507,7 +1556,7 @@ const STYLE_PAGES = `
   }
   .approve { display:flex; flex-direction:column; gap:var(--space-8); }
   .approve textarea { font-family:var(--font-voice); font-size:var(--font-size-base); color:var(--color-ink);
-    background:var(--color-surface); border:1.5px solid var(--color-ink); border-radius:6px; padding:10px 14px;
+    background:var(--color-surface); border:1.5px solid var(--color-ink); border-radius:var(--radius-control); padding:10px 14px;
     width:100%; min-height:4.5em; max-height:50vh; resize:vertical; margin:0; field-sizing:content; }
   .approve .acts { align-items:center; margin:0; }
   /* Phase 9 (V1-237) — the quiet act on its own line under the two answers, the window at its far end. */
@@ -1708,7 +1757,7 @@ const STYLE_PAGES = `
   .pcase.bad .pmark { color:var(--color-warn); }
   .ptitle { color:var(--color-ink-secondary); }
   .pproves { margin:var(--space-12) 0 0; max-width:var(--measure-prose); line-height:1.6; }
-  .sbx-banner { background:var(--color-paper); color:var(--color-ink); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
+  .sbx-banner { background:var(--color-paper); color:var(--color-ink); border:1px solid var(--color-border); border-radius:var(--radius-card); padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
   .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
   .sbx-mode { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
@@ -1721,10 +1770,10 @@ const STYLE_PAGES = `
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }
   .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
+  select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
   .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
-  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
+  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   .sbx-trust { border-color:var(--color-waiting-line); }
   .sbx-trust.pass { border-color:var(--color-ok-line); }
   .sbx-trust.fail { border-color:var(--color-warn-line); }
@@ -1997,9 +2046,12 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/samples': { href: '/app/business', label: 'nav.factory' },
   '/app/settings/terms': { href: '/app/business', label: 'nav.factory' },
   '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
-  '/app/settings/people': { href: '/app/settings', label: 'nav.settings' },
-  '/app/guide': { href: '/app/settings', label: 'nav.settings' },
-  '/app/onboarding': { href: '/app/settings', label: 'nav.settings' },
+  '/app/settings/people': { href: '/app/settings/setup', label: 'nav.setup' },
+  '/app/guide': { href: '/app/settings/setup', label: 'nav.setup' },
+  '/app/onboarding': { href: '/app/settings/setup', label: 'nav.setup' },
+  // THE WARMTH RUN — Settings' two rows lead back to it.
+  '/app/settings/setup': { href: '/app/settings', label: 'nav.settings' },
+  '/app/business': { href: '/app/settings', label: 'nav.settings' },
   '/app/ready': { href: '/app/onboarding', label: 'nav.onboarding' },
 };
 const wayBack = (locale: Locale, path: string, body: string): string => {
@@ -2036,75 +2088,49 @@ export function shell(input: {
   const { locale } = input;
   const name = assistantName(locale);
   const here = hubFor(input.path, input.active);
-  const setup = setupState();
-  const link = (n: typeof NAV[number]) => {
+  /**
+   * THE WARMTH RUN (2026-10-03), phase 1 — the rail: Today; Customers, with
+   * Inbox and Calendar under it; the assistant; Settings at the foot. Daily
+   * work at the top, management at the bottom. Each entry is its icon and its
+   * word; the one you are on is a raised white tile with its word in weight
+   * and its icon drawn heavier — unmistakable without a colour.
+   *
+   * ONE number in the rail: on Inbox, how many customers wait for the owner
+   * now, in the waiting signal's magenta. Nothing else counts anything here —
+   * not setting up, not the calendar: a number that is not a customer waiting
+   * is the kind of badge the owner ruled out.
+   */
+  const entry = (n: typeof NAV[number], sub = false) => {
     const on = n.id === here;
     // A5 — the entry for the assistants is the assistant's NAME while there is
-    // one, and "Team" once there are several. A menu item that reads as a
-    // person is the right label for a business with one assistant and the
-    // wrong one for a business with four, and `nav.employee` is literally
-    // `{name}`.
+    // one, and "Team" once there are several.
     const label = n.id === 'employee' && assistantsAreSeveral()
       ? t(locale, 'nav.team')
       : t(locale, `nav.${n.id}` as MessageKey);
-    // D — while setup is incomplete, Setup carries the count: "3/5". A count,
-    // not a colour — nothing here is wrong, it is simply not finished. It
-    // disappears when the last step is done, and the entry stays.
-    const count = n.id === 'settings' && setup && setup.next !== null ? setup : null;
-    // Phase 9 (V1-014, V1-098) — on a phone "Customers" is the entry, so it
-    // carries the one number the rail's list carries: who needs the owner now.
     const waiting = n.id === 'inbox' ? needsYouCount() : null;
-    const badge = count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, `${count.done}/${count.total}`))}</span>`
-      : waiting ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, String(waiting)))}</span>` : '';
-    const aria = count
-      ? ` aria-label="${esc(label)}, ${esc(t(locale, 'nav.setup.progress', { done: count.done, total: count.total }))}"`
-      : waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
-    // PHASE 7 OF THE UI REBUILD (2026-10-02) — on a phone the five entries
-    // share ONE line, and none breaks in two: "Your assistant" (while it has no
-    // name) and "My business" have a shorter phone form. The stylesheet shows
-    // one of the two; a screen reader hears only the one shown.
-    const short = n.id === 'factory' ? t(locale, 'nav.short.factory')
+    const badge = waiting ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, String(waiting)))}</span>` : '';
+    const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
+    // On a phone the five entries share one line, icon over word: the longer
+    // words have a phone form. The stylesheet shows one; a screen reader hears
+    // the one shown.
+    const short = n.id === 'inbox' ? t(locale, 'nav.short.inbox')
       : n.id === 'employee' && !assistantsAreSeveral() && label.toLocaleLowerCase() === ASSISTANT_FALLBACK[locale].toLocaleLowerCase()
         ? t(locale, 'nav.short.employee') : null;
-    const text = short && short !== label ? `<span class="nl-long">${esc(label)}</span><span class="nl-short">${esc(short)}</span>` : esc(label);
-    // A11y — `aria-current="page"` is what tells a screen reader which of five
-    // identical links is the one you are on. The class is for everyone else.
-    return `<a href="${n.href}" class="navlink ${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}${aria}
-       >${text}${badge}</a>`;
+    const text = short && short !== label
+      ? `<span class="nl-text"><span class="nl-long">${esc(label)}</span><span class="nl-short">${esc(short)}</span></span>`
+      : `<span class="nl-text">${esc(label)}</span>`;
+    // A11y — `aria-current="page"` tells a screen reader which entry is this page.
+    return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
+       >${icon(NAV_ICON[n.id] ?? 'today')}${text}${badge}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
-  /**
-   * THE RAIL HAS GROUPS (the design pass, 2026-09-29; the plan's §2). The work
-   * — Today, and the customers: their conversations and the calendar; then
-   * what is the owner's — the assistant and the business; Setup and Log out at
-   * the foot. Still five entries (D's rule): on a phone they are the one row,
-   * and "Customers" is its entry; on a wide screen "Customers" heads its two
-   * pages, and Conversations carries the one number in the rail — how many
-   * customers need the owner now. Log out is a button: it changes something.
-   */
-  const url = (input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app';
-  const inCalendar = url === '/app/calendar';
-  // Phase 9 (V1-547) — a page reached from the list (who may be written to,
-  // finding customers, first e-mails) lights the list on a wide screen too:
-  // the phone lit "Customers" while the rail lit nothing.
-  const inConversations = url === '/app/inbox' || url.startsWith('/app/inbox/') || url.startsWith(`${MERGED_INTO_BUYERS}/`)
-    || url.startsWith('/app/orders/') || (here === 'inbox' && !inCalendar);
-  const needs = needsYouCount();
-  const sub = (href: string, key: MessageKey, on: boolean, count: number | null) =>
-    `<a href="${href}" class="subnav${on ? ' active' : ''}"${on ? ' aria-current="page"' : ''}${
-      count ? ` aria-label="${esc(t(locale, key))}, ${esc(tn(locale, 'nav.needsYou', count))}"` : ''}>${esc(t(locale, key))}${
-      // Phase 9 (V1-172) — the number says what it counts, to everyone: "3 waiting".
-      count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, t(locale, 'nav.waiting', { n: count })))}</span>` : ''}</a>`;
-  const nav = `<div class="navgroup">${link(byId('home'))}${link(byId('inbox'))}
-      <div class="navhub" role="group" aria-labelledby="nav-customers">
-        <span class="navhead" id="nav-customers">${esc(t(locale, 'nav.customers'))}</span>
-        ${sub('/app/inbox', 'nav.conversations', inConversations, needs && needs > 0 ? needs : null)}
-        ${sub('/app/calendar', 'nav.calendar', inCalendar, null)}
-      </div></div>
-    <div class="navgroup">${link(byId('employee'))}${link(byId('factory'))}</div>
-    <div class="navfoot">${link(byId('settings'))}
-      <form method="post" action="/logout" class="navout"><button type="submit" class="subnav">${esc(t(locale, 'header.logout'))}</button></form>
-    </div>`;
+  const nav = `<div class="navgroup">${entry(byId('home'))}</div>
+    <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
+      <span class="navhead" id="nav-customers">${icon('customers')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
+      ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
+    </div>
+    <div class="navgroup">${entry(byId('employee'))}</div>
+    <div class="navfoot">${entry(byId('settings'))}</div>`;
   /**
    * CC-14 — whose workspace this is, in the owner's own words. It read
    * "Nomi · Lily's workspace" to everyone, and a new owner never saw the name

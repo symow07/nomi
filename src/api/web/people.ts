@@ -289,7 +289,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     </form>`).join('');
 
   // Phase 9 (V1-512) — the way back to Setup, as Business profile has.
-  return `${back('/app/settings', t(locale, 'nav.settings'))}
+  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'people.title'))}</h1>
     ${flashBanner(flash)}
     ${issued}

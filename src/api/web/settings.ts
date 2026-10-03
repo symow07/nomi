@@ -4,7 +4,8 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
-import { t, tn, assistantName, setupState } from './say.js';
+import { t, tn, assistantName, setupState, businessName } from './say.js';
+import { icon } from './icons.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR, FLOOR_BY_LANGUAGE } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
@@ -307,23 +308,45 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
   const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value, r.find ?? '')) })).filter((g) => g.rows.length > 0);
   const language = hit(t(locale, 'settings.language.title'))
     ? `<section class="sgroup" aria-labelledby="sg-language"><h2 class="sgroup-h" id="sg-language">${esc(t(locale, 'settings.language.title'))}</h2>
-        <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings')}</span></div></div></section>` : '';
-  const search = `<form class="search" method="get" action="/app/settings" role="search">
+        <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings/setup')}</span></div></div></section>` : '';
+  const search = `<form class="search" method="get" action="/app/settings/setup" role="search">
       <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'setup.search.placeholder'))}" aria-label="${esc(t(locale, 'setup.search.label'))}" />
       <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
-      ${q ? `<a class="clear" href="/app/settings">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
+      ${q ? `<a class="clear" href="/app/settings/setup">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
     </form>`;
   const body = shown.length === 0 && !language
-    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}<div>${deeper('/app/settings', t(locale, 'setup.search.all'))}</div></div>`
+    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}<div>${deeper('/app/settings/setup', t(locale, 'setup.search.all'))}</div></div>`
     : `${language}${shown.map((g) => `<section class="sgroup" aria-labelledby="sg-${g.id}"><h2 class="sgroup-h" id="sg-${g.id}">${esc(g.title)}</h2>
         <ul class="scard">${g.rows.map(row).join('')}</ul></section>`).join('')}`;
-  return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
+  return `<h1 class="page">${esc(t(locale, 'nav.setup'))}</h1>
     ${flashBanner(flash)}
     ${search}
-    ${body}
-    <div class="block signout"><form method="post" action="/logout">
-      ${/* Phase 9 (V1-154) — a button that looks like one, at the cards' edge. */ ''}<button class="btn" type="submit">${esc(t(locale, 'header.logout'))}</button>
-    </form></div>`;
+    ${body}`;
+}
+
+/**
+ * THE WARMTH RUN (2026-10-03), phase 1 — SETTINGS: the screen the rail's
+ * Settings opens. Two rows, each with its shape and where it stands — My
+ * business (the business's name) and Setup (its steps, while any is left) —
+ * and Log out at the foot, apart from them: it is the one row that does
+ * something rather than opening something.
+ */
+export function renderSettingsHome(locale: Locale, flash: Flash | null): string {
+  const setup = setupState();
+  const business = businessName();
+  const progress = setup ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total })) : '';
+  const row = (href: string, shape: Parameters<typeof icon>[0], label: string, value: string, tone?: 'ok' | 'warn') =>
+    `<li><a class="srow sr-menu" href="${href}">${icon(shape)}<span class="sr-main"><span class="sr-label">${esc(label)}</span></span>`
+    + `${value ? `<span class="sr-value${tone ? ` ${tone}` : ''}"><bdi>${esc(value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
+  return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
+    ${flashBanner(flash)}
+    <ul class="scard">
+      ${row('/app/business', 'business', t(locale, 'nav.factory'), business ?? '')}
+      ${row('/app/settings/setup', 'setup', t(locale, 'nav.setup'), progress, setup ? (setup.next === null ? 'ok' : 'warn') : undefined)}
+    </ul>
+    <form class="scard sr-foot" method="post" action="/logout">
+      <button class="srow sr-menu sr-out" type="submit">${icon('logout')}<span class="sr-main"><span class="sr-label">${esc(t(locale, 'header.logout'))}</span></span></button>
+    </form>`;
 }
 
 /** The business profile, on its own page (it was inline among Setup's doors). */
@@ -489,7 +512,7 @@ export function renderProfile(
   </form>`;
 
   const missing = needs.description || needs.location || needs.contact;
-  return `${back('/app/settings', t(locale, 'nav.settings'))}
+  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
     ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}

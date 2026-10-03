@@ -26,7 +26,7 @@ export type BillingView = {
 };
 
 export function renderBilling(v: BillingView, locale: Locale, flash: Flash | null, backLabel: string): string {
-  const head = `${back('/app/settings', backLabel)}
+  const head = `${back('/app/settings/setup', backLabel)}
     <h1 class="page">${esc(t(locale, 'billing.title'))}</h1>
     ${flashBanner(flash)}`;
   // Phase 9 (settings-a-new-05, -06) — what Setup's row promises, the plan and

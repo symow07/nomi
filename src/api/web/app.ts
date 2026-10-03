@@ -22,6 +22,7 @@ import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from
 import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
+import { keptFace } from '../../db/faces.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
@@ -149,7 +150,7 @@ import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderSettingsHome, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
@@ -1162,6 +1163,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.get(`/assets/icon-${size}.png`, async (_req, reply) => reply
       .header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type('image/png').send(APP_ICONS[size]));
   }
+  /**
+   * THE WARMTH RUN (2026-10-03) — a customer's photo, as kept (0123). Signed
+   * in, and under the business's row security: another business's customer is
+   * a 404 like a missing one. The address carries the photo's version, so the
+   * browser keeps it for good and asks again only when it changes. Only the
+   * four picture types the job keeps are ever served, and never sniffed.
+   */
+  app.get('/app/faces/:clientId', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.code(401).send();
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.code(404).send();
+    const kept = await withTenantTx(deps.db, bid.value, (tx) => keptFace(tx, (req.params as { clientId: string }).clientId)).catch(() => null);
+    if (!kept) return reply.code(404).header('cache-control', 'private, no-store').send();
+    const asked = String((req.query as { v?: string } | undefined)?.v ?? '');
+    return reply.header('cache-control', asked === kept.version ? 'private, max-age=31536000, immutable' : 'private, no-cache')
+      .header('x-content-type-options', 'nosniff').header('content-disposition', 'inline')
+      .type(kept.type).send(kept.bytes);
+  });
   app.get('/assets/:file', async (req, reply) => {
     const found = assetAt((req.params as { file: string }).file);
     if (!found) return reply.callNotFound();
@@ -1693,7 +1713,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * there. Owner-only: money is the owner's (rule 11).
    */
   const billingBase = (deps.publicBaseUrl ?? '').replace(/\/+$/, '');
-  app.get('/app/settings/billing', ownerPage('billing', 'settings', '/app/settings', async (s, req, reply, locale) => {
+  app.get('/app/settings/billing', ownerPage('billing', 'settings', '/app/settings/setup', async (s, req, reply, locale) => {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return '';
     const facts = await withTenantTx(deps.db, bid.value, async (tx) => ({
@@ -1709,7 +1729,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
       people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
       returned: card === 'saved' || card === 'cancelled' ? card : null,
-    }, locale, takeFlash(req, reply), t(locale, 'nav.settings'))
+    }, locale, takeFlash(req, reply), t(locale, 'nav.setup'))
       + (confirming ? liveRegion(locale, billingWatch(await billingMark(deps.db, bid.value), true)) : '');
   }));
 
@@ -1788,7 +1808,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
-    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.settings'));
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.setup'));
   }));
 
   /**
@@ -1799,10 +1819,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * cannot be undone from inside the product. Staff are told whose decision it
    * is rather than shown a form that turns them away.
    */
-  app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings',
+  app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
     async (s, req, reply, locale) => renderDataRights(
       { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null }, locale, takeFlash(req, reply),
-      personOf(s), t(locale, 'nav.settings'))));
+      personOf(s), t(locale, 'nav.setup'))));
 
   /**
    * One file, streamed as an attachment.
@@ -1818,7 +1838,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   app.get('/app/settings/data/:file', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings');
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
     if (!s) return reply;
     const file = (req.params as { file: string }).file;
     const subject = exportSubjectOf(file.endsWith('.csv') ? file.slice(0, -'.csv'.length) : file);
@@ -3827,7 +3847,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .type(found.type).send(found.body);
   });
 
+  /**
+   * THE WARMTH RUN (2026-10-03), phase 1 — Settings: a short menu of two rows,
+   * My business and Setup, each with where it stands, and Log out at its foot.
+   * Log out left the rail; this is where it lives now.
+   */
   app.get('/app/settings', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'nav.settings'), active: 'settings',
+      bodyHtml: renderSettingsHome(locale, takeFlash(req, reply)),
+    }));
+  });
+  app.get('/app/settings/setup', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
@@ -3844,7 +3878,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
     ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.settings'), active: 'settings',
+      title: t(locale, 'nav.setup'), active: 'settings',
       bodyHtml: renderSetup({
         kind: kind.kind ? t(locale, `business.kind.${kind.kind}` as MessageKey) : null, people: people.length,
         howYouSell: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
@@ -3911,7 +3945,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // before sign-up asked gives the answer for the first time.
   app.get('/app/settings/business', authed('settings', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
-    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.settings'));
+    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.setup'));
   }));
   app.post('/app/settings/business', async (req, reply) => {
     const s = sessionOf(req);
@@ -4037,7 +4071,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // M47 — who works here. OWNER ONLY: handing someone a way in is hers — and
   // since G9a the page too, not only the form's POST.
-  app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings', async (sess, req, reply, locale) => {
+  app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings/setup', async (sess, req, reply, locale) => {
     // A code is shown ONCE: read from the cookie the POST set, and cleared in
     // the same response. Never in a URL, never stored.
     const cookie = parseCookies(req.headers.cookie)[ISSUED_COOKIE];
