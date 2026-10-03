@@ -39,7 +39,8 @@ describe('Guide · the page', () => {
     expect(withVideo).toContain('<track kind="captions" src="/assets/guide/products.es.vtt" srclang="es"');
     expect(withVideo).toContain(esc(t('es', 'guide.products.cap.2')));
     expect(withVideo).not.toContain('<summary>');
-    expect(withVideo.match(/<video/g)).toHaveLength(1);
+    // Phase 9 (today-onboarding-new-09) — one recording for a wide screen, one for a phone; the CSS shows one.
+    expect(withVideo.match(/<video class="guide-video (wide|narrow)"/g)).toHaveLength(2);
   });
   it('every step has its captions in every language', () => {
     for (const l of LOCALES) for (const step of SETUP_STEPS) {
@@ -76,5 +77,18 @@ describe('Guide · where it is reached', () => {
   it('Setup\'s first door, and Today\'s "finish setting up" line', () => {
     expect(src('src/api/web/settings.ts')).toContain("{ href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready,");
     expect(src('src/api/web/operations.ts')).toContain("deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))");
+  });
+});
+
+describe('Phase 9 (today-onboarding-new-09, new-08) · every step recorded in five languages, at two widths', () => {
+  it('each step has its desktop and phone recordings, captions and stills, in every language', () => {
+    for (const l of LOCALES) for (const step of SETUP_STEPS) for (const n of [`${step}.${l}`, `${step}.${l}.phone`]) {
+      for (const ext of ['webm', 'vtt', 'jpg']) expect(guideFileAt(`${n}.${ext}`), `${n}.${ext}`).not.toBeNull();
+    }
+  });
+  it('a phone plays its own recording; a wide screen the other', () => {
+    const css = src('src/api/web/layout.ts');
+    expect(css).toContain('.guide-video.narrow { display:none; }');
+    expect(css).toContain('@media (max-width: 560px) { .guide-video.wide { display:none; } .guide-video.narrow { display:block; } }');
   });
 });

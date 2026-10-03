@@ -22,8 +22,8 @@ for (const f of readdirSync(DIR).filter((x) => /^[a-z_]+\.[a-z]{2}(\.phone)?\.we
   const at = path.join(DIR, f);
   const seconds = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', at]).toString().trim());
   lengths[name] = Math.round(seconds);
-  // A phone recording keeps its own width (780 px, twice the 390 px screen), so its words stay readable.
-  const width = name.endsWith('.phone') ? 780 : 960;
+  // A phone recording keeps its own width (the 390 px screen), so its words stay readable.
+  const width = name.endsWith('.phone') ? 390 : 960;
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', '2', '-i', at, '-frames:v', '1', '-vf', `scale=${width}:-2`, '-q:v', '7', path.join(DIR, `${name}.jpg`)]);
   console.log(`${name}: ${lengths[name]} s`);
 }

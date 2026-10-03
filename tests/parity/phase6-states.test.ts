@@ -120,7 +120,9 @@ describe('phase 6 · nothing waits for something that never comes', () => {
 
   it('the guide: a still of each step and how long it takes, before anything is fetched', () => {
     const html = renderGuide({ steps: [], next: 'profile' }, 'en', 'Lily');
-    expect(html).toMatch(/<video class="guide-video" controls preload="none" playsinline poster="\/assets\/guide\/profile\.en\.jpg">/);
+    expect(html).toMatch(/<video class="guide-video wide" controls preload="none" playsinline poster="\/assets\/guide\/profile\.en\.jpg">/);
+    // Phase 9 (today-onboarding-new-09) — and the phone's own recording, with its own still.
+    expect(html).toMatch(/<video class="guide-video narrow" controls preload="none" playsinline poster="\/assets\/guide\/profile\.en\.phone\.jpg">/);
     expect(html).toMatch(/<p class="caption muted">Video · \S+ seconds<\/p>/);
   });
 });
