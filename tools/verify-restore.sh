@@ -14,6 +14,9 @@
 #   d) isolation actually DENIES as the runtime role, no tenant context:
 #                               select count(*) from businesses  ==  0
 #
+# and REPORTS one more thing without counting it: (e) the erasure ledger
+# (0126) — how many erasures this copy records, and any that do not hold in it.
+#
 # (d) IS THE ONE THAT MATTERS. It is what a roles-less restore silently breaks:
 # the tables come back, the rows come back, the query returns them, and nothing
 # anywhere reports an error. If (d) is not 0, the backup is not usable.
@@ -207,6 +210,26 @@ fi
 # context: what a superuser sees, to show (d) is denial and not an empty database
 ADMIN_N="$(q 'select count(*) from businesses')"
 echo "      (as postgres, bypassing RLS: $ADMIN_N businesses — so (d)=0 is denial, not emptiness)"
+
+# (e) 0126 — THE ERASURE LEDGER, reported and never counted. A backup cannot be
+# edited: a customer erased after it was taken is still inside it. That does not
+# make the copy unusable; it is what tools/replay-erasures.mjs carries out again
+# after a restore, BEFORE the app is pointed at it (docs/BACKUP-RESTORE.md,
+# "Restore"). Here: the copy's own ledger lines, and any that do not hold in it
+# (none, in a consistent dump: each line is written in its erasure's transaction).
+if [ "$(q "select to_regprocedure('erasure_ledger_unkept()') is not null")" = "t" ]; then
+  LEDGER_N="$(q 'select count(*) from erasure_ledger')"
+  UNKEPT_N="$(q 'select count(distinct ledger_id) from erasure_ledger_unkept()')"
+  if [ "$UNKEPT_N" = "0" ]; then
+    echo "  (e) erasure ledger: $LEDGER_N line(s), every one holds in this copy"
+  else
+    echo "  (e) erasure ledger: $LEDGER_N line(s), $UNKEPT_N do NOT hold in this copy —" >&2
+    echo "      after restoring it, run tools/replay-erasures.mjs before the app" >&2
+  fi
+else
+  echo "  (e) no erasure ledger in this copy (schema before 0126): after restoring it, migrate,"
+  echo "      then run tools/replay-erasures.mjs with the live ledger, before the app"
+fi
 
 echo
 if [ "$FAILED" -eq 0 ]; then
