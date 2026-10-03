@@ -80,8 +80,8 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
   /** The Getting ready row for the channel item, done or not. */
   const channelRow = (html: string, done: boolean) =>
-    // Phase 9 (today-onboarding-new-11) — the open mark is the waiting ○ in its amber.
-    html.includes(`<div class="pr ${done ? 'done' : 'todo'}">${done ? '<span class="mk">✓</span>' : '<span class="mk dot warn">○</span>'} <span class="lbl">${esc(t('en', 'pilot.item.channel'))}</span>`);
+    // Phase 9 of the warmth run (w4-today-setup-06) — the open mark is the to-do ○: a chore, never the waiting signal.
+    html.includes(`<div class="pr ${done ? 'done' : 'todo'}">${done ? '<span class="mk">✓</span>' : '<span class="mk dot todo">○</span>'} <span class="lbl">${esc(t('en', 'pilot.item.channel'))}</span>`);
 
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');

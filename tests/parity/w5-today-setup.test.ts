@@ -4,13 +4,15 @@ import { setupFrom } from '../../src/db/setup.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { shell } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
-import { menuRow, renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
+import { menuRow, renderSetup, renderSettingsHome, renderLanguage } from '../../src/api/web/settings.js';
+import { renderPilotReadiness, renderPilotRunbook, renderPilotScreen, renderPilotTechnical, practiceTasks, PILOT_SCREEN_PATH,
+  type PilotReadiness, type PilotRunbook, type PilotFeedback } from '../../src/api/web/pilot.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY, shortName, type TodayData } from '../../src/api/web/today.js';
 import { renderInsights } from '../../src/api/web/insights.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
-import { t } from '../../src/core/owner/i18n/messages.js';
-import { esc } from '../../src/api/web/layout.js';
+import { t, messages } from '../../src/core/owner/i18n/messages.js';
+import { esc, BACK_TO, notFoundInside } from '../../src/api/web/layout.js';
 import type { Locale } from '../../src/core/owner/i18n/locale.js';
 import { readFileSync } from 'node:fs';
 
@@ -214,5 +216,182 @@ describe('V1-011 · V1-109 · "customers answered" and the fifth step count repl
     expect(step).toMatch(/o\.origin = 'employee'/);
     expect(step).toMatch(/o\.status in \('sent', 'delivered', 'read'\)/);
     expect(setupSql).not.toMatch(/d\.status in \('approved','edited'\)/);
+  });
+});
+
+// ── the checklist (was "Before going live"), its two screens, Ready, the guide ──
+
+const PR: PilotReadiness = {
+  detected: { profile: true, products: true, priceRules: false, knowledge: false, claims: false, sandbox: false, channel: true },
+  attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
+  validation: { at: null, pass: null, total: null }, backupVerifiedAt: null, readyToLaunch: false, assistantName: 'Lily',
+};
+const RB: PilotRunbook = {
+  readiness: PR, operations: SNAP(true),
+  rehearsal: { available: true, done: { takeover: true, ownerReply: false, resume: false, knowledgeCorrection: false, validationPassed: false }, completed: 1, total: 5 },
+  reliability: { stuckOutbound: 0, oldestQueuedAt: null, sent: 3 },
+};
+const FB: PilotFeedback = { range: 'month', handoffReasons: [], ownerActions: [], conversationsNeedingYou: 0, lastActivityAt: null, hasActivity: false };
+
+describe('w4-today-setup-15 · the checklist is the owner\'s chores; what followed it is two screens a tap down', () => {
+  for (const l of LOCALES) {
+    it(`${l} · no week of counts, no delivery, no practice list, no history on the checklist — two rows to them`, () => {
+      const html = inScope(() => renderPilotRunbook(RB, l, null, FB));
+      for (const k of ['runbook.during.week', 'ops.health.title', 'feedback.title', 'runbook.after.title'] as const) expect(html, k).not.toContain(esc(t(l, k)));
+      expect(html).not.toContain('<ol class="rbsteps">');
+      expect(html).toContain(`<a class="srow sr-menu" href="${PILOT_SCREEN_PATH.practice}">`);
+      expect(html).toContain(`<a class="srow sr-menu" href="${PILOT_SCREEN_PATH.activity}">`);
+      expect(html.replace(/[\u2066-\u2069]/g, '')).toContain(`<span class="sr-value warn"><bdi>${esc(t(l, 'runbook.practice.count', { done: 1, total: 5 }))}</bdi></span>`);
+    });
+    it(`${l} · the two screens carry what left it`, () => {
+      const practice = inScope(() => renderPilotScreen('practice', RB, l));
+      const activity = inScope(() => renderPilotScreen('activity', RB, l, FB));
+      expect(practice).toContain(`<h1 class="page">${esc(t(l, 'runbook.practice.title'))}</h1>`);
+      expect(activity).toContain(`<h1 class="page">${esc(t(l, 'runbook.during.title'))}</h1>`);
+      for (const k of ['runbook.during.week', 'ops.health.title', 'feedback.title', 'runbook.after.title'] as const) expect(activity, k).toContain(esc(t(l, k)));
+    });
+  }
+  it('each screen has its address, lights Setup\'s hub and leads back to the checklist', () => {
+    const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(app).toContain('for (const which of PILOT_SCREENS) {');
+    expect(app).toContain('app.get(PILOT_SCREEN_PATH[which],');
+    for (const p of Object.values(PILOT_SCREEN_PATH)) expect(BACK_TO[p]).toEqual({ href: '/app/onboarding', label: 'nav.onboarding' });
+  });
+});
+
+describe('V1-120 · w4-today-setup-17 · -18 · V1-124 · what to try in Practice is said as tasks, one list, every item with its mark', () => {
+  for (const l of LOCALES) {
+    it(`${l}`, () => {
+      const html = inScope(() => renderPilotRunbook(RB, l, null, FB) + renderPilotScreen('practice', RB, l) + renderPilotScreen('activity', RB, l, FB));
+      const rows = [...html.matchAll(/<div class="pr (done|todo)"><span class="mk[^"]*">([✓○])<\/span> <span class="lbl">([^<]+)<\/span><\/div>/g)];
+      const tasks = (['runbook.step.takeover', 'runbook.step.reply', 'runbook.step.resume', 'runbook.step.teach', 'pilot.validate'] as const).map((k) => esc(inScope(() => t(l, k))));
+      expect(rows.map((m) => m[3]).filter((x) => tasks.includes(x!))).toEqual(tasks);
+      expect(rows.find((m) => m[3] === tasks[0])![2]).toBe('✓');
+    });
+  }
+  it('the words that read as done while open, and the inside words, are gone from every catalogue', () => {
+    for (const l of LOCALES) {
+      const all = Object.entries(messages[l]);
+      expect(all.filter(([k]) => k.startsWith('runbook.rehearse.')), l).toEqual([]);
+    }
+    const en = Object.values(messages.en).join('\n');
+    for (const w of ['Trust validation passed', 'Knowledge taught', 'Delivery health', 'Take-over practiced', 'Owner reply practiced', 'Hand-back practiced'])
+      expect(en, w).not.toContain(w);
+    const ar = Object.values(messages.ar).join('\n');
+    for (const w of ['اجتاز التحقق من الثقة', 'رد المالك']) expect(ar, w).not.toContain(w);
+  });
+  it('a workspace that signed itself up is not asked for the standard test conversations', () => {
+    const own = practiceTasks({ ...RB, readiness: { ...PR, selfServe: true } });
+    expect(own.map((x) => x.step)).toEqual(['takeover', 'ownerReply', 'resume', 'knowledgeCorrection']);
+  });
+});
+
+describe('V1-122 · "What happened so far" says nothing that the counts above contradict', () => {
+  it('the empty state names this month and what did not happen — not "once customers start talking"', () => {
+    expect(t('en', 'feedback.none')).toMatch(/this month/);
+    expect(t('en', 'feedback.none')).not.toMatch(/start talking/);
+    expect(t('zh', 'feedback.none')).toContain('本月');
+    expect(t('ar', 'feedback.none')).toContain('هذا الشهر');
+    expect(t('es', 'feedback.none')).toContain('este mes');
+    expect(t('fr', 'feedback.none')).toContain('ce mois-ci');
+  });
+});
+
+describe('w4-today-setup-19 · the checklist says where it stands under its intro', () => {
+  for (const l of LOCALES) {
+    it(`${l}`, () => {
+      const html = inScope(() => renderPilotReadiness(PR, l, null));
+      expect(html.indexOf('class="verdict"')).toBeGreaterThan(html.indexOf(esc(t(l, 'pilot.intro'))));
+      expect(html.indexOf('class="verdict"')).toBeLessThan(html.indexOf(`<h2>${esc(t(l, 'pilot.setup'))}</h2>`));
+    });
+  }
+  it('clear of the first section', () => {
+    expect(rulesFor(css(), '.muted + .verdict').join(';')).toMatch(/margin:var\(--space-8\) 0 var\(--space-24\)/);
+  });
+});
+
+describe('w4-whole-14 · V1-153 · w4-today-setup-22 · -26 · names: the checklist, the Practice checklist, Setup\'s card', () => {
+  for (const l of LOCALES) {
+    it(`${l} · Setup's row is named as the page it opens, and not as My business's "Going live"`, () => {
+      expect(t(l, 'nav.onboarding')).toBe(t(l, 'pilot.title'));
+      const live = t(l, 'business.row.live');
+      expect(t(l, 'nav.onboarding').includes(live) || live.includes(t(l, 'nav.onboarding')), live).toBe(false);
+      // the Practice checklist claims no readiness, and is the door's own name
+      expect(t(l, 'ready.title')).toBe(t(l, 'pilot.item.ready'));
+      expect(t(l, 'ready.title')).not.toBe(t(l, 'ready.done'));
+      // Setup's first card carries no third name for setting up
+      expect(inScope(() => renderSetup(SETUP_VIEW, l, null))).not.toContain(esc(t(l, 'setup.group.start')));
+    });
+  }
+  it('en, es: "Ready for customers" and "Antes de empezar" are gone', () => {
+    expect(t('en', 'ready.title')).not.toMatch(/Ready for/);
+    expect(t('es', 'nav.onboarding')).not.toMatch(/Antes de empezar/);
+  });
+});
+
+describe('V1-111 · -14 · the guide\'s captions name rows that exist, by their own names', () => {
+  for (const l of LOCALES) {
+    it(`${l}`, () => {
+      const cap = (k: string) => t(l, k as never);
+      const has = (k: string, labels: readonly string[]) => { for (const x of labels) expect(cap(k), `${k} ∋ ${x}`).toContain(t(l, x as never)); };
+      has('guide.profile.cap.1', ['nav.settings', 'nav.factory', 'settings.profile.title']);
+      has('guide.products.cap.1', ['nav.settings', 'nav.factory', 'nav.products', 'product.teach']);
+      has('guide.name.cap.1', ['nav.settings', 'nav.setup', 'pilot.title']);
+      has('guide.channels.cap.1', ['nav.settings', 'nav.factory', 'factory.reach.title']);
+      // (Arabic's الإعداد is inside الإعدادات, so Settings' name is taken out first.)
+      expect(cap('guide.profile.cap.1').replace(t(l, 'nav.settings'), '')).not.toContain(t(l, 'nav.setup'));
+      // the step's door does not reuse the page's own name
+      expect(t(l, 'guide.do')).not.toContain(t(l, 'guide.title'));
+    });
+  }
+});
+
+describe('V1-006 · w4-today-setup-20 · the machine room says who sees it; its way back is above its heading', () => {
+  for (const l of LOCALES) {
+    it(`${l}`, () => {
+      const html = inScope(() => renderPilotTechnical(l, {}));
+      expect(html).not.toContain('class="back"');
+      expect(BACK_TO['/app/onboarding/technical']).toEqual({ href: '/app/onboarding', label: 'nav.onboarding' });
+    });
+  }
+  it('it is served only to the installation\'s own workspace, and says so', () => {
+    const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(app).toMatch(/if \(s && s\.businessId !== deps\.businessId\) return reply\.callNotFound\(\);/);
+    expect(t('en', 'pilot.technical.intro')).not.toMatch(/whoever/);
+    expect(t('en', 'pilot.technical.intro')).toMatch(/Only this installation’s own workspace sees this page/);
+  });
+});
+
+describe('w4-today-setup-25 · Setup\'s Notifications row says when the way in force cannot reach this reader', () => {
+  for (const l of LOCALES) {
+    it(`${l}`, () => {
+      const html = inScope(() => renderSetup({ ...SETUP_VIEW, alerts: { available: true, phones: 0, way: 'email', unreachable: true } }, l, null));
+      expect(html).toContain(`<span class="sr-value warn"><bdi>${esc(t(l, 'setup.value.unreachable'))}</bdi></span>`);
+      expect(inScope(() => renderSetup(SETUP_VIEW, l, null))).not.toContain(esc(t(l, 'setup.value.unreachable')));
+    });
+  }
+});
+
+describe('w4-today-setup-29 · the language screen: five rows, the one in force said in words and to a screen reader', () => {
+  for (const l of LOCALES) {
+    it(`${l}`, () => {
+      const html = renderLanguage(l);
+      expect(html.match(/<a class="srow sr-menu" href="\/locale\?set=/g)).toHaveLength(5);
+      expect(html.match(/aria-current="true"/g)).toHaveLength(1);
+      expect(html).toContain(`hreflang="${l}" aria-current="true"`);
+      expect(html).toContain(`<span class="sr-value ok"><bdi>${esc(t(l, 'settings.language.inUse'))}</bdi></span>`);
+      expect(html).not.toContain('class="langsw"');
+    });
+  }
+});
+
+describe('w4-today-setup-30 · a mistyped address: no Today tile raised, no dashed box', () => {
+  it('the message is a calm line with its door', () => {
+    for (const l of LOCALES) {
+      const html = notFoundInside(l);
+      expect(html).not.toContain('class="empty"');
+      expect(html).toContain('href="/app"');
+    }
+    expect(readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8')).toContain("title: t(locale, 'error.notfound.title'), active: 'none',");
   });
 });

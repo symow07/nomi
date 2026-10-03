@@ -256,7 +256,9 @@ export type SetupView = {
   readonly people: number;
   /** Phase 3 — alerts on this person's phones: whether this installation can send them, and how many phones. */
   /** The warmth run, phase 8 — `way`: how notifications reach this reader now (null: nothing does). */
-  readonly alerts?: { readonly available: boolean; readonly phones: number; readonly way?: 'email' | 'browser' | 'whatsapp' | null } | null;
+  readonly alerts?: { readonly available: boolean; readonly phones: number; readonly way?: 'email' | 'browser' | 'whatsapp' | null;
+    /** Phase 9 (w4-today-setup-25) — the way in force cannot reach this reader (e-mail, and no address). */
+    readonly unreachable?: boolean } | null;
   /** Phase 3 — how this person signs in: their e-mail, or the access code when they have no login. */
   readonly signIn?: { readonly email: string | null } | null;
   /** Phase 3 — billing as it stands (the owner's); null for staff. */
@@ -290,11 +292,14 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     menuRow({ href: '/app/onboarding', icon: 'setup', label: t(locale, 'nav.onboarding'),
       value: named === null ? null : t(locale, named ? 'setup.value.nameConfirmed' : 'setup.value.nameNotConfirmed'), tone: toneOf(named) }),
     // The warmth run, phase 8 — Notifications: the row says how they reach this reader now.
+    // Phase 9 (w4-today-setup-25) — and says so when the way in force cannot reach them (e-mail, no address),
+    // with the to-do mark: the screen it opens says what to do.
     menuRow({ href: '/app/settings/alerts', icon: 'bell', label: t(locale, 'alerts.title'),
-      value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : t(locale, 'setup.value.off'))
+      value: !v.alerts ? null : v.alerts.unreachable ? t(locale, 'setup.value.unreachable')
+        : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : t(locale, 'setup.value.off'))
         : !v.alerts.available ? t(locale, 'setup.value.unavailable')
         : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
-      tone: v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
+      tone: v.alerts?.unreachable ? 'warn' : v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
     // The switch, a tap down: the row says which language is in force, in its own name.
     menuRow({ href: '/app/settings/language', icon: 'globe', label: t(locale, 'settings.language.title'), value: LOCALE_LABEL[locale] }),
   ];
@@ -312,15 +317,27 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
   ];
   return `<h1 class="page">${esc(t(locale, 'nav.setup'))}</h1>
     ${flashBanner(flash)}
-    ${menuGroup('start', t(locale, 'setup.group.start'), start)}
+    ${/* Phase 9 (V1-153) — the screen's own name says what this card is: no third name for setting up above it. */ ''}${menuGroup('start', null, start)}
     ${menuGroup('account', t(locale, 'setup.group.yours'), account)}`;
 }
 
-/** Phase 7 — the language switch, on a small screen of its own: Setup's row says which language is in force. */
+/**
+ * Phase 7 — the language switch, on a small screen of its own: Setup's row says which language is in force.
+ * Phase 9 (w4-today-setup-29) — five rows like every menu's, each in its own language and at a row's size;
+ * the one in force says so in words and to a screen reader (`aria-current`), not by a class alone.
+ */
 export function renderLanguage(locale: Locale): string {
+  const rows = LOCALES.map((l) => {
+    const on = l === locale;
+    return `<li><a class="srow sr-menu" href="/locale?set=${l}&next=/app/settings/language" hreflang="${l}"${on ? ' aria-current="true"' : ''}>`
+      // The name keeps the page's side; its own letters' order is isolated (a `dir` on the cell would move it to the other side).
+      + `<span class="sr-main"><span class="sr-label" lang="${l}"><bdi>${esc(LOCALE_LABEL[l])}</bdi></span></span>`
+      + `${on ? `<span class="sr-value ok"><bdi>${esc(t(locale, 'settings.language.inUse'))}</bdi></span>` : ''}`
+      + `<span class="go" aria-hidden="true">›</span></a></li>`;
+  }).join('');
   return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'settings.language.title'))}</h1>
-    <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings/language')}</span></div></div>`;
+    <ul class="scard" aria-label="${esc(t(locale, 'switcher.aria'))}">${rows}</ul>`;
 }
 
 /**

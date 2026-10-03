@@ -119,7 +119,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // Phase 4b — the machine room was reached from Getting ready. Phase 9: no
   // owner's page links to it any more (it is the operator's, by its address),
   // so it is not a contextual route of any hub; it lights nothing.
-  { hub: '/app/onboarding', routes: ['/app/ready'] },
+  { hub: '/app/onboarding', routes: ['/app/ready', '/app/onboarding/practice', '/app/onboarding/activity'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
   { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
@@ -1100,7 +1100,8 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-114) — the number holds the first line of a heading that wraps; the state ends its words. */
   .guide-step h2.gs-h { display:flex; align-items:baseline; gap:var(--space-8); margin:0 0 var(--space-12); }
   .gs-n { flex:none; }
-  .gs-t { flex:1 1 auto; min-width:0; text-wrap:pretty; }
+  /* Phase 9 (w4-today-setup-13) — balanced, so a heading that wraps never leaves its last word alone beside its state. */
+  .gs-t { flex:1 1 auto; min-width:0; text-wrap:balance; }
   .gs-t .pill { margin:0; margin-inline-start:var(--space-8); }
   .guide-step ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose); }
   .guide-step ol li + li { margin-top:var(--space-4); }
@@ -1184,9 +1185,14 @@ const STYLE_PAGES = `
   .pr-b { display:flex; align-items:center; justify-content:flex-end; gap:var(--space-4) var(--space-8); flex-wrap:wrap; }
   .pr .deeper, .pr .btn { flex:none; }
   /* The name row: its label, the line under it, then the field with Confirm beside it — in every language. */
-  .pr.under > .pr-b { grid-column:2 / -1; justify-self:stretch; flex-direction:column; align-items:flex-start; }
-  .pr-name { display:flex; flex-wrap:nowrap; align-items:center; gap:var(--space-8); width:100%; max-width:var(--measure-form); }
-  .pr-name input { flex:1 1 auto; min-width:0; }
+  /* Phase 9 (V1-134) — two columns, so the label keeps its line; the form is its own class (the price list's
+     .pr-name, later in the sheet, wrapped Confirm under the field). */
+  .pr.under { grid-template-columns:1.5em minmax(0, 1fr); }
+  .pr.under > :not(.mk):not(.lbl):not(.pr-note) { grid-column:2; justify-self:stretch; }
+  .pr.under > .pr-b { flex-direction:column; align-items:flex-start; }
+  .pr-nameform { display:flex; flex-wrap:nowrap; align-items:center; gap:var(--space-8); width:100%; max-width:var(--measure-form); }
+  .pr-nameform input { flex:1 1 auto; min-width:0; }
+  .pr-nameform .btn { align-self:center; }
   @media (max-width: 560px) {
     .pr { grid-template-columns:1.5em minmax(0, 1fr); }
     .pr > :not(.mk):not(.lbl):not(.pr-note) { grid-column:2; justify-self:start; }
@@ -1197,6 +1203,8 @@ const STYLE_PAGES = `
   .badge.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
   /* Phase 9 (V1-130, missed-17) — where the page stands, said as a state line with its mark: not a box that looks pressable. */
   .verdict { margin:var(--space-16) 0 0; font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); text-wrap:pretty; }
+  /* Phase 9 (w4-today-setup-19) — the checklist says where it stands under its intro, clear of the first section. */
+  .muted + .verdict { margin:var(--space-8) 0 var(--space-24); }
   .verdict.ok { color:var(--color-ok); }
   /* ── ready.ts — Phase 9: the marks in one column, the state in words, its door under it. */
   .checks.rd .chk { grid-template-columns:1.25em minmax(0, 1fr); }
@@ -2340,6 +2348,10 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/setup': { href: '/app/settings', label: 'nav.settings' },
   '/app/business': { href: '/app/settings', label: 'nav.settings' },
   '/app/ready': { href: '/app/onboarding', label: 'nav.onboarding' },
+  // The warmth run, phase 9 — the checklist's two screens, and the machine room (w4-today-setup-20: its way back above its heading).
+  '/app/onboarding/practice': { href: '/app/onboarding', label: 'nav.onboarding' },
+  '/app/onboarding/activity': { href: '/app/onboarding', label: 'nav.onboarding' },
+  '/app/onboarding/technical': { href: '/app/onboarding', label: 'nav.onboarding' },
 };
 const wayBack = (locale: Locale, path: string, body: string): string => {
   const to = BACK_TO[(path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '')];
@@ -2353,7 +2365,8 @@ const wayBack = (locale: Locale, path: string, body: string): string => {
  * whoever is not signed in.
  */
 export const notFoundInside = (locale: Locale): string =>
-  `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><div class="empty">${esc(t(locale, 'error.notfound.body'))}<div>${deeper('/app', t(locale, 'error.home'))}</div></div>`;
+  // Phase 9 (w4-today-setup-30) — a calm line and its door, not the dashed box the run retired.
+  `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><p class="muted">${esc(t(locale, 'error.notfound.body'))}</p>${deeper('/app', t(locale, 'error.home'))}`;
 
 export function shell(input: {
   readonly title: string;

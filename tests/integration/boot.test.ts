@@ -1575,7 +1575,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // factory where nothing could reach her at all.
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
-      expect(html).toContain('href="/app/business/ready"');
+      // Phase 9 of the warmth run (w4-today-setup-16) — the way forward is the setup step's own door.
+      expect(html).toContain('href="/app/business/channels"');
       // The warmth run — with messaging off, the plain fact, never "all caught up".
       expect(html).toContain(`<h2 id="today-now" class="tw-head">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
