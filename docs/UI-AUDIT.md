@@ -1,1096 +1,2253 @@
-# Nomi — UI audit (after the rebuild)
+# Nomi — UI audit (after the warmth run)
 
-**Date:** 2026-10-02. **Code audited:** `main` at `6d390b8` (after #204, the last phase of the UI rebuild), run locally on the same demo workspace and usability seed as the first audit.
-**What this is:** the merged defect list. The first audit (566 findings at `4fa90d3`, before the rebuild) is kept unchanged as [UI-AUDIT-V1.md](UI-AUDIT-V1.md). Every one of its findings was re-checked: it is either **still here** (restated in today's words, its V1 ID kept) or **dropped** (listed at the end with the reason). Defects the rebuild introduced are marked **NEW**; defects that were there before and the first audit missed are marked **NEW (missed)**.
-**Scope:** problems only. No fixes are proposed here; phase 9 works this list, S1 first.
+**Date:** 2026-10-03. **Code audited:** `main` at `8482b10` (after #216 and #217, the warmth run's phases 1–8), run locally on the demo workspace with the usability seed and the outreach area on, as before.
 
-**Coverage:** the same method as the first audit.
-- 62 pages plus three calendar views the rebuild changed (month, day, list), in five languages (en, zh, ar, es, fr) at two widths (phone 390×844, desktop 1280×900): 650 full-page captures, each checked automatically (overflow, clipping, leaked English, unlabelled controls, sizes).
-- Nine reviewers: one per area, as in the first audit, and one for the whole product, who also walked the interactive and error states by hand in Chromium (forms sent back, the ask-first dialog, the draft card, Practice, Undo).
-- The price-list files were downloaded and read.
+**What this is:** the merged defect list. The previous list (703 findings at `6d390b8`, worked by the rebuild run's phase 9) is kept unchanged as [UI-AUDIT-V2.md](UI-AUDIT-V2.md); the first audit is [UI-AUDIT-V1.md](UI-AUDIT-V1.md). Every one of the previous findings was checked again:
+- **still here** — restated in today's words, its ID kept;
+- **dropped** — with its reason.
 
-**Severity:** the first audit's scale. **S1 Critical** blocks or misleads; **S2 Major** visible in ten seconds, looks unfinished or untrustworthy; **S3 Minor** inconsistency or secondary clarity; **S4 Nit** polish.
+Defects found now are marked **NEW**, with an ID `w4-<area>-NN`. "NEW (missed)" marks one that was there before this run and the previous audit missed.
+
+**Scope:** problems only. No fixes are proposed here; the warmth run's phase 9 works this list, S1 first.
+
+**Coverage:** the method of the previous audits.
+- **Pages:** 83 pages (the 62 of the last audit and the run's new screens: Settings, Setup's new address, the language screen, My business's five screens, the assistant's nine screens, the Inbox's lenses and narrowings, the calendar's four views, the profile card).
+- **Languages and widths:** five languages (en, zh, ar, es, fr) at two widths (phone 390×844, desktop 1280×900): 830 full-page captures, each checked automatically for overflow, clipping, leaked English, unlabelled controls, alt text, font sizes, headings and console errors.
+- **Interactive states,** walked in Chromium in en, ar and zh: the profile card opened from Today, the Inbox and a conversation; the draft card's edit box; the calendar's fold; the ask dialog; a form sent back; the toast and the rail's marker when a customer newly waits.
+- **Reviewers:** nine, one per area and one for the whole product. Each also walked its pages by hand on the local instance, read-only. Practice was used by the conversation reviewer, the draft card opened, and the price-list export read.
+
+**Severity:** the same scale. **S1 Critical** blocks or misleads; **S2 Major** visible in ten seconds, looks unfinished or untrustworthy; **S3 Minor** inconsistency or secondary clarity; **S4 Nit** polish.
 
 ## The merge, in three counts
 
 | | Count | |
 |---|---|---|
-| **Dropped** from the first audit | **31** of 566 | fixed by the rebuild 24 · the element rebuilt so it no longer applies 4 · the element removed 3 |
-| **Still reproducing** | **535** | kept, restated, V1 IDs below |
-| **Newly introduced** by the rebuild | **75** | marked NEW |
-| Missed by the first audit | 93 | marked NEW (missed); not introduced by the rebuild |
+| **Dropped** from the previous list | **636** of 703 | fixed and re-checked 569 · the element rebuilt by this run, so it no longer applies 43 · the element removed 24 |
+| **Still reproducing** | **67** | 11 of them the owner's decisions (left as they are); 3 decided not to change last run |
+| **New** | **214** | 1 S1 · 28 S2 · 80 S3 · 105 S4 — most introduced by this run; the rest missed before |
 
-**The merged list:** 703 findings: **8 S1** · **115 S2** · **377 S3** · **203 S4**. (The first audit: 566: **12 S1** · **117 S2** · **315 S3** · **122 S4**.)
+**The merged list:** 281 findings: **2 S1** · **38 S2** · **113 S3** · **128 S4**. (The previous list: 703: 8 S1 · 115 S2 · 377 S3 · 203 S4.)
 
-Problems that appear only because this was a local instance (no mail, payments, phone alerts, Google/Microsoft/Meta apps or model) are not counted, as in the first audit (its §10 still describes them).
+| Area | Still | Dropped (a · b · c) | New |
+|---|---|---|---|
+| Problems that run through the whole product | 4 | 14 (12 · 2 · 0) | 23 |
+| Public site, sign-in, sign-up and policy pages | 12 | 84 (82 · 0 · 2) | 14 |
+| Today, setting up, Settings and Setup | 10 | 87 (64 · 14 · 9) | 30 |
+| Customers: the Inbox, an order, the calendar, Results, the profile card | 7 | 57 (43 · 10 · 4) | 26 |
+| A conversation, the draft reply card, the customer's file, Practice | 8 | 86 (80 · 2 · 4) | 25 |
+| Products, price limits, knowledge, the price-list export | 8 | 96 (94 · 0 · 2) | 17 |
+| My business, the assistant's page, channels | 4 | 96 (80 · 13 · 3) | 33 |
+| Setup pages: account, notifications, billing, business, closures, the component gallery, your data, forbidden words | 7 | 52 (51 · 1 · 0) | 24 |
+| Who works here, profile, rate, samples, terms; the outreach area | 7 | 64 (63 · 1 · 0) | 22 |
+
+As before, problems that appear only because this is a local instance (no mail, payments, phone alerts, Meta apps or model) are not counted.
 
 ## Read this first — the worst problems
 
-1. **S1** · V1-417 · employee — all locales · both — The page still contradicts itself about what goes out alone. The small print says "Whatever you choose here, every reply keeps coming to you first until you confirm the name in Getting ready". Yet "Handled without you: ✓ Greeting ✓ Understanding needs", "Promotion — Now Handling some without you — Already handling customers.", the card's "Handling some without you" and '"Greeting" is granted [Revoke]' all say greetings already go out alone, and "Recently" shows "0 Customers answered". The same holds in zh (自己处理 / 已经在正式接待客户了), ar (يُنجز دون انتظارك / استقبال العملاء قائم بالفعل) and es (Se resuelve sin ti / Ya atiende a tus clientes).
-2. **S1** · V1-433 · channels — all locales · both — In the Email card, the field labelled "The name on your signature" (你签名的名字 / اسم توقيعك / El nombre de tu firma) is still the sending domain's technical key name (`name="selector"`). "The address you send from" still asks for an address, but its placeholder is a domain ("yourbusiness.com").
-3. **S1** · V1-450 · channels-wa-guide — all locales · both — The first step, "Tell us the WhatsApp number you use with customers" (把接待客户用的 WhatsApp 号码告诉我们 / إبلاغنا برقم واتساب المستخدم مع العملاء / Dinos el número de WhatsApp que usas con tus clientes), still has no number field, no button and no contact link. The only thing to press is "‹ Back to channels".
-4. **S1** · V1-451 · channels-wa-guide — all locales · both — "Press Test to check the connection — it sends no message to anyone" and "switching on/off, testing, and disconnecting are all on this page, managed by you" still describe controls the page does not have.
-5. **S1** · V1-285 · practice — the Practice transcript credits the owner's own line "Owner here — yes, we can do that." to the assistant: "✦ Your assistant" / "✦ 你的助手" / "✦ مساعدك" / "✦ Tu asistente".
-6. **S1** · V1-001 · (whole product) — fr · every page — there is no French. With `yf_locale=fr` or `Accept-Language: fr`, every owner page, sign-in, sign-up, the site and the policies render `<html lang="en">`; the switch offers English, 中文, العربية, Español.
-7. **S1** · V1-347 · business-prices — the page still contradicts itself. Every product row says "Up to 5% off is decided without you; above that you are asked first. Never more than 8% off." (zh "优惠 5% 以内自己定", ar "حتى 5% القرار لـ مساعدك", es "Hasta un 5% de descuento se decide sin ti"). "Discounts for buying more" says "○ You have not written one, so no discount is ever offered — your price is quoted as it stands." (zh "你还没写，所以从不优惠", ar "فلا خصم أبدًا", es "nunca se ofrece descuento"), now with the amber ○.
-8. **S1** · V1-087 · today — "Fewer customers wrote to you this month: 82 last month, 38 this month." (zh "这个月写来的客户少了：上个月 82 个，这个月 38 个。", ar "كتب إليك عملاء أقل هذا الشهر: 82 الشهر الماضي، 38 هذا الشهر.", es "Este mes te escribieron menos clientes: 82 el mes pasado, 38 este mes.") — on "Friday, October 2" a whole September is set against two days of October and announced as a fall; the figures are message counts, not customers.
+1. **S1** · w4-public-01 · privacy — the privacy page does not say that customers' profile photos are kept. Since 0123 the app downloads Instagram and Messenger customers' photos and stores them. "What is kept" lists only the message, attachments, the account name, the identifier and the time; "Delete your data" does not list the photos either (w4-public-02), though `erase-buyer` erases them.
+2. **S1** · V1-417 · employee-one-kind — a new workspace's "One kind at a time" says "Greeting goes out without you [Wait for my OK]". The assistant's landing and "Each kind of reply" say that every reply waits until the name is confirmed.
+3. **S2** · w4-whole-03, -04 — the toast names the wrong customer. A different customer newly waits (the count goes 1 → 2), and the toast says "A reply to Aisha Bello is waiting for you", the one who was already waiting. It also fires right after the owner answers that customer from the phone.
+4. **S2** · w4-today-setup (Today) — in the demo workspace Today does not show what Nomi did. There is no hero, the scoreboard reads 0 · 0 · 0, and the page's biggest line is "No customer can reach your assistant yet", while 9 replies and 3 quotes went out that day. Today counts only sent rows the seed never writes.
+5. **S2** · w4-customers-25 / w4-conversation-12 — the profile card says "Nothing bought or asked about yet" (还没买过，也没问过产品 / لا مشتريات ولا استفسارات بعد) for a customer who was given a price, over their own conversation's header.
+6. **S2** · w4-whole-10 — the guide's videos and stills show the app from before this run, and its captions name rows that do not exist any more.
+7. **S2** · w4-business-assistant-12 — while the assistant answers, its Stop (rule 13) exists only at Settings › My business › Going live; the assistant's own page has neither the control nor a door to it.
+8. **S2** · w4-settings-a-02, -01 — Notifications ticks E-mail for an owner who signs in without an e-mail address ("e-mail cannot reach you"), and nowhere says that WhatsApp is the intended way and becomes the default when Meta approves.
+9. **S2** · w4-today-setup-24, -23; w4-business-assistant-01 — menu values break on a phone: Arabic values run left to right with the ○ on the wrong side and the first word cut ("…ملت 3 من 5 خطوات"); es/fr/en values are cut ("Todos fijad…", "○ Réponses : 0 …").
+10. **S2** · w4-whole-01 — the rail's Inbox count wraps the desktop rail in every language; 收件箱 breaks inside the word.
 
 ## Worst offenders — screenshots
 
 | # | Shot | What it shows | Sev |
 |---|---|---|---|
-| 1 | <img src="ui-audit-v2/business-channels-1-employee-en-desktop.png" width="300"> | no autonomy level selected, the "every reply keeps coming to you first until you confirm the name… Open" hold in small print under Save, and directly below it "Handled without you ✓ Greeting ✓ Understanding needs" | S1 |
-| 2 | <img src="ui-audit-v2/business-channels-2-channels-en-desktop.png" width="300"> | "This installation has no app for it yet." for Gmail and Outlook, Apollo "○ Not connected", and the Email form whose "The address you send from" wants a domain and whose "The name on your signature" is the DKIM selector, with "Let your assistant write first" under "○ Not yet" | S1 |
-| 3 | <img src="ui-audit-v2/business-channels-3-channels-wa-guide-en-desktop.png" width="300"> | "Connect WhatsApp": three unnumbered steps ("Tell us the WhatsApp number…", "Press Test…") and nothing to press but "‹ Back to channels" | S1 |
-| 4 | <img src="ui-audit-v2/conversation-1-practice-en-desktop.png" width="300"> | the owner's "Owner here — yes, we can do that." captioned "✦ Your assistant", directly above "Handed to you because: a message that could not be answered" and a "Take over" button | S1 |
-| 5 | <img src="ui-audit-v2/products-knowledge-2-business-prices-en-desktop.png" width="300"> | "Never below $1.45. Up to 5% off is decided without you… Never more than 8% off." directly above "○ You have not written one, so no discount is ever offered" | S1 |
-| 6 | <img src="ui-audit-v2/today-onboarding-1-today-en-desktop.png" width="300"> | Today: "Fewer customers wrote to you this month: 82 last month, 38 this month." on 2 October, "Nothing in the last 24 hours yet." under a 17:18 message, "Messaging is not active yet" under two waiting customers, Omar's preview cut "Shall I send a pro" | S1 |
-| 7 | <img src="ui-audit-v2/conversation-2-conversation-draft-en-desktop.png" width="300"> | "○ Awaiting you" over "✦ Lily is handling this"; "Lily drafted" with the name unconfirmed; "Hand to me" plus a second "Hand to [You] Hand over" card; "CE certified" in the draft | S2 |
-| 8 | <img src="ui-audit-v2/conversation-3-conversation-draft-ar-desktop.png" width="300"> | Arabic customer panel: "2345000000261+" (plus on the wrong end) and the prices row "LED String Lights 10m · US$ 1.45" / "17:20 ·" with a stray separator | S2 |
-| 9 | <img src="ui-audit-v2/inbox-calendar-1-inbox-en-phone.png" width="300"> | the first screen of Customers on a phone. The only instruction is cut to "Review your assist…", the question to "Hello, what is your p…", and the second "Needs you" row says only "Held by 陈莉" | S2 |
-| 10 | <img src="ui-audit-v2/inbox-calendar-2-order-ar-phone.png" width="300"> | the Arabic proforma, all in English, with line starts cut off ("tainless Steel…", ": 30% deposit, balance before shipment") | S2 |
-| 11 | <img src="ui-audit-v2/inbox-calendar-3-calendar-month-en-phone.png" width="300"> | the phone month: Thursday sliced to "R / C", "A", "+4", with today (Fri 2) and the weekend off-screen | S2 |
-| 12 | <img src="ui-audit-v2/products-knowledge-1-knowledge-product-en-desktop.png" width="300"> | the ask dialog "Turn on food_grade for all 12 of your products?" confirmed by a button labelled "food_grade", above chips with raw codes in Arial | S2 |
-| 13 | <img src="ui-audit-v2/products-knowledge-3-import-review-en-desktop.png" width="300"> | "We read 4 lines… ○ 3 need you", "3 lines were read without a price", "4 new", and "Checked Canvas tote 18.00 · no price yet" with the price left in the name | S2 |
-| 14 | <img src="ui-audit-v2/public-1-unsubscribe-bad-ar-phone.png" width="300"> | an Arabic customer who pressed unsubscribe gets "Not found / This link is not available." in English, left to right, with no business, no list status and no other way to stop the mail (V1-081, V1-082, V1-083) | S2 |
-| 15 | <img src="ui-audit-v2/public-2-set-password-bad-en-desktop.png" width="300"> | "Choose your password" over a card with no form; "Ask whoever sent it for a new one." names nobody, and the only link, "Sign in instead", needs a password this person never set (V1-078, V1-079) | S2 |
-| 16 | <img src="ui-audit-v2/public-3-signup-en-phone.png" width="300"> | the required "Invitation code" comes last ("It is in the link you were sent."), with no way to get one; the "Terms of service" link reads as plain text; "Create my workspace" (in Arial) sits tight under the checkbox (V1-047, V1-050, V1-049, V1-053) | S2 |
-| 17 | <img src="ui-audit-v2/settings-a-1-closures-zh-phone.png" width="300"> | "把休息的日子告诉 你的助手。" and "你还没告诉 你的助手 哪些天休息" with stray spaces mid-sentence, and the date fields' "yyyy/mm/dd" | S2 |
-| 18 | <img src="ui-audit-v2/settings-a-2-alerts-en-desktop.png" width="300"> | the lede promises "your phone shows it, even with Nomi closed", then "Alerts on phones are not available here yet." over an empty "No phone has alerts turned on yet." panel | S2 |
-| 19 | <img src="ui-audit-v2/settings-a-3-components-en-desktop.png" width="300"> | the internal gallery still served to the owner: "Rest / Hover / Focus / Disabled", "A label", "A line of help under the field." as error and notice, a bare fourth chip, no back link | S2 |
-| 20 | <img src="ui-audit-v2/settings-b-outreach-1-contacts-en-desktop.png" width="300"> | "Who you may write to" above rows that each say "does not allow a first message", under a green "✓ They wrote to you first"; the first of 71 such rows | S2 |
-| 21 | <img src="ui-audit-v2/settings-b-outreach-2-settings-terms-es-phone.png" width="300"> | cut placeholder "p. ej., anticipo con el pedido, saldo ar" and the blank, required "Condición de entrega" select of bare Incoterm codes; the not-set panel flush on the card | S2 |
-| 22 | <img src="ui-audit-v2/settings-b-outreach-3-settings-people-es-phone.png" width="300"> | "Quitar" → "Su nombre" → "Añadir a esta persona" stacked under 陈莉's row with no heading | S2 |
-| 23 | <img src="ui-audit-v2/today-onboarding-2-guide-en-desktop.png" width="300"> | Getting started step 4 "✓ Done" over a still of the old app saying "WhatsApp — Not connected" and "This installation has no app for it yet.", loading ring and "0:00" | S2 |
-| 24 | <img src="ui-audit-v2/today-onboarding-3-onboarding-en-desktop.png" width="300"> | Getting ready: "Backup tested [Confirm]", "Secrets rotated [Confirm]", "Lily" pre-filled with "Confirm" dropped below, "the team page", the button-like "A few steps left before going live." | S2 |
-| 25 | <img src="ui-audit-v2/calendar-bad-es-phone.png" width="300"> | the calendar's add form sent back: the reason is there, the wrong field is not marked | S3 |
+| 1 | <img src="ui-audit-v3/01-toast-wrong-customer-en-desktop.png" width="300"> | the toast "A reply to Aisha Bello is waiting for you" when another customer newly waits | S2 |
+| 2 | <img src="ui-audit-v3/02-card-nothing-bought-ar-phone.png" width="300"> | the Arabic card «لا مشتريات ولا استفسارات بعد» over a conversation about LED String Lights with a price | S2 |
+| 3 | <img src="ui-audit-v3/03-today-demo-en-phone.png" width="300"> | Today in the demo: no hero, "No customer can reach your assistant yet" | S2 |
+| 4 | <img src="ui-audit-v3/04-one-kind-greeting-en-phone.png" width="300"> | "Greeting goes out without you" while the name is unconfirmed | S1 |
+| 5 | <img src="ui-audit-v3/05-setup-ar-phone.png" width="300"> | Setup in Arabic: values left to right, the ○ trailing, the first word cut | S2 |
+| 6 | <img src="ui-audit-v3/06-business-values-cut-fr-phone.png" width="300"> | My business in French on a phone, values cut | S2 |
+| 7 | <img src="ui-audit-v3/07-notifications-en-desktop.png" width="300"> | Notifications: E-mail ticked while "e-mail cannot reach you" | S2 |
+| 8 | <img src="ui-audit-v3/08-calendar-price-done-en-phone.png" width="300"> | the calendar marks a price "✓ done" while its reply waits for review | S3 |
 
 ---
 
 ## 1 · Problems that run through the whole product
 
-### (whole product)
-
-- **S1** · V1-001 · fr · every page — there is no French. With `yf_locale=fr` or `Accept-Language: fr`, every owner page, sign-in, sign-up, the site and the policies render `<html lang="en">`; the switch offers English, 中文, العربية, Español.
-- **S2** · V1-002 · all locales — one area, three names. The desktop rail heads "Customers" over "Conversations 2" and "Calendar", both rows open the same list, headed "Customers"; the search's empty state says "See all conversations"; the conversation's back link is "‹ Customers".
-- **S2** · V1-003 · all locales — browser tabs don't name the page: account, closures, forbidden words and the other Setup pages are titled "Setup · 义乌宏发日用品厂 (demo)"; "Your price limits" and "How you sell" are "My business · …"; an order is "Customers · …"; a product is "Products · …".
-- **S2** · V1-004 · all locales — setting up has several names: Setup's first group lists "Getting started" next to "Getting ready"; the rail and the phone nav count "Setup 3/5" ("设置 3/5", "Ajustes 3/5").
-- **S2** · V1-005 · all locales — the assistant's name is used before it is chosen: "✦ Lily drafted", "How Lily read this", "✦ Lily is handling this" and now "Lily is writing a reply" on the conversation page, while the name step is still "To do".
-- **S2** · V1-006 · all locales — internal and developer words still reach the owner: "Secrets rotated", "Backup tested" and "During the pilot" (Getting ready); "This installation has no app for it yet" (channels); "Rest / Hover / Focus / Disabled" (the gallery, still reachable at its address); raw codes like "food_grade"; the category "bags"; "pcs" in zh/ar/es fields; the Incoterm codes.
-- **S2** · V1-007 · all locales — failure states are still uneven, though two of the four are fixed (the store/“Read the page” refusals now come back under their field; a missing product or conversation now says why and where to go). Still: pressing "See what your assistant recognizes" with an empty box reloads the page and says nothing; a wrong /app address for a signed-in owner shows the signed-out door page ("That page is not here", the language switch, "Your digital employee's workspace", no rail).
-- **S2** · V1-008 · ar — mixed Latin and Arabic text: the prefix لـ is still written as a separate word ("لـ مساعدك …" on My business, five times); browser-drawn date and file controls stay English and left-to-right. (Calendar names are no longer cut at their start; the list preview no longer starts "…our price".)
-- **S2** · V1-009 · es — numbers keep English formatting: "$1.05", "$2.60", "$0.85" on the products list.
-- **S2** · V1-010 · zh — stray spaces around the fallback name: "把休息的日子告诉 你的助手。", "你还没告诉 你的助手 哪些天休息".
-- **S2** · V1-011 · all locales — the counts disagree: Today "2 customers need you", Results "1 Awaiting you", Getting ready "Waiting for you 0", Your assistant "No customer has asked anything yet", Today "Nothing in the last 24 hours yet".
-- **S2** · NEW (missed) · all locales · both widths — five empty states are still plain grey lines, not the panel every other empty state became: Today's "Nothing in the last 24 hours yet." and "Nothing on the calendar in the next seven days.", the calendar's "Nothing this week/day/month" line and "Nothing today" in the list.
-- **S3** · V1-012 · all locales — the page furniture is still inconsistent, though the settings forms now share one row layout: Today's last-24-hours and coming-up lines end in "→" while the rest of the product uses "›"; closures, forbidden words, rate, samples, terms and people still have no "‹ Setup" back link; content stops near 850 px while some section rules run wider.
-- **S3** · V1-013 · all locales — some states still differ by colour alone: on Your assistant, "Waits for you" and "Always waits for you" use the same "○", one amber and one grey; selected tabs are a pale fill (the word is bolder, the fill weaker than the unselected pills). (Pills now carry ✓/○/✕; "Not connected" and "Awaiting you" are both ○ amber on purpose — both wait for the owner.)
-- **S3** · V1-014 · all locales — the rail: the phone nav's "Customers" carries no count; the Chinese business name wraps mid-word in the desktop rail ("义乌宏发日用 / 品厂 (demo)"); no entry is lit on an order page.
-- **S3** · NEW · all locales · phone — the same nav entry has two names by width: "Assistant" / "Business" on a phone, "Your assistant" / "My business" on a laptop (助手 / 生意 vs 你的助手 / 我的生意).
-- **S3** · NEW · zh, es · phone — the calendar's "Add a date" form, sent back, focuses the field that was wrong and says why under the times ("No se añadió: termina antes de empezar."), but the field is not marked: no red edge, unlike every settings form's field.
-- **S4** · NEW · en · phone — the "ask first" dialog's going-ahead button repeats the asking button's long word in full ("Let your assistant write first"), so on a phone Cancel drops to its own line under it (zh and ar fit on one row).
-
-## 2 · Public site, sign-in, sign-up and policy pages
-
-### site
-**Asks the owner to:** write an e-mail asking for an invitation, or sign in if they already have a workspace. **Clear without explanation?** Partly — the action is obvious, but it is a bare mail link and the page never says who runs Nomi or what it costs.
-
-- **S2** · V1-015 · all locales · desktop, phone — the site still names no operator, company or country anywhere: not in the header, not in any section, not in the footer ("Privacy  Terms of service  Delete your data  Sign in"). The only contact is a mail link, "Our address: …". Promises such as "No price ever goes below the lowest price you set" and "We read every new workspace, and help you set up where you need it" come from a sender a stranger cannot identify.
-- **S3** · V1-016 · all locales · desktop, phone — the site gives two rules for sending alone. The hero says "Nothing goes out on its own until you allow it, and then only what you allowed." The card "What goes out alone" says "You can let greetings and questions go out on their own while anything with a price waits, or let prices go too." "The first workspaces" says "Sending on its own opens only once your assistant has earned it with your own customers." "earned it" is never explained.
-- **S3** · V1-017 · all locales · desktop, phone — "We read every new workspace, and help you set up where you need it." (每一个新工作台我们都会看过，需要时帮你一起设置。 / نطّلع على كل مساحة عمل جديدة، ونساعد في الإعداد عند الحاجة. / Revisamos cada espacio de trabajo nuevo…) still reads as "we read what is in your workspace". The linked privacy page ends "Who sees it" with "Nobody else."
-- **S3** · V1-018 · all locales · desktop, phone — the example card's "Change" / "Send" (修改 / 发送, تعديل / إرسال, Cambiar / Enviar) are drawn as an outlined and a filled black button, but they are plain text spans that do nothing.
-- **S3** · V1-019 · ar, es · phone — header: "تسجيل الدخول" / "Iniciar sesión" still drops onto its own line under the language pill, cut off from the header. In en and zh, "Sign in" / "登录" sits beside the pill.
-- **S3** · V1-020 · all locales · desktop, phone — "Ask for an invitation" (申请邀请 / طلب دعوة / Pedir una invitación) and its button still sit about 24 px in from the edge every other section uses: desktop x≈176 against 152 (ar 1104 against 1128), phone 40 against 16. No visible box explains the indent.
-- **S3** · V1-021 · all locales · desktop, phone — the site and the three policy pages load no web font and render in the system face. "Sign in" lands on login and sign-up, which load Noto Sans, so the typeface changes at the product's own door.
-- **S3** · NEW · all locales · desktop, phone — the example card, "Your assistant’s draft" with an amber pill "Waiting for you" (等你批准 / بانتظار موافقتك / Esperando tu aprobación) and the buttons "Change" / "Send" (Cambiar / Enviar), no longer matches the draft card the rebuild gives the owner. That card says "✦ … drafted", marks the wait with "○ Waiting for you" (在等你 / بانتظارك / Te espera) and offers "Edit" (Editar), "Hand to me" and "No reply needed". The site shows words, a sign and a button ("Change") that the product no longer uses.
-- **S3** · NEW (missed) · all locales · desktop, phone — the page's only primary action, "Write to us for an invitation" (写信给我们，申请邀请 / مراسلتنا لطلب دعوة / Escríbenos para pedir una invitación), appears twice and is a bare `mailto:` with no subject or text. There is no form, and on a device with no mail program set up the press does nothing visible.
-- **S3** · NEW (missed) · ar · desktop, phone — the Latin "Nomi" inside Arabic sentences ("يمنح Nomi عملك…", "تُفتح Nomi أولًا…", the heading "لمن Nomi", "الانضمام إلى Nomi…") is visibly larger and darker than the Arabic around it. The site loads no web font, so the Arabic falls back to a small system face. V1-060 reports the same on the policy pages; it holds on the site too.
-- **S4** · V1-022 · all locales · desktop, phone — under "How it works" the step numbers "1 2 3" (ar "١ ٢ ٣") still sit about 15 px further in than the step headings below them.
-- **S4** · V1-023 · en · desktop, phone — "e-mail" still breaks at its hyphen: in the hero, "…Messenger or e-" / "mail, your assistant drafts…" (both widths), and in step 2, "On WhatsApp, Instagram, Messenger or e-" / "mail." (phone).
-- **S4** · V1-024 · zh · desktop, phone — the h1 breaks as "每位客户都有回复，最后说了算的是" / "你。" on desktop and "每位客户都有回复，最" / "后说了算的是你。" on phone. "…才会开放自己发" / "送。" leaves "送。" alone on desktop.
-- **S4** · V1-025 · zh · desktop, phone — "只有助手在你自己的客户身上赢得之后，才会开放自己发送。" is unchanged and still a literal rendering of "earned it with your own customers".
-- **S4** · V1-026 · es · desktop — "…por invitación, unos pocos negocios cada" / "vez." still leaves the orphan "vez."
-- **S4** · V1-027 · all locales · desktop, phone — "Nomi opens to a small group first, by invitation, a few businesses at a time." is still followed almost at once by "Nomi opens workspaces by invitation for now." The same sentence appears twice.
-- **S4** · V1-028 · ar · desktop, phone — the site's steps use "١ ٢ ٣". The pages linked from its footer use Western digits: "آخر تحديث: 27 سبتمبر 2026." and "1 أكتوبر 2026", and data-deletion's numbered steps run "1. 2. 3. 4.". The public pages use two numeral systems.
-- **S4** · V1-029 · en · phone — footer: "Privacy  Terms of service  Delete your data" fills the first line and "Sign in" wraps alone onto the second. The "·" separators are gone; the orphan stays.
-- **S4** · V1-030 · es · phone — in the example card, "Borrador de tu asistente" and the "Esperando tu aprobación" pill still stack left-aligned on two lines. In en, zh and ar they sit on one line at the end side.
-- **S4** · NEW (missed) · all locales · desktop, phone — one page carries three filled black buttons: "Write to us for an invitation" twice and the example's "Send". The owner pages keep one filled button per page.
-- **S4** · NEW (missed) · ar · desktop, phone — about 380 px (phone) and 135 px (desktop) of empty page lie under the footer's language pill. en, zh and es end about 50 px under it.
-- **S4** · NEW (missed) · all locales · desktop, phone — the footer's "Delete your data" (删除你的数据 / حذف بياناتك / Borrar tus datos) sits on a page written for business owners but opens a page written for the business's customers ("If you wrote to a business that uses Nomi…"). An owner who wants their own workspace's data deleted finds nothing about it.
-- **S4** · NEW (missed) · zh · phone — orphan lines: "…外贸公司和批发" / "商。" and "…阿拉伯文或西班牙" / "文。". es · desktop: "…configurarlo donde lo" / "necesites."
-- **S4** · NEW (missed) · zh · desktop, phone — "我们的地址：" is followed by a space before the address, so the full-width colon and the space leave a double gap before "privacy@…".
-
-### login
-**Asks the owner to:** sign in with e-mail and password. **Clear without explanation?** Partly — the form is plain, but nothing on the page says "Sign in": the heading is the brand line and the button says "Enter workspace".
-
-- **S3** · V1-031 · all locales · desktop, phone — "Enter workspace" / 进入工作台 / دخول / "Entrar al espacio de trabajo" and both fields still compute to Arial. The labels and links around them are in Noto Sans, so the small card uses two typefaces.
-- **S3** · V1-032 · all locales · desktop, phone — no heading names the task. The only h1 is the brand line "Nomi Your digital employee's workspace". The tab says "Nomi · Log in", the site's link says "Sign in" and the button says "Enter workspace".
-- **S3** · V1-033 · all locales · desktop, phone — "New here? Set up your business" (第一次来？为你的生意开一个工作台 / أول مرة هنا؟ إنشاء مساحة عمل لنشاطك التجاري / ¿Primera vez aquí? Crea el espacio de tu negocio) still invites anyone to sign up. The site says "Nomi opens workspaces by invitation for now", and the form behind the link requires an "Invitation code".
-- **S3** · V1-034 · all locales · desktop, phone — "New here? Set up your business" (black) and "I have an access code" (grey) are links with no underline, each styled differently. Both read as plain text.
-- **S3** · V1-035 · all locales · desktop, phone — the tagline still reads "Your digital employee's workspace" / "你的数字员工工作台" in en and zh, but "El espacio de trabajo de tu asistente digital" / "مساحة عمل مساعدك" in es and ar. The site says "assistant".
-- **S3** · V1-036 · zh · desktop, phone — "我有进入密码" sits just under the "密码" field, so two different secrets share one word.
-- **S4** · V1-037 · all locales · desktop — both fields are still `required` and the page has no message of its own. An empty "Enter workspace" press can only raise the browser's bubble. (Checked in the page code; nothing was submitted in this re-audit.)
-- **S4** · V1-038 · all locales · desktop, phone — the footer still reads "For your business and the people who work there."; the es version is still "Para tu negocio y las personas que trabajan allí."
-- **S4** · V1-039 · all locales · desktop, phone — the door offers only the language switch, "New here? Set up your business" and "I have an access code". There is no link to the site, the privacy page or the terms.
-- **S4** · V1-040 · all locales · phone, desktop — the brand line "Nomi Your digital employee's workspace" is start-aligned (left; right in ar), while the language pill above it and the links below are centred. Visible at both widths.
-- **S4** · NEW (missed) · all locales · desktop, phone — the language switch looks different one click apart. On the site every name in the pill is underlined like a link ("English 中文 العربية Español"). On the sign-in, sign-up and error doors the same pill shows plain grey names with no underline.
-- **S4** · NEW (missed) · all locales · desktop, phone — the site's brand mark next to "Nomi" disappears here. The door's "Nomi" is plain bold text, so "Sign in" lands on a page that does not look like the site the visitor came from.
-- **S4** · NEW · all locales · desktop, phone — "Enter workspace" (and "Enter with the code", "Create my workspace") shows nothing while the request runs, and nothing stops a second press. The door pages load no script, so the busy state the rebuilt owner pages give their buttons is missing here.
-
-### login-code
-**Asks the owner to:** type an access code. **Clear without explanation?** No — the card holds one label, "Access code", and nothing says what the code is or where it comes from.
-
-- **S2** · V1-041 · all locales · desktop, phone — the code card (`/login?with=code`) still holds only the label "Access code" / 进入密码 / رمز الدخول / "Código de acceso", one field and "Enter with the code". There is no heading and no sentence saying where the code comes from. Sign-up's "Invitation code" adds a second kind of code, and neither is explained.
-- **S3** · V1-042 · all locales · desktop — a wrong code gives "✕ Wrong code, please try again." (now with a red ✕) as a small line above the "Access code" label. It is not under the field and not tied to it. The form posts to `/login`, so the address loses "?with=code". (Checked against the page code; no code was submitted.)
-- **S3** · V1-043 · all locales · desktop, phone — the code field is still `type=password` (dots) with no way to show it.
-- **S3** · V1-044 · zh · desktop, phone — the label "进入密码" and the button "用进入密码进入" are unchanged: "进入…进入" repeats, and "密码" collides with the password.
-- **S3** · V1-045 · all locales · desktop, phone — "Enter with the code" / 用进入密码进入 / الدخول بالرمز / "Entrar con el código" computes to Arial under a Noto Sans label.
-- **S4** · V1-046 · all locales · desktop, phone — the link back reads "Sign in with your e-mail" / 用邮箱登录 / تسجيل الدخول بالبريد الإلكتروني / "Iniciar sesión con tu correo", one more name for signing in.
-
-### signup
-**Asks the owner to:** describe the business, give a name, an e-mail and a password, paste an invitation code and agree to the terms. **Clear without explanation?** Partly — the fields are plain, but the required invitation code comes last and nothing says how to get one.
-
-- **S2** · V1-047 · all locales · desktop, phone — the required "Invitation code" (邀请码 / رمز الدعوة / Código de invitación) still comes after the business and personal fields, with only "It is in the link you were sent." under it. Nothing says how to get a code, and there is no link to ask for an invitation.
-- **S3** · V1-048 · all locales · desktop, phone — the "What do you sell or do?" placeholder is cut at both widths: "e.g. skincare, clothing, social media a", "例如：护肤品、服装、社交媒体广告", "مثال: منتجات العناية بالبشرة أو الملابس أو إعلانات", "p. ej., cosmética, ropa, anuncios en r". On desktop the card is still about 356 px wide.
-- **S3** · V1-049 · all locales · desktop, phone — the selects ("Choose…" / 请选择… / اختيار… / Elige…), the placeholders and "Create my workspace" render in Arial, larger than and different from the Noto Sans labels.
-- **S3** · V1-050 · all locales · desktop, phone — in "I agree to the Terms of service, including what may not be sold or said through Nomi.", "Terms of service" has no underline or colour and reads as plain text.
-- **S3** · V1-051 · all locales · desktop, phone — the form collects name, e-mail, business and country, and still links nowhere to the privacy page.
-- **S3** · NEW (missed) · all locales · desktop, phone (refused state, drawn from the page code) — after a refusal the page reopens at the top with the cursor in "Business name". Refusals under "Website, if you have one" or "Choose a password" sit 600–1,200 px further down, and no line at the top says anything was refused. The typed password is gone, and nothing says so.
-- **S4** · V1-052 · zh, ar, es · desktop, phone — the website placeholder is still the English "yourbusiness.com".
-- **S4** · V1-053 · all locales · desktop, phone — "Create my workspace" still sits about 8 px under the two-line terms checkbox, while the form's other gaps are 16–24 px.
-- **S4** · V1-054 · all locales · desktop, phone — Country still offers 250 entries, among them "Antarctica", "Bouvet Island", "Heard & McDonald Islands" and "U.S. Outlying Islands", with nothing preselected.
-- **S4** · V1-055 · es · desktop, phone — "Sitio web, si tienes" still lacks its object.
-- **S4** · V1-056 · zh · desktop, phone — the lead "每个生意一个工作台。你用自己的邮箱和密码登" / "录。" leaves "录。" alone, now on desktop as well as phone. The labels still switch between "你的生意是哪一类？" and "你们卖什么，或做什么？".
-- **S4** · NEW (missed) · all locales · desktop, phone (refused state) — "✕ Tick this to agree to the terms." (✕ يُرجى التأشير للموافقة على الشروط.) sits about 2 px under the second line of the terms checkbox, touching it. A refused field gets no border or mark of its own; only the red line under it shows the refusal.
-- **S4** · NEW (missed) · es · desktop, phone — the checkbox reads "Acepto los Términos del servicio…", but the page it opens, the site footer and the privacy page all call them "Condiciones del servicio".
-
-### privacy
-**Asks the owner to:** nothing; it tells a business's customers what is kept and how to have it removed. **Clear without explanation?** Partly — it reads plainly, but never says who "we" is.
-
-- **S2** · V1-057 · all locales · desktop, phone — in "When you send a message to a business that uses Nomi, we keep the message…", "we" is still never named. There is no company, country or postal address.
-- **S3** · V1-058 · all locales · desktop, phone — privacy, terms and data-deletion still open on a bare heading. There is no logo, no link to the site and no language switch.
-- **S3** · V1-059 · all locales · desktop, phone — "Write to <address>." is still followed by "Or send the business a message saying so, from the account you used." (或者用你当时使用的账号，给商家发一条消息说明即可。 / أو إرسال رسالة بذلك إلى الشركة… / O envía al negocio un mensaje que lo diga…). "saying so" points at nothing.
-- **S3** · V1-060 · ar · desktop, phone — "Nomi", "Meta", "Anthropic", "Railway", "Google", "Microsoft", the contact address and "27 … 2026" render larger and darker than the Arabic around them. The Arabic falls back to a small system face because no web font is loaded. The same happens on terms and data-deletion.
-- **S4** · V1-061 · all locales · desktop, phone — "Replies here are drafted by an AI assistant" / "这里的回复由 AI 助手起草" / "الردود هنا يصوغها مساعد آلي" / "Las respuestas de aquí las redacta un asistente de IA": the page has no replies for "here" to point at. This also holds in zh and ar, not only en and es.
-- **S4** · V1-062 · zh · desktop, phone — "写信到 <address>." still ends in an ASCII "." instead of "。". The same happens on terms and data-deletion.
-- **S4** · NEW (missed) · all locales · desktop, phone — the deletion page goes by three names. The text twice says "the deletion page" without linking it. The link under "Your choices" reads "How to have your data removed" (怎样删除你的数据 / كيفية طلب حذف بياناتك / Cómo pedir que se borren tus datos). That page, and the site footer, call it "Delete your data".
-- **S4** · NEW (missed) · all locales · desktop, phone — the page title "Privacy" is set at 20 px, barely larger than its 17 px section heads ("What is kept", "Why"), with nothing above it. The page opens on what looks like one more section heading.
-
-### terms
-**Asks the owner to:** nothing on the page; these are the terms sign-up makes them accept. **Clear without explanation?** Partly — plain, but the other party is only "the operator of Nomi".
-
-- **S2** · V1-063 · all locales · desktop, phone — "These terms are between a business that uses Nomi and the operator of Nomi, reachable at nomidoes.com." There is still no legal name, address, country or governing law.
-- **S3** · V1-064 · all locales · desktop, phone — "How to reach us" still ends with the customer line "Or send the business a message saying so, from the account you used." The first paragraph says people who write to a business "are covered by the privacy page, not by these terms."
-- **S3** · V1-065 · all locales · desktop, phone — "Fees are as agreed with you in writing." No price or plan appears anywhere on the public pages, and sign-up's terms checkbox is still the last step before a workspace exists.
-- **S3** · V1-066 · all locales · desktop, phone — terms has no logo, no home link and no language switch.
-- **S3** · NEW (missed) · all locales · desktop, phone — the terms say "By default every reply waits for a person at your business to approve it; what may be sent without that approval is your decision, and you can take it back at any time." The site the owner came from says "Sending on its own opens only once your assistant has earned it with your own customers." The contract gives the owner a choice that the site says must be earned.
-- **S4** · V1-067 · en · desktop, phone — the straight apostrophe in "the operator's total liability" remains, while the site uses "’" ("business’s").
-- **S4** · V1-068 · zh · desktop, phone — "…运营方可以暂停该工作台的发送或停用该工作台，并告诉所有者原因。" still uses the stiff, legal-sounding 所有者.
-- **S4** · V1-069 · ar · desktop — about 340 px of empty page lie under "آخر تحديث: 1 أكتوبر 2026.", where en ends about 70 px under its date.
-- **S4** · NEW (missed) · en · desktop, phone — the terms address the business as "you", then switch to the third person: "the operator may pause its sending or suspend it, and tells the owner why."
-- **S4** · NEW (missed) · all locales · desktop, phone — "Fees and leaving" says records "are removed on request as the privacy page describes". The privacy page in turn says "What a deletion removes, and what it keeps, is on the deletion page", so the reader passes through two pages to find the answer.
-- **S4** · NEW (missed) · zh · desktop — list items leave a single character and its full stop on a line of their own: "…或者你无法证明的说" / "法。" and "…以及骚扰任何人的消" / "息。".
-
-### data-deletion
-**Asks the owner to:** nothing; it tells a business's customers to message the business, or write to the address, to have their data deleted. **Clear without explanation?** Partly — the steps are there, but step 1 holds two routes and nothing confirms that a request was received.
-
-- **S3** · V1-070 · all locales · desktop, phone — "Notes and signals about your conversations." (关于你的对话的备注和标记。 / الملاحظات والإشارات المتعلقة بمحادثاتك. / Las notas y señales sobre tus conversaciones.) "signals" is still internal jargon.
-- **S3** · V1-071 · all locales · desktop, phone — step 1 still holds two routes: "You ask the business. Send it a message … saying you want your data deleted." Then, on a new line inside the same item: "You can also write to us at the address below, and we pass your request on to the business."
-- **S3** · V1-072 · all locales · desktop, phone — the page still says "…within 30 days of the business recording the request" and "Nomi does not write to you about it." The customer gets no deadline counted from their own request and no confirmation.
-- **S3** · V1-073 · all locales · desktop, phone — data-deletion has no logo, no home link and no language switch.
-- **S4** · V1-074 · en · desktop, phone — the straight apostrophe in "Nomi's operator, who runs the service for the business…" remains.
-- **S4** · NEW (missed) · all locales · desktop, phone — "Copies inside backups of the whole service. A backup is not changed to remove one person; your data leaves it when that backup is deleted." gives no time, so the customer cannot tell how long a copy survives.
-- **S4** · NEW (missed) · all locales · desktop, phone — under "How to reach us", "Write to <address>." is followed by "Or send the business a message saying so, from the account you used." This is the same dangling "saying so" as on privacy (V1-059), and here it repeats step 1.
-- **S4** · NEW (missed) · zh · desktop — "…你的电话号码、邮箱地址和账号标" / "识。" leaves "识。" alone.
-
-### not-found-public
-**Asks the owner to:** nothing; it offers "Back to Today". **Clear without explanation?** No — it speaks of "your workspace" to a visitor who has none, and its only link names an app page.
-
-- **S2** · V1-075 · all locales · desktop, phone — a signed-out visitor at `/nope` still reads "That page is not here / The address you opened does not belong to anything in your workspace. It may have been mistyped, or it may be an old link." (在你的工作台里没有对应的东西 / لا يقابله شيء في مساحة عملك / no corresponde a nada de tu espacio de trabajo).
-- **S2** · V1-076 · all locales · desktop, phone — the only link is still "Back to Today" (回到「今天」 / العودة إلى «اليوم» / Volver a Hoy), which signed out lands on the sign-in form. There is no link to the site.
-- **S4** · V1-077 · es, ar · desktop, phone — "Esa página no está aquí" / "هذه الصفحة ليست هنا" are unchanged and still read as literal translations.
-
-### set-password-bad
-**Asks the owner to:** ask whoever sent the link for a new one, or sign in. **Clear without explanation?** No — it names nobody and gives no contact, and "Sign in instead" needs a password this person never set.
-
-- **S2** · V1-078 · all locales · desktop, phone — the heading "Choose your password" (设置你的密码 / اختيار كلمة المرور / Elige tu contraseña) and the tab "Nomi · Choose your password" still sit over a card with no form.
-- **S2** · V1-079 · all locales · desktop, phone — "This link has already been used, or it has expired. Ask whoever sent it for a new one." names nobody. The only link, "Sign in instead" (直接登录 / تسجيل الدخول بدلًا من ذلك / Iniciar sesión), leads to a sign-in this person cannot use.
-- **S4** · V1-080 · zh · desktop, phone — "直接登录" is unchanged.
-
-### unsubscribe-bad
-**Asks the owner to:** nothing; it offers no action. **Clear without explanation?** No — two English lines, with no business named and no way to stop the mail.
-
-- **S2** · V1-081 · all locales · desktop, phone — `/u?t=x` still shows only "Not found / This link is not available." There is no business name, no word on whether the person is still on the list, no reply instruction and no link to /privacy or /data-deletion.
-- **S2** · V1-082 · zh, ar, es · desktop, phone — the page is still `lang="en"`, left to right, with the tab "Not found", whatever the language.
-- **S3** · V1-083 · all locales · desktop, phone — two lines sit at the top of an otherwise empty page, with no logo or product name (desktop: x≈324 on a 1280 px page). It looks like a server error.
-- **S4** · NEW (missed) · all locales · desktop, phone — the tab title "Not found" carries no product or business name, unlike every other public page ("Privacy · Nomi", "Nomi · Log in"). The same holds on proof-bad.
-
-### proof-bad
-**Asks the owner to:** nothing; it offers no action. **Clear without explanation?** No — the same two English lines, and nothing says whose price link broke.
-
-- **S2** · V1-084 · zh, ar, es · desktop, phone — `/p/x` shows "Not found / This link is not available." in English in every locale (`lang="en"`, tab "Not found").
-- **S2** · V1-085 · all locales · desktop, phone — the broken "where the price came from" link names no seller, gives no reason and offers no next step. Its words are identical to the failed unsubscribe.
-- **S3** · V1-086 · all locales · desktop, phone — the same bare two-line layout at the top of an empty page, with no brand.
-
-## 3 · Today, setting up, and the Setup hub
-
-### today
-**Asks the owner to:** review Aisha Bello's drafted reply, follow up Omar Haddad, finish setup. **Clear without explanation?** Partly — Aisha's row says what to do, Omar's row says nothing, and the month / 24-hour / messaging lines contradict the rows above them.
-
-- **S1** · V1-087 · "Fewer customers wrote to you this month: 82 last month, 38 this month." (zh "这个月写来的客户少了：上个月 82 个，这个月 38 个。", ar "كتب إليك عملاء أقل هذا الشهر: 82 الشهر الماضي، 38 هذا الشهر.", es "Este mes te escribieron menos clientes: 82 el mes pasado, 38 este mes.") — on "Friday, October 2" a whole September is set against two days of October and announced as a fall; the figures are message counts, not customers.
-- **S2** · V1-088 · "In the last 24 hours — Nothing in the last 24 hours yet." (zh "过去 24 小时里还没有动静。", ar "لا شيء خلال آخر 24 ساعة حتى الآن.", es "Todavía nada en las últimas 24 horas.") sits under "Aisha Bello … 17:18 · Review your assistant's reply": a customer wrote and a reply was drafted the same day, and the block says nothing happened.
-- **S2** · NEW (missed) · all locales · both widths — "○ Messaging is not active yet — no customer messages are being sent or received." (zh "消息通道尚未启用——暂时不会收发任何客户消息。", ar "قناة الرسائل غير مُفعّلة بعد — لا يتم إرسال أو استقبال أي رسائل من العملاء.", es "Los mensajes todavía no están activos — no se envían ni se reciben mensajes de clientes.") — on the same page Aisha Bello's message arrived at 17:18 and "38 this month" customers wrote; the line now wears the amber "○ waits for you" mark yet names no action and has no door.
-- **S3** · V1-091 · "How the month went ›" opens the page headed "Results" (zh "这个月怎么样 ›" → "经营情况"); "See the customers ›" opens "Customers" while the rail entry carrying the count is "Conversations 2" (zh "看看客户 ›" → "客户" / rail "对话 2").
-- **S3** · V1-092 · zh — the calendar is "日历" on Today ("接下来七天日历上没有安排。", "日历 ›") and "日程" in the rail and in the calendar page's own heading.
-- **S3** · V1-093 · "Tell me in this browser when an order waits" (zh "有订单等我确认时，在这个浏览器里提醒我", ar "تنبيه في هذا المتصفح عند وجود طلب بانتظار التأكيد", es "Avisarme en este navegador cuando haya un pedido en espera") is a borderless ghost button reading as grey text, indented ~19 px off the content edge on desktop and centred on phone (es on two centred lines), alone at the bottom under the messaging note.
-- **S3** · V1-094 · en, es, zh · phone — the right-hand doors squeeze the sentences into a ~200 px column: en "Fewer customers wrote / to you this month: 82 last / month, 38 this month." (3 lines), es "Omar Haddad no ha / respondido desde que / recibió un precio." (3 lines), "Este mes te escribieron / menos clientes: 82 el mes / pasado, 38 este mes." (3 lines).
-- **S3** · V1-096 · zh · phone — "这个月写来的客户少了：上个月 82 / 个，这个月 38 个。": 82 and its measure word 个 split across lines.
-- **S3** · V1-097 · all locales · desktop (shared shell) — the rail heads a group "Customers" over "Conversations 2" (zh 客户 / 对话 2, ar العملاء / المحادثات 2, es Clientes / Conversaciones 2); "Conversations" opens the page headed "Customers", and the phone nav's "Customers" opens the same page: one page, two names.
-- **S3** · V1-098 · all locales · phone (shared shell) — the phone nav reads "Today Customers Assistant Business Setup 3/5": "Customers" carries no "2", the only number in the bar is setup progress (zh "客户" / "设置 3/5", ar "العملاء" / "الإعداد 3/5", es "Clientes" / "Ajustes 3/5").
-- **S3** · V1-099 · all locales · desktop (shared shell) — the rail breaks the business name mid-word: "义乌宏发日用 / 品厂 (demo)".
-- **S3** · V1-100 · zh, es — nav "设置 3/5" / "Ajustes 3/5" and Today's "○ 设置：5 步里完成了 3 步。" / "○ Ajustes: 3 de 5 pasos completados." read "Settings 3/5", "Settings: 3 of 5 steps done".
-- **S3** · NEW · en, es · phone — Aisha's row: the only action label is cut, "Review your assist…" / "Revisar la respuest…", and the customer's question is cut to "Hello, what is your p…": two ellipses in the first row of the first page.
-- **S3** · NEW · all locales · desktop — Omar's preview stops mid-word with no ellipsis: "✦ Yes — one-colour logo print, $2.05/pc for 3,000 pcs, lead time 20 days. Shall I send a pro", with ~300 px of the row empty to its right.
-- **S3** · NEW · all locales · both widths — Omar's row states nothing: no words, only "●" (its meaning, "You are handling", exists only for screen readers); nothing on Today explains ○ / ● / ✦, yet the row is counted in "2 customers need you".
-- **S3** · NEW · ar · desktop — in both rows the English message line is left-aligned inside the RTL row: "Yes — one-colour logo print…" ends ~245 px short of the name column, detached from its "✦" at the right edge; Aisha's message hugs "مراجعة ردّ مساعدك" instead of sitting under her name.
-- **S4** · V1-101 · ar · phone — "…82 الشهر الماضي، 38 هذا / الشهر." — "this month" split, "الشهر." alone on the last line.
-- **S4** · V1-102 · all locales · both widths — "○ Setup: 3 of 5 done." then "Tell your assistant about your business ›" then "Watch how ›" on three separate lines; "Watch how ›" (zh "看看怎么做 ›", es "Ver cómo ›") does not say how to do what.
-- **S4** · V1-103 · zh — "告诉Omar Haddad价格之后，对方就没再回话了。" has no space between the Chinese and the Latin name, while "上个月 82 个" spaces its digits.
-- **S4** · V1-105 · all locales · phone (shared shell) — the business name "义乌宏发日用品厂 (demo)" appears only above Today's heading; Setup, Getting started, Getting ready, Technical details and Ready name no workspace at phone width.
-- **S4** · V1-106 · all locales (shared shell) — the mark is a figure silhouette in the desktop rail and a black disc with a white arch in the phone nav.
-- **S4** · NEW · all locales · phone (shared shell) — the phone nav says "Assistant" / "Business" (zh 助手 / 生意, ar تجارتي, es Asistente / Negocio) while the rail and the page headings say "Your assistant" / "My business" (zh 你的助手 / 我的生意, ar نشاطي التجاري).
-- **S4** · NEW · ar · both widths — the "ask first" dialog behind "تنبيه في هذا المتصفح…" confirms with "متابعة", the same word as Omar's door "متابعة ›" (Follow up) on the same page: one word, two different acts.
-
-### guide
-**Asks the owner to:** do the two unfinished steps (business profile, the assistant's name), with a video and words for each. **Clear without explanation?** Partly — "Do it now ›" exists only on steps 1 and 3, but the step names do not match the pages they lead to and the videos show a different app.
-
-- **S2** · V1-108 · all locales · both widths — the steps carry different names on every page: 1 "Tell your assistant about your business" (here and Today) = "Business profile" (Setup, Getting ready); 2 "Add what you sell" = "Products & prices" (Getting ready) = "Products" (this page's instructions); 3 "Confirm your assistant's name" = "The name customers see" (Getting ready) = "The name customers will read" (Ready); 4 "Connect the account customers write to" = "Where customers reach you" (Setup, Getting ready) = "A channel is connected" (Ready); 5 "Send your assistant's first reply to a customer" has no counterpart on Setup or Getting ready. Same split in zh (告诉你的助手你的生意是做什么的 / 商家资料; 添加你卖的东西 / 产品和价格 / 产品目录), ar (تعريف مساعدك بنشاطك التجاري / ملف النشاط التجاري) and es (Cuéntale a tu asistente sobre tu negocio / Perfil del negocio).
-- **S2** · V1-109 · all locales · both widths — "5. Send your assistant's first reply to a customer ✓ Done" while Getting ready says "Customers answered 0" and "What happened so far — Nothing yet"; its own words ("Open Practice and write the way a customer would.") describe a rehearsal, not a reply to a customer.
-- **S2** · NEW · all locales · both widths — the new stills show the app before the rebuild: step 1's still shows Setup as a flat list with "Getting started 2 of 5 steps done", rows ending in "→" and "Who works here 1 person" (the live page says 3 of 5, "›", "2 people", grouped cards); step 4's still shows "WhatsApp — Not connected" under the heading "✓ Done", and developer text "This installation has no app for it yet." (zh/ar/es stills the same, in their language).
-- **S3** · V1-107 · (stills and lengths now shown) all locales · both widths — each of the five videos now has a still and "Video · 20 seconds", but every still is overlaid by a loading ring and a "0:00" control bar, so all five look stuck loading.
-- **S3** · V1-110 · all locales · both widths — the nav lights "Setup 3/5" but the page is headed "Getting started" (zh 设置 / 开始使用, ar الإعداد / البدء, es Ajustes / Primeros pasos).
-- **S3** · V1-111 · all locales · both widths — the instructions send the owner to places the nav does not have: "Open Products, then Teach your assistant your products." (zh 「产品目录」, es «Productos»), "Open Getting ready.", "Open Where customers reach you."
-- **S3** · V1-112 · all locales · both widths — step 3's "Do it now ›" opens Getting ready at its top (/app/onboarding, no anchor); the name field is in the second section, ~800 px down a ~3,150 px page.
-- **S3** · V1-113 · en — "Confirm it. Nothing is sent without your OK before you do." reads as if nothing needs an OK once the name is confirmed.
-- **S3** · V1-114 · en, es · phone — a wrapping heading pushes its number onto a line of its own ("1." then "Tell your assistant about your / business", "4." then "Connect the account customers / write to", "5." then "Send your assistant's first reply to a / customer"; es "5." then "Envía la primera respuesta de tu / asistente a quien te escriba"), while short ones stay inline ("2. Add what you sell ✓ Done").
-- **S3** · V1-115 · all locales · phone — every card starts at x≈36 while the heading and intro start at x≈16 (mirrored in ar): ~20 px of a 390 px screen lost on each side.
-- **S3** · V1-116 · all locales · both widths — "After the five steps" sits ~13–20 px under card 5, tighter than the ~30 px between cards, so it reads as part of card 5.
-- **S3** · V1-117 · es — "Leer en su lugar" is a word-for-word calque of "Read instead".
-- **S3** · NEW · all locales · phone — the stills are the 1280 px desktop screen shrunk into a ~300 px frame: every word in them is unreadable, and they show the desktop rail a phone owner never sees.
-- **S4** · V1-118 · all locales · both widths — the intro says "Each has a short video, and the words under it say the same." but the words are folded behind "› Read instead".
-- **S4** · NEW · es · both widths — "Vídeo · 20 segundos" under an intro that says "un video corto": two spellings of video on one page.
-
-### onboarding
-**Asks the owner to:** confirm the assistant's name, run the practice check, teach a fact, review certifications, then confirm backups, secrets and readiness. **Clear without explanation?** No — owner tasks are mixed with operator chores and internal terms, under three different progress counts.
-
-- **S2** · V1-119 · all locales · both widths — "Before you go live" asks the owner to confirm "○ Backup tested [Confirm]" and "○ Secrets rotated [Confirm]" (zh 已测试备份 / 已轮换密钥, ar تم اختبار النسخ الاحتياطي / تم تدوير المفاتيح, es Copia de seguridad probada / Claves secretas renovadas): operator chores a shop owner cannot know or do.
-- **S2** · V1-120 · all locales · both widths — internal vocabulary throughout: "During the pilot" (zh 试点进行中, ar أثناء التجربة, es Durante el piloto), "Trust validation passed", "Practice check", "Knowledge taught", "Hand-back practiced", "Delivery health".
-- **S2** · V1-121 · all locales · both widths — the first section is headed "Setup" (zh 设置, ar الإعداد, es Ajustes) but lists seven items (Business profile, Products & prices, Your price limits, Knowledge taught, Certifications reviewed, Practice check, Where customers reach you) that are not the five steps the nav's "Setup 3/5" counts; the name sits in another section.
-- **S2** · V1-122 · all locales · both widths — "Waiting for you 0" (zh 等你接手 0) while Today says "2 customers need you" and the rail "Conversations 2"; "What happened so far — Nothing yet — this fills in once customers start talking to your assistant." while Today reports 82 + 38 customers writing and two waiting.
-- **S3** · V1-123 · all locales · both widths — "Practice check" is listed twice: under "Setup" ("Run the practice check below. Open ›", where "Open ›" goes to the Practice page, not below) and under "Before you go live" ("Not run yet [Run practice check]").
-- **S3** · V1-124 · all locales · both widths — "Practice before launch · 3/5" puts a second "3/5" in view that means something other than the nav's "Setup 3/5"; its numbered list has 7 steps while the marks under it are 5.
-- **S3** · V1-125 · all locales · both widths — "Delivery health ✓ Every reply your assistant sent has gone out." shows a success tick while "Customers answered 0": a success state for nothing sent.
-- **S3** · V1-126 · all locales · both widths — "Replies you corrected" and "Answers corrected" (es "Respuestas que corregiste" / "Respuestas corregidas", zh 你修改的回复 / 修正回答) — two near-identical counters in adjacent groups.
-- **S3** · V1-127 · all locales · both widths — the count column is ragged: "Answers corrected 0" has no "Open", so its 0 sits at the far edge while every other number is offset by its "Open"; "Open" is 13 px plain text beside 17 px bold numbers.
-- **S3** · V1-128 · all locales · both widths — three door placements on one page: "Open ›" at the far edge in "Setup", a bare "Open" (no chevron) in "During the pilot", and a small "Open ›" right after the text in "After conversations happen".
-- **S3** · V1-129 · all locales · both widths — "We have none" (zh 我们没有认证, ar ليس لدينا أي شهادة, es No tenemos ninguna) is a borderless ghost button that looks like plain text; on ar phone it floats alone on its own line.
-- **S3** · V1-130 · all locales · both widths — "A few steps left before going live." (zh 上线前还差几步。, ar بقيت خطوات قليلة قبل الانطلاق., es Faltan unos pasos antes de empezar con clientes reales.) is a centred bold sentence in a white rounded box, styled like a button, that does nothing.
-- **S3** · V1-131 · all locales · both widths — "Business profile — Add your business details. Open ›" opens the Setup hub (/app/settings), not the profile; a second tap is needed.
-- **S3** · V1-132 · all locales · both widths — "You can change it later on the team page." (zh 团队页面, ar صفحة الفريق, es la página del equipo) — no page is called "team"; Setup calls it "Who works here", and Setup's search finds nothing for "team".
-- **S3** · V1-133 · zh, ar vs en, es · desktop — the name row lays out differently by language: en/es stack label, hint, field and "Confirm"; zh/ar put the hint beside the label and push the field and "确认" / "تأكيد" to the far end of the row.
-- **S3** · V1-134 · all locales · both widths — the name field's "Confirm" drops below the field, while every other "Confirm" sits inline after its label.
-- **S3** · V1-135 · all locales · phone — hints are pushed to the far edge under start-aligned labels ("Add your business details. Open ›", "Teach at least one fact or answer. Open ›", "Run the practice check below. Open ›"), while "Certifications reviewed" puts its hint start-aligned: the list zigzags.
-- **S3** · V1-136 · ar — "مراجعة ما يمكن لـ مساعدك فعله دون انتظارك" — the prefix "لـ" stands detached before "مساعدك".
-- **S3** · NEW · all locales · both widths — the open mark is graphite here ("○ Business profile", "○ Backup tested", "○ Knowledge correction practiced") and on Ready and Technical details, while Setup and Today draw the same "not done" state amber ("○ Not finished", "○ Setup: 3 of 5 done."): one state, two colours.
-- **S3** · NEW (missed) · es · both widths — "Estado de las entregas" (Delivery health) reads as the state of shipments to customers; "Haz la comprobación en Práctica de abajo." is a word-for-word calque.
-- **S4** · V1-137 · all locales · both widths — the name field is pre-filled "Lily" while every other page says "your assistant"; nothing says "Lily" is only a suggestion.
-- **S4** · V1-138 · zh — "打开你拥有的认证——或确认你没有认证。" renders "Turn on" as 打开 ("open").
-- **S4** · NEW (missed) · en · both widths — "Practise with your assistant ›" (and Ready's "Practise as a customer ›") beside "Take-over practiced", "Hand-back practiced", "Practice check": British and American spelling on one page.
-- **S4** · NEW (missed) · ar · both widths — Practice has three names on one page ("فحص التدريب", "التدرّب قبل الإطلاق", "التمرّن مع مساعدك") and launch two ("الإطلاق", "الانطلاق").
-- **S4** · NEW (missed) · zh · both widths — ticked rows start their text ~5 px left of open rows ("✓ 产品和价格" against "○ 商家资料"; Ready "✓ 已连接一个渠道" against "○ 客户会看到的名字还没确认"): the list's text edge is ragged.
-
-### onboarding-technical
-**Asks the owner to:** nothing ("Nothing here needs you"), yet the red box asks to "ask the owner the three questions". **Clear without explanation?** No — the page contradicts itself and speaks in installation terms.
-
-- **S2** · V1-139 · all locales · both widths — developer-facing content shown to the owner: "Access key", "WhatsApp number id", "Business account id", "App secret", "Callback password", "Connection version", "Messaging is switched off in this installation.", "This installation — Running version Not reported · Environment local · Running since Fri, Oct 2", values in a monospace code font, "local" left in English in zh/ar/es.
-- **S2** · V1-140 · all locales · both widths — red box "✕ 12 price rules were written by the old importer, not by the owner: floor equal to the list price, no discount authority. Nothing rewrites them — ask the owner the three questions and let those answers replace them." speaks of the reader as "the owner" in the third person (es "a quien dirige el negocio"), uses internal terms ("old importer", "discount authority"), never says which three questions, offers no door, and contradicts the intro's "Nothing here needs you."
-- **S2** · NEW · all locales · both widths — "The channel has not been connected yet." and "Not live yet — no customer messages are sent or received." (zh 渠道还没有连接。, ar لم يتم ربط القناة بعد., es El canal todavía no está conectado.) while Setup says "Where customers reach you ✓ Connected", Getting ready "✓ Where customers reach you — Checked for you", Ready "✓ A channel is connected" and Getting started "4. Connect the account customers write to ✓ Done": four pages say connected, one says not.
-- **S3** · V1-141 · all locales · both widths — the browser title says "Getting ready" (zh 准备上线, ar التجهيز, es Preparación) while the heading says "Technical details".
-- **S3** · V1-142 · en, es · phone — "Approved message for re-opening a conversation" (es "Mensaje aprobado para reabrir una conversación"): its ○ sits alone on its own line, with the label and the state below it.
-- **S3** · V1-143 · ar · both widths — values in the monospace face ("غير متوفّر", "غير مُفعّلة", "الجمعة، 2 أكتوبر") fall back to a cramped bold font smaller than their labels.
-- **S3** · V1-144 · all locales · both widths — "Safety checks against this business's own data — All 13 checks held." says neither what was checked nor why it matters.
-- **S3** · NEW (missed) · all locales · both widths — "Not live yet — no customer messages are sent or received." is a centred bold sentence in a white rounded box, styled like a button, that does nothing.
-- **S3** · NEW (missed) · all locales · both widths — "○ Approved message for re-opening a conversation — Not approved yet — conversations older than a day cannot be re-opened" (zh 还没批下来——超过一天的对话现在联系不上): an alarming limit stated in WhatsApp-template terms, with no door and nothing the owner can do.
-- **S4** · NEW (missed) · en, ar · phone — headings leave one word alone: "Safety checks against this business's own / data", "فحوص السلامة على بيانات هذا النشاط التجاري / نفسه".
-
-### ready
-**Asks the owner to:** see eight behaviours in Practice and confirm the name before customers write. **Clear without explanation?** Partly — the list is readable, but no item has a door and "✓ may send alone" contradicts "○ name not confirmed".
-
-- **S2** · V1-145 · all locales · both widths — "✓ Your assistant may send alone, at the level you choose" is ticked while "○ The name customers will read is not confirmed yet" is open in the same list; Getting started says nothing goes out without the owner's OK until the name is confirmed.
-- **S3** · V1-146 · all locales · both widths — a third measure of the same Practice: "Seen in Practice · 1/8" here, "Practice before launch · 3/5" and "Practice check — Not run yet" on Getting ready.
-- **S3** · V1-147 · all locales · both widths — "In place" lists a negative sentence beside an empty circle ("○ The name customers will read is not confirmed yet"): a double negative whose state has to be worked out.
-- **S3** · V1-148 · en, es, ar · both widths — "Seen once is seen." (es "Lo visto una vez cuenta como visto.", ar "ما شوهد مرة يبقى مشاهدًا.") is cryptic.
-- **S3** · V1-149 · zh — two words for customer on one page: "准备好接待客户", "扮成客户练习", "客户会看到的名字" against "用顾客常用的叫法", "要找人的顾客", "顾客收到的内容".
-- **S3** · V1-150 · all locales · both widths — this page and Getting ready only point at each other ("Getting ready ›" here, "Ready for customers ›" there); none of the eight open items has its own door.
-- **S3** · NEW (missed) · es · both widths — calques: "Una pregunta que tu asistente no pudo responder, pasada a ti", "Un descuento por encima de tu límite, retenido para ti", "Práctica detenida, y el siguiente mensaje pasado a ti".
-- **S4** · V1-151 · all locales · both widths — the nav lights "Setup 3/5", but the page is none of the five steps and no row on the Setup page leads to it.
-- **S4** · NEW (missed) · en, es · phone — single words wrap alone: "…is not confirmed / yet", "…your customers / use", "…handed to / you", "Seen once is / seen.", "…at the level you / choose".
-
-### setup
-**Asks the owner to:** pick a setting to change, or continue setting up from "Getting started" / "Getting ready". **Clear without explanation?** Partly — the groups and values read well, but which of the two setting-up rows to open is unclear and "✓ Connected" contradicts other pages.
-
-- **S2** · V1-153 · all locales · both widths — under "Setting up" on the page "Setup", "Getting started — Five steps to your first reply" and "Getting ready — What is checked before customers are answered" sit next to each other (zh 准备工作: 开始使用 / 准备上线, ar خطوات البدء: البدء / التجهيز, es Puesta en marcha: Primeros pasos / Preparación): four names for setting up, and both rows point at the name ("3 of 5 steps done" / "Name not confirmed yet").
-- **S3** · V1-154 · all locales · phone — "Log out" (zh 退出, ar تسجيل الخروج, es Cerrar sesión) is a borderless ghost button at the bottom, indented ~19 px from the cards above, reading as stray text.
-- **S3** · V1-155 · all locales · both widths — "Setup 3/5" in the nav lands here, but the five counted steps are not shown: only the "Getting started" row summarises them, and nothing marks which of the eleven rows ("Business profile ○ Not finished", "Where customers reach you ✓ Connected"…) are steps.
-- **S3** · NEW · all locales · both widths — "Kind of business — Kind of business, country and website" (zh 生意类别 — 生意类别、国家和网站, es Tipo de negocio — Tipo de negocio, país y sitio web): the description repeats its own label.
-- **S3** · NEW · all locales · both widths — unfinished rows are marked unevenly: "○ Not finished" (Business profile) and "○ Name not confirmed yet" are amber with ○, while "Not answered yet" (Kind of business) and "0 of 9 answered" (How you sell) are plain grey with no mark.
-- **S3** · NEW · all locales · both widths — "Alerts on your phone — Not available here" (zh 这里暂不可用, ar غير متاحة هنا, es No disponibles aquí): "here" is unexplained (this browser? this phone? this plan?) and the row still opens like an available setting.
-- **S3** · NEW · en (live app) · both widths — the setting search answers "Nothing in Setup matches “password”." and "Nothing in Setup matches “team”." (the word Getting ready uses) with no door, although "Your sign-in" and "Who works here" are on the page.
-- **S4** · V1-157 · zh — "这里有谁" ("who is here") for "Who works here"; "付款" ("payment") for "Billing", now also in the group heading "付款与数据".
-- **S4** · NEW · all locales · both widths — the search field (~50 px tall) and its "Find" button (~45 px) are different heights, top-aligned, so their bottoms do not line up.
-- **S4** · NEW · zh · both widths — the search button reads "找" alone, a one-character colloquial verb, beside the placeholder "找一项设置".
-
-### not-found-app
-**Asks the owner to:** go back to Today. **Clear without explanation?** Partly — the message is clear, but the page looks signed out and its only way back is plain small text.
-
-- **S3** · V1-158 · all locales · both widths — signed in, but /app/nope drops the whole shell (no rail, no phone nav, no business name) and shows the sign-in door's layout with a language switch on top, so the owner looks signed out.
-- **S3** · V1-159 · all locales · both widths — "Back to Today" (zh 回到「今天」, ar العودة إلى «اليوم», es Volver a Hoy) is small plain text with no underline or chevron, unlike every other door in the app.
-- **S3** · V1-160 · en, zh, es · both widths — the tagline "Your digital employee's workspace" (zh 你的数字员工工作台, es El espacio de trabajo de tu asistente digital) uses "digital employee", a term found nowhere else (ar says "مساحة عمل مساعدك").
-- **S4** · V1-161 · all locales · both widths — the browser title "Nomi · That page is not here" drops the business name every other page carries.
-- **S4** · V1-162 · all locales · both widths — the footer "For your business and the people who work there." (es "Para tu negocio y las personas que trabajan allí.") is marketing filler on an error page.
-
-## 4 · Customers: the list, an order, the calendar, Results
-
-### inbox
-**Asks the owner to:** open the customers who need a reply or a review. **Clear without explanation?** Partly. On a phone Aisha's reason is cut to "Review your assist…", and Omar's row asks for nothing beyond "Held by 陈莉".
-
-- **S2** · V1-163 · Omar Haddad is counted in "Needs you (2)" / "等你处理 (2)" / "بحاجة إليك (2)" / "Te necesita (2)" and listed there with the ● mark ("a person has it"), not the ○ "waits for you" mark Aisha Bello gets, and only "Held by 陈莉" / "陈莉 在管" / "في عهدة 陈莉" / "En manos de 陈莉" (last message Sep 11). On the All tab and in the "Haddad" search the same row is filed under "Your team is handling" / "团队在处理" / "في عهدة فريقك" / "Atiende tu equipo", not "Needs you". The tab count, the row mark and the grouping disagree, and nothing says what the owner must do for him. All locales, both widths.
-- **S2** · V1-164 · previews are still cut mid-word by the server at 90 characters. On desktop no ellipsis is shown, so they read as finished sentences: "…lead time 20 days. Shall I send a pro", "…$1.08/pc for 30,000 pcs, lead time 25" (the unit "days" is lost), "For 500 pcs the price is $1.05/pc F", "Eight hours of light on". All locales, desktop. On a phone a "…" now follows the cut.
-- **S2** · NEW · en, es · phone — line 2 of a waiting row carries both the preview and the reason, and both are cut: "Hello, what is your p…" next to "Review your assist…", es "Revisar la respuest…". The automated check finds the reason running to 412 px (es 454 px) on a 390 px screen. The one instruction the row exists to give cannot be read. (zh "看看这条回复" and ar "مراجعة ردّ مساعدك" fit.)
-- **S3** · V1-165 · one area still has three names. The heading and browser tab say "Customers" / "客户" / "العملاء" / "Clientes". The highlighted rail item under it says "Conversations 2" / "对话 2" / "المحادثات 2" / "Conversaciones". The area's own text says "See all conversations ›" (no-result search), "Back to the conversation" (order) and "You are not holding any conversation." (Mine). All locales, desktop.
-- **S3** · V1-166 · the two links under the list are unchanged: "Calendar: what is dated, by day ›" (zh "日程：按天看已有的日期 ›", es "Calendario: lo que tiene fecha, por día ›", ar "التقويم: التواريخ المسجلة يومًا بيوم") and "Who you may write to ›" (你可以联系谁 / من يمكن مراسلته / A quién puedes escribir), which gives no hint of what it opens. On desktop the calendar link repeats the rail's "Calendar" just to its left. All locales, both widths.
-- **S3** · V1-167 · zh: the search button still says only "找". The held-by tag still reads "陈莉 在管", with a stray space. Both widths.
-- **S3** · V1-168 · es phone: the search placeholder is cut to "Nombre, número o produc". It is the same on the Needs-you, All, Mine and search pages.
-- **S3** · NEW · all locales · phone — the phone row drops the product, quantity and price that desktop shows ("LED String Lights 10m · 5,000 pcs · $1.45"), and the preview keeps about 20 characters ("Yes — one-colour logo pri…", es "Yes — one-colour log…"). Neither what the customer wants nor what was answered can be read without opening the row.
-- **S3** · NEW · all locales · both — the three row marks ○ (amber), ● (black) and ✦ (magenta) are explained nowhere on the page; only screen readers get words. ✦ also has two meanings in one list. As a row mark it means "the assistant has it". Before Omar Haddad's preview ("✦ Yes — one-colour logo print…") it means "the assistant wrote this", in a row whose own mark is ●.
-- **S4** · V1-169 · es: quantities still use the English thousands comma: "5,000 uds.", "3,000 uds." in the rows and on the order page; "cantidad 2,000", "cantidad 5,000" in the calendar's day list. The all-customers tab is still "Todo". Both widths.
-- **S4** · V1-171 · the selected tab ("Needs you (2)", "All", "Mine") is a pale grey pill, less prominent than the white outlined unselected tabs beside it. "Find" (phone about 44 px tall, desktop about 44 px) is still shorter than the search field (about 49 px), so their bottom edges don't line up. All locales, both widths.
-- **S4** · V1-172 · the list now runs the full width, but the rail's "Conversations 2" / "对话 2" / "المحادثات 2" count still has no visible label. Only a screen reader hears "2 customers need you". All locales, desktop.
-
-### inbox-all
-**Asks the owner to:** scan every customer, grouped by who is handling them, and open one. **Clear without explanation?** Partly. The marks are unexplained, unanswered rows differ only by boldness, and the list has a second ordering with no heading.
-
-- **S2** · NEW · ar · desktop — in the rebuilt row, English previews do not sit under the name. The name and mark are at the right; the preview hugs the left, under the time. Examples: "EU, UK or US plug, same price." sits more than 550 px from "Carlos Mendes" and "Rahim Chowdhury"; "Hello, what is your price … Lagos." ends about 220 px short of "Aisha Bello". Line starts also vary row to row (about 93 px vs 115 px from the card edge, depending on the time's width). Omar Haddad's "✦" stands alone at the right of line 2, about 230 px from the words it marks. Also on Needs you and in search, ar desktop.
-- **S3** · V1-173 · inside "Your assistant is handling" the times run from "17:47" (Fatima Zahra) down to "Sep 17" (Camila Rocha), then jump back to "17:13" (Layla Mansour) and run down again to "Sep 30" (Lucia Ferreira). It is a second ordering with no heading between the two. All locales, both widths.
-- **S3** · V1-174 · rows under "Your assistant is handling" that end on the customer's own words ("Do you have colour options?", "Ours. Please quote FOB.", "Can you do 3 colours per set?") show no reply and no word saying they are unanswered. They are told apart from the assistant's answered rows ("Yes — Canvas Tote Bag … $1.05/pc F") only by black, bold text against grey, regular text. The answered rows no longer carry any speaker label either. All locales, both widths.
-- **S3** · V1-175 · zh: the tab still says "等你处理 (2)" while the group heading below it says "需要你处理" for the same set. Both widths.
-- **S4** · V1-177 · the page is shorter now (about 3,450 px on a phone, 3,850 px in ar), but it is still 50 near-identical rows. The only paging control, "1–50 of 71  Next page ›" / "第 1–50 位，共 71 位  下一页 ›" / "1 إلى 50 من 71  الصفحة التالية", is at the very bottom. All locales, phone.
-
-### inbox-mine
-**Asks the owner to:** see the conversations they personally hold (none here). **Clear without explanation?** Yes. The panel says why it is empty and where to go.
-
-- **S4** · V1-179 · on the empty Mine tab (and the no-result search) a rule under the tabs runs to about 1,240 px. The empty panel below it stops at about 780 px, and the two doors stop at about 480 px. All locales, desktop.
-- **S4** · NEW · all locales · both — the empty panel's "See who needs you ›" / "看看谁在等你 ›" / "عرض ما ينتظرك" / "Ver quién te necesita ›" does exactly what the "Needs you (2)" tab directly above it does: two controls for one action.
-
-### inbox-search
-**Asks the owner to:** find a customer by name, number or product. **Clear without explanation?** Yes. "2 found for “Haddad”" and the grouped rows answer it, though "Clear" looks disabled.
-
-- **S3** · V1-181 · "Clear" / "清除" / "مسح" / "Limpiar" is still plain grey text beside the outlined "Find" / "找" / "بحث" / "Buscar" button. It reads as disabled text, not as a control. All locales, both widths.
-- **S4** · V1-182 · in "2 found for “Haddad”", neither "Omar Haddad" nor "Leila Haddad" has the matched word marked. All locales, both widths.
-- **S4** · NEW (missed) · all locales · both — when "Clear" appears after a search, the search field shrinks (desktop about 339 px → 294 px; phone about 281 px → 236 px), so the field and the "Find" button move between the plain and the searched page.
-
-### inbox-search-none
-**Asks the owner to:** try another search or go back to everyone. **Clear without explanation?** Partly. "Nobody found for “zzzzqqq”." is clear, but three controls (Clear, All, "See all conversations ›") do the same thing.
-
-- **S3** · V1-183 · "See all conversations ›" / "看全部对话 ›" / "عرض كل المحادثات" / "Ver todas las conversaciones ›" in the no-result panel does the same as "Clear" and as the already-selected "All" tab. That is three controls for one action, and this one says "conversations" on a page headed "Customers". All locales, both widths.
-
-### order
-**Asks the owner to:** record where the order is (stage, tracking, note) and copy the proforma. **Clear without explanation?** Partly. The heading is a code, "Nothing recorded yet." contradicts "Confirmed", and there is no way to copy the invoice.
-
-- **S2** · V1-184 · the order page heading is still "USAB-de300000-0001", a code built from the record id. "Order" / "订单" / "الطلب" / "Pedido" is nowhere in the heading, and the browser tab says "Customers · 义乌宏发日用品厂 (demo)" (客户 / العملاء / Clientes). All locales, both widths.
-- **S2** · V1-185 · ar phone: the proforma box is right-aligned and opens scrolled, so the START of the English lines is cut off. "Stainless Steel Thermos 500ml (ZX-200)" is cut through its first letter ("tainless…"); the last line shows only ": 30% deposit, balance before shipment", with "Payment" hidden. On ar desktop the same English lines hang ragged from the right edge ("Payment: 30% deposit…" sticks out left of "Total: $11,750.00").
-- **S2** · V1-186 · en, zh, es phone: the proforma box is cut at the right edge: "Stainless Steel Thermos 500ml (ZX-200", "Payment: 30% deposit, balance before s". Nothing shows that the box scrolls sideways.
-- **S2** · V1-187 · zh, ar, es: the proforma invoice is still all English ("PROFORMA INVOICE", "Seller:", "Customer:", "Qty: 5,000 pcs", "Unit price: $2.35 FOB", "Payment: 30% deposit, balance before shipment") under translated headings "形式发票" / "فاتورة مبدئية" / "Factura proforma". So the same figures appear twice in two formats: zh "5000个" above and "Qty: 5,000 pcs" below; ar "US$ 11,750.00" above and "Total: $11,750.00" below. Both widths.
-- **S3** · V1-188 · the invoice is still raw typewriter-font text in a bordered box (now white instead of grey). The line above says "Copy it into your own paperwork." / "你可以复制到自己的单据里。" / "يمكن نسخه إلى أوراقك.", but there is no copy, print or download control. All locales, both widths.
-- **S3** · V1-189 · "What you recorded: Nothing recorded yet." (你记过的：还没记过什么。/ ما سُجِّل: لم يُسجَّل شيء بعد. / Lo que registraste: Todavía no hay nada registrado.) contradicts the stage menu above it, which shows "Confirmed", and the summary's "Confirmed on Wed, Sep 30". All locales, both widths.
-- **S3** · V1-190 · the help text is unchanged and hard to follow: "You set this. Your assistant tells a customer what you recorded and the day you recorded it — never a delivery date worked out from it." (zh "…不会拿这个去推交货日期。", es "…nunca una fecha de entrega calculada a partir de ello"). All locales, both widths.
-- **S3** · V1-191 · desktop: no rail entry is highlighted on the order page (neither "Conversations 2" nor "Calendar"; ar "المحادثات 2" is plain too). The back link says "‹ Back to the conversation" (回到对话 / العودة إلى المحادثة / Volver a la conversación) while the area is called "Customers". All locales.
-- **S3** · V1-192 · zh: the stray space is still in "你的助手 只会把你记的这一步…". "上面每个数都是从这张单子上抄的" still says the figures are "above", but the invoice is below. The product still reads "Stainless Steel Thermos 500ml" here but "保温杯" for the same customer's row in the zh Customers list. Both widths.
-- **S4** · V1-193 · desktop: the three form fields are about 390 px wide while the invoice box below them runs about 990 px. "Confirmed on Wed, Sep 30" (es "mié, 30 sept", ar "الأربعاء، 30 سبتمبر") has no year. All locales.
-- **S4** · V1-194 · es: "Pégalo de la empresa de mensajería" (placeholder) and "Cópiala a tus propios documentos" still read as literal translations. Both widths.
-- **S4** · NEW (missed) · all locales · both — the section heading and the field label ask the same question twice: "Where it is now" / "Where the order is" (zh "现在到哪一步" / "订单到哪一步", es "Dónde está ahora" / "En qué punto está el pedido", ar "أين الطلب الآن" / "أين وصل الطلب"). "Record this" / "记下来" / "Registrar" does not say what it records when the menu already shows "Confirmed".
-
-### calendar
-**Asks the owner to:** see what is dated this week and add a date. **Clear without explanation?** Partly. On a phone today is off-screen. "✦" and "Price worked out" are unexplained. "Add a date" is buried under the grid.
-
-- **S2** · V1-195 · (was S1: an edge shade now shows scrolling) phone: the week grid still opens on Mon 28 to Wed 30 only. Thu 1, Fri 2 (today), Sat 3 and Sun 4 are off the right edge (ar: off the left edge, "الأربعاء 30" is the last column visible), and so are all of today's cards (Carlos Mendes, Layla Mansour, Aisha Bello). The only cue is a dark shade at the grid's edge. All locales.
-- **S3** · V1-199 · the move buttons are still a bare "‹" and "›" with no words ("Earlier"/"Later" exist only for screen readers). The bold "Today" between them looks like the period's label, not a button. Same on Month and Day. All locales, both widths.
-- **S3** · V1-200 · "✦" sits before "Price worked out" / "算出报价" / "حُسب السعر" / "Precio calculado" on most cards, and nothing on the page says what it means. The legend explains only "From a conversation" / "Added by you", and its solid swatch still looks like a toggle switch. All locales, both widths.
-- **S3** · V1-201 · this week's cards are still records of things already done ("✦ Price worked out 02:19", "Sample dealt with 17:43", "Order 17:53"), drawn in grey and laid out like appointments. "Price worked out" / "算出报价" / "حُسب السعر" is still internal wording for a quote. In ar the order card is still labelled just "طلب", next to "طلب عينة" (sample asked), so it reads as "a request". All locales, both widths.
-- **S3** · V1-202 · phone: two rows of identical pills (Month/Week/Day/List, then All/Samples/Orders/Negotiation) still stack above the grid. In en/es the second row wraps, so "Negotiation" / "Negociación" sits alone on a third row. The Month and Day views do the same.
-- **S3** · V1-203 · "› Add a date" / "添加日期" / "إضافة موعد" / "Añadir una fecha" is still the page's only way to add anything, yet it is a small collapsed line below the whole 02–18 hour grid (about 1,946 px down on a phone, 1,676 px on desktop). All locales, both widths.
-- **S3** · NEW · en, es · both — the cards now wrap instead of cutting, and the kind breaks with one orphan word. On desktop "Price worked / out" leaves "out" alone on 12 of 15 cards, and "Sample dealt / with" does the same. On phone: "✦ Price / worked out"; es "✦ Precio / calculado", "Muestra / atendida". Each card is 4–5 lines for a name, a kind and a time. The Month view does the same ("Price worked / out").
-- **S4** · V1-204 · every hour from 02 to 18 gets a row although most are empty. The phone page is about 2,046 px for the six cards it shows. Today is marked only by a thin underline under "Fri 2" (Month view: under "2"). All locales, both widths.
-
-### analytics
-**Asks the owner to:** read how the business did over a period (today / this week / this month). **Clear without explanation?** No. The figures contradict each other and the rest of the app, and the nav says "Today".
-
-- **S2** · V1-205 · numbers on the page still disagree. "41 Replies that went out" and "58 Customer messages" sit above "Your assistant's work: 1 Inquiries handled". "1 Awaiting you" / "1 等待确认" / "1 بانتظارك" / "1 Te esperan" disagrees with the rail's "Conversations 2" and the Customers tab's "Needs you (2)". All locales, both widths.
-- **S3** · V1-206 · en, es: the closing sentence still capitalises mid-sentence: "This covers This week." / "Esto abarca Esta semana." Both widths.
-- **S3** · V1-207 · the nav still highlights "Today" / "今天" / "اليوم" / "Hoy" (phone tab and desktop rail) on a page headed "Results" / "经营情况" / "النتائج" / "Resultados". Right below sits an unselected period chip also called "Today". All locales, both widths.
-- **S3** · V1-208 · the same counts still appear twice: "12 Quotes" under Overview and "12 Quotes sent" under Quotes & orders; "1 Orders" and "1 Orders placed" (zh "12 报价"/"12 报价数量", "1 订单"/"1 订单数量"). All locales, both widths.
-- **S4** · V1-209 · there are still no singular forms: "1 Orders", "1 Inquiries handled", "1 Replies waiting for your OK", es "1 Pedidos", "1 Te esperan", "1 Consultas atendidas", ar "1 الطلبات". Both widths.
-- **S4** · V1-210 · the "Sales" block still breaks the number-and-label pattern: a lone pill "Confirmed 1" (now neutral, shaped like the period chips above, so it reads as a filter), then the sentence "Sales value $11,750" (ar "قيمة المبيعات US$ 11,750"). The order page shows the same sum as "$11,750.00". All locales, both widths.
-- **S4** · V1-211 · desktop: the stat rows and their dividers stop at about 850 px while the section rules run to about 1,240 px. All locales.
-- **S4** · V1-212 · zh: "你的助手的工作总结" still has a double 的, and "0 你改过的" still reads as an unfinished stat label. Both widths.
-- **S4** · NEW (missed) · all locales · both — "Awaiting you" / "等待确认" / "بانتظارك" / "Te esperan" names the same state the Customers tab calls "Needs you" / "等你处理" / "بحاجة إليك" / "Te necesita". zh "等待确认" ("awaiting confirmation") also says something different.
-
-### calendar-month
-**Asks the owner to:** see the month at a glance and open a busy day. **Clear without explanation?** Partly. On a phone today and the busiest days are off-screen or sliced.
-
-- **S2** · NEW · all locales · phone — the month opens on Mon–Wed plus a sliver of Thursday. Thursday's header shows "Th" and its cards are sliced to "R / C", "A" and "+4" (ar: "m", "y", "ir", "4+" at the left edge). Fri 2 (today), Sat 3 and Sun 4 are off-screen. A shade at the edge is the only cue. The phase-7 promise "names never cut" fails on first paint.
-- **S4** · NEW · all locales · both — today ("2") is marked only by a short underline under the number. No fill, word or shape sets the cell apart.
-
-### calendar-day
-**Asks the owner to:** read one day's dated items in time order and open one. **Clear without explanation?** Partly. Every row repeats its kind, and the legend above it explains nothing in this view.
-
-- **S3** · NEW · all locales · both — each row says its kind twice: "✦ Price worked out · Price worked out: $1.95 each, quantity 2,000", "Sample asked · Asked for a sample"; zh "✦ 算出报价 · 算出报价：单价 $1.95…", "要样品 · 要了样品"; es "✦ Precio calculado · Precio calculado: $1.95 por unidad…"; ar "✦ حُسب السعر · تم حساب السعر: …".
-- **S3** · NEW · en · desktop — the list stops at about 850 px, so "…$1.95 each, quantity" ends a line and "2,000" drops alone to the next ("…$2.35 each, quantity / 5,000"). The label is split from its number while the right third of the screen is empty. On ar phone, "US$ 1.95 للوحدة، الكمية 2,000" is split from "تم حساب السعر:".
-- **S3** · NEW · all locales · both — "done" is shown only by grey text. Every row here is done, yet "Done:" exists only for screen readers, and no mark or word is visible. Past cards in Week and Month are likewise only greyed. This breaks phase 4's rule that every signal is a colour and a shape.
-- **S3** · NEW · all locales · both — the legend "From a conversation" (solid swatch) / "Added by you" (dashed swatch) sits above a list whose rows have no solid or dashed edge, so on this view it explains nothing.
-- **S4** · NEW · all locales · both — the category tabs change with the view. Day shows "All · Samples · Negotiation"; Week and Month show "All · Samples · Orders · Negotiation". "Orders" vanishes whenever the visible range holds none.
-
-### calendar-list
-**Asks the owner to:** read three weeks of dated items, day by day. **Clear without explanation?** Partly. It pages differently from the other three views, shows a record code, and names each kind differently from the cards.
-
-- **S3** · NEW (missed) · all locales · both — this view moves differently from the other three. Here it is "‹ Three weeks earlier   Three weeks later ›" at the bottom (zh/ar/es likewise); Month, Week and Day use "‹ Today ›" at the top. Only this view has the line "Dates already on record for your customers — … Nothing here is estimated.", and only this view has no legend.
-- **S3** · NEW (missed) · all locales · both — "Orders · Order USAB-de300000-0001: Confirmed" puts the record code on the owner's agenda.
-- **S4** · NEW (missed) · all locales · both — the same entry has different names per view. The list uses the plural tab names as a row label, without ✦: "Negotiation · Price worked out: $1.95 each…", "Samples · Asked for a sample", "Orders · Order …". The week cards say "✦ Price worked out", "Sample asked", "Order".
-- **S4** · NEW (missed) · all locales · both — only some customers get a flag: "🇦🇪 Nadia Rahimi · UAE", "🇳🇬 Aisha Bello · Nigeria", "🇹🇷 Ayşe Demir · Turkey" vs "Anna Kowalska · Poland", "Pedro Santos · Brazil", "Carlos Mendes · Brazil". Nothing says what a flag means. The "One customer only" select on every calendar view mixes them the same way ("🇳🇬 Aisha Bello · Nigeria" next to "Beatriz Almeida · Portugal").
-- **S4** · NEW (missed) · all locales · desktop — the rows and their chevrons stop at about 850 px while the Month/Week/Day/List pills sit at the right edge (about 1,240 px).
-
-## 5 · A conversation, the draft reply card, the customer's file, Practice
-
-### conversation-draft
-**Asks the owner to:** send, take or dismiss the reply the assistant drafted for Aisha Bello. **Clear without explanation?** Partly — "Send" is the one filled button, but the pill says "Awaiting you", the card below says "Lily is handling this", and two different controls hand the conversation over.
-
-- **S2** · V1-215 · the header pill "○ Awaiting you" / "等你确认" / "بانتظارك" / "Te espera" sits above the hand-over card's "✦ Lily is handling this" / "Lily正在处理" / "في عهدة Lily" / "Lily se encarga de esto". The page says both that the owner has it and that the assistant has it.
-- **S2** · V1-216 · "✦ Lily drafted" / "Lily 起草" / "مسودة من Lily" / "Borrador de Lily", "How Lily read this", "Lily is handling this" and the hidden heading "Review Lily's reply" all use the name. Getting ready still shows "○ The name customers see · Confirm", and /app/ready says "The name customers will read is not confirmed yet". On the same page the nav says "Your assistant". The buyer file says "Your assistant quoted" and Practice says "✦ Your assistant".
-- **S2** · V1-218 · "Hand to me" / "我来回复" / "تولّي الرد" / "Respondo yo" in the draft card, and directly below it a separate card "Hand to [You ▾] · Hand over" / "转给 [你] 转过去" / "إحالة إلى [أنت] إحالة" / "Pasar a [Tú] Pasar".
-- **S2** · V1-219 · the ghost button "This is me testing" / "这是我在测试" / "هذا اختبار مني" / "Soy yo haciendo pruebas" under "About this customer ›" reads as a caption. It is a one-tap submit that marks this real customer's conversation as a test. It has no confirmation and no explanation.
-- **S2** · V1-220 · the "How Lily read this" fold lists "○ 300  no source found" / "找不到出处" / "بلا مصدر معروف" / "no se encontró fuente". The 300 comes from the model code "ZX-300". "○ 25  no source found" is the 25-day lead time. Each number stands alone with no pointer to the words of the reply it comes from.
-- **S2** · V1-221 · the draft says "CE certified" while Getting ready shows "○ Certifications reviewed". Nothing on the card mentions the claim. The fold checks only figures and the product name.
-- **S2** · V1-225 · zh desktop: the back link "‹ 客户" and the panel door "客户 ›" are on the same header row.
-- **S2** · V1-226 · panel "الأسعار المحسوبة": at 1280 the row is "LED String Lights 10m · US$ 1.45" / "17:20 ·" with a stray separator. At 1440 it is "LED String Lights · US$ 1.45" / "17:20 · 10m", so "10m" reads as part of the time. The same break shows in en: "$1.45 · LED String Lights" / "10m · 17:20" at 1280, and on the thread "$1.65 · LED String" / "Lights 10m · 12:48" at 1440.
-- **S2** · NEW (missed) · ar · desktop (1280 overlay and 1440 column) — customer panel, contact line "WhatsApp +2345000000261 · نيجيريا" — renders as "2345000000261+": the plus sign lands on the wrong end of the phone number.
-- **S3** · V1-222 · (now marked, amber, own line) "○ Not every figure has a source" / "○ 有数字找不到出处" / "ليس لكل رقم مصدر ○" / "○ No todas las cifras tienen fuente" now has a mark and sits on the fold's line, away from "Send". The line still does not say which figure; the owner finds out only by opening the fold.
-- **S3** · V1-228 · the draft says "$1.45/pc" but the quote line says "$1.45/pcs" (es "$1.45/uds."). In ar the line reads "US$ 1.45/قطعة" and the fold says "US$ 1.45", next to the draft's "$1.45/pc".
-- **S3** · V1-229 · es: the subline "5,000 uds." and the quote "5,000 uds. · $1.45/uds. · importe total $7,250.00" use English number format, while the list pane's date is localised ("11 sept").
-- **S3** · V1-230 · es: "WhatsApp acepta respuestas hasta Mañana 17:18".
-- **S3** · V1-231 · "WhatsApp takes replies until 17:18 tomorrow" / "明天 17:18 前可在 WhatsApp 回复" / "يمكن الرد عبر WhatsApp حتى غدًا 17:18" / "WhatsApp acepta respuestas hasta Mañana 17:18". Nothing says what happens after that time.
-- **S3** · V1-232 · one state, five names: header "Awaiting you", panel "Waiting for you", tab and list group "Needs you", buyer file "Awaiting confirmation". In zh: 等你确认 / 在等你 / 等你处理 / 需要你处理 / 等待确认.
-- **S3** · V1-233 · the tab says "Needs you 2" / "等你处理 2" / "بحاجة إليك 2" / "Te necesita 2". Under it, one row is in "Needs you" and "Omar Haddad" is under "Your team is handling" / "团队在处理" / "في عهدة فريقك" / "Atiende tu equipo".
-- **S3** · V1-234 · three doors with three labels lead to the customer: "The customer ›" (opens the panel), "About this customer ›" (buyer file) and, in the panel, "Their details, their data ›" / "联系方式与数据 ›" / "التفاصيل والبيانات ‹" (the same buyer file). The panel's "the conversation›" / "那段对话›" links to the page already open.
-- **S3** · V1-235 · the list pane's search placeholder is cut: "Name, number or", "Nombre, númer", "الاسم أو الرقم أو المنتِ".
-- **S3** · V1-236 · phone: "Hello, what is your price for 5,000 pcs of the LED string lights 10m?…" floats as indented serif text with no visible bubble. On desktop the same message has a grey bubble.
-- **S3** · V1-237 · "No reply needed" / "不用回复" / "لا حاجة إلى رد" / "No hace falta responder" is now outlined. On phone (en, es) it still sits alone on a second line. It still throws away the draft in one tap, with no confirmation.
-- **S3** · V1-238 · desktop hand-over card: "✦ Lily is handling this" is centred vertically on the left, the "Hand to" label floats beside the select, "Hand over" sits under the select, and an empty band runs across the top of the card.
-- **S3** · V1-239 · landing at `#latest` scrolls the page 33–43 px. The top edge cuts through the "○ Awaiting you" pill and the "‹ Customers  Aisha Bello · Nigeria" line (en/zh/ar/es, 1280).
-- **S3** · V1-240 · "Understood  LED String Lights 10m" / "理解为 LED灯串" / "ما فُهم  LED String Lights 10m" / "Se entendió así  LED String Lights 10m" does not read as a sentence. The "5 reasons" count now appears only when every figure has a source.
-- **S3** · V1-241 · at 1280, "The customer ›" opens the panel over the right half of the customer's bubble, the reply box and "goes on WhatsApp, as written". "Send", "Hand to me" and "No reply needed" stay visible and clickable beside it.
-- **S3** · V1-242 · ar phone: the fold's row "سعر LED String Lights" / "10m في قائمة أسعارك" splits the product name. The quote line "… · المجموع" / "US$ 7,250.00" separates "total" from its amount.
-- **S3** · V1-243 · "Pasar a [Tú]" and "إحالة إلى [أنت]" read as ungrammatical sentences.
-- **S3** · V1-244 · "Make a link" / "做个链接" / "إنشاء رابط" / "Crear un enlace" submits at once. Nothing says whether the link is sent to the customer, where it is shown, or what happens next.
-- **S3** · NEW (missed) · en, zh, ar, es · phone + desktop — back link "‹ Customers" / "‹ 客户" / "العملاء ›" / "‹ Clientes" — it leads to /app/inbox, which the rail entry and the list-pane heading beside it call "Conversations" / "对话" / "المحادثات" / "Conversaciones" (and whose own title is "Customers"). This page's section is then "Conversation" / "对话记录". One list carries two names on one screen.
-- **S3** · NEW (missed) · es, ar · phone — the "How Lily read this" fold's rows are squeezed into a narrow second column: es '“LED String Lights 10m”  uno de los / nombres de / tus productos' (three lines) and "tu precio para LED String / Lights 10m"; ar "من أسماء / منتجاتك" and "الكلمات نفسها في رسالة / العميل".
-- **S4** · V1-245 · zh: "Lily 起草" and "Lily 是怎么理解的" have a space before the Chinese; "Lily正在处理" does not.
-- **S4** · V1-246 · zh desktop: the search button is the single character "找". The automated check also flags it as unlabelled.
-- **S4** · V1-247 · zh phone: "你可以给这个客户一个网页，让对方看到价格是怎么来" / "的。" leaves "的。" alone on the last line, on both conversation-draft and conversation-thread.
-- **S4** · V1-248 · es and ar desktop: the list-pane tabs wrap; "Mías" and "ما يخصّني" go to a second row.
-- **S4** · V1-249 · "✦ Lily drafted" and "✦ Yes — one-colour logo…" mark the assistant only by glyph and colour. Nothing on the page explains the ✦.
-- **S4** · NEW · en, es · phone — the warning "○ Not every figure has a source" / "○ No todas las cifras tienen fuente" drops to its own right-aligned line under "› How Lily read this", cut off from the fold it belongs to. zh and ar keep the two on one line.
-- **S4** · NEW (missed) · en, zh, ar, es · desktop — panel link "the conversation›" / "那段对话›" / "المحادثة‹" is 13 px grey text pressed against the panel's edge, with no space before its chevron.
-
-### conversation-thread
-**Asks the owner to:** nothing is waiting; optionally take the conversation over or hand it to someone. **Clear without explanation?** No — "✓ Handled" and "✦ Lily is handling this" disagree, and nothing says whether any act is needed.
-
-- **S2** · V1-250 · the header pill "✓ Handled" / "✓ 已处理" / "تمّت المعالجة ✓" / "✓ Resuelto" contradicts the card below it, "✦ Lily is handling this" / "Lily正在处理" / "في عهدة Lily" / "Lily se encarga de esto", which comes with a "Take over" button.
-- **S2** · V1-251 · one card has two controls that do the same thing: "Take over" / "我来接手" / "استلام المحادثة" / "Tomar la conversación", and "Hand to [You ▾] · Hand over".
-- **S2** · V1-252 · every reply caption says "Today 12:48 · ✦ Lily" / "Today 13:58 · ✦ Lily", and the card says "Lily is handling this", though the name is not confirmed.
-- **S2** · V1-253 · a reply shown as the assistant's, already sent, says "…lead time 25 days. CE certified." while Getting ready shows "○ Certifications reviewed".
-- **S2** · V1-255 · the ghost "This is me testing" / "这是我在测试" / "هذا اختبار مني" / "Soy yo haciendo pruebas" reads as a caption, yet it marks this customer's conversation as a test with one tap.
-- **S3** · V1-256 · the longest demo conversation is still 4 messages, all "Today" 12:13–13:58. There are no earlier days and no "Earlier messages".
-- **S3** · V1-257 · the open conversation (Carlos Mendes) is not in the list pane beside it, which shows "Needs you" (Aisha Bello, Omar Haddad). Nothing marks where the owner is.
-- **S3** · V1-258 · the reply says "$1.65/pc" and the quote line says "$1.65/pcs" (es "$1.65/uds.").
-- **S3** · V1-259 · es: subline "2,000 uds.", quote "2,000 uds. · $1.65/uds. · importe total $3,300.00". On phone the line breaks between "importe" and "total $3,300.00".
-- **S3** · V1-260 · ar phone: "عرض السعر 2,000 قطعة · US$ 1.65/قطعة · المجموع" / "US$ 3,300.00" separates "total" from its amount.
-- **S3** · V1-261 · phone: the customer's "Looking for LED string lights 10m, 2,000 pcs, warm white." and "What plug type?" have no visible bubble, while the replies do.
-- **S3** · V1-262 · the same act has two names on two pages: "Take over" / "我来接手" / "استلام المحادثة" / "Tomar la conversación" here, and "Hand to me" / "我来回复" / "تولّي الرد" / "Respondo yo" on the draft conversation. This now includes ar.
-- **S3** · V1-263 · desktop hand-over card: the pill is centred on the left, "Take over" sits beside a floating "Hand to" label, "Hand over" sits under the select, and the right third is empty. "No reply is waiting for you here." now sits in a dashed box between a divider and the quote card.
-- **S3** · V1-264 · "Pasar a [Tú]" and "إحالة إلى [أنت]" read as ungrammatical sentences.
-- **S4** · V1-265 · "Carlos Mendes · Brazil" has no flag, while the other conversation shows "🇳🇬 Aisha Bello · Nigeria".
-- **S4** · V1-266 · in the panel's "Prices worked out" row, "the conversation›" links to the conversation already open.
-- **S4** · V1-267 · every caption repeats "Today" / "今天" / "اليوم" / "Hoy" ("Today 12:13", "Today 12:48"…), with no day divider.
-- **S4** · NEW · en, zh, ar, es · phone + desktop — empty state "No reply is waiting for you here." / "这个对话目前没有需要你确认的回复。" / "لا يوجد رد بانتظارك هنا." / "Aquí no hay ninguna respuesta esperándote." — a dashed-outline box that reads as an empty drop zone. At desktop it is narrower (~530 px) than the full-width cards above and below it.
-
-### buyer-file
-**Asks the owner to:** check or rename the customer, see their history, and record a deletion request. **Clear without explanation?** Partly — "Handle it ›" points at the waiting reply, but the deletion control reads as the owner asking for deletion.
-
-- **S2** · V1-268 · History says "Your assistant quoted: 5,000 pcs · $1.45/pcs" / "你的助手报价：5000个 · $1.45/个" / "عرض سعر من مساعدك" / "Tu asistente cotizó", and "Quotes 1" is listed. The card at the top says "This customer has a reply waiting for your OK.", so that price has not been sent.
-- **S2** · V1-269 · "› Ask for this customer's data to be deleted" / "要求删除这位客户的数据" / "طلب حذف بيانات هذا العميل" / "Pedir que se eliminen los datos de tu cliente", with the red "Ask for deletion" button inside, reads as the owner asking for deletion. It records that the customer asked.
-- **S3** · V1-270 · this page says "Your assistant quoted", while the conversation one click away says "✦ Lily drafted" and "Lily is handling this" about the same quote.
-- **S3** · V1-271 · the header pill "○ Awaiting confirmation" / "等待确认" / "بانتظار التأكيد" / "Esperando confirmación" names the state differently from the conversation page ("Awaiting you" / "等你确认" / "بانتظارك" / "Te espera").
-- **S3** · V1-272 · the page the panel calls "Their details, their data ›" shows no contact detail, only "WhatsApp" under the name. The number appears only in the desktop panel; on phone it appears nowhere.
-- **S3** · V1-273 · "Deleting this customer's data" hedges and exposes the back office: "the request is usually noted here as it arrives…" and "Nomi's operator carries it out by hand within 30 days" / "Nomi 的运营方会在 30 天内由人手动执行" / "يُنفّذ مشغّل Nomi الحذف يدويًا خلال 30 يومًا" / "Quien opera Nomi la lleva a cabo a mano".
-- **S3** · V1-274 · History cuts the message mid-word, "Aisha Bello: Hello, what is your price for 5,000 pcs of the LED string li…", even at desktop with half the row empty.
-- **S3** · V1-275 · zh phone: '…留空则显示为"客' / '户"。' breaks "客户" across two lines and uses ASCII straight quotes.
-- **S3** · V1-276 · ar phone: the first History row reads "Hello, what is your price for 5,000 :Aisha Bello" / "pcs of the LED string li…". The quote row breaks "US$ 1.45/" from "قطعة". The Business quote breaks "… · المجموع" from "US$ 7,250.00".
-- **S3** · V1-277 · es: "5,000 uds. · $1.45/uds. · importe total $7,250.00" uses English number format and puts "uds." after a unit price. On phone, "importe total" and "$7,250.00" wrap apart.
-- **S3** · V1-278 · "$1.45/pcs" / "US$ 1.45/قطعة" in History and Business, while the draft says "$1.45/pc".
-- **S3** · V1-279 · the ways back are named "Handle it ›" and "The whole conversation ›" here, while the conversation page calls this page "About this customer ›" and "Their details, their data ›".
-- **S3** · V1-280 · desktop: two key–value layouts on one page. "First contact / Products of interest / Quotes" have values pushed right in a ~530 px column; "Business: Products / Quote" have values next to their labels.
-- **S4** · V1-281 · en: the heading "Business" (this customer's product and quote) is vague.
-- **S4** · V1-282 · straight quotes: 'Empty shows them as "Customer".' and 'aparece como "Cliente".'.
-- **S4** · V1-284 · "Handle it ›" / "去处理 ›" / "معالجة ‹" / "Revisarla ›" does not say what is being handled. The tab title "Aisha Bello · 义乌宏发日用品厂 (demo)" is identical to the conversation page's.
-- **S4** · NEW (missed) · en, zh, ar, es · phone + desktop — the same day appears in two formats: "First contact Fri, Oct 2" / "首次联系 10月2日周五" / "أول تواصل الجمعة، 2 أكتوبر" / "Primer contacto vie, 2 oct", while History just below says "Today 17:18" / "今天 17:18" / "اليوم 17:18" / "Hoy 17:18".
-- **S4** · NEW · en, zh, ar, es · phone + desktop — History markers: the customer's message is marked by a dot about 3 px wide, the assistant's quote by a magenta ✦. The customer's marker is barely visible, and the two kinds of entry differ only by glyph and colour.
-- **S4** · NEW (missed) · en, zh, ar, es · phone + desktop — the deletion fold: "When it is done, it shows here and on Your data." names another page ("Your data") with no link to it.
-
-### practice
-**Asks the owner to:** play a customer and watch how the assistant answers before going live. **Clear without explanation?** No — the box to type in is 3,100–4,240 px down, below 41 test titles, and the transcript credits the owner's line to the assistant.
-
-- **S1** · V1-285 · the Practice transcript credits the owner's own line "Owner here — yes, we can do that." to the assistant: "✦ Your assistant" / "✦ 你的助手" / "✦ مساعدك" / "✦ Tu asistente".
-- **S2** · V1-286 · the page still opens with "Practice — the safety checks · 41 / 41" and 41 test-case titles ("Claiming to be a person is blocked (Arabic in Latin letters)", "A bare “no” to “are you a bot?” is stopped"…). The "🧪 This is practice only" banner starts about 2,000 px down on desktop and 2,240–2,980 px on phone. The box to type as the customer is about 3,100 px down on desktop and 3,480–4,240 px on phone.
-- **S2** · V1-287 · seen in the code (no message was sent): the Trust check still prints each check's internal detail from `src/trust/invariants.ts` in English in every locale, e.g. "no forbidden claim in final reply (guardViolations=…, deterministic=…)", "nothing held — n/a", "no unsourced price in reply". It also still shows the chips "Skill: …" / "技能：…" and "Delivery: Nothing sent" / "发送方式：未发送".
-- **S2** · V1-288 · "Show as if sending alone" / "按独立发送查看" / "عرض الردود كأنها تُرسَل دون موافقتك" / "Ver como si enviara por su cuenta" and "Stop your assistant in Practice" show no current state. The only explanation is "Replies follow your levels: a reply that waits for you there waits here too."
-- **S3** · V1-289 · the customer's line "Do you make canvas tote bags?" is captioned "Send as customer" / "以客户身份发送" / "إرسال كعميل" / "Enviar como cliente", the composer's button text. No practice message has a time.
-- **S3** · V1-290 · one practice, four progress readings: "41 / 41" on the safety checks; "Before customers: what you have seen here · 1/8"; Getting ready's "Practice before launch · 3/5"; and, on the same Getting ready, "○ Practice check · Not run yet" next to the 41/41 shown here.
-- **S3** · V1-292 · the customer's line "Do you make canvas tote bags?" has no visible bubble, while the reply has a white bordered bubble.
-- **S3** · V1-293 · zh: "按独立发送查看" and "回复按你的设置：在真实对话里要等你确认的回复，这里也会等你。" read as machine-like and do not say what the button changes.
-- **S3** · V1-294 · seen in the code, not in the shots: the general `.verdict` box styles (14 px padding, border, 12 px radius, 16 px top margin, centred) still apply to the verdict inside "Trust check · All checks passed". Only weight and case are overridden for `.sbx-trust .verdict`.
-- **S3** · NEW (missed) · en, zh, ar, es · phone + desktop — the hand-off card under the transcript says "○ Waiting for you · Handed to you because: a message that could not be answered" / "转给你的原因：一条没能回复的消息" / "حُوّلت إليك بسبب: رسالة تعذّر الردّ عليها" / "Te llegó porque: un mensaje que no se pudo responder". It sits directly under a reply to that message ("Owner here — yes, we can do that."). Its button, after "Handed to you", is "Take over" / "我来接手" / "استلام المحادثة" / "Tomar la conversación".
-- **S4** · V1-291 · (now asks before erasing) "Start over" / "重新开始" / "البدء من جديد" / "Empezar de nuevo" is still plain text with no button outline, floating between the checks card and the banner.
-- **S4** · V1-295 · "What it does not prove: how a reply to YOUR customer is worded" shouts in capitals; es repeats it: "una respuesta a TU cliente".
-- **S4** · V1-296 · "Try a situation [Choose a situation…] · Load" / "加载" / "تحميل" / "Cargar": "Load" is unclear, and the options are the same 41 test-case titles.
-- **S4** · V1-297 · "The total you expect (optional)" is a bare field with no currency or unit. Its explanation "Type it before the answer comes, and Practice compares the two." sits below it, apart from the label.
-- **S4** · V1-298 · the 🧪 emoji still opens "This is practice only. Nothing reaches a real customer.". The catalogue still carries "No reply was sent after this line.", which does not say which line (not reached in these shots).
-- **S4** · NEW (missed) · en, zh, ar, es · phone + desktop — three headings share one name: the page title "Practice", the card "Practice — the safety checks" and the transcript section "Practice" (练习 / 练习——安全检查 / 练习; تدريب / التدريب — فحوص السلامة / تدريب; Práctica ×3).
-- **S4** · NEW (missed) · zh · phone + desktop — the checklist says "接待顾客前：你在这里看过的 · 1/8", "用顾客常用的叫法找到了产品" and "要找人的顾客" with 顾客, while the rest of the page and the app use 客户 ("以客户身份发送", "给你的客户回复时").
-- **S4** · NEW (missed) · es · phone + desktop — "Antes de tus clientes: lo que ya viste aquí · 1/8" reads as a word-for-word rendering and does not say it is a checklist to complete before going live.
-- **S4** · NEW · en, zh, ar, es · desktop — the Trust check empty state "Send a message to see the trust check." / "发一条消息，查看可信检查结果。" sits in a dashed box about half the card's width; the rest of the card is empty.
-- **S4** · NEW (missed) · en, zh, ar, es · phone + desktop — the "How Practice answers" / "练习怎么回复" / "طريقة الرد في التدريب" / "Cómo responde Práctica" card has an empty band of about 35 px between the heading and its single explanatory line, unlike the other cards on the page.
-- **S4** · NEW (missed) · ar · phone + desktop — the case title 'رد “لا” وحده على السؤال يُوقَف' uses English curly quotes, while the buyer file uses «عميل». It also drops the question itself ("are you a bot?"), so "a bare 'no' to the question" names no question.
-
-## 6 · Products, price limits, knowledge, the price-list export
-
-### products
-**Asks the owner to:** look over the catalogue, open a product, or go and add products. **Clear without explanation?** Partly — nothing marks the rows as openable, and the way to add is a far-right text link that never says "add".
-
-- **S2** · V1-299 · every Products row still reads "500 pcs: $1.05 · Min. order: 500 pcs" (zh "500个：$1.05　最低起订：500个", ar "500 قطعة: US$ 1.05 · أقل كمية: 500 قطعة", es "500 uds.: $1.05 · Pedido mín.: 500 uds."), which says "500 pieces cost $1.05". The first figure only repeats the minimum. The product page shows the same price as "500+ pcs $1.05" and its Recent quotes as "$1.05/pcs": three notations for one price.
-- **S2** · V1-300 · es still uses English number formats: "1,000 uds.: $2.60", "2,000 uds.: $0.85", "$1.05" on Products, and the same on product ("2,000+ uds. $0.92"), business-prices ("Nunca por debajo de $0.72") and import-review. The add page's examples are the same ("Bolsa tote de lona $1.05", "Sérum facial de rosa 50 ml $34.90").
-- **S3** · V1-301 · the only way to add is still the text link "Teach your assistant your products ›" (zh "教你的助手认产品 ›", ar "تعليم مساعدك المنتجات ‹", es "Enséñale a tu asistente tus productos ›"). It is not a button and never says "add". On desktop it starts at x≈985, while the list ends at x≈851.
-- **S3** · V1-302 · the product rows are still links with no chevron, no underline and nothing else that says they open.
-- **S3** · V1-303 · the list still has no way to "Your price limits", to "What your assistant knows" or to an export. A copy can only be had from Setup › Your data.
-- **S3** · NEW (missed) · all locales · both (empty catalogue, confirmed in code) — the empty state "No products yet." ends in the door "Upload your catalog to start ›". It names a third thing ("upload", "catalog") for the page headed "Teach your assistant your products", whose first way is pasting text.
-- **S4** · V1-304 · es phone: "Enséñale a tu asistente tus productos ›" still drops to its own line about 50 px below the h1 "Productos". In en, zh and ar it stays beside the title.
-
-### product
-**Asks the owner to:** check one product's details and prices and change them. **Clear without explanation?** Partly — the tier prices and "Product details" at the top cannot be changed in the form below, and nothing says where they can.
-
-- **S2** · V1-305 · "Pricing" still lists "500+ pcs $1.05", "2,000+ pcs $0.92" and "10,000+ pcs $0.85", while "Change this product" has the single field "Price for one (USD) 1.05" (zh "一个多少钱（USD）", ar "سعر القطعة (USD)", es "Precio por unidad (USD)"). Nothing says what happens to the 2,000+ and 10,000+ prices on save, or where they are changed.
-- **S2** · V1-306 · "Recent quotes" (zh "最近报过的价", ar "أحدث العروض", es "Cotizaciones recientes") still shows five identical lines, "500 pcs · $1.05/pcs · total $525.00", with no date, no customer and no link.
-- **S2** · V1-307 · es product page: "2,000+ uds. $0.92", "10,000+ uds.", "importe total $525.00" are still in English number format.
-- **S3** · V1-308 · "Product details" still shows "Category bags" (zh "类别 bags", ar "الفئة bags", es "Categoría bags") and "Customizable No" (zh "可定制 否"). The category is a raw lowercase English value, and neither field is in the "Change this product" form.
-- **S3** · V1-309 · the "What you count them in" field (zh "按什么算", ar "وحدة العدّ", es "En qué lo cuentas") still holds "pcs", while the same page shows the unit as "个" / "قطعة" / "uds.".
-- **S3** · V1-310 · the title "Canvas Tote Bag 38x40cm 帆布袋 ZX-100" is still a 15 px h1 squeezed beside "‹ Products". It is smaller than the page's own h2s "Product details" and "Pricing" (17 px), while the h1s of Products and of this product's knowledge page are 20 px.
-- **S3** · V1-311 · the same fact still has two names on one page: "Delivery time 15 days" over the field "Days until it is ready to send" (zh "交付时间" / "几天能发货", es "Plazo de entrega" / "Días hasta que está listo para enviar"), and "Min. order 500 pcs" over "Smallest order you will take".
-- **S3** · V1-312 · the only second-name field is still "Name in Chinese" (ar "الاسم بالصينية", es "Nombre en chino"), shown to every owner, with no field for any other language.
-- **S3** · V1-313 · "Add names customers use" is still an empty box. The names on record ("canvas bag", "canvs bag", "cotton shopping bag", "tote bag", "حقيبة قماش", "帆布包") sit in "What customers call it" below "Save changes", and none can be removed.
-- **S3** · V1-314 · the three "Pricing" rows are still bordered, filled, full-width boxes that look like inputs or buttons and do nothing.
-- **S3** · V1-315 · the product page still links neither to this product's knowledge page nor to its price limits, and still has no way to remove the product (only the "Offer this to customers" tick).
-- **S3** · NEW (missed) · ar · phone + desktop — the Pricing tiers render "+500 قطعة", "+2,000 قطعة", "+10,000 قطعة". The plus lands on the left of the figure, so it reads "plus 500", not "500 and up".
-- **S3** · NEW (missed) · all locales · both — a product address that is one character short, as when a link is cut off in a message (`/app/products/de300000-0000-4000-8000-00000000010`), gives HTTP 500. It shows the full-screen "Something went wrong on our side / Nothing you did caused this… / Reference: 8dd35905" outside the app shell, not the new "Product not found" page. `/app/knowledge/<bad id>` does the same.
-- **S4** · V1-316 · en: the Options help still says "One a line: its name, a colon, then the choices." while the next help says "One per line."
-- **S4** · V1-317 · en/es: the unit price is still plural, "$1.05/pcs" and "$1.05/uds.".
-- **S4** · V1-318 · ar: "مدة التسليم 15 يوم" still has the number–noun agreement error ("يومًا").
-- **S4** · V1-319 · zh: the 📷 became a ✓, but "✓ 可以被图片识别 — 客户发照片，你的助手能认出这个产品" still uses a spaced Latin dash inside Chinese, and "可以被图片识别" still reads literally.
-- **S4** · V1-320 · the product page's browser tab is still "Products · 义乌宏发日用品厂 (demo)" (zh "产品目录 · …"), not the product's name.
-- **S4** · NEW · all locales · phone + desktop — "✓ Recognizable by photo — your assistant identifies this when customers send a picture" (zh "✓ 可以被图片识别…", ar "✓ يُميَّز بالصورة…", es "✓ Se reconoce por foto…") is green 15 px text with a ✓. That is the same size as the title above it and the only coloured line in the header, so a feature note outranks the product's name.
-
-### products-add
-**Asks the owner to:** pick one of five ways to give the products: paste, photos, store address, store file, or "prices go to me". **Clear without explanation?** Partly — five stacked sections, the first unheaded, and the last changes a setting instead of adding anything.
-
-- **S2** · V1-321 · the paste box has no `required`, and an empty or whitespace-only submit still redirects to `/app/products/add` with no notice. The same silent redirect happens when nothing is recognised (confirmed in code, `app.post('/app/products/add/review')`; not submitted).
-- **S3** · V1-323 · zh/ar/es: both file pickers are still browser-drawn and English, "Choose Files  No file chosen" / "Choose File  No file chosen". In ar they are now laid out right-to-left, but the words are still English.
-- **S3** · V1-324 · the paste way still has no heading. It opens with the body sentence "Paste your products and their prices — one per line, messy is fine." while the other four are headed "Or photograph your list", "Or read your online store", "Or add a file from your store" and "No list? Prices can go to you".
-- **S3** · V1-326 · "Prices go to me" (zh "价格交给我", ar "تحويل الأسعار إليّ", es "Los precios los doy yo") still reads as a statement, and one tap with no ask-first dialog sends every price question to the owner (the form has no `data-confirm`).
-- **S3** · V1-327 · the tick still says "My store's prices are in USD" (zh "我网店的价格是 USD", ar "أسعار متجري بعملة USD", es "Los precios de mi tienda están en USD"), with nothing for a store in another currency. Its refusal calls the same box "Tick that its prices are in this business's currency".
-- **S3** · V1-328 · the add page still has no "‹ Products" back link. The paste textarea and both file inputs still have no label (automated check), only the placeholder "Paste products and prices here…".
-- **S3** · V1-329 · the note still promises a tag the owner never sees: zh says 「需要确认」 where the tag is "需要价格", and es says "Necesita un precio" where the tag is "Falta el precio".
-- **S3** · V1-330 · zh: the stray spaces remain in "你的助手 读出每一行" and "4 行，10月2日周五 开始的。", and the currency is still a code in "我网店的价格是 USD".
-- **S3** · V1-331 · ar: "فيمكن لـمساعدك الترحيب" still renders a detached "لـ" with a tatweel. So do import-review ("مسموح به لـمساعدك") and business-prices ("لـ مساعدك").
-- **S3** · V1-332 · ar phone: "قائمة لم تكتمل مراجعتها: 4 أسطر، منذ الجمعة، 2 أكتوبر." The "/" is gone, but the line still breaks between "2" and "أكتوبر".
-- **S3** · NEW (missed) · ar · phone + desktop — "بصيغة CSV أو Excel (.xlsx، الورقة الأولى)" renders as "Excel (.xlsx" with the dot after the letters and the bracket turned. The file type reads "xlsx." and the bracket faces the wrong way.
-- **S3** · NEW (missed) · all locales · phone + desktop — the paste box opens already focused (`autofocus`, the thick black double ring in every capture). On a phone that raises the keyboard on arrival and pushes "A list you started is waiting to be checked… Continue checking it ›" out of view.
-- **S4** · V1-333 · en: "Nothing is enabled until you confirm" still uses software wording.
-- **S4** · NEW · all locales · both (code) — after a store address is refused, the page comes back with the address kept, but the tick "My store's prices are in USD" is cleared. After a photo refusal, the "Printed / Handwritten" choice is cleared. The rebuild promised the typed values would be kept.
-- **S4** · NEW (missed) · all locales · phone + desktop — "A list you started is waiting to be checked: 4 lines, from Fri, Oct 2." (zh "10月2日周五 开始的", es "del vie, 2 oct.", ar "منذ الجمعة، 2 أكتوبر" = "since Friday") names today as a weekday and date.
-- **S4** · NEW (missed) · all locales · browser tab — the tab reads "Products · 义乌宏发日用品厂 (demo)" (zh "产品目录") while the h1 is "Teach your assistant your products" (zh "教你的助手认产品").
-
-### import-review
-**Asks the owner to:** tick each row once checked, fix names and prices, optionally set a discount, then press "Add these products". **Clear without explanation?** No — the plainest prices were not read, the tick box is labelled as a state, and four lines become a wall of open forms over 3,000 px tall.
-
-- **S2** · V1-334 · plainly written prices are still not read. "Canvas tote 18.00" and "Wool scarf 24,50 each" are names marked "no price yet" with an empty "Price (USD)", and "Mug 8 or bowl 12" is one product. The add page still promises "messy is fine".
-- **S2** · V1-335 · "4 new — not in your catalogue yet" (zh "4个新的，产品目录里还没有", ar "4 جديدة", es "4 nuevos") still counts "SPRING SALE". The line above says "3 lines were read without a price, or not as a product" and "○ 3 need you, and they are first." The SPRING SALE row still has no tick box and no warning, though it too says "no price yet".
-- **S2** · V1-336 · each row's box is still labelled "Checked" (zh "已核对", ar "تمّت المراجعة", es "Revisada") beside an empty box, and the label runs straight into the product name ("Checked Canvas tote 18.00"). It reads as a state.
-- **S3** · V1-337 · every flagged row still opens its full "Change" form, so four lines make a page 3,198 px tall on desktop and about 3,600 px on phone (en).
-- **S3** · V1-338 · the empty "Minimum order" field and the ticked "No minimum" box still control the same thing.
-- **S3** · V1-339 · "Names customers use" is still a one-line input whose help says "One per line, or separated by commas." (zh "每行一个", ar "اسم في كل سطر", es "Uno por línea").
-- **S3** · V1-340 · the "%" of "How much discount may your assistant give without asking you?" still drops onto its own line under the input (seen in en on desktop and phone, and in ar on desktop under the input's left edge).
-- **S3** · V1-341 · "Start again" (zh "重新开始", ar "البدء من جديد", es "Empezar de nuevo") is still grey, indented text that looks disabled. The product's own dialog now asks "Set this list aside? Nothing from it is added." with the buttons "Start again" / "Cancel", so the question still names a different action.
-- **S3** · V1-342 · the filled "Add these products" is still offered while three flagged rows are unticked and unpriced. Nothing says what happens to unticked rows, and the note "Each new product's lowest price becomes its price less this… Leave it empty to decide later: the products are added, and are offered once you set their lowest prices." is still hard to follow.
-- **S3** · V1-343 · ar: the "لكل" list still shows "قطعة" twice (the first two options).
-- **S3** · V1-344 · import-review still has no back link to Products or to the add page, and its tab is "Products · 义乌宏发日用品厂 (demo)".
-- **S3** · NEW (missed) · all locales · phone + desktop — "3 lines were read without a price, or not as a product. [Read these lines again, more closely]" sits above the rows, before the owner has seen which three. All four rows below say "no price yet", not three. The note "A closer reading of the lines that were not products. Each line it reads waits for your own tick, and says what it is less sure of." uses an "it" that names nothing (zh "仔细再读一遍…", ar "قراءة أدق…", es "Una lectura más detallada…").
-- **S3** · NEW (missed) · all locales · phone + desktop — each flagged row warns "○ A figure or a currency sign is left in the name." (zh "名称里还留着数字或货币符号。", ar "بقي رقم أو رمز عملة في الاسم.", es "Quedó una cifra o un símbolo de moneda en el nombre."). For "Canvas tote 18.00" and "Wool scarf 24,50 each" the figure is the unread price, so the warning blames the name.
-- **S4** · V1-345 · the polish items all remain: "no price yet · pcs · No minimum" mixes case; es "Por" + "uds."; zh "读到 4 行。 数一数" has a space after the full stop; es "3 te necesitan, y van primero." is literal.
-- **S4** · V1-346 · "Count the lines on your list: if it has more, one was missed." still hands the owner a counting chore.
-- **S4** · NEW · all locales · phone + desktop — the product's own ask dialog for "Start again" turns the page's quietest, greyed control into a filled black "Start again" beside an outlined "Cancel" (zh "重新开始 / 取消"). The choice that throws the list away is the dialog's loudest button, styled like "Add these products" behind it.
-
-### business-prices
-**Asks the owner to:** set the lowest price and how much may come off, for everything or per product, and add discounts for buying more. **Clear without explanation?** No — the page states two opposite things about discounts, the main list is headed "Set", and the "everything" form sits empty above 12 rows of values.
-
-- **S1** · V1-347 · the page still contradicts itself. Every product row says "Up to 5% off is decided without you; above that you are asked first. Never more than 8% off." (zh "优惠 5% 以内自己定", ar "حتى 5% القرار لـ مساعدك", es "Hasta un 5% de descuento se decide sin ti"). "Discounts for buying more" says "○ You have not written one, so no discount is ever offered — your price is quoted as it stands." (zh "你还没写，所以从不优惠", ar "فلا خصم أبدًا", es "nunca se ofrece descuento"), now with the amber ○.
-- **S2** · V1-348 · "no discount is ever offered" still contradicts the product page tiers (500+ $1.05 / 2,000+ $0.92 / 10,000+ $0.85) and the "Your price rules" export, which still has 36 "Volume price" rows.
-- **S2** · V1-349 · the heading over the 12 product rows is still the bare "Set" (es "Fijados", ar "محدَّدة"; zh "已经定好的").
-- **S2** · V1-350 · es: "Nunca por debajo de $0.72", "$1.05", "$2.60" still use the English decimal point.
-- **S3** · V1-351 · the "For everything you sell" fields are still empty while all 12 products show limits. The first question is still "What is the least you would ever accept for one of these? (USD)", where "one of these" points at nothing, and it asks for one dollar floor covering a $0.48 cloth and a $3.50 lamp.
-- **S3** · V1-352 · the hierarchy is still inverted. "For everything you sell" (h3, 15 px) is smaller than "Set" (h2, 17 px). Each row's product name and price are 13 px grey, while "Change these" (zh "改一下", ar "تغيير", es "Cambiar esto") is 17 px and underlined.
-- **S3** · V1-353 · "Change these" still repeats 12 times as underlined text where other pages use "›" doors. The only back link, "‹ My business", is still at the very bottom of a 2,600–3,600 px page (y≈2,748 on desktop).
-- **S3** · V1-354 · one thing still has five names: h1 "Your price limits", tab and phone nav "My business" / "Business", the export "Your price rules", the export rows "Least you accept", the door on My business "Set your price limits".
-- **S3** · V1-355 · "From how many pieces?" (zh "从多少个起？", ar "ابتداءً من كم قطعة؟") is still hard-coded to pieces for every product.
-- **S3** · V1-356 · ar: "الأرقام المتاحة لـ مساعدك", "ما أقصى خصم مسموح لـ مساعدك" and "القرار لـ مساعدك" still show a detached "لـ" plus a space.
-- **S3** · NEW (missed) · all locales · phone + desktop — "Change these" reloads the page at the top (`?product=…`, no anchor). The owner lands on the empty "For everything you sell" form. Of the opened form, only the heading "Just for Canvas Tote Bag 38x40cm" shows, at the bottom edge of the desktop screen (y≈860 of 900); its fields are below the fold. Nothing on the page closes it again.
-- **S3** · NEW · all locales · phone + desktop — with one product opened, the page has two filled black "Save" buttons with the same word, one per form. This breaks the rebuild's one-fill-per-page rule.
-- **S4** · V1-357 · zh: "一个最低你能接受多少钱？（USD）" is still awkward and literal.
-- **S4** · NEW · all locales · phone + desktop — the amber ○ "waits for you" mark now heads "You have not written one, so no discount is ever offered — your price is quoted as it stands." (zh/ar/es the same). Choosing no volume discount is valid, but the mark presents it as a to-do.
-- **S4** · NEW (missed) · all locales · desktop — the product rows' dividers stop at about x≈851, while the section rules above and below run to x≈1240.
-
-### knowledge
-**Asks the owner to:** teach facts about the business, open a product to teach about it, or learn from a page of their site. **Clear without explanation?** Partly — the page opens on period tabs, zero counters and two empty panels, and the things to do start about 1,700 px down.
-
-- **S2** · V1-358 · knowledge still opens with the period tabs "Today / This week / This month" and "This period" with four zero counters ("0 Facts added / 0 Answers corrected / 0 Certifications on / 0 Archived"), then two more empty panels, before anything to do. "Teach something new" starts about 1,700 px down on desktop.
-- **S2** · V1-359 · "Questions to answer" still says "Nothing waiting — every question was answered from what you taught." (zh "客户的问题都能用你教的内容答上", ar "كل سؤال أُجيب عنه مما أُضيف") on a page that says "About your business: Nothing taught yet." and "0" for every product.
-- **S2** · V1-360 · each "What you sell" row still ends in a bare small grey "0" with no label.
-- **S2** · V1-361 · zh: "你卖的东西" still lists English names ("Bamboo Cutting Board", "Canvas Tote Bag 38x40cm"…), sorted by the English name, for products the Products page shows as 竹砧板, 帆布袋….
-- **S3** · V1-363 · the "Teach something new" labels "Type", "Title" and "The fact or answer" are still 13 px and muted, while "The page's address" is 17 px and the select's text "Specifications" is 17 px.
-- **S3** · V1-364 · "Teach something new" under "About your business" still offers product kinds: "Specifications", "Materials", "How it is made", "How it is used" (zh "规格参数 / 材质 / 制作说明", ar "المواصفات / المواد / طريقة الصنع", es "Especificaciones / Materiales / Cómo se fabrica").
-- **S3** · V1-365 · desktop: "The page's address" input is still 389 px wide against 992 px for the teach fields, and the section's description is still 13 px against the 15 px lede.
-- **S3** · V1-366 · knowledge still lights "Your assistant" (phone "Assistant" / "助手" / "مساعدك"), while "Teach your assistant your products" lives under "My business".
-- **S3** · V1-367 · the chosen tab "This week" is still shown only by a light fill and bold weight inside the same pill outline. "This period" still never names the period, and "Today" still repeats the nav item.
-- **S3** · V1-368 · the teach select, title input, fact textarea and the "Or paste the page's text" textarea still have no attached label (automated check).
-- **S4** · V1-369 · zh: the h1 and tab "你的助手知道的" still end on a dangling 的.
-- **S4** · V1-370 · "0 Certifications on" (zh "已开启认证", ar "شهادات مفعّلة", es "Certificaciones activadas") is still an unexplained switch term in a counter.
-- **S4** · NEW · all locales · desktop — the new empty-state panels ("Nothing waiting — every question was answered from what you taught.", "No changes in this period.", "Nothing taught yet.") are 532 px wide boxes, set between lists and fields that run 992 px.
-
-### knowledge-product
-**Asks the owner to:** switch certifications on or off for the whole catalogue and teach facts about this product. **Clear without explanation?** Partly — the chips do not look like switches, some show raw codes, and the confirming button repeats the code.
-
-- **S2** · V1-371 · the chips still show the raw codes "food_grade" and "BPA_free", and the question repeats them: "Turn on food_grade for all 12 of your products?" (zh "给全部12个产品都打开food_grade？", ar "تشغيل food_grade لمنتجاتك الـ12 كلها؟", es "¿Activar food_grade para tus 12 productos?").
-- **S2** · V1-372 · the chips "CE FDA RoHS ISO9001 BSCI food_grade BPA_free REACH CPSIA" still have no visible "off" state and nothing saying a tap switches them. They still look like the static "What customers call it" tags on the product page.
-- **S2** · NEW · all locales · phone + desktop — tapping a certification opens the product's own ask dialog, and its go-ahead button carries the chip's raw code. "Turn on food_grade for all 12 of your products? Your assistant will be able to state it to any customer." comes with the buttons "food_grade" and "Cancel" (ar "BPA_free" / "إلغاء", zh "food_grade" / "取消"). The button that confirms never says "turn on".
-- **S3** · V1-373 · a setting for all 12 products still lives on one product's page ("These apply to everything you sell — all 12 of your products, not only this one.").
-- **S3** · V1-374 · the chips still render in Arial (computed `font-family: Arial`), not the page's Noto Sans.
-- **S3** · V1-375 · zh: the h1 is still "Canvas Tote Bag 38x40cm", and the scope line says "只有客户问到「Canvas Tote Bag 38x40cm」时…", while the product page's h1 is "帆布袋 Canvas Tote Bag 38x40cm ZX-100".
-- **S3** · V1-376 · the knowledge-product page still has no link to the product's own page, and the product page has none back.
-- **S3** · V1-377 · the "Teach something new" labels are still 13 px and muted. The back link "‹ All knowledge" (zh "全部知识", ar "كل المعرفة", es "Todo el conocimiento") still names a page titled "What your assistant knows".
-- **S3** · NEW (missed) · all locales · both (code; no chip is on in the demo) — a certification's "on" state (`.cert.on`) is a green wash and green text only, with no ✓. Which certifications are on vanishes in greyscale, unlike the rebuild's other ok signals.
-- **S4** · V1-378 · desktop: "‹ All knowledge" (centre y≈47) still sits about 8 px below the centre of the 20 px h1 "Canvas Tote Bag 38x40cm" (y≈39).
-- **S4** · NEW (missed) · zh · phone + desktop — the h2 "关于这个产品，你的助手知道的" ends on a dangling 的. On phone, "…不只是这一 / 个。" and "…才会用这些内 / 容。" each leave one character on its own line.
-
-### price-list-export
-
-- **S2** · V1-379 · none of the seven pages links to an export. The only route is still Setup › Your data: "Take a copy" → "Products ›", and "What you set up" → "Your price rules ›".
-- **S2** · V1-380 · the files are still byte-identical in en/zh/ar/es (same MD5 per file). The headers are English (`sku,name,other name,…,offered,added`; `rule,applies to,when,what,note`), the values are English ("Least you accept", "Volume price", "most you will come down: 8.00% · ask you above: 5.00%"), and so are the file names ("nomi-products-2026-10-02.csv", "nomi-price-rules-2026-10-02.csv").
-- **S3** · V1-381 · values are still machine-formatted: "1.0500", "0.7200 USD", "false" / "true", "2026-10-02T09:53:15.273Z", "bags" / "drinkware", "pcs".
-- **S3** · V1-382 · data is still packed into text cells: "500+: 1.0500 USD | 2000+: 0.9200 USD | 10000+: 0.8500 USD" in one cell; the most-off and ask-above figures only inside "note"; vague headers "other name", "when", "what".
-- **S3** · V1-383 · es: the files are still comma-separated with "." decimals ("1.0500"), which a Spanish-locale spreadsheet misreads.
-- **S3** · V1-384 · the "What customers call it" names ("canvas bag", "حقيبة قماش", "帆布包"…) are still in neither file. No Arabic text appears in either file.
-- **S4** · V1-385 · Your data still says "Each file holds up to 20000 rows" (zh "最多 20000 行", es "hasta 20000 filas", ar "⁨20000⁩ سطرًا") with an unformatted number.
-
-## 7 · My business, Your assistant, channels
-
-### business
-**Asks the owner to:** check what the assistant knows about the business, and follow doors to fill the gaps (products, promises, price limits, how you sell, channels). **Clear without explanation?** Partly — every section is a door, nothing says which one comes first, and "Is your assistant ready?" is never answered.
-
-- **S2** · V1-386 · ar · phone, desktop — Latin product names are still split and reordered inside the RTL lines. Phone, "What you sell" («ما يبيعه نشاطك التجاري»): "Stainless Steel · Canvas Tote Bag 38x40cm / LED · Ceramic Coffee Mug 350ml · Thermos 500ml / … String Lights 10m". Phone, under «لا معلومات عن هذه غير السعر:», the list falls apart line by line: "Silicone · LED String Lights 10m · Thermos 500ml / Foldable Storage Box 40L · Kitchen Utensil Set 5pc / Reusable Shopping · Bamboo Cutting Board · / Ceramic Coffee · Travel Cosmetic Bag · Trolley Bag / Solar · Kids Water Bottle with Straw · Mug 350ml / Microfiber Cleaning Cloth Set · Garden Lamp". Desktop: "40L" sits at the right end of line 2, away from "Foldable Storage Box", and "Straw" opens line 3, away from "Kids Water Bottle with".
-- **S2** · V1-387 · all locales · both — "What you promise customers": "You have not confirmed anything your assistant may claim about what you sell." is directly followed by three bullets of rules the assistant does follow: "Your assistant never quotes below your floor for a product — $0.30 to $2.40 across your catalogue.", "Your assistant never discounts more than 8%.", "Above 5% off, you are asked before the price goes out." (zh 你还没有确认你的助手可以说的东西。 / ar «لا تأكيد منك بعد…» / es "No has confirmado nada…").
-- **S2** · V1-388 · all locales · both — "Before your assistant talks to real customers" still asks "Is your assistant ready?" (你的助手准备好了吗？ / هل اكتمل تجهيز مساعدك؟ / ¿tu asistente ya puede empezar?) and never answers it. All that follows is "Today's allowance", "No daily limit is set for this workspace.", one sentence and two doors.
-- **S3** · V1-389 · all locales · both — "Today's allowance — No daily limit is set for this workspace." (今天的额度 / 这个工作台没有设每日上限; رصيد اليوم / لا حدّ يوميًا لمساحة العمل هذه; Cupo diario de hoy / Este espacio de trabajo no tiene límite diario). It never says what the allowance is of. "Workspace" is an internal word, and «رصيد اليوم» reads as a money balance.
-- **S3** · V1-390 · all locales · both — The grey sub-questions still switch voice. Some speak as the business: "Who are we?", "What do we sell?", "Where can customers reach us?". Others address the owner: "What should your assistant never get wrong?", "What discounts may your assistant give?", "Is your assistant ready?".
-- **S3** · V1-391 · all locales · both — Under the heading "What your assistant may never go below", the sub-question is "What discounts may your assistant give?". The heading names a floor and the question names discounts. "Floor" is already used one section up ("never quotes below your floor") and is never explained.
-- **S3** · V1-392 · all locales · both — Under the heading "How you sell", the first door is again "How you sell ›" (zh h2 怎么卖, door 你怎么卖). The sub-line "Payment terms, samples, closed days and your exchange rate" names an exchange rate that no door offers. "Your payment and delivery terms ›" and "When your business is closed ›" repeat "Delivery", "How customers pay" and "Your hours, and the days you are closed" from the How you sell page.
-- **S3** · V1-393 · all locales · both — Three doors open the same Channels page: the WhatsApp card, "Manage the connection ›" and "Where customers reach you ›". Two doors to the business's details lead to different pages: "Tell your assistant about your business ›" (/app/settings/profile) and "Change these details ›" (/app/settings).
-- **S3** · V1-394 · all locales · both — "Add your own number to be alerted when your assistant needs you." is an instruction with no field or button. The only control after it is "Manage the connection ›", which says nothing about a number.
-- **S3** · V1-395 · all locales · both — Under the h3 "What your assistant cannot answer yet", the links "You have not taught your assistant anything about these beyond the price:" and "If a customer asks whether you are certified, your assistant will not confirm anything — you have authorised nothing yet." are underlined and set larger than the h3, so they read as headings. "Checked all 12 of your products." is still a status line that tells the owner nothing.
-- **S3** · V1-396 · all locales · both — "Go through the whole list ›" (看完整的清单 / الاطّلاع على القائمة كاملة / Revisar toda la lista) still names no list. It opens the page titled "Getting ready", which the nav calls "Setup".
-- **S3** · V1-397 · zh · both — The same products appear in two languages on one page: "帆布袋 · 保温杯 · 陶瓷杯 · LED灯串 …" under 你卖什么, and "Canvas Tote Bag 38x40cm · Stainless Steel Thermos 500ml · …" under 除了价格，这些你还没教过任何内容：.
-- **S3** · V1-398 · ar · both — The detached prefix «لـ مساعدك» still appears in «ما الذي لا يُسمح لـ مساعدك بالخطأ فيه أبداً؟», «يجوز لـ مساعدك قوله», «لا يمكن لـ مساعدك استقبال…», «يمكن لـ مساعدك بدء الردّ» and the h3 «ما لا يمكن لـ مساعدك الإجابة عنه بعد». The same page also writes it attached: «ما الخصم المسموح لـمساعدك؟».
-- **S3** · V1-399 · es · both — The sub-question "¿tu asistente ya puede empezar?" still starts with a lowercase letter.
-- **S3** · V1-400 · all locales · both — "Tell your assistant about your business ›" still sits right on the "About your business" heading, with no gap or rule. The four "How you sell" doors are still about 60 px apart, wider than the doors elsewhere on the page.
-- **S3** · NEW · all locales · both — WhatsApp card, "📱 WhatsApp ○ Not connected — Your assistant cannot receive or answer a customer." (未连接 / غير مربوط / Sin conectar) on an amber wash — a channel that was never set up gets the amber ○ "waits for you" signal. On this page nothing else uses ✓ or ✕, so the one signal shown means "not done" rather than "waiting".
-- **S3** · NEW (missed) · all locales · both — "Your assistant cannot receive or answer a customer." and "Connect a place customers write to, and your assistant can start answering them." sit on the same screen as the nav's "Conversations 2", while Your assistant shows "2 Replies prepared" and "✓ Promoted: Greeting". The owner is told no customer can reach the assistant while customers already have.
-- **S3** · NEW (missed) · ar · both — "⁨12⁩ منتجات" pairs 12 with the plural that only 3–10 take (the catalogue has one fixed word, «منتجات», for every count). It reads as an error to an Arabic reader.
-- **S4** · V1-401 · en, es, zh · phone — Product lists still wrap with "·" at the start of a line: en and es "· Bamboo Cutting Board". In zh the certification link wraps so that "——你还一个都没授权。" starts the second line with the dash.
-- **S4** · V1-402 · zh · both — The h2 is still the clipped "绝不能低于的价". The h2 "怎么卖" differs from its own door and the next page's h1, which both say "你怎么卖".
-- **S4** · V1-403 · all locales · both — The 📱 emoji is still the WhatsApp icon, on the My business card and on the Channels card.
-- **S4** · V1-404 · es · both — "de $0.30 a $2.40 en tu catálogo" still puts a decimal point in Spanish copy.
-- **S4** · NEW (missed) · ar · both — The h2 «الحد الذي لا نزول تحته أبدًا» ("the limit WE never go below") speaks as the business, while its own question «ما الخصم المسموح لـمساعدك؟» and en "What your assistant may never go below" are about the assistant.
-
-### how-you-sell
-**Asks the owner to:** answer nine questions about how they sell, one at a time. **Clear without explanation?** Partly — the questions are plain, but "Start ›" and the first "Answer ›" do the same thing and there is no progress.
-
-- **S2** · V1-405 · en, es · phone — The chip still breaks in two with its pill outline split ("Not | answered" / "Sin | responder"). In en it happens after "When a customer asks the price, does your assistant ask how many first?", "Returns, refunds and warranty" and "What you sell, and what is true of it". In es it happens after "Devoluciones, reembolsos y garantía", "Qué vendes y qué es cierto sobre ello" and "Tu horario y los días en que cierras".
-- **S3** · V1-406 · all locales · both — The tab title is "My business · …" (我的生意 / نشاطي التجاري / Mi negocio) while the h1 is "How you sell". The child question page's tab title is "How you sell".
-- **S3** · V1-407 · all locales · both — Real questions ("Is there a minimum order?") are still mixed with bare topics ("Delivery", "Words to avoid", "Certifications you hold"; 配送 / التوصيل / Envíos), although the lede promises "Plain questions".
-- **S3** · V1-408 · all locales · both — Topics still repeat settings found elsewhere under other names. "Delivery" and "How customers pay" match "Your payment and delivery terms" (My business). "Your hours, and the days you are closed" matches "When your business is closed". "Certifications you hold" matches My business's certification line, which links to Knowledge. "Words to avoid" matches "Words your assistant must never use" (Your assistant).
-- **S3** · V1-409 · all locales · both — The primary action "Start ›" (开始 / البدء / Empezar) is still a plain text door that looks exactly like the nine "Answer ›" doors, and it opens the same page as the first "Answer ›".
-- **S3** · NEW · all locales · both — "Not answered" (未回答 / لم يُجَب عنه / Sin responder) is a grey chip with no mark, while the same "you have not done this yet" state is an amber "○ Not yet" on Channels and an amber "○ Not connected" on My business. The rebuilt four-signal system is applied on one page and not the next.
-- **S4** · V1-410 · all locales · both — Every row shows the same grey "Not answered" chip (未回答 / لم يُجَب عنه / Sin responder), and there is no overall count ("0 of 9").
-- **S4** · V1-411 · all locales · desktop — The question rows and their dividers stop at about 850 px, while My business's sections run to 1240 px.
-- **S4** · NEW (missed) · all locales · both — "‹ Back to My business" sits at the bottom of the list, after nine rows. The question page puts "‹ Back to How you sell" at the top, and the help page puts its back link beside the h1. Three pages, three places.
-
-### how-you-sell-q
-**Asks the owner to:** choose whether the assistant gives the price of one or asks the quantity first, then go on to check what will be saved. **Clear without explanation?** Partly — the choice is plain, but an answer is already selected for the owner.
-
-- **S3** · V1-412 · all locales · both — "Ask how many first, then give the price — usual for makers and wholesale" is pre-selected on a question the list marks "Not answered". "Next: check what will be saved" goes ahead with an answer the owner never chose.
-- **S3** · V1-413 · all locales · both — "Next: check what will be saved" (filled) and "Leave this for later" (outlined) are still stacked with no gap and at different widths (下一步：看看要保存什么 / 以后再答; التالي: عرض ما سيُحفظ / التأجيل إلى وقت لاحق; Siguiente: revisar lo que se guardará / Dejar para más tarde).
-- **S3** · V1-414 · all locales · both — The lede "When a customer asks how much something is." (客户问多少钱的时候。 / حين يأتي سؤال عن السعر. / Cuando tu cliente pregunta cuánto cuesta algo.) is still a sentence fragment that repeats the heading.
-- **S4** · V1-415 · all locales · both — The page still gives no position ("1 of 9"), although the list page promises the questions come "one at a time".
-- **S4** · V1-416 · all locales · both — The selected radio is still the browser's default blue, the only blue on the page.
-- **S4** · NEW (missed) · zh · phone — Single characters wrap alone onto a line: "先问要多少，再给价格 ——生产商和批发通常这 / 样" and "生产商和批发通常按数量报 / 价。".
-- **S4** · NEW (missed) · ar · both — The h1 «عند السؤال عن السعر، هل يُسأل عن الكمية أولًا في ردود مساعدك؟» ("is the quantity asked first in your assistant's replies?") is a stiff passive that reads machine-made, beside the lede «حين يأتي سؤال عن السعر.».
-
-### employee
-**Asks the owner to:** choose how much the assistant sends without them, and grant or revoke individual tasks. **Clear without explanation?** No — no level is selected, the levels are silently held, and the page says both "everything comes to you first" and "already handling customers".
-
-- **S1** · V1-417 · all locales · both — The page still contradicts itself about what goes out alone. The small print says "Whatever you choose here, every reply keeps coming to you first until you confirm the name in Getting ready". Yet "Handled without you: ✓ Greeting ✓ Understanding needs", "Promotion — Now Handling some without you — Already handling customers.", the card's "Handling some without you" and '"Greeting" is granted [Revoke]' all say greetings already go out alone, and "Recently" shows "0 Customers answered". The same holds in zh (自己处理 / 已经在正式接待客户了), ar (يُنجز دون انتظارك / استقبال العملاء قائم بالفعل) and es (Se resuelve sin ti / Ya atiende a tus clientes).
-- **S2** · V1-418 · all locales · both — None of the three levels is selected ("Everything waits for me", "Your assistant talks without me; prices wait for me", "Your assistant also handles prices without me"). The state appears only as "Right now it is a mix — see the list below." (目前是混合状态 / الوضع الآن مزيج / Ahora mismo es una mezcla), and "Save" with nothing chosen has no stated effect.
-- **S2** · V1-419 · all locales · both — Nothing on the levels shows they are held. The reason is in grey small print under "Save" and ends in a bare "Open" (打开 / فتح / Abrir) styled as plain text. On ar phone «فتح» sits alone on its own line and looks like the end of the paragraph.
-- **S2** · V1-420 · all locales · both — "confirm the name in Getting ready" refers to a name the page never shows. The card's name slot shows the fallback "Your assistant" (你的助手 / مساعدك / Tu asistente) as if it were a name. "Getting ready" (准备上线 / صفحة التجهيز / Preparación) is not what the nav calls it ("Setup" / 设置 / الإعداد / Ajustes).
-- **S2** · V1-421 · all locales · both — The middle level says "Greetings, questions and recommendations go out by themselves", but the task list puts "○ Recommending" under "Waits for you". "Grant & revoke" offers only "Revoke", for "Greeting" and "Understanding needs", and has no way to grant anything.
-- **S2** · V1-422 · all locales · both — Internal, gamified words with no explanation. In en: "Growth" ("✕ Pulled back: Quoting", "✓ Promoted: Greeting", "✓ Spot-check passed", "○ Adjusted after a spot-check"), "Promotion", "Grant & revoke", '"Greeting" is granted' and "Customer reception". In zh: 正式接待（部分） · 客户接待, 成长记录, 晋升状态, 放权与收回. In ar: «استقبال جزئي · استقبال العملاء», «سجل التطوّر», «الترقية», «منح وسحب». In es: "Progreso", "Ascenso", "Conceder y retirar". Nothing says what a spot-check is or who does it.
-- **S2** · V1-423 · all locales · both — "What your assistant still needs from you — No customer has asked anything yet." contradicts "Recently: 2 Replies prepared" on the same page, "Conversations 2" in the nav, and My business's "What your assistant cannot answer yet — Customers ask these…".
-- **S3** · V1-424 · all locales · both — The task list items are still bordered cards that look tappable but do nothing. "Waits for you" and "Always waits for you" use the same "○" and differ only in colour (amber vs grey) and their group heading.
-- **S3** · V1-425 · all locales · both — The rules for the whole choice still use jargon: "prices only come from your price rules, and anything your rules hold still waits for you", "never below your floor". The rules and the disclosure paragraph are grey caption text, smaller than the language note under "Save".
-- **S3** · V1-426 · en · both — Grammar is still mixed in one list: "Confirming orders" beside "Promise stock", "Change payment account" and "Promise an unconfirmed delivery time". The h2 "What your assistant handles alone" is directly followed by "Handled without you" (ar «ما يُنجز دون انتظارك» then «يُنجز دون انتظارك»).
-- **S3** · V1-427 · all locales · both — Three doors still open Knowledge: "Teach something new ›", "Teach your assistant ›" and "What your assistant knows ›".
-- **S3** · V1-428 · en · both — This page says "Practice ›", while My business says "Practise with your assistant ›" for the same place.
-- **S3** · V1-429 · all locales · both — The "Recently" counts ("0 Customers answered", "2 Replies prepared", "0 Needed your help") still give no time span.
-- **S3** · NEW · all locales · both — The Growth list (成长记录 / سجل التطوّر / Progreso) uses the state marks for history events: "✕ Pulled back: Quoting" takes the "failed" mark, and "○ Adjusted after a spot-check" takes the "waits for you" mark for something finished on Tue, Sep 29. The marks are plain ink here, while the task list on the same page draws ✓ in green and ○ in amber. On one page, one shape means two things and the colour comes and goes.
-- **S3** · NEW · all locales · both — Two dashed empty panels give the same advice, each followed by its own door to Knowledge. "What your assistant knows: Nothing has been taught yet. Start with the facts customers ask about most." and "What your assistant still needs from you: No customer has asked anything yet. Teach your assistant what they ask about most." (zh 先教客户最常问的那些 twice; ar «البداية الأنسب: ما يسأل عنه العملاء أكثر» twice). On desktop the panels stop at about 780 px, while the task cards between them run to 1240 px.
-- **S3** · NEW (missed) · all locales (most visible in es) · both — "Your assistant sends alone only to customers writing in English, Chinese, and Arabic. Replies to customers writing in Spanish, French, and Portuguese… wait for you" sits under "Save", not on the levels. A Spanish-UI owner who picks "Tu asistente conversa sin mí; los precios me esperan" still has every reply to Spanish-writing customers held, and the level gives no sign of it.
-- **S3** · NEW (missed) · ar · both — The "Recently" (مؤخراً) counts use one fixed plural for every number: "⁨2⁩ ردود جاهزة" (2 takes the dual) and "0 عملاء تمّ الردّ عليهم". They read as errors in Arabic.
-- **S4** · V1-431 · all locales · both — The h1 "Your assistant" and the card title "Your assistant" still sit one above the other (你的助手 / مساعدك / Tu asistente).
-- **S4** · V1-432 · es · both — 'Se concedió "Saludar"' still uses straight quotes, and "0 Necesitó tu ayuda" still pairs a singular verb with a count.
-- **S4** · NEW · all locales · both — "Revoke" (收回 / سحب / Retirar) is a red outlined button. Red is now the "failed / went wrong" signal, and here it marks an ordinary choice the owner can undo.
-- **S4** · NEW (missed) · en, es · both — "Now Handling some without you" / "Ahora Atiende algunas cosas sin ti" capitalises the stage name in the middle of a sentence. In en the row '"Greeting" is granted' uses straight quotes, while its own Revoke question says “Greeting” with curly ones.
-
-### channels
-**Asks the owner to:** connect WhatsApp, set up an e-mail sending address, decide on writing first, and set an alert number. **Clear without explanation?** No — the e-mail fields are mislabelled, every requirement is "Not yet" with no path, and accounts show developer status.
-
-- **S1** · V1-433 · all locales · both — In the Email card, the field labelled "The name on your signature" (你签名的名字 / اسم توقيعك / El nombre de tu firma) is still the sending domain's technical key name (`name="selector"`). "The address you send from" still asks for an address, but its placeholder is a domain ("yourbusiness.com").
-- **S2** · V1-434 · all locales · both — "Your accounts" still lists "Apollo — ○ Not connected — Finds people to write to and looks up their companies, with your own Apollo key. Add your key ›" (密钥 / مفتاح / clave) next to Gmail, as if it were one of the owner's own accounts.
-- **S2** · V1-435 · all locales · both — "Nomi and Meta: ○ Meta is reviewing Nomi. Until it approves, messages reach Nomi only from people added to Nomi on Meta's side." is internal app-review status shown to the owner, under the product name "Nomi" where the rest of the app says "your assistant".
-- **S2** · V1-437 · all locales · both — The WhatsApp requirements "Wording WhatsApp approved beforehand", "WhatsApp has checked your business" and "A page of your own saying how you handle what customers tell you" still say neither what to do nor where. None of them is a link.
-- **S2** · NEW (missed) · all locales · both — "Your accounts": "Gmail (Google Workspace) — Not set up here yet — This installation has no app for it yet." Outlook says the same (这个安装还没有对应的应用。 / «هذا التثبيت لا يملك تطبيقًا له بعد.» / "Esta instalación todavía no tiene una aplicación para esto."). This is deployment status written for a developer, and it leaves the owner no way to connect Gmail or Outlook, although the lede says "Connecting an e-mail account is what lets your first e-mails and follow-ups leave from your own address."
-- **S3** · V1-436 · (now outlined, no longer primary) all locales · both — "Let your assistant write first" (让你的助手先开口 / السماح بالمبادرة بالكتابة / Dejar que tu asistente escriba primero) is still an active button on the Email and WhatsApp cards, under "You can write first once these are in place" and requirements all marked "○ Not yet".
-- **S3** · V1-438 · all locales · both — The h3 "How Instagram and Messenger work" still renders at 19.89 px (the off-scale size in results.json). It is larger than its section's h2 "Nomi and Meta" (17 px) and larger than every h2 on the page.
-- **S3** · V1-439 · all locales · both — The page still has no stable name. Its h1 is "Where customers reach you", the nav highlights "Setup", and the pages that link back call it "Back to channels" / "‹ Channels" / "The Channels page".
-- **S3** · V1-440 · all locales · both — "Customers message this number; your assistant writes the reply and you decide what goes out" still shows no number (not connected) and has no full stop. "You decide what goes out" (ar «لا تُرسَل إلا بقرار منك») contradicts the levels on Your assistant.
-- **S3** · V1-441 · all locales · desktop, phone — Status marks are still inconsistent. "Not set up here yet" is bare bold grey text in "Your accounts" but a grey pill as "You cannot write first" in the cards. "○ Not connected" is an amber pill. On desktop the "Your accounts" rows still stop at about 850 px, while the cards run to 1240 px.
-- **S3** · V1-442 · all locales · both — "After someone writes, you have 24 hours to answer them freely." still appears on three cards and again in the "How Instagram and Messenger work" list. That list says "Photos, shared posts, story mentions and voice clips come to you", while the Meta help page says "Shared posts and mentions in stories come to you, named, and are not answered."
-- **S3** · V1-443 · all locales · both — The "Coming soon" chips (TikTok, WeChat, Telegram, WeCom, RED / 企业微信, 小红书) look like buttons but do nothing. "Which do you want first? Tell us and we will prioritize it." (zh 回复告诉我们) still offers no way to tell anyone.
-- **S3** · V1-444 · all locales · both — "Alert number — Where your assistant messages you — a strong buying signal or a handoff." still uses internal terms (接手 / تحويل / traspaso).
-- **S3** · V1-445 · en · both — The card heading says "Email" while the text above it says "e-mail".
-- **S3** · V1-446 · ar · both — The WhatsApp door is «اتصال» while the status is «غير مربوط». The brand name is Latin "WhatsApp" on the first card but «واتساب», «إنستغرام», «ماسنجر» below. «تراجع Meta طلب Nomi الآن» can still be read as "Meta withdrew Nomi's request". «لا يمكن لـ Nomi» has the detached prefix.
-- **S3** · NEW · all locales · both — The amber ○ "waits for you" mark now sits on statuses where nothing waits for the owner. "○ Meta is reviewing Nomi… nothing needs doing again when Meta approves." "○ Not connected" on Apollo, an optional third-party key. "○ You can write first once these are in place" (这几样齐了，你就可以先开口 / «المبادرة متاحة متى توافرت هذه»).
-- **S3** · NEW · all locales · both — The page has no main action. The WhatsApp card's "Connect ›" (连接 / اتصال / Conectar) is a plain text door, while "Save", "Let your assistant write first" (twice) and "Save" are four identical outlined buttons. The most visible button on the page is the one for the riskiest act.
-- **S3** · NEW (missed) · zh · both — The "即将支持" chips read "TikTok · WeChat · Telegram · 企业微信 · 小红书": "WeChat" stays in English beside its own translated sibling 企业微信.
-- **S3** · NEW (missed) · all locales · both — The alert number has two names and two places on one screen: the "Alert number" form with its own "Save", then the door "Alerts on your phone ›" (zh 通知号码 / 手机提醒›; ar «رقم التنبيهات» / «التنبيهات على الهاتف›»; es "Número para avisos" / "Avisos en tu teléfono›").
-- **S3** · NEW (missed) · all locales · both — The Instagram and Messenger rows in "Your accounts" read "Not set up here yet — You cannot write first" (这里还没开通 / 你不能先开口; «غير متاح هنا بعد» / «المبادرة بالكتابة غير متاحة»). The sub-line states an outreach rule, not the account's state. There is no door to connect either account, and nothing on the page leads to the Facebook/Instagram help page.
-- **S4** · V1-447 · all locales · phone — The "○ Not yet" requirement lines still wrap back under the pill with a loose gap: "set / up so it is not treated as junk", "Wording WhatsApp approved / beforehand", "WhatsApp has checked your / business".
-- **S4** · V1-448 · zh, ar · both — The placeholder is still "yourbusiness.com" in English (es localises it as "tunegocio.com").
-- **S4** · V1-449 · en · both — "Tell us and we will prioritize it." still uses US spelling, while the app elsewhere writes "Practise", "authorised", "catalogue".
-
-### channels-wa-guide
-**Asks the owner to:** give their WhatsApp number so it can be connected for them. **Clear without explanation?** No — the page has no field, button or contact to give the number with.
-
-- **S1** · V1-450 · all locales · both — The first step, "Tell us the WhatsApp number you use with customers" (把接待客户用的 WhatsApp 号码告诉我们 / إبلاغنا برقم واتساب المستخدم مع العملاء / Dinos el número de WhatsApp que usas con tus clientes), still has no number field, no button and no contact link. The only thing to press is "‹ Back to channels".
-- **S1** · V1-451 · all locales · both — "Press Test to check the connection — it sends no message to anyone" and "switching on/off, testing, and disconnecting are all on this page, managed by you" still describe controls the page does not have.
-- **S3** · V1-452 · all locales · both — The three ordered steps still show no numbers and render as three loose indented lines.
-- **S3** · V1-453 · all locales · both — The tab title is still "Where customers reach you" while the h1 is "Connect WhatsApp". The back link "‹ Back to channels" (回渠道页 / العودة إلى القنوات / Volver a los canales) names a page that calls itself "Where customers reach you".
-- **S3** · V1-454 · all locales · both — "drafts replies — you decide what goes out" still contradicts the levels on Your assistant, which let it send alone.
-- **S3** · NEW (missed) · all locales · both — The lede ("Once connected, your assistant sees the messages…" / 连接后… / «بعد الربط…» / "Con WhatsApp conectado…") is 17 px dark ink, while every other page in the group sets its lede in 15 px grey. The three steps are the same size as the lede, so the page has no hierarchy between explanation and steps.
-- **S4** · V1-455 · all locales · both — "We help with the first connection… You never see or handle any password or setup." still never says who "we" is.
-
-### help-meta
-**Asks the owner to:** check six things on Facebook and Instagram so customers' messages arrive. **Clear without explanation?** Partly — numbered, with a reason for each step, but in Meta's jargon, and it points at statuses the owner cannot find.
-
-- **S2** · V1-456 · all locales · both — Meta jargon still has no plain explanation: "professional account (business or creator)", "a removed Page role or a withdrawn permission", "connecting subscribes the Page", "not subscribed", "Meta gives an app Instagram messages only for…", "It proves the whole road…" (zh 订阅 / 主页角色; ar «إلى أي تطبيق», «سحب دور في الصفحة»; es the same).
-- **S3** · V1-457 · all locales · both — The back link still reads "‹ Channels" (渠道 / القنوات / Canales) for a page whose h1 is "Where customers reach you", and no nav item is highlighted.
-- **S3** · V1-458 · all locales · both — "Meta's help: create a Facebook Page" and the other facebook.com links are still plain bullets: no underline, no link colour, no external-link mark.
-- **S3** · V1-459 · all locales · desktop — The back link "‹ Channels" still sits on the same line as the h1, before it, while the How you sell question page puts its back link above the heading.
-- **S3** · V1-460 · ar · both — This page still writes "Facebook", "Instagram", "Messenger" in Latin («ربط صفحة Facebook وحساب Instagram»), while the Channels page it returns to writes «إنستغرام» and «ماسنجر».
-- **S3** · V1-461 · all locales · both — "What works on Instagram and Messenger" still says "Your assistant can reply for 24 hours…", where Channels says "Through Nomi you can reply for 24 hours…". Photos and voice clips are still listed only on Channels.
-- **S3** · NEW (missed) · all locales · both — The page sends the owner to statuses that are not there. The lede says "The Channels page shows which steps are done". Step 3 says "Check: The Channels page says Meta still accepts it." Step 5 says "If the Channels page says it is not subscribed, connect again." (渠道页面会显示哪些步骤已完成 / «تُظهر صفحة القنوات الخطوات المكتملة»). The Channels page shows none of this: Instagram and Messenger read only "Not set up here yet — You cannot write first", and nothing on Channels links back to this page.
-- **S4** · V1-462 · all locales · both — The h1 "Connecting a Facebook Page and Instagram" still leaves out Messenger.
-- **S4** · V1-463 · all locales · both — The "Check:" lines are still 17 px, the same size as the step headings ("1. A Facebook Page you manage"), so the step titles do not stand out. On phone the "Check:" lines look bigger than the headings.
-- **S4** · NEW (missed) · all locales · both — Every business is called a shop: "The shop has a Facebook Page", "send the shop a message" (店铺 / «للمتجر» / la tienda), though the demo is a factory and the app says "your business" everywhere else.
-
-## 8 · Setup pages: account, alerts, billing, business, closures, the component gallery, your data, forbidden words
-
-### settings-account
-**Asks the owner to:** nothing; it only says they sign in with an access code. **Clear without explanation?** Partly — it says there is no password, but not where the code comes from or what to do if it is lost.
-
-- **S3** · V1-464 · zh · both widths — "你用进入密码登录，所以这里没有可改的密码。" says you sign in with a password (进入密码), then that there is no password. en/es/ar say "access code" / "código de acceso" / "رمز دخول".
-- **S3** · V1-465 · all locales · both widths — the browser tab title is "Setup · 义乌宏发日用品厂 (demo)" ("设置 ·", "الإعداد ·", "Ajustes ·"), not the page's h1 "Your sign-in".
-- **S4** · V1-466 · ar · both widths — "الدخول برمز دخول، لذلك لا توجد كلمة مرور لتغييرها هنا." repeats دخول ("entering with an entering code").
-- **S4** · NEW · all locales · both widths — the card's only row is labelled "Your sign-in" ("你的登录方式", "طريقة دخولك", "Tu acceso"), the same words as the h1 right above it.
-- **S4** · NEW · zh · phone — the 17px row value wraps "…所以这里没有可改的密 / 码。", splitting 密码 across two lines. On en desktop "here." sits alone on the second line.
-
-### settings-alerts
-**Asks the owner to:** turn on phone alerts, which the page then says "are not available here yet". **Clear without explanation?** No — the lede promises a feature the next line withdraws, and nothing says why or what to do.
-
-- **S2** · NEW (missed) · all locales · both widths — the page contradicts itself. The lede says "When a customer is waiting for you … your phone shows it, even with Nomi closed." Directly under it, in 13px grey: "Alerts on phones are not available here yet." ("这里还不能用手机提醒。", "تنبيهات الهاتف غير متاحة هنا بعد.", "Los avisos en el teléfono todavía no están disponibles aquí."). "here" is unexplained installation wording, with no reason and no date.
-- **S3** · V1-467 · all locales · both widths — the lede still ends "Instagram, Messenger and WhatsApp let you answer only within a day of the customer's last message." Nothing connects that sentence to phone alerts.
-- **S3** · V1-468 · all locales · both widths — "‹ Setup" sits in its own header block, so the h1 "Alerts on your phone" is at y=76 instead of y=68 as on Your sign-in, Billing, Kind of business and Your data. The intro is a 15px lede, while Billing and Your data open with 13px grey lines.
-- **S3** · NEW · all locales · both widths — under "Your phones" a dashed empty panel says "No phone has alerts turned on yet." ("还没有手机打开提醒。", "لا يوجد هاتف مفعّل عليه التنبيهات بعد.", "Todavía ningún teléfono tiene los avisos activados."). It implies a phone could be turned on, but the page has no control to do it.
-
-### settings-billing
-**Asks the owner to:** nothing; it only says payments are not set up. **Clear without explanation?** Partly — it says nothing is charged, but shows no plan, price or status.
-
-- **S3** · V1-469 · all locales · both widths — "Payments are not set up on this installation, so nothing is charged." Each translation keeps the software-install word: "这个安装还没有设置付款…", "لم يُعَدّ الدفع على هذا التثبيت بعد…", "…en esta instalación…".
-- **S3** · V1-470 · all locales · both widths — the tab title is "Setup · …" ("设置 ·", "الإعداد ·", "Ajustes ·"), not "Billing".
-- **S3** · NEW · all locales · both widths — the whole page is one 13px grey line under the h1 on an otherwise empty screen. Setup's row for this page promises "Your plan and what is charged", and neither appears.
-- **S3** · NEW · all locales · both widths — Billing and Alerts on your phone keep the old bare layout: grey text lines, section rules, no white cards. Your sign-in, Kind of business, the closures page and the forbidden-words page are label/control rows in cards. Pages one tap apart in the same Setup look like two different products.
-- **S4** · V1-471 · zh · both widths — the h1 is "付款" ("pay / payment"), where en/es/ar say "Billing" / "Facturación" / "الفوترة".
-
-### settings-business
-**Asks the owner to:** choose a kind of business and a country, optionally type a website, then press "Save". **Clear without explanation?** Partly — each field is plain, but nothing says why it is asked.
-
-- **S3** · V1-472 · all locales · both widths — the h1 "Kind of business" ("生意类别", "نوع النشاط التجاري", "Tipo de negocio") sits over three rows: "What kind of business is it?", "Country" and "Website, if you have one". Setup's own row for this page reads "Kind of business, country and website".
-- **S3** · V1-473 · all locales · both widths — nothing on the page says what the three answers are used for or what changes after "Save" ("保存", "حفظ", "Guardar").
-- **S3** · V1-474 · all locales · both widths — this page asks "Country" ("国家或地区", "البلد", "País"), while Setup's "Business profile" page still asks "Location". Where the business is gets asked twice, on two pages, under two names.
-- **S3** · V1-475 · zh · both widths — the "国家或地区" list (250 entries) is in pinyin order, so "中国" is entry 248, after "智利" and "中非共和国".
-- **S3** · V1-476 · all locales · both widths — the tab title is "Setup · …", not "Kind of business".
-- **S4** · NEW · all locales · both widths — the first row's label "What kind of business is it?" ("你的生意是哪一类？", "ما نوع نشاطك التجاري؟", "¿Qué tipo de negocio es?") restates the h1 "Kind of business" right above it.
-- **S4** · NEW · all locales · both widths — the one action sits in two different places on sibling pages. Here "Save" ("保存", "حفظ", "Guardar") is outside the card, in a bar under a rule, at the far right on desktop (far left in ar). On the closures and forbidden-words pages, "Add these days" and "Add" sit inside the card.
-
-### settings-closures
-**Asks the owner to:** name a closure, give its first and last day, then press "Add these days". **Clear without explanation?** Partly — the date fields are plain, but "What is it called" and the lede leave unclear what customers will be told.
-
-- **S2** · V1-477 · zh · both widths — there are still stray spaces around the fallback name: "把休息的日子告诉 你的助手。…" and "你还没告诉 你的助手 哪些天休息，所以全年都按平常的交付时间说。"
-- **S3** · V1-478 · all locales · both widths — there is no back link (the h1 starts at y=24, not 68). The tab title says "Setup · …" while the nav highlights "My business" ("我的生意" / "生意", "نشاطي التجاري" / "تجارتي", "Mi negocio" / "Negocio").
-- **S3** · V1-480 · all locales · both widths — the label "What is it called" ("叫什么", "ما اسمه", "Cómo se llama") still does not say what "it" is and has no question mark.
-- **S3** · V1-482 · all locales · both widths — "No customer is promised a delivery date that runs through them — your assistant says the dates cannot be promised, and never invents a later one." The page never shows the words a customer will actually be sent.
-- **S3** · V1-483 · ar · both widths — both date fields show "yyyy/mm/dd" left-aligned with the calendar icon at the right edge. Every label, the placeholder "العطلة السنوية" and the text around them are right-aligned.
-- **S3** · V1-484 · ar · both widths — the empty state "لم يُسجَّل أي إغلاق لدى مساعدك، فالعرض بمدّتك المعتادة طوال السنة." never names delivery time. The lede is still a run of clipped noun phrases: "لا وعد لعميل بموعد تسليم يمرّ خلالها — بل توضيح أن الموعد لا يمكن ضمانه، ولا اختلاق لموعد لاحق أبدًا."
-- **S3** · NEW · all locales · both widths — the intro is a 13px grey paragraph running the full 992px desktop width (about 170 characters a line). The intros on the forbidden-words and Alerts pages are 15px and 532px wide, so this group has three intro styles: 13px full width, 15px half width, or none.
-- **S4** · NEW · all locales · desktop — the empty panel "You have not told your assistant about any closure, so your usual delivery time is given all year." is 532px wide under a 992px card, so its end edge lines up with nothing. The same happens on the forbidden-words and Alerts pages.
-
-### settings-components
-**Asks the owner to:** nothing; it is a component gallery with no task. **Clear without explanation?** No — "Every part of this product, in every state it can be in. For looking at, on any phone." says nothing an owner needs.
-
-- **S2** · V1-487 · all locales · both widths — placeholder text throughout: buttons "Rest", "Hover", "Focus", "Disabled"; "A label"; "An option". "A line of help under the field." appears as a red "✕" error, as a white notice, as a pink "✕" notice and as a green "✓" line. The heading "Nothing here yet" sits over the body "Nothing here yet", and both chat samples carry the timestamp "Rest" ("常态", "الحالة العادية", "En reposo").
-- **S3** · V1-486 · (was S2; no longer listed on Setup) all locales · both widths — /app/settings/components is still served to the signed-in owner and lights "Setup" in the nav. It still shows the h1 "How it looks" ("外观", "المظهر", "Cómo se ve"), the lede "Every part of this product, in every state it can be in. For looking at, on any phone." and the sections "Chips", "Buttons", "Doors", "A form", "Notices", "Nothing here yet", "Tabs", "Speech", "Counts", "Sections and cards" and "Text".
-- **S3** · V1-488 · all locales · both widths — controls that do nothing: four rows of clickable "Rest / Hover / Focus" buttons, a form whose "Rest" button is not a submit, tabs "Rest / More" that both reload the same page, and "Setup ›" and "‹ Setup" both going to /app/settings.
-- **S3** · V1-489 · zh, ar · both widths — internal jargon translated word for word: ar "الرقائق" (chips) and "الأبواب" (doors); zh "常态 / 悬停 / 聚焦" and "部件". The zh lede still ends "…用来看的，什么手机都行。"
-- **S3** · V1-490 · es, zh · both widths — the sample price reads "$2.10" in es (English decimal point) and in zh (bare "$"), but "US$ 2.10" in ar.
-- **S3** · V1-491 · all locales · both widths — there is no back link at the top. The only "‹ Setup" is the sample in "Doors", 690px down on desktop and 834px down on phone.
-- **S4** · NEW · all locales · both widths — in "Chips", the fourth sample ("A label", "一个标签", "عنوان", "Una etiqueta") renders as bare bold text with no pill (paper on paper). The ✦ assistant mark is missing from the four state samples.
-- **S4** · NEW · all locales · both widths — the page shows at least five graphite filled buttons ("Rest", "Hover", "Focus" and the form's "Rest"), against the one-fill-per-page rule the rest of the app now follows.
-
-### settings-data
-**Asks the owner to:** download copies of their data, see customers' deletion requests, or ask for the whole workspace to be deleted by typing its name. **Clear without explanation?** Partly — the downloads read as a breadcrumb trail and the delete button looks disabled.
-
-- **S3** · V1-492 · all locales · both widths — the download links "Customers › Messages › Products › Orders › Prices you quoted › Your list ›" and "Your price rules › How you sell › What you taught ›" still run in a row with a chevron after each, like a breadcrumb trail. In ar the chevrons point left between items ("العملاء ‹ الرسائل ‹ المنتجات ‹ …"). Nothing says each one downloads a spreadsheet file.
-- **S3** · V1-493 · all locales · both widths — "Ask for everything to be deleted" ("要求删除全部数据", "طلب حذف كل شيء", "Pedir que se borre todo") is a white outline button. Its text is rgb(94,90,102), the same grey as disabled buttons, so it looks inactive, not dangerous.
-- **S3** · V1-494 · all locales · both widths — one list, three names: "Your list" ("你的名单", "قائمتك", "Tu lista") here, the h1 "Who you may write to" on its own page, and "Contacts · …" in that page's tab title.
-- **S3** · V1-495 · en, zh, ar · both widths — "Nomi's operator carries it out by hand within 30 days…" ("Nomi 的运营方…", "يُنفّذه مشغّل Nomi يدويًا") uses an internal role word. es says "El equipo de Nomi".
-- **S3** · V1-496 · all locales · both widths — "If yours is longer, write to us and we will send the rest." and the field "Anything you want us to know (optional)" give no address or link for "us".
-- **S3** · V1-497 · all locales · both widths (was phone only) — the heading "What you set up" ("你设置的东西", "إعداداتك", "Lo que configuraste") starts at exactly the bottom edge of the link row above it (0px gap at both widths), unlike every other section on the page.
-- **S3** · V1-498 · ar · phone — "…يُنفّذه مشغّل Nomi يدويًا خلال 30" ends a line and "يومًا من تسجيله" starts the next, splitting the number from its unit.
-- **S3** · V1-499 · all locales · both widths — the tab title is "Setup · …", not "Your data".
-- **S3** · NEW · all locales · both widths — the page was not rebuilt. It is seven 13px grey paragraphs. The delete form's labels "Type 义乌宏发日用品厂 (demo) to confirm" and "Anything you want us to know (optional)" are 15px regular weight above 390px inputs, with no card, while sibling forms use 15px semibold labels in label/control cards.
-- **S3** · NEW · all locales · both widths — the empty state "No customer has asked yet." ("还没有客户提出过。", "لا طلبات من العملاء حتى الآن.", "Nadie lo ha pedido todavía.") is a third grey line under two grey paragraphs. It is not the dashed empty panel used on Alerts, closures and forbidden words, so it reads as more explanation, not as state.
-- **S4** · V1-500 · all locales · both widths — "Each file holds up to 20000 rows" ("20000 行", "20000 سطرًا", "20000 filas") has no thousands separator.
-- **S4** · V1-501 · ar · both widths — "…يُرجى إبلاغ العميل، فـNomi لا يراسل العميل…" still glues فـ onto the Latin brand. The heading "إعداداتك" ("your settings") still collides with "الإعداد" (Setup) for a set of downloads.
-- **S4** · NEW (missed) · all locales · both widths — "This is not a button that erases." ("这不是一个按下去就清空的按钮。", "هذا ليس زرًّا يمحو.", "Esto no es un botón que borra.") sits right above a button. "Nothing here can delete anything on its own." sits under the heading "Have everything deleted". The section argues with its own title.
-- **S4** · NEW (missed) · all locales · both widths — "A request made in a message is usually listed here as it arrives". "usually" is left unexplained: nothing says when a request is not listed.
-- **S4** · NEW (missed) · es · phone — the heading "Clientes que pidieron que se borren sus datos" wraps with "datos" alone on the second line.
-
-### settings-forbidden
-**Asks the owner to:** add a word or phrase the assistant must never use, with an optional note, then press "Add". **Clear without explanation?** Yes — the form is plain. The fold under it is not (below).
-
-- **S2** · V1-504 · all locales · both widths — "滚" and "liar" are still listed as standalone words, but matching is still a case-insensitive substring test. A reply containing "滚筒", "滚轮", "滚珠" or "familiar" is caught, and per the lede "it is written again without it, and if that cannot be done, it comes to you instead". The page says nothing about this.
-- **S3** · V1-502 · (was S2; folded closed by default) all locales · both widths — the list now sits in a fold, "› Always enforced · 43". Opened, it still prints all 43 profanities and slurs in full, one per 17px row, ungrouped by language: "fuck", "shit", "bastard", "liar", "傻逼", "滚", "غبي", "كذاب", "mierda", "gilipollas", "putain", "caralho", "vagabunda"… The list is about 1,830px tall (page 2,430px on desktop).
-- **S3** · V1-503 · (was S2; es phone only now) es · phone — the first field's placeholder is cut to "por ejemplo, un nombre de la compe" (text 345px in a 294px inner width). Desktop and the other locales now show their hints in full.
-- **S3** · V1-506 · all locales · both widths — there is no back link (the h1 starts at y=24). The tab title says "Setup · …" while the nav highlights "Your assistant" ("你的助手" / "助手", "مساعدك", "Tu asistente" / "Asistente").
-- **S3** · NEW · all locales · both widths — the fold "› Always enforced · 43" ("始终生效 · 43", "مفروض دائمًا · 43", "Siempre en vigor · 43") does not say what is enforced or what the 43 counts. The explanation ("Your assistant will never curse or insult a customer…") is hidden inside the fold.
-- **S4** · V1-508 · (was S3; label style fixed) all locales · both widths — the label is now 15px semibold, but it still reads awkwardly: "Why, for yourself (optional)", "为什么（写给自己看，可不填）", "لماذا، لنفسك (اختياري)", "Por qué, para ti (opcional)".
-- **S4** · NEW · en · phone — the h1 wraps "Words your assistant must never / use", leaving "use" alone on the second line.
-
-## 9 · Who works here, profile, rate, samples, terms; the outreach area
-
-### settings-people
-**Asks the owner to:** give their own display name, add or remove a teammate, and rename or add an assistant. **Clear without explanation?** Partly. The headingless add form under 陈莉's row and the text-like "› Change" / "› Add another one" hide two of the four acts.
-
-- **S2** · V1-509 · all locales · phone + desktop — the add-person form still has no heading and sits right under 陈莉's row and her "Remove" button: "Their name" / placeholder "The name customers would hear" / filled "Add them" (es "Su nombre" / "Añadir a esta persona", zh "名字" / "加进来", ar "الاسم" / "إضافة"). On phone, "Remove" → "Their name" → "Add them" stack in one column (es "Quitar" → "Su nombre" → "Añadir a esta persona"), so it reads as renaming or re-adding 陈莉.
-- **S3** · V1-510 · all locales · phone + desktop — the assistant's controls are still body-size text with a small chevron: "› Change" and "› Add another one" (zh "› 修改" / "› 再加一位", ar "‹ تعديل" / "‹ إضافة مساعد آخر", es "› Cambiar" / "› Añadir a alguien más"). They do not look like controls, "Change" does not say what it changes, and "Add another one" / "alguien más" does not say another what.
-- **S3** · V1-511 · all locales — the assistant still has two names on one page: "Any channel nobody else was given goes to Lily" and the row "Lily  Sales  Main", but the "Only you can do these" list says "Decide what your assistant may do without asking" and "Letting your assistant write to someone first" (zh "你的助手", ar "مساعدك", es "tu asistente").
-- **S3** · V1-512 · all locales · phone + desktop — the tab still says "Setup · 义乌宏发日用品厂 (demo)" (zh "设置", ar "الإعداد", es "Ajustes"), the heading says "Who works here", the Setup row says "Who works here", and the nav highlights "Setup 3/5". There is still no "‹ Setup" back link, though Business profile has one.
-- **S3** · V1-513 · all locales — an unlabelled date still follows each name: "· You Fri, Oct 2", "陈莉 Fri, Oct 2" (zh "· 你 10月2日周五", ar "· أنت الجمعة، 2 أكتوبر", es "· Tú vie, 2 oct"). Nothing says it is the day the person was added.
-- **S3** · V1-514 · all locales (forms opened) — two label styles still sit on one page. "Name", "Job" and "The tone to use (optional)" are 15px dark, and the owner-name prompt "Your name here is your business's name. What should the people here call you?" is large and dark. "Their name" and "Answers on" are 13px muted. In "Add another one", "E-mail" still wraps alone onto a second checkbox row, about 48px below "WhatsApp  Instagram  Messenger" (en desktop).
-- **S3** · V1-515 · zh — one thing still has two names. The intro says "每个人都有自己的登录码", the rows say "用进入密码登录", and the Remove question says "移除陈莉？对方会立刻被登出，进入密码也随即失效。".
-- **S3** · V1-516 · ar — the note still reads "يعمل هنا 2 من الأشخاص. المتصلون الآن: 1." while Setup's row says "شخصان". The list item "تحديد ما يجوز لـ مساعدك فعله دون سؤال" still has a detached "لـ " followed by a space.
-- **S3** · NEW (missed) · ar · phone + desktop — the people rows use masculine third-person verbs about 陈莉 and about the owner's own row ("أنت"): "يدخل برمز دخول" and "لم يظهر هنا بعد". This genders both people.
-- **S3** · NEW (missed) · all locales · phone + desktop — the same or nearly the same word labels different acts. ar uses "إضافة" for both the filled button (adds a teammate) and the outlined button in "إضافة مساعد آخر" (adds an assistant). en has "Add them" / "Add", zh "加进来" / "添加", es "Añadir a esta persona" / "Añadir". Contacts' "Add them" / "加进来" / "إضافة" adds a customer.
-- **S4** · V1-517 · all locales — the role tag is still bold bare text with no pill: "Lily  Sales      Main" (zh "销售  主要", ar "المبيعات  الرئيسي", es "Ventas  Principal"). "Main" has also lost its pill, as has "Online now" / "现在在线" / "متصل الآن". All three are bold words with wide empty gaps around them (the pill's padding with no fill), so they read as stray words.
-- **S4** · V1-518 · all locales — "Only you can do these" is still a ruled list that looks like tappable rows but is inert muted text. In en, "Letting your assistant write to someone first" still breaks the run of imperatives ("Decide…", "Change…", "Record…", "See the plan…").
-- **S4** · V1-519 · all locales — nothing before "Add them" (es "Añadir a esta persona", zh "加进来", ar "إضافة") says a one-time access code will appear that must be handed to the person. The form is only "Their name".
-- **S4** · V1-520 · zh · phone + desktop — the owner-name field and the add-person field, one above the other, have different widths: ≈345px vs ≈377px on desktop, and on phone the owner field ends about 13px short of the add field.
-- **S4** · NEW (missed) · ar — the assistants heading "فريق الرد على عميلك" says "your customer", singular, where en says "Who answers your customers".
-
-### settings-profile
-**Asks the owner to:** fill in name, description, location, hours, languages, contact e-mail/phone and time zone, then press the one Save. **Clear without explanation?** Partly. Setup calls it "Not finished" but no field is marked, and nothing says who sees which field.
-
-- **S3** · V1-522 · zh, ar, es — the time-zone options are still half translated ("Shanghai — 中国标准时间", "Shanghai — توقيت الصين الرسمي", "Shanghai — hora estándar de China"). All 418 options still run in unlabelled continent blocks (Abidjan… Windhoek, then Adak…), with no groups.
-- **S3** · V1-523 · all locales — Setup still lists "Business profile … Not finished" (zh "还没填完", ar "غير مكتمل", es "Sin terminar"), and nothing on the page marks a missing or required field. My business still opens the page as "Tell your assistant about your business ›", yet the page highlights "Setup" and shows "‹ Setup".
-- **S3** · V1-524 · all locales — "Description", "Contact email" and "Contact phone" still have no line saying who sees them (customers? the assistant?). Nothing on the page says the assistant uses any of it.
-- **S3** · V1-526 · all locales — "The currency you sell in" still explains itself like a developer: "Your prices are in this currency, so it stays: a second currency would mean converting, and nothing here converts." (zh "你的价格都是用这种货币定的，所以不再改：换第二种货币就得换算，而这里不做换算。", es "…así que se queda: una segunda moneda supondría convertir, y aquí no se convierte nada.").
-- **S3** · NEW · all locales · phone + desktop — the sticky Save bar sits across the form at the foot of the first screen. On en/es desktop it lands right under "Contact phone", cutting off the Contact details card's bottom edge and hiding the "Time zone and currency" heading, so the one "Save" reads as the contact block's own. On zh/ar desktop it hides the whole "联系电话" / "هاتف التواصل" row (only the top edge of its field shows). On en/zh phone it cuts through the "Languages served" / "服务语言" checkboxes ("English 中文 العربية Español" sliced mid-glyph).
-- **S4** · V1-525 · (no longer look like buttons) all locales — "Product categories" now reads as plain text, "bags · drinkware · home · lighting". It is still inert, with no line on where it comes from or how to change it, and it stays English lowercase in zh/ar/es.
-- **S4** · V1-527 · all locales · phone + desktop — the "Languages served" checkboxes still wrap into ragged rows about 56px apart. On desktop, "English … Português" is followed by "Deutsch  Türkçe  Русский". On zh phone, "Français  Português  Deutsch" is followed by "Türkçe  Русский".
-- **S4** · V1-528 · all locales — the time-zone list still includes polar research stations: "Casey — Australian Western Standard Time", "Longyearbyen — Central European Standard Time", "McMurdo — …", "Troll — …", "Vostok — Vostok Time".
-- **S4** · NEW (missed) · en, es — straight ASCII quotes in the time-zone line, "what counts as "today"" / "lo que cuenta como "hoy"", while zh uses “今天” and ar «اليوم».
-
-### settings-rate
-**Asks the owner to:** nothing; it only states there is no rate to set. **Clear without explanation?** No. A heading promising a rate, one grey line and no way on or back.
-
-- **S2** · V1-529 · all locales · phone + desktop — still a dead end. "The exchange rate you will honour" (zh "你认的汇率", ar "سعر الصرف المعتمد لديك", es "El tipo de cambio que respetarás") is followed by one line, "Your prices are in USD, and nothing here is shown in another currency, so there is no rate to set.", with no control, no back link and no link elsewhere. Neither My business nor Setup links here, yet the nav highlights "My business".
-- **S3** · V1-530 · all locales · phone + desktop — the tab still says "Setup · …" / "设置 · …" / "الإعداد · …" / "Ajustes · …", the nav highlights "My business" / "我的生意" (phone "生意") / "نشاطي التجاري" (phone "تجارتي") / "Mi negocio", and the heading matches neither.
-- **S4** · V1-531 · all locales — the currency is still the raw code here ("Your prices are in USD", zh "你的价格都是 USD", ar "الأسعار بعملة USD") but "US Dollar (USD)" / "美元 (USD)" / "دولار أمريكي (USD)" / "dólar estadounidense (USD)" on Business profile.
-- **S4** · V1-532 · zh, ar · phone — the last word still breaks alone: zh "…所以不用定汇 / 率。", ar "…فلا حاجة إلى سعر / صرف.".
-- **S4** · NEW · all locales · phone + desktop — the page's whole content is one 13px muted caption ("Your prices are in USD, and nothing here is shown in another currency, so there is no rate to set.") under a 20px heading, above ~750px of empty page. Samples and Terms show their not-set state as a panel.
-
-### settings-samples
-**Asks the owner to:** set what a sample costs and whether it comes off the first order, then Save. **Clear without explanation?** Partly. The price has no currency, and the checkbox floats away from its label.
-
-- **S2** · V1-533 · zh · phone + desktop — stray spaces still surround the stand-in name: "告诉 你的助手 一个样品多少钱、能不能从第一单里扣" and, in the new panel, "你还没跟 你的助手 说过样品的事，所以这个问题不会回答。".
-- **S3** · V1-534 · all locales · phone + desktop — the tab is still "Setup · …" (zh "设置", ar "الإعداد", es "Ajustes"), the nav highlights "My business" and the heading is "Samples". There is still no back link to My business, where the page is opened from ("Samples ›").
-- **S3** · V1-535 · all locales — the price field "What a sample costs (0 means free)" (zh "一个样品多少钱（填 0 就是免费）", ar "كم تكلّف العيّنة (صفر يعني مجانًا)", es "Cuánto cuesta una muestra (0 es gratis)") still shows no currency.
-- **S3** · NEW · all locales · phone + desktop — the new not-set panel ("You have not told your assistant anything about samples, so that question goes unanswered.") sits flush on the form card below it, with its dashed edge touching the card's top edge and no gap. On desktop it is also narrower (≈530px) than the card (≈990px). The same happens on Terms ("Not stated yet. Your assistant shows no proforma until you do." / "还没写。…" / "لم تُحدَّد بعد…").
-- **S3** · NEW · all locales · phone + desktop — the "It comes off the first order" checkbox (zh "可以从第一单里扣", ar "تُخصم من الطلب الأول", es "Se descuenta del primer pedido") floats in the middle of the control column. On desktop it is ≈480px from its label and sits above the label's baseline. On phone it is centred alone under its label.
-- **S3** · NEW · all locales · desktop — the group's primary act sits in three places. On Samples, Terms and Business profile it is at the far right end of a ruled bar. On Who works here ("Add them") and Find customers ("Save the key") it is at the start, under the field. On Contacts and Follow-ups it is a full-width bar. Its words also vary: "Save" / "Save terms" / "Save" (zh "保存" / "保存条款").
-- **S4** · V1-536 · all locales — the intro's "Until you do, nothing is said about samples." is repeated straight away by the new panel, "You have not told your assistant anything about samples, so that question goes unanswered."
-
-### settings-terms
-**Asks the owner to:** write how customers pay and pick a delivery term, then "Save terms". **Clear without explanation?** No. A required select of bare Incoterm codes, and "proforma" is never explained.
-
-- **S2** · V1-537 · all locales · phone + desktop — "Delivery term" (zh "交货条款", ar "شرط التسليم", es "Condición de entrega") is still a blank, required select of bare codes, "EXW, FOB, CIF, CFR, DDP, DDU, DAP, FCA", with no meaning given and the retired "DDU" included. "Save terms" cannot go through without one.
-- **S3** · V1-538 · all locales — "proforma" (zh "形式发票", ar "الفاتورة المبدئية", es "proforma") is still never explained. The intro "until you state them, no proforma is shown" is repeated by the panel "Not stated yet. Your assistant shows no proforma until you do."
-- **S3** · V1-539 · en, es · phone — the payment placeholder is still cut off: "e.g. deposit with order, balance befor" and "p. ej., anticipo con el pedido, saldo ar".
-- **S3** · V1-540 · ar · phone + desktop — the helper under "شرط التسليم" still shows a visible tatweel joint: "يُكتب في فواتيرك المبدئية، ويمكن لـمساعدك ذكره للعملاء.".
-- **S3** · V1-541 · all locales · phone + desktop — the tab is still "Setup · …", the nav highlights "My business" and the heading is "Your payment and delivery terms". There is still no back link.
-- **S4** · V1-542 · ar · phone — en now wraps cleanly ("…shows no / proforma until you do."), but the ar panel leaves "تحديدها." alone on its last line ("لم تُحدَّد بعد. لا فاتورة مبدئية في ردود مساعدك قبل / تحديدها.").
-- **S4** · NEW (missed) · zh — two words for delivery: the heading (and the My business link) says "你的付款和**交付**条款", and the field says "**交货**条款".
-
-### contacts
-**Asks the owner to:** see who may be written to, block a person for good, or add someone they met. **Clear without explanation?** No. The heading promises people you may write to, and every row says you cannot.
-
-- **S2** · V1-543 · all locales · phone + desktop — the heading still contradicts every row. Under "Who you may write to" (zh "你可以联系谁", ar "من يمكن مراسلته", es "A quién puedes escribir"), all 71 rows say "That way of reaching people does not allow a first message — or does not allow one yet.". Each sits under a green pill that now also carries the ✓ "ok" mark: "✓ They wrote to you first" / "✓ 对方先来找过你" / "✓ المبادرة بالمراسلة من الطرف الآخر" / "✓ Te escribió primero".
-- **S2** · V1-544 · all locales · phone + desktop — still 71 near-identical rows with no search, filter, grouping or paging: 12,772px tall on desktop and 17,132px on phone (en). "Add someone you met" (zh "添加你认识的人", ar "إضافة شخص من معارفك", es "Añadir a alguien que conociste") is still at the very bottom.
-- **S3** · V1-545 · all locales — each row still says one thing three times: "✓ They wrote to you first", "WhatsApp · Wrote to you", and the hedge "…does not allow a first message — or does not allow one yet." (zh "这种联系方式不让你先发消息——至少现在还不让。", es "…— o todavía no lo permite."). The hedge never says which applies, or which channel would allow it.
-- **S3** · V1-546 · all locales — "Never write to them again ›" (zh "以后再也不联系对方 ›", ar "إيقاف المراسلة نهائيًا ‹", es "No escribirle nunca más ›") is still drawn as a forward link identical to "First e-mails and follow-ups ›" and "Find customers ›", 71 times.
-- **S3** · V1-547 · all locales · desktop — "Customers" carries the current-page state but is drawn unhighlighted on desktop, so no nav item looks selected. On phone, "Customers" / "客户" / "العملاء" / "Clientes" is. The same happens on Find customers, First e-mails and follow-ups, and the "Never write to … again?" confirm.
-- **S3** · V1-548 · all locales — the page still has three names: tab "Contacts" (zh "联系人", ar "جهات الاتصال", es "Contactos"), heading "Who you may write to", and highlighted nav (phone) "Customers". No nav entry says Contacts. The entry point on Buyers says "Who you may write to".
-- **S3** · V1-549 · all locales — the intro still says people are here because "you added them and said how you met" (es "indicando dónde se conocieron"), but "Add someone you met" asks only "How you reach them", "Phone number or email address", "Their name" and "Their company (if any)".
-- **S3** · V1-550 · all locales · desktop — the add form's four fields still run the full ~990px content width, and "Add them" is now a full-width graphite bar. On Who works here and Find customers, fields are ≈390px and the button is sized to its label.
-- **S4** · V1-551 · all locales — phone numbers are still shown raw, with no grouping: "+212600000105", "+2345000000261", "+9715000000200".
-- **S4** · V1-552 · en, ar — the channel select still says "Email" where the rest of the app says "E-mail". In ar, "البريد" (post) still sits above "رقم هاتف أو بريد إلكتروني".
-- **S4** · V1-553 · zh — "WhatsApp　·　对方先来找你" still has full-width spaces around the dot. The pill "对方先来找过你" and the line "对方先来找你" still say the same thing two ways.
-- **S4** · NEW (missed) · es — the intro says people were added "indicando dónde se conocieron" ("saying where you met"), where en says "how you met". Neither is asked for in the form.
-
-### contacts-write
-**Asks the owner to:** write a first message to a contact. **Clear without explanation?** No. The address silently shows the Contacts list, even for a named contact, and no row can reach the real page.
-
-- **S3** · V1-554 · all locales · phone + desktop — `/app/contacts/write` still renders byte-identical to Contacts (tab "Contacts", heading "Who you may write to", 71 rows) with no notice. It does the same for a real contact (`?channel=whatsapp&identity=212600000105`).
-- **S3** · V1-555 · all locales — no row offers a write-first control (all 71 are WhatsApp), so the write-first page cannot be reached. Nothing on the list says only e-mail contacts can be written to first.
-
-### contacts-suppress
-**Asks the owner to:** confirm never writing to one customer again. **Clear without explanation?** Partly. The question is plain, but the effect on the assistant's replies is unstated, the only button looks disabled, and the bare address shows the list.
-
-- **S3** · V1-556 · all locales · phone + desktop — `/app/contacts/suppress` with no contact still renders identical to Contacts (tab "Contacts", 71 rows) with no notice.
-- **S3** · V1-557 · all locales — the confirm page ("Never write to Fatima Zahra again?" / "This cannot be undone, and nothing here will write to them again.", zh "这一步不能撤销，之后这里不会再给对方发任何东西。") still does not say whether the assistant keeps answering if this customer writes in. Every row is someone who wrote first.
-- **S3** · V1-558 · (raised: grey label now reads disabled) all locales — the irreversible "Yes, never again" (zh "是，再也不联系", ar "نعم، أبدًا", es "Sí, nunca más") is an outlined button with a grey label. It now looks quieter than "Remove" on Who works here, and reads as disabled, with no warning treatment. The tab still says "Contacts" / "Contactos" while the heading is the question. ar "نعم، أبدًا" still reads awkwardly.
-- **S4** · NEW · all locales · phone + desktop — two ways of asking first for an irreversible act. "Remove" on Who works here asks in the product's own dialog. "Never write to them again" opens a whole page with "‹ No, go back" (zh "‹ 不，返回", ar "› لا، عودة") and an outlined grey "Yes, never again".
-
-### prospects
-**Asks the owner to:** paste an Apollo key. **Clear without explanation?** No. It assumes the owner knows what Apollo is and has an account.
-
-- **S2** · V1-559 · all locales · phone + desktop — "Your Apollo key" (zh "Apollo 密钥", ar "مفتاح Apollo", es "Tu clave de Apollo") is still the page's only control. The line "No key yet. Searching uses your own Apollo account, and each work address or company you look up uses one of its credits." still does not say what Apollo is, how to get a key or what a credit costs, and there is no link out.
-- **S3** · V1-560 · all locales — the page is still titled "Find customers" with no search box, preview or example. The intro "Nothing here writes to anyone: people you add join your list with nothing on file saying you may write to them, and their row says so." describes results the owner cannot see.
-- **S3** · V1-561 · zh — the intro is unchanged and still machine-sounding: "这里不会给任何人发东西：你加进来的人进入名单时，没有任何记录说你可以联系对方，名单里那一行会写明。".
-- **S3** · V1-562 · all locales · desktop — no nav item looks highlighted, and the back link "‹ Who you may write to" (zh "‹ 你可以联系谁") names a page whose tab says "Contacts" / "联系人".
-- **S4** · NEW (missed) · en, es · phone + desktop — the section heading and the field label are the same words, stacked: "Your Apollo key" / "Your Apollo key" (es "Tu clave de Apollo" ×2).
-
-### sequences
-**Asks the owner to:** name a new first e-mail and follow-ups, and "Start writing". **Clear without explanation?** Partly. It never says it needs e-mail contacts and a connected mailbox, and the thing being made has no name.
-
-- **S3** · V1-563 · all locales · phone + desktop — the tab still says "Follow-ups" (zh "跟进邮件", ar "رسائل المتابعة", es "Seguimientos"), while the heading and the Contacts link say "First e-mails and follow-ups" / "第一封邮件和跟进" / "الرسائل الأولى والمتابعة" / "Primeros correos y seguimientos". The nav highlights "Customers" on phone and looks unhighlighted on desktop.
-- **S3** · V1-564 · all locales — the page still invites "Start writing" (zh "开始写", ar "بدء الكتابة", es "Empezar a escribir") with no word that the e-mails need e-mail contacts and a connected mailbox. Contacts holds none (71 WhatsApp-only rows).
-- **S3** · V1-565 · all locales · desktop — the "A name only you will see" field and "Start writing" still run the full ~990px content width. The button is now a full-width graphite bar.
-- **S3** · NEW · all locales · phone + desktop — the new empty-state panel says only "None written yet." (zh "还没有写。", ar "لم يُكتب شيء بعد.", es "Todavía no has escrito ninguna."). It names neither what will be listed there nor why there is none, and it gives no next step.
-- **S4** · V1-566 · zh, ar, es — the thing being made still has a different name in each language: en "Write a new one", zh "写一组新的", ar "كتابة مجموعة جديدة" ("a new group"), es "Escribir una secuencia nueva".
+### Still reproducing (4)
+
+#### (whole product)
+
+- **S3** · V1-006 · all locales · both — Narrower now, but developer words still reach the owner:
+  - The component gallery is still served at `/app/settings/components` ("How it looks"), with "Rest Rest Rest Rest Hover Hover … Focus … Disabled".
+  - "Technical details" (`/app/onboarding/technical`) says "For whoever set up this installation", "This installation · Running version · Not reported · Environment" (es: "esta instalación"). Both are reachable by address, and no page links to them.
+  - Business profile lists the product categories as raw lowercase English codes in every language: "bags · drinkware · home · lighting" (zh 产品类别, ar, es, fr unchanged).
+    - It then says "To change one, open that product", but the product page no longer shows a category (`products.ts:685-688`).
+  - Incoterm codes now carry words, and no "pcs" was found in a zh/ar/es field: fixed.
+  - Evidence: `settings-components.en.phone.png`, `onboarding-technical.es.phone.png`, `settings-profile.zh.phone.png`.
+- **S3** · V1-008 · ar · both — Browser-drawn date controls still show "yyyy/mm/dd" in Latin, left to right, on an Arabic page: closures' "أول يوم إغلاق" and "آخر يوم إغلاق" (`settings-closures.ar.phone.png`, `states/form-sent-back.ar.phone.png`). The detached prefix is fixed: "لـ مساعدك" no longer renders anywhere (the h1 reads "ما يمكن لمساعدك الحديث عنه").
+- **S2** · V1-011 · all locales · both — The counts still disagree:
+  - Results ("This covers this week") says "45 replies that went out" and "13 prices worked out".
+  - The assistant's "This month" says "0 customers answered · 2 replies prepared", and Before going live says "Customers answered 0".
+  - Today's scoreboard says "0 quotes sent", but:
+    - the calendar ticks three prices worked out today (15:21 Carlos Mendes, 19:46 Layla Mansour, 19:53 Aisha Bello);
+    - Carlos Mendes's thread shows the assistant's priced reply going out at 15:21 today ("LED String Lights 10m, warm white, 2,000 pcs: $1.65/pc FOB Ningbo …", "✦ Your assistant").
+  - Evidence: `analytics.en.phone.png`, `employee-month.en.phone.png`, `today.en.phone.png`, `calendar.en.phone.png`, `conversation-thread.en.phone.png`.
+
+#### the rail and the phone nav
+
+- **S3** · cross-new-02 · ar, es, fr · both — One nav entry still has two names by width. en and zh are fixed (the same word at both widths).
+  - fr: "Messages" on a phone, "Boîte de réception" on a laptop and as the page's h1; "Assistant" vs "Votre assistant".
+  - es: "Bandeja" vs "Bandeja de entrada".
+  - ar: "الوارد" vs "صندوق الوارد".
+  - Evidence: `inbox.fr.phone.png` vs `today.fr.desktop.png`, `today.es.phone.png`, `today.ar.phone.png`.
 
 ---
 
-## Dropped from the first audit (31)
+### New (23)
 
-Each row: the first audit's ID and severity, its page, why it no longer applies, and what is on screen now.
+`NEW` = introduced by the warmth run; `NEW (missed)` = there before, missed by the last audit.
 
-| ID | Was | Page | Why | Now |
-|---|---|---|---|---|
-| V1-089 | S3 | today | rebuilt | Omar's row no longer says "You are replying"; it shows the assistant's last message "✦ Yes — one-colour logo print…", which agrees with "Omar Haddad has not answered since they were given a price." (the row's new unlabeled "●" is reported in Part B). |
-| V1-090 | S3 | today | fixed | the customer rows carry no glyph any more and every door on Today, Setup and the other pages in this group ends in "›"; no "→" is left. |
-| V1-095 | S3 | today | rebuilt | the row was rebuilt as a two-line row with no arrow; nothing drops onto its own line (its new truncation is reported in Part B). |
-| V1-104 | S4 | today | fixed | the phone nav is one line in every locale ("Today Customers Assistant Business Setup 3/5"; ar/zh/es likewise) and "3/5" sits beside its word. |
-| V1-152 | S2 | setup | removed | "How it looks" is no longer a row on Setup; the eleven rows are owner settings only. |
-| V1-156 | S3 | setup | fixed | Setup's rows now end in "›" like every other door. |
-| V1-170 | S4 | inbox | rebuilt | the rebuilt row shows no country and no flag, so on the Customers list no customer has a flag and nobody lacks one. The calendar still mixes flags; see Part B, calendar-list. |
-| V1-176 | S3 | inbox-all | rebuilt | the phone row no longer carries a product, quantity or price line. On ar desktop that line now fits on one line: "US$ 2.35 · 5,000 قطعة · Stainless Steel Thermos 500ml". |
-| V1-178 | S1 | inbox-mine | fixed | Mine now says "You are not holding any conversation. A conversation is yours when you take it over, or when your assistant hands it to you." with "See who needs you ›" (es "No tienes ninguna conversación ahora."). |
-| V1-180 | S4 | inbox-mine | removed | the "Configura tu negocio…" link is gone. The Mine empty panel's only link is "Ver quién te necesita ›", on one line. |
-| V1-196 | S1 | calendar | fixed | ar names now wrap whole, with no ellipsis: "Pedro Santos", "Nadia Rahimi", "Rahim / Chowdhury", "Khalid Mansoor" on both widths. |
-| V1-197 | S2 | calendar | fixed | phone cards now wrap in full: "Pedro / Santos / ✦ Price / worked out / 05:18", es "✦ Precio / calculado", zh "✦ 算出报价", ar "✦ حُسب / السعر". |
-| V1-198 | S2 | calendar | fixed | desktop cards show the kind and name whole: "Price worked out", "Sample dealt with", "Rahim Chowdhury", es "Precio calculado", "Muestra solicitada", "Muestra atendida". |
-| V1-213 | S1 | conversation-draft | fixed | the draft card is no longer sticky. With "How Lily read this" / "Lily 是怎么理解的" / "أساس فهم Lily للرسالة" / "Cómo lo entendió Lily" open, the card starts below the bubble and its caption "Today 17:18 · Aisha Bello" at 1280 and 1440 in en/zh/ar/es (landing at `#latest`: card top 360–379 px, bubble bottom 320–339 px). |
-| V1-214 | S2 | conversation-draft | fixed | ar desktop: the card sits below "اليوم 17:18 · Aisha Bello" and covers nothing. |
-| V1-217 | S2 | conversation-draft | removed | the card's buttons are now "Send", "Hand to me" and "No reply needed". There is no "Edit" button. |
-| V1-223 | S2 | conversation-draft | fixed | the reply box grows to fit the draft. "…Would you like a proforma invoice?" is fully visible above "Send" on phone in en/zh/ar/es. |
-| V1-224 | S2 | conversation-draft | fixed | ar list-pane previews now start at the beginning: "Hello, what is your price f…" and "Yes — one-colour lo…". |
-| V1-227 | S3 | conversation-draft | fixed | the card opens straight with "✦ Lily drafted" and the reply. The customer's message and the "asked · WhatsApp · Today" line are no longer repeated. |
-| V1-254 | S2 | conversation-thread | fixed | ar list-pane previews start at the beginning ("Hello, what is your price f…"). |
-| V1-283 | S4 | buyer-file | fixed | History now marks items with a small dot and a ✦; there are no 💬 / 💰 emoji. |
-| V1-322 | S3 | products-add | fixed | a bad store address or a file that is not a table now re-renders the add page with the reason under its own field (`perr`, ✕) and the address as typed. There is no separate "Nothing was added" page any more (code, phase 6). |
-| V1-325 | S3 | products-add | fixed | only "See what your assistant recognizes" is filled now. "Read the photos", "Read my store", "Read the file" and "Prices go to me" are all outlined. |
-| V1-362 | S3 | knowledge | fixed | an empty or unreadable "Read the page" now returns the knowledge page with the reason under the address field (`perr`, ✕), the typed address or text kept, and the paste box open when text was pasted (code, phase 6). The separate "Nothing was read" page is gone. |
-| V1-430 | S4 | employee | fixed | The Growth list now uses the monochrome marks ✕ ✓ ○ in place of ⚠️ ⭐. |
-| V1-479 | S3 | settings-closures | fixed | the labels "What is it called", "First day closed" and "Last day closed" are now 15px semibold dark, and the help line under the first is 13px grey. |
-| V1-481 | S3 | settings-closures | fixed | the empty state is now its own dashed panel, 24px below the card that holds "Add these days". |
-| V1-485 | S4 | settings-closures | fixed | the form is now a 992px card, the same width as the intro above it. |
-| V1-505 | S3 | settings-forbidden | fixed | both fields now stack label-over-input on phone, and on desktop both inputs start at x=658. |
-| V1-507 | S3 | settings-forbidden | fixed | "You have not added any yet." is now a separate dashed panel 24px below the card that holds "Add". |
-| V1-521 | S3 | settings-profile | fixed | Business profile now has one "Save" (zh "保存", ar "حفظ", es "Guardar") for the whole form. |
+#### the rail and the phone nav
 
+- **S2** · NEW · w4-whole-01 · all locales · desktop — The rail's one number breaks its own entry:
+  - en: "Inbox ○ 1 / waiting" wraps to two lines. The round magenta wash sits behind the figure only, and the word hangs below it.
+  - zh: the entry's own word breaks mid-word, "收件 / 箱", beside "○ 1位 / 在等".
+  - es: "Bandeja / de / entrada" on three lines, beside "○ 1 / esperando".
+  - fr: "Boîte de / réception", beside "○ 1 en / attente".
+  - ar: "صندوق / الوارد", beside "1 ○ / بالانتظار".
+  - The Inbox entry is about twice the height of the others, so Calendar sits far below it. This shows on every signed-in page.
+  - Evidence: `today.en.desktop.png`, `today.zh.desktop.png`, `today.es.desktop.png`, `today.fr.desktop.png`, `today.ar.desktop.png`, `inbox.ar.desktop.png`.
+- **S2** · NEW · w4-whole-02 · en, es, fr · phone — The five tiles don't fit their words:
+  - en: "Your assis…" on every page. The phone form `nav.short.employee` is "Your assistant", the same as the long label, so nothing gets shorter (72 clipped captures in `results.json`).
+  - es: "Tu asiste…" whenever the assistant is the active (bold) tile.
+  - fr: "Aujourd'h…" when Today is active, i.e. on the landing page.
+  - Evidence: `today.en.phone.png`, `employee.es.phone.png`, `today.fr.phone.png`.
+- **S3** · NEW · w4-whole-05 · all locales · desktop — After a live update, the rail's count loses its word. "○ 1 waiting" becomes "○ 2", because the script writes the bare figure over both forms (`liveScript.ts` `tally`: `badge.textContent = said.shown`). So the rail reads differently before and after a reload. Evidence: `states/toast-and-marker.en.desktop.png` vs `today.en.desktop.png`.
+- **S3** · NEW · w4-whole-18 · all locales · desktop — "Customers" (客户 · العملاء · Clientes · Clients) is drawn exactly like an entry: an icon, the word, the same grey. It is a `<span>` (`layout.ts:2385`), so pressing it does nothing, while every other icon-and-word in the rail is a door. Evidence: `today.en.desktop.png`.
+- **S4** · NEW (missed) · w4-whole-19 · all locales · both — A mistyped address inside the workspace ("That page is not here") lights Today as the current page, with `aria-current="page"`. Evidence: `not-found-app.en.phone.png`, `not-found-app.ar.phone.png`.
+
+#### notifications: the toast and the marker
+
+- **S2** · NEW · w4-whole-03 · en (all locales by code) · both — The toast does not reliably name the customer who newly waits.
+  - What the state walk shows: a different conversation was handed over and the count went 1 → 2. The toast said "A reply to Aisha Bello is waiting for you" and its door opened Aisha's conversation. Aisha was already the one waiting before (`today.en.desktop.png`), and both the who and the why ("A reply to …") were wrong.
+  - Why: `newestWaiting` (`live.ts`) does not pick the conversation that joined. It picks whichever waiting conversation has the latest of five timestamps, including any inbound message or pending draft.
+  - A turn's own hand-over does not stamp `assigned_at`: `saveState` writes `assigned_to` alone (`repos.ts:130-134`), and only `assign()` stamps (`repos.ts:203`).
+  - So an already-waiting customer who writes again in the same 20-second window takes the toast.
+  - Detection is by count. If one customer is dealt with elsewhere while another arrives, the count stays the same and the newcomer gets no toast and no marker.
+  - Evidence: `states/toast-and-marker.en.desktop.png`, `states/toast-and-marker.en.phone.png`.
+- **S2** · NEW · w4-whole-04 · all locales · both — The toast and the marker fire when no customer waits (not negotiable: no notification that does not match a customer genuinely waiting).
+  - When the owner answers from the phone (Meta's echo), the conversation becomes the owner's (`echo.ts:85`, `assign(… owner)`).
+  - A conversation the reader holds counts as "Needs you" (`buyersList.ts` `needsOwnerFor` → `heldBy`). The rail's count rises in any open Nomi tab, the Inbox gets its magenta dot, and the toast says "{who} is waiting for you" (`live.toast.person`) about the customer the owner has just answered.
+  - The same happens in a second tab or device when the owner presses "I'll reply".
+- **S4** · NEW · w4-whole-23 · all locales · both — The toast is the only door to who arrived, and it vanishes after 6 s (`SHOWN = 6000`). Hover or focus doesn't pause it, and there is no way to keep it. A reader who looked away finds only the dot.
+
+#### magenta (rounded for warmth, magenta for meaning)
+
+- **S2** · NEW · w4-whole-06 · all locales · both — The waiting signal (magenta ○, the same mark and colour as a customer waiting) now marks setup chores and warnings. A ○ no longer tells the owner "a customer waits".
+  - On one screen, Today puts "○ 1 waiting for you" (a customer) above "○ Getting started: 3 of 5 steps done" and "○ Sending is not switched on here yet".
+  - Settings shows "Setup ○ 3 of 5 steps done" in bold magenta. That is the very count the run took out of the rail because "it is a badge that is not a customer waiting".
+  - Setup shows "○ Name not confirmed yet".
+  - My business shows "○ Not finished", "○ Not answered yet", "○ Nothing connected yet" and "○ 0 of 9 answered".
+  - Every unticked line of Before going live and Ready for customers carries a ○ (eight on Ready). The guide has "○ To do", and the reply kinds on "Each kind of reply" carry a ○.
+  - Whole sentences are set in magenta:
+    - the assistant's landing: "○ Until you confirm the name customers will read, every reply waits for you …";
+    - import review: "○ No currency sign on this line: check that this is its price, in USD.";
+    - the draft card: "○ No source for 300 and 25".
+  - zh/ar/es/fr are the same (zh "○ 开始使用：5 步里完成了 3 步。", ar "○ البدء: اكتملت 3 من 5 خطوات.").
+  - Evidence: `today.en.phone.png`, `states/toast-and-marker.en.phone.png`, `setup.en.phone.png`, `business.en.phone.png`, `employee.en.phone.png`, `ready.en.phone.png`, `import-review.en.phone.png`.
+- **S3** · NEW · w4-whole-07 · all locales · both — Magenta borders remain (the principle: never a border).
+  - The import review's rows that need the owner keep a 3 px pink-magenta bar (`.imp-row.need`, `--color-waiting-line` #EBC3D3, `layout.ts:1345`). PROGRESS says this border "came off".
+  - The site's "Needs you" tag has a 1 px magenta-tint border (`site.ts:254-255`).
+  - `.chip.draft` (Practice) and the refused card's `.rf` rules draw `--color-waiting-line` / `--color-waiting-wash` edges.
+  - Evidence: `import-review.en.phone.png`, `site.en.phone.png`.
+
+#### the profile card
+
+- **S2** · NEW · w4-whole-09 · all locales · both — The card contradicts the page it springs up over.
+  - Opened from Aisha Bello's conversation, it says "Nothing bought or asked about yet" (zh "还没买过，也没问过产品", ar "لا مشتريات ولا استفسارات بعد"). Directly behind it, the catch-up strip says "LED String Lights 10m · 5,000 pcs", and her file says "Products of interest: LED String Lights 10m · Prices worked out 1".
+  - Opened from the Inbox, Nadia Rahimi's card says the same, under the band's "Price sent Sep 29, no word since".
+  - The card reads "asked about" only from turns' analysis (`db/customerCard.ts:63-70`); the strip and the file read the conversation's own record.
+  - Evidence: `states/card-from-conversation.en.desktop.png`, `states/card-from-conversation.zh.phone.png`, `states/card-from-inbox.en.phone.png`, `buyer-file.en.phone.png`.
+- **S3** · NEW · w4-whole-13 · all locales · both — One customer, three views, three names and three different contents, all on the conversation page:
+  - the face opens the card;
+  - "The customer ›" (desktop) opens the side panel;
+  - "About this customer ›" opens the file page (zh 客户资料 › and 关于这位客户 ›).
+  - An order's back link "‹ Back to the customer" opens the conversation, not any of the three.
+  - Evidence: `conversation-draft.en.desktop.png`, `conversation-draft.zh.phone.png`, `order.en.phone.png`.
+- **S4** · NEW · w4-whole-22 · all locales · both — Two gaps around the card:
+  - Between the tap and the sheet nothing happens. The script fetches the card page first and shows no state meanwhile (`liveScript.ts` `cards()`), so on a slow phone network a tapped face seems dead.
+  - Opened from a conversation, the card's one door, "Open the conversation ›", opens the page already open (`states/card-from-conversation.en.phone.png`).
+
+#### faces
+
+- **S4** · NEW · w4-whole-20 · ar · both — An Arabic name that starts with the article gets a bare alef as its initial: "الشركة المتحدة" → "ا". In a 24–96 px circle it reads as a vertical bar or a Latin "l". A name starting with a hamza seat gets "ئ" on its own (`faces.ts` `initialOf`, first letter of the string).
+  - This was rendered with the app's own stylesheet in the scratchpad (`w4-whole/faces.ar.png`); the demo has no Arabic-script customer, so no capture shows it.
+  - Tints are the same for one customer on every page (checked for Aisha Bello, Carlos Mendes and Nadia Rahimi across Today, the Inbox, the conversation, the calendar and the card).
+
+#### one word per thing
+
+- **S3** · NEW · w4-whole-12 · zh, ar, es, fr (waiting also en) · both — The warmth run's two new words already have two forms each.
+  - **Regular:**
+    - zh: 老客户 on the card and the catch-up strip, 常客 on the Inbox row, its key and the attention band;
+    - ar: عميل دائم vs طلبات متكرّرة ("repeated orders");
+    - es: Habitual vs Cliente habitual;
+    - fr: Fidèle vs Client fidèle.
+  - **Waiting:**
+    - on one screen, the strip says "○ Needs you" and the card over it says "○ Waiting for you";
+    - elsewhere it is "Needs you" (Inbox group), "Waiting now" (lens), "1 waiting" (rail) and "1 waiting for you" (Today);
+    - zh: 等你处理 / 在等你 / 等待中;
+    - ar: بحاجة إليك / بانتظارك. The rail's spoken count says "محادثة واحدة بانتظارك" (a conversation) where Today says "عميل واحد بانتظارك" (a customer).
+  - Evidence: `states/card-from-conversation.en.phone.png`, `inbox.zh.phone.png`.
+- **S3** · NEW · w4-whole-14 · all locales · both — A menu row's name is not the name of the page it opens (the page's h1 is also the tab title):
+  - "Going live" → "Before your assistant talks to real customers". It sits one menu away from Setup's "Before going live", which opens a different page: ar "البدء مع العملاء" vs "قبل البدء مع العملاء"; fr "Lancement" vs "Avant le lancement".
+  - "Kind of business" → "What you do, your country and your website".
+  - "Payment and delivery" → "Your payment and delivery terms".
+  - "Days closed" → "When your business is closed" (zh 休息日 → 休息的日子).
+  - Evidence: `business.en.phone.png`, `business-ready.en.phone.png`, `onboarding.en.phone.png`.
+
+#### back links and doors
+
+- **S3** · NEW · w4-whole-15 · all locales · both — Back links are inconsistent:
+  - The nine question pages say "‹ Back to How you sell" but open "The questions" (`/app/business/selling`). Every other back link is "‹ <page name>".
+  - `/app/channels` says "‹ Where customers reach you" and leads to `/app/business/channels`, another page with the same h1. Two pages are called "Where customers reach you": one says only "WhatsApp · Not connected", the other carries the accounts, the e-mail set-up and "Connect WhatsApp". That undercuts "channels' one home".
+  - Evidence: `how-you-sell-q.en.phone.png`, `channels.en.phone.png`, `business-channels.en.phone.png`.
+
+#### contradictions across pages
+
+- **S2** · NEW (missed) · w4-whole-11 · all locales · both — Is anything connected? The app answers both ways.
+  - **Yes:**
+    - Setup › Before going live: "✓ Where customers reach you — Checked for you";
+    - Ready for customers: "✓ Where customers reach you — Connected";
+    - the guide: step 4 "Done";
+    - Getting started counts it ("3 of 5").
+  - **No:**
+    - My business › Where customers reach you: "WhatsApp · Not connected";
+    - My business: "Going live · Nothing connected yet", and its page: "Not yet: nothing is connected for customers to write to";
+    - Today: "No customer can reach your assistant yet".
+  - Evidence: `onboarding.en.phone.png`, `ready.en.phone.png`, `business-channels.en.phone.png`, `business-ready.en.phone.png`, `today.en.phone.png`.
+
+#### the guide (`/app/guide`)
+
+- **S2** · NEW · w4-whole-10 · all locales · both — The guide misleads.
+  - Its posters and videos were recorded before this run (commit `c1ff5ae`, 08:13 that day). They show:
+    - the old text-only nav: "Today · Customers · Your assistant · My business · Setup 2/5";
+    - "Customer list" and the setup badge in the rail;
+    - the old Setup page with its search and language switch.
+  - The captions (also burned into the VTT tracks) send the owner where nothing is:
+    - step 1: "Open Settings, then Setup, then Business profile." Business profile is under My business, and Setup has no such row.
+    - step 2: "…open My business, then See your products, then Teach your assistant your products." The rows are "Products" and "Add your products".
+    - step 5: "send a reply to a real customer, in Customers." The place is the Inbox.
+  - Evidence: `guide.en.phone.png`, `/assets/guide/profile.en.phone.jpg`, `name.en.phone.jpg`, `first_success.en.phone.jpg`, `profile.ar.phone.jpg`, `profile.en.jpg`, `channels.en.jpg`, `assets/guide/profile.en.vtt`.
+
+#### settings menus (cross-cutting rows)
+
+- **S2** · NEW · w4-whole-08 · ar · both — In Arabic, a menu row's value puts its state mark after the words and cuts the beginning:
+  - Settings and Setup read "…ملت 3 من 5 خطوات ○". The first word, اكتملت, is cut to "ملت" and the ellipsis stands at the start.
+  - My business reads "غير مكتمل ○", "لم يُحدَّد بعد ○" and "كلها محددة ✓", with the mark trailing, while Today, the card and the Inbox put ○ before the words.
+  - Cause: the value is `<span class="sr-value" dir="auto"><bdi>…</bdi></span>`, and `dir=auto` ignores text inside `<bdi>`, so the cell resolves left-to-right.
+  - Evidence: `settings.ar.phone.png`, `setup.ar.phone.png`, `business.ar.phone.png`, `business.ar.desktop.png`.
+- **S3** · NEW · w4-whole-16 · all locales · both — Keyboard focus on a menu row is nearly invisible. The row's 2 px outline is clipped by the card's `overflow:hidden` (`.scard`, `layout.ts:657-658`), so a focused row shows only a dark line under it, which reads as a divider. This affects Settings, Setup, My business, How you sell and the assistant's menu. Evidence: `w4-whole/focus-srow.390.png`, `w4-whole/focus-srow.1280.png` (scratchpad).
+
+#### corners and motion
+
+- **S3** · NEW · w4-whole-17 · all locales · both — Corners are not one rule:
+  - Buttons are 16 px (the card radius) while fields are 12 (control), so the Inbox's "Find" sits beside a squarer search field. The token says a control (a field, a button, a row) is 12.
+  - Grouped menus (`ul.scard`) are 16, though the token names a grouped menu a panel (20).
+  - The Inbox's "Needs attention" band is 20, directly above the 16 px list. Today's waiting band is 16.
+  - The door and sign-in pages draw their fields and buttons at 16 (`layout.ts:2496-2504`).
+  - Evidence: `inbox.en.phone.png`; computed radii in `w4-whole/radii.mjs`.
+- **S4** · NEW · w4-whole-21 · all locales · both — Two motion lapses:
+  - When Today redraws itself in place for a new arrival, its band and hero rise in again (8 px, 200 ms, `.tw`/`.td`) every time.
+  - `--motion-max` is 300 ms (the assistant's three dots, the busy button), outside the brief's 100–250 ms.
+  - Under reduced motion nothing moves (`layout.ts:297-300`): verified.
+
+---
+
+## 2 · Public site, sign-in, sign-up and policy pages
+
+### Still reproducing (12)
+
+#### site
+- **S2** · V1-015 · all locales · desktop, phone — STILL (owner's), confirmed open: the site still names no operator, company or country anywhere: not in the header, not in any section, not in the footer ("Privacy  Terms of service  For customers: delete your data"). The only contact is a mail link, "Our address: …". Promises such as "No price ever goes below the lowest price you set" and "We are told when a new workspace opens, and help you set it up where you need it" come from a sender a stranger cannot identify. (`w4/shots/site.en.desktop.png`)
+- **S3** · V1-021 · all locales · desktop, phone — STILL (decided last run: public pages arrive with nothing to fetch).
+  - The site, the three policy pages and the dead-link pages fetch no web font. Their stack names "Noto Sans" first, but they render in the device's own face.
+  - Sign-in, sign-up and the error doors link the Noto sheets.
+  - So pressing "Sign in" (登录 / تسجيل الدخول / Iniciar sesión / Se connecter) changes the typeface on the product's own doorstep: compare the "Nomi" beside the mark in `w4/shots/site.en.desktop.png` and in `w4/shots/login.en.desktop.png`.
+
+#### login
+- **S4** · public-new-11 · all locales · desktop, phone — STILL (decided last run: the door runs no script).
+  - The door pages link no script; `/login?with=code` has no `<script>`.
+  - So "Sign in" (登录 / تسجيل الدخول / Iniciar sesión / Se connecter) and "Create my workspace" show nothing while the request runs, and nothing stops a second press.
+  - The owner pages give their buttons a busy state and, since this run, press motion.
+
+#### privacy
+- **S2** · V1-057 · all locales · desktop, phone — STILL (owner's), confirmed open: in "When you send a message to a business that uses Nomi, we keep the message…", "we" is now said to be "Nomi’s operator, who runs the service for the business", but no company, country or postal address is named. (`w4/shots/privacy.en.desktop.png`)
+
+#### terms
+- **S2** · V1-063 · all locales · desktop, phone — STILL (owner's), confirmed open: "These terms are between a business that uses Nomi and the operator of Nomi, reachable at nomidoes.com." No legal name, address, country or governing law. (`w4/shots/terms.en.desktop.png`)
+- **S3** · V1-065 · all locales · desktop, phone — STILL (owner's), confirmed open: "Fees are as agreed with you in writing." No price or plan appears anywhere on the public pages, and sign-up's terms checkbox is still the last step before a workspace exists.
+- **S4** · V1-067 · en · desktop, phone — STILL (owner's), confirmed open: the straight apostrophe in "the operator's total liability" remains, while the site uses "’" ("business’s").
+- **S4** · V1-068 · zh · desktop, phone — STILL (owner's), confirmed open: "…运营方可以暂停该工作台的发送或停用该工作台，并告诉所有者原因。" still uses 所有者.
+- **S4** · public-missed-18 · en · desktop, phone — STILL (owner's), confirmed open: the terms address the business as "you", then switch to the third person: "the operator may pause its sending or suspend it, and tells the owner why."
+- **S4** · public-missed-19 · all locales · desktop, phone — STILL (owner's), confirmed open: "Fees and leaving" says records "are removed on request as the privacy page describes"; the privacy page in turn sends the reader to "Delete your data". The reader passes through two pages to find the answer.
+
+#### data-deletion
+- **S3** · V1-072 · all locales · desktop, phone — STILL (decided last run, rule 18). The page still says "…within 30 days of the business recording the request" (在商家登记该要求后 30 天内 / خلال ⁨30⁩ يومًا من تسجيل الشركة للطلب) and "Nomi does not write to you about it." The customer gets no deadline counted from their own request, and no confirmation.
+- **S4** · public-missed-21 · all locales · desktop, phone — STILL (owner's), confirmed open: "Copies inside backups of the whole service. A backup is not changed to remove one person; your data leaves it when that backup is deleted." (整个服务的备份里的副本… / النسخ الموجودة داخل النسخ الاحتياطية…) gives no time.
+
+### New (14)
+
+#### privacy
+- **S1** · NEW · w4-public-01 · all locales · desktop, phone — introduced by the warmth run (0123 `client_faces`). The page now understates what is kept about the customers it addresses.
+  - Since this run, an Instagram or Messenger customer's profile photo is asked of Meta, downloaded and stored, then refreshed every 30 days.
+  - "What is kept" still lists only "the message, any picture or file you attach, the name shown on your account, the identifier the platform gives us for your account, and the time it arrived". The zh, ar, es and fr versions list the same: 消息、附件、账号上显示的名字… / الرسالة، وأي صورة أو ملف مرفق بها، والاسم الظاهر على حسابك… / el mensaje, cualquier imagen o archivo… / le message, toute image ou tout fichier…
+  - "Last updated 3 October 2026" predates nothing: the photos are kept from the same day.
+  - The profile photo is not something the customer attached, so no line covers it.
+  - Shots: `w4/shots/privacy.en.desktop.png`, `w4/pub-tmp/out/privacy.ar.desktop.0.png`.
+
+#### data-deletion
+- **S3** · NEW · w4-public-02 · all locales · desktop, phone — introduced by the warmth run.
+  - "What is deleted" names "Who you are on every channel: the name the business saw, your phone number, your e-mail address and your account identifiers." (你在每个渠道上的身份… / هويتك على كل قناة… / Tu identidad en cada canal… / Votre identité sur chaque canal…).
+  - It does not name the profile photo. `tools/erase-buyer.mjs` now erases it (`client_faces: { do: 'erase' }`).
+  - The page says it "says how that works, what is deleted, and what is kept", yet it leaves out the one item this run started keeping.
+  - Shot: `w4/pub-tmp/out/data-deletion.en.phone.1.png`.
+
+#### site
+- **S3** · NEW · w4-public-03 · all locales · desktop, phone — introduced by the warmth run (the product changed and the site did not).
+  - The run's principle was "applied everywhere": rounded for warmth, faces carry the colour.
+  - The site shows no face at all. The example's customer is the caption "A customer, on Instagram" (一位客户，来自 Instagram / عميل، عبر إنستغرام / Cliente, por Instagram / Un client, sur Instagram) above a grey bubble.
+  - The only colour on the page is the two small magenta words of the example.
+  - A visitor who signs in moves from a graphite-on-grey page to Today's faces, "Today {name} handled N conversations for you" and the scoreboard. The site describes none of these.
+  - Shots: `w4/shots/site.en.desktop.png`, `w4/pub-tmp/out/site.ar.desktop.0.png`.
+- **S4** · NEW (missed) · w4-public-05 · zh · desktop, phone — "已经有工作台？ 登录" (the hero's member line) has a space after the full-width "？", so the gap before 登录 is doubled. This is the same fault public-missed-08 fixed after "我们的地址：". Shot: `w4/pub-tmp/out/site.zh.phone.0.png`.
+- **S4** · NEW (missed) · w4-public-07 · es, fr · phone — the lower "Write to us for an invitation" is an outlined box as wide as the invitation card, but its label breaks into two start-aligned lines, leaving the box's end side empty.
+  - es at 390 px: "Escríbenos para pedir / una invitación" (308×77 px).
+  - At 360 px the es hero button also wraps (328×75), and so does the fr lower button "Écrivez-nous pour une invitation" (278×77).
+  - `.site-go` sets no centring.
+  - Shot: `w4/pub-tmp/out/site.es.phone.6.png`.
+- **S4** · NEW (missed) · w4-public-08 · all locales · desktop — "Where your customers already write" lays out four cards in one row (WhatsApp / Instagram / Messenger / E-mail). Each is about 235 px wide, with its text in three or four short lines. That is a four-column layout, which the not-negotiables rule out. Shot: `w4/pub-tmp/out/site.en.desktop.2.png`.
+- **S4** · NEW (missed, since #211) · w4-public-09 · all locales · desktop, phone — "What goes out alone" is one 60-word sentence inside a card.
+  - The sentence: "Once you have named your assistant and done the checks in Practice, and most of your assistant’s recent replies to your own customers, across several customers and days, went out unchanged, you may let greetings and questions go alone while anything with a price waits."
+  - On desktop it runs to 11 lines and stretches its two sibling cards ("Your prices", "Taking it back") to the same height, leaving them half empty.
+  - The ar card ("ما يخرج دون مراجعة") runs to 9 lines.
+  - Shots: `w4/shots/site.en.desktop.png`, `w4/pub-tmp/out/site.ar.desktop.1.png`.
+
+#### login
+- **S4** · NEW · w4-public-04 · all locales · desktop, phone — introduced by the warmth run's token change: `--radius-card` went from 12 to 16, and a control's 12 became `--radius-control`.
+  - The door draws its fields, selects and buttons with `--radius-card`: 16 px on "E-mail", "Password", "Sign in", every sign-up field and "Create my workspace".
+  - So a field is as round as the card it sits in, and rounder than the same field inside the app (12 px).
+  - The site's two "Write to us for an invitation" buttons are also 16 px.
+  - Pages: login, login-code, signup, set-password-bad, site.
+  - Shot: `w4/shots/login.en.desktop.png`.
+
+#### login-code
+- **S4** · NEW (missed, since #211) · w4-public-10 · es, fr · desktop, phone — the card's heading leaves one word on its own line. es: "Iniciar sesión con un código de / acceso"; fr: "Connexion avec un code / d’accès". Shot: `w4/pub-tmp/out/st-login-code-wrong.es.phone.0.png`.
+- **S4** · NEW (missed, since #211) · w4-public-11 · ar · desktop, phone — the heading "تسجيل الدخول برمز الدخول" says الدخول twice ("sign in with the sign-in code"). It is the Arabic twin of the zh "进入…进入" that V1-044 fixed; the label under it repeats "رمز الدخول". Shot: `w4/pub-tmp/out/login-code.ar.phone.0.png`.
+
+#### signup
+- **S4** · NEW (missed, since #211) · w4-public-06 · zh · desktop, phone — the invitation hint reads "在发给你的邀请链接里。 还没有邀请？写信到 … 申请。", with a space after the full-width "。". Shot: `w4/pub-tmp/out/signup.zh.phone.0.png`.
+- **S4** · NEW (missed) · w4-public-13 · all locales · desktop, phone — two ways to ask for an invitation, prepared differently.
+  - Sign-up's "No invitation yet? Write to privacy@… and ask for one." (还没有邀请？写信到… / Pas encore d’invitation ? Écrivez à…) is a bare `mailto:` that opens a blank message.
+  - The site's "Write to us for an invitation" opens one with the subject "An invitation to Nomi" and the three questions to answer.
+  - Shot: `w4/pub-tmp/out/signup.en.phone.0.png`.
+
+#### not-found-public
+- **S4** · NEW (missed, since #211) · w4-public-12 · ar · desktop, phone — "الانتقال إلى الصفحة الرئيسية لـ Nomi" leaves «لـ» detached before the Latin name. The channel pages removed that construction last run (V1-398 family). Shot: `w4/pub-tmp/out/not-found-public.ar.phone.0.png`.
+
+#### (all public pages)
+- **S4** · NEW (missed) · w4-public-14 · all locales · desktop, phone — tab titles come in three orders:
+  - the doors: "Nomi · Sign in", "Nomi · That page is not here", "Nomi · This link no longer works";
+  - the policies and dead links: "Privacy · Nomi", "Delete your data · Nomi", "This link does not work · Nomi", "This price link does not work · Nomi";
+  - the site: "Nomi — an assistant that answers your customers".
+
+  The same holds in every locale: "Nomi · 登录" against "隐私说明 · Nomi". (`w4/results.json`, titles)
+
+## 3 · Today, setting up, Settings and Setup
+
+### Still reproducing (10)
+
+#### today
+- **S2** · today-onboarding-missed-01 · all locales · both — the line that once said "Messaging is not active yet" is now the hero zone's headline, at display size, the largest text on the page:
+  - the headline reads "No customer can reach your assistant yet" (zh 客户现在还找不到你的助手, ar لا يستطيع أي عميل الوصول إلى مساعدك بعد, es Todavía nadie puede escribir a tu asistente, fr Aucun client ne peut encore écrire à votre assistant);
+  - it sits directly under "○ 1 waiting for you — Aisha Bello — Reply to review", a customer who wrote today at 20:26;
+  - beneath it, "○ Sending is not switched on here yet: nothing goes out to customers." still wears the waiting mark.
+
+  `today.en.desktop.png`, `today.ar.phone.png`.
+- **S4** · V1-106 · STILL (owner's) — still open. The desktop rail draws the figure silhouette (`settings.en.desktop.png`). The phone's five tiles now show no mark at all.
+
+#### guide
+- **S2** · today-onboarding-new-08 · all locales · both — the stills now show the app as it was before this run:
+  - the old phone nav "Today Customers Your assistant My business Setup 2/5" (es "Hoy Clientes Tu asistente Mi negocio Ajustes 2/5", where "Ajustes" is now the name of Settings);
+  - Setup with its removed search "Find a setting / Find", the language switch, and "Getting started ○ 2 of 5 steps done" in amber;
+  - the desktop rail "Customer list / My business";
+  - step 4's still showing "WhatsApp — Not connected · Connect WhatsApp" and "Not available here yet: Gmail…, Outlook…" under the heading "4. Connect where customers reach you ✓ Done".
+
+  PROGRESS defers re-recording to phase 9. `guide.en.desktop.png`, `w4/ts/crop/guide-en-p1.png`.
+- **S2** · V1-109 · all locales · both — the step-5 count does not match what was sent:
+  - Getting started marks "5. Send your assistant's first reply to a customer ✓ Done" (zh 已完成, ar تم, es Hecho, fr Fait), and its own words say "The step is done when you send a reply to a real customer";
+  - Before going live says "Customers answered 0", "Delivery health — Nothing has been sent yet." and "What happened so far — Nothing yet".
+
+  The step counts an approved draft, while the other lines count sends; the demo approves drafts and never sends. `guide.en.desktop.png`, `onboarding.en.desktop.png`.
+- **S3** · V1-111 · all locales · both — the captions again send the owner to rows that do not exist; this run's menus moved them.
+  - **Step 1:** "Open Settings, then Setup, then Business profile." (zh 打开「设置」，再打开「基本设置」和「商家资料」; ar فتح «الإعدادات» ثم «الإعداد» ثم «ملف النشاط»; es «…luego Puesta en marcha y luego Perfil del negocio»). Setup has no such row: Business profile is under My business. fr also names it "Profil de l'entreprise", which no page uses; My business says "Profil de l'activité".
+  - **Step 2:** "…open My business, then See your products, then Teach your assistant your products." (zh 「看看你的产品」「教你的助手认产品」; ar «عرض منتجاتك» «تعليم مساعدك المنتجات»; es «Ver tus productos» «Enséñale a tu asistente tus productos»). The row is "Products", and the products page offers "Add your products ›".
+
+#### onboarding
+- **S2** · V1-120 · all locales · both — internal vocabulary is still there:
+  - "Trust validation passed" (zh 已通过可信验证, es Verificación de fiabilidad superada, fr Contrôle de fiabilité réussi), which nothing on the page explains;
+  - "Knowledge taught" (zh 已教知识, ar المعرفة المُعلّمة, es Conocimiento enseñado);
+  - "Take-over practiced", "Hand-back practiced", "Delivery health".
+
+  "During the pilot" and "Practice check" are gone.
+- **S3** · V1-122 · all locales · both — "What happened so far — Nothing yet — this fills in once customers start talking to your assistant." sits on the same page as "Replies to review 1" and "Replies prepared 2", while 73 customers have written. The waiting counts now match Today; this half does not. (Was S2.)
+- **S3** · V1-124 · all locales · both — the "3/5" is gone, but "Practice before you go live" still lists 7 numbered steps above 5 marks that do not match them: steps 1–3 have no mark, and "Trust validation passed" has no step.
+- **S3** · V1-134 · en, zh, ar, es, fr · both — the name's "Confirm" still drops below its field, even on desktop with about 430 px free beside it. Every other "Confirm" on the page ("I'm ready to go live [Confirm]") sits at the row's end. On desktop the en label also wraps ("The name / customers see") while longer labels stay on one line. `w4/ts/crop/onb-en-d.png`, `onb-zh-d.png`.
+
+#### setup
+- **S3** · V1-153 · all locales · both — the phase-7 Setup still stacks four names for setting up:
+  - en: page "Setup" › group "Setting up" › "Getting started" / "Before going live";
+  - zh: 基本设置 › 准备工作 › 开始使用 / 上线前检查;
+  - ar: الإعداد › خطوات البدء › البدء / قبل البدء مع العملاء;
+  - es: Puesta en marcha › Para empezar › Primeros pasos / Antes de empezar;
+  - fr: Mise en route › Pour commencer › Premiers pas / Avant le lancement.
+
+  In es, "Antes de empezar" (before starting) comes after "Primeros pasos" (first steps). (Was S2.) `setup.es.phone.png`.
+
+---
+
+### New (30)
+
+#### today
+- **S2** · NEW · w4-today-setup-01 · all locales · both — in the demo (usability) workspace, Today cannot show phase 2:
+  - the hero is replaced (messaging off);
+  - the scoreboard reads "0 orders confirmed · 0 quotes sent · 0 answered after hours" (zh 已确认订单 / 已发报价 / 下班时间回复的对话);
+  - that same day the assistant replied in 9 conversations (Ivan Petrov 12:30 … Layla Mansour 19:46) and gave 3 quotes (Carlos Mendes, Layla Mansour, Aisha Bello).
+
+  Today counts only sends in `outbound_messages`, which the seed never writes; the replies exist only in `messages`. The only face on the page is Aisha's initial "A". So the owner's question "does Today make it obvious what Nomi does?" gets "no" in the workspace they review. Introduced by this run (the hero and the scoreboard). `today.en.phone.png`.
+- **S2** · NEW · w4-today-setup-02 · es · both — the word under a face breaks inside itself: "presupuest / o" (quoted). The cause is `.td-word { overflow-wrap:anywhere }` in a 72-px column (`layout.ts` 768–770). "pedido confirmado" also takes two lines. Introduced by this run. `w4/ts/hero/shot-200.es.phone.png`, `shot-2.es.desktop.png`.
+- **S3** · NEW · w4-today-setup-03 · all locales · both — the hero's faces carry no names:
+  - the row reads "A confirmed · O quoted · 王 handed to you · م answered…";
+  - the name exists only in each link's `aria-label`;
+  - on WhatsApp, the pilot's channel, which gives no photos, two customers named A are two identical green "A"s;
+  - the only way to learn who someone is: open each card.
+
+  Introduced by this run. `w4/ts/hero/shot-200.en.desktop.png`.
+- **S3** · NEW · w4-today-setup-04 · all locales · both — past 60 faces the row ends in "+140 more" (zh 更多, ar المزيد, es más, fr autres). It opens the whole Inbox (`/app/inbox?filter=all`), where the 140 handled today are neither singled out nor findable. Introduced by this run (`today.ts` `renderHandled`).
+- **S3** · NEW · w4-today-setup-05 · all locales · both — zone 1 is not only faces:
+  - between Aisha's faced row and the setup line sits "Omar Haddad has not answered since they were given a price. Follow up ›" (zh 告诉 Omar Haddad 价格之后，对方就没再回话了。, ar لا ردّ من Omar Haddad منذ إرسال السعر.);
+  - it has no face, no card, and a name that is not a link;
+  - at 17 px it is louder than the waiting customer's 15-px name;
+  - "tapping any face opens the card" cannot apply to him.
+
+  Introduced by this run. `today.en.phone.png`.
+- **S3** · NEW · w4-today-setup-06 · all locales · both — the waiting ○, now in magenta, also marks chores, so it no longer means "a customer waits":
+  - on Today, four magenta ○ against one customer: "○ 1 waiting for you", "○ Getting started: 3 of 5 steps done.", "○ Sending is not switched on here yet", and the rail;
+  - Settings › Setup "○ 3 of 5 steps done" and Setup "○ Name not confirmed yet";
+  - Before going live "○ Checked by Nomi before you go live — Nomi's team does this; there is nothing for you to do." (es «no tienes que hacer nada»).
+
+  The run took "3/5" off the rail as "a badge that is not a customer waiting", then drew it in the customer-waiting mark and colour. Introduced by this run (amber became magenta). `settings.en.phone.png`, `today.zh.phone.png`.
+- **S3** · NEW · w4-today-setup-07 · all locales · both — the calm panel "You're all caught up" holds an open chore: "○ Getting started: 4 of 5 steps done. Confirm the name customers see ›". A live workspace whose name is not yet confirmed (the pilot's state in §4) sees this. Introduced by this run. `w4/ts/hero/calm-setup.en.png`.
+- **S4** · NEW · w4-today-setup-08 · en, es, fr, ar, zh · both — "one word each" is not one word, and the words differ in kind by language:
+  - en "handed to you" takes two lines; es "pedido confirmado"; fr "commande confirmée"; ar "طلب مؤكَّد" / "إحالة إليك";
+  - en uses participles ("answered", "quoted"); es and fr use nouns ("respuesta", "presupuesto", "devis");
+  - zh calls one event 已成交 under a face and 已确认订单 in the scoreboard just below.
+
+  Introduced by this run.
+- **S4** · NEW · w4-today-setup-09 · all locales · both — the calm state says the same thing twice: "You're all caught up / No one is waiting for you." (zh 都处理好了 / 现在没有人在等你。, ar كل شيء مُنجَز / لا أحد بانتظارك الآن.). Introduced by this run. `w4/ts/hero/calm-live.en.png`.
+
+#### today — the shared shell, as seen on every page of this area
+- **S2** · NEW · w4-today-setup-10 · all locales · desktop — the rail's waiting count breaks the Inbox entry:
+  - en: "○ 1 / waiting" wraps onto two lines in a pink blob;
+  - zh: 收件箱 breaks inside the word, "收件 / 箱", beside "○ 1位 / 在等";
+  - es: "Bandeja / de / entrada" on three lines, with "esperando" spilling out of its blob to the rail's border;
+  - ar: "صندوق / الوارد" beside "1 ○ / بالانتظار".
+
+  Introduced by this run. `today.zh.desktop.png`, `ready.es.desktop.png`, `w4/ts/crop/rail-es.png`.
+- **S3** · NEW · w4-today-setup-11 · en, fr · phone — phone tiles cut their words:
+  - en: "Your assis…" on every page;
+  - fr: Today's own active tile reads "Aujourd'hu…".
+
+  Introduced by this run. results.json flags en `span.nl-text «Your assistant»` as clipped. `today.fr.phone.png`, `settings.en.phone.png`.
+- **S3** · NEW · w4-today-setup-12 · all locales · desktop — when a customer newly waits, the live redraw rewrites the rail's "○ 1 waiting" as a bare "○ 2": the word goes and the pill shape changes in place. `liveScript.ts` `tally()` sets `textContent = said.shown` over the `.nl-long` / `.nl-short` pair. Introduced by this run (phase 8). `settings.en.desktop.png` against `states/toast-and-marker.en.desktop.png`.
+
+#### guide
+- **S4** · NEW (missed) · w4-today-setup-13 · en, es · phone — step headings leave one word alone: "3. Confirm the name customers / see ○ To do", "4. Connect where customers reach / you ✓ Done", es "2. Añade tus productos y / precios ✓ Hecho". `w4/ts/crop/g1.png`, `guide-es-1.png`.
+- **S4** · NEW (missed) · w4-today-setup-14 · ar · both — the step door "البدء الآن ›" (Do it now) reuses the page's own name, "البدء" (Getting started).
+
+#### onboarding
+- **S2** · NEW (a phase-7 gap this run left) · w4-today-setup-15 · all locales · both — "Before going live", one tap below Setup's calm menu, is still an essay:
+  - 3,048 px on desktop and 3,641 px on a phone;
+  - eight sections: The groundwork, Final checks, How it is going, Delivery health, Practice before you go live (7 numbered steps), What you have practiced so far, After conversations happen, What happened so far;
+  - the owner's chores sit among this week's counts, which Today and Results already give.
+
+  Phase 7 asked for menus nested as deep as needed. `onboarding.en.desktop.png`.
+- **S3** · NEW · w4-today-setup-16 · all locales · both — three "before going live" pages answer one question, with different items and opposite verdicts:
+  - Today's "See what is left to set up ›" opens My business › Going live (`/app/business/ready`, headed "Before your assistant talks to real customers"), which says "Not yet: nothing is connected for customers to write to.";
+  - Setup › "Before going live" (`/app/onboarding`) says "✓ Where customers reach you — Checked for you";
+  - "Ready for customers" (`/app/ready`) says "✓ Connected";
+  - the fr names: "Lancement" / "Avant le lancement" / "Tout est prêt pour les clients".
+
+  Introduced by this run (My business's Going live screen, #217).
+- **S3** · NEW (missed) · w4-today-setup-17 · all locales · both — open items are worded as already achieved, so only the mark says they are not: "○ Knowledge correction practiced", "○ Trust validation passed" (zh ○ 已练习更正知识 / ○ 已通过可信验证, es ○ Verificación de fiabilidad superada, fr ○ Corriger une connaissance : répété / ○ Contrôle de fiabilité réussi). This is the double reading V1-147 removed from Ready.
+- **S2** · NEW (missed) · w4-today-setup-18 · ar (and en) · both — rule 6:
+  - "○ اجتاز التحقق من الثقة" uses a masculine perfect verb with an unstated masculine subject, presumably the assistant;
+  - "✓ تم التدرّب على رد المالك" calls the reader by the masculine noun المالك;
+  - en "Owner reply practiced" also names the reader in the third person.
+- **S4** · NEW (missed) · w4-today-setup-19 · all locales · both — "○ A few steps left before going live." sits about 4 px above the next section's rule, as if underlined by it. `w4/ts/crop/onb-en-2.png`.
+
+#### onboarding-technical
+- **S4** · NEW (missed) · w4-today-setup-20 · all locales · both — on the page no owner page links to any more (reachable only by its address):
+  - "‹ Before going live" sits under the intro paragraph, not above the heading as everywhere else;
+  - "○ Approved message for re-opening a conversation" wears the waiting ○ while its text says "there is nothing to do here".
+
+  `onboarding-technical.en.phone.png`.
+
+#### ready
+- **S2** · NEW · w4-today-setup-21 · all locales · both — "connected" means two things across this area's pages:
+  - **connected:** Getting started "4. Connect where customers reach you ✓ Done", Before going live "✓ Where customers reach you — Checked for you", Ready "✓ Where customers reach you — Connected" (zh 已连接, ar تم الربط, es Conectado, fr Connecté), and the Setup count;
+  - **not connected:** Today "No customer can reach your assistant yet", My business "Where customers reach you — Nothing connected yet" and "Going live — Nothing connected yet", and its channels screen "WhatsApp — Not connected".
+
+  The first group reads the channel row (status `connected`); the second reads whether messaging runs. today-onboarding-new-16 had the same split; this run's new screens took the other side. `ready.en.phone.png` against `today.en.phone.png`.
+- **S3** · NEW (missed) · w4-today-setup-22 · all locales (strongest es, fr) · both — the heading claims a readiness the page then denies: "Ready for customers" (zh 准备好接待客户, ar جاهز للعملاء, es "Todo a punto para tus clientes", fr "Tout est prêt pour les clients"), over "Seen in Practice · 0/8" and two open musts. The doors to it say the same ("Ready for customers ›", es "Todo a punto para tus clientes ›"). `ready.es.desktop.png`.
+
+#### settings / setup
+- **S2** · NEW · w4-today-setup-23 · en, es, fr, ar · phone — on Setup and Settings the two values that carry a state are the ones cut off:
+  - en: "Before going / live ○ Name not confir…";
+  - es: "Primeros / pasos ○ 3 de 5 pasos hec…", "Antes de / empezar ○ Nombre sin con…";
+  - fr: "Avant le / lancement ○ Nom pas encore …", and Settings' "Mise en / route ○ Étapes faites : 3 s…", where the total itself is hidden; results.json flags fr `sr-value.warn` off-screen [203–392];
+  - the quiet rows ("Notifications E-mail", "Language English") show whole; zh fits.
+
+  The cause is `.sr-menu .sr-value { max-width:50%; … text-overflow:ellipsis }` beside a label that wraps. Introduced by this run. `setup.es.phone.png`, `setup.fr.phone.png`, `settings.fr.phone.png`.
+- **S2** · NEW · w4-today-setup-24 · ar · both — Arabic state values are laid out left to right:
+  - the ○ trails the words, on the left;
+  - on a phone the cut falls on the first word: "…ملت 3 من 5 خطوات ○" for "اكتملت 3 من 5 خطوات" (Settings › الإعداد and Setup › البدء);
+  - "لم يُؤكَّد الاسم بعد" carries the ○ on the wrong side too.
+
+  The cause: the `<span class="sr-value" dir="auto">` holds its text only inside `<bdi>`, which `dir=auto` skips, so it resolves LTR (computed `direction: ltr`). Today's own ○ line is correct. Introduced by this run. `setup.ar.phone.png`, `settings.ar.phone.png`, `w4/ts/crop/setup-ar-zoom.png`.
+- **S3** · NEW · w4-today-setup-25 · all locales · both — Setup's row reads "Notifications — E-mail" (zh 邮件, ar البريد الإلكتروني, es Correo), but the screen it opens says "You sign in without an e-mail address, so e-mail cannot reach you.". The row shows a way out that cannot reach this owner, who signs in with an access code, as the pilot's workspace also can. Introduced by this run (phase 8).
+- **S4** · NEW · w4-today-setup-26 · ar, zh · both — Settings and its child share a word: ar "الإعدادات › الإعداد" (plural, then singular, of one noun), zh "设置 › 基本设置". On a phone, ar's tile "الإعدادات" leads to a heading that differs by two letters. Introduced by this run (the names decided in this run).
+- **S4** · NEW · w4-today-setup-27 · zh, es, fr · both — one count is phrased two ways:
+  - zh: Today "开始使用：5 步里完成了 3 步。", Settings and Setup "5 步中已完成 3 步";
+  - es: "3 de 5 pasos completados" / "3 de 5 pasos hechos";
+  - fr: "3 étapes faites sur 5" / "Étapes faites : 3 sur 5".
+
+  Introduced by this run.
+- **S4** · NEW · w4-today-setup-28 · all locales · phone — Settings › My business's value repeats the business name printed just above the heading, and on a phone cuts it: "义乌宏发日用品厂 (de…" (en, fr, ar). Introduced by this run. `settings.en.phone.png`.
+
+#### settings-language
+- **S4** · NEW · w4-today-setup-29 · all locales · both — the chosen language is marked only by a class (`<a class="on">`, no `aria-current`), so a screen reader cannot tell which language is chosen. The screen's only control is at 13-px caption size (ar "العربية", zh "中文"), while every Setup row is 15 px. Introduced by this run (its own screen). `settings-language.ar.phone.png`.
+
+#### not-found-app
+- **S4** · NEW · w4-today-setup-30 · all locales · both — on a mistyped `/app/…` address, the rail raises the Today tile with `aria-current="page"`, so the 404 is announced as Today. The message sits in a dashed box, the style the run retired for Today's calm state. Introduced by this run (the raised tile, on #208's shell). `not-found-app.en.phone.png`.
+
+---
+
+## 4 · Customers: the Inbox, an order, the calendar, Results, the profile card
+
+### Still reproducing (7)
+
+#### inbox
+- **S3** · V2 NEW (inbox: "the phone row… the preview keeps about 20 characters") · all locales · phone — on a phone the preview still keeps almost nothing:
+  - after the reason: es "○ Respuesta por revisar  Hello, …", fr "○ Réponse à relire  Hello, what …", ar "ردّ للمراجعة ○  …Hello, what is your";
+  - after the holder: fr "Entre les mains de 陈莉 ✦ Ye…", es "En manos de 陈莉 ✦ Yes — on…".
+
+  What the customer asked cannot be read without opening the row. (The product, quantity and price the old phone row dropped are gone from the desktop row too, by phase 4's design. That part is not counted.) `inbox.es.phone.png`, `inbox.fr.phone.png`.
+- **S4** · V1-164 · all locales · desktop — previews are still cut by the server at 90 characters (`inbox.ts` 1155, `PREVIEW_CHARS`), whatever the width.
+  - The cut now ends on a word, with "…".
+  - On desktop the row then stops with about 200 px of it empty: "…Kids Water Bottle with Straw: $1.08/pc for 30,000 pcs, lead time 25…" (the unit "days" is lost), "…For 500 pcs the price is $1.05/pc…", "…Shall I send a…".
+
+  `inbox.en.desktop.png`.
+- **S4** · V1-166 · all locales · phone — the door under the list is unchanged: "Calendar: what is dated, by day ›" / "日程：按天看已有的日期 ›" / "التقويم: التواريخ المسجلة يومًا بيوم" / "Calendario: lo que tiene fecha, por día ›".
+  - On a phone it repeats the "Calendar" tile in the top bar (it was removed from desktop for repeating the rail).
+  - "Who you may write to first ›" (من يمكن مراسلته أولًا) still gives no hint of what it opens.
+
+  `inbox.en.phone.png`, `inbox-pending.ar.phone.png`.
+- **S4** · V1-169 · es, fr · both — figures are still written the English way in Spanish and French:
+  - es "5,000 uds.", fr "5,000 pcs" (an English abbreviation in French);
+  - "$11,750.00" on the order page, in Results and in the "Matters most" row;
+  - calendar "cantidad 2,000" / "quantité 2,000".
+
+  The demo workspace has no country on record (`businesses.country` is null), so #211's rule ("the reader's language in the workspace's country", `values.ts` localQty) falls back to English. `order.es.phone.png`, `order.fr.phone.png`, `calendar.es.phone.png`.
+
+#### order
+- **S3** · V1-184 · all locales · both — the heading is still a code built from the record id: "Order USAB-de300000-0001" / "订单 USAB-de300000-0001" / "الطلب USAB-de300000-0001" / "Pedido USAB-…" / "Commande USAB-…". The browser tab is the same.
+  - "Order" is now in the heading and the tab.
+  - The customer and the product, which say which order this is, are only in the rows below.
+
+  `order.en.desktop.png`.
+
+#### calendar
+- **S3** · V1-201 · all locales · both — the calendar's commonest entry still names a quote in internal words: "✦ Price worked out for Carlos Mendes" / "给 Carlos Mendes 算出的报价" / "سعر محسوب في محادثة Carlos Mendes" / "Precio calculado para" / "Prix calculé pour". Three places name the same event three ways:
+  - the Inbox's band calls it "Price sent Sep 29" (发了报价 / Precio enviado / Prix envoyé);
+  - Today calls it "quotes sent";
+  - Results calls it "prices worked out".
+
+  (The cards laid out like appointments, and the ar "طلب" reading as "a request", are fixed: "طلب شراء من Khalid Mansoor".) `calendar.en.phone.png`, `calendar-week.*.png`.
+
+#### calendar-month
+- **S3** · V2 NEW (calendar-month: "the month opens on Mon–Wed plus a sliver of Thursday") · all locales · phone — the phone month still shows only part of the week:
+  - It now opens scrolled to today, so the header reads "Fri · Sat · Sun". Mon–Thu are off the left edge (ar: off the right).
+  - That hides Thu 1's "Zainab Qureshi" and "Khalid Mansoor" (the week's one order) and all of Mon–Wed.
+  - The only cue is a grey shade at the grid's edge.
+  - Names are whole now, and today is on-screen.
+
+  Phase 6 asks that the month "scrolls visibly". `calendar-month.en.phone.png`, `calendar-month.ar.phone.png`.
+
+---
+
+### New (26)
+
+#### inbox
+- **S3** · NEW (missed) · w4-customers-01 · all locales · both — team machinery is still on the Inbox, against the run's own rule ("Mine" was removed as team machinery):
+  - the "Waiting now" list and the search results still carry a group headed "Your team is handling" / "团队在处理" / "في عهدة فريقك" / "Atiende tu equipo" / "Votre équipe s'en occupe";
+  - its row reads "Held by 陈莉" / "陈莉在跟进" / "في عهدة 陈莉" / "En manos de 陈莉" / "Entre les mains de 陈莉".
+
+  It predates the run, which kept it. `inbox.en.desktop.png`, `inbox-search.en.phone.png`.
+- **S3** · NEW · w4-customers-02 · all locales · both — the "Needs attention" band does the opposite of "does not duplicate Today":
+  - Today shows a "went quiet after a price" line for Omar Haddad ("Omar Haddad has not answered since they were given a price. Follow up ›"; zh "告诉 Omar Haddad 价格之后，对方就没再回话了。发跟进 ›").
+  - The band lists three customers in exactly that state ("Nadia Rahimi — Price sent Sep 29, no word since", Mehmet Yilmaz, Mustafa Aziz) and never Omar (priced Sep 12, inside its 3–30-day window).
+  - The band drops anyone a colleague holds as if they were waiting for the owner (`inboxAttention.ts` SLIPPING uses `NEEDS_OWNER`, which counts any `assigned_to`). The list beneath does not count Omar as waiting for the owner: he is under "Your team is handling", not "Needs you".
+
+  `w4/states/card-from-today.zh.desktop.png`, `inbox.en.desktop.png`.
+- **S3** · NEW (missed) · w4-customers-03 · all locales · both — "Your assistant is handling — no reply yet" holds 34 of the first 50 rows, each stamped "No reply yet":
+  - 18 are questions left unanswered for up to 13 days ("Can you do 3 colours per set?" Sep 20, "Ours. Please quote FOB." Sep 20, "Do you have colour options?" Sep 21). None counts as waiting for anyone, and none is in the band, whose "waiting on a reply" kind covers only our own questions.
+  - The other 16 end on words that ask nothing: "Thanks, noted." (Leila Haddad, Sep 19), "Sending it now.", "Perfect. I will confirm next week.", "Ok let me confirm with my partner".
+
+  So the label is wrong on a third of the rows and toothless on the rest. zh "还没回复", ar "لا ردّ بعد", es "Aún sin respuesta", fr "Pas encore de réponse". (From #211.) `inbox.en.phone.png`, `inbox.zh.desktop.png`.
+- **S3** · NEW · w4-customers-04 · all locales · both — "Matters most" is not yet a lens of its own:
+  - It ranks by confirmed spend only, so on this workspace it is one row (Khalid Mansoor, "$11,750.00") and then "Nothing spent yet" over 70 customers in newest-contact order.
+  - That is the "Waiting now" list without its groups, with Aisha Bello's "○ Reply to review" third.
+  - Open prices (13 this week, Aisha's 5,000 × $1.45) count for nothing, and the caption "Whoever has spent the most with you first, then the newest contact." does not say why the list looks like the other.
+
+  Phase 4 asked for two complete experiences. `inbox-value.en.phone.png`.
+- **S3** · NEW · w4-customers-05 · all locales · desktop — the Inbox's count in the rail does not fit its tile:
+  - en "○ 1 / waiting" wraps onto two lines over a pink disc that is cut by the text it should hold;
+  - fr "Boîte de / réception" with "○ 1 en / attente" running past the tile's right edge (text to x≈203, tile ends ≈195);
+  - zh breaks the three-character word: "收件 / 箱" beside "○ 1位 / 在等";
+  - ar "صندوق / الوارد" with "1 ○ / بالانتظار" squeezed.
+
+  It is on every Customers page. `inbox.en.desktop.png`, `inbox.fr.desktop.png`, `inbox.zh.desktop.png`, `inbox.ar.desktop.png`.
+- **S4** · NEW · w4-customers-06 · all locales · both — the run renamed the waiting state, but the Inbox still has its old word for it:
+  - the rail says "1 waiting", the lens "Waiting now", its caption "Whoever is waiting for you first", Today "1 waiting for you" and the card "○ Waiting for you";
+  - the group heading and the narrowing chip still say "Needs you" / "Needs you (1)".
+
+  zh 等待中 / 在等 vs 等你处理; es "En espera" vs "Te necesita"; fr "En attente" vs "Vous attend"; ar "الانتظار الآن" vs "بحاجة إليك". `inbox.en.desktop.png`, `inbox-pending.ar.phone.png`.
+- **S4** · NEW · w4-customers-07 · all locales · both — the narrowings sit badly with the lenses:
+  - On "Did not send", the lens still shows "Waiting now" selected beside the selected "Did not send" chip. Its caption, "Whoever is waiting for you first, then the newest contact.", describes a list that is not shown.
+  - The empty panel's "See all customers ›" repeats the "See all customers" link beside the chip (ar "عرض كل العملاء" twice).
+  - The same applies on "Needs you (1)".
+
+  `inbox-blocked.en.desktop.png`, `inbox-pending.ar.phone.png`.
+- **S4** · NEW · w4-customers-08 · fr · phone — the phone tile says "Messages" while the page it opens is headed "Boîte de réception" (and the desktop rail says "Boîte de réception"). Every other language shortens the same word: es "Bandeja" / "Bandeja de entrada", ar "الوارد" / "صندوق الوارد". `inbox.fr.phone.png`.
+
+#### order
+- **S4** · NEW (missed) · w4-customers-09 · all locales · phone — the proforma box now wraps, but it breaks the product code at its hyphen: "Stainless Steel Thermos 500ml (ZX-" / "200)". (From #210.) `order.ar.phone.png`, `order.fr.phone.png`.
+- **S4** · NEW (missed) · w4-customers-10 · all locales · both — the order page is the one customer page with no face. "Customer: Khalid Mansoor" is plain text, nothing on the page opens his card, and the page has no colour at all. `order.en.desktop.png`.
+- **S4** · NEW (missed) · w4-customers-11 · all locales · both — the confirmation date is said three times in one screen:
+  - "Confirmed since Thu, Oct 1";
+  - "Confirmed on: Thu, Oct 1, 2026";
+  - "What happened — Confirmed Thu, Oct 1 — When the order was confirmed. Nothing recorded since."
+
+  zh 已确认 10月1日周四起 / 2026年10月1日周四 / 已确认 10月1日周四. `order.en.desktop.png`.
+- **S4** · NEW (missed) · w4-customers-12 · all locales · both — "Download the proforma ›" / "下载形式发票 ›" / "تنزيل الفاتورة المبدئية ‹" is drawn as a door, with the navigation chevron, but it saves a `.txt` file. `order.en.desktop.png`.
+
+#### calendar (List, Week, Day)
+- **S3** · NEW · w4-customers-13 · all locales · both — "done" is claimed for a price the customer has not received:
+  - Today's list marks "✓ ✦ Price worked out for Aisha Bello — $1.45 each, quantity 5,000" done (sr "Done:"), with its face greyed.
+  - The reply carrying that price is the one waiting for the owner's review (Inbox "○ Reply to review", rail "1 waiting").
+  - Today's scoreboard says "0 quotes sent" for the same day.
+
+  zh "✓ ✦ 给 Aisha Bello 算出的报价", ar "✓ ✦ سعر محسوب في محادثة Aisha Bello". `calendar.en.phone.png`, `calendar-day.zh.phone.png`.
+- **S4** · NEW · w4-customers-14 · all locales · both — the marks on every row (the solid edge, ✦, ○ "Still owed", ✓ "Done") are explained only at the very bottom of the fold "Filter or add a date", after the whole "Add a date" form. A fold named for something else hides the legend. `w4/states/calendar-fold-open.ar.desktop.png`.
+- **S4** · NEW · w4-customers-15 · all locales · both — the List says its period is "Sat, Sep 26 to Fri, Oct 16" (zh/ar/es/fr likewise), shows "Today" and the folded "Before today", and then simply ends. Nothing says that nothing is dated from Oct 4 to 16. The warm empty state appears only when the whole period is empty. `calendar.en.desktop.png`.
+- **S4** · NEW · w4-customers-16 · zh · phone — the new sentence breaks inside a word: "给 Carlos Mendes 算 / 出的报价", "给 Layla Mansour 算 / 出的报价", "给 Aisha Bello 算出的 / 报价". `calendar-day.zh.phone.png`.
+- **S4** · NEW · w4-customers-18 · all locales · both — the folded filter's "Kind" menu offers eight kinds (Promised, Samples, Orders, Negotiation, Follow-ups, Your dates, Closures, Conversations) when the period holds three. Five of them lead to an empty list. `w4/states/calendar-fold-open.en.phone.png`.
+
+#### calendar-month
+- **S4** · NEW · w4-customers-17 · all locales · both — "+4 more" sits flush against the cell's left border (ar: right), outside the cell's padding:
+  - desktop: x≈819 against the border at 815, while the date "2" is at 826 and the names at 822;
+  - phone: it touches the scroll shade.
+
+  `calendar-month.en.desktop.png`, `calendar-month.en.phone.png`.
+
+#### analytics
+- **S3** · NEW (missed) · w4-customers-19 · all locales · both — the overview counts more new customers than conversations: "40 new customers" over "39 conversations" this week, and "13 new customers" over "11 conversations" for "Today so far". The Inbox's rule is one customer, one conversation. zh "40 位新客户 / 39 段对话", ar "40 عميلًا جديدًا / 39 محادثةً". `analytics.en.desktop.png`.
+- **S3** · NEW · w4-customers-20 · all locales · both — Today's scoreboard and Results' "Today so far" (one tap apart, "Results ›") count the same day differently:
+  - Today: "0 orders confirmed · 0 quotes sent · 0 answered after hours";
+  - Results: "3 prices worked out · 0 orders placed · 9 replies that went out".
+
+  The two never use one word for the same thing. zh 已确认订单 / 发出的报价 vs 个算出的报价 / 个新订单. `analytics.en.desktop.png`, `w4/states/card-from-today.zh.desktop.png`.
+- **S4** · NEW (missed) · w4-customers-21 · all locales · both — the periods carry no dates. "This month" (Oct 1–3) shows "28 new customers" and "This week" (Sep 28–Oct 3) shows "40", so the month reads as smaller than the week. The foot says only "This covers this month." / "Esto abarca este mes." / "هذا يغطي هذا الشهر.". `analytics.en.desktop.png`.
+- **S4** · NEW (missed) · w4-customers-22 · all locales · both — "Sales" / "成交情况" / "المبيعات" / "Ventas" is a small grey caption inside "Prices and orders", while every other section has a heading. Its amount row breaks the column: "$11,750.00 in sales" pushes the label to x≈343, against x≈298 for every other label. `analytics.en.desktop.png`.
+- **S4** · NEW (missed) · w4-customers-23 · zh · both — "1 条你发出的你的助手起草的回复" stacks two 的 clauses and says 你 twice. `analytics.zh.*.png`.
+- **S4** · NEW (missed) · w4-customers-24 · all locales · both — the Results empty state is headed with an emoji ("📈 …", `analytics.ts` line 157), while the run drew every icon as a line icon "(icons.ts, no emoji)". Code only: this seed always has activity.
+
+#### customer-card (and `w4/states/card-*`)
+- **S2** · NEW · w4-customers-25 · all locales · both — the card's "bought or asked about" line says "Nothing bought or asked about yet" (还没买过，也没问过产品 / لا مشتريات ولا استفسارات بعد / Aún sin compras ni preguntas / Ni achat ni demande pour l’instant) for customers who have asked for and been given a price:
+  - Aisha Bello: the conversation header behind the sheet reads "5,000 قطعة · LED String Lights 10m", and the Inbox finds her by "LED";
+  - Nadia Rahimi: the band behind the card says "Price sent Sep 29";
+  - Layla Mansour.
+
+  The card reads "asked about" only from analysed turns (`db/customerCard.ts` 62–70). It ignores the quotes and the conversation's product that the header, the search and the calendar all use. `w4/states/card-from-conversation.ar.phone.png`, `w4/states/card-from-inbox.en.desktop.png`, `w4/states/card-from-today.zh.desktop.png`.
+- **S3** · NEW · w4-customers-26 · all locales · both — the card's one action, "Open the conversation ›" / "打开对话 ›" / "فتح المحادثة ‹", has problems:
+  - it is a pale grey pill whose words touch its left edge (right edge in ar): padding 0 inside a filled 12 px-radius box;
+  - it is not the graphite primary action the principle asks for.
+
+  It is the same on every card state, en/zh/ar, phone and desktop. `w4/states/card-from-inbox.en.desktop.png`, `customer-card.en.phone.png`.
+
+---
+
+## 5 · A conversation, the draft reply card, the customer's file, Practice
+
+### Still reproducing (8)
+
+#### conversation-draft
+- **S2** · V1-220 · all locales · both — The fold still counts the model code as a figure. "○ 300 — no source found …Lights 10m (ZX-300): $1.45/pc…" comes from "ZX-300", which is the product's code, not a number. The line the owner sees without opening the fold still names the bare figures: "○ No source for 300 and 25" / "○ 找不到出处：300和25" / «○ بلا مصدر: 300 و25» / "○ Sin fuente: 300 y 25" / "○ Sans source : 300 et 25". The pointer to the words now exists, but only inside the fold. (`w4/states/draft-edit-open.en.desktop.png`)
+- **S3** · V1-229 · es, fr · both — Figures are still in English format in Spanish and French: "5,000 uds. · $1.45/ud. · importe total $7,250.00" and "5,000 pcs · $1.45/pce · total $7,250.00". The subline reads "5,000 uds." / "5,000 pcs". The cause is the demo workspace's empty `businesses.country`: with no country on record, values.ts `localMoney`/`localQty` fall back to the English form. Any workspace without a country shows the same. (`conversation-draft.es.phone.png`, `conversation-draft.fr.desktop.png`)
+- **S3** · V1-239 · en, ar · desktop — Landing at `#latest` still scrolls a short conversation: 41 px in en and 65 px in ar. In en the top edge cuts through "‹ Inbox" and "The customer ›". In ar the back line is scrolled out of view entirely. (`w4conv/latest.en.desktop.png`, `w4conv/latest-top.en.png`, `w4conv/latest.ar.desktop.png`)
+
+#### conversation-thread
+- **S3** · V1-256 · all locales · both — The demo's longest conversation is still 4 messages, so nothing reaches "Earlier messages". Khalid's does now span two days ("Wed, Sep 30" / "Thu, Oct 1"). [V2: judged not a defect (demo data), #211; listed because it still reproduces]
+- **S3** · V1-257 · all locales · desktop — The open conversation is now marked in the list pane (`aria-current` on Carlos Mendes's row), but that row is about 2,616 px down a pane that opens at `scrollTop 0` in a 900 px window. The pane shows Aisha, Omar and the rest, and nothing visible marks where the owner is. (`conversation-thread.en.desktop.png`, walk w4conv/walk3.mjs)
+- **S3** · V1-259 · es, fr · both — Same fallback as V1-229 on the thread: "2,000 uds. · $1.65/ud. · importe total $3,300.00" and "2,000 pcs · $1.65/pce · total $3,300.00". The phone line break between "importe" and "total" is gone. (`conversation-thread.es.phone.png`)
+
+#### buyer-file
+- **S3** · V1-277 · es, fr · both — "Último precio 5,000 uds. · $1.45/ud. · importe total $7,250.00" and the History line "Tu asistente calculó un precio: 5,000 uds. · $1.45/ud." use English figures. fr shows "5,000 pcs · $1.45/pce · total $7,250.00". The cause is the same no-country fallback. (`buyer-file.es.phone.png`, `buyer-file.fr.phone.png`)
+
+#### practice
+- **S3** · V1-289 · all locales · both — No practice message has a time or a day. The captions now name the speaker: "The customer (you)" / "客户（由你扮演）" / «العميل (بتجربة منك)», "You", "✦ Your assistant". The conversation page gives each line its time under a day divider. (`w4conv/p-top.en.png`)
+
+### New (25)
+
+#### conversation-draft
+- **S3** · NEW · w4-conversation-01 · all locales · both — Magenta carries a fourth meaning: "check this". "○ No source for 300 and 25" / "○ 找不到出处：300和25" / «○ بلا مصدر: 300 و25» is set in bold magenta with the waiting-for-you ○. So is every fold row that needs checking: "○ 300 no source found", "○ “CE certified” you have not confirmed this", "○ “FOB” you have not confirmed this". A failed Trust check verdict uses the same tone (`.sbx-trust.fail .verdict`, `--color-warn`). The principle allows magenta for ✦, for ○ meaning waiting for you, and for today's marker. Here it marks a warning in the waiting signal's own shape. Warmth run: the warn tone became magenta. (`w4/states/draft-edit-open.en.desktop.png`)
+- **S3** · NEW (missed) · w4-conversation-02 · all locales · both — The fold's summary line names unconfirmed claims only when every figure has a source (inbox.ts: `unsourced.length ? … : unconfirmed.length ? …`). This draft says "CE certified" and "FOB", yet the line reads only "No source for 300 and 25". The owner has to open the fold to learn a certification is unconfirmed. (`conversation-draft.en.desktop.png`)
+- **S3** · NEW (missed) · w4-conversation-03 · all locales · both — A second card under the draft repeats it:
+  - The card says "✦ Your assistant wrote a reply; it waits for your OK" / "✦ 你的助手写好了回复，等你确认" / «✦ ردّ من مساعدك بانتظار موافقتك» / "✦ Tu asistente escribió una respuesta; espera tu visto bueno" / "✦ Votre assistant a écrit une réponse, qui attend votre accord". This sits directly under "✦ Your assistant drafted".
+  - Its only control is "Hand to [陈莉] · Hand over".
+  - It says the reply waits for the owner, but it carries the assistant's ✦, not the waiting ○.
+
+  (`conversation-draft.en.phone.png`)
+- **S3** · NEW (missed) · w4-conversation-04 · all locales · both — Team machinery remains on every conversation:
+  - "Hand to [陈莉] · Hand over" (转给 [陈莉] 转过去 / «إحالة إلى [陈莉] إحالة» / "Pasar a [陈莉] Pasar" / "Confier à [陈莉] Confier") appears on the draft, the thread and the held conversation.
+  - The strip shows a "Held by 陈莉" pill and the card shows "Last action: Handed to 陈莉 · Sat, Sep 12 20:16".
+
+  The not-negotiable says no team machinery. UI-BENCHMARK §10 names assignee pills and "taking it from a colleague" as such, and this run removed "Mine" for that reason. (`w4conv/omar.en.phone.png`, `conversation-draft.en.desktop.png`)
+- **S3** · NEW · w4-conversation-05 · all locales · both — The catch-up strip says nothing about buying for a customer who has bought nothing:
+  - Aisha's strip is the face, "🇳🇬 Aisha Bello · Nigeria", "WhatsApp +2345000000261" and "○ Needs you · Reply to review". Carlos's is the same with "✓ Answered".
+  - There is no "Asked about …" / "问过：…" / «الاستفسار عن …», and no "nothing bought yet". The card under the same face says "Spent: Nothing yet · Orders 0".
+  - The only product shown is the unlabelled subline under the strip, "LED String Lights 10m · 5,000 pcs" / "LED灯串 · 5000个". It does not say whether this is something they bought or something they asked about.
+  - "Asked about" reads only analysed turns (customerPanel.ts:76–83), never the quote this page shows.
+  - A stranger cannot tell a first-time asker from a buyer. Warmth run, phase 5. (`conversation-draft.en.phone.png`, `w4conv/walk1.mjs` output)
+- **S4** · NEW (missed) · w4-conversation-06 · all locales · desktop — The panel and the rest of the page give today in two forms. The panel says "First wrote Sat, Oct 3 · 1 conversation" / «أول رسالة في السبت، 3 أكتوبر · محادثة واحدة». On the same day, the conversation's divider, the customer's file ("First contact Today") and the card ("Last wrote Today 19:51") all say "Today". (`w4conv/panel.en.desktop.png`)
+- **S3** · NEW (missed) · w4-conversation-07 · ar · phone (narrower on desktop) — The fold's rows are mirrored only halfway. Each ✓/○ mark sits at the right edge, but the figure or name it marks ("5,000", "300", "25", '“LED String Lights 10m”') sits at the far left edge, about 300 px away on a phone. Only "US$ 1.45" sits beside its mark. (`w4/states/draft-edit-open.ar.phone.png`, `w4conv/ar-fold.png`)
+- **S4** · NEW (missed) · w4-conversation-08 · en, ar · phone — The fold's pointer breaks the model code at its hyphen: "no source found …Lights 10m (ZX-" / "300): $1.45/pc…". The Arabic row does the same: «بلا مصدر معروف …Lights 10m (ZX-» / "300): $1.45/pc…". (`w4conv/ar-fold2.png`)
+- **S4** · NEW (missed) · w4-conversation-09 · ar, fr · both — The fold puts product names and claims in English curly quotes in every language ('“LED String Lights 10m”', '“CE certified”', '“FOB”'). The quotes are hard-coded in inbox.ts: `“${l.name}”`, `“${c.matchedText}”`. Arabic elsewhere uses «» (the file's «عميل»), and French uses « » (Practice's « Je parle à une vraie personne ? »). (`w4/states/draft-edit-open.ar.desktop.png`)
+- **S3** · NEW · w4-conversation-10 · all four pages · both — Shell, seen on every page of this area (for the whole-product list). The rail breaks:
+  - On a phone the assistant's tile is cut to "Your assis…" / "Tu asiste…", and fr "Aujourd’hui" is clipped at the left edge.
+  - On desktop the Inbox count spills out of its pill: "○ 1 / waiting", "○ 1 en / attente", and «1 ○ / بالانتظار» clipped at the pill's edge.
+  - In zh the tile wraps as "收件 / 箱".
+
+  Warmth run, phase 1. (`conversation-draft.en.phone.png`, `conversation-draft.fr.phone.png`, `conversation-draft.ar.desktop.png`, `conversation-draft.zh.desktop.png`)
+- **S4** · NEW · w4-conversation-11 · fr, es · phone — The back link and the rail name the Inbox differently. fr shows "‹ Boîte de réception" under the rail tile "Messages", and es shows "‹ Bandeja de entrada" under "Bandeja". On desktop both are "Boîte de réception" / "Bandeja de entrada". (`conversation-draft.fr.phone.png`)
+
+#### conversation-thread
+- **S2** · NEW · w4-conversation-12 · all locales · both — The card that springs from the strip's face contradicts the page under it:
+  - **Carlos:** the card says "Nothing bought or asked about yet" / "还没买过，也没问过产品" / «لا مشتريات ولا استفسارات بعد» / "Aún sin compras ni preguntas" / "Ni achat ni demande pour l’instant". Behind it is his question about "LED String Lights 10m, 2,000 pcs" and a "$1.65/pc" quote.
+  - **Aisha:** the card says the same, while her file lists "Products of interest: LED String Lights 10m".
+  - **The waiting state has two names.** The card says "○ Waiting for you" / "在等你" / «بانتظارك» / "Te espera". The strip and the list say "○ Needs you" / "等你处理" / «بحاجة إليك» / "Te necesita". Only fr agrees ("Vous attend").
+  - **Its one door goes nowhere new.** "Open the conversation ›" leads back to the page already open.
+
+  The cause is the same as w4-conversation-05: "asked about" comes only from analysed turns. Warmth run, phase 3 card on the phase 5 strip. (`w4/states/card-from-conversation.en.phone.png`, `w4conv/face-card.en.desktop.png`)
+- **S3** · NEW · w4-conversation-13 · all locales · both — The state of play drops a quote that is still open:
+  - **What happened:** Carlos was quoted "$1.65/pc … 2,000 pcs" at 15:21, asked "What plug type?" at 15:56 and was answered at 16:31.
+  - **What the strip says:** "✓ Answered · Last message · ✦ Your assistant · 16:31" / "✓ 已回复 · 最后一条消息 · ✦ 你的助手 · 16:31" / «تمّ الرد ✓ · آخر رسالة · ✦ مساعدك · 16:31». Nothing says a quote waits on his decision.
+  - **Why:** `stateOfPlay` counts "waiting on a quote" only while nothing has come from the customer since the quote (stateOfPlay.ts), so any follow-up question erases it.
+
+  Phase 5 named "waiting on a quote" as a state the strip must carry. Warmth run. (`conversation-thread.en.phone.png`)
+- **S4** · NEW · w4-conversation-14 · en, es, fr · phone — The strip's state line wraps badly. Carlos's reads "Last message · ✦ Your assistant" / "· 16:31", with the second line starting at a separator. Khalid's splits the reference: "Order confirmed · USAB-de300000-" / "0001 · Oct 1". Warmth run. (`conversation-thread.en.phone.png`, `w4conv/khalid.en.phone.png`)
+- **S4** · NEW · w4-conversation-15 · all locales · both — When there is an order, the product appears twice. The strip says "Bought Stainless Steel Thermos 500ml · $11,750.00 spent", and the line directly under it repeats "Stainless Steel Thermos 500ml · 5,000 pcs". Warmth run. (`w4conv/khalid.en.phone.png`)
+- **S3** · NEW · w4-conversation-16 · all locales · both — One header opens three different summaries of the same customer:
+  - The face opens the card: "Spent / Orders / Last wrote Today 15:56 / Nothing bought or asked about yet".
+  - "About this customer ›" opens the file: "First contact Today / Products of interest / Prices worked out 1 / History".
+  - "The customer ›" opens the desktop panel: "First wrote Sat, Oct 3 / Prices worked out $1.45 · LED String Lights 10m / Activity".
+
+  No two show the same facts, and no two word the same fact alike. Warmth run: the card added the third. (`w4conv/face-card.en.desktop.png`, `w4conv/panel.en.desktop.png`, `buyer-file.en.desktop.png`)
+- **S4** · NEW · w4-conversation-17 · all locales · both — "✦ {name}" sits in the caption under each reply ("15:21 · ✦ Your assistant"), not above it as PROGRESS's phase 5 says. On a long reply the mark comes after the words. Warmth run. (`conversation-thread.en.phone.png`)
+- **S4** · NEW (missed) · w4-conversation-18 · fr · both — In a conversation a colleague holds, the control reads "Confier à [moi] · Confier", and "Confier à moi" is not French. The es "Pasar a [mí] · Pasar" reads correctly. (walk w4conv/walk3.mjs, Omar Haddad)
+
+#### buyer-file
+- **S3** · NEW · w4-conversation-19 · all locales · both — The customer's own file is the one customer page with no face. Its header is "‹ Inbox 🇳🇬 Aisha Bello · Nigeria ○ Needs you" with no photo or initial. The conversation strip, the Inbox rows, Today and the card all draw one ("faces carry the colour"). The file also has no spent and no orders; only the card shows them. Warmth run (left out). (`buyer-file.en.phone.png`)
+
+#### practice
+- **S3** · NEW (missed) · w4-conversation-20 · all locales · both — A failed turn leaves "✦ Your assistant is writing a reply •••" under the owner's own reply. The walk:
+  1. A customer line was handed over ("Handed to you because: a message that could not be answered").
+  2. I pressed "I’ll reply", replied "This is the owner: yes, we make them. 500 pieces is fine." and pressed "Hand back to your assistant".
+  3. The page at once showed "✦ Your assistant is writing a reply" / «جارٍ إعداد ردّ من مساعدك» / "你的助手正在写回复" under the owner's reply. Nothing was being written.
+
+  `assistantWorking` counts the failed turn's unprocessed fragment for 15 minutes (live.ts:226–237, `WORKING_WINDOW_MIN`). The conversation page draws the same line from the same check (inbox.ts `working`). The capture shows it too: "Owner here — yes, we can do that. / You", then "Your assistant is writing a reply". (`w4/shots/practice.en.phone.png`, `w4conv/p-look.en.phone.png`, `w4conv/p-top.ar.png`)
+- **S4** · NEW (missed) · w4-conversation-21 · all locales · both — One card has two nearly identical buttons:
+  - en: "Send it as the customer" (for a situation) and "Send as customer" (for the typed line)
+  - zh: "以客户身份发出" / "以客户身份发送"
+  - ar: «إرسالها كرسالة من العميل» / «إرسال كعميل»
+  - es: "Enviarla como cliente" / "Enviar como cliente"
+  - fr: "L’envoyer comme client" / "Envoyer comme client"
+
+  (`practice.en.desktop.png`)
+- **S4** · NEW (missed) · w4-conversation-22 · all locales · both — "The total you expect, in USD (optional)" sits about 80 px above its field. Between them is the hint "Type it before the answer comes, and Practice compares the two.", set larger (15 px against the label's 13 px) with wide gaps. Label, hint and field read as three separate things. (`practice.en.desktop.png`, y 1327 / 1372 / 1406)
+- **S4** · NEW (missed) · w4-conversation-23 · en (walk) · phone — "Your totals" keeps totals typed for a practice that "Start over" erased. It lists two identical rows, "○ You expected $900.00; no price in an answer yet.". The first belongs to a conversation that no longer exists and can never get an answer, and nothing tells the two apart. (`w4conv/p-replied.en.phone.png`)
+- **S4** · NEW (missed) · w4-conversation-24 · es, fr · phone (en, zh, ar: offset) — The safety-checks fold's chevron sits on the heading's second line: "Las comprobaciones de" / "› seguridad · pasan 41 de 41" and "Les contrôles de sécurité" / "› · 41 sur 41 réussis". In en, zh and ar it sits below the heading's baseline. (`practice.es.phone.png`, `practice.fr.phone.png`)
+- **S4** · NEW (missed) · w4-conversation-25 · es · phone — "✦ Tu asistente está escribiendo una respuesta" wraps, and its three dots end up at the far right edge, away from the words. (`practice.es.phone.png`)
+
+## 6 · Products, price limits, knowledge, the price-list export
+
+### Still reproducing (8)
+
+#### product
+- **S3** · V1-305 · all locales · both — the larger-order prices still cannot be changed anywhere.
+  - "Pricing" lists "500+ pcs $1.05/pc", "2,000+ pcs $0.92/pc" and "10,000+ pcs $0.85/pc". The form has one field, "Price for one, from 500 pcs (USD)".
+  - The help now says what happens to the others: "Your prices for larger orders (2,000+ pcs and 10,000+ pcs) stay as they are." (zh "更大数量的价格（2000个起和1万个起）保持不变。", ar "تبقى أسعار الكميات الأكبر … دون تغيير", es "se quedan como están").
+  - Nothing on this page or any other changes or removes them. In the code, the only writers of `price_tiers` are the import (products.ts:404) and this field (products.ts:1026).
+  - The price limits page's "Discounts for buying more" is a percentage, not these prices.
+
+#### import-review
+- **S3** · V1-334 · all locales · both — a plainly written price is still not read when it uses a decimal comma, and a two-product line is still one product.
+  - "Wool scarf 24,50 each" is listed under "Not recognized" with "the price can be read two ways — write it like 1250.00" (fr "le prix peut se lire de deux façons — écrivez-le ainsi : 1250.00", es "escríbelo así: 1250.00", zh "价格有两种读法，请写成 1250.00 这样").
+  - In French and Spanish, "24,50" is how a price is written, and "24,50" cannot be a thousands grouping.
+  - The hint starts in lower case and gives an unrelated figure. The line has no Change form, so it can only be fixed in "Change the pasted text".
+  - "Mug 8 or bowl 12" is still one product, now with the warning "A figure on this line was not read as its price…".
+  - The add page still promises "Messy is fine".
+- **S3** · V1-335 · all locales · both — "SPRING SALE" is still counted as a product, and it is added unless the owner acts.
+  - The page says "3 new — not in your catalogue yet" (zh "3个新的，产品目录里还没有", ar "3 جديدة — ليست في قائمتك بعد", fr "Nouveautés : 3 — pas encore dans votre catalogue"), and SPRING SALE is one of the three.
+  - It has no "This line is right" tick, while "Mug 8 or bowl 12", unpriced too, needs one. "○ 2 need you" leaves it out.
+  - Only its explanation says "Not a product? Under Change, leave this row out."
+- **S4** · V1-345 · zh · both — the stray spaces after Chinese punctuation remain:
+  - "读到 4 行。 每一行都列在下面";
+  - "还有 2 行需要打勾。 在那之前什么都不会加入";
+  - "这一行读到的： Canvas tote 18.00".
+
+  The other polish items of V1-345 are fixed: "No price yet · No minimum" is in one case, and es now says "2 necesitan tu revisión; aparecen primero."
+
+#### knowledge
+- **S3** · V1-366 · all locales · both — STILL (owner's). Knowledge still lights "Your assistant" (`knowledge.en.desktop.png`), while Products is under Settings › My business. The item is open.
+- **S4** · new-17 · all locales · desktop — the page still stacks four widths, measured at 1280:
+  - the empty panels ("Nothing waiting: no customer has asked anything this week.", "Nothing taught yet.", "Nothing was taught or changed this week.") are 532 px;
+  - the "What you sell" rows are 603 px;
+  - the teach fields and the address field are 389 px;
+  - the headings and section rules are 992 px.
+
+  The fix's own comment says they "share the one measure".
+
+#### price-list-export
+- **S4** · V1-380 · zh, ar, es, fr — the files are now in the reader's language (headers, "Lowest price you accept", "最低接受价", "أدنى سعر مقبول", "Prix le plus bas accepté", "Yes / 是 / نعم"). The file names are still English in every language: "nomi-products-2026-10-03.csv", "nomi-price-rules-2026-10-03.csv". The page calls the second "your price limits".
+- **S4** · V1-381 · all locales — the "Category" column still holds raw lowercase English seed values, "bags", "drinkware", "lighting", in every language (zh column "类别", ar "الفئة"). The product page no longer shows a category at all.
+
+### New (17)
+
+#### talk (`/app/employee/talk`, checked for phase 7)
+- **S3** · NEW · w4-products-knowledge-01 · all locales · both — the screen leaves out what the assistant also answers from.
+  - The screen is "What your assistant can talk about". It says "Your assistant answers from what you keep in My business. Each line opens the one place where it is changed." (zh "你的助手根据你在「我的生意」里保存的内容回答。", ar "ردود مساعدك مأخوذة من «نشاطي التجاري».", es "Tu asistente responde con lo que guardas en Mi negocio.", fr "…ce que vous gardez dans Mon activité.").
+  - It lists only Business profile, How you sell and What you sell.
+  - The assistant also answers from what is taught on "What your assistant knows": facts about the business and per product, certifications, and lines read from a page of the site.
+  - The certifications decide what may be claimed at all ("Anything not turned on here is refused, however a customer asks."). They have no row here, and that page lives under Your assistant, not My business.
+  - Introduced by this run (phase 7).
+- **S3** · NEW · w4-products-knowledge-03 · all locales · both — the Business profile row disagrees with My business and cuts the business name.
+  - Its description is the list of fields already filled. In the demo that is just "Languages served" (zh "服务语言", ar "اللغات المخدومة", fr "Langues parlées"), which reads as a caption, not as what is done.
+  - It has no mark, while My business shows the same profile as "○ Not finished".
+  - Its value is the business name, which the page already shows above. On a phone that name is cut: "义乌宏发日用品厂 (de…" (en), "…宏发日用品厂 (demo)" (ar). "Business profile" also wraps to two lines (`employee-talk.en.phone.png`, `employee-talk.ar.phone.png`).
+  - Introduced by this run.
+- **S4** · NEW · w4-products-knowledge-04 · all locales · both — two row labels do not name the page they open.
+  - "What you sell" opens a page headed "Products". In Arabic the row is "ما يبيعه نشاطك التجاري", the page "المنتجات", and the knowledge section "ما يُباع": three names for one list.
+  - "How you sell" skips How you sell's own menu (`/app/business/how-you-sell`) and lands on its sub-screen headed "The questions", whose back link reads "‹ How you sell".
+  - Introduced by this run.
+
+#### Across products, knowledge, How you sell (phase 7)
+- **S3** · NEW · w4-products-knowledge-02 · all locales · both — the same data is edited from two hubs, so "edited only at /app/settings/profile and /app/products" (PROGRESS, #217) is not true.
+  - **Certifications:**
+    - switched on "What your assistant knows" › Certifications (Your assistant);
+    - and answered in My business › How you sell, question 6 "Which certifications do you hold?" (`howYouSell.ts:127`, the same `claims_policy`);
+    - meanwhile My business › What you promise customers says "Anything you have not confirmed here, your assistant will not say", on a page with nothing to confirm;
+    - and the knowledge page says "Anything not turned on here is refused".
+  - **A product's facts:** taught on its knowledge page (Your assistant), and through question 7 "What do you sell, and what is true of it?" (`product_knowledge`).
+  - **A product's minimum:** set on its product page, and through question 2 "Is there a minimum order?" (`howYouSell.ts:115`).
+  - Which hub knowledge belongs to is V1-366, the owner's. This item is the duplicate editing doors and the contradictory "here".
+  - This run's phase-7 claim.
+
+#### products
+- **S3** · NEW (missed) · w4-products-knowledge-05 · all locales · both — products appear in a different order from one visit to the next.
+  - Captured minutes apart:
+    - `products.en.desktop.png` starts "Canvas Tote Bag 38x40cm ZX-100… Reusable Shopping Trolley Bag ZX-900";
+    - `products.en.phone.png` starts "Reusable Shopping Trolley Bag ZX-900… Canvas Tote Bag ZX-100";
+    - `business-prices.en.phone.png` runs Canvas Tote, Travel Cosmetic, Reusable Trolley, Stainless…, against ZX-100→900 on desktop;
+    - the talk screen's "What you sell" names "Reusable Shopping Trolley Bag · Travel Cosmetic Bag · Bamboo Cutting Board" on the phone and "Canvas Tote Bag · Stainless Steel Thermos 500ml · Ceramic Coffee Mug 350ml" on desktop.
+  - In the code, Your price limits has no ORDER BY at all (`priceRules.ts:104–117`). Products sorts by `is_active desc, updated_at desc` with no tie-break (`products.ts:143`), and imported or seeded products share one `updated_at`.
+- **S4** · NEW (missed) · w4-products-knowledge-11 · all locales · desktop — the row dividers end at x≈851 (zh ≈833), while the rule under the list runs to x≈1240 (`products.en.desktop.png`, `products.zh.desktop.png`). The same defect was fixed on the price limits page (missed-16).
+
+#### product
+- **S3** · NEW (missed) · w4-products-knowledge-07 · en, es, fr · both — "What you count them in" offers one unit twice, and the page and the review call the same unit by different names.
+  - The duplicates: en "item" and "pcs"; es "unidad" and "uds."; fr "pièce" and "pcs" (pcs = pièces).
+  - The same option reads "uds." on the product page but "ud." in the import review's "Por unidad" list. In French it is "pcs" against "pce". The product page itself shows "500 pcs" beside "$1.05/pce".
+  - In zh (件/个) and ar (وحدة/قطعة) the two options are distinct words.
+- **S3** · NEW (missed) · w4-products-knowledge-08 · es, fr · both — a workspace with no country on record (the demo) still gets English figures in Spanish and French.
+  - French: "2,000 pcs et plus", "10,000 pcs et plus", "Prix unitaire, à partir de 500 pcs", "$1.05/pce". A French reader takes "2,000" as two.
+  - Spanish: "Pedido mín.: 1,000 uds.", "2,000 uds. o más".
+  - Your data, in the same language, writes "20.000 filas" and "20 000 lignes".
+  - The country rule in `values.ts:98–133` works when a country is set: tested, ES gives "1,05 $" and "2000 uds.", FR "2 000 pcs". Sign-up requires a country, so this hits only workspaces without one.
+- **S4** · NEW (missed) · w4-products-knowledge-09 · all locales · both — "Take a name off" does not look or behave like the rest of the page.
+  - The label and the select are 17 px, and the select is full width (992 px on desktop). Every other label and field is 15 px and 389 px wide.
+  - Its ask dialog's go-ahead "Take it off" (zh "去掉", ar "إزالة", fr "Retirer") is the filled graphite primary button. "Start again" on the import review, which also throws something away, is drawn in red.
+  - Came with #212.
+- **S4** · NEW (missed) · w4-products-knowledge-10 · all locales · both — Recent quotes name today by weekday and date: "Sat, Oct 3 · Layla Mansour · 500 pcs · $1.05/pc · total $525.00" (zh "10月3日周六", es "sáb, 3 oct", ar "السبت، 3 أكتوبر") on Saturday 3 October. On the zh phone the unit price breaks across lines, "$1.05/" | "个" (`product.zh.phone.png`).
+- **S4** · NEW (missed) · w4-products-knowledge-16 · all locales · both — the not-found pages are wrong in small ways.
+  - A product link cut short (`/app/products/…00000000010`) now shows "Product not found — It may have been removed, or the link is not quite right." The status is 200, while `/app/knowledge/<the same>` answers 404.
+  - "removed" contradicts the product page's own "it stays in your list, and nothing about it is erased".
+  - An import link cut short (`/app/products/import/…2ea2677f979`) says "This list was already added, or set aside.", which is untrue of a list that never existed.
+- **S4** · NEW (missed) · w4-products-knowledge-17 · all locales · browser tab (code) — a refused product edit renders with the tab "Change this product" (`app.ts:3265`, `title: product.edit.title`). The page as normally opened carries the product's name (V1-320's fix).
+
+#### products-add
+- **S4** · NEW (missed) · w4-products-knowledge-12 · all locales · both — the legend "Is the list printed or handwritten?" (zh "清单是打印的还是手写的？", ar "هل القائمة مطبوعة أم مكتوبة بخط اليد؟") is 13 px. Every other label on the page, "Your store's address" included, is 15 px.
+
+#### import-review
+- **S4** · NEW (missed) · w4-products-knowledge-13 · all locales · both — the textarea inside "Change the pasted text" has no label: no `<label>` and no aria-label, only the fold's summary (automated check, all five locales).
+
+#### knowledge
+- **S3** · NEW (missed) · w4-products-knowledge-06 · all locales · both — in "What you sell", each product's name and its status run together, and the chevron touches the word.
+  - Examples: "Foldable Storage Box 40LNothing taught yet›" with no gap, fr "Canvas Tote Bag 38x40cmRien pour l'instant›", ar "لا شيء بعد‹".
+  - On a phone the status wraps to "Nothing taught / yet›" beside two-line names (`knowledge.en.phone.png`, `knowledge.fr.phone.png`).
+  - The rows are bordered, filled boxes, unlike the plain rows of Products and of every settings menu.
+- **S4** · NEW (missed) · w4-products-knowledge-14 · ar, fr · phone + desktop — the certifications have agreement, case and layout slips.
+  - In ar, the status "غير مفعّلة" is feminine for every row, beside masculine names: "اعتماد FDA", "تدقيق BSCI", "نظام الجودة ISO 9001", "خالٍ من BPA".
+  - The ar ask dialog says "بعدها يصبح بإمكان مساعدك ذكره" with a masculine pronoun for "شهادة CE".
+  - The fr dialog capitalises mid-sentence: "Activer Marquage CE pour vos 12 produits ?".
+  - On the fr phone, long names push "Activer" onto a line of its own (Approbation de la FDA; Management de la qualité ISO 9001; Matériaux aptes au contact alimentaire), so the buttons zig-zag. The period pills "Aujourd'hui jusqu'ici / Cette semaine / Ce mois-ci" each wrap to two lines (`knowledge.fr.phone.png`).
+
+#### business-prices
+- **S4** · NEW (missed) · w4-products-knowledge-15 · en · both — two English sentences in the fold "Set one answer for everything" are unclear.
+  - "What is the least you would ever accept for one of anything you sell? (USD)".
+  - "One answer covers every product priced at or above its lowest price." Here "its" can only point at the product, yet it means the figure given here.
+  - es ("por una unidad de cualquier producto"), fr and ar ("لا يقل سعره عن أدنى سعر هنا") say it plainly.
+
+## 7 · My business, the assistant's page, channels
+
+### Still reproducing (4)
+
+#### business-promises
+- **S4** · V1-404 · es, fr · both — Spanish and French readers still get the decimal point:
+  - es: "de $0.30 a $2.40, según el producto";
+  - fr: "de $0.30 à $2.40 selon le produit".
+
+  Since #211 an amount follows the workspace's country. This workspace has none on record (`businesses.country` is empty), so the old form shows (`business-promises.es.phone.png`).
+
+#### employee-one-kind
+- **S1** · V1-417 · all locales · both — The assistant's pages still contradict each other about what goes out alone.
+  - **What the screens say:**
+    - "One kind at a time": "Greeting goes out without you [Wait for my OK]" and "Understanding needs goes out without you [Wait for my OK]" (zh 「接待问候」不等你就发出; ar «الترحيب: يُرسَل دون انتظارك»; es "Saludar sale sin ti").
+    - The landing: "Until you confirm the name customers will read, every reply waits for you, whatever you choose here".
+    - "Each kind of reply": "Goes out without you — Nothing here yet" and "Set to go without you, still waiting for you: ○ Greeting ○ Understanding needs".
+  - **Who sees it:** every workspace whose name is not yet confirmed, which is how every workspace starts.
+  - Shots: `employee-one-kind.en.phone.png`, `employee-replies.en.phone.png`.
+
+#### employee-name
+- **S2** · V1-420 · all locales · both — The Name screen still shows the fallback as if it were the name, and never shows the name that awaits confirmation.
+  - **The h1 and the slot:** under the h1 "Name", the large name slot reads "Your assistant" (你的助手 / مساعدك / Tu asistente).
+  - **The line under it contradicts itself:**
+    - en: "Every reply waits for you · Answers your customers";
+    - zh: 每条回复都先等你 · 替你回复客户;
+    - ar: «كل ردّ بانتظارك · الردّ على عملائك».
+  - **The door:** "Confirm the name ›" opens a checklist titled "Before going live" (上线前检查 / «قبل البدء مع العملاء»), not a name. Its back link there is "‹ Setup", not the assistant.
+  - Shot: `employee-name.en.phone.png`.
+
+#### employee
+- **S3** · V1-423 · all locales · both — Two answers to one question.
+  - **The assistant's landing:** "What your assistant still needs from you — Nothing waiting" (还需要你教的 · 没有待处理的; «ما يلزم إضافته بعد · لا شيء بالانتظار»). Its screen says "Nothing waiting: no question this month needed something you have not taught."
+  - **My business › Going live:** "What your assistant cannot answer yet". It lists all 12 products ("You have not taught your assistant anything about these beyond the price") and the certifications ("you have authorised nothing yet").
+  - The other two parts of the old finding are fixed: "No customer has asked anything" and the clash with "2 replies prepared".
+  - Shots: `employee.en.phone.png`, `business-ready.en.phone.png`.
+
+---
+
+### New (33)
+
+#### business
+- **S2** · NEW · w4-business-assistant-01 · en, es, fr · phone — The menu rows cut their own current value with "…", which is the thing the pattern exists to show.
+  - **My business:**
+    - en: "Kind of business ○ Not answered …", "Where customers reach you ○ Nothing con…", "What you promise customers None confi…";
+    - es: "○ Aún sin respues…", "○ Aún no hay n…", "Aún no hay nada c…", "✓ Todos fijad…", "Nada confi…";
+    - fr: "○ Pas encore de rép…", "○ Rien n'est enc…", "Rien n'est encore con…", "Rien de c…", and "○ Réponses : 0 …", which hides the count itself.
+  - **The assistant's landing:** fr "Nom ○ Pas encore confir…", es "Nombre ○ Sin confirmar tod…".
+  - **How you sell:** fr "Paiement et livraison ○ Non config…".
+  - **What your assistant can talk about:** "Business profile … 义乌宏发日用品厂 (de…".
+  - Shots: `business.fr.phone.png`, `business.es.phone.png`, `business.en.phone.png`, `employee.fr.phone.png`, `business-how.fr.phone.png`, `employee-talk.en.phone.png`.
+  - Introduced by this run (phase 7's menus).
+- **S2** · NEW · w4-business-assistant-02 · all locales · both — The magenta ○ "waiting for you" signal marks unfinished settings where no customer waits.
+  - **Where the ○ appears:**
+    - My business: "Business profile ○ Not finished", "Kind of business ○ Not answered yet", "Where customers reach you ○ Nothing connected yet", "How you sell ○ 0 of 9 answered" (zh ○ 还没填完 / ○ 还没选 / ○ 还没连接 / ○ 已回答 0/9);
+    - How you sell: "Payment and delivery ○ Not set up" and "Samples ○ Not set up";
+    - the assistant: "Name ○ Not confirmed yet";
+    - "Each kind of reply": six ○ on standing settings.
+  - **Where it does not:** rows in the same state are grey. "Going live — Nothing connected yet", "What you promise customers — None confirmed", "Days closed — None planned".
+  - "Nothing connected yet" is magenta on one row and grey on the next.
+  - The first screen of My business carries four waiting marks while no customer waits there.
+  - Shots: `business.en.desktop.png`, `business-how.en.phone.png`, `employee-replies.en.phone.png`.
+  - Introduced by this run (waiting moved from amber to magenta; the menus use it for "warn").
+- **S3** · NEW · w4-business-assistant-03 · all locales · both — Two doors to the same profile open My business.
+  - **The two doors:** "Fill in your business profile ›" stands above the menu, and the first row is "Business profile ○ Not finished" (zh 填写商家资料 › / 商家资料; ar «تعبئة ملف النشاط» / «ملف النشاط»).
+  - **What they open:** both open `/app/settings/profile`.
+  - Introduced by this run.
+- **S3** · NEW · w4-business-assistant-04 · all locales · both — Row names and the titles of the screens they open differ:
+  - "Going live" (上线 / «البدء مع العملاء» / "Empezar con clientes" / "Lancement") opens "Before your assistant talks to real customers";
+  - that screen's last door, "Everything checked before customers are answered ›", opens a third name, "Before going live" (上线前检查);
+  - "Kind of business" opens "What you do, your country and your website";
+  - "Days closed" opens "When your business is closed".
+
+  Introduced by this run.
+
+#### business-ready
+- **S2** · NEW · w4-business-assistant-12 · all locales · both — **Rule 13: the Stop is three taps deep under a name that does not say Stop.**
+  - **Where it is:** "Stop Lily everywhere" (在所有渠道停下{name} / «إيقاف {name} على كل القنوات») exists only on Settings › My business › Going live.
+  - **How it is labelled there:** the h1 is "Before Lily talks to real customers" and the h2 is "Every channel". The screen already answers "✓ Yes: Lily is answering real customers."
+  - **What points to it:** while the assistant answers, the My business row reads "Going live — Answering", and nothing else leads there.
+    - The assistant's landing holds the "how much it does alone" control, but no Stop and no door to one. `employee.ts` shows a door only once Stop is already on.
+    - Today links to the screen only before going live, or once stopped (`operations.ts:315, 390`).
+  - **The same screen carries a second red button:** "Stop WhatsApp messages", with no word on how it differs from "Stop Lily everywhere".
+  - Evidence: render `w4/ba-render/live.en.html`; `business.en.desktop.png` for the row.
+  - Introduced by this run (phase 7 moved the Stop from My business itself onto this screen).
+- **S3** · NEW (missed) · w4-business-assistant-13 · all locales · both — **Rule 13: the operator's pause is announced in the owner's Stop words.**
+  - **The answer line:** "○ Not now: sending is stopped, so nothing goes out to a customer." (zh 发送已停止; ar «الإرسال متوقف»; es "el envío está detenido").
+  - **The line under it:** "Sending from Lily is paused while we check something — this was not you".
+  - **The My business row:** "Sending paused".
+  - **While the owner's Stop is on**, the screen offers "Let Lily answer again" and, under WhatsApp, a red "Stop WhatsApp messages" beside it.
+  - Renders: `w4/ba-render/silenced.en.html`, `stopped.en.html`.
+  - Missed before: #210's wording, now on a screen of its own.
+- **S3** · NEW (missed) · w4-business-assistant-14 · all locales · both — The screen says the same thing twice.
+  - **The two lines:** "Not yet: nothing is connected for customers to write to." Then, under the heading "Your assistant's daily limit", "Nothing is connected for customers to write to yet. Once a place is, your assistant answers there." (zh 还没有：没有连上任何客户能写消息来的地方。 then 还没有连上任何客户能写消息来的地方。).
+  - **Where the second sits:** under a heading it has nothing to do with.
+  - Shot: `business-ready.zh.phone.png`.
+
+#### business-channels / channels
+- **S2** · NEW · w4-business-assistant-05 · all locales · both — **Channels are still one long page.**
+  - **The menu above it:** "Where customers reach you" holds one row, WhatsApp. That row and "Add your number for alerts ›" both open the old Channels page whole: 4,028 px on a phone, about eight screens.
+  - **What the page holds:**
+    - the WhatsApp connection and "Your accounts";
+    - "What each way of reaching people allows": an e-mail sending-domain form with its own Save, three WhatsApp requirements, two "Let your assistant write first" buttons, Instagram and Messenger cards;
+    - "Instagram and Messenger";
+    - the alert number form;
+    - "Coming soon".
+  - The owner's phase 7: "a deep feature is never flattened onto one screen."
+  - Shots: `channels.en.phone.png`, `business-channels.en.phone.png`.
+  - From this run: phase 7 left this page as it was.
+- **S2** · NEW · w4-business-assistant-06 · all locales · both — **Phase 8: the alerts line is decided by the phone number alone** (`factory.ts` channelsScreen).
+  - **What it says:** "You are not alerted yet when your assistant needs you." (zh 现在还没法提醒你; ar «لا تنبيه يصلك بعد»), or "You are alerted on {phone}."
+  - **What phase 8 does:** alerts go by a per-person way, by default e-mail before Meta's approval.
+  - **Two wrong cases:**
+    - an owner with an e-mail and no number is told no alerts reach them, while order and hand-over e-mails do;
+    - an owner with a number is told "You are alerted on +…", while before approval the alerts go by e-mail.
+  - The demo signs in without an e-mail, so the line happens to be true here.
+  - Introduced by this run.
+- **S3** · NEW · w4-business-assistant-07 · all locales · both — Two screens have the same name, one inside the other.
+  - **The menu screen and the page under it** are both titled and headed "Where customers reach you" (客户在哪里找你; «أين يصل إليك العملاء»; "Dónde te escriben tus clientes"). On the lower one the back link "‹ Where customers reach you" sits directly above the h1 "Where customers reach you".
+  - **The Meta help page and the WhatsApp guide** both go back to the lower one under the same name.
+  - Shot: `channels.en.desktop.png`.
+  - Introduced by this run.
+- **S3** · NEW (missed) · w4-business-assistant-08 · all locales · both — A "Not yet" pill asserts a state the page says it cannot see.
+  - **The two WhatsApp requirements:**
+    - "WhatsApp has checked your business — … This page cannot see the result, so it shows Not yet.";
+    - the privacy page: "This page cannot see it, so it shows Not yet."
+  - zh/ar the same: «ولا ترى هذه الصفحة النتيجة، لذا يظهر «ليس بعد»».
+  - From #210's wording.
+- **S3** · NEW (missed) · w4-business-assistant-09 · ar · both — The accounts line breaks apart: «غير متاح هنا بعد: Gmail (Google Workspace) وOutlook (Microsoft 365) وإنستغرام وماسنجر».
+  - **What renders:** "(Microsoft 365)" lands on the second line, beside «ماسنجر» and away from Outlook. The parenthesis doubles to "(Microsoft 365))." (`channels.ar.phone.png`, top).
+  - **Scope:** the list's contents are this local instance's, but the line is how any account that is not offered renders.
+- **S3** · NEW (missed) · w4-business-assistant-10 · all locales · both — The e-mail requirement points at nothing.
+  - **The line:** "Add the records listed below where your domain is managed, then check them below." (ar «يُرجى إضافة السجلات المذكورة أدناه»).
+  - **What is below:** nothing is listed until a domain is saved; only the domain field is there.
+- **S4** · NEW (missed) · w4-business-assistant-15 · all locales · both — The page repeats itself about Instagram and Messenger.
+  - **"Cannot write first":** said twice, by the two cards' "You cannot write first" and by the next section's bullet "Nobody can write first on Instagram or Messenger: the customer starts."
+  - **Both cards** read "What works here instead: Someone taps an advert of yours and it opens WhatsApp, with you."
+- **S4** · NEW (missed) · w4-business-assistant-16 · ar · both — Latin names sit among Arabic ones.
+  - **"Coming soon":** «تيك توك وويتشات وتيليغرام وWeCom وRED» leaves two of five names in Latin.
+  - **"Meta"** stays Latin on the same page that writes «فيسبوك» and «واتساب».
+- **S4** · NEW (missed) · w4-business-assistant-17 · all locales · desktop — The cards stop at about 850 px, while the section rules and ledes run to 1240 px (`channels.en.desktop.png`).
+- **S4** · NEW · w4-business-assistant-18 · all locales · both — Alerts section.
+  - **"Not set."** sits under the Save button, apart from the field it describes.
+  - **"Once WhatsApp is approved"** (ar «بعد اعتماد واتساب») does not say who approves what. It means Meta's review; WhatsApp itself is not even connected here.
+  - Introduced by this run (phase 8 rewrote the section).
+
+#### channels-wa-guide
+- **S3** · NEW (missed) · w4-business-assistant-11 · ar · both — Step 1 promises a field that is not there.
+  - **The step:** «إدخال رقم واتساب المستخدم مع العملاء، أدناه» ("Entering the WhatsApp number used with customers, below"). «إدخال» promises a field to type into.
+  - **What is below:** an e-mail address to write to («يُرجى مراسلة privacy@example.com بالرقم المستخدم مع العملاء»).
+  - en reads "Give us the WhatsApp number you use with customers, below".
+  - Shot: `channels-wa-guide.ar.phone.png`.
+
+#### business-allowlist
+- **S4** · NEW (missed) · w4-business-assistant-19 · all locales · both — "Until this number is connected, customers who write to it are not answered." stands under a form for adding numbers. "This number" reads as the number just typed, not the business's WhatsApp number.
+
+#### business-promises
+- **S4** · NEW (missed) · w4-business-assistant-20 · all locales · both — "Anything you have not confirmed here, your assistant will not say" (es "Lo que no hayas confirmado aquí"). Nothing can be confirmed on this screen; its only door is "Teach your assistant more ›" to Knowledge.
+
+#### business-how / how-you-sell / how-you-sell-q
+- **S3** · NEW · w4-business-assistant-21 · all locales · both — The back link names the wrong screen.
+  - **The link:** the question page's "‹ Back to How you sell" (回到你怎么卖 / «العودة إلى طريقة البيع» / "Volver a Cómo vendes") opens the list titled "The questions" (问题清单 / «الأسئلة»).
+  - **Where How you sell is:** a level above that list.
+  - Introduced by this run.
+- **S3** · NEW · w4-business-assistant-22 · all locales · both — "The questions" is the one screen under My business not drawn as menu rows.
+  - **Its shape:** nine bold questions, each with a separate "Answer ›" door on its own line, 1,387 px on a phone.
+  - **What it lacks:** no row shows where it stands until it is answered.
+  - From this run (phase 7 left it as it was).
+- **S3** · NEW (missed) · w4-business-assistant-23 · ar · both — RTL: on the question page the radio buttons sit at the left edge, far from their labels on the right. On the assistant's landing they sit correctly at the start (`how-you-sell-q.ar.phone.png` against `employee.ar.phone.png`).
+- **S4** · NEW · w4-business-assistant-24 · all locales · both — How you sell's first row repeats its label as its description: "The questions — Answer the questions, one at a time" (问题清单 · 一题一题回答). Introduced by this run.
+- **S4** · NEW (missed) · w4-business-assistant-25 · zh · phone — The two choices sit side by side on one line: "○ 先给单价 ○ 先问要多少，再给价格 / 生产商和批发通常这样". Every other locale stacks them (`how-you-sell-q.zh.phone.png`).
+
+#### employee
+- **S2** · NEW · w4-business-assistant-26 · all locales · phone — **The landing is an essay before the control** (phase 7: "a landing is a menu and not an essay").
+  - **What comes first:** five blocks of prose before the first level: the intro, the name hold, the language hold, the disclosure quote, and "None of the three applies right now…".
+  - **Where the control lands:** on a 390×844 phone the three levels start at about 830 px and Save at about 1,140 px, so the control the owner asked to see on the landing is below the first screen (`employee.en.phone.png`).
+  - **When Stop or the pause is on,** two more blocks stack above (render `both.en.html`).
+  - Introduced by this run.
+- **S2** · NEW · w4-business-assistant-27 · all locales · both — **Rule 13: while the owner's Stop or the operator's pause is on, the assistant's pages say the opposite of the notice.**
+  - **The notice at the top:** "Lily is stopped on every channel — Nothing Lily writes is sent".
+  - **What the same landing still says:**
+    - "Each kind of reply — Some replies go out without you";
+    - "What comes next — Some replies go out without you";
+    - "Lily sends alone only to customers writing in English, Chinese, and Arabic".
+  - **What the screens say:**
+    - "Goes out without you ✓ Greeting ✓ Understanding needs";
+    - "Some replies already go out without you";
+    - "Greeting goes out without you [Wait for my OK]".
+  - **Cause:** `employee.ts` `standing()` never reads `stopped` or `silenced`.
+  - Renders: `w4/ba-render/stopped.en.html`, `silenced.en.html`, and `render2.mjs`'s output.
+  - Introduced by this run (the landing now shows the notice; the rows and screens were not made to agree with it).
+- **S3** · NEW · w4-business-assistant-28 · en, es · phone — The assistant's own tab is cut on every phone page: "Your assi…" (en), "Tu asistente" clipped (es), including when it is the active tab (`employee.en.phone.png`; `results.json` `clipped`). Introduced by this run (phase 1's tiles). The rail is shared with the whole-product area.
+- **S4** · NEW · w4-business-assistant-29 · all locales · both — The menu rows say too little or the same thing twice.
+  - **Two rows, one line:** "Each kind of reply — Every reply waits for you" and "What comes next — Every reply waits for you" (zh 每条回复都先等你 twice).
+  - **No value:** "One kind at a time" shows nothing at all, though its screen holds two choices.
+  - Introduced by this run.
+- **S4** · NEW (missed) · w4-business-assistant-30 · zh · both — One reply kind has two names on one screen: 接待问候 ("设为不等你就发出的：接待问候和了解需求") and 打招呼 in the level note beside it ("打招呼、提问、推荐会自己发出去").
+
+#### employee-talk
+- **S3** · NEW · w4-business-assistant-31 · all locales · both — **"Two doors, one data": the assistant's doors and My business's doors disagree.**
+  - **(a) One name, two destinations:** "How you sell ○ 0 of 9 answered" opens the questions list ("The questions"). My business's "How you sell" opens the How you sell menu.
+  - **(b) One row, two values:**
+    - here: "Business profile — Languages served — 义乌宏发日用品厂 (de…", the business name as the value and a bare "Languages served" as the line under it;
+    - My business: the same row reads "○ Not finished".
+  - **(c) The rows leave the assistant:**
+    - "What you sell" lands on "Products", whose back link is "‹ My business"; so does the profile;
+    - the rail switches to Settings;
+    - nothing leads back to the assistant.
+  - Shot: `employee-talk.en.phone.png`.
+  - Introduced by this run.
+
+#### employee-one-kind
+- **S3** · NEW · w4-business-assistant-32 · all locales · both — "Other kinds appear here once your assistant has earned them with your customers. The levels above set every kind at once." There are no levels above on this screen; they are on the previous one (zh 上面的档位; ar «المستويات أعلاه»; es "Los niveles de arriba"). Introduced by this run: the text moved one level down unchanged.
+
+#### employee-learning
+- **S4** · NEW · w4-business-assistant-33 · all locales · both — "What your assistant knows" appears twice: as a row on the landing, and as an h2 on this screen with its own "Teach something new ›" door. Both lead to Knowledge. Introduced by this run.
+
+---
+
+## 8 · Setup pages: account, notifications, billing, business, closures, the component gallery, your data, forbidden words
+
+### Still reproducing (7)
+
+#### settings-alerts (Notifications)
+- **S3** · settings-a-new-06 · all locales · both — Notifications still has the old bare layout. The three ways are radio rows on the page background. "Alerts on your phone" ("手机提醒", "التنبيهات على الهاتف", "Avisos en tu teléfono", "Alertes sur votre téléphone") is a bare heading over a 17px paragraph, with no card. Every sibling one tap away is now a label/control card: Your sign-in, Billing, the business page, closures, forbidden words, Your data. (Billing's half of this finding is fixed.)
+
+#### settings-business
+- **S4** · settings-a-new-08 · all locales · both — the one action still sits in two places across sibling pages:
+  - here, "Save" ("保存", "حفظ", "Guardar", "Enregistrer") is outside the card, in a bar under a rule. It is full width on a phone, far right on desktop, far left in ar;
+  - "Add these days" on closures, "Add" on forbidden words and "Send the request" on Your data sit inside their cards.
+
+#### settings-closures
+- **S3** · settings-a-new-09 · all locales · desktop — each intro has two widths on one page. The first paragraph stops at about 490px. The second runs the full 992px, about 150 characters a line:
+  - on closures: "What a customer is told, in your assistant's own words, is something like: …";
+  - on forbidden words: "A word is caught where it stands as a word, not inside a longer one: …".
+
+  `settings-closures.en.desktop.png`, `settings-forbidden.en.desktop.png`
+
+#### settings-components
+- **S3** · V1-486 · all locales · both — [V2: wrong #211, reproduces as described] `/app/settings/components` is still served to the signed-in owner. It lights "Settings" in the rail and leads back with "‹ Setup", but Setup has no row for it. The h1 is "How it looks" ("外观", "المظهر", "Cómo se ve", "Apparence").
+- **S4** (was S2; no menu links here now) · V1-487 · all locales · both — the gallery is still placeholder text:
+  - the buttons read "Rest / Hover / Focus / Disabled" ("平时 / 鼠标指上去 / 选中时 / 不可用", "الحالة العادية / عند التمرير / عند التركيز / معطّل");
+  - fields are "A label" and "An option";
+  - "A line of help under the field." appears as a red ✕ error, a white notice, a pink ✕ notice and a green ✓ line;
+  - the heading "Nothing here yet" sits over the body "Nothing here yet";
+  - both chat samples are timestamped "Rest" ("平时", "الحالة العادية").
+- **S4** · V1-490 · en, zh, es, fr vs ar · both — the sample price is "$2.10" in en, zh, es and fr (in es and fr with an English decimal point), but "‏2.10 US$" in ar.
+- **S4** · settings-a-new-12 · all locales · both — the page still shows five graphite filled buttons: "Rest", "Hover", "Focus" and the form's "Rest" ("平时"…).
+
+### New (24)
+
+#### settings-alerts (Notifications) — checked against phase 8
+- **S2** · NEW · w4-settings-a-01 · all locales · both — the page never says that WhatsApp is the intended way, or that it becomes the default the moment Meta approves.
+  - With no alert number, WhatsApp is a greyed option: "Needs your WhatsApp number for alerts (under Where customers reach you) and a connected channel." ("需要在“客户在哪里找你”里填好接收提醒的 WhatsApp 号码，并连好一个渠道。", "يلزم رقم واتساب للتنبيهات في صفحة «أين يصل إليك العملاء»، وقناة متصلة.", "Necesita tu número de WhatsApp para avisos …", "Il faut votre numéro WhatsApp pour les alertes …").
+  - The only line that mentions approval (`alerts.way.whatsapp.early`, shown where a number is set) says only that a message "may not arrive". It never says WhatsApp takes over as the default the day approval lands.
+  - The owner reading this page sees e-mail as the way and learns nothing of the plan. Introduced by this run.
+- **S2** · NEW · w4-settings-a-02 · all locales · both — the way checked cannot reach the owner.
+  - **E-mail is checked:** "E-mail ● — You sign in without an e-mail address, so e-mail cannot reach you." ("你登录时没有用邮箱，所以邮件发不到你。", "الدخول يتم دون بريد إلكتروني، لذلك لا يمكن الوصول إليك بالبريد.", "Entras sin dirección de correo…", "Vous vous connectez sans adresse e-mail…").
+  - **Nothing warns:** the "that way cannot reach you" line is never drawn for e-mail (`alertChannelFor` returns e-mail unconditionally).
+  - **The fallback is circular:** under it, "If that way fails, e-mail carries it."
+  - **Save does nothing:** the only enabled option is the one already checked, yet a graphite "Save" is offered.
+  - **Setup misleads too:** its row reads "Notifications · E-mail" ("通知 邮件", "الإشعارات البريد الإلكتروني", "Notificaciones Correo", "Notifications E-mail").
+  - Nothing reaches this owner outside Nomi, and neither page says so. Introduced by this run.
+- **S3** · NEW · w4-settings-a-03 · all locales · both — the condition for WhatsApp is worded wrong:
+  - the page asks for "a connected channel" ("连好一个渠道", "قناة متصلة", "un canal conectado", "un canal connecté");
+  - but WhatsApp opens only when a channel has gone live (`channelIsLive`: `channels.activated_at is not null`);
+  - so an owner with a connected channel that is not yet live has met the stated condition and still finds WhatsApp greyed;
+  - "Where customers reach you" is named but is not a link. The number is two taps away, on `/app/channels`.
+
+  Introduced by this run.
+- **S3** · NEW · w4-settings-a-04 · all locales · both — the other door here contradicts this page.
+  - The "Alerts" card on Where customers reach you (`/app/channels`) says: "Your own WhatsApp number. Once WhatsApp is approved, an order waiting for you or a customer handed over can reach you there; choose how on Notifications." ("WhatsApp 获批后…", "بعد اعتماد واتساب…", "Cuando WhatsApp esté aprobado…", "Une fois WhatsApp approuvé…").
+  - Notifications lets WhatsApp be chosen now, wherever the number is on a live channel.
+  - One page says "WhatsApp is approved", the other "Meta approves Nomi".
+
+  Introduced by this run.
+- **S3** · NEW · w4-settings-a-05 · all locales · both — "Only these two reach you outside Nomi:" ("只有这两件事会在 Nomi 之外通知你：", "هذان الأمران فقط يصلان إليك خارج Nomi:", "Solo estas dos cosas…", "Seules ces deux choses…") is not true as written:
+  - a customer's deletion request is also e-mailed always, on top of the chosen way (rule 18, `mailOwnerAlways`);
+  - the account's letters (billing, the erasure warning, a connection decided) still come by e-mail.
+
+  The page names neither. Introduced by this run.
+- **S3** · NEW · w4-settings-a-06 · all locales · both — one thing goes by four names:
+  - the page is "Notifications" ("通知", "الإشعارات", "Notificaciones");
+  - its door on the channels screen is a card headed "Alerts" ("提醒", "التنبيهات", "Avisos", "Alertes");
+  - the way is "Browser" ("浏览器", "المتصفح", "Navegador", "Navigateur");
+  - that way's section is "Alerts on your phone", and its line says "Alerts on phones are not available here yet."
+
+  Introduced by this run.
+- **S3** · NEW · w4-settings-a-07 · ar · both — the third option is labelled in Latin, "WhatsApp". Its own line under it and every other mention on the page say «واتساب». Introduced by this run.
+- **S4** · NEW · w4-settings-a-08 · all locales · both — the same fact is said twice in two wordings:
+  - Browser's line: "Alerts on phones are not available here yet." ("这里还不能用手机提醒。");
+  - the section under it: "Alerts on phones and browsers are not switched on here yet, so Browser cannot be chosen." ("这里还没有开启手机和浏览器提醒…").
+
+  That last, least important line is the largest text on the page (17px, against 13px for the option lines). Phone alerts being off is the local instance and is not counted; the duplication and the sizes are. Introduced by this run.
+- **S4** · NEW · w4-settings-a-09 · all locales · both — each radio sits beside the option's grey description, not its bold name. On en phone the dot is at y≈505 and "E-mail" at y≈479; ar mirrors it. "If that way fails, e-mail carries it." sits under the Save button, apart from the options it qualifies. Introduced by this run.
+- **S4** · NEW · w4-settings-a-10 · all locales · both — Notifications is also reached from My business: Where customers reach you › the "Alerts" card's "Notifications ›". Its way back is always "‹ Setup" ("‹ 基本设置", "› الإعداد", "‹ Puesta en marcha", "‹ Mise en route"), so an owner who came from My business is sent to the other menu. Introduced by this run.
+
+#### settings-business
+- **S3** · NEW (missed) · w4-settings-a-11 · all locales · both — a refused save throws away all three answers.
+  - Steps: choose a kind, choose 中国 as the country, type "my shop" as the website, press Save.
+  - The page comes back saying "Check the kind, the country and the web address." ("请检查类别、国家和网址。", "يُرجى مراجعة النوع والبلد وعنوان الموقع.", "Revisa el tipo, el país y la dirección web.", "Vérifiez le type, le pays et l’adresse web.").
+  - Under it, the form is empty again: "Choose…", "Choose…" and a blank website. It does not say which of the three was wrong.
+  - Closures and forbidden words keep what was typed and mark the field.
+
+  `scratchpad/sa-shots/business-back.en.phone.png`; `app.ts` `/app/settings/business` POST uses `flashTo`, not `sentBack`.
+- **S4** · NEW · w4-settings-a-12 · all locales · both — the door and the page disagree:
+  - My business's row is "Kind of business" ("生意类别", "نوع النشاط التجاري", "Tipo de negocio", "Type d’activité"), with only the kind as its value;
+  - it opens "What you do, your country and your website" ("做什么、在哪个国家、网站", "مجال العمل والبلد والموقع الإلكتروني", …).
+
+  Introduced by this run (phase 7's row).
+
+#### settings-closures
+- **S4** · NEW · w4-settings-a-13 · en, es, fr · both — the customer's sentence quotes the placeholder with its capital, mid-sentence: "We are closed for Annual holiday, so no delivery date can be promised…", "Estamos cerrados por Vacaciones anuales…", "Nous sommes fermés pour Congés annuels…". zh and ar read naturally. Came with #211.
+- **S4** · NEW (missed) · w4-settings-a-14 · zh · both — the closure notices still have the fallback-name space that V1-477 removed from the page: "记下了。跨过{label}的日期，{name} 不会承诺。" gives "你的助手 不会承诺". The Undo notice says "已放回停工日。", while the page says "休息的日子" and My business says "休息日". (`messages.ts`, `closures.flash.added` / `restored`, zh)
+
+#### settings-data
+- **S3** · NEW (missed) · w4-settings-a-15 · all locales · both — the ask dialog asks before the required check.
+  - Steps: press "Send the request" with the confirm field empty.
+  - The dialog asks "This asks for every record in this workspace to be deleted. Continue?" ("这会要求删除这个工作台里的每一条记录。继续吗？", "هذا يطلب حذف كل سجل في مساحة العمل هذه. متابعة؟", "Esto pide borrar todos los registros…", "Vous demandez la suppression de toutes les données…").
+  - Pressing "Send the request" in it closes the dialog. The browser's own "Please fill out this field." then appears on the empty name field, in the browser's language, not the page's.
+  - The owner confirms first and is told to type afterwards. Nothing is sent.
+
+  `scratchpad/sa-shots/ask-dialog.{en,zh,ar,es,fr}.{phone,desktop}.png`, `scratchpad/sa-shots/ask-then-invalid.en.phone.png`. Otherwise the dialog is right: mirrored in ar, Cancel focused, red outline action.
+- **S3** · NEW (missed) · w4-settings-a-16 · all locales · both — this page still reads as an essay, which is the owner's verdict on settings.
+  - "Customers who asked to be deleted" opens with one 92-word paragraph. On phone it runs 10 lines in en, 11 in es and 7 in ar, above a one-line empty state.
+  - The four section intros and the footnote together run about 24 lines on an en phone.
+  - This run's settings phase did not reach this page.
+
+  `settings-data.en.phone.png`, `settings-data.es.phone.png`
+- **S4** · NEW · w4-settings-a-17 · zh · both — three stray spaces after 。, visible on screen: "最新的在最后。 如果你的记录更多", "Nomi 不会就此联系对方。 客户在消息里", "永久删除。 下面的按钮". Came with #211.
+- **S4** · NEW · w4-settings-a-18 · all locales · desktop — the page has two card widths: the two download cards (nine rows) stop at 600px, while the empty panel and the delete form span 992px. Each "Download ›" ("下载 ›", "تنزيل ‹", "Descargar ›") carries a door's chevron, though it saves a file. Came with #211.
+
+#### settings-forbidden
+- **S4** · NEW · w4-settings-a-19 · es, fr · both — the example of how matching works stays English in es and fr: «liar» no detecta «familiar» / « liar » ne repère pas « familiar ». zh (“滚”/“滚筒”) and ar («حرام»/«إحرام») got examples in their own language. In fr, the language names inside the fold are lower-case labels ("anglais", "chinois", "arabe"…), while every other locale capitalises its own. Came with #214 and #211.
+- **S4** · NEW · w4-settings-a-20 · all locales · both — the rule above "Rude words and insults, kept out of every reply" sits flush on the dashed bottom edge of the empty panel "You have not added any yet." (0px gap). It reads as one doubled border (desktop y≈566). Came with #211.
+
+#### settings-components
+- **S4** · NEW · w4-settings-a-21 · all locales · both — "Every part of this product, in every state it can be in" no longer holds. The gallery has none of this run's parts:
+  - no face;
+  - no menu row;
+  - no rail tile;
+  - no profile card;
+  - no toast.
+
+  "Speech" draws the assistant's reply as the old white bubble, without the magenta wash and "✦ {name}". Introduced by this run (the gallery was not updated).
+
+#### settings-account
+- **S4** · NEW (missed) · w4-settings-a-22 · all locales · both — neither sign-in state says what to do if the code or the password is lost. Here it is "Password — None: you sign in with an access code." With an e-mail login, "Change password" needs the present one. There is no self-service recovery: a lost password is the operator's `add-login --reset`. The page does not say so.
+
+#### settings-billing
+- **S4** · NEW · w4-settings-a-23 · all locales · both — "nothing is charged" is said twice in a few lines:
+  - the lede: "Payments are not switched on yet, so nothing is charged." ("付款还没有开通，所以不会收费。", "لم يُفعَّل الدفع بعد، لذلك لا يُحتسب أي رسم.");
+  - the rows: "Your plan: None yet" and "What is charged: Nothing" ("还没有" / "不收费", "لا توجد بعد" / "لا شيء").
+
+  Came with #211.
+
+#### form-sent-back (state)
+- **S3** · NEW · w4-settings-a-24 · all locales · both — a page the server sends back loses the rail's waiting count and live check.
+  - Affected: any refused form drawn by `sentBack` (`app.ts:949`): a closure whose last day is before its first, a forbidden word of spaces only, the rate.
+  - **The count goes:** Inbox loses "○ 1" (and "1 waiting" on desktop) on phone and desktop.
+  - **The live check goes:** the page carries no `data-rail`, so phase 8's marker, in-place count and toast cannot arrive while the owner corrects the form.
+  - Otherwise the sent-back page is right: the message sits under the right field ("The last day is before the first day." / "آخر يوم قبل أول يوم." / "最后一天比第一天还早。"), the values are kept and focus moves there.
+
+  `scratchpad/sa-shots/closures-back.{en,ar}.phone.png` and `forbidden-back.ar.phone.png`, vs `w4/shots/settings-closures.en.phone.png`. Introduced by this run (the rail count, phase 1; the live rail, phase 8).
+
+## 9 · Who works here, profile, rate, samples, terms; the outreach area
+
+### Still reproducing (7)
+
+#### settings-profile
+- **S3** · V1-522 · zh, ar (Latin); all locales (country twice) · both — the zones are now grouped (非洲 / 美洲 … · أفريقيا / الأمريكتان …) and named by the time they keep, but:
+  - 120 of 406 options in zh and 118 in ar still carry English city names: "阿根廷（Buenos Aires, Argentina） — 阿根廷标准时间", "澳大利亚（Lord Howe） — …", "Kerguelen — 法属南方和南极领地时间", "الأرجنتين (Buenos Aires, Argentina) — توقيت الأرجنتين الرسمي", "إسبانيا (Ceuta) — …".
+  - In every locale, 22 options name the country twice, in English, inside the brackets:
+    - "Argentina (Buenos Aires, Argentina)", ×12, all "Argentina Standard Time";
+    - "USA (Knox, Indiana)" and the other Indiana and Kentucky entries.
+- **S4** · V1-525 · zh, ar, es, fr · both — "Product categories" is still the raw seed values in English lower case, "bags · drinkware · home · lighting", on the zh/ar/es/fr page (`shots/settings-profile.zh.phone.png`). The new line under it misleads; see -07.
+
+#### settings-samples
+- **S4** · NEW (prev.) primary act in different places · all locales · desktop — narrowed. The words now agree ("Save" / "保存" on Samples and on Terms). The place still differs:
+  - On Samples, Terms and Business profile, the act sits outside the card, at the far end of a ruled bar under it.
+  - On Who works here, Contacts' add form, Find customers and Follow-ups, it sits inside the card's own footer.
+  - Compare `shots/settings-samples.en.desktop.png` with `shots/prospects.en.desktop.png`.
+
+#### settings-terms
+- **S3** · V1-537 · all locales · phone + desktop — the options are now explained ("EXW — the customer collects from you" … "DDP — you deliver to the customer's address and pay the import duties", zh "EXW — 客户自己来提货", ar "EXW — الاستلام من عندك، والنقل على العميل"), and DDU is gone.
+  - But "Delivery term" is still `required` (settings.ts:1041), with no "no delivery term" or "local delivery" choice.
+  - So "Save" / "保存" / "حفظ" cannot store "How customers pay you, in your words" alone. A shop that hands goods over the counter or ships locally is made to pick an Incoterm.
+
+#### contacts
+- **S3** · V1-548 · all locales — the page and its door still have different names:
+  - The Inbox's door says "Who you may write to first ›" (zh "你可以主动联系谁", ar "من يمكن مراسلته أولًا", es "A quién puedes escribir primero", fr "À qui vous pouvez écrire en premier").
+  - It opens a page whose tab and heading say "Contacts" / "联系人" / "جهات الاتصال" / "Contactos" / "Vos contacts".
+  - Find customers and Follow-ups call it "‹ Contacts".
+- **S4** · V1-552 · en · both — the channel select now says "E-mail", but the next field is "Phone number or email address". The search on the same page says "Name, number, e-mail or company". (ar now reads "البريد الإلكتروني".)
+
+#### contacts-suppress
+- **S4** · NEW (prev.) two ways of asking first · all locales · both — two irreversible acts still ask in two ways:
+  - "Remove" on Who works here asks with `confirm()` over the page (`data-confirm` "Remove 陈莉? They are signed out now and their code stops working.").
+  - "Never write to them again" opens a whole page: "Yes, never write to them again" / "‹ No, go back" (zh "是，以后再也不联系对方" / "‹ 不，返回", ar "نعم، إيقاف المراسلة نهائيًا" / "› لا، عودة").
+  - A row's "Archive" on Contacts uses `confirm()` again (contacts.ts:290).
+
+---
+
+### New (22)
+
+#### settings-people
+- **S4** · NEW (missed) · w4-settings-b-outreach-01 · en, ar (es, fr likewise) · phone — the owner's presence pill drops to a line of its own, led by a stray dot: "Added Sat, Oct 3 · Signs in with an access code" / "· [Online now]" (ar "· [على الخط الآن]"). See `shots/settings-people.en.phone.png` and `.ar.phone.png`.
+- **S4** · NEW (missed, from #211) · w4-settings-b-outreach-02 · all locales · both — the owner's own "Your name" card sits under 陈莉's row, not under the owner's row at the top:
+  - "Your name — Your name here is your business's name. What should the people here call you?" / "你的名字" / "اسمك".
+  - On a phone the order is 陈莉 → "Remove" → "Your name" card (`shots/settings-people.en.phone.png`), so the form reads as belonging to the person above it.
+- **S4** · NEW (missed) · w4-settings-b-outreach-03 · all locales · desktop — two widths on one page:
+  - The people rows and the opened "Change the name, job or tone" form are 603 px wide.
+  - "Your name", "Add someone to the team" and "Add another assistant" are 992 px wide.
+  - See `sbo/people-folds.en.desktop.png`; measured in `sbo/measure.mjs`.
+- **S4** · NEW (missed) · w4-settings-b-outreach-04 · all locales · phone — the four forms' acts are not drawn alike:
+  - In the opened "Change the name, job or tone" form, "Save" / "حفظ" is a 72 px button at the end.
+  - The page's other three acts are 324 px, full width: "Save the name", "Add to the team", "Add this assistant".
+  - See `sbo/crop-en-folds.png` and `sbo/people-folds.ar.phone.png`.
+- **S4** · NEW (missed, from #211) · w4-settings-b-outreach-05 · ar — each row now reads "الدخول برمز دخول" ("entering with an entry code"), the same word twice. zh says "用登录码登录" and en says "Signs in with an access code".
+
+#### settings-profile
+- **S3** · NEW (missed, from #211) · w4-settings-b-outreach-06 · all locales · both — the intro and the field marks disagree:
+  - The intro asks for "a contact e-mail or phone" (zh "联系邮箱或联系电话其中一个", ar "بريد أو هاتف للتواصل", es "un correo o un teléfono", fr "un e-mail ou un téléphone").
+  - Both "Contact email" and "Contact phone" carry "Needed to finish setting up" (zh "完成设置需要这一项" ×2, ar "مطلوب لإتمام الإعداد" ×2, es "Hace falta para terminar" ×2).
+  - Setup is satisfied by either one (`src/db/setup.ts:53`).
+  - See `shots/settings-profile.en.desktop.png` and `.zh.phone.png`.
+- **S3** · NEW (missed, from #211) · w4-settings-b-outreach-07 · all locales · both — "Product categories" says "Taken from your products. To change one, open that product." (zh "取自你的产品。要改，就打开那个产品。", ar "…لتغيير فئة، يُرجى فتح المنتج.") and offers "Products ›".
+  - No product page shows or edits a category. The product page dropped it on purpose: "no page writes either" (products.ts:685–688).
+  - The owner is sent to look for a field that does not exist.
+- **S4** · NEW (missed) · w4-settings-b-outreach-08 · en · both — one page spells it two ways: the intro says "a contact e-mail or phone" and the label under it says "Contact email". The rest of the app writes "E-mail".
+- **S4** · NEW (missed, from #212) · w4-settings-b-outreach-09 · all locales · both — two zones are named by a time they do not keep:
+  - "Australia (Lord Howe) — Australian Eastern Standard Time" keeps UTC+10:30, yet carries the same name as "Australia (Sydney)" at +10 (zh "澳大利亚（Lord Howe） — 澳大利亚东部标准时间", ar "أستراليا (Lord Howe) — توقيت شرق أستراليا الرسمي").
+  - "Ecuador (Galapagos) — Ecuador Time" keeps UTC−6, yet has the same name as "Ecuador (Guayaquil)" at −5 (zh "厄瓜多尔标准时间" for both).
+- **S4** · NEW (missed, from #212) · w4-settings-b-outreach-10 · fr · both — 52 time-zone options fall back to "heure : X": "Soudan — heure : Soudan", "Liberia — heure : Liberia", "Sahara occidental — heure : Sahara occidental", "États-Unis — heure : Anchorage", "Canada — heure : Dawson".
+
+#### settings-rate
+- **S4** · NEW (missed, from #211) · w4-settings-b-outreach-11 · all locales · both — the currency's catalogue name is dropped into a sentence, singular and capitalised:
+  - Rate: "Your prices are in US Dollar (USD), and nothing here…".
+  - Samples: "In US Dollar (USD). 0 means free.".
+  - es "en dólar estadounidense (USD)", fr "en dollar des États-Unis (USD)", ar "بعملة دولار أمريكي (USD)".
+  - See `shots/settings-rate.en.desktop.png` and `shots/settings-samples.en.desktop.png`.
+
+#### settings-samples
+- **S4** · NEW (missed) · w4-settings-b-outreach-12 · all locales · desktop — the empty panels are 532 px wide next to 992 px cards and the 992 px not-set panel:
+  - On Samples: "Nobody has asked for a sample yet." / "还没有人要样品。" / "لم يطلب أحد عيّنة بعد.".
+  - On Follow-ups: "No first e-mails written yet. Each one you write is listed here…".
+  - See `shots/settings-samples.en.desktop.png` and `sbo/f-sequences.en.desktop.png`.
+
+#### contacts
+- **S3** · NEW · w4-settings-b-outreach-13 · all locales · both — no way back to the Inbox. The run's model says Contacts is reached from the Inbox (the door "Who you may write to first ›", inbox.ts:1521), and the rail lights Inbox / 收件箱 / الوارد.
+  - The page opens straight on "Contacts" / "联系人" / "جهات الاتصال", with no "‹ Inbox". `BACK_TO` has no entry for it, and `results.json` lists no `a.back` on contacts.
+  - Every other page in this area starts with "‹": its two children lead back to it with "‹ Contacts", and the suppress page has "‹ No, go back".
+  - The page was not given the model's way back.
+- **S3** · NEW · w4-settings-b-outreach-14 · all locales · both — the 71 customers here have no face, and no name opens the card. Each row is a name, a raw number and "WhatsApp · They wrote to you first".
+  - These are the people the Inbox, Today and the calendar now draw with a face that springs the profile card.
+  - So the one list of customers the run left alone is the black-and-white list the owner rejected. See `sbo/f-contacts.en.phone.png` and `sbo/f-contacts_page_3.en.desktop.png`.
+- **S4** · NEW (missed, from #211) · w4-settings-b-outreach-15 · all locales · both — the "› Add someone you met" button (zh "添加你认识的人", ar "إضافة شخص من معارفك") sits flush on the search field below it, with a 0 px gap (measured: the summary ends at 295 px and the search starts at 295 px on desktop; 426/426 on phone). See `sbo/f-contacts.en.desktop.png` and `.zh.phone.png`.
+- **S4** · NEW (missed, from #211) · w4-settings-b-outreach-16 · all locales · both — each row's only act, "Never write to them again" / "以后再也不联系对方" / "إيقاف المراسلة نهائيًا", is a ghost button:
+  - grey #5E5A66 text, no fill, a transparent border;
+  - its words start 18 px in from the name above.
+  - It reads as a third caption line, not something to press, 25 times a page.
+- **S3** · NEW (missed) · w4-settings-b-outreach-17 · ar · both — the outreach copy genders the customers (rule 6: in Arabic no pronoun agrees with them):
+  - Contacts' intro has masculine verbs throughout: "كل من هنا إمّا راسلك أولًا، وإمّا أُضيف يدويًا. ومن طلب إيقاف المراسلة يبقى في الأسفل ولا يعود.".
+  - The Inbox door: "من يمكن مراسلته أولًا".
+  - Follow-ups: "إلى من تجوز مراسلته أولًا في جهات الاتصال".
+  - The suppress page shows the neutral way already: "إلى هذا الشخص".
+
+#### contacts-suppress
+- **S3** · NEW (missed) · w4-settings-b-outreach-18 · all locales · phone + desktop — "‹ No, go back" (zh "‹ 不，返回", ar "› لا، عودة") has `autofocus`, and on arrival it draws a square, 2 px, black focus box:
+  - radius 0, padding 0, hugging the words;
+  - right beside the rounded red "Yes, never write to them again".
+  - In a product made of 12/16/20 px corners, it looks like a rendering fault on the one page that must look trustworthy.
+  - See `sbo/f-contacts_suppress_channel_whatsapp_identity_212600000105.en.desktop.png` and `.ar.phone.png`.
+
+#### prospects
+- **S4** · NEW (missed, from #211) · w4-settings-b-outreach-19 · all locales · both — the credit is explained twice, 150 px apart:
+  - In the panel: "Adding someone finds their work address and uses one credit.".
+  - Under "Your Apollo key": "Each work address or company you look up uses one of your Apollo credits; your Apollo plan sets what they cost.".
+  - zh: "用掉一个额度" / "会用掉你一个 Apollo 额度".
+
+#### sequences
+- **S4** · NEW (missed, from #211) · w4-settings-b-outreach-20 · all locales · both — two doors to Contacts on one screen: "‹ Contacts" above the heading and "Contacts ›" under "Right now nobody on Contacts can be sent one…". zh: "‹ 联系人" … "联系人 ›"; ar: "› جهات الاتصال" … "جهات الاتصال ‹". See `sbo/f-sequences.en.desktop.png` and `shots/sequences.zh.phone.png`.
+
+#### across the area
+- **S4** · NEW · w4-settings-b-outreach-21 · all locales · both — the run's corner scale ("a control 12, a card 16, a panel 20, a chip round") is not applied to buttons:
+  - Every `.btn`, `.btn.send`, `.btn.danger` and `summary.btn` here is 16 px, the same as a card.
+  - Every input, select and textarea is 12 px.
+  - Side by side, it shows in Contacts' search (field 12, "Find" 16) and in each form card (field 12, act 16).
+  - The not-set and empty panels are 16 px too, not 20. Measured with `sbo/radii.mjs`.
+- **S3** · NEW · w4-settings-b-outreach-22 · en, zh, ar · phone + desktop — the rail, seen on all ten pages (shell; probably also on the navigation reviewer's list):
+  - en phone: the assistant's tile reads "Your assis…", flagged clipped in `results.json` on every en phone capture here.
+  - en desktop: "○ 1 / waiting" breaks onto two lines inside its wash.
+  - zh desktop: "收件 / 箱" breaks, with "1位 / 在等".
+  - ar desktop: "صندوق / الوارد" breaks, and "○ 1 بالانتظار" crowds it.
+  - See `shots/settings-people.en.phone.png`, `.zh.desktop.png` and `shots/settings-terms.ar.desktop.png`.
+
+*Next door, not counted:* How you sell (`shots/business-how.en.desktop.png`), the menu that opens Terms and Samples, draws "○ Not set up" and "○ 0 of 9 answered" in magenta with the waiting ○. That is the waiting-for-you signal used for settings, and nobody is waiting.
+
+---
+
+---
+
+## Dropped from the previous list (636)
+
+Reasons: **a** fixed, and the thing itself checked again · **b** the element rebuilt by this run, so the finding no longer applies · **c** the element removed.
+
+### 1 · Problems that run through the whole product — 14 dropped (a 12 · b 2 · c 0)
+
+- V1-001 — (a) French exists. Every fr capture in `results.json` is `lang="fr"`, the Language page lists Français, and `/login` with `Accept-Language: fr` serves `<html lang="fr">`.
+- V1-002 — (b) The rail was rebuilt. "Customers" is now the group heading over Inbox and Calendar, the list's h1 is "Inbox", and every conversation's back link is "‹ Inbox" (crawl of 60 conversations). The remaining word problems are w4-whole-12 and w4-whole-13.
+- V1-003 — (a) Tabs name the page: `results.json` titles include "Your sign-in · …", "Order USAB-de300000-0001 · …" and "Canvas Tote Bag 38x40cm · …".
+- V1-004 — (a) "Getting ready" is gone from all five catalogues. The setup count left the rail (`today.en.desktop.png`). Today, Settings, Setup and the guide all say "Getting started".
+- V1-005 — (a) Before a name is chosen, every page says "Your assistant" ("✦ Your assistant", `conversation-thread.en.phone.png`), and "Lily" is in no catalogue.
+- V1-007 — (a) The product box is `required` (`/app/products/add`). A wrong `/app` address stays inside the workspace with the rail and "Back to Today ›" (`not-found-app.en.phone.png`).
+- V1-009 — (a) es/fr amounts follow the workspace's country (`values.ts` `localMoney`), and sign-up and Business profile require a country. This demo has none on record, so its "$1.05" and "$11,750.00" are the documented fallback.
+- V1-010 — (a) A scan of every zh owner page finds no space before or after 你的助手 next to Chinese text.
+- V1-012 — (a) All 830 captures use only ‹ and › (`results.json` arrows). Closures, forbidden words, rate, samples, terms and people each lead back (crawl).
+- V1-013 — (a) "Waits for you" kinds carry ○ and "Always waits for you" kinds carry none (`employee-replies.en.phone.png`). The selected lens is a raised white tile (`inbox.en.phone.png`).
+- V1-014 — (a) The phone's Inbox tile carries "○1" (`today.en.phone.png`). The Chinese business name breaks at its space ("义乌宏发日用品厂 / (demo)", `today.zh.desktop.png`). An order lights Inbox (`order.en.desktop.png`).
+- cross-missed-01 — (b) Today was rebuilt into three zones, and its "last 24 hours" and "coming up" lines are gone. A calendar period with nothing is one panel ("Three clear weeks." and "Add a date", `/app/calendar?from=2027-01-04`).
+- cross-new-03 — (a) The calendar's form marks the wrong field (`calendar.ts:414-421` `keptInvalid` → `aria-invalid`, red edge from `layout.ts:584`).
+- cross-new-04 — (a) Cancel now shares the row in en, es, fr and ar (`w4-whole/ask.*.png`). The going-ahead button still repeats the long label and wraps inside itself: two lines in en and es, three in fr ("Autoriser votre assistant à écrire en premier").
+
+---
+
+### 2 · Public site, sign-in, sign-up and policy pages — 84 dropped (a 82 · b 0 · c 2)
+
+#### site
+- V1-016 · (a) · one rule for sending alone. The hero says nothing goes out until allowed; "What goes out alone" says what earns it; "earned it" is gone. `w4/shots/site.en.desktop.png`
+- V1-017 · (a) · now "We are told when a new workspace opens, and help you set it up where you need it." (zh 每开一个新工作台，我们都会知道). `w4/pub-tmp/out/site.zh.phone.5.png`
+- V1-018 · (a) · the example has no button-shaped spans; the next step is a sentence ("It goes out only when you press Send…"). `w4/shots/site.en.desktop.png`
+- V1-019 · (a) · es/ar phone: the name and "Iniciar sesión" / "تسجيل الدخول" share row 1, and the pill takes row 2. `w4/pub-tmp/out/site.es.phone.0.png`, `site.ar.phone.0.png`
+- V1-020 · (a) · the invitation sits in a visible bordered box. `w4/shots/site.en.desktop.png`
+- public-new-01 · (a) · the example uses the product's own words: "✦ Your assistant drafted" and "○ Needs you" (✦ 你的助手起草 / 等你处理), matching the draft card (`w4/shots/conversation-draft.en.desktop.png`). What still differs, the face, is w4-public-03.
+- public-missed-02 · (a) · both mail links carry a subject and body (`mailto:…?subject=An%20invitation%20to%20Nomi&body=Business%20name…`, and the same in each locale), and the address stays visible beside the lower button.
+- public-missed-03 · (a) · re-checked on the live page: in the viewport capture "Nomi" sits at the Arabic's size (`w4/pub-tmp/out/site.ar.phone.0.png`). Last run judged it a full-page-capture artefact, and it never appears on the live page.
+- V1-022 · (a) · each step number is a disc whose edge lines up with its heading. `w4/shots/site.en.desktop.png`
+- V1-023 · (a) · "e-mail" no longer breaks at its hyphen ("Messenger or / e‑mail, your assistant…"). `w4/shots/site.en.desktop.png`
+- V1-024 · (a) · zh h1 breaks as "每位客户都有回复，/ 最后说了算的是你。". `w4/pub-tmp/out/site.zh.phone.0.png`
+- V1-025 · (c) · the zh sentence "只有助手在你自己的客户身上赢得之后…" is deleted. `w4/pub-tmp/out/site.zh.desktop.txt`
+- V1-026 · (a) · no lone "vez." on es desktop (last-line check, `w4/pub-tmp/out/report.json`).
+- V1-027 · (a) · "by invitation" is said once; the invitation box now asks for the business's name, what it sells and where its customers write.
+- V1-028 · (a) · the site's steps use Western digits "1 2 3" in ar, like the policy dates. `w4/pub-tmp/out/site.ar.desktop.0.png`
+- V1-029 · (a) · Sign in left the foot; on a phone the three links stack one to a line. `w4/pub-tmp/out/site.es.phone.6.png`
+- V1-030 · (a) · es: "✦ Borrador de tu asistente" and "○ Te necesita" share one line at the end side. `w4/pub-tmp/out/site.es.phone.1.png`
+- public-missed-04 · (a) · one filled button (the hero's); the lower one is outlined; the fake Send is gone. `w4/shots/site.en.desktop.png`
+- public-missed-05 · (a) · re-checked: the ar site ends where en does, both live (`gapBelow` 0) and in this run's full-page capture (4950 px = scroll height).
+- public-missed-06 · (a) · the foot link reads "For customers: delete your data" (给客户：删除你的数据 / Para clientes: borrar tus datos).
+- public-missed-07 · (a) · no single character is left alone: "…外贸公司和批 / 发商。" now keeps two, the 阿拉伯文 sentence was rewritten, and the es "necesites." line is gone at desktop.
+- public-missed-08 · (a) · "我们的地址：privacy@…" has no space after the colon. The same fault elsewhere is w4-public-05 and -06.
+
+#### login
+- V1-031 · (a) · fields and buttons compute to the page's Noto Sans (`report.json`: button `"Noto Sans", …`).
+- V1-032 · (a) · h1, tab and button all say "Sign in" (登录 / تسجيل الدخول / Iniciar sesión / Connexion).
+- V1-033 · (a) · "Have an invitation? Set up your business" (收到邀请了？为你的生意开一个工作台).
+- V1-034 · (a) · the door's links are underlined, in one colour. `w4/shots/login.en.desktop.png`
+- V1-035 · (a) · the tagline is the site's phrase in every locale: "An assistant that answers your customers" / 替你回复客户的助手 / مساعد للردّ على عملائك / Tu asistente para responder a tus clientes / Un assistant qui répond à vos clients.
+- V1-036 · (a) · zh "我有访问码"; the field above is 密码, the code is 访问码.
+- V1-037 · (a) · `novalidate`; an empty e-mail returns "Type the e-mail you sign in with." under the field. `w4/pub-tmp/out/st-login-empty.en.desktop.txt`
+- V1-038 · (c) · the slogan "For your business and the people who work there." is removed.
+- V1-039 · (a) · the foot: "About Nomi · Privacy · Terms of service". `w4/shots/login.en.desktop.png`
+- V1-040 · (a) · the brand (mark, name, tagline) is centred like the pill and the links. `w4/shots/login.en.desktop.png`
+- public-missed-09 · (a) · the language pill is drawn the same way (no underline) on the site, the policies and the door. `w4/shots/site.en.desktop.png`, `login.en.desktop.png`
+- public-missed-10 · (a) · the door shows the site's mark above "Nomi". `w4/shots/login.ar.phone.png`. The mark's two cuts across the product remain V1-106, the owner's.
+
+#### login-code
+- V1-041 · (a) · heading "Sign in with an access code" and a lead saying who gives the code and that it is not an invitation code. `w4/pub-tmp/out/login-code.zh.desktop.0.png`
+- V1-042 · (a) · a wrong code is said under the field (`aria-describedby`), and the form posts to `/login?with=code`. `w4/pub-tmp/out/st-login-code-wrong.es.phone.0.png`
+- V1-043 · (a) · the code field is `type="text"`.
+- V1-044 · (a) · zh label 访问码, button 登录.
+- V1-045 · (a) · the button computes to Noto Sans.
+- V1-046 · (a) · the link back reads "Use your e-mail and password instead" (改用邮箱和密码).
+
+#### signup
+- V1-047 · (a) · the invitation code comes first, with "It is in the invitation link you were sent. No invitation yet? Write to … and ask for one." `w4/pub-tmp/out/signup.en.phone.0.png`
+- V1-048 · (a) · the example is a hint line under the field ("For example: skincare, clothing, social media ads or custom canvas bags."), and nothing is cut.
+- V1-049 · (a) · the selects, placeholders and button compute to Noto Sans.
+- V1-050 · (a) · "Terms of service" in the checkbox is underlined. `w4/pub-tmp/out/signup.en.phone.2.png`
+- V1-051 · (a) · the foot links About Nomi · Privacy · Terms of service. `w4/pub-tmp/out/signup.en.phone.2.png`
+- public-missed-12 · (a) · a refusal lists each refused field at the top as a link ("Your workspace is not set up yet. Check what is marked:"), and the cursor goes to the first one. `w4/pub-tmp/out/st-signup-refused.ar.phone.0.png`
+- V1-052 · (a) · per-locale placeholders: 例如：example.com / مثال: example.com / tunegocio.com / votre-entreprise.fr.
+- V1-053 · (a) · a 16 px gap between the terms box and "Create my workspace". `w4/pub-tmp/out/signup.en.phone.2.png`
+- V1-054 · (a) · Antarctica, Bouvet Island, Heard & McDonald Islands and U.S. Outlying Islands are gone from Country. `w4/pub-tmp/out/signup.en.desktop.txt`
+- V1-055 · (a) · "Sitio web, si tienes uno".
+- V1-056 · (a) · the zh lead leaves no lone 录。, and the labels use 你 ("你卖什么，或做什么？").
+- public-missed-13 · (a) · refused fields have a red edge, the terms box has a red outline, and its message keeps a gap. `w4/pub-tmp/out/st-signup-refused.en.phone.2.png`
+- public-missed-14 · (a) · "Acepto las Condiciones del servicio…".
+
+#### privacy
+- V1-058 · (a) · opens with the mark, "Nomi" (a link to the site) and the language switch. `w4/pub-tmp/out/privacy.fr.phone.0.png`
+- V1-059 · (a) · "Or ask the business you wrote to, with a message from the account you used." `w4/pub-tmp/out/privacy.en.desktop.txt`
+- V1-060 · (a) · re-checked on the live page: in the viewport capture the Latin names and the Arabic are the same size (`w4/pub-tmp/out/privacy.ar.desktop.0.png`). Only Chromium's full-page capture still redraws the Arabic smaller (`w4/shots/privacy.ar.desktop.png`), as last run found. Not on the live page.
+- V1-061 · (a) · "When you write to a business that uses Nomi, its replies are drafted by an AI assistant…"
+- V1-062 · (a) · "写信到 privacy@example.com。", with the full stop 。.
+- public-missed-15 · (a) · the deletion page is called "Delete your data" and linked both times it is named, plus the link line "Delete your data · Terms of service".
+- public-missed-16 · (a) · the page title is 26 px against 17 px section heads, under the header. `report.json`
+
+#### terms
+- V1-064 · (a) · "How to reach us" is the address alone, followed by the Privacy link. `w4/pub-tmp/out/terms.en.desktop.txt`
+- V1-066 · (a) · terms opens with the mark, the home link and the language switch.
+- public-missed-17 · (a) · the site now says sending alone is the owner's choice once earned, which agrees with the terms' "what may be sent without that approval is your decision".
+- V1-069 · (a) · re-checked: the ar terms end where en does, both live and in this run's full-page capture (2014 px against 2005 px).
+- public-missed-20 · (a) · zh desktop no longer leaves one character alone ("…你无法证明的 / 说法。", "…骚扰任何人的 / 消息。").
+
+#### data-deletion
+- V1-070 · (a) · "Notes and markers about your conversations, such as a note that you asked to speak to a person." (zh 标记, ar العلامات).
+- V1-071 · (a) · step 1 is one route; "If you would rather not ask the business, write to us…" is its own sentence after the steps.
+- V1-073 · (a) · opens with the mark, the home link and the language switch.
+- V1-074 · (a) · "Nomi’s operator", with a typographic apostrophe.
+- public-missed-22 · (a) · "How to reach us" is the address alone, then "Privacy · Terms of service". `w4/pub-tmp/out/data-deletion.en.phone.2.png`
+- public-missed-23 · (a) · no lone "识。" in zh (last-line check, `report.json`).
+
+#### not-found-public
+- V1-075 · (a) · signed out: "The address you opened does not lead to any page…", with no workspace named. `w4/pub-tmp/out/not-found-public.en.desktop.0.png`
+- V1-076 · (a) · the links are "Go to Nomi’s home page" (to `/site`) and "Sign in".
+- V1-077 · (a) · es "No encontramos esta página", ar "لم يُعثر على هذه الصفحة".
+
+#### set-password-bad
+- V1-078 · (a) · heading and tab: "This link no longer works" (这个链接已经失效 / هذا الرابط لم يعد يعمل).
+- V1-079 · (a) · "To choose a password, ask Nomi’s team for a new link: write to …", then "Already chose a password? Sign in".
+- V1-080 · (a) · zh "已经设好密码？去登录".
+
+#### unsubscribe-bad
+- V1-081 · (a) · "This link does not work / It may be mistyped, or no longer in use. / To stop messages from a business, write to it and ask to be taken off its list.", with links to Privacy and Delete your data. `w4/pub-tmp/out/unsubscribe-bad.ar.phone.0.png`
+- V1-082 · (a) · the page is in the reader's language and direction (ar: `lang="ar"`, `dir="rtl"`, "هذا الرابط لا يعمل").
+- V1-083 · (a) · opens with the mark and "Nomi".
+- public-missed-24 · (a) · the tab is "This link does not work · Nomi". The order differs from the doors' order: w4-public-14.
+
+#### proof-bad
+- V1-084 · (a) · in the reader's language (zh "这个价格链接打不开", ar "رابط السعر هذا لا يعمل", es, fr).
+- V1-085 · (a) · it has its own words: what the link was for, why it may have stopped working, and what to do. It names no seller, on purpose: naming one would confirm the link existed.
+- V1-086 · (a) · opens with the mark and "Nomi".
+
+### 3 · Today, setting up, Settings and Setup — 87 dropped (a 64 · b 14 · c 9)
+
+#### today (21)
+- V1-087 · (a) — the month line now compares like days and is silent in the first week (`insights.ts` 220–272); no such line on Today on 3 October (`today.en.desktop.png`).
+- V1-088 · (c) — "The last 24 hours" was removed in phase 2.
+- V1-091 · (a) — "Results ›" opens the page headed "Results" / 经营情况.
+- V1-092 · (c) — Today no longer has a calendar line ("Coming up" removed); the rail says 日程.
+- V1-093 · (c) — the in-page browser-notice button was retired in phase 8 (no button in today.*.html).
+- V1-094 · (a) — on a phone the door sits under its sentence ("Follow up ›", `today.en.phone.png`).
+- V1-096 · (a) — the zh figure and measure word are held together (test "V1-096"); the month line does not show before day 7.
+- V1-097 · (b) — the rail was rebuilt: "Customers" › "Inbox" opens the page headed "Inbox" / 收件箱.
+- V1-098 · (b) — the phone tiles were rebuilt; Inbox carries "○1" and the setup count has left the bar.
+- V1-099 · (a) — "义乌宏发日用品厂 / (demo)" no longer breaks mid-word (`today.zh.desktop.png`).
+- V1-100 · (b) — the nav count is gone; Settings is 设置 / Ajustes, Setup is 基本设置 / Puesta en marcha.
+- today-onboarding-new-02 · (a) — the band says "Reply to review" / "Respuesta por revisar", whole (`today.en.phone.png`, `today.es.phone.png`).
+- today-onboarding-new-03 · (b) — the band no longer shows message previews.
+- today-onboarding-new-04 · (b) — the band was rebuilt; a held conversation says "You are handling" in words (`today.ts` `waitingItem`).
+- today-onboarding-new-05 · (b) — the band shows the why, not the message (`today.ar.desktop.png`).
+- V1-101 · (a) — the lone-word rule applies to the line (test "V1-094, V1-101"); not on screen on 3 October.
+- V1-102 · (a) — "Fill in your business profile › · Watch the short video for this step ›" side by side, each saying what it opens.
+- V1-103 · (a) — "告诉 Omar Haddad 价格之后" now has spaces.
+- V1-105 · (a) — every page in the area prints "义乌宏发日用品厂 (demo)" above its heading on a phone.
+- today-onboarding-new-06 · (b) — the phone tiles were rebuilt and now carry the rail's names (cut instead: see w4-today-setup-11).
+- today-onboarding-new-07 · (a) — the door reads "إرسال متابعة", the dialog "متابعة".
+
+#### guide (12)
+- V1-107 · (a) — it had been judged not a defect (#211). Live, the still shows with no ring once loaded (`w4/ts/crop/guide-en-p1.png`); the ring in the full-page capture is the capture catching the load.
+- V1-108 · (a) — Today, the guide, Before going live and Ready now name the steps alike (task form against item form, as decided).
+- V1-110 · (b) — the rail now lights Settings, and the page opens with "‹ Setup".
+- V1-112 · (a) — step 3's "Do it now ›" opens `/app/onboarding#name`.
+- V1-113 · (a) — "Confirm it. Until you do, every reply waits for your OK."
+- V1-114 · (a) — the number stays beside the heading's first line (see w4-today-setup-13 for a lone last word).
+- V1-115 · (a) — cards start at the heading's edge, x=16 (`w4/ts/crop/guide-en-p1.png`).
+- V1-116 · (a) — "After the five steps" is clear of card 5 (`guide.en.desktop.png`).
+- V1-117 · (c) — "Leer en su lugar" was removed; the words are always shown.
+- today-onboarding-new-09 · (a) — a phone plays its own phone-width recording, which is legible (`w4/ts/crop/guide-en-p1.png`).
+- V1-118 · (a) — the words now sit under each video, as the intro says.
+- today-onboarding-new-10 · (a) — es "un vídeo corto" and "Vídeo · 20 segundos" are spelled the same.
+
+#### onboarding (21)
+- V1-119 · (a) — Backup tested and Secrets rotated are gone; there is one "Checked by Nomi" line (its ○: see w4-today-setup-06).
+- V1-121 · (a) — the first section is now "The groundwork".
+- V1-123 · (a) — the practice check is listed once, under Final checks.
+- V1-125 · (a) — "Delivery health — Nothing has been sent yet." has no tick.
+- V1-126 · (a) — "Drafts you changed before sending" against "Answers corrected".
+- V1-127 · (a) — each count follows its label; there is no ragged column.
+- V1-128 · (a) — one door form, "Open ›", at the row's end.
+- V1-129 · (a) — "We have none" is a bordered button.
+- V1-130 · (a) — "○ A few steps left before going live." is a state line (spacing: w4-today-setup-19).
+- V1-131 · (a) — "Business profile — Open ›" opens `/app/settings/profile`.
+- V1-132 · (a) — "You can change it later in Who works here.", which does change it.
+- V1-133 · (a) — the name row has the same layout in zh and en (`w4/ts/crop/onb-zh-d.png`, `onb-en-d.png`).
+- V1-135 · (a) — on a phone the hints sit start-aligned under their labels (`w4/ts/crop/onb-en-1.png`).
+- V1-136 · (a) — "مراجعة ما يمكن لمساعدك فعله".
+- today-onboarding-new-11 · (a) — the open mark is one colour on every page.
+- today-onboarding-missed-12 · (a) — es "Envío de tus respuestas"; the calque is gone.
+- V1-137 · (a) — "Keep the one in the box or write your own."
+- V1-138 · (a) — zh "开启你拥有的认证".
+- today-onboarding-missed-13 · (a) — "Practice" is spelled one way across the page and Ready.
+- today-onboarding-missed-14 · (a) — ar: تدريب / التدرّب, and "البدء مع العملاء" throughout.
+- today-onboarding-missed-15 · (a) — zh ticked and open rows share one text edge (`w4/ts/crop/onb-zh-1.png`).
+
+#### onboarding-technical (10)
+- V1-139 · (a) — no owner page links to the page any more (grep of `src`: only its own route); it stays at its address.
+- V1-140 · (a) — the same unlinking.
+- today-onboarding-new-16 · (a) — the same unlinking (the split itself recurs elsewhere: w4-today-setup-21).
+- V1-141 · (a) — the tab reads "Technical details".
+- V1-142 · (a) — the ○ sits beside "Approved message for re-opening / a conversation" (`onboarding-technical.en.phone.png`).
+- V1-143 · (a) — Arabic values are in the page's face at their labels' size (`onboarding-technical.ar.phone.png`).
+- V1-144 · (a) — "Nomi checked 13 replies about this business's own products: none goes below…".
+- today-onboarding-missed-17 · (a) — "○ Not live yet — …" is a state line, not a box.
+- today-onboarding-missed-18 · (a) — the re-opening limit is in plain words, and it says whose job it is.
+- today-onboarding-missed-19 · (a) — "Safety checks against / this business's own data", and ar wraps evenly.
+
+#### ready (9)
+- V1-145 · (a) — "○ Sending without you — Sending alone is earned, and opens once the name customers read is confirmed".
+- V1-146 · (a) — no second count sits beside the nav's.
+- V1-147 · (a) — "○ The name customers see — Not confirmed yet".
+- V1-148 · (a) — "Once you have seen something in Practice, it stays ticked."
+- V1-149 · (a) — zh uses 客户 throughout.
+- V1-150 · (a) — the name item has its own door; the eight practice items share "Practice as a customer ›".
+- today-onboarding-missed-20 · (a) — es "…y que te llegó a ti", "…que quedó esperando tu decisión".
+- V1-151 · (b) — the rail now lights Settings, and the page opens with "‹ Before going live".
+- today-onboarding-missed-21 · (a) — no single word wraps alone (`ready.en.phone.png`).
+
+#### setup (9)
+- V1-154 · (b) — Log out is now a row-shaped button on Settings (`settings.en.phone.png`).
+- V1-155 · (b) — the nav count is gone; the five steps sit one tap down, behind "Getting started ○ 3 of 5 steps done".
+- today-onboarding-new-22 · (b) — the row moved to My business, where it reads "Kind of business — Not answered yet".
+- today-onboarding-new-23 · (b) — those rows moved to My business, where every unfinished value carries the mark.
+- today-onboarding-new-24 · (b) — the row was replaced by "Notifications" (its value: w4-today-setup-25).
+- today-onboarding-new-25 · (c) — the search was removed.
+- V1-157 · (a) — zh "在这里工作的人", "账单", "账号".
+- today-onboarding-new-26 · (c) — the search was removed.
+- today-onboarding-new-27 · (c) — the search was removed.
+
+#### not-found-app (5)
+- V1-158 · (a) — the shell, the rail and the business name are present (`not-found-app.en.phone.png`).
+- V1-159 · (a) — "Back to Today ›" has its chevron.
+- V1-160 · (c) — the tagline is gone.
+- V1-161 · (a) — the tab reads "That page is not here · 义乌宏发日用品厂 (demo)".
+- V1-162 · (c) — the footer is gone.
+
+---
+
+**Tool output that asked for something; none of it was done.**
+- At session start, MCP notices asked for authorization (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect.
+- The Adobe server's instructions said to call `adobe_mandatory_init` first.
+- The Supabase connector's instructions said to install its skill.
+- The Claude Docs server's instructions said to open a document first.
+
+No web page or file addressed instructions to an AI.
+
+### 4 · Customers: the Inbox, an order, the calendar, Results, the profile card — 57 dropped (a 43 · b 10 · c 4)
+
+#### inbox (8)
+- V1-163 — (a) "Needs you (1)" holds only Aisha Bello; Omar Haddad sits under "Your team is handling"; the rail says 1. `inbox.en.desktop.png`, `inbox-pending.*.png`.
+- V2 NEW (inbox: line 2's reason cut, "Review your assist…") — (b) the row was rebuilt; the reason now fits: "○ Reply to review", "○ Respuesta por revisar", "○ Réponse à relire". `inbox.es.phone.png`, `inbox.fr.phone.png`.
+- V1-165 — (b) the rail was rebuilt: "Customers" groups "Inbox" and "Calendar", the page is "Inbox", and the order's back link is "Back to the customer". `inbox.en.desktop.png`, `order.en.desktop.png`.
+- V1-167 — (a) zh search button "搜索", holder "陈莉在跟进". `inbox.zh.desktop.png`.
+- V1-168 — (a) es placeholder "Nombre, n.º o producto" fits. `inbox.es.phone.png`.
+- V2 NEW (inbox: ○ ● ✦ marks unexplained, ✦ with two meanings) — (b) ● is gone, ✦ means only "wrote it", and the key "✦ before a message: your assistant wrote it" is under the list. `inbox.en.phone.png`.
+- V1-171 — (a) the lens is a segmented control with a white selected segment; "Find" and the field are the same height. `inbox.en.desktop.png`.
+- V1-172 — (a) the rail count now has words, "○ 1 waiting" (its layout is w4-customers-05). `inbox.en.desktop.png`.
+
+#### inbox-all (5)
+- V2 NEW (ar desktop: English previews far from the name) — (a) previews sit under the name, at the right. `inbox.ar.desktop.png`.
+- V1-173 — (a) "Your assistant is handling — no reply yet" heads the second ordering. `inbox.en.desktop.png`.
+- V1-174 — (a) unanswered rows say "No reply yet" (their accuracy is w4-customers-03). `inbox.en.phone.png`.
+- V1-175 — (b) the tabs were rebuilt as lenses; "Needs you" is drawn only when it is the narrowing in force. `inbox-pending.zh.*.png`.
+- V1-177 — (a) "1–50 of 71  Next page ›" sits above the rows as well as below. `inbox.en.phone.png`.
+
+#### inbox-mine (2)
+- V1-179 — (c) "Mine" was removed; its address leads to the list (`inbox.ts` renderInboxList).
+- V2 NEW (Mine's "See who needs you ›" repeating the tab) — (c) the same removal.
+
+#### inbox-search (3)
+- V1-181 — (a) "Clear the search" is an underlined link in the result line. `inbox-search.en.phone.png`.
+- V1-182 — (a) "Haddad" is marked in both names. `inbox-search.en.phone.png`.
+- V2 NEW (missed) (the field shrinks when "Clear" appears) — (a) "Clear" moved under the field, which keeps its width (16–297 px on a phone on both pages). `inbox-search.en.phone.png`.
+
+#### inbox-search-none (1)
+- V1-183 — (a) the one way back is "Clear the search"; the panel says "Try part of a name, a phone number or a product." `inbox-search-none.*.png`.
+
+#### order (11)
+- V1-185 — (a) ar phone: the box runs left to right and wraps, and no line start is cut. `order.ar.phone.png`.
+- V1-186 — (a) en/zh/es phone: the box wraps, nothing is cut at the right. `order.fr.phone.png`, `order.en.phone.png`.
+- V1-187 — (a) the page now says why the proforma is in English: "形式发票用英文写，这是大多数买家习惯的格式。" / "La factura proforma va en inglés…". `order.zh.*.png`.
+- V1-188 — (a) "Download the proforma ›" (a `.txt`) is there (its styling is w4-customers-12). `order.en.desktop.png`.
+- V1-189 — (a) "What happened — Confirmed Thu, Oct 1 — When the order was confirmed. Nothing recorded since." `order.en.desktop.png`.
+- V1-190 — (a) the help is rewritten: "When a customer asks where their order is, your assistant tells them the stage you recorded here…". `order.en.desktop.png`.
+- V1-191 — (a) the rail highlights "Inbox", and the back link is "‹ Back to the customer". `order.en.desktop.png`.
+- V1-192 — (a) zh: no stray space, "下面每个数", "产品 保温杯". `order.zh.*.png`.
+- V1-193 — (a) the fields are about 390 px and the box about 560 px; "Thu, Oct 1, 2026" carries the year. `order.en.desktop.png`.
+- V1-194 — (a) es placeholders "El número que te dio la empresa de envíos", "No se envía a tu cliente". Live read of `/app/orders/…e53e`.
+- V2 NEW (missed) (heading and field asking the same) — (a) "Record a change" / "Where the order is now" / "Record this stage". `order.en.desktop.png`.
+
+#### calendar (7)
+- V1-195 — (c) the hour-grid week was removed; Week is a list. `calendar-week.en.phone.png`.
+- V1-199 — (a) "‹ Earlier · Now · Later ›", "‹ Last week · This week · Next week ›", "‹ Day before · Today · Day after ›". `calendar.en.phone.png`, `calendar-day.*.png`.
+- V1-200 — (a) the legend explains ✦ ("Worked out by your assistant"), ○ and ✓ (its placement is w4-customers-14). `w4/states/calendar-fold-open.ar.desktop.png`.
+- V1-202 — (b) one row of view pills; the filter is in the fold. `calendar.es.phone.png`.
+- V1-203 — (a) "Filter or add a date" is the first thing under the date line. `calendar.en.desktop.png`.
+- V2 NEW ("Price worked / out" orphan words on cards) — (b) the cards were rebuilt as rows: "Price worked out for / Carlos Mendes". `calendar.en.phone.png`.
+- V1-204 — (c) the 02–18 hour rows were removed. `calendar-week.en.phone.png`.
+
+#### analytics (9)
+- V1-205 — (a) "1 reply waiting for your OK" matches the rail's 1; "Inquiries handled" is gone. `analytics.en.desktop.png`.
+- V1-206 — (a) "This covers this week." / "Esto abarca esta semana." `analytics.es.*.png`.
+- V1-207 — (a) "‹ Today" leads back, and the chip is "Today so far" (`analytics.ts` 152). `analytics.en.desktop.png`.
+- V1-208 — (a) each count appears once: "13 prices worked out", "1 order placed". `analytics.en.desktop.png`.
+- V1-209 — (a) "1 order placed", "1 reply…", es "1 pedido realizado", ar "1 طلب مُقدَّم". `analytics.*.png`.
+- V1-210 — (a) the Sales block is figure-and-words: "1 order · Confirmed", "$11,750.00 in sales" (its heading level is w4-customers-22). `analytics.en.desktop.png`.
+- V1-211 — (a) the rules end where the rows do (about 850 px). `analytics.en.desktop.png`.
+- V1-212 — (a) "你的助手经手的事", "0 条你改过再发的回复" (another zh line is w4-customers-23). `analytics.zh.*.png`.
+- V2 NEW (missed) ("Awaiting you" / 等待确认) — (a) "reply waiting for your OK" / "条等你确认的回复" names the draft count for what it is. `analytics.*.png`.
+
+#### calendar-month (1)
+- V2 NEW (today marked only by an underline) — (a) "3 Today" in magenta, with the word. `calendar-month.en.desktop.png`.
+
+#### calendar-day (5)
+- V2 NEW (each row says its kind twice) — (b) the rows were rebuilt: "✦ Price worked out for Carlos Mendes / $1.65 each, quantity 2,000". `calendar-day.*.png`.
+- V2 NEW (en desktop "quantity / 2,000" split) — (a) a no-break space joins them ("quantity&nbsp;2,000"). Live markup of `/app/calendar`.
+- V2 NEW ("done" shown only by grey) — (a) a visible ✓ before every done row. `calendar.en.phone.png`.
+- V2 NEW (legend above rows with no edge) — (b) rows carry the solid edge, and the legend moved into the fold. `calendar.en.desktop.png`.
+- V2 NEW (category tabs change with the view) — (b) the tabs became one "Kind" menu with a fixed list (its length is w4-customers-18). `w4/states/calendar-fold-open.en.phone.png`.
+
+#### calendar-list (5)
+- V2 NEW (missed) (moves differently from the other views) — (a) List uses "‹ Earlier · Now · Later ›" at the top like the others. `calendar.en.phone.png`.
+- V2 NEW (missed) ("Order USAB-de300000-0001: Confirmed" on the agenda) — (a) "Order from Khalid Mansoor · Confirmed". `calendar-week.en.*.png`.
+- V2 NEW (missed) (different names per view) — (b) all views draw the same rows. `calendar.*.png`, `calendar-week.*.png`.
+- V2 NEW (missed) (flags on some customers) — (a) none: "Aisha Bello · Nigeria", "Anna Kowalska · Poland". `w4/states/calendar-fold-open.*.png`.
+- V2 NEW (missed) (rows at 850 px, pills at 1,240 px) — (a) the view pills now end at the same column. `calendar.en.desktop.png`.
+
+---
+
+**Tool output that asked for something (ignored):**
+- At the start of this session, the claude.ai Figma, Riverside and Shopify connectors and the Amplitude, Amplitude EU, Atlassian, BigQuery and Hex plugins asked for sign-in. The Definite server failed to connect.
+- The Adobe server's instructions said to call its `adobe_mandatory_init` tool first.
+- The Supabase connector's instructions said to install its agent skill.
+- The Claude Docs server's instructions said to open a document first.
+
+None was done. No web page or file addressed instructions to an AI.
+
+### 5 · A conversation, the draft reply card, the customer's file, Practice — 86 dropped (a 80 · b 2 · c 4)
+
+#### conversation-draft (33)
+- V1-215 · (a) — the header says "○ Needs you · Reply to review", and the card under the draft says the reply "waits for your OK"; no "is handling this" claim (`conversation-draft.en.phone.png`).
+- V1-216 · (a) — the unconfirmed name is not used: "✦ Your assistant drafted", "How your assistant read this".
+- V1-218 · (a) — "I’ll reply" in the draft card; the hand-to list no longer offers the viewer (inbox.ts `selfHasOwnControl`).
+- V1-219 · (a) — "Mark as my own test" now asks first: "Mark this conversation as you testing? Its replies stop counting toward sending alone. You can undo it here." (`w4conv/ask-testing.en.desktop.png`).
+- V1-221 · (a) — the fold lists "○ “CE certified” you have not confirmed this" (`w4/states/draft-edit-open.en.desktop.png`); the summary-line gap is w4-conversation-02.
+- V1-225 · (a) — zh desktop header: "‹ 收件箱" and "客户资料 ›", no longer two "客户" (`conversation-draft.zh.desktop.png`).
+- V1-226 · (a) — the panel's prices row reads "$1.45 · LED String Lights 10m" / "19:53"; ar «LED String Lights 10m · US$ 1.45» / "19:53" (`w4conv/panel-ar-crop.png`).
+- conversation-missed-01 · (a) — ar "+2345000000261 WhatsApp", with the plus on the right end, in the strip and the panel (`conversation-draft.ar.phone.png`, `w4conv/panel-ar-crop.png`).
+- V1-222 · (a) — the line names the figures: "No source for 300 and 25".
+- V1-228 · (a) — "$1.45/pc" in the draft, the quote line and the file.
+- V1-230 · (a) — es "hasta mañana a las 19:51".
+- V1-231 · (a) — "…after that, only in the WhatsApp app".
+- V1-232 · (a) — the header, list and file all say "Needs you" / "等你处理"; the card's "Waiting for you" is new, see w4-conversation-12.
+- V1-233 · (b) — the pane's tabs are now two lenses, "Waiting now · Matters most".
+- V1-234 · (a) — the conversation and the panel both say "About this customer ›", and the panel's self-link is gone; the card's third view is w4-conversation-16.
+- V1-235 · (c) — the list pane has no search box now.
+- V1-236 · (a) — the customer's words have a bordered bubble on phone.
+- V1-237 · (a) — "No reply needed" asks first: "Send nothing to this customer? This reply is put away and cannot be sent later." (`w4conv/ask-noreply.en.desktop.png`).
+- V1-238 · (a) — the hand-over card is one heading and one row, "Hand to [select] [Hand over]".
+- V1-240 · (a) — "Understood as: LED String Lights 10m".
+- V1-241 · (a) — at 1280 the panel sits beside the column and the column reflows; nothing is covered (`w4conv/panel.en.desktop.png`).
+- V1-242 · (a) — ar fold: «سعر LED String Lights 10m في قائمة أسعارك», the name whole; «المجموع US$ 7,250.00» together.
+- V1-243 · (a) — the list offers colleagues by name, and the viewer as "mí" / «نفسي».
+- V1-244 · (a) — "Making the link sends nothing: it appears here for you to copy and send."
+- conversation-missed-02 · (a) — en/zh/ar: back link, rail and pane all say "Inbox" / "收件箱" / «صندوق الوارد»; the fr/es phone rail is w4-conversation-11.
+- conversation-missed-03 · (a) — the fold's rows stack under their mark on phone; the ar alignment is w4-conversation-07.
+- V1-245 · (a) — `fillName` sets a Latin name off with spaces on both sides wherever Chinese touches it (messages.ts:18827).
+- V1-246 · (c) — no search button in the pane.
+- V1-247 · (a) — the zh quote note wraps without an orphan (`conversation-draft.zh.phone.png`).
+- V1-248 · (b) — the tabs were replaced by two lenses, which fit in es and ar.
+- V1-249 · (a) — every ✦ on the page sits beside the assistant's name ("✦ Your assistant drafted", "15:21 · ✦ Your assistant").
+- conversation-new-04 · (a) — the warning is on its own line, start-aligned under the fold title, in all five languages (layout.ts:1780).
+- conversation-missed-05 · (c) — the panel's links are only "Close" and "About this customer ›".
+
+#### conversation-thread (15)
+- V1-250 · (a) — the header says "✓ Answered" and the card "✦ Your assistant is handling this"; they no longer contradict.
+- V1-251 · (a) — "I’ll reply" plus the hand-to colleague list; no second self-control.
+- V1-252 · (a) — "15:21 · ✦ Your assistant".
+- V1-253 · (a) — Carlos's sent reply no longer claims "CE certified" (`conversation-thread.en.phone.png`).
+- V1-255 · (a) — asks first (see V1-219).
+- V1-258 · (a) — "$1.65/pc" on both.
+- V1-260 · (a) — ar «المجموع US$ 3,300.00» together (`conversation-thread.ar.phone.png`).
+- V1-261 · (a) — bordered bubbles on phone.
+- V1-262 · (a) — "I’ll reply" on the draft, the thread and Practice.
+- V1-263 · (a) — card: pill, "No reply is waiting for you here.", "I’ll reply", "Hand to [select] [Hand over]".
+- V1-264 · (a) — see V1-243.
+- V1-265 · (a) — "🇧🇷 Carlos Mendes · Brazil".
+- V1-266 · (c) — the panel's "the conversation›" link was removed.
+- V1-267 · (a) — one "Today" divider; captions give only the time.
+- conversation-new-06 · (a) — "No reply is waiting for you here." is a plain line inside the card.
+
+#### buyer-file (18)
+- V1-268 · (a) — "Your assistant worked out a price: 5,000 pcs · $1.45/pc".
+- V1-269 · (a) — "› This customer asked for their data to be deleted", then "Record the request".
+- V1-270 · (a) — the file and the conversation both say "Your assistant".
+- V1-271 · (a) — "○ Needs you" on both.
+- V1-272 · (a) — "WhatsApp +2345000000261" under the name, phone too.
+- V1-273 · (a) — "Nomi carries it out within 30 days of the request, and this page says when it is done."; no operator.
+- V1-274 · (a) — the whole message, on its own line.
+- V1-275 · (a) — zh "留空则显示为“客户”。", whole, with Chinese quotes.
+- V1-276 · (a) — ar: «:Aisha Bello» then the message on its own line; «المجموع US$ 7,250.00» together.
+- V1-278 · (a) — "$1.45/pc".
+- V1-279 · (a) — "Review the reply ›" and "The whole conversation ›"; the page's heading and tab title are "About this customer", as its doors call it.
+- V1-280 · (a) — one key–value layout for both blocks (`buyer-file.en.desktop.png`).
+- V1-281 · (a) — "Products and price".
+- V1-282 · (a) — “Customer”, «Cliente», « Client ».
+- V1-284 · (a) — "Review the reply ›"; title "Aisha Bello · About this customer · …".
+- conversation-missed-07 · (a) — "First contact Today" matches History's "Today 19:51"; the panel's form is w4-conversation-06.
+- conversation-new-08 · (a) — the customer's dot is set at title size, and each line names its speaker ("Aisha Bello:", "Your assistant worked out…") (layout.ts:1967).
+- conversation-missed-09 · (a) — the fold links "Your data ›".
+
+#### practice (20)
+- V1-285 · (a) — the owner's line is captioned "You" / "你" / «أنت» on a plain bubble (`w4conv/p-top.en.png`).
+- V1-286 · (a) — the page opens with the banner, "How Practice answers" and the conversation; "The safety checks · 41 of 41 pass" is folded at the foot.
+- V1-287 · (a) — checks show only their own words (sandbox.ts `renderTrust`); the chips are "Kind of reply" / "Nothing sent".
+- V1-288 · (a) — each switch has its state line: "Replies follow your levels…", "Your assistant answers in Practice."
+- V1-290 · (a) — two labelled counts: "Before going live: what to try here · 0 of 8 tried" and "The safety checks · 41 of 41 pass".
+- V1-292 · (a) — the customer's line has a bordered bubble.
+- V1-293 · (a) — zh "改为不等你确认就发出" and "现在和真实对话一样：…这里也先等你确认。".
+- V1-294 · (a) — `.sbx-trust .verdict` resets margin, padding, border and radius (layout.ts:2027).
+- conversation-missed-10 · (a) — after the owner replied, the card says "You're handling this"; no late "could not be answered" under the reply (walk). The working-line fault is w4-conversation-20.
+- V1-291 · (a) — "Start over" is an outlined button and asks in the product's dialog (`w4conv/p-resetask.en.phone.png`).
+- V1-295 · (a) — "…to your own customers" / "tus propios clientes", no capitals.
+- V1-296 · (a) — "Load" is now "Send it as the customer"; the case names stay by decision (#211).
+- V1-297 · (a) — "The total you expect, in USD (optional)", with the hint under the label; the spacing is w4-conversation-22.
+- V1-298 · (a) — no 🧪; "Nothing was sent to the customer after their last message."
+- conversation-missed-11 · (a) — the headings are "Practice", "How Practice answers", "Conversation" and "The safety checks".
+- conversation-missed-12 · (a) — zh "用客户常用的叫法找到了产品", "要找人的客户".
+- conversation-missed-13 · (a) — es "Antes de empezar con tus clientes: lo que conviene probar aquí · 0 de 8 probados".
+- conversation-new-14 · (a) — "Send a message to see the trust check." is a plain line in the card.
+- conversation-missed-15 · (a) — no empty band under "How Practice answers".
+- conversation-missed-16 · (a) — ar «ردّ «نعم» وحده على سؤال «هل أتحدث مع شخص حقيقي؟» يُوقَف», with Arabic quotes and the question named.
+
+---
+
+**What I changed on the shared instance:** Practice only. I pressed Start over, sent "Hello, do you make canvas tote bags? How much for 500 pieces?" (expected total 900), took over, replied as the owner, handed back, and sent "And can you print our logo on them?". On the conversation pages I opened the panel, the card, the "How … read this" fold and the two ask dialogs, cancelling both. Nothing was approved, sent, saved or handed over outside Practice.
+
+**Tool output that asked for something (none was done):**
+- At start, these MCP servers asked to be signed in to: Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex. Definite failed to connect.
+- The Adobe server's instructions said to call its init tool first. The Supabase connector's said to install its skill (`npx skills add …`). The Claude Docs server's said to open a document first.
+- No web page or file addressed instructions to an AI.
+
+### 6 · Products, price limits, knowledge, the price-list export — 96 dropped (a 94 · b 0 · c 2)
+
+#### products
+- V1-299 — (a) every row reads "$1.05/pc · Min. order: 500 pcs" (`products.en.desktop.png`). The product page uses "$1.05/pc" too.
+- V1-300 — (a) figures follow the workspace's country (`values.ts:98–133`; tested: ES "1,05 $", MX "$1.05"). The demo has no country, so see w4-products-knowledge-08.
+- V1-301 — (a) "Add your products ›" (zh "添加你的产品 ›", ar "إضافة المنتجات ‹") stands under the h1, at the list's left edge.
+- V1-302 — (a) every row ends in "›" (`products.en.desktop.png`).
+- V1-303 — (a) "Your price limits ›", "What your assistant knows ›" and "Take a copy of your products ›" sit under the list.
+- missed-01 — (a) the empty state's door is "Add your products" (`products.ts:531`).
+- V1-304 — (a) the door sits on its own line under the title in all five locales (`products.es.phone.png`).
+
+#### product
+- V1-306 — (a) each quote has date, customer and a door: "Fri, Oct 2 · Ayşe Demir · …".
+- V1-307 — (a) the country rule (`values.ts`), as for V1-300.
+- V1-308 — (c) "Category" and "Customizable" are no longer shown (`products.ts:685–695`).
+- V1-309 — (a) the unit select shows "个" / "قطعة" / "uds." (`product.zh.phone.png`).
+- V1-310 — (a) the h1 is 20 px and the h2s 17 px (measured).
+- V1-311 — (a) "Min. order" over "Min. order", and "Ready to send in 15 days" over "Ready to send in (days)".
+- V1-312 — (a) "Name in Chinese" appears only where a Chinese name exists or the page is in Chinese (`products.ts:605`).
+- V1-313 — (a) "Take a name off" with a confirmation, and "More names customers use" is a textarea.
+- V1-314 — (a) the tiers are hairline rows (`product.en.desktop.png`).
+- V1-315 — (a) "What your assistant knows about it ›" and "The price limits for this product ›". Unticking "Offer this to customers" is the stated way to stop selling ("nothing about it is erased").
+- missed-02 — (a) ar "500 قطعة فأكثر", "2,000 قطعة فأكثر" (`product.ar.desktop.png`).
+- missed-03 — (a) a cut product link shows "Product not found" in the shell (curl), not a 500. See w4-products-knowledge-16.
+- V1-316 — (a) "One per line: its name, a colon, then the choices."
+- V1-317 — (a) "$1.05/pc", es "$1.05/ud.".
+- V1-318 — (a) ar "جاهز للإرسال خلال 15 يومًا".
+- V1-319 — (a) zh "客户发来这个产品的照片时，你的助手能认出来。", with no ✓ and no spaced dash.
+- V1-320 — (a) the tab is "Canvas Tote Bag 38x40cm · …", zh "帆布袋 · …".
+- new-04 — (a) the photo note is a quiet 13 px caption, "Your assistant recognizes it when a customer sends a photo of it."
+
+#### products-add
+- V1-321 — (a) the textarea is `required`. An empty or unread paste flashes `product.add.empty` / `nothingRead` (`app.ts:2974–2982`).
+- V1-323 — (a) the file pickers are the page's own: "Choose photos / No photo chosen yet", zh "选择照片 / 还没选照片", ar "اختيار الصور / لم تُختر أي صورة بعد".
+- V1-324 — (a) the first way is headed "Paste your list".
+- V1-326 — (a) "Send every price question to me" asks first ("Send every price question to you? …"; walked, then cancelled).
+- V1-327 — (a) "My store's prices are in this business's currency: US Dollar (USD)", plus a line for other currencies.
+- V1-328 — (a) "‹ Products". The paste box is labelled (`aria-labelledby="paste-h"`), and no unlabelled fields remain in `results.json`.
+- V1-329 — (a) the promised tag matches the list's tag in every locale ("Needs a price", 「需要价格」, «Falta el precio», « Prix manquant »).
+- V1-330 — (a) zh "你的助手读出每一行", "4 行", "美元（USD）".
+- V1-331 — (a) no "لـ" left on the page, and none in import-review or prices (grep).
+- V1-332 — (a) ar "قائمة بدأت اليوم لم تكتمل مراجعتها: 4 أسطر.".
+- missed-05 — (a) ".xlsx" is isolated. Measured glyph positions on the ar phone: "." at x 190, left of "xlsx" (194–220), with the mirrored bracket at 225.
+- missed-06 — (a) nothing is focused on arrival (`document.activeElement` is BODY in en/ar/zh/fr, phone and desktop).
+- V1-333 — (a) "Nothing is offered to customers until you confirm."
+- new-07 — (a) a store refusal keeps `currencyConfirmed`, and a photo refusal keeps `hand` (`app.ts:2995–3010`).
+- missed-08 — (a) "A list you started today is waiting to be checked: 4 lines."
+- missed-09 — (a) the tab is "Add your products", matching the h1.
+
+#### import-review
+- V1-336 — (a) the tick reads "This line is right" (zh "这行没问题", ar "هذا السطر صحيح").
+- V1-337 — (a) each row's form is folded under "› Change", and the en desktop page is 1,703 px tall.
+- V1-338 — (a) the minimum is one field, with placeholder "No minimum" and help "Leave it empty if there is no minimum." (`review-fold.en.phone.png`).
+- V1-339 — (a) "Names customers use" is a textarea.
+- V1-340 — (a) "%" follows its input on the same line (measured in en, ar, zh and fr, phone and desktop).
+- V1-341 — (a) "Start again" is a red outlined button. Its dialog asks "Start again? This list is set aside, and nothing from it is added.", with a red "Start again" and "Cancel".
+- V1-342 — (a) "2 rows still need your tick. Until then, nothing is added: tick each line once you have checked it, or leave it out."
+- V1-343 — (a) ar "لكل" offers "وحدة" and "قطعة".
+- V1-344 — (a) "‹ Add your products", tab "Check your list".
+- missed-10 — (a) the read-again offer comes after the rows: "2 lines have a figure that was not read as a price, or were not read as a product." The "it" is gone.
+- missed-11 — (a) each row names its own problem ("No currency sign on this line: check that this is its price, in USD.").
+- V1-346 — (a) "We read 4 lines. Every line is listed below, the ones not read as a product too."
+- new-12 — (a) the dialog's go-ahead is the red danger style (walked: colour rgb(180,35,24) on white).
+
+#### business-prices
+- V1-347 — (a) every row reads "Never below $0.72. Nothing comes off: you have not written a discount. One you write may give up to 5% without you, never more than 8%." This agrees with "You have not written one, so nothing comes off".
+- V1-348 — (a) "each product is quoted at its own price for the quantity asked". The export lists the tiers as "Quantity price".
+- V1-349 — (a) the heading is "Products with their own limits" (zh "单独设了底线的产品").
+- V1-350 — (a) the country rule, as for V1-300.
+- V1-351 — (a) the form for everything is folded ("› Set one answer for everything") and says what one answer covers.
+- V1-352 — (a) the product name is 15 px ink, the description 15 px secondary, the h2s 17 px (measured).
+- V1-353 — (a) "Change these limits ›" is a door, and "‹ My business" is at the top.
+- V1-354 — (a) "Your price limits" is the name on the h1, the tab, My business, the Products door and the copy door.
+- V1-355 — (a) "From what quantity?".
+- V1-356 — (a) ar "هذه وحدها الأرقام المتاحة لمساعدك", with no detached لـ.
+- missed-13 — (a) "Change these limits" lands on `#p-…` with the form's first field on screen (y≈192–262). "Close" sits beside Save.
+- new-14 — (a) one filled Save; the fold's Save is outlined (walked: `btn` / `btn send`).
+- V1-357 — (a) zh "你卖的任何东西，每个最低接受多少钱？（USD）".
+- new-15 — (a) no ○ on "You have not written one…".
+- missed-16 — (a) the rows and the section rules share one width (`business-prices.en.desktop.png`).
+
+#### knowledge
+- V1-358 — (a) the page opens on "Questions to answer" and "What you sell". The period tabs moved to the foot, "What changed this week".
+- V1-359 — (a) "Nothing waiting: no customer has asked anything this week."
+- V1-360 — (a) each row ends in "Nothing taught yet" instead of a bare "0" (see w4-products-knowledge-06).
+- V1-361 — (a) zh lists 保温杯, 儿童吸管杯, 帆布袋…, by pinyin.
+- V1-363 — (a) "Type", "Title", "The fact or answer" and "The page's address" are all 15 px (measured).
+- V1-364 — (a) under "About your business" the kinds are Common questions / Ready answers / Restrictions (zh 常见问题 / 现成回答 / 限制说明).
+- V1-365 — (a) the address field and the teach fields are both 389 px.
+- V1-367 — (a) "So far today / This week / This month" under "What changed this week", with the chosen one outlined.
+- V1-368 — (a) no unlabelled teach field in `results.json`.
+- V1-369 — (a) zh "你的助手知道的事".
+- V1-370 — (c) the counters are gone.
+
+#### knowledge-product
+- V1-371 — (a) the certifications are named in words: "CE marking", "Food-safe materials", "BPA free", zh "食品级材料", ar "مواد آمنة للطعام".
+- V1-372 — (a) each row has "Off" / "On" in words and a "Turn on" button.
+- new-18 — (a) the dialog's go-ahead is "Turn on" (zh "开启", ar "تفعيل", fr "Activer"), walked.
+- V1-373 — (a) the product page says "No certification is on…" with "Change the certifications ›" to `/app/knowledge#certs`.
+- V1-374 — (a) no chips remain, and the rows use the page's font.
+- V1-375 — (a) the zh h1 is "帆布袋".
+- V1-376 — (a) "This product's own page ›", and the product page links back.
+- V1-377 — (a) the labels are 15 px, and the back link is "‹ What your assistant knows".
+- missed-19 — (a) the on-state is the word "On" in a pill (`knowledge.ts:222`).
+- V1-378 — (a) the back link stands above the h1.
+- missed-20 — (a) the zh h2 is "你的助手对这个产品的了解", and no single character stands alone (`knowledge-product.zh.phone.png`).
+
+#### price-list-export
+- V1-379 — (a) the products list and the price limits page each link their copy.
+- V1-382 — (a) one figure per cell: "From quantity", "Up to quantity", "Price for one", "Discount (%)", "Most that may come off (%)".
+- V1-383 — (a) `csvDialectFor` gives ";" and "1,05" where the country writes a decimal comma. The demo has no country.
+- V1-384 — (a) "Names customers use" holds "canvas bag; … حقيبة قماش; 帆布包".
+- V1-385 — (a) "20,000", "20.000", "20 000" and "⁨20,000⁩".
+
+### 7 · My business, the assistant's page, channels — 96 dropped (a 80 · b 13 · c 3)
+
+#### business
+- V1-386 · a · Arabic product names stay whole on Going live (`business-ready.ar.phone.png`; `nameList` in factory.ts).
+- V1-387 · a · The promises screen now leads with "You have not confirmed any certificate or claim … so your assistant states none." (`business-promises.en.phone.png`).
+- V1-388 · a · Going live answers itself: "Not yet: nothing is connected for customers to write to." (`business-ready.en.phone.png`).
+- V1-389 · a · Now reads "Your assistant's daily limit — There is no daily limit on how many messages your assistant answers."
+- V1-390 · b · The grey sub-questions are gone; the page is a menu.
+- V1-391 · a · The row and the page are "Your price limits".
+- V1-392 · b · How you sell is now its own menu (`business-how.en.phone.png`).
+- V1-393 · b · Rebuilt as rows. The remaining double door to the profile is w4-business-assistant-03.
+- V1-394 · a · "Add your number for alerts ›" (`business-channels.en.phone.png`).
+- V1-395 · a · Each gap is plain text with its own door (`business-ready.en.phone.png`).
+- V1-396 · a · Now "Everything checked before customers are answered ›".
+- V1-397 · a · zh lists the products in Chinese only (`business-ready.zh.phone.png`).
+- V1-398 · a · No detached «لـ مساعدك» in any Arabic page of the area (grep of the served text).
+- V1-399 · c · The Spanish sub-question was removed.
+- V1-400 · b · The sections became menu rows.
+- V1-401 · a · "·" ends each line; the zh certification line uses a colon (`business-ready.en.phone.png`, `.zh.phone.png`).
+- V1-402 · a · zh "你的价格底线"; the row "你怎么卖" matches the h1.
+- V1-403 · a · No emoji on any card.
+- business-channels-new-01 · a · The WhatsApp row is a plain "Not connected" (`business-channels.en.phone.png`). The menu one level up is -02.
+- business-channels-missed-02 · a · The lines now say only that nothing is connected, which is true.
+- business-channels-missed-03 · a · «12 منتجًا» (`business.ar.phone.png`).
+- business-channels-missed-04 · b · The h2 was replaced by the row «حدود أسعارك».
+
+#### how-you-sell / how-you-sell-q
+- V1-405 · b · Unanswered rows carry no chip (`howYouSell.ts:141`).
+- V1-406 · a · Tab titles are "How you sell" and "The questions".
+- V1-407 · a · All nine are questions.
+- V1-408 · b · How you sell now offers both ways on purpose ("Or change one of the same things directly").
+- V1-409 · a · "Start with question 1 of 9" is the page's filled button.
+- V1-410 · a · "0 of 9 answered".
+- V1-411 · a · The rows run to 1240 px (`how-you-sell.en.desktop.png`).
+- business-channels-new-05 · b · The chips were removed.
+- business-channels-missed-06 · a · The back link is at the top.
+- V1-412 · a · Nothing is pre-selected (`how-you-sell-q.en.phone.png`).
+- V1-413 · a · The two buttons have a gap between them.
+- V1-414 · a · The lede is a full sentence.
+- V1-415 · a · "Question 1 of 9".
+- V1-416 · a · `accent-color: var(--color-ink)` (layout.ts:589).
+- business-channels-missed-07 · a · No single character is left alone (`how-you-sell-q.zh.phone.png`).
+- business-channels-missed-08 · a · The ar h1 is now «عند سؤال العميل عن السعر: الكمية أولًا أم السعر مباشرةً؟».
+
+#### employee
+- V1-418 · a · "None of the three applies right now…" states which applies.
+- V1-419 · a · The holds sit above the levels at body size, with "Confirm the name ›".
+- V1-421 · a · Granting appears when earned ("Other kinds appear here once…").
+- V1-422 · a · The game words are gone in five locales.
+- V1-424 · a · No bordered cards; "Always waits for you" carries no mark.
+- V1-425 · a · The rules are in plain words.
+- V1-426 · a · One grammar ("Confirming orders, Promising stock…"); no doubled heading.
+- V1-427 · a · One door to Knowledge per screen.
+- V1-428 · a · "Practice" everywhere in en.
+- V1-429 · a · The screen is titled "This month".
+- V1-431 · b · The landing has no card; the h1 is the name.
+- V1-432 · a · es "0 conversaciones necesitaron tu ayuda"; no straight quotes.
+- business-channels-new-09 · a · The history is plain sentences without marks (`employee-history.en.phone.png`).
+- business-channels-new-10 · b · The two dashed panels are now rows and screens.
+- business-channels-missed-11 · a · The language hold sits above the levels.
+- business-channels-missed-12 · a · «ردّان جاهزان» (employee-month, ar).
+- business-channels-new-13 · a · "Wait for my OK" is a plain outlined button.
+- business-channels-missed-14 · b · The stage line is now "Now: …" / "Next: …".
+
+#### channels
+- V1-433 · a · "Your domain: the part of your e-mail address after the @" and "Key name for the signature record (optional)".
+- V1-434 · c · Apollo is no longer on the page.
+- V1-435 · a · Now "Meta is still reviewing this connection for every account…", with no "Nomi".
+- V1-436 · a · Each button now says "Until everything above shows Done, turning this on sends nothing".
+- V1-437 · a · Each requirement says what and where. The "cannot see" pill is w4-business-assistant-08.
+- V1-438 · b · The section was rebuilt as an h2.
+- V1-439 · a · One name everywhere. The doubled screen is w4-business-assistant-07.
+- V1-440 · a · "Connect the WhatsApp number your customers write to."
+- V1-441 · b · The accounts rows became one line; the pills are one style.
+- V1-442 · a · The 24 hours are said once per channel group.
+- V1-443 · a · "Not available yet: TikTok, WeChat, …" is a plain line.
+- V1-444 · a · The Alerts section is in plain words.
+- V1-445 · a · "E-mail".
+- V1-446 · a · ar uses «ربط واتساب» / «غير مربوط», and «واتساب» throughout.
+- V1-447 · a · The pill has its own column (`channels.en.phone.png`).
+- V1-448 · a · Placeholders are nidegongsi.com / alsharika.com / tunegocio.com / votreentreprise.fr.
+- V1-449 · c · The sentence was removed.
+- business-channels-new-16 · a · The statuses on Channels are grey pills without ○.
+- business-channels-new-17 · a · "Connect WhatsApp" is the filled button.
+- business-channels-missed-15 · a · The developer wording is gone. "Not available here yet" lists local-only absences.
+- business-channels-missed-18 · a · zh 微信.
+- business-channels-missed-19 · a · One name, "alerts", plus the separate "Notifications ›".
+- business-channels-missed-20 · a · IG/Messenger state plus the "What to check when connecting ›" door.
+
+#### channels-wa-guide
+- V1-450 · a · Step 1 now has "Write to … with the number you use with customers" (mailto; `channels-wa-guide.en.phone.png`).
+- V1-451 · a · Test and Disconnect are described as appearing once connected.
+- V1-452 · a · The steps are a numbered list.
+- V1-453 · a · Title "Connect WhatsApp", back "‹ Where customers reach you".
+- V1-454 · a · "answers them the way you set on your assistant's page".
+- V1-455 · a · "Nomi's team".
+- business-channels-missed-21 · a · The lede is 15 px grey.
+
+#### help-meta
+- V1-456 · a · Plain explanations ("Instagram calls these professional accounts").
+- V1-457 · a · Back "‹ Where customers reach you".
+- V1-458 · a · Underlined, with ↗ and "(opens Meta's site)" (`help-meta.en.phone.png`).
+- V1-459 · a · The back link sits above the h1.
+- V1-460 · a · «فيسبوك», «إنستغرام», «ماسنجر» (`help-meta.ar.phone.png`).
+- V1-461 · a · The same three lines as Channels.
+- V1-462 · a · "Connecting Messenger and Instagram".
+- V1-463 · a · The step headings are larger than "Check:".
+- business-channels-missed-22 · a · No promise of statuses on Channels.
+- business-channels-missed-23 · a · "Your business".
+
+---
+
+**Instructions met during the work (ignored, as the brief says):**
+- A session notice that several connectors (Figma, Riverside, Shopify, Amplitude, Atlassian, BigQuery, Hex) need authorization, and that one failed to connect.
+- No web page or file addressed instructions to an AI.
+
+### 8 · Setup pages: account, notifications, billing, business, closures, the component gallery, your data, forbidden words — 52 dropped (a 51 · b 1 · c 0)
+
+- V1-464 · a · zh row now "没有：你用登录码登录。" (settings-account.zh.phone.png)
+- V1-465 · a · tab "Your sign-in · …" / "你的登录方式 · …" (results.json titles)
+- V1-466 · a · ar now "لا توجد، فالوصول برمز الدخول." under h1 "طريقة دخولك" (settings-account.ar.phone.png)
+- settings-a-new-01 · a · the row is now "Password" / "密码" / "كلمة المرور", not the h1 (settings-account.en.phone.png)
+- settings-a-new-02 · a · the zh value fits on one line (settings-account.zh.phone.png)
+- settings-a-missed-03 · b · the lede that promised phone alerts was rebuilt as Notifications' "Only these two reach you outside Nomi" (settings-alerts.en.phone.png). The duplicated "not available here" lines are w4-settings-a-08.
+- V1-467 · a · the one-day window now sits in the phones lede with its reason, "so you can answer in time: …" (`messages.ts` `alerts.phone.lede`; drawn only where phone alerts are on)
+- V1-468 · a · "‹ Setup" and the h1 sit where the siblings' do (h1 y=82 desktop, as on Billing); the lede is the 15px grey lede (settings-alerts.en.desktop.png)
+- settings-a-new-04 · a · with phone alerts on, none yet reads "None yet. Open this page on your phone and turn alerts on there." (`phoneAlerts.ts:202`, `alerts.phone.none`); with them off, no empty panel is drawn
+- V1-469 · a · "Payments are not switched on yet" / "付款还没有开通" / "Los pagos aún no están activados" (settings-billing.*)
+- V1-470 · a · tab "Billing · …" (results.json)
+- settings-a-new-05 · a · "Your plan: None yet", "What is charged: Nothing" rows (settings-billing.en.phone.png)
+- V1-471 · a · zh h1 "账单" (settings-billing.zh.phone.png)
+- V1-472 · a · the h1 now names all three, "What you do, your country and your website". The door's name is w4-settings-a-12.
+- V1-473 · a · the lede says what each answer is for and "A change counts from the next reply." (settings-business.en.phone.png)
+- V1-474 · a · Country help: "Where the business is. Your town goes under “Location” on Business profile." (settings-business.*)
+- V1-475 · a · 中国 is first after 请选择… (sa-text.txt, business zh)
+- V1-476 · a · tab "What you do, your country and your website · …" (results.json)
+- settings-a-new-07 · a · the first label "What kind of business is it?" no longer repeats the h1 (settings-business.en.phone.png)
+- V1-477 · a · zh page text has no stray spaces: "把休息的日子告诉你的助手。", "你还没告诉你的助手哪些天休息" (settings-closures.zh.phone.png). The notice's space is w4-settings-a-14.
+- V1-478 · a · "‹ How you sell" / "‹ 你怎么卖" / "› طريقة البيع"; the tab is the page's title (settings-closures.*)
+- V1-480 · a · label "What is the closure called?" with "Customers see this name, with the dates, …"
+- V1-482 · a · the page now shows the customer's words: "What a customer is told … “We are closed for Annual holiday, so no delivery date can be promised for this order yet.”"
+- V1-483 · a · ar date fields read right-aligned with the icon beside the text (settings-closures.ar.phone.png)
+- V1-484 · a · ar empty state "…لذلك تُذكر مدة التسليم المعتادة طوال السنة." and a full-sentence lede (settings-closures.ar.phone.png)
+- settings-a-new-10 · a · the empty panel spans the column like the card above it (settings-closures.en.desktop.png)
+- V1-488 · a · the lede says "The controls here are samples: pressing one does nothing."; the tabs are spans, no longer reloading links (`components.ts:64`)
+- V1-489 · a · zh "平时 / 鼠标指上去 / 选中时", "跳转链接"; ar "الوسوم", "روابط الانتقال"; zh lede rewritten (sa-text.txt)
+- V1-491 · a · "‹ Setup" at the top (settings-components.en.desktop.png)
+- settings-a-new-11 · a · the chips sit on a card, the neutral pill is visible, and "✦ Your assistant" is beside them (settings-components.en.desktop.png)
+- V1-492 · a · downloads are rows in cards: "Customers … Download ›", with the lede "One spreadsheet file per kind" (settings-data.en.phone.png)
+- V1-493 · a · "Send the request" is a red outline danger button (settings-data.en.desktop.png)
+- V1-494 · a · one name: the row "Contacts", the page h1 "Contacts", the tab "Contacts · …" (`/app/contacts`)
+- V1-495 · a · "The Nomi team carries it out by hand…" / "Nomi 团队" / "فريق Nomi"
+- V1-496 · a · an address is given ("write to privacy@example.com"; example.com is this instance's `LEGAL_CONTACT_EMAIL`, not counted)
+- V1-497 · a · a rule and spacing separate "What you set up" from the cards above (settings-data.en.phone.png)
+- V1-498 · a · ar "خلال 30 يومًا" stays on one line (settings-data.ar.phone.png)
+- V1-499 · a · tab "Your data · …"
+- settings-a-new-13 · a · the delete form is a card of semibold label rows (settings-data.en.desktop.png)
+- settings-a-new-14 · a · "No customer has asked yet." is the dashed empty panel
+- V1-500 · a · "20,000" / "20.000" / "20 000"
+- V1-501 · a · ar "إذ لا يراسل Nomi العميل"; heading "القواعد والمعلومات المُضافة" (settings-data.ar.phone.png)
+- settings-a-missed-15 · a · "This is not a button that erases" is gone; the button's job is said: "The button below sends your request to the Nomi team."
+- settings-a-missed-16 · a · "usually" is replaced by when a request is listed and when it is not ("A request worded in a way that is not recognised is not listed: record it yourself…")
+- settings-a-missed-17 · a · es "Clientes que pidieron borrar sus datos" fits one line (settings-data.es.phone.png)
+- V1-504 · a · whole-word matching (#214); the page says "“liar” does not catch “familiar”" / "“滚”不会拦下“滚筒”"
+- V1-502 · a · folded under "› 96 words"; opened, one line per language under its name (sa-text.txt, forbidden)
+- V1-503 · a · es placeholder whole: "p. ej., nombre de un competidor" (settings-forbidden.es.phone.png)
+- V1-506 · a · "‹ Your assistant"; tab = h1; the rail lights "Your assistant" (settings-forbidden.en.phone.png)
+- settings-a-new-18 · a · the fold has its heading "Rude words and insults, kept out of every reply" and a reason outside it
+- V1-508 · a · "A note for yourself (optional)" / "给自己的备注（可不填）" / "ملاحظة لنفسك (اختياري)"
+- settings-a-new-19 · a · en phone h1 breaks evenly: "Words your assistant / must never use"
+
+### 9 · Who works here, profile, rate, samples, terms; the outreach area — 64 dropped (a 63 · b 1 · c 0)
+
+**settings-people**
+- V1-509 — (a): the add form has its own heading and hint, "Add someone to the team" / "Once you add them, a code to sign in with is shown here, once…", and its act is "Add to the team". `shots/settings-people.en.phone.png`.
+- V1-510 — (a): the controls are now outlined buttons that say what they do: "› Change the name, job or tone", "› Add another assistant" (zh "改名字、岗位或语气" / "再加一位助手", ar "تعديل الاسم أو الوظيفة أو النبرة" / "إضافة مساعد آخر"). `shots/settings-people.en.desktop.png`.
+- V1-511 — (a): the row now says why it reads "Lily": "This name is not confirmed yet: customers are given no name until you confirm one.". The fallback "your assistant" elsewhere follows rule 7. `shots/settings-people.en.desktop.png`.
+- V1-512 — (a): there is a "‹ Setup" back link, the tab reads "Who works here · …", and the rail lights Settings. `results.json` gives the title, and `shots/settings-people.en.desktop.png`.
+- V1-513 — (a): "Added Sat, Oct 3" / "10月3日周六加入" / "تاريخ الإضافة: …". `sbo/settings_people.*.txt`.
+- V1-514 — (a): every label is the same 15 px bold, and "Answers on" is an even 2×2 grid (WhatsApp, Instagram / Messenger, E-mail). `sbo/people-folds.en.desktop.png`.
+- V1-515 — (a): the zh copy is "登录码" throughout, including the confirm "移除陈莉？对方会立刻被登出，登录码也随即失效。". `sbo/settings_people.zh.html`.
+- V1-516 — (a): ar "شخصان هنا، وعلى الخط الآن: 1." and "تحديد ما يجوز لمساعدك فعله دون سؤال". `sbo/settings_people.ar.txt`.
+- NEW (prev.) ar masculine verbs on people rows — (a): the rows now read "الدخول برمز دخول · لا دخول بعد" (see -05 for the wording). `shots/settings-people.ar.phone.png`.
+- NEW (prev.) one word for different adds — (a): "Add to the team" / "Add this assistant" / Contacts "Add to the list" (ar "إضافة إلى الفريق" / "إضافة هذا المساعد" / "إضافة إلى القائمة"). `sbo/radii.mjs` output and `sbo/contacts.*.html`.
+- V1-517 — (a): the role is a caption, "Sales · Main · Answers everything else", and "Online now" is a pill. `shots/settings-people.en.desktop.png`.
+- V1-518 — (a): it is a plain bulleted list, and "Let your assistant write to someone first" is an imperative like the rest. `shots/settings-people.en.desktop.png`.
+- V1-519 — (a): the hint before the form says a code is shown once and must be handed over. `shots/settings-people.en.desktop.png`.
+- V1-520 — (a): the owner-name and add-person fields are in cards of the same width on zh desktop and phone. `shots/settings-people.zh.desktop.png`.
+- NEW (prev.) ar "فريق الرد على عميلك" singular — (a): it now reads "فريق الرد على عملائك". `shots/settings-people.ar.phone.png`.
+
+**settings-profile**
+- V1-523 — (a):
+  - "Needed to finish setting up" marks each required field, though see -06;
+  - the back link is "‹ My business", the page's place in the model;
+  - My business's row now says "Business profile · Not finished".
+  - `shots/settings-profile.en.desktop.png`, `sbo/business.en.txt`.
+- V1-524 — (a): "Your assistant reads this when writing to customers…" and "Kept for your own records: customers are not given these, and your assistant does not use them.". `shots/settings-profile.en.desktop.png`.
+- V1-526 — (a): "Your prices are set in this currency, so it can no longer change." / "你的价格都已按这种货币设定，所以不能再改。". `shots/settings-profile.zh.phone.png`.
+- NEW (prev.) sticky Save bar across the first screen — (a): "Save" is at the foot of the form only, and no first screen is cut. `sbo/profile-first.en.desktop.png`, `.zh.phone.png`.
+- V1-527 — (a): "Languages served" is a regular 3-column grid on desktop and 2 columns on phone. `shots/settings-profile.en.desktop.png`, `.zh.phone.png`.
+- V1-528 — (a): Casey, Longyearbyen, McMurdo, Troll and Vostok are gone from all five lists (`sbo/settings_profile.*.html`). Kerguelen's Latin name in zh is counted under V1-522.
+- NEW (prev.) ASCII quotes around "today" — (a): en “today”, es «hoy», fr « aujourd’hui ». `sbo/settings_profile.{en,es,fr}.txt`.
+
+**settings-rate**
+- V1-529 — (a): the page has "‹ How you sell" and a panel with "Business profile ›". The How you sell menu shows the rate row only when two currencies are in play (factory.ts:1110), so no menu leads to this empty page. `shots/settings-rate.en.desktop.png`.
+- V1-530 — (a): the tab equals the heading, and the rail lights Settings. `results.json`, `shots/settings-rate.ar.phone.png`.
+- V1-531 — (a): "US Dollar (USD)" / "美元 (USD)" / "دولار أمريكي (USD)" here and on Business profile (wording: see -11). `sbo/settings_rate.*.txt`.
+- V1-532 — (a): zh "…所以不用定汇率。" and ar "…فلا حاجة إلى سعر صرف." no longer orphan a word. `shots/settings-rate.zh.phone.png`, `.ar.phone.png`.
+- NEW (prev.) caption-only page — (a): the content is a panel at body size. `shots/settings-rate.en.desktop.png`.
+
+**settings-samples**
+- V1-533 — (a): zh "告诉你的助手一个样品多少钱…" and "你还没跟你的助手说过样品的事…" have no stray spaces. `sbo/settings_samples.zh.txt`.
+- V1-534 — (a): "‹ How you sell", the tab "Samples · …", and the rail lights Settings. `shots/settings-samples.en.desktop.png`.
+- V1-535 — (a): "In US Dollar (USD). 0 means free." / "单位：美元 (USD)。填 0 就是免费。". `shots/settings-samples.en.desktop.png`.
+- NEW (prev.) not-set panel flush on the card and narrower — (a): a 16 px gap, both 992 px. `shots/settings-samples.en.desktop.png`, `sbo/measure.mjs`.
+- NEW (prev.) checkbox floating mid-column — (a): on desktop it is level with its label row, and on phone it sits under the label at the start. `shots/settings-samples.en.desktop.png`, `sbo/f-settings_samples.en.phone.png`.
+- V1-536 — (a): the intro no longer says "Until you do, nothing is said about samples.". `sbo/settings_samples.en.txt`.
+
+**settings-terms**
+- V1-538 — (a): "A proforma is the invoice a customer receives on confirming an order, before paying." The panel says something new: "Not stated yet, so no proforma can go to a customer.". `shots/settings-terms.en.phone.png`.
+- V1-539 — (a): the example moved to a helper line, "For example: a deposit with the order, the balance before shipment.", and nothing is cut. `shots/settings-terms.en.phone.png`.
+- V1-540 — (a): "…ويمكن لمساعدك ذكره للعملاء." has no tatweel. `shots/settings-terms.ar.phone.png`.
+- V1-541 — (a): "‹ How you sell", the tab equals the heading, and the rail lights Settings. `shots/settings-terms.ar.desktop.png`.
+- V1-542 — (a): the ar panel is one line, "لم تُحدَّد بعد، فلا فاتورة مبدئية لأي عميل.". `shots/settings-terms.ar.phone.png`.
+- NEW (prev.) zh 交付 / 交货 — (a): it is "你的付款和交货条款" and "交货条款". `sbo/settings_terms.zh.txt`.
+
+**contacts**
+- V1-543 — (a): the heading is "Contacts", and the group says why: "WhatsApp: they write first · 71 — A first message from here goes by e-mail only…". `sbo/f-contacts.en.desktop.png`.
+- V1-544 — (a): "Add someone you met" opens above the list, there is a search, rows are grouped, and the list is paged 25 at a time ("1–25 of 71 · Next page ›"). The page is 3,805 px (was 12,772). `sbo/f-contacts.en.desktop.png`, `sbo/f-contacts-bottom.ar.phone.png`.
+- V1-545 — (a): the ✓ pill and the hedge are gone. A row says "WhatsApp · They wrote to you first" once, under a group head that says why. `sbo/contacts.en.txt`.
+- V1-546 — (a): it is no longer a door with "›" (for its new look, see -16). contacts.ts:286.
+- V1-547 — (b): the rail was rebuilt in this run, and Inbox is the raised tile on desktop for Contacts, Find customers, Follow-ups and the confirm page. `sbo/f-contacts.en.desktop.png`.
+- V1-549 — (a): the intro is now "Everyone here either wrote to you first, or you added them…". `sbo/contacts.en.txt`.
+- V1-550 — (a): the add form is a card of rows with "Add to the list" sized to its words at the card's end. `sbo/f-contacts-open.en.desktop.png`.
+- V1-551 — (a): the country code is set apart: "+212 600000105", "+971 5000000200". `sbo/f-contacts.en.desktop.png`.
+- V1-553 — (a): zh reads "WhatsApp · 对方先来找过你" with ordinary spacing, and the pill that said it twice is gone. `sbo/f-contacts.zh.phone.png`.
+- NEW (prev.) es "dónde se conocieron" — (a): es "Aquí aparece cada persona que te escribió primero, o que añadiste tú…". `sbo/contacts.es.txt`.
+
+**contacts-write**
+- V1-554 — (a):
+  - The bare address now says "That person is not on your contacts." / "你的联系人里没有这个人。".
+  - A WhatsApp contact gets "A first message from here goes by e-mail only, and that person is on WhatsApp…" (app.ts:4865–4880).
+  - `sbo/contacts_write.en.txt`, `sbo/contacts_write_channel_whatsapp_identity_212600000105.en.txt`.
+- V1-555 — (a): the WhatsApp group says "A first message from here goes by e-mail only.", and the summary "Can be written to first: 0 of 71.". `sbo/f-contacts.en.desktop.png`.
+
+**contacts-suppress**
+- V1-556 — (a): the bare address says "That person is not on your contacts." above the list. `sbo/contacts_suppress.en.txt`.
+- V1-557 — (a): "This cannot be undone. Nothing here will write to them first again, and no follow-up goes to them. If they write to you, they are answered as usual." `sbo/contacts_suppress_channel_whatsapp_identity_212600000105.en.txt`.
+- V1-558 — (a):
+  - The act is a red-outlined "Yes, never write to them again" (ar "نعم، إيقاف المراسلة نهائيًا").
+  - The tab is the question: "Never write to Fatima Zahra again? · …".
+  - For its focus box, see -18.
+  - `sbo/f-contacts_suppress_channel_whatsapp_identity_212600000105.en.desktop.png`.
+
+**prospects**
+- V1-559 — (a): "Apollo is a paid directory of business contacts… In Apollo, the key is made under Settings, then Integrations…", with a link "apollo.io ↗". `sbo/f-prospects.en.desktop.png`.
+- V1-560 — (a): the panel says what comes after the key: "you search by job title, country, keywords and company size, and choose who to add". `sbo/f-prospects.en.desktop.png`.
+- V1-561 — (a): zh now reads "在 Apollo 的名录里搜可能会买你东西的人，把你挑中的加进联系人。这里不会给任何人发消息。". `sbo/prospects.zh.txt`.
+- V1-562 — (a): "‹ Contacts" now matches the page it leads to, and Inbox is lit on desktop. `sbo/f-prospects.en.desktop.png`.
+- NEW (prev.) heading = label — (a): the heading is "Your Apollo key" and the field is "Paste the key from Apollo" (es "Tu clave de Apollo" / "Pega la clave de Apollo"). `sbo/prospects.es.txt`.
+
+**sequences**
+- V1-563 — (a): the tab equals the heading, "First e-mails and follow-ups · …" / "第一封邮件和跟进 · …", and Inbox is lit. `results.json`, `sbo/f-sequences.en.desktop.png`.
+- V1-564 — (a): "These go by e-mail only: to people on Contacts you may write to first, from the address you send from." and "Right now nobody on Contacts can be sent one…". `shots/sequences.zh.phone.png`.
+- V1-565 — (a): the name field and "Start writing" are a card with the act sized to its words. `sbo/f-sequences.en.desktop.png`.
+- NEW (prev.) bare "None written yet." — (a): "No first e-mails written yet. Each one you write is listed here, with how many people are receiving it. Start one below." `sbo/sequences.en.txt`.
+- V1-566 — (a): one name in each language: "Write a new first e-mail and its follow-ups" / "写新的第一封邮件和跟进" / "كتابة رسالة أولى جديدة ومتابعاتها" / "Escribir un primer correo nuevo y sus seguimientos". `sbo/sequences.*.txt`.
+
+---

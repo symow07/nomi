@@ -166,6 +166,24 @@ under "Decided" below.
   - Read-only, in production: 0124 recorded WhatsApp for the 2 owners who had set an alert number; the other 4 people are on the default.
   - The background job had already kept 2 customers' photos.
 
+**Phase 9 — the re-audit (2026-10-03), at main `8482b10`.** The previous list's method was repeated against the rebuilt app:
+- **Coverage:**
+  - 83 pages, five languages, phone and desktop: 830 captures, each checked automatically;
+  - the interactive states walked in Chromium (the profile card from three places, the draft card's edit box, the calendar's fold, the ask dialog, a form sent back, the toast and the rail's marker);
+  - nine reviewers, one per area and one for the whole product, each also walking its pages by hand. Practice and the price-list export were walked too.
+- **The previous list is kept unchanged** as `docs/UI-AUDIT-V2.md`. The merged list is `docs/UI-AUDIT.md`.
+- **The three counts:**
+  - **Dropped: 636 of 703.**
+    - 569 fixed, and the thing itself checked again;
+    - 43 whose element this run rebuilt, so the finding no longer applies (the rail, the Inbox's tabs and rows, the Setup search, the old Today blocks, My business's and the assistant's long pages);
+    - 24 whose element is gone.
+  - **Still reproducing: 67.** These are the 11 owner's decisions, left as they are; 3 decided not to change last run; and 53 others. Some came back with this run's rebuild (V1-417, the greeting said to go out alone); others the last run's fixes did not reach (V1-537, the delivery term still required).
+  - **New: 214** (1 S1, 28 S2, 80 S3, 105 S4). Most came with this run; the rest were missed before.
+- **The merged list is 281 findings: 2 S1, 38 S2, 113 S3, 128 S4.**
+- **The two S1s:**
+  - the privacy page does not say that customers' photos are now kept (0123);
+  - V1-417 is back: "One kind at a time" says the greeting goes out alone while every reply waits for the name.
+
 ## Two fixes the owner ordered (2026-10-03)
 
 **The instruction:** fix the send-path bug (a late "not answered" hand-over) first, then forbidden words matching inside other words (V1-504). Merge my own green PRs, update this file after each, and come back when both are done.

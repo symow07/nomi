@@ -14,7 +14,7 @@ import { formatList, labelled, formatDay } from '../../src/core/owner/i18n/forma
 
 /**
  * Phase 9, round two — the conversation area's S3 and S4 findings
- * (docs/UI-AUDIT.md §5): the conversation page, the draft card, the customer's
+ * (docs/UI-AUDIT-V2.md §5): the conversation page, the draft card, the customer's
  * file, the customer panel and Practice. Each is checked on the rendered page,
  * in every locale where the words matter.
  */

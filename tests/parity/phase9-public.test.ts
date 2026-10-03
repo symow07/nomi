@@ -9,7 +9,7 @@ import { messages, t } from '../../src/core/owner/i18n/messages.js';
 import { linkedCss } from './linked-css.js';
 
 /**
- * PHASE 9 — the public pages against the merged defect list (docs/UI-AUDIT.md,
+ * PHASE 9 — the public pages against the merged defect list (docs/UI-AUDIT-V2.md,
  * §2): the door, the access code, sign-up, a spent link, a wrong address, the
  * policies. Each block names the findings it holds; each assertion fails on
  * the page as it was at 29e5e5a.

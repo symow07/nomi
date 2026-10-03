@@ -129,7 +129,7 @@ describe('Phase 5 · the page', () => {
 });
 
 /**
- * Phase 9 — the site against the merged defect list (docs/UI-AUDIT.md, "site").
+ * Phase 9 — the site against the merged defect list (docs/UI-AUDIT-V2.md, "site").
  */
 describe('Phase 9 · the site says one thing, the product\'s way', () => {
   const text = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ');

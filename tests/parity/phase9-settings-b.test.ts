@@ -6,7 +6,7 @@ import { linkedCss } from './linked-css.js';
 /**
  * Phase 9 — Who works here, the business profile, the rate, samples and terms,
  * and the outreach area (contacts, finding customers, first e-mails): the
- * findings of the merged audit (docs/UI-AUDIT.md §9), each held here.
+ * findings of the merged audit (docs/UI-AUDIT-V2.md §9), each held here.
  */
 
 const page = (path: string, active: string, bodyHtml = '<h1 class="page">X</h1>') =>
