@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shell, loginPage, signalMark, SIGNAL_BEFORE, type Signal } from '../../src/api/web/layout.js';
+import { shell, loginPage, signalMark, SIGNAL_BEFORE, TODO_BEFORE, type Signal } from '../../src/api/web/layout.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { withWorkspace, type RequestScope } from '../../src/api/web/say.js';
 import { renderSetup } from '../../src/api/web/settings.js';
@@ -120,7 +120,9 @@ describe('phase 4 · the four signals', () => {
         const job = (Object.entries(DESIGN_TOKENS.signal).find(([, v]) => v === drawn) ?? [])[0];
         if (!job) continue;
         for (const sel of r.sel.split(',').map((s) => s.trim().replace(/::before$/, ''))) {
-          expect(SIGNAL_BEFORE[job as Signal].includes(sel) || ['.err', '.fld-err'].includes(sel), `${sel} draws ${drawn}`).toBe(true);
+          // The warmth run's re-audit (w4-whole-06): a chore's ○ is the to-do mark, in the secondary ink — never magenta.
+          const todo = drawn === DESIGN_TOKENS.signal.waiting && TODO_BEFORE.includes(sel);
+          expect(SIGNAL_BEFORE[job as Signal].includes(sel) || todo || ['.err', '.fld-err'].includes(sel), `${sel} draws ${drawn}`).toBe(true);
         }
       }
     }

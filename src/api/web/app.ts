@@ -829,7 +829,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (signedIn && (req.url === '/app' || req.url.startsWith('/app/'))) {
       const locale = localeOf(req);
       return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'error.notfound.title'), active: 'home',
+        title: t(locale, 'error.notfound.title'), active: 'none',   // w4-whole-19 — a mistyped address is no entry's page
         bodyHtml: notFoundInside(locale),
       }));
     }

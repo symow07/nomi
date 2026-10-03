@@ -27,7 +27,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 
-import { esc, deeper, back, signalMark } from './layout.js';
+import { esc, deeper, back, signalMark, todoMark } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import {
@@ -1013,14 +1013,14 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
   // facts the screen lists below (and the activate action obeys): stopped,
   // answering, ready to start, or how many things are first.
   const answer = s.held
-    ? `<p class="fready">${signalMark('waiting')} ${esc(t(locale, 'factory.ready.answer.held', { name }))}</p>`
+    ? `<p class="fready">${todoMark()} ${esc(t(locale, 'factory.ready.answer.held', { name }))}</p>`
     : r.live || s.liveElsewhere.length > 0
       ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.live', { name }))}</p>`
       : !s.waRelevant
         ? `<p class="fready">${esc(t(locale, 'factory.ready.answer.nothing', { name }))}</p>`
         : r.canActivate
           ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.ready', { name }))}</p>`
-          : `<p class="fready">${signalMark('waiting')} ${esc(tn(locale, 'factory.ready.answer.notYet', r.blockers.length, { name }))}</p>`;
+          : `<p class="fready">${todoMark()} ${esc(tn(locale, 'factory.ready.answer.notYet', r.blockers.length, { name }))}</p>`;
 
   return `${head(locale, t(locale, 'factory.ready.title', { name }), flash)}
     ${answer}

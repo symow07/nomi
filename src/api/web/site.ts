@@ -252,7 +252,7 @@ export const SITE_CSS = `
     font-size:var(--font-size-small); max-width:var(--measure-form); }
   .site-draft .site-bubble { background:var(--color-paper); border:1px solid var(--color-border); }
   .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-waiting-wash);
-    color:var(--color-waiting); border:1px solid var(--color-waiting-line); font-weight:600; }
+    color:var(--color-waiting); border:1px solid var(--color-border); font-weight:600; }
   /* The product's waiting mark: a shape before the word, so the colour is not alone. */
   .site-draft-tag::before { content:"○"; content:"○" / ""; margin-inline-end:var(--space-4); }
   .site-acts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary);
