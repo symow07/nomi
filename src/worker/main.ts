@@ -27,7 +27,7 @@ import {
 } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
-import { alertKindFor, DRAFT_ALERT_EVERY_SECONDS } from '../pipeline/notify.js';
+import { alertKindFor, interrupts } from '../pipeline/notify.js';
 import { redactSecrets } from '../security/credentials.js';
 import {
   appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
@@ -228,14 +228,15 @@ export async function startWorker(
     }
     // P3: enqueue a language-NEUTRAL alert code; the notify consumer localizes.
     // singletonKey dedups concurrent alerts for the same event.
+    // Phase 8 of the warmth run — only the two interruptions leave Nomi (an
+    // order waiting for the tap, a customer handed over): a waiting reply or a
+    // customer ready to buy waits in the app, so no job is queued for them.
     const alertKind = alertKindFor(effects);
-    if (alertKind) {
+    if (alertKind && interrupts(alertKind)) {
       await boss.send(QUEUES.notify, {
         businessId: input.businessId, kind: alertKind, conversationId: input.conversationId,
       } satisfies NotifyJob, {
         singletonKey: `${input.businessId}:${alertKind}:${input.conversationId}`,
-        // G5 — a waiting reply is told once an hour per conversation, however many drafts it makes.
-        ...(alertKind === 'draft_waiting' ? { singletonSeconds: DRAFT_ALERT_EVERY_SECONDS } : {}),
       });
     }
     // NOTE: an `order.effects` job used to be enqueued here. Nothing ever
@@ -256,7 +257,7 @@ export async function startWorker(
     effects: Parameters<typeof alertKindFor>[0] | null,
   ): Promise<void> => {
     const kind = effects ? alertKindFor(effects) : null;
-    if (!kind) return;
+    if (!kind || !interrupts(kind)) return;
     await boss.send(QUEUES.notify, {
       businessId, kind, conversationId,
     } satisfies NotifyJob, { singletonKey: `${businessId}:${kind}:${conversationId}` });
@@ -660,10 +661,10 @@ export async function startWorker(
       }
       // Never re-notify for a failed owner-notification — that would loop.
       if (name === QUEUES.notify) return;
-      const businessId = (job.data as { businessId?: string }).businessId ?? 'unknown';
-      await boss.send(QUEUES.notify, {
-        businessId, kind: 'dead_letter', conversationId: null,
-      } satisfies NotifyJob, { singletonKey: `${businessId}:dead_letter:${name}` });
+      // Phase 8 of the warmth run — the owner's own "a message may not have
+      // gone through" waits in the app now (QUIET_KINDS in pipeline/notify.ts):
+      // the operator heard above, a message that did not go is on the Inbox's
+      // "Did not send", and a turn that gave up hands its customer over below.
       // 0077 — and a turn that gave up is a buyer nobody answered: a person
       // does, told the way any hand-off is told (pipeline/received.ts). Only
       // the queue that runs turns. After the operator's alert, so a hand-off

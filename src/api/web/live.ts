@@ -2,13 +2,17 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { RECEIVED_KINDS } from '../../core/conversation/inbound.js';
-import { DELETION_WAITING, IS_BLOCKED } from '../../db/buyersList.js';
+import { DELETION_WAITING, IS_BLOCKED, ORDER_WAITING, needsOwnerFor, readBuyerCounts } from '../../db/buyersList.js';
 import { readAttention, type AttentionCounts } from './operations.js';
 import { isRefusal, UNCERTAIN } from './refusals.js';
 import { conversationUrl } from './layout.js';
 import { QUEUES } from '../../queue/boss.js';
 import { billingState } from '../../db/billing.js';
 import type { LiveWatch } from './flash.js';
+import type { Locale } from '../../core/owner/i18n/locale.js';
+import type { MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, tn } from './say.js';
+import { isolate } from './values.js';
 
 /**
  * CC-26 — THE PAGE LEARNS THAT SOMETHING NEW ARRIVED, AND SAYS SO.
@@ -303,12 +307,103 @@ export const buyersWatch = (mark: string, door: string): LiveWatch => ({
   says: [{ what: 'list', key: 'live.list' }],
 });
 
-/** Today watches its attention counts; the door is Today again, from the top. */
+/**
+ * Today watches its attention counts; the door is Today again, from the top.
+ * THE WARMTH RUN (2026-10-03), phase 8 — "Today updating": when they change,
+ * the script draws the page's `main` again in place (`redraw`) rather than
+ * showing the line; the line is what is shown if the page cannot be had.
+ */
 export const todayWatch = (mark: string): LiveWatch => ({
   ask: `/app/live/today?since=${mark}`,
   door: '/app',
   says: [{ what: 'today', key: 'live.today' }],
+  redraw: true,
 });
+
+/**
+ * THE WARMTH RUN (2026-10-03), phase 8 — THE RAIL'S QUESTION, ASKED FROM EVERY
+ * SIGNED-IN PAGE. The owner: "In-app, always: when something lands while the
+ * owner is in Nomi, it surfaces wherever they are — a quiet marker on the rail,
+ * Today updating, a toast. No sound, no badge inflation."
+ *
+ * The shell draws every page with the rail's one number (how many customers
+ * need this reader now: Buyers' "Needs you", `readBuyerCounts`) and a slot that
+ * asks this address, through the same poll as the watching pages (the one
+ * script, every twenty seconds while the tab is in view). The MARK is that
+ * number. The answer is the number now, read by the same function, so the rail
+ * the script redraws is the rail a reload would draw; and, only when it ROSE,
+ * who arrived and why, for the toast. A count that falls, or stays, is
+ * redrawn and says nothing — the marker and the toast are for a customer newly
+ * waiting, never for anything else.
+ */
+const RAIL_MARK = new RegExp(`^${COUNT}$`);
+export const isRailMark = (raw: unknown): raw is string => typeof raw === 'string' && RAIL_MARK.test(raw);
+
+/** Why a customer needs the owner, in the list's own order of groups (`LIST_RANK`). */
+export type RailWhy = 'order' | 'deletion' | 'person' | 'reply';
+
+/** The newest arrival in the reader's "Needs you": the conversation, the customer's name, and why. */
+export type RailNewest = { readonly conversationId: string; readonly who: string | null; readonly why: RailWhy };
+
+/** The rail's comparison, the one place a rise is decided: the count now against the page's mark. */
+export const railRose = (since: string, now: number): boolean => now > Number(since);
+
+/**
+ * Who most recently came to need this reader: the latest of the moments a
+ * conversation can enter "Needs you" — handed over, a reply waiting, an order
+ * waiting, a deletion asked — and the customer's newest message, which comes
+ * just before each of them (a hand-over that left no stamp is still placed).
+ */
+async function newestWaiting(db: Db, bid: BusinessId, viewerId: string): Promise<RailNewest | null> {
+  return withTenantTx(db, bid, async (tx) => {
+    const r = (await sql<{ id: string; who: string | null; why: RailWhy }>`
+      select c.id::text as id, cl.display_name as who,
+             case when ${ORDER_WAITING} then 'order' when ${DELETION_WAITING} then 'deletion'
+                  when c.assigned_to is null then 'reply' else 'person' end as why
+        from conversations c
+        left join clients cl on cl.id = c.client_id
+       where c.business_id = ${bid} and ${needsOwnerFor(viewerId)}
+       order by greatest(
+         case when c.assigned_to is not null then c.assigned_at end,
+         (select max(d.created_at) from drafts d where d.conversation_id = c.id and d.status = 'pending'),
+         (select max(op.created_at) from order_proposals op where op.conversation_id = c.id and op.state = 'pending'),
+         (select max(a.last_asked_at) from deletion_asks a where a.conversation_id = c.id and a.state = 'waiting'),
+         (select max(m.sent_at) from messages m where m.conversation_id = c.id and m.direction = 'inbound')
+       ) desc nulls last, c.id desc
+       limit 1`.execute(tx)).rows[0];
+    return r ? { conversationId: r.id, who: r.who, why: r.why } : null;
+  });
+}
+
+/** What the rail's address answers: the count now, and the newest arrival only when the count rose. */
+export type RailAnswer = { readonly status: 200 | 400; readonly n: number; readonly newest: RailNewest | null };
+
+export async function railAnswer(db: Db, bid: BusinessId, viewerId: string, since: unknown): Promise<RailAnswer> {
+  if (!isRailMark(since)) return { status: 400, n: 0, newest: null };
+  const n = (await withTenantTx(db, bid, (tx) => readBuyerCounts(tx, viewerId))).waiting;
+  return { status: 200, n, newest: railRose(since, n) ? await newestWaiting(db, bid, viewerId) : null };
+}
+
+/**
+ * The answer as the script uses it, in the reader's language: the number and
+ * the mark to ask with next; the number as the rail draws it, and the entry's
+ * spoken name with it (the shell's own words); and, for a rise, the toast's
+ * one line — who and why — and the conversation it opens, at its newest
+ * message. The script writes these as text and never as markup.
+ */
+export type RailSaid = {
+  readonly n: number; readonly mark: string; readonly shown: string; readonly label: string;
+  readonly toast?: { readonly say: string; readonly door: string };
+};
+export function railSaid(locale: Locale, a: RailAnswer): RailSaid {
+  const said = {
+    n: a.n, mark: String(a.n), shown: isolate(locale, String(a.n)),
+    label: `${t(locale, 'nav.inbox')}, ${tn(locale, 'nav.needsYou', a.n)}`,
+  };
+  if (!a.newest) return said;
+  const who = isolate(locale, a.newest.who?.trim() || t(locale, 'common.buyer'));
+  return { ...said, toast: { say: t(locale, `live.toast.${a.newest.why}` as MessageKey, { who }), door: conversationUrl(a.newest.conversationId) } };
+}
 
 /**
  * CH1 — the Channels page's mark: on which channels a customer has written and

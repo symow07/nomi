@@ -26,6 +26,7 @@ import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
 import { STEP_LINK } from './onboarding.js';
+import { alertWayName } from './phoneAlerts.js';
 
 /** Phase 4 — in place of a form only the owner may send: the values stay
  *  on the page to read, and this says whose decision they are. */
@@ -205,7 +206,8 @@ export type SetupView = {
   /** HS — how many of How you sell's questions are answered; null for staff (the page is the owner's). */
   readonly howYouSell?: { readonly answered: number; readonly total: number } | null;
   /** Phase 3 — alerts on this person's phones: whether this installation can send them, and how many phones. */
-  readonly alerts?: { readonly available: boolean; readonly phones: number } | null;
+  /** The warmth run, phase 8 — `way`: how notifications reach this reader now (null: nothing does). */
+  readonly alerts?: { readonly available: boolean; readonly phones: number; readonly way?: 'email' | 'browser' | 'whatsapp' | null } | null;
   /** Phase 3 — how this person signs in: their e-mail, or the access code when they have no login. */
   readonly signIn?: { readonly email: string | null } | null;
   /** Phase 3 — billing as it stands (the owner's); null for staff. */
@@ -280,10 +282,11 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     { id: 'reach', title: t(locale, 'setup.group.reach'), rows: [
       { href: '/app/channels', label: t(locale, 'nav.channels'), desc: t(locale, 'setup.desc.channels'),
         value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'), tone: toneOf(step('channels')), find: find('setup.find.channels') },
-      { href: '/app/settings/alerts', label: t(locale, 'alerts.phone.title'), desc: t(locale, 'setup.desc.alerts'),
-        value: !v.alerts ? '' : !v.alerts.available ? t(locale, 'setup.value.unavailable')
+      { href: '/app/settings/alerts', label: t(locale, 'alerts.title'), desc: t(locale, 'setup.desc.alerts'),
+        value: !v.alerts ? '' : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : t(locale, 'setup.value.off'))
+          : !v.alerts.available ? t(locale, 'setup.value.unavailable')
           : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
-        tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined, find: find('setup.find.alerts') },
+        tone: v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined, find: find('setup.find.alerts') },
     ] },
     { id: 'people', title: t(locale, 'setup.group.people'), rows: [
       { href: '/app/settings/people', label: t(locale, 'people.title'), desc: t(locale, 'setup.desc.people'),

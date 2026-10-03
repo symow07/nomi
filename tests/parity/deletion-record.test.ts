@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { alertKindFor, renderOwnerAlert, OPERATOR_ALERT_KINDS, goesByMail } from '../../src/pipeline/notify.js';
+import { alertKindFor, renderOwnerAlert, OPERATOR_ALERT_KINDS, goesByMail, interrupts } from '../../src/pipeline/notify.js';
 import { renderConversationDetail, renderInboxList, type ConversationDetail, type ConversationSummary } from '../../src/api/web/inbox.js';
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
@@ -64,9 +64,14 @@ describe('0076 · its own alert', () => {
     expect(en).toContain('needs an answer from you');
   });
 
-  it('never depends on WhatsApp: it goes the operator alerts’ way, e-mail always', () => {
+  it('never depends on WhatsApp: it is one of the two interruptions, and every way it can take falls back to e-mail', () => {
     for (const kind of OPERATOR_ALERT_KINDS) expect(goesByMail(kind), kind).toBe(true);
-    expect(goesByMail('deletion_requested')).toBe(true);
+    // Phase 8 of the warmth run, deliberately: it left the operator alerts' "e-mail always" for
+    // the person's own way, with e-mail under it (deliverOwnerInterruption) — the owner (2026-10-03): "Only two things may interrupt the owner outside the app: an order waiting for their tap, and a conversation the assistant handed over because it could not handle it. Everything else waits quietly in-app."
+    // A deletion request is a hand-over, so it is one of the two, and keeps its own words.
+    expect(goesByMail('deletion_requested')).toBe(false);
+    expect(interrupts('deletion_requested')).toBe(true);
+    expect(interrupts('handoff')).toBe(true);
     expect(goesByMail('handoff')).toBe(false);
   });
 });

@@ -62,7 +62,8 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   /** The address a page's script asks, as the browser reads it out of the attribute. */
   const askOf = (html: string): string => {
     // 0080 — the region also carries the orders waiting when it was drawn (liveScript.ts).
-    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"(?: data-live-orders="\d+" data-live-notify="[^"]+" data-live-notify-door="[^"]+")?><\/div>/.exec(html);
+    // Phase 8 of the warmth run — Today's region says it is drawn again in place (`data-live-redraw`).
+    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"(?: data-live-redraw="1")?(?: data-live-orders="\d+" data-live-notify="[^"]+" data-live-notify-door="[^"]+")?><\/div>/.exec(html);
     expect(m, 'the page carries its live region').not.toBeNull();
     return m![1]!.replace(/&amp;/g, '&');
   };

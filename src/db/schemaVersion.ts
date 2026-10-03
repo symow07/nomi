@@ -313,7 +313,10 @@ import type { Db } from './client.js';
 //       The product page's Remove calls it; against a 121 database it fails.
 // 123 = customers' faces (0123): `client_faces`, `faces_due()`. Every page that
 //       draws a face reads it; against a 122 database those pages fail.
-export const REQUIRED_SCHEMA_VERSION = 123;
+// 124 = how a notification reaches each person (0124): `people.alert_channel`.
+//       The two interruptions and the Notifications page read it; against a
+//       123 database every hand-over alert fails.
+export const REQUIRED_SCHEMA_VERSION = 124;
 
 export type SchemaState = {
   readonly required: number;

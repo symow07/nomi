@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { wrongPrice } from '../../src/pipeline/spotChecks.js';
-import { renderOwnerAlert, goesByMail, SELF_DEMOTION_REASONS, SELF_DEMOTION_PAGE } from '../../src/pipeline/notify.js';
+import { renderOwnerAlert, goesByMail, waitsInApp, SELF_DEMOTION_REASONS, SELF_DEMOTION_PAGE } from '../../src/pipeline/notify.js';
 import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
@@ -82,8 +82,10 @@ describe('R5 · the owner is told', () => {
     expect(renderOwnerAlert('en', 'self_demoted', null, { demoted: { capabilities: ['quote'], reasons: ['', 'something_new'] } }))
       .toContain(t('en', 'notify.self_demoted.why.repeated_corrections'));
   });
-  it('by e-mail always, and it opens the level on the assistant\'s page', () => {
-    expect(goesByMail('self_demoted')).toBe(true);
+  it('phase 8 of the warmth run: it waits in the app — its replies wait under Needs you, and the level is on the assistant\'s page', () => {
+    // Deliberately changed from "by e-mail always": the owner (2026-10-03): "Only two things may interrupt the owner outside the app: an order waiting for their tap, and a conversation the assistant handed over because it could not handle it. Everything else waits quietly in-app."
+    expect(goesByMail('self_demoted')).toBe(false);
+    expect(waitsInApp('self_demoted')).toBe(true);
     expect(SELF_DEMOTION_PAGE).toBe('/app/employee#on-her-own');
   });
   it('the claim marks each demotion told as it returns it; every older one counts as told', () => {
