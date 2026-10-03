@@ -62,32 +62,42 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
   }, 60_000);
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
-  it('the page opens on the list (the warmth run); nothing is drawn as a grid of empty hours (V1-204)', async () => {
+  it('the page is one screen, the month\'s grid and the list together (the owner\'s correction); no views, no grid of empty hours (V1-204)', async () => {
     const html = await page('/app/calendar');
-    expect(html).toContain('<a class="tab on" aria-current="page" href="/app/calendar">');
+    expect(html).toContain('<div class="cal-screen">');
+    expect(html.indexOf('<table class="mo">')).toBeLessThan(html.indexOf('<div class="cal-list"'));
+    expect(html).not.toContain('<a class="tab on"');
     expect(html).not.toContain('<table class="wk">');
   });
 
-  it('a date put on the calendar is on the list around its day and on its week, dashed, with its hours', async () => {
+  it('a date put on the calendar: adding it lands on its day, chosen; it is dashed, with its hours, in the grid and in the month\'s list', async () => {
     const r = await post('/app/calendar/entries', { title: 'Photo shoot', day: '2031-03-05', from: '11:00', to: '13:00' });
     expect(flashSaid(r, SECRET)).toContain('Added to the calendar.');
-    expect(r.headers['location']).toBe('/app/calendar?at=2031-03-05');
+    expect(r.headers['location']).toBe('/app/calendar?month=2031-03&day=2031-03-05');
     const [row] = await rows();
     // who put it there, by person (G9b: an actor is an id, read as a name where shown)
     expect(row).toMatchObject({ title: 'Photo shoot', all_day: false, removed_at: null, created_by: expect.stringMatching(/^[0-9a-f-]{36}$/) });
-    // where adding it lands: the list around its day — the owner's own, dashed, with its hours and its title
-    const html = await page('/app/calendar?at=2031-03-05');
+    // where adding it lands: its day, chosen — the owner's own, dashed, with its hours and its title
+    const html = await page('/app/calendar?month=2031-03&day=2031-03-05');
     expect(html).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
     expect(html).toContain('<span class="dl-hour">11:00–13:00</span>');
     expect(html).toContain('<span class="dl-say"><bdi>Photo shoot</bdi></span>');
-    // the week of a date: Monday first for a business in the UK (the add form offers the week's first day)
-    const week = await page('/app/calendar?view=week&at=2031-03-05');
-    expect(week).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
-    const firstDay = /<input type="date" name="day" required value="(\d{4}-\d{2}-\d{2})"/.exec(week)?.[1];
-    expect(new Date(`${firstDay}T00:00:00Z`).getUTCDay()).toBe(1);
-    // and in the list paged to it
-    const list = await page('/app/calendar?view=list&from=2031-03-01');
-    expect(list).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
+    expect(html).toMatch(/<td class="sel">\s*<a class="mo-d" href="\/app\/calendar\?month=2031-03&amp;day=2031-03-05"/);
+    // the month's grid: Monday first for a business in the UK, the date in its day's cell
+    const month = await page('/app/calendar?month=2031-03');
+    const first = /<a class="mo-d" href="\/app\/calendar\?month=2031-03&amp;day=(\d{4}-\d{2}-\d{2})"/.exec(month)?.[1];
+    expect(new Date(`${first}T00:00:00Z`).getUTCDay()).toBe(1);
+    expect(month).toContain(`<span class="mo-e dashed" data-src="calendar_entries:${row!.id}"`);
+    // and in the month's list (nothing chosen), under its day
+    expect(month.slice(month.indexOf('<div class="cal-list"'))).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
+    // the old addresses still find it: they answer with the same place on the screen
+    for (const [old, to] of [['/app/calendar?at=2031-03-05', '/app/calendar?month=2031-03&day=2031-03-05'],
+      ['/app/calendar?view=week&at=2031-03-05', '/app/calendar?month=2031-03&day=2031-03-05'],
+      ['/app/calendar?view=list&from=2031-03-01', '/app/calendar?month=2031-03']] as const) {
+      const res = await app.inject({ method: 'GET', url: old, headers: { cookie } });
+      expect(res.statusCode, old).toBe(302);
+      expect(res.headers['location'], old).toBe(to);
+    }
   });
 
   it('what cannot be kept honestly is not kept, and the owner is told why', async () => {
@@ -100,8 +110,10 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
       // Phase 7 — the calendar again (400), the add form open, the reason under its field, what was typed kept.
       const r = await post('/app/calendar/entries', fields);
       expect(r.statusCode).toBe(400);
-      // the add form open: in the page's one fold, or in the empty period's panel
+      // the add form open: in the page's one fold, or in the empty month's panel — once, on the day it was for
       expect(r.body).toMatch(/<details class="cal-(?:tools|add)" open>/);
+      expect(r.body.match(/ open>/g), JSON.stringify(fields)).toHaveLength(1);
+      expect(r.body.match(/aria-invalid="true"/g), JSON.stringify(fields)).toHaveLength(1);
       expect(r.body).toContain(said);
       if (fields.title) expect(r.body).toContain(`value="${fields.title}"`);
     }
@@ -117,12 +129,14 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
     expect(Number(touched.numAffectedRows ?? 0)).toBe(0);
   });
 
-  it('taking it off archives it: gone from the week, still a row; a second time finds nothing', async () => {
+  it('taking it off archives it: gone from its day and its month, still a row; a second time finds nothing', async () => {
     const [row] = await rows();
+    expect(await page('/app/calendar?month=2031-03&day=2031-03-05')).toContain(`calendar_entries:${row!.id}`);
     expect(flashSaid(await post(`/app/calendar/entries/${row!.id}/remove`), SECRET)).toContain('Taken off the calendar.');
     const [after] = await rows();
     expect(after!.removed_at).not.toBeNull();
-    expect(await page('/app/calendar?at=2031-03-05')).not.toContain(`calendar_entries:${row!.id}`);
+    expect(await page('/app/calendar?month=2031-03&day=2031-03-05')).not.toContain(`calendar_entries:${row!.id}`);
+    expect(await page('/app/calendar?month=2031-03')).not.toContain(`calendar_entries:${row!.id}`);
     expect(flashSaid(await post(`/app/calendar/entries/${row!.id}/remove`), SECRET)).toContain('that date is not on the calendar');
     expect(flashSaid(await post('/app/calendar/entries/not-an-id/remove'), SECRET)).toContain('that date is not on the calendar');
   });

@@ -705,7 +705,8 @@ export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPa
     ? `<p class="cal-chosen small">${withChosen(locale, what)}${held ? ` <a href="${esc(clear)}">${esc(t(locale, 'calendar.empty.clear'))}</a>` : ''}</p>`
     : '';
   const fold = held ? toolsFold(locale, v, { month: place.month ? place.month.slice(0, 7) : null, day: ask.day }, day, kept) : '';
-  const list = ask.day ? dayList(locale, v, ask, ask.day, now, kept, clear)
+  // A form sent back opens in one place only: the fold, when it is drawn (one form, one set of field ids).
+  const list = ask.day ? dayList(locale, v, ask, ask.day, now, held ? null : kept, clear)
     : held ? owedList(locale, v, ask, now)
     : emptyPanel(locale, v, 'calendar.empty.month', clear, day, kept);
   // The legend explains the marks the list shows: the chosen day's, or what is owed and the month's other dates.
