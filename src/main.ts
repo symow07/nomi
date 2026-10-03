@@ -818,6 +818,8 @@ export async function buildProduction(
       push: pushOut,
       // CH4 — where Nomi stands with Meta, said on Channels (the operator's variable).
       metaReview: metaReviewFrom(process.env),
+      // V1-006 — the component gallery, for a local instance only (the run-nomi smoke script sets it).
+      componentGallery: process.env['COMPONENT_GALLERY'] === 'on',
       kickAnswer: (businessId, conversationId, messageId, text) =>
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,

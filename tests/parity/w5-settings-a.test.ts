@@ -82,3 +82,28 @@ describe('w4-settings-a-24 · a form sent back keeps the rail: its waiting count
     });
   }
 });
+
+describe('V1-006 (the gallery) · the component gallery is no owner\'s page on a normal installation', () => {
+  it('without the switch: no page, for the installation\'s own workspace too — the wrong-address page, in the workspace', async () => {
+    const a = appWith();
+    for (const who of [PILOT, OTHER]) {
+      const r = await a.inject({ method: 'GET', url: '/app/settings/components', headers: { ...HTML, cookie: cookieFor(who) } });
+      expect(r.statusCode, who).toBe(404);
+      expect(r.body, who).not.toContain('Rest');
+    }
+  });
+  it('with the switch (a local instance, COMPONENT_GALLERY=on): the screenshots tool still walks it, as the installation\'s workspace only', async () => {
+    const a = appWith({ componentGallery: true });
+    const own = await a.inject({ method: 'GET', url: '/app/settings/components', headers: { ...HTML, cookie: cookieFor(PILOT) } });
+    expect(own.statusCode).toBe(200);
+    expect(own.body).toContain('<h1 class="page">');
+    expect((await a.inject({ method: 'GET', url: '/app/settings/components', headers: { ...HTML, cookie: cookieFor(OTHER) } })).statusCode).toBe(404);
+  });
+  it('the switch is read from the environment by name, documented, and set only by the local smoke script', async () => {
+    const { readFileSync } = await import('node:fs');
+    const read = (f: string) => readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
+    expect(read('src/main.ts')).toContain("componentGallery: process.env['COMPONENT_GALLERY'] === 'on',");
+    expect(read('.claude/skills/run-nomi/smoke.sh')).toContain('COMPONENT_GALLERY=on');
+    expect(read('docs/env-checklist.md')).toContain('| `COMPONENT_GALLERY` |');
+  });
+});

@@ -438,6 +438,13 @@ export type WebDeps = {
   /** CH4 — where Nomi stands with Meta (`META_APP_REVIEW`); absent: the panel is not drawn. */
   readonly metaReview?: MetaReview | null;
   /**
+   * The warmth run, phase 9 (V1-006) — the component gallery is served at all:
+   * a page for whoever builds the product, walked by the screenshots tool on a
+   * local instance (`COMPONENT_GALLERY=on`, which the run-nomi smoke script
+   * sets). Absent or false — every normal installation — it is no page.
+   */
+  readonly componentGallery?: boolean;
+  /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
    */
@@ -1717,10 +1724,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 9 — the component gallery is a developer's page: no link reaches it
   // (phase 3), and like the machine room only the installation's own workspace
   // gets it at all. Every other owner is told there is no such page.
+  // The warmth run, phase 9 (V1-006) — and only where the installation serves
+  // it (`componentGallery`, a local instance's switch): on a normal one the
+  // owner of the installation's own workspace is told the same.
   app.get('/app/settings/components', {
     preHandler: async (req, reply) => {
       const s = sessionOf(req);
-      if (s && s.businessId !== deps.businessId) return reply.callNotFound();
+      if (s && (deps.componentGallery !== true || s.businessId !== deps.businessId)) return reply.callNotFound();
     },
   }, authed('settings', (s, req, locale) => renderComponents(locale)));
 
