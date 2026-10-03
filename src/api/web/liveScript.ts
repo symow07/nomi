@@ -393,7 +393,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         badge = doc.createElement('span');
         badge.className = 'navcount';
         badge.setAttribute('aria-hidden', 'true');
-        entry.appendChild(badge);
+        (entry.querySelector('.nl-body') || entry).appendChild(badge);
       }
       /* The words where there is room, the figure on a phone's tile, as the page draws them. */
       while (badge.firstChild) badge.removeChild(badge.firstChild);

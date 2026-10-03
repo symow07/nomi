@@ -240,6 +240,7 @@ under "Decided" below.
 - **Caught by the full suite before the merge, and fixed (never in production):**
   - **The rail's toast never named the first customer to wait on a calm page.** The page's mark carried the moment 0 when nobody was waiting (my rail change in this wave). A calm page now carries the start (`RAIL_FROM_THE_START`). `rail-newcomer.test.ts` holds it.
   - **Notifications drew a form with nothing to send** when there was one way and it was already in force. With no Save there is now no form.
+  - **At 1024 px the rail stood "Inbox" a letter a line** beside "○ 1 waiting" (seen in the guide's re-recorded frames). The word and its count now wrap together: the word stays whole, and where the two do not fit side by side the count goes under it. Checked at 1024 and 1280 px in all five languages (Arabic at the right edge), and at 390 px, where the tiles are unchanged.
   - The other 16 were expectations the fixers changed without a database: each was checked against the code's intent before its test was updated.
 - **Schema 125** (0125: a delivery term may be "none", so a term with no Incoterm is allowed).
 - **Verification:**

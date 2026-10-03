@@ -515,7 +515,11 @@ ${FACE_CSS}
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
   nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
   nav.side .ni { flex:none; inline-size:22px; block-size:22px; }
-  nav.side .nl-text { flex:0 1 auto; min-width:0; overflow-wrap:break-word; }
+  /* The fix wave (the guide's frames, 1024 px) — the word and its count wrap TOGETHER: the word keeps
+     itself whole (never a letter a line), and where the two do not fit side by side the count goes
+     under the word, aligned with it. On a phone the pair dissolves into the tile (display:contents). */
+  nav.side .nl-body { display:flex; flex:1 1 auto; flex-wrap:wrap; align-items:center; column-gap:var(--space-8); row-gap:0; min-width:0; }
+  nav.side .nl-text { flex:0 1 auto; max-inline-size:100%; overflow-wrap:break-word; }
   html[lang="zh"] nav.side .nl-text { word-break:keep-all; }
   [dir="rtl"] .ni.flips { transform:scaleX(-1); }
   nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
@@ -527,7 +531,7 @@ ${FACE_CSS}
   .nl-short { display:none; }
   /* The rail's one number: customers waiting for the owner, in the waiting
      signal's colour, beside its word. */
-  nav.side .navcount { display:inline-flex; justify-content:center; flex:none; white-space:nowrap; margin-inline-start:var(--space-8); min-inline-size:1.6em; padding:0 var(--space-4);
+  nav.side .navcount { display:inline-flex; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-4);
     font-size:var(--font-size-caption); font-weight:700; color:var(--color-waiting); background:var(--color-waiting-wash);
     border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
@@ -1064,6 +1068,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
       gap:var(--space-4); margin:0; padding:var(--space-4) 2px; min-height:56px; min-width:0; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
+    nav.side .nl-body { display:contents; }
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
     /* The count rides the icon's corner on a phone: the word keeps its room. */
     nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; }
@@ -2558,10 +2563,10 @@ export function shell(input: {
     const badge = waiting ? `<span class="navcount" aria-hidden="true"><span class="nl-long">${esc(isolate(locale, t(locale, 'nav.waiting', { n: waiting })))}</span>`
       + `<span class="nl-short">${esc(isolate(locale, String(waiting)))}</span></span>` : '';
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
-    const text = `<span class="nl-text">${esc(label)}</span>`;
+    const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
-       >${icon(NAV_ICON[n.id] ?? 'today')}${text}${badge}</a>`;
+       >${icon(NAV_ICON[n.id] ?? 'today')}${text}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
