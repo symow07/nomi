@@ -1,7 +1,10 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { esc, deeper, back } from './layout.js';
+import { esc, deeper, back, byAssistant } from './layout.js';
+import { face } from './faces.js';
+import { menuRow, menuGroup } from './settings.js';
+import { bubbleClass } from './inbox.js';
 import { flashBanner } from './flash.js';
 import * as show from './values.js';
 
@@ -59,19 +62,35 @@ export function renderComponents(locale: Locale): string {
     </form>`;
 
   // The notice is drawn in ONE place (flash.ts); a page never paints its own.
-  const notices = flashBanner({ text: t(locale, 'components.sample.help'), bad: false })
-    + flashBanner({ text: t(locale, 'components.sample.help'), bad: true });
-  const empty = `<div class="empty">${s('empty')}</div><div class="ok-line">✓ ${s('sample.help')}</div>`;
+  // Phase 9 of the warmth run (V1-487) — the product's own words, not one placeholder in every role.
+  const notices = flashBanner({ text: t(locale, 'closures.flash.removed'), bad: false })
+    + flashBanner({ text: t(locale, 'business.kind.bad.country'), bad: true });
+  const empty = `<div class="empty">${esc(t(locale, 'data.buyers.none'))}</div><div class="ok-line">✓ ${esc(t(locale, 'alerts.flash.tested'))}</div>`;
   // Phase 9 (V1-488) — samples, not doors: they reloaded this page.
   const tabs = `<div class="tabs"><span class="tab on">${s('state.rest')}</span>
     <span class="tab">${s('sample.more')}</span></div>`;
 
+  // The warmth run (w4-settings-a-21) — speech as a conversation draws it: the customer by name, the
+  // assistant's reply on its wash with "✦ {name}", a person's reply plain; each with its time.
+  const at = (m: number) => esc(show.time(locale, new Date(Date.UTC(2026, 9, 3, 9, m))));
   const speech = `
     <div class="timeline">
-      <div class="msg inbound"><div dir="auto" class="bubble"><bdi>${s('sample.buyer')}</bdi></div><div class="ts muted">${s('state.rest')}</div></div>
-      <div class="msg outbound"><div dir="auto" class="bubble"><bdi>${s('sample.reply')}</bdi></div><div class="ts muted">${s('state.rest')}</div></div>
+      <div class="msg inbound"><div dir="auto" class="${bubbleClass('buyer')}"><bdi>${s('sample.buyer')}</bdi></div><div class="ts muted">${at(12)} · <bdi>Aisha Bello</bdi></div></div>
+      <div class="msg outbound"><div dir="auto" class="${bubbleClass('assistant')}"><bdi>${s('sample.reply')}</bdi></div><div class="ts muted">${at(13)} · ${byAssistant(assistantName(locale))}</div></div>
+      <div class="msg outbound"><div dir="auto" class="${bubbleClass('person')}"><bdi>${s('sample.reply')}</bdi></div><div class="ts muted">${at(20)} · ${esc(t(locale, 'conv.by.you'))}</div></div>
     </div>
     <div dir="auto" class="proposed"><bdi>${s('sample.reply')}</bdi></div>`;
+
+  // The warmth run's parts (w4-settings-a-21): faces in their five sizes and tints, a menu row with
+  // and without its line, and the one small card that says a customer newly waits.
+  const people = ['Aisha Bello', 'Carlos Mendes', 'ليلى منصور', '陈莉', '+971 50 000 0000'];
+  const faces = `<div class="chips">${(['xs', 's', 'm', 'l', 'xl'] as const).map((size, i) =>
+    face({ clientId: `c${i}`, name: people[i] ?? null, photo: null }, size)).join('')}</div>`;
+  const menu = menuGroup('gallery', label, [
+    menuRow({ href: '/app/settings/components', icon: 'bell', label: t(locale, 'alerts.title'), value: t(locale, 'alerts.way.email') }),
+    menuRow({ href: '/app/settings/components', icon: 'folder', label: t(locale, 'data.title'), desc: t(locale, 'setup.alerts.nothing'), value: null }),
+  ]);
+  const toast = `<div><a class="toast" href="/app/inbox">${esc(t(locale, 'live.toast.reply', { who: 'Aisha Bello' }))}</a></div>`;
 
   const counts = `
     <div class="stats">
@@ -103,6 +122,9 @@ export function renderComponents(locale: Locale): string {
     ${section('empty', empty)}
     ${section('tabs', tabs)}
     ${section('speech', speech)}
+    ${section('faces', faces)}
+    ${section('menu', menu)}
+    ${section('toast', toast)}
     ${section('counts', counts)}
     ${section('sections', sections)}
     ${section('text', text)}`;

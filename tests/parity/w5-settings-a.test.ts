@@ -257,3 +257,22 @@ describe('w4-settings-a-23 · Billing says "nothing is charged" once, in its row
     for (const l of LOCALES) expect(t(l, 'billing.notConfigured'), l).not.toMatch(/charged|收费|رسم|cobra|factur/i);
   });
 });
+
+describe('w4-settings-a-21 · V1-487 · the gallery (a developer\'s page now) shows this run\'s parts, in the product\'s own words', () => {
+  it('faces in five sizes, menu rows, the small card, and the assistant\'s reply on its wash with ✦ and the name', async () => {
+    const { renderComponents } = await import('../../src/api/web/components.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    for (const l of LOCALES) {
+      const h = renderComponents(l);
+      for (const size of ['xs', 's', 'm', 'l', 'xl']) expect(h, `${l} ${size}`).toContain(`class="face face-${size} t`);
+      expect(h, l).toContain('class="srow sr-menu sr-two"');
+      expect(h, l).toContain('<a class="toast" href="/app/inbox">');
+      expect(h, l).toMatch(/class="bubble by-as"><bdi>[^<]+<\/bdi><\/div><div class="ts muted">[^<]+ · <span class="as"><span aria-hidden="true">✦<\/span>/);
+      // no placeholder in every role: the notices and the empty panel say the product's own words
+      expect(h, l).not.toContain(`class="empty">${t(l, 'components.empty')}`);
+      // the chat samples carry a time, not the word for a button's resting state
+      expect(h, l).not.toContain(`<div class="ts muted">${t(l, 'components.state.rest')}</div>`);
+    }
+  });
+});
