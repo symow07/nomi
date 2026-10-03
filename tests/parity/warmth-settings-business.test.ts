@@ -54,7 +54,7 @@ const rowsOf = (html: string) => [...html.matchAll(
 )].map((m) => ({
   href: m[3] ?? null, two: m[2]!.includes('sr-two'),
   label: /<span class="sr-label">([^<]+)<\/span>/.exec(m[4]!)?.[1] ?? '',
-  value: /<span class="sr-value[^"]*"><bdi>([^<]+)<\/bdi><\/span>/.exec(m[4]!)?.[1] ?? null,
+  value: /<span class="sr-value[^"]*" dir="auto"><bdi>([^<]+)<\/bdi><\/span>/.exec(m[4]!)?.[1] ?? null,
   icon: m[4]!.includes('<svg class="ni'),
 }));
 

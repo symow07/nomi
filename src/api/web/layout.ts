@@ -940,8 +940,10 @@ const STYLE_PAGES = `
   /* ── settings.ts — moved here whole in step four: page-specific names, defined once. */
   /* Phase 9 — five languages on the switch: it wraps inside its card rather than running past it on a phone. */
   .scard .langsw { flex-wrap:wrap; }
-  /* Phase 7 — a menu row with a line under its name is 64 px; the line wraps rather than being cut. */
+  /* Phase 7 — a menu row with a line under its name is 64 px; the line wraps rather than being cut,
+     and the value beside it keeps its words (up to its half of the row) instead of giving way to the line. */
   .srow.sr-two { min-height:64px; }
+  .srow.sr-menu.sr-two > .sr-main { flex:1 1 0; }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
   .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
   .guide-step { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-16); background:var(--color-surface); }

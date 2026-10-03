@@ -163,7 +163,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(await channelsStep(IG_BIZ)).toBe(true);
     expect((await progress(IG_BIZ)).done).toBe(1);
     const html = (await get(ig, igOwner, '/app/business/channels')).body;
-    expect(html.split(`<span class="sr-value ok"><bdi>${esc(t('en', 'connect.state.connected'))}</bdi></span>`).length - 1).toBe(2);
+    expect(html.split(`<span class="sr-value ok" dir="auto"><bdi>${esc(t('en', 'connect.state.connected'))}</bdi></span>`).length - 1).toBe(2);
   });
 
   it('a refusal on an Instagram thread does not say WhatsApp (the decision itself is unchanged)', async () => {

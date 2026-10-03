@@ -685,13 +685,14 @@ export function renderFactory(
     ? deeper(STEP_LINK[f.nextStep], t(locale, `factory.next.${f.nextStep}` as MessageKey, { name }), 'next')
     : '';
 
-  // The profile: its name once the step is done (a description, a location and
-  // a way to be reached — db/setup.ts), "not finished" until then.
+  // The profile: done once it holds what setting up asks of it (a description,
+  // a location and a way to be reached — db/setup.ts). The business's name is
+  // the page's own header already; the row says where the profile stands.
   const unnamed = p.name.trim() === '';
   const unfinished = unnamed || !p.description || !p.location || (!p.contactEmail && !p.contactPhone);
   const profile = menuRow({ href: BUSINESS_FACTS_PATH, icon: 'business', label: t(locale, 'settings.profile.title'),
     desc: unnamed ? t(locale, 'factory.about.empty', { name }) : null,
-    value: unfinished ? t(locale, 'setup.state.toDo') : p.name, tone: unfinished ? 'warn' : undefined });
+    value: t(locale, unfinished ? 'setup.state.toDo' : 'setup.state.done'), tone: unfinished ? 'warn' : 'ok' });
 
   const kind = menuRow({ href: '/app/settings/business', icon: 'tag', label: t(locale, 'business.kind.label'),
     value: m === null ? null : m.kind ? t(locale, `business.kind.${m.kind}` as MessageKey) : t(locale, 'setup.state.notAnswered'),
@@ -1094,7 +1095,7 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
   const home = currencyOfCountry(f.connection.country);
   const samples = m?.samples ?? null;
   const rows = [
-    menuRow({ href: '/app/settings/terms', icon: 'receipt', label: t(locale, 'terms.title'),
+    menuRow({ href: '/app/settings/terms', icon: 'receipt', label: t(locale, 'business.row.terms'),
       value: m === null ? null : m.terms ? inLine([m.terms.incoterm, m.terms.payment]) : t(locale, 'setup.value.notSetUp'),
       tone: m !== null && !m.terms ? 'warn' : undefined }),
     menuRow({ href: '/app/settings/samples', icon: 'gift', label: t(locale, 'samples.title'),
@@ -1102,16 +1103,17 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
         : samples.price === null ? t(locale, 'setup.value.notSetUp')
         : samples.price.amount === 0 ? t(locale, 'business.value.free') : show.money(locale, samples.price),
       tone: samples !== null && (samples.waiting > 0 || samples.price === null) ? 'warn' : undefined }),
-    menuRow({ href: '/app/settings/closures', icon: 'calendar', label: t(locale, 'closures.title'),
+    menuRow({ href: '/app/settings/closures', icon: 'calendar', label: t(locale, 'business.row.closures'),
       value: m === null ? null : m.closure
         ? inLine([m.closure.label, t(locale, 'closures.range', { from: show.date(locale, m.closure.from), to: show.date(locale, m.closure.to) })])
         : t(locale, 'business.value.noClosures') }),
-    ...(home !== null && home !== f.prices.currency ? [menuRow({ href: '/app/settings/rate', icon: 'exchange', label: t(locale, 'rate.title'),
+    ...(home !== null && home !== f.prices.currency ? [menuRow({ href: '/app/settings/rate', icon: 'exchange', label: t(locale, 'business.row.rate'),
       value: m === null ? null : m.rate ? t(locale, 'rate.current', { rate: m.rate.rate, from: m.rate.from, to: m.rate.to }) : t(locale, 'setup.value.notSetUp'),
       tone: m !== null && !m.rate ? 'warn' : undefined })] : []),
   ];
   // Phase 9 — the first door is the questions; the rest change one of the
-  // same facts directly, and say so.
+  // same facts directly, and say so. Each row is named short, as a menu's are;
+  // the page it opens keeps its full name.
   return `${head(locale, t(locale, 'factory.sellhow.title'), flash)}
     ${questions}
     <section class="sgroup">

@@ -212,8 +212,11 @@ export type MenuRow = {
 
 export const menuRow = (r: MenuRow): string => {
   const line = r.descHtml ?? (r.desc ? esc(r.desc) : '');
+  // The value takes the direction of its own words (`dir="auto"`): cut short
+  // on a phone, an e-mail address or a Latin name on an Arabic page loses its
+  // end, never its beginning.
   const inner = `${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}</span>`
-    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
+    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}" dir="auto"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
   const cls = `srow sr-menu${line ? ' sr-two' : ''}`;
   return r.href
     ? `<li><a class="${cls}" href="${r.href}">${inner}<span class="go" aria-hidden="true">›</span></a></li>`
