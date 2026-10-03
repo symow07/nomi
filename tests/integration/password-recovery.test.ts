@@ -65,7 +65,9 @@ d('PWR · a forgotten password, by e-mail (requires DATABASE_URL + MIGRATE_DATAB
     for (const [biz, email, archived] of [[SHOP, OWNER, false], [SHOP, GONE, true], [OFF, QUIET, false]] as const) {
       const person = (await admin.query(
         'insert into people (business_id, name, is_owner) values ($1, $2, $3) returning id', [biz, 'Sara', email === OWNER])).rows[0].id;
-      await admin.query('insert into logins (business_id, person_id, email, password_hash, archived_at) values ($1, $2, $3, $4, $5)',
+      // PWR2 (0129) — each address has answered a code: only such an address is mailed a link.
+      await admin.query(`insert into logins (business_id, person_id, email, password_hash, archived_at, email_verified_at)
+                         values ($1, $2, $3, $4, $5, now())`,
         [biz, person, email, old, archived ? new Date() : null]);
     }
     const { buildProduction } = await import('../../src/main.js');
@@ -94,7 +96,7 @@ d('PWR · a forgotten password, by e-mail (requires DATABASE_URL + MIGRATE_DATAB
   it('an owner asks, a link arrives, a new password is chosen with it — and signs in', async () => {
     const r = await ask(`  ${OWNER.toUpperCase()} `);
     expect(r.statusCode).toBe(200);
-    expect(r.body).toContain(t('en', 'forgot.sent', { email: OWNER, minutes: 60 }));
+    expect(r.body).toContain(t('en', 'forgot.sent', { email: `<bdi>${OWNER}</bdi>`, minutes: 60 }));
     await settle();
     expect(outbox).toHaveLength(1);
     const mail = outbox[0]!;
@@ -119,6 +121,9 @@ d('PWR · a forgotten password, by e-mail (requires DATABASE_URL + MIGRATE_DATAB
     expect(String(signIn.headers['location'])).not.toBe('/login');
     const old = await form('/login', { email: OWNER, password: `old-password-${RUN}` });
     expect(old.statusCode, 'the old password no longer opens the door').toBe(401);
+    // PWR2 — and the address is told (after the reply), before the next test empties the box
+    await settle();
+    expect(outbox.filter((m) => m.subject === t('en', 'setpw.changed.mail.subject')).map((m) => m.to)).toEqual([OWNER]);
   });
 
   it('an address with no login, an archived login, a switched-off workspace: the same words and status — and no mail', async () => {

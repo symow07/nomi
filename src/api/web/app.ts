@@ -231,7 +231,7 @@ import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } fr
 import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
@@ -1543,17 +1543,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(setPasswordPage({ locale, path: '/login/set-password', passwordMin: PASSWORD_MIN,
         passwordMax: PASSWORD_MAX, link, problem, recoveryOn, contact: deps.legalContact ?? null }));
 
+  /**
+   * PWR2 — the link the page was opened with, held for this one address
+   * (HttpOnly, an hour), so that switching language — through `/locale`, which
+   * comes back here without the token — still finds it. The token itself stays
+   * out of everything the page links to. Spent or gone, it is forgotten.
+   */
+  const SETLINK_COOKIE = 'yf_setlink';
+  const keepSetLink = (reply: FastifyReply, token: string | null) =>
+    writeCookie(reply, SETLINK_COOKIE, token ?? '', { path: '/login/set-password', maxAgeSec: token ? 3600 : 0 });
+
   app.get('/login/set-password', quietDoor, async (req, reply) => {
     const q = req.query as { t?: unknown; l?: unknown } | undefined;
-    const raw = q?.t;
+    const held = parseCookies(req.headers.cookie)[SETLINK_COOKIE];
+    const raw = q?.t !== undefined && q.t !== '' ? q.t : held;
     // No link at all is somebody at the wrong door, not a spent link: the door.
     if (raw === undefined || raw === '') return reply.redirect('/login');
-    // PWR2 — the link opens in the language its mail was written in (`l`), and
-    // the page's own switcher comes back here with another: the choice is kept,
-    // as the switcher's `/locale` keeps it, and the token never leaves this route.
+    // PWR2 — the link opens in the language its mail was written in (`l`); the
+    // choice is kept, as the switcher's `/locale` keeps it.
     const chosen = typeof q?.l === 'string' ? parseLocale(q.l) : null;
     if (chosen) setLocaleCookie(reply, chosen);
     const link = await setupLinkOf(raw);
+    if (link) keepSetLink(reply, link.token);
+    else if (held) keepSetLink(reply, null);
     return setPwPage(req, reply, link ? 200 : 404, link, null, chosen ?? localeOf(req));
   });
 
@@ -1564,7 +1576,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
     }
     const link = await setupLinkOf(b.t);
-    if (!link) return setPwPage(req, reply, 404, null);
+    if (!link) { keepSetLink(reply, null); return setPwPage(req, reply, 404, null); }
     const password = typeof b.password === 'string' ? b.password : '';
     const repeat = typeof b.repeat === 'string' ? b.repeat : '';
     // The same rules sign-up holds a password to (core/owner/signup.ts).
@@ -1574,6 +1586,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : password !== repeat ? 'mismatch' : null;
     if (problem) return setPwPage(req, reply, 400, link, problem);
     const email = await spendSetupLink(deps.db, setupTokenHash(link.token), await hashPassword(password)).catch(() => null);
+    keepSetLink(reply, null);
     if (!email) return setPwPage(req, reply, 404, null);
     // PWR2 — every other session of this login ends NOW: the password stamp it
     // was opened with no longer matches, and this process forgets the answer it
@@ -1585,10 +1598,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (recoveryOn) {
       const locale = localeOf(req);
       const base = (deps.publicBaseUrl ?? '').replace(/\/+$/, '');
-      const contact = deps.legalContact ? t(locale, 'setpw.changed.mail.contact', { contact: deps.legalContact }) : '';
+      // A mail is not a page: the catalogue's plain sentence (`mailT`), the
+      // address alone isolated, each address of ours bare on its own line.
+      const contact = deps.legalContact ? mailT(locale, 'setpw.changed.mail.contact', { contact: deps.legalContact }) : '';
       void codeMail!.send({
-        to: email, subject: t(locale, 'setpw.changed.mail.subject'),
-        text: `${t(locale, 'setpw.changed.mail.body', { email: show.isolate(locale, email), forgot: `${base}/login/forgot` })}${contact}`,
+        to: email, subject: mailT(locale, 'setpw.changed.mail.subject'),
+        text: `${mailT(locale, 'setpw.changed.mail.body', { email: show.isolate(locale, email), forgot: `${base}/login/forgot` })}${contact}`,
       }).then((m) => { if (!m.ok && !refusedByCap(m)) reportDoorMail('password_changed', m.error); })
         .catch(() => reportDoorMail('password_changed', 'unreachable'));
     }
@@ -1631,9 +1646,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // PWR2 — `l`: the page opens in the language this mail is written in.
       const link = `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login/set-password?t=${token}&l=${locale}`;
       const mailed = await codeMail!.send({
-        to, subject: t(locale, 'forgot.mail.subject'),
-        // PWR2 — the address isolated inside an Arabic sentence; the link alone on its line, bare.
-        text: t(locale, 'forgot.mail.body', { email: show.isolate(locale, to), link, minutes: RECOVERY_MINUTES }),
+        to, subject: mailT(locale, 'forgot.mail.subject'),
+        // PWR2 — a mail is not a page: the catalogue's plain sentence (`mailT`).
+        // The address alone is isolated inside an Arabic sentence; the link
+        // stays bare on its own line — a mark around it would be taken into
+        // the address by a mail program that makes it a link, and spoil the token.
+        text: mailT(locale, 'forgot.mail.body', { email: show.isolate(locale, to), link, minutes: RECOVERY_MINUTES }),
       }).catch(() => ({ ok: false as const, error: 'unreachable' }));
       // A fixed phrase per way tried — never the address, never the link.
       if (!mailed.ok) {

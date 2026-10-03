@@ -204,20 +204,15 @@ export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** The EN·中文·العربية switcher — links to the public /locale route, returns to `path`. */
-export function switcher(locale: Locale, path: string, href?: (l: Locale) => string): string {
+export function switcher(locale: Locale, path: string): string {
   // A plain path stays plain: percent-encoding would put `%` into the page,
   // and the owner surface bans that character (settings-web.test.ts scans
   // for it). Anything with a query or an odd character is encoded as before.
   const raw = path || '/app';
   const next = /^[A-Za-z0-9/_.-]*$/.test(raw) ? raw : encodeURIComponent(raw);
-  // PWR2 — a page whose address carries what it needs (the reset link's
-  // token) switches language on its own address, never through /locale,
-  // whose request line is logged and whose `next` would drop the token.
-  // Either way the address is built from known characters only.
-  const to = href ?? ((l: Locale) => `/locale?set=${l}&next=${next}`);
   return `<div class="langsw" role="group" aria-label="${esc(t(locale, 'switcher.aria'))}">
     ${LOCALES.map((l) =>
-      `<a class="${l === locale ? 'on' : ''}" hreflang="${l}" lang="${l}" href="${to(l)}">${esc(LOCALE_LABEL[l])}</a>`,
+      `<a class="${l === locale ? 'on' : ''}" hreflang="${l}" lang="${l}" href="/locale?set=${l}&next=${next}">${esc(LOCALE_LABEL[l])}</a>`,
     ).join('')}</div>`;
 }
 
@@ -2747,11 +2742,7 @@ const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
  * The door runs no script (CC-26): it holds the password and the code fields,
  * and nothing on it needs one (public-new-11 was decided that way).
  */
-type DoorOptions = {
-  readonly site?: string;
-  /** PWR2 — where each language of the switcher goes, for a page that must keep its own address. */
-  readonly switchTo?: (l: Locale) => string;
-};
+type DoorOptions = { readonly site?: string };
 
 /**
  * w4-public-05, -06 — the space between a sentence and what follows it: none after a
@@ -2773,7 +2764,7 @@ const doorFrame = (locale: Locale, path: string, title: string, card: string, ot
 ${linkTo(DOOR_SHEET)}
 ${typeLink(locale)}</head>
 <body><div class="login">
-  <div class="top-sw">${switcher(locale, path, o.switchTo)}</div>
+  <div class="top-sw">${switcher(locale, path)}</div>
   <div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
   <div class="card">${card}</div>
   ${other}
@@ -3025,6 +3016,16 @@ export function signupPage(input: SignupPageInput): string {
  */
 export type SetPasswordProblem = 'short' | 'long' | 'mismatch' | 'is_email';
 
+/**
+ * PWR2 — a door sentence with an e-mail address in it: the address in its own
+ * `<bdi>` (every language), the sentence's figures isolated where the page runs
+ * right to left. Escaped.
+ */
+function withAddress(locale: Locale, key: MessageKey, email: string | null, params: Record<string, string | number> = {}): string {
+  const said = esc(isolateFigures(locale, t(locale, key, { ...params, ...(email === null ? {} : { email: '\u0000' }) })));
+  return email === null ? said : said.replace('\u0000', `<bdi>${esc(email)}</bdi>`);
+}
+
 export function setPasswordPage(input: {
   readonly locale: Locale; readonly path: string; readonly passwordMin: number; readonly passwordMax: number;
   /** Null: the link is not good (used, lapsed or unknown). */
@@ -3055,11 +3056,11 @@ export function setPasswordPage(input: {
   const problem = input.problem
     ? t(locale, `setpw.problem.${input.problem}` as MessageKey, { n: input.problem === 'long' ? input.passwordMax : input.passwordMin })
     : null;
-  // PWR2 — the address is isolated inside the sentence, so in Arabic it keeps
-  // its own order and the sentence keeps its direction.
+  // PWR2 — the address is isolated inside the sentence (not the sentence as a
+  // whole), so in Arabic it keeps its own order and the sentence its direction.
   const card = `
     <h1>${esc(t(locale, 'setpw.title'))}</h1>
-    <p class="lead">${esc(t(locale, 'setpw.lead', { email: isolate(locale, input.link.email) }))}</p>
+    <p class="lead">${withAddress(locale, 'setpw.lead', input.link.email)}</p>
     ${problem ? `<div class="err" role="alert">${esc(problem)}</div>` : ''}
     <form method="post" action="/login/set-password">
       <input type="hidden" name="t" value="${esc(input.link.token)}" />
@@ -3073,11 +3074,7 @@ export function setPasswordPage(input: {
         maxlength="${input.passwordMax}" autocomplete="new-password" />
       <button type="submit">${esc(t(locale, 'setpw.submit'))}</button>
     </form>`;
-  // PWR2 — switching language keeps the link: the switcher stays on this
-  // address (the token is base64url; nothing in it needs encoding).
-  const token = input.link.token;
-  return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other,
-    { switchTo: (l) => `/login/set-password?t=${token}&l=${l}` });
+  return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other);
 }
 
 /**
@@ -3107,8 +3104,7 @@ export function forgotPasswordPage(input: {
   const other = `<p class="other"><a href="/login">${esc(t(locale, 'setpw.toLogin'))}</a></p>`;
   // PWR2 — an address or a figure inside a sentence is isolated: in Arabic it
   // keeps its own order, and the sentence keeps its direction.
-  const said = (key: MessageKey, email?: string): string =>
-    esc(isolateFigures(locale, t(locale, key, { minutes: input.minutes, ...(email === undefined ? {} : { email: isolate(locale, email) }) })));
+  const said = (key: MessageKey, email?: string): string => withAddress(locale, key, email ?? null, { minutes: input.minutes });
   // PWR2 — an access code is not a password and is never mailed: who gives a new one.
   const codes = `<p class="caption muted">${esc(t(locale, 'forgot.codes'))}</p>`;
   if (input.mailOff) {

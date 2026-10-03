@@ -15792,7 +15792,7 @@ const FR: Record<MessageKey, string> = {
   'forgot.off.write': 'Pour choisir un nouveau mot de passe, écrivez à l’équipe de Nomi depuis l’adresse avec laquelle vous vous connectez : {email}. L’équipe vous enverra un lien.',
   'forgot.off.ask': 'Pour choisir un nouveau mot de passe, demandez un lien à l’équipe de Nomi.',
   'setpw.changed.mail.subject': 'Votre mot de passe Nomi a été changé',
-  'setpw.changed.mail.body': 'Un nouveau mot de passe a été enregistré pour {email} sur Nomi.\n\nSi c’était vous, il n’y a rien d’autre à faire.\n\nSinon, choisissez-en un autre tout de suite. Demandez un lien ici ; il est envoyé à cette adresse :\n{forgot}',
+  'setpw.changed.mail.body': 'Un nouveau mot de passe a été enregistré pour {email} sur Nomi.\n\nSi c’était vous, il n’y a rien d’autre à faire.\n\nSinon, choisissez-en un autre tout de suite. Demandez ici un lien, envoyé à cette adresse :\n{forgot}',
   'setpw.changed.mail.contact': '\n\nEt prévenez l’équipe de Nomi : {contact}',
   'verify.resent': 'Un nouveau code est en route. Le précédent ne fonctionne plus.',
   'verify.error.wrong': 'Ce n’est pas le bon code. Vérifiez le dernier e-mail reçu et réessayez.',
