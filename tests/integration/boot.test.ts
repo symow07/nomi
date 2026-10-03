@@ -407,7 +407,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Accept-Language Arabic → RTL
     const ar = await prod.app.inject({ method: 'GET', url: '/login', headers: { 'accept-language': 'ar-SA,ar;q=0.9' } });
     expect(ar.body).toContain('<html lang="ar" dir="rtl">');
-    expect(ar.body).toContain('لديّ رمز دخول');
+    expect(ar.body).toContain('لديّ رمز وصول');   // w4-public-11: the access code, not «الدخول» twice
     // yf_locale cookie → Chinese
     const zh = await prod.app.inject({ method: 'GET', url: '/login', headers: { cookie: 'yf_locale=zh' } });
     expect(zh.body).toContain('<html lang="zh"');

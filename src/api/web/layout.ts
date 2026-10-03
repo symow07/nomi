@@ -411,18 +411,11 @@ export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); 
  * colour that is not here, add it to `DESIGN_TOKENS.color` — it becomes a
  * variable on its own, with no edit to the emitter.
  */
-const STYLE = `
-${cssVariables()}
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--color-paper); color: var(--color-ink);
-    font: var(--font-size-base)/var(--line-height) var(--font-family); }
-  a { color: inherit; text-decoration: none; }
-  /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
-  .voice { font-family: var(--font-voice); }
-  /* THE WARMTH RUN (2026-10-03) — a customer's face (faces.ts): their photo laid
-     on their coloured initial, round. The initial is always there under it, so a
-     photo that does not arrive leaves the initial, never a hole. */
-  .face { position:relative; display:inline-grid; place-items:center; flex:none; overflow:hidden;
+/**
+ * The face's rules (faces.ts), drawn in the shell's sheet and, from here, on the one public
+ * page that shows a face (the site's example, w4-public-03), so the class is defined once.
+ */
+export const FACE_CSS = `  .face { position:relative; display:inline-grid; place-items:center; flex:none; overflow:hidden;
     border-radius:var(--radius-chip); inline-size:40px; block-size:40px; font-size:var(--font-size-base);
     font-weight:600; line-height:1; user-select:none; }
   .face-xs { inline-size:24px; block-size:24px; font-size:var(--font-size-caption); }
@@ -439,7 +432,20 @@ ${cssVariables()}
   .face.t5 { background:var(--face-5-bg); color:var(--face-5-fg); }
   .face.t6 { background:var(--face-6-bg); color:var(--face-6-fg); }
   .face.t7 { background:var(--face-7-bg); color:var(--face-7-fg); }
-  .face.t8 { background:var(--face-8-bg); color:var(--face-8-fg); }
+  .face.t8 { background:var(--face-8-bg); color:var(--face-8-fg); }`;
+
+const STYLE = `
+${cssVariables()}
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-paper); color: var(--color-ink);
+    font: var(--font-size-base)/var(--line-height) var(--font-family); }
+  a { color: inherit; text-decoration: none; }
+  /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
+  .voice { font-family: var(--font-voice); }
+  /* THE WARMTH RUN (2026-10-03) — a customer's face (faces.ts): their photo laid
+     on their coloured initial, round. The initial is always there under it, so a
+     photo that does not arrive leaves the initial, never a hole. */
+${FACE_CSS}
   .face-link { display:inline-flex; align-items:center; gap:var(--space-8); color:inherit; min-width:0; }
   .face-link:focus-visible { outline:none; }
   .face-link:focus-visible .face { outline:2px solid var(--color-ink); outline-offset:2px; }
@@ -2504,6 +2510,8 @@ const DOOR_STYLE = `
      the pill above them and the links below. */
   .login .brand small { margin-top:0; }
   .login h1 { font-size:var(--font-size-title); margin:0 0 var(--space-8); }
+  /* w4-public-10 — a heading in even lines, so no word is left on its own (es, fr). */
+  .login h1 { text-wrap:balance; }
   .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
   /* No word or character left alone on a line (V1-056): a short lead in even lines, the rest pretty. */
   .login .lead { text-wrap:balance; }
@@ -2514,6 +2522,7 @@ const DOOR_STYLE = `
   /* V1-034, V1-050 — a link on the door looks like one. */
   .login .card a, .login .other a, .login .foot a { color:var(--color-ink); text-decoration:underline;
     text-underline-offset:0.2em; }
+  /* w4-public-04 — a field, a list and a button are controls: a control's corner, as inside the app. */
   input { width:100%; padding:12px 14px; border-radius:var(--radius-control);
     border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
@@ -2572,10 +2581,23 @@ const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
  * and nothing on it needs one (public-new-11 was decided that way).
  */
 type DoorOptions = { readonly site?: string };
+
+/**
+ * w4-public-05, -06 — the space between a sentence and what follows it: none after a
+ * full-width stop, question mark, exclamation mark or colon (。？！：), which carries its own.
+ */
+export const gapAfter = (sentence: string): string => (/[\u3002\uFF1F\uFF01\uFF1A]$/.test(sentence) ? '' : ' ');
+
+/**
+ * w4-public-13 — the mail that asks for an invitation, prepared the same way wherever it is
+ * offered (the site, sign-up): its subject and the three questions to answer. Unescaped.
+ */
+export const inviteMailto = (l: Locale, contact: string): string =>
+  `mailto:${contact}?subject=${encodeURIComponent(t(l, 'site.invite.subject'))}&body=${encodeURIComponent(t(l, 'site.invite.mailBody'))}`;
 const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, o: DoorOptions = {}): string => `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nomi · ${esc(title)}</title>
+<title>${esc(title)} · Nomi</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${linkTo(DOOR_SHEET)}
 ${typeLink(locale)}</head>
@@ -2727,14 +2749,15 @@ export function signupPage(input: SignupPageInput): string {
   const fieldErr = (k: keyof typeof p): string => (p[k] ? `<div class="fld-err" id="${FIELD_ID[k]}-err" role="alert">${esc(p[k]!)}</div>` : '');
   const summary = refused.length ? `<div class="err" role="alert">${esc(t(locale, 'signup.problem.summary'))}<ul>${refused.map((k) =>
     `<li><a href="#${FIELD_ID[k]}">${esc(t(locale, FIELD_LABEL[k]))}</a></li>`).join('')}</ul></div>` : '';
+  // w4-public-13 — the mail opens prepared, like the site's: a subject and the questions.
   const mailTo = (key: MessageKey): string => (input.contact
-    ? esc(t(locale, key, { email: '\u0000' })).replace('\u0000', `<a href="mailto:${esc(input.contact)}">${esc(input.contact)}</a>`) : '');
+    ? esc(t(locale, key, { email: '\u0000' })).replace('\u0000', `<a href="${esc(inviteMailto(locale, input.contact))}">${esc(input.contact)}</a>`) : '');
   // Phase 9 (V1-047) — in invite mode the code comes first: nothing else can be
   // sent without it. It says where it is, and how to ask for one.
   const invite = input.mode === 'invite' ? `
       <label for="su-invite">${esc(t(locale, 'signup.invite'))}</label>
       <input id="su-invite" type="text" name="invite" value="${esc(v.invite ?? '')}" required autocomplete="off" autocapitalize="none" spellcheck="false"${at('invite')} />
-      ${fieldErr('invite') || `<div class="hint">${esc(t(locale, 'signup.inviteHint'))}${input.contact ? ` ${mailTo('signup.inviteAsk')}` : ''}</div>`}` : '';
+      ${fieldErr('invite') || `<div class="hint">${esc(t(locale, 'signup.inviteHint'))}${input.contact ? `${gapAfter(t(locale, 'signup.inviteHint'))}${mailTo('signup.inviteAsk')}` : ''}</div>`}` : '';
   // A2 — about the business. Every answer but two is a choice from a list.
   const option = (value: string, label: string, chosen: string | undefined): string =>
     `<option value="${esc(value)}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`;

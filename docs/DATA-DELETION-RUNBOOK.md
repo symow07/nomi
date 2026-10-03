@@ -147,7 +147,8 @@ This is the contract the public `/data-deletion` page states. The tool carries
 out exactly this — no more, no less.
 
 **Erased** — their data:
-- their identity on every channel (`client_channels`), and every message to or
+- their identity on every channel (`client_channels`) and their profile photo
+  (`client_faces`), and every message to or
   from them: `messages`, `message_fragments`, `turns`, `outbound_messages` and
   `outbound_transitions`, `deliveries`;
 - drafts, quotes, sample requests, proof links (`quote_proofs`), conversation

@@ -301,6 +301,8 @@ describe('M49 · buttons and empty states', () => {
       // The warmth run (phase 2) — Today's face row: each tile is a face over its one word.
       ['layout.ts  .td-face', 'a customer\'s face over the one word of what happened, in its tile'],
       ['layout.ts  .td-more', 'the row\'s last tile, "+N more", drawn like a face over its word'],
+      // The fix wave (w4-public-07) — the site's button: a label that wraps sits in the middle of its box.
+      ['site.ts  .site-go', 'a button\'s own label, centred in its button when it takes two lines'],
     ]);
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {
