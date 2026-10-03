@@ -1780,12 +1780,13 @@ const STYLE_PAGES = `
   #approve summary { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); cursor:pointer; min-height:44px; align-items:center; }
   /* Phase 9 (conversation-new-04) — what needs the owner follows the fold's own words, and starts its own line when it wraps: right-aligned under them, it read as cut off. */
   #approve summary .c { color:var(--color-ink-secondary); }
-  #approve summary .c.warn { color:var(--color-waiting); font-weight:600; }
+  /* The fix wave (w4-conversation-01) — what to check is ink, marked by a question: magenta and ○ mean "waiting for you". */
+  #approve summary .c.check { color:var(--color-ink); font-weight:600; }
   #approve details .und { margin:var(--space-4) 0 0; }
   .reasons { list-style:none; margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12); display:grid; gap:var(--space-4);
     background:var(--color-paper); border-radius:var(--radius-control); }
   .reasons li { display:grid; grid-template-columns:1.2em minmax(6em, max-content) 1fr; gap:var(--space-8); align-items:baseline; }
-  .reasons .mk.warn { color:var(--color-waiting); }
+  .reasons .mk.check { color:var(--color-ink); }
   /* Phase 9 (V1-242) — a product's name stays whole where the line has room. */
   .reasons .pname { display:inline-block; }
   /* Phase 9 (conversation-missed-03) — on a phone the source goes under what it explains, not into a sliver of a column. */

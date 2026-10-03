@@ -195,7 +195,8 @@ describe('CC-25 · the conversation page lands on the notice, under the newest m
         const draft = at(html, 'class="card draft"');
         expect(notice, l).toBeGreaterThan(newest);
         expect(notice, l).toBeLessThan(draft);
-        expect(draft, l).toBeLessThan(at(html, 'class="card takeover'));
+        // the fix wave (w4-conversation-03) — no second card under the draft repeating it
+        expect(html, l).not.toContain('class="card takeover');
         expect(notices(html), `${l}: one notice`).toBe(1);
         expect(marks(html), `${l}: one landing`).toBe(1);   // the message gives the mark up to it
         // nothing between the newest message and the notice but the end of the transcript
@@ -262,10 +263,12 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
         const html = renderSandbox(practice(), l, { flash: SENT });
         const order = [
           at(html, 'class="timeline"'), at(html, '<bdi>p-50</bdi>'), landing(html),
-          at(html, 'class="card draft"'), at(html, 'class="card takeover'),
+          at(html, 'class="card draft"'),
           at(html, 'class="card sbx-trust'), at(html, 'id="compose"'),
         ];
         expect(order, l).toEqual([...order].sort((a, b) => a - b));
+        // the fix wave (w4-conversation-03) — under the draft card its "I'll reply" is the take-over
+        expect(html, l).not.toContain('class="card takeover');
         expect(notices(html), l).toBe(1);
         expect(marks(html), l).toBe(1);
         expect(html.slice(at(html, '<bdi>p-50</bdi>'), at(html, 'class="card draft"')), l).not.toMatch(/class="card|<form/);

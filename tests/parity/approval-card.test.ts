@@ -103,9 +103,9 @@ describe('the card, drawn', () => {
     // Phase 9 (V1-222) — the line carries only what needs the owner: no count of reasons.
     expect(c).toMatch(/<details class="reading"><summary><span class="t">How your assistant read this<\/span><\/summary><p class="und">/);
     expect(c).toContain('<bdi>a price question</bdi> · <bdi>Rose Face Serum</bdi> · <bdi>10\u00a0bottles</bdi> · <bdi>English</bdi>');
-    expect(c).toContain('<bdi>$34.90</bdi><span>your price for <bdi class="pname">Rose Face Serum</bdi></span>');
-    expect(c).toContain('<bdi>$349.00</bdi><span>the total, at your prices</span>');
-    expect(c).toContain('<bdi>Ships from Leeds</bdi><span>something you taught</span>');
+    expect(c).toContain('<span><bdi>$34.90</bdi></span><span>your price for <bdi class="pname">Rose Face Serum</bdi></span>');
+    expect(c).toContain('<span><bdi>$349.00</bdi></span><span>the total, at your prices</span>');
+    expect(c).toContain('<span><bdi>Ships from Leeds</bdi></span><span>something you taught</span>');
     expect(c).toContain('checked twice');
     expect(c.indexOf('class="acts"')).toBeLessThan(c.indexOf('class="reading"'));
     expect(c).toMatch(/Instagram takes replies until \d\d:\d\d tomorrow/);
@@ -145,9 +145,10 @@ describe('the card, drawn', () => {
     }, 'en', NOW, null));
     const c = card(html);
     // Phase 9 (V1-220) — and where in the reply it stands.
-    expect(c).toContain('<span class="mk warn" aria-hidden="true">○</span><bdi>29</bdi><span>no source found <bdi class="muted">Today only: $29.</bdi></span>');
+    // The fix wave (w4-conversation-01) — "check this" is a question mark in ink, not the magenta ○ of waiting.
+    expect(c).toContain('<span class="mk check" aria-hidden="true">?</span><span><bdi>29</bdi></span><span>no source found <bdi class="muted">Today only: $29.</bdi></span>');
     // Phase 9 (V1-222) — which figure, on the line itself.
-    expect(c).toMatch(/<span class="c warn"><span aria-hidden="true">○<\/span> No source for 29<\/span><\/summary>/);
+    expect(c).toMatch(/<span class="c check"><span aria-hidden="true">\?<\/span> No source for 29<\/span><\/summary>/);
     expect(c).toContain('a second, separate reading differed on the product');
   });
 
@@ -165,7 +166,25 @@ describe('the card, drawn', () => {
     const html = withoutIsolates(renderConversationDetail({
       ...base, pendingDraft: { ...base.pendingDraft!, draftText: 'Our sturdy model ZX-300 ships within a week.' },
     }, 'en', NOW, null));
-    expect(card(html)).toMatch(/<bdi>300<\/bdi><span>no source found <bdi class="muted">[^<]*ZX-300[^<]*<\/bdi>/);
+    // a code that is not the product's own: its figure has no source, and the pointer keeps the code whole (w4-conversation-08)
+    expect(card(html)).toMatch(/<span><bdi>300<\/bdi><\/span><span>no source found <bdi class="muted">[^<]*<span class="fig">ZX-300<\/span>[^<]*<\/bdi>/);
+  });
+
+  it('the fix wave (V1-220) · the product\'s own code is the code, not a figure: no "No source for 300"', () => {
+    const html = withoutIsolates(renderConversationDetail({
+      ...base, product: { ...base.product, sku: 'ZX-300' },
+      pendingDraft: { ...base.pendingDraft!, draftText: 'Our sturdy model ZX-300 ships within a week.' },
+    }, 'en', NOW, null));
+    const c = card(html);
+    expect(c).toContain(`<span class="mk" aria-hidden="true">✓</span><span><bdi>ZX-300</bdi></span><span>${t('en', 'card.source.code')}</span>`);
+    expect(c).not.toContain('<bdi>300</bdi>');
+    expect(c).not.toContain('No source for');
+    // an import's made-up number is not the owner's code (CC-31): its figure stays a figure
+    const made = card(withoutIsolates(renderConversationDetail({
+      ...base, product: { ...base.product, sku: 'NEW-m1abcdef-3' },
+      pendingDraft: { ...base.pendingDraft!, draftText: 'Our sturdy model ZX-300 ships within a week.' },
+    }, 'en', NOW, null)));
+    expect(made).toContain('<span><bdi>300</bdi></span>');
   });
 
   it('in Chinese and Arabic: the same card, the customer\'s words kept in their own direction, nobody gendered', () => {
@@ -206,7 +225,7 @@ describe('the card, drawn', () => {
     expect(c).toContain('<p class="und"><span class="k">Understood as:</span> <span><bdi>Rose Face Serum</bdi></span></p>');
     expect(c).not.toContain('checked twice');
     // …and the quote the page holds still sources its figures
-    expect(c).toContain('<bdi>$34.90</bdi><span>your price for <bdi class="pname">Rose Face Serum</bdi></span>');
+    expect(c).toContain('<span><bdi>$34.90</bdi></span><span>your price for <bdi class="pname">Rose Face Serum</bdi></span>');
     expect(c).not.toContain('Not every figure');
     expect(c).toContain('name="command" value="send"');
   });

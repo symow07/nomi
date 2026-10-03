@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { formatList } from '../../src/core/owner/i18n/format.js';
 import { usd } from '../../src/core/types/money.js';
 import { esc, shell } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
@@ -123,5 +124,69 @@ describe('w4-conversation-20, -25 · "… is writing a reply"', () => {
     expect(css).toMatch(/\.working \{ display:block;/);
     expect(css).not.toMatch(/\.working \{ display:flex/);
     expect(css).toMatch(/\.working \.dots \{ display:inline-flex;[^}]*margin-inline-start:var\(--space-8\)/);
+  });
+});
+
+describe('the draft card\'s fold (V1-220, w4-conversation-01, -02, -07, -08, -09)', () => {
+  const reply = 'Hello Aisha — for 5,000 pcs of LED String Lights 10m (ZX-300): $1.45/pc FOB Ningbo, lead time 25 days, CE certified.';
+  const drafted = (sku: string | null): ConversationDetail => detail({
+    pendingDraft: { draftId: 'd-1', capability: 'quote', draftText: reply }, status: 'awaiting',
+    product: { name: 'LED String Lights 10m', nameZh: 'LED灯串', sku }, quantity: 5000,
+    quote: { unitPrice: usd(1.45), total: usd(7250), quantity: 5000 }, claimsAllowed: [],
+  });
+  const card = (html: string): string => html.slice(html.indexOf('id="approve"'), html.indexOf('</section>', html.indexOf('id="approve"')));
+  const summary = (c: string): string => c.slice(c.indexOf('<summary>'), c.indexOf('</summary>'));
+
+  it('the demo\'s draft: "ZX-300" is the product\'s code, 25 has no source, and "CE certified" is unconfirmed — both on the line', () => {
+    const marks: Record<Locale, string> = { en: '?', zh: '？', ar: '؟', es: '?', fr: '?' };
+    const quote: Record<Locale, (x: string) => string> = {
+      en: (x) => `“${x}”`, zh: (x) => `“${x}”`, ar: (x) => `«${x}»`, es: (x) => `«${x}»`, fr: (x) => `«\u00a0${x}\u00a0»`,
+    };
+    for (const l of LOCALES) {
+      const c = card(page(drafted('ZX-300'), l));
+      const s = summary(c);
+      expect(s, l).not.toMatch(/300/);
+      expect(s, l).toContain(`<span class="c check"><span aria-hidden="true">${marks[l]}</span> ${esc(t(l, 'card.unsourcedWhich', { figures: '25' }))}</span>`);
+      expect(s, l).toContain(`<span class="c check"><span aria-hidden="true">${marks[l]}</span> ${esc(t(l, 'card.unconfirmedWhich', { claims: formatList(l, [quote[l]('CE certified'), quote[l]('FOB')]) }))}</span>`);
+      expect(c, l).toContain(`<span><bdi>ZX-300</bdi></span><span>${esc(t(l, 'card.source.code'))}</span>`);
+      // never the waiting signal's ○ for "check this"
+      expect(c, l).not.toMatch(/class="(?:mk|c) (?:warn|check)"[^>]*>(?:<span[^>]*>)?○/);
+      // every part of a row in a span of the page's own direction: in Arabic the figure sits by its mark
+      expect(c, l).toMatch(/<li><span class="mk check" aria-hidden="true">[^<]+<\/span><span><bdi>25<\/bdi><\/span><span>/);
+    }
+  });
+
+  it('a code in the pointer is never broken at its hyphen', () => {
+    const c = card(page(drafted(null), 'en'));
+    expect(c).toMatch(/no source found <bdi class="muted">[^<]*<span class="fig">\(ZX-300\):<\/span>/);
+  });
+
+  it('the stylesheet: what to check is ink, never the waiting colour', () => {
+    const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'ar', path: '/app/inbox', bodyHtml: '' }));
+    expect(css).toContain('#approve summary .c.check { color:var(--color-ink); font-weight:600; }');
+    expect(css).toContain('.reasons .mk.check { color:var(--color-ink); }');
+    expect(css).not.toMatch(/\.reasons [^{]*\{[^}]*--color-waiting/);
+    expect(css).not.toMatch(/#approve summary [^{]*\{[^}]*--color-waiting/);
+  });
+});
+
+describe('the take-over card (w4-conversation-03, -04)', () => {
+  const OWNER = { id: 'p-owner', name: 'Owner', isOwner: true };
+  const CHEN = { id: 'p-chen', name: '陈莉', isOwner: false };
+  it('under a reply the assistant drafted there is no second card; the assistant\'s conversations offer no "Hand to"', () => {
+    for (const l of LOCALES) {
+      const drafted = page(detail({ status: 'awaiting', people: [OWNER, CHEN], pendingDraft: { draftId: 'd', capability: 'quote', draftText: 'Hello' } }), l);
+      expect(drafted, l).not.toContain(esc(t(l, 'takeover.status.aiDraft')));
+      expect(drafted, l).not.toContain('class="card takeover');
+      expect(drafted, l).not.toContain('/handto');
+      const answered = page(detail({ people: [OWNER, CHEN] }), l);
+      expect(answered, l).toContain('class="card takeover');
+      expect(answered, l).not.toContain('/handto');
+    }
+  });
+  it('where a person must answer, a colleague can still be handed it — never the reader', () => {
+    const waiting = plain(renderConversationDetail(detail({ ownership: 'WAITING_HUMAN', people: [OWNER, CHEN] }), 'en', NOW, null, { id: OWNER.id, isOwner: true }));
+    expect(waiting).toContain(`<option value="${CHEN.id}">`);
+    expect(waiting).not.toContain(`<option value="${OWNER.id}">`);
   });
 });

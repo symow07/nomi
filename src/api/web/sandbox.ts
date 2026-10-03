@@ -459,7 +459,8 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
     ${order}
     ${opts.working && view.ownership === 'AI' && !draftCard.trim() ? workingLine(locale) : ''}
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
-    ${sandboxTakeoverCard(view, locale)}
+    ${/* The fix wave (w4-conversation-03) — under the draft card, its "I'll reply" is the take-over, as on a conversation. */ ''}${
+      view.ownership === 'AI' && draftCard.trim() ? '' : sandboxTakeoverCard(view, locale)}
     ${renderTrust(view.lastTurn, locale)}
     ${renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true,
       view.ownership !== 'OWNER_CONTROLLED' && !draftCard.trim(), opts.checklist?.currency ?? 'USD')}
