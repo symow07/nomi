@@ -141,12 +141,18 @@ d('CH3 · echoes (requires DATABASE_URL)', () => {
     // Meta delivers the same echo again: still one message.
     expect(JSON.parse((await signed(typed)).body)).toMatchObject({ received: 0 });
     // The customer writes again: the conversation is the owner's, so no reply is drafted.
-    const before = replyWriter.calls;
+    // 2026-10-03 — asked of THIS conversation. The fake writer is shared by every turn
+    // these workers run, any customer's and a job an earlier file left queued; counting
+    // all of its calls failed once on CI's second pass (2 for 1). A second customer
+    // writing in the same moment makes that happen every time, so it is part of the test.
+    const before = replyWriter.inputs.length;
     expect((await signed(message({ from: customer('noor'), to: PAGE_ID, text: 'Great, thanks!' }))).statusCode).toBe(200);
+    expect((await signed(message({ from: customer('zara'), to: PAGE_ID, text: 'Do you have it in red?' }))).statusCode).toBe(200);
     await until(async () => (await tx((x) => sql<{ n: number }>`select count(*)::int as n from messages
       where conversation_id = ${conv.id}::uuid and direction = 'inbound'`.execute(x).then((r) => r.rows[0]!.n))) >= 2 ? true : undefined, 'the second message');
+    await until(async () => (replyWriter.inputs.slice(before).some((i) => i.text.includes('in red')) ? true : undefined), 'the other customer answered');
     await new Promise((r) => setTimeout(r, 1500));
-    expect(replyWriter.calls).toBe(before);
+    expect(replyWriter.inputs.slice(before).filter((i) => i.text.includes('Great, thanks!'))).toEqual([]);
     expect((await drafts(conv.id)).filter((x) => x.status === 'pending')).toEqual([]);
   }, 120_000);
 
