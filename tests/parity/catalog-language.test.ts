@@ -158,8 +158,8 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       'alerts.title', 'alerts.way.email',
       // The warmth run's re-audit — the rail's name for an assistant not yet named: Assistant is French too.
       'nav.short.employee',
-      // Phase 9 — the channels screen's card is called what the page it opens is called (w4-settings-a-06).
-      'settings.alerts.title']),
+      // Phase 9 — the channels' number screen names the page its door opens (w4-settings-a-06).
+      'meta.phoneAlerts']),
   };
   it('the words French shares with English are still shared (else the list is stale)', () => {
     for (const [l, keys] of Object.entries(SAME_WORD) as [Locale, ReadonlySet<string>][])

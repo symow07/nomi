@@ -245,7 +245,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     expect(await where('/app/onboarding/attest', 'which=owner_ready')).toBe('/app/onboarding');
     // Phase 7 — the list is a screen of its own under My business.
     expect(await where('/app/business/allowlist/add', 'phone=%2B971500001111')).toBe('/app/business/allowlist');
-    expect(await where('/app/channels/whatsapp/disconnect')).toBe('/app/channels');
+    expect(await where('/app/channels/whatsapp/disconnect')).toBe('/app/channels/whatsapp');
     expect(await where(`/app/products/${PID}/edit`, 'moq=1')).toBe(`/app/products/${PID}`);
     expect(await where('/app/products/add/confirm', 'text=x')).toBe('/app/products');
     expect(await where(`${openImport}/save`, 'next=add')).toBe('/app/products');
@@ -257,7 +257,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const pages: ReadonlyArray<readonly [string, RegExp]> = [
       ['/app/onboarding', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
       ['/app/business/allowlist', /action="\/app\/business\/allowlist\/(add|remove)"/],
-      ['/app/channels', /action="\/app\/(channels\/whatsapp\/(test|disconnect|reconnect)|settings\/owner-phone)"/],
+      ['/app/channels/whatsapp', /action="\/app\/channels\/whatsapp\/(test|disconnect|reconnect)"/],
+      ['/app/channels/alerts', /action="\/app\/settings\/owner-phone"/],
       ['/app/products', /href="\/app\/products\/add"/],
       ['/app/products/add', /action="\/app\/products\/add\/(review|photo)"/],
       [`/app/products/${PID}`, /action="\/app\/products\/[^"]+\/edit"/],

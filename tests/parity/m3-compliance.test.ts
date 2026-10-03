@@ -8,7 +8,7 @@ import {
 } from '../../src/core/channel/delivery.js';
 import { gateOutbound, cancelableOnTakeover } from '../../src/core/channel/sendGate.js';
 import { deriveHealth, CHANNEL_STATUS_ZH } from '../../src/core/channel/health.js';
-import { renderChannels, testChannel, type ChannelsData } from '../../src/api/web/channels.js';
+import { renderChannelScreen, testChannel, type ChannelsData } from '../../src/api/web/channels.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -172,7 +172,7 @@ describe('M3 · connection health and 对话渠道 surfaces', () => {
     const h = deriveHealth({ ...base, credentialActive: false, lastError: 'HTTP 401 invalid api key D360' }, '小雅');
     expect(h.devDetail).toContain('401');   // support still sees it
     for (const locale of LOCALES) {
-      const html = renderChannels({
+      const html = renderChannelScreen('whatsapp', {
         whatsapp: {
           connected: false, status: 'needs_attention', healthOk: false,
           problem: 'credential_invalid', displayPhone: '+86 138****1234',

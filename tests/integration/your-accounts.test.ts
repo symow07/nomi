@@ -69,7 +69,7 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
   const get = (url: string, extra = '') => prod.app.inject({ method: 'GET', url, headers: { cookie: extra ? `${cookie}; ${extra}` : cookie } });
   /** The panel alone, so a mark elsewhere on the page cannot pass for one of its steps. */
   const panel = async (): Promise<string> => {
-    const r = await get('/app/channels');
+    const r = await get('/app/channels/meta');
     expect(r.statusCode).toBe(200);
     return /<section class="block" id="your-accounts"[\s\S]*?<\/section>/.exec(r.body)?.[0] ?? '';
   };
@@ -149,7 +149,7 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
   });
 
   it('a first message from another account shows when it arrives — and the page\'s live mark moves', async () => {
-    const drawn = await get('/app/channels');
+    const drawn = await get('/app/channels/meta');
     const mark = /data-live="\/app\/live\/channels\?since=([0-9a-f.]+)"/.exec(drawn.body)?.[1];
     expect(mark).toBeTruthy();
     expect((await get(`/app/live/channels?since=${mark}`)).json()).toEqual({ news: false });   // phase 8: no order count on a live answer (the rail's question carries who waits)

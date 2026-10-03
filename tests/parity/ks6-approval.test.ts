@@ -52,9 +52,11 @@ describe('KS6 · the card', () => {
       expect(renderApprovalCard({ needed: true, ask: { page: 'p.example', askedAt: when, decision: 'refused' } }, l, OWNER_VIEW, null)).not.toContain('legal@');
     });
   }
-  it('first on the Channels page, before the WhatsApp card', () => {
-    const page = src('src/api/web/channels.ts');
-    expect(page.indexOf('${approvalHtml}')).toBeLessThan(page.indexOf('${whatsappCard}'));
+  it('first on the channels\' home (phase 9: a screen per channel), before any channel', () => {
+    const page = src('src/api/web/factory.ts');
+    const home = page.slice(page.indexOf('function channelsScreen('));
+    expect(home.indexOf('${approvalHtml}')).toBeGreaterThan(-1);
+    expect(home.indexOf('${approvalHtml}')).toBeLessThan(home.indexOf("${menuGroup('channels', null, rows)}"));
   });
 });
 

@@ -104,8 +104,10 @@ describe('G3 · what the owner reads', () => {
     expect(f).toContain("'business.allowance.none'");
     expect(f).toContain("'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }");
     expect(f).toContain("deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))");
-    // Phase 7 — on the going-live screen, after the Stop and before WhatsApp's switch.
-    expect(f).toContain('const readyBody = everyBlock + allowanceBlock + (s.waRelevant');
+    // Phase 7 — on the going-live screen, after the Stop. Phase 9 (w4-business-assistant-14) — and
+    // after the channels' part, so nothing about channels sits under the daily limit's heading.
+    expect(f).toContain('const readyBody = everyBlock + (s.waRelevant');
+    expect(f).toContain("${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`) + allowanceBlock;");
   });
   it('20 photos a day, counted on the ledger as each is read', () => {
     expect(PHOTO_READS_A_DAY).toBe(20);

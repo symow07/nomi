@@ -11,7 +11,7 @@ import { t, assistantName } from './say.js';
 
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { deeper, esc } from './layout.js';
-import type { InboundLink } from './channels.js';
+import { listOfNames, type InboundLink } from './channels.js';
 import * as show from './values.js';
 
 /**
@@ -173,6 +173,11 @@ export type InboundLinks = ReadonlyMap<OutreachChannel, InboundLink>;
 
 export function renderAccounts(
   v: AccountsView, locale: Locale, viewer: Viewer = OWNER_VIEW, inbound: InboundLinks = new Map(),
+  /**
+   * Phase 9 (w4-business-assistant-05) — on E-mail's own screen, the mail
+   * accounts only; Instagram's and Messenger's state is their screen's.
+   */
+  only?: 'mail',
 ): string {
   // Phase 9 (V1-434) — Apollo is not one of the owner's accounts customers
   // reach her through: its key is set where it is used, on Prospects.
@@ -190,7 +195,7 @@ export function renderAccounts(
     // Phase 9 (missed-20) — the row says the account's state, not the rule
     // about writing first (its card below says that), and where to go next:
     // the card below to connect it, the help page for what to check.
-    ...(['instagram', 'messenger'] as const).map((ch): Row | Unavailable => {
+    ...(only === 'mail' ? [] : ['instagram', 'messenger'] as const).map((ch): Row | Unavailable => {
       const link = inbound.get(ch);
       const here = CHANNEL_REGISTRY[ch].availableHere && link?.configured === true;
       const name = t(locale, `reach.channel.${ch}` as MessageKey);
@@ -221,7 +226,6 @@ export function renderAccounts(
       <div class="dhead spread"><span class="ch-name">${esc(r.name)}</span><span class="pill ${r.tone}">${esc(r.state)}</span></div>
       ${r.body}
     </li>`).join('')}</ul>` : ''}
-    ${unavailable.length ? `<p class="muted small">${esc(t(locale, 'connect.unavailable', {
-      list: new Intl.ListFormat(locale, { type: 'conjunction' }).format(unavailable) }))}</p>` : ''}
+    ${unavailable.length ? `<p class="muted small">${listOfNames(locale, 'connect.unavailable', unavailable)}</p>` : ''}
   </div>`;
 }

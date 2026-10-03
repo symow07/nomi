@@ -363,7 +363,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     expect(rows.map((r) => r.enabled)).toEqual([true]);
     expect(rows[0]!.by_actor).not.toBe('');
 
-    const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } });
     // No name has been confirmed on this tenant, so the page says "your assistant".
     expect(page.body).toContain(esc(t('en', 'outreach.on')));
     expect(page.body).toContain('Stop writing first');
@@ -378,7 +378,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
       .execute(t).then((r) => r.rows));
     expect(rows.map((r) => r.enabled)).toEqual([true, false]);
 
-    const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } });
     expect(page.body).toContain(esc(t('en', 'outreach.off')));
   });
 

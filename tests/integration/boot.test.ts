@@ -499,11 +499,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
   it('M9.4 channels: page renders; coming-soon honest; no secret/provider leak', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    // Phase 9 — the old address answers with the channels' one home.
+    const old = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    expect([old.statusCode, old.headers['location']]).toEqual([302, '/app/business/channels']);
+    const res = await prod.app.inject({ method: 'GET', url: '/app/business/channels', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('WhatsApp');        // English default
-    expect(res.body).toContain('WhatsApp');
-    expect(res.body).toContain('Coming soon');
+    expect(res.body).toContain('Not available yet');
     expect(res.body).toContain('Instagram');
     for (const secret of ['DEMO_PNID', 'SIM_PNID', 'demo-no-secret', 'access_token', '360dialog']) {
       expect(res.body).not.toContain(secret);
@@ -520,11 +522,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
      */
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toContain(t('en', 'reach.title'));
-    // Instagram and Messenger, stated as impossible rather than discouraged.
-    expect(res.body).toContain(t('en', 'reach.cold.never'));
+    // Phase 9 — a screen per channel; what each allows is said on its own.
+    const screens = await Promise.all(['whatsapp', 'meta', 'email'].map((s) => prod.app.inject({ method: 'GET', url: `/app/channels/${s}`, headers: { cookie } })));
+    for (const s of screens) expect(s.statusCode).toBe(200);
+    const res = { body: screens.map((s) => s.body).join('\n') };
+    expect(res.body).toContain(t('en', 'reach.title.one', { channel: 'WhatsApp' }));
+    // Instagram and Messenger, stated as impossible rather than discouraged — once, as the rule of both.
+    expect(res.body).toContain(t('en', 'meta.rules.first'));
     // T5 — what does work instead, and nothing it cannot do (no comment is answered privately)
     expect(res.body).toContain(t('en', 'reach.instead.click_to_whatsapp'));
     // Email, the one channel that can genuinely be written to first.
@@ -550,7 +554,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const disc = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/disconnect',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(disc.statusCode).toBe(302);
-    expect(disc.headers['location']).toBe('/app/channels');
+    expect(disc.headers['location']).toBe('/app/channels/whatsapp');
     expect(flashSaid(disc, WEB_SECRET)).not.toBe('');
     expect(await active()).toBe(false);                 // real effect: inbound resolution stops
     expect(await auditCount('disconnect')).toBe(before + 1);
@@ -566,7 +570,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/test',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe('/app/channels');
+    expect(res.headers['location']).toBe('/app/channels/whatsapp');
     expect(flashSaid(res, WEB_SECRET)).not.toBe('');
   });
 
@@ -952,7 +956,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const save = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=%2B${ph('861380000004')}2` });
     expect(save.statusCode).toBe(302);
-    expect(save.headers['location']).toBe('/app/channels');
+    expect(save.headers['location']).toBe('/app/channels/alerts');
     expect(flashSaid(save, WEB_SECRET)).not.toBe('');
     expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // saved
     expect(await auditCount()).toBe(before + 1);          // audited
@@ -2345,7 +2349,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(f.readiness.canActivate).toBe(pre.blockers.length === 0);
 
       const page = (await html()).replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
-      expect(page).toContain(esc(t('en', 'factory.ready.title')));
+      expect(page).toContain(esc(t('en', 'business.row.live')));
       expect(page).not.toMatch(/\d+\s*%/);          // no rate, no grade
       expect(page).toContain('href="/app/onboarding"');
     });
@@ -2355,7 +2359,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const page = await html();
       const FIX: Record<string, string | null> = {
         schema_stale: '/app/onboarding', not_ready: '/app/onboarding',
-        secrets_not_rotated: '/app/onboarding', no_channel: '/app/channels',
+        secrets_not_rotated: '/app/onboarding', no_channel: '/app/channels/whatsapp',
         no_allowlist: null,
       };
       for (const b of f.readiness.blockers) {

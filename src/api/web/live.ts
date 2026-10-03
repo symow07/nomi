@@ -494,9 +494,9 @@ export const billingWatch = (mark: string, working: boolean): LiveWatch => ({
   ...(working ? { working: true } : {}),
 });
 
-/** The Channels page watches its own mark; the door is the page again, at "Your accounts". */
+/** The channels' screens watch their own mark; the door is Instagram and Messenger's screen, at "Your accounts" (phase 9: a screen of its own). */
 export const channelsWatch = (mark: string): LiveWatch => ({
   ask: `/app/live/channels?since=${mark}`,
-  door: '/app/channels#your-accounts',
+  door: '/app/channels/meta#your-accounts',
   says: [{ what: 'channels', key: 'live.channels' }],
 });

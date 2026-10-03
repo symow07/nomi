@@ -67,7 +67,7 @@ const ctx: HerContext = {
   gaps: [{ question: 'Do you ship to Dubai?', count: 4 }],
 };
 const talk: TalkAbout = {
-  profileDone: false, selling: { answered: 3, total: 8 }, products: { total: 24, names: ['Canvas tote', 'Steel mug', 'Cap'] },
+  finished: false, selling: { answered: 3, total: 8 }, products: { total: 24, names: ['Canvas tote', 'Steel mug', 'Cap'] },
   taught: 5, certs: ['CE', 'food_grade'],
 };
 const STAFF = { isOwner: false } as const;
@@ -112,21 +112,21 @@ describe('phase 7 · the landing: the name, the control, the menu', () => {
       const all = rows(html);
       expect(all.length, l).toBeGreaterThanOrEqual(11);
       for (const r of all) {
-        expect(r, `${l}: ${text(r)}`).toMatch(/^<a class="srow sr-menu" href="\/app\/[^"]+"><svg class="ni[^"]*"[^>]*aria-hidden="true"/);
+        expect(r, `${l}: ${text(r)}`).toMatch(/^<a class="srow sr-menu(?: sr-two)?" href="\/app\/[^"]+"><svg class="ni[^"]*"[^>]*aria-hidden="true"/);
         expect(r).toContain('<span class="sr-label">');
         expect(r).toMatch(/<span class="go" aria-hidden="true">›<\/span><\/a>$/);
         // every row says where it stands — a value, or (Practice) the line under its name
         expect(r.includes('<span class="sr-value') || r.includes('<span class="sr-desc">'), `${l}: ${text(r)}`).toBe(true);
       }
       // a short value at the row's end; where it stands as a sentence, the line under the name (never a value cut short)
-      const row = (href: string) => all.find((r) => r.startsWith(`<a class="srow sr-menu" href="${href}"`)) ?? '';
+      const row = (href: string) => all.find((r) => /^<a class="srow sr-menu(?: sr-two)?" href="([^"]+)"/.exec(r)?.[1] === href) ?? '';
       for (const href of ['/app/employee/talk', '/app/knowledge', '/app/employee/learning', '/app/settings/forbidden',
         '/app/employee/name', '/app/employee/checks', '/app/employee/history']) expect(row(href), `${l}: ${href}`).toContain('<span class="sr-value');
       for (const href of ['/app/employee/replies', '/app/employee/one-kind', '/app/sandbox', '/app/employee/month', '/app/employee/next'])
         expect(row(href), `${l}: ${href}`).toContain('<span class="sr-desc">');
       // a waiting thing is said in the waiting colour, with its shape (the stylesheet draws ○ before .sr-value.warn)
-      expect(html).toMatch(/href="\/app\/employee\/checks">[\s\S]*?<span class="sr-value warn">/);
-      expect(html).toMatch(/href="\/app\/employee\/learning">[\s\S]*?<span class="sr-value warn">/);
+      expect(html).toMatch(/href="\/app\/employee\/checks">[\s\S]*?<span class="sr-value warn"/);
+      expect(html).toMatch(/href="\/app\/employee\/learning">[\s\S]*?<span class="sr-value warn"/);
     });
 
     it(`${l} · no essay on the landing: no paragraph outside the control, and each row one line`, () => {
@@ -159,7 +159,7 @@ describe('phase 7 · every former section, one tap away, its words and controls 
       // who it is: the card — stage, role, since when
       expect(on('name')).toContain(esc(t(l, 'employee.role.reception')));
       // what it knows, and what it still needs (each question to the teach flow)
-      expect(on('learning')).toContain(esc(withAssistantName('Lily', () => t(l, 'her.knows.title'))));
+      expect(on('learning')).toContain(`href="/app/knowledge">${esc(withAssistantName('Lily', () => t(l, 'knowledge.teach')))}`);
       expect(on('learning')).toContain('href="/app/knowledge?teach=Do%20you%20ship%20to%20Dubai%3F"');
       // what it handles
       expect(on('replies')).toContain(esc(t(l, 'her.handles.always')));
@@ -197,6 +197,7 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
       for (const page of ['/app/settings/profile', '/app/business/how-you-sell', '/app/products', '/app/knowledge', '/app/business/promises']) {
         expect(html, `${l}: ${page}`).toContain(`href="${page}"`);
       }
+      expect(html, l).not.toContain('href="/app/business/selling"');
       for (const tag of ['<form', '<input', '<textarea', '<select', 'method="post"']) expect(html, `${l}: ${tag}`).not.toContain(tag);
       // summarised: counts and a few names, not the lists themselves
       expect(withoutIsolates(html)).toContain(withoutIsolates(esc(tn(l, 'her.talk.products', 24))));
@@ -213,8 +214,9 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
       // The names on the line under the row's name, which wraps; never a long value a phone cuts short.
       expect(row('/app/business/promises'), l).toContain(`<span class="sr-desc">${esc(t(l, 'claim.CE'))} · ${esc(t(l, 'claim.food_grade'))}</span>`);
       expect(row('/app/business/promises'), l).not.toContain('sr-value');
-      // The profile says where it stands, with its mark, as My business does — not the business's name again.
-      expect(row('/app/settings/profile'), l).toContain(`<span class="sr-value warn"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi></span>`);
+      // The profile says where it stands as My business does — in words, no tone for a setting (w4-business-assistant-02) —
+      // and not the business's name again.
+      expect(row('/app/settings/profile'), l).toContain(`<span class="sr-value"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi></span>`);
       expect(row('/app/settings/profile'), l).not.toContain('sr-desc');
       // Products are called Products, How you sell opens its own menu, as My business's rows do.
       expect(row('/app/products'), l).toContain(`<span class="sr-label">${esc(t(l, 'nav.products'))}</span>`);
@@ -228,7 +230,7 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
       expect(withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk }))).toContain('<ul class="scard asst-menu talk">');
     });
     it(`${l} · nothing taught and nothing claimed is said as that`, () => {
-      const empty = withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk: { ...talk, taught: 0, certs: [], profileDone: true } }));
+      const empty = withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk: { ...talk, taught: 0, certs: [], finished: true } }));
       expect(empty).toContain(esc(t(l, 'knowledge.product.none')));
       expect(empty).toContain(esc(t(l, 'business.value.noneConfirmed')));
       expect(empty).toContain(`<span class="sr-value ok"><bdi>${esc(t(l, 'setup.state.done'))}</bdi></span>`);
@@ -239,7 +241,7 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
     const html = withAssistantName('Lily', () => screen('talk', base, 'ar', ctx, undefined, { talk: withFigures }));
     expect(html).toContain('Canvas Tote Bag \u206838\u2069x\u206840\u2069cm · Thermos \u2068500\u2069ml');
   });
-  it('a member of staff reads How you sell, and is not sent to a page that would refuse them', () => {
+  it('a member of staff reads How you sell, and is sent only where staff may look (its menu), never to the questions', () => {
     const html = screen('talk', base, 'en', ctx, STAFF, { talk });
     expect(html).not.toContain('href="/app/business/selling"');
     // How you sell's own menu, which staff may open (the questions on it stay the owner's).
@@ -286,8 +288,10 @@ describe('phase 7 · what holds the control is said beside it (rules 1, 2 and 13
       const html = renderEmployee({ ...base, assistantNamed: false }, l, null, ctx);
       const c = control(html);
       expect(c).toContain(esc(t(l, 'autonomy.needsName')));
-      expect(c).toContain(`href="/app/onboarding">${esc(t(l, 'autonomy.confirmName'))}`);
-      expect(html).toMatch(new RegExp(`href="/app/employee/name">[\\s\\S]*?<span class="sr-value warn"><bdi>${esc(t(l, 'her.menu.name.unconfirmed'))}</bdi>`));
+      // V1-420 — the door opens the Name screen, where the name is confirmed.
+      expect(c).toContain(`href="/app/employee/name">${esc(t(l, 'autonomy.confirmName'))}`);
+      // w4-business-assistant-02 — a name not confirmed yet is a setting to finish, not a customer waiting: no waiting colour.
+      expect(html).toMatch(new RegExp(`href="/app/employee/name">[\\s\\S]*?<span class="sr-value"><bdi>${esc(t(l, 'her.menu.name.unconfirmed'))}</bdi>`));
       expect(control(landing(base, l))).not.toContain(esc(t(l, 'autonomy.needsName')));
     });
 
@@ -295,12 +299,11 @@ describe('phase 7 · what holds the control is said beside it (rules 1, 2 and 13
       const stopped = control(landing({ ...base, stopped: true }, l));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.body'))));
-      expect(stopped).toContain('href="/app/business/ready"');
-      expect(stopped.indexOf('held-all')).toBeLessThan(stopped.indexOf(esc(t(l, 'autonomy.intro'))));
+      expect(stopped).toContain('href="/app/business/ready#stop"');
       expect(stopped.indexOf('held-all')).toBeLessThan(stopped.indexOf('name="level"'));
       const staff = control(landing({ ...base, stopped: true }, l, STAFF));
       expect(staff).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
-      expect(staff).not.toContain('href="/app/business/ready"');
+      expect(staff).not.toContain('href="/app/business/ready');
       expect(control(landing({ ...base, silenced: true }, l))).toContain(esc(withAssistantName('Lily', () => t(l, 'today.silenced.title'))));
       expect(control(landing(base, l))).not.toContain('held-all');
     });

@@ -70,6 +70,15 @@ describe('Phase 9 · an amount is written the reader\'s way in the workspace\'s 
     expect(show.money('es', usd)).toBe('$1.05');
     expect(inCountry('ES', () => formatMoney(usd))).toBe('$1.05');
   });
+  it('V1-404 (the fix wave) · a workspace with no country on record: Spanish and French in their language\'s own form; the others as before', () => {
+    expect(inCountry(null, () => show.money('es', usd))).toBe('1,05\u00a0$');
+    expect(inCountry(null, () => show.money('fr', usd))).toBe('1,05\u00a0$');
+    for (const l of ['en', 'zh', 'ar'] as const) expect(inCountry(null, () => show.money(l, usd)), l).toBe(show.money(l, usd));
+    const range = inCountry(null, () => t('es', 'factory.promise.floorRange',
+      { low: show.money('es', { amount: 0.3, currency: 'USD' }), high: show.money('es', { amount: 2.4, currency: 'USD' }), name: 'Lily' }));
+    expect(range).not.toMatch(/\$\d/);
+    expect(range).toContain('0,30\u00a0$');
+  });
 });
 
 // ── fixtures ────────────────────────────────────────────────────────────────
@@ -159,7 +168,8 @@ describe('Phase 9 · the shell', () => {
     const cases: [string, string, MessageKey][] = [
       ['/app/settings/closures', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/rate', '/app/business/how-you-sell', 'factory.sellhow.title'],
       ['/app/settings/samples', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/terms', '/app/business/how-you-sell', 'factory.sellhow.title'],
-      ['/app/products', '/app/business', 'nav.factory'], ['/app/channels', '/app/business/channels', 'factory.reach.title'],
+      // Phase 9 (w4-business-assistant-05) — /app/channels answers with its home; each channel's screen draws its own way back.
+      ['/app/products', '/app/business', 'nav.factory'],
       ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
       ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
       // The warmth run, phase 9 — the checklist's two screens and the machine room lead back to the checklist.

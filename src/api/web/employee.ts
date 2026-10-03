@@ -19,7 +19,11 @@ import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { assistantStopped } from '../../db/assistantStop.js';
 import { loadKillSwitches } from '../../db/opsFlags.js';
-import { icon, type IconId } from './icons.js';
+import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
+import { aloneNow, type AloneHold } from '../../core/conversation/aloneNow.js';
+import { defaultAssistantName, NAME_MAX } from '../../core/owner/assistants.js';
+import { type IconId } from './icons.js';
+import { menuRow as settingsRow } from './settings.js';
 import * as show from './values.js';
 
 /**
@@ -111,6 +115,19 @@ export type EmployeeProfile = {
    */
   readonly stopped?: boolean;
   readonly silenced?: boolean;
+  /**
+   * Phase 9 (rule 13) — some place a customer writes is connected (the one
+   * definition, `connectedChannels`), so something the assistant writes could
+   * reach a customer: the landing then offers the owner's Stop. Absent reads
+   * as nothing connected.
+   */
+  readonly answering?: boolean;
+  /**
+   * Phase 9 (V1-420) — the name waiting to be confirmed: the main assistant's
+   * row name as it stands. Shown on the Name screen, with Confirm, until the
+   * owner confirms it; never shown as the name anywhere else (rule 7).
+   */
+  readonly pendingName?: string | null;
 };
 
 export async function loadEmployee(db: Db, businessIdRaw: string): Promise<EmployeeProfile> {
@@ -191,11 +208,16 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
              (select count(*)::int from forbidden_terms where business_id = ${bid.value} and archived_at is null) as words
     `.execute(tx)).rows[0];
 
+    const pending = (await sql<{ name: string | null }>`
+      select name from assistants where business_id = ${bid.value} and is_default and archived_at is null limit 1`.execute(tx)).rows[0]?.name ?? null;
+
     return {
       products: tallies?.products ?? 0,
       words: tallies?.words ?? 0,
       stopped: await assistantStopped(tx, bid.value),
       silenced: (await loadKillSwitches(tx, bid.value)).globalSilence,
+      answering: anyConnected(await connectedChannels(tx, bid.value)),
+      pendingName: pending,
       hireDate: onboard?.signup_at ?? null,
       knows,
       chosen,
@@ -236,12 +258,14 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
  */
 
 /** Phase 7 — the screens one row each opens, in the menu's order. */
-export const EMPLOYEE_SCREENS = ['talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
+export const EMPLOYEE_SCREENS = ['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
 export type EmployeeScreen = typeof EMPLOYEE_SCREENS[number];
 export const screenHref = (s: EmployeeScreen): string => `/app/employee/${s}`;
 
 /** Each screen's heading — the row's own words, so the row, the tab and the heading say one thing. */
 const SCREEN_TITLE: Readonly<Record<EmployeeScreen, MessageKey>> = {
+  // Phase 9 (w4-business-assistant-26) — what used to stand before the levels on the landing, one level down.
+  alone: 'her.alone.title',
   talk: 'her.talk.title', learning: 'her.teach.title', name: 'her.menu.name', replies: 'her.handles.title',
   'one-kind': 'employee.actions.title', checks: 'spotcheck.title', month: 'her.recent.title',
   next: 'employee.promo.title', history: 'employee.growth.title',
@@ -293,8 +317,8 @@ export type HerContext = {
  * page already shows.
  */
 export type TalkAbout = {
-  /** The profile holds what setting up asks of it — the rule My business's own row reads. */
-  readonly profileDone: boolean;
+  /** The profile holds what setting up asks of it: My business's own `profileFinished`, so the two rows say one thing (w4-business-assistant-31). */
+  readonly finished: boolean;
   /** How you sell: answered of asked; null where it could not be read. */
   readonly selling: { readonly answered: number; readonly total: number } | null;
   /** The products on sale, and a few of their names for recognition, already in the page's language. */
@@ -326,13 +350,16 @@ function countLine(locale: Locale, base: string, n: number): string {
 }
 
 /** 1 · What does she know? Her learning, in her terms — never a "database". */
+// Phase 9 (w4-business-assistant-33) — "What {name} knows" is the landing's
+// row; here the counts and the one door to Knowledge follow the questions,
+// under no second heading of the same name.
 function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Locale): string {
   if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
-    return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
+    return `<div class="block">
       <div class="empty">${esc(t(locale, 'her.knows.none'))}</div>
       ${deeper('/app/knowledge', t(locale, 'knowledge.teach'))}</div>`;
   }
-  return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
+  return `<div class="block">
     <div class="hrows">
       ${countRow(e.knows, t(locale, 'her.knows.count'))}
       ${c ? countRow(c.taughtRecently, t(locale, 'her.knows.recent')) : ''}
@@ -365,7 +392,11 @@ function teachBody(c: HerContext | undefined, locale: Locale): string {
     // in at all: two replies prepared means two customers asked. The advice
     // to teach is the section below's, with its door; it is not said twice.
     const pristine = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
-    return `<div class="block"><div class="empty">${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</div></div>`;
+    // Phase 9 (V1-423) — this counts what CUSTOMERS asked; what the assistant
+    // could not answer from the products themselves is Going live's list, and
+    // the door to it is here, so "nothing" here never reads as "nothing anywhere".
+    return `<div class="block"><div class="empty">${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</div>
+      ${deeper('/app/business/ready#rehearsal', t(locale, 'factory.rehearsal.title', { name: assistantName(locale) }))}</div>`;
   }
   return `<div class="block">
     <div class="gaps">${c.gaps.map((g) => `
@@ -397,7 +428,7 @@ function rampBlock(r: RampState, locale: Locale): string {
       : `<p>${esc(t(locale, 'ramp.sells', { done: r.sells.done, of: r.sells.of, customers: r.sells.customers,
           customersNeed: r.sells.customersNeed, days: r.sells.days, daysNeed: r.sells.daysNeed }))}</p>`;
   return `<div class="ramp">
-      <h3 class="sub3">${esc(t(locale, 'ramp.title'))}</h3>
+      <h2 class="sub3">${esc(t(locale, 'ramp.title'))}</h2>
       <p class="muted small">${esc(t(locale, 'ramp.intro', { name }))}</p>
       <h4 class="k">${esc(t(locale, 'autonomy.level.talks'))}</h4>${talks}
       <h4 class="k">${esc(t(locale, 'autonomy.level.sells'))}</h4>${sells}
@@ -405,54 +436,68 @@ function rampBlock(r: RampState, locale: Locale): string {
 }
 
 /**
+ * What every part of the page reads alike, from the ONE answer to "what goes
+ * out without the owner now" (`aloneNow`, V1-417): which kinds go out alone
+ * TODAY, which are set to but still wait (and why), what holds every reply,
+ * the stage, and the level.
+ *
+ * Phase 9 — "Goes out without you" lists only what goes out alone TODAY. The
+ * send decision (commitTurn) drafts a capability set to auto while no
+ * language's sentence is signed off, the name is unconfirmed, or the
+ * workspace has not earned that rung; and the send gate sends nothing while
+ * the owner's Stop or the operator's pause is on. Such a capability is listed
+ * as set, still waiting, with the reason — never as going out.
+ */
+const HELD_WHY: Readonly<Record<AloneHold, MessageKey>> = {
+  silenced: 'today.silenced.body', stopped: 'today.stopped.body', release: 'her.handles.held.why.release',
+  name: 'her.handles.held.why.name', ramp: 'her.handles.held.why.ramp',
+};
+function standing(e: EmployeeProfile, locale: Locale) {
+  const name = assistantName(locale);
+  const now = aloneNow({
+    capabilities: e.capabilities, released: autonomyReleased(), named: e.assistantNamed,
+    ...(e.earned === undefined ? {} : { earned: e.earned }), ...(e.ramp ? { rung: e.ramp.rung } : {}),
+    ...(e.stopped ? { stopped: true } : {}), ...(e.silenced ? { silenced: true } : {}),
+  });
+  const { hold, alone, setButHeld } = now;
+  const heldWhy = t(locale, hold ? HELD_WHY[hold] : 'her.handles.held.why.ramp', { name, ready: t(locale, 'pilot.title') });
+  // What happens now, in one line: nothing is sent; these go out without you; or every reply waits.
+  const nowLabel = hold === 'silenced' ? t(locale, 'today.silenced.title', { name })
+    : hold === 'stopped' ? t(locale, 'today.stopped.title', { name })
+    : alone.length ? labelled(locale, t(locale, 'her.handles.alone'), formatList(locale, alone.map((c) => capabilityName(locale, c))))
+    : t(locale, 'employee.stage.probation');
+  // The level as set, and the level in force: what goes out alone now, by the same answer.
+  const level = levelOf(Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode])));
+  const effective = levelOf(Object.fromEntries(e.capabilities.map((c) => [c.capability, alone.includes(c.capability) ? 'auto' : 'draft'])));
+  const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
+  const revocable = e.capabilities.filter((c) => c.mode === 'auto');
+  return { hold, alone, setButHeld, heldWhy, nowLabel, level, effective, grantable, revocable };
+}
+
+/**
  * R5 — WHAT THE OWNER CHOSE, AND WHAT IS IN FORCE. The level chosen on this
- * page and when; and, where the system's own demotions (a guard in auto, a
- * spot check, a wrong price) or a lost rung moved things since, what holds now
- * and each step back with its date and reason. Nothing when nothing differs.
+ * page and when; and, where something holds it (V1-417: the Stop, the pause,
+ * the native read, the name, the ramp) or the system's own demotions (a guard
+ * in auto, a spot check, a wrong price) moved things since, what holds now and
+ * each step back with its date and reason. Nothing when nothing differs.
  */
 function chosenBlock(e: EmployeeProfile, locale: Locale): string {
   if (!e.chosen) return '';
   const levelName = (l: AutonomyLevel) => t(locale, `autonomy.level.${l}` as MessageKey);
   const chose = `<p class="muted">${esc(t(locale, 'autonomy.chosen', { level: levelName(e.chosen.level), date: show.date(locale, e.chosen.at) }))}</p>`;
-  // In force: a capability set to auto that its rung does not allow still waits.
-  const held = (capability: string) => e.ramp !== undefined && rungOf(capability as never) > e.ramp.rung;
-  const effective = Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode === 'auto' && !held(c.capability) ? 'auto' : 'draft']));
-  const now = levelOf(effective as Record<string, 'auto' | 'draft'>);
+  const st = standing(e, locale);
+  const now = st.effective;
   if (now === e.chosen.level) return chose;
-  const still = (e.stepped ?? []).filter((x) => effective[x.capability] !== 'auto');
+  const still = (e.stepped ?? []).filter((x) => !st.alone.includes(x.capability));
   const why = (reasons: readonly string[]) => formatList(locale, (reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r)).length
     ? reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r)) : ['repeated_corrections'])
     .map((r) => t(locale, `notify.self_demoted.why.${r}` as MessageKey)));
   return `${chose}
       <p>${esc(now ? t(locale, 'autonomy.inForce', { level: levelName(now) }) : t(locale, 'autonomy.inForce.mixed'))}</p>
+      ${st.hold ? `<p class="muted small">${esc(st.heldWhy)}</p>` : ''}
       ${still.length ? `<ul class="rows">${still.map((x) => `<li class="row">${esc(t(locale, 'autonomy.since', {
         cap: capabilityName(locale, x.capability), date: show.date(locale, x.at), why: why(x.reasons),
       }))}</li>`).join('')}</ul>` : ''}`;
-}
-
-/**
- * What every part of the page reads alike: which kinds go out alone TODAY,
- * which are set to but still wait (and why), the stage, and the level.
- *
- * Phase 9 — "Handled without you" lists only what goes out alone TODAY.
- * The send decision (commitTurn) drafts a capability set to auto while no
- * language's sentence is signed off, the name is unconfirmed, or the
- * workspace has not earned that rung; such a capability is listed as set,
- * still waiting, with the reason — never as handled.
- */
-function standing(e: EmployeeProfile, locale: Locale) {
-  const heldBecause: MessageKey | null = !autonomyReleased() ? 'her.handles.held.why.release'
-    : !e.assistantNamed ? 'her.handles.held.why.name'
-    : e.earned === false ? 'her.handles.held.why.ramp' : null;
-  const goesAlone = (c: string): boolean => heldBecause === null && !(e.ramp && rungOf(c as never) > e.ramp.rung);
-  const alone = e.canDo.filter(goesAlone);
-  const setButHeld = e.canDo.filter((c) => !goesAlone(c));
-  const heldWhy = t(locale, heldBecause ?? 'her.handles.held.why.ramp', { ready: t(locale, 'pilot.title') });
-  const stageLabel = t(locale, `employee.stage.${alone.length ? e.stage : 'probation'}` as MessageKey);
-  const level = levelOf(Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode])));
-  const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
-  const revocable = e.capabilities.filter((c) => c.mode === 'auto');
-  return { alone, setButHeld, heldWhy, stageLabel, level, grantable, revocable };
 }
 
 /**
@@ -465,7 +510,7 @@ function heldEverywhere(e: EmployeeProfile, locale: Locale, viewer: Viewer): str
   const stop = e.stopped
     ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.stopped.title', { name }))}</p>
         <p class="small">${esc(t(locale, 'today.stopped.body', { name }))}</p>
-        ${viewer.isOwner ? deeper('/app/business/ready', t(locale, 'today.stopped.start', { name })) : ''}</div>`
+        ${viewer.isOwner ? deeper('/app/business/ready#stop', t(locale, 'today.stopped.start', { name })) : ''}</div>`
     : '';
   const paused = e.silenced
     ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.silenced.title', { name }))}</p>
@@ -475,17 +520,64 @@ function heldEverywhere(e: EmployeeProfile, locale: Locale, viewer: Viewer): str
 }
 
 /**
+ * The one hold that drafts every reply (rule 1's native read, rule 2's name),
+ * said ABOVE the levels in one line at the size of the text around it, with
+ * its door where the owner can lift it. Under Save, in grey small print, it
+ * read as the end of the paragraph (V1-419). The Stop and the pause are said
+ * by `heldEverywhere`; the ramp replaces the levels with its own words.
+ */
+function holdLine(e: EmployeeProfile, locale: Locale, hold: AloneHold | null): string {
+  if (hold === 'release') return `<p>${esc(t(locale, 'autonomy.notReleased'))}</p>`;
+  if (hold === 'name') return `<p>${esc(t(locale, 'autonomy.needsName'))}</p>${deeper(screenHref('name'), t(locale, 'autonomy.confirmName'))}`;
+  return '';
+}
+
+/** 2026-09-30 — per language: which customers get replies sent alone, and which always wait. Only while something goes alone at all. */
+function languagesLine(locale: Locale, hold: AloneHold | null): string {
+  return hold === null && autonomyReleased() && disclosureAwaitingReview().length ? `<p class="small">${esc(t(locale, 'autonomy.languages', {
+    ready: formatList(locale, disclosureReviewed().map((l) => languageName(locale, l))),
+    waiting: formatList(locale, disclosureAwaitingReview().map((l) => languageName(locale, l))),
+  }))}</p>` : '';
+}
+
+/**
+ * Rule 13 (w4-business-assistant-12) — while something the assistant writes
+ * could reach a customer, the owner's Stop is on the assistant's own page,
+ * under the levels, in the words My business uses: one line, one button that
+ * asks first. Owner only (rule 11), like the switch it is.
+ */
+function stopHere(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
+  if (!viewer.isOwner || e.stopped || !e.answering) return '';
+  const name = assistantName(locale);
+  return `<div class="stop-here" id="stop">
+      <p class="small">${esc(t(locale, 'her.stop.lede', { name }))}</p>
+      <form method="post" action="/app/business/stop-assistant" class="inline">
+        <input type="hidden" name="from" value="employee" />
+        <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'assistant.stop.action.stopConfirm', { name }))}">${esc(t(locale, 'assistant.stop.action.stop', { name }))}</button>
+      </form>
+    </div>`;
+}
+
+/**
  * T1 — HOW MUCH THE ASSISTANT DOES ALONE: the heart of the product, so it
  * stays on the landing, whole — the three levels in their own words, the one
  * in force checked, the form posting where it always did — with everything
  * that holds it said beside it. The ladder stays as advice about what has been
  * EARNED; this is what the owner has DECIDED. Owner only, like it; a member of
  * staff reads where it stands and who decides it.
+ *
+ * Phase 9 (w4-business-assistant-26) — the levels come first after the name.
+ * What preceded them (what every level keeps the same, what a customer is
+ * told, the ramp, the choice and what is in force) is one level down, on
+ * `/app/employee/alone`; what holds the levels stays beside them, one line.
  */
 function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
-  const { level } = standing(e, locale);
+  const st = standing(e, locale);
+  const { level } = st;
   if (!viewer.isOwner) {
-    const said = level ? t(locale, 'autonomy.inForce', { level: t(locale, `autonomy.level.${level}` as MessageKey) }) : t(locale, 'autonomy.inForce.mixed');
+    const now = st.effective;
+    const said = now ? t(locale, 'autonomy.inForce', { level: t(locale, `autonomy.level.${now}` as MessageKey) }) : t(locale, 'autonomy.inForce.mixed');
     return `<section class="block level-control">
       <h2>${esc(t(locale, 'autonomy.title'))}</h2>
       ${heldEverywhere(e, locale, viewer)}
@@ -493,60 +585,53 @@ function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): strin
       <p class="muted small">${esc(t(locale, 'staff.ownerDecides'))}</p>
     </section>`;
   }
-  // Phase 9 — what holds every level, said ABOVE the levels and at the size
-  // of the text around it: an unconfirmed name (hers to fix, so the waiting
-  // mark and the door), a sentence not yet read by a native speaker, and the
-  // languages whose customers always wait. Under Save, in grey small print
-  // ending in a bare "Open", it read as the end of the paragraph.
-  const holds = [
-    autonomyReleased() ? '' : `<p class="small">${esc(t(locale, 'autonomy.notReleased'))}</p>`,
-    e.assistantNamed ? '' : `<p class="fwarn">${esc(t(locale, 'autonomy.needsName'))}</p>${deeper('/app/onboarding', t(locale, 'autonomy.confirmName'))}`,
-    /* 2026-09-30 — per language: which customers get replies sent alone, and which always wait. */
-    autonomyReleased() && disclosureAwaitingReview().length ? `<p class="small">${esc(t(locale, 'autonomy.languages', {
-      ready: formatList(locale, disclosureReviewed().map((l) => languageName(locale, l))),
-      waiting: formatList(locale, disclosureAwaitingReview().map((l) => languageName(locale, l))),
-    }))}</p>` : '',
-  ].join('');
   // The mix, in words: which kinds are set to go without the owner now.
   const setAlone = e.capabilities.filter((c) => c.mode === 'auto').map((c) => capabilityName(locale, c.capability));
   const mixed = level === null
     ? `<p class="small">${esc(setAlone.length
       ? t(locale, 'autonomy.mixed', { list: formatList(locale, setAlone) })
       : t(locale, 'autonomy.mixed.none'))}</p>` : '';
+  const more = deeper(screenHref('alone'), t(locale, 'her.alone.title', { name: assistantName(locale) }));
+  // R5 — where what is in force is not what was chosen, one line says so beside the levels; why, and since when, is a level down.
+  const levelName = (l: AutonomyLevel) => t(locale, `autonomy.level.${l}` as MessageKey);
+  const inForce = e.chosen && st.effective !== e.chosen.level
+    ? `<p class="small">${esc(st.effective ? t(locale, 'autonomy.inForce', { level: levelName(st.effective) }) : t(locale, 'autonomy.inForce.mixed'))}</p>` : '';
   return `<section class="block level-control" id="on-her-own">
       <h2>${esc(t(locale, 'autonomy.title'))}</h2>
       ${heldEverywhere(e, locale, viewer)}
-      <p class="muted small">${esc(t(locale, 'autonomy.intro'))}</p>
-      ${holds}
-      ${chosenBlock(e, locale)}
-      <p class="muted small disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
-      <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
-           fact that decides whether the switch below it does what it says. -->
-      ${e.ramp ? rampBlock(e.ramp, locale) : ''}
+      ${holdLine(e, locale, st.hold)}
       ${e.earned === false ? `<p class="fwarn">${esc(t(locale, 'autonomy.notEarned.title'))}</p>
       <p class="muted">${esc(t(locale, 'autonomy.notEarned.body', { name: assistantName(locale) }))}</p>
       ${level !== 'waits' ? `<form method="post" action="/app/employee/autonomy"><input type="hidden" name="level" value="waits" />
         <button class="btn" type="submit">${esc(t(locale, 'autonomy.notEarned.stepDown'))}</button></form>` : ''}` : `<form method="post" action="/app/employee/autonomy" class="levels">
-        ${mixed}
         ${AUTONOMY_LEVELS.filter((l) => !e.ramp || rungOfLevel(l) <= e.ramp.rung).map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
           <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
+        ${/* The mix, when none of the three applies: said under the levels, beside the choice (w4-business-assistant-26). */ ''}${mixed}
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
       </form>`}
+      ${inForce}
+      ${languagesLine(locale, st.hold)}
+      ${stopHere(e, locale, viewer)}
+      ${more}
     </section>`;
 }
 
-/** A row of the menu: its shape, its name, where it stands now, and the door. Without a door, the value alone. */
+/**
+ * A row of the menu: the settings pattern's own row (`settings.ts` menuRow —
+ * one definition, so a fix to how a row draws its value reaches these too),
+ * with the id a door elsewhere lands on.
+ */
 type MenuRow = {
   readonly href: string | null; readonly icon: IconId; readonly label: string;
   readonly value?: string; readonly tone?: 'ok' | 'warn' | undefined; readonly desc?: string; readonly id?: string;
+  /** The line under the name, already escaped — for a line that isolates a name. */
+  readonly descHtml?: string;
 };
 const menuRow = (r: MenuRow): string => {
-  const inner = `${icon(r.icon)}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${r.desc ? `<span class="sr-desc">${esc(r.desc)}</span>` : ''}</span>`
-    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
-  return `<li${r.id ? ` id="${r.id}"` : ''}>${r.href
-    ? `<a class="srow sr-menu" href="${r.href}">${inner}<span class="go" aria-hidden="true">›</span></a>`
-    : `<div class="srow sr-menu">${inner}</div>`}</li>`;
+  const html = settingsRow({ href: r.href, icon: r.icon, label: r.label, desc: r.desc ?? null, value: r.value ?? null, tone: r.tone,
+    ...(r.descHtml === undefined ? {} : { descHtml: r.descHtml }) });
+  return r.id ? html.replace(/^<li>/, `<li id="${r.id}">`) : html;
 };
 const menuGroup = (id: string, title: string, rows: readonly MenuRow[]): string =>
   `<section class="sgroup" aria-labelledby="ag-${id}"><h2 class="sgroup-h" id="ag-${id}">${esc(title)}</h2>
@@ -558,6 +643,13 @@ const menuGroup = (id: string, title: string, rows: readonly MenuRow[]): string 
  * was taught, what it still needs, the words it never uses); how it works with
  * you (its name, each kind of reply, one kind at a time, checking its work,
  * Practice); and how it is going (the month, what comes next, what changed).
+ *
+ * Phase 9 — each row says its own thing (w4-business-assistant-29): "Each
+ * kind of reply" what happens now (nothing is sent, which kinds go out, or
+ * every reply waits); "What comes next" the next step; "One kind at a time"
+ * what is set or earned. The waiting colour is for what waits on the owner's
+ * hand (work to check, questions customers asked); a setting not finished is
+ * said in plain words (w4-business-assistant-02).
  */
 export function renderEmployee(
   e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
@@ -566,28 +658,31 @@ export function renderEmployee(
   const st = standing(e, locale);
   const nothingYet = t(locale, 'her.menu.nothingYet');
   const met = e.conditions.filter((c) => c.met).length;
+  const capList = (caps: readonly string[]) => formatList(locale, caps.map((c) => capabilityName(locale, c)));
 
   const says: MenuRow[] = [
     { href: screenHref('talk'), icon: 'talk', label: t(locale, 'her.talk.title'),
       ...(e.products === undefined ? {} : { value: tn(locale, 'her.talk.products', e.products) }) },
     { href: '/app/knowledge', icon: 'book', label: t(locale, 'nav.knowledge'),
       value: e.knows ? tn(locale, 'knowledge.product.facts', e.knows) : nothingYet },
+    // V1-423 — what customers asked this month that needed something not taught: a count of questions.
     { href: screenHref('learning'), icon: 'question', label: t(locale, 'her.teach.title'),
       ...(ctx ? ctx.gaps.length ? { value: tn(locale, 'her.menu.questions', ctx.gaps.length), tone: 'warn' as const }
-        : { value: t(locale, 'setup.value.nothingWaiting') } : {}) },
+        : { value: tn(locale, 'her.menu.questions', 0) } : {}) },
     { href: '/app/settings/forbidden', icon: 'nope', label: t(locale, 'forbidden.title'),
       ...(e.words === undefined ? {} : { value: e.words ? tn(locale, 'forbidden.floor.count', e.words) : nothingYet }) },
   ];
   const works: MenuRow[] = [
     { href: screenHref('name'), icon: 'assistant', label: t(locale, 'her.menu.name'),
-      ...(e.assistantNamed ? { value: name } : { value: t(locale, 'her.menu.name.unconfirmed'), tone: 'warn' as const }) },
-    // Where it stands is a sentence here, so it is the line under the name, never a value cut short.
-    { href: screenHref('replies'), icon: 'setup', label: t(locale, 'her.handles.title'), desc: st.stageLabel },
-    // What stands here is a choice waiting to be made, if any: the kinds that
-    // may go out alone now, said as the screen says it (a line, not a value).
+      value: e.assistantNamed ? name : t(locale, 'her.menu.name.unconfirmed') },
+    // What happens now is a sentence here, so it is the line under the name, never a value cut short.
+    { href: screenHref('replies'), icon: 'setup', label: t(locale, 'her.handles.title'), desc: st.nowLabel },
+    // What stands here: a kind earned (the owner's to grant), else the kinds set to go alone.
     { href: screenHref('one-kind'), icon: 'settings', label: t(locale, 'employee.actions.title'),
       ...(viewer.isOwner && st.grantable.length
-        ? { desc: t(locale, 'employee.actions.eligible', { cap: formatList(locale, st.grantable.map((c) => capabilityName(locale, c.capability))) }) } : {}) },
+        ? { desc: t(locale, st.hold ? 'employee.actions.eligibleHeld' : 'employee.actions.eligible', { cap: capList(st.grantable.map((c) => c.capability)) }) }
+        : st.revocable.length ? { desc: t(locale, 'her.menu.oneKind.set', { list: capList(st.revocable.map((c) => c.capability)) }) }
+        : { value: nothingYet }) },
     // M34.7 — 抽查, the one thing here that asks the owner to act, so its row
     // carries the count in the waiting colour. Absent when there is nothing to
     // check — an empty ritual is worse than none. Today's line lands on it.
@@ -599,7 +694,9 @@ export function renderEmployee(
     { href: screenHref('month'), icon: 'calendar', label: t(locale, 'her.recent.title'),
       ...(ctx ? { desc: tn(locale, 'her.count.handled', ctx.handled) } : {}) },
     { href: screenHref('next'), icon: 'flag', label: t(locale, 'employee.promo.title'),
-      ...(e.conditions.length ? { value: t(locale, 'nav.setup.progress', { done: met, total: e.conditions.length }) } : { desc: st.stageLabel }) },
+      ...(e.conditions.length ? { value: t(locale, 'nav.setup.progress', { done: met, total: e.conditions.length }) }
+        : { desc: st.alone.length ? t(locale, 'employee.promo.done')
+          : labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')) }) },
     { href: screenHref('history'), icon: 'history', label: t(locale, 'employee.growth.title'),
       value: e.growth[0] ? show.date(locale, e.growth[0].at) : nothingYet },
   ];
@@ -633,16 +730,17 @@ export function renderEmployeeScreen(
       const k = extras.talk;
       if (!k) return `${head}<div class="empty">${esc(t(locale, 'her.menu.nothingYet'))}</div>`;
       const more = k.products.total > k.products.names.length;
-      // Each row is named as the page it opens is named, and lands on that page (w4-products-knowledge-04).
+      // Each row is named as the page it opens is named, lands on that page, and says
+      // what My business's own row says (w4-products-knowledge-04, w4-business-assistant-31).
       const certs = k.certs.map((c) => claimName(locale, c));
       const rows: MenuRow[] = [
         { href: '/app/settings/profile', icon: 'business', label: t(locale, 'settings.profile.title'),
-          value: t(locale, k.profileDone ? 'setup.state.done' : 'setup.state.toDo'), tone: k.profileDone ? 'ok' : 'warn' },
+          value: t(locale, k.finished ? 'setup.state.done' : 'setup.state.toDo'), ...(k.finished ? { tone: 'ok' as const } : {}) },
         ...(k.selling ? [{
           // How you sell's own menu, which staff may open too (its questions stay the owner's, rule 11).
           href: '/app/business/how-you-sell', icon: 'receipt' as const, label: t(locale, 'factory.sellhow.title'),
           desc: t(locale, 'setup.desc.selling'), value: t(locale, 'hs.progress', { done: k.selling.answered, total: k.selling.total }),
-          tone: (k.selling.answered >= k.selling.total ? 'ok' : 'warn') as 'ok' | 'warn' }] : []),
+          ...(k.selling.answered >= k.selling.total ? { tone: 'ok' as const } : {}) }] : []),
         { href: '/app/products', icon: 'box', label: t(locale, 'nav.products'),
           // A product's name carries its figures ("38x40cm", "500ml"): isolated, so Arabic does not reorder them.
           desc: k.products.names.length ? `${show.isolateFigures(locale, k.products.names.join(' · '))}${more ? ' …' : ''}` : t(locale, 'factory.sell.empty'),
@@ -661,20 +759,48 @@ export function renderEmployeeScreen(
     // the whole of it (Knowledge, and each entry under it).
     case 'learning':
       return `${head}${teachBody(ctx, locale)}${knowsSection(e, ctx, locale)}`;
+    // Phase 9 (w4-business-assistant-26) — what stood before the levels on
+    // the landing: what no level changes, what a customer is told, which
+    // languages wait, how sending alone is earned, and the choice beside what
+    // is in force.
+    case 'alone': {
+      const back2 = `${back('/app/employee', name)}<h1 class="page">${esc(t(locale, 'her.alone.title', { name }))}</h1>${flashBanner(flash)}`;
+      return `${back2}<div class="block">
+        <p>${esc(t(locale, 'autonomy.intro'))}</p>
+        ${st.hold ? `<p>${esc(st.heldWhy)}</p>` : ''}
+        ${languagesLine(locale, st.hold)}
+        <p class="muted small disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
+        ${chosenBlock(e, locale)}
+        ${e.ramp ? rampBlock(e.ramp, locale) : ''}
+        ${deeper('/app/employee#on-her-own', t(locale, 'autonomy.title'))}
+      </div>`;
+    }
     // Phase 9 — the h1 of the landing names the assistant; this says what it
     // does today, and since when. Until the name is confirmed it says so, with
     // the way to confirm it (the owner's: `messaging_activation`); once it is,
     // the way to change it, where every assistant is named (A5).
+    // V1-420 — until it is confirmed, the screen shows the name that awaits
+    // confirmation (the row's name, as Getting ready's box holds it), says it
+    // is not confirmed, and confirms it HERE (the owner's: the same action
+    // Getting ready posts to, back to this screen). What happens to replies is
+    // "Each kind of reply"'s; this card says what the assistant does and since when.
     case 'name': {
-      const door = !viewer.isOwner ? ''
-        : !e.assistantNamed ? deeper('/app/onboarding', t(locale, 'autonomy.confirmName'))
-        : deeper('/app/settings/people#assistants', t(locale, 'people.title'));
+      const pending = (e.pendingName ?? '').trim() || defaultAssistantName(locale);
+      const shown = e.assistantNamed ? name : pending;
+      const confirm = !viewer.isOwner || e.assistantNamed ? ''
+        : `<form method="post" action="/app/onboarding/assistant-name" class="pr-name emp-confirm">
+            <input type="hidden" name="from" value="employee" />
+            <input type="text" name="name" maxlength="${NAME_MAX}" required value="${esc(pending)}" aria-label="${esc(t(locale, 'pilot.attest.assistant_named'))}" />
+            <button class="btn send" type="submit">${esc(t(locale, 'autonomy.confirmName'))}</button>
+          </form>`;
+      const door = viewer.isOwner && e.assistantNamed ? deeper('/app/settings/people#assistants', t(locale, 'people.title')) : '';
       return `${head}
-        <p class="emp-called"><bdi>${esc(name)}</bdi></p>
+        <p class="emp-called"><bdi>${esc(shown)}</bdi></p>
+        ${e.assistantNamed ? '' : `<p>${esc(t(locale, 'employee.name.unconfirmed'))}</p>`}
+        ${confirm}
         <div class="card emp">
-          <div class="emp-stage">${esc(st.stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div>
+          <div class="emp-stage">${esc(t(locale, 'employee.role.reception'))}</div>
           ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted emp-hired">${esc(labelled(locale, t(locale, 'employee.hired'), show.date(locale, e.hireDate)))}</div>` : ''}
-          ${e.assistantNamed ? '' : `<p class="fwarn">${esc(t(locale, 'employee.name.unconfirmed'))}</p>`}
         </div>
         ${door}`;
     }
@@ -686,9 +812,9 @@ export function renderEmployeeScreen(
         ${e.canDo.length === 0 && e.needConfirm.length === 0
           ? `<div class="empty">${esc(t(locale, 'her.handles.none'))}</div>` : ''}
         ${list(t(locale, 'her.handles.alone'), 'ok', st.alone.map(capName), t(locale, 'employee.duties.none'))}
-        ${st.setButHeld.length ? `${list(t(locale, 'her.handles.held'), 'waiting', st.setButHeld.map(capName), '')}
+        ${st.setButHeld.length ? `${list(t(locale, 'her.handles.held'), null, st.setButHeld.map(capName), '')}
           <p class="muted small">${esc(st.heldWhy)}</p>` : ''}
-        ${list(t(locale, 'her.handles.waits'), 'waiting', e.needConfirm.map(capName), t(locale, 'employee.duties.none'))}
+        ${list(t(locale, 'her.handles.waits'), null, e.needConfirm.map(capName), t(locale, 'employee.duties.none'))}
         ${list(t(locale, 'her.handles.always'), null, cannotDo, t(locale, 'employee.duties.none'))}
       </div>`;
     }
@@ -699,12 +825,13 @@ export function renderEmployeeScreen(
         ? `<div class="block"><div class="muted empty">${esc(t(locale, 'staff.ownerDecides'))}</div></div>`
         : (st.grantable.length || st.revocable.length)
         ? `<div class="block">
+            ${/* V1-417 — what holds every reply, first: a kind set to go alone says it still waits. */ ''}${st.hold || st.setButHeld.length ? `<p>${esc(st.heldWhy)}</p>` : ''}
             ${/* CC-29 — each asks first, in this block's own words: grant, revoke. Phase 9 — making a kind wait again is an ordinary choice the owner can undo: not red. */ ''}${st.revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
-                <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
+                <span>${esc(t(locale, st.alone.includes(c.capability) ? 'employee.actions.granted' : 'employee.actions.grantedHeld', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
                   onclick="return confirm(this.dataset.confirm)"
                   data-confirm="${esc(t(locale, 'employee.actions.revokeConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
             ${st.grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
-                <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
+                <span>${esc(t(locale, st.hold ? 'employee.actions.eligibleHeld' : 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
                   onclick="return confirm(this.dataset.confirm)"
                   data-confirm="${esc(t(locale, 'employee.actions.grantConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
             ${st.grantable.length === 0 ? `<p class="muted">${esc(t(locale, 'employee.actions.more', { name }))}</p>` : ''}
@@ -742,11 +869,11 @@ export function renderEmployeeScreen(
       return `${head}${recentBody(ctx, locale)}`;
     case 'next':
       return `${head}<div class="block">
-        <div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.current'), st.stageLabel))}</div>
+        <div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.current'), st.nowLabel))}</div>
         ${st.alone.length
           ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
           : `<div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')))}</div>
-             ${st.setButHeld.length ? `<p class="muted small">${esc(st.heldWhy)}</p>` : ''}`}
+             ${st.setButHeld.length || st.hold ? `<p class="muted small">${esc(st.heldWhy)}</p>` : ''}`}
         ${e.conditions.length ? `<div class="conds">${e.conditions.map((c) =>
           `<div class="cond">${signalMark(c.met ? 'ok' : 'waiting')} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey, { name }))}</div>`).join('')}</div>` : ''}
       </div>`;

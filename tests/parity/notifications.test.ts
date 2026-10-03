@@ -348,7 +348,7 @@ describe('the Notifications page, in every language', () => {
       expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
       expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.number')));
       // (w4-settings-a-03) …and the door to where the number and the channel are set.
-      expect(html).toContain(`<a class="way-door" href="/app/channels#alerts">${esc(t(l, 'factory.reach.title'))}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(html).toContain(`<a class="way-door" href="/app/channels/alerts">${esc(t(l, 'channels.alerts.title'))}<span class="go" aria-hidden="true">›</span></a>`);
       expect(html).not.toContain(esc(t(l, 'alerts.way.whatsapp.early')));
       // (w4-settings-a-01) what the plan rests on: WhatsApp is the intended way, the default the day Meta approves.
       expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.plan')));
@@ -461,17 +461,17 @@ describe('the Notifications page, in every language', () => {
     expect(ar).not.toContain('<span class="way-n">WhatsApp</span>');
     for (const l of LOCALES) {
       const fromChannels = renderPhoneAlerts(view(ownerWays()), l, null, 'channels');
-      expect(fromChannels).toContain(`<a class="back" href="/app/channels#alerts"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'factory.reach.title'))}</a>`);
+      expect(fromChannels).toContain(`<a class="back" href="/app/channels/alerts"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'channels.alerts.title'))}</a>`);
       expect(fromChannels).toContain('<input type="hidden" name="from" value="channels" />');
       expect(renderPhoneAlerts(view(ownerWays()), l, null)).toContain(`<a class="back" href="/app/settings/setup">`);
     }
   });
 
-  it('PHASE 9 · one name for one thing (w4-settings-a-06): the page, its card on the channels screen, the way and its section', () => {
+  it('PHASE 9 · one name for one thing (w4-settings-a-06): the page, the door to it from the channels\' number screen, the way and its section', () => {
     for (const l of LOCALES) {
-      expect(t(l, 'settings.alerts.title'), l).toBe(t(l, 'alerts.title'));
+      expect(t(l, 'meta.phoneAlerts'), l).toBe(t(l, 'alerts.title'));
     }
-    for (const k of ['alerts.way.browser', 'alerts.phone.title', 'alerts.phone.off', 'alerts.phone.turnOn', 'settings.alerts.label', 'settings.alerts.desc'] as const) {
+    for (const k of ['channels.alerts.title', 'alerts.way.browser', 'alerts.phone.title', 'alerts.phone.off', 'alerts.phone.turnOn', 'settings.alerts.label', 'settings.alerts.desc'] as const) {
       expect(t('en', k), k).not.toMatch(/\balerts?\b|\bBrowser\b/i);
       expect(t('zh', k), k).not.toContain('提醒');
       expect(t('es', k), k).not.toMatch(/\bavisos?\b/i);

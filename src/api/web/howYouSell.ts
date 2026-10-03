@@ -4,7 +4,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { SELLING_DEFAULTS } from '../../core/owner/sellingStyle.js';
-import { incotermOptions } from './settings.js';
+import { incotermOptions, menuRow, menuGroup } from './settings.js';
 import { MAX_PAYMENT_TERMS } from '../../core/commerce/terms.js';
 import {
   questionsFor, linesFor, parseAnswer, tickedLines, nextQuestion, paysByTerms, isQuestion,
@@ -126,9 +126,12 @@ const title = (l: Locale, q: Question, name: string) =>
 /**
  * Phase 9 — the hub: the back link at the top, as on the question pages; how
  * many of the questions are answered; the way in as the page's one filled
- * button, saying which question it opens; and a state chip only where there
- * is a state to show — a row nobody has answered yet carries none, so nine
- * identical grey "Not answered" chips no longer stand for nothing.
+ * button, saying which question it opens.
+ *
+ * The fix wave (w4-business-assistant-22) — the questions are menu rows, like
+ * every other screen under My business: each question, where it stands (its
+ * value, the "done" colour once answered; a setting not answered yet is said
+ * in plain words, never in the waiting colour), and the door.
  */
 export function renderHub(v: HubView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
@@ -138,13 +141,10 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null): stri
   const answered = v.order.filter((q) => stateOf(q) === 'answered').length;
   const rows = v.order.map((q) => {
     const s = stateOf(q);
-    const chip = s === 'answered' ? 'auto' : s === 'draft' ? 'draft' : '';
-    return `<li class="row lines">
-      <div class="hs-q"><b>${esc(title(locale, q, name))}</b>${s === 'open' ? ''
-        : ` <span class="chip${chip ? ` ${chip}` : ''}">${esc(t(locale, `hs.state.${s}` as MessageKey))}</span>`}</div>
-      ${deeper(`${HS_BASE}/${q}`, t(locale, s === 'answered' || s === 'skipped' ? 'hs.change' : 'hs.answer'))}
-    </li>`;
-  }).join('');
+    return menuRow({ href: `${HS_BASE}/${q}`, label: title(locale, q, name),
+      value: t(locale, `hs.state.${s}` as MessageKey),
+      ...(s === 'answered' ? { tone: 'ok' as const } : {}) });
+  });
   const position = (q: Question) => ({ i: v.order.indexOf(q) + 1, n: v.order.length });
   // Phase 7 — reached from My business › How you sell, a menu of the same
   // name: the page is named for what it holds, the questions, and leads back.
@@ -156,7 +156,7 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null): stri
     ${first ? `<form method="get" action="${HS_BASE}/${first}" class="hs-start"><button class="btn send" type="submit">${esc(t(locale,
         done.size === 0 ? 'hs.start' : 'hs.continue', { i: show.count(locale, position(first).i), n: show.count(locale, position(first).n) }))}</button></form>`
       : `<p class="muted">${esc(t(locale, 'hs.allDone', { name }))}</p>`}
-    <section class="block"><ul class="rows hs-rows">${rows}</ul></section>`;
+    ${menuGroup('questions', null, rows)}`;
 }
 
 const errLine = (l: Locale, e: AnswerError | undefined): string => {
@@ -308,7 +308,7 @@ export function renderQuestion(
   // in one row (Later posts to its own address and needs no choice).
   const at = v.order.indexOf(q);
   const position = at < 0 ? '' : `<p class="muted hs-pos">${esc(t(locale, 'hs.position', { i: show.count(locale, at + 1), n: show.count(locale, v.order.length) }))}</p>`;
-  return `<div class="dhead">${back(HS_BASE, t(locale, 'hs.back'))}</div>
+  return `<div class="dhead">${back(HS_BASE, t(locale, 'hs.questions.title'))}</div>
     ${position}
     <h1 class="page">${esc(title(locale, q, name))}</h1>
     ${flashBanner(flash)}

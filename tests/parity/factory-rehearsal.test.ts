@@ -427,7 +427,7 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
     const blocked = readyScreen(view(withFindings), 'en');
     const clean = readyScreen(view({ ...withFindings, findings: [] }), 'en');
     // Both render the SAME activation verdict; only the findings list differs.
-    const verdict = (h: string) => h.slice(at(h, shown('en', 'factory.ready.title')), at(h, shown('en', 'factory.rehearsal.title')));
+    const verdict = (h: string) => h.slice(at(h, shown('en', 'business.row.live')), at(h, shown('en', 'factory.rehearsal.title')));
     expect(verdict(blocked)).toBe(verdict(clean));
   });
 

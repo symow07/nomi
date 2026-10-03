@@ -178,7 +178,7 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: Al
   const now = alertWayNow(w, v);
   const wanted = wantedWay(w);
   const can: Record<AlertChannel, boolean> = { email: w.email !== null, browser: pushOn, whatsapp: whatsappReachableFor(w) };
-  const reach = `<a class="way-door" href="/app/channels#alerts">${esc(t(locale, 'factory.reach.title'))}<span class="go" aria-hidden="true">›</span></a>`;
+  const reach = `<a class="way-door" href="/app/channels/alerts">${esc(t(locale, 'channels.alerts.title'))}<span class="go" aria-hidden="true">›</span></a>`;
   const note: Record<AlertChannel, string> = {
     email: esc(w.email ? t(locale, 'alerts.way.email.to', { email: w.email }) : t(locale, 'alerts.way.email.none')),
     browser: esc(!pushOn ? t(locale, 'alerts.phone.off')
@@ -260,7 +260,7 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
   // Phase 9 (V1-468) — the way back drawn as on its sibling pages, so the heading sits where theirs does;
   // (w4-settings-a-10) to the screen it was opened from.
   const way = from === 'channels'
-    ? back('/app/channels#alerts', t(locale, 'factory.reach.title'))
+    ? back('/app/channels/alerts', t(locale, 'channels.alerts.title'))
     : back('/app/settings/setup', t(locale, 'nav.setup'));
   return `${way}
     <h1 class="page">${esc(t(locale, 'alerts.title'))}</h1>

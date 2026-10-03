@@ -92,13 +92,13 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/business/how-you-sell', routes: [
     '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
   ] },
-  // …and the channels have ONE home, Where customers reach you: each of its rows opens Channels.
-  { hub: '/app/business/channels', routes: ['/app/channels'] },
+  // …and the channels have ONE home, Where customers reach you: each of its rows opens a channel's own screen (phase 9).
+  { hub: '/app/business/channels', routes: ['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts'] },
   // THE WARMTH RUN, phase 7 — the assistant's page is a menu: each row opens
   // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
   // row only while a check waits, so it is not walked from here).
   { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox',
-    '/app/employee/talk', '/app/employee/learning', '/app/employee/name', '/app/employee/replies',
+    '/app/employee/alone', '/app/employee/talk', '/app/employee/learning', '/app/employee/name', '/app/employee/replies',
     '/app/employee/one-kind', '/app/employee/month', '/app/employee/next', '/app/employee/history'] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
@@ -1347,6 +1347,11 @@ const STYLE_PAGES = `
   @media (max-width: 560px) { .asst-menu.talk .sr-menu .sr-value { white-space:normal; overflow:visible; text-overflow:clip; } }
   .held-all { margin-bottom:var(--space-12); }
   .held-all p { margin:0 0 var(--space-4); }
+  /* Phase 9 (rule 13) — the Stop under the levels: one line and its button, apart from the form above it. */
+  .stop-here { margin-top:var(--space-16); padding-top:var(--space-12); border-top:1px solid var(--color-border); }
+  .stop-here p { margin:0 0 var(--space-8); }
+  /* V1-420 — the name waiting to be confirmed is confirmed where it is shown. */
+  .emp-confirm { margin:var(--space-8) 0 var(--space-16); }
   /* The name screen: the name itself, at the size of a name. */
   .emp-called { font-size:var(--font-size-title); font-weight:600; margin:0 0 var(--space-12); }
 
@@ -1490,6 +1495,8 @@ const STYLE_PAGES = `
   .req-how { font-size:var(--font-size-caption); }
   /* One column on this page: the cards keep the measure the rows and the prose keep. */
   .card.ch, .card.reach { max-width:var(--measure-prose); }
+  /* The fix wave (w4-business-assistant-17) — a channel's screen is one column: its section rules and ledes stop where its cards do. */
+  .ch-screen { max-width:var(--measure-prose); }
   .reach .win { font-size:var(--font-size-small); margin-top:var(--space-8); }
   .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8); border-top:1px solid var(--color-border); }
   .reach .outreach { margin-top:var(--space-12); padding-top:var(--space-12); border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-12); }
@@ -1521,14 +1528,12 @@ const STYLE_PAGES = `
   /* ── howYouSell.ts — Phase 9: the hub and its questions. */
   .hs-count { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
   .hs-start { margin:0 0 var(--space-8); }
-  /* The hub's rows run the column's width, like the sections of My business it opens from. */
-  .hs-rows { max-width:100%; }
-  /* A chip is one word on one line: its outline never splits across two. */
-  .hs-q .chip { display:inline-block; white-space:nowrap; }
   .hs-pos { margin:0 0 var(--space-4); }
   /* The usual choice is said on its own line, so no dash leads a line and no character is left alone at the end of one. */
   .hs-usual { display:block; }
   .hs-choices .pcheck span, .hs-hint { text-wrap:pretty; }
+  /* The fix wave (w4-business-assistant-25) — the choices sit one under another in every language, short ones too. */
+  .hs-choices { flex-direction:column; }
   .hs-acts { margin:var(--space-16) 0 0; }
   /* Phase 9 — Connect WhatsApp: three numbered steps, read in order. */
   .wa-steps { list-style:decimal; margin:0 0 var(--space-16); padding-inline-start:var(--space-24); max-width:var(--measure-prose); font-size:var(--font-size-small); }
@@ -2472,7 +2477,6 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/terms': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
   // Phase 7 — the products and the channels are rows of My business now.
   '/app/products': { href: '/app/business', label: 'nav.factory' },
-  '/app/channels': { href: '/app/business/channels', label: 'factory.reach.title' },
   '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
   // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
   '/app/knowledge': { href: '/app/employee', label: 'nav.employee' },

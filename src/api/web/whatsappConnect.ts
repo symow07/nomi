@@ -28,6 +28,6 @@ export function renderWhatsAppNumberPicker(
           <button class="btn send" type="submit">${esc(t(locale, 'connect.wa.choose.button'))}</button>
         </form>
       </li>`).join('')}</ul>
-    <p><a href="/app/channels">${esc(t(locale, 'connect.meta.choose.back'))}</a></p>
+    <p><a href="/app/channels/whatsapp">${esc(t(locale, 'connect.meta.choose.back'))}</a></p>
   </div>`;
 }
