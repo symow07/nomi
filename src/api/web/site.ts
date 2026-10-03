@@ -1,7 +1,8 @@
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { markSmall } from '../../core/owner/brand.js';
-import { publicDocument, esc, switcher, LANGSW_CSS } from './layout.js';
+import { publicDocument, esc, switcher, LANGSW_CSS, FACE_CSS, gapAfter, inviteMailto } from './layout.js';
+import { face } from './faces.js';
 
 /**
  * Phase 5 — nomidoes.com, served by this app.
@@ -80,27 +81,34 @@ export type SiteInput = {
   readonly noindex: boolean;
 };
 
+/**
+ * The example's customer: an id for the face's tint only, never a row anywhere. It draws
+ * tint 8, a blue, so the face is not read as the magenta of the assistant's words under it.
+ */
+const EXAMPLE_CUSTOMER = 'site-example-customer';
+
 export function renderSite(v: SiteInput): string {
   const l = v.locale;
   // Phase 9 (V1-023) — "e-mail" never breaks at its hyphen: a no-break hyphen, drawn, not stored.
   const k = (key: Parameters<typeof t>[1]) => esc(t(l, key)).replace(/(^|[^\p{L}])([eE])-mail/gu, '$1$2\u2011mail');
-  // Phase 9 (public-missed-02) — the mail opens already saying what to write.
-  const mail = v.contact
-    ? `mailto:${esc(v.contact)}?subject=${esc(encodeURIComponent(t(l, 'site.invite.subject')))}&amp;body=${esc(encodeURIComponent(t(l, 'site.invite.mailBody')))}`
-    : null;
+  // Phase 9 (public-missed-02) — the mail opens already saying what to write (w4-public-13: sign-up's too).
+  const mail = v.contact ? esc(inviteMailto(l, v.contact)) : null;
   const signIn = esc(v.signIn);
   const signUp = v.signUp ? esc(v.signUp) : null;
   // public-missed-04 — one filled button on the page: the hero's. The same act lower down is outlined.
   const go = (second: boolean) => (signUp ? `<a class="site-go${second ? ' site-go-2' : ''}" href="${signUp}">${k('site.cta.signup')}</a>`
     : mail ? `<a class="site-go${second ? ' site-go-2' : ''}" href="${mail}">${k('site.cta.invite')}</a>` : '');
   const invite = go(false);
-  // public-missed-08 — a label that ends in a full-width colon takes no space after it.
-  const label = (key: Parameters<typeof t>[1]) => `${k(key)}${/\uFF1A$/.test(t(l, key)) ? '' : ' '}`;
+  // public-missed-08, w4-public-05 — a label that ends in full-width punctuation (：？) takes no space after it.
+  const label = (key: Parameters<typeof t>[1]) => `${k(key)}${gapAfter(t(l, key))}`;
 
   const step = (n: 1 | 2 | 3) =>
     `<li><h3>${k(`site.how.${n}.title`)}</h3><p>${k(`site.how.${n}.body`)}</p></li>`;
+  // w4-public-09 — "What goes out alone" is its three conditions as a list, then what still waits.
   const yours = (which: 'prices' | 'alone' | 'back') =>
-    `<div class="site-card"><h3>${k(`site.yours.${which}.title`)}</h3><p>${k(`site.yours.${which}.body`)}</p></div>`;
+    `<div class="site-card"><h3>${k(`site.yours.${which}.title`)}</h3><p>${k(`site.yours.${which}.body`)}</p>${which === 'alone'
+      ? `<ul class="site-when"><li>${k('site.yours.alone.named')}</li><li>${k('site.yours.alone.practice')}</li><li>${k('site.yours.alone.record')}</li></ul><p>${k('site.yours.alone.after')}</p>`
+      : ''}</div>`;
   // Brand names are the same in every language but Arabic, which writes them
   // in its own script; e-mail is a word, so it is translated.
   const CHANNEL_NAME: Record<Locale, Record<'whatsapp' | 'instagram' | 'messenger', string>> = {
@@ -115,7 +123,7 @@ export function renderSite(v: SiteInput): string {
 
   return publicDocument({
     locale: l, title: t(l, 'site.title'), description: t(l, 'site.description'),
-    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + SITE_CSS,
+    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SITE_CSS,
     body: `<div class="site-root" data-surface="site">
   <header class="site-top">
     <a class="site-brand" href="${v.path}">${markSmall(28, null)}<span>Nomi</span></a>
@@ -128,12 +136,13 @@ export function renderSite(v: SiteInput): string {
       <h1>${k('site.hero.title')}</h1>
       <p class="site-lead">${k('site.hero.lead')}</p>
       <p>${k('site.hero.alone')}</p>
-      <p class="site-cta">${invite}<span class="site-member">${k('site.hero.member')} <a href="${signIn}">${k('site.signIn')}</a></span></p>
+      <p class="site-cta">${invite}<span class="site-member">${label('site.hero.member')}<a href="${signIn}">${k('site.signIn')}</a></span></p>
     </div>
     <figure class="site-example" aria-label="${k('site.example.label')}">
       <figcaption>${k('site.example.label')}</figcaption>
       <div class="site-said">
-        <span class="site-who">${k('site.example.from')}</span>
+        ${/* w4-public-03 — the customer has a face, drawn by the product's own renderer: a coloured
+           initial, as a customer with no photo has. The draft below sits on the assistant's wash. */ ''}<span class="site-who">${face({ clientId: EXAMPLE_CUSTOMER, name: t(l, 'site.example.from') }, 's')}<span>${k('site.example.from')}</span></span>
         <p class="site-bubble" dir="auto">${k('site.example.buyer')}</p>
       </div>
       <div class="site-said site-draft">
@@ -230,9 +239,11 @@ export const SITE_CSS = `
   .site-lead { font-size:var(--font-size-title); color:var(--color-ink); }
   .site-cta { display:flex; align-items:center; gap:var(--space-16) var(--space-24); flex-wrap:wrap;
     margin:var(--space-32) 0 0; }
-  .site-go { display:inline-flex; align-items:center; min-height:48px; padding:var(--space-12) var(--space-24);
-    border-radius:var(--radius-card); background:var(--color-ink); color:var(--color-surface);
-    font-weight:600; text-decoration:none; }
+  .site-go { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-24);
+    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface);
+    font-weight:600; text-decoration:none; text-align:center; text-wrap:balance; }
+  /* Above: w4-public-04 — a button is a control, with a control's corner; w4-public-07 — a label
+     that wraps is centred in its button, in even lines. */
   .site-go:hover { box-shadow:var(--shadow-lift2); }
   .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink-secondary); }
   .site-member { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -250,7 +261,8 @@ export const SITE_CSS = `
   .site-bubble { margin:0; padding:var(--space-12) var(--space-16); border-radius:var(--radius-card);
     background:var(--color-paper); color:var(--color-ink);
     font-size:var(--font-size-small); max-width:var(--measure-form); }
-  .site-draft .site-bubble { background:var(--color-paper); border:1px solid var(--color-border); }
+  /* w4-public-03 — the assistant's words on the assistant's wash, as in a conversation. */
+  .site-draft .site-bubble { background:var(--color-assistant-wash); }
   .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-waiting-wash);
     color:var(--color-waiting); border:1px solid var(--color-waiting-line); font-weight:600; }
   /* The product's waiting mark: a shape before the word, so the colour is not alone. */
@@ -269,10 +281,15 @@ export const SITE_CSS = `
     background:var(--color-surface); border:1px solid var(--color-border);
     color:var(--color-ink); font-weight:700; font-size:var(--font-size-title); }
 
-  .site-cards { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-16); margin-top:var(--space-24); }
+  /* w4-public-09 — one card to a row at every width, each as tall as its own words. */
+  .site-cards { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-16); margin-top:var(--space-24);
+    max-width:var(--measure-prose); }
   .site-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card);
     padding:var(--space-24); }
   .site-card p { margin:0; }
+  .site-card p + p, .site-when + p { margin-top:var(--space-12); }
+  .site-when { margin:var(--space-8) 0 0; padding-inline-start:var(--space-24); }
+  .site-when li { margin:0 0 var(--space-4); max-width:var(--measure-prose); }
   .site-honest { margin-top:var(--space-24); padding-inline-start:var(--space-16);
     border-inline-start:3px solid var(--color-border); }
 
@@ -299,11 +316,9 @@ export const SITE_CSS = `
     .site-links { flex-direction:row; flex-wrap:wrap; }
     .site-signin { order:2; }
     .site-steps { grid-template-columns:repeat(3, minmax(0, 1fr)); }
-    .site-cards { grid-template-columns:repeat(3, minmax(0, 1fr)); }
     .site-channels { grid-template-columns:repeat(2, minmax(0, 1fr)); }
   }
   @media (min-width: 60rem) {
     .site-hero { grid-template-columns:minmax(0, 7fr) minmax(0, 5fr); gap:var(--space-48); padding-block:var(--space-48); }
-    .site-channels { grid-template-columns:repeat(4, minmax(0, 1fr)); }
   }
 `;
