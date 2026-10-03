@@ -13,6 +13,32 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Two fixes the owner ordered (2026-10-03) — read this first
+
+**The instruction:** fix the send-path bug (a late "not answered" hand-over) first, then forbidden words matching inside other words (V1-504). Merge my own green PRs, update this file after each, and come back when both are done.
+
+**Fix 1 (#213): a conversation that has been answered is no longer handed over as "not answered".**
+- **The real cause.** A turn that fails is retried by the queue for minutes before its job goes to the dead letter queue. The dead-letter handler (`handOverUnanswered`, 0077) then handed the conversation over as `not_answered` unconditionally. It never asked whether the message it named had been answered in those minutes:
+  - by the owner, who took the conversation, replied and handed it back;
+  - by a reply the assistant had queued;
+  - by the owner from the phone (Meta's echo);
+  - by the message's own turn, when the job died after the turn was written;
+  - by a later turn that took the same line in its batch.
+
+  The owner then had the conversation on "Needs you" a second time, under "a message that could not be answered", and could send the customer a second reply.
+- **A second cause inside the first.** A photo or voice note whose turn rolled back is written onto the timeline only by the dead-letter handler, stamped at that moment. So even a check against the message's time would have compared answers with the wrong time.
+- **The fix.** Under the conversation lock, before anything is written, `answeredAfter` (`src/pipeline/received.ts`) answers one question: was this message answered after it arrived?
+  - "Arrived" is its line on the timeline, or, if it isn't there, when its job was queued (pg-boss `created_on`).
+  - It counts as answered if its own turn finished, a later batch took it, a reply by the owner or the assistant was queued or sent after it, or a line left after it outside the queue (an echo).
+  - These are not answers: a reply that failed or was cancelled, a follow-up a schedule sent, and anything from before the message.
+  - An answered message is still put on the timeline if missing, and noted as a `dead_letter_answered` event. Nobody is told, and nothing is handed over.
+  - A message with no arrival on record is handed over, as before: unknown is not answered.
+- **Tests:** `tests/integration/dead-letter-answered.test.ts`, ten cases through the function the worker's dead-letter loop calls, against Postgres. Before the fix, all six answered cases failed (the double hand-over reproduced) and the four controls passed; after it, all ten pass. The worker-level dead-letter test (`person-request.test.ts`) still hands over an unanswered message. The scripted pre-pilot ran 12/12 before and after.
+- **Production, checked read-only on 2026-10-03:** no conversation is in this state, and none ever was.
+  - In its whole history the database holds two hand-overs (both "unlisted number"), no `not_answered` signal open or closed, and no conversation waiting for a person.
+  - The case that found it (conversation-missed-10) happened in Practice on a local instance, where a turn with no model dies.
+  - Nothing was edited.
+
 ## The UI rebuild run (started 2026-10-02) — read this first
 
 **The owner's instruction (2026-10-02).**
