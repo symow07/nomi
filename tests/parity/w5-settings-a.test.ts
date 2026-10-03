@@ -65,7 +65,7 @@ describe('w4-settings-a-24 · a form sent back keeps the rail: its waiting count
     const a = appWith();
     const r = await a.inject({ method: 'GET', url: '/app/settings/closures', headers: { ...HTML, cookie: cookieFor(PILOT) } });
     expect(r.statusCode).toBe(200);
-    expect(r.body).toContain('data-rail="/app/live/rail?since=3"');
+    expect(r.body).toMatch(/data-rail="\/app\/live\/rail\?since=3\.[0-9]+"/);   // the count, and when the latest began to wait (w4-whole-03)
   });
 
   for (const [what, url, payload] of [
@@ -77,7 +77,7 @@ describe('w4-settings-a-24 · a form sent back keeps the rail: its waiting count
       const r = await a.inject({ method: 'POST', url, payload, headers: { ...HTML, ...FORM, cookie: cookieFor(PILOT) } });
       expect(r.statusCode).toBe(400);
       expect(r.body).toContain('role="alert"');
-      expect(r.body).toContain('data-rail="/app/live/rail?since=3"');
+      expect(r.body).toMatch(/data-rail="\/app\/live\/rail\?since=3\.[0-9]+"/);   // the count, and when the latest began to wait (w4-whole-03)
       expect(r.body).toMatch(/data-nav="inbox"[^>]*aria-label="[^"]*3/);
     });
   }
@@ -184,7 +184,7 @@ describe('w4-settings-a-11 · a refused business answer is sent back with all th
       expect(r.body).toContain(`<span class="fielderr" role="alert" id="bk-${field}-err">${t('en', `business.kind.bad.${field}`)}</span>`);
       expect(r.body).toMatch(new RegExp(`id="bk-${field}"[^>]*aria-invalid="true" aria-describedby="bk-${field}-err" autofocus`));
       for (const k of keep) expect(r.body, k).toContain(k);
-      expect(r.body).toContain('data-rail="/app/live/rail?since=3"');
+      expect(r.body).toMatch(/data-rail="\/app\/live\/rail\?since=3\.[0-9]+"/);   // the count, and when the latest began to wait (w4-whole-03)
     });
   }
 });
