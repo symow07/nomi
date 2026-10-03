@@ -176,7 +176,7 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
       email ? `<p>${k('legal.deletion.viaUs')}</p>` : ''}
     <h2>${k('legal.deletion.erased.title')}</h2>
     <ul>${list([
-      // w4-public-02 — the photo, which erase-buyer erases (`client_faces: { do: 'erase' }`).
+      // w4-public-02 — the photo, which the operator's buyer erasure erases (`client_faces: { do: 'erase' }`).
       'legal.deletion.erased.identity', 'legal.deletion.erased.photo', 'legal.deletion.erased.messages', 'legal.deletion.erased.prepared',
       'legal.deletion.erased.notes', 'legal.deletion.erased.conversations',
     ])}</ul>
