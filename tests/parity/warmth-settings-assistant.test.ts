@@ -203,6 +203,11 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
       expect(withoutIsolates(html)).toContain(withoutIsolates(esc(t(l, 'hs.progress', { done: 3, total: 8 }))));
     });
   }
+  it('in Arabic a product\'s figures ("38x40cm", "500ml") are isolated, so the words around them cannot reorder them', () => {
+    const withFigures: TalkAbout = { ...talk, products: { total: 2, names: ['Canvas Tote Bag 38x40cm', 'Thermos 500ml'] } };
+    const html = withAssistantName('Lily', () => screen('talk', base, 'ar', ctx, undefined, { talk: withFigures }));
+    expect(html).toContain('Canvas Tote Bag \u206838\u2069x\u206840\u2069cm · Thermos \u2068500\u2069ml');
+  });
   it('a member of staff reads How you sell, and is not sent to a page that would refuse them', () => {
     const html = screen('talk', base, 'en', ctx, STAFF, { talk });
     expect(html).not.toContain('href="/app/business/selling"');

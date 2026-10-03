@@ -640,7 +640,8 @@ export function renderEmployeeScreen(
           desc: t(locale, 'setup.desc.selling'), value: t(locale, 'hs.progress', { done: k.selling.answered, total: k.selling.total }),
           tone: (k.selling.answered >= k.selling.total ? 'ok' : 'warn') as 'ok' | 'warn' }] : []),
         { href: '/app/products', icon: 'tag', label: t(locale, 'factory.sell.title'),
-          desc: k.products.names.length ? `${k.products.names.join(' · ')}${more ? ' …' : ''}` : t(locale, 'factory.sell.empty'),
+          // A product's name carries its figures ("38x40cm", "500ml"): isolated, so Arabic does not reorder them.
+          desc: k.products.names.length ? `${show.isolateFigures(locale, k.products.names.join(' · '))}${more ? ' …' : ''}` : t(locale, 'factory.sell.empty'),
           value: tn(locale, 'her.talk.products', k.products.total) },
       ];
       return `${head}
