@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { wrongPrice } from '../../src/pipeline/spotChecks.js';
 import { renderOwnerAlert, goesByMail, waitsInApp, SELF_DEMOTION_REASONS, SELF_DEMOTION_PAGE } from '../../src/pipeline/notify.js';
-import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import { renderEmployee, renderEmployeeScreen, type EmployeeProfile } from '../../src/api/web/employee.js';
 import { screen } from './employee-screens.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
@@ -134,7 +134,10 @@ describe('R5 · Today and the level page', () => {
   const stepped = [{ capability: 'quote', at: new Date('2026-10-12T00:00:00Z'), reasons: ['wrong_price'] }];
   for (const l of LOCALES) {
     it(`${l} · chose "sells", a wrong price took the rung: what is in force, and since when and why`, () => {
-      const html = withoutIsolates(renderEmployee({ ...base, earned: true, ramp: ramp(1), chosen, stepped }, l, null));
+      const e = { ...base, earned: true, ramp: ramp(1), chosen, stepped };
+      // What is in force beside the levels; the choice, since when and why, one level down (w4-business-assistant-26).
+      expect(withoutIsolates(renderEmployee(e, l, null))).toContain(esc(t(l, 'autonomy.inForce', { level: t(l, 'autonomy.level.talks') })));
+      const html = withoutIsolates(renderEmployeeScreen('alone', e, l, null));
       expect(html).toContain(esc(t(l, 'autonomy.inForce', { level: t(l, 'autonomy.level.talks') })));
       expect(html).toContain(esc(withoutIsolates(t(l, 'notify.self_demoted.why.wrong_price'))));
       expect(html).toContain(esc(capabilityName(l, 'quote')));

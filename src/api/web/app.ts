@@ -157,7 +157,7 @@ import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, busines
 import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
-import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
+import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate, setPilotMode } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
@@ -166,6 +166,7 @@ import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.j
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import { autonomyReleased } from '../../core/conversation/disclosure.js';
+import { aloneNow } from '../../core/conversation/aloneNow.js';
 import {
   loadPilotRunbook, renderPilotRunbook, renderPilotTechnical, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
 } from './pilot.js';
@@ -2914,12 +2915,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Start never skips WhatsApp's own checklist, and Stop binds the channels
   // that have no switch of their own.
   app.post('/app/business/stop-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
+    // Phase 9 (rule 13) — pressed on the assistant's own page, the notice lands there.
+    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? '/app/employee#on-her-own' : READY;
+    const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect(READY);
+    if (!bid.ok) return reply.redirect(to);
     const r = await stopAssistant(deps.db, bid.value, personOf(s).id);
-    return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already');
+    return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already', undefined, to);
   });
   app.post('/app/business/start-assistant', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', READY);
@@ -3456,6 +3459,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const sold = products.filter((p) => p.isActive);
     return {
       business: profile.name,
+      finished: profileFinished(profile),
       given: [
         ...(['description', 'location', 'workingHours', 'contactEmail', 'contactPhone'] as const).filter((k) => Boolean(profile[k]?.trim())),
         ...(profile.languagesServed.length ? ['languages' as const] : []),
@@ -3564,7 +3568,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     const r = await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id)
       .catch(() => ({ ok: false, changed: 0 }));
-    return flashTo(reply, `/app/employee#on-her-own`, r.ok ? 'autonomy.flash.saved' : 'people.flash.failed');
+    if (!r.ok) return flashTo(reply, `/app/employee#on-her-own`, 'people.flash.failed');
+    // V1-417 — the notice says what happens now, by the page's own answer (`aloneNow`).
+    const held = level !== 'waits' && await loadEmployee(deps.db, s.businessId)
+      .then((e) => aloneNow({ capabilities: e.capabilities, released: (deps.autonomyReleased ?? autonomyReleased)(), named: e.assistantNamed,
+        ...(e.earned === undefined ? {} : { earned: e.earned }), stopped: e.stopped === true, silenced: e.silenced === true }).hold !== null)
+      .catch(() => false);
+    return flashTo(reply, `/app/employee#on-her-own`, held ? 'autonomy.flash.savedHeld' : 'autonomy.flash.saved');
   });
   capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));
   capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
@@ -3910,15 +3920,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // route rather than a branch of /attest: this one carries an answer, and the
   // attest route exists precisely because those items have no answer to carry.
   app.post('/app/onboarding/assistant-name', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    // Phase 9 (V1-420) — confirmed on the assistant's Name screen, it comes back there.
+    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? screenHref('name') : '/app/onboarding';
+    const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const raw = String((req.body as { name?: string } | undefined)?.name ?? '');
     const r = await nameAssistant(deps.db, s.businessId, raw, personOf(s).id);
-    if (!r.ok) return flashTo(reply, '/app/onboarding', `pilot.assistant.problem.${r.problem}` as MessageKey);
+    if (!r.ok) return flashTo(reply, to, `pilot.assistant.problem.${r.problem}` as MessageKey);
     // Confirming is what makes the name SHOWN (chosenName), so the cached
     // "no name yet" must go now, not a minute from now.
     facts.evict(s.businessId);
-    return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
+    return flashTo(reply, to, 'pilot.flash.attested');
   });
 
   app.post('/app/onboarding/validate', async (req, reply) => {

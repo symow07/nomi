@@ -534,6 +534,15 @@ export async function loadFactory(
  * about; neither page keeps a second copy of either.
  */
 export const BUSINESS_FACTS_PATH = '/app/settings/profile';
+
+/**
+ * The profile is done once it holds what setting up asks of it (a name, a
+ * description, a location and a way to be reached — db/setup.ts). One answer,
+ * read by My business's row and by the assistant's "can talk about" row
+ * (w4-business-assistant-31), so the two rows for it say one thing.
+ */
+export const profileFinished = (p: Pick<BusinessProfile, 'name' | 'description' | 'location' | 'contactEmail' | 'contactPhone'>): boolean =>
+  p.name.trim() !== '' && Boolean(p.description) && Boolean(p.location) && Boolean(p.contactEmail || p.contactPhone);
 export const BUSINESS_PRODUCTS_PATH = '/app/products';
 
 export type BusinessScreen = 'channels' | 'allowlist' | 'ready' | 'promises' | 'how';
@@ -689,7 +698,7 @@ export function renderFactory(
   // a location and a way to be reached — db/setup.ts). The business's name is
   // the page's own header already; the row says where the profile stands.
   const unnamed = p.name.trim() === '';
-  const unfinished = unnamed || !p.description || !p.location || (!p.contactEmail && !p.contactPhone);
+  const unfinished = !profileFinished(p);
   const profile = menuRow({ href: BUSINESS_FACTS_PATH, icon: 'business', label: t(locale, 'settings.profile.title'),
     desc: unnamed ? t(locale, 'factory.about.empty', { name }) : null,
     value: t(locale, unfinished ? 'setup.state.toDo' : 'setup.state.done'), tone: unfinished ? 'warn' : 'ok' });

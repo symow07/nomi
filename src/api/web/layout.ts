@@ -98,7 +98,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
   // row only while a check waits, so it is not walked from here).
   { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox',
-    '/app/employee/talk', '/app/employee/learning', '/app/employee/name', '/app/employee/replies',
+    '/app/employee/alone', '/app/employee/talk', '/app/employee/learning', '/app/employee/name', '/app/employee/replies',
     '/app/employee/one-kind', '/app/employee/month', '/app/employee/next', '/app/employee/history'] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
@@ -1245,6 +1245,11 @@ const STYLE_PAGES = `
   .asst-menu .sr-value { flex-shrink:0; }
   .held-all { margin-bottom:var(--space-12); }
   .held-all p { margin:0 0 var(--space-4); }
+  /* Phase 9 (rule 13) — the Stop under the levels: one line and its button, apart from the form above it. */
+  .stop-here { margin-top:var(--space-16); padding-top:var(--space-12); border-top:1px solid var(--color-border); }
+  .stop-here p { margin:0 0 var(--space-8); }
+  /* V1-420 — the name waiting to be confirmed is confirmed where it is shown. */
+  .emp-confirm { margin:var(--space-8) 0 var(--space-16); }
   /* The name screen: the name itself, at the size of a name. */
   .emp-called { font-size:var(--font-size-title); font-weight:600; margin:0 0 var(--space-12); }
 

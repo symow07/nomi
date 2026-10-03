@@ -132,7 +132,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'order.flash.confirmed', 'order.flash.set_aside',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added',
-  'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'channel.flash.connected',
+  'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',
   'channel.flash.disconnected', 'channel.flash.reconnected', 'channel.flash.test_degraded',
   'channel.flash.test_ok', 'closures.flash.added', 'closures.flash.removed', 'closures.flash.restored', 'connect.flash.connected',
   'connect.flash.disconnected', 'connect.meta.flash.connected', 'connect.meta.flash.connectedNoIg',
