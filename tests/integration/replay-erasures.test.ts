@@ -148,7 +148,8 @@ d('0126 · tools/replay-erasures.mjs carries the ledger out again on a restored 
     const r = tool(['--export']);
     expect(r.code).toBe(0);
     const lines = r.out.trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
-    const mine = lines.filter((l) => [F.line, W.line, H.line].includes(String(l['id'])));
+    const ids: string[] = [F.line, W.line, H.line];
+    const mine = lines.filter((l) => ids.includes(String(l['id'])));
     expect(mine).toHaveLength(3);
     for (const l of mine) {
       expect(parseLedgerLine(JSON.stringify(l)).ok).toBe(true);
