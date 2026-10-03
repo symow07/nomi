@@ -656,7 +656,8 @@ describe('the settings pages', () => {
     for (const l of LOCALES) {
       const h = draw('data', l);
       expect(h, l).not.toContain('<ul class="chips">');
-      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="deeper" href="\/app\/settings\/data\/[a-z-]+\.csv" download>/g)];
+      // the warmth run, phase 9 (w4-settings-a-18) — Download saves a file: its own mark, not a door's chevron
+      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="dl-get" href="\/app\/settings\/data\/[a-z-]+\.csv" download><svg class="ni"/g)];
       expect(files, l).toHaveLength(9);
       // "What you set up" opens its own section, with the space sections have (it touched the rows above)
       expect(h, l).toMatch(new RegExp(`</section>\\s*<section class="block">\\s*<h2>${esc(t(l, 'data.export.configTitle'))}</h2>`));

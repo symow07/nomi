@@ -220,3 +220,32 @@ describe('settings-a-new-09 · w4-settings-a-20 · closures and forbidden words:
     expect(stylesheetAt(sheet)!.css).toContain('.block.floor { margin-top:var(--space-24); }');
   });
 });
+
+describe('Your data · w4-settings-a-16, -17, -18', () => {
+  const view = { businessName: 'Atlas', requests: [], buyers: [], contact: 'privacy@example.test' };
+  it('the deletion list opens with one short paragraph; how a request in a message is listed is folded under it', async () => {
+    const { renderDataRights } = await import('../../src/api/web/dataRights.js');
+    const { OWNER_VIEW } = await import('../../src/core/conversation/people.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { esc } = await import('../../src/api/web/layout.js');
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    const { withoutIsolates } = await import('./isolates.js');
+    for (const l of LOCALES) {
+      const h = withoutIsolates(renderDataRights(view as never, l, null, OWNER_VIEW, 'Setup'));
+      expect(h, l).toContain(`<p class="lede">${esc(withoutIsolates(t(l, 'data.buyers.lead')))}</p>`);
+      expect(h, l).toMatch(new RegExp(`<details class="data-more"><summary>${esc(t(l, 'data.buyers.fromChatTitle'))}</summary>`));
+      expect(h, l).not.toContain(`${esc(t(l, 'data.buyers.lead'))} ${esc(t(l, 'data.buyers.fromChat'))}`);
+      // a file is saved, not opened: no door's chevron on Download
+      expect(h, l).not.toMatch(/class="deeper" href="\/app\/settings\/data\//);
+    }
+    // Chinese runs two sentences on after 。 — no stray space (three places)
+    const zh = renderDataRights(view as never, 'zh', null, OWNER_VIEW, 'Setup');
+    expect(zh).not.toMatch(/。 /);
+    expect(zh).toContain(`${t('zh', 'data.deletion.lead')}${t('zh', 'data.deletion.byHand')}`);
+  });
+  it('the download cards span the column like the page\'s other cards', async () => {
+    const { stylesheetAt, shell } = await import('../../src/api/web/layout.js');
+    const sheet = /href="\/assets\/(app\.[0-9a-f]+\.css)"/.exec(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app', bodyHtml: '' }))![1]!;
+    expect(stylesheetAt(sheet)!.css).not.toContain('.dl-files { max-width');
+  });
+});

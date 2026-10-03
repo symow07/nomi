@@ -1092,8 +1092,12 @@ const STYLE_PAGES = `
   .floor-langs dt { font-weight:600; min-width:7em; }
   .floor-langs dd { margin:0; flex:1 1 16em; color:var(--color-ink-secondary); }
   /* Phase 9 (V1-492) — a file to take, one row of a card each: its name, and its own Download at the row's end. */
-  .dl-files { max-width:var(--measure-prose); }
   .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
+  .dl-get { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; color:var(--color-ink); font-size:var(--font-size-small); text-decoration:none; }
+  .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-underline-offset:3px; }
+  .dl-get > .ni { inline-size:18px; block-size:18px; flex:none; }
+  .data-more { margin:0 0 var(--space-12); }
+  .data-more > summary { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   /* Phase 9 (settings-a-new-10) — on a settings page an empty panel spans the column, as the cards above it do. */
   .empty.whole { max-width:100%; }
   /* Phase 9 (V1-483) — in Arabic a date or a time sits on the reading side of its field, like every word around it
