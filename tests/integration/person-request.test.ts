@@ -250,11 +250,18 @@ d('"wants a person", two layers, through production (requires DATABASE_URL)', { 
     expect(s.signals).toEqual(['not_answered']);
     expect(s.said).toContain('And the lead time?');       // on the timeline for the person who answers
     await until(async () => ((await alertsFor(conv, 'handoff')) > 0 ? true : undefined), 'the ordinary alert');
-    // …and the operator is still told, as before.
+    // …and the operator is still told, as before: the dead job is written down as its own
+    // kind of error for this business (CC-10, `app_errors`), which is what alerts the operator.
     await until(async () => ((await sql<{ n: number }>`
+      select count(*)::int as n from app_errors
+       where "where" = ${`worker:${QUEUES.inbound}`} and business_id = ${BIZ}::uuid`
+      .execute(prod.db)).rows[0]!.n > 0 ? true : undefined), 'the operator’s dead-letter error');
+    // The warmth run, phase 8 — the owner's own "a message may not have gone through" copy waits in the
+    // app (QUIET_KINDS): no such job is queued for them; the hand-over above is what reaches them.
+    expect((await sql<{ n: number }>`
       select count(*)::int as n from pgboss.job
        where name = ${QUEUES.notify} and data->>'kind' = 'dead_letter' and data->>'businessId' = ${BIZ}`
-      .execute(prod.db)).rows[0]!.n > 0 ? true : undefined), 'the operator’s dead-letter alert');
+      .execute(prod.db)).rows[0]!.n).toBe(0);
   });
 
   it('a dead job naming no conversation it can find hands nothing over, and breaks nothing', async () => {

@@ -111,6 +111,9 @@ under "Decided" below.
   - **The landing:** the name, then the whole "how much it does alone" control. That is the three levels, the form, and the native-read and name holds. The control now also says first when the owner's Stop or the operator's pause is on, which the old page never showed.
   - **Then 12 rows in three groups** ("What {name} says", "How {name} works with you", "How it is going"), each a screen of its own at `/app/employee/{talk,learning,name,replies,one-kind,checks,month,next,history}`, its prose unchanged, with a way back.
   - **"What {name} can talk about"** reads My business's facts, How you sell and the products through My business's own loaders. It links to the one place each is edited and edits nothing: two doors, one data.
+- **Merged** 2026-10-03 11:45 UTC as `919289f`.
+  - CI's first run failed one Arabic check on a populated workspace: the "can talk about" screen listed product names whose sizes ("38x40cm", "500ml") were not isolated. Fixed and given its own test; the second run passed both jobs (integration 20m7s).
+  - Deployed; `/health` ok; schema 123 (0123); backup `nomi-backup-20261003T030458Z` taken before.
 
 ## Two fixes the owner ordered (2026-10-03)
 

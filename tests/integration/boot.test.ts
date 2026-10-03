@@ -876,7 +876,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     await setOwner('en', `+${ph('8613800000000')}`);
     await deliverOwnerAlert(deps, job('handoff'));
-    expect(sent[1]!.body).toContain(ASSISTANT_FALLBACK.en);   // locale switched to en
+    expect(sent[1]!.body.toLowerCase()).toContain(ASSISTANT_FALLBACK.en.toLowerCase());   // locale switched to en (it opens the sentence)
 
     await setOwner('ar', `+${ph('8613800000000')}`);
     await deliverOwnerAlert(deps, job('handoff'));
