@@ -254,3 +254,18 @@ describe('the heartbeat notices too', () => {
     expect(logs.join('\n')).toContain('the model provider refuses for billing');
   });
 });
+
+describe('an open Today follows it', () => {
+  it('the line’s coming and going is news to a Today left open, which then redraws itself', async () => {
+    const { todayMark, isMark, liveNews } = await import('../../src/api/web/live.js');
+    const counts = { pendingApprovals: 0, handoffs: 1, ownerHandling: 0, blockedMessages: 0, deletionAsks: 0, ordersWaiting: 0 };
+    const answering = todayMark(counts);
+    const refusing = todayMark(counts, true);
+    expect(answering).toBe('0.1.0.0.0.0');           // unchanged while it answers: no open page is disturbed
+    expect(refusing).toBe('0.1.0.0.0.0.1');
+    expect(isMark('today', answering) && isMark('today', refusing)).toBe(true);
+    expect(liveNews('today', answering, refusing)).toEqual({ news: true, what: 'today' });
+    expect(liveNews('today', refusing, answering)).toEqual({ news: true, what: 'today' });
+    expect(liveNews('today', refusing, refusing)).toEqual({ news: false });
+  });
+});

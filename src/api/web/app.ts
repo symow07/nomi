@@ -2031,7 +2031,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
+      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true))),
     };
   }));
 
