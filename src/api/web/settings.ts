@@ -1,4 +1,4 @@
-import { zoneChoices, zoneLabel, zonePlace, zoneKept, zonesOf, countryOfZone, regionOf, isZone, ALL_ZONES, SHOP_ZONES, ZONE_GROUPS } from '../../core/owner/zones.js';
+import { zoneChoices, zoneLabel, zoneLabelsAmong, zonePlace, zoneKept, zonesOf, countryOfZone, regionOf, isZone, ALL_ZONES, SHOP_ZONES, ZONE_GROUPS } from '../../core/owner/zones.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
@@ -358,17 +358,23 @@ function zoneRow(c: ZoneChoice, locale: Locale): string {
   // A country narrows the list to its own zones, told apart by their places.
   if (own.length > 0 && own !== ALL_ZONES) {
     const all = own.includes(c.zone) ? own : [c.zone, ...own];
-    return row(`<select id="pf-zone" name="zone">${all.map((z) => option(z, zoneLabel(locale, z))).join('')}</select>`);
+    const label = zoneLabelsAmong(locale, all);
+    return row(`<select id="pf-zone" name="zone">${all.map((z) => option(z, label(z))).join('')}</select>`);
   }
   // Phase 9 (V1-522, V1-528) — without one, every zone a shop keeps (no
   // research stations), under its region, named by its country in the
   // owner's language; the city only where a country keeps several.
   const open = (zh: boolean, s: string) => (zh ? `（${s}）` : ` (${s})`);
+  // V1-522 — within a country, the city (in the tz database's English) only
+  // where two of its zones keep the same time; elsewhere the time tells them apart.
+  const shared = new Map<string, number>();
+  for (const z of SHOP_ZONES) { const cc = countryOfZone(z); const k = zoneKept(locale, z); if (cc && k) shared.set(`${cc}|${k}`, (shared.get(`${cc}|${k}`) ?? 0) + 1); }
   const named = (z: string): string => {
     const cc = countryOfZone(z);
     const country = cc ? countryName(locale, cc) : null;
-    const place = country ? (zonesOf(cc).length > 1 ? `${country}${open(locale === 'zh', zonePlace(z))}` : country) : zonePlace(z);
     const kept = zoneKept(locale, z);
+    const city = !kept || (shared.get(`${cc}|${kept}`) ?? 0) > 1;
+    const place = country ? (cc && zonesOf(cc).length > 1 && city ? `${country}${open(locale === 'zh', zonePlace(z))}` : country) : zonePlace(z);
     return kept ? `${place} — ${kept}` : place;
   };
   const order = new Intl.Collator(locale).compare;

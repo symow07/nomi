@@ -14,6 +14,15 @@ import type { CatalogueEntry } from '../core/conversation/sharedPost.js';
  * names customers use are added, never taken away here.
  */
 
+/**
+ * Phase 9 (V1-313) — takes one name customers use off a product of this
+ * business, never the product's own name or its Chinese name (0122). Through
+ * the one function: the app role deletes nothing directly.
+ */
+export async function removeAlias(tx: Tx, productId: string, alias: string): Promise<boolean> {
+  return (await sql<{ ok: boolean }>`select remove_product_alias(${productId}::uuid, ${alias}) as ok`.execute(tx)).rows[0]?.ok === true;
+}
+
 /** Adds the names this product is not yet found by. Returns how many were written. */
 export async function addAliases(tx: Tx, productId: string, names: readonly (string | null | undefined)[]): Promise<number> {
   const have = new Set((await sql<{ k: string }>`

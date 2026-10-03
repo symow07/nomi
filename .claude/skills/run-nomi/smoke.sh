@@ -123,7 +123,7 @@ curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE
 #  the owner surfaces
 get /app            "$SK/app-home.html"   '<h1 class="page">Today'  "Today did not render"
 get /app/business   "$SK/app-factory.html" "What you promise customers" "My business did not render"
-get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not render"
+get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Before going live' "Pilot runbook did not render"
 get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandbox did not render"
 
 #  My factory is the door to the four surfaces it contains — they must stay reachable
@@ -148,9 +148,13 @@ post /app/sandbox/resume   "" "practice resume"
 get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "did not hand back to the employee"
 
 #  the runbook must now observe the rehearsal it just practised
-get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not re-render"
-REHEARSED="$(grep -o 'Practice before launch · [0-9]*/[0-9]*' "$SK/app-onboard.html" | head -1)"
-case "$REHEARSED" in *"3/5"*|*"4/5"*|*"5/5"*) ;; *) fail "rehearsal not observed by the runbook (got '$REHEARSED')";; esac
+get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Before going live' "Pilot runbook did not re-render"
+# Phase 9 — the rehearsal is a ticked list ("What you have practiced so far"),
+# no longer a "· 3/5" count: the three acts just rehearsed must each be ticked.
+for act in "Take-over practiced" "Owner reply practiced" "Hand-back practiced"; do
+  grep -q "class=\"pr done\"><span class=\"mk\">✓</span> <span class=\"lbl\">$act" "$SK/app-onboard.html" \
+    || fail "rehearsal not observed by the runbook ($act not ticked)"
+done
 
 #  nothing was really delivered: a practice copy can hold no channel credential (0086's trigger)
 CREDS="$(psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc \
@@ -163,7 +167,7 @@ PASS — Nomi is running and the owner walkthrough was driven end-to-end.
   walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
                 → My factory (+ the 4 surfaces it contains)
                 → buyer turn → take over → owner reply → hand back
-                rehearsal observed by the runbook: $REHEARSED
+                rehearsal observed by the runbook: take-over, owner reply and hand-back ticked
                 sandbox channel credentials: $CREDS (must be 0 — nothing delivered)
   URL:          $BASEURL
   health:       $HEALTH

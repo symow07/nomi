@@ -43,7 +43,47 @@ under "Decided" below.
 | 6 | States: a real empty, loading and inline-error state on every page; no message that never resolves | #203 |
 | 7 | Phone: the top nav on one line; the calendar scrolling visibly, names whole, "+N more", the day view as one list | #204 |
 | 8 | Re-audit the rebuilt app; one merged list in `docs/UI-AUDIT.md`, the original kept as `docs/UI-AUDIT-V1.md`; counts dropped / still reproducing / new | #205 |
-| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · #209 (the conversation page, the draft card, Practice) · #210 (My business, Your assistant, channels, the Customers list, an order, Results) · #211 (every other area, S2 to S4) · next: the final walk |
+| 9 | Fix the merged list, S1 first, with the investigations the owner named | #206 (the named items, 7 of 8 S1s) · #207 (French, the 8th S1) · #208 (the whole product, Today, setting up) · #209 (the conversation page, the draft card, Practice) · #210 (My business, Your assistant, channels, the Customers list, an order, Results) · #211 (every other area, S2 to S4) · #212 (the last fixable findings, the guide recorded again, the final walk): done |
+
+**Phase 9, part seven (#212): the last fixable findings and the guide's recordings (0122).**
+
+- **A name customers use can be taken off a product** (V1-313, 0122).
+  - The product page listed the names a product is found by, and none could be removed. The owner now chooses one and takes it off, after a confirmation. The product's own name and its Chinese name are never offered, because every edit writes them back.
+  - The app role still deletes nothing directly. 0122's `remove_product_alias` takes one name off one product of the business the transaction is for, and the route writes the word on the audit trail.
+  - Matching reads the table as it is, so the name stops being matched from the next message on. The scripted pre-pilot ran 12/12 before and after.
+- **A time zone is named by the time it keeps, in the owner's language** (V1-522). The city, which only the tz database names (in English), is shown only where two zones of a list keep the same time. China's two zones read 中国标准时间 and 乌鲁木齐时间; Brazil's Recife and Fortaleza keep the city.
+- **The guide is recorded again, from the rebuilt app, in five languages and at two widths** (today-onboarding-new-08, new-09).
+  - The stills showed the app before the rebuild.
+  - A phone showed the desktop recording shrunk into its column.
+  - Each step now has a desktop recording (1024 px) and a phone one (390 px). The page plays one or the other by width, and neither is fetched until played.
+  - French has its videos for the first time.
+- **The smoke script** checked for "Practice before launch", which #208 renamed. It now checks "Before going live" and the three rehearsed acts ticked.
+
+With this, the merged list's only open findings are the owner's decisions and the not-a-defect ones. The final walk follows.
+
+**The final walk (2026-10-03).** Every page (62) in all five languages, at a phone's width and a desktop's: 620 captures. They come from a fresh local instance of #212's head, seeded with the usability workspace, outreach on.
+- **Every page renders.** The five that should answer 404 do: the two not-found pages, a spent password link, a bad unsubscribe link and a bad proof link.
+- **No page is wider than its screen.** Arabic is right to left on every page, each page is in its own language, each has one heading of the first rank, and every image has alt text.
+- **English on a non-English page:** 112 items in 44 captures, every one a customer's own words or the reply written to that customer. Phase 8 had 1,076 items in 169 captures.
+- **Controls without a name: none real.** The checker counts 90, all buttons inside closed folds or one-character Chinese words. Phase 8 had 214.
+- **Text off the screen:** only the week grid on a phone, which opens scrolled to today inside its own scroller. Phase 8 had 84 items in 14 captures.
+- **Checked by eye:**
+  - Today, the Customers list and a conversation, in Arabic on a phone;
+  - the calendar in English on a desktop;
+  - products in Spanish on a phone;
+  - the guide in Chinese on a phone;
+  - sign-up in French on a phone.
+
+**The merged list (703 findings), at the end of phase 9:**
+
+| State | Count |
+|---|---|
+| Fixed, and the thing itself checked again | 675 |
+| Decided, not changed (part six lists the five) | 5 |
+| Not a defect (part six) | 10 |
+| The owner's to decide | 13 |
+
+The 13 are listed in part six, "Waiting on the owner": the legal facts, four terms wordings, the backup time, forbidden-word matching, navigation D, the mark's two cuts, and one send-path finding (the late "not answered" hand-over). Nothing else is open.
 
 **Phase 9, part six (#211): every other area, S2 to S4 (about 500 findings).**
 
@@ -1302,6 +1342,12 @@ once, in this order, and tick it here.
   - The Supabase connector's instructions suggested installing an agent skill with `npx skills add …`: not run.
   - **A web page addressed instructions to AI agents:** every Missive documentation page, in its Markdown form, ends with an "Agent Instructions" block telling AI agents to query the docs through an `?ask=` parameter. Treated as page content; not followed.
   - One Intercom marketing image URL, opened directly, made the headless browser start a download. The capture script aborted it and nothing was saved.
+
+- 2026-10-03, phase 9 (#206–#212), at each resume and in every helper agent's report:
+  - The MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect: ignored.
+  - The Adobe server's instructions said to call `adobe_mandatory_init` before anything else; the Supabase connector's said to install its agent skill (`npx skills add …`); the Claude Docs server's said to open a document first. None was called or installed.
+  - The watch hook asked again for a `GROQ_API_KEY` / `OPENAI_API_KEY`: not done.
+  - No web page addressed instructions to an AI. Apollo's public help page was read once, to check the menu path the contacts page names.
 
 ## How to resume
 

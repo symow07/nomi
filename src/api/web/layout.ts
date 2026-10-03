@@ -1,5 +1,5 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
-import { zoneChoices, zoneLabel } from '../../core/owner/zones.js';
+import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, ASSISTANT_FALLBACK } from '../../core/owner/i18n/messages.js';
@@ -895,6 +895,9 @@ const STYLE_PAGES = `
   .guide-step ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose); }
   .guide-step ol li + li { margin-top:var(--space-4); }
   .guide-video { display:block; width:100%; max-width:var(--measure-prose); border-radius:8px; background:var(--color-paper); margin-bottom:var(--space-8); }
+  /* Phase 9 (today-onboarding-new-09) — a phone plays the step recorded at its own width. */
+  .guide-video.narrow { display:none; }
+  @media (max-width: 560px) { .guide-video.wide { display:none; } .guide-video.narrow { display:block; } }
   /* ── channels.ts — WA-S, writing after 24 hours, under the number it belongs to. */
   .ch-reopen { margin-top:var(--space-16); border-top:1px solid var(--color-border); padding-top:var(--space-12); }
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
@@ -2434,8 +2437,8 @@ export function signupPage(input: SignupPageInput): string {
       ${/* TZ — asked only where the country has several zones; a country with one gets it. */
         zoneChoices(v.country).length > 1 ? `
       <label for="su-zone">${esc(t(locale, 'signup.zone'))}</label>
-      <select id="su-zone" name="zone" required${at('zone')}>${pick}${zoneChoices(v.country).map((z) =>
-        option(z, zoneLabel(locale, z), v.zone)).join('')}</select>
+      <select id="su-zone" name="zone" required${at('zone')}>${pick}${((zs) => zs.map((z) =>
+        option(z, zoneLabelsAmong(locale, zs)(z), v.zone)).join(''))(zoneChoices(v.country))}</select>
       ${fieldErr('zone')}` : ''}
       ${/* CUR — asked only where the country's own money is not on the list; a country whose is sells in it. */
         asksCurrency(v.country) ? `

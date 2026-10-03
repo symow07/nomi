@@ -18,7 +18,7 @@ import { t, tn, assistantName } from './say.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
-import { addAliases, renameAlias } from '../../db/productAliases.js';
+import { addAliases, renameAlias, removeAlias } from '../../db/productAliases.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -644,9 +644,21 @@ export function renderProductDetail(
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
 
   // Phase 9 (V1-313) — the names already on record stand above the box that adds more.
+  // Phase 9 (V1-313) — and one of the names customers use can be taken off
+  // (0122): never the product's own names, which every edit writes back. It
+  // asks first: a name taken off is no longer matched from the next message.
+  const own = new Set([d.name, d.nameZh].filter((x): x is string => !!x).map((x) => x.toLocaleLowerCase()));
+  const removable = d.aliases.filter((a) => !own.has(a.toLocaleLowerCase()));
+  const removeName = viewer.isOwner && removable.length
+    ? `<form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/names/remove" class="inline alias-remove">
+        <label for="pa-remove">${esc(t(locale, 'product.alias.remove.label'))}</label>
+        <select id="pa-remove" name="alias" required dir="auto">${removable.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select>
+        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form>`
+    : '';
   const aliases = d.aliases.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
-        <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name }))}</p></div>`
+    ? `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
+        <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name }))}</p>${removeName}</div>`
     // T3 — found by no name: said, with what makes it findable.
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>
         <p class="fwarn">${esc(t(locale, 'product.detail.notFindable'))}</p></div>`;
@@ -1024,6 +1036,27 @@ async function updateProductTx(
   `.execute(tx);
 
   return { ok: true, changed };
+}
+
+/**
+ * Phase 9 (V1-313) — one name customers use, taken off a product (0122), and
+ * written on the audit trail with the word itself, so it can be said again.
+ * False when nothing was taken off: the product's own name, a name no longer
+ * on record, or another business's product.
+ */
+export async function removeProductName(db: Db, businessIdRaw: string, productId: string, actor: string, alias: string): Promise<boolean> {
+  const bid = parseBusinessId(businessIdRaw);
+  const word = alias.trim();
+  if (!bid.ok || !isUuid(productId) || word === '' || word.length > MAX_ALIAS_LENGTH) return false;
+  return withTenantTx(db, bid.value, async (tx) => {
+    if (!(await removeAlias(tx, productId, word))) return false;
+    await sql`
+      insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid.value}, null, 'product_edited', ${actor},
+              ${JSON.stringify({ productId, changes: { customerNames: { removed: word } } })}::jsonb)
+    `.execute(tx);
+    return true;
+  });
 }
 
 /* ── M37 · photograph the price list ─────────────────────────────────────── */

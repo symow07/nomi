@@ -24,7 +24,8 @@ import * as show from './values.js';
 export const CAPTIONS_PER_STEP = 3;
 
 const DIR = new URL('../../../assets/guide/', import.meta.url);
-const NAME = /^(profile|products|name|channels|first_success)\.(en|zh|ar|es)\.(webm|vtt|jpg)$/;
+// Phase 9 (today-onboarding-new-09) — `.phone` files are the same step recorded at a phone's width.
+const NAME = /^(profile|products|name|channels|first_success)\.(en|zh|ar|es|fr)(\.phone)?\.(webm|vtt|jpg)$/;
 const FILES: ReadonlySet<string> = (() => {
   try { return new Set(readdirSync(DIR).filter((f) => NAME.test(f))); } catch { return new Set(); }
 })();
@@ -63,14 +64,19 @@ export function renderGuide(v: GuideView, locale: Locale, name: string, videos: 
   const items = SETUP_STEPS.map((step, i) => {
     const done = v.steps.find((s) => s.step === step)?.done ?? false;
     const words = captionKeys(step).map((k) => t(locale, k, { name }));
+    // Phase 6 — a still of the step instead of a black box, and its length, before anything is fetched.
+    // Phase 9 (today-onboarding-new-09) — on a phone, the same step recorded at a
+    // phone's width, so its words can be read; neither is fetched until played.
+    const player = (name: string, cls: string): string => `<video class="guide-video${cls}" controls preload="none" playsinline${
+          FILES.has(`${name}.jpg`) ? ` poster="/assets/guide/${name}.jpg"` : ''}>
+          <source src="/assets/guide/${name}.webm" type="video/webm">
+          <track kind="captions" src="/assets/guide/${name}.vtt" srclang="${locale}" label="${esc(t(locale, 'guide.captions'))}" default>
+        </video>`;
+    const base = `${step}.${locale}`;
+    const phone = FILES.has(`${base}.phone.webm`) && FILES.has(`${base}.phone.vtt`);
     const video = videos(step, locale)
-      // Phase 6 — a still of the step instead of a black box, and its length, before anything is fetched.
-      ? `<video class="guide-video" controls preload="none" playsinline${
-          FILES.has(`${step}.${locale}.jpg`) ? ` poster="/assets/guide/${step}.${locale}.jpg"` : ''}>
-          <source src="/assets/guide/${step}.${locale}.webm" type="video/webm">
-          <track kind="captions" src="/assets/guide/${step}.${locale}.vtt" srclang="${locale}" label="${esc(t(locale, 'guide.captions'))}" default>
-        </video>
-        ${LENGTHS[`${step}.${locale}`] ? `<p class="caption muted">${esc(t(locale, 'guide.length', { length: show.seconds(locale, LENGTHS[`${step}.${locale}`]!) }))}</p>` : ''}`
+      ? `${player(base, phone ? ' wide' : '')}${phone ? player(`${base}.phone`, ' narrow') : ''}
+        ${LENGTHS[base] ? `<p class="caption muted">${esc(t(locale, 'guide.length', { length: show.seconds(locale, LENGTHS[base]!) }))}</p>` : ''}`
       : '';
     // Phase 9 (V1-117, V1-118) — the words are under the video, as the page
     // says, not folded behind a "Read instead" that had to be opened.

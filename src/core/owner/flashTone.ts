@@ -87,7 +87,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'autonomy.flash.notReleased',
   // G4 — a workspace that signed itself up has not earned sending alone yet.
   'autonomy.flash.notEarned',
-  'people.flash.name_too_long', 'product.flash.refused', 'proof.owner.flash.failed',
+  'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'proof.owner.flash.failed',
   'prospects.flash.exists', 'prospects.flash.failed', 'prospects.flash.invalid',
   'prospects.flash.not_found', 'rate.flash.failed', 'rate.flash.missing', 'rate.flash.not_a_number',
   'rate.flash.not_positive', 'rate.flash.same_currency',
@@ -164,7 +164,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'hs.flash.saved', 'hs.flash.skipped',
   // G5b — alerts turned on, stopped, or a test sent.
   'alerts.flash.on', 'alerts.flash.removed', 'alerts.flash.tested',
-  'product.flash.alreadyHere', 'product.flash.updated', 'proof.owner.flash.issued',
+  'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',
   'samples.flash.saved', 'seq.flash.added', 'seq.flash.approved', 'seq.flash.archived',

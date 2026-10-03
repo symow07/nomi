@@ -34,8 +34,13 @@ const BASE = (opt('base') ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
 const CODE = opt('code') ?? process.env.OWNER_ACCESS_CODE ?? 'smoke-code';
 const OUT = path.join(ROOT, 'assets', 'guide');
 const STEPS = (opt('steps') ?? 'profile,products,name,channels,first_success').split(',');
-const LOCALES = (opt('locales') ?? 'en,zh,ar,es').split(',');
-const SIZE = { width: 1024, height: 640 };
+const LOCALES = (opt('locales') ?? 'en,zh,ar,es,fr').split(',');
+// Phase 9 (today-onboarding-new-09) — `--phone`: the same steps at a phone's width. The video is the
+// screen at its own size: Playwright records CSS pixels, so a higher density only adds grey around it.
+const PHONE = argv.includes('--phone');
+const SIZE = PHONE ? { width: 390, height: 844 } : { width: 1024, height: 640 };
+const FRAME = SIZE;
+const SUFFIX = PHONE ? '.phone' : '';
 
 const { messages, t } = await import('../dist/core/owner/i18n/messages.js');
 /** The catalogue's own words, through `t` — so "your assistant" is capitalised where a sentence starts. */
@@ -86,9 +91,9 @@ async function typeInto(page, selector, text) {
 
 /** What the owner types in each language's video: a shop's own words, never a customer's real ones. */
 const SAMPLE = {
-  about: { en: 'Storage boxes, baskets and kitchenware, made in Yiwu.', zh: '收纳盒、篮子和厨房用品，义乌生产。', ar: 'صناديق تخزين وسلال وأدوات مطبخ، من صنع ييوو.', es: 'Cajas de almacenaje, cestas y menaje de cocina, hechos en Yiwu.' },
-  list: { en: 'Storage box  2.40\nBamboo basket  3.10', zh: '收纳盒  2.40\n竹篮  3.10', ar: 'صندوق تخزين  2.40\nسلة خيزران  3.10', es: 'Caja de almacenaje  2.40\nCesta de bambú  3.10' },
-  ask: { en: 'Hi, do you have the storage box in blue?', zh: '你好，收纳盒有蓝色的吗？', ar: 'مرحبًا، هل يتوفر صندوق التخزين باللون الأزرق؟', es: 'Hola, ¿tienen la caja de almacenaje en azul?' },
+  about: { en: 'Storage boxes, baskets and kitchenware, made in Yiwu.', zh: '收纳盒、篮子和厨房用品，义乌生产。', ar: 'صناديق تخزين وسلال وأدوات مطبخ، من صنع ييوو.', es: 'Cajas de almacenaje, cestas y menaje de cocina, hechos en Yiwu.', fr: 'Boîtes de rangement, paniers et articles de cuisine, fabriqués à Yiwu.' },
+  list: { en: 'Storage box  2.40\nBamboo basket  3.10', zh: '收纳盒  2.40\n竹篮  3.10', ar: 'صندوق تخزين  2.40\nسلة خيزران  3.10', es: 'Caja de almacenaje  2.40\nCesta de bambú  3.10', fr: 'Boîte de rangement  2.40\nPanier en bambou  3.10' },
+  ask: { en: 'Hi, do you have the storage box in blue?', zh: '你好，收纳盒有蓝色的吗？', ar: 'مرحبًا، هل يتوفر صندوق التخزين باللون الأزرق؟', es: 'Hola, ¿tienen la caja de almacenaje en azul?', fr: 'Bonjour, avez-vous la boîte de rangement en bleu ?' },
 };
 let LOCALE = 'en';
 
@@ -161,7 +166,7 @@ for (const locale of LOCALES) {
   LOCALE = locale;
   for (const step of STEPS) {
     await rm(tmp, { recursive: true, force: true });
-    const context = await browser.newContext({ viewport: SIZE, recordVideo: { dir: tmp, size: SIZE }, locale: locale === 'zh' ? 'zh-CN' : locale });
+    const context = await browser.newContext({ viewport: SIZE, recordVideo: { dir: tmp, size: FRAME }, locale: locale === 'zh' ? 'zh-CN' : locale });
     await context.addCookies([{ name: 'yf_locale', value: locale, url: BASE }]);
     await context.addInitScript(POINTER);
     // Signed in with the access code, through the context, before any page is drawn.
@@ -179,7 +184,7 @@ for (const locale of LOCALES) {
     // The recording began before sign-in. With ffmpeg the sign-in is cut off and
     // the video starts with the step; without it, the captions start later instead.
     const signIn = t0 - videoStart;
-    const file = path.join(OUT, `${step}.${locale}.webm`);
+    const file = path.join(OUT, `${step}.${locale}${SUFFIX}.webm`);
     let lead = signIn;
     if (ffmpeg) {
       const r = spawnSync(ffmpeg, ['-y', '-loglevel', 'error', '-ss', (signIn / 1000).toFixed(2), '-i', raw, '-an',
@@ -192,8 +197,8 @@ for (const locale of LOCALES) {
       const from = c.at + lead; const to = (cues[i + 1]?.at ?? end) + lead;
       vtt.push(`${i + 1}`, `${ts(from)} --> ${ts(to)}`, words(locale, step, c.n), '');
     });
-    await writeFile(path.join(OUT, `${step}.${locale}.vtt`), vtt.join('\n'));
-    console.log(`${step}.${locale}: ${cues.length} captions, ${((end) / 1000).toFixed(1)} s`);
+    await writeFile(path.join(OUT, `${step}.${locale}${SUFFIX}.vtt`), vtt.join('\n'));
+    console.log(`${step}.${locale}${SUFFIX}: ${cues.length} captions, ${((end) / 1000).toFixed(1)} s`);
   }
 }
 await browser.close();

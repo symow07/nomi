@@ -131,3 +131,14 @@ describe('TZ · no code decides Shanghai for a workspace', () => {
     expect(named).toEqual([]);
   });
 });
+
+describe('Phase 9 (V1-522) · a country\'s zones, told apart by the time each keeps', () => {
+  it('in the owner\'s language; the tz city only where two zones keep the same time', async () => {
+    const { zoneChoices, zoneLabelsAmong } = await import('../../src/core/owner/zones.js');
+    const cn = zoneChoices('CN'); const zh = zoneLabelsAmong('zh', cn);
+    for (const z of cn) expect(zh(z), z).not.toMatch(/[A-Za-z]/);
+    const br = zoneChoices('BR'); const es = zoneLabelsAmong('es', br);
+    expect(es('America/Recife')).toMatch(/\(Recife\)$/);
+    expect(new Set(br.map(es)).size).toBe(br.length);   // every zone of the list is told apart
+  });
+});
