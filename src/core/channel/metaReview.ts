@@ -9,8 +9,11 @@
  *   META_APP_REVIEW=approved:2026-11-20     Meta approved Nomi on that day
  *   (unset, or anything else)               Meta is reviewing Nomi
  *
- * Nothing is hidden or held back by it (the owner's instruction: every Meta
- * path is built as if approval had passed). It only says where things stand.
+ * No customer's message is hidden or held back by it (the owner's instruction:
+ * every Meta path is built as if approval had passed). It says where things
+ * stand — and, since the warmth run's phase 8, it opens WhatsApp as the way
+ * the two notifications reach an owner on the default (`ownerWhatsAppOpen`,
+ * src/core/owner/alertChannel.ts): before approval they go by e-mail.
  */
 export type MetaReview = { readonly state: 'approved'; readonly on: Date } | { readonly state: 'reviewing' };
 
