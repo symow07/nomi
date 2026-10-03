@@ -89,6 +89,8 @@ export const PRACTICE_SKIP = [
   'retention_notices',
   // BILL (0117) — what the workspace pays and how many it answered: the copy spends its workspace's.
   'workspace_billing', 'customers_answered', 'stripe_events',
+  // The warmth run (0123) — customers' photos: the copy has no customers of the workspace's.
+  'client_faces',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

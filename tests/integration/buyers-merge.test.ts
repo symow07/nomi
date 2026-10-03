@@ -289,7 +289,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     expect(page.body).toContain('Zhang Wei');
     expect(page.body).toContain('About this customer');
     expect(page.body).toContain('<a class="back" href="/app/inbox">');
-    expect(page.body).toMatch(/href="\/app\/inbox" class="navlink active" aria-current="page"/);
+    expect(page.body).toMatch(/href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page"/);
     const conversation = await get(`/app/inbox/${zhang}`);
     expect(conversation.body).toContain(`href="/app/conversations/${zhang}"`);
     const missing = await get(`/app/conversations/${randomUUID()}`);

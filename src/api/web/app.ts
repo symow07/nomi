@@ -1174,7 +1174,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.get('/app/faces/:clientId', async (req, reply) => {
     const s = sessionOf(req);
-    if (!s) return reply.code(401).send();
+    if (!s) return reply.redirect('/login');
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.code(404).send();
     const kept = await withTenantTx(deps.db, bid.value, (tx) => keptFace(tx, (req.params as { clientId: string }).clientId)).catch(() => null);

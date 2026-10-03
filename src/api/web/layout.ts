@@ -91,8 +91,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
   // THE WARMTH RUN — My business is a row of Settings now, and the pages
   // reached from it follow it there (the map chains).
-  { hub: '/app/settings', routes: [
-    '/app/business', '/app/settings/setup',
+  { hub: '/app/settings', routes: ['/app/business', '/app/settings/setup'] },
+  { hub: '/app/settings/setup', routes: [
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
   ] },

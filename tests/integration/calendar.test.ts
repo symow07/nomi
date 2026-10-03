@@ -363,7 +363,8 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       expect(r.body).toContain(`<html lang="${locale}" dir="${locale === 'ar' ? 'rtl' : 'ltr'}"`);
       expect(r.body).toContain(t(locale, 'nav.calendar'));
       expect(r.body).toContain(t(locale, 'calendar.cat.samples'));
-      expect(r.body).toMatch(/<a href="\/app\/inbox" class="navlink active" aria-current="page"/);
+      // The warmth run: the calendar is its own entry under Customers, and it is lit.
+      expect(r.body).toMatch(/<a href="\/app\/calendar" class="navlink sub active" data-nav="calendar" aria-current="page"/);
       // No percent sign anywhere in the page body.
       const body = r.body.slice(r.body.indexOf('<body'));
       expect(body).not.toContain('%');

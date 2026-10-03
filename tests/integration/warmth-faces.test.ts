@@ -158,7 +158,7 @@ d('the warmth run · faces, value and the profile card (requires DATABASE_URL + 
     expect((await get(`/app/faces/${ids.maya}?v=000000000000`)).headers['cache-control']).toBe('private, no-cache');
     expect((await get(`/app/faces/${ids.stranger}?v=x`)).statusCode).toBe(404);
     expect((await get(`/app/faces/${ids.omar}`)).statusCode).toBe(404);
-    expect((await app.inject({ method: 'GET', url: `/app/faces/${ids.maya}` })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: `/app/faces/${ids.maya}` })).headers['location']).toBe('/login');
   });
 
   it('spent is the orders that stand; three make a regular; a regular who stopped ordering is quiet', async () => {

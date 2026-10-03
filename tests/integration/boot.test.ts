@@ -699,12 +699,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(moved.headers['location']).toBe('/app/inbox?filter=all');
     const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?filter=all', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('<h1 class="page">Customers</h1>');   // English default, one word
+    // The warmth run (2026-10-03): the owner named the list "Inbox" (it was "Customer list").
+    expect(res.body).toContain('<h1 class="page">Inbox</h1>');   // English default, one word
     // One list, one word. Since the positioning rewrite that word is "Customers":
     // one heading says it, and "Buyers" is gone. (The rail's "Customers" heading
     // over Conversations and Calendar is the design pass's, outside <main>.)
     const main = res.body.slice(res.body.indexOf('<main'));
-    expect(main.match(/<h1[^>]*>Customers<\/h1>/g)?.length).toBe(1);
+    expect(main.match(/<h1[^>]*>Inbox<\/h1>/g)?.length).toBe(1);
     expect(main).not.toMatch(/\bBuyers?\b/);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');

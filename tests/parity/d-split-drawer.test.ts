@@ -60,7 +60,8 @@ describe('D · five entries', () => {
       '/app/products', '/app/business/prices', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
     ]));
     expect(under('/app/employee')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
-    expect(under('/app/settings')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/channels', '/app/settings/people']));
+    expect(under('/app/settings')).toEqual(['/app/business', '/app/settings/setup']);
+    expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/channels', '/app/settings/people']));
     // and Settings itself is a nav entry now, not somebody's contextual route
     expect(CONTEXTUAL_ROUTES).not.toContain('/app/settings');
   });

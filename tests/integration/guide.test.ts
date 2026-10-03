@@ -56,7 +56,7 @@ d('Guide · the guided path (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () 
   });
 
   it('SETUP and TODAY lead to it', async () => {
-    expect((await app.inject({ method: 'GET', url: '/app/settings', headers: { cookie } })).body).toContain('href="/app/guide"');
+    expect((await app.inject({ method: 'GET', url: '/app/settings/setup', headers: { cookie } })).body).toContain('href="/app/guide"');
     expect((await app.inject({ method: 'GET', url: '/app', headers: { cookie } })).body).toContain('href="/app/guide#profile"');
   });
 
