@@ -225,10 +225,12 @@ also installation-wide; leave it unset on an installation with more than one
 factory, because a domain's DNS records are public and would let one factory
 "verify" another's domain.
 
-**A forgotten password** is answered by the product since PWR (#133): "Forgot
-your password?" e-mails a one-time link. The operator's `tools/add-login.mjs
---reset` (below) remains for an owner who cannot reach that mailbox. Staff
-still sign in with the access codes their owner hands them.
+**A forgotten password** is answered by the product, by the person who forgot
+it: "Forgot your password?" on the sign-in page e-mails a one-time link (PWR,
+#133; held to the standard by PWR2, 0129 — see "An owner who forgets the
+password" below). The operator's `tools/add-login.mjs --reset` remains for an
+owner who cannot reach that mailbox. A staff member with an e-mail login does
+the same; one who signs in with an access code asks the owner for a new code.
 
 ## The first cohort: strangers who sign themselves up (G1–G10)
 
@@ -291,7 +293,7 @@ thrown away when hashed, so nothing signs in until the owner chooses a password.
 |---|---|
 | The workspace has no login | `add-login.mjs <id> <e-mail>` |
 | No owner on record (e.g. made by `provision-factory.mjs`) | add `--name "<owner's name>"` |
-| The owner forgot the password; the e-mail still works | `add-login.mjs <id> <their login e-mail> --reset` |
+| The owner forgot the password; the e-mail still works | nothing — "Forgot your password?" on the door. Only if no link arrives: `add-login.mjs <id> <their login e-mail> --reset` |
 | The owner lost the e-mail itself | `add-login.mjs <id> <new e-mail> --replace` — archives the old login |
 
 It refuses, and changes nothing, when the business does not exist or is switched
@@ -300,10 +302,41 @@ login, when the workspace already has a login (it says which, and wants
 `--replace`), and when run with a role that row security filters.
 
 **An owner who forgets the password asks the door** (PWR, 0084, since
-2026-09-30): "Forgot your password?" on the sign-in page mails a one-time link
-to this same page (`/login/set-password`), good for an hour, if the address
-signs in here — three an hour per login, the newest the one that works. It
-needs the installation's system mail (the one that sends sign-in codes); where
-there is none, the door does not offer it and `--reset` is still the way. The
-pilot's workspace also opens with the deployment's `OWNER_ACCESS_CODE` ("I have
-an access code").
+2026-09-30; PWR2, 0129, 2026-10-04). "Forgot your password?" on the sign-in
+page, in all five languages, asks for the address and mails a one-time link to
+this same page (`/login/set-password?t=…&l=<language>`):
+
+- **Only to the login's own, proven address.** The link goes to the address the
+  login signs in with (as stored, never as typed), and only once that address
+  has answered: a code mailed to it was typed back (sign-up, a new browser), a
+  link sent to it was spent, or the operator wrote it in with this tool
+  (`logins.email_verified_at`, 0129). An address that never answered gets
+  nothing — and the door says the same words.
+- **Good for 60 minutes, once.** Only the token's SHA-256 is stored. Opening the
+  link spends nothing; saving a password spends it, closes every other open
+  link of that login, and ends every other session of that login at once. The
+  address is then mailed "your password was changed", with the way to ask for
+  another link.
+- **No enumeration.** The same page, status, headers and words whether or not
+  the address signs in here; the answer is sent before anything is looked up,
+  and the timing is measured equal (tests/integration/password-reset.test.ts).
+- **Throttled.** Five asks an hour per caller at the door; three links an hour
+  per login in the database; the daily mail caps (0112) on top.
+- **Nothing logs the token.** The link's routes write no request line and send
+  `Referrer-Policy: no-referrer`; switching language on that page keeps the link
+  in a cookie for that one address (HttpOnly, an hour), never in a link.
+- **How it leaves.** The same sender as sign-in codes (`codeMail`): the
+  dedicated HTTPS sender when `MAIL_PROVIDER`/`MAIL_API_KEY`/`MAIL_FROM` are
+  set, else the operator's connected Gmail mailbox over the Gmail API (HTTPS),
+  from `SYSTEM_SMTP_FROM`, and SMTP only last — Railway blocks SMTP, so on
+  Railway a reset mail leaves over HTTPS or not at all. A mail that cannot
+  leave is written to `app_errors` as `DoorMailFailed` (the reason, never the
+  address), and the operator is e-mailed like any error (`tools/errors.mjs`).
+- **Where the installation sends no system mail** (or has no
+  `PUBLIC_BASE_URL`, which the link needs — it is never built from the
+  request's host), the page says to write to Nomi's team at the legal contact
+  address, and `--reset` is the way.
+
+The pilot's workspace also opens with the deployment's `OWNER_ACCESS_CODE` ("I
+have an access code"). An access code is never mailed: the forgot page says to
+ask whoever gave it — the business (a staff code) or Nomi's team.
