@@ -374,7 +374,7 @@ export function renderDataRights(
     </li>`).join('')}</ul>
   </section>`;
 
-  return `${back('/app/settings', backLabel)}
+  return `${back('/app/settings/setup', backLabel)}
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
     ${files}

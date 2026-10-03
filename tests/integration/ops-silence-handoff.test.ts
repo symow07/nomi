@@ -162,7 +162,8 @@ d('Silence · WAITING — the emergency switch hides nobody (requires DATABASE_U
     const today = (await get('/app')).body;
     expect(today).toContain('is paused');
     // The design pass: the one handed over is named on Today, a door to the newest message.
-    expect(today).toContain(`<h2 id="today-now">1 customer needs you</h2>`);
+    // The warmth run — the band's heading, in the owner's words, with the waiting ○ (was nav.needsYou).
+    expect(today).toContain(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> 1 waiting for you</span></h2>`);
     expect(today).toContain(`href="/app/inbox/${convA}#latest"`);
   });
 

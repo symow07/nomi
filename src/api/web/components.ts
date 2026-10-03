@@ -43,7 +43,7 @@ export function renderComponents(locale: Locale): string {
   };
   const buttons = (['rest', 'hover', 'focus', 'disabled'] as const).map(buttonRow).join('');
 
-  const doors = `${deeper('/app/settings', esc(t(locale, 'nav.settings')))}${back('/app/settings', esc(t(locale, 'nav.settings')))}`;
+  const doors = `${deeper('/app/settings/setup', esc(t(locale, 'nav.setup')))}${back('/app/settings/setup', esc(t(locale, 'nav.setup')))}`;
 
   const form = `
     <form class="pform" method="get" action="/app/settings/components">
@@ -92,7 +92,7 @@ export function renderComponents(locale: Locale): string {
     <p class="subline">${s('sample.help')}</p>`;
 
   // Phase 9 (V1-491) — the way back, at the top like every Setup page.
-  return `${back('/app/settings', t(locale, 'nav.settings'))}
+  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${s('title')}</h1>
     <p class="muted measure-prose">${s('lead')}</p>
     ${section('chips', chips)}

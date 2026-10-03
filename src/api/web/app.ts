@@ -22,6 +22,9 @@ import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from
 import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
+import { keptFace } from '../../db/faces.js';
+import { loadCustomerCard } from '../../db/customerCard.js';
+import { renderCustomerCard } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
@@ -48,7 +51,7 @@ import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
-  defaultFilter, buyersHref, type InboxFilter,
+  defaultFilter, buyersHref, productName, type InboxFilter,
 } from './inbox.js';
 import {
   liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, billingMark, billingWatch, type LiveKind,
@@ -140,16 +143,17 @@ import {
   updateStepFrom,
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
-import { loadEmployee, renderEmployee } from './employee.js';
+import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
 import { renderListPane, renderCustomerPanel, renderPanes, paneRowOf } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
+import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderSettingsHome, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
@@ -1162,6 +1166,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.get(`/assets/icon-${size}.png`, async (_req, reply) => reply
       .header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type('image/png').send(APP_ICONS[size]));
   }
+  /**
+   * THE WARMTH RUN (2026-10-03) — a customer's photo, as kept (0123). Signed
+   * in, and under the business's row security: another business's customer is
+   * a 404 like a missing one. The address carries the photo's version, so the
+   * browser keeps it for good and asks again only when it changes. Only the
+   * four picture types the job keeps are ever served, and never sniffed.
+   */
+  app.get('/app/faces/:clientId', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.code(404).send();
+    const kept = await withTenantTx(deps.db, bid.value, (tx) => keptFace(tx, (req.params as { clientId: string }).clientId)).catch(() => null);
+    if (!kept) return reply.code(404).header('cache-control', 'private, no-store').send();
+    const asked = String((req.query as { v?: string } | undefined)?.v ?? '');
+    return reply.header('cache-control', asked === kept.version ? 'private, max-age=31536000, immutable' : 'private, no-cache')
+      .header('x-content-type-options', 'nosniff').header('content-disposition', 'inline')
+      .type(kept.type).send(kept.bytes);
+  });
   app.get('/assets/:file', async (req, reply) => {
     const found = assetAt((req.params as { file: string }).file);
     if (!found) return reply.callNotFound();
@@ -1693,7 +1716,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * there. Owner-only: money is the owner's (rule 11).
    */
   const billingBase = (deps.publicBaseUrl ?? '').replace(/\/+$/, '');
-  app.get('/app/settings/billing', ownerPage('billing', 'settings', '/app/settings', async (s, req, reply, locale) => {
+  app.get('/app/settings/billing', ownerPage('billing', 'settings', '/app/settings/setup', async (s, req, reply, locale) => {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return '';
     const facts = await withTenantTx(deps.db, bid.value, async (tx) => ({
@@ -1709,7 +1732,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
       people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
       returned: card === 'saved' || card === 'cancelled' ? card : null,
-    }, locale, takeFlash(req, reply), t(locale, 'nav.settings'))
+    }, locale, takeFlash(req, reply), t(locale, 'nav.setup'))
       + (confirming ? liveRegion(locale, billingWatch(await billingMark(deps.db, bid.value), true)) : '');
   }));
 
@@ -1788,7 +1811,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
-    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.settings'));
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.setup'));
   }));
 
   /**
@@ -1799,10 +1822,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * cannot be undone from inside the product. Staff are told whose decision it
    * is rather than shown a form that turns them away.
    */
-  app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings',
+  app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
     async (s, req, reply, locale) => renderDataRights(
       { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null }, locale, takeFlash(req, reply),
-      personOf(s), t(locale, 'nav.settings'))));
+      personOf(s), t(locale, 'nav.setup'))));
 
   /**
    * One file, streamed as an attachment.
@@ -1818,7 +1841,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   app.get('/app/settings/data/:file', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings');
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
     if (!s) return reply;
     const file = (req.params as { file: string }).file;
     const subject = exportSubjectOf(file.endsWith('.csv') ? file.slice(0, -'.csv'.length) : file);
@@ -1961,14 +1984,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // and the pilot feedback loop. No new query, no new storage.
     // M34.10 — plus the insights, which are the only part of this page that
     // tells the owner what to DO rather than what happened.
-    // The design pass (§4) — plus the day by time: who needs you now (the
-    // Buyers list's own rows), the last 24 hours, what is coming up.
+    // The warmth run (phase 2) — plus the day in three zones: who waits for
+    // you (the Inbox's own rows), what the assistant handled, three figures.
     const [snapshot, insights, today] = await Promise.all([
       // A1 — HER business, from her session. This read the environment's one
       // business, which was the same thing until a second factory could sign in.
       loadOperationsSnapshot(deps.db, s.businessId, 'today', deps.provider, messagingEnabled),
       loadInsights(deps.db, s.businessId),
-      loadToday(deps.db, s.businessId, personOf(s).id, new Date(), outreachShown()),
+      loadToday(deps.db, s.businessId, personOf(s).id, new Date()),
     ]);
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
@@ -2052,6 +2075,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const everyone = await loadInboxList(deps.db, s.businessId, 'all', me);
     const list = everyone.waitingCount > 0 ? await loadInboxList(deps.db, s.businessId, 'pending', me) : everyone;
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
+    // The warmth run, phase 5 — the catch-up strip over the messages: their face, what they bought, where things stand.
+    const catchUp = customer && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCatchUp(tx, customer, conversationId, now)) : null;
     const today = dayKey(now, workspaceZone());
     const dated = customer
       ? (await loadCalendar(deps.db, s.businessId, {
@@ -2065,7 +2090,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         // Phase 9 (V1-257) — and the open conversation, when the tab beside it does not list it.
         renderListPane(list, locale, now, conversationId, people,
           everyone.conversations.find((c) => c.conversationId === conversationId) ?? paneRowOf(detail)),
-        renderConversationDetail(withProof, locale, now, flash, personOf(s)),
+        renderConversationDetail({ ...withProof, catchUp }, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>
@@ -3349,32 +3374,80 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M9.6 Employee Profile: personnel file over the existing trust data ────
+  // Phase C: "who is she today?" composes her profile with EXISTING read
+  // models — M14 knowledge (gaps + report), the operations snapshot (activity)
+  // and the pilot feedback loop. No new query, no new storage.
+  const herContext = async (businessId: string): Promise<HerContext> => {
+    const [ops, snapshot, feedback] = await Promise.all([
+      loadKnowledgeOps(deps.db, businessId, 'month'),
+      loadOperationsSnapshot(deps.db, businessId, 'month', deps.provider, messagingEnabled),
+      loadPilotFeedback(deps.db, businessId, 'month'),
+    ]);
+    return {
+      taughtRecently: ops.report.factsAdded,
+      corrected: ops.report.answersCorrected,
+      handled: snapshot.activity.handled,
+      draftsPrepared: snapshot.activity.draftsCreated,
+      neededYou: feedback.conversationsNeedingYou,
+      gaps: ops.gaps.slice(0, 5).map((g) => ({ question: g.question, count: g.count })),
+    };
+  };
+  /**
+   * THE WARMTH RUN, phase 7 — two doors, one data: what the assistant can
+   * talk about, read through the very loaders My business draws from (the
+   * profile, How you sell, the products), so nothing is entered twice and the
+   * two pages cannot disagree.
+   */
+  const talkAbout = async (businessId: string, locale: Locale): Promise<TalkAbout> => {
+    const [profile, products, hub] = await Promise.all([
+      loadBusinessProfile(deps.db, businessId), loadProductList(deps.db, businessId), loadHub(deps.db, businessId),
+    ]);
+    const sold = products.filter((p) => p.isActive);
+    return {
+      business: profile.name,
+      given: [
+        ...(['description', 'location', 'workingHours', 'contactEmail', 'contactPhone'] as const).filter((k) => Boolean(profile[k]?.trim())),
+        ...(profile.languagesServed.length ? ['languages' as const] : []),
+      ],
+      selling: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
+      products: {
+        total: sold.length,
+        names: sold.slice(0, 3).map((p) => productName(locale, p)).filter((n): n is string => Boolean(n)),
+      },
+    };
+  };
+  // THE WARMTH RUN, phase 7 — the landing: the name, how much the assistant
+  // does alone (the control, whole), and the menu.
   app.get('/app/employee', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
-    // Phase C: "who is she today?" composes her profile with EXISTING read
-    // models — M14 knowledge (gaps + report), the operations snapshot (activity)
-    // and the pilot feedback loop. No new query, no new storage.
-    const [e, ops, snapshot, feedback] = await Promise.all([
-      loadEmployee(deps.db, s.businessId),
-      loadKnowledgeOps(deps.db, s.businessId, 'month'),
-      loadOperationsSnapshot(deps.db, s.businessId, 'month', deps.provider, messagingEnabled),
-      loadPilotFeedback(deps.db, s.businessId, 'month'),
-    ]);
+    const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.employee'), active: 'employee',
-      bodyHtml: renderEmployee(e, locale, flash, {
-        taughtRecently: ops.report.factsAdded,
-        corrected: ops.report.answersCorrected,
-        handled: snapshot.activity.handled,
-        draftsPrepared: snapshot.activity.draftsCreated,
-        neededYou: feedback.conversationsNeedingYou,
-        gaps: ops.gaps.slice(0, 5).map((g) => ({ question: g.question, count: g.count })),
-      }, personOf(s)),
+      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s)),
     }));
   });
+  // …and each row's screen: one former section, under its way back. Each is
+  // its own route, so every walk of the GET routes opens every one of them.
+  for (const screen of EMPLOYEE_SCREENS) {
+    app.get(screenHref(screen), async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const flash = takeFlash(req, reply);
+      const [e, ctx, talk] = await Promise.all([
+        loadEmployee(deps.db, s.businessId),
+        screen === 'learning' || screen === 'month' ? herContext(s.businessId) : Promise.resolve(undefined),
+        screen === 'talk' ? talkAbout(s.businessId, locale) : Promise.resolve(undefined),
+      ]);
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: screenTitle(locale, screen), active: 'employee',
+        bodyHtml: renderEmployeeScreen(screen, e, locale, flash, ctx, personOf(s), talk ? { talk } : {}),
+      }));
+    });
+  }
   /**
    * G7 — new connections stopped by the operator (`connections_off`); KS6 —
    * or this workspace's first connection waits for the operator's approval
@@ -3405,16 +3478,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // The single-capability grant is the same decision as a level, so it is
       // held to the same gate. Taking one back is never refused.
       if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
-        return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
+        return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notReleased');
       }
       // G4 / R2 — and a workspace that signed itself up grants nothing past its rung.
       // (An unknown capability, or confirm_order, is refused by the grant itself.)
       const need = (CAPABILITIES as readonly string[]).includes(cap) ? rungOf(cap as Capability) : 3;
       if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {
-        return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notEarned');
+        return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notEarned');
       }
       const r = await run(s.businessId, cap, personOf(s).id);
-      return flashTo(reply, '/app/employee', `employee.flash.${r.code}` as MessageKey);
+      // Phase 7 — back to the screen the buttons are on, its notice at the top.
+      return flashTo(reply, screenHref('one-kind'), `employee.flash.${r.code}` as MessageKey);
     });
   // T1 — how much she does on her own is the owner's choice, from day one. The
   // same gate as a single grant: it is the same decision, made for several at once.
@@ -3462,7 +3536,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : r.verdict === 'correct' ? 'spotcheck.flash.ok'
       : r.verdict === 'serious' ? 'spotcheck.flash.problem'
       : 'spotcheck.flash.fixed';
-    return flashTo(reply, '/app/employee', key as MessageKey);
+    // Phase 7 — back to the checks, where the next one waits (or the screen says none do).
+    return flashTo(reply, screenHref('checks'), key as MessageKey);
   });
 
   // ── M35.1 · the owner issues and revokes the buyer's proof link ───────────
@@ -3827,7 +3902,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .type(found.type).send(found.body);
   });
 
+  /**
+   * THE WARMTH RUN (2026-10-03), phase 1 — Settings: a short menu of two rows,
+   * My business and Setup, each with where it stands, and Log out at its foot.
+   * Log out left the rail; this is where it lives now.
+   */
   app.get('/app/settings', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'nav.settings'), active: 'settings',
+      bodyHtml: renderSettingsHome(locale, takeFlash(req, reply)),
+    }));
+  });
+  app.get('/app/settings/setup', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
@@ -3844,7 +3933,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
     ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.settings'), active: 'settings',
+      title: t(locale, 'nav.setup'), active: 'settings',
       bodyHtml: renderSetup({
         kind: kind.kind ? t(locale, `business.kind.${kind.kind}` as MessageKey) : null, people: people.length,
         howYouSell: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
@@ -3911,7 +4000,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // before sign-up asked gives the answer for the first time.
   app.get('/app/settings/business', authed('settings', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
-    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.settings'));
+    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.setup'));
   }));
   app.post('/app/settings/business', async (req, reply) => {
     const s = sessionOf(req);
@@ -4000,6 +4089,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // M46 — one order: what she recorded, the proforma, and the form that
   // records the next thing. Reached from the conversation it came out of.
+  /**
+   * THE WARMTH RUN (2026-10-03), phase 3 — a customer's profile card, as a
+   * page. Every face in the product links here; the page's script lifts the
+   * card into a sheet over the page it was opened from. Another business's
+   * customer is not found, as a missing one is (row security).
+   */
+  app.get('/app/customers/:clientId', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    const id = (req.params as { clientId: string }).clientId;
+    const card = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerCard(tx, id)) : null;
+    if (!card) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'nav.inbox'), active: 'inbox',
+      bodyHtml: missingPage(locale, t(locale, 'inbox.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') }),
+    }));
+    return reply.type('text/html; charset=utf-8').header('cache-control', 'private, no-store').send(page(req, {
+      title: card.name ?? t(locale, 'common.buyer'), active: 'inbox',
+      bodyHtml: `${back('/app/inbox', t(locale, 'nav.inbox'))}${renderCustomerCard(card, locale, new Date())}`,
+    }));
+  });
+
   app.get('/app/orders/:id', authed('inbox', async (sess, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const v = await loadOrder(deps.db, sess.businessId, id);
@@ -4037,7 +4149,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // M47 — who works here. OWNER ONLY: handing someone a way in is hers — and
   // since G9a the page too, not only the form's POST.
-  app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings', async (sess, req, reply, locale) => {
+  app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings/setup', async (sess, req, reply, locale) => {
     // A code is shown ONCE: read from the cookie the POST set, and cleared in
     // the same response. Never in a URL, never stored.
     const cookie = parseCookies(req.headers.cookie)[ISSUED_COOKIE];
@@ -5152,7 +5264,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         // Phase 9 (V1-286) — the conversation first; the safety checks folded under it.
-        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
+        // Phase 7 — a row of the assistant's menu: its way back leads (the transcript's own "earlier" link is not one).
+        bodyHtml: `${back('/app/employee', t(locale, 'nav.employee'))}<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
             ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`)

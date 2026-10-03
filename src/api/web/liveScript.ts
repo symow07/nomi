@@ -429,6 +429,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     doc.addEventListener('submit', function (e) {
       var form = e.target;
       if (e.defaultPrevented || !form || !form.setAttribute || !form.getAttribute) return;
+      /* A dialog's own close goes nowhere: never held. */
+      if (form.getAttribute('method') === 'dialog') return;
       if (form.getAttribute('data-sending') === '1') { e.preventDefault(); return; }
       form.setAttribute('data-sending', '1');
       var b = e.submitter || (form.querySelector ? form.querySelector('button') : 0);
@@ -447,12 +449,54 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* The warmth run: a face opens its customer's card, sprung up over the page
+     (from the foot, on a phone). The card is its own page, fetched and lifted
+     in; if it cannot be had, the face's link goes to that page. */
+  function cards() {
+    var sheet = doc.querySelector('[data-sheet]');
+    var body = sheet && sheet.querySelector('[data-sheet-body]');
+    if (!sheet || !body || typeof sheet.showModal !== 'function' || !window.fetch) return;
+    var from = 0;
+    doc.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a[data-card]') : 0;
+      if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      from = a;
+      fetch(a.href, { credentials: 'same-origin', redirect: 'manual', headers: { Accept: 'text/html' } }).then(function (r) {
+        if (!r.ok || r.type === 'opaqueredirect') throw new Error('no card');
+        return r.text();
+      }).then(function (html) {
+        var card = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-card-body]');
+        if (!card) throw new Error('no card');
+        while (body.firstChild) body.removeChild(body.firstChild);
+        body.appendChild(doc.adoptNode(card));
+        if (!sheet.open) sheet.showModal();
+      }).catch(function () { location.href = a.href; });
+    });
+    sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
+    sheet.addEventListener('close', function () {
+      while (body.firstChild) body.removeChild(body.firstChild);
+      if (from && from.focus) { try { from.focus({ preventScroll: true }); } catch (x) { from.focus(); } }
+      from = 0;
+    });
+  }
+
+  /* A customer's photo that does not arrive leaves their initial, never a hole. */
+  function faces() {
+    doc.addEventListener('error', function (e) {
+      var img = e.target;
+      if (img && img.tagName === 'IMG' && /(^| )face-p( |$)/.test(String(img.className)) && img.parentNode) img.parentNode.removeChild(img);
+    }, true);
+  }
+
   toToday();
   keepWords();
   askToTell();
   phone();
   asking();
   sending();
+  cards();
+  faces();
   begin();
   window.addEventListener('pagehide', keepNow);
   window.addEventListener('load', function () {

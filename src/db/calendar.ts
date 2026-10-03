@@ -5,6 +5,7 @@ import { parseBusinessId, type BusinessId } from '../core/types/ids.js';
 import { type Money, moneyFromRow } from '../core/types/money.js';
 import { closureDate } from '../core/commerce/closures.js';
 import { addDays, dayKey, dayStart } from '../core/owner/i18n/format.js';
+import { faceVersions } from './faces.js';
 
 /**
  * V2 — the calendar: a timeline over dates the data ALREADY holds.
@@ -52,7 +53,11 @@ export const edgeOf = (e: Pick<CalendarEntry, 'conversationId' | 'orderId' | 'ki
 /** The row and column an entry was read from. Provenance, not a summary. */
 export type CalendarSource = { readonly table: string; readonly id: string; readonly column: string };
 
-export type CalendarBuyer = { readonly id: string; readonly name: string | null; readonly country: string | null };
+export type CalendarBuyer = {
+  readonly id: string; readonly name: string | null; readonly country: string | null;
+  /** THE WARMTH RUN — the kept photo's version (`faceVersions`), or null: the face is drawn from it, nothing is fetched. */
+  readonly photo?: string | null;
+};
 
 export type CalendarEntry = {
   readonly category: CalendarCategory;
@@ -350,8 +355,15 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
         from clients cl where cl.business_id = ${bid} and cl.id = ${q.buyer}::uuid`.execute(tx)).rows[0];
     if (r) buyer = { id: r.id, name: r.buyer, country: r.country };
   }
+  // THE WARMTH RUN, phase 6 — every customer's face, asked once for the whole
+  // window: the page draws each date with it and never fetches a photo itself.
+  const photos = await faceVersions(tx, [...buyers.keys(), ...(buyer ? [buyer.id] : [])]);
+  const withFace = (b: CalendarBuyer): CalendarBuyer => ({ ...b, photo: photos.get(b.id) ?? null });
+  for (const [k, b] of buyers) buyers.set(k, withFace(b));
+  if (buyer) buyer = withFace(buyer);
+  const faced = out.map((e): CalendarEntry => (e.buyer ? { ...e, buyer: buyers.get(e.buyer.id) ?? withFace(e.buyer) } : e));
   const chosen = buyer;
-  const forBuyer = chosen ? out.filter((e) => e.buyer?.id === chosen.id) : out;
+  const forBuyer = chosen ? faced.filter((e) => e.buyer?.id === chosen.id) : faced;
   const present = new Set(forBuyer.map((e) => e.category));
   const order = (e: CalendarEntry): number => CALENDAR_CATEGORIES.indexOf(e.category);
   const entries = forBuyer

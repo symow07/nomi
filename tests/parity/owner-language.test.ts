@@ -7,7 +7,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { parseOwnerReply } from '../../src/core/conversation/cards.js';
 import { renderInboxList, renderConversationDetail } from '../../src/api/web/inbox.js';
-import { renderEmployee } from '../../src/api/web/employee.js';
+import { everyScreen } from './employee-screens.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import type { TodayData } from '../../src/api/web/today.js';
 import { renderAnalytics } from '../../src/api/web/analytics.js';
@@ -100,8 +100,9 @@ const emptyOps = renderOperationsHome({
     latestMessage: null, latestAt: new Date('2026-09-29T07:40:00Z'),
     product: { name: 'Canvas tote', nameZh: '帆布袋' }, quantity: 20000, unitPrice: null,
   }] },
-  last24: { answered: 9, sent: 3, handed: 1, yourself: 2 },
-  comingUp: [],
+  // The warmth run — the hero's faces and the day's three figures replace the last 24 hours and Coming up.
+  handled: { total: 9, people: [{ conversationId: 'c9', clientId: '99999999-9999-4999-8999-999999999999', name: 'Ahmed', photo: null, word: 'quoted' }] },
+  tally: { orders: 1, quotes: 3, afterHours: 2 },
   sending: ['whatsapp'],
 } satisfies TodayData);
 
@@ -140,7 +141,8 @@ const analytics = renderAnalytics({
 const ownerReads = (html: string): string =>
   html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]*>/g, ' ');
 
-const employee = renderEmployee({
+// Phase 7 — the landing and every screen it opens.
+const employee = everyScreen({
   hireDate: NOW, knows: 14, stage: 'probation',
   canDo: [], needConfirm: ['quote', 'negotiate'],
   capabilities: [{ capability: 'quote', mode: 'draft', promotable: true }],

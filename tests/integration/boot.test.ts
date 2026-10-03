@@ -353,7 +353,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // that is the one it lands on. Before the per-run tenant, this assertion
     // passed because leftover state from earlier runs kept work on the page.
     // The design pass: Today's first heading is who needs you — or that nobody does.
-    expect(home.body).toMatch(/<h2 id="today-now">(No one is waiting for you\.|\d+ customers? needs? you|Needs your attention)<\/h2>/);
+    // The warmth run — the band's heading: "N waiting for you" with the waiting ○, or the calm line.
+    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head">(No one is waiting for you\.|You're all caught up|<span class="tw-need"><span class="dot warn" aria-hidden="true">○<\/span> (\d+ waiting for you|Needs your attention)<\/span>)<\/h2>/);
     // M35.5 — on a tenant where NOTHING has happened, the activity section no
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known
@@ -626,14 +627,25 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);  // Phase C: the page IS the assistant
-    expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C
-    expect(res.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
-    // Phase 9 (V1-422) — the history and the next step, in plain words.
+    // THE WARMTH RUN, phase 7 — the landing is a menu; each section is its row's screen.
+    expect(res.body).toContain(`href="/app/employee/replies"><svg`);
+    expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C — the row
+    // Phase 9 (V1-422) — the history and the next step, in plain words: rows here, screens one tap down.
     expect(res.body).toContain(esc(t('en', 'employee.growth.title')));
     expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
-    // demo: greet is promoted (auto) → appears under Can do now as Greeting
-    expect(res.body).toContain('Greeting');
     expect(res.body).not.toContain('置信度');       // no invented score
+    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: `/app/employee/${s}`, headers: { cookie } }));
+    const replies = await screen('replies');
+    expect(replies.statusCode).toBe(200);
+    expect(replies.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
+    // demo: greet is promoted (auto) → appears under Can do now as Greeting
+    expect(replies.body).toContain('Greeting');
+    expect(replies.body).toContain('<a class="back" href="/app/employee">');
+    for (const s of ['history', 'next']) {
+      const r = await screen(s);
+      expect(r.statusCode, s).toBe(200);
+      expect(r.body, s).not.toContain('置信度');
+    }
   });
 
   it('M9.6 capability action: revoke flips autonomy + writes a capability event', async () => {
@@ -699,12 +711,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(moved.headers['location']).toBe('/app/inbox?filter=all');
     const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?filter=all', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('<h1 class="page">Customers</h1>');   // English default, one word
+    // The warmth run (2026-10-03): the owner named the list "Inbox" (it was "Customer list").
+    expect(res.body).toContain('<h1 class="page">Inbox</h1>');   // English default, one word
     // One list, one word. Since the positioning rewrite that word is "Customers":
     // one heading says it, and "Buyers" is gone. (The rail's "Customers" heading
     // over Conversations and Calendar is the design pass's, outside <main>.)
     const main = res.body.slice(res.body.indexOf('<main'));
-    expect(main.match(/<h1[^>]*>Customers<\/h1>/g)?.length).toBe(1);
+    expect(main.match(/<h1[^>]*>Inbox<\/h1>/g)?.length).toBe(1);
     expect(main).not.toMatch(/\bBuyers?\b/);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');
@@ -1435,12 +1448,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      // The design pass: three blocks by time — who needs you now, the last 24
-      // hours, what is coming up — each under its own heading.
-      expect(res.body).toContain('<h2 id="today-now">');
-      expect(res.body).toContain(`<h2 id="today-last">${esc(t('en', 'today.last.title'))}</h2>`);
-      expect(res.body).toContain(`<h2 id="today-coming">${esc(t('en', 'today.coming.title'))}</h2>`);
-      expect(res.body).toContain('href="/app/calendar"');
+      // The warmth run (phase 2): three zones — who waits for you, what the
+      // assistant handled, the day's three figures — each under its own heading,
+      // in that order. ("The last 24 hours" and "Coming up" left Today.)
+      const zones = ['<h2 id="today-now"', '<h2 id="today-done"', `<h2 id="today-tally" class="tt-head">${esc(t('en', 'today.tally.title'))}</h2>`]
+        .map((h) => res.body.indexOf(h));
+      expect(zones.every((at) => at > 0)).toBe(true);
+      expect([...zones].sort((a, b) => a - b)).toEqual(zones);
+      expect(res.body).not.toContain('id="today-coming"');
       // Phase B: messaging state is ONE quiet line, not a status card
       expect(res.body).toContain(esc(t('en', 'ops.system.notLive')));
       expect(res.body).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);   // V1 step four: block + muted, same name
@@ -1462,15 +1477,17 @@ d('production deployment mode (requires DATABASE_URL)', () => {
                   values (${DEMO_BIZ}, ${c.conversationId}, 'quote', ${SECRET}, null, 'pending')`.execute(tx as never);
       });
       const snap = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'today', 'disabled');
-      const today = await loadToday(prod.db, DEMO_BIZ, undefined, new Date(), false);
+      const today = await loadToday(prod.db, DEMO_BIZ, undefined, new Date());
       const html = renderOperationsHome(snap, 'en', today);
       expect(snap.attention.handoffs).toBeGreaterThanOrEqual(1);
       expect(snap.attention.pendingApprovals).toBeGreaterThanOrEqual(1);
       // The design pass: the people themselves, the Buyers list's own "Needs you".
       expect(today.needs.total).toBeGreaterThanOrEqual(1);
-      expect(html).toContain(`<h2 id="today-now">${esc(tn('en', 'nav.needsYou', today.needs.total))}</h2>`);
-      // each one named, as Buyers' own row (phase 4), a door to the newest message
-      expect(html).toMatch(/<a class="crow is-needs[^"]*" href="\/app\/inbox\/[0-9a-f-]{36}#latest">/);
+      // The warmth run — the band's heading in the owner's words (was nav.needsYou).
+      expect(html).toContain(`<span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> ${esc(tn('en', 'today.waiting', today.needs.total))}</span></h2>`);
+      // each one by face and name, the name a door to the newest message (was Buyers' own row)
+      expect(html).toMatch(/<a class="tw-go" href="\/app\/inbox\/[0-9a-f-]{36}#latest">/);
+      expect(html).toMatch(/<a class="face-link tw-face" href="\/app\/customers\/[0-9a-f-]{36}" data-card aria-label="[^"]+">/);
       expect(html).not.toContain(SECRET);           // draft body is never rendered
       expect(html).not.toContain(BUYERTAG);         // buyer identifier is never rendered
     });
@@ -1496,7 +1513,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
       const { loadToday } = await import('../../src/api/web/today.js');
       const snap = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'today', 'disabled');
-      const html = renderOperationsHome(snap, 'en', await loadToday(prod.db, '00000000-0000-0000-0000-000000000000', undefined, new Date(), false));
+      const html = renderOperationsHome(snap, 'en', await loadToday(prod.db, '00000000-0000-0000-0000-000000000000', undefined, new Date()));
       // M22 (F-01): with messaging off she is looking after nobody, so this
       // says why it is quiet instead of congratulating the owner. It used to
       // read "You're all caught up · Lily is looking after your buyers" on a
@@ -1504,7 +1521,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
       expect(html).toContain('href="/app/business"');
-      expect(html).toContain(`<h2 id="today-now">${esc(t('en', 'today.needs.none'))}</h2>`);
+      // The warmth run — with messaging off, the plain fact, never "all caught up".
+      expect(html).toContain(`<h2 id="today-now" class="tw-head">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
     });
 
@@ -1907,6 +1925,16 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.body).toContain(esc(t('en', 'her.handles.title')));
       expect(res.body).toContain(esc(t('en', 'her.recent.title')));
       expect(res.body).toContain(esc(t('en', 'her.teach.title')));
+    });
+
+    it('THE WARMTH RUN, phase 7 — what the assistant can talk about is My business\'s, opened there, edited nowhere else', async () => {
+      const cookie = await login();
+      const res = await prod.app.inject({ method: 'GET', url: '/app/employee/talk', headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+      for (const page of ['/app/settings/profile', '/app/products']) expect(res.body, page).toContain(`href="${page}"`);
+      const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
+      expect(main).not.toContain('<form');
+      expect(main).toContain('<a class="back" href="/app/employee">');
     });
 
     it('SECURITY: unauthenticated /app/employee redirects', async () => {

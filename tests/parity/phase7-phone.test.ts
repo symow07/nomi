@@ -30,17 +30,21 @@ const block = (cond: string): string => {
 };
 
 describe('phase 7 · the phone nav is one line', () => {
-  it('one name per entry at every width where it fits (phase 9, cross-new-02); French keeps a shorter phone label; a named assistant is short already', () => {
-    // Measured at 360–430 px (the mark gives up its place up to 440 px): the
-    // full names fit one line in en, zh, ar and es; French does not.
-    for (const l of ['en', 'zh', 'ar', 'es'] as const) {
+  // THE WARMTH RUN (2026-10-03) — five tiles, icon over word, a fifth of the
+  // phone each: Inbox has a phone form where its word does not fit a fifth
+  // (ar, es, fr); the assistant's fallback keeps its phone form; nothing else has one.
+  it('one name per entry at every width where it fits (phase 9, cross-new-02); Inbox and the unnamed assistant have phone forms where needed; a named assistant is short already', () => {
+    for (const l of ['en', 'zh'] as const) {
       const html = nav(page(l));
-      expect(html, l).not.toContain('nl-short');
-      expect(html, l).toContain(`>${t(l, 'nav.factory')}<`);
+      expect(html.match(/nl-short">(?!\d)/g) ?? [], l).toEqual([]);
+      expect(html, l).toContain(`>${t(l, 'nav.settings')}<`);
+    }
+    for (const l of ['ar', 'es', 'fr'] as const) {
+      const html = nav(page(l));
+      expect(html, l).toContain(`<span class="nl-short">${t(l, 'nav.short.inbox')}</span>`);
+      expect(html, l).toContain(`<span class="nl-long">${t(l, 'nav.inbox')}</span>`);
     }
     const fr = nav(page('fr'));
-    expect(fr).toContain(`<span class="nl-short">${t('fr', 'nav.short.factory')}</span>`);
-    expect(fr).toContain(`<span class="nl-long">${t('fr', 'nav.factory')}</span>`);
     expect(fr).toContain('<span class="nl-short">Assistant</span>');
     const named = withAssistantName('Lily', () => nav(page('fr')));
     expect(named).not.toContain('<span class="nl-short">Assistant</span>');
@@ -52,7 +56,7 @@ describe('phase 7 · the phone nav is one line', () => {
     const phone = block('max-width: 720px');
     expect(phone).toMatch(/\.nl-long \{ display:none; \}/);
     expect(phone).toMatch(/\.nl-short \{ display:inline; \}/);
-    expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*flex-wrap:nowrap; white-space:nowrap/);
+    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex-wrap:nowrap; white-space:nowrap/);
     expect(block('max-width: 379px')).toMatch(/nav\.side \.brand \{ display:none; \}/);
   });
 });

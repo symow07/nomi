@@ -244,7 +244,7 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     expect(hub.body).toContain('Answered');
     expect(hub.body).toContain('Left for later');
     // Setup carries the door and where she is: price, words, minimum, returns, hours, payment.
-    const setup = await get('/app/settings');
+    const setup = await get('/app/settings/setup');
     expect(setup.body).toContain('href="/app/business/selling"');
     // CK (0110) added "What you sell" to a shop's questions: nine now.
     expect(setup.body).toContain('6 of 9 answered');

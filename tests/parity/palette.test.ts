@@ -37,7 +37,8 @@ async function sources(dir: URL): Promise<{ f: string; src: string }[]> {
 describe('the palette', () => {
   it('is six values and the three states — nothing else', () => {
     expect(Object.keys(C).sort()).toEqual([
-      'assistant', 'border', 'ink', 'inkSecondary', 'paper', 'surface',
+      // The warmth run (2026-10-03): the wash under the assistant's own words.
+      'assistant', 'assistantWash', 'border', 'ink', 'inkSecondary', 'paper', 'surface',
       'ok', 'okLine', 'okWash', 'waiting', 'waitingLine', 'waitingWash', 'warn', 'warnLine', 'warnWash',
     ].sort());
     expect(C['ink']).toBe('#1C1B1F');

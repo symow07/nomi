@@ -152,12 +152,13 @@ describe('M9 + ADR-0008 · command-center shell', () => {
       shell({ title: 'x', active: 'inbox', locale: 'en', path: '/app/inbox', avatar: '👩‍💼', bodyHtml: '' }));
     expect(named).toContain("Lily's workspace");
     for (const n of NAV) expect(html).toContain(t('en', `nav.${n.id}` as MessageKey));
-    expect(html).toContain('class="navlink active"');   // inbox highlighted
+    expect(html).toContain('href="/app/inbox" class="navlink sub active"');   // inbox highlighted
     expect(html).toContain('<p>hi</p>');
     // V1 · option A (2026-09-24): the shell has no header band. The switcher
     // is Setup's first row. The design pass (2026-09-29): log out is the rail's
     // foot, a button — and only there (tests/parity/v1-shell.test.ts).
-    expect(html.split('action="/logout"')).toHaveLength(2);
+    // The warmth run: log out left the rail for the foot of Settings.
+    expect(html).not.toContain('action="/logout"');
     expect(html).not.toContain('class="langsw"');
     expect(html).toContain('Nomi');                       // Phase A: customer-facing brand
   });

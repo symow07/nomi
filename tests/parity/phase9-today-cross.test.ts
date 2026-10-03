@@ -9,14 +9,14 @@ import { messages, type MessageKey } from '../../src/core/owner/i18n/messages.js
 import { shell, notFoundInside, esc, BACK_TO } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
-import { renderLastDay, NOTHING_TODAY, type TodayData } from '../../src/api/web/today.js';
+import { NOTHING_TODAY, type TodayData } from '../../src/api/web/today.js';
 import { renderInsights } from '../../src/api/web/insights.js';
 import type { ConversationSummary } from '../../src/api/web/inbox.js';
 import { renderGuide } from '../../src/api/web/guide.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { renderPilotReadiness, renderPilotRunbook, renderPilotTechnical, type PilotReadiness, type PilotRunbook } from '../../src/api/web/pilot.js';
 import { renderReady } from '../../src/api/web/ready.js';
-import { renderSetup } from '../../src/api/web/settings.js';
+import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
 import { checklistFor } from '../../src/db/practiceChecklist.js';
 import { SETUP_STEPS } from '../../src/db/setup.js';
 import { readFileSync } from 'node:fs';
@@ -89,7 +89,6 @@ const today: TodayData = {
     person({ conversationId: 'c-2', buyer: 'Omar Haddad', ownership: 'OWNER_CONTROLLED', heldBy: 'owner',
       latestMessage: 'Yes — one-colour logo print, $2.05/pc for 3,000 pcs, lead time 20 days. Shall I send a proforma?' }),
   ] },
-  last24: { wrote: 1, answered: 0, sent: 0, handed: 0, yourself: 0 },
 };
 const snap: OperationsSnapshot = {
   range: 'today',
@@ -136,19 +135,29 @@ describe('Phase 9 · the shell', () => {
     for (const path of ['/app', '/app/settings', '/app/guide', '/app/onboarding', '/app/onboarding/technical', '/app/ready'])
       expect(page('zh', path, '<h1 class="page">x</h1>'), path).toContain('<p class="business-name"><bdi>义乌宏发日用品厂 (demo)</bdi></p>');
   });
-  it('cross-new-02, today-onboarding-new-06 · an entry has one name at every width in en, zh, ar and es', () => {
+  // THE WARMTH RUN (2026-10-03) — on a phone the five entries are five tiles,
+  // icon over word, a fifth of the screen each: an entry whose word does not
+  // fit a fifth (Arabic's, Spanish's and French's Inbox) has its phone form;
+  // every other entry keeps one name at every width.
+  it('cross-new-02, today-onboarding-new-06 · an entry has one name at every width, unless its word cannot fit a fifth of a phone', () => {
     for (const l of ['en', 'zh', 'ar', 'es'] as const) {
       const nav = navOf(page(l, '/app', ''));
-      expect(nav, l).not.toContain('nl-short');
-      expect(nav, l).toContain(`>${t(l, 'nav.factory')}<`);
+      // (a figure is the waiting count's phone form, not a name)
+      const shorts = [...nav.matchAll(/<span class="nl-short">([^<]*)<\/span>/g)].map((m) => m[1]).filter((s) => !/\d/.test(s ?? ''));
+      expect(shorts, l).toEqual(t(l, 'nav.short.inbox') === t(l, 'nav.inbox') ? [] : [t(l, 'nav.short.inbox')]);
+      expect(nav, l).toContain(`>${t(l, 'nav.settings')}<`);
     }
   });
   it('V1-012, V1-110, V1-151 · a page reached from a hub that drew no way back gets one, to its hub; one that drew its own keeps it alone', () => {
     const cases: [string, string, MessageKey][] = [
       ['/app/settings/closures', '/app/business', 'nav.factory'], ['/app/settings/rate', '/app/business', 'nav.factory'],
       ['/app/settings/samples', '/app/business', 'nav.factory'], ['/app/settings/terms', '/app/business', 'nav.factory'],
-      ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings', 'nav.settings'],
-      ['/app/guide', '/app/settings', 'nav.settings'], ['/app/onboarding', '/app/settings', 'nav.settings'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
+      ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
+      ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
+      // The warmth run: Settings' two rows lead back to it.
+      ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],
+      // Phase 7b: knowledge is a row of the assistant's menu, and leads back to it.
+      ['/app/knowledge', '/app/employee', 'nav.employee'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
@@ -160,7 +169,8 @@ describe('Phase 9 · the shell', () => {
     expect(page('en', '/app/products', '<h1 class="page">x</h1>')).not.toContain('class="back"');
   });
   it('V1-012 · Today\'s lines end in the product\'s one chevron, not "→"', () => {
-    const h = renderLastDay(today, 'en');
+    // The warmth run — the last-24-hours lines are gone; the band's people and doors carry the chevron now.
+    const h = todayHtml('en');
     expect(h).toContain('<span class="go" aria-hidden="true">›</span>');
     expect(h).not.toContain('→');
   });
@@ -197,17 +207,19 @@ describe('Phase 9 · Today', () => {
   it('today-onboarding-new-04 · the conversation the owner holds says so in words; no word is said twice to a screen reader', () => {
     for (const l of LOCALES) {
       const h = todayHtml(l);
-      expect(h, l).toContain(`<span class="cr-why"><bdi>${esc(t(l, 'buyers.group.yours'))}</bdi></span>`);
+      // The warmth run — the band's own line of why (was the Inbox row's .cr-why).
+      expect(h, l).toContain(`<span class="tw-why"><bdi>${esc(t(l, 'buyers.group.yours'))}</bdi></span>`);
       expect(h, l).not.toContain(`<span class="sr">${esc(t(l, 'buyers.group.yours'))}</span>`);
     }
   });
-  it('today-onboarding-new-02, new-03, new-05 · the row is the list\'s: the short reason, a preview cut where a word ends with "…", a Latin preview under the name in Arabic', () => {
+  it('today-onboarding-new-02, new-03, new-05 · the short reason; the message itself is the Inbox\'s, not the band\'s', () => {
     const h = todayHtml('es');
     expect(h).toContain(`<bdi>${t('es', 'buyers.badge.reviewShort')}</bdi>`);
-    for (const text of [...h.matchAll(/<span class="cr-text" dir="auto">([^<]*)<\/span>/g)].map((m) => m[1]!)) {
-      expect(text.endsWith('…'), text).toBe(true);
-      expect(text, text).not.toMatch(/\s…$/);
-    }
+    // The warmth run (the owner: "each item: face, name, one line of why") — the
+    // band shows no preview of the last message; the Inbox still cuts its
+    // preview where a word ends and keeps a Latin one at the Arabic line's end.
+    expect(h).not.toContain('class="cr-text"');
+    expect(h).not.toContain('Lagos');
     expect(css).toContain('[dir="rtl"] .cr-text:dir(ltr) { text-align:end; }');
   });
   it('V1-093 · "tell me in this browser" is a button that looks like one', () => {
@@ -228,9 +240,8 @@ describe('Phase 9 · Today', () => {
   });
   it('V1-092 · Chinese calls the calendar 日程 on Today as the rail and the page do', () => {
     expect(t('zh', 'nav.calendar')).toBe('日程');
-    expect(t('zh', 'today.coming.all')).toBe('日程');
-    expect(t('zh', 'today.coming.none')).toContain('日程');
-    expect(t('zh', 'today.coming.none')).not.toContain('日历');
+    // The warmth run — "Coming up" left Today, and with it the two lines that named the calendar there.
+    expect(todayHtml('zh')).not.toContain('日历');
   });
   it('V1-094, V1-101 · on a phone a line\'s door goes under its sentence; the sentence avoids a lone last word', () => {
     expect(css).toMatch(/@media \(max-width: 560px\) \{\s*\.today-worth \.row \{ flex-direction:column; align-items:flex-start; gap:0; \}/);
@@ -253,11 +264,12 @@ describe('Phase 9 · Today', () => {
   it('today-onboarding-new-07 · Arabic "follow up" is not the dialog\'s "continue"', () => {
     expect(t('ar', 'insight.action.follow_up')).not.toBe(t('ar', 'common.goAhead'));
   });
-  it('V1-097 · the rail\'s list entry is the customer list, under Customers, the page it opens', () => {
-    expect(t('en', 'nav.conversations')).toBe('Customer list');
+  // The warmth run: "Inbox (rename from 'Customer list')", under Customers, with its shape.
+  it('V1-097 · the rail\'s list entry is the Inbox, under Customers, the page it opens', () => {
+    expect(t('en', 'nav.conversations')).toBe('Inbox');
     for (const l of LOCALES) {
       const nav = navOf(page(l, '/app/inbox', ''));
-      expect(nav, l).toContain(`<span class="navhead" id="nav-customers">${esc(t(l, 'nav.customers'))}</span>`);
+      expect(nav, l).toMatch(new RegExp(`<span class="navhead" id="nav-customers"><svg[^>]*>[\\s\\S]*?</svg><span>${esc(t(l, 'nav.customers'))}</span></span>`));
       expect(nav, l).toContain(`>${esc(t(l, 'nav.conversations'))}<`);
       expect(t(l, 'nav.conversations'), l).not.toBe(t(l, 'pane.label'));
     }
@@ -508,10 +520,15 @@ describe('Phase 9 · Setup', () => {
     expect(setupHtml('zh', '团队')).toContain('href="/app/settings/people"');
     const none = setupHtml('en', 'zzzz');
     expect(none).toContain(esc(t('en', 'setup.search.none', { q: 'zzzz' })));
-    expect(none).toContain(`<a class="deeper" href="/app/settings">${t('en', 'setup.search.all')}`);
+    expect(none).toContain(`<a class="deeper" href="/app/settings/setup">${t('en', 'setup.search.all')}`);
   });
-  it('V1-154 · Log out is a button that looks like one', () => {
-    expect(setupHtml('en')).toContain(`<button class="btn" type="submit">${t('en', 'header.logout')}</button>`);
+  // The warmth run: Log out left the rail and Setup; it is the foot of Settings,
+  // a button drawn as Settings' last row, in its own card.
+  it('V1-154 · Log out is a button, the last thing on Settings', () => {
+    const home = inScope(() => renderSettingsHome('en', null));
+    expect(home).toMatch(new RegExp(`<form class="scard sr-foot" method="post" action="/logout">\\s*<button class="srow sr-menu sr-out" type="submit">[\\s\\S]*${t('en', 'header.logout')}`));
+    expect(home.lastIndexOf('/logout')).toBeGreaterThan(home.lastIndexOf('href="/app/settings/setup"'));
+    expect(setupHtml('en')).not.toContain('/logout');
   });
   it('V1-157 · Chinese names the people page and the billing group for what they are', () => {
     expect(t('zh', 'people.title')).not.toBe('这里有谁');

@@ -10,7 +10,8 @@ import { generatedSku, isGeneratedSku, ownSku } from '../../src/core/owner/sku.j
 import { shell, loginPage, signupPage, verifyPage, errorPage, esc, stylesheetAt } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, type RequestScope } from '../../src/api/web/say.js';
 import { flashBanner } from '../../src/api/web/flash.js';
-import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import type { EmployeeProfile } from '../../src/api/web/employee.js';
+import { everyScreen } from './employee-screens.js';
 import {
   renderProductList, renderProductDetail, type ProductListItem, type ProductDetail, type ProductEditField, type ProductEditError,
 } from '../../src/api/web/products.js';
@@ -189,7 +190,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
 
   it("the assistant's page: \"Hired: …\" in each language's own colon", () => {
     for (const l of LOCALES) {
-      const html = withoutIsolates(renderEmployee(employee, l, null));
+      const html = withoutIsolates(everyScreen(employee, l, null));   // phase 7 — the Name row's screen
       const hired = `${esc(t(l, 'employee.hired'))}${l === 'zh' ? '：' : l === 'fr' ? '\u00a0: ' : ': '}`;
       expect(html, l).toContain(hired);
       if (l !== 'zh') { expect(html, l).not.toContain('：'); expect(html, l).not.toContain('　'); }
@@ -344,7 +345,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
 
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
-      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/business" class="navlink active" aria-current="page"/);
+      // The warmth run: products are My business's, a row of Settings — Settings is lit.
+      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/settings" class="navlink active" data-nav="settings" aria-current="page"/);
       // Phase 9 (V1-358) — the period's tabs sit with its counts at the foot of the page, and keep it there.
       expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week#period"');
     }
@@ -587,7 +589,7 @@ describe('CC-29 · everything that takes something away asks first, the one way 
 
   it('rendered, in each language: the question names what goes', () => {
     for (const l of LOCALES) {
-      const emp = withoutIsolates(renderEmployee(employee, l, null));
+      const emp = withoutIsolates(everyScreen(employee, l, null));     // phase 7 — "One kind at a time" 
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.grantConfirm', { cap: t(l, 'capability.quote' as MessageKey) }))}"`);
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.revokeConfirm', { cap: t(l, 'capability.greet' as MessageKey) }))}"`);
       const c = withoutIsolates(renderContacts(contacts([contact()]), l, null));

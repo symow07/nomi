@@ -53,8 +53,9 @@ describe('B · every page knows which hub it belongs to', () => {
     // D — /app/settings is Setup's own entry now; its sub-pages light Setup
     // unless the map sends them elsewhere (terms, samples… → My business).
     expect(hubFor('/app/settings/data', 'nonsense')).toBe('settings');
-    expect(hubFor('/app/settings/terms', 'nonsense')).toBe('factory');
-    expect(hubFor('/app/products/abc-123', 'nonsense')).toBe('factory');
+    // The warmth run: My business is a row of Settings, so what sits under it lights Settings.
+    expect(hubFor('/app/settings/terms', 'nonsense')).toBe('settings');
+    expect(hubFor('/app/products/abc-123', 'nonsense')).toBe('settings');
     expect(hubFor('/app/sequences/abc-123', 'nonsense')).toBe('inbox');
     expect(hubFor('/app/inbox/abc-123', 'nonsense')).toBe('inbox');
   });
@@ -66,8 +67,8 @@ describe('B · every page knows which hub it belongs to', () => {
   });
 
   it('a query string and a trailing slash change nothing', () => {
-    expect(hubFor('/app/products?flash=1', 'nonsense')).toBe('factory');
-    expect(hubFor('/app/products/', 'nonsense')).toBe('factory');
+    expect(hubFor('/app/products?flash=1', 'nonsense')).toBe('settings');
+    expect(hubFor('/app/products/', 'nonsense')).toBe('settings');
     expect(hubFor('/app/', 'nonsense')).toBe('home');
   });
 
@@ -81,34 +82,35 @@ describe('B · every page knows which hub it belongs to', () => {
     // …and it is on Setup, the entry Your data sits under (D).
     const setup = NAV.find((n) => n.href === '/app/settings')!;
     expect(html).toMatch(new RegExp(`href="${setup.href}"[^>]*aria-current="page"`));
-    // a page that MOVED lights its new entry: the payment terms are My business
+    // a page that MOVED lights its new entry: the payment terms are My business's, in Settings
     const terms = page('/app/settings/terms');
-    expect(terms).toMatch(/href="\/app\/business"[^>]*aria-current="page"/);
+    expect(terms).toMatch(/href="\/app\/settings"[^>]*aria-current="page"/);
   });
 });
 
 describe('C · Results has a door', () => {
   it('the link is OUTSIDE any quiet branch', () => {
     const src = read('src/api/web/operations.ts');
-    // The design pass: the door sits in "the last 24 hours", a block drawn on
-    // every day, whatever it held — never inside a branch that can hide it.
-    const block = /const lastDay = `[\s\S]*?`;/.exec(src)?.[0] ?? '';
+    // The warmth run (phase 2): the door sits under the day's three figures
+    // (it sat in "the last 24 hours", which left Today), a zone drawn on every
+    // day, whatever it held — never inside a branch that can hide it.
+    const block = /const tally = `[\s\S]*?`;/.exec(src)?.[0] ?? '';
     expect(block).toContain("deeper('/app/analytics'");
     expect(block).not.toMatch(/\?\s*`|:\s*''/);   // no condition inside it
-    expect(src).toMatch(/\n  \$\{lastDay\}\n/);
+    expect(src).toMatch(/\n  \$\{tally\}\n/);
   });
 });
 
 describe('C · the nav entry for the assistants', () => {
   it('is her NAME while there is one of her', () => {
     const html = withAssistantName('Sara', () => page('/app'), false);
-    expect(html).toContain('>Sara</a>');
-    expect(html).not.toContain('>Team</a>');
+    expect(html).toContain('>Sara</span></a>');
+    expect(html).not.toContain('>Team</span></a>');
   });
 
   it('…and "Team" once there are several', () => {
     const html = withAssistantName('Sara', () => page('/app'), true);
-    expect(html).toContain('>Team</a>');
+    expect(html).toContain('>Team</span></a>');
     // Her name still appears in the header — that is the main assistant, and
     // the page is still hers. Only the MENU stops claiming to be one person.
     expect(html).toContain('Sara');

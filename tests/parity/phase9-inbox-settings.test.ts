@@ -166,7 +166,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('V1-165 · the area is Customers: its empty Mine speaks of customers, not conversations', () => {
     expect(t('en', 'inbox.empty.mine')).toBe('No customer is in your hands right now.');
     expect(t('en', 'inbox.empty.mine')).not.toMatch(/conversation/i);
-    expect(t('en', 'nav.conversations')).toBe('Customer list');
+    // The warmth run: the list's rail entry is "Inbox" (the owner renamed it), under Customers.
+    expect(t('en', 'nav.conversations')).toBe('Inbox');
     expect(t('en', 'inbox.empty.seeAll')).toBe('See all customers');
   });
 
@@ -206,7 +207,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('V1-172 · the rail\'s number says what it counts', () => {
     for (const l of LOCALES) {
       const page = withWorkspace({ ...SCOPE, needsYou: 3 }, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/inbox', bodyHtml: '' }));
-      expect(withoutIsolates(page), l).toContain(`<span class="navcount" aria-hidden="true">${shown(l, 'nav.waiting', { n: 3 })}</span>`);
+      // The warmth run: on a wide screen the words; on a phone's tile the figure alone, at the icon's corner.
+      expect(withoutIsolates(page), l).toContain(`<span class="navcount" aria-hidden="true"><span class="nl-long">${shown(l, 'nav.waiting', { n: 3 })}</span>`);
     }
   });
 });
@@ -254,8 +256,8 @@ describe('the calendar', () => {
       expect(move, `${l}/${v}`).toContain(`<a class="tab cal-today" href=`);
       expect(h.indexOf('<p class="cal-span">'), `${l}/${v}`).toBeLessThan(h.indexOf('<nav class="cal-move"'));
       expect(h.indexOf('<nav class="cal-move"'), `${l}/${v}: at the top`).toBeLessThan(h.indexOf('cal-legend'));
-      // the same lede and legend on every view; no second way of moving at the foot of the list
-      expect(h, `${l}/${v}`).toContain(`<p class="muted cal-lede">${esc(t(l, 'calendar.lede'))}</p>`);
+      // the same lede and legend on every view (since the warmth run, in the page's one fold); no second way of moving at the foot of the list
+      expect(h, `${l}/${v}`).toContain(`<div class="cal-key"><p class="muted cal-lede">${esc(t(l, 'calendar.lede'))}</p>`);
       expect(h, `${l}/${v}`).toContain('<p class="cal-legend small">');
       expect(h, `${l}/${v}`).not.toContain('<nav class="pager"');
     }
@@ -272,58 +274,62 @@ describe('the calendar', () => {
     }
     expect(CSS).toMatch(/\.cal-sw \{[^}]*border-radius:2px; \}/);
     // the lists' rows carry the solid edge the legend names, as dashed ones carry theirs
+    // the lists' rows (the list, a week's days, the day: one row since the warmth run) carry the solid edge the legend names
     expect(CSS).toMatch(/\.dl-row\.solid \.dl-go \{ border-inline-start:2px solid/);
-    expect(CSS).toMatch(/\.row\.solid \.grow \{ border-inline-start:2px solid/);
+    expect(CSS).toMatch(/\.dl-row\.dashed \.dl-go \{ border-inline-start:2px dashed/);
   });
 
   it('V1-201 · inbox-calendar-new-13 · done is a ✓ as well as grey, in every view; in Arabic an order is not "a request"', () => {
     for (const l of LOCALES) {
       const day = drawCal(l, 'day');
       expect(day, l).toMatch(/<li class="dl-row solid done"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span><span class="sr">/);
-      expect(drawCal(l, 'week'), l).toMatch(/<a class="wk-e solid past" data-src="quotes:q1"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span>/);
+      expect(drawCal(l, 'week'), l).toMatch(/<li class="dl-row solid done" data-src="quotes:q1"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span>/);
       // a reply still owed is never greyed or ticked, whatever the hour
-      expect(drawCal(l, 'week'), l).toMatch(/<a class="wk-e solid" data-src="handoffs:h1"[^>]*>[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
+      expect(drawCal(l, 'week'), l).toMatch(/<li class="dl-row solid" data-src="handoffs:h1"[^>]*>[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
+      // the month, too: done greyed, owed marked
+      expect(drawCal(l, 'month'), l).toMatch(/<span class="mo-e solid done" data-src="quotes:q1"/);
+      expect(drawCal(l, 'month'), l).toMatch(/<span class="mo-e solid" data-src="handoffs:h1"[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
     }
     expect(t('ar', 'calendar.kind.order_state')).toBe('طلب شراء');
     expect(t('ar', 'calendar.kind.order_state')).not.toBe(t('ar', 'calendar.kind.sample_asked').split(' ')[0]);
   });
 
-  it('V1-202 · inbox-calendar-new-15 · one fold chooses a kind or a customer, offering the same kinds in every view', () => {
+  it('V1-202 · inbox-calendar-new-15 · one form chooses a kind or a customer, offering the same kinds in every view', () => {
     const options = (h: string) => [...(/<select name="category">([\s\S]*?)<\/select>/.exec(h)?.[1] ?? '').matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
     for (const l of LOCALES) {
       const all = VIEWS4.map((v) => drawCal(l, v));
       for (const h of all) {
         expect(h, l).not.toContain('cal-tabs');
-        expect(h, l).toContain(`<details class="cal-filter">\n      <summary>${shown(l, 'calendar.filter.choose')}</summary>`);
+        expect(h, l).toContain(`<form method="get" action="/app/calendar" class="pform cal-filter">\n        <p class="cal-sub">${shown(l, 'calendar.filter.choose')}</p>`);
         expect(options(h), l).toEqual(['', 'promised', 'samples', 'orders', 'negotiation', 'yours', 'closures', 'conversations']);
       }
       // the views' tabs are the only row of pills
       expect([...all[0]!.matchAll(/<nav class="tabs/g)], l).toHaveLength(1);
     }
     const chosen = drawCal('en', 'week', { category: 'samples', buyer: NADIA });
-    expect(chosen).toContain('<summary>Showing: Samples · Nadia Rahimi · UAE</summary>');
+    expect(chosen).toContain('<p class="cal-chosen small">Showing: Samples · <bdi>Nadia Rahimi · UAE</bdi>');
   });
 
   it('V1-203 · adding a date is near the top of every view, above the dates', () => {
     for (const v of VIEWS4) {
       const h = drawCal('en', v);
       const body = Math.min(...['<table', '<ol class="dl"', '<h2 class="cal-day"'].map((s) => h.indexOf(s)).filter((i) => i >= 0));
-      expect(h.indexOf('<details class="cal-add"'), v).toBeGreaterThan(0);
-      expect(h.indexOf('<details class="cal-add"'), v).toBeLessThan(body);
+      expect(h.indexOf('<div class="cal-add">'), v).toBeGreaterThan(0);
+      expect(h.indexOf('<div class="cal-add">'), v).toBeLessThan(body);
     }
   });
 
-  it('inbox-calendar-new-08 · a card\'s kind breaks into even lines, never leaving one word alone', () => {
-    expect(CSS).toMatch(/\.wk-k, \.wk-t \{ overflow-wrap:break-word; text-wrap:balance; \}/);
-    expect(CSS).toMatch(/\.wk-e b \{[^}]*text-wrap:balance;/);
+  it('inbox-calendar-new-08 · a date\'s sentence breaks into even lines, never leaving one word alone', () => {
+    expect(CSS).toMatch(/\.dl-say \{ color:var\(--color-ink\); overflow-wrap:break-word; text-wrap:pretty; \}/);
   });
 
   it('inbox-calendar-new-11 · inbox-calendar-new-12 · a row says its kind once, and a quantity never leaves its number', () => {
     for (const l of LOCALES) {
       const row = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(drawCal(l, 'day'))![0];
-      const kind = t(l, 'calendar.kind.price_worked_out');
-      expect(row.split(kind).length - 1, l).toBe(1);
-      expect(row, l).toContain(`${esc(kind)} · <bdi>${esc(t(l, 'calendar.detail.price', { price: withZone(CAL_ZONE, () => withoutIsolates(showMoney(l, usd(1.95)))), qty: l === 'zh' ? '2000' : '2,000' }))}</bdi>`);
+      // the warmth run — the kind is said once, in the date's own sentence
+      const said = t(l, 'calendar.say.price_worked_out', { who: NADIA.name });
+      expect(row.replace(/<[^>]+>/g, '').split(said).length - 1, l).toBe(1);
+      expect(row, l).toContain(`</span><span class="small"><bdi>${esc(t(l, 'calendar.detail.price', { price: withZone(CAL_ZONE, () => withoutIsolates(showMoney(l, usd(1.95)))), qty: l === 'zh' ? '2000' : '2,000' }))}</bdi></span>`);
       expect(t(l, 'calendar.detail.price'), l).toMatch(/ \{qty\}$/);
     }
   });
@@ -331,11 +337,12 @@ describe('the calendar', () => {
   it('inbox-calendar-missed-17 · inbox-calendar-missed-18 · the list names a date as the other views do, with no record code', () => {
     for (const l of LOCALES) {
       const h = drawCal(l, 'list');
-      const order = /<li class="row[^"]*" data-src="order_updates:u1"[\s\S]*?<\/li>/.exec(h)![0];
+      const order = /<li class="dl-row[^"]*" data-src="order_updates:u1"[\s\S]*?<\/li>/.exec(h)![0];
       expect(order, l).not.toContain('USAB-de300000-0001');
-      expect(order, l).toContain(`${esc(t(l, 'calendar.kind.order_state'))} · <bdi>${esc(t(l, 'order.status.confirmed' as MessageKey))}</bdi>`);
-      const price = /<li class="row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(h)![0];
-      expect(price, l).toContain(`<span class="as" aria-hidden="true">✦</span> ${esc(t(l, 'calendar.kind.price_worked_out'))}`);
+      expect(order.replace(/<[^>]+>/g, ''), l).toContain(t(l, 'calendar.say.order_state', { who: ANNA.name }));
+      expect(order, l).toContain(`<span class="small"><bdi>${esc(t(l, 'order.status.confirmed' as MessageKey))}</bdi></span>`);
+      const price = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(h)![0];
+      expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok" aria-hidden="true">✓<\/span><span class="sr">[^<]*<\/span> )?<span class="as" aria-hidden="true">✦<\/span> /);
       expect(price, l).not.toContain(`>${esc(t(l, 'calendar.cat.negotiation'))} · `);
     }
   });
@@ -344,24 +351,23 @@ describe('the calendar', () => {
     for (const l of LOCALES) for (const v of VIEWS4) expect(drawCal(l, v), `${l}/${v}`).not.toMatch(/[\u{1F1E6}-\u{1F1FF}]/u);
   });
 
-  it('inbox-calendar-missed-20 · the list keeps the prose measure, its head included', () => {
-    const h = drawCal('en', 'list');
-    expect(h.startsWith('<div class="measure-prose"><div class="cal-top">')).toBe(true);
-    expect(drawCal('en', 'week').startsWith('<div class="measure-prose">')).toBe(false);
+  it('inbox-calendar-missed-20 · the lists keep the prose measure, their head included; the month takes the column', () => {
+    for (const v of ['list', 'week', 'day'] as const) expect(drawCal('en', v).startsWith('<div class="measure-prose"><div class="cal-top">'), v).toBe(true);
+    expect(drawCal('en', 'month').startsWith('<div class="measure-prose">')).toBe(false);
   });
 
-  it('V1-204 · inbox-calendar-new-10 · the week has a row only for an hour that holds a date; today is said in a word', () => {
+  it('V1-204 · inbox-calendar-new-10 · the week has a day only where a date is, and today; today is said in a word, in magenta', () => {
     const h = drawCal('en', 'week');
-    const hours = [...h.matchAll(/<tr><th scope="row">(\d\d)<\/th>/g)].map((m) => m[1]);
-    expect(hours).toEqual(['02', '09', '17', '19']);
-    expect(h).toMatch(/<th scope="col" class="today" aria-current="date"><a [^>]*>[^<]*<b>2<\/b><\/a><span class="cal-now">Today<\/span><\/th>/);
-    // nothing dated this week: the panel, and no table of empty hours
+    const days = [...h.matchAll(/<h2 class="cal-day"[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '').trim());
+    expect(days).toHaveLength(4);     // Monday, Wednesday, Thursday, and today (Friday)
+    expect(h).toMatch(/<h2 class="cal-day" aria-current="date"><span class="cal-now">Today<\/span> <span>Fri, Oct 2<\/span><\/h2>/);
+    // nothing dated this week: the warm panel, and nothing drawn for the days
     const none = drawCal('en', 'week', { entries: [], categories: [] });
-    expect(none).toContain(`<div class="empty">${t('en', 'calendar.empty.week')}</div>`);
-    expect(none).not.toContain('<table class="wk">');
+    expect(none).toContain(`<p class="cal-empty-t">${t('en', 'calendar.empty.week')}</p>`);
+    expect(none).not.toContain('<h2 class="cal-day"');
     const month = drawCal('en', 'month');
     expect(month).toMatch(/<td class=" today" aria-current="date">\s*<a class="mo-d" [^>]*>2<\/a><span class="cal-now">Today<\/span>/);
-    expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ border:1\.5px solid var\(--color-ink\);/);
+    expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ color:var\(--color-assistant\); font-weight:700; \}/);
   });
 });
 
@@ -480,7 +486,7 @@ describe('an order', () => {
     expect(hubFor('/app/orders/44444444-4444-4444-8444-444444444444', 'inbox')).toBe('inbox');
     for (const l of LOCALES) {
       const page = withWorkspace(SCOPE, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/orders/o1', bodyHtml: orderPage(l) }));
-      expect(page, l).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page"/);
+      expect(page, l).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page"/);
       expect(orderPage(l), l).toContain(`${shown(l, 'order.back')}</a>`);
     }
     expect(t('en', 'order.back')).toBe('Back to the customer');
@@ -533,7 +539,8 @@ describe('the settings pages', () => {
   });
 
   it('V1-478 · V1-506 · V1-491 · V1-468 · each page leads back to where it is reached from, drawn the same way, the heading under it', () => {
-    const backs: Record<string, string> = { closures: '/app/business', forbidden: '/app/employee', components: '/app/settings', alerts: '/app/settings' };
+    // The warmth run: the components gallery and the alerts are Setup's, which moved to /app/settings/setup.
+    const backs: Record<string, string> = { closures: '/app/business', forbidden: '/app/employee', components: '/app/settings/setup', alerts: '/app/settings/setup' };
     for (const l of LOCALES) for (const [p, href] of Object.entries(backs)) {
       expect(draw(p, l).trimStart().startsWith(`<a class="back" href="${href}">`), `${l}/${p}`).toBe(true);
     }

@@ -188,6 +188,8 @@ export const RULES = Object.freeze({
   order_proposals: { do: 'erase' },
   // 0083 — what a reply promised them, in the words it was said in.
   promised_dates: { do: 'erase' },
+  // 0123 — their photo, as their channel showed it.
+  client_faces: { do: 'erase' },
 
   // ── Records that can quote them with no key at all (see textLinks) ────────
   channel_events: {

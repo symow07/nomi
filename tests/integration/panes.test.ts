@@ -100,10 +100,10 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
 
   it('the rail counts who needs the owner, read fresh on every page', async () => {
     const html = await page('/app');
-    expect(html).toMatch(/class="subnav"[^>]*aria-label="Customer list, 1 customer needs you">Customer list<span class="navcount" aria-hidden="true">1 waiting<\/span>/);
+    expect(html).toMatch(/class="navlink sub" data-nav="inbox" aria-label="Inbox, 1 customer needs you"\s*><svg[\s\S]*?<\/svg><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true"><span class="nl-long">1 waiting<\/span>/);
     // Omar's conversation is handed to a person: the rail says so on the next page, not a minute later
     await tx((x) => sql`update conversations set assigned_to = 'unclaimed' where id = ${omar}::uuid`.execute(x));
-    expect(await page('/app')).toContain('aria-hidden="true">2</span>');
+    expect(await page('/app')).toContain('<span class="nl-short">2</span>');
     await tx((x) => sql`update conversations set assigned_to = null where id = ${omar}::uuid`.execute(x));
   });
 

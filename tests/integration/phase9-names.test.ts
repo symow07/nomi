@@ -66,16 +66,48 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
     await tx((t) => sql`update conversations set assigned_to = null where id = ${CONV}`.execute(t));
   });
 
-  it('V1-088 · Today counts a customer who wrote in the last 24 hours, once however many lines', async () => {
+  // The warmth run (phase 2) — "The last 24 hours" left Today with V1-088's
+  // count of who wrote; a customer who wrote and waits is the band's (the
+  // Inbox's own "Needs you"). What this proves now is the hero and the three
+  // figures, read from the rows themselves in the workspace's own day.
+  it('the warmth run · Today\'s hero and figures count today\'s rows in the workspace\'s day, and nothing from before it', async () => {
     const { loadToday } = await import('../../src/api/web/today.js');
-    const quiet = await loadToday(db, BIZ, undefined, new Date(), false);
-    expect(quiet.last24.wrote).toBe(0);
+    const PID = randomUUID();
+    const zone = (await tx((t) => sql<{ z: string }>`select coalesce(timezone, 'UTC') as z from businesses where id = ${BIZ}`.execute(t))).rows[0]!.z;
     await tx(async (t) => {
-      for (const text of ['Hello', 'Do you ship to Lagos?'])
-        await sql`insert into messages (conversation_id, direction, text_content, sent_at)
-                  values (${CONV}, 'inbound', ${text}, now() - interval '2 hours')`.execute(t);
+      await sql`insert into products (id, business_id, sku, name, unit, moq, is_active)
+                values (${PID}, ${BIZ}, ${'TT-' + RUN}, 'Canvas tote', 'pcs', null, true)`.execute(t);
+      // A reply the assistant sent one minute before the workspace's midnight: yesterday's, not today's.
+      await sql`insert into outbound_messages (business_id, conversation_id, seq, body, origin, status, sent_at)
+                values (${BIZ}, ${CONV}, 901, 'Yesterday', 'employee', 'sent',
+                        (date_trunc('day', now() at time zone ${zone}) at time zone ${zone}) - interval '1 minute')`.execute(t);
     });
-    const after = await loadToday(db, BIZ, undefined, new Date(), false);
-    expect(after.last24.wrote).toBe(1);
+    const quiet = await loadToday(db, BIZ, undefined, new Date());
+    expect(quiet.handled?.total).toBe(0);
+    expect(quiet.tally).toEqual({ orders: 0, quotes: 0, afterHours: 0 });
+
+    await tx(async (t) => {
+      // Today: a price worked out, the assistant's reply that carried it, and an order confirmed.
+      await sql`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version)
+                values (${BIZ}, ${CONV}, ${PID}, 10, '{}'::jsonb, 2.00, 20, 'test')`.execute(t);
+      await sql`insert into outbound_messages (business_id, conversation_id, seq, body, origin, status, sent_at)
+                values (${BIZ}, ${CONV}, 902, 'Ten totes are 20.', 'employee', 'sent', now())`.execute(t);
+      // A reply that never left counts for nothing.
+      await sql`insert into outbound_messages (business_id, conversation_id, seq, body, origin, status, sent_at)
+                values (${BIZ}, ${CONV}, 903, 'Refused', 'employee', 'canceled', null)`.execute(t);
+      await sql`insert into orders (order_reference, business_id, client_id, conversation_id, product_id,
+                                    quantity, unit, agreed_unit_price_usd, total_value_usd, currency, status, confirmed_at)
+                values (${'TT-' + RUN}, ${BIZ}, ${CLIENT}, ${CONV}, ${PID}, 10, 'pcs', 2.00, 20, 'USD', 'confirmed', now())`.execute(t);
+    });
+    // "Today" is read at the reply's own instant, so a run that crosses midnight cannot move it into yesterday.
+    const sent = (await tx((t) => sql<{ at: Date; h: number }>`
+      select sent_at as at, extract(hour from sent_at at time zone ${zone})::int as h
+        from outbound_messages where conversation_id = ${CONV} and seq = 902`.execute(t))).rows[0]!;
+    const hour = sent.h;
+    const after = await loadToday(db, BIZ, undefined, sent.at);
+    expect(after.handled?.total).toBe(1);
+    expect(after.handled?.people).toEqual([{ conversationId: CONV, clientId: CLIENT, name: 'Maya', photo: null, word: 'confirmed' }]);
+    // After hours is 20:00–08:00 in the workspace's zone (today.ts, OPEN_HOUR / CLOSE_HOUR).
+    expect(after.tally).toEqual({ orders: 1, quotes: 1, afterHours: hour < 8 || hour >= 20 ? 1 : 0 });
   });
 });

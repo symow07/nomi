@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import { everyScreen, screen } from './employee-screens.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, withAssistantName, assistantName } from '../../src/api/web/say.js';
 import { readFileSync } from 'node:fs';
@@ -48,47 +49,47 @@ const ownerReads = (html: string): string =>
 
 describe('M9.6 · employee profile (localized)', () => {
   it('card: headlined by the name in force (else "your assistant"); stage/role localized', () => {
-    const zh = renderEmployee(base, 'zh', null);
+    const zh = everyScreen(base, 'zh', null);
     expect(zh).toContain('<h1 class="page">你的助手</h1>');   // no name chosen: the fallback, never an invented name
     expect(zh).toContain(t('zh', 'employee.stage.partial')); expect(zh).toContain(t('zh', 'employee.role.reception')); expect(zh).toContain('入职');
-    const en = withAssistantName('Lily', () => renderEmployee(base, 'en', null));
+    const en = withAssistantName('Lily', () => everyScreen(base, 'en', null));
     expect(en).toContain('<h1 class="page">Lily</h1>');      // the headline IS the chosen name
     expect(en).toContain('Answers your customers');
-    expect(renderEmployee(base, 'ar', null)).toContain('<h1 class="page">مساعدك</h1>');
+    expect(everyScreen(base, 'ar', null)).toContain('<h1 class="page">مساعدك</h1>');
   });
 
   it('duties: canDo / needConfirm / cannotDo from capability codes', () => {
-    const zh = renderEmployee(base, 'zh', null);
+    const zh = everyScreen(base, 'zh', null);
     expect(zh).toContain(t('zh', 'her.handles.alone')); expect(zh).toContain('接待问候');   // Phase C: permission language
     expect(zh).toContain('要等你确认'); expect(zh).toContain('报价');     // quote — permission, not skill
     expect(zh).toContain('始终要等你确认'); expect(zh).toContain('确认订单'); // confirm_order: always
-    const en = renderEmployee(base, 'en', null);
+    const en = everyScreen(base, 'en', null);
     expect(en).toContain(t('en', 'her.handles.alone')); expect(en).toContain('Greeting');
     expect(en).toContain('Waits for you'); expect(en).toContain('Quoting');
     expect(en).toContain('Always waits for you'); expect(en).toContain('Confirming orders');
   });
 
   it('growth: neutral event kinds render localized (with capability name)', () => {
-    const zh = renderEmployee(base, 'zh', null);
+    const zh = everyScreen(base, 'zh', null);
     expect(zh).toContain(t('zh', 'employee.growth.title'));
     expect(zh).toContain('「接待问候」开始不等你就发出');
     expect(zh).toContain('你检查了你的助手的一条回复：没问题');
     expect(zh).toContain('你在发出前改了一条回复（报价）');
-    const en = renderEmployee(base, 'en', null);
+    const en = everyScreen(base, 'en', null);
     expect(en).toContain('Greeting now goes out without you');
     expect(en).toContain('You checked one of your assistant’s replies: it was right');
     expect(en).toContain('You corrected a reply before it went out (Quoting)');
-    expect(renderEmployee({ ...base, growth: [] }, 'en', null)).toContain('Nothing has changed yet.');
-    expect(renderEmployee({ ...base, growth: [] }, 'zh', null)).toContain('还没有变化');
+    expect(everyScreen({ ...base, growth: [] }, 'en', null)).toContain('Nothing has changed yet.');
+    expect(everyScreen({ ...base, growth: [] }, 'zh', null)).toContain('还没有变化');
   });
 
   it('promotion: stage, next step, real conditions — no invented score', () => {
-    const zh = renderEmployee(probation, 'zh', null);
+    const zh = everyScreen(probation, 'zh', null);
     expect(zh).toContain(t('zh', 'employee.promo.title')); expect(zh).toContain('当前：每条回复都先等你');
     expect(zh).toContain('下一步：部分回复不等你就发出');
     expect(zh).toContain('<span class="dot ok" aria-hidden="true">✓</span> 你检查你的助手的一条回复，没问题');
     expect(zh).toContain('<span class="dot warn" aria-hidden="true">○</span> 你改过你的助手的一条回复');
-    const en = renderEmployee(probation, 'en', null);
+    const en = everyScreen(probation, 'en', null);
     expect(en).toContain('What comes next'); expect(en).toContain('Now: Every reply waits for you');
     expect(en).toContain(`Next: ${t('en', 'employee.stage.partial')}`);
     expect(en).toContain('✓</span> You check one of your assistant’s replies and it is right');
@@ -96,17 +97,17 @@ describe('M9.6 · employee profile (localized)', () => {
   });
 
   it('actions: revoke on granted, promote only where eligible, confirm_order note', () => {
-    const en = renderEmployee(base, 'en', null);
+    const en = everyScreen(base, 'en', null);
     expect(en).toContain('action="/app/employee/capability/greet/revoke"');
     expect(en).toContain('action="/app/employee/capability/quote/promote"');
     expect(en).not.toContain('capability/negotiate/promote');
     expect(en).toContain('Confirming orders always waits for you');
-    expect(renderEmployee(base, 'zh', null)).toContain('确认订单永远等你');
+    expect(everyScreen(base, 'zh', null)).toContain('确认订单永远等你');
   });
 
   it('never shows a confidence score or technical vocabulary — every locale', () => {
     for (const l of LOCALES) {
-      const html = ownerReads(renderEmployee(base, l, null) + renderEmployee(probation, l, null));
+      const html = ownerReads(everyScreen(base, l, null) + everyScreen(probation, l, null));
       for (const banned of ['ai', 'llm', 'model', 'confidence', 'accuracy', 'automation', 'api',
         '置信度', '准确率', '模型', '人工智能', '%']) {
         const hit = /^[a-z ]+$/.test(banned) ? new RegExp(`\\b${banned}\\b`).test(html) : html.includes(banned);
@@ -116,7 +117,7 @@ describe('M9.6 · employee profile (localized)', () => {
   });
 
   it('mobile: no tables', () => {
-    expect(renderEmployee(base, 'en', null)).not.toContain('<table');
+    expect(everyScreen(base, 'en', null)).not.toContain('<table');
   });
 });
 
@@ -137,15 +138,15 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   it('the page is the assistant — headlined by the chosen name in every locale', () => {
     for (const l of LOCALES) {
       // A chosen name is stored once and shown as-is, whatever the language.
-      expect(withAssistantName('Lily', () => renderEmployee(base, l, null, ctx)))
+      expect(withAssistantName('Lily', () => everyScreen(base, l, null, ctx)))
         .toContain('<h1 class="page">Lily</h1>');
       // No name chosen yet: the capitalised "your assistant" label.
-      expect(renderEmployee(base, l, null, ctx)).toContain(`<h1 class="page">${assistantName(l)}</h1>`);
+      expect(everyScreen(base, l, null, ctx)).toContain(`<h1 class="page">${assistantName(l)}</h1>`);
     }
   });
 
   it('what the assistant knows: the learning, with a real lifetime count', () => {
-    const html = renderEmployee(base, 'en', null, ctx);
+    const html = everyScreen(base, 'en', null, ctx);
     expect(html).toContain(t('en', 'her.knows.title'));
     expect(html).toContain(t('en', 'her.knows.count'));
     expect(html).toContain('>14<');            // base.knows
@@ -155,7 +156,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   });
 
   it('never taught anything: says so, and offers the one next action', () => {
-    const html = renderEmployee({ ...base, knows: 0 }, 'en', null,
+    const html = everyScreen({ ...base, knows: 0 }, 'en', null,
       { ...ctx, taughtRecently: 0, corrected: 0 });
     expect(html).toContain(t('en', 'her.knows.none'));
     expect(html).toContain('Teach');                    // the existing teach flow
@@ -163,7 +164,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   });
 
   it('what the assistant handles: permission language, never a measure of ability', () => {
-    const html = renderEmployee(base, 'en', null, ctx);
+    const html = everyScreen(base, 'en', null, ctx);
     expect(html).toContain(t('en', 'her.handles.title'));
     expect(html).toContain(t('en', 'her.handles.alone'));
     expect(html).toContain('Waits for you');
@@ -174,12 +175,12 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   });
 
   it('nothing granted yet reads as a sensible starting point, not a failure', () => {
-    const html = renderEmployee({ ...base, canDo: [], needConfirm: [] }, 'en', null, ctx);
+    const html = everyScreen({ ...base, canDo: [], needConfirm: [] }, 'en', null, ctx);
     expect(html).toContain('Everything still waits for you. That is the right place to start.');
   });
 
   it('recently: real counts including how often you were needed', () => {
-    const html = renderEmployee(base, 'en', null, ctx);
+    const html = everyScreen(base, 'en', null, ctx);
     expect(html).toContain(t('en', 'her.recent.title'));
     expect(html).toContain('<b class="hnum">12</b> customers answered');
     expect(html).toContain('<b class="hnum">8</b> replies prepared');
@@ -187,13 +188,13 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   });
 
   it('a quiet employee reads calm, not broken', () => {
-    const html = renderEmployee(base, 'en', null,
+    const html = everyScreen(base, 'en', null,
       { ...ctx, handled: 0, draftsPrepared: 0, neededYou: 0 });
     expect(html).toContain('Nothing yet this month.'); expect(html).not.toContain('No conversations yet');
   });
 
   it('what the assistant needs: every gap leads to the EXISTING teach flow', () => {
-    const html = renderEmployee(base, 'en', null, ctx);
+    const html = everyScreen(base, 'en', null, ctx);
     expect(html).toContain(t('en', 'her.teach.title'));
     expect(html).toContain('Do you ship to Dubai?');
     expect(html).toContain('asked 4×');
@@ -203,21 +204,29 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   });
 
   it('nothing to teach is a success state', () => {
-    const html = renderEmployee(base, 'en', null, { ...ctx, gaps: [] });
+    const html = everyScreen(base, 'en', null, { ...ctx, gaps: [] });
     expect(html).toContain(t('en', 'her.teach.none'));
   });
 
-  it('the new sections are omitted entirely without context', () => {
-    const html = renderEmployee(base, 'en', null);
-    expect(html).not.toContain(t('en', 'her.recent.title'));
-    expect(html).not.toContain(t('en', 'her.teach.title'));
+  it('without the month\'s counts, the month and the questions say nothing they do not know', () => {
+    // Phase 7 — the rows are doors and stay; what they open holds no count.
+    expect(screen('month', base, 'en')).not.toContain('class="hrow"');
+    const learning = screen('learning', base, 'en');
+    expect(learning).not.toContain(t('en', 'her.teach.none'));
+    expect(learning).not.toContain(t('en', 'her.teach.unasked'));
+    const landing = renderEmployee(base, 'en', null);
+    const row = (href: string) => landing.slice(landing.indexOf(`href="${href}"`), landing.indexOf('</a>', landing.indexOf(`href="${href}"`)));
+    expect(row('/app/employee/month')).not.toMatch(/sr-value|sr-desc/);
+    expect(renderEmployee(base, 'en', null, { taughtRecently: 0, corrected: 0, handled: 12, draftsPrepared: 0, neededYou: 0, gaps: [] }))
+      .toContain(`<span class="sr-desc">${t('en', 'her.count.handled.other', { n: '12' })}</span>`);
+    expect(row('/app/employee/learning')).not.toContain('sr-value');
   });
 
   it('renders in zh + ar, with the RTL chevron handled', () => {
-    const zh = renderEmployee(base, 'zh', null, ctx);
+    const zh = everyScreen(base, 'zh', null, ctx);
     expect(zh).toContain(t('zh', 'her.knows.title')); expect(zh).toContain(t('zh', 'her.handles.title'));
     expect(zh).toContain(t('zh', 'her.teach.title'));
-    const ar = renderEmployee(base, 'ar', null, ctx);
+    const ar = everyScreen(base, 'ar', null, ctx);
     expect(ar).toContain(t('ar', 'her.knows.title')); expect(ar).toContain(t('ar', 'her.handles.title'));
     expect(ar).toContain('<span class="go" aria-hidden="true">');   // the shell mirrors it
   });
@@ -226,7 +235,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     const LATIN = ['ai', 'llm', 'model', 'token', 'api', 'webhook', 'database', 'confidence', 'automation', 'prompt'];
     const CJK = ['模型', '人工智能', '数据库', '置信度', '接口'];
     for (const l of LOCALES) {
-      const html = ownerReads(renderEmployee(base, l, null, ctx));
+      const html = ownerReads(everyScreen(base, l, null, ctx));
       for (const w of LATIN) expect(new RegExp(`\\b${w}\\b`).test(html), `${l}:${w}`).toBe(false);
       for (const w of CJK) expect(html.includes(w), `${l}:${w}`).toBe(false);
       for (const w of ['score', 'percent', 'rating', 'accuracy']) {
@@ -240,7 +249,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   });
 
   it('mobile-first: no tables, and no breakpoint of its own — the shell holds the one', () => {
-    const html = renderEmployee(base, 'en', null, ctx);
+    const html = everyScreen(base, 'en', null, ctx);
     expect(html).not.toContain('<table');
     // V1 step four: the page carries no stylesheet; its phone rules live in the shell.
     expect(html).not.toContain('<style');
@@ -269,7 +278,7 @@ describe('M34.8 · a spot check shows the owner the work itself', () => {
   };
 
   it('renders the buyer message and her reply, not a reference to them', () => {
-    const html = renderEmployee(withCheck, 'en', null);
+    const html = everyScreen(withCheck, 'en', null);
     expect(html).toContain('Can you do 20000 pcs FOB Ningbo?');
     expect(html).toContain('$0.38 FOB Ningbo');
     // The id belongs in the form action; it must not appear in anything the
@@ -281,7 +290,7 @@ describe('M34.8 · a spot check shows the owner the work itself', () => {
 
   it('offers a way to answer in every locale, and posts to the one action', () => {
     for (const l of LOCALES) {
-      const html = renderEmployee(withCheck, l, null);
+      const html = everyScreen(withCheck, l, null);
       expect(html).toContain('/app/employee/spot-check/s1');
       expect(html).toContain('value="好"');       // the wire word parseSpotCheckReply reads
       expect(html).toContain('value="有问题"');
@@ -289,7 +298,7 @@ describe('M34.8 · a spot check shows the owner the work itself', () => {
   });
 
   it('renders nothing at all when there is nothing to check', () => {
-    const html = renderEmployee(base, 'en', null);
+    const html = everyScreen(base, 'en', null);
     expect(html).not.toContain('/app/employee/spot-check/');
   });
 });
@@ -301,7 +310,7 @@ describe('Phase 9 · "Handled without you" lists only what goes out alone today'
   const between = (html: string, from: string, to: string) => html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)));
   it('name unconfirmed: greet is set, still waiting, with the reason; nothing is handled', () => {
     for (const l of LOCALES) {
-      const html = renderEmployee({ ...base, assistantNamed: false }, l, null);
+      const html = everyScreen({ ...base, assistantNamed: false }, l, null);
       const alone = between(html, t(l, 'her.handles.alone'), '</div></div>');
       expect(alone, l).toContain(t(l, 'employee.duties.none'));
       expect(html, l).toContain(t(l, 'her.handles.held'));
@@ -311,13 +320,13 @@ describe('Phase 9 · "Handled without you" lists only what goes out alone today'
     }
   });
   it('a rung not earned holds it the same way', () => {
-    const html = renderEmployee({ ...base, earned: false }, 'en', null);
+    const html = everyScreen({ ...base, earned: false }, 'en', null);
     expect(html).toContain(t('en', 'her.handles.held'));
     expect(html).toContain(t('en', 'her.handles.held.why.ramp'));
     expect(html).not.toContain(t('en', 'employee.promo.done'));
   });
   it('named and earned: greet is handled, and nothing is listed as held', () => {
-    const html = renderEmployee(base, 'en', null);
+    const html = everyScreen(base, 'en', null);
     expect(html).not.toContain(t('en', 'her.handles.held'));
     expect(html).toContain(t('en', 'employee.promo.done'));
   });
@@ -362,20 +371,26 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       expect(html.split('href="/app/onboarding"').length - 1, `${l}: one door to confirm the name`).toBe(1);
       expect(html, l).not.toContain(`>${t(l, 'pilot.open')}</a>`);           // the bare "Open"
       expect(visible(html), `${l}: no page called by a name the nav does not use`).not.toContain(t(l, 'pilot.title'));
-      // The card is not a second name under the h1, and says the name is not confirmed.
+      // The card is not a second name under the h1. Phase 7 — the card is the
+      // Name row's screen; the row says the name is not confirmed, and so does
+      // the screen, with its one door to confirm it.
       expect(html, l).not.toContain('emp-name');
-      expect(html, l).toContain(t(l, 'employee.name.unconfirmed'));
+      expect(html, l).toContain(t(l, 'her.menu.name.unconfirmed'));
+      const named = screen('name', mix, l, quiet);
+      expect(named, l).toContain(t(l, 'employee.name.unconfirmed'));
+      expect(named.split('href="/app/onboarding"').length - 1, `${l}: one door on the name's screen`).toBe(1);
+      expect(named, l).not.toContain('emp-name');
     }
   });
 
   it('V1-421 · the middle level promises what it sends; the one-kind block says why nothing can be granted yet', () => {
     expect(t('en', 'autonomy.level.talks.note')).toContain('Greetings, questions and recommendations');
     for (const l of LOCALES) {
-      const html = renderEmployee(mix, l, null, quiet);
+      const html = screen('one-kind', mix, l, quiet);
       expect(html, l).toContain(t(l, 'employee.actions.more'));
     }
     // With something to grant, the line is not needed.
-    expect(renderEmployee(base, 'en', null)).not.toContain(t('en', 'employee.actions.more'));
+    expect(screen('one-kind', base, 'en')).not.toContain(t('en', 'employee.actions.more'));
   });
 
   it('V1-422 · no promotion, probation, grant or spot-check words on the page', () => {
@@ -387,27 +402,29 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       fr: ['Promotion', 'Accorder et retirer', 'Progression', 'Période d’essai'],
     };
     for (const l of LOCALES) {
-      const html = renderEmployee(mix, l, null, quiet) + renderEmployee(probation, l, null) + renderEmployee(base, l, null);
+      const html = everyScreen(mix, l, null, quiet) + everyScreen(probation, l, null) + everyScreen(base, l, null);
       for (const w of OLD[l] ?? []) expect(html.includes(w), `${l}: "${w}"`).toBe(false);
     }
   });
 
   it('V1-423 · new-10 · replies were prepared, so nobody says no customer asked; the advice to teach is said once', () => {
     for (const l of LOCALES) {
-      const html = renderEmployee({ ...mix, knows: 0 }, l, null, quiet);
+      const html = screen('learning', { ...mix, knows: 0 }, l, quiet);
       expect(html, l).not.toContain(t(l, 'her.teach.unasked'));
       expect(html, l).toContain(t(l, 'her.teach.none'));
       // V1-427 — one door to Knowledge, in the section that is about it.
+      // Phase 7 — on the landing that door is its row; here, the Teach door.
       expect(html.split('href="/app/knowledge"').length - 1, l).toBe(1);
+      expect(renderEmployee({ ...mix, knows: 0 }, l, null, quiet).split('href="/app/knowledge"').length - 1, l).toBe(1);
       // Nothing came in at all: then it says so.
-      const empty = renderEmployee({ ...mix, knows: 0 }, l, null, { ...quiet, draftsPrepared: 0 });
+      const empty = screen('learning', { ...mix, knows: 0 }, l, { ...quiet, draftsPrepared: 0 });
       expect(empty, l).toContain(t(l, 'her.teach.unasked'));
       expect(empty.split('href="/app/knowledge"').length - 1, l).toBe(1);
     }
   });
 
   it('V1-424 · new-09 · a task is a list line; "always" carries no mark; the history carries none', () => {
-    const html = renderEmployee(mix, 'en', null, quiet);
+    const html = everyScreen(mix, 'en', null, quiet);
     const always = html.slice(html.indexOf(t('en', 'her.handles.always')), html.indexOf('</div>', html.indexOf(t('en', 'her.handles.always')) + 40));
     expect(always).toContain('Confirming orders');
     expect(always).not.toMatch(/[○✓✕]/);
@@ -453,32 +470,32 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
   });
 
   it('missed-12 · V1-432 · each count in the form its language gives the number', () => {
-    const ar = renderEmployee(mix, 'ar', null, quiet);
+    const ar = everyScreen(mix, 'ar', null, quiet);
     expect(ar).toContain('ردّان جاهزان');
     expect(ar).toContain('لم يُرَدّ على أي عميل');
     expect(ar).not.toContain('عملاء تمّ الردّ عليهم');
-    const es = renderEmployee(mix, 'es', null, { ...quiet, neededYou: 2 });
+    const es = everyScreen(mix, 'es', null, { ...quiet, neededYou: 2 });
     expect(es).toContain('<b class="hnum">2</b> conversaciones necesitaron tu ayuda');
-    expect(renderEmployee(mix, 'es', null, { ...quiet, neededYou: 1 })).toContain('<b class="hnum">1</b> conversación necesitó tu ayuda');
+    expect(everyScreen(mix, 'es', null, { ...quiet, neededYou: 1 })).toContain('<b class="hnum">1</b> conversación necesitó tu ayuda');
     // V1-429 — the counts say their span.
     for (const l of LOCALES) expect(t(l, 'her.recent.title'), l).not.toMatch(/Recently|最近|مؤخر|Reciente|Récemment/);
   });
 
   it('the history never speaks as the assistant ("I went back…"): a step back it made itself says so', () => {
     for (const l of LOCALES) {
-      const html = renderEmployee({ ...mix, growth: [{ kind: 'self_demote', capability: 'quote', at: new Date('2026-09-30T00:00:00Z'), why: 'repeated_corrections' }] }, l, null, quiet);
+      const html = everyScreen({ ...mix, growth: [{ kind: 'self_demote', capability: 'quote', at: new Date('2026-09-30T00:00:00Z'), why: 'repeated_corrections' }] }, l, null, quiet);
       expect(visible(html), l).not.toMatch(/\bI went\b|我退回|عدتُ|volví a preguntarte|je repasse/);
     }
   });
 
   it('V1-431 · new-13 · missed-14 · the undo is not red; "Now:" takes the colon; no straight quotes', () => {
     for (const l of LOCALES) {
-      const html = renderEmployee(mix, l, null, quiet);
+      const html = everyScreen(mix, l, null, quiet);
       expect(html, l).toContain('/revoke" class="actrow">');
       expect(html, l).not.toMatch(/\/revoke" class="actrow">\s*<span>[^<]*<\/span><button class="btn danger"/);
       expect(visible(html), l).not.toMatch(/"|&quot;/);
     }
-    expect(renderEmployee(probation, 'en', null)).toContain('Now: Every reply waits for you');
-    expect(renderEmployee(probation, 'es', null)).toContain('Ahora: Cada respuesta te espera');
+    expect(everyScreen(probation, 'en', null)).toContain('Now: Every reply waits for you');
+    expect(everyScreen(probation, 'es', null)).toContain('Ahora: Cada respuesta te espera');
   });
 });

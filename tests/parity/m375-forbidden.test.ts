@@ -170,7 +170,8 @@ describe('M37.5 · the owner surface', () => {
 
   it('is reachable from the assistant\'s page (D), and registered as a route', async () => {
     const settings = await readFile(new URL('../../src/api/web/employee.ts', import.meta.url), 'utf8');
-    expect(settings).toContain("deeper('/app/settings/forbidden'");
+    // THE WARMTH RUN, phase 7 — the door is a row of the assistant's menu now.
+    expect(settings).toContain("{ href: '/app/settings/forbidden', icon: 'nope', label: t(locale, 'forbidden.title')");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("app.get('/app/settings/forbidden'");
     expect(app).toContain("app.post('/app/settings/forbidden'");

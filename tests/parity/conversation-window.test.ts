@@ -127,7 +127,7 @@ describe('CC-25 · the conversation page', () => {
     expect(html).toContain(`href="/app/inbox/${CONV}#latest"`);
     expect(html).toContain(t('en', 'inbox.log.latest'));
     expect(html).toContain(`?before=1790000000000_${ID}#latest`);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble"><bdi>m-400<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>m-400<\/bdi>/);
     for (const gone of ['class="card draft"', 'class="card takeover', 'class="ctx"', 'class="block knew"', t('en', 'unheard.title'), 'class="as-hand"']) {
       expect(html, gone).not.toContain(gone);
     }
@@ -180,7 +180,7 @@ describe('CC-25 · the practice page reads the same window', () => {
   it('the door back pages Practice back; the newest line is marked', () => {
     const html = renderSandbox(view(), 'en', { flash: null });
     expect(html).toContain(`href="/app/sandbox?before=1790000000123_${ID}#latest"`);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble"><bdi>p-50<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>p-50<\/bdi>/);
     expect(html).not.toContain(t('en', 'inbox.log.latest'));
     const older = renderSandbox(view({ transcript: { earlier: null, older: true } }), 'en', { flash: null });
     expect(older).toContain('href="/app/sandbox#latest"');

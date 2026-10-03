@@ -55,6 +55,7 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '#approve summary .c.warn': ['text', '○ Not every figure has a source'],
   '.reasons .mk.warn': ['mark', '○ beside the figure with no source'],
   '.ok-line': ['text', '✓ before the calm sentence'],
+  '.tw-need': ['text', 'Today\'s waiting count: signalMark ○ before the words (today.ts waitingHead)'],
   '.pr.done .mk': ['mark', '✓'], '.chk.ok .mk': ['mark', '✓'], '.chk.bad .mk': ['mark', '✕'],
   '.pcase.ok .pmark': ['mark', '✓'], '.pcase.bad .pmark': ['mark', '✕'],
   '.ditem.ok': ['text', '✓ before each thing the assistant does alone'], '.ditem.warn': ['text', '○ before each it does not yet'],
@@ -63,6 +64,9 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '.verdict.ok': ['text', '✓ All ready'],
   '.cert.on': ['text', '✓ before a certification that is on'],
   '.btn.danger': ['verb', 'Remove, Disconnect, Revoke…'],
+  // The warmth run (2026-10-03): today's marker is magenta's third job (the owner's words), said by its word.
+  '.cal-now': ['text', 'the word "Today" itself'],
+  '.mo td.today .mo-d': ['text', "today's date, the cell's own number, in weight as well as colour"],
 };
 
 describe('phase 4 · the four signals', () => {
@@ -120,10 +124,15 @@ describe('phase 4 · the four signals', () => {
     }
   });
 
-  it('magenta is the assistant\'s hand only: never a fill, a wash, a border or a button', () => {
+  // THE WARMTH RUN (2026-10-03) — the assistant's words sit on its own WASH
+  // (`--color-assistant-wash`, a pale ground under ink), so a newcomer tells
+  // them from a person's at a glance. The magenta itself is still never a fill,
+  // a border or a button, and the wash is only ever a ground: never a frame.
+  it('magenta is the assistant\'s hand only: never a fill, a border or a button; its wash is a ground, never a frame', () => {
     for (const r of rules(appCss)) {
       if (!r.body.includes('--color-assistant')) continue;
-      expect(r.body, r.sel).not.toMatch(/(background|border[a-z-]*|outline|fill|box-shadow)\s*:[^;]*--color-assistant/);
+      expect(r.body, r.sel).not.toMatch(/(background|border[a-z-]*|outline|fill|box-shadow)\s*:[^;]*--color-assistant(?!-wash)/);
+      expect(r.body, r.sel).not.toMatch(/(border[a-z-]*|outline|fill|box-shadow)\s*:[^;]*--color-assistant-wash/);
       expect(r.sel, r.sel).not.toMatch(/\.btn/);
     }
   });

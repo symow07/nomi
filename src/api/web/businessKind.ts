@@ -63,7 +63,7 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: F
   // Phase 9 (V1-472, settings-a-new-07) — the heading names the three things
   // the page holds, as Setup's row does; (V1-473) and the page says what each
   // is used for, and when a change counts.
-  return `${back('/app/settings', backLabel)}
+  return `${back('/app/settings/setup', backLabel)}
     <h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'business.kind.lede'))}</p>

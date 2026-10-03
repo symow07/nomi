@@ -176,11 +176,6 @@ export function formatSeconds(locale: Locale, s: number): string {
   return new Intl.NumberFormat(INTL_TAG[locale], { style: 'unit', unit: 'second', unitDisplay: 'long' }).format(Math.round(s));
 }
 
-/** The hour (0–23) an instant falls in, in the workspace's zone — the row it sits in on a calendar. */
-export function hourIn(d: Date, zone: string): number {
-  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', hourCycle: 'h23' }).format(d));
-}
-
 /** "September 2026", "2026年9月", "سبتمبر ٢٠٢٦" — the month a calendar page shows. */
 export function formatMonth(locale: Locale, ymd: string): string {
   const first = `${ymd.slice(0, 7)}-01T00:00:00Z`;

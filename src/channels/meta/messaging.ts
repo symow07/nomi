@@ -217,6 +217,76 @@ export function metaProfileLookup(cfg: {
   };
 }
 
+/** How a customer's photo is fetched: the photo's bytes, with its headers and the address it came from. */
+export type PhotoFetch = (url: string, init: { method: 'GET'; redirect: 'follow'; signal?: AbortSignal }) => Promise<{
+  status: number; url?: string; headers: { get(name: string): string | null }; arrayBuffer(): Promise<ArrayBuffer>;
+}>;
+
+/** Where Meta serves profile photos from. A photo address anywhere else is not fetched. */
+const PHOTO_HOSTS = ['fbsbx.com', 'fbcdn.net', 'cdninstagram.com', 'facebook.com', 'instagram.com'];
+const photoHostOk = (u: string): boolean => {
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' && PHOTO_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith(`.${h}`));
+  } catch { return false; }
+};
+
+/** What the bytes are, by their first bytes, never by what a header claims. */
+export function photoType(b: Uint8Array): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | null {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  if (b.length >= 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+  if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
+    && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  return null;
+}
+
+export const PHOTO_MAX_BYTES = 524_288;
+
+/**
+ * THE WARMTH RUN (2026-10-03) — a customer's profile photo, as their channel
+ * shows it. The same profile the name comes from (`metaProfileLookup`), asked
+ * for `profile_pic`: Instagram and Messenger both answer it to the Page's
+ * token. The answer is an address that expires within days, so the photo is
+ * downloaded and kept (0123); the token is never sent to the photo's address.
+ *
+ * Never throws. `none` — the channel answered, with no photo; `failed` — it
+ * did not answer, or the photo was not a picture this product keeps (a type
+ * it does not know, over half a megabyte, served from anywhere but Meta).
+ * Background work only (src/worker/faces.ts): no page waits on it.
+ */
+export function metaProfilePhoto(cfg: {
+  readonly accessToken: string;
+  readonly graphVersion: string;
+  readonly fetchImpl?: MetaFetch;
+  readonly photoFetch?: PhotoFetch;
+}) {
+  const doFetch: MetaFetch = cfg.fetchImpl ?? (fetch as unknown as MetaFetch);
+  const getPhoto: PhotoFetch = cfg.photoFetch ?? (fetch as unknown as PhotoFetch);
+  return async (senderId: string): Promise<{ state: 'kept'; type: string; bytes: Buffer } | { state: 'none' } | { state: 'failed' }> => {
+    try {
+      const res = await doFetch(
+        `https://graph.facebook.com/${cfg.graphVersion}/${encodeURIComponent(senderId)}?fields=profile_pic`,
+        { method: 'GET', headers: { Authorization: `Bearer ${cfg.accessToken}` }, signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS) },
+      );
+      if (res.status < 200 || res.status >= 300) return { state: 'failed' };
+      const address = str(obj(JSON.parse(await res.text()))['profile_pic'])?.trim();
+      if (!address) return { state: 'none' };
+      if (!photoHostOk(address)) return { state: 'failed' };
+      const got = await getPhoto(address, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS) });
+      if (got.status < 200 || got.status >= 300 || (got.url && !photoHostOk(got.url))) return { state: 'failed' };
+      const declared = Number(got.headers.get('content-length') ?? '0');
+      if (declared > PHOTO_MAX_BYTES) return { state: 'failed' };
+      const bytes = Buffer.from(await got.arrayBuffer());
+      if (bytes.length === 0 || bytes.length > PHOTO_MAX_BYTES) return { state: 'failed' };
+      const type = photoType(bytes);
+      return type ? { state: 'kept', type, bytes } : { state: 'failed' };
+    } catch {
+      return { state: 'failed' };
+    }
+  };
+}
+
 export const SEND_TIMEOUT_MS = 15_000;
 
 /**

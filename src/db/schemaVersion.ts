@@ -311,7 +311,9 @@ import type { Db } from './client.js';
  */
 // 122 = a customer's name taken off a product (0122): `remove_product_alias`.
 //       The product page's Remove calls it; against a 121 database it fails.
-export const REQUIRED_SCHEMA_VERSION = 122;
+// 123 = customers' faces (0123): `client_faces`, `faces_due()`. Every page that
+//       draws a face reads it; against a 122 database those pages fail.
+export const REQUIRED_SCHEMA_VERSION = 123;
 
 export type SchemaState = {
   readonly required: number;

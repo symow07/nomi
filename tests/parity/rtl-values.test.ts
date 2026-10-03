@@ -104,7 +104,9 @@ describe('pages, in Arabic, from fixtures', () => {
   };
   const today: TodayData = {
     now: NOW, needs: { total: 12, rows: [row({})] },
-    last24: { answered: 14, sent: 5, handed: 2, yourself: 1 }, comingUp: [], sending: ['whatsapp'],
+    // The warmth run — the hero (+N more past 60 faces) and the three figures, every figure isolated too.
+    handled: { total: 140, people: [{ conversationId: 'h1', clientId: '44444444-4444-4444-8444-444444444444', name: 'Ana', photo: null, word: 'confirmed' }] },
+    tally: { orders: 12, quotes: 5, afterHours: 3 }, sending: ['whatsapp'],
   };
 
   it('Today', () => {

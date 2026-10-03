@@ -16,8 +16,10 @@ const page = (locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en', active = 'home') 
 describe('Phase F · five destinations, and nothing else competing', () => {
   // D (2026-09-21) — Setup joined as the fifth: how the installation is wired,
   // split out of the drawer that also held what you sell.
-  it('the nav is exactly Today, Buyers, the assistant, My business, Setup', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/business', '/app/settings']);
+  // THE WARMTH RUN (2026-10-03), phase 1 — the owner's rail: Today; Customers
+  // (Inbox, Calendar); the assistant; Settings.
+  it('the nav is exactly Today, Inbox, Calendar, the assistant, Settings', () => {
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/employee', '/app/settings']);
   });
 
   it('names them in the owner’s language, in every locale', () => {
@@ -25,9 +27,10 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     expect(page('zh')).toContain('今天'); expect(page('zh')).toContain('客户');
     expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
     expect(page('ar')).toContain('اليوم'); expect(page('ar')).toContain('العملاء');
-    // the retired name for the buyers surface is gone from the nav
-    expect(page('en')).not.toContain('>Inbox<');
-    expect(page('zh')).not.toContain('收件箱');
+    // The warmth run: "Inbox (rename from 'Customer list')", under the Customers heading.
+    expect(page('en')).toContain('>Inbox<');
+    expect(page('zh')).toContain('收件箱');
+    expect(page('en')).not.toContain('Customer list');
   });
 
   /**
@@ -66,11 +69,15 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     // page that really is My business. The two used to be able to disagree,
     // and when they did the sidebar lit nothing at all on twenty pages.
     const html = shell({
-      title: 'T', active: 'factory', locale: 'en', path: '/app/business',
+      title: 'T', active: 'factory', locale: 'en', path: '/app/calendar',
       avatar: '👩', bodyHtml: '<p>body</p>',
     });
-    expect(html.split('navlink active').length - 1).toBe(1);
-    expect(html).toContain('href="/app/business" class="navlink active"');
+    expect(html.match(/class="navlink[^"]* active"/g)).toHaveLength(1);
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).toContain('href="/app/calendar" class="navlink sub active"');
+    // and My business, a row of Settings now, lights Settings
+    const mine = shell({ title: 'T', active: 'factory', locale: 'en', path: '/app/business', avatar: '👩', bodyHtml: '' });
+    expect(mine).toContain('href="/app/settings" class="navlink active"');
   });
 });
 
@@ -175,6 +182,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
       '.rf',    // the refusal explanation panel — a refused send IS a state
       'unsure', // 0052 — a send nobody can account for is a state, and an amber one
       'aria-invalid', // phase 9 (cross-new-03) — a field sent back is a state the owner reacts to
+      'navcount', 'pc-wait', // the warmth run — customers waiting for the owner: the waiting signal
     ];
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);
@@ -219,8 +227,8 @@ describe('Phase F · the shell is usable with a thumb', () => {
 
   it('on a phone the four destinations are one row of equal targets', () => {
     const phone = style.slice(style.indexOf('@media (max-width: 720px)'));
-    expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*flex:1/);
-    expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*min-height:56px/);
+    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex:1 1 0/);
+    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*min-height:56px/);
     // never three ragged rows: the ROW does not wrap. (V1 step three lets the
     // words INSIDE one entry wrap, so "Setup 2/5" can break under its word.)
     expect(phone).not.toMatch(/nav\.side \{[^}]*flex-wrap/);

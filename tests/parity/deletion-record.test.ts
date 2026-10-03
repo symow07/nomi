@@ -187,7 +187,8 @@ describe('0076 · Today shows it as its own line', () => {
     expect(ATTENTION_PRIORITY.indexOf('deletionAsks')).toBeLessThan(ATTENTION_PRIORITY.indexOf('handoffs'));
     for (const l of LOCALES) {
       const html = withoutIsolates(renderOperationsHome(today, l, QUIET));
-      const first = html.slice(html.indexOf('class="block today-now"'), html.indexOf('</section>', html.indexOf('class="block today-now"')));
+      // The warmth run — the band is the first zone; its class carries more after "today-now" now.
+      const first = html.slice(html.indexOf('class="block today-now'), html.indexOf('</section>', html.indexOf('class="block today-now')));
       const hrefs = [...first.matchAll(/class="deeper" href="([^"]+)"/g)].map((m) => m[1]);
       expect(hrefs, l).toEqual(['/app/inbox?filter=blocked', '/app/inbox?filter=deletion']);
       expect(first, l).toContain(esc(tn(l, 'today.deletion', 2)));

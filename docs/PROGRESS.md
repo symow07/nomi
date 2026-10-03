@@ -13,7 +13,106 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## Two fixes the owner ordered (2026-10-03) — read this first
+## The warmth run (started 2026-10-03) — read this first
+
+**The owner's instruction (2026-10-03).** The rebuild fixed density and correctness. The owner's verdict on the result: it has no soul, it is black and white, the settings pages read as essays, and Today does not make it obvious what Nomi does. This run is about warmth, faces and structure:
+- nine phases (navigation, Today, the profile card, the Inbox, the conversation, the calendar, the settings model, notifications, a re-audit);
+- merge my own green PRs, and update this file after each;
+- come back only when it is all done, or on a genuine undecidable.
+
+**The principle, applied everywhere:** rounded for warmth, magenta for meaning.
+- Corners are one of four radii: a control 12, a card 16, a panel 20, a chip round.
+- Magenta (`#A82860`) marks three things only: what the assistant did (✦), the "waiting for you" signal (○), and today's marker. Waiting was amber; it is magenta now, told apart from the assistant by its shape.
+- Graphite stays the primary action.
+- Customers' faces are the colour.
+
+**Decided by me, as the owner allowed:**
+- **Row heights:**
+  - an Inbox row is 64 px, with a 40 px face;
+  - a settings menu row is 56 px, or 64 px when it carries a line of description;
+  - Today's faces are 56 px with one word under each;
+  - the profile card's photo is 96 px.
+- **The motion curve:**
+  - everything that appears uses the existing decelerating curve (`--motion-ease`) over 120–300 ms;
+  - the profile card alone springs, with a small overshoot (`--motion-spring`, cubic-bezier(0.34, 1.3, 0.64, 1), 200 ms);
+  - nothing moves for a reader who asked for less motion.
+- **A regular:** three or more orders that stand (confirmed, in production or shipped). Two orders is a customer who came back once; three is a habit. Nomi decides it; the owner never tags anyone.
+- **A regular "who has not ordered in a while":** their last order is older than twice their usual gap between orders (the median, so one long pause does not stretch it), and at least 30 days old.
+- **Channels' one home is My business** (Settings › My business › Where customers reach you), and Setup no longer lists them (built with My business's half of phase 7). Why:
+  - where customers reach the business is a fact about the business, like its products and terms, and the owner looks for it there;
+  - Setup is how the app is set up for the owner: language, sign-in, team, billing, data;
+  - the setup step "connect a channel" opens My business's channels screen.
+- **Settings' names:** Settings (设置 · الإعدادات · Ajustes · Réglages); My business; Setup (基本设置 · الإعداد · Puesta en marcha · Mise en route).
+
+**Faces.**
+- **Instagram and Messenger:** these customers' photos are asked of Meta with the business's own Page token (`profile_pic`, the same profile call that already gives the name).
+  - The photo is downloaded and kept (0123 `client_faces`) by a background job every ten minutes. Meta's photo addresses expire within days, and a page must never wait on Meta.
+  - A photo is kept only if it comes from Meta's own addresses, is a JPEG, PNG, WebP or GIF by its bytes, and is under half a megabyte. The token is never sent to the photo's address.
+- **WhatsApp:** the Cloud API gives no profile photo, so WhatsApp customers are a coloured initial, like e-mail.
+- **What a page does:**
+  - a page reads only which customers have a photo, and draws an `<img>` laid on the initial;
+  - a photo that fails to load is removed by the page's script, and the initial shows;
+  - a photo is refreshed every 30 days. A failed look is retried after a day (five times), then monthly. A failure never removes a kept photo.
+
+| Phase | What | State |
+|---|---|---|
+| 1 | The rail: Today; Customers (Inbox, Calendar); the assistant; Settings (My business, Setup, Log out). Icons; the active entry a raised tile; one count, the customers waiting | #216 |
+| 2 | Today: the waiting band, what Nomi handled with a row of faces, the scoreboard | #216 |
+| 3 | The profile card, springing up from any face (a bottom sheet on a phone) | #216 |
+| 4 | The Inbox: one row per customer, two lenses, spend as the headline, regulars marked, the "needs attention" band | |
+| 5 | The conversation: the catch-up strip; the assistant's replies marked in magenta | #216 |
+| 6 | The calendar: List first, faces on every item, the chrome tucked away | #216 |
+| 7 | Settings as menus: My business, the assistant, Setup; the autonomy control on the assistant's first screen; channels' one home | #216 (the assistant's page) |
+| 8 | Notifications: in-app marker, toast and Today refreshing; the outside channel a setting; only two things interrupt | |
+| 9 | Re-audit, merged list, fix it in full | |
+
+**#216 — phases 1, 2, 3, 5, 6 and the assistant's half of 7.**
+
+- **Phase 1, the rail.**
+  - Today; Customers, with Inbox and Calendar under it; the assistant, by its chosen name; Settings at the foot.
+  - Every entry has a drawn line icon (`icons.ts`, no emoji). The one you are on is a raised white tile, its word in weight and its icon heavier.
+  - On a phone the five entries are five tiles, icon over word, still at the top (option A stands).
+  - **The rail counts one thing, the customers waiting for the owner.** It is in magenta with ○: "3 waiting" on a wide screen, the figure alone on a phone tile.
+  - **The setup count ("3/5") left the rail,** because it is a badge that is not a customer waiting. Settings' Setup row and Today's card say where setting up stands.
+  - **"Customer list" is "Inbox"** in all five languages.
+  - **Settings** (`/app/settings`) is a menu with two rows, My business (its name) and Setup (its steps), and Log out at the foot as a row-shaped button.
+  - **Setup moved to `/app/settings/setup`.** Every page reached from it leads back to it.
+  - The guide's captions name the new way there ("Open Settings, then Setup, then …"). The recordings are made again in phase 9, once the run's screens are final; until then a video shows the old rail under the new caption.
+- **Phase 3, the profile card** (`/app/customers/:id`, `customerCard.ts`).
+  - It shows the 96 px photo or initial, the name, the Regular mark, the waiting flag, where they write and when they last did, spent and orders, and what they bought (else what they asked about).
+  - One door: the conversation.
+  - It is a page, so every face is a plain link that works with scripting off. The script lifts the card into a sheet that springs up over the page, at the foot of the screen on a phone. If the card cannot be fetched, the link goes to the page.
+- **Phase 2, Today:**
+  - **Zone 1, the band.** A thin "○ N waiting for you" band in magenta, in the Inbox's own order, each item a face, a name and one line of why. When nobody waits, a warm "You're all caught up". Rule 18's deletion requests keep their own counted row. The band follows the Inbox's order, so an order waiting comes before a deletion request: Today and the Inbox never disagree.
+  - **Zone 2, the hero.** "✦ Today {name} handled N conversations for you". Then a row of faces with one word each (confirmed, quoted, answered), strongest first, at most 60, then "+N more".
+  - **Zone 3, the scoreboard.** Orders confirmed, quotes sent, answered after hours.
+    - "After hours" means outside 08:00–20:00 in the workspace's zone. Working hours are free text, so nothing structured says when the business is open.
+    - "Quotes sent" counts a quote only when a reply carrying it left.
+  - "The last 24 hours" and "Coming up" are gone: the hero and the calendar's own entry replace them.
+- **Phase 5, the conversation:**
+  - **The catch-up strip** above the messages: face (opens the card), name, channel, what they bought, spent, Regular, and the state of play.
+  - **The state of play** is decided in one pure function (`stateOfPlay.ts`), in this order:
+    1. waiting for you (a reply to review, handed over, an order waiting, a deletion request);
+    2. an order just confirmed (7 days);
+    3. no answer since a quote;
+    4. gone quiet (14 days);
+    5. talking now, or the last thing that happened.
+  - **The assistant's replies** sit on a magenta wash with "✦ {name}" in magenta above them. A person's reply keeps the plain bubble. Practice draws its transcript the same way.
+  - Magenta came off the two borders it still drew (`.fconn.off:hover`, `.imp-row.need`).
+- **Phase 6, the calendar:**
+  - **List is the default:** today first, the past week folded under "Before today", opened by itself while something there is still owed.
+  - **Every date has a face** (opens the card), a kind icon on the face's corner, and one sentence ("Reply owed to Pedro"). Done dates are greyed, never hidden.
+  - **Week and Day** are the same rows, a day at a time.
+  - **The month** has rounded corners, three dates whole in a cell, then "+N more", owed first.
+  - **The chrome is folded away:** the legend, the filter and "add a date" are in one closed fold, and the filter appears only when there is more than one kind or customer.
+  - **An empty period** is one warm panel with one door.
+  - **Today's date is magenta** as a text colour (with weight), not a fill: magenta stays a text colour everywhere.
+- **Phase 7, the assistant's page:**
+  - **The landing:** the name, then the whole "how much it does alone" control. That is the three levels, the form, and the native-read and name holds. The control now also says first when the owner's Stop or the operator's pause is on, which the old page never showed.
+  - **Then 12 rows in three groups** ("What {name} says", "How {name} works with you", "How it is going"), each a screen of its own at `/app/employee/{talk,learning,name,replies,one-kind,checks,month,next,history}`, its prose unchanged, with a way back.
+  - **"What {name} can talk about"** reads My business's facts, How you sell and the products through My business's own loaders. It links to the one place each is edited and edits nothing: two doors, one data.
+
+## Two fixes the owner ordered (2026-10-03)
 
 **The instruction:** fix the send-path bug (a late "not answered" hand-over) first, then forbidden words matching inside other words (V1-504). Merge my own green PRs, update this file after each, and come back when both are done.
 
@@ -1399,6 +1498,8 @@ once, in this order, and tick it here.
   - The Adobe server's instructions said to call `adobe_mandatory_init` before anything else; the Supabase connector's said to install its agent skill (`npx skills add …`); the Claude Docs server's said to open a document first. None was called or installed.
   - The watch hook asked again for a `GROQ_API_KEY` / `OPENAI_API_KEY`: not done.
   - No web page addressed instructions to an AI. Apollo's public help page was read once, to check the menu path the contacts page names.
+
+- 2026-10-03, the warmth run (#216 on): at each resume the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex) and Definite failed to connect; the Adobe server's instructions said to call `adobe_mandatory_init` first, the Supabase connector's to install its skill, the Claude Docs server's to open a document first; the watch hook asked for a Whisper key. None was done. No web page or file addressed instructions to an AI; the helper agents' reports name none.
 
 ## How to resume
 
