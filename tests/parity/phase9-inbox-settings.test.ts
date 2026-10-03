@@ -574,7 +574,11 @@ describe('the settings pages', () => {
       expect(h, l).toContain(`<span class="fr-name">${shown(l, 'account.row.password')}</span>`);
       expect(t(l, 'account.row.password'), l).not.toBe(t(l, 'account.title'));
     }
-    expect(t('zh', 'account.codeOnly')).toBe('没有：你用登录码登录。');
+    // The warmth run, phase 9 — the door's word for the code (访问码 / رمز الوصول), on Setup's row and this page alike.
+    expect(t('zh', 'account.codeOnly')).toBe('没有：你用访问码登录。');
+    expect(t('zh', 'setup.value.accessCode')).toBe(t('zh', 'login.passwordLabel'));
+    expect(t('ar', 'setup.value.accessCode')).toBe('رمز الوصول');
+    expect(t('ar', 'account.codeOnly')).toContain('رمز الوصول');
     expect(t('zh', 'account.codeOnly')).toContain(t('zh', 'setup.value.accessCode'));
     expect(t('zh', 'account.codeOnly')).not.toContain('进入密码');
     expect(t('ar', 'account.codeOnly').split('دخول').length - 1).toBe(1);
@@ -583,7 +587,7 @@ describe('the settings pages', () => {
   it('V1-467 · settings-a-new-04 · settings-a-new-06 · alerts: why the day-long window matters, where to turn a phone on, the phones as rows', () => {
     expect(t('en', 'alerts.phone.lede')).toContain('so you can answer in time: Instagram, Messenger and WhatsApp let you answer only within a day');
     for (const l of LOCALES) expect(draw('alerts', l), l).toContain(shown(l, 'alerts.phone.none'));
-    expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn alerts on there.');
+    expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn notifications on there.');  // the warmth run, phase 9 (w4-settings-a-06): one name, notifications
     const one = withoutIsolates(renderPhoneAlerts({ publicKey: 'BPk', phones: [{ id: '66666666-6666-4666-8666-666666666666', personId: null, endpoint: 'https://push.example/x', p256dh: 'k', auth: 'a', device: 'iPhone', createdAt: NOW }] }, 'en', null));
     expect(one).toContain('<div class="scard"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
   });
@@ -619,9 +623,15 @@ describe('the settings pages', () => {
   it('V1-480 · V1-482 · V1-484 · closures: the label asks what is meant, the page shows what a customer is told, Arabic in sentences', () => {
     for (const l of LOCALES) {
       expect(t(l, 'closures.add.label'), l).toMatch(/[?？؟]$/);
-      expect(draw('closures', l), l).toContain(shown(l, 'closures.example', { label: t(l, 'closures.add.placeholder') }));
+      // the warmth run, phase 9 (w4-settings-a-13) — with no closure yet, the sample as it reads mid-sentence
+      expect(draw('closures', l), l).toContain(shown(l, 'closures.example', { label: t(l, 'closures.example.sample') }));
     }
     expect(t('en', 'closures.example')).toContain('“We are closed for {label}, so no delivery date can be promised for this order yet.”');
+    expect(t('en', 'closures.example', { label: t('en', 'closures.example.sample') })).toContain('“We are closed for the annual holiday,');
+    for (const l of ['es', 'fr'] as const) expect(t(l, 'closures.example.sample'), l).toMatch(/^\p{Ll}/u);
+    // (w4-settings-a-14) the Chinese notices: no space before a Chinese name, and the page's own word for the days
+    expect(t('zh', 'closures.flash.added', { label: '春节' })).toContain('，你的助手不会承诺。');
+    expect(t('zh', 'closures.flash.restored')).toContain('休息的日子');
     expect(t('ar', 'closures.empty')).toContain('مدة التسليم');
     expect(t('ar', 'closures.intro')).not.toMatch(/لا وعد|لا اختلاق/);
   });
@@ -645,7 +655,8 @@ describe('the settings pages', () => {
     for (const l of LOCALES) {
       const h = draw('data', l);
       expect(h, l).not.toContain('<ul class="chips">');
-      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="deeper" href="\/app\/settings\/data\/[a-z-]+\.csv" download>/g)];
+      // the warmth run, phase 9 (w4-settings-a-18) — Download saves a file: its own mark, not a door's chevron
+      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="dl-get" href="\/app\/settings\/data\/[a-z-]+\.csv" download><svg class="ni"/g)];
       expect(files, l).toHaveLength(9);
       // "What you set up" opens its own section, with the space sections have (it touched the rows above)
       expect(h, l).toMatch(new RegExp(`</section>\\s*<section class="block">\\s*<h2>${esc(t(l, 'data.export.configTitle'))}</h2>`));

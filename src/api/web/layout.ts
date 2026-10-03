@@ -1113,14 +1113,20 @@ const STYLE_PAGES = `
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   /* Phase 9 (V1-502) — the fixed words, one line a language, inside their fold. */
+  /* Phase 9 of the warmth run (w4-settings-a-20) — the fixed list stands apart from the empty panel above it. */
+  .block.floor { margin-top:var(--space-24); }
   .floor-fold summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:var(--font-size-small); }
   .floor-langs { margin:var(--space-8) 0 0; }
   .floor-langs div { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-12); padding:var(--space-4) 0; font-size:var(--font-size-small); }
   .floor-langs dt { font-weight:600; min-width:7em; }
   .floor-langs dd { margin:0; flex:1 1 16em; color:var(--color-ink-secondary); }
   /* Phase 9 (V1-492) — a file to take, one row of a card each: its name, and its own Download at the row's end. */
-  .dl-files { max-width:var(--measure-prose); }
   .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
+  .dl-get { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; color:var(--color-ink); font-size:var(--font-size-small); text-decoration:none; }
+  .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-underline-offset:3px; }
+  .dl-get > .ni { inline-size:18px; block-size:18px; flex:none; }
+  .data-more { margin:0 0 var(--space-12); }
+  .data-more > summary { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   /* Phase 9 (settings-a-new-10) — on a settings page an empty panel spans the column, as the cards above it do. */
   .empty.whole { max-width:100%; }
   /* Phase 9 (V1-483) — in Arabic a date or a time sits on the reading side of its field, like every word around it
@@ -1129,6 +1135,17 @@ const STYLE_PAGES = `
   .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .rate-hist li:last-child { border-bottom:0; }
+  /* The warmth run, phase 9 (V1-008) — a closure's date in the owner's language: day, the month by name, year,
+     side by side in the order the language writes a date, each with its small name above it. */
+  .dparts { display:flex; gap:var(--space-8); max-width:var(--measure-form); }
+  .dpart { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .dpart-n { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .dpart-d { flex:0 0 4em; }
+  .dpart-y { flex:0 0 5.5em; }
+  .dpart-m { flex:1 1 0; }
+  .dpart > input, .dpart > select { inline-size:100%; }
+  .dpart > select { flex:1 1 auto; }
+  .setrow.bad .dpart > input, .setrow.bad .dpart > select { border-color:var(--color-warn); }
   .closures { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   .closures li { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .closures li:last-child { border-bottom:0; }
@@ -1221,9 +1238,24 @@ const STYLE_PAGES = `
   @media (prefers-reduced-motion: no-preference) {
     .toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
   }
-  /* The Notifications page: the three ways one under another; one that cannot be chosen yet reads as such. */
-  .choices.ways { flex-direction:column; }
-  .choices.ways label.check:has(> input:disabled) { color:var(--color-ink-secondary); }
+  /* The Notifications page: the three ways as the rows of one card, each dot beside the way's name (its first
+     line); a way that cannot be chosen yet reads as such; what reaches nobody is said first; the save in the card. */
+  fieldset.ways { min-inline-size:0; }
+  .ways > * + * { border-top:1px solid var(--color-border); }
+  .way { display:flex; align-items:flex-start; gap:var(--space-12); min-height:56px; padding:var(--space-12) var(--space-16); cursor:pointer; }
+  .way > input { flex:none; margin:var(--space-4) 0 0; }
+  .way-t { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .way-n { font-weight:600; font-size:var(--font-size-small); }
+  .way-d { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .way:has(> input:disabled) { cursor:default; }
+  .way:has(> input:disabled) .way-n { color:var(--color-ink-secondary); }
+  .way-door { white-space:nowrap; }
+  .way-foot { margin:0; padding:var(--space-12) var(--space-16); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .ways-none { margin:0 0 var(--space-12); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); max-width:var(--measure-prose); }
+  .ways-sub { margin:0 0 var(--space-16); font-size:var(--font-size-small); color:var(--color-ink-secondary); max-width:var(--measure-prose); }
+  /* The button that turns a phone on is drawn hidden and shown by the page's script where the browser can: a
+     button's own display must not undo that (it showed beside "This browser cannot show notifications"). */
+  .btn[data-push-key][hidden] { display:none; }
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
   .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }

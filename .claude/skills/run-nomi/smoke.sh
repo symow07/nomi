@@ -81,6 +81,7 @@ env -u NODE_ENV \
   WEBHOOK_SECRET="smoke-webhook-secret-0000000000000000" \
   OWNER_ACCESS_CODE="$CODE" \
   LEGAL_CONTACT_EMAIL="privacy@example.com" \
+  COMPONENT_GALLERY=on \
   PORT="$APPPORT" \
   node dist/main.js &> "$SK/app.log" &
 APP_PID=$!

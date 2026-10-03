@@ -45,6 +45,22 @@ export function formatDate(locale: Locale, d: Date, zone: string): string {
   }).format(d);
 }
 
+/**
+ * The warmth run, phase 9 (V1-008) — a date the owner's language draws, for a
+ * field the owner fills: the order that language writes day, month and year in
+ * (Intl's own: "February 5, 2026", "2026年2月5日", "5 فبراير 2026"), and the
+ * twelve months by name ("1月"… in Chinese, as its dates are written).
+ */
+export function datePartOrder(locale: Locale): readonly ('day' | 'month' | 'year')[] {
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    .formatToParts(new Date(Date.UTC(2026, 1, 5)))
+    .map((p) => p.type).filter((x): x is 'day' | 'month' | 'year' => x === 'day' || x === 'month' || x === 'year');
+}
+export function monthNames(locale: Locale): readonly string[] {
+  const f = new Intl.DateTimeFormat(INTL_TAG[locale], { month: 'long', timeZone: 'UTC' });
+  return Array.from({ length: 12 }, (_, i) => (locale === 'zh' ? `${i + 1}月` : f.format(new Date(Date.UTC(2026, i, 1)))));
+}
+
 /** Phase 9 (V1-193) — the same, with its year: "Wed, Sep 30, 2026", for a date a record keeps past the year. */
 export function formatDateYear(locale: Locale, d: Date, zone: string): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], {

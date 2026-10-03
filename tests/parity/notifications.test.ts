@@ -77,6 +77,15 @@ describe('the default and the choice', () => {
     // …and is e-mail while it cannot: Browser with no phone on, WhatsApp with no number on a live channel
     expect(alertChannelFor('browser', { whatsapp: true, browser: false, approved: true })).toBe('email');
     expect(alertChannelFor('whatsapp', { whatsapp: false, browser: true, approved: true })).toBe('email');
+    // Phase 9 (w4-settings-a-02) — with no address, e-mail is no floor: nothing reaches them, and it says so.
+    const noMail = { whatsapp: false, browser: false, approved: false, email: false };
+    expect(alertChannelFor(null, noMail)).toBeNull();
+    expect(alertChannelFor('email', noMail)).toBeNull();
+    expect(alertChannelFor('browser', noMail)).toBeNull();
+    expect(alertChannelFor('whatsapp', { ...noMail, whatsapp: true })).toBe('whatsapp');
+    expect(alertChannelFor(null, { ...noMail, whatsapp: true, approved: true })).toBe('whatsapp');
+    // the default before approval is e-mail, which cannot reach them: nothing, until they choose WhatsApp
+    expect(alertChannelFor(null, { ...noMail, whatsapp: true })).toBeNull();
   });
 
   it('what is stored: the choice, or NULL when the owner chose what is the default now', () => {
@@ -333,13 +342,22 @@ describe('the Notifications page, in every language', () => {
       expect(html).toContain(`<li>${esc(t(l, 'alerts.two.order'))}</li>`);
       expect(html).toContain(esc(withoutIsolates(t(l, 'alerts.two.handover'))).split('{name}')[0]!);
       expect(html).toContain(esc(t(l, 'alerts.rest')));
-      expect(html).toContain('<form method="post" action="/app/settings/alerts/channel" class="pform">');
+      expect(html).toContain('<form method="post" action="/app/settings/alerts/channel">');
+      // Phase 9 (settings-a-new-06) — the three ways are the rows of one card, like every sibling page's settings.
+      expect(html).toContain('<fieldset class="scard ways" aria-labelledby="alerts-way">');
       expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
       expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.number')));
+      // (w4-settings-a-03) …and the door to where the number and the channel are set.
+      expect(html).toContain(`<a class="way-door" href="/app/channels#alerts">${esc(t(l, 'factory.reach.title'))}<span class="go" aria-hidden="true">›</span></a>`);
       expect(html).not.toContain(esc(t(l, 'alerts.way.whatsapp.early')));
+      // (w4-settings-a-01) what the plan rests on: WhatsApp is the intended way, the default the day Meta approves.
+      expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.plan')));
+      expect(t(l, 'alerts.way.whatsapp.plan')).toContain('Meta');
       expect(html).toContain(esc(t(l, 'alerts.way.fallback')));
+      // (w4-settings-a-05) the e-mails that come whatever the way
+      expect(html).toContain(esc(t(l, 'alerts.alsoMail')));
       // the phones are still here, under their own heading
-      expect(html).toContain(`<h2 id="alerts-phones">${esc(t(l, 'alerts.phone.title'))}</h2>`);
+      expect(html).toContain(`<h2 class="sgroup-h" id="alerts-phones">${esc(t(l, 'alerts.phone.title'))}</h2>`);
       expect(html).toContain('data-push-key="BKEY"');
       expect(html).not.toMatch(/\balerts\.[a-zA-Z_.]+/);
       expect(html).not.toMatch(/\bstaff\.[a-zA-Z_.]+/);
@@ -370,29 +388,105 @@ describe('the Notifications page, in every language', () => {
     for (const l of LOCALES) expect(t(l, 'alerts.way.whatsapp.early'), l).toContain('Meta');
   });
 
-  it('Browser chosen with no phone on: the page says so, and that e-mail carries them until one is', () => {
+  it('Browser chosen with no phone on: the way ticked is the one that carries them (e-mail), and the choice is named', () => {
     const html = renderPhoneAlerts(view(ownerWays({ choice: 'browser' })), 'en', null);
-    expect(radios(html)).toEqual(['email', 'browser*', 'whatsapp-']);
+    expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
     expect(html).toContain(esc(t('en', 'alerts.way.browser.none')));
-    expect(html).toContain(`<p class="fwarn">${esc(t('en', 'alerts.way.instead'))}</p>`);
+    expect(html).toContain(`<p class="way-foot">${esc(t('en', 'alerts.way.instead', { way: t('en', 'alerts.way.browser') }))}</p>`);
     // the existing way to turn them on is right there
     expect(html).toContain('data-push-save="/app/settings/alerts/phone"');
     const on = renderPhoneAlerts(view(ownerWays({ choice: 'browser' }), { phones: [PHONE] }), 'en', null);
     expect(on).toContain(esc(t('en', 'alerts.way.browser.on')));
-    expect(on).not.toContain('class="fwarn">');
+    expect(radios(on)).toEqual(['email', 'browser*', 'whatsapp-']);
+    expect(on).not.toContain('class="way-foot">' + esc(t('en', 'alerts.way.instead', { way: t('en', 'alerts.way.browser') })));
   });
 
   it('no phone alerts on this installation: Browser cannot be chosen, and says why', () => {
     const html = renderPhoneAlerts(view(ownerWays(), { publicKey: null }), 'en', null);
     expect(radios(html)).toEqual(['email*', 'browser-', 'whatsapp-']);
     expect(html).toContain(esc(t('en', 'alerts.phone.off')));
-    expect(html).toContain(esc(t('en', 'alerts.phone.ledeOff')));
+    // Phase 9 (w4-settings-a-08) — said once, on the way's own line: no empty section repeats it.
+    expect(html).not.toContain('id="alerts-phones"');
+    // the only way that can be chosen is the one already ticked: nothing to save
+    expect(html).not.toContain(`>${esc(t('en', 'alerts.way.save'))}</button>`);
+  });
+
+  for (const l of LOCALES) {
+    it(`${l} · PHASE 9 (w4-settings-a-02) · no e-mail address: e-mail is never ticked, and the page says plainly that nothing reaches them`, () => {
+      // nothing can be chosen here: no address, no phone notifications on this installation, no number on a live channel
+      const bare = withoutIsolates(renderPhoneAlerts(view(ownerWays({ email: null }), { publicKey: null }), l, null));
+      expect(radios(bare)).toEqual(['email-', 'browser-', 'whatsapp-']);
+      expect(bare).toContain(`<p class="ways-none">${esc(t(l, 'alerts.way.nothing'))}</p>`);
+      expect(bare).toContain(esc(t(l, 'alerts.way.email.none')));
+      expect(bare).not.toContain(esc(t(l, 'alerts.way.fallback')));     // e-mail is no floor for them
+      expect(bare).not.toContain(esc(t(l, 'alerts.alsoMail')));
+      expect(bare).not.toContain(`>${esc(t(l, 'alerts.way.save'))}</button>`);
+      // WhatsApp reachable before approval: it may be chosen; nothing is ticked until it is
+      const early = withoutIsolates(renderPhoneAlerts(view(ownerWays({ email: null, whatsapp: 'early', ownerPhone: '+971500000000' }), { publicKey: null }), l, null));
+      expect(radios(early)).toEqual(['email-', 'browser-', 'whatsapp']);
+      expect(early).toContain(`<p class="ways-none">${esc(t(l, 'alerts.way.notYet'))}</p>`);
+      expect(early).toContain(`>${esc(t(l, 'alerts.way.save'))}</button>`);
+      const chosen = withoutIsolates(renderPhoneAlerts(view(ownerWays({ email: null, whatsapp: 'early', ownerPhone: '+971500000000', choice: 'whatsapp' }), { publicKey: null }), l, null));
+      expect(radios(chosen)).toEqual(['email-', 'browser-', 'whatsapp*']);
+      expect(chosen).not.toContain('class="ways-none"');
+      // Setup's row says so too
+      const scope: RequestScope = { name: null, several: false, outreach: false, setup: null };
+      const setup = withWorkspace(scope, () => renderSetup({ people: 1, alerts: { available: false, phones: 0,
+        way: alertWayNow(ownerWays({ email: null }), { publicKey: null, phones: [] }) } }, l, null));
+      expect(setup).toContain(`<span class="sr-desc">${esc(t(l, 'setup.alerts.nothing'))}</span>`);
+      expect(setup).not.toContain(`<bdi>${esc(t(l, 'alerts.way.email'))}</bdi>`);
+    });
+  }
+
+  it('PHASE 9 (w4-settings-a-02) · the sender agrees with the page: no address and the default is nothing tried, not e-mail', async () => {
+    const asked: string[] = [];
+    const ways: InterruptionWays = {
+      email: async (to) => { asked.push(`email:${to}`); return 'sent'; },
+      browser: async () => { asked.push('browser'); return 'sent'; },
+      whatsapp: async () => { asked.push('whatsapp'); return 'sent'; },
+    };
+    const person: InterruptionPerson = { id: 'o', isOwner: true, choice: null, email: null, phones: [] };
+    expect(await reachPeople([person], { whatsappReachable: true, approved: false, pushOn: true }, ways))
+      .toEqual({ outcome: 'skipped_no_destination', went: [null], later: false });
+    expect(asked).toEqual([]);
+    expect(alertWayNow(ownerWays({ email: null, whatsapp: 'early', ownerPhone: '+971500000000' }), { publicKey: 'K', phones: [] })).toBeNull();
+    // chosen WhatsApp, the page ticks it and the sender takes it
+    expect((await reachPeople([{ ...person, choice: 'whatsapp' }], { whatsappReachable: true, approved: false, pushOn: true }, ways)).went).toEqual(['whatsapp']);
+    expect(alertWayNow(ownerWays({ email: null, whatsapp: 'early', ownerPhone: '+971500000000', choice: 'whatsapp' }), { publicKey: 'K', phones: [] })).toBe('whatsapp');
+  });
+
+  it('PHASE 9 · Arabic names WhatsApp in its own script (w4-settings-a-07); the way back follows the door it was opened from (w4-settings-a-10)', () => {
+    const ar = renderPhoneAlerts(view(ownerWays()), 'ar', null);
+    expect(ar).toContain(`<span class="way-n">واتساب</span>`);
+    expect(ar).not.toContain('<span class="way-n">WhatsApp</span>');
+    for (const l of LOCALES) {
+      const fromChannels = renderPhoneAlerts(view(ownerWays()), l, null, 'channels');
+      expect(fromChannels).toContain(`<a class="back" href="/app/channels#alerts"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'factory.reach.title'))}</a>`);
+      expect(fromChannels).toContain('<input type="hidden" name="from" value="channels" />');
+      expect(renderPhoneAlerts(view(ownerWays()), l, null)).toContain(`<a class="back" href="/app/settings/setup">`);
+    }
+  });
+
+  it('PHASE 9 · one name for one thing (w4-settings-a-06): the page, its card on the channels screen, the way and its section', () => {
+    for (const l of LOCALES) {
+      expect(t(l, 'settings.alerts.title'), l).toBe(t(l, 'alerts.title'));
+    }
+    for (const k of ['alerts.way.browser', 'alerts.phone.title', 'alerts.phone.off', 'alerts.phone.turnOn', 'settings.alerts.label', 'settings.alerts.desc'] as const) {
+      expect(t('en', k), k).not.toMatch(/\balerts?\b|\bBrowser\b/i);
+      expect(t('zh', k), k).not.toContain('提醒');
+      expect(t('es', k), k).not.toMatch(/\bavisos?\b/i);
+      expect(t('fr', k), k).not.toMatch(/\balertes?\b/i);
+      expect(t('ar', k), k).not.toContain('التنبيهات');
+    }
+    // (w4-settings-a-04) the card no longer says WhatsApp must be approved first: it may be chosen now, and is the default from approval
+    for (const l of LOCALES) expect(t(l, 'settings.alerts.desc'), l).toContain('Meta');
   });
 
   it('a colleague who has not chosen: nothing checked, and nothing reaches them yet; WhatsApp is the owner\'s number', () => {
     for (const l of LOCALES) {
       const html = renderPhoneAlerts(view({ choice: null, isOwner: false, email: null, whatsapp: 'owner', ownerPhone: null }), l, null);
-      expect(radios(html), l).toEqual(['email', 'browser', 'whatsapp-']);
+      // no address: e-mail cannot be chosen (phase 9, w4-settings-a-02); a phone or computer can
+      expect(radios(html), l).toEqual(['email-', 'browser', 'whatsapp-']);
       expect(html, l).toContain(esc(t(l, 'alerts.way.notYet')));
       expect(html, l).toContain(esc(t(l, 'staff.whatsappAlerts')));
       expect(html, l).toContain(esc(t(l, 'alerts.way.email.none')));
@@ -408,7 +502,9 @@ describe('the Notifications page, in every language', () => {
     expect(html).toMatch(new RegExp(`href="/app/settings/alerts"><svg[\\s\\S]*?</svg><span class="sr-main"><span class="sr-label">${t('en', 'alerts.title')}</span>`));
     expect(html).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'alerts.way.email')}</bdi></span>`);
     expect(row('whatsapp')).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'conv.channel.whatsapp')}</bdi></span>`);
-    expect(row(null)).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
+    // Phase 9 (w4-settings-a-02) — nothing reaches them: the row says so, and names no way.
+    expect(row(null)).toContain(`<span class="sr-desc">${t('en', 'setup.alerts.nothing')}</span>`);
+    expect(/href="\/app\/settings\/alerts">([\s\S]*?)<\/a>/.exec(row(null))![1]).not.toContain('sr-value');
     // the way it reaches them now — the e-mail a Browser with no phone falls back to
     const ways = ownerWays({ choice: 'browser' });
     expect(alertWayNow(ways, { publicKey: 'K', phones: [] })).toBe('email');
@@ -426,6 +522,7 @@ describe('the Notifications page, in every language', () => {
       'alerts.way.email', 'alerts.way.browser', 'alerts.way.email.to', 'alerts.way.email.none', 'alerts.way.browser.on',
       'alerts.way.browser.none', 'alerts.way.whatsapp.to', 'alerts.way.whatsapp.early', 'alerts.way.whatsapp.number',
       'staff.whatsappAlerts', 'alerts.way.instead', 'alerts.way.notYet', 'alerts.way.save', 'alerts.way.fallback',
+      'alerts.way.nothing', 'alerts.way.whatsapp', 'alerts.way.whatsapp.plan', 'alerts.way.whatsapp.planApproved', 'alerts.alsoMail', 'setup.alerts.nothing',
       'alerts.flash.way', 'alerts.flash.wayBad', 'live.toast.order', 'live.toast.deletion', 'live.toast.person', 'live.toast.reply'] as const;
     for (const l of LOCALES) for (const k of keys) {
       const s = t(l, k);
@@ -438,7 +535,10 @@ describe('the Notifications page, in every language', () => {
     }
     // The decision the owner gave, in their words: no plain draft, no "ready to buy" among the two.
     expect(t('en', 'alerts.two.order')).toBe('An order waiting for your tap');
-    expect(t('en', 'alerts.way.whatsapp.number')).toBe('Needs your WhatsApp number for alerts (under Where customers reach you) and a connected channel.');
+    // Phase 9 (w4-settings-a-03) — the condition as the code holds it: a channel that is LIVE, not merely connected.
+    expect(t('en', 'alerts.way.whatsapp.number')).toBe('Needs your WhatsApp number for notifications and a channel that is live.');
+    // …and no detached prefix in Arabic (V1-008's «لـ»): Meta's approval OF Nomi, said as on the plan's line.
+    expect(t('ar', 'alerts.way.whatsapp.early')).not.toContain('لـ ');
   });
 });
 

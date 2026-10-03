@@ -8,6 +8,7 @@ import { t } from './say.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, exportFileName, type ExportSubject } from './dataExport.js';
 import { back, deeper, esc } from './layout.js';
+import { icon } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
 import type { Viewer } from '../../core/conversation/people.js';
@@ -313,10 +314,14 @@ export function renderDataRights(
   // Phase 9 (V1-492, V1-497) — each file a row of a card with its own
   // "Download", the settings pages' pattern: a run of chevrons read as a
   // breadcrumb trail. Each half its own section, with the space sections have.
+  // The warmth run, phase 9 (w4-settings-a-18) — Download saves a file: its own mark, not a door's chevron;
+  // the cards span the column like every other card on the page.
   const links = (subjects: readonly ExportSubject[]) => `<ul class="scard dl-files">${subjects.map((s) => `<li class="row">
       <span>${esc(t(locale, `data.export.subject.${s}` as MessageKey))}</span>
-      ${deeper(`/app/settings/data/${exportFileName(s)}.csv`, t(locale, 'data.export.download'), '', 'download')}
+      <a class="dl-get" href="/app/settings/data/${exportFileName(s)}.csv" download>${icon('download')}<span>${esc(t(locale, 'data.export.download'))}</span></a>
     </li>`).join('')}</ul>`;
+  // Two sentences side by side: Chinese runs them on after 。, the others leave a space (w4-settings-a-17).
+  const both = (a: string, b: string): string => (locale === 'zh' ? `${a}${b}` : `${a} ${b}`);
   const CONFIG: readonly ExportSubject[] = ['price-rules', 'selling-terms', 'teaching'];
   const record = EXPORT_SUBJECTS.filter((s) => !CONFIG.includes(s));
 
@@ -329,8 +334,9 @@ export function renderDataRights(
     <h2>${esc(t(locale, 'data.export.configTitle'))}</h2>
     <p class="lede">${esc(t(locale, 'data.export.configLead'))}</p>
     ${links(CONFIG)}
-    ${/* Phase 9 (V1-500, V1-496) — the limit as a figure is written, and who "us" is, where an address is known. */ ''}<p class="muted">${esc(t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }))}${
-      v.contact ? ` ${esc(t(locale, 'data.export.limitWrite', { email: v.contact }))}` : ''}</p>
+    ${/* Phase 9 (V1-500, V1-496) — the limit as a figure is written, and who "us" is, where an address is known. */ ''}<p class="muted">${esc(v.contact
+      ? both(t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }), t(locale, 'data.export.limitWrite', { email: v.contact }))
+      : t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }))}</p>
   </section>`;
 
   // G9a's rule, applied here: a page that refuses on submit is worse than a
@@ -378,10 +384,10 @@ export function renderDataRights(
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
     ${files}
-    ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [])}
+    ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both)}
     <section class="block">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
-      <p class="lede">${esc(t(locale, 'data.deletion.lead'))} ${esc(t(locale, 'data.deletion.byHand'))}</p>
+      <p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.byHand')))}</p>
       ${ask}
     </section>
     ${history}
@@ -407,6 +413,7 @@ const STATE_TONE: Readonly<Record<DeletionRequest['state'], string>> = {
  */
 function buyerRequests(
   buyers: readonly BuyerDeletionRequest[], locale: Locale, viewer: Viewer, asks: readonly WaitingAsk[] = [],
+  both: (a: string, b: string) => string = (a, b) => `${a} ${b}`,
 ): string {
   const noted = asks.map((a) => `<li class="row">
       <div class="person"><a href="/app/conversations/${encodeURIComponent(a.conversationId)}#deletion"><b><bdi>${esc(a.buyer ?? t(locale, 'common.buyer'))}</bdi></b></a>
@@ -444,7 +451,10 @@ function buyerRequests(
   }).join('');
   return `<section class="block" id="buyers">
     <h2>${esc(t(locale, 'data.buyers.title'))}</h2>
-    <p class="lede">${esc(t(locale, 'data.buyers.lead'))} ${esc(t(locale, 'data.buyers.fromChat'))}</p>
+    <p class="lede">${esc(t(locale, 'data.buyers.lead'))}</p>
+    ${/* The warmth run, phase 9 (w4-settings-a-16) — how a request in a message is listed is a detail for whoever asks:
+        folded, so the section opens with one short paragraph, not ninety words. */ ''}<details class="data-more"><summary>${esc(t(locale, 'data.buyers.fromChatTitle'))}</summary>
+      <p class="muted small measure-prose">${esc(t(locale, 'data.buyers.fromChat'))}</p></details>
     ${/* Phase 9 (settings-a-new-14) — nobody yet is a state: the empty panel, not one more grey line. */ ''}${noted || rows ? `<ul class="rows">${noted}${rows}</ul>` : `<div class="empty whole">${esc(t(locale, 'data.buyers.none'))}</div>`}
   </section>`;
 }

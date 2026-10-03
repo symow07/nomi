@@ -91,7 +91,7 @@ import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS } from './appIcons.js';
-import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, type PushOut } from './phoneAlerts.js';
+import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, alertsFrom, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -154,7 +154,7 @@ import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
@@ -207,7 +207,7 @@ import {
   OTP_TTL_SECONDS, PENDING_TTL_MS, DEVICE_TTL_MS, type OtpPurpose,
 } from '../../security/otp.js';
 import { renderAccount } from './account.js';
-import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
+import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindProblem } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, exportFileName, loadExport, recordExport } from './dataExport.js';
@@ -229,7 +229,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 
@@ -437,6 +437,13 @@ export type WebDeps = {
   readonly push?: PushOut | null;
   /** CH4 — where Nomi stands with Meta (`META_APP_REVIEW`); absent: the panel is not drawn. */
   readonly metaReview?: MetaReview | null;
+  /**
+   * The warmth run, phase 9 (V1-006) — the component gallery is served at all:
+   * a page for whoever builds the product, walked by the screenshots tool on a
+   * local instance (`COMPONENT_GALLERY=on`, which the run-nomi smoke script
+   * sets). Absent or false — every normal installation — it is no page.
+   */
+  readonly componentGallery?: boolean;
   /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
@@ -938,6 +945,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
     'closures.flash.label_missing': 'label', 'closures.flash.from_missing': 'from', 'closures.flash.not_a_date': 'from',
     'closures.flash.to_missing': 'to', 'closures.flash.ends_before_starts': 'to',
+    'business.kind.bad.kind': 'kind', 'business.kind.bad.country': 'country', 'business.kind.bad.website': 'website',
     'terms.flash.payment_missing': 'payment', 'terms.flash.payment_too_long': 'payment', 'terms.flash.incoterm_invalid': 'incoterm',
     'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.negative': 'price',
     // Phase 7 — the calendar's own date.
@@ -950,8 +958,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     for (const [k, v] of Object.entries(values)) if (typeof v === 'string') typed[k] = v;
     return { values: typed, field, text: t(locale, key as MessageKey) };
   };
-  const sentBack = (req: FastifyRequest, reply: FastifyReply, active: string, bodyHtml: string) =>
-    reply.code(400).type('text/html; charset=utf-8').send(page(req, { title: t(localeOf(req), `nav.${active}` as MessageKey), active, bodyHtml }));
+  /**
+   * The warmth run, phase 9 (w4-settings-a-24) — a form sent back is a PAGE,
+   * drawn from a POST: the request's look-up reads the rail's count for a GET
+   * only, so it is read here, as fresh as any page's. Without it the rail lost
+   * its waiting count, and with it the live check (`data-rail`) that brings the
+   * marker and the toast while the owner corrects the form.
+   */
+  const sentBack = async (req: FastifyRequest, reply: FastifyReply, active: string, bodyHtml: string) => {
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    const waiting = s && bid?.ok
+      ? await withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)).then((c) => c.waiting, () => null)
+      : null;
+    return withNeedsYou(waiting, () => reply.code(400).type('text/html; charset=utf-8')
+      .send(page(req, { title: t(localeOf(req), `nav.${active}` as MessageKey), active, bodyHtml })));
+  };
 
   // ── M35 · the proof link: the ONE public page inside the app ─────────────
   //
@@ -1707,10 +1729,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 9 — the component gallery is a developer's page: no link reaches it
   // (phase 3), and like the machine room only the installation's own workspace
   // gets it at all. Every other owner is told there is no such page.
+  // The warmth run, phase 9 (V1-006) — and only where the installation serves
+  // it (`componentGallery`, a local instance's switch): on a normal one the
+  // owner of the installation's own workspace is told the same.
   app.get('/app/settings/components', {
     preHandler: async (req, reply) => {
       const s = sessionOf(req);
-      if (s && s.businessId !== deps.businessId) return reply.callNotFound();
+      if (s && (deps.componentGallery !== true || s.businessId !== deps.businessId)) return reply.callNotFound();
     },
   }, authed('settings', (s, req, locale) => renderComponents(locale)));
 
@@ -1816,7 +1841,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
-    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.setup'));
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn }, locale, flash, t(locale, 'nav.setup'));
   }));
 
   /**
@@ -4012,19 +4037,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The warmth run, phase 8 — the page is Notifications: what reaches anyone
   // outside Nomi, how it reaches this person (their own choice, 0124), and the phones.
   const whatsappApproved = (): boolean => deps.metaReview?.state === 'approved';
+  // Phase 9 (w4-settings-a-10) — opened from the channels screen's card, its way back leads there.
   app.get('/app/settings/alerts', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'alerts.title'),
     bodyHtml: renderPhoneAlerts({
       ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
       ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
-    }, locale, takeFlash(req, reply)),
+    }, locale, takeFlash(req, reply), alertsFrom((req.query as { from?: unknown } | undefined)?.from)),
   })));
   app.post('/app/settings/alerts/channel', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const way = await chooseAlertWay(deps.db, s.businessId, personOf(s).id, b['channel'],
       { approved: whatsappApproved(), pushOn: Boolean(deps.push) });
-    return flashTo(reply, '/app/settings/alerts', way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
+    return flashTo(reply, alertsFrom(b['from']) === 'channels' ? '/app/settings/alerts?from=channels' : '/app/settings/alerts',
+      way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
   });
   app.post('/app/settings/alerts/phone', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -4077,8 +4104,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;
-    const r = await saveBusinessKind(deps.db, s.businessId,
-      { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') }, personOf(s).id);
+    const typed = { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') };
+    // Phase 9 (w4-settings-a-11) — a refused answer is sent back with the three kept and the wrong one marked.
+    const problem = businessKindProblem(typed);
+    const kept = problem ? keptFrom(localeOf(req), `business.kind.bad.${problem}`, typed) : null;
+    if (kept) {
+      return sentBack(req, reply, 'settings', renderBusinessKind({ kind: typed.kind, country: typed.country || null, website: typed.website },
+        localeOf(req), null, t(localeOf(req), 'nav.factory'), kept));
+    }
+    const r = await saveBusinessKind(deps.db, s.businessId, typed, personOf(s).id);
     facts.evict(s.businessId);   // Phase 9 (V1-009) — the country decides how an amount is written on every page
     return flashTo(reply, '/app/settings/business', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
   });
@@ -4129,8 +4163,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
+    // The warmth run, phase 9 (V1-008) — each date arrives as day, month and year; put together, validated as before.
     const r = await addClosure(deps.db, s.businessId, {
-      label: b['label'] ?? null, from: b['from'] ?? null, to: b['to'] ?? null,
+      label: b['label'] ?? null, from: closureDateField(b, 'from'), to: closureDateField(b, 'to'),
     });
     if (r.code === 'added') return flashTo(reply, '/app/settings/closures', 'closures.flash.added', { label: r.label });
     const kept = keptFrom(locale, `closures.flash.${r.code}`, b);

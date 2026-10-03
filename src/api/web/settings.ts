@@ -4,6 +4,7 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
+import { datePartOrder, monthNames } from '../../core/owner/i18n/format.js';
 import { t, tn, assistantName, setupState, businessName } from './say.js';
 import { icon, type IconId } from './icons.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
@@ -303,9 +304,11 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       tone: setup ? toneOf(setup.next === null) : undefined }),
     menuRow({ href: '/app/onboarding', icon: 'setup', label: t(locale, 'nav.onboarding'),
       value: named === null ? null : t(locale, named ? 'setup.value.nameConfirmed' : 'setup.value.nameNotConfirmed'), tone: toneOf(named) }),
-    // The warmth run, phase 8 — Notifications: the row says how they reach this reader now.
+    // The warmth run, phase 8 — Notifications: the row says how they reach this reader now;
+    // phase 9 (w4-settings-a-02) — and, when nothing does, says that, not a way that cannot reach them.
     menuRow({ href: '/app/settings/alerts', icon: 'bell', label: t(locale, 'alerts.title'),
-      value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : t(locale, 'setup.value.off'))
+      desc: v.alerts?.way === null ? t(locale, 'setup.alerts.nothing') : null,
+      value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : null)
         : !v.alerts.available ? t(locale, 'setup.value.unavailable')
         : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
       tone: v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
@@ -650,8 +653,12 @@ export async function restoreForbidden(
  * since V1-504 the floor is written by language, so the page cannot drift from it.
  */
 export { FLOOR_BY_LANGUAGE };
+// Phase 9 of the warmth run (w4-settings-a-19) — a language's name starts its line as a label: capitalised
+// where the script has case (French and Spanish write "anglais", "inglés" mid-sentence).
 const languageOf = (locale: Locale, code: string): string => {
-  try { return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { return code; }
+  let n = code;
+  try { n = new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { /* the code itself */ }
+  return n.charAt(0).toLocaleUpperCase(locale) + n.slice(1);
 };
 const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
 
@@ -662,7 +669,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
     <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
-    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<p class="muted small">${esc(t(locale, 'forbidden.howMatched'))}</p>
+    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<p class="muted small measure-prose">${esc(t(locale, 'forbidden.howMatched'))}</p>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
@@ -893,28 +900,82 @@ export async function restoreClosure(
   });
 }
 
+/** Digits as typed on any keyboard the five languages use (Arabic-Indic, Persian, full-width) read as 0–9. */
+const asciiDigits = (s: string): string =>
+  s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xFF10));
+
+/**
+ * The warmth run, phase 9 (V1-008) — a closure's date as the form sends it:
+ * three parts, `<name>_d`, `<name>_m` and `<name>_y`, put back together as the
+ * one YYYY-MM-DD the server has always validated (`validateClosure`, which
+ * still decides). A date posted whole (`<name>`, an older page) is read as it
+ * was. Nothing given is missing; parts that make no date are not a date.
+ */
+export function closureDateField(body: Readonly<Record<string, string | undefined>>, name: 'from' | 'to'): string | null {
+  const whole = body[name];
+  if (typeof whole === 'string' && whole.trim()) return whole;
+  const [d, m, y] = (['d', 'm', 'y'] as const).map((p) => asciiDigits(String(body[`${name}_${p}`] ?? '')).trim());
+  if (!d && !m && !y) return null;
+  if (!/^\d{1,2}$/.test(d!) || !/^\d{1,2}$/.test(m!) || !/^\d{4}$/.test(y!)) return 'not-a-date';
+  return `${y}-${m!.padStart(2, '0')}-${d!.padStart(2, '0')}`;
+}
+
+/**
+ * The date field, drawn in the owner's language: the day, the month by its
+ * name, the year, in the order that language writes a date, each part with its
+ * own label, the three one group named by the row. The browser's own date
+ * control drew "yyyy/mm/dd" in Latin, left to right, on an Arabic page. What
+ * was typed comes back in it when the form is sent back.
+ */
+function dateParts(locale: Locale, name: 'from' | 'to', label: string, kept: Kept | null, errId: string): string {
+  const id = `cl-${name}`;
+  const typed = kept?.values ?? {};
+  const whole = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typed[name] ?? '');
+  const value = { day: whole?.[3] ?? typed[`${name}_d`] ?? '', month: whole?.[2] ?? typed[`${name}_m`] ?? '', year: whole?.[1] ?? typed[`${name}_y`] ?? '' };
+  const bad = kept?.field === name;
+  const months = monthNames(locale);
+  const parts = datePartOrder(locale).map((part, i) => {
+    // The first part takes the cursor when the field was the one refused.
+    const mark = bad ? (i === 0 ? keptInvalid(kept, name, errId) : ` aria-invalid="true" aria-describedby="${esc(errId)}"`) : '';
+    const word = esc(t(locale, `closures.date.${part}` as MessageKey));
+    if (part === 'month') {
+      const chosen = Number(value.month);
+      return `<label class="dpart dpart-m"><span class="dpart-n">${word}</span><select id="${id}-m" name="${name}_m" required${mark}>
+          <option value="">${esc(t(locale, 'signup.pick'))}</option>${months.map((mo, k) =>
+            `<option value="${String(k + 1).padStart(2, '0')}"${chosen === k + 1 ? ' selected' : ''}>${esc(mo)}</option>`).join('')}</select></label>`;
+    }
+    const short = part === 'day';
+    return `<label class="dpart dpart-${short ? 'd' : 'y'}"><span class="dpart-n">${word}</span><input id="${id}-${short ? 'd' : 'y'}" name="${name}_${short ? 'd' : 'y'}" inputmode="numeric" autocomplete="off" required maxlength="${short ? 2 : 4}" value="${esc(value[part])}"${mark} /></label>`;
+  }).join('');
+  return `<div class="dparts" role="group" aria-label="${esc(label)}">${parts}</div>`;
+}
+
 export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
   // Phase 9 (V1-482) — the words a customer gets, as the reply is told to say
   // them (`closureNote`): the closure's name, and that no date can be promised.
-  const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.add.placeholder') });
+  // Phase 9 of the warmth run (w4-settings-a-13) — with no closure yet, the sample is said as it reads mid-sentence.
+  const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.example.sample') });
   // Phase 9 (V1-478, settings-a-new-09) — the way back to where it is linked
   // from (phase 7: How you sell); the intro is the settings pages' one lede.
   return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
     <h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
-    <p class="muted small closure-said">${esc(example)}</p>
+    <p class="muted small closure-said measure-prose">${esc(example)}</p>
     <form method="post" action="/app/settings/closures">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
           control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
-        fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', error: keptError(kept, 'from', 'cl-from-err'),
-          control: `<input id="cl-from" name="from" type="date" required value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'cl-from-err')} />` }),
-        fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', error: keptError(kept, 'to', 'cl-to-err'),
-          control: `<input id="cl-to" name="to" type="date" required value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'cl-to-err')} />` }),
+        // The warmth run, phase 9 (V1-008) — each date in the owner's language: day, month by name, year.
+        fieldRow({ label: t(locale, 'closures.add.from'), error: keptError(kept, 'from', 'cl-from-err'),
+          control: dateParts(locale, 'from', t(locale, 'closures.add.from'), kept, 'cl-from-err') }),
+        fieldRow({ label: t(locale, 'closures.add.to'), error: keptError(kept, 'to', 'cl-to-err'),
+          control: dateParts(locale, 'to', t(locale, 'closures.add.to'), kept, 'cl-to-err') }),
         cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
       ])}
     </form>

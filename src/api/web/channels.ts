@@ -801,7 +801,7 @@ export function renderChannels(
       <button class="btn">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>` : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`}
     <p class="muted" style="font-size:var(--font-size-caption)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
-    ${deeper('/app/settings/alerts', t(locale, 'meta.phoneAlerts'))}
+    ${deeper('/app/settings/alerts?from=channels', t(locale, 'meta.phoneAlerts'))}
   </div>`;
 
   const soon = `<div class="block">

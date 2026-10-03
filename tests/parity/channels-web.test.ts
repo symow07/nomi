@@ -78,13 +78,14 @@ describe('M9.4 · channel center (localized)', () => {
 
   it('owner alert-number card: localized, shows current number, posts to the settings action', () => {
     const en = renderChannels(connected, 'en', null);
-    expect(en).toContain('<h2>Alerts</h2>');
+    // Phase 9 of the warmth run (w4-settings-a-06) — the card is called what the page it opens is called.
+    expect(en).toContain('<h2>Notifications</h2>');
     expect(en).toContain('action="/app/settings/owner-phone"');
     expect(en).toContain('+8613800000000');                 // current value shown
     const none = renderChannels(notConnected, 'en', null);
     expect(none).toContain('Not set');                        // honest empty state
-    expect(renderChannels(connected, 'zh', null)).toContain('<h2>提醒</h2>');
-    expect(renderChannels(connected, 'ar', null)).toContain('<h2>التنبيهات</h2>');
+    expect(renderChannels(connected, 'zh', null)).toContain('<h2>通知</h2>');
+    expect(renderChannels(connected, 'ar', null)).toContain('<h2>الإشعارات</h2>');
   });
 
   it('flash renders after an action', () => {
@@ -109,7 +110,10 @@ describe('M9.4 · channel center (localized)', () => {
 describe('M9.4 · security + language (every locale)', () => {
   it('no technical / AI vocabulary or secret-shaped content', () => {
     for (const l of LOCALES) {
-      const all = (renderChannels(connected, l, null) + renderChannels(needsAttention, l, null) + renderConnectGuide(l)).toLowerCase();
+      // Phase 9 of the warmth run (w4-settings-a-04) — the Notifications card names who approves Nomi, Meta, in
+      // the words Notifications uses; that one sentence is the only place this page without Meta's panel says it.
+      const all = (renderChannels(connected, l, null) + renderChannels(needsAttention, l, null) + renderConnectGuide(l))
+        .split(esc(t(l, 'settings.alerts.desc'))).join(' ').toLowerCase();
       for (const banned of ['ai', 'llm', 'model', 'api', 'token', 'webhook', 'app secret', 'phone number id',
         'access_token', 'meta', '360dialog', 'database', '模型', '人工智能', 'sk-', 'bearer']) {
         const hit = /^[a-z_ -]+$/.test(banned) ? new RegExp(`\\b${banned.replace(/-/g, '\\-')}\\b`).test(all) : all.includes(banned);
@@ -308,7 +312,8 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
     for (const l of LOCALES) {
       const html = page(l);
       expect(html, l).toContain(`<div class="block" id="alerts">\n    <h2>${esc(t(l, 'settings.alerts.title'))}</h2>`);
-      expect(html, l).toContain(`href="/app/settings/alerts">${esc(t(l, 'meta.phoneAlerts'))}`);
+      // Phase 9 (w4-settings-a-10) — opened from here, Notifications leads back here.
+      expect(html, l).toContain(`href="/app/settings/alerts?from=channels">${esc(t(l, 'meta.phoneAlerts'))}`);
     }
     expect(t('en', 'settings.alerts.desc')).not.toMatch(/handoff|signal/);
     expect(t('zh', 'settings.alerts.desc')).not.toContain('接手');

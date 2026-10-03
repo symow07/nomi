@@ -87,7 +87,9 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     expect(r.body).toContain('action="/app/settings/closures"');
     expect(r.body).toContain('value="Eid"');
     expect(r.body).toContain(`<span class="fielderr" role="alert" id="cl-to-err">${t('en', 'closures.flash.ends_before_starts')}</span>`);
-    expect(r.body).toContain('value="2026-12-01" aria-invalid="true"');
+    // The warmth run, phase 9 (V1-008) — a date posted whole comes back in its three parts, the wrong one marked.
+    expect(r.body).toContain('name="to_d" inputmode="numeric" autocomplete="off" required maxlength="2" value="01" aria-invalid="true"');
+    expect(r.body).toContain('<option value="12" selected>');
     expect((await one<{ n: number }>(`select count(*)::int as n from factory_closures where business_id = $1`, [bid])).n).toBe(0);
   });
 
