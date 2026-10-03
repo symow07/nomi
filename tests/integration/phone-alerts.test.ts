@@ -154,7 +154,8 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
     const page = await get('/app/settings/alerts');
     expect(page.body).toContain(`data-push-key="${process.env['VAPID_PUBLIC_KEY']}"`);
     const on = await post('/app/settings/alerts/phone', { subscription: mine.subscription, device: 'Mona’s iPhone' });
-    expect(flashSaid(on, webSecret)).toContain('Alerts are on for this phone.');
+    // The warmth run, phase 9 (w4-settings-a-06) — one name: notifications.
+    expect(flashSaid(on, webSecret)).toContain('Notifications are on for this phone.');
     // The same phone again is still one phone.
     await post('/app/settings/alerts/phone', { subscription: mine.subscription, device: 'Mona’s iPhone' });
     expect(await phones()).toEqual([{ endpoint: mine.endpoint, archived_reason: null }]);
@@ -204,7 +205,7 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
     answer.set(old.endpoint, 410);
     const before = pushed.length;
     const test = await post('/app/settings/alerts/test', {});
-    expect(flashSaid(test, webSecret)).toContain('Test alert sent.');
+    expect(flashSaid(test, webSecret)).toContain('Test notification sent.');
     expect(pushed.slice(before).map((p) => p.url).sort()).toEqual([mine.endpoint, old.endpoint].sort());
     expect(mine.open(pushed.slice(before).find((p) => p.url === mine.endpoint)!.body)).toMatchObject({ title: 'Nomi', body: 'Alerts on this phone are on.' });
     expect(await phones()).toEqual([
@@ -213,7 +214,7 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
     ]);
     const id = await q((tx) => sql<{ id: string }>`select id::text as id from push_subscriptions where endpoint = ${mine.endpoint}`.execute(tx).then((r) => r.rows[0]!.id));
     const stop = await post(`/app/settings/alerts/phone/${id}/remove`, {});
-    expect(flashSaid(stop, webSecret)).toContain('Alerts stopped for that phone.');
+    expect(flashSaid(stop, webSecret)).toContain('Notifications stopped for that phone.');
     expect((await phones())[0]).toEqual({ endpoint: mine.endpoint, archived_reason: 'removed' });
     expect(flashSaid(await post('/app/settings/alerts/test', {}), webSecret)).toContain('No phone received it.');
   });
