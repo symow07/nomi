@@ -1684,13 +1684,10 @@ const STYLE_PAGES = `
      card under it, apart from it, its last line never one word alone. */
   .empty.notset { max-width:100%; margin-bottom:var(--space-16); text-wrap:pretty; }
 
-  /* ── calendar.ts — the warmth run, phase 6: the list first; every date a face and a sentence; the chrome folded away.
+  /* ── calendar.ts — the owner's correction (2026-10-04): the month and the list on ONE screen, the grid for the glance,
+     the list for what is owed; every date a face and a sentence; the chrome folded away.
      Where a date came from is its EDGE (solid: a conversation; dashed: the owner); colour is left for state. */
-  .cal-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
-  .cal-top h1.page { margin:0; }
-  .cal-views { margin:0; gap:var(--space-4); flex-wrap:wrap; }
-  .cal-views .tab { padding:var(--space-8) var(--space-12); }
-  /* Phase 9 (V1-199) — the period's name, then how to move from it, in words; the warmth run — one compact line where it fits. */
+  /* Phase 9 (V1-199) — the month's name, then how to move from it, in words; one compact line where it fits. */
   .cal-period { display:flex; align-items:center; justify-content:space-between; gap:0 var(--space-12); flex-wrap:wrap; margin:var(--space-8) 0 0; }
   .cal-period .cal-span { margin:0; font-weight:600; color:var(--color-ink); font-size:var(--font-size-base); }
   .cal-move { display:flex; align-items:center; gap:0 var(--space-12); flex-wrap:wrap; }
@@ -1717,10 +1714,30 @@ const STYLE_PAGES = `
   /* TODAY is marked in the light magenta (a soft accent, the warmth pass), in a word as well, and only ever as text. */
   .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-assistant); margin-inline-start:var(--space-4); }
   .cal-day .cal-now, .cal-span .cal-now { font-size:inherit; margin:0; }
-  /* A list, a day at a time: the day's heading, then its dates in a rounded card. */
-  .cal-dayblock { margin:var(--space-24) 0 0; }
-  .cal-day { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 var(--space-8); margin:0 0 var(--space-8); }
-  .empty.cal-none { margin:0; }
+  /* THE SCREEN: the grid, then the list — on a phone and in a narrow window one under the other, the grid on top; from
+     1200px side by side, the grid the wider. The grid then fits its column: names wrap between words beside their face.
+     Narrower than 1200px a column of the grid is too narrow for a whole surname beside its face (measured), so they stand. */
+  .cal-screen { display:grid; gap:var(--space-24); margin:var(--space-12) 0 0; }
+  .cal-grid, .cal-list { min-width:0; }
+  .cal-list { max-width:var(--measure-prose); }
+  @media (min-width: 1200px) {
+    .cal-screen { grid-template-columns:minmax(0, 3fr) minmax(0, 2fr); align-items:start; }
+    .cal-grid .mo td { height:5.5em; }
+  }
+  /* Wider than a phone, a name runs on beside its face and wraps under it at the cell's whole width. */
+  @media (min-width: 721px) {
+    .cal-grid .mo-e { display:block; }
+    .cal-grid .mo-e > .face-link, .cal-grid .mo-e > .face, .cal-grid .mo-e > .kind-icon { vertical-align:middle; margin-inline-end:var(--space-4); }
+  }
+  /* The list's parts: what is owed, the month's other dates; a chosen day under the way back to the month. */
+  .cal-part + .cal-part { margin-top:var(--space-32); }
+  .cal-lh { display:flex; align-items:center; flex-wrap:wrap; gap:0 var(--space-8); margin:0 0 var(--space-12); font-size:var(--font-size-base); font-weight:600; }
+  .cal-lhead .back { margin:0 0 var(--space-8); }
+  p.cal-none { margin:0; }
+  /* A day of the month's other dates: the day's heading, then its dates in a rounded card. */
+  .cal-dayblock { margin:var(--space-16) 0 0; }
+  .cal-day { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 var(--space-8); margin:0 0 var(--space-8); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); }
+  .cal-lh.cal-day { font-size:var(--font-size-base); }
   /* Phase 7 — the day as ONE list in time order; the warmth run — the hour, the face (its kind's icon on its corner), the sentence. */
   .dl { list-style:none; margin:var(--space-12) 0 0; padding:0; max-width:var(--measure-prose);
     background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); }
@@ -1729,6 +1746,9 @@ const STYLE_PAGES = `
   .dl-row:first-child { border-top:0; }
   .dl-hour { flex:none; inline-size:4em; padding-top:var(--space-8); font-size:var(--font-size-caption); color:var(--color-ink-secondary);
     font-variant-numeric:tabular-nums; overflow-wrap:break-word; }
+  /* In the owed list the hour stands under its day: "Oct 2", or "Today" in magenta. */
+  .dl-on { display:block; font-weight:600; color:var(--color-ink); }
+  .dl-on .cal-now { margin:0; font-size:inherit; }
   .dl-who { position:relative; flex:none; display:inline-grid; place-items:center; inline-size:32px; block-size:32px; }
   .dl-who .kind-icon { position:absolute; inset-block-end:-4px; inset-inline-end:-6px; inline-size:18px; block-size:18px; padding:2px;
     background:var(--color-surface); border-radius:var(--radius-chip); color:var(--color-ink-secondary); pointer-events:none; }
@@ -1773,18 +1793,33 @@ const STYLE_PAGES = `
     background-position:left center, right center, left center, right center;
     background-size:var(--space-32) auto, var(--space-32) auto, var(--space-8) auto, var(--space-8) auto;
     background-repeat:no-repeat; background-attachment:local, local, scroll, scroll; }
-  /* Columns wide enough for a whole surname beside its face (a name wraps between words, never inside one). */
-  .mo { width:100%; min-width:840px; border-collapse:separate; border-spacing:0; table-layout:fixed; background:transparent; }
+  /* On the screen the grid's frame and the list's panel start level with each other. */
+  .cal-grid .wk-scroll, .cal-list > .empty.cal-empty { margin:0; }
+  /* Columns wide enough for a whole surname beside its face (a name wraps between words, never inside one). The seven
+     share the width evenly, and a column whose longest word is wider than its share takes what that word needs (the
+     others give it up); a month that cannot fit at all scrolls in its frame. A word is never split to fit. */
+  .mo { width:100%; border-collapse:separate; border-spacing:0; table-layout:auto; background:transparent; }
   .mo th, .mo td { border:0; border-inline-end:1px solid var(--color-border); border-block-end:1px solid var(--color-border); vertical-align:top; padding:var(--space-4); }
   .mo tr > :last-child { border-inline-end:0; }
   .mo tbody tr:last-child td { border-block-end:0; }
-  .mo thead th { font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:start; padding:var(--space-8); }
+  .mo thead th { width:calc(100% / 7); font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:start; padding:var(--space-8); }
   /* Every week the same height: a crowded day says "+N more" rather than stretching its row. */
   .mo td { height:7.5em; }
   .mo td.other { background:var(--color-paper); }
   .mo-d { display:inline-flex; min-width:1.75em; min-height:1.75em; align-items:center; justify-content:center;
-    font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; color:var(--color-ink); }
+    font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; color:var(--color-ink); text-decoration:none; }
   .mo td.today .mo-d { color:var(--color-assistant); font-weight:700; }
+  /* Every day CHOOSES itself: its number's door covers the whole cell, under the faces (each opens its card) and "+N more".
+     The chosen day wears a neutral ring, graphite like the primary action: magenta keeps its three jobs. */
+  .mo td { position:relative; }
+  .mo-d::after { content:""; position:absolute; inset:0; border-radius:var(--radius-control); }
+  .mo td:hover .mo-d::after { box-shadow:inset 0 0 0 1px var(--color-border); }
+  .mo td.sel .mo-d::after { box-shadow:inset 0 0 0 2px var(--color-ink); }
+  .mo-d:focus-visible { outline:none; }
+  .mo-d:focus-visible::after { box-shadow:inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+  .mo td.sel .mo-d { font-weight:700; }
+  .mo-e .face-link, .mo-more { position:relative; z-index:1; }
+  .mo-e > .face { pointer-events:none; }
   .mo-e { display:flex; align-items:center; gap:var(--space-4); margin-top:var(--space-4); font-size:var(--font-size-caption); line-height:1.3; color:var(--color-ink); }
   .mo-e .face-link { align-items:center; gap:var(--space-4); }
   .mo-n { min-width:0; overflow-wrap:break-word; }
@@ -1797,7 +1832,6 @@ const STYLE_PAGES = `
   /* Phase 9 (V2 calendar-month) — on a phone the whole week fits: seven columns, each date its face (the card's door, its
      name for a screen reader) and its signal; the names fold away. The month showed Fri–Sun, the rest off the edge. */
   @media (max-width: 720px) {
-    .mo { min-width:0; }
     .mo th, .mo td { padding:var(--space-4) 2px; }
     .mo thead th { padding:var(--space-4) 2px; text-align:center; overflow-wrap:anywhere; }
     .mo td { height:auto; min-height:6em; }
@@ -1805,7 +1839,7 @@ const STYLE_PAGES = `
     .mo-e .mo-n { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
     .mo-d { display:flex; margin-inline:auto; }
     .mo td.today .cal-now { display:block; margin:0; text-align:center; overflow-wrap:anywhere; hyphens:auto; }
-    .mo-more { display:flex; justify-content:center; padding-inline:0; }
+    .mo-more { display:flex; justify-content:center; padding-inline:2px; text-align:center; }
   }
 
   /* ── orders.ts — an order (phase 9 of the warmth run): whose order it is, their face beside the heading; an article

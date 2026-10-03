@@ -11,9 +11,10 @@ import type { CalendarEntry, CalendarView } from '../../src/db/calendar.js';
 /**
  * V2 — the calendar renderer, by structure. The loader's truth (which rows,
  * which tenant) is tests/integration/calendar.test.ts; this file holds the
- * page's shape in every locale: tabs, chips, rows, day headings, the empty
+ * page's shape in every locale: the one screen (the owner's correction,
+ * 2026-10-04: the month and the list together), rows, day headings, the empty
  * state, and the rules every owner page keeps (no `%`, no software talk, no
- * stylesheet of its own).
+ * stylesheet of its own). The screen itself is warmth-calendar.test.ts.
  */
 
 const NOW = new Date('2026-09-27T04:00:00Z');           // 12:00 in the business timezone
@@ -48,7 +49,7 @@ const ENTRIES: CalendarEntry[] = [
     detail: { price: usd(0.38), quantity: 20000 }, source: { table: 'quotes', id: 'q1', column: 'created_at' } }),
   e({ category: 'negotiation', kind: 'reply_due', at: at(addDays(TODAY, 1), '09:00'),
     source: { table: 'handoffs', id: 'h1', column: 'sla_deadline_at' } }),
-  e({ category: 'followups', kind: 'followup_due', at: at(addDays(TODAY, 4), '08:00'), conversationId: null,
+  e({ category: 'followups', kind: 'followup_due', at: at(addDays(TODAY, 1), '08:00'), conversationId: null,
     buyer: null, identity: 'buyer@example.com', detail: { sequenceName: 'Autumn letters' },
     source: { table: 'sequence_enrollments', id: 'f1', column: 'next_due_at' } }),
   e({ category: 'conversations', kind: 'conversation_closed', at: at(addDays(TODAY, -5), '18:00'),
@@ -83,9 +84,9 @@ describe('V2 · the calendar page, by structure', () => {
       expect([...kinds0.matchAll(/<option value="([^"]*)"/g)].map((m) => m[1])).toEqual(
         ['', 'promised', 'samples', 'orders', 'negotiation', 'followups', 'yours', 'closures', 'conversations']);
       expect(html).not.toContain('cal-tabs');
-      // the warmth run — the list is the page's own view: its tab is the plain address
-      expect(html).toMatch(/<a class="tab on" aria-current="page" href="\/app\/calendar">/);
-      // One row per entry, each naming its source row and its kind.
+      // the owner's correction — one screen: no views to switch between
+      expect(html).not.toMatch(/<a class="tab on"/);
+      // One row per entry in the list (what is owed, then the month's other dates), each naming its source row and its kind.
       const rows = [...html.matchAll(/<li class="dl-row (?:solid|dashed)(?: done)?" data-src="([^"]+)" data-col="([^"]+)" data-cat="([^"]+)">[\s\S]*?<\/li>/g)];
       expect(rows.map((r) => `${r[1]}#${r[2]}`).sort()).toEqual(
         ENTRIES.map((x) => `${x.source.table}:${x.source.id}#${x.source.column}`).sort());
@@ -103,10 +104,10 @@ describe('V2 · the calendar page, by structure', () => {
         expect(row).toContain('<svg class="kind-icon"');
         expect(row, 'never a pill: a pill is a state').not.toMatch(/class="(?:tag|chip|pill)\b/);
       }
-      // A heading per day that holds something; today named in words.
-      const days = new Set(ENTRIES.map((x) => x.day));
-      expect([...html.matchAll(/<h2 class="cal-day"/g)]).toHaveLength(days.size);
-      expect(html).toContain(`<h2 class="cal-day" aria-current="date"><span class="cal-now">${t(locale, 'calendar.this.day')}</span> `);
+      // A heading per day of the month's other dates (what is owed has its own); today named in words.
+      const days = new Set(ENTRIES.filter((x) => x.kind !== 'reply_due').map((x) => x.day));
+      expect([...html.matchAll(/<h3 class="cal-day"/g)]).toHaveLength(days.size);
+      expect(html).toContain(`<h3 class="cal-day" aria-current="date"><span class="cal-now">${t(locale, 'calendar.this.day')}</span> `);
     });
 
     it(`${locale}: under one kind every entry still says what it is, and the page says what is shown`, () => {
@@ -148,7 +149,7 @@ describe('V2 · the calendar page, by structure', () => {
     it(`${locale}: the empty state is warm, says so and has one door: adding a date`, () => {
       const html = renderCalendar(view({ entries: [], categories: [], buyers: [] }), locale);
       expect(html).toContain('<div class="empty cal-empty">');
-      expect(html).toContain(t(locale, 'calendar.empty'));
+      expect(html).toContain(t(locale, 'calendar.empty.month'));
       expect(html).toContain(t(locale, 'calendar.empty.how'));
       expect(html).toContain('<details class="cal-add">');
       expect(html).not.toContain('<li class="dl-row');
@@ -167,13 +168,12 @@ describe('V2 · the calendar page, by structure', () => {
     expect(page).toMatch(/<a href="\/app\/calendar" class="navlink sub active" data-nav="calendar" aria-current="page"/);
   });
 
-  it('a chosen category keeps its tab and carries through the doors', () => {
+  it('a chosen category carries through the doors: the months either side, this month, and every day of the grid', () => {
     const html = renderCalendar(view({ category: 'orders', categories: ['orders'], entries: ENTRIES.filter((x) => x.category === 'orders') }), 'en');
-    expect(html).toMatch(/<a class="tab on" aria-current="page" href="\/app\/calendar\?category=orders">/);
-    expect(html).toContain(`href="/app/calendar?from=${addDays(FROM, 21)}&amp;category=orders"`);
-    expect(html).toContain(`href="/app/calendar?from=${addDays(FROM, -21)}&amp;category=orders"`);
-    // the default window is the plain address, and "this week" is not offered on it
-    expect(html).not.toContain(t('en', 'calendar.now'));
+    expect(html).toContain('href="/app/calendar?month=2026-10&amp;category=orders"');
+    expect(html).toContain('href="/app/calendar?month=2026-08&amp;category=orders"');
+    expect(html).toContain('<a class="tab cal-today" href="/app/calendar?category=orders">');
+    expect(html).toContain(`<a class="mo-d" href="/app/calendar?month=2026-09&amp;day=${TODAY}&amp;category=orders"`);
   });
 
   it('an open request and a reply past its time say so in words', () => {
@@ -200,34 +200,30 @@ describe('V2 · the calendar page, by structure', () => {
 });
 
 describe('V2 · the query string is whitelisted', () => {
-  // The list keeps its three weeks; since the warmth run the page opens on it.
-  const def = parseCalendarQuery({ view: 'list' }, NOW);
+  // The owner's correction — the screen opens on this month, nothing chosen.
+  const def = parseCalendarQuery({}, NOW);
 
-  it('the list defaults to the past week and the coming two', () => {
-    expect(def).toEqual({ view: 'list', at: TODAY, from: addDays(TODAY, -7), to: addDays(TODAY, 14), category: null, buyer: null });
+  it('this month, its whole weeks; the week before today is read as well when the grid does not reach it', () => {
+    expect(def).toEqual({ month: '2026-09-01', day: null, gridFrom: '2026-08-31', gridTo: '2026-10-05', from: '2026-08-31', to: '2026-10-05', category: null, buyer: null });
+    // on the 2nd of a month whose grid starts that Monday, the week before still counts what is owed
+    expect(parseCalendarQuery({}, new Date('2026-11-02T04:00:00Z'))).toMatchObject({ gridFrom: '2026-10-26', from: '2026-10-26' });
+    expect(parseCalendarQuery({}, new Date('2027-02-02T04:00:00Z'))).toMatchObject({ gridFrom: '2027-02-01', from: '2027-01-26' });
   });
 
-  it('the warmth run: the list is the page\'s own view; an older week address still works, and ?at= is the list around that day', () => {
-    expect(parseCalendarQuery({}, NOW)).toEqual(def);
-    expect(parseCalendarQuery({ view: 'week' }, NOW).view).toBe('week');
-    expect(parseCalendarQuery({ at: '2026-11-20' }, NOW)).toMatchObject({ view: 'list', from: '2026-11-13', to: '2026-12-04' });
-  });
-
-  it('accepts exactly a day, a category, a buyer id', () => {
-    expect(parseCalendarQuery({ view: 'list', from: '2026-01-05', category: 'samples', buyer: AHMED.id.toUpperCase() }, NOW))
-      .toEqual({ view: 'list', at: TODAY, from: '2026-01-05', to: '2026-01-26', category: 'samples', buyer: AHMED.id });
+  it('accepts exactly a month, a day, a category, a buyer id', () => {
+    expect(parseCalendarQuery({ month: '2026-01', day: '2026-01-05', category: 'samples', buyer: AHMED.id.toUpperCase() }, NOW))
+      .toEqual({ month: '2026-01-01', day: '2026-01-05', gridFrom: '2025-12-29', gridTo: '2026-02-02', from: '2025-12-29', to: '2026-02-02', category: 'samples', buyer: AHMED.id });
+    expect(parseCalendarQuery({ who: OLGA.id }, NOW).buyer).toBe(OLGA.id);
   });
 
   it('anything else falls back to the default, never an error', () => {
     const cases: unknown[] = [
-      { from: '2026-02-31' }, { from: '2026-9-1' }, { from: '1999-01-01' }, { from: "2026-01-01' or 1=1" },
-      { from: ['2026-01-01'] }, { category: 'everything' }, { category: 'Samples' }, { buyer: 'ahmed' },
-      { buyer: `${AHMED.id};drop` }, null, 'from=2026-01-01',
+      { day: '2026-02-31' }, { day: '2026-9-1' }, { day: '1999-01-01' }, { day: "2026-01-01' or 1=1" },
+      { day: ['2026-01-01'] }, { month: '2026-00' }, { month: '2026-9' }, { month: "2026-09' --" },
+      { category: 'everything' }, { category: 'Samples' }, { buyer: 'ahmed' },
+      { buyer: `${AHMED.id};drop` }, null, 'day=2026-01-01',
     ];
-    for (const q of cases) {
-      const asked = q && typeof q === 'object' ? { view: 'list', ...(q as object) } : { view: 'list' };
-      expect(parseCalendarQuery(asked, NOW), JSON.stringify(q)).toEqual(def);
-    }
+    for (const q of cases) expect(parseCalendarQuery(q, NOW), JSON.stringify(q)).toEqual(def);
   });
 
   it('a day and its start agree in the business timezone', () => {

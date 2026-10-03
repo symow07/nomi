@@ -167,9 +167,10 @@ describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rul
     buyer: { id: C(9), name, country: 'NG', photo: null }, identity: null,
     detail: { price: usd(1.45), quantity: 5000, ...(state ? { priceState: state } : {}) }, source: { table: 'quotes', id, column: 'created_at' },
   });
-  const draw = (l: Locale, entries: CalendarEntry[], over: Partial<CalendarView> = {}, kind: 'list' | 'week' | 'month' = 'list') => withZone(ZONE, () => {
-    const q = parseCalendarQuery({ view: kind }, NOW);
-    return renderCalendar({ from: q.from, to: q.to, today: TODAY, category: null, buyer: null, buyers: [], categories: ['negotiation'], entries, ...over }, l, { view: q.view, at: q.at, now: NOW });
+  // The owner's correction (2026-10-04) — one screen: this month, nothing chosen, its list beside the grid.
+  const draw = (l: Locale, entries: CalendarEntry[], over: Partial<CalendarView> = {}) => withZone(ZONE, () => {
+    const ask = parseCalendarQuery({}, NOW);
+    return renderCalendar({ from: ask.from, to: ask.to, today: TODAY, category: null, buyer: null, buyers: [], categories: ['negotiation'], entries, ...over }, l, { ask, now: NOW });
   });
   const rowOf = (h: string, id: string) => new RegExp(`<li class="dl-row (solid|dashed)( done)?" data-src="quotes:${id}"[\\s\\S]*?</li>`).exec(h)?.[0] ?? '';
   const words = (h: string) => withoutIsolates(h).replace(/<[^>]+>/g, '');
@@ -236,11 +237,14 @@ describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rul
 
   it('V2 calendar-month · w4-customers-17 · on a phone the whole week fits, and "+N more" keeps the cell\'s inset', () => {
     const phone = CSS.slice(CSS.indexOf('Phase 9 (V2 calendar-month)'));
-    expect(phone).toMatch(/@media \(max-width: 720px\) \{\s*\.mo \{ min-width:0; \}/);
+    // no width of its own: seven even columns share the frame, and a column takes what its longest word needs
+    expect(CSS).toMatch(/\.mo \{ width:100%; border-collapse:separate; border-spacing:0; table-layout:auto;/);
+    expect(CSS).toContain('.mo thead th { width:calc(100% / 7);');
+    expect(phone).toMatch(/@media \(max-width: 720px\) \{\s*\.mo th, \.mo td \{ padding:var\(--space-4\) 2px; \}/);
     expect(phone).toContain('.mo-e .mo-n { position:absolute;');
     expect(CSS).toContain('.mo-more { padding-inline:var(--space-4); }');
     // the signal stays beside the face when the name folds away
-    const h = withAssistantName('Lily', () => draw('en', [price('q1', 'review', 'Aisha Bello')], {}, 'month'));
+    const h = withAssistantName('Lily', () => draw('en', [price('q1', 'review', 'Aisha Bello')], {}));
     expect(h).toMatch(/<span class="mo-n"><bdi>Aisha Bello<\/bdi><\/span> <span class="dot warn"/);
   });
 });

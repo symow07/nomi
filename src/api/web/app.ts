@@ -148,7 +148,7 @@ import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core
 import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
-import { renderCalendar, parseCalendarQuery } from './calendar.js';
+import { renderCalendar, parseCalendarQuery, legacyCalendarAddress } from './calendar.js';
 import { renderListPane, renderCustomerPanel, renderPanes, paneRowOf } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { loadCatchUp } from '../../db/catchUp.js';
@@ -3824,16 +3824,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── V2 · the calendar: a read-only list of dates already on record ─────────
   // Reached from Buyers. No writes, no job, no table: a view over the columns
   // that already hold a date. Follow-ups show only where the outreach area is on.
-  app.get('/app/calendar', authed('calendar', async (s, req, locale, reply) => {
+  // The owner's correction (2026-10-04) — one screen, the month and the list together. The old views'
+  // addresses (?view=, ?at=, ?from=) answer with the same place on this screen, the day they meant chosen.
+  const calendarPage = authed('calendar', async (s, req, locale, reply) => {
     const now = new Date();
     // The design pass — the week starts on the business's country's first day.
     const bid = parseBusinessId(s.businessId);
     const firstDay = bid.ok ? firstDayOfWeek(await withTenantTx(deps.db, bid.value, (tx) => businessCountry(tx, bid.value))) : 1;
-    const q = parseCalendarQuery(req.query, now, firstDay);
+    const ask = parseCalendarQuery(req.query, now, firstDay);
     const flash = takeFlash(req, reply);
-    return `${flashBanner(flash)}${renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale,
-      { view: q.view, at: q.at, now })}`;
-  }));
+    return `${flashBanner(flash)}${renderCalendar(await loadCalendar(deps.db, s.businessId, { ...ask, outreach: outreachShown() }, now), locale,
+      { ask, now })}`;
+  });
+  app.get('/app/calendar', async (req, reply) => {
+    const old = legacyCalendarAddress(req.query, new Date());
+    if (old !== null) return reply.redirect(sessionOf(req) ? old : '/login');
+    return calendarPage(req, reply);
+  });
 
   /**
    * 0082 — the owner's own dates: put one on the calendar, or take it off
@@ -3852,13 +3859,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!kept) return flashTo(reply, '/app/calendar', `calendar.flash.${r.problem}` as MessageKey);
       const now = new Date();
       const firstDay = firstDayOfWeek(await withTenantTx(deps.db, bid.value, (tx) => businessCountry(tx, bid.value)));
-      const q = parseCalendarQuery({}, now, firstDay);
-      return sentBack(req, reply, 'calendar', renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale,
-        { view: q.view, at: q.at, now, kept }));
+      // Back on the day being added, when it is a day: the form sits beside it.
+      const ask = parseCalendarQuery({ day: (req.body as Record<string, unknown> | undefined)?.['day'] }, now, firstDay);
+      return sentBack(req, reply, 'calendar', renderCalendar(await loadCalendar(deps.db, s.businessId, { ...ask, outreach: outreachShown() }, now), locale,
+        { ask, now, kept }));
     }
     const entry = r.entry;
     await withTenantTx(deps.db, bid.value, (tx) => addEntry(tx, bid.value, entry, personOf(s).id));
-    return flashTo(reply, `/app/calendar?at=${dayKey(entry.startsAt, workspaceZone())}`, 'calendar.flash.added');
+    // On the screen, the day it was added on chosen, so the owner sees it there.
+    const added = dayKey(entry.startsAt, workspaceZone());
+    return flashTo(reply, `/app/calendar?month=${added.slice(0, 7)}&day=${added}`, 'calendar.flash.added');
   });
 
   app.post('/app/calendar/entries/:id/remove', async (req, reply) => {
