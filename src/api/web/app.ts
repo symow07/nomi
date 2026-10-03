@@ -49,7 +49,7 @@ import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
-  defaultFilter, buyersHref, type InboxFilter,
+  buyersHref, type InboxFilter,
 } from './inbox.js';
 import {
   liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, billingMark, billingWatch, type LiveKind,
@@ -103,7 +103,7 @@ import {
 } from './assistants.js';
 import { assistantNameOfConversation } from '../../db/assistants.js';
 import { workspaceFacts, type WorkspaceFacts } from '../../db/workspace.js';
-import { readBuyerCounts } from '../../db/buyersList.js';
+import { readBuyerCounts, lensOf, searchOf } from '../../db/buyersList.js';
 import { handToAssistant } from '../../conversations/assistant.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
@@ -2005,29 +2005,34 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown };
+    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown };
     const requested = query.filter;
-    const ask = { q: query.q, after: query.after, before: query.before };
-    // G12 — 'mine' needs to know who is looking.
-    const me = personOf(s).id;
-    const chosen: InboxFilter | null = requested === 'pending' || requested === 'all'
-      || requested === 'blocked' || requested === 'mine' || requested === 'deletion' ? requested : null;
-    // A search with no tab looks across every buyer: it is a find, not a view.
+    // The warmth run, phase 4 — two lenses on one list, the lens in the address.
+    const lens = lensOf(query.lens);
+    const ask = { q: query.q, after: query.after, before: query.before, lens };
     const searching = typeof ask.q === 'string' && ask.q.trim() !== '';
+    // "Mine" was team machinery (the owner ruled it out): its old address leads
+    // to the closest lens — the whole list, where a customer a person here
+    // holds sits in its own group, near the top — keeping the lens and the search.
+    if (requested === 'mine') return reply.redirect(buyersHref({ lens, q: searching ? searchOf(ask.q) : '' }));
+    const me = personOf(s).id;
+    // "All" is the list itself; a narrowing is "Needs you" (Today's doors),
+    // "Did not send" or "Deletion requests" (rule 18).
+    const filter: InboxFilter = requested === 'pending' || requested === 'blocked' || requested === 'deletion' ? requested : 'all';
     // CC-26 — the list's mark BEFORE the list: a change between the two reads
     // is announced once too often, never lost.
     const bid = parseBusinessId(s.businessId);
     const mark = bid.ok ? await buyersMark(deps.db, bid.value) : null;
-    const list0 = await loadInboxList(deps.db, s.businessId, chosen ?? 'all', me, ask);
-    const filter: InboxFilter = chosen ?? (searching ? 'all' : defaultFilter(list0.waitingCount));
-    const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter, me, ask);
+    // The "needs attention" band sits on the first page of the whole list, not on a find or a narrowing.
+    const firstPage = query.after === undefined && query.before === undefined;
+    const data = await loadInboxList(deps.db, s.businessId, filter, me, { ...ask, attention: firstPage && !searching && filter === 'all' });
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
-      // The door: the first page of the tab and the search she is on — where the newest lands.
+      // The door: the first page of the lens, the narrowing and the search she is on — where the newest lands.
       ...(mark && bid.ok ? { live: liveRegion(locale, {
-        ...buyersWatch(mark, buyersHref({ ...(chosen ? { filter: chosen } : {}), q: data.query ?? '' })),
+        ...buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '' })),
         orders: await ordersWaitingCount(deps.db, bid.value),
       }) } : {}),
     }));
@@ -2069,8 +2074,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      */
     const me = personOf(s).id;
     const people = await loadPeople(deps.db, s.businessId);
-    const everyone = await loadInboxList(deps.db, s.businessId, 'all', me);
-    const list = everyone.waitingCount > 0 ? await loadInboxList(deps.db, s.businessId, 'pending', me) : everyone;
+    // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
+    const list = await loadInboxList(deps.db, s.businessId, 'all', me);
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
     const today = dayKey(now, workspaceZone());
     const dated = customer
@@ -2084,7 +2089,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: withAssistantName(detail.assistantName, () => renderPanes(
         // Phase 9 (V1-257) — and the open conversation, when the tab beside it does not list it.
         renderListPane(list, locale, now, conversationId, people,
-          everyone.conversations.find((c) => c.conversationId === conversationId) ?? paneRowOf(detail)),
+          list.conversations.find((c) => c.conversationId === conversationId)
+            ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
         renderConversationDetail(withProof, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.

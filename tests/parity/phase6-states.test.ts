@@ -37,15 +37,14 @@ describe('phase 6 · empty', () => {
     }
   });
 
-  it('"Mine" with nothing held says so, and points at who is waiting — not "no conversations yet" in a busy workspace', () => {
+  // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out: the route leads its
+  // old address to the whole list (app.ts), so its own empty panel is never drawn any more.
+  it('"Mine" is not a view any more: no tab, and no empty panel of its own', () => {
     const list: InboxList = { filter: 'mine', waitingCount: 3, blockedCount: 0, mineCount: 0, deletionCount: 0, channels: 1, conversations: [], query: '' };
     for (const l of LOCALES) {
       const html = withAssistantName('Lily', () => renderInboxList(list, l, NOW));
-      expect(html, l).toContain(t(l, 'inbox.empty.mine'));
-      expect(html, l).toContain(t(l, 'inbox.empty.mineBody', { name: 'Lily' }));
-      expect(html, l).toContain('href="/app/inbox?filter=pending"');
-      expect(html, l).not.toContain(t(l, 'inbox.empty.none'));
-      expect(html, l).not.toContain(t(l, 'inbox.empty.noneBody'));
+      expect(html, l).not.toContain(t(l, 'inbox.empty.mine'));
+      expect(html, l).not.toContain('filter=mine');
     }
   });
 

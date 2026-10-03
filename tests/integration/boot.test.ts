@@ -2052,10 +2052,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const inList = (await list('all')).conversations.find((c) => c.conversationId === aiId)!;
       expect(inList.ownership).toBe('OWNER_CONTROLLED');
-      // Phase 1 — the row's ● mark says a person here has it; in words, for a screen reader and the group heading
+      // A person here has it: said in words, for a screen reader and the group heading.
+      // The warmth run, phase 4 — the customer's row (`irow`), its conversation behind `ir-main`.
       const listHtml = (await import('../../src/api/web/inbox.js')).renderInboxList(await list('all'), 'en', new Date());
       expect(listHtml).toContain(esc(t('en', 'buyers.group.yours')));
-      expect(listHtml).toMatch(new RegExp(`<a class="crow is-yours[^"]*" href="/app/inbox/${aiId}#latest">`));
+      expect(listHtml).toMatch(new RegExp(`<div class="irow is-yours[^"]*">(?:(?!<div class="irow)[\\s\\S])*?<a class="ir-main" href="/app/inbox/${aiId}#latest">`));
 
       await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: aiId, actor: 'owner' });
       expect((await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!.ownership).toBe('AI');

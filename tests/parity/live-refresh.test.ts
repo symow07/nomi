@@ -132,9 +132,10 @@ describe('CC-26 · the live region: empty, polite, and the line waiting in a tem
     expect(W.door).toBe(conversationUrl(CONV));
     expect(W.door.endsWith('#latest')).toBe(true);
     expect(W.says.map((s) => s.what)).toEqual(['message', 'reply', 'changed']);
-    const b = buyersWatch('12.0123456789abcdef', buyersHref({ filter: 'all', q: 'Haddad' }));
+    // The warmth run, phase 4 — the whole list writes no `filter=all`, and the door keeps the lens.
+    const b = buyersWatch('12.0123456789abcdef', buyersHref({ filter: 'all', lens: 'value', q: 'Haddad' }));
     expect(b.ask).toBe('/app/live/buyers?since=12.0123456789abcdef');
-    expect(b.door).toBe('/app/inbox?filter=all&q=Haddad');
+    expect(b.door).toBe('/app/inbox?lens=value&q=Haddad');
     expect(b.says.map((s) => s.what)).toEqual(['list']);
     const d = todayWatch('1.2.0.0.1');
     expect(d.ask).toBe('/app/live/today?since=1.2.0.0.1');

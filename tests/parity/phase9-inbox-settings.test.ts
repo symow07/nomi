@@ -59,7 +59,8 @@ const LIST: InboxList = {
 };
 const list = (l: Locale, over: Partial<InboxList> = {}, people: readonly Person[] = []) =>
   withZone('Asia/Shanghai', () => withoutIsolates(renderInboxList({ ...LIST, ...over }, l, NOW, people)));
-const rowOf = (h: string, id: string): string => new RegExp(`<a class="crow[^"]*" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a>`).exec(h)?.[1] ?? '';
+// The warmth run, phase 4 — the Inbox's own row: `irow`, the conversation behind its `ir-main` link.
+const rowOf = (h: string, id: string): string => new RegExp(`<a class="ir-main" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a></div>`).exec(h)?.[1] ?? '';
 const heads = (h: string): string[] => [...h.matchAll(/<h2 class="bgroup-h">([^<]+)<\/h2>/g)].map((m) => m[1]!);
 
 describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, missed-06)', () => {
@@ -83,23 +84,26 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('V1-174 · an unanswered row says so in words; an answered one carries the assistant\'s mark before its words', () => {
     for (const l of LOCALES) {
       const h = list(l);
-      expect(rowOf(h, 'c-new'), l).toContain(`<span class="cr-why"><bdi>${shown(l, 'buyers.row.noReply')}</bdi></span>`);
+      expect(rowOf(h, 'c-new'), l).toContain(`<span class="ir-hold"><bdi>${shown(l, 'buyers.row.noReply')}</bdi></span>`);
       expect(rowOf(h, 'c-closed'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // the mark, then who wrote it for a screen reader (the conversation batch), then the words
-      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span> <span class="cr-text"/);
+      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // a screen reader still hears who holds it
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="sr">${shown(l, 'buyers.group.hers')}</span>`);
     }
   });
 
-  it('inbox-calendar-new-03 · the marks are explained under the rows, in the groups\' own words', () => {
+  // The warmth run, phase 4 — the ○ ● ✦ column gave its place to the face; ○ is written with its
+  // words on the row itself. What still needs a key is the ✦ before a message, and the regular's mark.
+  it('inbox-calendar-new-03 · the marks are explained under the rows — only the marks the page shows', () => {
     for (const l of LOCALES) {
       const key = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l))?.[1] ?? '';
-      expect(key, l).toContain(`<span class="ck-i is-needs"><span class="cr-mark" aria-hidden="true">○</span> ${shown(l, 'buyers.group.needsYou')}</span>`);
-      expect(key, l).toContain(`<span class="cr-mark" aria-hidden="true">●</span> ${shown(l, 'buyers.group.yours')}`);
-      expect(key, l).toContain(`<span class="cr-mark" aria-hidden="true">✦</span> ${shown(l, 'buyers.group.hers')}`);
-      expect(key, l).toContain(`<span class="cr-mark" aria-hidden="true">✦</span> ${shown(l, 'buyers.key.wrote')}`);
+      expect(key, l).toContain(`<span class="ck-i"><span class="as" aria-hidden="true">✦</span> ${shown(l, 'buyers.key.wrote')}</span>`);
+      expect(key, l).not.toContain('cr-mark');
+      expect(key, l).not.toContain('ir-reg');   // nobody on this page is a regular
+      const regular = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l, { conversations: [conv('c-r', { regular: true })] }))?.[1] ?? '';
+      expect(regular, l).toContain(shown(l, 'buyers.key.regular', { n: 3 }));
     }
   });
 
@@ -136,7 +140,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(rowOf(h, 'c-wait')).toContain('<bdi>Omar <mark class="hit">Haddad</mark></bdi>');
     expect(rowOf(h, 'c-review')).toContain('<bdi>Leila <mark class="hit">Haddad</mark></bdi>');
     const byProduct = list('en', { query: 'string', conversations: LIST.conversations.slice(0, 1), page: { from: 1, to: 1, total: 1, next: null, prev: null } });
-    expect(byProduct).toContain('<bdi class="cr-prod">LED <mark class="hit">String</mark> Lights 10m</bdi>');
+    // phase 4 — the row shows no product; found BY it, the product stands where the message would
+    expect(byProduct).toContain('<bdi class="ir-text">LED <mark class="hit">String</mark> Lights 10m</bdi>');
     // no search, no mark; a name with markup in it is escaped before it is marked
     expect(list('en')).not.toContain('<mark');
     const odd = list('en', { query: 'b', conversations: [conv('c-x', { buyer: '<b>Bad</b>' })], page: { from: 1, to: 1, total: 1, next: null, prev: null } });
@@ -144,22 +149,27 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(CSS).toMatch(/mark\.hit \{ background:transparent; color:inherit; font-weight:700; text-decoration:underline;/);
   });
 
-  it('inbox-calendar-new-02 · on a phone the product stays on the first line; only its figures give way', () => {
+  // The warmth run, phase 4 — the row is the customer's: no product and no figures on it (what they
+  // spent is its one number); on a phone the name keeps the room, and the channel gives way.
+  it('inbox-calendar-new-02 · the row carries no product or figures; on a phone the channel gives way, not the name', () => {
     const row = rowOf(list('en'), 'c-answered');
-    expect(row).toContain('<span class="cr-detail"><bdi class="cr-prod">LED String Lights 10m</bdi><span class="cr-fig"> · <bdi>5,000 pcs</bdi></span><span class="cr-fig"> · <bdi>$1.45</bdi></span></span>');
-    const phone = /@media \(max-width: 720px\) \{\s*\.cr-fig \{ display:none; \}\s*\}/.exec(CSS);
-    expect(phone).not.toBeNull();
-    expect(CSS).not.toMatch(/\.cr-detail \{ display:none; \}/);
+    expect(row).not.toContain('LED String Lights 10m');
+    expect(row).not.toContain('5,000');
+    expect(row).not.toContain('$1.45');
+    const phone = CSS.slice(CSS.indexOf('.ir-reg-w { position:absolute'));
+    expect(CSS).toMatch(/@media \(max-width: 720px\) \{\s*\.ir-reg-w \{[^}]+\}\s*\.ir-chan \{ display:none; \}/);
+    expect(phone).not.toBe('');
   });
 
-  it('V1-179 · inbox-calendar-new-05 · an empty Mine: the panel right under the tabs, with no rule and no door the tab above already is', () => {
-    const people: Person[] = [{ id: 'owner', name: 'Owner', isOwner: true }, { id: 'p2', name: '陈莉', isOwner: false }];
+  // The warmth run, phase 4 — "Mine" is gone (team machinery the owner ruled out); its old address
+  // leads to the whole list. What V1-179 asked of an empty view still holds for the narrowings left.
+  it('V1-179 · inbox-calendar-new-05 · an empty narrowing: the panel right under the tabs, with no rule', () => {
     for (const l of LOCALES) {
-      const h = list(l, { filter: 'mine', conversations: [], page: { from: 0, to: 0, total: 0, next: null, prev: null } }, people);
+      const h = list(l, { filter: 'deletion', conversations: [], page: { from: 0, to: 0, total: 0, next: null, prev: null } });
       expect(h, l).not.toContain('<div class="block">');
       const panel = /<div class="empty">([\s\S]*?)<\/div>/.exec(h)![1]!;
-      expect(panel, l).not.toContain('filter=pending');
-      expect(panel, l).toContain(shown(l, 'inbox.empty.mine'));
+      expect(panel, l).toContain(shown(l, 'inbox.empty.deletion'));
+      expect(h, l).not.toContain(shown(l, 'inbox.empty.mine'));
     }
   });
 

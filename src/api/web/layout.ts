@@ -1516,6 +1516,73 @@ const STYLE_PAGES = `
   /* Phase 9 (inbox-calendar-new-03) — what the row marks mean, under the rows. */
   .cr-key { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-16); margin:var(--space-8) 0 var(--space-12); }
   .ck-i { display:inline-flex; align-items:baseline; gap:var(--space-4); }
+  /* THE WARMTH RUN, phase 4 — the Inbox. One customer, one row, 64 px: the face
+     (40 px, it opens their card), the name and the mark on a regular, what they
+     spent as the headline number; under them why they need you (the waiting
+     signal), the last message, the last contact. The row follows the page's
+     direction: in Arabic the face is on the right, the time on the left. */
+  .irows { list-style:none; margin:0; padding:0; background:var(--color-surface); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); overflow:hidden; }
+  .irows > li + li { border-top:1px solid var(--color-border); }
+  .irow { display:flex; align-items:stretch; min-height:64px; color:var(--color-ink); }
+  .irow:hover, .irow:focus-within, .irow.on { background:var(--color-paper); }
+  @media (prefers-reduced-motion: no-preference) { .irow, .arow { transition:background-color var(--motion-fast) var(--motion-ease); } }
+  .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-12) 10px; }
+  .ir-main { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:var(--space-8);
+    align-content:center; align-items:baseline; padding-block:5px; padding-inline-end:var(--space-12); color:inherit; }
+  .ir-main:focus-visible { outline:2px solid var(--color-ink); outline-offset:-2px; }
+  .ir-l1 { grid-row:1; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; font-size:var(--font-size-small); }
+  .ir-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
+  .irow.unanswered .ir-name { font-weight:600; }
+  .ir-reg { flex:none; display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap;
+    font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .ir-reg .ni { inline-size:1.1em; block-size:1.1em; flex:none; }
+  .ir-spent { grid-row:1; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-base); font-weight:600;
+    line-height:1.35; font-variant-numeric:tabular-nums; }
+  .ir-l2 { grid-row:2; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; overflow:hidden;
+    white-space:nowrap; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Why they need you comes before the message, whole where it fits: the message takes what is left. */
+  .ir-wait { flex:0 0 auto; max-width:100%; overflow:hidden; text-overflow:ellipsis; color:var(--color-waiting); font-weight:600; }
+  .ir-wait .dot { margin-inline-end:var(--space-4); }
+  .ir-hold, .ir-by { flex:none; }
+  .ir-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:match-parent; }
+  [dir="rtl"] .ir-text:dir(ltr) { text-align:end; }
+  .irow.unanswered .ir-text { color:var(--color-ink); }
+  .ir-when { grid-row:2; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-caption);
+    color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
+  /* On a phone the name keeps the room: the regular's mark is its shape (its word still said, and
+     explained under the list), the channel goes, the narrowings are a size smaller. */
+  @media (max-width: 720px) {
+    .ir-reg-w { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    .ir-chan { display:none; }
+    .tabs.filters .tab { padding:8px 12px; font-size:var(--font-size-caption); }
+  }
+  /* The two lenses: one segmented switch, the width of a phone, its own size on a wide screen;
+     the narrowings that hold something beside it, and what the lens orders by under it. */
+  .lensbar { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-16); margin:var(--space-8) 0 var(--space-4); }
+  .lensbar .tabs { margin:0; }
+  .tabs.lens { flex:1 1 100%; gap:var(--space-4); padding:3px; background:var(--color-paper);
+    border:1px solid var(--color-border); border-radius:var(--radius-chip); }
+  .tabs.lens .tab { flex:1 1 0; justify-content:center; background:transparent; border-color:transparent; }
+  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; }
+  @media (min-width: 721px) { .tabs.lens { flex:none; } .tabs.lens .tab { flex:none; } }
+  .tabs.filters { flex-wrap:wrap; align-items:center; }
+  .tabs.filters .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small);
+    color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .lens-says { margin:0 0 var(--space-12); }
+  /* "Needs attention": relationships slipping, in a soft panel above the switch. A face, a name, one
+     line that may wrap — nothing cut; five, then the rest folded. */
+  .attn { margin:0 0 var(--space-16); padding:var(--space-8) var(--space-16); background:var(--color-surface);
+    border:1px solid var(--color-border); border-radius:var(--radius-panel); }
+  .attn-h { font-size:var(--font-size-small); font-weight:600; margin:var(--space-4) 0; }
+  .arows { list-style:none; margin:0; padding:0; }
+  .arow { display:flex; align-items:stretch; min-height:52px; }
+  .arow > .ar-face { flex:none; display:inline-flex; align-items:center; padding-inline-end:var(--space-12); }
+  .ar-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; justify-content:center; padding-block:4px; color:inherit; }
+  /* The name sits at the line's start in the page's direction, whatever its own script: a Latin name on an Arabic page stays on the right. */
+  .ar-name { align-self:flex-start; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--font-size-small); font-weight:600; }
+  .ar-line { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .attn-more > summary { font-size:var(--font-size-small); color:var(--color-ink); }
   /* Phase 9 (V1-166) — a door the rail already holds on a wide screen is the phone's alone. */
   @media (min-width: 721px) { .deeper.on-phone { display:none; } }
   .dhead .who { font-size:var(--font-size-small); }
@@ -1582,6 +1649,14 @@ const STYLE_PAGES = `
   .listpane a.crow { padding-inline:var(--space-12) var(--space-16); }
   .listpane a.crow:hover, .listpane a.crow:focus-visible, .listpane a.crow.on { background:var(--color-surface); }
   .listpane .crows > li.lp-group, .listpane .crows > li.lp-group + li { border-top:0; }
+  /* Phase 4 — the Inbox's own row beside a conversation: the open customer marked by an ink edge. */
+  .listpane .irows { margin:var(--space-8) 0; background:none; border:0; border-radius:0; }
+  .listpane .irow { border-inline-start:3px solid transparent; }
+  .listpane .irow:hover, .listpane .irow:focus-within, .listpane .irow.on { background:var(--color-surface); }
+  .listpane .irow.on { border-inline-start-color:var(--color-ink); }
+  .listpane .irows > li.lp-group, .listpane .irows > li.lp-group + li { border-top:0; }
+  .listpane .tabs.lens { margin:0 var(--space-16) var(--space-8); padding:3px; }
+  .listpane .tabs.filters { margin:0 0 var(--space-8); }
   /* Beside a conversation the group heading says why; the narrow column keeps the name and the message. */
   .listpane .cr-why { display:none; }
   .lp-group { padding:var(--space-12) var(--space-16) var(--space-4); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }

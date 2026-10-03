@@ -112,7 +112,9 @@ describe('Phase F · every empty surface says what happens next', () => {
     expect(emptyToday).toContain('href="/app/business"');     // nobody can reach the assistant yet: the way to go live
     expect(emptyToday).toContain('href="/app/calendar"');    // nothing coming up: the calendar all the same
     expect(emptyBuyers('all')).toContain('href="/app/business"');
-    expect(emptySearch).toContain('href="/app/inbox?filter=all"');   // every buyer, the search let go
+    // every buyer, the search let go — phase 4: the whole list is the list's own address
+    expect(emptySearch).toContain('href="/app/inbox"');
+    expect(emptySearch).not.toContain('filter=all');
     expect(emptyCalendar).toContain('href="/app/inbox"');
   });
 

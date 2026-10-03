@@ -132,7 +132,8 @@ describe('V1-257 · the open conversation is in the list beside it', () => {
     for (const l of LOCALES) {
       const html = renderListPane(list, l, NOW, 'c-9', [], open);
       expect(html, l).toContain(esc(t(l, 'pane.current')));
-      expect(html, l).toMatch(/<a class="crow [^"]* on" href="\/app\/inbox\/c-9#latest" aria-current="page">/);
+      // The warmth run, phase 4 — the Inbox's own row: the open one lit, its link the current page.
+      expect(html, l).toMatch(/<div class="irow [^"]* on">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/c-9#latest" aria-current="page">/);
       expect(html.indexOf('c-9#latest'), l).toBeLessThan(html.indexOf('c-1#latest'));
       // listed already: said once, where the tab has it
       const listed = renderListPane({ ...list, conversations: [...list.conversations, row('c-9')] }, l, NOW, 'c-9', [], open);
@@ -362,7 +363,8 @@ describe('V1-249 · the ✦ before a row\'s last message says whose it is', () =
       conversations: [row('c-1', { awaitingReview: true, lastFrom: 'assistant' })] };
     for (const l of LOCALES) {
       const html = renderListPane(list, l, NOW, 'c-2');
-      expect(html, l).toMatch(/<span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span> <span class="cr-text"/);
+      // phase 4 — the Inbox's own row: the mark and the name it stands for lead the message
+      expect(html, l).toMatch(/<span class="ir-by"><span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       const page = renderConversationDetail(draft(), l, NOW, null);
       expect(page, l).toContain(`<span aria-hidden="true">✦</span> ${esc(t(l, 'card.drafted'))}`);
     }
