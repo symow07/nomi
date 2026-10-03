@@ -678,7 +678,7 @@ describe('the settings pages', () => {
       expect(h.indexOf(shown(l, 'forbidden.floor.body')), l).toBeLessThan(h.indexOf('<details class="floor-fold">'));
       expect([...h.matchAll(/<dt>/g)], l).toHaveLength(FLOOR_BY_LANGUAGE.length);
     }
-    expect(draw('forbidden', 'en')).toContain('<dt>English</dt><dd><bdi>fuck</bdi>, <bdi>shit</bdi>');
+    expect(draw('forbidden', 'en')).toContain('<dt>English</dt><dd><bdi>fuck</bdi>, <bdi>fucks</bdi>');   // V1-504: each form listed
   });
 
   it('V1-503 · V1-508 · the hints fit at 360 px, and the note reads as one', () => {

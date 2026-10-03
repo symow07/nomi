@@ -6,7 +6,7 @@ import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } fr
 import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
-import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
+import { FORBIDDEN_FLOOR, FLOOR_BY_LANGUAGE } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
 import { type FactoryClosure, type ClosureError, validateClosure, closureDate } from '../../core/commerce/closures.js';
 import { type SamplePolicy, type SamplePolicyError, validateSamplePolicy } from '../../core/commerce/samples.js';
@@ -592,18 +592,11 @@ export async function restoreForbidden(
 
 /**
  * Phase 9 (V1-502) — the floor as the page shows it: by the language each word
- * is in, one line a language, so the 43 words are a few lines to scan rather
- * than a column 1,800 px long. The words themselves are `FORBIDDEN_FLOOR`'s, in
- * its order; a parity test holds that these lines are exactly that list.
+ * is in, one line a language, so its words are a few lines to scan rather than
+ * a column 1,800 px long. The groups are the floor's own (forbiddenWords.ts):
+ * since V1-504 the floor is written by language, so the page cannot drift from it.
  */
-export const FLOOR_BY_LANGUAGE: readonly { readonly language: string; readonly words: readonly string[] }[] = [
-  { language: 'en', words: ['fuck', 'shit', 'bastard', 'idiot', 'stupid', 'moron', 'liar'] },
-  { language: 'zh', words: ['傻逼', '白痴', '蠢货', '滚', '骗子'] },
-  { language: 'ar', words: ['غبي', 'كذاب', 'أحمق'] },
-  { language: 'es', words: ['mierda', 'estúpido', 'estúpida', 'imbécil', 'mentiroso', 'mentirosa', 'cabrón', 'gilipollas', 'pendejo'] },
-  { language: 'fr', words: ['merde', 'putain', 'connard', 'connasse', 'menteur', 'menteuse', 'crétin', 'salaud'] },
-  { language: 'pt', words: ['merda', 'porra', 'caralho', 'babaca', 'otário', 'otária', 'imbecil', 'cretino', 'cretina', 'vagabundo', 'vagabunda'] },
-];
+export { FLOOR_BY_LANGUAGE };
 const languageOf = (locale: Locale, code: string): string => {
   try { return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { return code; }
 };
@@ -616,7 +609,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
     <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
-    ${/* Phase 9 (V1-504) — how a word is matched (anywhere, inside longer words too), said where words are added. */ ''}<p class="muted small">${esc(t(locale, 'forbidden.howMatched'))}</p>
+    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<p class="muted small">${esc(t(locale, 'forbidden.howMatched'))}</p>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
