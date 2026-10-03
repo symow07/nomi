@@ -84,10 +84,10 @@ describe('G5b · the page, in every language', () => {
     });
     it(`${l} · without it: says so, and offers no button`, () => {
       const html = renderPhoneAlerts({ publicKey: null, phones: [] }, l, null);
-      // Phase 9 — said first, in the lede, and no promise above it; no empty list of phones.
-      expect(html, l).toContain(esc(t(l, 'alerts.phone.ledeOff')));
+      // Phase 9 of the warmth run (w4-settings-a-08) — the way's own line says it ("Not available here yet");
+      // no section repeats it, no promise, no empty list of phones.
+      expect(html, l).not.toContain('id="alerts-phones"');
       expect(html, l).not.toContain(esc(t(l, 'alerts.phone.lede')));
-      expect(html, l).not.toContain(esc(t(l, 'alerts.phone.yours')));
       expect(html, l).not.toContain('data-push-key');
     });
   }

@@ -51,6 +51,8 @@ export type AlertWaysView = {
   readonly email: string | null;
   readonly whatsapp: 'open' | 'early' | 'number' | 'owner';
   readonly ownerPhone: string | null;
+  /** Meta approved Nomi (the operator's `META_APP_REVIEW`): what the page says of WhatsApp's plan. Absent: not yet. */
+  readonly approved?: boolean;
 };
 
 /** What WhatsApp is for this person now. */
@@ -69,7 +71,7 @@ export async function loadAlertWays(db: Db, businessIdRaw: string, sessionPerson
     if (!person || !facts) return null;
     const reachable = ownerWhatsAppReachable({ ownerPhone: facts.ownerPhone, channelLive: facts.channelLive });
     return { choice: person.choice, isOwner: person.isOwner, email: person.email,
-      whatsapp: whatsappFor(person.isOwner, approved, reachable), ownerPhone: reachable ? facts.ownerPhone : null };
+      whatsapp: whatsappFor(person.isOwner, approved, reachable), ownerPhone: reachable ? facts.ownerPhone : null, approved };
   });
 }
 
@@ -132,61 +134,90 @@ export async function testPhones(db: Db, businessIdRaw: string, personId: string
   return reached;
 }
 
-/**
- * THE WARMTH RUN (2026-10-03), phase 8 — the way out, as a choice of three
- * (the radio rows Billing's plans use), each saying where it goes or why it
- * cannot be chosen now, and that e-mail carries anything the way chosen
- * cannot. WhatsApp may be chosen wherever the owner's alert number is on a live
- * channel; before Meta's approval it says, in one honest line, what that means.
- * Without a number on a live channel it is shown disabled, with what it needs.
- * A colleague who has not chosen hears nothing outside Nomi yet, and the page
- * says so.
- */
-/** A way's name: WhatsApp is the platform's own name, as everywhere a channel is named. */
+/** A way's name. Arabic writes WhatsApp in its own script here, as every other line of the page does (w4-settings-a-07). */
 export const alertWayName = (locale: Locale, way: AlertChannel): string =>
-  t(locale, way === 'whatsapp' ? 'conv.channel.whatsapp' : way === 'browser' ? 'alerts.way.browser' : 'alerts.way.email');
+  t(locale, way === 'whatsapp' ? 'alerts.way.whatsapp' : way === 'browser' ? 'alerts.way.browser' : 'alerts.way.email');
 
-/** The way checked on the page: the choice, or the owner's default; a colleague who chose nothing has none. */
-const checkedWay = (w: AlertWaysView): AlertChannel | null => w.choice ?? (w.isOwner ? defaultAlertChannel(w.whatsapp === 'open') : null);
+/** What can carry a notification to this person now, way by way — the facts `alertChannelFor` is asked with. */
+const waysOpen = (w: AlertWaysView, v: Pick<PhoneAlertsView, 'publicKey' | 'phones'>) => ({
+  whatsapp: whatsappReachableFor(w), browser: v.publicKey !== null && v.phones.length > 0, approved: w.whatsapp === 'open', email: w.email !== null,
+});
 
-/** The way a notification would take to this person now (Setup's row says it); null: none reaches them. */
+/** The way wanted: the choice, or the owner's default; a colleague who chose nothing wants none. */
+const wantedWay = (w: AlertWaysView): AlertChannel | null => w.choice ?? (w.isOwner ? defaultAlertChannel(w.whatsapp === 'open') : null);
+
+/**
+ * The way a notification would take to this person now — the one the sender
+ * takes (`reachPeople` asks `alertChannelFor` the same) — and the one the page
+ * ticks and Setup's row names. Null: nothing reaches them.
+ */
 export function alertWayNow(w: AlertWaysView, v: Pick<PhoneAlertsView, 'publicKey' | 'phones'>): AlertChannel | null {
-  const checked = checkedWay(w);
-  return checked ? alertChannelFor(checked, {
-    whatsapp: whatsappReachableFor(w), browser: v.publicKey !== null && v.phones.length > 0, approved: w.whatsapp === 'open' }) : null;
+  const wanted = wantedWay(w);
+  return wanted ? alertChannelFor(wanted, waysOpen(w, v)) : null;
 }
 
-function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale): string {
+/** Where the page was opened from, for its way back: Setup, or the channels screen's Notifications card (w4-settings-a-10). */
+export type AlertsFrom = 'setup' | 'channels';
+export const alertsFrom = (raw: unknown): AlertsFrom => (raw === 'channels' ? 'channels' : 'setup');
+
+/**
+ * THE WARMTH RUN (2026-10-03), phase 8; phase 9 (w4-settings-a-01, -02, -03,
+ * -09, settings-a-new-06) — the way out, as a card of three rows, each saying
+ * where it goes or what it needs.
+ *   · The way TICKED is the way a notification takes now. A way that cannot
+ *     reach this person is never ticked: e-mail without an address is shown
+ *     disabled, and when nothing reaches them the page says so first.
+ *   · A choice that cannot be used now (a phone or computer with none turned
+ *     on) is named, with what carries them meanwhile.
+ *   · WhatsApp says what the owner's plan rests on: it is the way Nomi means
+ *     to reach them, and the default the day Meta approves Nomi.
+ *   · Save is drawn only where there is something to choose.
+ */
+function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: AlertsFrom): string {
   const pushOn = v.publicKey !== null;
-  const checked = checkedWay(w);
   const now = alertWayNow(w, v);
+  const wanted = wantedWay(w);
+  const can: Record<AlertChannel, boolean> = { email: w.email !== null, browser: pushOn, whatsapp: whatsappReachableFor(w) };
+  const reach = `<a class="way-door" href="/app/channels#alerts">${esc(t(locale, 'factory.reach.title'))}<span class="go" aria-hidden="true">›</span></a>`;
   const note: Record<AlertChannel, string> = {
-    email: w.email ? t(locale, 'alerts.way.email.to', { email: w.email }) : t(locale, 'alerts.way.email.none'),
-    browser: !pushOn ? t(locale, 'alerts.phone.off')
-      : v.phones.length ? t(locale, 'alerts.way.browser.on') : t(locale, 'alerts.way.browser.none'),
-    whatsapp: whatsappReachableFor(w) ? t(locale, 'alerts.way.whatsapp.to', { phone: w.ownerPhone ?? '' })
+    email: esc(w.email ? t(locale, 'alerts.way.email.to', { email: w.email }) : t(locale, 'alerts.way.email.none')),
+    browser: esc(!pushOn ? t(locale, 'alerts.phone.off')
+      : v.phones.length ? t(locale, 'alerts.way.browser.on') : t(locale, 'alerts.way.browser.none')),
+    whatsapp: whatsappReachableFor(w) ? esc(t(locale, 'alerts.way.whatsapp.to', { phone: w.ownerPhone ?? '' }))
       // A colleague's line is said ABOUT the owner: a `staff.*` line, as every such line is.
-      : w.whatsapp === 'owner' ? t(locale, 'staff.whatsappAlerts')
-      : t(locale, 'alerts.way.whatsapp.number'),
+      : w.whatsapp === 'owner' ? esc(t(locale, 'staff.whatsappAlerts'))
+      // (w4-settings-a-03) what it needs, in the code's own condition, and the door to where both are set.
+      : `${esc(t(locale, 'alerts.way.whatsapp.number'))}</span><span class="way-d">${reach}`,
   };
+  // The owner's plan: WhatsApp is the intended way, the default the day Meta approves Nomi (w4-settings-a-01).
+  const plan = !w.isOwner || w.whatsapp === 'open' ? ''
+    : `<span class="way-d">${esc(t(locale, w.approved ? 'alerts.way.whatsapp.planApproved' : 'alerts.way.whatsapp.plan'))}</span>`;
   // Before approval WhatsApp may still be chosen where it is reachable, with the one honest line.
-  const early = w.whatsapp === 'early' ? `<br><span class="muted">${esc(t(locale, 'alerts.way.whatsapp.early'))}</span>` : '';
-  const can: Record<AlertChannel, boolean> = { email: true, browser: pushOn, whatsapp: whatsappReachableFor(w) };
-  const option = (c: AlertChannel) => `<label class="check"><input type="radio" name="channel" value="${c}"${
-    checked === c ? ' checked' : ''}${can[c] ? '' : ' disabled'} />
-          <span><b>${esc(alertWayName(locale, c))}</b><br><span class="muted">${esc(note[c])}</span>${c === 'whatsapp' ? early : ''}</span></label>`;
-  // The way chosen cannot carry it now (Browser with no phone on): say what will.
-  const instead = checked && now !== checked ? `<p class="fwarn">${esc(t(locale, 'alerts.way.instead'))}</p>` : '';
-  return `<section class="block" aria-labelledby="alerts-way">
-      <h2 id="alerts-way">${esc(t(locale, 'alerts.way.title'))}</h2>
-      ${checked ? '' : `<p class="muted">${esc(t(locale, 'alerts.way.notYet'))}</p>`}
-      <form method="post" action="/app/settings/alerts/channel" class="pform">
-        <fieldset class="choices ways" aria-labelledby="alerts-way">
+  const early = w.whatsapp === 'early' ? `<span class="way-d">${esc(t(locale, 'alerts.way.whatsapp.early'))}</span>` : '';
+  const option = (c: AlertChannel) => `<label class="way"><input type="radio" name="channel" value="${c}"${
+    now === c ? ' checked' : ''}${can[c] ? '' : ' disabled'} />
+          <span class="way-t"><span class="way-n">${esc(alertWayName(locale, c))}</span><span class="way-d">${note[c]}</span>${
+            c === 'whatsapp' ? `${early}${plan}` : ''}</span></label>`;
+  const choosable = ALERT_CHANNELS.filter((c) => can[c]);
+  // Nothing reaches them: said first, plainly — and whether a way can be chosen here or must be added.
+  const none = now !== null ? ''
+    : `<p class="ways-none">${esc(t(locale, choosable.length ? 'alerts.way.notYet' : 'alerts.way.nothing'))}</p>`;
+  // The way chosen cannot carry them now (a phone or computer with none on): named, and what carries them meanwhile.
+  const instead = wanted && now !== null && now !== wanted
+    ? `<p class="way-foot">${esc(t(locale, 'alerts.way.instead', { way: alertWayName(locale, wanted) }))}</p>` : '';
+  // E-mail as the floor, said only where there is an address and another way could be the one chosen.
+  const floor = can.email && (can.browser || can.whatsapp) ? `<p class="way-foot">${esc(t(locale, 'alerts.way.fallback'))}</p>` : '';
+  const save = choosable.length > 1 || (choosable.length === 1 && now !== choosable[0])
+    ? `<div class="fr-acts"><button class="btn send" type="submit">${esc(t(locale, 'alerts.way.save'))}</button></div>` : '';
+  return `<section class="sgroup" aria-labelledby="alerts-way">
+      <h2 class="sgroup-h" id="alerts-way">${esc(t(locale, 'alerts.way.title'))}</h2>
+      ${none}
+      <form method="post" action="/app/settings/alerts/channel">
+        ${from === 'channels' ? '<input type="hidden" name="from" value="channels" />' : ''}
+        <fieldset class="scard ways" aria-labelledby="alerts-way">
         ${ALERT_CHANNELS.map(option).join('')}
+        ${instead}${floor}${save}
         </fieldset>
-        ${instead}
-        <button class="btn send" type="submit">${esc(t(locale, 'alerts.way.save'))}</button>
-        <p class="caption muted">${esc(t(locale, 'alerts.way.fallback'))}</p>
       </form>
     </section>`;
 }
@@ -194,9 +225,13 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale): string 
 /**
  * The Notifications page (it was "Alerts on your phone", G5b): what reaches
  * anyone outside Nomi — the two things, said plainly — how it reaches this
- * person, and the phones and browsers that turned alerts on.
+ * person, and the phones and computers that turned notifications on.
+ * Phase 9 of the warmth run: one name for one thing (w4-settings-a-06), the
+ * e-mails that come whatever the way (w4-settings-a-05), and where phone
+ * notifications are not offered here, the way's own line says so and no
+ * empty section repeats it (w4-settings-a-08).
  */
-export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Flash | null): string {
+export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Flash | null, from: AlertsFrom = 'setup'): string {
   // Phase 9 (settings-a-new-06) — the phones as the settings pages' rows, in a card;
   // (settings-a-new-04) none yet says where to turn them on.
   const phones = v.phones.length === 0
@@ -214,10 +249,20 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
        <p class="perr" role="alert" hidden data-push-failed>${esc(t(locale, 'alerts.phone.failed'))}</p>
        <p class="caption muted">${esc(t(locale, 'alerts.phone.iphone'))}</p>`
     : '';
-  // Phase 9 (settings-a-missed-03) — with no way to send an alert here, the
-  // section says so FIRST, then what it will do.
-  // Phase 9 (V1-468) — the way back drawn as on its sibling pages, so the heading sits where theirs does.
-  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
+  // Owners with an address hear two things by e-mail whatever the way (rule 18; the account's letters).
+  const also = v.ways?.isOwner && v.ways.email ? `<p class="ways-sub">${esc(t(locale, 'alerts.alsoMail'))}</p>` : '';
+  const devices = v.publicKey || v.phones.length ? `<section class="sgroup" aria-labelledby="alerts-phones">
+      <h2 class="sgroup-h" id="alerts-phones">${esc(t(locale, 'alerts.phone.title'))}</h2>
+      <p class="ways-sub">${esc(t(locale, 'alerts.phone.lede'))}</p>
+      ${turnOn}
+      ${phones}
+    </section>` : '';
+  // Phase 9 (V1-468) — the way back drawn as on its sibling pages, so the heading sits where theirs does;
+  // (w4-settings-a-10) to the screen it was opened from.
+  const way = from === 'channels'
+    ? back('/app/channels#alerts', t(locale, 'factory.reach.title'))
+    : back('/app/settings/setup', t(locale, 'nav.setup'));
+  return `${way}
     <h1 class="page">${esc(t(locale, 'alerts.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'alerts.lede'))}</p>
@@ -225,12 +270,8 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
       <li>${esc(t(locale, 'alerts.two.order'))}</li>
       <li>${esc(t(locale, 'alerts.two.handover'))}</li>
     </ul>
-    <p class="muted measure-prose">${esc(t(locale, 'alerts.rest'))}</p>
-    ${v.ways ? waysForm(v.ways, v, locale) : ''}
-    <section class="block" aria-labelledby="alerts-phones">
-      <h2 id="alerts-phones">${esc(t(locale, 'alerts.phone.title'))}</h2>
-      <p class="measure-prose">${esc(t(locale, v.publicKey ? 'alerts.phone.lede' : 'alerts.phone.ledeOff'))}</p>
-      ${turnOn}
-      ${v.publicKey || v.phones.length ? `<h3>${esc(t(locale, 'alerts.phone.yours'))}</h3>${phones}` : ''}
-    </section>`;
+    <p class="ways-sub">${esc(t(locale, 'alerts.rest'))}</p>
+    ${also}
+    ${v.ways ? waysForm(v.ways, v, locale, from) : ''}
+    ${devices}`;
 }

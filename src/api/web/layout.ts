@@ -1192,9 +1192,21 @@ const STYLE_PAGES = `
   @media (prefers-reduced-motion: no-preference) {
     .toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
   }
-  /* The Notifications page: the three ways one under another; one that cannot be chosen yet reads as such. */
-  .choices.ways { flex-direction:column; }
-  .choices.ways label.check:has(> input:disabled) { color:var(--color-ink-secondary); }
+  /* The Notifications page: the three ways as the rows of one card, each dot beside the way's name (its first
+     line); a way that cannot be chosen yet reads as such; what reaches nobody is said first; the save in the card. */
+  fieldset.ways { min-inline-size:0; }
+  .ways > * + * { border-top:1px solid var(--color-border); }
+  .way { display:flex; align-items:flex-start; gap:var(--space-12); min-height:56px; padding:var(--space-12) var(--space-16); cursor:pointer; }
+  .way > input { flex:none; margin:var(--space-4) 0 0; }
+  .way-t { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .way-n { font-weight:600; font-size:var(--font-size-small); }
+  .way-d { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .way:has(> input:disabled) { cursor:default; }
+  .way:has(> input:disabled) .way-n { color:var(--color-ink-secondary); }
+  .way-door { white-space:nowrap; }
+  .way-foot { margin:0; padding:var(--space-12) var(--space-16); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .ways-none { margin:0 0 var(--space-12); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); max-width:var(--measure-prose); }
+  .ways-sub { margin:0 0 var(--space-16); font-size:var(--font-size-small); color:var(--color-ink-secondary); max-width:var(--measure-prose); }
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
   .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }

@@ -285,9 +285,11 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       tone: setup ? toneOf(setup.next === null) : undefined }),
     menuRow({ href: '/app/onboarding', icon: 'setup', label: t(locale, 'nav.onboarding'),
       value: named === null ? null : t(locale, named ? 'setup.value.nameConfirmed' : 'setup.value.nameNotConfirmed'), tone: toneOf(named) }),
-    // The warmth run, phase 8 — Notifications: the row says how they reach this reader now.
+    // The warmth run, phase 8 — Notifications: the row says how they reach this reader now;
+    // phase 9 (w4-settings-a-02) — and, when nothing does, says that, not a way that cannot reach them.
     menuRow({ href: '/app/settings/alerts', icon: 'bell', label: t(locale, 'alerts.title'),
-      value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : t(locale, 'setup.value.off'))
+      desc: v.alerts?.way === null ? t(locale, 'setup.alerts.nothing') : null,
+      value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : null)
         : !v.alerts.available ? t(locale, 'setup.value.unavailable')
         : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
       tone: v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),

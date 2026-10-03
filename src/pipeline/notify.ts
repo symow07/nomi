@@ -479,8 +479,9 @@ export async function reachPeople(
   const went: (AlertChannel | null)[] = [];
   let tried = false; let later = false;
   for (const p of people) {
+    // The same choice the Notifications page draws: with no address, e-mail is no way (null: nothing is tried).
     const way = alertChannelFor(p.choice, {
-      whatsapp: p.isOwner && o.whatsappReachable, browser: o.pushOn && p.phones.length > 0, approved: o.approved });
+      whatsapp: p.isOwner && o.whatsappReachable, browser: o.pushOn && p.phones.length > 0, approved: o.approved, email: Boolean(p.email) });
     let r: WayResult | null = way === 'whatsapp' ? await ways.whatsapp()
       : way === 'browser' ? await ways.browser(p.phones) : null;
     let by: AlertChannel | null = r === 'sent' ? way : null;

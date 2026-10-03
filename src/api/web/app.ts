@@ -91,7 +91,7 @@ import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS } from './appIcons.js';
-import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, type PushOut } from './phoneAlerts.js';
+import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, alertsFrom, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -4008,19 +4008,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The warmth run, phase 8 — the page is Notifications: what reaches anyone
   // outside Nomi, how it reaches this person (their own choice, 0124), and the phones.
   const whatsappApproved = (): boolean => deps.metaReview?.state === 'approved';
+  // Phase 9 (w4-settings-a-10) — opened from the channels screen's card, its way back leads there.
   app.get('/app/settings/alerts', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'alerts.title'),
     bodyHtml: renderPhoneAlerts({
       ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
       ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
-    }, locale, takeFlash(req, reply)),
+    }, locale, takeFlash(req, reply), alertsFrom((req.query as { from?: unknown } | undefined)?.from)),
   })));
   app.post('/app/settings/alerts/channel', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const way = await chooseAlertWay(deps.db, s.businessId, personOf(s).id, b['channel'],
       { approved: whatsappApproved(), pushOn: Boolean(deps.push) });
-    return flashTo(reply, '/app/settings/alerts', way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
+    return flashTo(reply, alertsFrom(b['from']) === 'channels' ? '/app/settings/alerts?from=channels' : '/app/settings/alerts',
+      way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
   });
   app.post('/app/settings/alerts/phone', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

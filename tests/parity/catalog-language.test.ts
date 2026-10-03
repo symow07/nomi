@@ -135,7 +135,9 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     k.startsWith('channel.platform.') || k.startsWith('conv.channel.')
     || k.startsWith('contacts.channel.') || k.startsWith('reach.channel.')
     // A2 — "WhatsApp", "Instagram", "TikTok" on the sign-up form are the same names.
-    || k.startsWith('business.channel.');
+    || k.startsWith('business.channel.')
+    // The warmth run, phase 9 — the way out on Notifications (Arabic writes it «واتساب» there).
+    || k === 'alerts.way.whatsapp';
 
   /**
    * Phase 9 (0121) — French shares these words with English: they ARE the
@@ -153,7 +155,9 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       'calendar.cat.conversations', 'calendar.add.day', 'site.channels.email', 'components.state.focus',
       'product.detail.fromPhoto', 'import.photoLabel', 'import.columns.option', 'seq.step.label',
       // The warmth run, phase 8 — Notifications and E-mail are French words too.
-      'alerts.title', 'alerts.way.email']),
+      'alerts.title', 'alerts.way.email',
+      // Phase 9 — the channels screen's card is called what the page it opens is called (w4-settings-a-06).
+      'settings.alerts.title']),
   };
   it('the words French shares with English are still shared (else the list is stale)', () => {
     for (const [l, keys] of Object.entries(SAME_WORD) as [Locale, ReadonlySet<string>][])
