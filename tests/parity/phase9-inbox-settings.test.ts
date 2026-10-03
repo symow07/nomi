@@ -539,8 +539,8 @@ describe('the settings pages', () => {
   });
 
   it('V1-478 · V1-506 · V1-491 · V1-468 · each page leads back to where it is reached from, drawn the same way, the heading under it', () => {
-    // The warmth run: the components gallery and the alerts are Setup's, which moved to /app/settings/setup.
-    const backs: Record<string, string> = { closures: '/app/business', forbidden: '/app/employee', components: '/app/settings/setup', alerts: '/app/settings/setup' };
+    // Phase 7 — closures are reached from My business › How you sell; the gallery and the alerts are Setup's (/app/settings/setup).
+    const backs: Record<string, string> = { closures: '/app/business/how-you-sell', forbidden: '/app/employee', components: '/app/settings/setup', alerts: '/app/settings/setup' };
     for (const l of LOCALES) for (const [p, href] of Object.entries(backs)) {
       expect(draw(p, l).trimStart().startsWith(`<a class="back" href="${href}">`), `${l}/${p}`).toBe(true);
     }

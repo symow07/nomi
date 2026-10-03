@@ -56,12 +56,20 @@ describe('D · five entries', () => {
 
   it('the map puts what you sell under My business, behaviour under the assistant, wiring under Setup', () => {
     const under = (hub: string) => CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
+    // THE WARMTH RUN, phase 7 — My business is a menu; How you sell is a menu
+    // of its own a level down; the channels' one home is My business.
     expect(under('/app/business')).toEqual(expect.arrayContaining([
-      '/app/products', '/app/business/prices', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
+      '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
+      '/app/products', '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
     ]));
+    expect(under('/app/business/how-you-sell')).toEqual(expect.arrayContaining([
+      '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
+    ]));
+    expect(under('/app/business/channels')).toEqual(['/app/channels']);
     expect(under('/app/employee')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
     expect(under('/app/settings')).toEqual(['/app/business', '/app/settings/setup']);
-    expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/channels', '/app/settings/people']));
+    expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/settings/people', '/app/settings/language']));
+    expect(under('/app/settings/setup')).not.toContain('/app/channels');
     // and Settings itself is a nav entry now, not somebody's contextual route
     expect(CONTEXTUAL_ROUTES).not.toContain('/app/settings');
   });
@@ -145,57 +153,53 @@ describe('D · the Today card', () => {
 });
 
 describe('D · the doors moved, the pages did not', () => {
-  it('Setup holds Getting ready, channels, the profile, people, business, sign-in, data — and none of what you sell', () => {
-    const html = withWorkspace(facts(), () => renderSetup({ kind: 'Manufacturer', people: 3 }, 'en', null));
-    for (const href of ['/app/onboarding', '/app/channels', '/app/settings/profile', '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data'])
+  it('phase 7 · Setup holds getting started, going live, alerts, the language, people, sign-in, billing, data — and none of the business', () => {
+    const html = withWorkspace(facts(), () => renderSetup({ people: 3 }, 'en', null));
+    for (const href of ['/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
+      '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data'])
       expect(html).toContain(`href="${href}"`);
-    for (const href of ['/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate', '/app/settings/forbidden'])
+    // the business has ONE home, My business — channels included
+    for (const href of ['/app/channels', '/app/business/channels', '/app/settings/profile', '/app/settings/business', '/app/business/selling',
+      '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate', '/app/settings/forbidden'])
       expect(html).not.toContain(`href="${href}"`);
     expect(html).toContain(`<h1 class="page">${t('en', 'nav.setup')}</h1>`);
   });
 
   it('phase 3 · each row says what the setting is, what it is set to now, and opens it; the profile\'s form is not on Setup', () => {
-    const html = withWorkspace(facts(), () => renderSetup({ kind: null, people: 1 }, 'en', null));
-    const rows = Object.fromEntries([...html.matchAll(/<a class="srow" href="([^"]+)">[\s\S]*?<\/a>/g)].map((m) => [m[1], m[0]]));
+    const html = withWorkspace(facts(), () => renderSetup({ people: 1 }, 'en', null));
+    const rows = Object.fromEntries([...html.matchAll(/<a class="srow sr-menu[^"]*" href="([^"]+)">[\s\S]*?<\/a>/g)].map((m) => [m[1], m[0]]));
     // The guided path (/app/guide) is Setup's first row, and carries where setup stands.
     expect(Object.keys(rows)[0]).toBe('/app/guide');
     expect(rows['/app/guide']).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
-    expect(rows['/app/guide']).toContain(`<span class="sr-desc">${t('en', 'setup.desc.guide')}</span>`);
+    // phase 7 — a menu: no line under a row that its value already says
+    expect(html).not.toContain('class="sr-desc"');
     expect(rows['/app/onboarding']).toBeDefined();
-    expect(rows['/app/settings/business']).toContain(t('en', 'setup.state.notAnswered'));
+    expect(rows['/app/settings/language']).toContain('<bdi>English</bdi>');
     expect(rows['/app/settings/people']).toContain('1 person');
     expect(html).not.toContain('method="post" action="/app/settings"');   // the form lives on its own page
-    expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ kind: 'Retailer', people: 4 }, 'en', null)))
-      .toContain(`<span class="sr-value ok"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
+    expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ people: 4 }, 'en', null)))
+      .toContain(`<span class="sr-value ok" dir="auto"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
   });
 
-  it('phase 3 · labelled groups, one card of rows each, and a search that finds a row by its name, its line or its value', () => {
-    const v = { kind: 'Retailer', people: 2, alerts: { available: true, phones: 0 }, signIn: { email: 'owner@example.test' },
+  it('phase 7 · two labelled groups, one card of rows each; the switch a tap down; the owner\'s pages only the owner\'s', () => {
+    const v = { people: 2, alerts: { available: true, phones: 0 }, signIn: { email: 'owner@example.test' },
       billing: { configured: false, exempt: false, status: 'none' }, dataWaiting: 1 };
     const html = withWorkspace(facts(), () => renderSetup(v, 'en', null));
     const groups = [...html.matchAll(/<h2 class="sgroup-h" id="sg-([a-z]+)">([^<]+)<\/h2>/g)].map((m) => m[1]);
-    expect(groups).toEqual(['language', 'start', 'business', 'reach', 'people', 'account']);
-    expect(html.match(/<ul class="scard">/g)).toHaveLength(5);
-    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
-    expect(html).toContain('<span class="sr-value"><bdi>owner@example.test</bdi></span>');
-    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.notSetUp')}</bdi></span>`);
+    expect(groups).toEqual(['start', 'account']);
+    expect(html.match(/<ul class="scard">/g)).toHaveLength(2);
+    expect(html).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
+    expect(html).toContain('<span class="sr-value" dir="auto"><bdi>owner@example.test</bdi></span>');
+    expect(html).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'setup.value.notSetUp')}</bdi></span>`);
     expect(html).toContain('1 request waiting');
-    // the search is a plain form: the page is filtered on the server
-    expect(html).toMatch(/<form class="search" method="get" action="\/app\/settings\/setup" role="search">/);
-    const found = withWorkspace(facts(), () => renderSetup({ ...v, query: 'BILL' }, 'en', null));
-    // a group's own name finds the whole group, in whatever case it is typed
-    expect([...found.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/billing', '/app/settings/data']);
-    const plan = withWorkspace(facts(), () => renderSetup({ ...v, query: 'plan' }, 'en', null));
-    expect([...plan.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/billing']);
-    expect(found).not.toContain('sg-language');
-    const byLine = withWorkspace(facts(), () => renderSetup({ ...v, query: 'time zone' }, 'en', null));
-    expect([...byLine.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/profile']);
-    const none = withWorkspace(facts(), () => renderSetup({ ...v, query: 'zzzz' }, 'en', null));
-    expect(none).toContain(esc(t('en', 'setup.search.none', { q: 'zzzz' })));
-    expect(none).toContain('<a class="clear" href="/app/settings/setup">');
-    // in Chinese the search reads Chinese
-    const zh = withWorkspace(facts(), () => renderSetup({ ...v, query: '提醒' }, 'zh', null));
-    expect([...zh.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toContain('/app/settings/alerts');
+    expect(html).not.toContain('role="search"');
+    expect(html).not.toContain('class="langsw"');
+    // a sales assistant: who works here is read, not opened; billing and the data are the owner's
+    const staff = withWorkspace(facts(), () => renderSetup({ ...v, billing: null, dataWaiting: null, viewer: { isOwner: false } }, 'en', null));
+    expect(staff).not.toContain('href="/app/settings/people"');
+    expect(staff).toMatch(/<div class="srow sr-menu">[^]*?<span class="sr-label">Who works here<\/span>[^]*?2 people/);
+    for (const href of ['/app/settings/billing', '/app/settings/data']) expect(staff).not.toContain(`href="${href}"`);
+    expect(staff).toContain('href="/app/settings/account"');
   });
 });
 

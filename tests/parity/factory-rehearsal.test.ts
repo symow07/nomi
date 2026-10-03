@@ -7,7 +7,10 @@ import {
 } from '../../src/trust/factoryRehearsal.js';
 import { evaluateScenario, runAll } from '../../src/trust/harness.js';
 import { SCENARIOS } from '../../src/trust/scenarios.js';
-import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
+import { renderBusinessScreen, type FactoryView } from '../../src/api/web/factory.js';
+
+/** Phase 7 — the findings sit on My business's going-live screen, after the decision they never block. */
+const readyScreen = (v: FactoryView, l: Locale): string => renderBusinessScreen('ready', v, l);
 import type { ChannelView } from '../../src/api/web/channels.js';
 import { renderPilotRunbook, renderPilotTechnical, type PilotRunbook } from '../../src/api/web/pilot.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
@@ -386,7 +389,7 @@ const withFindings: RehearsalReport = {
 
 describe('M20.5 · My factory shows findings, never a grade', () => {
   it('leads with the list, and every line goes somewhere the owner can act', () => {
-    const html = renderFactory(view(withFindings), 'en');
+    const html = readyScreen(view(withFindings), 'en');
     // Grouped by reason, with the affected products named under each.
     expect(html).toContain(shown('en', 'factory.rehearsal.no_price'));
     expect(html).toContain('<bdi>Canvas tote</bdi>');
@@ -404,7 +407,7 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
         ({ reason: 'nothing_taught' as const, productName: `Product ${i}`, probeId: null })),
       violations: [], probesRun: 12, productsChecked: 12, productsTotal: 12,
     };
-    const html = renderFactory(view(many), 'en');
+    const html = readyScreen(view(many), 'en');
     const sentence = shown('en', 'factory.rehearsal.nothing_taught');
     // Twelve identical sentences read as an indictment; one over twelve names
     // reads as a job to do. Every name is still there.
@@ -413,7 +416,7 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
   });
 
   it('carries no score, rating or percentage', () => {
-    const html = renderFactory(view(withFindings), 'en');
+    const html = readyScreen(view(withFindings), 'en');
     const block = from(html, shown('en', 'factory.rehearsal.title'));
     expect(block).not.toMatch(/\d+\s?%/);
     for (const word of ['score', 'rating', 'grade', 'passed', 'failed', 'health'])
@@ -421,15 +424,15 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
   });
 
   it('never blocks going live — the activation decision is untouched by it', () => {
-    const blocked = renderFactory(view(withFindings), 'en');
-    const clean = renderFactory(view({ ...withFindings, findings: [] }), 'en');
+    const blocked = readyScreen(view(withFindings), 'en');
+    const clean = readyScreen(view({ ...withFindings, findings: [] }), 'en');
     // Both render the SAME activation verdict; only the findings list differs.
     const verdict = (h: string) => h.slice(at(h, shown('en', 'factory.ready.title')), at(h, shown('en', 'factory.rehearsal.title')));
     expect(verdict(blocked)).toBe(verdict(clean));
   });
 
   it('says what was checked rather than claiming the assistant is ready, when nothing is wrong', () => {
-    const html = renderFactory(view({ ...withFindings, findings: [], productsTotal: 2 }), 'en');
+    const html = readyScreen(view({ ...withFindings, findings: [], productsTotal: 2 }), 'en');
     const block = from(html, shown('en', 'factory.rehearsal.title'));
     expect(block).toContain(shown('en', 'factory.rehearsal.none'));
     expect(block).toContain('Checked all 2 of your products');
@@ -439,13 +442,13 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
   });
 
   it('a factory with no products yet shows nothing at all — no empty success', () => {
-    const html = renderFactory(view({ findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 }), 'en');
+    const html = readyScreen(view({ findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 }), 'en');
     expect(html).not.toContain(shown('en', 'factory.rehearsal.title'));
   });
 
   it('renders in every locale without falling back to English', () => {
     for (const l of LOCALES) {
-      const html = renderFactory(view(withFindings), l);
+      const html = readyScreen(view(withFindings), l);
       expect(html).toContain('Canvas tote');                     // her own product name
       if (l !== 'en') expect(html).not.toContain(shown('en', 'factory.rehearsal.no_price'));
     }
@@ -490,7 +493,7 @@ describe('M20.5 · an engine defect goes to the operator, never to the owner', (
   };
 
   it('My factory shows no trace of it — she cannot fix our defect', () => {
-    const html = renderFactory(view(withViolation), 'en');
+    const html = readyScreen(view(withViolation), 'en');
     for (const leak of ['priceFloorRespected', 'BELOW floor', 'guardViolations', 'factory:quote:TOTE'])
       expect(html, leak).not.toContain(leak);
   });

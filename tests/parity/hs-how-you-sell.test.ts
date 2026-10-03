@@ -6,6 +6,8 @@ import {
 } from '../../src/core/owner/howYouSell.js';
 import { renderHub, renderQuestion, renderConfirm, type QuestionView } from '../../src/api/web/howYouSell.js';
 import { renderSetup } from '../../src/api/web/settings.js';
+import { renderFactory, renderBusinessScreen } from '../../src/api/web/factory.js';
+import { SET_UP } from './business-view.js';
 import { profileOf } from '../../src/core/owner/sellingStyle.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/api/web/say.js';
@@ -128,6 +130,10 @@ describe('HS · the pages, in every language', () => {
     it(`${l} · the hub, every question and the confirm page: no raw keys, the right forms`, () => {
       const hub = renderHub({ facts: view('price').facts, order: CATALOGUE_QUESTIONS, progress: {} }, l, null);
       expect(hub, l).not.toMatch(/\bhs\.[a-zA-Z_.]+/);
+      // Phase 7 — opened from My business › How you sell, a menu of the same name:
+      // the page is named for what it holds, and leads back to that menu.
+      expect(hub, l).toContain(`<div class="dhead"><a class="back" href="/app/business/how-you-sell"><span class="go" aria-hidden="true">‹</span>${t(l, 'factory.sellhow.title')}</a></div>`);
+      expect(hub, l).toContain(`<h1 class="page">${t(l, 'hs.questions.title')}</h1>`);
       for (const q of CATALOGUE_QUESTIONS) expect(hub, `${l} ${q}`).toContain(`href="/app/business/selling/${q}"`);
       for (const q of [...CATALOGUE_QUESTIONS, ...SERVICE_QUESTIONS]) {
         const html = renderQuestion(view(q, q === 'offered' || q === 'area' || q === 'duration' || q === 'next_step'
@@ -162,11 +168,14 @@ describe('HS · the pages, in every language', () => {
       expect(maker, l).not.toContain('value="DDU"');
     }
   });
-  it('Setup shows the owner the door and where she is; staff do not see it', () => {
-    const owner = renderSetup({ kind: null, people: 1, howYouSell: { answered: 3, total: 8 } }, 'en', null);
+  it('phase 7 · My business › How you sell shows the owner the door and where she is; staff do not see it; Setup does not hold it', () => {
+    const owner = renderBusinessScreen('how', SET_UP, 'en');
     expect(owner).toContain('href="/app/business/selling"');
     expect(owner).toContain('3 of 8 answered');
-    expect(renderSetup({ kind: null, people: 1, howYouSell: null }, 'en', null)).not.toContain('href="/app/business/selling"');
+    expect(renderFactory(SET_UP, 'en')).toContain('3 of 8 answered');      // the menu's row says it too
+    expect(renderBusinessScreen('how', { ...SET_UP, menu: { ...SET_UP.menu!, howYouSell: null } }, 'en', null, { isOwner: false }))
+      .not.toContain('href="/app/business/selling"');
+    expect(renderSetup({ people: 1 }, 'en', null)).not.toContain('href="/app/business/selling"');
   });
   it('every route is the owner\'s (rule 11)', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');

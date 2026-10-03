@@ -152,9 +152,10 @@ describe('M43b · the surface', () => {
     expect(html).not.toContain('at the rate you set on');
   });
 
-  it('is reachable from My business (D), and registered as a route', async () => {
+  it('is reachable from My business › How you sell (D, phase 7), and registered as a route', async () => {
     const settings = await readFile(new URL('../../src/api/web/factory.ts', import.meta.url), 'utf8');
-    expect(settings).toContain("deeper('/app/settings/rate'");
+    // Phase 7 — a row of My business › How you sell.
+    expect(settings).toContain("href: '/app/settings/rate'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("app.get('/app/settings/rate'");
     expect(app).toContain("app.post('/app/settings/rate'");

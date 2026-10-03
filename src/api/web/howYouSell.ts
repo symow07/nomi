@@ -146,8 +146,10 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null): stri
     </li>`;
   }).join('');
   const position = (q: Question) => ({ i: v.order.indexOf(q) + 1, n: v.order.length });
-  return `<div class="dhead">${back('/app/business', t(locale, 'hs.backToBusiness'))}</div>
-    <h1 class="page">${esc(t(locale, 'hs.title'))}</h1>
+  // Phase 7 — reached from My business › How you sell, a menu of the same
+  // name: the page is named for what it holds, the questions, and leads back.
+  return `<div class="dhead">${back('/app/business/how-you-sell', t(locale, 'factory.sellhow.title'))}</div>
+    <h1 class="page">${esc(t(locale, 'hs.questions.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'hs.lede', { name }))}</p>
     <p class="hs-count">${esc(t(locale, 'hs.count', { done: show.count(locale, answered), total: show.count(locale, v.order.length) }))}</p>

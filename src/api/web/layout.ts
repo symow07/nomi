@@ -81,10 +81,19 @@ export const NAV_ICON: Readonly<Record<string, IconId>> = {
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
+  // THE WARMTH RUN, phase 7 — My business is a menu: each row opens a page
+  // that already owned its part (the profile, the kind, the products, the
+  // price limits) or a screen of its own a level down.
   { hub: '/app/business', routes: [
-    '/app/products', '/app/business/prices',
-    '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
+    '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
+    '/app/products', '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
   ] },
+  // …How you sell is a menu of its own: the questions, then the same facts changed directly.
+  { hub: '/app/business/how-you-sell', routes: [
+    '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
+  ] },
+  // …and the channels have ONE home, Where customers reach you: each of its rows opens Channels.
+  { hub: '/app/business/channels', routes: ['/app/channels'] },
   // THE WARMTH RUN, phase 7 — the assistant's page is a menu: each row opens
   // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
   // row only while a check waits, so it is not walked from here).
@@ -97,9 +106,11 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // THE WARMTH RUN — My business is a row of Settings now, and the pages
   // reached from it follow it there (the map chains).
   { hub: '/app/settings', routes: ['/app/business', '/app/settings/setup'] },
+  // Phase 7 — Setup is how the app is wired for the owner: getting started,
+  // what is checked before going live, alerts, the language; the account.
   { hub: '/app/settings/setup', routes: [
-    '/app/onboarding', '/app/channels',
-    '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
+    '/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
+    '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data',
   ] },
   // Phase 3 of the UI rebuild — the component gallery (`/app/settings/components`)
   // is no longer a door on Setup: it is a page for whoever builds the product
@@ -1042,11 +1053,12 @@ ${SIGNAL_CSS}${MOTION_CSS}
  */
 const STYLE_PAGES = `
   /* ── settings.ts — moved here whole in step four: page-specific names, defined once. */
-  /* Phase 9 (V1-155) — the five steps under Getting started: rows of the same card, lighter, so the step reads as part of it. */
-  .scard > li.sr-step .srow { min-height:44px; padding-block:var(--space-4); padding-inline-start:var(--space-24); }
-  .sr-step .sr-label { font-weight:400; }
-  /* Phase 9 — five languages on the switch: it wraps inside Setup's card rather than running past it on a phone. */
+  /* Phase 9 — five languages on the switch: it wraps inside its card rather than running past it on a phone. */
   .scard .langsw { flex-wrap:wrap; }
+  /* Phase 7 — a menu row with a line under its name is 64 px; the line wraps rather than being cut,
+     and the value beside it keeps its words (up to its half of the row) instead of giving way to the line. */
+  .srow.sr-two { min-height:64px; }
+  .srow.sr-menu.sr-two > .sr-main { flex:1 1 0; }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
   .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
   .guide-step { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-16); background:var(--color-surface); }
@@ -1225,14 +1237,10 @@ const STYLE_PAGES = `
   .fready { margin:var(--space-8) 0 0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
   /* The next step stands apart from the first section, not on its heading. */
   .lede + .deeper.next { margin-bottom:var(--space-16); }
-  .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
   .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
   .fdesc-lead { margin:0 0 var(--space-12); }
   .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:0; max-width:var(--measure-prose); }
   .fval { color:var(--color-ink); }
-  /* A product tally is never the loudest thing an owner reads. */
-  .fcount { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8); font-variant-numeric:tabular-nums; }
-  .fcount-l { font-size:var(--font-size-small); font-weight:400; color:var(--color-ink-secondary); }
   .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
   /* Phase 9 — a name and its separator are one unit: a line breaks between names, never inside one or before a "·". */
   .fitem { display:inline-block; }
@@ -1257,20 +1265,7 @@ const STYLE_PAGES = `
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
   .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
-  .fconn { display:flex; align-items:center; gap:var(--space-12); }
-  .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
-  .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  .fconn.on .fconn-s { color:var(--color-ok); }
-  /* Not connected stops everything, so it looks like it and links to the fix. */
-  .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:var(--radius-card); padding:14px 16px; }
-  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-ink-secondary); }
-  .fconn.off .fconn-s { color:var(--color-waiting); }
-  .fconn.off .go { margin-inline-start:auto; }
-  /* Phase 9 — never connected is not waiting on anything: a plain door, no wash and no mark. */
-  .fconn.todo { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px 16px; }
-  .fconn.todo:hover, .fconn.todo:focus-visible { border-color:var(--color-ink-secondary); }
-  .fconn.todo .go { margin-inline-start:auto; }
+  /* Phase 7 — the channels are rows of their own screen now (the menu row's value carries the state); the cards' rules went with them. */
   .fblock .deeper { margin-top:var(--space-8); }
   /* Doors in a column keep the column's own gap, as everywhere else. */
   .fblock .doors .deeper { margin-top:0; }
@@ -2195,10 +2190,13 @@ export function hubFor(path: string, active: string): string {
  * it only where the page has none, so a page that draws its own keeps it.
  */
 export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly label: MessageKey }>> = {
-  '/app/settings/closures': { href: '/app/business', label: 'nav.factory' },
-  '/app/settings/rate': { href: '/app/business', label: 'nav.factory' },
-  '/app/settings/samples': { href: '/app/business', label: 'nav.factory' },
-  '/app/settings/terms': { href: '/app/business', label: 'nav.factory' },
+  '/app/settings/closures': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  '/app/settings/rate': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  '/app/settings/samples': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  '/app/settings/terms': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  // Phase 7 — the products and the channels are rows of My business now.
+  '/app/products': { href: '/app/business', label: 'nav.factory' },
+  '/app/channels': { href: '/app/business/channels', label: 'factory.reach.title' },
   '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
   // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
   '/app/knowledge': { href: '/app/employee', label: 'nav.employee' },

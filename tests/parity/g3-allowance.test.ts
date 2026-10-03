@@ -100,7 +100,8 @@ describe('G3 · what the owner reads', () => {
     expect(f).toContain("'business.allowance.none'");
     expect(f).toContain("'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }");
     expect(f).toContain("deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))");
-    expect(f).toContain('const readyBody = everyBlock + allowanceBlock + (waRelevant');
+    // Phase 7 — on the going-live screen, after the Stop and before WhatsApp's switch.
+    expect(f).toContain('const readyBody = everyBlock + allowanceBlock + (s.waRelevant');
   });
   it('20 photos a day, counted on the ledger as each is read', () => {
     expect(PHOTO_READS_A_DAY).toBe(20);
