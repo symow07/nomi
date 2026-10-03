@@ -484,7 +484,8 @@ function nomiChecksRow(d: PilotReadiness, locale: Locale): string {
     return `<div class="pr done">${mk(true)} <span class="lbl">${label}</span>
       <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(show.date(locale, at))}</span></div>`;
   }
-  return `<div class="pr todo">${mk(false)} <span class="lbl">${label}</span>
+  // Phase 9 (w4-today-setup-06) — not the owner's to do: a dash, as Ready marks what is not theirs, never a ○.
+  return `<div class="pr todo"><span class="mk">—</span> <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.nomiChecks.todo'))}</span></div></div>`;
 }
 

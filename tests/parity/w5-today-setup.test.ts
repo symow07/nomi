@@ -395,3 +395,14 @@ describe('w4-today-setup-30 · a mistyped address: no Today tile raised, no dash
     expect(readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8')).toContain("title: t(locale, 'error.notfound.title'), active: 'none',");
   });
 });
+
+describe('w4-today-setup-06 · what Nomi\'s team does is not the owner\'s chore: a dash, not a ○', () => {
+  it('the row says who does it, with no mark that asks anything', () => {
+    for (const l of LOCALES) {
+      const html = inScope(() => renderPilotReadiness(PR, l, null));
+      const row = html.slice(html.lastIndexOf('<div class="pr', html.indexOf(esc(t(l, 'pilot.nomiChecks')))), html.indexOf(esc(t(l, 'pilot.nomiChecks.todo'))));
+      expect(row).toContain('<span class="mk">—</span>');
+      expect(row).not.toContain('○');
+    }
+  });
+});
