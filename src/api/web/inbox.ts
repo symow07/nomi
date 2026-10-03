@@ -1540,8 +1540,8 @@ export function renderInboxList(
   // M38 — the wider list: everyone the assistant may write to. D — a door only
   // where the outreach area exists. Phase 9 of the warmth run (V1-166) — no
   // calendar door: the rail has Calendar on every width since phase 1, and on
-  // a phone the door repeated its tile; the contacts door says what it opens.
-  const doors = outreachShown() ? `<div class="doors">${deeper('/app/contacts', t(locale, 'contacts.door'))}</div>` : '';
+  // a phone the door repeated its tile; the contacts door is the page's own name (V1-548).
+  const doors = outreachShown() ? `<div class="doors">${deeper('/app/contacts', t(locale, 'contacts.title'))}</div>` : '';
   const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}`;
 
   if (data.conversations.length === 0) {

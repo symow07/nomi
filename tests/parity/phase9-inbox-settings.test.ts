@@ -187,8 +187,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     const h = withWorkspace(SCOPE, () => list('en'));
     expect(h).not.toContain('href="/app/calendar"');
     expect(CSS).not.toContain('.deeper.on-phone');
-    expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.door'))}`);
-    expect(t('en', 'contacts.door')).toBe('Contacts: who you may write to first');
+    // the door says the page's own name (V1-548, settings-b's fix)
+    expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.title'))}`);
   });
 
   it('V1-167 · V1-175 · Chinese: the search button is 搜索, the holder runs on without a space, the tab and its group say the same', () => {

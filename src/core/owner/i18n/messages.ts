@@ -3142,7 +3142,6 @@ const EN = {
   'feedback.action.draft_resolved': 'Reviewed a reply',
   // M38 — who she may write to, and how we know.
   'contacts.title': 'Contacts',
-  'contacts.door': 'Contacts: who you may write to first',
   'contacts.intro': 'Everyone here either wrote to you first, or you added them. Anyone who asked you to stop is at the bottom, and stays there.',
   'contacts.summary': 'Can be written to first: {can} of {total}.',
   'contacts.search.label': 'Find a contact',
@@ -6943,7 +6942,6 @@ const ZH: Record<MessageKey, string> = {
   'feedback.action.draft_resolved': '处理了回复',
   // M38
   'contacts.title': '联系人',
-  'contacts.door': '联系人：你可以主动联系谁',
   'contacts.intro': '这里的人，要么先来找过你，要么是你自己加进来的。请你别再联系的人排在最后，而且一直留在那儿。',
   'contacts.summary': '可以先去联系的：{total} 人中 {can} 人。',
   'contacts.search.label': '找联系人',
@@ -10726,8 +10724,7 @@ const AR: Record<MessageKey, string> = {
   'feedback.action.draft_resolved': 'مراجعة ردّ',
   // M38
   'contacts.title': 'جهات الاتصال',
-  'contacts.door': 'جهات الاتصال: من يمكن مراسلته أولًا',
-  'contacts.intro': 'كل من هنا إمّا راسلك أولًا، وإمّا أُضيف يدويًا. ومن طلب إيقاف المراسلة يبقى في الأسفل ولا يعود.',
+  'contacts.intro': 'في هذه القائمة جهات الاتصال التي بدأت المراسلة أولًا، والتي أُضيفت يدويًا. وتبقى جهات الاتصال التي طلبت إيقاف المراسلة في الأسفل دائمًا.',
   'contacts.summary': 'المراسلة أولًا ممكنة مع: {can} من {total}.',
   'contacts.search.label': 'البحث عن جهة اتصال',
   'contacts.search.placeholder': 'الاسم أو الرقم أو البريد أو الشركة',
@@ -14459,7 +14456,6 @@ const ES: Record<MessageKey, string> = {
   'feedback.action.resume_ai': 'Devolviste la conversación a {name}',
   'feedback.action.draft_resolved': 'Revisaste una respuesta',
   'contacts.title': 'Contactos',
-  'contacts.door': 'Contactos: a quién puedes escribir primero',
   'contacts.intro': 'Aquí aparece cada persona que te escribió primero, o que añadiste tú. Quien te pidió que dejaras de escribirle aparece al final, y ahí se queda.',
   'contacts.summary': 'Se les puede escribir primero: {can} de {total}.',
   'contacts.search.label': 'Buscar un contacto',
@@ -18188,7 +18184,6 @@ const FR: Record<MessageKey, string> = {
   'feedback.action.resume_ai': 'Main rendue à {name}',
   'feedback.action.draft_resolved': 'Réponse examinée',
   'contacts.title': 'Vos contacts',
-  'contacts.door': 'Vos contacts : à qui vous pouvez écrire en premier',
   'contacts.intro': 'Figurent ici les personnes qui vous ont écrit en premier, et celles que vous avez ajoutées. Toute personne qui vous a demandé d’arrêter apparaît en bas, et y reste.',
   'contacts.summary': 'Peuvent recevoir un premier message : {can} sur {total}.',
   'contacts.search.label': 'Trouver un contact',

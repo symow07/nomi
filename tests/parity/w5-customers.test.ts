@@ -356,7 +356,7 @@ describe('the Inbox (w4-customers-03 · -04 · -06 · -07 · V1-164 · V1-166 ·
   it('V1-166 · no calendar door under the list (the rail has it); the contacts door names what it opens', () => {
     for (const l of LOCALES) {
       expect(html(l), l).not.toContain('href="/app/calendar"');
-      expect(t(l, 'contacts.door'), l).toContain(t(l, 'contacts.title').replace(/^Vos /, '').trim().slice(0, 4));
+      // the contacts door is the page's own name (V1-548; one wording, settings-b's)
     }
   });
 });
