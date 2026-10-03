@@ -52,7 +52,7 @@ d('Guide · the guided path (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () 
     expect(r.body).toContain(esc(t('en', 'guide.title')));
     expect(r.body).toMatch(/class="guide-step next" id="profile"/);
     expect(r.body.match(/class="pill warn"/g)?.length).toBeGreaterThanOrEqual(5);
-    for (const href of ['/app/settings/profile', '/app/products', '/app/onboarding#name', '/app/channels', '/app/inbox']) expect(r.body).toContain(`href="${href}"`);
+    for (const href of ['/app/settings/profile', '/app/products', '/app/onboarding#name', '/app/business/channels', '/app/inbox']) expect(r.body).toContain(`href="${href}"`);
   });
 
   it('SETUP and TODAY lead to it', async () => {

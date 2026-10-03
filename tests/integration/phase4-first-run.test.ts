@@ -144,7 +144,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     const html = (await get(ig, igOwner, '/app/business/channels')).body;
     expect(html).toContain(esc(t('en', 'reach.channel.instagram')));
     expect(html).toContain('answers people who write here');             // reach.inbound.connected
-    expect(html).toMatch(new RegExp(`<span class="sr-label">${esc(t('en', 'reach.channel.instagram'))}</span>[^]*?<span class="sr-value ok">`));
+    expect(html).toMatch(new RegExp(`<span class="sr-label">${esc(t('en', 'reach.channel.instagram'))}</span>[^]*?<span class="sr-value ok"`));
     // Messenger is offered here, not yet connected, and is a door to connect it
     expect(html).toContain(esc(t('en', 'reach.channel.messenger')));
     expect(html).toContain('cannot answer customers who write here until it is connected');
