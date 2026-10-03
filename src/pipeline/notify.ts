@@ -105,8 +105,6 @@ export const SELF_DEMOTION_PAGE = '/app/employee#on-her-own';
  * that hand-over is what reaches the owner.
  */
 export const ALLOWANCE_ALERT_KINDS = ['allowance_warn', 'allowance_reached'] as const satisfies readonly AlertKind[];
-export const isAllowanceAlert = (kind: AlertKind): boolean =>
-  (ALLOWANCE_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
  * THE WARMTH RUN (2026-10-03), phase 8 — THE TWO INTERRUPTIONS, the only news
@@ -146,7 +144,7 @@ export const interrupts = (kind: AlertKind): boolean => (INTERRUPTION_KINDS as r
  * Nothing is lost: the words stay in the catalogue, and a job of these kinds
  * already queued at a deploy is consumed and dropped (`skipped_quiet`).
  */
-export const QUIET_KINDS = ['hot_lead', 'draft_waiting', 'self_demoted', 'allowance_warn', 'allowance_reached',
+export const QUIET_KINDS = ['hot_lead', 'draft_waiting', 'self_demoted', ...ALLOWANCE_ALERT_KINDS,
   'dead_letter', 'delivery_failed'] as const satisfies readonly AlertKind[];
 export const waitsInApp = (kind: AlertKind): boolean => (QUIET_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -382,9 +380,10 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
   // those queues an alert: this one check refuses them all, whichever path
   // queued it. The owner is on the Practice page, watching it happen.
   if (await withTenantTx(deps.db, bid.value, (tx) => isPracticeCopy(tx, bid.value))) return 'skipped_practice';
+  if (waitsInApp(job.kind)) return 'skipped_quiet';
   if (goesByMail(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
-  if (interrupts(job.kind)) return deliverOwnerInterruption(deps, bid.value, job);
-  return 'skipped_quiet';
+  // What is left is an interruption: `Unclassified` below proves there is nothing else.
+  return deliverOwnerInterruption(deps, bid.value, job);
 }
 
 /** Every kind is classified: an operator alert or an account letter, an interruption, or quiet. */

@@ -124,9 +124,11 @@ describe('only two things leave Nomi', () => {
   it('a quiet kind is consumed and dropped where every alert is delivered — after Practice is asked, before any way out', async () => {
     const src = readFileSync(new URL('../../src/pipeline/notify.ts', import.meta.url), 'utf8');
     const body = src.slice(src.indexOf('export async function deliverOwnerAlert('), src.indexOf('/** Every kind is classified'));
-    expect(body.indexOf('isPracticeCopy')).toBeLessThan(body.indexOf('goesByMail(job.kind)'));
-    expect(body.indexOf('goesByMail(job.kind)')).toBeLessThan(body.indexOf('interrupts(job.kind)'));
-    expect(body).toMatch(/return 'skipped_quiet';\n\}/);
+    expect(body.indexOf('isPracticeCopy')).toBeLessThan(body.indexOf("if (waitsInApp(job.kind)) return 'skipped_quiet';"));
+    expect(body.indexOf('waitsInApp(job.kind)')).toBeLessThan(body.indexOf('goesByMail(job.kind)'));
+    expect(body).toMatch(/return deliverOwnerInterruption\(deps, bid\.value, job\);\n\}/);
+    // …and the type that proves every kind is one of the three is there, and compiles only while it is true.
+    expect(src).toContain("const everyKindClassified: [Unclassified] extends [never] ? true : false = true;");
     // A job that names no business is nowhere to go, before anything is read.
     expect(await deliverOwnerAlert({ db: {} as never, adapter: { sendText: async () => ({ ok: true as const, providerMessageId: 'x' }) } },
       { businessId: 'not-a-business', kind: 'hot_lead', conversationId: null })).toBe('skipped_no_destination');
@@ -376,7 +378,7 @@ describe('the rail\'s answer: the count every page shows, and who arrived when i
       expect(withoutIsolates(nameless.toast!.say)).toContain(t(l, 'common.buyer'));
     }
     // In Arabic a name in Latin letters is isolated, so the line reads right to left around it.
-    expect(railSaid('ar', { status: 200, n: 3, newest: { conversationId: CONV, who: 'Amina', why: 'person' } }).toast!.say).toContain('⁨Amina⁩');
+    expect(railSaid('ar', { status: 200, n: 3, newest: { conversationId: CONV, who: 'Amina', why: 'person' } }).toast!.say).toContain('\u2068Amina\u2069');
   });
 
   it('every page in a workspace draws the slot that asks it — empty, polite, with the count it was drawn with; outside one, none', () => {
