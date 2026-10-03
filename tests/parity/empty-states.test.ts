@@ -4,7 +4,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { renderInboxList } from '../../src/api/web/inbox.js';
-import { renderEmployee } from '../../src/api/web/employee.js';
+import { everyScreen } from './employee-screens.js';
 import { renderFactory } from '../../src/api/web/factory.js';
 import type { OperationsSnapshot } from '../../src/api/web/operations.js';
 import type { FactoryView } from '../../src/api/web/factory.js';
@@ -35,7 +35,8 @@ const emptyProfile: EmployeeProfile = {
 const emptyContext: HerContext = {
   handled: 0, draftsPrepared: 0, neededYou: 0, taughtRecently: 0, corrected: 0, gaps: [],
 };
-const emptyHer = renderEmployee(emptyProfile, 'en', null, emptyContext);
+// Phase 7 — the assistant's page is a menu; its empty rooms are its screens, read end to end.
+const emptyHer = everyScreen(emptyProfile, 'en', null, emptyContext);
 
 const emptyBuyers = (filter: 'pending' | 'all') =>
   renderInboxList({ filter, waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW);

@@ -7,7 +7,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { parseOwnerReply } from '../../src/core/conversation/cards.js';
 import { renderInboxList, renderConversationDetail } from '../../src/api/web/inbox.js';
-import { renderEmployee } from '../../src/api/web/employee.js';
+import { everyScreen } from './employee-screens.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import type { TodayData } from '../../src/api/web/today.js';
 import { renderAnalytics } from '../../src/api/web/analytics.js';
@@ -140,7 +140,8 @@ const analytics = renderAnalytics({
 const ownerReads = (html: string): string =>
   html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]*>/g, ' ');
 
-const employee = renderEmployee({
+// Phase 7 — the landing and every screen it opens.
+const employee = everyScreen({
   hireDate: NOW, knows: 14, stage: 'probation',
   canDo: [], needConfirm: ['quote', 'negotiate'],
   capabilities: [{ capability: 'quote', mode: 'draft', promotable: true }],

@@ -85,7 +85,12 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
     '/app/products', '/app/business/prices',
     '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
   ] },
-  { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox'] },
+  // THE WARMTH RUN, phase 7 — the assistant's page is a menu: each row opens
+  // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
+  // row only while a check waits, so it is not walked from here).
+  { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox',
+    '/app/employee/talk', '/app/employee/learning', '/app/employee/name', '/app/employee/replies',
+    '/app/employee/one-kind', '/app/employee/month', '/app/employee/next', '/app/employee/history'] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
   { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
@@ -1088,6 +1093,12 @@ const STYLE_PAGES = `
   .cond { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .actrow:last-of-type { border-bottom:none; }
+  /* THE WARMTH RUN, phase 7 — the landing: the control stands apart from the menu under it; what holds every level (stopped, paused) leads it. */
+  .level-control { margin-bottom:var(--space-24); }
+  .held-all { margin-bottom:var(--space-12); }
+  .held-all p { margin:0 0 var(--space-4); }
+  /* The name screen: the name itself, at the size of a name. */
+  .emp-called { font-size:var(--font-size-title); font-weight:600; margin:0 0 var(--space-12); }
 
   /* ── factory.ts — moved here whole in step four: page-specific names, defined once. */
   .lede { color:var(--color-ink-secondary); margin:0 0 var(--space-24); font-size:var(--font-size-small); max-width:var(--measure-prose); }
@@ -2046,6 +2057,8 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/samples': { href: '/app/business', label: 'nav.factory' },
   '/app/settings/terms': { href: '/app/business', label: 'nav.factory' },
   '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
+  // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
+  '/app/knowledge': { href: '/app/employee', label: 'nav.employee' },
   '/app/settings/people': { href: '/app/settings/setup', label: 'nav.setup' },
   '/app/guide': { href: '/app/settings/setup', label: 'nav.setup' },
   '/app/onboarding': { href: '/app/settings/setup', label: 'nav.setup' },

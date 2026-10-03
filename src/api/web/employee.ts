@@ -14,9 +14,12 @@ import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.
 import { t, tn, assistantName } from './say.js';
 import { languageName } from './inbox.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
-import { esc, deeper, signalMark, type Signal } from './layout.js';
+import { esc, deeper, back, signalMark, type Signal } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+import { assistantStopped } from '../../db/assistantStop.js';
+import { loadKillSwitches } from '../../db/opsFlags.js';
+import { icon, type IconId } from './icons.js';
 import * as show from './values.js';
 
 /**
@@ -94,6 +97,20 @@ export type EmployeeProfile = {
   readonly chosen?: { readonly level: AutonomyLevel; readonly at: Date } | null;
   /** R5 — each capability the system stepped back since that choice (or in the last 30 days): when and why. Newest per capability. */
   readonly stepped?: readonly { readonly capability: string; readonly at: Date; readonly reasons: readonly string[] }[];
+  /**
+   * THE WARMTH RUN, phase 7 — what the menu's rows say before they are
+   * opened: the products on sale (My business's own count) and the words the
+   * owner forbade. Absent: the row says nothing rather than a guess.
+   */
+  readonly products?: number;
+  readonly words?: number;
+  /**
+   * 0070 / 0071 (rule 13) — the owner's Stop, and the operator's pause. Either
+   * one means nothing the assistant writes is sent, whatever level is chosen,
+   * so the page says so beside the choice. Absent reads as answering.
+   */
+  readonly stopped?: boolean;
+  readonly silenced?: boolean;
 };
 
 export async function loadEmployee(db: Db, businessIdRaw: string): Promise<EmployeeProfile> {
@@ -167,7 +184,18 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
          and at >= coalesce(${chosen?.at ?? null}::timestamptz, now() - interval '30 days')
        order by capability, at desc`.execute(tx)).rows;
 
+    // Phase 7 — the rows' values: counted where My business and the forbidden
+    // words page count them, so the two doors never disagree.
+    const tallies = (await sql<{ products: number; words: number }>`
+      select (select count(*)::int from products where business_id = ${bid.value} and is_active) as products,
+             (select count(*)::int from forbidden_terms where business_id = ${bid.value} and archived_at is null) as words
+    `.execute(tx)).rows[0];
+
     return {
+      products: tallies?.products ?? 0,
+      words: tallies?.words ?? 0,
+      stopped: await assistantStopped(tx, bid.value),
+      silenced: (await loadKillSwitches(tx, bid.value)).globalSilence,
       hireDate: onboard?.signup_at ?? null,
       knows,
       chosen,
@@ -186,6 +214,40 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 }
 
 /** ── Renderer (pure, mobile-first, localized) ─────────────────────────────── */
+
+/*
+ * THE WARMTH RUN (2026-10-03), phase 7 — THE SETTINGS MODEL. The owner: "it
+ * reads like a Word document". The page was one long scroll of ten sections
+ * of prose; it is now a calm menu that opens one level deeper, the iPhone way.
+ *
+ *   the landing   the name; the control for how much the assistant does
+ *                 alone, whole and usable, with everything that holds it
+ *                 (rule 1's native read, rule 2's name, rule 13's Stop and the
+ *                 operator's pause) said beside it; then the menu — rows in
+ *                 three groups, each with its shape, its name, where it stands
+ *                 now, and the door.
+ *   a screen      one former section, its words and its controls unchanged,
+ *                 under a way back to the menu (`/app/employee/<screen>`).
+ *
+ * Nothing here moved where it is edited: the business's facts and products
+ * stay My business's ("two doors, one data" — the "can talk about" screen
+ * reads them and opens them there), taught knowledge stays /app/knowledge,
+ * the forbidden words their own page, Practice its own room.
+ */
+
+/** Phase 7 — the screens one row each opens, in the menu's order. */
+export const EMPLOYEE_SCREENS = ['talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
+export type EmployeeScreen = typeof EMPLOYEE_SCREENS[number];
+export const isEmployeeScreen = (s: string): s is EmployeeScreen => (EMPLOYEE_SCREENS as readonly string[]).includes(s);
+export const screenHref = (s: EmployeeScreen): string => `/app/employee/${s}`;
+
+/** Each screen's heading — the row's own words, so the row, the tab and the heading say one thing. */
+const SCREEN_TITLE: Readonly<Record<EmployeeScreen, MessageKey>> = {
+  talk: 'her.talk.title', learning: 'her.teach.title', name: 'her.menu.name', replies: 'her.handles.title',
+  'one-kind': 'employee.actions.title', checks: 'spotcheck.title', month: 'her.recent.title',
+  next: 'employee.promo.title', history: 'employee.growth.title',
+};
+export const screenTitle = (locale: Locale, s: EmployeeScreen): string => t(locale, SCREEN_TITLE[s]);
 
 /*
  * Phase 9 — the history ("What changed") carries no state marks: an event
@@ -216,6 +278,33 @@ export type HerContext = {
   readonly neededYou: number;           // DISTINCT conversations a human stepped into
   readonly gaps: readonly { readonly question: string; readonly count: number }[];
 };
+
+/**
+ * Phase 7 — TWO DOORS, ONE DATA. What the assistant answers from, as My
+ * business keeps it: read by the route through the very loaders My business
+ * uses (`loadBusinessProfile`, `loadHub`, `loadProductList`), summarised
+ * here, and opened there. Nothing on this screen is a form: a fact or a
+ * product is changed in the one place it lives. Structurally typed, like
+ * `HerContext`, so this module imports none of those pages.
+ */
+export type TalkAbout = {
+  /** The business's own name, as the profile holds it. */
+  readonly business: string;
+  /** Which of the profile's details are given, as the profile page labels them. */
+  readonly given: readonly ('description' | 'location' | 'workingHours' | 'contactEmail' | 'contactPhone' | 'languages')[];
+  /** How you sell: answered of asked; null where it could not be read. */
+  readonly selling: { readonly answered: number; readonly total: number } | null;
+  /** The products on sale, and a few of their names for recognition, already in the page's language. */
+  readonly products: { readonly total: number; readonly names: readonly string[] };
+};
+
+const GIVEN_LABEL: Readonly<Record<TalkAbout['given'][number], MessageKey>> = {
+  description: 'settings.field.description', location: 'settings.field.location', workingHours: 'settings.field.workingHours',
+  contactEmail: 'settings.field.contactEmail', contactPhone: 'settings.field.contactPhone', languages: 'settings.field.languages',
+};
+
+/** What a screen may be given beyond the profile and the month's counts. */
+export type ScreenExtras = { readonly talk?: TalkAbout };
 
 const countRow = (value: number, label: string): string =>
   `<div class="hrow"><span class="hnum">${value}</span><span class="hlabel">${esc(label)}</span></div>`;
@@ -250,11 +339,11 @@ function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Loc
     ${deeper('/app/knowledge', t(locale, 'knowledge.teach'))}</div>`;
 }
 
-/** 3 · What did she do recently? Real counts, no rate. */
-function recentSection(c: HerContext | undefined, locale: Locale): string {
+/** 3 · What did she do recently? Real counts, no rate. The screen's heading names the span. */
+function recentBody(c: HerContext | undefined, locale: Locale): string {
   if (!c) return '';
   const quiet = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
-  return `<div class="block"><h2>${esc(t(locale, 'her.recent.title'))}</h2>
+  return `<div class="block">
     ${quiet ? `<div class="empty">${esc(t(locale, 'her.recent.quiet'))} ${esc(t(locale, 'her.recent.noneWhy'))}</div>`
       : `<div class="hrows">
           ${countLine(locale, 'her.count.handled', c.handled)}
@@ -264,7 +353,7 @@ function recentSection(c: HerContext | undefined, locale: Locale): string {
 }
 
 /** 4 · What still needs teaching? Each item leads to the EXISTING teach flow. */
-function teachSection(c: HerContext | undefined, locale: Locale): string {
+function teachBody(c: HerContext | undefined, locale: Locale): string {
   if (!c) return '';
   if (c.gaps.length === 0) {
     // Phase F: "she answered everything you taught" is only TRUE once she has
@@ -272,12 +361,11 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
     // that never happened — a fabricated success on the trust surface itself.
     // Phase 9 — and "no customer has asked anything" only when nothing came
     // in at all: two replies prepared means two customers asked. The advice
-    // to teach is the section above's, with its door; it is not said twice.
+    // to teach is the section below's, with its door; it is not said twice.
     const pristine = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
-    return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
-      <div class="empty">${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</div></div>`;
+    return `<div class="block"><div class="empty">${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</div></div>`;
   }
-  return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
+  return `<div class="block">
     <div class="gaps">${c.gaps.map((g) => `
       <a class="gap" href="/app/knowledge?teach=${encodeURIComponent(g.question)}">
         <span class="gq">${esc(g.question)}</span>
@@ -340,16 +428,17 @@ function chosenBlock(e: EmployeeProfile, locale: Locale): string {
       }))}</li>`).join('')}</ul>` : ''}`;
 }
 
-export function renderEmployee(
-  e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
-): string {
-  const name = assistantName(locale);
-  const capName = (c: string) => capabilityName(locale, c);
-  // Phase 9 — "Handled without you" lists only what goes out alone TODAY.
-  // The send decision (commitTurn) drafts a capability set to auto while no
-  // language's sentence is signed off, the name is unconfirmed, or the
-  // workspace has not earned that rung; such a capability is listed as set,
-  // still waiting, with the reason — never as handled.
+/**
+ * What every part of the page reads alike: which kinds go out alone TODAY,
+ * which are set to but still wait (and why), the stage, and the level.
+ *
+ * Phase 9 — "Handled without you" lists only what goes out alone TODAY.
+ * The send decision (commitTurn) drafts a capability set to auto while no
+ * language's sentence is signed off, the name is unconfirmed, or the
+ * workspace has not earned that rung; such a capability is listed as set,
+ * still waiting, with the reason — never as handled.
+ */
+function standing(e: EmployeeProfile, locale: Locale) {
   const heldBecause: MessageKey | null = !autonomyReleased() ? 'her.handles.held.why.release'
     : !e.assistantNamed ? 'her.handles.held.why.name'
     : e.earned === false ? 'her.handles.held.why.ramp' : null;
@@ -358,88 +447,50 @@ export function renderEmployee(
   const setButHeld = e.canDo.filter((c) => !goesAlone(c));
   const heldWhy = t(locale, heldBecause ?? 'her.handles.held.why.ramp', { ready: t(locale, 'pilot.title') });
   const stageLabel = t(locale, `employee.stage.${alone.length ? e.stage : 'probation'}` as MessageKey);
-
-  // Phase 9 — the h1 above already names the assistant; the card says what
-  // it does today. Until the name is confirmed the card says that, rather
-  // than showing "Your assistant" in the place a name goes; the way to
-  // confirm it (the owner's: `messaging_activation`) is beside the levels it holds.
-  const card = `<div class="card emp">
-    <div class="emp-stage">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div>
-    ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted emp-hired">${esc(labelled(locale, t(locale, 'employee.hired'), show.date(locale, e.hireDate)))}</div>` : ''}
-    ${e.assistantNamed ? '' : `<p class="fwarn">${esc(t(locale, 'employee.name.unconfirmed'))}</p>`}
-  </div>`;
-
-  // 2 · What can she handle? Permission and trust boundaries — never a measure
-  //     of how good she is. Promotion LOGIC is untouched; only the framing.
-  const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
-  const duties = `<div class="block"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
-    ${e.canDo.length === 0 && e.needConfirm.length === 0
-      ? `<div class="empty">${esc(t(locale, 'her.handles.none'))}</div>` : ''}
-    ${list(t(locale, 'her.handles.alone'), 'ok', alone.map(capName), t(locale, 'employee.duties.none'))}
-    ${setButHeld.length ? `${list(t(locale, 'her.handles.held'), 'waiting', setButHeld.map(capName), '')}
-      <p class="muted small">${esc(heldWhy)}</p>` : ''}
-    ${list(t(locale, 'her.handles.waits'), 'waiting', e.needConfirm.map(capName), t(locale, 'employee.duties.none'))}
-    ${list(t(locale, 'her.handles.always'), null, cannotDo, t(locale, 'employee.duties.none'))}
-  </div>`;
-
-  // M34.7 — 抽查. Placed right after what she is trusted with, because that is
-  // the question it answers: is the trust warranted? It is the one thing on
-  // this page that asks the owner to act, so it does not sit under the
-  // mechanics. Absent when there is nothing to check — an empty ritual is worse
-  // than none, and the page already says enough about her without it.
-  const spotChecks = e.spotChecks.length
-    ? `<div class="block" id="spot-checks"><h2>${esc(t(locale, 'spotcheck.title'))}</h2>
-        <p class="muted review-intro">${esc(t(locale, 'spotcheck.intro', { name }))}</p>
-        ${e.spotChecks.map((s) => {
-          const act = `/app/employee/spot-check/${encodeURIComponent(s.id)}`;
-          return `<div class="scheck">
-            <div class="muted sclabel">${esc(t(locale, 'spotcheck.buyerSaid'))}</div>
-            <div class="scsaid"><bdi>${esc(s.buyerMessage)}</bdi></div>
-            <div class="muted sclabel">${esc(t(locale, s.wasAuto ? 'spotcheck.sentAlone' : 'spotcheck.sheReplied', { name }))}</div>
-            <div class="proposed"><bdi>${esc(s.reply)}</bdi></div>
-            <form method="post" action="${act}" class="acts">
-              <button class="btn send" name="answer" value="好">${esc(t(locale, 'spotcheck.ok'))}</button>
-              <button class="btn danger" name="answer" value="有问题">${esc(t(locale, 'spotcheck.problem'))}</button>
-            </form>
-            <details class="scfix"><summary>${esc(t(locale, 'spotcheck.fix'))}</summary>
-              <form method="post" action="${act}">
-                <textarea name="answer" rows="2" required
-                  placeholder="${esc(t(locale, 'spotcheck.fixPlaceholder'))}"></textarea>
-                <button class="btn" type="submit">${esc(t(locale, 'spotcheck.fixSave'))}</button>
-              </form>
-            </details>
-          </div>`;
-        }).join('')}
-      </div>`
-    : '';
-
-  const growth = `<div class="block"><h2>${esc(t(locale, 'employee.growth.title'))}</h2>
-    ${e.growth.length
-      ? `<ul class="growth">${e.growth.map((g) => {
-          const text = g.kind === 'self_demote'
-            ? t(locale, 'employee.growth.self_demote', {
-                cap: capName(g.capability ?? ''),
-                why: t(locale, `demote.why.${g.why ?? 'repeated_corrections'}` as MessageKey),
-              })
-            : t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
-          return `<li>${esc(text)}<span class="muted"> · ${esc(show.date(locale, g.at))}</span></li>`;
-        }).join('')}</ul>`
-      : `<div class="muted empty">${esc(t(locale, 'employee.growth.empty'))}</div>`}
-  </div>`;
-
-  const promo = `<div class="block"><h2>${esc(t(locale, 'employee.promo.title'))}</h2>
-    <div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.current'), stageLabel))}</div>
-    ${alone.length
-      ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
-      : `<div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')))}</div>
-         ${setButHeld.length ? `<p class="muted small">${esc(heldWhy)}</p>` : ''}`}
-    ${e.conditions.length ? `<div class="conds">${e.conditions.map((c) =>
-      `<div class="cond">${signalMark(c.met ? 'ok' : 'waiting')} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey, { name }))}</div>`).join('')}</div>` : ''}
-  </div>`;
-
-  // T1 — her choice, from day one. The ladder below stays as advice about what
-  // she has EARNED; this is what the owner has DECIDED. Owner only, like it.
   const level = levelOf(Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode])));
+  const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
+  const revocable = e.capabilities.filter((c) => c.mode === 'auto');
+  return { alone, setButHeld, heldWhy, stageLabel, level, grantable, revocable };
+}
+
+/**
+ * 0070 / 0071 (rule 13) — stopped, or paused by the operator: nothing the
+ * assistant writes is sent, whatever is chosen below. Said first, in Today's
+ * own words; the way to Start is My business's, and the owner's alone.
+ */
+function heldEverywhere(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
+  const name = assistantName(locale);
+  const stop = e.stopped
+    ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.stopped.title', { name }))}</p>
+        <p class="small">${esc(t(locale, 'today.stopped.body', { name }))}</p>
+        ${viewer.isOwner ? deeper('/app/business', t(locale, 'today.stopped.start', { name })) : ''}</div>`
+    : '';
+  const paused = e.silenced
+    ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.silenced.title', { name }))}</p>
+        <p class="small">${esc(t(locale, 'today.silenced.body', { name }))}</p></div>`
+    : '';
+  return `${paused}${stop}`;
+}
+
+/**
+ * T1 — HOW MUCH THE ASSISTANT DOES ALONE: the heart of the product, so it
+ * stays on the landing, whole — the three levels in their own words, the one
+ * in force checked, the form posting where it always did — with everything
+ * that holds it said beside it. The ladder stays as advice about what has been
+ * EARNED; this is what the owner has DECIDED. Owner only, like it; a member of
+ * staff reads where it stands and who decides it.
+ */
+function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
+  const { level } = standing(e, locale);
+  if (!viewer.isOwner) {
+    const said = level ? t(locale, 'autonomy.inForce', { level: t(locale, `autonomy.level.${level}` as MessageKey) }) : t(locale, 'autonomy.inForce.mixed');
+    return `<section class="block level-control">
+      <h2>${esc(t(locale, 'autonomy.title'))}</h2>
+      ${heldEverywhere(e, locale, viewer)}
+      <p>${esc(said)}</p>
+      <p class="muted small">${esc(t(locale, 'staff.ownerDecides'))}</p>
+    </section>`;
+  }
   // Phase 9 — what holds every level, said ABOVE the levels and at the size
   // of the text around it: an unconfirmed name (hers to fix, so the waiting
   // mark and the door), a sentence not yet read by a native speaker, and the
@@ -455,13 +506,14 @@ export function renderEmployee(
     }))}</p>` : '',
   ].join('');
   // The mix, in words: which kinds are set to go without the owner now.
-  const setAlone = e.capabilities.filter((c) => c.mode === 'auto').map((c) => capName(c.capability));
+  const setAlone = e.capabilities.filter((c) => c.mode === 'auto').map((c) => capabilityName(locale, c.capability));
   const mixed = level === null
     ? `<p class="small">${esc(setAlone.length
       ? t(locale, 'autonomy.mixed', { list: formatList(locale, setAlone) })
       : t(locale, 'autonomy.mixed.none'))}</p>` : '';
-  const autonomy = !viewer.isOwner ? '' : `<div class="block" id="on-her-own">
+  return `<section class="block level-control" id="on-her-own">
       <h2>${esc(t(locale, 'autonomy.title'))}</h2>
+      ${heldEverywhere(e, locale, viewer)}
       <p class="muted small">${esc(t(locale, 'autonomy.intro'))}</p>
       ${holds}
       ${chosenBlock(e, locale)}
@@ -479,52 +531,228 @@ export function renderEmployee(
           <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
       </form>`}
-    </div>`;
-
-  const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
-  const revocable = e.capabilities.filter((c) => c.mode === 'auto');
-  // G9a — what she may do on her own is the owner's decision; staff see the
-  // ladder (above) but not the buttons that move her along it.
-  const actions = !viewer.isOwner
-    ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'staff.ownerDecides'))}</div></div>`
-    : (grantable.length || revocable.length)
-    ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2>
-        ${/* CC-29 — each asks first, in this block's own words: grant, revoke. Phase 9 — making a kind wait again is an ordinary choice the owner can undo: not red. */ ''}${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
-            <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
-              onclick="return confirm(this.dataset.confirm)"
-              data-confirm="${esc(t(locale, 'employee.actions.revokeConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
-        ${grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
-            <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
-              onclick="return confirm(this.dataset.confirm)"
-              data-confirm="${esc(t(locale, 'employee.actions.grantConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
-        ${grantable.length === 0 ? `<p class="muted">${esc(t(locale, 'employee.actions.more', { name }))}</p>` : ''}
-        <p class="muted">${esc(t(locale, 'employee.actions.note'))}</p>
-      </div>`
-    : `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
-
-  // D — HOW the assistant behaves, beside what it knows: the forbidden words
-  // and the practice room lived under Settings and My business. The pages did
-  // not move; the doors did.
-  const more = `<div class="block"><h2>${esc(t(locale, 'employee.more.title', { name }))}</h2>
-    <div class="doors">
-      ${deeper('/app/settings/forbidden', t(locale, 'forbidden.title', { name }))}
-      ${deeper('/app/sandbox', t(locale, 'nav.sandbox'))}
-    </div></div>`;
-
-  // Order answers "who is this today?": who → what it knows → what it is
-  // trusted with → what it did → what it still needs from you. Promotion and
-  // growth sit last: they are the mechanics behind the relationship, not the
-  // headline.
-  return `<h1 class="page">${esc(name)}</h1>
-    ${flashBanner(flash)}
-    ${card}
-    ${autonomy}
-    ${knowsSection(e, ctx, locale)}
-    ${duties}
-    ${spotChecks}
-    ${recentSection(ctx, locale)}
-    ${teachSection(ctx, locale)}
-    ${more}
-    ${growth}${promo}${actions}`;
+    </section>`;
 }
 
+/** A row of the menu: its shape, its name, where it stands now, and the door. Without a door, the value alone. */
+type MenuRow = {
+  readonly href: string | null; readonly icon: IconId; readonly label: string;
+  readonly value?: string; readonly tone?: 'ok' | 'warn' | undefined; readonly desc?: string; readonly id?: string;
+};
+const menuRow = (r: MenuRow): string => {
+  const inner = `${icon(r.icon)}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${r.desc ? `<span class="sr-desc">${esc(r.desc)}</span>` : ''}</span>`
+    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
+  return `<li${r.id ? ` id="${r.id}"` : ''}>${r.href
+    ? `<a class="srow sr-menu" href="${r.href}">${inner}<span class="go" aria-hidden="true">›</span></a>`
+    : `<div class="srow sr-menu">${inner}</div>`}</li>`;
+};
+const menuGroup = (id: string, title: string, rows: readonly MenuRow[]): string =>
+  `<section class="sgroup" aria-labelledby="ag-${id}"><h2 class="sgroup-h" id="ag-${id}">${esc(title)}</h2>
+    <ul class="scard">${rows.map(menuRow).join('')}</ul></section>`;
+
+/**
+ * The landing: the name, the control, the menu. Three groups, named by me as
+ * the owner allowed: what the assistant says (what it can talk about, what it
+ * was taught, what it still needs, the words it never uses); how it works with
+ * you (its name, each kind of reply, one kind at a time, checking its work,
+ * Practice); and how it is going (the month, what comes next, what changed).
+ */
+export function renderEmployee(
+  e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
+): string {
+  const name = assistantName(locale);
+  const st = standing(e, locale);
+  const nothingYet = t(locale, 'her.menu.nothingYet');
+  const met = e.conditions.filter((c) => c.met).length;
+
+  const says: MenuRow[] = [
+    { href: screenHref('talk'), icon: 'talk', label: t(locale, 'her.talk.title'),
+      ...(e.products === undefined ? {} : { value: tn(locale, 'her.talk.products', e.products) }) },
+    { href: '/app/knowledge', icon: 'book', label: t(locale, 'nav.knowledge'),
+      value: e.knows ? tn(locale, 'knowledge.product.facts', e.knows) : nothingYet },
+    { href: screenHref('learning'), icon: 'question', label: t(locale, 'her.teach.title'),
+      ...(ctx ? ctx.gaps.length ? { value: tn(locale, 'her.menu.questions', ctx.gaps.length), tone: 'warn' as const }
+        : { value: t(locale, 'setup.value.nothingWaiting') } : {}) },
+    { href: '/app/settings/forbidden', icon: 'nope', label: t(locale, 'forbidden.title'),
+      ...(e.words === undefined ? {} : { value: e.words ? tn(locale, 'forbidden.floor.count', e.words) : nothingYet }) },
+  ];
+  const works: MenuRow[] = [
+    { href: screenHref('name'), icon: 'assistant', label: t(locale, 'her.menu.name'),
+      ...(e.assistantNamed ? { value: name } : { value: t(locale, 'her.menu.name.unconfirmed'), tone: 'warn' as const }) },
+    { href: screenHref('replies'), icon: 'setup', label: t(locale, 'her.handles.title'), value: st.stageLabel },
+    // What stands here is a choice waiting to be made, if any: the kinds that
+    // may go out alone now, said as the screen says it (a line, not a value).
+    { href: screenHref('one-kind'), icon: 'settings', label: t(locale, 'employee.actions.title'),
+      ...(viewer.isOwner && st.grantable.length
+        ? { desc: t(locale, 'employee.actions.eligible', { cap: formatList(locale, st.grantable.map((c) => capabilityName(locale, c.capability))) }) } : {}) },
+    // M34.7 — 抽查, the one thing here that asks the owner to act, so its row
+    // carries the count in the waiting colour. Absent when there is nothing to
+    // check — an empty ritual is worse than none. Today's line lands on it.
+    ...(e.spotChecks.length ? [{ href: screenHref('checks'), icon: 'check' as const, label: t(locale, 'spotcheck.title'),
+      value: tn(locale, 'today.spotChecks', e.spotChecks.length), tone: 'warn' as const, id: 'spot-checks' }] : []),
+    { href: '/app/sandbox', icon: 'play', label: t(locale, 'nav.sandbox'), desc: t(locale, 'her.menu.practice') },
+  ];
+  const going: MenuRow[] = [
+    { href: screenHref('month'), icon: 'calendar', label: t(locale, 'her.recent.title'),
+      ...(ctx ? { value: tn(locale, 'her.count.handled', ctx.handled) } : {}) },
+    { href: screenHref('next'), icon: 'flag', label: t(locale, 'employee.promo.title'),
+      value: e.conditions.length ? t(locale, 'nav.setup.progress', { done: met, total: e.conditions.length }) : st.stageLabel },
+    { href: screenHref('history'), icon: 'history', label: t(locale, 'employee.growth.title'),
+      value: e.growth[0] ? show.date(locale, e.growth[0].at) : nothingYet },
+  ];
+
+  return `<h1 class="page">${esc(name)}</h1>
+    ${flashBanner(flash)}
+    ${levelControl(e, locale, viewer)}
+    ${menuGroup('says', t(locale, 'her.group.says'), says)}
+    ${menuGroup('works', t(locale, 'her.group.works'), works)}
+    ${menuGroup('going', t(locale, 'her.group.going'), going)}`;
+}
+
+/**
+ * One screen of the menu: the way back to it, the row's own words as the
+ * heading, the notice that followed an action here, and the former section,
+ * its words and its controls unchanged.
+ */
+export function renderEmployeeScreen(
+  screen: EmployeeScreen, e: EmployeeProfile, locale: Locale, flash: Flash | null,
+  ctx?: HerContext, viewer: Viewer = OWNER_VIEW, extras: ScreenExtras = {},
+): string {
+  const name = assistantName(locale);
+  const st = standing(e, locale);
+  const capName = (c: string) => capabilityName(locale, c);
+  const head = `${back('/app/employee', name)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
+
+  switch (screen) {
+    // Two doors, one data: what the assistant answers from, each line opening
+    // the one place it is changed. Read only — no form here edits a fact.
+    case 'talk': {
+      const k = extras.talk;
+      if (!k) return `${head}<div class="empty">${esc(t(locale, 'her.menu.nothingYet'))}</div>`;
+      const given = k.given.map((g) => t(locale, GIVEN_LABEL[g]));
+      const more = k.products.total > k.products.names.length;
+      const rows: MenuRow[] = [
+        { href: '/app/settings/profile', icon: 'business', label: t(locale, 'settings.profile.title'),
+          desc: given.length ? formatList(locale, given) : t(locale, 'setup.state.notAnswered'), ...(k.business ? { value: k.business } : {}) },
+        ...(k.selling ? [{
+          // How you sell is money's, so the owner's (rule 11): staff read where it stands.
+          href: viewer.isOwner ? '/app/business/selling' : null, icon: 'setup' as const, label: t(locale, 'hs.title'),
+          desc: t(locale, 'setup.desc.selling'), value: t(locale, 'hs.progress', { done: k.selling.answered, total: k.selling.total }),
+          tone: (k.selling.answered >= k.selling.total ? 'ok' : 'warn') as 'ok' | 'warn' }] : []),
+        { href: '/app/products', icon: 'tag', label: t(locale, 'factory.sell.title'),
+          desc: k.products.names.length ? `${k.products.names.join(' · ')}${more ? ' …' : ''}` : t(locale, 'factory.sell.empty'),
+          value: tn(locale, 'her.talk.products', k.products.total) },
+      ];
+      return `${head}
+        <p class="lede">${esc(t(locale, 'her.talk.lede'))}</p>
+        <ul class="scard">${rows.map(menuRow).join('')}</ul>`;
+    }
+    // What still needs teaching, then what is known so far, with the door to
+    // the whole of it (Knowledge, and each entry under it).
+    case 'learning':
+      return `${head}${teachBody(ctx, locale)}${knowsSection(e, ctx, locale)}`;
+    // Phase 9 — the h1 of the landing names the assistant; this says what it
+    // does today, and since when. Until the name is confirmed it says so, with
+    // the way to confirm it (the owner's: `messaging_activation`); once it is,
+    // the way to change it, where every assistant is named (A5).
+    case 'name': {
+      const door = !viewer.isOwner ? ''
+        : !e.assistantNamed ? deeper('/app/onboarding', t(locale, 'autonomy.confirmName'))
+        : deeper('/app/settings/people#assistants', t(locale, 'people.title'));
+      return `${head}
+        <p class="emp-called"><bdi>${esc(name)}</bdi></p>
+        <div class="card emp">
+          <div class="emp-stage">${esc(st.stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div>
+          ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted emp-hired">${esc(labelled(locale, t(locale, 'employee.hired'), show.date(locale, e.hireDate)))}</div>` : ''}
+          ${e.assistantNamed ? '' : `<p class="fwarn">${esc(t(locale, 'employee.name.unconfirmed'))}</p>`}
+        </div>
+        ${door}`;
+    }
+    // 2 · What can she handle? Permission and trust boundaries — never a
+    //     measure of how good she is. Promotion LOGIC is untouched; only the framing.
+    case 'replies': {
+      const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
+      return `${head}<div class="block">
+        ${e.canDo.length === 0 && e.needConfirm.length === 0
+          ? `<div class="empty">${esc(t(locale, 'her.handles.none'))}</div>` : ''}
+        ${list(t(locale, 'her.handles.alone'), 'ok', st.alone.map(capName), t(locale, 'employee.duties.none'))}
+        ${st.setButHeld.length ? `${list(t(locale, 'her.handles.held'), 'waiting', st.setButHeld.map(capName), '')}
+          <p class="muted small">${esc(st.heldWhy)}</p>` : ''}
+        ${list(t(locale, 'her.handles.waits'), 'waiting', e.needConfirm.map(capName), t(locale, 'employee.duties.none'))}
+        ${list(t(locale, 'her.handles.always'), null, cannotDo, t(locale, 'employee.duties.none'))}
+      </div>`;
+    }
+    // G9a — what she may do on her own is the owner's decision; staff see the
+    // ladder but not the buttons that move her along it.
+    case 'one-kind':
+      return `${head}${!viewer.isOwner
+        ? `<div class="block"><div class="muted empty">${esc(t(locale, 'staff.ownerDecides'))}</div></div>`
+        : (st.grantable.length || st.revocable.length)
+        ? `<div class="block">
+            ${/* CC-29 — each asks first, in this block's own words: grant, revoke. Phase 9 — making a kind wait again is an ordinary choice the owner can undo: not red. */ ''}${st.revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
+                <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
+                  onclick="return confirm(this.dataset.confirm)"
+                  data-confirm="${esc(t(locale, 'employee.actions.revokeConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
+            ${st.grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
+                <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
+                  onclick="return confirm(this.dataset.confirm)"
+                  data-confirm="${esc(t(locale, 'employee.actions.grantConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
+            ${st.grantable.length === 0 ? `<p class="muted">${esc(t(locale, 'employee.actions.more', { name }))}</p>` : ''}
+            <p class="muted">${esc(t(locale, 'employee.actions.note'))}</p>
+          </div>`
+        : `<div class="block"><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`}`;
+    // M34.7 — 抽查: is the trust warranted? The work itself, and the words to answer it with.
+    case 'checks':
+      return `${head}${e.spotChecks.length
+        ? `<div class="block">
+            <p class="muted review-intro">${esc(t(locale, 'spotcheck.intro', { name }))}</p>
+            ${e.spotChecks.map((s) => {
+              const act = `/app/employee/spot-check/${encodeURIComponent(s.id)}`;
+              return `<div class="scheck">
+                <div class="muted sclabel">${esc(t(locale, 'spotcheck.buyerSaid'))}</div>
+                <div class="scsaid"><bdi>${esc(s.buyerMessage)}</bdi></div>
+                <div class="muted sclabel">${esc(t(locale, s.wasAuto ? 'spotcheck.sentAlone' : 'spotcheck.sheReplied', { name }))}</div>
+                <div class="proposed"><bdi>${esc(s.reply)}</bdi></div>
+                <form method="post" action="${act}" class="acts">
+                  <button class="btn send" name="answer" value="好">${esc(t(locale, 'spotcheck.ok'))}</button>
+                  <button class="btn danger" name="answer" value="有问题">${esc(t(locale, 'spotcheck.problem'))}</button>
+                </form>
+                <details class="scfix"><summary>${esc(t(locale, 'spotcheck.fix'))}</summary>
+                  <form method="post" action="${act}">
+                    <textarea name="answer" rows="2" required
+                      placeholder="${esc(t(locale, 'spotcheck.fixPlaceholder'))}"></textarea>
+                    <button class="btn" type="submit">${esc(t(locale, 'spotcheck.fixSave'))}</button>
+                  </form>
+                </details>
+              </div>`;
+            }).join('')}
+          </div>`
+        : `<div class="empty">${esc(t(locale, 'spotcheck.none'))}</div>`}`;
+    case 'month':
+      return `${head}${recentBody(ctx, locale)}`;
+    case 'next':
+      return `${head}<div class="block">
+        <div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.current'), st.stageLabel))}</div>
+        ${st.alone.length
+          ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
+          : `<div class="pstage">${esc(labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')))}</div>
+             ${st.setButHeld.length ? `<p class="muted small">${esc(st.heldWhy)}</p>` : ''}`}
+        ${e.conditions.length ? `<div class="conds">${e.conditions.map((c) =>
+          `<div class="cond">${signalMark(c.met ? 'ok' : 'waiting')} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey, { name }))}</div>`).join('')}</div>` : ''}
+      </div>`;
+    case 'history':
+      return `${head}<div class="block">
+        ${e.growth.length
+          ? `<ul class="growth">${e.growth.map((g) => {
+              const text = g.kind === 'self_demote'
+                ? t(locale, 'employee.growth.self_demote', {
+                    cap: capName(g.capability ?? ''),
+                    why: t(locale, `demote.why.${g.why ?? 'repeated_corrections'}` as MessageKey),
+                  })
+                : t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
+              return `<li>${esc(text)}<span class="muted"> · ${esc(show.date(locale, g.at))}</span></li>`;
+            }).join('')}</ul>`
+          : `<div class="muted empty">${esc(t(locale, 'employee.growth.empty'))}</div>`}
+      </div>`;
+  }
+}

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { mintIssuedCode, readIssuedCode, ISSUED_TTL_MS } from '../../src/api/web/people.js';
 import { makeSessionCodec } from '../../src/api/web/session.js';
-import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import type { EmployeeProfile } from '../../src/api/web/employee.js';
+import { everyScreen } from './employee-screens.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { OWNER_VIEW, actorName, type Person } from '../../src/core/conversation/people.js';
 
@@ -58,10 +59,11 @@ describe('G9a · a staff member is not shown the controls that only refuse', () 
   };
 
   it('Your employee: the owner gets the grant and revoke buttons; staff get the reason', () => {
-    const owner = renderEmployee(profile, 'en', null, undefined, OWNER_VIEW);
+    // Phase 7 — the buttons are on "One kind at a time", a row of the menu; read end to end.
+    const owner = everyScreen(profile, 'en', null, undefined, OWNER_VIEW);
     expect(owner).toContain('/app/employee/capability/quote/promote');
     expect(owner).toContain('/app/employee/capability/qualify/revoke');
-    const staff = renderEmployee(profile, 'en', null, undefined, { isOwner: false });
+    const staff = everyScreen(profile, 'en', null, undefined, { isOwner: false });
     expect(staff).not.toContain('/app/employee/capability/');
     expect(staff).toContain(t('en', 'staff.ownerDecides'));
   });

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { wrongPrice } from '../../src/pipeline/spotChecks.js';
 import { renderOwnerAlert, goesByMail, SELF_DEMOTION_REASONS, SELF_DEMOTION_PAGE } from '../../src/pipeline/notify.js';
 import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import { screen } from './employee-screens.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -148,8 +149,9 @@ describe('R5 · Today and the level page', () => {
   });
   it('a spot check on work sent alone says so', () => {
     const check = { id: 'c1', capability: 'quote', buyerMessage: 'How much?', reply: '$12.00 each.', conversationId: null, askedAt: new Date(), wasAuto: true };
-    const html = withoutIsolates(renderEmployee({ ...base, spotChecks: [check] }, 'en', null));
-    expect(html).toContain('id="spot-checks"');
+    // Phase 7 — Today's line lands on the row (its anchor); the work itself is the row's screen.
+    expect(renderEmployee({ ...base, spotChecks: [check] }, 'en', null)).toContain('id="spot-checks"');
+    const html = withoutIsolates(screen('checks', { ...base, spotChecks: [check] }, 'en'));
     expect(html).toContain(esc(t('en', 'spotcheck.sentAlone', { name: assistantName('en') })));
   });
 });

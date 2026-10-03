@@ -10,7 +10,8 @@ import { generatedSku, isGeneratedSku, ownSku } from '../../src/core/owner/sku.j
 import { shell, loginPage, signupPage, verifyPage, errorPage, esc, stylesheetAt } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, type RequestScope } from '../../src/api/web/say.js';
 import { flashBanner } from '../../src/api/web/flash.js';
-import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import type { EmployeeProfile } from '../../src/api/web/employee.js';
+import { everyScreen } from './employee-screens.js';
 import {
   renderProductList, renderProductDetail, type ProductListItem, type ProductDetail, type ProductEditField, type ProductEditError,
 } from '../../src/api/web/products.js';
@@ -189,7 +190,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
 
   it("the assistant's page: \"Hired: …\" in each language's own colon", () => {
     for (const l of LOCALES) {
-      const html = withoutIsolates(renderEmployee(employee, l, null));
+      const html = withoutIsolates(everyScreen(employee, l, null));   // phase 7 — the Name row's screen
       const hired = `${esc(t(l, 'employee.hired'))}${l === 'zh' ? '：' : l === 'fr' ? '\u00a0: ' : ': '}`;
       expect(html, l).toContain(hired);
       if (l !== 'zh') { expect(html, l).not.toContain('：'); expect(html, l).not.toContain('　'); }
@@ -587,7 +588,7 @@ describe('CC-29 · everything that takes something away asks first, the one way 
 
   it('rendered, in each language: the question names what goes', () => {
     for (const l of LOCALES) {
-      const emp = withoutIsolates(renderEmployee(employee, l, null));
+      const emp = withoutIsolates(everyScreen(employee, l, null));     // phase 7 — "One kind at a time" 
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.grantConfirm', { cap: t(l, 'capability.quote' as MessageKey) }))}"`);
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.revokeConfirm', { cap: t(l, 'capability.greet' as MessageKey) }))}"`);
       const c = withoutIsolates(renderContacts(contacts([contact()]), l, null));
