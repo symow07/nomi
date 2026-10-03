@@ -182,8 +182,8 @@ export const unescapeHtml = (s: string): string =>
 
 /**
  * THE ASSISTANT'S HAND (the design pass, 2026-09-29): its name where it is
- * the author, after a ✦, in magenta — the one colour that means something by
- * itself. Only ever text; never on a link, a button, a heading or the mark
+ * the author, after a ✦, in the LIGHT magenta (`--color-assistant`; the deep
+ * one says "waiting for you", the warmth pass). Only ever text; never on a link, a button, a heading or the mark
  * (`palette.test.ts`). The ✦ is hidden from a screen reader, which hears the
  * name. `name` arrives escaped or is escaped here.
  */
@@ -547,7 +547,7 @@ ${FACE_CSS}
   nav.side a.navlink.active .ni { stroke-width:2.3; }
   .nl-short { display:none; }
   /* The rail's one number: customers waiting for the owner, in the waiting
-     signal's colour, beside its word. */
+     signal's colour (the deep magenta), beside its word. */
   nav.side .navcount { display:inline-flex; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-4);
     font-size:var(--font-size-caption); font-weight:700; color:var(--color-needs); background:var(--color-needs-wash);
     border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
@@ -1714,7 +1714,7 @@ const STYLE_PAGES = `
   .cal-times { display:flex; gap:var(--space-12); flex-wrap:wrap; }
   .cal-rm { margin:var(--space-4) 0 0; }
   .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
-  /* TODAY is marked in magenta, in a word as well — one of magenta's three jobs, and only ever as text. */
+  /* TODAY is marked in the light magenta (a soft accent, the warmth pass), in a word as well, and only ever as text. */
   .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-assistant); margin-inline-start:var(--space-4); }
   .cal-day .cal-now, .cal-span .cal-now { font-size:inherit; margin:0; }
   /* A list, a day at a time: the day's heading, then its dates in a rounded card. */
