@@ -4,6 +4,7 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
+import { datePartOrder, monthNames } from '../../core/owner/i18n/format.js';
 import { t, tn, assistantName, setupState, businessName } from './say.js';
 import { icon, type IconId } from './icons.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
@@ -861,6 +862,58 @@ export async function restoreClosure(
   });
 }
 
+/** Digits as typed on any keyboard the five languages use (Arabic-Indic, Persian, full-width) read as 0–9. */
+const asciiDigits = (s: string): string =>
+  s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xFF10));
+
+/**
+ * The warmth run, phase 9 (V1-008) — a closure's date as the form sends it:
+ * three parts, `<name>_d`, `<name>_m` and `<name>_y`, put back together as the
+ * one YYYY-MM-DD the server has always validated (`validateClosure`, which
+ * still decides). A date posted whole (`<name>`, an older page) is read as it
+ * was. Nothing given is missing; parts that make no date are not a date.
+ */
+export function closureDateField(body: Readonly<Record<string, string | undefined>>, name: 'from' | 'to'): string | null {
+  const whole = body[name];
+  if (typeof whole === 'string' && whole.trim()) return whole;
+  const [d, m, y] = (['d', 'm', 'y'] as const).map((p) => asciiDigits(String(body[`${name}_${p}`] ?? '')).trim());
+  if (!d && !m && !y) return null;
+  if (!/^\d{1,2}$/.test(d!) || !/^\d{1,2}$/.test(m!) || !/^\d{4}$/.test(y!)) return 'not-a-date';
+  return `${y}-${m!.padStart(2, '0')}-${d!.padStart(2, '0')}`;
+}
+
+/**
+ * The date field, drawn in the owner's language: the day, the month by its
+ * name, the year, in the order that language writes a date, each part with its
+ * own label, the three one group named by the row. The browser's own date
+ * control drew "yyyy/mm/dd" in Latin, left to right, on an Arabic page. What
+ * was typed comes back in it when the form is sent back.
+ */
+function dateParts(locale: Locale, name: 'from' | 'to', label: string, kept: Kept | null, errId: string): string {
+  const id = `cl-${name}`;
+  const typed = kept?.values ?? {};
+  const whole = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typed[name] ?? '');
+  const value = { day: whole?.[3] ?? typed[`${name}_d`] ?? '', month: whole?.[2] ?? typed[`${name}_m`] ?? '', year: whole?.[1] ?? typed[`${name}_y`] ?? '' };
+  const bad = kept?.field === name;
+  const months = monthNames(locale);
+  const parts = datePartOrder(locale).map((part, i) => {
+    // The first part takes the cursor when the field was the one refused.
+    const mark = bad ? (i === 0 ? keptInvalid(kept, name, errId) : ` aria-invalid="true" aria-describedby="${esc(errId)}"`) : '';
+    const word = esc(t(locale, `closures.date.${part}` as MessageKey));
+    if (part === 'month') {
+      const chosen = Number(value.month);
+      return `<label class="dpart dpart-m"><span class="dpart-n">${word}</span><select id="${id}-m" name="${name}_m" required${mark}>
+          <option value="">${esc(t(locale, 'signup.pick'))}</option>${months.map((mo, k) =>
+            `<option value="${String(k + 1).padStart(2, '0')}"${chosen === k + 1 ? ' selected' : ''}>${esc(mo)}</option>`).join('')}</select></label>`;
+    }
+    const short = part === 'day';
+    return `<label class="dpart dpart-${short ? 'd' : 'y'}"><span class="dpart-n">${word}</span><input id="${id}-${short ? 'd' : 'y'}" name="${name}_${short ? 'd' : 'y'}" inputmode="numeric" autocomplete="off" required maxlength="${short ? 2 : 4}" value="${esc(value[part])}"${mark} /></label>`;
+  }).join('');
+  return `<div class="dparts" role="group" aria-label="${esc(label)}">${parts}</div>`;
+}
+
 export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
@@ -879,10 +932,11 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
           control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
-        fieldRow({ label: t(locale, 'closures.add.from'), forId: 'cl-from', error: keptError(kept, 'from', 'cl-from-err'),
-          control: `<input id="cl-from" name="from" type="date" required value="${keptValue(kept, 'from')}"${keptInvalid(kept, 'from', 'cl-from-err')} />` }),
-        fieldRow({ label: t(locale, 'closures.add.to'), forId: 'cl-to', error: keptError(kept, 'to', 'cl-to-err'),
-          control: `<input id="cl-to" name="to" type="date" required value="${keptValue(kept, 'to')}"${keptInvalid(kept, 'to', 'cl-to-err')} />` }),
+        // The warmth run, phase 9 (V1-008) — each date in the owner's language: day, month by name, year.
+        fieldRow({ label: t(locale, 'closures.add.from'), error: keptError(kept, 'from', 'cl-from-err'),
+          control: dateParts(locale, 'from', t(locale, 'closures.add.from'), kept, 'cl-from-err') }),
+        fieldRow({ label: t(locale, 'closures.add.to'), error: keptError(kept, 'to', 'cl-to-err'),
+          control: dateParts(locale, 'to', t(locale, 'closures.add.to'), kept, 'cl-to-err') }),
         cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
       ])}
     </form>

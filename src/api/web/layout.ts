@@ -1100,6 +1100,17 @@ const STYLE_PAGES = `
   .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .rate-hist li:last-child { border-bottom:0; }
+  /* The warmth run, phase 9 (V1-008) — a closure's date in the owner's language: day, the month by name, year,
+     side by side in the order the language writes a date, each with its small name above it. */
+  .dparts { display:flex; gap:var(--space-8); max-width:var(--measure-form); }
+  .dpart { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .dpart-n { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .dpart-d { flex:0 0 4em; }
+  .dpart-y { flex:0 0 5.5em; }
+  .dpart-m { flex:1 1 0; }
+  .dpart > input, .dpart > select { inline-size:100%; }
+  .dpart > select { flex:1 1 auto; }
+  .setrow.bad .dpart > input, .setrow.bad .dpart > select { border-color:var(--color-warn); }
   .closures { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   .closures li { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .closures li:last-child { border-bottom:0; }

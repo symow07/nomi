@@ -584,7 +584,7 @@ describe('the settings pages', () => {
   it('V1-467 · settings-a-new-04 · settings-a-new-06 · alerts: why the day-long window matters, where to turn a phone on, the phones as rows', () => {
     expect(t('en', 'alerts.phone.lede')).toContain('so you can answer in time: Instagram, Messenger and WhatsApp let you answer only within a day');
     for (const l of LOCALES) expect(draw('alerts', l), l).toContain(shown(l, 'alerts.phone.none'));
-    expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn alerts on there.');
+    expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn notifications on there.');  // the warmth run, phase 9 (w4-settings-a-06): one name, notifications
     const one = withoutIsolates(renderPhoneAlerts({ publicKey: 'BPk', phones: [{ id: '66666666-6666-4666-8666-666666666666', personId: null, endpoint: 'https://push.example/x', p256dh: 'k', auth: 'a', device: 'iPhone', createdAt: NOW }] }, 'en', null));
     expect(one).toContain('<div class="scard"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
   });

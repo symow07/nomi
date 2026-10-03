@@ -154,7 +154,7 @@ import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
@@ -4151,8 +4151,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
+    // The warmth run, phase 9 (V1-008) — each date arrives as day, month and year; put together, validated as before.
     const r = await addClosure(deps.db, s.businessId, {
-      label: b['label'] ?? null, from: b['from'] ?? null, to: b['to'] ?? null,
+      label: b['label'] ?? null, from: closureDateField(b, 'from'), to: closureDateField(b, 'to'),
     });
     if (r.code === 'added') return flashTo(reply, '/app/settings/closures', 'closures.flash.added', { label: r.label });
     const kept = keptFrom(locale, `closures.flash.${r.code}`, b);

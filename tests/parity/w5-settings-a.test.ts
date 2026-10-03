@@ -107,3 +107,48 @@ describe('V1-006 (the gallery) · the component gallery is no owner\'s page on a
     expect(read('docs/env-checklist.md')).toContain('| `COMPONENT_GALLERY` |');
   });
 });
+
+describe('V1-008 · a closure\'s dates are drawn in the owner\'s language, not the browser\'s "yyyy/mm/dd"', () => {
+  const view = { closures: [] };
+  const order = (html: string, name: string) => [...html.matchAll(new RegExp(`name="${name}_([dmy])"`, 'g'))].map((m) => m[1]).join('');
+  it('ar and zh: no browser date control; the parts in the order the language writes a date; the months by their names', async () => {
+    const { renderClosures } = await import('../../src/api/web/settings.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const ar = renderClosures(view, 'ar', null);
+    const zh = renderClosures(view, 'zh', null);
+    for (const [l, html] of [['ar', ar], ['zh', zh]] as const) {
+      expect(html, l).not.toContain('type="date"');
+      expect(html, l).toContain(`<div class="dparts" role="group" aria-label="${t(l, 'closures.add.from')}">`);
+      expect(html, l).toContain(`<span class="dpart-n">${t(l, 'closures.date.day')}</span>`);
+      expect(html, l).toContain(`<span class="dpart-n">${t(l, 'closures.date.year')}</span>`);
+    }
+    expect(order(ar, 'from')).toBe('dmy');      // 5 فبراير 2026
+    expect(order(zh, 'from')).toBe('ymd');      // 2026年2月5日
+    expect(ar).toContain('<option value="02">فبراير</option>');
+    expect(zh).toContain('<option value="02">2月</option>');
+    expect(ar).not.toMatch(/yyyy|mm\/dd/i);
+  });
+
+  it('the server puts the parts back together, with any digits a keyboard types, and validates as before', async () => {
+    const { closureDateField } = await import('../../src/api/web/settings.js');
+    expect(closureDateField({ from_d: '5', from_m: '02', from_y: '2027' }, 'from')).toBe('2027-02-05');
+    expect(closureDateField({ to_d: '٢١', to_m: '02', to_y: '٢٠٢٧' }, 'to')).toBe('2027-02-21');
+    expect(closureDateField({ from_d: '５', from_m: '2', from_y: '２０２７' }, 'from')).toBe('2027-02-05');
+    expect(closureDateField({ from: '2027-02-05' }, 'from')).toBe('2027-02-05');          // a date posted whole, as before
+    expect(closureDateField({}, 'from')).toBeNull();                                       // nothing: missing
+    expect(closureDateField({ from_d: '5', from_m: '', from_y: '2027' }, 'from')).toBe('not-a-date');
+  });
+
+  it('one form, one save: the parts post to the same route, which adds the closure or sends the form back with the parts kept', async () => {
+    const a = appWith();
+    const ok = await a.inject({ method: 'POST', url: '/app/settings/closures', headers: { ...HTML, ...FORM, cookie: cookieFor(PILOT) },
+      payload: 'label=Eid&from_d=5&from_m=02&from_y=2027&to_d=21&to_m=02&to_y=2027' });
+    expect(ok.statusCode).toBe(302);
+    const back = await a.inject({ method: 'POST', url: '/app/settings/closures', headers: { ...HTML, ...FORM, cookie: cookieFor(PILOT) },
+      payload: 'label=Eid&from_d=21&from_m=02&from_y=2027&to_d=5&to_m=02&to_y=2027' });
+    expect(back.statusCode).toBe(400);
+    expect(back.body).toContain('id="cl-to-err"');
+    expect(back.body).toContain('name="to_d" inputmode="numeric" autocomplete="off" required maxlength="2" value="5"');
+    expect(back.body).toContain('<option value="02" selected>');
+  });
+});
