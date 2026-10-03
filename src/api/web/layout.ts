@@ -620,6 +620,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
      than pushed under. A row that does something (Log out) is a button drawn
      as a row, in its own card at the foot. */
   .sr-menu > .ni { flex:none; inline-size:22px; block-size:22px; color:var(--color-ink-secondary); }
+  /* The owner's decision (2026-10-03): 56 for a row, 64 for a row that carries a line under its name. */
+  a.srow.sr-menu:has(.sr-desc), div.srow.sr-menu:has(.sr-desc) { min-height:64px; }
   [dir="rtl"] .sr-menu > .ni.flips { transform:scaleX(-1); }
   button.srow { inline-size:100%; border:0; background:none; font:inherit; color:var(--color-ink); text-align:start; cursor:pointer; }
   button.srow:hover, button.srow:focus-visible { background:var(--color-paper); }
