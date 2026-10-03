@@ -142,5 +142,3 @@ export function classifyProviderFailure(e: unknown): ProviderFailure {
   }
   return { kind: 'other', status: null };
 }
-
-export const isBillingRefusal = (e: unknown): boolean => classifyProviderFailure(e).kind === 'billing';
