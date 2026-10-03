@@ -4,7 +4,7 @@ import type { tenantRepos } from '../db/repos.js';
 import { parseBusinessId, parseConversationId, type BusinessId, type ConversationId } from '../core/types/ids.js';
 import type { Signal } from '../core/scoring/signals.js';
 import type { TurnEffects } from './turn.js';
-import type { InboundJob } from '../queue/boss.js';
+import { QUEUES, type InboundJob } from '../queue/boss.js';
 import { ownershipOf, canTransition, WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
 import { asksForDeletion } from '../core/safety/deletion.js';
 
@@ -173,6 +173,15 @@ export function unansweredIn(data: unknown): Unanswered | null {
  * the turn it was answered in (`processed_in` references `turns`), and no turn
  * ran. The next turn takes them — a silent one while a person holds the
  * conversation.
+ *
+ * 2026-10-03 — UNLESS SOMEBODY ALREADY ANSWERED IT. The job retries for minutes
+ * before it is dead, and in those minutes the owner may take the conversation,
+ * answer and hand it back, or a later turn may take the same line. Handing it
+ * over then put the conversation on "Needs you" a second time, under "a message
+ * that could not be answered", and invited a second reply to a customer who
+ * already had one. So the hand-over now asks first (`answeredAfter`), under the
+ * lock, before anything is written: an answered message is put on the timeline
+ * if it is not there yet, noted as `dead_letter_answered`, and nobody is told.
  */
 export async function handOverUnanswered(
   tx: Tx, tenant: ReturnType<typeof tenantRepos>, u: Unanswered,
@@ -181,11 +190,71 @@ export async function handOverUnanswered(
   const exists = await sql<{ one: number }>`
     select 1 as one from conversations where id = ${u.conversationId}::uuid`.execute(tx);
   if (exists.rows.length === 0) return null;
+  // Read BEFORE the message is recorded below: a photo or a voice note whose
+  // turn rolled back is not on the timeline yet, and recording it stamps now.
+  const answered = await answeredAfter(tx, u);
   if (u.messageId !== null && u.record?.kind === 'typed') {
     await recordTypedMessage(tx, u.conversationId, u.messageId, u.text ?? '');
   } else if (u.messageId !== null && u.record?.kind === 'received') {
     await recordReceivedMessage(tx, u.conversationId, u.messageId, u.text, u.record.received);
   }
+  if (answered !== null) {
+    await tenant.events.append(u.conversationId, 'dead_letter_answered', { messageId: u.messageId, by: answered });
+    return null;
+  }
   return handToPerson(tenant, u.conversationId, { kind: 'not_answered' },
     u.messageId === null ? [] : [{ messageId: u.messageId, text: u.text }]);
+}
+
+/**
+ * Has the message a dead turn names been answered since it arrived? How, or
+ * null when nobody answered it:
+ *
+ *   · 'turn'    — its own turn was written (the job died after it committed);
+ *   · 'batch'   — a later turn took the same line (`processed_in`);
+ *   · 'reply'   — a reply in the conversation after it, queued or sent, by the
+ *                 owner or the assistant: a reply that failed or was cancelled
+ *                 reached nobody, and a follow-up a schedule sent answers
+ *                 nothing the customer said;
+ *   · 'replied' — a line that left after it outside the queue (the owner
+ *                 answering from the phone: Meta's echo).
+ *
+ * "After it" is when it arrived: its line on the timeline, or — a photo or a
+ * voice note whose turn rolled back is not on it — when its job was queued.
+ * A dead job that names no message is read against the customer's last line;
+ * with no line at all there is nothing to answer ('nothing'). A message with no
+ * arrival on record is handed over, as before: unknown is not answered.
+ */
+export async function answeredAfter(tx: Tx, u: Unanswered): Promise<'turn' | 'batch' | 'reply' | 'replied' | 'nothing' | null> {
+  const mid = u.messageId;
+  const r = (await sql<{ turn: boolean; batch: boolean; at: Date | null }>`
+    select exists (select 1 from turns t where ${mid}::text is not null and t.message_id = ${mid}) as turn,
+           exists (select 1 from message_fragments f
+                    where ${mid}::text is not null and f.id = ${mid} and f.processed_in is not null) as batch,
+           coalesce(
+             (select min(m.sent_at) from messages m
+               where ${mid}::text is not null and m.conversation_id = ${u.conversationId}::uuid
+                 and m.external_id = ${mid} and m.direction = 'inbound'),
+             (select min(j.created_on) from pgboss.job j
+               where ${mid}::text is not null and j.name = ${QUEUES.inbound}
+                 and j.data->>'messageId' = ${mid} and j.data->>'conversationId' = ${u.conversationId}),
+             (select max(m.sent_at) from messages m
+               where ${mid}::text is null and m.conversation_id = ${u.conversationId}::uuid and m.direction = 'inbound')
+           ) as at`.execute(tx)).rows[0];
+  if (!r) return null;
+  if (r.turn) return 'turn';
+  if (r.batch) return 'batch';
+  if (r.at === null) return mid === null ? 'nothing' : null;
+  const after = (await sql<{ reply: boolean; replied: boolean }>`
+    select exists (select 1 from outbound_messages o
+                    where o.conversation_id = ${u.conversationId}::uuid and o.created_at > ${r.at}
+                      and o.status not in ('failed', 'canceled') and o.origin <> 'outreach') as reply,
+           exists (select 1 from messages m
+                    where m.conversation_id = ${u.conversationId}::uuid and m.direction = 'outbound'
+                      and m.sent_at > ${r.at}
+                      and not exists (select 1 from outbound_messages o
+                                       where m.external_id = 'out:' || o.id::text
+                                         and (o.origin = 'outreach' or o.created_at <= ${r.at}))) as replied`
+    .execute(tx)).rows[0];
+  return after?.reply ? 'reply' : after?.replied ? 'replied' : null;
 }
