@@ -372,6 +372,14 @@ export const railMarkOf = (since: string): { readonly n: number; readonly at: nu
  * wait after the moment the page was drawn at. A page drawn before the mark
  * carried a moment (a count alone) is told nothing, rather than told wrongly.
  */
+/**
+ * The fix wave (the live-refresh walk) — the moment a page drawn while nobody waits carries: the
+ * beginning, so whoever begins to wait from then on is news. Never 0, which is an old page's mark
+ * (told nothing): a calm page would otherwise never toast the first customer to wait.
+ */
+export const RAIL_FROM_THE_START = 1;
+/** The moment a page drawn now carries: when the latest of those waiting began to, never before the start. */
+export const railMomentOf = (newestAt: number | null | undefined): number => Math.max(RAIL_FROM_THE_START, newestAt ?? 0);
 export const railRose = (since: string, newestAt: number | null): boolean => {
   const m = railMarkOf(since);
   return newestAt !== null && m.at > 0 && newestAt > m.at;

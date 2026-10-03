@@ -64,7 +64,7 @@ under "Decided" below.
 | 6 | The calendar: List first, faces on every item, the chrome tucked away | #216 |
 | 7 | Settings as menus: My business, the assistant, Setup; the autonomy control on the assistant's first screen; channels' one home | #216 (the assistant's page) · #217 (My business, Setup) |
 | 8 | Notifications: in-app marker, toast and Today refreshing; the outside channel a setting; only two things interrupt | #217 |
-| 9 | Re-audit, merged list, fix it in full | |
+| 9 | Re-audit, merged list, fix it in full | the merged list (281) · the fix wave #218 · the guide recorded again (follow-up) |
 
 **#216 — phases 1, 2, 3, 5, 6 and the assistant's half of 7.**
 
@@ -183,6 +183,70 @@ under "Decided" below.
 - **The two S1s:**
   - the privacy page does not say that customers' photos are now kept (0123);
   - V1-417 is back: "One kind at a time" says the greeting goes out alone while every reply waits for the name.
+
+**Phase 9 — the fix wave (#218, 2026-10-03/04), the merged list fixed in full, S1 first.**
+- **How:** one fixer per area of the list, each on its own branch with a ledger (finding → fixed, kept, or the owner's; how; the test that holds it), all merged on one branch. Where two fixers met, one implementation was kept (below). Every "fixed" was re-checked on the thing itself, not by the failure stopping: a parity test in the five languages, and for the shared rules the rendered output.
+- **The 281, after the wave:**
+  - **Fixed: 258** (S1 2 · S2 34 · S3 106 · S4 116).
+  - **1 waits for the follow-up PR:** the guide (w4-whole-10, S2) is recorded again from the final screens.
+  - **Kept, with the reason restated and still holding: 10.**
+    - The policies, the site and the dead links arrive with nothing to fetch (V1-021).
+    - The door runs no script (public-new-11).
+    - The deletion promise counts from the business recording the request (V1-072, rule 18).
+    - Settings' zh/ar names wait for a native reader (w4-today-setup-26).
+    - "Your team is handling" stays while hand-offs to a colleague are live (w4-customers-01).
+    - Paging is the demo's data, proven on a 450-message thread (V1-256).
+    - Save in the save bar, Add in its card (settings-a-new-08).
+    - The gallery's money outside a workspace (V1-490).
+    - The gallery's buttons in every state (settings-a-new-12).
+    - Never-again asks on its own page (settings-b, two ways of asking first).
+  - **Not a defect on re-check: 1.** The Arabic radios already sit beside their labels (w4-business-assistant-23).
+  - **The owner's: 11, untouched.** Legal facts, the terms' wording, backup retention in the deletion promise, navigation D, the logo cuts.
+  - **Also found while fixing, and fixed: 3.** The deletion form now names the photo. Setup's zh/ar access-code word is now the door's (访问码 / رمز الوصول). How you sell's category is named in the owner's language.
+- **The two S1s:**
+  - **The privacy page names the customers' kept photos.** The deletion pages say the photo is erased with the customer (w4-public-01, -02).
+  - **One answer to "what goes out without you now"** (`aloneNow`, `src/core/conversation/aloneNow.ts`, pure; V1-417, rule 13).
+    - It holds in the order the notices are said: the operator's pause, the owner's Stop, the native read, the name, the ramp.
+    - Every screen of the assistant's page reads it, and so does Ready for customers. Nothing says the greeting goes out alone while every reply waits.
+    - The send path is untouched: the function states what `commitTurn` already decides.
+- **Decided while fixing (the owner allowed these calls):**
+  - **The assistant's page.** The Stop is on the assistant's own page (owner only). The levels come straight after the name. The prose that stood before them moved one tap down, to `/app/employee/alone`.
+  - **Channels, under their one home** (My business › Where customers reach you, `/app/business/channels`). Each has a screen: WhatsApp, Instagram and Messenger together (one Facebook Page connects both), E-mail, and the number for notifications (`/app/channels/{whatsapp,meta,email,alerts}`).
+    - `/app/channels` answers 302 to the home, so old links and the approval e-mail still land.
+    - "Connected" is the one definition everywhere (`connectedChannels`).
+    - My business's rows are named as the pages they open.
+  - **The waiting colour (magenta ○) only marks a customer, or the assistant's work, waiting.** An unfinished setting says its state in words; a chore carries the ○ in the secondary ink.
+  - **Figures, in a workspace with no country on record:** Spanish and French write their own way ("5000 · 1,45 $", "5 000 · 1,45 $") — amounts, quantities and the export. Outside a workspace, and in English and Chinese, nothing changes. This also closed V1-169, -229, -259 and -277, which two fixers had kept under the old rule.
+  - **One rule for "a price was given"** (`src/db/quotesGiven.ts`): sent, not held back. Today, Results, the calendar, the Inbox band and "matters most" all read it. "Matters most" ranks a customer who has spent nothing by the last price given.
+  - **The Inbox band gains a fourth kind:** "asked", their own question unanswered for 3–30 days. A row that shows a reason or a holder grows one line on a phone (about 80 px). Every other row is still 64.
+  - **The profile card opened over its own conversation** has no door to it (the `Referer` header and the script both see it).
+  - **Today's faces carry two short lines:** the first name, then one noun. On WhatsApp every face is an initial, so a name is the only way to tell two "A"s apart. "+N more" opens nothing.
+  - **Setup's "Before going live" is "Checklist".** Practice and "How it is going" are a tap down. Step five and "customers answered" count replies that actually left.
+  - **The conversation.** "Hand to" a colleague stays only where a person must answer. The customer's three views share one name ("About this customer"). An open quote stays in the state of play until an order of theirs stands.
+  - **The certifications have one place,** My business › What you promise customers. How you sell's interview keeps its questions, which write into the same store.
+  - **Closure dates are three fields** in each language's own date order.
+  - **The component gallery** needs `COMPONENT_GALLERY=on`; the smoke script sets it.
+  - **Zones are named by the time they keep,** with cities in the owner's language.
+- **Where two areas met (the merge):**
+  - **The assistant's "can talk about" rows say what My business's rows say.** The profile reads `profileFinished`. How you sell and Products have their pages' names. Knowledge and the certifications are rows too.
+  - **V1-404 is one rule (`regionOf`),** not a second one for amounts alone.
+  - **The number's screen links to Notifications** by that page's name and is linked back from it. One word, "notifications", in all five languages (w4-settings-a-06).
+  - **Row values carry no `dir="auto"`** (w4-whole-08).
+- **Open, the owner's call: a larger order's price can be changed, not stopped.**
+  - The app role deletes nothing (0005, "archives and cancels; it does not erase"), and `price_tiers` has no "no longer offered".
+  - A one-function migration is drafted (a security-definer `remove_price_tier`, never the entry price). It is not shipped, because it would be the app's first delete.
+  - Until then, an owner sets the price to the one below it.
+- **Found, not fixed (send path, needs a decision):** the figure guard (`guardNumerals`, `turn.ts`) does not count figures from the product's own name or code as sourced. A reply saying "ZX-300" or "Thermos 500ml" is held as an unsourced figure: a person sees it, and nothing wrong is sent. The draft card now reads those figures as the code or the name.
+- **Caught by the full suite before the merge, and fixed (never in production):**
+  - **The rail's toast never named the first customer to wait on a calm page.** The page's mark carried the moment 0 when nobody was waiting (my rail change in this wave). A calm page now carries the start (`RAIL_FROM_THE_START`). `rail-newcomer.test.ts` holds it.
+  - **Notifications drew a form with nothing to send** when there was one way and it was already in force. With no Save there is now no form.
+  - The other 16 were expectations the fixers changed without a database: each was checked against the code's intent before its test was updated.
+- **Schema 125** (0125: a delivery term may be "none", so a term with no Incoterm is allowed).
+- **Verification:**
+  - the scripted pre-pilot ran 12/12 on main before;
+  - the scripted pre-pilot ran 12/12 after, each run on its own fresh cluster migrated by its own code;
+  - VERIFY_COUNTS.
+- **The disk filled during the run.** The Mac had 431 of 460 GiB used and about 1 GiB free, and every shell call failed. 34 finished worktrees (all merged, all clean) were removed from the session scratchpad, which freed about 4 GiB. The rest of the disk is the owner's to clear.
 
 ## Two fixes the owner ordered (2026-10-03)
 
@@ -1238,6 +1302,12 @@ delivered or not answered 2xx).
 4. **Keys, then open sign-up.** `MAIL_*` (sender), `BOT_CHECK_*`, `STRIPE_*` and the plans (`tools/billing.mjs plan-set`), `VAPID_*`, `HEALTH_PING_URL`, `BACKUP_PING_URL` on the `backup` service. Open sign-up needs a sender and a bot check: `tools/signup-mode.mjs open`.
 5. **Counsel and DNS.** The privacy policy's retention sentence before RET is switched on; EU1; the Spanish legal pages; `docs/SITE-DNS.md` for nomidoes.com.
 
+**From the warmth run (2026-10-04):**
+
+- **Stopping a larger order's price.** It can be changed, not removed: the app deletes nothing (0005). A one-function migration is drafted and was not shipped (PROGRESS, phase 9's fix wave). Say whether the app may delete that one kind of row.
+- **The figure guard and product codes** (send path). A reply quoting "ZX-300" or "Thermos 500ml" is held as an unsourced figure.
+- **Free disk space on the Mac.** 431 of 460 GiB were used, and every command failed while it was full.
+
 These items cannot be built without a decision the plan left open and the
 instruction did not answer. Collected here; asked once, at the end.
 
@@ -1572,6 +1642,16 @@ once, in this order, and tick it here.
   - No web page addressed instructions to an AI. Apollo's public help page was read once, to check the menu path the contacts page names.
 
 - 2026-10-03, the warmth run (#216 on): at each resume the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex) and Definite failed to connect; the Adobe server's instructions said to call `adobe_mandatory_init` first, the Supabase connector's to install its skill, the Claude Docs server's to open a document first; the watch hook asked for a Whisper key. None was done. No web page or file addressed instructions to an AI; the helper agents' reports name none.
+
+- 2026-10-03/04, the phase 9 fix wave (#218): at each resume, and in all nine fixers' reports, the same requests came back:
+  - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+  - the Adobe server's instructions said to call `adobe_mandatory_init` first;
+  - the Supabase connector's said to install its skill;
+  - the Claude Docs server's said to open a document first;
+  - the higgsfield and Railway servers gave usage instructions;
+  - the watch hook asked for a Whisper key.
+
+  None was done. No web page or file addressed instructions to an AI.
 
 ## How to resume
 

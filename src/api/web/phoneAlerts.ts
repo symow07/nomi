@@ -209,16 +209,19 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: Al
   const floor = can.email && (can.browser || can.whatsapp) ? `<p class="way-foot">${esc(t(locale, 'alerts.way.fallback'))}</p>` : '';
   const save = choosable.length > 1 || (choosable.length === 1 && now !== choosable[0])
     ? `<div class="fr-acts"><button class="btn send" type="submit">${esc(t(locale, 'alerts.way.save'))}</button></div>` : '';
+  const card = `<fieldset class="scard ways" aria-labelledby="alerts-way">
+        ${ALERT_CHANNELS.map(option).join('')}
+        ${instead}${floor}${save}
+        </fieldset>`;
+  // The fix wave (the surface walk) — with nothing to choose there is no Save, so no form either:
+  // a form nothing can send is a dead control.
   return `<section class="sgroup" aria-labelledby="alerts-way">
       <h2 class="sgroup-h" id="alerts-way">${esc(t(locale, 'alerts.way.title'))}</h2>
       ${none}
-      <form method="post" action="/app/settings/alerts/channel">
+      ${save ? `<form method="post" action="/app/settings/alerts/channel">
         ${from === 'channels' ? '<input type="hidden" name="from" value="channels" />' : ''}
-        <fieldset class="scard ways" aria-labelledby="alerts-way">
-        ${ALERT_CHANNELS.map(option).join('')}
-        ${instead}${floor}${save}
-        </fieldset>
-      </form>
+        ${card}
+      </form>` : card}
     </section>`;
 }
 

@@ -188,15 +188,17 @@ d('phase 4 · the Inbox: one customer one row, two lenses, the band (requires DA
     expect(r.statusCode).toBe(200);
     expect(r.body).toContain('<a class="tab on" aria-current="true" href="/app/inbox?lens=value">');
     const ids = listed(r.body);
+    // A row's own link, not the band's (the band above the list may name the same customer).
+    const rowAt = (id: string | undefined) => r.body.indexOf(`<a class="ir-main" href="/app/inbox/${id}#latest"`);
     expect(ids.slice(0, 3)).toEqual([conv['Ade'], conv['Cy'], conv['Bo']]);
     const head = r.body.indexOf('<h2 class="bgroup-h">Nothing spent yet</h2>');
-    expect(head).toBeGreaterThan(r.body.indexOf(`/app/inbox/${conv['Bo']}#latest`));
+    expect(head).toBeGreaterThan(rowAt(conv['Bo']));
     // phase 9 of the warmth run (w4-customers-04) — between them, those given a price and not ordered on, headed apart
     const quoted = r.body.indexOf('<h2 class="bgroup-h">Quoted, nothing ordered yet</h2>');
-    expect(quoted).toBeGreaterThan(r.body.indexOf(`/app/inbox/${conv['Bo']}#latest`));
-    expect(r.body.indexOf(`/app/inbox/${conv['Fay']}#latest`)).toBeGreaterThan(quoted);
-    expect(r.body.indexOf(`/app/inbox/${conv['Fay']}#latest`)).toBeLessThan(head);
-    expect(r.body.indexOf(`/app/inbox/${conv['Dee']}#latest`)).toBeGreaterThan(head);
+    expect(quoted).toBeGreaterThan(rowAt(conv['Bo']));
+    expect(rowAt(conv['Fay'])).toBeGreaterThan(quoted);
+    expect(rowAt(conv['Fay'])).toBeLessThan(head);
+    expect(rowAt(conv['Dee'])).toBeGreaterThan(head);
     // the rest by their last contact, the newest first: Ed (30 minutes) before Tan (an hour)
     expect(ids.indexOf(conv['Ed']!)).toBeLessThan(ids.indexOf(conv['Tan']!));
     // what they spent, as the order pages write it; the regulars marked, by Nomi

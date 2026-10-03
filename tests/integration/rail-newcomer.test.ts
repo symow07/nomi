@@ -73,6 +73,21 @@ d('the rail: a customer newly waiting, by when they began to wait (requires DATA
   }, 60_000);
   afterAll(async () => { await db?.destroy(); });
 
+  it('A CALM PAGE (nobody waiting when it was drawn) is told of the first customer to wait', async () => {
+    const { railMomentOf, RAIL_FROM_THE_START } = await import('../../src/api/web/live.js');
+    // What the page draws when nobody waits: the count 0 and the start, never 0 (an old page's mark, told nothing).
+    expect(railMomentOf(null)).toBe(RAIL_FROM_THE_START);
+    const since = `0.${railMomentOf(null)}`;
+    expect((await ask(since)).newest).toBeNull();
+    await tick();
+    const first = await customer('First To Wait');
+    await handedOverByATurn(first);
+    const a = await ask(since);
+    expect(a.n).toBe(1);
+    expect(a.newest?.conversationId).toBe(first);
+    expect(a.newest?.who).toBe('First To Wait');
+  });
+
   it('a hand-over a turn makes is stamped with when it began; an unchanged holder keeps the stamp', async () => {
     const conv = await customer('Stamped Customer');
     await handedOverByATurn(conv);

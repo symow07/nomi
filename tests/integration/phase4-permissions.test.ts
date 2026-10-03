@@ -257,7 +257,6 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const pages: ReadonlyArray<readonly [string, RegExp]> = [
       ['/app/onboarding', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
       ['/app/business/allowlist', /action="\/app\/business\/allowlist\/(add|remove)"/],
-      ['/app/channels/whatsapp', /action="\/app\/channels\/whatsapp\/(test|disconnect|reconnect)"/],
       ['/app/channels/alerts', /action="\/app\/settings\/owner-phone"/],
       ['/app/products', /href="\/app\/products\/add"/],
       ['/app/products/add', /action="\/app\/products\/add\/(review|photo)"/],
@@ -274,6 +273,14 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       expect(owner.body, url).toMatch(form);
       expect(staff.body, url).not.toMatch(form);
       if (url !== '/app/products') expect(staff.body, url).toContain(DECIDES);
+    }
+    // (w4-whole-11) this installation carries no WhatsApp message (messaging off), so a number that is wired reads
+    // Connected and says Nomi's team switches it on — with nothing to press, for the owner too; never a form for staff.
+    for (const c of [ownerCookie, staffCookie]) {
+      const wa = await get(c, '/app/channels/whatsapp');
+      expect(wa.statusCode).toBe(200);
+      expect(wa.body).toContain('Nomi’s team switches that on');
+      expect(wa.body).not.toMatch(/action="\/app\/channels\/whatsapp\/(test|disconnect|reconnect)"/);
     }
     // The values themselves are still there to read.
     const product = (await get(staffCookie, `/app/products/${PID}`)).body;

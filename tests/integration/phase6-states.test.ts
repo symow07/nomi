@@ -113,10 +113,14 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   });
 
   it('A PRODUCT, A CONVERSATION AND AN ORDER THAT ARE NOT THERE: a state with the reason and the way back', async () => {
-    for (const url of ['/app/products/00000000-0000-4000-8000-000000000000', '/app/inbox/00000000-0000-4000-8000-000000000000', '/app/orders/00000000-0000-4000-8000-000000000000']) {
+    for (const url of ['/app/inbox/00000000-0000-4000-8000-000000000000', '/app/orders/00000000-0000-4000-8000-000000000000']) {
       const r = await get(url);
       expect(r.body, url).toContain(`<div class="empty">${t('en', 'common.notFoundBody')}`);
     }
+    // (w4-products-knowledge-16) a product not here says so in its own words — never "removed".
+    const product = await get('/app/products/00000000-0000-4000-8000-000000000000');
+    expect(product.statusCode).toBe(404);
+    expect(product.body).toContain(`<div class="empty">${t('en', 'product.notFound.body')}`);
   });
 
   // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out: its address leads

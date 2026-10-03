@@ -330,13 +330,17 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     type Rail = { n: number; mark: string; shown: string; label: string; toast?: { say: string; door: string } };
     // Every page in the workspace — here one that watches nothing — draws the slot, with the rail's own count.
     const page = await get('/app/settings');
-    const since = /data-rail="\/app\/live\/rail\?since=(\d+)"/.exec(page.body)?.[1];
+    // (w4-whole-03) the mark is the count and the moment the latest of those waiting began to: `<n>.<epoch s>`.
+    const since = /data-rail="\/app\/live\/rail\?since=([0-9.]+)"/.exec(page.body)?.[1];
     expect(since, 'the page draws the rail slot').toBeDefined();
+    const shownN = Number(since!.split('.')[0]);
     const ask = async (mark: string, cookie = owner) => get(`/app/live/rail?since=${mark}`, cookie, JSON_ACCEPT);
     const same = await ask(since!);
     expect(same.statusCode).toBe(200);
     expect(same.headers['cache-control']).toBe('no-store');
-    expect(same.json()).toMatchObject({ n: Number(since), mark: since });
+    expect(same.json()).toMatchObject({ n: shownN, mark: since });
+    // The moments compared are whole seconds: the hand-over below begins after the page's.
+    await new Promise((r) => setTimeout(r, 1100));
     expect((same.json() as Rail).toast).toBeUndefined();
 
     // A customer is handed over: one more needs the owner, and the answer says who and why.
@@ -347,10 +351,10 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
       return id;
     });
     const rose = (await ask(since!)).json() as Rail;
-    expect(rose.n).toBe(Number(since) + 1);
+    expect(rose.n).toBe(shownN + 1);
     expect(rose.toast).toEqual({ say: 'Nadia Karim is waiting for you', door: `/app/inbox/${nadia}#latest` });
     // The count is the rail's own: a page drawn now carries it.
-    expect((await get('/app/settings')).body).toContain(`data-rail="/app/live/rail?since=${rose.n}"`);
+    expect((await get('/app/settings')).body).toContain(`data-rail="/app/live/rail?since=${rose.n}.`);
     // Asked from the new mark, nothing is news; another business's customers never count.
     expect(((await ask(rose.mark)).json() as Rail).toast).toBeUndefined();
     await as(OTHER, (x) => sql`update conversations set assigned_to = ${WAITING_HUMAN_AGENT} where id = ${theirs}::uuid`.execute(x));

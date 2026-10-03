@@ -55,7 +55,7 @@ import {
 } from './inbox.js';
 import {
   liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
-  railAnswer, railSaid, newestWaiting,
+  railAnswer, railSaid, newestWaiting, railMomentOf,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -760,7 +760,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)),
         newestWaiting(deps.db, bid.value).catch(() => null),
       ]).then(
-        ([c, newest]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: newest?.at ?? 0 }, done),
+        ([c, newest]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at) }, done),
         () => withWorkspace(f, done),
       );
     };

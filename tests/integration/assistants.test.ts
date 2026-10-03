@@ -107,7 +107,8 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
     expect((await tx((t) => mainAssistant(t, bid.value))).name).toBeNull();
     const home = await app.inject({ method: 'GET', url: '/app', headers: { cookie: ownerCookie } });
-    expect(home.body).toContain('Your assistant');
+    // The rail names an assistant nobody named by the word for one (the warmth run's re-audit: one name per entry).
+    expect(home.body).toContain('<span class="nl-text">Assistant</span>');
     expect(home.body).not.toContain('Lily');
     const c = await startConversation('whatsapp', `+8613${RUN}09`);
     const speaker = await tx((t) => tenantRepos(t, bid.value).conversations.speaker(c.conversationId as never));

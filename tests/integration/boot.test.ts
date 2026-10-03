@@ -2257,7 +2257,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // withdrawing it removes the promise — default-deny, no stale claim left
       expect((await setCertification(prod.db, DEMO_BIZ, 'ISO9001', false)).code).toBe('cert');
       expect((await view()).promises.certs).not.toContain('ISO9001');
-      expect(await html()).not.toContain('ISO 9001 quality system');
+      // (w4-products-knowledge-02) the promises screen is where each certification is switched, so it is
+      // listed there either way — now off, with the act that turns it on; the menu no longer names it.
+      const on = await html();
+      expect(on).toMatch(/<bdi>ISO 9001 quality system<\/bdi><\/b> <span class="pill">Off<\/span>/);
+      const { renderFactory } = await import('../../src/api/web/factory.js');
+      expect(renderFactory(await view(), 'en')).not.toContain('ISO 9001 quality system');
     });
 
     it('price rules come from the rows the GUARD uses, not the business-wide fallback', async () => {
