@@ -35,6 +35,9 @@ import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAIT
 import * as show from './values.js';
 import { isCountryCode } from '../../core/owner/business.js';
 import { workspaceZone } from './zone.js';
+import { faceLink } from './faces.js';
+import { stateOfPlay, type Speaker } from '../../core/conversation/stateOfPlay.js';
+import type { CatchUp } from '../../db/catchUp.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -709,6 +712,14 @@ export type ConversationDetail = {
    * Optional so a detail built before it (a fixture, the sandbox) still types.
    */
   readonly reading?: CardReading | null;
+  /**
+   * THE WARMTH RUN, phase 5 — the catch-up strip's rows (`loadCatchUp`): the
+   * customer's face, where they write, what they bought and spent, and the
+   * rows the state of play is decided from. Set by the route. Absent (a
+   * fixture, a conversation with no customer on record) the strip is the name
+   * and who holds the conversation, as the header always said.
+   */
+  readonly catchUp?: CatchUp | null;
 };
 
 export type CardReading = {
@@ -1037,12 +1048,43 @@ export const buyerWho = (locale: Locale, buyer: string | null, country: string |
 export const channelName = (locale: Locale, c: string): string => t(locale, `conv.channel.${c}` as MessageKey);
 
 /**
+ * Where the customer writes: the channel's word, and their address on it where
+ * it is one a person reads (a number, an e-mail) — the customer panel's line
+ * and the catch-up strip's, drawn once. A WhatsApp number is stored as its
+ * digits and shown the way it is dialled. Phase 9 — an address reads left to
+ * right in every language: a bare <bdi> has no letter to go by, and Arabic put
+ * the + last.
+ */
+export const reachedOn = (locale: Locale, channel: string, address: string | null): string =>
+  `${esc(channelName(locale, channel))}${address ? ` <bdi dir="ltr">${esc(channel === 'whatsapp' && /^\d+$/.test(address) ? `+${address}` : address)}</bdi>` : ''}`;
+
+/**
+ * THE WARMTH RUN, phase 5 — whose words a line of the transcript is: the
+ * customer's, a person's here (the owner, or a colleague replying as the
+ * business), or the assistant's. A sent row with no origin on record reads as
+ * the assistant's, as the caption under it always said (D4). One answer for
+ * the conversation and Practice, so the two cannot mark them differently.
+ */
+export const speakerOf = (m: { readonly direction: 'inbound' | 'outbound'; readonly by?: string | undefined }): Speaker =>
+  m.direction === 'inbound' ? 'buyer' : m.by === 'owner' ? 'person' : 'assistant';
+
+/**
+ * The bubble a typed line sits in. What the assistant said is on its wash
+ * (`by-as`), with "✦ {name}" in magenta in the caption under it; a person's
+ * reply and the customer's words keep the plain bubble. A wash, never a frame.
+ */
+export const bubbleClass = (s: Speaker): string => (s === 'assistant' ? 'bubble by-as' : 'bubble');
+
+/**
  * Why a customer needs the owner, in the Buyers row's own words (its badge):
  * an order waiting, a deletion asked, the stored reason they were handed over
  * (never inferred), a reply to review, or a conversation the owner holds.
  * Today's first block says the same words (`today.ts`).
  */
-export function needsWhy(locale: Locale, c: ConversationSummary): string {
+export function needsWhy(
+  locale: Locale,
+  c: Pick<ConversationSummary, 'orderWaiting' | 'deletionWaiting' | 'ownership' | 'handoffReason' | 'awaitingReview' | 'answeredBy'>,
+): string {
   if (c.orderWaiting) return t(locale, 'buyers.badge.order');
   if (c.deletionWaiting) return t(locale, 'buyers.group.deletion');
   if (c.ownership === 'WAITING_HUMAN') {
@@ -1956,6 +1998,92 @@ export function languageName(locale: Locale, code: string): string {
   }
 }
 
+/** Items said one after another the way the language lists them, without an "and". */
+const LIST_SEP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
+
+/**
+ * THE WARMTH RUN (2026-10-03), phase 5 — THE CATCH-UP STRIP. Whoever opens a
+ * conversation may never have seen it: the owner, or whoever runs the
+ * socials. Above the messages, in the first screen on a phone, it says who
+ * this is, where they write, what they have bought and spent, and where things
+ * stand now.
+ *
+ *   - Their face, which opens their card (`faceLink`), and their name — the
+ *     page's one heading, drawn as the header always drew it (`buyerWho`).
+ *   - Where they write (`reachedOn`, the panel's own line); what they bought —
+ *     the products of their orders that stand, "Canvas tote ×2, Apron" — or,
+ *     with none, what they asked about; what they spent (`customerValues`);
+ *     "Regular" when Nomi counts them one.
+ *   - THE STATE OF PLAY (`stateOfPlay`, pure, its precedence in one place):
+ *     the pill says who it waits for — "Needs you" whenever the Buyers list
+ *     puts them under it, in its words; otherwise who holds the conversation,
+ *     as the header said — and the line after it says why, or what happened
+ *     last.
+ *
+ * The rest of the customer stays in the panel beside the conversation on a
+ * wide screen; the strip does not repeat it on a phone. Right to left, the
+ * face sits at the start (the right) and every name, figure and address is
+ * isolated.
+ */
+function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer): string {
+  const c = d.catchUp ?? null;
+  const who = d.buyer ?? t(locale, 'common.buyer');
+  const row = {
+    orderWaiting: Boolean(d.orderProposal), deletionWaiting: Boolean(d.deletionAsk), ownership: d.ownership,
+    handoffReason: d.handoffReasons[0] ?? null, awaitingReview: d.pendingDraft !== null && d.ownership === 'AI',
+    answeredBy: d.answeredBy ?? null,
+  };
+  const play = stateOfPlay({
+    orderWaiting: row.orderWaiting, deletionWaiting: row.deletionWaiting,
+    handedOver: d.ownership === 'WAITING_HUMAN', handoffReason: row.handoffReason, replyToReview: row.awaitingReview,
+    lastOrder: c?.lastOrder ?? null, quoteSentAt: c?.quoteSentAt ?? null,
+    lastFromThemAt: c?.lastFromThemAt ?? null, lastMessage: c?.lastMessage ?? null,
+  }, now);
+  const pill = play.kind === 'needs'
+    ? `<span class="pill warn">${esc(t(locale, 'inbox.filter.pending'))}</span>`
+    : headerPill(d, locale, viewer);
+
+  // A sentence around something already drawn (a list, a figure): the words escaped, then the piece put in.
+  const around = (key: MessageKey, param: string, html: string): string =>
+    esc(t(locale, key, { [param]: '\u0000' })).replace('\u0000', html);
+  const speaker = (s: Speaker): string => s === 'buyer' ? `<bdi>${esc(who)}</bdi>`
+    : s === 'person' ? esc(t(locale, 'conv.by.you')) : byAssistant(assistantName(locale));
+  const head = (key: MessageKey): string => `<b>${esc(t(locale, key))}</b>`;
+  const when = (at: Date): string => esc(show.shortWhen(locale, at, now));
+  const story = !c ? '' : ((): string => {
+    switch (play.kind) {
+      case 'needs': return `<b><bdi>${esc(needsWhy(locale, row))}</bdi></b>`;
+      case 'ordered': return [head('catchup.state.ordered'), `<bdi>${esc(play.reference)}</bdi>`, when(play.at)].join(' · ');
+      case 'quoted': return [head('catchup.state.quoted'), when(play.at)].join(' · ');
+      case 'quiet': return [head('catchup.state.quiet'), esc(t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }))].join(' · ');
+      case 'talking': return [head('catchup.state.talking'), speaker(play.from), when(play.at)].join(' · ');
+      case 'last': return [head('catchup.state.last'), speaker(play.from), when(play.at)].join(' · ');
+      case 'none': return head('catchup.state.none');
+    }
+  })();
+
+  const facts = !c ? [] : [
+    reachedOn(locale, c.channel, c.address),
+    c.bought.length > 0
+      ? around('catchup.bought', 'items', `${c.bought.map((b) => `<bdi>${esc(productName(locale, b) ?? '')}</bdi>${
+          b.orders > 1 ? ` <bdi dir="ltr">×${esc(show.count(locale, b.orders))}</bdi>` : ''}`).join(LIST_SEP[locale])}${
+          c.boughtMore > 0 ? ` ${esc(t(locale, 'catchup.more', { n: c.boughtMore }))}` : ''}`)
+      : c.askedAbout && productName(locale, c.askedAbout)
+        ? around('catchup.asked', 'product', `<bdi>${esc(productName(locale, c.askedAbout)!)}</bdi>`) : '',
+    c.value.spent ? around('catchup.spent', 'money', `<bdi>${esc(show.money(locale, c.value.spent))}</bdi>`) : '',
+  ].filter(Boolean);
+  const regular = c?.value.regular ? ` <span class="cu-regular">${esc(t(locale, 'catchup.regular'))}</span>` : '';
+
+  return `<header class="catchup">
+      ${c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : ''}
+      <div class="cu-main">
+        ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
+        ${facts.length || regular ? `<p class="cu-facts">${facts.join(' · ')}${regular}</p>` : ''}
+        <p class="cu-state">${pill}${story ? ` <span class="cu-story">${story}</span>` : ''}</p>
+      </div>
+    </header>`;
+}
+
 export function renderConversationDetail(
   d: ConversationDetail, locale: Locale, now: Date, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
 ): string {
@@ -2008,7 +2136,7 @@ export function renderConversationDetail(
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
-            : `<div dir="auto" class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
+            : `<div dir="auto" class="${bubbleClass(speakerOf(m))}"><bdi>${esc(m.text)}</bdi></div>`}
           <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
             // The design pass (UI-PASS 5): each speaker by their name — the
             // customer's, "You", the assistant's — never a role word; a
@@ -2216,11 +2344,10 @@ export function renderConversationDetail(
   return `
     <div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
-      ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
-      ${headerPill(d, locale, viewer)}
       ${LIVE_SLOT}
       ${/* The design pass — where the customer panel is folded away, this opens it over the page. */ ''}<a class="panel-open" href="#customer">${esc(t(locale, 'panel.open'))}<span class="go" aria-hidden="true">›</span></a>
     </div>
+    ${catchUpStrip(d, locale, now, viewer)}
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${older ? '' : assistantControl(d, locale, viewer)}
     ${prod || d.quantity !== null ? `<div class="muted subline">${[

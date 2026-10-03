@@ -4,7 +4,7 @@ import { countryName, orderStatusName, type MessageKey } from '../../core/owner/
 import { dayStart } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl, signalMark } from './layout.js';
-import { buyersHref, channelName, productName, customerRow, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
+import { buyersHref, reachedOn, productName, customerRow, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
 import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
@@ -123,10 +123,8 @@ export function renderCustomerPanel(
 
   const language = p.language ? languageName(locale, p.language) : null;
   const facts = [
-    // A WhatsApp number is stored as its digits; it is shown the way it is dialled.
-    // Phase 9 — an address (a number, an e-mail, a handle) reads left to right in
-    // every language: a bare <bdi> has no letter to go by, and Arabic put the + last.
-    `${esc(channelName(locale, p.channel))}${p.address ? ` <bdi dir="ltr">${esc(p.channel === 'whatsapp' && /^\d+$/.test(p.address) ? `+${p.address}` : p.address)}</bdi>` : ''}`,
+    // Where they write — the catch-up strip draws the same line (`reachedOn`).
+    reachedOn(locale, p.channel, p.address),
     language ? esc(t(locale, 'panel.writesIn', { language })) : '',
     p.country ? esc(countryName(locale, p.country) ?? p.country) : '',
   ].filter(Boolean).join(' · ');

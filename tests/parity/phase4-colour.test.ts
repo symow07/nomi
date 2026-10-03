@@ -120,10 +120,15 @@ describe('phase 4 · the four signals', () => {
     }
   });
 
-  it('magenta is the assistant\'s hand only: never a fill, a wash, a border or a button', () => {
+  // THE WARMTH RUN (2026-10-03) — the assistant's words sit on its own WASH
+  // (`--color-assistant-wash`, a pale ground under ink), so a newcomer tells
+  // them from a person's at a glance. The magenta itself is still never a fill,
+  // a border or a button, and the wash is only ever a ground: never a frame.
+  it('magenta is the assistant\'s hand only: never a fill, a border or a button; its wash is a ground, never a frame', () => {
     for (const r of rules(appCss)) {
       if (!r.body.includes('--color-assistant')) continue;
-      expect(r.body, r.sel).not.toMatch(/(background|border[a-z-]*|outline|fill|box-shadow)\s*:[^;]*--color-assistant/);
+      expect(r.body, r.sel).not.toMatch(/(background|border[a-z-]*|outline|fill|box-shadow)\s*:[^;]*--color-assistant(?!-wash)/);
+      expect(r.body, r.sel).not.toMatch(/(border[a-z-]*|outline|fill|box-shadow)\s*:[^;]*--color-assistant-wash/);
       expect(r.sel, r.sel).not.toMatch(/\.btn/);
     }
   });
