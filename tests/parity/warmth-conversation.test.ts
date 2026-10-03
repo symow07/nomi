@@ -129,7 +129,7 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       const s = strip(html);
       expect(s, l).not.toBe('');
       // above the messages, right under the row of doors, and the page's one heading
-      expect(html.indexOf('<header class="catchup">'), l).toBeLessThan(html.indexOf('class="timeline"'));
+      expect(html.indexOf('<header class="catchup">'), l).toBeLessThan(html.indexOf('class="timeline'));
       expect(html.indexOf('<div class="dhead">'), l).toBeLessThan(html.indexOf('<header class="catchup">'));
       expect(html.match(/<h1[\s>]/g), l).toHaveLength(1);
       // the face: a link to the card, at the strip's size, drawn from what the page knew

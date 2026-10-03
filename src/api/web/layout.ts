@@ -849,6 +849,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (V1-239) — on a laptop the newest message lands lower: a short conversation does not
      move at all, so the header is never cut through; a long one keeps the reply under it in view. */
   @media (min-width: 1100px) { #latest { scroll-margin-top:40vh; } }
+  /* The fix wave (V1-239) — a conversation that fits the first screen does not move to reach its newest
+     message: the strip above it made the old 40vh scroll the page and cut through the way back. */
+  @media (min-width: 1100px) { .timeline.few #latest { scroll-margin-top:100vh; } }
   /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
      boxed rival: a quiet serif paragraph behind a jade hairline that means
      "hers, awaiting your decision". border-inline-start keeps the hairline on

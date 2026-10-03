@@ -2205,6 +2205,10 @@ export function languageName(locale: Locale, code: string): string {
   }
 }
 
+/** A transcript this short sits whole in a laptop's first screen under the strip (V1-239). */
+export const FEW_MESSAGES = 6;
+export const FEW_CHARS = 600;
+
 /** The strip's separator: a line may break after it, never before it. */
 const CU_SEP = '&nbsp;· ';
 
@@ -2360,8 +2364,14 @@ export function renderConversationDetail(
     return k !== null && (i === 0 || dayOf(d.messages[i - 1]!) !== k)
       ? `<p class="tday"><span>${esc(show.day(locale, m.at!, now))}</span></p>` : '';
   };
+  // The fix wave (V1-239) — a conversation short enough to sit whole in a laptop's first screen is
+  // not scrolled at all to reach its newest message: with the catch-up strip above it, landing there
+  // moved the page 41-65 px and cut through the way back. The stylesheet does it (`.timeline.few`),
+  // on a wide screen only; on a phone the newest message still lands with the reply under it.
+  const few = !older && !earlier && d.messages.length <= FEW_MESSAGES
+    && d.messages.reduce((n, m) => n + m.text.length, 0) <= FEW_CHARS;
   const timeline = d.messages.length
-    ? `<div class="timeline">${d.messages.map((m, i) => `${divider(m, i)}
+    ? `<div class="timeline${few ? ' few' : ''}">${d.messages.map((m, i) => `${divider(m, i)}
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           ${/* The fix wave (w4-conversation-17) — what the assistant said is marked BEFORE its words, as phase 5
                meant: under a long reply the mark came after it. The caption under keeps the time. */ ''}${

@@ -313,3 +313,18 @@ describe('Practice (V1-289, w4-conversation-17, -23, -24)', () => {
     expect(css).toContain('.pchecks > summary h2 { display:inline; margin:0; flex:1 1 auto; min-width:0; }');
   });
 });
+
+describe('V1-239 · a short conversation does not move on a laptop to reach its newest message', () => {
+  const said = (n: number, chars = 20) => Array.from({ length: n }, (_, i) => ({
+    direction: (i % 2 ? 'outbound' : 'inbound') as 'inbound' | 'outbound', text: 'x'.repeat(chars), at: ago((n - i) * MIN),
+  }));
+  it('four lines: the transcript says so, and the wide stylesheet keeps the page still; a long one lands as before', () => {
+    expect(page(detail({ messages: said(4) }), 'ar')).toContain('<div class="timeline few">');
+    expect(page(detail({ messages: said(7) }), 'en')).toContain('<div class="timeline">');
+    expect(page(detail({ messages: said(3, 400) }), 'en')).toContain('<div class="timeline">');
+    expect(page(detail({ messages: said(4), transcript: { earlier: 'x', older: false } }), 'en')).toContain('<div class="timeline">');
+    const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'en', path: '/app/inbox', bodyHtml: '' }));
+    expect(css).toContain('@media (min-width: 1100px) { .timeline.few #latest { scroll-margin-top:100vh; } }');
+    expect(css).toContain('#latest, #compose, #main { scroll-margin-top:25vh; }');
+  });
+});
