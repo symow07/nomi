@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { currencyOfCountry, currencyForSignup, asksCurrency, currencyLabel } from '../../src/core/owner/currencies.js';
+import { currencyOfCountry, currencyForSignup, asksCurrency, currencyLabel, currencyInLine } from '../../src/core/owner/currencies.js';
 import { readTypedAmount } from '../../src/core/commerce/amount.js';
 import { parsePriceLines, validateExtracted } from '../../src/core/onboard/catalogImport.js';
 import { validatePriceRules } from '../../src/core/commerce/priceRules.js';
@@ -156,7 +156,7 @@ describe('CUR · the rate page converts only where there is something to convert
   it('no pair: one sentence, and no form', () => {
     const html = renderRate(view({}), 'en', null);
     // Phase 9 (V1-531) — the currency by its name, as on Business profile.
-    expect(html).toContain(t('en', 'rate.none', { from: currencyLabel('en', 'AED') }));
+    expect(html).toContain(t('en', 'rate.none', { from: currencyInLine('en', 'AED') }));
     expect(html).not.toContain('name="rate"');
   });
   it('a pair: the rate is between those two', () => {

@@ -274,9 +274,11 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
       </div>`
     : '';
   // Phase 9 (V1-520) — a person called by the business's name is asked for
-  // their own in a card of its own under the list, the same shape as adding
-  // someone: one field width on the page, not a form squeezed into a row.
-  const askName = v.people.filter((p) => namedLikeBusiness(p.name, v.business)).map((p) =>
+  // their own in a card of its own, the same shape as adding someone: one
+  // field width on the page. The warmth run (w4-settings-b-outreach-02) — the
+  // card sits under that person's own row, so it reads as theirs, not as the
+  // row above it.
+  const askName = (p: TeamMember): string => !namedLikeBusiness(p.name, v.business) ? '' :
     `<form method="post" action="/app/settings/people/${esc(p.id)}/name" class="sform askname">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, p.isOwner ? 'people.name.yours' : 'people.add.label'), forId: `pp-name-${esc(p.id)}`,
@@ -286,7 +288,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
         // here is a quiet Save, however many people it is asked of.
         cardActs(`<button class="btn" type="submit">${esc(t(locale, 'people.name.save'))}</button>`),
       ])}
-    </form>`).join('');
+    </form>`;
 
   // Phase 9 (V1-512) — the way back to Setup, as Business profile has.
   return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
@@ -296,14 +298,15 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     <section class="block">
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
       <p class="note">${esc(t(locale, 'people.summary', { people: tn(locale, 'setup.state.people', v.people.length), online: show.count(locale, online) }))}</p>
-      <ul class="rows">${v.people.map((p) => `<li class="row">
+      ${/* The warmth run (-03) — the list is as wide as the forms on the page (team). */ ''}<ul class="rows team">${v.people.map((p) => `<li class="row">
         <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}</span>
-          <span class="caption"><span class="muted">${esc(t(locale, 'people.added', { date: show.date(locale, p.addedAt) }))} · ${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
+          <span class="caption muted">${esc(t(locale, 'people.added', { date: show.date(locale, p.addedAt) }))} · ${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span>
+          ${/* The warmth run (-01) — where they are is a line of its own: wrapped after a dot, it began a line with one. */ ''}<span class="caption">${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${esc(t(locale, 'people.remove'))}</button></form>`}
+        ${askName(p)}
       </li>`).join('')}</ul>
-      ${askName}
     </section>
     ${/* Phase 9 (V1-509, V1-519) — adding someone is its own section with its own heading, and says first that a code will be shown to hand over. */ ''}<section class="block" id="add">
       <h2>${esc(t(locale, 'people.add.title'))}</h2>

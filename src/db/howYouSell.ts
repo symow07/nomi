@@ -46,7 +46,7 @@ export async function loadSellingState(tx: Tx, bid: BusinessId): Promise<Selling
     select id::text as id, name, moq from products where business_id = ${bid} and is_active order by name, id limit 500`.execute(tx)).rows;
   const allowed = (await sql<{ kind: string; claim_key: string }>`
     select kind, claim_key from claims_policy where business_id = ${bid} and allowed`.execute(tx)).rows;
-  const terms = (await sql<{ payment_terms: string; incoterm: string }>`
+  const terms = (await sql<{ payment_terms: string; incoterm: string | null }>`
     select payment_terms, incoterm from trade_terms where business_id = ${bid} order by stated_at desc limit 1`.execute(tx)).rows[0];
   const closures = (await sql<{ label: string; starts_on: unknown; ends_on: unknown }>`
     select label, starts_on, ends_on from factory_closures where business_id = ${bid} and archived_at is null`.execute(tx)).rows;
@@ -138,8 +138,11 @@ export async function applyLines(
         // under stays on the record), and the delivery term allowed to be said.
         await sql`insert into trade_terms (business_id, payment_terms, incoterm, stated_at, stated_by)
                   values (${bid}, ${l.payment}, ${l.incoterm}, now(), ${actor})`.execute(tx);
-        await sql`insert into claims_policy (business_id, kind, claim_key, allowed) values (${bid}, 'incoterm', ${l.incoterm}, true)
-                  on conflict (business_id, kind, claim_key) do update set allowed = true, updated_at = now()`.execute(tx);
+        // V1-537 — no delivery term allows none to be said, as the terms page.
+        if (l.incoterm !== null) {
+          await sql`insert into claims_policy (business_id, kind, claim_key, allowed) values (${bid}, 'incoterm', ${l.incoterm}, true)
+                    on conflict (business_id, kind, claim_key) do update set allowed = true, updated_at = now()`.execute(tx);
+        }
         break;
       case 'hours':
         await sql`update businesses set working_hours = ${l.text} where id = ${bid}`.execute(tx);

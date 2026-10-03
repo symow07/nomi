@@ -48,7 +48,7 @@ const emptyBuyers = (filter: 'pending' | 'all') =>
 // ran. Typing it is the fix; the comment was only a warning.
 const emptyFactoryView: FactoryView = {
   profile: { name: '', description: null, location: null, workingHours: null,
-    contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
+    contactEmail: null, contactPhone: null, languagesServed: [] },
   products: { total: 0, needPrice: 0, names: [] },
   promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,

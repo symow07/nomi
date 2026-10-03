@@ -4,7 +4,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { SELLING_DEFAULTS } from '../../core/owner/sellingStyle.js';
-import { OFFERED_INCOTERMS, incotermMeaning } from './settings.js';
+import { incotermOptions } from './settings.js';
 import { MAX_PAYMENT_TERMS } from '../../core/commerce/terms.js';
 import {
   questionsFor, linesFor, parseAnswer, tickedLines, nextQuestion, paysByTerms, isQuestion,
@@ -235,15 +235,13 @@ export function renderQuestion(
     case 'payment': {
       if (paysByTerms(v.facts)) {
         const terms = kept?.q === 'payment' && kept.terms ? kept.terms : v.state.terms;
-        // Phase 9 — the terms page's own list and words (V1-537): each term with
-        // what it means, and DDU only for a workspace that already chose it.
-        const choices: readonly string[] = terms && !(OFFERED_INCOTERMS as readonly string[]).includes(terms.incoterm)
-          ? [...OFFERED_INCOTERMS, terms.incoterm] : OFFERED_INCOTERMS;
-        const options = choices.map((k) => `<option value="${esc(k)}"${terms?.incoterm === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('');
+        // Phase 9 — the terms page's own list and words (V1-537): no delivery
+        // term first, each term with what it means, DDU only where it was chosen.
+        const options = incotermOptions(locale, terms?.incoterm ?? null);
         fields = `<label class="fld"><span class="muted">${esc(t(locale, 'terms.payment.label'))}</span>
             <input name="payment" maxlength="${MAX_PAYMENT_TERMS}" placeholder="${esc(t(locale, 'terms.payment.placeholder'))}" value="${val('payment', terms?.payment ?? '')}" />${errLine(locale, errors['payment'])}</label>
           <label class="fld"><span class="muted">${esc(t(locale, 'terms.incoterm.label'))}</span>
-            <select name="incoterm">${terms ? '' : '<option value="" selected disabled></option>'}${options}</select>${errLine(locale, errors['incoterm'])}
+            <select name="incoterm">${options}</select>${errLine(locale, errors['incoterm'])}
             <span class="muted">${esc(t(locale, 'terms.incoterm.hint', { name }))}</span></label>`;
       } else fields = toldBox(toldNow);
       break;
@@ -332,7 +330,7 @@ function lineText(l: Line, locale: Locale, name: string): string {
     case 'cert': return esc(t(locale, l.to ? 'hs.line.cert.on' : 'hs.line.cert.off', { name, claim: claim(l.claim) }));
     case 'attr': return esc(t(locale, l.to ? 'hs.line.attr.on' : 'hs.line.attr.off', { name, claim: claim(l.claim) }));
     case 'category': return esc(t(locale, 'hs.line.category', { category: t(locale, `hs.category.${l.to}` as MessageKey) }));
-    case 'terms': return esc(t(locale, 'hs.line.terms')) + ` <bdi>${esc(l.payment)}</bdi> · <bdi>${esc(l.incoterm)}</bdi>`;
+    case 'terms': return esc(t(locale, 'hs.line.terms')) + ` <bdi>${esc(l.payment)}</bdi> · <bdi>${esc(l.incoterm ?? t(locale, 'terms.incoterm.none'))}</bdi>`;
     case 'hours': return esc(t(locale, 'hs.line.hours')) + ` <bdi>${esc(l.text)}</bdi>`;
     case 'closure': return esc(t(locale, 'hs.line.closure')) + ` <bdi>${esc(l.label)}</bdi> <bdi>${esc(l.from)} – ${esc(l.to)}</bdi>`;
     case 'word': return esc(t(locale, 'hs.line.word')) + ` <bdi>${esc(l.term)}</bdi>`;

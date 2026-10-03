@@ -56,7 +56,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
     return withTenantTx(db, bid.value, fn);
   };
 
-  const termsRows = () => tx((t) => sql<{ payment_terms: string; incoterm: string; stated_by: string }>`
+  const termsRows = () => tx((t) => sql<{ payment_terms: string; incoterm: string | null; stated_by: string }>`
     select payment_terms, incoterm, stated_by from trade_terms
      where business_id = ${BIZ} order by stated_at, id`.execute(t).then((r) => r.rows));
 
@@ -95,7 +95,8 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
       const client = (await sql<{ id: string }>`
         insert into clients (business_id, phone, display_name)
         values (${BIZ}, ${`+8613${RUN}`}, 'Ahmed') returning id::text as id`.execute(t)).rows[0]!.id;
-      for (let i = 0; i < 2; i++) {
+      // The warmth run (V1-537) — a third, for an order confirmed under payment terms alone.
+      for (let i = 0; i < 3; i++) {
         convs.push((await sql<{ id: string }>`
           insert into conversations (business_id, client_id, channel, phase)
           values (${BIZ}, ${client}::uuid, 'whatsapp', 'confirmation') returning id::text as id
@@ -191,5 +192,34 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
   it('the app role cannot edit a stated term', async () => {
     await expect(tx((t) => sql`update trade_terms set incoterm = 'DDP' where business_id = ${BIZ}`.execute(t)))
       .rejects.toThrow(/permission denied/);
+  });
+
+  /**
+   * THE WARMTH RUN (V1-537; needs the pending migration that lets the delivery
+   * term be null) — a shop whose customers collect states how they pay, and
+   * nothing else changes: no delivery term becomes sayable, and an order
+   * confirmed under these terms carries the payment terms and no proforma.
+   */
+  it('PAYMENT TERMS ALONE — a row with no delivery term, no term made sayable, no proforma', async () => {
+    const claims = () => tx((t) => sql<{ claim_key: string }>`
+      select claim_key from claims_policy where business_id = ${BIZ} and kind = 'incoterm' order by claim_key`.execute(t).then((r) => r.rows));
+    const sayable = await claims();
+    const res = await post(ownerCookie, '/app/settings/terms', `payment=${encodeURIComponent('Cash when you collect')}&incoterm=`);
+    expect(res.statusCode).toBe(302);
+    const latest = (await termsRows()).find((r) => r.payment_terms === 'Cash when you collect');
+    expect(latest).toMatchObject({ payment_terms: 'Cash when you collect', incoterm: null });
+    expect(await claims()).toEqual(sayable);
+
+    const page = await get(ownerCookie, '/app/settings/terms');
+    expect(page.body).toContain('<option value="" selected>No delivery term</option>');
+    expect(page.body).toContain('A proforma needs one, so none is made');
+
+    const orderId = await confirmOrder(convs[2]!);
+    const row = await tx((t) => sql<{ payment_terms: string | null; incoterm: string | null }>`
+      select payment_terms, incoterm from orders where id = ${orderId}::uuid`.execute(t).then((r) => r.rows[0]!));
+    expect(row).toEqual({ payment_terms: 'Cash when you collect', incoterm: null });
+    const order = await get(ownerCookie, `/app/orders/${orderId}`);
+    expect(order.body).not.toContain('PROFORMA INVOICE');
+    expect(order.body).toContain('this order was confirmed without one');
   });
 });

@@ -29,6 +29,12 @@ export type ContactRow = {
   readonly archivedAt: Date | null;
   readonly consent: Consent | null;
   readonly suppression: Suppression | null;
+  /**
+   * The warmth run (w4-settings-b-outreach-14) — the customer this address
+   * belongs to, when one wrote from it: their face opens their card. Null for
+   * someone who has never written (a card from a fair, a search result).
+   */
+  readonly clientId?: string | null;
 };
 
 /**
@@ -140,10 +146,11 @@ export async function listContacts(tx: Tx, businessId: BusinessId): Promise<read
   const rows = await sql<StateRow & {
     id: string | null; channel: string; identity: string; display_name: string | null;
     company: string | null; title: string | null; source: string; first_seen: Date; archived_at: Date | null;
+    client_id: string | null;
   }>`
     with added as (
       select id::text as id, channel, identity, display_name, company, title, source,
-             created_at as first_seen, archived_at
+             created_at as first_seen, archived_at, null::text as client_id
         from contacts where business_id = ${businessId}::uuid
     ),
     wrote as (
@@ -151,7 +158,7 @@ export async function listContacts(tx: Tx, businessId: BusinessId): Promise<read
       -- and read from the column that is always written — see DERIVED_INBOUND.
       select null::text as id, 'whatsapp' as channel, c.phone as identity,
              max(c.display_name) as display_name, null::text as company, null::text as title, 'inbound' as source,
-             min(m.sent_at) as first_seen, null::timestamptz as archived_at
+             min(m.sent_at) as first_seen, null::timestamptz as archived_at, min(c.id::text) as client_id
         from clients c
         join conversations v on v.client_id = c.id
         join messages m      on m.conversation_id = v.id and m.direction = 'inbound'
@@ -166,7 +173,13 @@ export async function listContacts(tx: Tx, businessId: BusinessId): Promise<read
         from (select * from added union all select * from wrote) u
        order by channel, identity, (archived_at is null) desc, (id is not null) desc
     )
-    select x.*,
+    select x.id, x.channel, x.identity, x.display_name, x.company, x.title, x.source, x.first_seen, x.archived_at,
+           -- The customer behind the address, when one wrote from it (their face, their card).
+           coalesce(x.client_id, (
+             select cl.id::text from clients cl
+              where cl.business_id = ${businessId}::uuid
+                and ((x.channel = 'whatsapp' and cl.phone = x.identity) or (x.channel = 'email' and lower(cl.email) = lower(x.identity)))
+              order by cl.last_seen_at desc nulls last limit 1)) as client_id,
            c.evidence as consent_evidence,
            coalesce(c.obtained_at, d.obtained_at) as consent_at,
            case when c.evidence is not null then c.recorded_by end as consent_by,
@@ -196,7 +209,7 @@ export async function listContacts(tx: Tx, businessId: BusinessId): Promise<read
       id: r.id, channel: r.channel as ContactChannel, identity: r.identity,
       displayName: r.display_name, company: r.company, title: r.title, source: r.source as ContactSource,
       firstSeen: r.first_seen, archivedAt: r.archived_at,
-      consent, suppression: state.suppression,
+      consent, suppression: state.suppression, clientId: r.client_id,
     };
   });
 }

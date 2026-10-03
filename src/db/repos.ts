@@ -352,7 +352,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
 
     // G6 — newest in force, as with her sample policy and her rate.
     async tradeTerms() {
-      const r = await sql<{ payment_terms: string; incoterm: string; stated_at: Date }>`
+      // V1-537 — the delivery term is null when she ships under none.
+      const r = await sql<{ payment_terms: string; incoterm: string | null; stated_at: Date }>`
         select payment_terms, incoterm, stated_at from trade_terms
          where business_id = ${businessId} order by stated_at desc, id desc limit 1`.execute(tx);
       const row = r.rows[0];

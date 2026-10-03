@@ -975,7 +975,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.headers['location']).toBe('/login');
   });
 
-  it('M11.1 settings: profile renders reused fields + derived categories (owner-auth)', async () => {
+  it('M11.1 settings: profile renders reused fields + what it sells (owner-auth)', async () => {
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const { sql } = await import('kysely');
@@ -989,9 +989,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain('Business profile');          // English default — its own page since UI-PASS 7
     expect(res.body).toContain('Yiwu Demo Factory');         // reused businesses.name
     expect(res.body).toContain('Business name');
-    expect(res.body).toContain('Product categories');
-    // derived from the demo catalog (products.category): bags/drinkware/home/lighting
-    expect(res.body).toMatch(/bags|drinkware|lighting/);
+    // The warmth run (V1-006): not the demo seed's raw products.category codes,
+    // but How you sell's own question, with its door (the demo sells from a catalogue).
+    expect(res.body).not.toContain('Product categories');
+    expect(res.body).not.toMatch(/bags · drinkware/);
+    expect(res.body).toContain('What you sell');
+    expect(res.body).toContain('href="/app/business/selling/product_claims"');
     // Phase F: no second "what is missing" list here — My factory owns that.
     expect(res.body).not.toContain('Profile checklist');
   });

@@ -1496,7 +1496,10 @@ const STYLE_PAGES = `
 
   /* ── contacts.ts — moved here whole in step four: page-specific names, defined once. */
   .cts { list-style:none; margin:var(--space-12) 0; padding:0; }
-  .ct { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
+  /* The warmth run (-14, -16) — a row is the face, then everything else in one column, so the row's acts start where the name starts. */
+  .ct { display:grid; grid-template-columns:auto minmax(0, 1fr); column-gap:var(--space-12); align-items:start;
+    padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
+  .ct-main { min-width:0; }
   .ct:last-child { border-bottom:0; }
   .ct.gone { opacity:.55; }
   .ct-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
@@ -1512,6 +1515,8 @@ const STYLE_PAGES = `
   .btn.stop { color:var(--color-ink-secondary); }
   .cform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
   .confirm { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; margin-top:var(--space-12); }
+  /* The warmth run (-18) — the way back, which holds the focus on arrival, is a control's size and corner, so its ring is too. */
+  .confirm > .back { padding:0 var(--space-12); border-radius:var(--radius-control); }
   .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
   .wform textarea { width:100%; font:inherit; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
@@ -1520,8 +1525,17 @@ const STYLE_PAGES = `
   .ctgroup-h { margin:0 0 var(--space-4); }
   .ctgroup > p { margin:0 0 var(--space-4); max-width:var(--measure-prose); }
   .ctgroup > .cts { margin-top:var(--space-8); }
+  /* The warmth run (-15) — the fold that adds someone stands apart from the search under it. */
+  .act-fold + .search { margin-top:var(--space-12); }
   /* ── Phase 9 · Who works here, the rate, samples and terms (settings-b). */
   .askname { margin-top:var(--space-16); }
+  /* The warmth run (-02, -03, -04) — Who works here: the lists are as wide as the forms on the page; a
+     person's name form and an assistant's fold take the whole width of their own row, under it; and
+     their act stretches on a phone like every other form's (a row's buttons keep their size elsewhere). */
+  .rows.team { max-width:100%; }
+  .rows.team > .row > .askname, .rows.team > .row > .act-fold { flex-basis:100%; }
+  .rows.team > .row > .askname { margin-top:var(--space-8); }
+  @media (max-width: 720px) { .rows.team .fr-acts .btn { flex:1 1 auto; } }
   .owner-only { margin:var(--space-8) 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose);
     font-size:var(--font-size-small); color:var(--color-ink); }
   .owner-only li + li { margin-top:var(--space-4); }

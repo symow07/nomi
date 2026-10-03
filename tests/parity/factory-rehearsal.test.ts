@@ -361,7 +361,7 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
 
 const view = (rehearsal: RehearsalReport | null): FactoryView => ({
   profile: { name: 'Yiwu Sunrise', description: null, location: null, workingHours: null,
-    contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
+    contactEmail: null, contactPhone: null, languagesServed: [] },
   products: { total: 2, needPrice: 0, names: [] },
   promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: OFFLINE_CHANNEL, ownerPhone: null },
