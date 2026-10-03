@@ -181,12 +181,11 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(t('en', 'inbox.empty.seeAll')).toBe('See all customers');
   });
 
-  it('V1-166 · the calendar door is the phone\'s (the rail has it on a wide screen); the list of contacts says what it is for', () => {
+  it('V1-166 · the calendar door is the phone\'s (the rail has it on a wide screen); the contacts door says the page\'s own name (V1-548)', () => {
     const h = withWorkspace(SCOPE, () => list('en'));
     expect(h).toContain('<a class="deeper on-phone" href="/app/calendar">');
     expect(CSS).toMatch(/@media \(min-width: 721px\) \{ \.deeper\.on-phone \{ display:none; \} \}/);
-    expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.door'))}`);
-    expect(t('en', 'contacts.door')).toBe('Who you may write to first');
+    expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.title'))}`);
   });
 
   it('V1-167 · V1-175 · Chinese: the search button is 搜索, the holder runs on without a space, the tab and its group say the same', () => {

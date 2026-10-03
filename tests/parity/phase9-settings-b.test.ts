@@ -125,7 +125,7 @@ describe('V1-511 · one name for the assistant on the page', () => {
       const html = withWorkspace(SCOPE, () => people(l));
       expect(html, l).toContain(esc(t(l, 'assistants.unconfirmed')));
       expect(html, l).toContain('href="/app/onboarding"');
-      const intro = html.slice(html.indexOf('id="assistants"'), html.indexOf('<ul class="rows">', html.indexOf('id="assistants"')));
+      const intro = html.slice(html.indexOf('id="assistants"'), html.indexOf('<ul class="rows', html.indexOf('id="assistants"')));
       expect(intro, l).not.toContain('Lily');
     }
   });
@@ -327,7 +327,7 @@ describe('settings-b-outreach-missed-05 · typographic quotes around "today"', (
 
 // ── The rate, samples, terms ───────────────────────────────────────────────
 import { renderRate, renderSamples, renderTerms, OFFERED_INCOTERMS } from '../../src/api/web/settings.js';
-import { currencyLabel } from '../../src/core/owner/currencies.js';
+import { currencyLabel, currencyInLine } from '../../src/core/owner/currencies.js';
 
 const noRate = (l: (typeof LOCALES)[number]) => renderRate({ current: null, previous: [], pair: null, currency: 'USD' }, l, null);
 const samples = (l: (typeof LOCALES)[number]) => renderSamples({ policy: null, waiting: [], currency: 'USD' }, l, null, NOW);
@@ -340,10 +340,10 @@ describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate
       const html = noRate(l);
       expect(html.indexOf('<a class="back" href="/app/business/how-you-sell">'), l).toBe(0);
       expect(html, l).toContain('<div class="empty notset" role="status">');
-      expect(html, l).toContain(esc(currencyLabel(l, 'USD')));
+      expect(html, l).toContain(esc(currencyInLine(l, 'USD')));
       expect(html, l).toMatch(/class="deeper" href="\/app\/settings\/profile#zone"/);
     }
-    expect(text(noRate('en'))).toContain('Your prices are in US Dollar (USD)');
+    expect(text(noRate('en'))).toContain('Your prices are in US dollars (USD)');   // the warmth run (-11): as a sentence says it
     // ar: the last two words never part
     expect(t('ar', 'rate.none', { from: 'x' })).toContain('سعر صرف');
     expect(rulesFor('.empty.notset').join(';')).toContain('text-wrap:pretty');
@@ -376,7 +376,7 @@ describe('V1-534, V1-541 · Samples and Terms lead back to How you sell, where t
 
 describe('V1-535 · the sample price says which money it is in', () => {
   it('the line under the field names the currency', () => {
-    for (const l of LOCALES) expect(samples(l), l).toContain(esc(t(l, 'samples.price.desc', { currency: currencyLabel(l, 'USD') })));
+    for (const l of LOCALES) expect(samples(l), l).toContain(esc(t(l, 'samples.price.desc', { currency: currencyInLine(l, 'USD') })));
     expect(t('en', 'samples.price.label')).not.toMatch(/\(0/);
   });
 });
@@ -516,9 +516,10 @@ describe('V1-544 · the list is searched and paged, and adding someone opens abo
 });
 
 describe('V1-546 · never writing to someone again is a button, not a door', () => {
-  it('a quiet button that opens the question; no "›" door to it', () => {
+  it('a button that opens the question; no "›" door to it', () => {
     const html = renderContacts(cview([wa(1)]), 'en', null);
-    expect(html).toContain(`<button class="btn ghost" type="submit">${esc(t('en', 'contacts.suppress.button'))}</button>`);
+    // The warmth run (w4-settings-b-outreach-16) — outlined like the row's other acts, never ghost words.
+    expect(html).toContain(`<button class="btn" type="submit">${esc(t('en', 'contacts.suppress.button'))}</button>`);
     expect(html).not.toMatch(/class="deeper" href="\/app\/contacts\/suppress/);
   });
 });
@@ -651,12 +652,14 @@ describe('V1-560, V1-561 · before a key, the page says what the search will be'
 });
 
 describe('V1-564, V1-565, settings-b-outreach-new-14 · first e-mails say what they need, and the form is a card', () => {
-  it('e-mail only, to people who may be written to first; with nobody ready, said, with the door to Contacts', () => {
+  it('e-mail only, to people who may be written to first; with nobody ready, said, with the one way to Contacts', () => {
     for (const l of LOCALES) {
       const html = renderSequenceList([], l, null, { ready: 0 });
       expect(html, l).toContain(esc(t(l, 'seq.needs')));
       expect(html, l).toContain(esc(t(l, 'seq.noneReady')));
-      expect(html, l).toMatch(/class="deeper" href="\/app\/contacts"/);
+      // The warmth run (w4-settings-b-outreach-20) — the "‹ Contacts" at the top is the door; no second one.
+      expect(html.match(/href="\/app\/contacts"/g)?.length, l).toBe(1);
+      expect(html, l).toMatch(/class="back" href="\/app\/contacts"/);
       expect(html, l).not.toContain('class="sqform"');
       expect(html, l).toMatch(/<div class="fr-acts"><button class="btn send" type="submit">/);
     }

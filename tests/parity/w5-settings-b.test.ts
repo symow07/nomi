@@ -182,3 +182,170 @@ describe('V1-522, w4-settings-b-outreach-09, -10 · the zone list in the owner\'
     expect(zoneCity('zh', 'Europe/Madrid')).toBeNull();   // Spain's own: the country says it
   });
 });
+
+// ── Contacts, first e-mails, finding customers ─────────────────────────────
+import { renderContacts, renderSuppressConfirm, type ContactsView } from '../../src/api/web/contacts.js';
+import type { ContactRow } from '../../src/db/contacts.js';
+import { renderSequenceList } from '../../src/api/web/sequences.js';
+import { shell } from '../../src/api/web/layout.js';
+import { linkedCss } from './linked-css.js';
+
+const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '<h1 class="page">X</h1>' }));
+const AT = new Date('2026-08-01T02:00:00Z');
+const CLIENT = '11111111-2222-4333-8444-555555555555';
+const wrote: ContactRow = { id: null, channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra', company: null,
+  source: 'inbound', firstSeen: AT, archivedAt: null, consent: { evidence: 'inbound_message', obtainedAt: AT, recordedBy: 'buyer' }, suppression: null, clientId: CLIENT };
+const met: ContactRow = { id: 'k1', channel: 'email', identity: 'mei@gulf.example', displayName: 'Mei', company: 'Gulf Trading',
+  source: 'manual', firstSeen: AT, archivedAt: null, consent: null, suppression: null, clientId: null };
+const view = (contacts: readonly ContactRow[], over: Partial<ContactsView> = {}): ContactsView =>
+  ({ contacts, outreach: new Map(), satisfied: new Set(), ...over });
+
+describe('w4-settings-b-outreach-13 · Contacts leads back to the Inbox it is reached from', () => {
+  it('"‹ Inbox" before the heading, in every locale', () => {
+    for (const l of LOCALES) {
+      const html = renderContacts(view([wrote]), l, null);
+      const back = `<a class="back" href="/app/inbox"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'nav.inbox'))}</a>`;
+      expect(html, l).toContain(back);
+      expect(html.indexOf(back), l).toBeLessThan(html.indexOf('<h1 class="page">'));
+    }
+  });
+});
+
+describe('w4-settings-b-outreach-14 · every contact has a face; a customer\'s opens their card', () => {
+  it('someone who wrote: the face links to their card, with their photo when one is kept', () => {
+    const html = renderContacts(view([wrote], { photos: new Map([[CLIENT, 'v7']]) }), 'en', null);
+    expect(html).toContain(`<a class="face-link ct-face" href="/app/customers/${CLIENT}" data-card aria-label="${esc(t('en', 'buyers.row.card', { who: 'Fatima Zahra' }))}">`);
+    expect(html).toContain(`/app/faces/${CLIENT}?v=v7`);
+  });
+  it('someone added by hand who never wrote: their initial, and no card to open', () => {
+    const html = renderContacts(view([met]), 'en', null);
+    expect(html).toMatch(/<span class="face face-m t\d+ ct-face" aria-hidden="true"><span class="face-i">M<\/span><\/span>/);
+    expect(html).not.toContain('data-card');
+  });
+  it('the face is the row\'s first column; the name, the facts and the acts share the second', () => {
+    expect(css).toMatch(/\.ct \{ display:grid; grid-template-columns:auto minmax\(0, 1fr\);/);
+    expect(read('src/db/contacts.ts')).toContain('min(c.id::text) as client_id');
+  });
+});
+
+describe('w4-settings-b-outreach-15, -16, -18 · the fold apart from the search; the row\'s act a button; the way back rounded', () => {
+  it('the search keeps its distance from the fold above it', () => {
+    expect(css).toContain('.act-fold + .search { margin-top:var(--space-12); }');
+  });
+  it('"Never write to them again" is outlined like the row\'s other buttons, never ghost words', () => {
+    for (const l of LOCALES) {
+      const html = renderContacts(view([wrote]), l, null);
+      expect(html, l).toContain(`<button class="btn" type="submit">${esc(t(l, 'contacts.suppress.button'))}</button>`);
+      expect(html, l).not.toContain('btn ghost');
+    }
+  });
+  it('the focused way back on the never-again page has a control\'s padding and corner', () => {
+    expect(renderSuppressConfirm({ channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra' }, 'ar')).toContain('<a class="back" href="/app/contacts" autofocus>');
+    expect(css).toContain('.confirm > .back { padding:0 var(--space-12); border-radius:var(--radius-control); }');
+  });
+});
+
+describe('V1-548, V1-552, w4-settings-b-outreach-17 · one name for the page; "e-mail"; Arabic genders nobody', () => {
+  it('the Inbox\'s door says the page\'s name: its separate wording is gone', () => {
+    expect(read('src/core/owner/i18n/messages.ts')).not.toContain("'contacts.door'");
+    expect(read('src/api/web/inbox.ts')).toContain("deeper('/app/contacts', t(locale, 'contacts.title'))");
+  });
+  it('the add form writes e-mail the product\'s way', () => {
+    expect(t('en', 'contacts.add.identity')).toBe('Phone number or e-mail address');
+  });
+  it('the outreach lines agree with "جهات الاتصال", never with a man who wrote', () => {
+    for (const k of ['contacts.intro', 'contacts.empty', 'seq.needs', 'seq.noneReady'] as const) {
+      const v = t('ar', k);
+      expect(v, k).not.toMatch(/راسلك|أُضيف |يبقى|يعود|مراسلته أولًا في|تصله(?!ا)|يراسلك/);
+    }
+    expect(t('ar', 'contacts.intro')).toContain('جهات الاتصال');
+  });
+});
+
+describe('w4-settings-b-outreach-12, -19, -20 · wide empties; the credit said once; one door to Contacts', () => {
+  it('the empty list of first e-mails is as wide as the cards on the page', () => {
+    expect(renderSequenceList([], 'en', null, { ready: 2 })).toContain(`<div class="empty whole">${esc(t('en', 'seq.empty'))}</div>`);
+    expect(css).toContain('.empty.whole { max-width:100%; }');
+  });
+  it('before a key, the panel says what the search is; the key\'s line alone says what a credit is', () => {
+    for (const l of LOCALES) {
+      expect(t(l, 'prospects.preview'), l).not.toMatch(/credit|额度|رصيد|crédito|crédit/i);
+      expect(t(l, 'prospects.key.none'), l).toMatch(/credit|额度|رصيد|crédito|crédit/i);
+    }
+  });
+  it('Follow-ups with nobody ready: one door to Contacts, the way back', () => {
+    for (const l of LOCALES) expect(renderSequenceList([], l, null, { ready: 0 }).match(/href="\/app\/contacts"/g)?.length, l).toBe(1);
+  });
+});
+
+// ── Who works here ─────────────────────────────────────────────────────────
+import { renderPeople, type TeamMember } from '../../src/api/web/people.js';
+import type { Assistant } from '../../src/core/owner/assistants.js';
+
+const you: TeamMember = { id: 'p-you', name: 'Hongfa Trading', isOwner: true, addedAt: NOW, signsInWithEmail: false, lastSeenAt: NOW };
+const chen: TeamMember = { id: 'p-chen', name: '陈莉', isOwner: false, addedAt: NOW, signsInWithEmail: false, lastSeenAt: null };
+const noor: Assistant = { id: '00000000-0000-4000-8000-000000000002', name: 'Noor', role: 'support', note: null, channels: ['instagram'], isDefault: false };
+const people = (l: Locale) => renderPeople({ people: [you, chen], justIssued: null, assistants: [noor], business: 'Hongfa Trading' }, l, null, NOW);
+
+describe('w4-settings-b-outreach-01 to -05 · Who works here', () => {
+  it('-01 · "Online now" is a line of its own, never led by a dot', () => {
+    for (const l of LOCALES) {
+      const html = people(l);
+      expect(html, l).toContain(`<span class="caption"><span class="pill stop">${esc(t(l, 'people.online'))}</span></span>`);
+      expect(html, l).not.toMatch(/·\s*<span class="pill/);
+    }
+  });
+  it('-02 · the owner\'s own name form sits in the owner\'s row, before the next person', () => {
+    for (const l of LOCALES) {
+      const html = people(l);
+      const form = html.indexOf('action="/app/settings/people/p-you/name"');
+      expect(form, l).toBeGreaterThan(html.indexOf('<bdi>Hongfa Trading</bdi>'));
+      expect(form, l).toBeLessThan(html.indexOf('<bdi>陈莉</bdi>'));
+    }
+  });
+  it('-03, -04 · the lists are as wide as the forms; a row\'s form takes the whole row; its act stretches on a phone', () => {
+    expect(people('en')).toContain('<ul class="rows team">');
+    expect(css).toContain('.rows.team { max-width:100%; }');
+    expect(css).toContain('.rows.team > .row > .askname, .rows.team > .row > .act-fold { flex-basis:100%; }');
+    expect(css).toMatch(/@media \(max-width: 720px\) \{ \.rows\.team \.fr-acts \.btn \{ flex:1 1 auto; \} \}/);
+    // The assistant's fold is the row's own child, not squeezed in the name's column.
+    expect(people('en')).toMatch(/<\/span>\s*<form method="post" action="\/app\/settings\/people\/assistants\/[^"]+\/archive"[\s\S]*?<\/form>\s*<details class="act-fold">/);
+  });
+  it('-05 · Arabic does not say "entering with an entry code"', () => {
+    expect(t('ar', 'people.via.code')).toBe('الدخول برمز خاص');
+  });
+});
+
+// ── The rate, samples, terms: the currency in a sentence, and where a form's act goes ──
+import { renderRate, renderSamples } from '../../src/api/web/settings.js';
+import { currencyInLine } from '../../src/core/owner/currencies.js';
+
+describe('w4-settings-b-outreach-11 · the currency said as a sentence says it', () => {
+  it('"in US dollars (USD)", «en dólares estadounidenses (USD)», «en dollars des États-Unis (USD)»; Arabic says it as a label', () => {
+    expect(currencyInLine('en', 'USD')).toBe('US dollars (USD)');
+    expect(currencyInLine('es', 'USD')).toBe('dólares estadounidenses (USD)');
+    expect(currencyInLine('fr', 'USD')).toBe('dollars des États-Unis (USD)');
+    const rate = renderRate({ current: null, previous: [], pair: null, currency: 'USD' }, 'en', null);
+    expect(rate).toContain('Your prices are in US dollars (USD), and');
+    expect(renderSamples({ policy: null, waiting: [], currency: 'USD' }, 'en', null, NOW)).toContain('In US dollars (USD). 0 means free.');
+    expect(t('ar', 'samples.price.desc', { currency: 'دولار أمريكي (USD)' })).toBe('العملة: دولار أمريكي (USD). صفر يعني مجانًا.');
+    expect(t('ar', 'rate.none', { from: 'x' })).not.toContain('بعملة x');
+  });
+});
+
+describe('NEW (prev.) primary act in different places · a one-card form ends with its act inside the card', () => {
+  it('Samples, Terms and the rate: the act in the card\'s foot, as on every add form; the profile\'s one Save after its three cards', () => {
+    const one = [
+      renderSamples({ policy: null, waiting: [], currency: 'USD' }, 'en', null, NOW),
+      terms('en'),
+      renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null),
+    ];
+    for (const html of one) {
+      expect(html).not.toContain('class="savebar"');
+      expect(html).toMatch(/<div class="fr-acts"><button class="btn send" type="submit">[^<]+<\/button><\/div><\/div><\/section>/);
+    }
+    const p = profile('en');
+    expect(p.match(/<section class="sgroup"/g)?.length).toBeGreaterThan(1);
+    expect(p).toContain('<div class="savebar"><button class="btn send" type="submit">');
+  });
+});

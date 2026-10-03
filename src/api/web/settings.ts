@@ -19,7 +19,7 @@ import { questionsFor } from '../../core/owner/howYouSell.js';
 import { profileOf } from '../../core/owner/sellingStyle.js';
 import { tenantRepos } from '../../db/repos.js';
 import { type Currency, parseCurrency } from '../../core/types/money.js';
-import { currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
+import { currencyLabel, currencyInLine, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 
 import { switcher, deeper, back, esc, conversationUrl } from './layout.js';
@@ -514,6 +514,11 @@ export function renderProfile(
 
   // Phase 3 — ONE form, ONE save: the profile, the zone and the currency
   // were three forms with a Save each; the route saves all three.
+  // ONE_CARD_ACT (the warmth run, phase 9) — where a form's act goes on these
+  // pages: inside the card's foot when the form is one card (Samples, Terms,
+  // the rate, every add form); in a bar after the cards when one Save saves
+  // several cards, as here — inside the last card it would read as that
+  // card's own.
   const form = `<form method="post" action="/app/settings" class="sform">
     ${rowsCard(t(locale, 'profile.group.business'), [
       field('name', 'settings.field.name', 'name', p.name), description, ...(sells ? [sells] : []),
@@ -783,7 +788,7 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null, vie
     return `${backTo}
     <h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
     ${flashBanner(flash)}
-    <div class="empty notset" role="status">${esc(t(locale, 'rate.none', { from: currencyLabel(locale, v.currency) }))}
+    <div class="empty notset" role="status">${esc(t(locale, 'rate.none', { from: currencyInLine(locale, v.currency) }))}
       <div>${deeper('/app/settings/profile#zone', t(locale, 'settings.profile.title'))}</div></div>`;
   }
   const { from, to } = v.pair;
@@ -799,8 +804,9 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null, vie
         : `<div class="empty notset">${esc(t(locale, 'rate.empty', { to }))}</div>`}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform">
         ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate', error: keptError(kept, 'rate', 'rt-rate-err'),
-          control: `<input id="rt-rate" name="rate" inputmode="decimal" required value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` })])}
-        ${saveBar(t(locale, 'rate.add.button'))}
+          control: `<input id="rt-rate" name="rate" inputmode="decimal" required value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` }),
+          // The warmth run — a form of one card ends with its act inside it, as every form on these pages (ONE_CARD_ACT).
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'rate.add.button'))}</button>`)])}
       </form>` : ownerDecides(locale)}
     </section>
     ${v.previous.length
@@ -1086,8 +1092,8 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, v
               value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
           fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }), error: keptError(kept, 'incoterm', 'tm-incoterm-err'),
             control: `<select id="tm-incoterm" name="incoterm"${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${incotermOptions(locale, chosen)}</select>` }),
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'terms.save'))}</button>`),
         ])}
-        ${saveBar(t(locale, 'terms.save'))}
       </form>` : ownerDecides(locale)}
     </section>`;
 }
@@ -1139,7 +1145,7 @@ export function renderSamples(
   const currency = v.currency ?? v.policy?.price.currency ?? null;
 
   const waiting = v.waiting.length === 0
-    ? `<div class="empty">${esc(t(locale, 'samples.requests.empty'))}</div>`
+    ? `<div class="empty whole">${esc(t(locale, 'samples.requests.empty'))}</div>`
     : `<ul class="sreqs">${v.waiting.map((r) => `<li>
         <div class="sreq-h"><b><bdi>${esc(r.buyer ?? t(locale, 'common.buyer'))}</bdi></b>
           <span class="muted">${esc(t(locale, 'samples.requests.asked', { when: show.when(locale, r.requestedAt, now) }))}</span></div>
@@ -1167,12 +1173,12 @@ export function renderSamples(
       ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform">
         ${rowsCard(null, [
           /* Phase 9 (V1-535) — the price says which money it is in. */ fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
-            desc: currency ? t(locale, 'samples.price.desc', { currency: currencyLabel(locale, currency) }) : t(locale, 'samples.price.free'),
+            desc: currency ? t(locale, 'samples.price.desc', { currency: currencyInLine(locale, currency) }) : t(locale, 'samples.price.free'),
             control: `<input id="sm-price" name="price" inputmode="decimal" required value="${kept ? keptValue(kept, 'price') : v.policy ? esc(String(v.policy.price.amount)) : ''}"${keptInvalid(kept, 'price', 'sm-price-err')} />` }),
           /* Phase 9 (new-08) — the tick at the start of its column, its label the 44px target. */ fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
             control: `<span class="chkbox"><input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} /></span>` }),
+          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'samples.save'))}</button>`),
         ])}
-        ${saveBar(t(locale, 'samples.save'))}
       </form>` : ownerDecides(locale)}
     </section>
     <section class="block">

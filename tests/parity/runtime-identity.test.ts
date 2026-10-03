@@ -117,7 +117,8 @@ describe('Release hardening · a stale database refuses to serve', () => {
   it('the required version tracks the migrations actually on disk', async () => {
     const { REQUIRED_SCHEMA_VERSION } = await import('../../src/db/schemaVersion.js');
     const { readdir } = await import('node:fs/promises');
-    const files = (await readdir(new URL('../../migrations/', import.meta.url))).filter((f) => f.endsWith('.sql'));
+    // The files the runner applies (tools/migrate.mjs's own filter): a PENDING-*.sql awaiting its number is not one yet.
+    const files = (await readdir(new URL('../../migrations/', import.meta.url))).filter((f) => /^\d{4}_.+\.sql$/.test(f));
     const highest = Math.max(...files.map((f) => Number(f.slice(0, 4))));
     expect(REQUIRED_SCHEMA_VERSION).toBe(highest);
   });
