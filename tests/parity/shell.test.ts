@@ -226,9 +226,11 @@ describe('Phase F · the shell is usable with a thumb', () => {
     expect(style).not.toContain('text-transform:uppercase');
   });
 
-  it('on a phone the four destinations are one row of equal targets', () => {
+  // The warmth run's re-audit (w4-whole-02): each tile is as wide as its word needs, and the row shares
+  // what is left — a fifth each cut "Aujourd'hui" and "Your assistant" short. Every tile is still ≥ 56 px tall.
+  it('on a phone the destinations are one row of targets, each as wide as its word', () => {
     const phone = style.slice(style.indexOf('@media (max-width: 720px)'));
-    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex:1 1 0/);
+    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex:1 1 auto/);
     expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*min-height:56px/);
     // never three ragged rows: the ROW does not wrap. (V1 step three lets the
     // words INSIDE one entry wrap, so "Setup 2/5" can break under its word.)

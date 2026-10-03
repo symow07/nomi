@@ -153,7 +153,9 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       'calendar.cat.conversations', 'calendar.add.day', 'site.channels.email', 'components.state.focus',
       'product.detail.fromPhoto', 'import.photoLabel', 'import.columns.option', 'seq.step.label',
       // The warmth run, phase 8 — Notifications and E-mail are French words too.
-      'alerts.title', 'alerts.way.email']),
+      'alerts.title', 'alerts.way.email',
+      // The warmth run's re-audit — the rail's name for an assistant not yet named: Assistant is French too.
+      'nav.short.employee']),
   };
   it('the words French shares with English are still shared (else the list is stale)', () => {
     for (const [l, keys] of Object.entries(SAME_WORD) as [Locale, ReadonlySet<string>][])

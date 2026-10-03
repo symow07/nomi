@@ -3,7 +3,7 @@ import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, ASSISTANT_FALLBACK } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, assistantsAreSeveral, businessName, needsYouCount, tn } from './say.js';
+import { t, assistantName, assistantsAreSeveral, businessName, needsYouCount, needsYouSince, tn } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate } from './values.js';
@@ -443,9 +443,11 @@ ${cssVariables()}
   .navhub { display:flex; flex-direction:column; }
   /* THE WARMTH RUN — "Customers" heads its two pages: its own shape and word,
      not a door (the two under it are). */
-  .navhead { display:flex; align-items:center; gap:var(--space-12); padding: var(--space-8) var(--space-12) var(--space-4);
-    font-size: var(--font-size-small); color: var(--color-ink-secondary); }
-  .navhead .ni { inline-size:20px; block-size:20px; }
+  /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
+     in weight, its shape small, and nothing to press. */
+  .navhead { display:flex; align-items:center; gap:var(--space-8); padding: var(--space-12) var(--space-12) var(--space-4);
+    font-size: var(--font-size-caption); font-weight:600; color: var(--color-ink-secondary); }
+  .navhead .ni { inline-size:16px; block-size:16px; }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
   .brand .mark { flex:none; }
@@ -482,6 +484,8 @@ ${cssVariables()}
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
   nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
   nav.side .ni { flex:none; inline-size:22px; block-size:22px; }
+  nav.side .nl-text { flex:0 1 auto; min-width:0; overflow-wrap:break-word; }
+  html[lang="zh"] nav.side .nl-text { word-break:keep-all; }
   [dir="rtl"] .ni.flips { transform:scaleX(-1); }
   nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
   /* The entry you are on is unmistakable without a colour: a raised white
@@ -492,7 +496,7 @@ ${cssVariables()}
   .nl-short { display:none; }
   /* The rail's one number: customers waiting for the owner, in the waiting
      signal's colour, beside its word. */
-  nav.side .navcount { display:inline-flex; justify-content:center; margin-inline-start:var(--space-8); min-inline-size:1.6em; padding:0 var(--space-4);
+  nav.side .navcount { display:inline-flex; justify-content:center; flex:none; white-space:nowrap; margin-inline-start:var(--space-8); min-inline-size:1.6em; padding:0 var(--space-4);
     font-size:var(--font-size-caption); font-weight:700; color:var(--color-waiting); background:var(--color-waiting-wash);
     border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
@@ -1000,7 +1004,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .mark-small { display:flex; }
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
-    nav.side a.navlink, nav.side a.navlink.sub { position:relative; flex:1 1 0; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
+    nav.side a.navlink, nav.side a.navlink.sub { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
       gap:var(--space-4); margin:0; padding:var(--space-4) 2px; min-height:56px; min-width:0; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
@@ -2357,24 +2361,22 @@ export function shell(input: {
     const on = n.id === here;
     // A5 — the entry for the assistants is the assistant's NAME while there is
     // one, and "Team" once there are several.
-    const label = n.id === 'employee' && assistantsAreSeveral()
+    const named = n.id === 'employee' && assistantsAreSeveral()
       ? t(locale, 'nav.team')
       : t(locale, `nav.${n.id}` as MessageKey);
+    // The warmth run's re-audit (cross-new-02, w4-whole-02) — ONE name per entry
+    // at every width: the assistant not yet named is "Assistant" (助手 · المساعد ·
+    // Asistente) in the rail, a word a phone's tile holds; a chosen name is itself.
+    const label = n.id === 'employee' && !assistantsAreSeveral()
+      && named.toLocaleLowerCase() === ASSISTANT_FALLBACK[locale].toLocaleLowerCase()
+      ? t(locale, 'nav.short.employee') : named;
     const waiting = n.id === 'inbox' ? needsYouCount() : null;
     // Phase 9 (V1-172) — the number says what it counts ("3 waiting") where
     // there is room; on a phone's tile it is the figure alone, on the icon's corner.
     const badge = waiting ? `<span class="navcount" aria-hidden="true"><span class="nl-long">${esc(isolate(locale, t(locale, 'nav.waiting', { n: waiting })))}</span>`
       + `<span class="nl-short">${esc(isolate(locale, String(waiting)))}</span></span>` : '';
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
-    // On a phone the five entries share one line, icon over word: the longer
-    // words have a phone form. The stylesheet shows one; a screen reader hears
-    // the one shown.
-    const short = n.id === 'inbox' ? t(locale, 'nav.short.inbox')
-      : n.id === 'employee' && !assistantsAreSeveral() && label.toLocaleLowerCase() === ASSISTANT_FALLBACK[locale].toLocaleLowerCase()
-        ? t(locale, 'nav.short.employee') : null;
-    const text = short && short !== label
-      ? `<span class="nl-text"><span class="nl-long">${esc(label)}</span><span class="nl-short">${esc(short)}</span></span>`
-      : `<span class="nl-text">${esc(label)}</span>`;
+    const text = `<span class="nl-text">${esc(label)}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
        >${icon(NAV_ICON[n.id] ?? 'today')}${text}${badge}</a>`;
@@ -2418,7 +2420,7 @@ export function shell(input: {
    */
   const waiting = needsYouCount();
   const toasts = waiting === null ? ''
-    : `<div class="toasts" role="status" aria-live="polite" data-rail="/app/live/rail?since=${waiting}"></div>`;
+    : `<div class="toasts" role="status" aria-live="polite" data-rail="/app/live/rail?since=${waiting}.${needsYouSince()}"></div>`;
   const tabTitle = (ownHeading ? unescapeHtml(ownHeading.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '') || input.title;
   // CC-20 — the first stop for a keyboard or a screen reader: past the five
   // nav entries, straight to the page. Out of sight until it has focus.

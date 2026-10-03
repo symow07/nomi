@@ -444,48 +444,56 @@ describe('the Notifications page, in every language', () => {
 
 describe('the rail\'s answer: the count every page shows, and who arrived when it rose', () => {
   const CONV = '6c1e0000-0000-4000-8000-00000000c026';
-  it('a mark is the count as the page drew it, and nothing else', () => {
-    for (const ok of ['0', '3', '1234']) expect(isRailMark(ok), ok).toBe(true);
-    for (const bad of ['', '03', '-1', '1.2', 'x', 3, null, undefined, ['3']]) expect(isRailMark(bad), String(bad)).toBe(false);
+  // The warmth run's re-audit (w4-whole-03, -04): the mark is the count AND the
+  // second the latest customer began to wait. A newcomer is decided by WHEN they
+  // arrived — never by the count, which a customer dealt with and another arriving
+  // leave unchanged, and which rises when the owner merely takes a conversation.
+  it('a mark is the count, and the moment the latest customer began to wait (an old page: the count alone)', () => {
+    for (const ok of ['0', '3', '1234', '3.1791030316', '0.0']) expect(isRailMark(ok), ok).toBe(true);
+    for (const bad of ['', '03', '-1', '1.', '.5', '1.2.3', 'x', 3, null, undefined, ['3']]) expect(isRailMark(bad), String(bad)).toBe(false);
   });
 
-  it('only a rise is news; the same or fewer is not', () => {
-    expect(railRose('2', 3)).toBe(true);
-    expect(railRose('2', 2)).toBe(false);
-    expect(railRose('2', 1)).toBe(false);
-    expect(railRose('9', 10)).toBe(true);    // numbers, not text
+  it('only someone who began to wait after the page\'s moment is news; a count alone never is', () => {
+    expect(railRose('2.100', 101)).toBe(true);
+    expect(railRose('2.100', 100)).toBe(false);
+    expect(railRose('2.100', 99)).toBe(false);
+    expect(railRose('2.100', null)).toBe(false);   // nobody waits
+    expect(railRose('2', 500)).toBe(false);       // an old page's mark carried no moment: told nothing rather than wrongly
+    expect(railRose('9.1000', 10000)).toBe(true); // numbers, not text
   });
 
   it('it says the count as the rail draws it, the entry\'s spoken name, and — for a rise — who and why, a door to the conversation', () => {
     for (const l of LOCALES) {
-      const quiet = railSaid(l, { status: 200, n: 2, newest: null });
+      const quiet = railSaid(l, { status: 200, n: 2, at: 1700, newest: null });
       expect(quiet.n).toBe(2);
-      expect(quiet.mark).toBe('2');
+      expect(quiet.mark).toBe('2.1700');
+      // the rail's words, as the shell draws them, so a live update reads as a reload would (w4-whole-05)
+      expect(withoutIsolates(quiet.words)).toBe(withoutIsolates(t(l, 'nav.waiting', { n: 2 })));
       expect(quiet.toast, l).toBeUndefined();
       // the entry's spoken name, word for word as the shell says it on the page drawn with that count
       expect(quiet.label).toBe(`${t(l, 'nav.inbox')}, ${tn(l, 'nav.needsYou', 2)}`);
       expect(quiet.shown).toBe(l === 'ar' ? '\u20682\u2069' : '2');
       for (const why of ['order', 'deletion', 'person', 'reply'] as const) {
-        const said = railSaid(l, { status: 200, n: 3, newest: { conversationId: CONV, who: 'Amina Yusuf', why } });
+        const said = railSaid(l, { status: 200, n: 3, at: 1, newest: { conversationId: CONV, who: 'Amina Yusuf', why } });
         expect(said.toast!.door).toBe(conversationUrl(CONV));
         expect(withoutIsolates(said.toast!.say), `${l}/${why}`).toBe(withoutIsolates(t(l, `live.toast.${why}`, { who: 'Amina Yusuf' })));
       }
       // A customer with no name is "a customer", in the reader's language.
-      const nameless = railSaid(l, { status: 200, n: 1, newest: { conversationId: CONV, who: null, why: 'person' } });
+      const nameless = railSaid(l, { status: 200, n: 1, at: 1, newest: { conversationId: CONV, who: null, why: 'person' } });
       expect(withoutIsolates(nameless.toast!.say)).toContain(t(l, 'common.buyer'));
     }
     // In Arabic a name in Latin letters is isolated, so the line reads right to left around it.
-    expect(railSaid('ar', { status: 200, n: 3, newest: { conversationId: CONV, who: 'Amina', why: 'person' } }).toast!.say).toContain('\u2068Amina\u2069');
+    expect(railSaid('ar', { status: 200, n: 3, at: 1, newest: { conversationId: CONV, who: 'Amina', why: 'person' } }).toast!.say).toContain('\u2068Amina\u2069');
   });
 
   it('every page in a workspace draws the slot that asks it — empty, polite, with the count it was drawn with; outside one, none', () => {
-    const scope = (n: number | null): RequestScope => ({ name: null, several: false, outreach: false, setup: null, needsYou: n });
+    const scope = (n: number | null, at = 0): RequestScope => ({ name: null, several: false, outreach: false, setup: null, needsYou: n, needsYouAt: at });
     for (const l of LOCALES) {
-      const html = withWorkspace(scope(4), () => shell({ title: 'T', active: 'home', locale: l, path: '/app', bodyHtml: '<p>x</p>' }));
-      expect(html, l).toContain('<div class="toasts" role="status" aria-live="polite" data-rail="/app/live/rail?since=4"></div>');
+      const html = withWorkspace(scope(4, 1791030316), () => shell({ title: 'T', active: 'home', locale: l, path: '/app', bodyHtml: '<p>x</p>' }));
+      expect(html, l).toContain('<div class="toasts" role="status" aria-live="polite" data-rail="/app/live/rail?since=4.1791030316"></div>');
     }
     const none = withWorkspace(scope(0), () => shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
-    expect(none).toContain('data-rail="/app/live/rail?since=0"');
+    expect(none).toContain('data-rail="/app/live/rail?since=0.0"');
     expect(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })).not.toContain('data-rail');
   });
 

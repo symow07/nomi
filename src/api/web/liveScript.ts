@@ -374,9 +374,16 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     c.href = door;
     c.textContent = String(said.say || '');
     c.addEventListener('click', function () { drop(c); });
+    /* Read at the reader's pace: held while pointed at or focused, then its time again. */
+    function hold() { clearTimeout(cardTimer); }
+    function release() { clearTimeout(cardTimer); cardTimer = setTimeout(function () { drop(c); }, SHOWN); }
+    c.addEventListener('mouseenter', hold);
+    c.addEventListener('focus', hold);
+    c.addEventListener('mouseleave', release);
+    c.addEventListener('blur', release);
     slot.appendChild(c);
     card = c;
-    cardTimer = setTimeout(function () { drop(c); }, SHOWN);
+    release();
   }
   function tally(entry, said) {
     var badge = entry.querySelector('.navcount');
@@ -387,7 +394,16 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         badge.setAttribute('aria-hidden', 'true');
         entry.appendChild(badge);
       }
-      badge.textContent = String(said.shown);
+      /* The words where there is room, the figure on a phone's tile, as the page draws them. */
+      while (badge.firstChild) badge.removeChild(badge.firstChild);
+      var long = doc.createElement('span');
+      long.className = 'nl-long';
+      long.textContent = String(said.words || said.shown);
+      var short = doc.createElement('span');
+      short.className = 'nl-short';
+      short.textContent = String(said.shown);
+      badge.appendChild(long);
+      badge.appendChild(short);
       entry.setAttribute('aria-label', String(said.label));
     } else {
       if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
@@ -398,8 +414,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   function rail(slot) {
     var ask = slot.getAttribute('data-rail');
     return asker(function () { return ask; }, EVERY, function (said) {
-      if (!said || typeof said.n !== 'number' || !/^[0-9]+$/.test(String(said.mark))) return;
-      ask = ask.replace(/since=[0-9]+/, 'since=' + said.mark);
+      if (!said || typeof said.n !== 'number' || !/^[0-9]+([.][0-9]+)?$/.test(String(said.mark))) return;
+      ask = ask.replace(/since=[0-9.]+/, 'since=' + said.mark);
       var entry = doc.querySelector('[data-nav="inbox"]');
       if (entry) tally(entry, said);
       if (said.toast) {

@@ -55,7 +55,7 @@ import {
 } from './inbox.js';
 import {
   liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
-  railAnswer, railSaid,
+  railAnswer, railSaid, newestWaiting,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -745,8 +745,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
       if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
-      withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)).then(
-        (c) => withWorkspace({ ...f, needsYou: c.waiting }, done),
+      // The warmth run (w4-whole-03) — and when the latest customer began to wait, for the rail's mark.
+      Promise.all([
+        withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)),
+        newestWaiting(deps.db, bid.value).catch(() => null),
+      ]).then(
+        ([c, newest]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: newest?.at ?? 0 }, done),
         () => withWorkspace(f, done),
       );
     };
