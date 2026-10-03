@@ -99,7 +99,9 @@ d('G6 · Ready for customers (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
 
   it('PHASE 9 · the component gallery is the installation\'s too: 404 for any other owner, and no door to it', async () => {
     expect((await get(shopCookie, '/app/settings/components')).statusCode).toBe(404);
-    expect((await get(pilotCookie, '/app/settings/components')).statusCode).toBe(200);
+    // The warmth run, phase 9 (V1-006) — this installation does not serve it (no COMPONENT_GALLERY), so
+    // its own workspace is told the same; tests/parity/w5-settings-a.test.ts asks it with the switch on.
+    expect((await get(pilotCookie, '/app/settings/components')).statusCode).toBe(404);
     for (const cookie of [shopCookie, pilotCookie]) {
       expect((await get(cookie, '/app/settings')).body).not.toContain('href="/app/settings/components"');
     }

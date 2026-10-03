@@ -17,7 +17,8 @@ import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './o
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
-import { esc, deeper, back, signalMark } from './layout.js';
+import { esc, deeper, back, todoMark } from './layout.js';
+import { menuRow, menuGroup } from './settings.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -439,10 +440,12 @@ export async function runValidation(db: Db, businessIdRaw: string): Promise<{ pa
 // ── renderer (pure, localized, escaped) ──────────────────────────────────────
 
 /**
- * Phase 9 (today-onboarding-new-11) — a row's mark: ✓ done, or the waiting ○
- * in its amber, as Setup and Today draw the same state (it was graphite here).
+ * Phase 9 (today-onboarding-new-11) — a row's mark: ✓ done, or ○ still to do.
+ * The warmth run's re-audit (w4-today-setup-06): an item of this checklist is
+ * the owner's chore, not a customer waiting, so its ○ is the to-do mark in the
+ * secondary ink (`todoMark`, `.dot.todo`), never magenta.
  */
-const mk = (done: boolean): string => done ? '<span class="mk">✓</span>' : '<span class="mk dot warn">○</span>';
+const mk = (done: boolean): string => done ? '<span class="mk">✓</span>' : '<span class="mk dot todo">○</span>';
 
 const DETECTED_LINK: Record<DetectedKey, string> = {
   profile: '/app/settings/profile', products: '/app/products', priceRules: '/app/business/prices',
@@ -481,7 +484,8 @@ function nomiChecksRow(d: PilotReadiness, locale: Locale): string {
     return `<div class="pr done">${mk(true)} <span class="lbl">${label}</span>
       <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(show.date(locale, at))}</span></div>`;
   }
-  return `<div class="pr todo">${mk(false)} <span class="lbl">${label}</span>
+  // Phase 9 (w4-today-setup-06) — not the owner's to do: a dash, as Ready marks what is not theirs, never a ○.
+  return `<div class="pr todo"><span class="mk">—</span> <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.nomiChecks.todo'))}</span></div></div>`;
 }
 
@@ -523,9 +527,11 @@ function assistantNameRow(d: PilotReadiness, locale: Locale, viewer: Viewer = OW
     <div class="pr-b"><span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span></div></div>`;
   // Phase 9 (V1-133, V1-134) — the name row is laid out one way in every language: its
   // label, the line under it, then the field with Confirm beside it.
+  // Phase 9 (V1-134) — the form's class is its own: the price list's `.pr-name`,
+  // defined later in the sheet, wrapped Confirm under the field.
   return `<div class="pr todo under" id="name">${mk(false)} <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.assistant.hint'))}</span>
-      <form method="post" action="/app/onboarding/assistant-name" class="pr-name">
+      <form method="post" action="/app/onboarding/assistant-name" class="pr-nameform">
         <input type="text" name="name" maxlength="${NAME_MAX}" required
                value="${esc(d.assistantName)}" aria-label="${label}" />
         <button class="btn" type="submit">${esc(t(locale, 'pilot.attest.confirm'))}</button>
@@ -565,10 +571,11 @@ export function renderPilotReadiness(
         ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</div></div>`;
     const verdict = d.readyToLaunch
       ? `<p class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</p>`
-      : `<p class="verdict">${signalMark('waiting')} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+      : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
     return `
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
+    ${verdict}
     ${flashHtml}
     <div class="block"><h2>${esc(t(locale, 'pilot.setup'))}</h2>${setup}</div>
     <div class="block"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
@@ -576,7 +583,6 @@ export function renderPilotReadiness(
       ${assistantNameRow(d, locale, viewer)}
       ${attestRow('owner_ready', d.attest.ownerReadyAt, locale, viewer)}
     </div>
-    ${verdict}
     `;
   }
 
@@ -589,11 +595,14 @@ export function renderPilotReadiness(
   // Phase 9 (V1-130) — a state line, not a box that looks pressable.
   const verdict = d.readyToLaunch
     ? `<p class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</p>`
-    : `<p class="verdict">${signalMark('waiting')} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+    : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
 
+  // Phase 9 (w4-today-setup-19) — where the page stands is said under its
+  // intro, the first thing read, not above the next section's rule.
   return `
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
+    ${verdict}
     ${flashHtml}
     <div class="block"><h2>${esc(t(locale, 'pilot.setup'))}</h2>${setup}</div>
     <div class="block"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
@@ -601,7 +610,6 @@ export function renderPilotReadiness(
       ${attests}
       ${/* G6 — every workspace can read its own evidence; only a self-serve one is held to it here. */ ''}${deeper('/app/ready', t(locale, 'pilot.item.ready'))}
     </div>
-    ${verdict}
     `;
 }
 
@@ -631,29 +639,32 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
       <h3 class="rbsub">${esc(t(locale, 'nav.knowledge'))}</h3>
       ${rbCount('knowledge.report.corrected', ops.knowledge.recentCorrections, null, locale)}
       ${rbCount('knowledge.report.facts', ops.knowledge.recentlyTaught, '/app/knowledge', locale)}`;
-  return `<div class="block"><h2>${esc(t(locale, 'runbook.during.title'))}</h2>${body}</div>`;
+  // Phase 9 — on its own screen, headed "How it is going": this block is the week.
+  return `<div class="block"><h2>${esc(t(locale, 'runbook.during.week'))}</h2>${body}</div>`;
 }
 
-function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
-  const steps = ['buyer', 'draft', 'approve', 'takeover', 'reply', 'resume', 'teach']
-    .map((s) => `<li>${esc(t(locale, `runbook.step.${s}` as MessageKey))}</li>`).join('');
-  const mark = (step: RehearsalStep, label: MessageKey) =>
-    `<div class="pr ${r.done[step] ? 'done' : 'todo'}">${mk(r.done[step])} <span class="lbl">${esc(t(locale, label))}</span></div>`;
-  const progress = [
-    mark('takeover', 'runbook.rehearse.takeover'),
-    mark('ownerReply', 'runbook.rehearse.ownerReply'),
-    mark('resume', 'runbook.rehearse.resume'),
-    mark('knowledgeCorrection', 'runbook.rehearse.correction'),
-    mark('validationPassed', 'runbook.rehearse.validation'),
-  ].join('');
-  return `<div class="block">
-    <h2>${esc(t(locale, 'runbook.practice.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'runbook.practice.intro'))}</p>
-    <ol class="rbsteps">${steps}</ol>
-    <h3 class="rbsub">${esc(t(locale, 'runbook.practice.done'))}</h3>
-    ${progress}
-    ${deeper('/app/sandbox', t(locale, 'runbook.practice.open'))}
-  </div>`;
+/**
+ * Phase 9 (V1-124, w4-today-setup-17, -18, V1-120) — what to try in Practice,
+ * as ONE list: each item is a task, worded as a task ("Take over the
+ * conversation"), with its mark beside it — ✓ once Practice has seen it.
+ * The three steps nothing can observe (write as a customer, see the draft,
+ * approve or edit it) are the sentence that opens the list; the standard test
+ * conversations are an item only where they are a condition (a workspace
+ * the operator made, not one that signed itself up).
+ */
+export const practiceTasks = (rb: Pick<PilotRunbook, 'rehearsal' | 'readiness'>): readonly { readonly step: RehearsalStep; readonly label: MessageKey; readonly done: boolean }[] =>
+  ([
+    ['takeover', 'runbook.step.takeover'], ['ownerReply', 'runbook.step.reply'], ['resume', 'runbook.step.resume'],
+    ['knowledgeCorrection', 'runbook.step.teach'],
+    ...(rb.readiness.selfServe ? [] : [['validationPassed', 'pilot.validate']] as const),
+  ] as const).map(([step, label]) => ({ step, label, done: rb.rehearsal.done[step] }));
+
+function practiceSection(rb: Pick<PilotRunbook, 'rehearsal' | 'readiness'>, locale: Locale): string {
+  const rows = practiceTasks(rb).map((x) =>
+    `<div class="pr ${x.done ? 'done' : 'todo'}">${mk(x.done)} <span class="lbl">${esc(t(locale, x.label))}</span></div>`).join('');
+  return `<p class="muted">${esc(t(locale, 'runbook.practice.how'))}</p>
+    <div class="block">${rows}</div>
+    ${deeper('/app/sandbox', t(locale, 'runbook.practice.open'))}`;
 }
 
 function afterSection(locale: Locale): string {
@@ -745,7 +756,7 @@ function metaSection(m: MetaReadiness, locale: Locale, templateState: TemplateSt
     <h2>${esc(t(locale, 'meta.title'))}</h2>
     <p class="muted">${esc(t(locale, 'meta.intro'))}</p>
     ${rows}
-    <p class="verdict${m.live ? ' ok' : ''}">${m.live ? '✓' : signalMark('waiting')} ${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</p>
+    <p class="verdict${m.live ? ' ok' : ''}">${m.live ? '✓' : todoMark()} ${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</p>
     ${blockers ? `<ul class="rbsteps muted">${blockers}</ul>` : ''}
     ${templateRow(locale, templateState)}
   </div>`;
@@ -823,26 +834,53 @@ out: ${esc(v.engine)}</pre>
 }
 
 /**
- * Getting ready — the owner's checklist and what follows it (audit F2). The
- * machine room that used to be appended here (the WhatsApp credentials, the
- * engine's own checks, the build) is `renderPilotTechnical`, one door away:
- * the owner was reading "App secret" between the checklist and practice
- * (F4), with nothing on it to act on.
+ * THE WARMTH RUN, PHASE 9 (w4-today-setup-15) — the two screens a tap under
+ * the checklist. The checklist is the owner's chores and nothing else; what
+ * to try in Practice, and how things are going (this week's counts, whether
+ * replies go out, what happened, what to look at afterwards), are a row each.
+ */
+export type PilotScreen = 'practice' | 'activity';
+export const PILOT_SCREENS: readonly PilotScreen[] = ['practice', 'activity'];
+export const PILOT_SCREEN_PATH: Readonly<Record<PilotScreen, string>> = {
+  practice: '/app/onboarding/practice', activity: '/app/onboarding/activity',
+};
+const SCREEN_TITLE: Readonly<Record<PilotScreen, MessageKey>> = {
+  practice: 'runbook.practice.title', activity: 'runbook.during.title',
+};
+
+/**
+ * Getting ready — the owner's checklist (audit F2), then a short menu: what to
+ * try in Practice (with how much of it Practice has seen) and how it is going.
+ * The machine room that used to be appended here (the WhatsApp credentials,
+ * the engine's own checks, the build) is `renderPilotTechnical`, by its
+ * address only (F4, V1-139).
  */
 export function renderPilotRunbook(
-  rb: PilotRunbook, locale: Locale, flash: Flash | null, feedback?: PilotFeedback,
+  rb: PilotRunbook, locale: Locale, flash: Flash | null, _feedback?: PilotFeedback,
   viewer: Viewer = OWNER_VIEW,
 ): string {
-  // Phase 9 (V1-139, V1-140) — no door to the machine room from an owner's
-  // page: its credential shapes, build and importer notes are the operator's,
-  // and the installation's own workspace is also a business (Westlake). The
-  // page itself stays where it was, for the operator, by its address.
+  const tasks = practiceTasks(rb);
+  const seen = tasks.filter((x) => x.done).length;
   return renderPilotReadiness(rb.readiness, locale, flash, viewer)
+    + menuGroup('more', null, [
+      menuRow({ href: PILOT_SCREEN_PATH.practice, icon: 'play', label: t(locale, SCREEN_TITLE.practice),
+        value: seen === tasks.length ? t(locale, 'setup.state.done') : t(locale, 'runbook.practice.count', { done: seen, total: tasks.length }),
+        tone: seen === tasks.length ? 'ok' : 'warn' }),
+      menuRow({ href: PILOT_SCREEN_PATH.activity, icon: 'history', label: t(locale, SCREEN_TITLE.activity) }),
+    ]);
+}
+
+/** One of the two screens under the checklist; the shell draws the way back to it (`BACK_TO`). */
+export function renderPilotScreen(
+  which: PilotScreen, rb: PilotRunbook, locale: Locale, feedback?: PilotFeedback,
+): string {
+  const head = `<h1 class="page">${esc(t(locale, SCREEN_TITLE[which]))}</h1>`;
+  if (which === 'practice') return head + practiceSection(rb, locale);
+  return head
     + duringSection(rb.operations, locale)
     + healthSection(rb.reliability, locale)
-    + practiceSection(rb.rehearsal, locale)
-    + afterSection(locale)
-    + (feedback ? feedbackSection(feedback, locale) : '');
+    + (feedback ? feedbackSection(feedback, locale) : '')
+    + afterSection(locale);
 }
 
 /**
@@ -861,9 +899,9 @@ export function renderPilotTechnical(
     readonly templateState?: TemplateState; readonly unauthoredPriceRules?: number;
   } = {},
 ): string {
+  // Phase 9 (w4-today-setup-20) — the way back is the shell's, above the heading as everywhere (`BACK_TO`).
   return `<h1 class="page">${esc(t(locale, 'pilot.technical.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'pilot.technical.intro'))}</p>
-    ${back('/app/onboarding', t(locale, 'pilot.title'))}`
+    <p class="muted">${esc(t(locale, 'pilot.technical.intro'))}</p>`
     + (o.meta ? metaSection(o.meta, locale, o.templateState ?? 'none') : '')
     + (o.rehearsal ? engineSection(o.rehearsal, locale) : '')
     + (o.deployment ? deploymentSection(o.deployment, locale, o.unauthoredPriceRules ?? 0) : '');

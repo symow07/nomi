@@ -108,9 +108,11 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
     // Not added until its own tick: every other row checked, this one not — refused.
     const tote = rowKey(review, 'Tote bag');
     const apron = rowKey(review, 'Linen apron — 18 each, pack of 6');
-    const blocked = await submitReview(app, cookie, at, { set: { [`tick:${apron}`]: 'on' } });
+    // (V1-335) a line with no figure is a row of its own that waits too: the heading is left out, as an owner would.
+    const heading = rowKey(review, 'SPRING SALE');
+    const blocked = await submitReview(app, cookie, at, { set: { [`tick:${apron}`]: 'on', [`remove:${heading}`]: 'on' } });
     expect(blocked.res.statusCode).toBe(400);
-    const ok = await submitReview(app, cookie, at, { set: { [`tick:${apron}`]: 'on', [`tick:${tote}`]: 'on' } });
+    const ok = await submitReview(app, cookie, at, { set: { [`tick:${apron}`]: 'on', [`tick:${tote}`]: 'on', [`remove:${heading}`]: 'on' } });
     expect(ok.res.statusCode).toBe(302);
     const p = (await admin.query(`select price_usd_per_unit::float as price from products where business_id = $1 and name = 'Tote bag'`, [BIZ])).rows[0];
     expect(p.price).toBe(39);

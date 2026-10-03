@@ -15,6 +15,9 @@ import { deletionDueBy } from '../../core/ops/deletions.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
+import { faceLink } from './faces.js';
+import { faceVersions } from '../../db/faces.js';
+import { customerValues, type CustomerValue } from '../../db/customerValue.js';
 
 /**
  * M9.7 + ADR-0008 — the buyer's own page (`/app/conversations/:id`): what the
@@ -124,23 +127,29 @@ export type CustomerFile = {
    * Optional so a fixture without one reads as nothing waiting.
    */
   readonly deletionAsk?: WaitingAsk | null;
+  /**
+   * The fix wave (w4-conversation-19) — their face (the photo's version, else
+   * their initial) and what they spent and ordered (`customerValues`, the one
+   * definition, as the card and the strip read it). Optional for fixtures.
+   */
+  readonly customer?: { readonly clientId: string; readonly photo: string | null; readonly value: CustomerValue } | null;
 };
 
 const mile = (kind: MilestoneKind, at: Date | null, extra: Partial<Milestone> = {}): Milestone =>
   ({ kind, at, text: null, qty: null, unitPrice: null, orderStatus: null, ...extra });
 
-export async function loadCustomerFile(db: Db, businessIdRaw: string, conversationId: string): Promise<CustomerFile | null> {
+export async function loadCustomerFile(db: Db, businessIdRaw: string, conversationId: string, now: Date = new Date()): Promise<CustomerFile | null> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return null;
 
   return withTenantTx(db, bid.value, async (tx) => {
     const head = (await sql<{
-      id: string; buyer: string | null; country: string | null; channel: string;
+      id: string; buyer: string | null; country: string | null; channel: string; client_id: string | null;
       phase: string; is_active: boolean; closed_at: Date | null; client_created: Date | null;
       name_zh: string | null; name: string | null;
       pending: number; quote_count: number; order_count: number; order_status: string | null; address: string | null;
     }>`
-      select c.id, cl.display_name as buyer, cl.country, c.channel, c.phase,
+      select c.id, cl.display_name as buyer, cl.country, c.channel, c.phase, c.client_id::text as client_id,
              (select cc.channel_user_id from client_channels cc
                where cc.client_id = c.client_id and cc.channel = c.channel
                  and cc.channel in ('whatsapp', 'email') limit 1) as address,
@@ -189,6 +198,13 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
 
     const deletion = await buyerDeletionOf(tx, conversationId);
     const deletionAsk = await waitingAskOf(tx, conversationId);
+    const client = head.client_id;
+    const customer = client ? {
+      clientId: client,
+      photo: (await faceVersions(tx, [client])).get(client) ?? null,
+      value: (await customerValues(tx, [client], now)).get(client)
+        ?? { clientId: client, spent: null, orders: 0, lastOrderAt: null, regular: false, quietSince: null },
+    } : null;
 
     // Relationship timeline — neutral milestone kinds; renderer localizes.
     const timeline: Milestone[] = [];
@@ -260,6 +276,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       },
       deletion,
       deletionAsk,
+      customer,
     };
   });
 }
@@ -455,7 +472,12 @@ export function renderCustomerFile(
     p.firstContact ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.firstContact'))}</span><b>${esc(show.day(locale, p.firstContact, now))}</b></div>` : '',
     productsLabel ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.products'))}</span><b><bdi>${esc(productsLabel)}</bdi></b></div>` : '',
     p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${esc(show.count(locale, p.quoteCount))}</b></div>` : '',
-    p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${esc(show.count(locale, p.orderCount))}</b></div>` : '',
+    // The fix wave (w4-conversation-19) — what they spent and how many orders stand, in the card's own
+    // words and by its one definition; with no customer rows (a fixture), this conversation's orders.
+    f.customer ? `<div class="prow"><span class="muted">${esc(t(locale, 'pcard.spent'))}</span><b>${
+      f.customer.value.spent ? `<bdi>${esc(show.money(locale, f.customer.value.spent))}</bdi>` : esc(t(locale, 'pcard.nothingSpent'))}</b></div>
+      <div class="prow"><span class="muted">${esc(t(locale, 'pcard.orders'))}</span><b>${esc(show.count(locale, f.customer.value.orders))}</b></div>`
+    : p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${esc(show.count(locale, p.orderCount))}</b></div>` : '',
   ].filter(Boolean).join('');
   const nameForm = `<form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/name" class="name-form">
       <label for="buyer-name">${esc(t(locale, 'conv.file.name'))}</label>
@@ -506,6 +528,9 @@ export function renderCustomerFile(
   return `
     <div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
+      ${/* The fix wave (w4-conversation-19) — the one customer page that had no face: theirs, opening their card like every other. */ ''}${
+        f.customer ? faceLink({ clientId: f.customer.clientId, name: f.buyer, photo: f.customer.photo },
+          { size: 'm', label: t(locale, 'catchup.card', { who: f.buyer ?? t(locale, 'common.buyer') }) }) : ''}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, f.buyer, f.country)}</h1>
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
     </div>

@@ -9,6 +9,8 @@ import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.
 import { t, assistantName, tn } from './say.js';
 import { biggestChange, MONTH_DRIVERS, MONTH_CHANGE_MIN_DAYS, type MonthDriver } from '../../core/insights/changed.js';
 import { esc, conversationUrl, deeper } from './layout.js';
+import { quietAfterPrice } from '../../db/inboxAttention.js';
+import { faceLink, type FaceOf } from './faces.js';
 
 
 /**
@@ -69,6 +71,12 @@ export type Insight = {
   readonly params: Record<string, string | number>;
   /** Structurally mandatory. There is no Insight without somewhere to go. */
   readonly action: InsightAction;
+  /**
+   * The warmth run, phase 9 (w4-today-setup-05) — the one customer the line is
+   * about, so Today draws their face (the profile card's door) beside it, as
+   * it draws everyone it names. Absent: the line is about no one person.
+   */
+  readonly who?: FaceOf;
 };
 
 export type InsightsData = {
@@ -86,7 +94,7 @@ export type InsightsData = {
   readonly monthChange: Insight | null;
 };
 
-export async function loadInsights(db: Db, businessIdRaw: string): Promise<InsightsData> {
+export async function loadInsights(db: Db, businessIdRaw: string, viewerId?: string): Promise<InsightsData> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { insights: [], monthChange: null };
 
@@ -95,26 +103,21 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
 
     // 1. A buyer who was quoted and went quiet. The most expensive silence in
     //    the product: the work is done and the deal is dying of nothing.
-    const quoted = (await sql<{ buyer: string; conversation_id: string; total_usd: string | null }>`
-      -- No name on record is said in the reader's language when drawn, not as an English word here.
-      select coalesce(cl.display_name, '') as buyer, c.id as conversation_id, q.total_usd
-        from quotes q
-        join conversations c on c.id = q.conversation_id
-        join clients cl on cl.id = c.client_id
-       where q.business_id = ${bid.value}
-         and c.is_active
-         and not exists (
-           select 1 from messages m
-            where m.conversation_id = c.id and m.direction = 'inbound' and m.sent_at > q.created_at
-         )
-         and q.created_at < now() - interval '2 days'
-       order by q.total_usd desc nulls last limit 1`.execute(tx)).rows[0];
+    //    Phase 9 (w4-customers-02) — the Inbox band's own reading, its first
+    //    "went quiet after a price" (`quietAfterPrice`): a price they were
+    //    actually given, nothing from them in 3–30 days, nobody waiting for
+    //    this reader. Today named a customer the band left out.
+    const quoted = await quietAfterPrice(tx, new Date(), viewerId);
     if (quoted) {
+      // No name on record is said in the reader's language when drawn, not as an English word here.
+      const buyer = quoted.name ?? '';
       out.push({
         key: 'insight.quotedNoReply',
-        params: { buyer: quoted.buyer },
+        params: { buyer },
         // CC-25 — on the newest message: the quote she is following up is the last thing said.
-        action: { kind: 'follow_up', href: conversationUrl(quoted.conversation_id), buyer: quoted.buyer },
+        action: { kind: 'follow_up', href: conversationUrl(quoted.conversationId), buyer },
+        // The fix wave — the line carries their face, which opens their card (Today's).
+        who: { clientId: quoted.clientId, name: quoted.name, photo: quoted.photo },
       });
     }
 
@@ -299,7 +302,10 @@ export function renderInsights(d: InsightsData, locale: Locale, o: {
       ...(i.params['buyer'] === '' ? { buyer: t(locale, 'common.buyer') } : {}) };
     const line = isCounted(i.key) ? tn(locale, i.key, Number(i.params['count']), params) : t(locale, i.key, params);
     const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
-    return `<div class="row">
+    // Phase 9 (w4-today-setup-05) — on Today, a line about one customer leads with their face, which opens their card.
+    const face = o.bare && i.who
+      ? faceLink(i.who, { size: 's', label: String(params['buyer'] ?? t(locale, 'common.buyer')), className: 'tw-face' }) : '';
+    return `<div class="row${face ? ' has-face' : ''}">${face}
       <div class="grow">${esc(line)}</div>
       ${deeper(esc(i.action.href), label)}
     </div>`;

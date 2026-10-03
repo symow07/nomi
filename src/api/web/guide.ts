@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { t } from './say.js';
-import { esc, deeper } from './layout.js';
+import { esc, deeper, todoMark } from './layout.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { SETUP_STEPS, type SetupStep } from '../../db/setup.js';
@@ -84,7 +84,7 @@ export function renderGuide(v: GuideView, locale: Locale, name: string, videos: 
     // that wraps; the state sits at the end of its words.
     return `<li class="guide-step${done ? ' done' : ''}${v.next === step ? ' next' : ''}" id="${step}">
       <h2 class="gs-h"><span class="gs-n muted">${esc(show.count(locale, i + 1))}.</span><span class="gs-t">${esc(t(locale, `factory.next.${step}` as MessageKey, { name }))}
-        <span class="pill ${done ? 'ok' : 'warn'}">${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></span></h2>
+        ${/* The warmth run's re-audit (w4-today-setup-06) — a step to do is a chore: the to-do ○, never the waiting signal's magenta. */ ''}<span class="pill${done ? ' ok' : ''}">${done ? '' : `${todoMark()} `}${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></span></h2>
       ${video}
       <ol class="gs-words">${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
       ${done ? '' : deeper(STEP_LINK[step], t(locale, 'guide.do'), v.next === step ? 'next' : '')}

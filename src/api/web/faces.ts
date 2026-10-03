@@ -56,7 +56,10 @@ const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
  */
 export function initialOf(name: string | null): string | null {
   if (!name) return null;
-  for (const { segment } of segmenter.segment(name.normalize('NFC'))) {
+  // The warmth run's re-audit (w4-whole-20) — an Arabic name's article (ال) is
+  // not its initial: "الشركة المتحدة" is ش, not a bare alef that reads as a bar.
+  const text = name.normalize('NFC').trim().replace(/^ال(?=\p{L})/u, '');
+  for (const { segment } of segmenter.segment(text)) {
     if (/\p{L}/u.test(segment)) return segment.toLocaleUpperCase();
   }
   return null;

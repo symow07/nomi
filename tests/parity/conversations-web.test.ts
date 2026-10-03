@@ -38,10 +38,10 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
     // the page is about a CUSTOMER, and never says "buyer".
     // Its visible words, that is: a link's address (?buyer=) is not a word anyone reads.
     expect(en).toContain('About this customer'); expect(en.replace(/<[^>]*>/g, ' ')).not.toMatch(/\bbuyers?\b/i);
-    expect(en).toContain('First contact');
+    expect(en).toContain('First wrote');   // the fix wave (w4-conversation-16): the panel's words
     expect(en).toContain('Products of interest'); expect(en).toContain('Prices worked out'); expect(en).toContain('Orders');
     const bare = renderCustomerFile({ ...file, profile: { ...file.profile, quoteCount: 0, orderCount: 0 } }, 'en', NOW);
-    expect(bare).toContain('First contact'); expect(bare).not.toContain('>Prices worked out<');
+    expect(bare).toContain('First wrote'); expect(bare).not.toContain('>Prices worked out<');
   });
 
   it('timeline milestones localize from neutral kinds; empty state honest', () => {

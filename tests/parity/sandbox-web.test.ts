@@ -408,7 +408,9 @@ describe('Phase 9 · each Practice line is captioned by who wrote it', () => {
       expect(caps, l).toHaveLength(3);
       expect(caps[0], l).toContain(t(l, 'sandbox.by.customer'));
       expect(caps[0], l).not.toContain(t(l, 'sandbox.composer.send'));
-      expect(caps[1], l).toContain('✦');
+      // the fix wave (w4-conversation-17) — the assistant's "✦ name" stands over its words, not in the caption
+      expect(caps[1], l).not.toContain('✦');
+      expect(html, l).toMatch(/<div class="msg-by"><span class="as"><span aria-hidden="true">✦<\/span> [^<]+<\/span><\/div>\s*<div dir="auto" class="bubble by-as"><bdi>Yes — from 500 pieces\.<\/bdi>/);
       expect(caps[2], l).toBe(t(l, 'conv.by.you'));
     }
   });

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import {
   waLoginFrom, waDialogUrl, exchangeWaCode, sharedWabas, wabaNumbers, subscribeWaba, registerNumber, newPin,
 } from '../../src/channels/whatsapp/embeddedSignup.js';
-import { renderChannels, type ChannelsData } from '../../src/api/web/channels.js';
+import { renderChannelScreen, type ChannelsData } from '../../src/api/web/channels.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 
@@ -81,22 +81,22 @@ describe('WA · the WhatsApp card', () => {
     ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null, canConnect: true,
   } as unknown as ChannelsData;
   it('with Embedded Signup, her own number is offered — never the installation\'s', () => {
-    const html = renderChannels({ ...base, waSelfServe: true }, 'en', null);
+    const html = renderChannelScreen('whatsapp', { ...base, waSelfServe: true }, 'en', null);
     expect(html).toContain('href="/app/connect/whatsapp/start"');
     expect(html).not.toContain('action="/app/channels/whatsapp/connect"');
-    expect(renderChannels(base, 'en', null)).toContain('action="/app/channels/whatsapp/connect"');
+    expect(renderChannelScreen('whatsapp', base, 'en', null)).toContain('action="/app/channels/whatsapp/connect"');
   });
   it('her number, the name customers see and where Meta\'s review stands; a dead token asks to connect again', () => {
     const connected = { ...base.whatsapp, connected: true, status: 'connected' } as ChannelsData['whatsapp'];
     const own = { display: '+34 600 00 00 00', verifiedName: 'Tienda Sol', nameStatus: 'DECLINED', needsAttention: false };
-    const html = renderChannels({ ...base, whatsapp: connected, waSelfServe: true, waOwn: own }, 'en', null);
+    const html = renderChannelScreen('whatsapp', { ...base, whatsapp: connected, waSelfServe: true, waOwn: own }, 'en', null);
     expect(html).toContain('Tienda Sol');
     expect(html).toContain(esc(t('en', 'channel.wa.nameStatus.DECLINED')));
     expect(html).toContain('action="/app/connect/whatsapp/disconnect"');
-    const dead = renderChannels({ ...base, whatsapp: connected, waSelfServe: true, waOwn: { ...own, needsAttention: true } }, 'en', null);
+    const dead = renderChannelScreen('whatsapp', { ...base, whatsapp: connected, waSelfServe: true, waOwn: { ...own, needsAttention: true } }, 'en', null);
     expect(dead).toContain(esc(t('en', 'channel.wa.needsAttention')));
     expect(dead).toContain('href="/app/connect/whatsapp/start"');
-    const odd = renderChannels({ ...base, whatsapp: connected, waOwn: { ...own, nameStatus: 'SOMETHING_NEW' } }, 'en', null);
+    const odd = renderChannelScreen('whatsapp', { ...base, whatsapp: connected, waOwn: { ...own, nameStatus: 'SOMETHING_NEW' } }, 'en', null);
     expect(odd).toContain(esc(t('en', 'channel.wa.nameStatus.other')));
   });
 });
@@ -106,7 +106,7 @@ describe('WA · where it is decided', () => {
     const app = src('src/api/web/app.ts');
     for (const route of ["app.get('/app/connect/whatsapp/start'", "app.get('/app/connect/whatsapp/callback'", "app.post('/app/connect/whatsapp/choose'"]) {
       const body = app.slice(app.indexOf(route), app.indexOf(route) + 900);
-      expect(body, route).toContain("ownerOnly(req, reply, 'messaging_activation', '/app/channels')");
+      expect(body, route).toContain("ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp'))");
       expect(body, route).toContain('connectionRefusal(s.businessId)');
     }
   });

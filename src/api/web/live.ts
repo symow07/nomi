@@ -3,6 +3,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { RECEIVED_KINDS } from '../../core/conversation/inbound.js';
 import { DELETION_WAITING, IS_BLOCKED, ORDER_WAITING, needsOwnerFor, readBuyerCounts } from '../../db/buyersList.js';
+import { WAITING_HUMAN_AGENT } from '../../core/conversation/ownership.js';
 import { readAttention, type AttentionCounts } from './operations.js';
 import { isRefusal, UNCERTAIN } from './refusals.js';
 import { conversationUrl } from './layout.js';
@@ -221,8 +222,28 @@ export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks' | 'ordersWaiti
  * failed turn hands the conversation to a person (`not_answered`, PR 110): a
  * line saying the assistant is writing must never outlive the writing. A
  * conversation a person holds never shows it — the assistant is not answering.
+ *
+ * The fix wave (w4-conversation-20) — NOR A MESSAGE SOMEBODY ALREADY ANSWERED.
+ * A turn that failed leaves its line untaken; the owner took the conversation,
+ * replied and handed it back, and the line read "✦ … is writing a reply" under
+ * the owner's own answer for the rest of the fifteen minutes. A line counts
+ * only while nothing has answered it since it came: no reply by a person after
+ * it (queued or sent — one that failed or was cancelled reached nobody), none
+ * from the phone (Meta's echo), and no hand-over to a person after it (the
+ * failed turn's own `not_answered` among them). The assistant's own replies are
+ * not counted: a line that came while it was answering the one before is the
+ * next one it takes.
  */
 export const WORKING_WINDOW_MIN = 15;
+const nobodyAnsweredSince = (at: ReturnType<typeof sql.ref>) => sql`
+  not exists (select 1 from outbound_messages o
+               where o.conversation_id = c.id and o.origin = 'owner'
+                 and o.status not in ('failed', 'canceled') and o.created_at > ${at})
+  and not exists (select 1 from messages m
+                   where m.conversation_id = c.id and m.direction = 'outbound'
+                     and m.external_id like 'echo:%' and m.sent_at > ${at})
+  and not exists (select 1 from conversation_events e
+                   where e.conversation_id = c.id and e.type = 'handoff' and e.created_at > ${at})`;
 export async function assistantWorking(db: Db, bid: BusinessId, conversationId: string): Promise<boolean> {
   if (!UUID.test(conversationId)) return false;
   return withTenantTx(db, bid, async (tx) => (await sql<{ working: boolean }>`
@@ -230,11 +251,13 @@ export async function assistantWorking(db: Db, bid: BusinessId, conversationId: 
        where c.id = ${conversationId}::uuid and c.business_id = ${bid} and c.assigned_to is null
          and (exists (select 1 from message_fragments f
                        where f.conversation_id = c.id and f.processed_in is null
-                         and f.received_at > now() - make_interval(mins => ${WORKING_WINDOW_MIN}))
+                         and f.received_at > now() - make_interval(mins => ${WORKING_WINDOW_MIN})
+                         and ${nobodyAnsweredSince(sql.ref('f.received_at'))})
               or exists (select 1 from pgboss.job j
                           where j.name = ${QUEUES.inbound} and j.singleton_key = ${conversationId}
                             and j.state in ('created', 'retry', 'active')
-                            and j.created_on > now() - make_interval(mins => ${WORKING_WINDOW_MIN})))) as working`.execute(tx)).rows[0]?.working === true);
+                            and j.created_on > now() - make_interval(mins => ${WORKING_WINDOW_MIN})
+                            and ${nobodyAnsweredSince(sql.ref('j.created_on'))}))) as working`.execute(tx)).rows[0]?.working === true);
 }
 
 /**
@@ -327,7 +350,10 @@ export const todayWatch = (mark: string): LiveWatch => ({
  * redrawn and says nothing — the marker and the toast are for a customer newly
  * waiting, never for anything else.
  */
-const RAIL_MARK = new RegExp(`^${COUNT}$`);
+// The warmth run (w4-whole-03, -04) — the mark is the count AND the second
+// the latest customer began to wait: a newcomer is found by when they arrived,
+// never by the count alone (one dealt with and one arriving leave it the same).
+const RAIL_MARK = new RegExp(`^${COUNT}(?:\\.${COUNT})?$`);
 export const isRailMark = (raw: unknown): raw is string => typeof raw === 'string' && RAIL_MARK.test(raw);
 
 /** Why a customer needs the owner, in the list's own order of groups (`LIST_RANK`). */
@@ -336,43 +362,77 @@ export type RailWhy = 'order' | 'deletion' | 'person' | 'reply';
 /** The newest arrival in the reader's "Needs you": the conversation, the customer's name, and why. */
 export type RailNewest = { readonly conversationId: string; readonly who: string | null; readonly why: RailWhy };
 
-/** The rail's comparison, the one place a rise is decided: the count now against the page's mark. */
-export const railRose = (since: string, now: number): boolean => now > Number(since);
+/** The page's mark, read: its count and the second the latest customer began to wait (0: none, or an old page). */
+export const railMarkOf = (since: string): { readonly n: number; readonly at: number } => {
+  const [n, at] = since.split('.');
+  return { n: Number(n), at: Number(at ?? 0) };
+};
+/**
+ * The rail's comparison, the one place a newcomer is decided: someone began to
+ * wait after the moment the page was drawn at. A page drawn before the mark
+ * carried a moment (a count alone) is told nothing, rather than told wrongly.
+ */
+/**
+ * The fix wave (the live-refresh walk) — the moment a page drawn while nobody waits carries: the
+ * beginning, so whoever begins to wait from then on is news. Never 0, which is an old page's mark
+ * (told nothing): a calm page would otherwise never toast the first customer to wait.
+ */
+export const RAIL_FROM_THE_START = 1;
+/** The moment a page drawn now carries: when the latest of those waiting began to, never before the start. */
+export const railMomentOf = (newestAt: number | null | undefined): number => Math.max(RAIL_FROM_THE_START, newestAt ?? 0);
+export const railRose = (since: string, newestAt: number | null): boolean => {
+  const m = railMarkOf(since);
+  return newestAt !== null && m.at > 0 && newestAt > m.at;
+};
 
 /**
- * Who most recently came to need this reader: the latest of the moments a
- * conversation can enter "Needs you" — handed over, a reply waiting, an order
- * waiting, a deletion asked — and the customer's newest message, which comes
- * just before each of them (a hand-over that left no stamp is still placed).
+ * A customer GENUINELY waiting for this reader — the one a marker and a toast
+ * may be about: handed over and nobody's yet, a reply waiting for the
+ * reader's tap, an order waiting, a deletion asked. A conversation the reader
+ * (or a colleague) already holds is in their "Needs you", but nobody is newly
+ * waiting in it: answering from the phone or pressing "I'll reply" makes the
+ * conversation the reader's, and that is no news (w4-whole-04).
  */
-async function newestWaiting(db: Db, bid: BusinessId, viewerId: string): Promise<RailNewest | null> {
+const GENUINELY_WAITING = sql<boolean>`(c.assigned_to = ${WAITING_HUMAN_AGENT}
+  or (c.assigned_to is null and exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending'))
+  or ${ORDER_WAITING} or ${DELETION_WAITING})`;
+/** The moment a conversation began to wait: its hand-over, its waiting reply, its order, its deletion asked — never a later message. */
+const BEGAN_TO_WAIT = sql<Date | null>`greatest(
+  case when c.assigned_to = ${WAITING_HUMAN_AGENT} then c.assigned_at end,
+  (select min(d.created_at) from drafts d where d.conversation_id = c.id and d.status = 'pending'),
+  (select min(op.created_at) from order_proposals op where op.conversation_id = c.id and op.state = 'pending'),
+  (select min(a.asked_at) from deletion_asks a where a.conversation_id = c.id and a.state = 'waiting'))`;
+
+/** The customer who most recently began to wait for this reader, and when (seconds). */
+export async function newestWaiting(db: Db, bid: BusinessId): Promise<(RailNewest & { readonly at: number }) | null> {
   return withTenantTx(db, bid, async (tx) => {
-    const r = (await sql<{ id: string; who: string | null; why: RailWhy }>`
+    const r = (await sql<{ id: string; who: string | null; why: RailWhy; at: number | null }>`
       select c.id::text as id, cl.display_name as who,
              case when ${ORDER_WAITING} then 'order' when ${DELETION_WAITING} then 'deletion'
-                  when c.assigned_to is null then 'reply' else 'person' end as why
+                  when c.assigned_to is null then 'reply' else 'person' end as why,
+             floor(extract(epoch from ${BEGAN_TO_WAIT}))::bigint as at
         from conversations c
         left join clients cl on cl.id = c.client_id
-       where c.business_id = ${bid} and ${needsOwnerFor(viewerId)}
-       order by greatest(
-         case when c.assigned_to is not null then c.assigned_at end,
-         (select max(d.created_at) from drafts d where d.conversation_id = c.id and d.status = 'pending'),
-         (select max(op.created_at) from order_proposals op where op.conversation_id = c.id and op.state = 'pending'),
-         (select max(a.last_asked_at) from deletion_asks a where a.conversation_id = c.id and a.state = 'waiting'),
-         (select max(m.sent_at) from messages m where m.conversation_id = c.id and m.direction = 'inbound')
-       ) desc nulls last, c.id desc
+       where c.business_id = ${bid} and ${GENUINELY_WAITING}
+       order by ${BEGAN_TO_WAIT} desc nulls last, c.id desc
        limit 1`.execute(tx)).rows[0];
-    return r ? { conversationId: r.id, who: r.who, why: r.why } : null;
+    return r ? { conversationId: r.id, who: r.who, why: r.why, at: r.at === null ? 0 : Number(r.at) } : null;
   });
 }
 
-/** What the rail's address answers: the count now, and the newest arrival only when the count rose. */
-export type RailAnswer = { readonly status: 200 | 400; readonly n: number; readonly newest: RailNewest | null };
+/** What the rail's address answers: the count now, the moment to ask with next, and a newcomer only when one arrived. */
+export type RailAnswer = {
+  readonly status: 200 | 400; readonly n: number; readonly at: number; readonly newest: RailNewest | null;
+};
 
 export async function railAnswer(db: Db, bid: BusinessId, viewerId: string, since: unknown): Promise<RailAnswer> {
-  if (!isRailMark(since)) return { status: 400, n: 0, newest: null };
-  const n = (await withTenantTx(db, bid, (tx) => readBuyerCounts(tx, viewerId))).waiting;
-  return { status: 200, n, newest: railRose(since, n) ? await newestWaiting(db, bid, viewerId) : null };
+  if (!isRailMark(since)) return { status: 400, n: 0, at: 0, newest: null };
+  const [n, newest] = await Promise.all([
+    withTenantTx(db, bid, (tx) => readBuyerCounts(tx, viewerId)).then((c) => c.waiting),
+    newestWaiting(db, bid),
+  ]);
+  const at = Math.max(railMarkOf(since).at, newest?.at ?? 0);
+  return { status: 200, n, at, newest: newest && railRose(since, newest.at) ? newest : null };
 }
 
 /**
@@ -383,12 +443,14 @@ export async function railAnswer(db: Db, bid: BusinessId, viewerId: string, sinc
  * message. The script writes these as text and never as markup.
  */
 export type RailSaid = {
-  readonly n: number; readonly mark: string; readonly shown: string; readonly label: string;
+  readonly n: number; readonly mark: string; readonly shown: string; readonly words: string; readonly label: string;
   readonly toast?: { readonly say: string; readonly door: string };
 };
 export function railSaid(locale: Locale, a: RailAnswer): RailSaid {
   const said = {
-    n: a.n, mark: String(a.n), shown: isolate(locale, String(a.n)),
+    n: a.n, mark: `${a.n}.${a.at}`, shown: isolate(locale, String(a.n)),
+    // w4-whole-05 — the rail's words as the shell draws them ("2 waiting"), so a live update reads as a reload would.
+    words: isolate(locale, t(locale, 'nav.waiting', { n: a.n })),
     label: `${t(locale, 'nav.inbox')}, ${tn(locale, 'nav.needsYou', a.n)}`,
   };
   if (!a.newest) return said;
@@ -440,9 +502,9 @@ export const billingWatch = (mark: string, working: boolean): LiveWatch => ({
   ...(working ? { working: true } : {}),
 });
 
-/** The Channels page watches its own mark; the door is the page again, at "Your accounts". */
+/** The channels' screens watch their own mark; the door is Instagram and Messenger's screen, at "Your accounts" (phase 9: a screen of its own). */
 export const channelsWatch = (mark: string): LiveWatch => ({
   ask: `/app/live/channels?since=${mark}`,
-  door: '/app/channels#your-accounts',
+  door: '/app/channels/meta#your-accounts',
   says: [{ what: 'channels', key: 'live.channels' }],
 });

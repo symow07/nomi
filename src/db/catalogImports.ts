@@ -69,6 +69,8 @@ function rowOf(x: unknown): ImportRow | null {
     ...(str(o['options']) ? { options: str(o['options'])! } : {}),
     // EXT — the extractor's confidence per field, kept only whole and in range.
     ...(confidenceOf(o['confidence']) ? { confidence: confidenceOf(o['confidence'])! } : {}),
+    // Phase 9 (V1-334) — which half of a line that held two products.
+    ...(o['half'] === 1 || o['half'] === 2 ? { half: o['half'] } : {}),
   };
 }
 

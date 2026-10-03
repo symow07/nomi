@@ -89,8 +89,10 @@ describe('phase 6 · errors under their field, on the same page, with what was t
     const closures = renderClosures(noClosures, 'en', null,
       { values: { label: 'Eid', from: '2026-12-04', to: '2026-12-01' }, field: 'to', text: t('en', 'closures.flash.ends_before_starts') });
     expect(closures).toContain('value="Eid"');
-    expect(closures).toContain('value="2026-12-04"');
-    expect(closures).toMatch(/<div class="setrow bad">[\s\S]*?id="cl-to" name="to" type="date" required value="2026-12-01" aria-invalid="true" aria-describedby="cl-to-err" autofocus/);
+    // The warmth run, phase 9 (V1-008) — each date is day, month by name and year; what was typed comes back in them.
+    expect(closures).toContain('name="from_d" inputmode="numeric" autocomplete="off" required maxlength="2" value="04"');
+    expect(closures).toMatch(/<div class="setrow bad">[\s\S]*?<select id="cl-to-m" name="to_m" required aria-invalid="true" aria-describedby="cl-to-err" autofocus>[\s\S]*?<option value="12" selected>December<\/option>/);
+    expect(closures).toContain('name="to_d" inputmode="numeric" autocomplete="off" required maxlength="2" value="01" aria-invalid="true" aria-describedby="cl-to-err"');
     expect(closures).toContain(`<span class="fielderr" role="alert" id="cl-to-err">${t('en', 'closures.flash.ends_before_starts')}</span>`);
     const noWords: ForbiddenView = { own: [], floor: [] };
     const words = renderForbidden(noWords, 'en', null, { values: { term: 'cheap', note: 'n' }, field: 'term', text: t('en', 'forbidden.flash.duplicate') });

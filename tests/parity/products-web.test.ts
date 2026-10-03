@@ -109,7 +109,7 @@ describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
 
   it('rejected reasons localize from the reason code', () => {
     const text = 'x\n帆布袋 $1\n帆布袋 $1'; // too-short name + duplicate
-    expect(reviewPage(text, 'en')).toMatch(/name unclear|duplicate/);
+    expect(reviewPage(text, 'en')).toMatch(/name unclear|duplicate/i);
     expect(reviewPage(text, 'zh')).toMatch(/名字没认出来|重复了/);
   });
 

@@ -42,6 +42,12 @@ export type RequestScope = {
    * a count that lags is a count that lies. Absent: the rail shows none.
    */
   readonly needsYou?: number | null;
+  /**
+   * The warmth run (w4-whole-03) — the second the latest customer began to
+   * wait for this reader, drawn into the rail's mark with the count, so the
+   * page's script is told of a NEWCOMER, not of a number that moved.
+   */
+  readonly needsYouAt?: number | null;
   /** TZ — the workspace's time zone; every date and time on its pages is said in it. */
   readonly zone?: string;
   /** Phase 9 (V1-009) — the workspace's country, for how an amount is written on its pages. */
@@ -66,8 +72,19 @@ export const withAssistantName = <T>(
   const outer = scope.getStore();
   return scope.run({
     name, several, outreach: outer?.outreach ?? false, setup: outer?.setup ?? null, business: outer?.business ?? null,
-    needsYou: outer?.needsYou ?? null,
+    needsYou: outer?.needsYou ?? null, needsYouAt: outer?.needsYouAt ?? null,
   }, fn);
+};
+
+/**
+ * Phase 9 of the warmth run (w4-settings-a-24) — the rail's count for a page
+ * drawn where the request's own look-up does not read it: a form sent back
+ * from a POST. Inside a request it keeps the request's other facts; outside
+ * one there is no rail to count for.
+ */
+export const withNeedsYou = <T>(needsYou: number | null, fn: () => T): T => {
+  const outer = scope.getStore();
+  return outer ? scope.run({ ...outer, needsYou }, fn) : fn();
 };
 
 /** Is the outreach area shown for this workspace? Outside a scope: no. */
@@ -81,6 +98,8 @@ export const businessName = (): string | null => {
 
 /** How many customers need the owner now, for the rail; null outside a workspace or when it could not be read. */
 export const needsYouCount = (): number | null => scope.getStore()?.needsYou ?? null;
+/** When the latest customer began to wait (seconds), for the rail's mark; 0 when nobody does or it could not be read. */
+export const needsYouSince = (): number => scope.getStore()?.needsYouAt ?? 0;
 
 /** How far setup has come, for the badge and the Today card. Outside a scope: nothing to say. */
 export const setupState = (): SetupProgress | null => scope.getStore()?.setup ?? null;

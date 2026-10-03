@@ -14,7 +14,9 @@
  *      production or shipped — `SPEND_STATUSES`) was confirmed in the last
  *      `ORDER_JUST_DAYS` days.
  *   3. WAITING ON THEIR ANSWER TO A QUOTE: the newest price they were given
- *      left, and nothing has come from them since.
+ *      left, and no order of theirs stands from then on. A question after it
+ *      ("what plug type?") does not answer it: the quote still waits on their
+ *      decision (the fix wave, w4-conversation-13 — a follow-up erased it).
  *   4. GONE QUIET: nothing from them for `QUIET_DAYS` days or more. A customer
  *      who never wrote (we wrote first) has not gone quiet: they never spoke.
  *   5. Otherwise what happened last: TALKING NOW when the newest message is
@@ -78,7 +80,7 @@ export function stateOfPlay(f: PlayFacts, now: Date): StateOfPlay {
   if (f.lastOrder && now.getTime() - f.lastOrder.confirmedAt.getTime() <= ORDER_JUST_DAYS * DAY) {
     return { kind: 'ordered', reference: f.lastOrder.reference, at: f.lastOrder.confirmedAt };
   }
-  if (f.quoteSentAt && !(f.lastFromThemAt && f.lastFromThemAt > f.quoteSentAt)) {
+  if (f.quoteSentAt && !(f.lastOrder && f.lastOrder.confirmedAt >= f.quoteSentAt)) {
     return { kind: 'quoted', at: f.quoteSentAt };
   }
   if (f.lastFromThemAt && now.getTime() - f.lastFromThemAt.getTime() >= QUIET_DAYS * DAY) {

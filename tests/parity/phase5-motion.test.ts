@@ -46,7 +46,8 @@ describe('phase 5 · three durations, one curve, and nothing moves for a reader 
   const still = mediaBlocks(css, 'prefers-reduced-motion: reduce');
 
   it('the tokens: 120, 200 and 300 ms, and one decelerating curve that never overshoots', () => {
-    expect(DESIGN_TOKENS.motionMs).toEqual({ fast: 120, normal: 200, max: 300 });
+    // The warmth run's re-audit (w4-whole-21): within the owner's 100–250 ms.
+    expect(DESIGN_TOKENS.motionMs).toEqual({ fast: 120, normal: 200, max: 250 });
     const m = /^cubic-bezier\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)$/.exec(DESIGN_TOKENS.motionEase);
     expect(m).not.toBeNull();
     const [x1, y1, x2, y2] = m!.slice(1).map(Number) as [number, number, number, number];
@@ -289,10 +290,12 @@ describe('phase 5 · the script draws the reply into the page, without a reload'
 
 /* ── Asking first, in the product's own dialog ─────────────────────────────── */
 
-function asks(o: { dialogs: boolean }) {
+function asks(o: { dialogs: boolean; filled?: boolean }) {
   const root = new Nd('HTML');
   const form = root.appendChild(new Nd('FORM', { action: '/app/channels/whatsapp/disconnect' }));
   form.requestSubmit = (b: Nd) => { form.submitted.push(b); };
+  const told: string[] = [];
+  Object.assign(form, { checkValidity: () => o.filled !== false, reportValidity: () => { told.push('reported'); return o.filled !== false; } });
   const button = form.appendChild(new Nd('BUTTON', { class: 'btn danger', 'data-confirm': 'Disconnect WhatsApp? Customers stop reaching you there.' }));
   button.textContent = '  Disconnect ';
   button.form = form;
@@ -311,7 +314,7 @@ function asks(o: { dialogs: boolean }) {
     window: win, document: doc, location: { pathname: '/app/channels', search: '' }, history: {}, URL,
     setTimeout: () => 0, clearTimeout: () => undefined,
   }));
-  return { doc, form, button, box, q, yes, no };
+  return { doc, form, button, box, q, yes, no, told };
 }
 
 describe('phase 5 · asking first in the product\'s own dialog, not the browser\'s grey box', () => {
@@ -324,6 +327,17 @@ describe('phase 5 · asking first in the product\'s own dialog, not the browser\
     expect(p.q.textContent).toBe('Disconnect WhatsApp? Customers stop reaching you there.');
     expect(p.yes.textContent).toBe('Disconnect');
     expect(p.yes.className).toBe('btn danger');   // red takes something away, as on the button itself
+  });
+
+  // The warmth run's re-audit (w4-settings-a-15): a form with a field left empty is said so by the browser,
+  // under the field, and nothing is asked — the dialog never stands between the owner and the missing field.
+  it('a form not filled in: the browser says so under its field, and the dialog does not open', () => {
+    const p = asks({ dialogs: true, filled: false });
+    const ev = p.doc.fire('click', p.button);
+    expect(ev['defaultPrevented']).toBe(true);
+    expect(p.box.open).toBeFalsy();
+    expect(p.told).toEqual(['reported']);
+    expect(p.form.submitted).toEqual([]);
   });
 
   it('going ahead submits the form as that button would; Cancel, or a click beside it, does nothing', () => {

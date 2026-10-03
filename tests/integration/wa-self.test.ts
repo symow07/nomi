@@ -134,7 +134,7 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
   });
 
   it('THE CONNECT: Meta\'s window with the Embedded Signup configuration; then the account, the number, the subscription, the registration — and only then the rows', async () => {
-    const page = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const page = await prod.app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } });
     expect(page.body).toContain('/app/connect/whatsapp/start');
     expect(page.body).not.toContain('action="/app/channels/whatsapp/connect"');   // the installation's number is not offered
 
@@ -180,7 +180,7 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
     expect(cred.secret_ref.startsWith('whatsapp_accounts:')).toBe(true);
     const routed = (await prod.db.executeQuery(sql<{ business_id: string }>`select business_id::text as business_id from resolve_tenant('whatsapp', ${PNID})`.compile(prod.db))).rows[0];
     expect(routed?.business_id).toBe(BIZ);
-    const after = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const after = await prod.app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } });
     expect(after.body).toContain('Tienda Sol');
     expect(after.body).toContain(t('en', 'channel.wa.nameStatus.PENDING_REVIEW'));
   }, 60_000);
@@ -210,7 +210,7 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
   it('WA-S · AFTER THE 24 HOURS: the reopening template is asked of Meta and read back approved; a reply then goes as it, in the customer\'s language, and the words wait in the box', async () => {
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const { esc } = await import('../../src/api/web/layout.js');
-    expect((await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } })).body).toContain('action="/app/channels/whatsapp/templates/submit"');
+    expect((await prod.app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } })).body).toContain('action="/app/channels/whatsapp/templates/submit"');
     const sub = await post('/app/channels/whatsapp/templates/submit');
     expect(flashSaid(sub, SECRET)).toBe(t('en', 'channel.wa.template.flash.submitted', { n: '2' }));
     expect(asked.sort()).toEqual(['en', 'es']);
@@ -225,7 +225,7 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
     expect(flashSaid(await post(`/app/inbox/${conv.id}/reply`, { text: 'Tenemos la talla M.' }), SECRET)).toBe(t('en', 'inbox.blocked.window_closed'));
 
     expect(flashSaid(await post('/app/channels/whatsapp/templates/check'), SECRET)).toBe(t('en', 'channel.wa.template.flash.checked'));
-    expect((await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } })).body).toContain(esc(t('en', 'channel.wa.template.status.APPROVED')));
+    expect((await prod.app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } })).body).toContain(esc(t('en', 'channel.wa.template.status.APPROVED')));
 
     const before = sends.length;
     const r = await post(`/app/inbox/${conv.id}/reply`, { text: 'Tenemos la talla M.' });
@@ -261,7 +261,7 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
     expect(sends.length).toBe(before);
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const { esc } = await import('../../src/api/web/layout.js');
-    expect((await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } })).body).toContain(esc(t('en', 'channel.wa.needsAttention')));
+    expect((await prod.app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } })).body).toContain(esc(t('en', 'channel.wa.needsAttention')));
   }, 60_000);
 
   it('PILOT MODE ends and comes back only on a live WhatsApp, on the audit trail', async () => {

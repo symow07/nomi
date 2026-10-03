@@ -51,8 +51,14 @@ export const ownerWhatsAppDefault = (f: {
 /** The default: WhatsApp where it is the default (above), e-mail otherwise. */
 export const defaultAlertChannel = (whatsappDefault: boolean): AlertChannel => (whatsappDefault ? 'whatsapp' : 'email');
 
-/** What can carry a notification to this person now. E-mail is the floor and is always tried. */
+/** What can carry a notification to this person now. E-mail is the floor, wherever there is an address to send to. */
 export type AlertWays = {
+  /**
+   * Phase 9 of the warmth run (w4-settings-a-02) — this person has an address
+   * e-mail can go to (their sign-in). Absent: yes. Without one, e-mail is no
+   * floor: nothing is said to carry what it cannot.
+   */
+  readonly email?: boolean;
   /** The owner's WhatsApp path is reachable, and this person is the owner (the alert number is the owner's). */
   readonly whatsapp: boolean;
   /** This installation sends phone alerts, and this person has a phone or browser that turned them on. */
@@ -67,10 +73,18 @@ export type AlertWays = {
  * a live channel, Browser with no phone turned on). A failure on the way — a
  * WhatsApp outside Meta's day before approval among them — is caught by the
  * sender, which falls back to e-mail the same (`deliverOwnerInterruption`).
+ *
+ * NULL: nothing reaches this person — the way wanted cannot be used, and they
+ * have no e-mail address to fall back to (w4-settings-a-02). The sender then
+ * tries nothing, exactly as it did when this said "e-mail" and found no
+ * address; the Notifications page and Setup now say so instead of naming a
+ * way that cannot reach them.
  */
-export function alertChannelFor(choice: AlertChannel | null, can: AlertWays): AlertChannel {
+export function alertChannelFor(choice: AlertChannel | null, can: AlertWays): AlertChannel | null {
   const want = choice ?? defaultAlertChannel(can.whatsapp && can.approved);
-  return want === 'email' || can[want] ? want : 'email';
+  const mail = can.email !== false;
+  if (want === 'email') return mail ? 'email' : null;
+  return can[want] ? want : mail ? 'email' : null;
 }
 
 /**

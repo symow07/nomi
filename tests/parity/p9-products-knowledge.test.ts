@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import {
   renderProductList, renderProductDetail, renderAddForm, renderPricesToMe, renderOpenImport, isUuid, loadProductDetail,
+  readTierEdits, unitChoices, renderProductMissing,
   type ProductListItem, type ProductDetail,
 } from '../../src/api/web/products.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
@@ -10,17 +11,17 @@ import { esc, shell } from '../../src/api/web/layout.js';
 import * as show from '../../src/api/web/values.js';
 import { linkedCss } from './linked-css.js';
 import { reviewModel } from './reviewPage.js';
-import { renderImportReview } from '../../src/api/web/importFlow.js';
+import { renderImportReview, notFoundImport } from '../../src/api/web/importFlow.js';
 import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
 import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
 import { renderFactory, renderBusinessScreen, type FactoryView } from '../../src/api/web/factory.js';
-import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
+import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, certRows, CERTS_HOME, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
 import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
 import { readFileSync } from 'node:fs';
 import type { Db } from '../../src/db/client.js';
-import { productsSheet, priceRulesSheet, plainMoney } from '../../src/api/web/dataExport.js';
+import { productsSheet, priceRulesSheet, plainMoney, downloadName, EXPORT_SUBJECTS } from '../../src/api/web/dataExport.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { csvRows } from '../../src/core/owner/csv.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
@@ -75,6 +76,19 @@ describe('Products — the list', () => {
     expect(t('en', 'product.teach')).toBe('Add your products');
   });
 
+  it('w4-products-knowledge-05 — the same order every visit: a tie broken the same way, the price limits in an order at all', () => {
+    const prod = readFileSync(new URL('../../src/api/web/products.ts', import.meta.url), 'utf8');
+    expect(prod).toContain('order by p.is_active desc, p.updated_at desc, p.name, p.id');
+    const rules = readFileSync(new URL('../../src/api/web/priceRules.ts', import.meta.url), 'utf8');
+    expect(rules).toContain('order by name nulls first, product_id');
+  });
+
+  it('w4-products-knowledge-11 — the rules under the list end where its rows end', () => {
+    const html = renderProductList([item({ status: 'needs_limits' })], 'en');
+    expect(html).toContain('<div class="block measure-prose"><div class="doors">');
+    expect(html).toContain('<div class="block measure-prose"><p class="fwarn">');
+  });
+
   it('V1-302 — each row that opens ends in the chevron', () => {
     const html = renderProductList([item(), item({ id: 'p2' })], 'en');
     expect(html.match(/<a class="prod" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true">›<\/span><\/a>/g)).toHaveLength(2);
@@ -106,18 +120,43 @@ describe('Products — one product', () => {
     expect(page('zh')).toContain('<h1 class="page"><bdi>帆布袋</bdi></h1>');
   });
 
-  it('V1-305 — the price box says which quantity it prices, and what happens to the others', () => {
+  it('V1-305 — the price box says which quantity it prices; each larger order\'s price has a box of its own', () => {
     const en = page('en');
     expect(en).toContain(`Price for one, from 500${NBSP}pcs (USD)`);
-    expect(en).toContain(`Your prices for larger orders (2,000+${NBSP}pcs and 10,000+${NBSP}pcs) stay as they are.`);
     expect(en).toContain('name="price" inputmode="decimal"\n               value="1.05"');
+    // The warmth run, phase 9 — the larger orders' prices are changed here, each box named by its quantity.
+    expect(en).toContain(`<legend>${esc(t('en', 'product.edit.tiers'))}</legend>`);
+    expect(en).toContain(`<span>Price for one, from 2,000${NBSP}pcs (USD)</span>\n          <input name="tier:2000" inputmode="decimal" value="0.92" />`);
+    expect(en).toContain('<input name="tier:10000" inputmode="decimal" value="0.85" />');
     for (const l of LOCALES) {
-      const caption = page(l).split('name="price"')[1]!.split('</label>')[0]!;
-      expect(caption, l).toMatch(/2,000|2000/);
-      expect(caption, l).toMatch(/10,000|1万/);
+      const html = page(l);
+      expect(html, l).toContain('name="tier:2000"');
+      expect(html, l).toContain(esc(t(l, 'product.edit.tiers.hint')));
     }
-    // A product priced from one keeps "Price for one".
-    expect(page('en', { tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2) }] })).toContain('Price for one (USD)');
+    // What was typed comes back with the page; a refusal is said under the group.
+    const sent = plain(renderProductDetail(detail(), 'en', null, { tiers: 'below_floor' }, { 'tier:2000': '0.10' }));
+    expect(sent).toContain('name="tier:2000" inputmode="decimal" value="0.10"');
+    expect(sent).toMatch(/name="tier:10000"[\s\S]*?<p class="perr" role="alert">[^<]*<\/p><span class="caption muted">/);
+    // A product priced from one keeps "Price for one", and has no group for larger orders.
+    const one = page('en', { tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2) }] });
+    expect(one).toContain('Price for one (USD)');
+    expect(one).not.toContain('name="tier:');
+  });
+
+  it('V1-305 — what the boxes change: a figure read the currency\'s way, never below the floor, an empty or stale box left alone', () => {
+    const current = [{ minQty: 2000, price: 0.92 }, { minQty: 10000, price: 0.85 }];
+    expect(readTierEdits(current, { '2000': '0.90', '10000': '0.85' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: 0.9 }] });
+    expect(readTierEdits(current, { '2000': '0,88' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: 0.88 }] });
+    expect(readTierEdits(current, { '2000': '', '500': '0.10' }, 'USD', null)).toEqual({ ok: true, set: [] });
+    expect(readTierEdits(current, { '10000': 'cheap' }, 'USD', null)).toEqual({ ok: false, error: 'not_a_number' });
+    expect(readTierEdits(current, { '10000': '0' }, 'USD', null)).toEqual({ ok: false, error: 'not_positive' });
+    expect(readTierEdits(current, { '10000': '0.70' }, 'USD', 0.72)).toEqual({ ok: false, error: 'below_floor' });
+    // The route reads the boxes, and the edit writes them through the one audited edit.
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/\/\^tier:\\d\+\$\/\.test\(k\)/);
+    const prod = readFileSync(new URL('../../src/api/web/products.ts', import.meta.url), 'utf8');
+    expect(prod).toContain('update price_tiers set unit_price_usd = ${x.price}');
+    expect(prod).not.toMatch(/delete from price_tiers/);   // the app role erases nothing (0005)
   });
 
   it('V1-314 / missed-02 — the prices are plain rows; "and up" in each language\'s own words', () => {
@@ -132,12 +171,63 @@ describe('Products — one product', () => {
     expect(page('fr')).toContain('et plus');
   });
 
+  it('w4-products-knowledge-10 — a quote from today or yesterday says so; each fact stays whole on its line', () => {
+    const NOW = new Date('2026-10-03T10:00:00Z');
+    const today = plain(renderProductDetail(detail({ recentQuotes: [{ quantity: 500, unitPrice: usd(1.05), total: usd(525), at: new Date('2026-10-03T08:00:00Z'), customer: 'Layla', conversationId: 'c-1' }] }), 'en', null, {}, {}, undefined, NOW));
+    expect(today).toContain('<bdi class="q-fact">Today</bdi> · <bdi class="q-fact">Layla</bdi>');
+    expect(today).not.toContain('Sat, Oct 3');
+    const zh = plain(renderProductDetail(detail(), 'zh', null, {}, {}, undefined, NOW));
+    expect(zh).toContain('<bdi class="q-fact">$1.05/个</bdi>');
+    const css = linkedCss(shell({ title: 'x', active: 'products', locale: 'zh', path: '/app/products/x', bodyHtml: zh }));
+    expect(css).toContain('.q-fact { white-space:nowrap; }');
+  });
+
+  it('w4-products-knowledge-09 — taking a name off is a labelled field like the rest, and its button is red, as throwing away is', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).toContain(`class="pform alias-remove">\n        <label class="pq"><span>${esc(t(l, 'product.alias.remove.label'))}</span>`);
+      expect(html, l).toMatch(/<button class="btn danger" type="submit" onclick="return confirm\(this\.dataset\.confirm\)"\s+data-confirm="[^"]*">/);
+    }
+  });
+
+  it('w4-products-knowledge-07 — one unit is never offered under two names; the page and the review use the same field and words', () => {
+    for (const cur of ['pcs', 'item', 'kg', 'jar']) {
+      const c = unitChoices(cur, 'pcs');
+      expect(c.includes('pcs') && c.includes('item'), cur).toBe(false);
+      expect(c, cur).toContain(cur);
+    }
+    expect(unitChoices('kg', 'item')).toContain('item');
+    for (const l of LOCALES) {
+      const product = page(l).split('<select name="unit">')[1]!.split('</select>')[0]!;
+      const review = plain(renderImportReview(reviewModel('Tote $18'), l)).split('<select name="unit:l1">')[1]!.split('</select>')[0]!;
+      expect(product.match(/<option/g)!.length, l).toBe(review.match(/<option/g)!.length);
+      expect(review, l).toContain(`<option value="pcs" selected>${esc(t(l, 'product.unit.pcs'))}</option>`);
+      expect(plain(renderImportReview(reviewModel('Tote $18'), l)), l).toContain(`<label>${esc(t(l, 'product.edit.unit'))} <select name="unit:l1">`);
+    }
+  });
+
+  it('w4-products-knowledge-16 / -17 — a product that is not here is said as that (never "removed"), answered 404; a refused edit keeps the product\'s name as its tab', () => {
+    for (const l of LOCALES) {
+      const html = renderProductMissing(l);
+      expect(html, l).toContain(esc(t(l, 'product.notFound.body')));
+      expect(html, l).not.toContain(esc(t(l, 'common.notFoundBody')));
+      expect(notFoundImport(l), l).toContain(esc(t(l, 'import.notFound')));
+      expect(notFoundImport(l), l).not.toContain(esc(t(l, 'import.gone')));
+    }
+    expect(t('en', 'product.notFound.body')).not.toMatch(/removed/);
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toContain("if (!d) { reply.code(404); return renderProductMissing(locale); }");
+    expect(src).toContain("if (!m) { reply.code(404); return notFoundImport(locale); }");
+    expect(src).toContain("title: productName(locale, d) ?? d.name, active: 'products',");
+    expect(src).not.toContain("title: t(locale, 'product.edit.title'), active: 'products'");
+  });
+
   it('V1-306 — a recent quote says when, for whom, and opens its conversation', () => {
     const en = page('en');
     expect(en).toContain('href="/app/inbox/c-1#latest"');
     expect(en).toContain('Omar');
     expect(en).toMatch(/Oct 1/);
-    expect(en).toContain(`<bdi>500${NBSP}pcs</bdi> · <bdi>$1.05/pc</bdi> · <bdi>total $525.00</bdi>`);
+    expect(en).toContain(`<bdi class="q-fact">500${NBSP}pcs</bdi> · <bdi class="q-fact">$1.05/pc</bdi> · <bdi class="q-fact">total $525.00</bdi>`);
   });
 
   it('V1-308 / V1-006 — no raw category, no "Customizable" nobody set', () => {
@@ -325,11 +415,17 @@ describe('The import review', () => {
     plain(renderImportReview(reviewModel(text), l, { canExtract: true, ...opts }));
 
   it('V1-334 — a plain price is read, flagged for its own tick; a figure that reads two ways is refused, never guessed', () => {
-    const [tote, scarf, mug, sale] = parsePriceLines(LIST, 'USD');
+    const [tote, scarf, mug, bowl, sale] = parsePriceLines(LIST, 'USD');
     expect(tote).toMatchObject({ name: 'Canvas tote', price: usd(18) });
-    expect(scarf).toMatchObject({ price: null, problem: 'ambiguous_price' });   // T4: "24,50" in a dollar workspace
-    expect(mug).toMatchObject({ price: null });
+    // The warmth run, phase 9 — "24,50" reads one way only (no thousands group is two digits long).
+    expect(scarf).toMatchObject({ name: 'Wool scarf', price: usd(24.5) });
+    expect(scarf!.problem).toBeUndefined();
+    // …and "Mug 8 or bowl 12" is two products, each with the whole line as where it was read from.
+    expect(mug).toMatchObject({ name: 'Mug', price: usd(8), half: 1, sourceLine: 'Mug 8 or bowl 12' });
+    expect(bowl).toMatchObject({ name: 'bowl', price: usd(12), half: 2, sourceLine: 'Mug 8 or bowl 12' });
     expect(sale).toMatchObject({ price: null });
+    // A figure that truly reads two ways is still refused.
+    expect(parsePriceLines('Bag $1.250', 'USD')[0]).toMatchObject({ price: null, problem: 'ambiguous_price' });
     expect(parsePriceLines('Mug 2.50 each', 'USD')[0]).toMatchObject({ name: 'Mug', price: usd(2.5) });
     // A size, a quantity, a model number: no cents, never a price.
     for (const line of ['Thermos 500ml', 'Version 2.0', 'Bottle 0.75 l', 'Model ZX 300']) {
@@ -343,11 +439,66 @@ describe('The import review', () => {
     expect(review('en')).toContain(t('en', 'import.flag.no_sign', { currency: 'USD' }));
   });
 
-  it('V1-335 — a line with no price and no figure is said to be added unpriced, with the way to leave it out', () => {
-    for (const l of LOCALES) expect(review(l), l).toContain(esc(t(l, 'import.row.noPriceNote')));
+  it('V1-334 — "24,50" is read and flagged for its own tick; a two-product line is a row each, both flagged; the count is of lines', () => {
+    const m = reviewModel(LIST);
+    const [tote, scarf, mug, bowl] = m.imp.rows;
+    expect(flagsOf(scarf!, m.imp.rows, m.ctx)).toContain('decimal_comma');
+    expect(flagsOf(tote!, m.imp.rows, m.ctx)).not.toContain('decimal_comma');
+    for (const half of [mug!, bowl!]) {
+      expect(flagsOf(half, m.imp.rows, m.ctx)).toEqual(['split_line']);
+      expect(needsTick(half, m.imp.rows, m.ctx, false)).toBe(true);
+    }
+    // A sign makes it no less two products, and no "two prices" warning besides.
+    const signed = reviewModel('Tote $18 or bag $24').imp.rows;
+    expect(signed.map((r) => [r.name, r.price])).toEqual([['Tote', 18], ['bag', 24]]);
+    expect(flagsOf(signed[0]!, signed, m.ctx)).toEqual(['split_line']);
+    // Never cut: a size range, a price per size, a name with "and" in it.
+    for (const line of ['Pillow 40 or 60', 'Hoodie S-M $40 / L-XL $45', 'Salt and pepper set 12.00', 'Tote\t18\tor bag\t24']) {
+      expect(parsePriceLines(line, 'USD').length, line).toBe(1);
+    }
+    for (const l of LOCALES) {
+      const html = review(l);
+      expect(html, l).toContain(esc(t(l, 'import.flag.decimal_comma')));
+      expect(html, l).toContain(esc(t(l, 'import.flag.split_line')));
+      // Four lines were read, though five rows stand.
+      expect(html, l).toMatch(/<p><b>[^<0-9]*4[^<0-9]*<\/b>/);
+    }
+    expect(t('en', 'product.add.intro')).not.toMatch(/messy/i);
+  });
+
+  it('V1-334 — a line set aside says where it is corrected, and its reason is a sentence', () => {
+    for (const l of LOCALES) {
+      const html = plain(renderImportReview(reviewModel('Canvas tote 18.00\nBag $1.250'), l));
+      expect(html, l).toContain(esc(t(l, 'import.rejected.fixPaste')));
+      expect(html, l).toContain('id="paste-text"');
+    }
+    for (const l of ['en', 'es', 'fr'] as const) {
+      expect(t(l, 'product.reject.ambiguous_price'), l).toMatch(/^\p{Lu}/u);
+      expect(t(l, 'product.reject.ambiguous_price'), l).not.toContain('1250.00');
+    }
+  });
+
+  it('V1-335 — a pasted line with no figure at all waits for the owner\'s tick, is counted among those that need them, and not as new until ticked', () => {
+    const m = reviewModel(LIST);
+    const sale = m.imp.rows.find((r) => r.name === 'SPRING SALE')!;
+    expect(flagsOf(sale, m.imp.rows, m.ctx)).toEqual(['no_price']);
+    expect(needsTick(sale, m.imp.rows, m.ctx, false)).toBe(true);
+    for (const l of LOCALES) {
+      const html = review(l);
+      expect(html, l).toContain(esc(t(l, 'import.flag.no_price')));
+      expect(html, l).not.toContain(esc(t(l, 'import.row.noPriceNote')));
+      expect(html, l).toContain(`name="tick:${sale.key}"`);
+    }
     const en = review('en');
-    // "3 new": the scarf is refused with its reason, not counted as a product.
-    expect(en).toContain('3 new — not in your catalogue yet');
+    // Four new products (the tote, the scarf, the mug, the bowl); the heading is not one until ticked.
+    expect(en).toContain('4 new — not in your catalogue yet');
+    // Every row needs its tick: the tote and the scarf carry no sign, the halves were split, the heading has no figure.
+    expect(en).toContain('5 need you');
+    const ticked = plain(renderImportReview(reviewModel(LIST, { rows: (rs) => rs.map((r) => (r.name === 'SPRING SALE' ? { ...r, ticked: true } : r)) }), 'en'));
+    expect(ticked).toContain('5 new — not in your catalogue yet');
+    // A store's list keeps its own rule: an unpriced product is said, not held.
+    const store = reviewModel('Tote', { kind: 'store' });
+    expect(flagsOf(store.imp.rows[0]!, store.imp.rows, store.ctx)).not.toContain('no_price');
   });
 
   it('V1-336 — the tick is something the owner says, on its own line, never run into the name', () => {
@@ -413,17 +564,19 @@ describe('The import review', () => {
     }
   });
 
+  // A list with a line refused and a figure left unread: the scarf and the mug read now.
+  const UNREAD = 'Canvas tote 18.00\nBag $1.250\nThermos 500ml\nSPRING SALE';
   it('missed-10 — the offer to read again comes after the lines it names, counts them right, and its note has no "it"', () => {
-    const en = review('en');
+    const en = review('en', UNREAD);
     expect(en.indexOf('id="extract"')).toBeGreaterThan(en.indexOf('id="row-l4"'));
-    // Two lines hold a figure and no price (the scarf is refused, the mug unread); the heading has none.
+    // Two lines hold a figure and no price (the bag is refused, the thermos unread); the heading has none.
     expect(en).toContain('2 lines have a figure that was not read as a price, or were not read as a product.');
     expect(t('en', 'import.extract.hint')).not.toMatch(/\bit\b/);
   });
 
   it('missed-11 — an unread figure is said as that, never as digits left in the name', () => {
     for (const l of LOCALES) {
-      const html = review(l);
+      const html = review(l, UNREAD);
       expect(html, l).toContain(esc(t(l, 'import.flag.unread_figure')));
       expect(html, l).not.toContain(esc(t(l, 'import.flag.digits_in_name')));
     }
@@ -433,10 +586,28 @@ describe('The import review', () => {
     const en = review('en');
     expect(en).toContain('$18.00/pc · No minimum');
     expect(en).not.toContain('no price yet');
-    expect(review('es')).toContain('<option value="pcs" selected>ud.</option>');
+    // The warmth run, phase 9 (w4-products-knowledge-07) — the unit field is the product page's own: "What you count them in", "uds.".
+    expect(review('es')).toContain(`<option value="pcs" selected>${esc(t('es', 'product.unit.pcs'))}</option>`);
     expect(review('zh')).not.toMatch(/。<\/b> /);
+    // The warmth run, phase 9 (V1-345) — no space after a Chinese full stop or colon anywhere on the page:
+    // the count, what stands before adding, and "Read from:".
+    const zh = review('zh');
+    expect(zh).toContain('这一行读到的：<bdi>');
+    expect(zh).not.toMatch(/[。：](?:<\/b>)? /);
     expect(t('es', 'import.needYou.other')).not.toContain('van primero');
     for (const l of LOCALES) expect(t(l, 'import.countYours'), l).not.toMatch(/count|数一数|عدّ|Cuenta|Comptez/i);
+  });
+
+  it('w4-products-knowledge-13 — the pasted text and a photo\'s text are each a named box', () => {
+    for (const l of LOCALES) {
+      expect(review(l), l).toContain(`<textarea name="text" rows="8" dir="auto" aria-label="${esc(t(l, 'import.pasteText'))}">`);
+    }
+  });
+
+  it('w4-products-knowledge-12 — "printed or handwritten?" is drawn at the size of the page\'s labels', () => {
+    for (const l of LOCALES) expect(renderAddForm(l), l).toContain(`<fieldset class="choices hand"><legend>${esc(t(l, 'import.hand.q'))}</legend>`);
+    const css = linkedCss(shell({ title: 't', active: 'products', locale: 'en', path: '/app/products/add', bodyHtml: '' }));
+    expect(css).toMatch(/\.choices\.hand legend \{ font-size:var\(--font-size-small\)/);
   });
 });
 
@@ -460,12 +631,16 @@ describe('Your price limits', () => {
   it('V1-351 — with every product answered and no answer for everything, that empty form is folded away; its question is about anything you sell', () => {
     const en = page('en');
     expect(en).toMatch(/<details class="pr-fold"><summary>Set one answer for everything<\/summary>/);
-    expect(t('en', 'prices.q.floorAll', { currency: 'USD' })).toContain('one of anything you sell');
+    // The warmth run, phase 9 (w4-products-knowledge-15) — plain: one unit of any product.
+    expect(t('en', 'prices.q.floorAll', { currency: 'USD' })).toBe('What is the least you would accept for one unit of any product? (USD)');
     expect(en).not.toContain('one of these');
     // A product still waiting: the form stands open, as before.
     const waiting = page('en', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] }));
     expect(waiting).not.toContain('pr-fold');
     expect(t('en', 'prices.default.sub')).toContain('A product priced below it needs an answer of its own');
+    // w4-products-knowledge-15 — "its lowest price" could only mean the product's; the figure meant is the one given here.
+    expect(t('en', 'prices.default.sub')).toContain('at or above the figure given here');
+    expect(t('es', 'prices.default.sub')).not.toContain('su mínimo');
   });
 
   it('V1-352 / V1-353 — sections are h2s, a product\'s name is in ink, each "change" is a door; the way back is at the top', () => {
@@ -598,7 +773,10 @@ describe('What your assistant knows', () => {
   it('V1-360 / V1-361 — each product row says what its number counts; Chinese shows and sorts Chinese names', () => {
     const en = page('en');
     expect(en).toContain('2 facts taught');
-    expect(en).toContain('Nothing taught yet<span class="go"');
+    // The warmth run, phase 9 (w4-products-knowledge-06) — the count is a line of its own under the name, never run into it.
+    expect(en).toContain('<span class="sr-desc">Nothing taught yet</span></span>');
+    expect(en).toMatch(/<a class="srow sr-menu sr-two" href="\/app\/knowledge\/p2">\s*<span class="sr-main"><span class="sr-label"><bdi>Canvas Tote Bag 38x40cm<\/bdi><\/span>/);
+    expect(en).not.toContain('class="krow"');
     const zh = page('zh');
     expect(zh).toContain('<bdi>竹砧板</bdi>');
     expect(zh).toContain('<bdi>帆布袋</bdi>');
@@ -648,29 +826,49 @@ describe('What your assistant knows', () => {
     expect(css).toMatch(/\.scope \{[^}]*text-wrap:pretty; \}/);
   });
 
-  it('new-17 — lists, cards and empty panels share one measure', () => {
+  it('new-17 — every section, list, panel, card and field ends where the section\'s rule ends: one measure, set once', () => {
     const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'en', path: '/app/knowledge', bodyHtml: page('en') }));
-    expect(css).toContain('.klist, .kitem, .gap { max-width:var(--measure-prose); }');
+    expect(css).toContain('.kpage .block { max-width:var(--measure-prose); }');
+    expect(css).toContain('.kpage .kitem, .kpage .gap, .kpage .empty, .kpage .pform, .kpage .scard { max-width:100%; }');
+    // Knowledge is drawn inside the one wrapper, and so is a product's page.
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/'<div class="kpage">' \+ renderKnowledgeOps\(/);
+    expect(renderProductKnowledge(product(), 'en', null).trimStart()).toMatch(/^<div class="kpage">/);
   });
 
   it('V1-371 / V1-372 / new-18 / V1-374 — a certification in words, on or off in words, switched by a button that says so', () => {
+    // The warmth run, phase 9 (w4-products-knowledge-02) — drawn on What you promise customers.
+    const inSentence = (l: Locale, s: string) => (l === 'zh' || l === 'ar' ? s : s.charAt(0).toLocaleLowerCase(l) + s.slice(1));
     for (const l of LOCALES) {
-      const html = page(l);
+      const html = plain(certRows(l, index.certs ?? [], 12));
       expect(html, l).not.toMatch(/>food_grade<|>BPA_free<|for all 12[^<]*food_grade/);
       expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.food_grade'))}</bdi></b> <span class="pill">${esc(t(l, 'knowledge.cert.off'))}</span>`);
       expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.CE'))}</bdi></b> <span class="pill ok">${esc(t(l, 'knowledge.cert.on'))}</span>`);
       // The question names it in words, and the button — which the ask-first dialog repeats — says what it does.
-      expect(html, l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: t(l, 'claim.food_grade'), n: 12 })))}">${esc(t(l, 'knowledge.cert.turnOn'))}</button>`);
+      expect(html, l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: inSentence(l, t(l, 'claim.food_grade')), n: 12 })))}">${esc(t(l, 'knowledge.cert.turnOn'))}</button>`);
     }
     // A plain button: it takes the page's font (`.btn { font:inherit }`), not the browser's.
-    expect(page('en')).not.toMatch(/class="cert( on)? ?"/);
-    expect(page('en')).toMatch(/<button class="btn" type="submit" onclick="return confirm\(this.dataset.confirm\)" data-confirm="Turn on/);
+    const en = certRows('en', index.certs ?? [], 12);
+    expect(en).not.toMatch(/class="cert( on)? ?"/);
+    expect(en).toMatch(/<button class="btn" type="submit" onclick="return confirm\(this.dataset.confirm\)" data-confirm="Turn on/);
+  });
+
+  it('w4-products-knowledge-14 — the state agrees with no name, and the question no longer gives a pronoun of one gender', () => {
+    // Arabic, Spanish and French certifications are of either gender: the state is a yes or a no.
+    expect([t('ar', 'knowledge.cert.on'), t('ar', 'knowledge.cert.off')]).toEqual(['نعم', 'لا']);
+    expect([t('es', 'knowledge.cert.on'), t('fr', 'knowledge.cert.off')]).toEqual(['Sí', 'Non']);
+    expect(t('ar', 'knowledge.cert.confirmOn')).not.toMatch(/ذكره|ذكرها/);
+    expect(t('ar', 'knowledge.cert.confirmOff')).not.toMatch(/تأكيده|تأكيدها|لـ /);
+    // A long name wraps beside its button, never pushing it onto a line of its own; the period's choices keep their words together.
+    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'fr', path: '/app/knowledge', bodyHtml: page('fr') }));
+    expect(css).toContain('.certlist .row { flex-wrap:nowrap; }');
+    expect(css).toContain('.kpage #period .tab { white-space:nowrap; }');
   });
 
   it('V1-373 / V1-376 — one product\'s page says which certifications are on and leads to where they are switched, and to the product', () => {
     const html = plain(renderProductKnowledge(product(), 'en', null));
     expect(html).not.toContain('action="/app/knowledge/cert"');
-    expect(html).toContain('href="/app/knowledge#certs"');
+    expect(html).toContain(`href="${CERTS_HOME}"`);
     expect(html).toContain('href="/app/products/de300000-0000-4000-8000-000000000101"');
     expect(plain(renderProductKnowledge({ ...product(), certs: [] }, 'en', null))).toContain(t('en', 'knowledge.cert.noneHere'));
   });
@@ -684,7 +882,7 @@ describe('What your assistant knows', () => {
   it('V1-377 / V1-378 — the back link names the page it opens, above the title', () => {
     for (const l of LOCALES) {
       const html = plain(renderProductKnowledge(product(), l, null));
-      expect(html, l).toMatch(new RegExp(`^\\s*<a class="back" href="/app/knowledge">[\\s\\S]*?${esc(t(l, 'nav.knowledge')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</a>\\s*<h1 class="page">`));
+      expect(html, l).toMatch(new RegExp(`^\\s*<div class="kpage">\\s*<a class="back" href="/app/knowledge">[\\s\\S]*?${esc(t(l, 'nav.knowledge')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</a>\\s*<h1 class="page">`));
     }
   });
 
@@ -723,6 +921,26 @@ describe('The price-list export', () => {
     expect(productsSheet([productRow], 'zh', 'UTC').header).toContain('货号');
     expect(priceRulesSheet(parts, 'ar').rows[0]![0]).toBe(t('ar', 'data.export.rule.floor'));
     expect(priceRulesSheet(parts, 'en').header).not.toContain('when');
+  });
+
+  it('V1-380 — a saved file is named in the reader\'s plain-letter words, as its page names it; Chinese and Arabic stay plain ASCII', () => {
+    expect(downloadName('price-rules', 'en')).toBe('price-limits');
+    expect(downloadName('products', 'es')).toBe('productos');
+    expect(downloadName('price-rules', 'fr')).toBe('limites-de-prix');
+    for (const l of LOCALES) for (const s of EXPORT_SUBJECTS) expect(downloadName(s, l), `${l} ${s}`).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
+    expect(downloadName('products', 'zh')).toBe('products');
+    expect(downloadName('products', 'ar')).toBe('products');
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toContain('csvFilename(downloadName(subject, localeOf(req)), now)');
+  });
+
+  it('V1-381 — no "Category" column: nothing the owner wrote fills it', () => {
+    for (const l of LOCALES) {
+      const sheet = productsSheet([productRow], l, 'UTC');
+      for (const word of ['Category', '类别', 'الفئة', 'Categoría', 'Catégorie']) expect(sheet.header, l).not.toContain(word);
+      expect(sheet.rows[0], l).not.toContain('bags');
+      expect(sheet.rows[0]!.length, l).toBe(sheet.header.length);
+    }
   });
 
   it('V1-381 — figures as figures, words as words, a date as its day', () => {

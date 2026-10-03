@@ -102,8 +102,9 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(setup).not.toContain('class="langsw"');
     expect(setup).not.toContain('action="/logout"');
     expect(setup).toMatch(/<a class="srow sr-menu" href="\/app\/settings\/language">[^]*?<bdi>English<\/bdi>/);
-    expect(renderLanguage('en')).toContain('class="langsw"');
-    expect(renderLanguage('en')).toContain('href="/locale?set=zh&next=/app/settings/language"');
+    // Phase 9 (w4-today-setup-29) — the screen is five rows like every menu's; the one in force says so.
+    expect(renderLanguage('en')).toContain('<a class="srow sr-menu" href="/locale?set=zh&next=/app/settings/language" hreflang="zh">');
+    expect(renderLanguage('en')).toContain('href="/locale?set=en&next=/app/settings/language" hreflang="en" aria-current="true"');
     const settings = renderSettingsHome('en', null);
     const lastRow = settings.indexOf('href="/app/settings/setup"');
     const out = settings.indexOf('<form class="scard sr-foot" method="post" action="/logout">');
@@ -134,8 +135,15 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
   // The warmth run: the rail's one count is the customers waiting, on Inbox.
   it('the rail\'s count sits beside its word, not at the far end', () => {
     const rule = drawn().match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
-    expect(rule).toContain('margin-inline-start:var(--space-8)');
     expect(rule).not.toContain('auto');
+    // The fix wave — the word and its count wrap together: beside it where they fit, under it where they do not;
+    // the word never shrinks below itself (no min-width:0: at 1024 px it stood a letter a line).
+    const body = drawn().match(/nav\.side \.nl-body \{[^}]*\}/)?.[0] ?? '';
+    expect(body).toContain('flex-wrap:wrap');
+    expect(body).toContain('column-gap:var(--space-8)');
+    const word = drawn().match(/nav\.side \.nl-text \{[^}]*\}/)?.[0] ?? '';
+    expect(word).not.toContain('min-width:0');
+    expect(word).toContain('max-inline-size:100%');
     // On a phone each entry is a tile, icon over word, and never breaks in two; the figure rides the icon's corner.
     expect(phoneBlock()).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex-direction:column; flex-wrap:nowrap; white-space:nowrap/);
   });

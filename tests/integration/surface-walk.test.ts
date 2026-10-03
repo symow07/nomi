@@ -160,6 +160,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     });
     registerWebApp(app, {
       db, businessId: RUN_BIZ, accessCode: CODE,
+      // The component gallery is a local instance's switch (COMPONENT_GALLERY=on), for the installation's
+      // own workspace — which this walk's is: switched on, so the gallery is walked like every page.
+      componentGallery: true,
       sessionSecret: 'a-test-session-secret-of-sufficient-length',
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
       secureCookie: false, messagingEnabled: false,

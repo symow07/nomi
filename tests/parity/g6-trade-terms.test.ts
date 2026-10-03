@@ -32,9 +32,17 @@ describe('G6 · stating her terms', () => {
   it('an incoterm is one of the guard’s own, in either case', () => {
     const r = validateTradeTerms({ payment: 'T/T', incoterm: 'fob', now: NOW });
     expect(r.ok && r.value.incoterm).toBe('FOB');
-    for (const bad of ['', 'FOB Ningbo', 'XYZ', null]) {
+    for (const bad of ['FOB Ningbo', 'XYZ', 'none']) {
       const v = validateTradeTerms({ payment: 'T/T', incoterm: bad, now: NOW });
       expect(v.ok ? 'ok' : v.error, String(bad)).toBe('incoterm_invalid');
+    }
+  });
+
+  it('the warmth run (V1-537) — payment terms stand alone: no delivery term is null, never a code she did not choose', () => {
+    for (const none of ['', '   ', null]) {
+      const v = validateTradeTerms({ payment: 'Cash on collection', incoterm: none, now: NOW });
+      expect(v.ok, String(none)).toBe(true);
+      if (v.ok) expect(v.value).toEqual({ paymentTerms: 'Cash on collection', incoterm: null, statedAt: NOW });
     }
   });
 

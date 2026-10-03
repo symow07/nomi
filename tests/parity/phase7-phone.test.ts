@@ -33,22 +33,21 @@ describe('phase 7 · the phone nav is one line', () => {
   // THE WARMTH RUN (2026-10-03) — five tiles, icon over word, a fifth of the
   // phone each: Inbox has a phone form where its word does not fit a fifth
   // (ar, es, fr); the assistant's fallback keeps its phone form; nothing else has one.
-  it('one name per entry at every width where it fits (phase 9, cross-new-02); Inbox and the unnamed assistant have phone forms where needed; a named assistant is short already', () => {
-    for (const l of ['en', 'zh'] as const) {
+  // The warmth run's re-audit (cross-new-02, w4-whole-02): ONE name per entry at every width, in every
+  // language — the list is Inbox / 收件箱 / الرسائل / Mensajes / Messages, and an assistant not yet named
+  // is Assistant / 助手 / المساعد / Asistente in the rail; only the waiting count has a phone form (its figure).
+  it('one name per entry at every width, in every language; a named assistant is its name', () => {
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
       const html = nav(page(l));
       expect(html.match(/nl-short">(?!\d)/g) ?? [], l).toEqual([]);
-      expect(html, l).toContain(`>${t(l, 'nav.settings')}<`);
+      expect(html.match(/nl-long">/g) ?? [], l).toEqual([]);
+      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.inbox')}</span>`);
+      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.short.employee')}</span>`);
+      expect(t(l, 'nav.short.inbox'), l).toBe(t(l, 'nav.inbox'));
     }
-    for (const l of ['ar', 'es', 'fr'] as const) {
-      const html = nav(page(l));
-      expect(html, l).toContain(`<span class="nl-short">${t(l, 'nav.short.inbox')}</span>`);
-      expect(html, l).toContain(`<span class="nl-long">${t(l, 'nav.inbox')}</span>`);
-    }
-    const fr = nav(page('fr'));
-    expect(fr).toContain('<span class="nl-short">Assistant</span>');
     const named = withAssistantName('Lily', () => nav(page('fr')));
-    expect(named).not.toContain('<span class="nl-short">Assistant</span>');
-    expect(named).toContain('>Lily<');
+    expect(named).toContain('<span class="nl-text">Lily</span>');
+    expect(named).not.toContain('>Assistant<');
   });
 
   it('wide: the long label; phone: the short one, every entry on one line; the narrowest: no mark before the entries', () => {

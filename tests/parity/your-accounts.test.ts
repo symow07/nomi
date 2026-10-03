@@ -136,7 +136,8 @@ describe('Phase 9 · B5 · Connecting Messenger and Instagram', () => {
   it('V1-457 · V1-459 · the back link names the page it returns to, above the heading', () => {
     for (const l of LOCALES) {
       const html = renderMetaHelp(l);
-      expect(html, l).toContain(`<span class="go" aria-hidden="true">‹</span>${t(l, 'nav.channels')}</a></div>\n    <h1 class="page">`);
+      // Phase 9 (w4-business-assistant-07) — the steps are on Instagram and Messenger's own screen.
+      expect(html, l).toContain(`<span class="go" aria-hidden="true">‹</span>${t(l, 'meta.panel.title')}</a></div>\n    <h1 class="page">`);
     }
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("app.get('/app/help/meta', authed('settings',");   // it lights Setup, where Channels sits

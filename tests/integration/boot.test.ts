@@ -407,7 +407,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Accept-Language Arabic → RTL
     const ar = await prod.app.inject({ method: 'GET', url: '/login', headers: { 'accept-language': 'ar-SA,ar;q=0.9' } });
     expect(ar.body).toContain('<html lang="ar" dir="rtl">');
-    expect(ar.body).toContain('لديّ رمز دخول');
+    expect(ar.body).toContain('لديّ رمز وصول');   // w4-public-11: the access code, not «الدخول» twice
     // yf_locale cookie → Chinese
     const zh = await prod.app.inject({ method: 'GET', url: '/login', headers: { cookie: 'yf_locale=zh' } });
     expect(zh.body).toContain('<html lang="zh"');
@@ -499,11 +499,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
   it('M9.4 channels: page renders; coming-soon honest; no secret/provider leak', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    // Phase 9 — the old address answers with the channels' one home.
+    const old = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    expect([old.statusCode, old.headers['location']]).toEqual([302, '/app/business/channels']);
+    const res = await prod.app.inject({ method: 'GET', url: '/app/business/channels', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('WhatsApp');        // English default
-    expect(res.body).toContain('WhatsApp');
-    expect(res.body).toContain('Coming soon');
+    expect(res.body).toContain('Not available yet');
     expect(res.body).toContain('Instagram');
     for (const secret of ['DEMO_PNID', 'SIM_PNID', 'demo-no-secret', 'access_token', '360dialog']) {
       expect(res.body).not.toContain(secret);
@@ -520,11 +522,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
      */
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toContain(t('en', 'reach.title'));
-    // Instagram and Messenger, stated as impossible rather than discouraged.
-    expect(res.body).toContain(t('en', 'reach.cold.never'));
+    // Phase 9 — a screen per channel; what each allows is said on its own.
+    const screens = await Promise.all(['whatsapp', 'meta', 'email'].map((s) => prod.app.inject({ method: 'GET', url: `/app/channels/${s}`, headers: { cookie } })));
+    for (const s of screens) expect(s.statusCode).toBe(200);
+    const res = { body: screens.map((s) => s.body).join('\n') };
+    expect(res.body).toContain(t('en', 'reach.title.one', { channel: 'WhatsApp' }));
+    // Instagram and Messenger, stated as impossible rather than discouraged — once, as the rule of both.
+    expect(res.body).toContain(t('en', 'meta.rules.first'));
     // T5 — what does work instead, and nothing it cannot do (no comment is answered privately)
     expect(res.body).toContain(t('en', 'reach.instead.click_to_whatsapp'));
     // Email, the one channel that can genuinely be written to first.
@@ -550,7 +554,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const disc = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/disconnect',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(disc.statusCode).toBe(302);
-    expect(disc.headers['location']).toBe('/app/channels');
+    expect(disc.headers['location']).toBe('/app/channels/whatsapp');
     expect(flashSaid(disc, WEB_SECRET)).not.toBe('');
     expect(await active()).toBe(false);                 // real effect: inbound resolution stops
     expect(await auditCount('disconnect')).toBe(before + 1);
@@ -566,7 +570,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/test',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe('/app/channels');
+    expect(res.headers['location']).toBe('/app/channels/whatsapp');
     expect(flashSaid(res, WEB_SECRET)).not.toBe('');
   });
 
@@ -772,7 +776,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('About this customer');   // A — one word: customer (the positioning rewrite)
-    expect(res.body).toContain('First contact');
+    expect(res.body).toContain('First wrote');   // the fix wave (w4-conversation-16): the panel's words
     expect(res.body).toContain('History');
   });
 
@@ -827,10 +831,19 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const bidv = parsed.value;
 
     const d = await loadAnalytics(prod.db, DEMO_BIZ, 'month');
+    // Phase 9 of the warmth run — new customers are those in touch this month (w4-customers-19), and a quote
+    // counts once it was given: not held back, and a line left after it (PRICE_GIVEN, w4-customers-20).
     const truth = await withTenantTx(prod.db, bidv, (tx) => sql<{ clients: number; inbound: number; quotes: number }>`
-      select (select count(*)::int from clients where created_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as clients,
-             (select count(*)::int from messages where direction='inbound' and sent_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as inbound,
-             (select count(*)::int from quotes where created_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as quotes
+      with m0 as (select (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c)
+      select (select count(distinct cl.id)::int from clients cl join conversations cv on cv.client_id = cl.id
+                join messages m on m.conversation_id = cv.id, m0
+               where cl.created_at >= m0.c and m.sent_at >= m0.c) as clients,
+             (select count(*)::int from messages, m0 where direction='inbound' and sent_at >= m0.c) as inbound,
+             (select count(*)::int from quotes q, m0 where q.created_at >= m0.c
+                 and not exists (select 1 from turns t join drafts d on d.turn_message_id = t.message_id
+                                  where t.quote_id = q.id and d.status <> 'approved')
+                 and exists (select 1 from messages m where m.conversation_id = q.conversation_id
+                              and m.direction = 'outbound' and m.sent_at >= q.created_at)) as quotes
     `.execute(tx).then((r) => r.rows[0]!));
     expect(d.summary.newClients).toBe(truth.clients);
     expect(d.activity.inbound).toBe(truth.inbound);
@@ -943,7 +956,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const save = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=%2B${ph('861380000004')}2` });
     expect(save.statusCode).toBe(302);
-    expect(save.headers['location']).toBe('/app/channels');
+    expect(save.headers['location']).toBe('/app/channels/alerts');
     expect(flashSaid(save, WEB_SECRET)).not.toBe('');
     expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // saved
     expect(await auditCount()).toBe(before + 1);          // audited
@@ -975,7 +988,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.headers['location']).toBe('/login');
   });
 
-  it('M11.1 settings: profile renders reused fields + derived categories (owner-auth)', async () => {
+  it('M11.1 settings: profile renders reused fields + what it sells (owner-auth)', async () => {
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const { sql } = await import('kysely');
@@ -989,9 +1002,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain('Business profile');          // English default — its own page since UI-PASS 7
     expect(res.body).toContain('Yiwu Demo Factory');         // reused businesses.name
     expect(res.body).toContain('Business name');
-    expect(res.body).toContain('Product categories');
-    // derived from the demo catalog (products.category): bags/drinkware/home/lighting
-    expect(res.body).toMatch(/bags|drinkware|lighting/);
+    // The warmth run (V1-006): not the demo seed's raw products.category codes,
+    // but How you sell's own question, with its door (the demo sells from a catalogue).
+    expect(res.body).not.toContain('Product categories');
+    expect(res.body).not.toMatch(/bags · drinkware/);
+    expect(res.body).toContain('What you sell');
+    expect(res.body).toContain('href="/app/business/selling/product_claims"');
     // Phase F: no second "what is missing" list here — My factory owns that.
     expect(res.body).not.toContain('Profile checklist');
   });
@@ -1062,21 +1078,32 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description='Household goods', location='Yiwu', contact_email='a@b.co' where id=${bidv}`.execute(tx));
     expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'profile')).toBe(true);
 
-    // Step 4 guard: an approved draft on a REAL conversation counts. Neutralize any
-    // existing approved/edited drafts first (app role has no DELETE — archive, not
-    // erase — so status→rejected; demo drafts are all test-created).
+    // Step 5 guard (phase 9, V1-109): the assistant's reply must have GONE OUT on a REAL
+    // conversation. An approved draft alone is not a sent reply. Neutralize any sent
+    // replies of the assistant first (app role has no DELETE — archive, not erase — so
+    // status→failed), and any approved/edited drafts (status→rejected).
     await withTenantTx(prod.db, bidv, (tx) => sql`update drafts set status='rejected' where business_id=${bidv} and status in ('approved','edited')`.execute(tx));
+    const sentBefore = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
+      update outbound_messages set status='failed' where business_id=${bidv} and origin='employee'
+         and status in ('sent','delivered','read') returning id`.execute(tx).then((r) => r.rows.map((x) => x.id)));
     expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(false);
     const draftId = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
       insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status, decided_at)
       values (${bidv}, ${CONV}, 'quote', 'first reply', null, 'approved', now()) returning id`.execute(tx).then((r) => r.rows[0]!.id));
+    expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(false);
+    const sentId = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
+      insert into outbound_messages (business_id, conversation_id, seq, body, status, origin, sent_at)
+      values (${bidv}, ${CONV}, (select coalesce(max(seq), 0) + 1 from outbound_messages where conversation_id = ${CONV}),
+              'first reply', 'sent', 'employee', now()) returning id`.execute(tx).then((r) => r.rows[0]!.id));
     expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(true);
 
     // onboarding_state is NEVER touched by completion logic.
     expect(await stateStep()).toBe(onbStateBefore);
 
-    // cleanup (archive the test draft, restore profile)
+    // cleanup (archive the test draft and the test reply, put back the replies set aside, restore profile)
     await withTenantTx(prod.db, bidv, (tx) => sql`update drafts set status='rejected' where id=${draftId}`.execute(tx));
+    await withTenantTx(prod.db, bidv, (tx) => sql`update outbound_messages set status='failed' where id=${sentId}`.execute(tx));
+    if (sentBefore.length > 0) await withTenantTx(prod.db, bidv, (tx) => sql`update outbound_messages set status='sent' where id = any(${sentBefore}::uuid[])`.execute(tx));
     await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description=null, location=null, contact_email=null, contact_phone=null where id=${bidv}`.execute(tx));
   });
 
@@ -1385,7 +1412,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
           (select count(*)::int from drafts where business_id=${DEMO_BIZ} and status='pending') as pending,
           (select count(*)::int from conversations where business_id=${DEMO_BIZ} and is_active and assigned_to='unclaimed') as handoffs,
           (select count(*)::int from conversations where business_id=${DEMO_BIZ} and is_active and assigned_to is not null and assigned_to<>'unclaimed') as owner_handling,
-          (select count(distinct conversation_id)::int from turns where business_id=${DEMO_BIZ} and created_at>=(select c from cut)) as handled,
+          -- Phase 9 (V1-011) — customers answered: a reply the assistant wrote WENT OUT (Today's hero's rows).
+          (select count(distinct conversation_id)::int from outbound_messages where business_id=${DEMO_BIZ} and origin='employee'
+             and status in ('sent','delivered','read') and sent_at>=(select c from cut)) as handled,
           (select count(*)::int from drafts where business_id=${DEMO_BIZ} and created_at>=(select c from cut)) as drafts_created,
           (select count(*)::int from drafts where business_id=${DEMO_BIZ} and status='edited' and decided_at>=(select c from cut)) as corrections
       `.execute(tx as never).then((r) => r.rows[0]!));
@@ -1562,7 +1591,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // factory where nothing could reach her at all.
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
-      expect(html).toContain('href="/app/business/ready"');
+      // Phase 9 of the warmth run (w4-today-setup-16) — the way forward is the setup step's own door.
+      expect(html).toContain('href="/app/business/channels"');
       // The warmth run — with messaging off, the plain fact, never "all caught up".
       expect(html).toContain(`<h2 id="today-now" class="tw-head">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
@@ -1973,7 +2003,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app/employee/talk', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      for (const page of ['/app/settings/profile', '/app/products']) expect(res.body, page).toContain(`href="${page}"`);
+      // The warmth run, phase 9 (w4-products-knowledge-01) — and what was taught, and what may be claimed.
+      for (const page of ['/app/settings/profile', '/app/products', '/app/knowledge', '/app/business/promises']) expect(res.body, page).toContain(`href="${page}"`);
       const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
       expect(main).not.toContain('<form');
       expect(main).toContain('<a class="back" href="/app/employee">');
@@ -2226,7 +2257,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // withdrawing it removes the promise — default-deny, no stale claim left
       expect((await setCertification(prod.db, DEMO_BIZ, 'ISO9001', false)).code).toBe('cert');
       expect((await view()).promises.certs).not.toContain('ISO9001');
-      expect(await html()).not.toContain('ISO 9001 quality system');
+      // (w4-products-knowledge-02) the promises screen is where each certification is switched, so it is
+      // listed there either way — now off, with the act that turns it on; the menu no longer names it.
+      const on = await html();
+      expect(on).toMatch(/<bdi>ISO 9001 quality system<\/bdi><\/b> <span class="pill">Off<\/span>/);
+      const { renderFactory } = await import('../../src/api/web/factory.js');
+      expect(renderFactory(await view(), 'en')).not.toContain('ISO 9001 quality system');
     });
 
     it('price rules come from the rows the GUARD uses, not the business-wide fallback', async () => {
@@ -2318,7 +2354,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(f.readiness.canActivate).toBe(pre.blockers.length === 0);
 
       const page = (await html()).replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
-      expect(page).toContain(esc(t('en', 'factory.ready.title')));
+      expect(page).toContain(esc(t('en', 'business.row.live')));
       expect(page).not.toMatch(/\d+\s*%/);          // no rate, no grade
       expect(page).toContain('href="/app/onboarding"');
     });
@@ -2328,7 +2364,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const page = await html();
       const FIX: Record<string, string | null> = {
         schema_stale: '/app/onboarding', not_ready: '/app/onboarding',
-        secrets_not_rotated: '/app/onboarding', no_channel: '/app/channels',
+        secrets_not_rotated: '/app/onboarding', no_channel: '/app/channels/whatsapp',
         no_allowlist: null,
       };
       for (const b of f.readiness.blockers) {

@@ -53,5 +53,24 @@ export function currencyLabel(locale: Locale, c: Currency): string {
   return name && name !== c ? `${name} (${c})` : c;
 }
 
+/**
+ * The warmth run (w4-settings-b-outreach-11) — the currency inside a sentence:
+ * "in US dollars (USD)", «en dólares estadounidenses (USD)», «en dollars des
+ * États-Unis (USD)» — the name as a sentence says it (the plural, in its own
+ * case), where `currencyLabel` is the name a list shows ("US Dollar (USD)").
+ * Chinese and Arabic name it the one way (the Arabic lines say it as a label).
+ */
+export function currencyInLine(locale: Locale, c: Currency): string {
+  if (locale === 'zh' || locale === 'ar') return currencyLabel(locale, c);
+  let name = '';
+  try {
+    name = new Intl.NumberFormat(INTL_TAG[locale], { style: 'currency', currency: c, currencyDisplay: 'name' })
+      .formatToParts(2).filter((p) => p.type === 'currency').map((p) => p.value).join('').trim();
+  } catch {
+    name = '';
+  }
+  return name && name !== c ? `${name} (${c})` : currencyLabel(locale, c);
+}
+
 /** The list, in its own order, for a select. */
 export const CURRENCY_CHOICES: readonly Currency[] = CURRENCIES;

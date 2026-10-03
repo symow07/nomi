@@ -20,6 +20,8 @@ export type IconId = 'today' | 'customers' | 'inbox' | 'calendar' | 'assistant' 
   | 'bell' | 'globe' | 'person' | 'key' | 'card' | 'folder' | 'guide'
   // Phase 4 — the Inbox's mark on a regular: a customer who keeps coming back.
   | 'regular'
+  // Phase 9 — Your data's Download: a file saved.
+  | 'download'
   | DateIconId;
 
 /**
@@ -87,6 +89,8 @@ const PATHS: Readonly<Record<IconId, string>> = {
   card: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>',
   folder: '<path d="M3.5 6.5V18a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5V9a1.5 1.5 0 0 0-1.5-1.5h-7L10 5H5a1.5 1.5 0 0 0-1.5 1.5z"/>',
   guide: '<circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.5-3.5z"/>',
+  // The warmth run, phase 9 (w4-settings-a-18) — a file saved, not a door: Your data's Download.
+  download: '<path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/>',
 };
 
 const FLIPS: ReadonlySet<IconId> = new Set(['logout']);

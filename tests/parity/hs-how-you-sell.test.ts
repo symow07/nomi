@@ -202,15 +202,17 @@ describe('Phase 9 · B5 · How you sell', () => {
   const q = (l: Locale, over: Partial<QuestionView> = {}) => bare(renderQuestion({
     facts: MAKER_FACTS, order: CATALOGUE_QUESTIONS, progress: {}, q: 'price', state: { ...STATE, quantityFirst: true }, ...over }, l, null));
 
-  it('V1-405 · V1-410 · new-05 · no chip where nothing is answered; a count says how far; a chip never splits', () => {
+  it('V1-405 · V1-410 · w4-business-assistant-22 · menu rows: each says where it stands, in plain words; answered in the done colour; a count says how far', () => {
     for (const l of LOCALES) {
       const html = hub(l);
-      expect(html, l).not.toContain(t(l, 'hs.state.open'));
       expect(html, l).toContain(bare(t(l, 'hs.count', { done: '0', total: '9' })));
+      // every question is a row with its door and its state — never the waiting colour for a setting
+      expect(html.match(/<a class="srow sr-menu" href="\/app\/business\/selling\/[a-z_]+">/g), l).toHaveLength(9);
+      expect(html.split(`<span class="sr-value"><bdi>${t(l, 'hs.state.open')}</bdi></span>`).length - 1, l).toBe(9);
+      expect(html, l).not.toContain('sr-value warn');
       const some = hub(l, { price: { state: 'answered', answer: { q: 'price', quantityFirst: true } } });
-      expect(some, l).toContain(`<span class="chip auto">${t(l, 'hs.state.answered')}</span>`);
+      expect(some, l).toContain(`<span class="sr-value ok"><bdi>${t(l, 'hs.state.answered')}</bdi></span>`);
     }
-    expect(css).toMatch(/\.hs-q \.chip \{ display:inline-block; white-space:nowrap; \}/);
   });
 
   it('V1-406 · the tab says the page’s own name', () => {
@@ -236,8 +238,8 @@ describe('Phase 9 · B5 · How you sell', () => {
     }
   });
 
-  it('V1-411 · missed-06 · the rows run the column; the back link is at the top, as on a question', () => {
-    expect(css).toMatch(/\.hs-rows \{ max-width:100%; \}/);
+  it('V1-411 · missed-06 · the rows are the menu card; the back link is at the top, as on a question', () => {
+    expect(hub('en')).toContain('<div class="sgroup"><ul class="scard">');
     for (const l of LOCALES) {
       const html = hub(l);
       expect(html.indexOf('class="back"'), l).toBeLessThan(html.indexOf('<h1'));

@@ -95,9 +95,11 @@ describe('K1 · what needs its own tick', () => {
     const photo = read('Tote $12\nCap $8', PHOTO, true);
     expect(photo.every((r) => needsTick(r, photo, PHOTO, false))).toBe(true);
     const paste = read('Tote $12\nHoodie S-M $40 / L-XL $45\nMug');
-    expect(paste.map((r) => needsTick(r, paste, PASTE, false))).toEqual([false, true, false]);
+    // The warmth run, phase 9 (V1-335) — a pasted line with no figure at all ("Mug", or a "SPRING SALE")
+    // is a heading as often as a product to price later: it waits for its own tick too.
+    expect(paste.map((r) => needsTick(r, paste, PASTE, false))).toEqual([false, true, true]);
     expect(paste.every((r) => needsTick(r, paste, PASTE, true))).toBe(true);
-    expect(blockers(paste, PASTE, false)).toEqual([{ kind: 'untick', keys: ['l2'] }]);
+    expect(blockers(paste, PASTE, false)).toEqual([{ kind: 'untick', keys: ['l2', 'l3'] }]);
     expect(blockers(paste.map((r) => ({ ...r, removed: true })), PASTE, false)).toEqual([{ kind: 'nothing' }]);
   });
 });

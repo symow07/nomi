@@ -104,7 +104,7 @@ d('Phase 2 · her data, out and gone (requires DATABASE_URL)', () => {
     // configuration queries name eleven tables, and the only thing that catches
     // a wrong column is a database — `suppressions.at` was `created_at` in the
     // first draft of this export and every unit test passed.
-    const { EXPORT_SUBJECTS, exportFileName } = await import('../../src/api/web/dataExport.js');
+    const { EXPORT_SUBJECTS, exportFileName, downloadName } = await import('../../src/api/web/dataExport.js');
     expect(EXPORT_SUBJECTS.length).toBe(9);
     for (const subject of EXPORT_SUBJECTS) {
       // The positioning rewrite: the link and the file carry the public name (customers, prices-given).
@@ -112,7 +112,8 @@ d('Phase 2 · her data, out and gone (requires DATABASE_URL)', () => {
       expect(res.statusCode, subject).toBe(200);
       expect(String(res.headers['content-type']), subject).toContain('text/csv');
       expect(String(res.headers['content-disposition']), subject)
-        .toMatch(new RegExp(`attachment; filename="nomi-${exportFileName(subject)}-\\d{4}-\\d{2}-\\d{2}\\.csv"`));
+        // The warmth run, phase 9 (V1-380) — the saved file is called what its page calls it ("price-limits").
+        .toMatch(new RegExp(`attachment; filename="nomi-${downloadName(subject, 'en')}-\\d{4}-\\d{2}-\\d{2}\\.csv"`));
       // Nothing between here and her laptop keeps a copy.
       expect(String(res.headers['cache-control']), subject).toContain('no-store');
       // The mark Excel needs, then a header row.

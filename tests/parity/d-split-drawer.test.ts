@@ -65,7 +65,8 @@ describe('D · five entries', () => {
     expect(under('/app/business/how-you-sell')).toEqual(expect.arrayContaining([
       '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
     ]));
-    expect(under('/app/business/channels')).toEqual(['/app/channels']);
+    // Phase 9 (w4-business-assistant-05) — a screen per channel, under the one home.
+    expect(under('/app/business/channels')).toEqual(['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts']);
     expect(under('/app/employee')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
     expect(under('/app/settings')).toEqual(['/app/business', '/app/settings/setup']);
     expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/settings/people', '/app/settings/language']));
@@ -88,7 +89,8 @@ describe('D · five entries', () => {
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/settings/people', 'x')).toBe('settings');
     expect(hubFor('/app/settings/data', 'x')).toBe('settings');
-    expect(hubFor('/app/channels', 'x')).toBe('settings');
+    expect(hubFor('/app/channels/whatsapp', 'x')).toBe('settings');
+    expect(hubFor('/app/channels/whatsapp/connect', 'x')).toBe('settings');
     expect(hubFor('/app/onboarding', 'x')).toBe('settings');
     // the outreach chain still resolves, for a workspace that has it — under
     // Buyers since A (contacts hung off Customers, which merged into Buyers)
@@ -178,19 +180,21 @@ describe('D · the doors moved, the pages did not', () => {
     expect(rows['/app/settings/people']).toContain('1 person');
     expect(html).not.toContain('method="post" action="/app/settings"');   // the form lives on its own page
     expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ people: 4 }, 'en', null)))
-      .toContain(`<span class="sr-value ok" dir="auto"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
+      .toContain(`<span class="sr-value ok"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
   });
 
-  it('phase 7 · two labelled groups, one card of rows each; the switch a tap down; the owner\'s pages only the owner\'s', () => {
+  it('phase 7 · two groups, one card of rows each; the switch a tap down; the owner\'s pages only the owner\'s', () => {
     const v = { people: 2, alerts: { available: true, phones: 0 }, signIn: { email: 'owner@example.test' },
       billing: { configured: false, exempt: false, status: 'none' }, dataWaiting: 1 };
     const html = withWorkspace(facts(), () => renderSetup(v, 'en', null));
+    // Phase 9 (V1-153) — the first card is the screen's own (no third name for setting up above it); the account's keeps its heading.
     const groups = [...html.matchAll(/<h2 class="sgroup-h" id="sg-([a-z]+)">([^<]+)<\/h2>/g)].map((m) => m[1]);
-    expect(groups).toEqual(['start', 'account']);
+    expect(groups).toEqual(['account']);
+    expect(html).not.toContain(t('en', 'setup.group.start'));
     expect(html.match(/<ul class="scard">/g)).toHaveLength(2);
-    expect(html).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
-    expect(html).toContain('<span class="sr-value" dir="auto"><bdi>owner@example.test</bdi></span>');
-    expect(html).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'setup.value.notSetUp')}</bdi></span>`);
+    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
+    expect(html).toContain('<span class="sr-value"><bdi>owner@example.test</bdi></span>');
+    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.notSetUp')}</bdi></span>`);
     expect(html).toContain('1 request waiting');
     expect(html).not.toContain('role="search"');
     expect(html).not.toContain('class="langsw"');

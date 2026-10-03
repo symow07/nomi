@@ -159,8 +159,12 @@ describe('the warmth run · every date carries a face and a sentence, never a ba
     }
     expect(t('en', 'calendar.say.reply_due', { who: 'Pedro' })).toBe('Reply owed to Pedro');
     // Chinese runs a Chinese name on and sets a Latin one off
-    expect(t('zh', 'calendar.say.price_worked_out', { who: '陈莉' })).toBe('给陈莉算出的报价');
-    expect(t('zh', 'calendar.say.price_worked_out', { who: 'Pedro' })).toBe('给 Pedro 算出的报价');
+    expect(t('zh', 'calendar.say.price_worked_out', { who: '陈莉' })).toBe('给陈莉发了报价');
+    expect(t('zh', 'calendar.say.price_worked_out', { who: 'Pedro' })).toBe('给 Pedro 发了报价');
+    // phase 9 (w4-customers-13) — a price is said as far as it got
+    for (const l of LOCALES) for (const k of ['calendar.say.price_review', 'calendar.say.price_unsent'] as const) {
+      expect(t(l, k, { who: 'Pedro' }), `${l}/${k}`).toContain('Pedro');
+    }
   });
 
   it('a kept photo is drawn from what the page already knows; nobody\'s photo is fetched to draw it', () => {
@@ -219,14 +223,16 @@ describe('the warmth run · the day is one list in time order, done greyed', () 
 });
 
 describe('the warmth run · the chrome folds away', () => {
-  it('what the marks mean, choosing one kind or one customer, and adding a date are in ONE closed fold, under the period', () => {
+  it('choosing one kind or one customer, and adding a date are in ONE closed fold, under the period; what the marks mean is under the dates', () => {
     for (const l of LOCALES) for (const kind of ['list', 'week', 'month', 'day'] as const) {
       const html = draw(l, kind);
       const open = html.indexOf('<details class="cal-tools">');
       const close = html.indexOf('</details>', open);
       expect(open, `${l}/${kind}`).toBeGreaterThan(html.indexOf('<div class="cal-period">'));
       expect(html.match(/<details class="cal-tools"/g), `${l}/${kind}`).toHaveLength(1);
-      for (const part of ['<p class="cal-legend small">', '<form method="get" action="/app/calendar" class="pform cal-filter">',
+      // phase 9 (w4-customers-14) — the legend left the fold: it sits under the dates it explains
+      expect(html.indexOf('<p class="cal-legend small">'), `${l}/${kind}`).toBeGreaterThan(close);
+      for (const part of ['<form method="get" action="/app/calendar" class="pform cal-filter">',
         '<form method="post" action="/app/calendar/entries" class="pform">', '<p class="muted cal-lede">']) {
         const i = html.indexOf(part);
         expect(i > open && i < close, `${l}/${kind}: ${part}`).toBe(true);
@@ -274,7 +280,7 @@ describe('the warmth run · an empty period is one warm panel with one door', ()
     }
     // warm: a rounded panel, no dashed grey box
     expect(rule('.empty.cal-empty')).toContain('border:0');
-    expect(rule('.empty.cal-empty')).toContain('border-radius:var(--radius-panel)');
+    expect(rule('.empty.cal-empty')).toContain('border-radius:var(--radius-card)');   // w4-whole-17: a panel of words is a card; the grid is the panel
   });
 });
 

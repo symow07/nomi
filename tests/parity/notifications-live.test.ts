@@ -70,8 +70,13 @@ const json = (body: unknown, status = 200, type = 'basic') =>
   ({ type, status, ok: status >= 200 && status < 300, json: () => Promise.resolve(body) });
 const htmlOf = (ok = true) => ({ type: 'basic', status: ok ? 200 : 500, ok, text: () => Promise.resolve('<html>') });
 /** What the rail's address answers, as `railSaid` shapes it. */
+// The warmth run's re-audit (w4-whole-03, -05): the mark carries the moment the latest customer began
+// to wait, and the answer the rail's words, so a live update reads as a reload would.
 const rail = (n: number, toast?: { say: string; door: string }) =>
-  json({ n, mark: String(n), shown: String(n), label: `Inbox, ${n} customers need you`, ...(toast ? { toast } : {}) });
+  json({ n, mark: `${n}.${n * 100}`, shown: String(n), words: `${n} waiting`, label: `Inbox, ${n} customers need you`, ...(toast ? { toast } : {}) });
+/** The rail's number as drawn: its words where there is room, its figure on a phone's tile. */
+const shownOf = (b: Nd): string[] => b.children.map((c) => `${c.attrs['class']}:${c.textContent}`);
+const drawn = (n: number): string[] => [`nl-long:${n} waiting`, `nl-short:${n}`];
 const ROSE = { say: 'Amina Yusuf is waiting for you', door: DOOR };
 
 /** A page in a workspace: the rail with its Inbox entry, a main, the slot that asks. Optionally Today's region. */
@@ -162,11 +167,11 @@ describe('phase 8 · the rail: a customer newly waiting marks Inbox, and its num
     p.run();
     await p.advance(20_000);
     expect(p.entry.getAttribute('data-fresh')).toBe('1');
-    expect(p.badge()!.textContent).toBe('3');
+    expect(shownOf(p.badge()!)).toEqual(drawn(3));
     expect(p.entry.getAttribute('aria-label')).toBe('Inbox, 3 customers need you');
     expect(p.entry.querySelectorAll('span.navcount')).toHaveLength(1);
     await p.advance(20_000);
-    expect(p.asked).toEqual(['/app/live/rail?since=2', '/app/live/rail?since=3']);
+    expect(p.asked).toEqual(['/app/live/rail?since=2', '/app/live/rail?since=3.300']);
   });
 
   it('from none waiting: the number appears, drawn as the shell draws it', async () => {
@@ -175,7 +180,7 @@ describe('phase 8 · the rail: a customer newly waiting marks Inbox, and its num
     expect(p.badge()).toBeNull();
     await p.advance(20_000);
     const badge = p.badge()!;
-    expect(badge.textContent).toBe('1');
+    expect(shownOf(badge)).toEqual(drawn(1));
     expect(badge.getAttribute('aria-hidden')).toBe('true');
     expect(badge.parentNode).toBe(p.entry);
   });
@@ -187,10 +192,10 @@ describe('phase 8 · the rail: a customer newly waiting marks Inbox, and its num
     await p.advance(20_000);
     expect(p.entry.getAttribute('data-fresh')).toBeNull();
     expect(p.slot.children).toEqual([]);
-    expect(p.badge()!.textContent).toBe('2');
+    expect(shownOf(p.badge()!)).toEqual(drawn(2));
     n = 1;
     await p.advance(20_000);
-    expect(p.badge()!.textContent).toBe('1');
+    expect(shownOf(p.badge()!)).toEqual(drawn(1));
     expect(p.entry.getAttribute('data-fresh')).toBeNull();
     expect(p.slot.children).toEqual([]);
     // none waiting: no number, no spoken count
@@ -258,7 +263,7 @@ describe('phase 8 · the card: who and why, a door to the conversation, gone aft
 
   it('one at a time: a second arrival takes the first one\'s place, and keeps its own six seconds', async () => {
     const p = page({ count: 0, respond: (u) => (u.endsWith('since=0') ? Promise.resolve(rail(1, ROSE))
-      : u.endsWith('since=1') ? Promise.resolve(rail(2, { say: 'Omar said yes to an order', door: DOOR })) : undefined) });
+      : u.endsWith('since=1.100') ? Promise.resolve(rail(2, { say: 'Omar said yes to an order', door: DOOR })) : undefined) });
     p.run();
     await p.advance(20_000);
     await p.advance(4_000);
@@ -277,7 +282,7 @@ describe('phase 8 · the card: who and why, a door to the conversation, gone aft
       p.run();
       await p.advance(20_000);
       expect(p.slot.children, door).toEqual([]);
-      expect(p.badge()!.textContent, door).toBe('1');
+      expect(shownOf(p.badge()!), door).toEqual(drawn(1));
     }
   });
 
@@ -330,5 +335,23 @@ describe('phase 8 · Today updates in place', () => {
     await p.advance(60_000);
     expect(p.asked).not.toContain('/app');
     expect(p.main.children[0]!.attrs['said']).toBe('before');
+  });
+});
+
+describe('the warmth run\'s re-audit (w4-whole-23) · the card is read at the reader\'s pace', () => {
+  it('pointed at or focused, it stays; let go, it has its six seconds again', async () => {
+    const p = page({ count: 0, respond: (u) => (u.endsWith('since=0') ? Promise.resolve(rail(1, ROSE)) : undefined) });
+    p.run();
+    await p.advance(20_000);
+    const card = p.slot.children[0]!;
+    await p.advance(5_000);
+    card.fire('mouseenter');
+    await p.advance(30_000);
+    expect(p.slot.children).toEqual([card]);
+    card.fire('mouseleave');
+    await p.advance(5_999);
+    expect(p.slot.children).toEqual([card]);
+    await p.advance(1);
+    expect(p.slot.children).toEqual([]);
   });
 });

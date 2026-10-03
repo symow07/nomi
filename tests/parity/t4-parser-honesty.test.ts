@@ -14,7 +14,9 @@ import { usd } from '../../src/core/types/money.js';
  * figure one way or refuses it with a reason the review names:
  *
  *   · thousands commas are thousands — "$1,250.00" was read as $1.00;
- *   · a figure that reads two ways ("1.250,00", "12,50", "1.250") is refused;
+ *   · a figure that reads two ways ("1.250,00", "1.250") is refused; "12,50"
+ *     reads one way only — no thousands group is two digits long — and is
+ *     12.50 (the warmth run, phase 9, V1-334: how French and Spanish write it);
  *   · only the workspace's own currency (CUR, #153 — it was US dollars for
  *     everyone): in a dollar workspace "€", "18元", "HK$25" are refused — they
  *     came in as no price, or as dollars;
@@ -32,9 +34,17 @@ describe('T4 · separators', () => {
     expect(one('Leather bag 1,250.00 USD').price).toEqual(usd(1250));
   });
   it('a figure that reads two ways is refused, never guessed', () => {
-    for (const line of ['Bag $1.250,00', 'Bag $12,50', 'Bag $1.250', 'Bag\t1.250,00']) {
+    for (const line of ['Bag $1.250,00', 'Bag $1.250', 'Bag\t1.250,00']) {
       expect(one(line), line).toMatchObject({ price: null, problem: 'ambiguous_price' });
     }
+  });
+  it('a decimal comma before two digits reads one way: the cents', () => {
+    for (const line of ['Bag $12,50', 'Bag 12,50 USD', 'Bag\t12,50', 'Bag 12,50 each']) {
+      expect(one(line).price, line).toEqual(usd(12.5));
+    }
+    // A thousands group is three digits, so these keep their reading.
+    expect(one('Sofa $12,500').price).toEqual(usd(12500));
+    expect(one('Sofa $1,250.00').price).toEqual(usd(1250));
   });
   it('an ordinary decimal, and sentence punctuation after it, are fine', () => {
     expect(one('Cup $0.125').price).toEqual(usd(0.125));

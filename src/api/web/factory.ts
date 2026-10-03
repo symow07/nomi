@@ -27,7 +27,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 
-import { esc, deeper, back, signalMark } from './layout.js';
+import { esc, deeper, back, signalMark, todoMark } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import {
@@ -37,7 +37,11 @@ import { loadBusinessKind } from './businessKind.js';
 import { HS_BASE, loadHub } from './howYouSell.js';
 import type { OwnerRate } from '../../core/commerce/exchange.js';
 import { loadProductList } from './products.js';
-import { loadChannels, phonePlaceholder, type ChannelView, type InboundLink } from './channels.js';
+import {
+  loadChannels, phonePlaceholder, channelScreenHref, channelScreenTitle, channelsFoot, CHANNELS_HOME,
+  type ChannelView, type InboundLink,
+} from './channels.js';
+import { anyConnected, connectedChannels, type ConnectedChannels } from '../../db/connectedChannels.js';
 import { liveMailAccount } from '../../db/mailAccounts.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js';
@@ -48,6 +52,7 @@ import { loadKillSwitches } from '../../db/opsFlags.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
 import { loadPriceRules, type PriceRulesView } from './priceRules.js';
+import { certRows } from './knowledge.js';
 import { OWNER_VIEW, actorName, type Person, type Viewer } from '../../core/conversation/people.js';
 import { loadPeople } from './people.js';
 import {
@@ -204,6 +209,12 @@ export type FactoryView = {
     readonly country?: string | null;
     /** A2 — the channels she said she uses, in her order: the order they are shown. */
     readonly channelsUsed?: readonly string[];
+    /**
+     * w4-whole-11 — which places a customer writes are CONNECTED, by the one
+     * definition Setup, Ready for customers and the guide read
+     * (`connectedChannels`). Absent: read from the lifecycle, as before.
+     */
+    readonly connected?: ConnectedChannels;
   };
   /** null = the factory is set up. A complete factory feels complete. */
   readonly nextStep: FactoryStep | null;
@@ -232,7 +243,8 @@ export type BusinessMenu = {
   readonly kind: string | null;
   /** How many of How you sell's questions are answered; null for staff (the questions are the owner's). */
   readonly howYouSell: { readonly answered: number; readonly total: number } | null;
-  readonly terms: { readonly incoterm: string; readonly payment: string } | null;
+  /** V1-537 — the delivery term is null when the owner ships under none. */
+  readonly terms: { readonly incoterm: string | null; readonly payment: string } | null;
   /** The sample price stated (amount 0 = free), null when nothing is stated; and how many customers wait for one. */
   readonly samples: { readonly price: Money | null; readonly waiting: number };
   /** The closure in force, or the next one to come; null when none is ahead. */
@@ -442,7 +454,7 @@ export async function loadFactory(
   o: { readonly rehearse?: boolean } = {},
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
-  const [profile, products, promises, channels, setup, pre, state, stop, opsSilenced, recipients, rehearsal, prices, people, mail, allowance] = await Promise.all([
+  const [profile, products, promises, channels, setup, pre, state, stop, opsSilenced, recipients, rehearsal, prices, people, mail, allowance, connected] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
@@ -467,6 +479,8 @@ export async function loadFactory(
     bid.ok ? withTenantTx(db, bid.value, (tx) => liveMailAccount(tx, bid.value)) : null,
     // G3 — the day's allowance, from the one reader the hold and the send gate ask.
     bid.ok ? withTenantTx(db, bid.value, (tx) => allowanceOf(tx)) : null,
+    // w4-whole-11 — connected, by the one definition.
+    bid.ok ? withTenantTx(db, bid.value, (tx) => connectedChannels(tx, bid.value)) : null,
   ]);
   const sold = products.filter((p) => p.isActive);
   return {
@@ -483,6 +497,7 @@ export async function loadFactory(
     connection: {
       channel: channels.whatsapp, ownerPhone: channels.ownerPhone,
       others: otherChannels(offer, mail), country: channels.country ?? null, channelsUsed: channels.channelsUsed ?? [],
+      ...(connected ? { connected } : {}),
     },
     // The ONE setup derivation — not this module's own opinion of "introduced".
     nextStep: setup.nextStep,
@@ -534,6 +549,15 @@ export async function loadFactory(
  * about; neither page keeps a second copy of either.
  */
 export const BUSINESS_FACTS_PATH = '/app/settings/profile';
+
+/**
+ * The profile is done once it holds what setting up asks of it (a name, a
+ * description, a location and a way to be reached — db/setup.ts). One answer,
+ * read by My business's row and by the assistant's "can talk about" row
+ * (w4-business-assistant-31), so the two rows for it say one thing.
+ */
+export const profileFinished = (p: Pick<BusinessProfile, 'name' | 'description' | 'location' | 'contactEmail' | 'contactPhone'>): boolean =>
+  p.name.trim() !== '' && Boolean(p.description) && Boolean(p.location) && Boolean(p.contactEmail || p.contactPhone);
 export const BUSINESS_PRODUCTS_PATH = '/app/products';
 
 export type BusinessScreen = 'channels' | 'allowlist' | 'ready' | 'promises' | 'how';
@@ -554,7 +578,7 @@ const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
   // Phase 9 — the operator's to do (tools/installation-checks.mjs): nothing for the owner to open.
   secrets_not_rotated: null,
   assistant_not_named: '/app/onboarding',
-  no_channel: '/app/channels',
+  no_channel: channelScreenHref('whatsapp'),
   no_allowlist: BUSINESS_SCREEN_PATH.allowlist,
 };
 
@@ -628,7 +652,7 @@ function rehearsalBlock(r: RehearsalReport, locale: Locale, name: string, namesZ
         ${deeper(FINDING_FIX[reason], t(locale, FINDING_DOOR[reason], { name }))}
       </div>`).join('');
 
-  return `<h2 class="sub3">${esc(t(locale, 'factory.rehearsal.title', { name }))}</h2>
+  return `<h2 class="sub3" id="rehearsal">${esc(t(locale, 'factory.rehearsal.title', { name }))}</h2>
     <p class="fdesc">${esc(t(locale, 'factory.rehearsal.lede', { name }))}</p>
     <div class="rehear">${body}</div>
     ${scope ? `<p class="fdesc muted">${esc(scope)}</p>` : ''}`;
@@ -659,14 +683,19 @@ function standing(f: FactoryView) {
   // 0071 — ops paused sending: the same lines are untrue, for another reason.
   const held = stoppedAt !== null || r.opsSilenced === true;
   const liveElsewhere = others.filter((o) => o.state === 'connected');
+  // w4-whole-11 — WhatsApp connected by the one definition (`connectedChannels`),
+  // whatever this installation's provider says; absent, by the lifecycle.
+  const waWired = f.connection.connected?.whatsapp ?? (lc === 'active' || lc === 'ready');
+  // …and nothing connected anywhere, by the same definition.
+  const nothingConnected = f.connection.connected ? !anyConnected(f.connection.connected) : !waWired && liveElsewhere.length === 0;
   // M20.4 (F-06) / Phase 4b (CC-11) — the list of who may be messaged is
   // WhatsApp's alone (the pilot number's activation reads it): it appears only
   // under a WhatsApp that is, or was, connected — or that already holds numbers.
   const showAllowlist = lc !== 'not_connected' || r.recipients.length > 0;
-  const waRelevant = r.live || lc !== 'not_connected' || r.recipients.length > 0 || used.includes('whatsapp');
+  const waRelevant = r.live || lc !== 'not_connected' || waWired || r.recipients.length > 0 || used.includes('whatsapp');
   // In the order she named them at sign-up; the rest after, in the page's own order.
   const rank = (k: string, i: number): number => { const u = used.indexOf(k); return u === -1 ? used.length + i : u; };
-  return { r, lc, others, used, stoppedAt, held, liveElsewhere, showAllowlist, waRelevant, rank };
+  return { r, lc, others, used, stoppedAt, held, liveElsewhere, showAllowlist, waRelevant, rank, waWired, nothingConnected };
 }
 
 /* ── the menu ─────────────────────────────────────────────────────────────── */
@@ -681,7 +710,11 @@ export function renderFactory(
 
   // A new business gets ONE next step. A finished one gets nothing at all —
   // setup disappears rather than turning into a permanent checklist.
-  const next = f.nextStep
+  // Phase 9 (w4-business-assistant-03) — never a second door to a row of this
+  // menu (the profile, the products, where customers reach you): only the
+  // steps no row here opens (the name, the first reply).
+  const ROW_STEPS: readonly string[] = ['profile', 'products', 'channels'];
+  const next = f.nextStep && !ROW_STEPS.includes(f.nextStep)
     ? deeper(STEP_LINK[f.nextStep], t(locale, `factory.next.${f.nextStep}` as MessageKey, { name }), 'next')
     : '';
 
@@ -689,25 +722,25 @@ export function renderFactory(
   // a location and a way to be reached — db/setup.ts). The business's name is
   // the page's own header already; the row says where the profile stands.
   const unnamed = p.name.trim() === '';
-  const unfinished = unnamed || !p.description || !p.location || (!p.contactEmail && !p.contactPhone);
+  const unfinished = !profileFinished(p);
   const profile = menuRow({ href: BUSINESS_FACTS_PATH, icon: 'business', label: t(locale, 'settings.profile.title'),
     desc: unnamed ? t(locale, 'factory.about.empty', { name }) : null,
-    value: t(locale, unfinished ? 'setup.state.toDo' : 'setup.state.done'), tone: unfinished ? 'warn' : 'ok' });
+    value: t(locale, unfinished ? 'setup.state.toDo' : 'setup.state.done'), tone: unfinished ? undefined : 'ok' });
 
-  const kind = menuRow({ href: '/app/settings/business', icon: 'tag', label: t(locale, 'business.kind.label'),
-    value: m === null ? null : m.kind ? t(locale, `business.kind.${m.kind}` as MessageKey) : t(locale, 'setup.state.notAnswered'),
-    tone: m !== null && !m.kind ? 'warn' : undefined });
+  // w4-whole-14 — the row is a short form of the page's own name ("What you do, your country and your website").
+  const kind = menuRow({ href: '/app/settings/business', icon: 'tag', label: t(locale, 'business.row.kind'),
+    value: m === null ? null : m.kind ? t(locale, `business.kind.${m.kind}` as MessageKey) : t(locale, 'setup.state.notAnswered') });
 
   // Where customers reach you: the channels answering, by name; a connection
   // that stopped waits for her; nothing connected waits for her too.
-  const wa: ReachChannel['state'] = s.lc === 'active' || s.lc === 'ready' ? 'connected' : s.lc === 'paused' ? 'attention' : 'not_connected';
+  const wa: ReachChannel['state'] = s.waWired ? 'connected' : s.lc === 'paused' ? 'attention' : 'not_connected';
   const all = [{ channel: 'whatsapp', state: wa }, ...s.others]
     .map((c, i) => ({ ...c, at: s.rank(c.channel, i) })).sort((a, b) => a.at - b.at);
   const answering = all.filter((c) => c.state === 'connected').map((c) => t(locale, `reach.channel.${c.channel}` as MessageKey));
   const needsHer = all.some((c) => c.state === 'attention');
   const reach = menuRow({ href: BUSINESS_SCREEN_PATH.channels, icon: 'chat', label: t(locale, 'factory.reach.title'),
     value: needsHer ? t(locale, 'connect.state.attention') : answering.length ? inLine(answering) : t(locale, 'setup.state.notConnected'),
-    tone: needsHer || answering.length === 0 ? 'warn' : 'ok' });
+    tone: needsHer ? 'warn' : answering.length ? 'ok' : undefined });
 
   // Going live: the same facts the screen's first line answers from.
   const r = s.r;
@@ -716,7 +749,7 @@ export function renderFactory(
     : r.live || s.liveElsewhere.length > 0 ? ['business.live.on', 'ok']
     : !s.waRelevant ? ['setup.state.notConnected', undefined]
     : r.canActivate ? ['business.live.ready', 'ok']
-    : ['business.live.notYet', 'warn'];
+    : ['business.live.notYet', undefined];
   const live = menuRow({ href: BUSINESS_SCREEN_PATH.ready, icon: 'power', label: t(locale, 'business.row.live'),
     value: t(locale, liveKey), tone: liveTone });
 
@@ -726,7 +759,7 @@ export function renderFactory(
     desc: n === 0 ? t(locale, 'factory.sell.empty', { name })
       : f.products.needPrice > 0 ? t(locale, 'factory.sell.needPrice', { n: f.products.needPrice, name })
       : t(locale, 'factory.sell.allPriced', { name }),
-    value: n === 0 ? t(locale, 'business.value.noneYet') : productCount(locale, n), tone: n === 0 ? 'warn' : undefined });
+    value: n === 0 ? t(locale, 'business.value.noneYet') : productCount(locale, n) });
 
   // M29 — what she may never go below. Counts of real rows: how many priced
   // products still have no limit she stated. Never a score. G9a — the page is
@@ -736,7 +769,7 @@ export function renderFactory(
   const prices = menuRow({ href: viewer.isOwner ? '/app/business/prices' : null, icon: 'coins', label: t(locale, 'factory.prices.title'),
     desc: noLimits ? t(locale, 'factory.prices.none', { name }) : null,
     value: noLimits ? t(locale, 'setup.value.notSetUp') : pr.unanswered > 0 ? tn(locale, 'business.value.withoutLimit', pr.unanswered) : t(locale, 'business.value.allSet'),
-    tone: noLimits || pr.unanswered > 0 ? 'warn' : 'ok' });
+    tone: noLimits || pr.unanswered > 0 ? undefined : 'ok' });
 
   // What she promises: the certificates and claims by their names.
   const certs = f.promises.certs.map((c) => claimName(locale, c));
@@ -747,7 +780,7 @@ export function renderFactory(
   const hs = m?.howYouSell ?? null;
   const how = menuRow({ href: BUSINESS_SCREEN_PATH.how, icon: 'receipt', label: t(locale, 'factory.sellhow.title'),
     value: hs ? t(locale, 'hs.progress', { done: hs.answered, total: hs.total }) : null,
-    tone: hs ? (hs.answered >= hs.total ? 'ok' : 'warn') : undefined });
+    tone: hs && hs.answered >= hs.total ? 'ok' : undefined });
 
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
     ${flashBanner(flash)}
@@ -767,9 +800,11 @@ const head = (locale: Locale, title: string, flash: Flash | null, to: { href: st
 
 export function renderBusinessScreen(
   screen: BusinessScreen, f: FactoryView, locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
+  /** KS6 — the operator's approval before the first connection, already rendered: first on the channels' home. */
+  extras: { readonly approvalHtml?: string } = {},
 ): string {
   switch (screen) {
-    case 'channels': return channelsScreen(f, locale, flash, viewer);
+    case 'channels': return channelsScreen(f, locale, flash, viewer, extras.approvalHtml ?? '');
     case 'allowlist': return allowlistScreen(f, locale, flash, viewer);
     case 'ready': return readyScreen(f, locale, flash, viewer);
     case 'promises': return promisesScreen(f, locale, flash);
@@ -778,45 +813,57 @@ export function renderBusinessScreen(
 }
 
 /**
- * Where customers reach you — the ONE home of the channels (phase 7): a row
- * for each place a customer can write, in the order she named them at
- * sign-up, each with where it stands and the way to the Channels page; under
- * WhatsApp, who may be messaged; and where her own alerts go.
+ * Where customers reach you — the ONE home of the channels (phase 7), a menu
+ * since phase 9 (w4-business-assistant-05, -07; w4-whole-15): a row for each
+ * place a customer can write, in the order she named them at sign-up, each
+ * with where it stands — connected by the one definition every page reads
+ * (`connectedChannels`, w4-whole-11) — and the door to that channel's own
+ * screen; under WhatsApp, who may be messaged; the number her alerts use;
+ * and what is not available yet. The approval the first connection waits for
+ * comes first, because every Connect waits on it.
  */
-function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer): string {
+function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer, approvalHtml: string): string {
   const name = assistantName(locale);
   const s = standing(f);
   const c = f.connection.channel;
-  // M20.3.1 — one lifecycle, four honest states. "Paused" and "never connected"
-  // are different problems with different next steps, so they read differently.
-  // Phase 4b — "cannot receive or answer a buyer" is false the moment she is
-  // answering them on Instagram: then an unconnected WhatsApp says only that
-  // customers who write THERE are not answered.
+  // M20.3.1 — one lifecycle, four honest states; and connected by the one
+  // definition while this installation carries no WhatsApp message (wired).
+  const wired = s.waWired && s.lc !== 'active' && s.lc !== 'ready';
   const elsewhere = s.others.some((o) => o.state === 'connected');
-  const waHint = s.lc === 'not_connected' && elsewhere
-    ? t(locale, 'factory.reach.other.notConnected', { name })
+  const waHint = wired ? t(locale, 'golive.waNoProvider')
+    : s.lc === 'not_connected' && elsewhere ? t(locale, 'factory.reach.other.notConnected', { name })
     : t(locale, `channel.state.${s.lc}.hint` as MessageKey, { name });
-  const whatsapp = menuRow({ href: '/app/channels', label: t(locale, 'reach.channel.whatsapp'),
-    descHtml: [s.lc !== 'not_connected' && c.displayId ? `<bdi>${esc(c.displayId)}</bdi>` : '', esc(waHint)].filter(Boolean).join(' · '),
-    value: t(locale, `channel.state.${s.lc}` as MessageKey, { name }),
+  const whatsapp = menuRow({ href: channelScreenHref('whatsapp'), icon: 'chat', label: channelScreenTitle(locale, 'whatsapp'),
+    descHtml: [s.waWired && c.displayId ? `<bdi>${esc(c.displayId)}</bdi>` : '', esc(waHint)].filter(Boolean).join(' · '),
+    value: wired ? t(locale, 'connect.state.connected') : t(locale, `channel.state.${s.lc}` as MessageKey, { name }),
     // Phase 9 — the waiting signal is for a connection that stopped; a number
     // never connected waits on nothing, so it carries no state colour.
-    tone: s.lc === 'active' || s.lc === 'ready' ? 'ok' : s.lc === 'paused' ? 'warn' : undefined });
+    tone: s.waWired ? 'ok' : s.lc === 'paused' ? 'warn' : undefined });
 
-  const other = (o: ReachChannel): string => menuRow({ href: '/app/channels', label: t(locale, `reach.channel.${o.channel}` as MessageKey),
-    descHtml: o.state === 'connected'
-      ? [o.as ? `<bdi>${esc(o.as)}</bdi>` : '', esc(t(locale, 'reach.inbound.connected', { name }))].filter(Boolean).join(' · ')
-      : o.state === 'attention' && o.channel === 'email' && o.as
-        // the address isolated, not the sentence (connect.ts's withAddress lesson)
-        ? esc(t(locale, 'connect.mail.attention', { address: '\u0000' })).replace('\u0000', `<bdi>${esc(o.as)}</bdi>`)
-      : o.state === 'attention'
-        ? [o.as ? `<bdi>${esc(o.as)}</bdi>` : '', esc(t(locale, 'reach.inbound.attention'))].filter(Boolean).join(' · ')
-        : esc(t(locale, 'factory.reach.other.notConnected', { name })),
-    value: t(locale, o.state === 'connected' ? 'connect.state.connected' : o.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'),
-    tone: o.state === 'connected' ? 'ok' : o.state === 'attention' ? 'warn' : undefined });
+  // Instagram and Messenger: one Facebook Page connects both, so one row and one screen.
+  const meta = (['instagram', 'messenger'] as const).map((ch) => s.others.find((o) => o.channel === ch)).filter((o): o is ReachChannel => o !== undefined);
+  const metaOn = meta.filter((o) => o.state === 'connected');
+  const metaAttention = meta.some((o) => o.state === 'attention');
+  const metaAs = meta.find((o) => o.as)?.as ?? null;
+  const metaRow = menuRow({ href: channelScreenHref('meta'), icon: 'chat', label: channelScreenTitle(locale, 'meta'),
+    ...(metaAs ? { descHtml: `<bdi>${esc(metaAs)}</bdi>` } : {}),
+    value: metaAttention ? t(locale, 'connect.state.attention')
+      // both answering: Connected; one of them: its name
+      : metaOn.length && metaOn.length === meta.length ? t(locale, 'connect.state.connected')
+      : metaOn.length ? inLine(metaOn.map((o) => t(locale, `reach.channel.${o.channel}` as MessageKey)))
+      : t(locale, meta.length ? 'connect.state.notConnected' : 'connect.state.notHere'),
+    tone: metaAttention ? 'warn' : metaOn.length ? 'ok' : undefined });
 
-  const rows = [{ key: 'whatsapp', html: whatsapp }, ...s.others.map((o) => ({ key: o.channel as string, html: other(o) }))]
-    .map((b, i) => ({ ...b, at: s.rank(b.key, i) })).sort((a, b) => a.at - b.at).map((b) => b.html);
+  const mail = s.others.find((o) => o.channel === 'email');
+  const email = menuRow({ href: channelScreenHref('email'), icon: 'chat', label: channelScreenTitle(locale, 'email'),
+    ...(mail?.as ? { descHtml: `<bdi>${esc(mail.as)}</bdi>` } : {}),
+    value: t(locale, !mail ? 'connect.state.notHere' : mail.state === 'connected' ? 'connect.state.connected'
+      : mail.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'),
+    tone: mail?.state === 'connected' ? 'ok' : mail?.state === 'attention' ? 'warn' : undefined });
+
+  const metaRank = Math.min(s.rank('instagram', 1), s.rank('messenger', 2));
+  const rows = [{ at: s.rank('whatsapp', 0), html: whatsapp }, { at: metaRank, html: metaRow }, { at: s.rank('email', 3), html: email }]
+    .sort((a, b) => a.at - b.at).map((b) => b.html);
 
   // WA (0120) — once WhatsApp is live, who may get a reply: the list only
   // (pilot mode, how going live always starts), or every customer who writes.
@@ -825,19 +872,19 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const allowlist = !s.showAllowlist ? '' : menuGroup('whatsapp', t(locale, 'reach.channel.whatsapp'), [menuRow({
     href: BUSINESS_SCREEN_PATH.allowlist, label: t(locale, 'allowlist.title', { name }),
     value: s.lc === 'active' && !pilotOn ? t(locale, 'business.value.everyone')
-      : listed === 0 ? t(locale, 'business.value.nobody') : tn(locale, 'business.value.numbers', listed),
-    tone: listed === 0 && pilotOn ? 'warn' : undefined })]);
+      : listed === 0 ? t(locale, 'business.value.nobody') : tn(locale, 'business.value.numbers', listed) })]);
 
-  // Phase 9 — the instruction to add a number comes with the place to add it.
-  const alerts = f.connection.ownerPhone
-    ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
-    : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>
-       ${viewer.isOwner ? deeper('/app/channels#alerts', t(locale, 'factory.reach.addAlerts')) : ''}`;
+  // The number her alerts use, as it stands (w4-business-assistant-06: where
+  // each alert goes is Notifications', so nothing here says "you are alerted on").
+  const alerts = menuGroup('alerts', null, [menuRow({ href: channelScreenHref('alerts'), icon: 'bell', label: channelScreenTitle(locale, 'alerts'),
+    value: f.connection.ownerPhone ?? t(locale, 'setup.value.notSetUp') })]);
 
   return `${head(locale, t(locale, 'factory.reach.title'), flash)}
+    ${approvalHtml}
     ${menuGroup('channels', null, rows)}
     ${allowlist}
-    ${alerts}`;
+    ${alerts}
+    ${channelsFoot(locale)}`;
 }
 
 /**
@@ -908,8 +955,11 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
     : '';
 
   const blockerList = `<ul class="fsteps">${r.blockers.map((b) => {
-    const href = BLOCKER_FIX[b];
-    const line = esc(t(locale, `activation.blocker.${b}` as MessageKey, { name }));
+    // w4-whole-11 — connected by the one definition, but this installation
+    // carries no WhatsApp message: said as Nomi's team's, with no door.
+    const wiredOnly = b === 'no_channel' && f.connection.connected?.whatsapp === true;
+    const href = wiredOnly ? null : BLOCKER_FIX[b];
+    const line = esc(wiredOnly ? t(locale, 'golive.waNoProvider') : t(locale, `activation.blocker.${b}` as MessageKey, { name }));
     return `<li>○ ${href ? `<a class="blink" href="${href}">${line}</a>` : line}</li>`;
   }).join('')}</ul>`;
 
@@ -943,8 +993,9 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
           }) }))}</p>` : ''}
        ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
        <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
+       <p class="fdesc">${esc(t(locale, 'activation.stop.differs', { name }))}</p>
        ${elsewhereNames && !s.held ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
-       <div class="facts">${confirmBtn('deactivate', 'danger',
+       <div class="facts">${confirmBtn('deactivate', s.stoppedAt ? '' : 'danger',
           t(locale, 'activation.action.deactivate'),
           t(locale, 'activation.action.deactivateConfirm', { name }))}</div>`
     : r.canActivate
@@ -964,7 +1015,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
   const elsewhereBody = s.liveElsewhere.length === 0 || s.held ? '' : `
        <p class="fok">${esc(t(locale, 'golive.other.live', { channels: elsewhereNames, name }))}</p>
        <p class="fdesc fdesc-lead">${esc(t(locale, 'golive.other.stopHow'))}</p>
-       <div class="doors">${deeper('/app/employee', t(locale, 'golive.other.stopDrafts'))}${deeper('/app/channels', t(locale, 'golive.other.stopDisconnect'))}</div>`;
+       <div class="doors">${deeper('/app/employee', t(locale, 'golive.other.stopDrafts'))}${deeper(CHANNELS_HOME, t(locale, 'golive.other.stopDisconnect'))}</div>`;
   // 0070 — the owner's Stop, on EVERY channel, first: it is the one switch
   // that binds all of them, WhatsApp included, and it is never further away
   // than the channels it stops. Shown wherever something could be sent.
@@ -988,7 +1039,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
   const silencedNote = r.opsSilenced
     ? `<p class="fwarn" data-golive="silenced">${esc(t(locale, 'assistant.silenced.note', { name }))}</p>` : '';
   const everyBlock = s.held || s.waRelevant || s.liveElsewhere.length > 0
-    ? `<h2 class="sub3" data-golive="every">${esc(t(locale, 'assistant.stop.title'))}</h2>${silencedNote}${everyBody}` : '';
+    ? `<h2 class="sub3" data-golive="every" id="stop">${esc(t(locale, 'assistant.stop.title', { name }))}</h2>${silencedNote}${everyBody}` : '';
   // G3 — today's allowance, always visible: what is used, and when it renews.
   const a = r.allowance;
   const allowanceBlock = a ? `<h2 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h2>
@@ -996,14 +1047,15 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
          : `<p class="${a.used ? 'fwarn' : 'fdesc'}">${esc(t(locale, 'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }))}</p>
             ${a.used ? `<p class="fdesc">${esc(t(locale, 'business.allowance.waiting'))}</p>
             <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>` : ''}`}` : '';
-  const readyBody = everyBlock + allowanceBlock + (s.waRelevant
+  const readyBody = everyBlock + (s.waRelevant
     ? `<h2 class="sub3" data-golive="whatsapp">${esc(t(locale, 'reach.channel.whatsapp'))}</h2>${whatsappBody}${elsewhereBody
         ? `<h2 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h2>${elsewhereBody}` : ''}`
     : `${elsewhereBody
         ? `<div data-golive="elsewhere">${elsewhereBody}</div>`
-        : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>
+        // Phase 9 (w4-business-assistant-14) — the answer line above already says nothing is connected; here, only while it says something else (held).
+        : `${s.held ? `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>` : ''}
            ${deeper(BUSINESS_SCREEN_PATH.channels, t(locale, 'factory.reach.title'))}`}
-       ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`);
+       ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`) + allowanceBlock;
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These
   // are things the assistant cannot answer yet; none is a reason to stay off.
@@ -1013,21 +1065,21 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
   // facts the screen lists below (and the activate action obeys): stopped,
   // answering, ready to start, or how many things are first.
   const answer = s.held
-    ? `<p class="fready">${signalMark('waiting')} ${esc(t(locale, 'factory.ready.answer.held', { name }))}</p>`
+    ? `<p class="fready">${todoMark()} ${esc(t(locale, 'factory.ready.answer.held', { name }))}</p>`
     : r.live || s.liveElsewhere.length > 0
       ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.live', { name }))}</p>`
       : !s.waRelevant
         ? `<p class="fready">${esc(t(locale, 'factory.ready.answer.nothing', { name }))}</p>`
         : r.canActivate
           ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.ready', { name }))}</p>`
-          : `<p class="fready">${signalMark('waiting')} ${esc(tn(locale, 'factory.ready.answer.notYet', r.blockers.length, { name }))}</p>`;
+          : `<p class="fready">${todoMark()} ${esc(tn(locale, 'factory.ready.answer.notYet', r.blockers.length, { name }))}</p>`;
 
-  return `${head(locale, t(locale, 'factory.ready.title', { name }), flash)}
+  return `${head(locale, t(locale, 'business.row.live'), flash)}
     ${answer}
     <section class="fblock">
       ${readyBody}
       ${rehearsed}
-      ${deeper('/app/onboarding', t(locale, 'factory.ready.more'))}
+      ${deeper('/app/onboarding', t(locale, 'pilot.title'))}
     </section>`;
 }
 
@@ -1035,6 +1087,12 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
  * What she promises customers — the claims guard's OWN allowlist in her words,
  * and the price rules it enforces. Everything not listed is refused; that rule
  * is stated, never implied.
+ *
+ * The warmth run, phase 9 (w4-products-knowledge-02) — the ONE place the
+ * certifications are switched on and off (`certRows`, the knowledge page's
+ * rows moved here whole): "anything not turned on here" is now true of the page
+ * that says it. What may be promised about returns, delivery and what is sold
+ * is answered in How you sell, and the page says so with its door.
  */
 function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
@@ -1065,15 +1123,17 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null): st
   ].filter((x): x is string => x !== null);
 
   return `${head(locale, t(locale, 'factory.promise.title'), flash)}
-    <section class="fblock">
-      ${f.promises.certs.length
-        ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'factory.promise.certsOn', { name }))}</p>
-           <div class="fchips">${f.promises.certs.map((c) =>
-             `<span class="fchip">${esc(claimName(locale, c))}</span>`).join('')}</div>`
-        : `<p class="fempty">${esc(t(locale, 'factory.promise.none', { name }))}</p>`}
-      ${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    <section class="fblock" id="certs" aria-labelledby="certs-h">
+      <h2 id="certs-h">${esc(t(locale, 'knowledge.cert.title'))}</h2>
+      <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }))}</p>
+      ${certRows(locale, f.promises.certs, f.products.total)}
       <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>
-      ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}
+    </section>
+    <section class="fblock">
+      ${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      <p class="fdesc">${esc(t(locale, 'factory.promise.elsewhere', { name }))}</p>
+      <div class="doors">${deeper(BUSINESS_SCREEN_PATH.how, t(locale, 'factory.sellhow.title'))}
+        ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}</div>
     </section>`;
 }
 
@@ -1087,29 +1147,28 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
   const m = f.menu ?? null;
   const hs = m?.howYouSell ?? null;
   const questions = !viewer.isOwner ? '' : menuGroup('questions', null, [menuRow({
-    href: HS_BASE, icon: 'question', label: t(locale, 'hs.questions.title'), desc: t(locale, 'factory.sellhow.questions'),
+    href: HS_BASE, icon: 'question', label: t(locale, 'hs.questions.title'),
     value: hs ? t(locale, 'hs.progress', { done: hs.answered, total: hs.total }) : null,
-    tone: hs ? (hs.answered >= hs.total ? 'ok' : 'warn') : undefined })]);
+    tone: hs && hs.answered >= hs.total ? 'ok' : undefined })]);
   // CUR — the rate door only where there is something to convert: a workspace
   // that sells in another currency than its country's own (`ratePairOf`).
   const home = currencyOfCountry(f.connection.country);
   const samples = m?.samples ?? null;
   const rows = [
-    menuRow({ href: '/app/settings/terms', icon: 'receipt', label: t(locale, 'business.row.terms'),
-      value: m === null ? null : m.terms ? inLine([m.terms.incoterm, m.terms.payment]) : t(locale, 'setup.value.notSetUp'),
-      tone: m !== null && !m.terms ? 'warn' : undefined }),
+    menuRow({ href: '/app/settings/terms', icon: 'receipt', label: t(locale, 'terms.title'),
+      value: m === null ? null : m.terms ? inLine([...(m.terms.incoterm ? [m.terms.incoterm] : []), m.terms.payment]) : t(locale, 'setup.value.notSetUp') }),
     menuRow({ href: '/app/settings/samples', icon: 'gift', label: t(locale, 'samples.title'),
       value: samples === null ? null : samples.waiting > 0 ? tn(locale, 'business.value.samplesWaiting', samples.waiting)
         : samples.price === null ? t(locale, 'setup.value.notSetUp')
         : samples.price.amount === 0 ? t(locale, 'business.value.free') : show.money(locale, samples.price),
-      tone: samples !== null && (samples.waiting > 0 || samples.price === null) ? 'warn' : undefined }),
-    menuRow({ href: '/app/settings/closures', icon: 'calendar', label: t(locale, 'business.row.closures'),
+      // A customer waiting for a sample is waiting for the owner; a price not stated is a setting.
+      tone: samples !== null && samples.waiting > 0 ? 'warn' : undefined }),
+    menuRow({ href: '/app/settings/closures', icon: 'calendar', label: t(locale, 'closures.title'),
       value: m === null ? null : m.closure
         ? inLine([m.closure.label, t(locale, 'closures.range', { from: show.date(locale, m.closure.from), to: show.date(locale, m.closure.to) })])
         : t(locale, 'business.value.noClosures') }),
     ...(home !== null && home !== f.prices.currency ? [menuRow({ href: '/app/settings/rate', icon: 'exchange', label: t(locale, 'business.row.rate'),
-      value: m === null ? null : m.rate ? t(locale, 'rate.current', { rate: m.rate.rate, from: m.rate.from, to: m.rate.to }) : t(locale, 'setup.value.notSetUp'),
-      tone: m !== null && !m.rate ? 'warn' : undefined })] : []),
+      value: m === null ? null : m.rate ? t(locale, 'rate.current', { rate: m.rate.rate, from: m.rate.from, to: m.rate.to }) : t(locale, 'setup.value.notSetUp') })] : []),
   ];
   // Phase 9 — the first door is the questions; the rest change one of the
   // same facts directly, and say so. Each row is named short, as a menu's are;

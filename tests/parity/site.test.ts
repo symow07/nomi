@@ -129,15 +129,19 @@ describe('Phase 5 · the page', () => {
 });
 
 /**
- * Phase 9 — the site against the merged defect list (docs/UI-AUDIT.md, "site").
+ * Phase 9 — the site against the merged defect list (docs/UI-AUDIT-V2.md, "site").
  */
 describe('Phase 9 · the site says one thing, the product\'s way', () => {
   const text = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ');
 
   it('one rule for sending alone, and what earns it (V1-016, V1-025, public-missed-17)', () => {
     for (const l of LOCALES) expect(Object.keys(messages[l]), l).not.toContain('site.first.drafts');
-    expect(t('en', 'site.yours.alone.body')).toMatch(/named your assistant and done the checks in Practice/);
-    expect(t('en', 'site.yours.alone.body')).toMatch(/went out unchanged, you may let greetings and questions go alone/);
+    // w4-public-09 — the same rule, as a lead, its three conditions and what still waits.
+    expect(t('en', 'site.yours.alone.body')).toMatch(/You may let greetings and questions go alone once:$/);
+    expect(t('en', 'site.yours.alone.named')).toBe('you have named your assistant');
+    expect(t('en', 'site.yours.alone.practice')).toBe('you have done the checks in Practice');
+    expect(t('en', 'site.yours.alone.record')).toMatch(/went out unchanged, across several customers and days$/);
+    expect(t('en', 'site.yours.alone.after')).toMatch(/^Anything with a price still waits/);
     expect(t('zh', 'site.yours.alone.body')).not.toContain('赢得');
     // the invitation is said once (V1-027)
     expect(t('en', 'site.invite.body')).not.toMatch(/by invitation/);

@@ -52,7 +52,9 @@ describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
       renderConversationDetail(base, 'en', new Date('2026-09-19T15:00:00Z'), null));
     // The three signature lines, in the order the three messages appear.
     // Tags stripped: the assistant's name is drawn with its ✦ in a span (2026-09-29).
-    const signed = [...html.matchAll(/<div class="ts muted">(.*?)<\/div>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '').trim());
+    // The fix wave (w4-conversation-17) — the assistant's name stands over its words; the caption keeps the time.
+    const signed = [...html.matchAll(/<div(?: id="latest")? class="msg [a-z]+">\s*(?:<div class="msg-by">(.*?)<\/div>)?[\s\S]*?<div class="ts muted">(.*?)<\/div>/g)]
+      .map((m) => `${m[1] ?? ''} ${m[2]!}`.replace(/<[^>]+>/g, '').trim());
     expect(signed).toHaveLength(3);
     // The design pass (UI-PASS 5): the customer by their name, never a role word.
     expect(signed[0], 'the buyer').toContain(base.buyer!);

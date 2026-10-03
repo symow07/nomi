@@ -14,12 +14,12 @@ const baseInput: ProfileInput = {
 const full: BusinessProfile = {
   name: 'Yiwu Sunshine Trading', description: 'Household goods exporter', location: 'Yiwu, Zhejiang',
   workingHours: '9:00-18:00 Mon-Sat', contactEmail: 'sales@example.com', contactPhone: '+8613800000000',
-  languagesServed: ['en', 'zh'], categories: ['bags', 'drinkware'],
+  languagesServed: ['en', 'zh'], whatYouSell: { category: 'other' },
 };
 
 const bare: BusinessProfile = {
   name: 'New Factory', description: null, location: null, workingHours: null,
-  contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
+  contactEmail: null, contactPhone: null, languagesServed: [],
 };
 
 describe('M11.1 · profile validation (pure)', () => {
@@ -49,13 +49,14 @@ describe('M11.1 · profile validation (pure)', () => {
 });
 
 describe('M11.1 · settings renderer (localized)', () => {
-  it('en: title, fields, derived categories, save', () => {
+  it('en: title, fields, what it sells, save', () => {
     const html = withoutIsolates(renderProfile(full, 'en', null));
     expect(html).toContain('Business profile');
     expect(html).toContain('Business name'); expect(html).toContain('Yiwu Sunshine Trading');
     expect(html).toContain('Working hours'); expect(html).toContain('Languages served');
-    expect(html).toContain('Product categories');
-    expect(html).toContain('bags'); expect(html).toContain('drinkware');   // derived
+    // The warmth run (V1-006): what it sells is How you sell's answer, in words, with the door to that question.
+    expect(html).toContain('What you sell'); expect(html).toContain('Something else');
+    expect(html).toContain('href="/app/business/selling/product_claims"');
     expect(html).toContain('action="/app/settings"');
   });
 
@@ -71,8 +72,8 @@ describe('M11.1 · settings renderer (localized)', () => {
     }
   });
 
-  it('derived categories empty state; language checkboxes reflect served set', () => {
-    expect(withoutIsolates(renderProfile(bare, 'en', null))).toContain('Add products and their categories appear here');
+  it('what it sells, not answered yet; language checkboxes reflect served set', () => {
+    expect(withoutIsolates(renderProfile({ ...bare, whatYouSell: { category: null } }, 'en', null))).toContain('Not answered yet');
     const html = withoutIsolates(renderProfile(full, 'en', null));
     expect(html).toMatch(/name="lang_en"[^>]*checked/);
     expect(html).toMatch(/name="lang_zh"[^>]*checked/);
