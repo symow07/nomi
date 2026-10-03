@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { shell, loginPage } from '../../src/api/web/layout.js';
-import { renderSetup } from '../../src/api/web/settings.js';
+import { renderSetup, renderSettingsHome, renderLanguage } from '../../src/api/web/settings.js';
 import { MARK_FIGURE } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withSheets } from './linked-css.js';
@@ -93,22 +93,23 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(html).not.toContain('class="who"');
   });
 
-  it('the language switch leads Setup, log out is its last thing — a button — and the login page keeps its switcher', () => {
-    // V1 close-out: log out ends the session, so it is a button and the last
-    // thing on the page, after every row. Phase 3 kept the order: the switch
-    // first, the groups of rows, log out.
-    const html = renderSetup({ kind: null, people: 1 }, 'en', null);
-    const lang = html.indexOf('class="langsw"');
-    const firstRow = html.indexOf('<a class="srow" href="/app/guide">');
-    const lastRow = html.indexOf('<a class="srow" href="/app/settings/data">');
-    const out = html.indexOf('<form method="post" action="/logout">');
-    expect(lang).toBeGreaterThan(0);
-    expect(firstRow).toBeGreaterThan(lang);
-    expect(lastRow).toBeGreaterThan(firstRow);
+  it('the language switch is a row of Setup, its own screen a tap down; log out is Settings\' foot — a button — and the login page keeps its switcher', () => {
+    // V1 close-out: log out ends the session, so it is a button, after every
+    // row. THE WARMTH RUN: it is the foot of Settings (phase 1); the language
+    // is Setup's row with the language in force as its value, and the switch
+    // on its own small screen (phase 7).
+    const setup = renderSetup({ people: 1 }, 'en', null);
+    expect(setup).not.toContain('class="langsw"');
+    expect(setup).not.toContain('action="/logout"');
+    expect(setup).toMatch(/<a class="srow sr-menu" href="\/app\/settings\/language">[^]*?<bdi>English<\/bdi>/);
+    expect(renderLanguage('en')).toContain('class="langsw"');
+    expect(renderLanguage('en')).toContain('href="/locale?set=zh&next=/app/settings/language"');
+    const settings = renderSettingsHome('en', null);
+    const lastRow = settings.indexOf('href="/app/settings/setup"');
+    const out = settings.indexOf('<form class="scard sr-foot" method="post" action="/logout">');
     expect(out, 'log out comes after every row').toBeGreaterThan(lastRow);
-    expect(html).not.toContain('href="/logout"');
-    // Phase 9 (V1-154) — a button that looks like one: outlined, at the cards' edge, not ghost text.
-    expect(html.slice(out, html.indexOf('</form>', out))).toMatch(/<button class="btn" type="submit">/);
+    expect(settings).not.toContain('href="/logout"');
+    expect(settings.slice(out, settings.indexOf('</form>', out))).toMatch(/<button class="srow sr-menu sr-out" type="submit">/);
     expect(loginPage({ locale: 'en', path: '/login' })).toContain('class="langsw"');
   });
 

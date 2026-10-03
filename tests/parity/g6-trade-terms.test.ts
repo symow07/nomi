@@ -106,9 +106,10 @@ describe('G6 · the settings page', () => {
     expect(html).not.toContain(esc(t('zh', 'terms.none', { name: ASSISTANT_FALLBACK.zh })));
   });
 
-  it('is reachable from My business (D), and the write is owner-only', async () => {
+  it('is reachable from My business › How you sell (D, phase 7), and the write is owner-only', async () => {
     const settings = await src('src/api/web/factory.ts');
-    expect(settings).toContain("deeper('/app/settings/terms'");
+    // Phase 7 — a row of My business › How you sell.
+    expect(settings).toContain("href: '/app/settings/terms'");
     const app = await src('src/api/web/app.ts');
     expect(app).toContain("app.get('/app/settings/terms'");
     expect(app).toMatch(/app\.post\('\/app\/settings\/terms'[\s\S]{0,200}ownerOnly\(req, reply, 'price_rules'/);

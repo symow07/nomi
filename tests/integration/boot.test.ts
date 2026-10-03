@@ -2102,9 +2102,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
     const view = (b = DEMO_BIZ) => import('../../src/api/web/factory.js')
       .then(({ loadFactory }) => loadFactory(prod.db, b, false));
+    // Phase 7 — My business is a menu and the screens a level down: "the page"
+    // is all of them, as the owner reads them one tap apart.
     const html = async (b = DEMO_BIZ) => {
-      const { renderFactory } = await import('../../src/api/web/factory.js');
-      return renderFactory(await view(b), 'en');
+      const { renderFactory, renderBusinessScreen, BUSINESS_SCREEN_PATH } = await import('../../src/api/web/factory.js');
+      const v = await view(b);
+      return [renderFactory(v, 'en'), ...(Object.keys(BUSINESS_SCREEN_PATH) as (keyof typeof BUSINESS_SCREEN_PATH)[])
+        .map((s) => renderBusinessScreen(s, v, 'en'))].join('\n');
     };
 
     beforeAll(async () => {
@@ -2121,7 +2125,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       ]);
       expect(f.profile.name).toBe(row.name);
       expect(f.profile.location).toBe(row.location);
-      expect(await html()).toContain(row.name);
+      // the facts' one home (phase 7): the profile page My business's first row opens
+      const { renderProfile } = await import('../../src/api/web/settings.js');
+      expect(renderProfile(f.profile, 'en', null)).toContain(`value="${esc(row.name)}"`);
     });
 
     it('products are the real active catalog, with the real unpriced count', async () => {
@@ -2286,10 +2292,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('M20.3.1: the connection section and the activation section never disagree', async () => {
-      const { loadFactory, renderFactory } = await import('../../src/api/web/factory.js');
+      const { loadFactory, renderBusinessScreen } = await import('../../src/api/web/factory.js');
       for (const provider of [false, true]) {
         const v = await loadFactory(prod.db, DEMO_BIZ, provider);
-        const page = renderFactory(v, 'en');
+        // Phase 7 — the two sections are two screens: where customers reach you, and going live.
+        const page = renderBusinessScreen('channels', v, 'en') + renderBusinessScreen('ready', v, 'en');
         const offersActivate = page.includes('action="/app/business/activate"');
         const saysReady = page.includes('whenever you say so');
         // "you can start" may only appear when the channel is genuinely ready
@@ -2522,8 +2529,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect((await channel())!.activated_at, 'activated despite a blocker').toBeNull();
       expect(flashSaid(r, WEB_SECRET)).toContain('start with your own');
 
-      // the page and the refusal must say the SAME thing
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
+      // the page and the refusal must say the SAME thing (phase 7: going live's screen)
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } });
       expect(page.body).toContain('start with your own');
       expect(page.body).not.toContain('action="/app/business/activate"');
 
@@ -2562,7 +2569,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('activates: writes through the service, audits the actor, and shows it at once', async () => {
       const { activate } = await import('../../src/channels/activation.js');
-      const { loadFactory, renderFactory } = await import('../../src/api/web/factory.js');
+      const { loadFactory, renderBusinessScreen } = await import('../../src/api/web/factory.js');
       const beforeAudit = (await audits('activate')).n;
       const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
@@ -2576,7 +2583,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(a.actor).toBe('owner');
 
       // rendered as an installation that HAS a provider — this one has none
-      const page = renderFactory(await loadFactory(prod.db, DEMO_BIZ, true), 'en');
+      const page = renderBusinessScreen('ready', await loadFactory(prod.db, DEMO_BIZ, true), 'en');
       expect(page).toContain('is talking to real customers');
       expect(page).toContain('action="/app/business/deactivate"');
       expect(page).not.toContain('action="/app/business/activate"');
@@ -2605,7 +2612,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(await q((tx) => sql<{ n: number }>`select count(*)::int n from conversations`
         .execute(tx as never).then((x) => x.rows[0]!.n))).toBe(buyersBefore);
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } });
       expect(page.body).not.toContain('is talking to real buyers');
     });
 
@@ -2689,7 +2696,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(stored.archived).toBeNull();
       expect(flashSaid(add, WEB_SECRET)).toContain('can now receive');
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
+      // Phase 7 — the list is a screen of its own under My business.
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business/allowlist', headers: { cookie } });
       expect(page.body).toContain('my own phone');
 
       const rm = await post('/app/business/allowlist/remove', `phone=${ph('861390000222')}2`, cookie);

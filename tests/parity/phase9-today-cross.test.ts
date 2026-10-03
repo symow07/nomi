@@ -111,9 +111,9 @@ const rb = (over: Partial<PilotRunbook> = {}): PilotRunbook => ({
 });
 const readyView = (named: boolean, connected: boolean, earned: boolean) =>
   ({ items: checklistFor('catalogue'), seen: new Set(['quoted'] as const), named, connected, earned });
-const setupHtml = (l: Locale, query = '', over: Partial<RequestScope> = {}): string => inScope(() => renderSetup({
-  kind: null, people: 2, howYouSell: { answered: 0, total: 9 }, alerts: { available: false, phones: 0 },
-  signIn: { email: 'owner@example.com' }, billing: { configured: false, exempt: false, status: 'none' }, dataWaiting: 0, query,
+const setupHtml = (l: Locale, over: Partial<RequestScope> = {}): string => inScope(() => renderSetup({
+  people: 2, alerts: { available: false, phones: 0 },
+  signIn: { email: 'owner@example.com' }, billing: { configured: false, exempt: false, status: 'none' }, dataWaiting: 0,
 }, l, null), over);
 
 // ── the whole product ───────────────────────────────────────────────────────
@@ -144,11 +144,16 @@ describe('Phase 9 · the shell', () => {
     }
   });
   it('V1-012, V1-110, V1-151 · a page reached from a hub that drew no way back gets one, to its hub; one that drew its own keeps it alone', () => {
+    // THE WARMTH RUN — Setup is a row of Settings (phase 1); phase 7: How you
+    // sell's pages lead back to its menu, the products and the channels to the
+    // rows of My business that open them.
     const cases: [string, string, MessageKey][] = [
-      ['/app/settings/closures', '/app/business', 'nav.factory'], ['/app/settings/rate', '/app/business', 'nav.factory'],
-      ['/app/settings/samples', '/app/business', 'nav.factory'], ['/app/settings/terms', '/app/business', 'nav.factory'],
-      ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings', 'nav.settings'],
-      ['/app/guide', '/app/settings', 'nav.settings'], ['/app/onboarding', '/app/settings', 'nav.settings'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
+      ['/app/settings/closures', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/rate', '/app/business/how-you-sell', 'factory.sellhow.title'],
+      ['/app/settings/samples', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/terms', '/app/business/how-you-sell', 'factory.sellhow.title'],
+      ['/app/products', '/app/business', 'nav.factory'], ['/app/channels', '/app/business/channels', 'factory.reach.title'],
+      ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
+      ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
+      ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
@@ -157,7 +162,8 @@ describe('Phase 9 · the shell', () => {
       expect(main(page(l, path, `<a class="back" href="/x">x</a><h1 class="page">x</h1>`)).match(/class="back"/g), path).toHaveLength(1);
     }
     expect(Object.keys(BACK_TO)).toHaveLength(cases.length);
-    expect(page('en', '/app/products', '<h1 class="page">x</h1>')).not.toContain('class="back"');
+    // a product's own page draws its way back to the list; a page reached from no hub gets none
+    expect(page('en', '/app/products/abc', '<h1 class="page">x</h1>')).not.toContain('class="back"');
   });
   it('V1-012 · Today\'s lines end in the product\'s one chevron, not "→"', () => {
     const h = renderLastDay(today, 'en');
@@ -482,33 +488,43 @@ describe('Phase 9 · Ready for customers', () => {
 
 // ── Setup ───────────────────────────────────────────────────────────────────
 describe('Phase 9 · Setup', () => {
-  it('V1-155 · while setting up is unfinished, the five steps the nav counts are on the page it opens', () => {
+  it('V1-155 · phase 7 · while setting up is unfinished, Setup says how far it has come, and the five steps are one tap down', () => {
+    // The landing is a menu: its Getting started row carries the count; the
+    // steps, each with its door, are on the guide it opens (renderGuide).
     for (const l of LOCALES) {
-      const h = setupHtml(l);
-      expect(h.match(/<li class="sr-step">/g), l).toHaveLength(5);
-      for (const step of SETUP_STEPS) expect(h, `${l} ${step}`).toContain(`href="${STEP_LINK[step]}"`);
+      const h = setupHtml(l).replace(/[\u2066-\u2069]/g, '');
+      expect(h, l).not.toContain('sr-step');
+      expect(h, l).toMatch(new RegExp(`href="/app/guide">[^]*?<span class="sr-value warn"><bdi>${esc(t(l, 'nav.setup.progress', { done: '\\d', total: '5' }))}</bdi>`));
+      const guide = renderGuide({ steps: SETUP_STEPS.map((step) => ({ step, done: false })), next: 'profile' }, l, 'Lily', () => false);
+      for (const step of SETUP_STEPS) expect(guide, `${l} ${step}`).toContain(`href="${STEP_LINK[step]}"`);
     }
-    expect(setupHtml('en', '', { setup: { steps: SETUP_STEPS.map((step) => ({ step, done: true })), done: 5, total: 5, next: null } })).not.toContain('sr-step');
+    expect(setupHtml('en', { setup: { steps: SETUP_STEPS.map((step) => ({ step, done: true })), done: 5, total: 5, next: null } }))
+      .toContain(`<span class="sr-value ok"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
   });
   it('today-onboarding-new-22 · a row\'s line does not repeat its label', () => {
     for (const l of LOCALES) expect(t(l, 'setup.desc.kind').toLocaleLowerCase(), l).not.toContain(t(l, 'business.kind.label').toLocaleLowerCase());
   });
   it('today-onboarding-new-23 · every row not answered yet waits for the owner the same way', () => {
+    // Phase 7 — the kind of business and How you sell are My business's rows
+    // now (factory.test.ts, warmth-settings-business.test.ts); Setup's own
+    // unfinished rows wait the same way.
     const h = setupHtml('en');
-    expect(h).toContain(`<span class="sr-value warn"><bdi>${t('en', 'setup.state.notAnswered')}</bdi></span>`);
-    expect(h).toContain(`<span class="sr-value warn"><bdi>${t('en', 'hs.progress', { done: 0, total: 9 })}</bdi></span>`);
+    expect(h).toContain(`<span class="sr-value warn"><bdi>${t('en', 'setup.value.nameNotConfirmed')}</bdi></span>`);
+    expect(h).not.toContain('href="/app/settings/business"');
+    expect(h).not.toContain('href="/app/business/selling"');
   });
   it('today-onboarding-new-24 · alerts not on here say so as the alerts page does — no unexplained "here"', () => {
     expect(t('en', 'setup.value.unavailable')).toBe('Not switched on yet');
     for (const l of LOCALES) expect(t(l, 'setup.value.unavailable'), l).not.toMatch(/\bhere\b|这里|هنا|aquí|ici/);
   });
-  it('today-onboarding-new-25 · the search finds a setting by the words an owner uses for it; finding nothing offers the way back', () => {
-    expect(setupHtml('en', 'password')).toContain('href="/app/settings/account"');
-    expect(setupHtml('en', 'team')).toContain('href="/app/settings/people"');
-    expect(setupHtml('zh', '团队')).toContain('href="/app/settings/people"');
-    const none = setupHtml('en', 'zzzz');
-    expect(none).toContain(esc(t('en', 'setup.search.none', { q: 'zzzz' })));
-    expect(none).toContain(`<a class="deeper" href="/app/settings">${t('en', 'setup.search.all')}`);
+  it('today-onboarding-new-25 · phase 7 · Setup is eight rows in two cards: read, not searched', () => {
+    // The search was for six groups and a dozen rows; it went with the length.
+    for (const l of LOCALES) {
+      const h = setupHtml(l);
+      expect(h, l).not.toContain('role="search"');
+      expect(h.match(/<a class="srow sr-menu/g), l).toHaveLength(8);
+      expect(h.match(/<ul class="scard">/g), l).toHaveLength(2);
+    }
   });
   it('V1-154 · Log out is a button that looks like one', () => {
     expect(setupHtml('en')).toContain(`<button class="btn" type="submit">${t('en', 'header.logout')}</button>`);

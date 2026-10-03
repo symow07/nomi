@@ -216,9 +216,10 @@ describe('M44 · the surface', () => {
     expect(code).not.toMatch(/HOLIDAYS|LUNAR|CHINESE_NEW_YEAR|RAMADAN/i);
   });
 
-  it('is reachable from My business (D), and registered as routes', async () => {
+  it('is reachable from My business › How you sell (D, phase 7), and registered as routes', async () => {
     const settings = await readFile(new URL('../../src/api/web/factory.ts', import.meta.url), 'utf8');
-    expect(settings).toContain("deeper('/app/settings/closures'");
+    // Phase 7 — a row of My business › How you sell.
+    expect(settings).toContain("href: '/app/settings/closures'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("app.get('/app/settings/closures'");
     expect(app).toContain("app.post('/app/settings/closures'");

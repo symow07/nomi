@@ -150,10 +150,10 @@ import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderSettingsHome, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
-import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
+import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate, setPilotMode } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
@@ -2765,31 +2765,61 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // One calm page over the EXISTING profile / products / claims / channel read
   // models. Read-only by design: every change still happens on the surface that
   // owns it, so there is exactly one place that writes each thing.
+  // Phase 4b (CC-11) — every channel this installation offers, as /app/channels states it.
+  const businessOffer = async (businessId: string) => ({
+    inbound: await inboundLinks(businessId),
+    mailConnectable: Object.values(mailConnectable(deps.oauthClients ?? {}, deps.publicBaseUrl ?? null)).some(Boolean),
+  });
+  // THE WARMTH RUN, phase 7 — My business is a menu; each row's value is read
+  // through the loader of the page it opens (`loadBusinessMenu`).
   app.get('/app/business', authed('factory', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
-    // Phase 4b (CC-11) — every channel this installation offers, as /app/channels states it.
-    const offer = {
-      inbound: await inboundLinks(s.businessId),
-      mailConnectable: Object.values(mailConnectable(deps.oauthClients ?? {}, deps.publicBaseUrl ?? null)).some(Boolean),
-    };
-    return renderFactory(await loadFactory(deps.db, s.businessId, whatsappConfigured, offer), locale, flash, personOf(s));
+    const [view, menu] = await Promise.all([
+      loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: false }),
+      loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner),
+    ]);
+    return renderFactory({ ...view, menu }, locale, flash, personOf(s));
   }));
+  // …and the screens a level down, each one former section of the page,
+  // unchanged in substance: where customers reach you (the channels' one
+  // home), who may be messaged, going live, what is promised, how you sell.
+  const BUSINESS_SCREEN_TITLE: Readonly<Record<BusinessScreen, (locale: Locale) => string>> = {
+    channels: (l) => t(l, 'factory.reach.title'), allowlist: (l) => t(l, 'allowlist.title'),
+    ready: (l) => t(l, 'factory.ready.title'), promises: (l) => t(l, 'factory.promise.title'),
+    how: (l) => t(l, 'factory.sellhow.title'),
+  };
+  for (const screen of Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[]) {
+    app.get(BUSINESS_SCREEN_PATH[screen], authed('factory', async (s, req, locale, reply) => {
+      const flash = takeFlash(req, reply);
+      const [view, menu] = await Promise.all([
+        loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: screen === 'ready' }),
+        screen === 'how' ? loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner) : Promise.resolve(undefined),
+      ]);
+      return { title: BUSINESS_SCREEN_TITLE[screen](locale),
+        bodyHtml: renderBusinessScreen(screen, menu ? { ...view, menu } : view, locale, flash, personOf(s)) };
+    }));
+  }
 
   // M20.3 — going live, and coming back. Both go through the EXISTING service:
   // `activate` re-runs its own preconditions and refuses with the same blocker
   // codes My factory already shows, and both write channel_audit themselves.
   // Post/Redirect/Get, so a refresh never re-fires the most consequential
   // action in the product.
-  const factoryFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>) =>
-    flashTo(reply, '/app/business', key, params);
+  // Phase 7 — the notice lands on the screen that holds the control: going
+  // live and the Stop on Before-talking-to-customers, the list and who gets
+  // replies on its own screen.
+  const READY = BUSINESS_SCREEN_PATH.ready;
+  const LISTED = BUSINESS_SCREEN_PATH.allowlist;
+  const factoryFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>, to: string = READY) =>
+    flashTo(reply, to, key, params);
 
   app.post('/app/business/activate', async (req, reply) => {
     // OWNER ONLY: the one step that cannot be undone — a buyer who has been
     // written to has been written to.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     const r = await activate(deps.db, bid.value, personOf(s).id, { providerConfigured: whatsappConfigured });
     // A refusal names the same blocker the page was already showing, so the
     // owner never sees a reason that contradicts what they just read.
@@ -2804,37 +2834,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // what the service actually persisted, never assumed.
   app.post('/app/business/allowlist/add', async (req, reply) => {
     // Phase 4 — who may be written to during the pilot is the owner's call.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', LISTED);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(LISTED);
     const b = (req.body ?? {}) as { phone?: string; label?: string };
     const label = String(b.label ?? '').trim() || null;
     const r = await addToAllowlist(deps.db, bid.value, String(b.phone ?? ''), label, personOf(s).id);
     return r.ok
-      ? factoryFlash(reply, 'allowlist.flash.added', { who: label ?? r.phone })
-      : factoryFlash(reply, 'allowlist.flash.invalid');
+      ? factoryFlash(reply, 'allowlist.flash.added', { who: label ?? r.phone }, LISTED)
+      : factoryFlash(reply, 'allowlist.flash.invalid', undefined, LISTED);
   });
 
   app.post('/app/business/allowlist/remove', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', LISTED);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(LISTED);
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await archiveFromAllowlist(deps.db, bid.value, phone, personOf(s).id);
     return r.ok
-      ? factoryFlash(reply, 'allowlist.flash.removed', { who: r.phone })
-      : factoryFlash(reply, 'allowlist.flash.invalid');
+      ? factoryFlash(reply, 'allowlist.flash.removed', { who: r.phone }, LISTED)
+      : factoryFlash(reply, 'allowlist.flash.invalid', undefined, LISTED);
   });
 
   app.post('/app/business/deactivate', async (req, reply) => {
     // OWNER ONLY: the one step that cannot be undone — a buyer who has been
     // written to has been written to.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     await deactivate(deps.db, bid.value, personOf(s).id, 'owner stopped messaging');
     return factoryFlash(reply, 'activation.flash.deactivated');
   });
@@ -2843,12 +2873,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // each decides who on WhatsApp may get a reply.
   for (const [path, on] of [['/app/business/pilot/end', false], ['/app/business/pilot/resume', true]] as const) {
     app.post(path, async (req, reply) => {
-      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+      const s = await ownerOnly(req, reply, 'messaging_activation', LISTED);
       if (!s) return reply;
       const bid = parseBusinessId(s.businessId);
-      if (!bid.ok) return reply.redirect('/app/business');
+      if (!bid.ok) return reply.redirect(LISTED);
       const r = await setPilotMode(deps.db, bid.value, personOf(s).id, on);
-      return factoryFlash(reply, r === 'not_active' ? 'pilot.flash.not_active' : on ? 'pilot.flash.resumed' : 'pilot.flash.ended');
+      return factoryFlash(reply, r === 'not_active' ? 'pilot.flash.not_active' : on ? 'pilot.flash.resumed' : 'pilot.flash.ended', undefined, LISTED);
     });
   }
 
@@ -2858,18 +2888,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Start never skips WhatsApp's own checklist, and Stop binds the channels
   // that have no switch of their own.
   app.post('/app/business/stop-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     const r = await stopAssistant(deps.db, bid.value, personOf(s).id);
     return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already');
   });
   app.post('/app/business/start-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     const r = await startAssistant(deps.db, bid.value, personOf(s).id);
     return factoryFlash(reply, r === 'started' ? 'assistant.stop.flash.started' : 'assistant.stop.flash.alreadyStarted');
   });
@@ -3218,7 +3248,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Money and going live are the owner's (rule 11): every route is `price_rules`.
   // Phase 9 — the tab says "How you sell", like its heading and its questions' pages.
   app.get(HS_BASE, async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/business');
+    const s = await ownerOnly(req, reply, 'price_rules', BUSINESS_SCREEN_PATH.how);
     if (!s) return reply;
     const locale = localeOf(req);
     const v = await loadHub(deps.db, s.businessId);
@@ -3869,9 +3899,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const owner = personOf(s).isOwner;
     const bid = parseBusinessId(s.businessId);
     // Phase 3 — what each row is set to now: read here, so the page says it without opening anything.
-    const [kind, people, hub, phones, login, billing, data] = await Promise.all([
-      loadBusinessKind(deps.db, s.businessId), loadPeople(deps.db, s.businessId),
-      owner ? loadHub(deps.db, s.businessId) : Promise.resolve(null),
+    const [people, phones, login, billing, data] = await Promise.all([
+      loadPeople(deps.db, s.businessId),
       loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null).catch(() => null),
       bid.ok ? loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : Promise.resolve(null),
       owner && bid.ok ? withTenantTx(deps.db, bid.value, (tx) => billingState(tx)).catch(() => null) : Promise.resolve(null),
@@ -3880,16 +3909,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.setup'), active: 'settings',
       bodyHtml: renderSetup({
-        kind: kind.kind ? t(locale, `business.kind.${kind.kind}` as MessageKey) : null, people: people.length,
-        howYouSell: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
+        people: people.length, viewer: personOf(s),
         alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length } : null,
         signIn: { email: login?.email ?? null },
         billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
         dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
-        query: String((req.query as { q?: string } | undefined)?.q ?? '').slice(0, 80),
       }, locale, flash),
     }));
   });
+  // Phase 7 — the language switch, a tap down from Setup's Language row.
+  app.get('/app/settings/language', authed('settings', (_s, _req, locale) => ({
+    title: t(locale, 'settings.language.title'), bodyHtml: renderLanguage(locale),
+  })));
   // The design pass (UI-PASS 7) — the business profile, on its own page.
   // ── G5b Alerts on your phone: anyone signed in turns them on for their own phone ──
   const phonePerson = (s: OwnerSession): string | null => {
@@ -3945,7 +3976,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // before sign-up asked gives the answer for the first time.
   app.get('/app/settings/business', authed('settings', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
-    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.setup'));
+    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.factory'));
   }));
   app.post('/app/settings/business', async (req, reply) => {
     const s = sessionOf(req);

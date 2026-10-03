@@ -337,7 +337,7 @@ describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate
   it('nothing to convert is a panel, with the currency by its name and the door to where it is set, and the way back', () => {
     for (const l of LOCALES) {
       const html = noRate(l);
-      expect(html.indexOf('<a class="back" href="/app/business">'), l).toBe(0);
+      expect(html.indexOf('<a class="back" href="/app/business/how-you-sell">'), l).toBe(0);
       expect(html, l).toContain('<div class="empty notset" role="status">');
       expect(html, l).toContain(esc(currencyLabel(l, 'USD')));
       expect(html, l).toMatch(/class="deeper" href="\/app\/settings\/profile#zone"/);
@@ -349,7 +349,7 @@ describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate
   });
   it('with a rate to set, the way back too', () => {
     const html = renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
-    expect(html.indexOf('<a class="back" href="/app/business">')).toBe(0);
+    expect(html.indexOf('<a class="back" href="/app/business/how-you-sell">')).toBe(0);
   });
 });
 
@@ -362,11 +362,12 @@ describe('V1-533 · Chinese: no stray spaces around the stand-in name on Samples
   });
 });
 
-describe('V1-534, V1-541 · Samples and Terms lead back to My business, where they are opened from', () => {
+// Phase 7 — opened from My business › How you sell, and back there.
+describe('V1-534, V1-541 · Samples and Terms lead back to How you sell, where they are opened from', () => {
   it('in every locale', () => {
     for (const l of LOCALES) {
       for (const html of [samples(l), terms(l)]) {
-        expect(html.indexOf(`<a class="back" href="/app/business"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'nav.factory'))}</a>`), l).toBe(0);
+        expect(html.indexOf(`<a class="back" href="/app/business/how-you-sell"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'factory.sellhow.title'))}</a>`), l).toBe(0);
       }
     }
   });

@@ -12,6 +12,9 @@
  *
  * The deep surfaces (/app/settings, /app/products, /app/knowledge,
  * /app/channels) stay exactly as they are and are linked, not replaced.
+ *
+ * THE WARMTH RUN (2026-10-03), phase 7 — the page is a menu now, and each of
+ * its sections a screen a level down (see "the menu" below).
  */
 import { currencyOfCountry } from '../../core/owner/currencies.js';
 import { sql } from 'kysely';
@@ -20,14 +23,19 @@ import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
+import { type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 
-import { esc, deeper, signalMark } from './layout.js';
+import { esc, deeper, back, signalMark } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
-import { loadBusinessProfile, type BusinessProfile } from './settings.js';
+import {
+  loadBusinessProfile, loadTerms, loadSamples, loadClosures, loadRates, menuRow, menuGroup, type BusinessProfile,
+} from './settings.js';
+import { loadBusinessKind } from './businessKind.js';
+import { HS_BASE, loadHub } from './howYouSell.js';
+import type { OwnerRate } from '../../core/commerce/exchange.js';
 import { loadProductList } from './products.js';
 import { loadChannels, phonePlaceholder, type ChannelView, type InboundLink } from './channels.js';
 import { liveMailAccount } from '../../db/mailAccounts.js';
@@ -210,7 +218,47 @@ export type FactoryView = {
   readonly prices: PriceRulesView;
   /** G9b — who works here, so "started by" names a person rather than an id. */
   readonly people?: readonly Person[];
+  /** Phase 7 — what the menu's rows say they are set to, beyond what the page reads above; absent, those rows show no value. */
+  readonly menu?: BusinessMenu;
 };
+
+/**
+ * THE WARMTH RUN, phase 7 — what the menu's rows (and How you sell's) say they
+ * are set to, read through the loaders the pages behind them already use:
+ * nothing re-derived here, so a row and the page it opens cannot disagree.
+ */
+export type BusinessMenu = {
+  /** The kind of business as stored (the tail of a `business.kind.*` key); null = not answered yet. */
+  readonly kind: string | null;
+  /** How many of How you sell's questions are answered; null for staff (the questions are the owner's). */
+  readonly howYouSell: { readonly answered: number; readonly total: number } | null;
+  readonly terms: { readonly incoterm: string; readonly payment: string } | null;
+  /** The sample price stated (amount 0 = free), null when nothing is stated; and how many customers wait for one. */
+  readonly samples: { readonly price: Money | null; readonly waiting: number };
+  /** The closure in force, or the next one to come; null when none is ahead. */
+  readonly closure: { readonly label: string; readonly from: Date; readonly to: Date } | null;
+  /** The rate in force; null when none is stated, or there is nothing to convert. */
+  readonly rate: OwnerRate | null;
+};
+
+export async function loadBusinessMenu(db: Db, businessIdRaw: string, owner: boolean, now: Date = new Date()): Promise<BusinessMenu> {
+  const [kind, hub, terms, samples, closures, rates] = await Promise.all([
+    loadBusinessKind(db, businessIdRaw),
+    owner ? loadHub(db, businessIdRaw) : Promise.resolve(null),
+    loadTerms(db, businessIdRaw), loadSamples(db, businessIdRaw), loadClosures(db, businessIdRaw), loadRates(db, businessIdRaw),
+  ]);
+  // A closure's days are calendar days (closureDate): one that ends today is still in force.
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const ahead = closures.closures.find((c) => c.to.getTime() >= today) ?? null;
+  return {
+    kind: kind.kind,
+    howYouSell: hub ? { answered: hub.order.filter((q) => hub.progress[q]?.state === 'answered').length, total: hub.order.length } : null,
+    terms: terms.terms ? { incoterm: terms.terms.incoterm, payment: terms.terms.paymentTerms } : null,
+    samples: { price: samples.policy?.price ?? null, waiting: samples.waiting.length },
+    closure: ahead ? { label: ahead.label, from: ahead.from, to: ahead.to } : null,
+    rate: rates.current,
+  };
+}
 
 /**
  * The owner's promises: the claims guard's OWN allowlist, read through the
@@ -387,6 +435,11 @@ export async function loadFactory(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
   /** Phase 4b — what else this installation offers; the route builds it as /app/channels does. */
   offer: ReachOffer = NO_OFFER,
+  /**
+   * Phase 7 — the rehearsal runs products × probes in process, and only the
+   * going-live screen shows it: the menu and the other screens skip it.
+   */
+  o: { readonly rehearse?: boolean } = {},
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
   const [profile, products, promises, channels, setup, pre, state, stop, opsSilenced, recipients, rehearsal, prices, people, mail, allowance] = await Promise.all([
@@ -408,7 +461,7 @@ export async function loadFactory(
     // M20.5 — advisory, and deliberately NOT an input to `pre`. If this threw
     // or hung it would take the whole page with it, which is why it reads rows
     // the page already trusts and runs pure code over them.
-    loadFactoryRehearsal(db, businessIdRaw),
+    o.rehearse === false ? null : loadFactoryRehearsal(db, businessIdRaw),
     loadPriceRules(db, businessIdRaw),
     loadPeople(db, businessIdRaw),
     bid.ok ? withTenantTx(db, bid.value, (tx) => liveMailAccount(tx, bid.value)) : null,
@@ -457,12 +510,43 @@ export async function loadFactory(
   };
 }
 
+
 /** ── Renderer (pure, mobile-first, localized, escaped) ────────────────────── */
 
 /**
- * Where each blocker is actually fixed. Every blocker now has a real surface —
- * `no_allowlist` gained one in M20.4, in the same section this page renders — so
- * none of them states a requirement without offering the way to meet it.
+ * THE WARMTH RUN (2026-10-03), phase 7 — THE SETTINGS MODEL. The owner: "My
+ * business … is one long scroll of eight to ten sections of prose … Convert
+ * it to the iPhone/Instagram settings pattern: a short, calm menu of rows,
+ * each showing its current value, that you tap into."
+ *
+ * `renderFactory` is that menu now: two cards of rows, each row its shape, its
+ * name, where it stands and the door. Every section the page used to hold is
+ * a row, and its prose and controls moved one level down, unchanged in
+ * substance: onto the page that already owned it (the profile, the kind of
+ * business, the products, the price limits) or onto a screen of its own under
+ * /app/business (`renderBusinessScreen`). Nothing was flattened to save a tap:
+ * How you sell is a menu of its own, and who may be messaged is a level under
+ * where customers reach you.
+ *
+ * TWO DOORS, ONE DATA — the business's facts are edited on ONE screen
+ * (`BUSINESS_FACTS_PATH`) and its products on ONE list (`BUSINESS_PRODUCTS_PATH`).
+ * The assistant's page links to these same addresses for what it can talk
+ * about; neither page keeps a second copy of either.
+ */
+export const BUSINESS_FACTS_PATH = '/app/settings/profile';
+export const BUSINESS_PRODUCTS_PATH = '/app/products';
+
+export type BusinessScreen = 'channels' | 'allowlist' | 'ready' | 'promises' | 'how';
+export const BUSINESS_SCREEN_PATH: Readonly<Record<BusinessScreen, string>> = {
+  channels: '/app/business/channels', allowlist: '/app/business/allowlist', ready: '/app/business/ready',
+  promises: '/app/business/promises', how: '/app/business/how-you-sell',
+};
+
+/**
+ * Where each blocker is actually fixed. Every blocker has a real surface —
+ * since phase 7 `no_allowlist` too: the list has a screen of its own, a level
+ * under where customers reach you — so none of them states a requirement
+ * without offering the way to meet it.
  */
 const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
   schema_stale: '/app/onboarding',
@@ -471,7 +555,7 @@ const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
   secrets_not_rotated: null,
   assistant_not_named: '/app/onboarding',
   no_channel: '/app/channels',
-  no_allowlist: null,
+  no_allowlist: BUSINESS_SCREEN_PATH.allowlist,
 };
 
 /**
@@ -544,254 +628,278 @@ function rehearsalBlock(r: RehearsalReport, locale: Locale, name: string, namesZ
         ${deeper(FINDING_FIX[reason], t(locale, FINDING_DOOR[reason], { name }))}
       </div>`).join('');
 
-  return `<h3 class="sub3">${esc(t(locale, 'factory.rehearsal.title', { name }))}</h3>
+  return `<h2 class="sub3">${esc(t(locale, 'factory.rehearsal.title', { name }))}</h2>
     <p class="fdesc">${esc(t(locale, 'factory.rehearsal.lede', { name }))}</p>
     <div class="rehear">${body}</div>
     ${scope ? `<p class="fdesc muted">${esc(scope)}</p>` : ''}`;
 }
 
-/** A fact the owner told her. Absent facts are simply not shown. */
-const fact = (label: string, value: string | null): string =>
-  value ? `<div class="frow"><span class="flabel">${esc(label)}</span><bdi class="fval">${esc(value)}</bdi></div>` : '';
-
-/**
- * M35.5 — the design-language pass this file was left out of.
- *
- * 8c32469 gave every other surface two voices; factory.ts is simply absent from
- * that commit's file list, so it kept the tokens and none of the language.
- *
- * The QUESTION under each heading is the owner's own — "What do we sell?",
- * "What should she never get wrong?" — which is a person speaking, so it takes
- * the second voice. The headings and values are the interface speaking and stay
- * in the interface voice. That is the whole rule, applied here for the first
- * time.
- */
-const section = (title: string, answer: string, body: string, href: string | null, more: string): string =>
-  `<section class="fblock">
-    <div class="fhead"><h2>${esc(title)}</h2>${answer}</div>
-    ${body}
-    ${href ? deeper(href, more) : ''}
-  </section>`;
-
 /** Phase 9 — a count's noun in the form its language gives that count ("12 منتجًا", "1 product"). */
 const countNoun = (locale: Locale, base: string, n: number): string =>
   t(locale, `${base}.${new Intl.PluralRules(locale).select(n)}` as MessageKey);
+
+/** "12 products" / "12个产品" / "١٢ منتجًا" — the count and its noun, as the language joins them. */
+const productCount = (locale: Locale, n: number): string =>
+  `${show.count(locale, n)}${locale === 'zh' ? '' : ' '}${countNoun(locale, 'factory.sell.items', n)}`;
+
+/** A list of short values on one line ("WhatsApp · Instagram"), the same separator in every language. */
+const inLine = (xs: readonly string[]): string => xs.join(' · ');
+
+/**
+ * Where WhatsApp and every other channel stand, read once for the menu, the
+ * channels screen and going live — so the three can never disagree.
+ */
+function standing(f: FactoryView) {
+  const r = f.readiness;
+  const lc = r.lifecycle;
+  const others = f.connection.others ?? [];
+  const used = f.connection.channelsUsed ?? [];
+  // 0070 — while stopped, no line may say the assistant is answering anyone.
+  const stoppedAt = r.assistantStop?.stoppedAt ?? null;
+  // 0071 — ops paused sending: the same lines are untrue, for another reason.
+  const held = stoppedAt !== null || r.opsSilenced === true;
+  const liveElsewhere = others.filter((o) => o.state === 'connected');
+  // M20.4 (F-06) / Phase 4b (CC-11) — the list of who may be messaged is
+  // WhatsApp's alone (the pilot number's activation reads it): it appears only
+  // under a WhatsApp that is, or was, connected — or that already holds numbers.
+  const showAllowlist = lc !== 'not_connected' || r.recipients.length > 0;
+  const waRelevant = r.live || lc !== 'not_connected' || r.recipients.length > 0 || used.includes('whatsapp');
+  // In the order she named them at sign-up; the rest after, in the page's own order.
+  const rank = (k: string, i: number): number => { const u = used.indexOf(k); return u === -1 ? used.length + i : u; };
+  return { r, lc, others, used, stoppedAt, held, liveElsewhere, showAllowlist, waRelevant, rank };
+}
+
+/* ── the menu ─────────────────────────────────────────────────────────────── */
 
 export function renderFactory(
   f: FactoryView, locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
 ): string {
   const name = assistantName(locale);
   const p = f.profile;
+  const m = f.menu ?? null;
+  const s = standing(f);
 
-  // A new factory gets ONE next step. A finished one gets nothing at all —
+  // A new business gets ONE next step. A finished one gets nothing at all —
   // setup disappears rather than turning into a permanent checklist.
   const next = f.nextStep
     ? deeper(STEP_LINK[f.nextStep], t(locale, `factory.next.${f.nextStep}` as MessageKey, { name }), 'next')
     : '';
 
-  // 1 · About your factory — what she can tell a buyer about you.
-  const langs = p.languagesServed.length
-    ? p.languagesServed
-        .filter((l): l is Locale => l === 'en' || l === 'zh' || l === 'ar' || l === 'es' || l === 'fr')
-        .map((l) => LOCALE_LABEL[l]).join(' · ')
-    : null;
-  const aboutBody = p.name.trim() === ''
-    ? `<p class="fempty">${esc(t(locale, 'factory.about.empty', { name }))}</p>`
-    : `<div class="fname">${esc(p.name)}</div>
-       ${p.description ? `<p class="fdesc">${esc(p.description)}</p>` : ''}
-       <div class="facts">
-         ${fact(t(locale, 'settings.field.location'), p.location)}
-         ${fact(t(locale, 'settings.field.workingHours'), p.workingHours)}
-         ${fact(t(locale, 'settings.field.contactEmail'), p.contactEmail)}
-         ${fact(t(locale, 'settings.field.contactPhone'), p.contactPhone)}
-         ${fact(t(locale, 'factory.about.languages'), langs)}
-       </div>`;
+  // The profile: its name once the step is done (a description, a location and
+  // a way to be reached — db/setup.ts), "not finished" until then.
+  const unnamed = p.name.trim() === '';
+  const unfinished = unnamed || !p.description || !p.location || (!p.contactEmail && !p.contactPhone);
+  const profile = menuRow({ href: BUSINESS_FACTS_PATH, icon: 'business', label: t(locale, 'settings.profile.title'),
+    desc: unnamed ? t(locale, 'factory.about.empty', { name }) : null,
+    value: unfinished ? t(locale, 'setup.state.toDo') : p.name, tone: unfinished ? 'warn' : undefined });
 
-  // 2 · What you sell — a count the owner can verify, not a catalogue dump.
-  const sellBody = f.products.total === 0
-    ? `<p class="fempty">${esc(t(locale, 'factory.sell.empty', { name }))}</p>`
-    : `<div class="fcount">${esc(show.count(locale, f.products.total))}<span class="fcount-l">${esc(countNoun(locale, 'factory.sell.items', f.products.total))}</span></div>
-       ${f.products.names.length
-        ? `<p class="fnames">${nameList(f.products.names
-            .map((n) => productName(locale, n)).filter((n): n is string => n !== null), f.products.total > f.products.names.length)}</p>`
-        : ''}
-       ${f.products.needPrice > 0
-        ? `<p class="fwarn">${esc(t(locale, 'factory.sell.needPrice', { n: f.products.needPrice, name }))}</p>`
-        : `<p class="fok">${esc(t(locale, 'factory.sell.allPriced', { name }))}</p>`}`;
+  const kind = menuRow({ href: '/app/settings/business', icon: 'tag', label: t(locale, 'business.kind.label'),
+    value: m === null ? null : m.kind ? t(locale, `business.kind.${m.kind}` as MessageKey) : t(locale, 'setup.state.notAnswered'),
+    tone: m !== null && !m.kind ? 'warn' : undefined });
 
-  // 3 · What you promise buyers — the guard's allowlist in the owner's words.
-  //     Everything not listed is refused; that rule is stated, never implied.
-  // Only what the guard actually enforces, and only in the shape the owner's
-  // own data takes: one floor, or a range across her products.
-  const lo = f.promises.floorLow;
-  const hi = f.promises.floorHigh;
-  const ceil = f.promises.ceilingPct;
-  const ask = f.promises.askPct ?? null;
-  // Phase 9 — nothing comes off a price unless she wrote a discount (the price
-  // page says the same); with none, the ceiling and ask line limit nothing.
-  const noDiscount = f.prices.volume.length === 0;
-  const priceRules = [
-    lo !== null && hi !== null
-      ? (lo.amount === hi.amount && lo.currency === hi.currency
-        ? t(locale, 'factory.promise.floor', { price: show.money(locale, lo), name })
-        : t(locale, 'factory.promise.floorRange', { low: show.money(locale, lo), high: show.money(locale, hi), name }))
-      : null,
-    noDiscount ? t(locale, 'factory.promise.noDiscount', { name }) : null,
-    !noDiscount && ceil !== null
-      ? t(locale, f.promises.ceilingVaries ? 'factory.promise.ceilingVaries' : 'factory.promise.ceiling',
-        { ceil, name })
-      : null,
-    // G7a — a gate now, so a promise. Not stated when it can never fire: an
-    // ask line at the ceiling is a question the clamp means she never asks.
-    !noDiscount && ask !== null && ceil !== null && ask < ceil
-      ? t(locale, f.promises.askVaries ? 'factory.promise.askVaries' : 'factory.promise.ask', { ask, name })
-      : null,
-  ].filter((x): x is string => x !== null);
+  // Where customers reach you: the channels answering, by name; a connection
+  // that stopped waits for her; nothing connected waits for her too.
+  const wa: ReachChannel['state'] = s.lc === 'active' || s.lc === 'ready' ? 'connected' : s.lc === 'paused' ? 'attention' : 'not_connected';
+  const all = [{ channel: 'whatsapp', state: wa }, ...s.others]
+    .map((c, i) => ({ ...c, at: s.rank(c.channel, i) })).sort((a, b) => a.at - b.at);
+  const answering = all.filter((c) => c.state === 'connected').map((c) => t(locale, `reach.channel.${c.channel}` as MessageKey));
+  const needsHer = all.some((c) => c.state === 'attention');
+  const reach = menuRow({ href: BUSINESS_SCREEN_PATH.channels, icon: 'chat', label: t(locale, 'factory.reach.title'),
+    value: needsHer ? t(locale, 'connect.state.attention') : answering.length ? inLine(answering) : t(locale, 'setup.state.notConnected'),
+    tone: needsHer || answering.length === 0 ? 'warn' : 'ok' });
 
-  const promiseBody = `
-    ${f.promises.certs.length
-      ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'factory.promise.certsOn', { name }))}</p>
-         <div class="fchips">${f.promises.certs.map((c) =>
-           `<span class="fchip">${esc(claimName(locale, c))}</span>`).join('')}</div>`
-      : `<p class="fempty">${esc(t(locale, 'factory.promise.none', { name }))}</p>`}
-    ${priceRules.length ? `<ul class="frules">${priceRules.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
-    <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>`;
+  // Going live: the same facts the screen's first line answers from.
+  const r = s.r;
+  const [liveKey, liveTone]: readonly [MessageKey, 'ok' | 'warn' | undefined] = s.held
+    ? [r.opsSilenced ? 'business.live.paused' : 'business.live.stopped', 'warn']
+    : r.live || s.liveElsewhere.length > 0 ? ['business.live.on', 'ok']
+    : !s.waRelevant ? ['setup.state.notConnected', undefined]
+    : r.canActivate ? ['business.live.ready', 'ok']
+    : ['business.live.notYet', 'warn'];
+  const live = menuRow({ href: BUSINESS_SCREEN_PATH.ready, icon: 'power', label: t(locale, 'business.row.live'),
+    value: t(locale, liveKey), tone: liveTone });
+
+  // What you sell: a count the owner can verify, and whether each can be quoted.
+  const n = f.products.total;
+  const products = menuRow({ href: BUSINESS_PRODUCTS_PATH, icon: 'box', label: t(locale, 'nav.products'),
+    desc: n === 0 ? t(locale, 'factory.sell.empty', { name })
+      : f.products.needPrice > 0 ? t(locale, 'factory.sell.needPrice', { n: f.products.needPrice, name })
+      : t(locale, 'factory.sell.allPriced', { name }),
+    value: n === 0 ? t(locale, 'business.value.noneYet') : productCount(locale, n), tone: n === 0 ? 'warn' : undefined });
 
   // M29 — what she may never go below. Counts of real rows: how many priced
-  // products still have no limit the owner stated. Never a score.
+  // products still have no limit she stated. Never a score. G9a — the page is
+  // the owner's: a sales assistant reads where it stands, with no door to a refusal.
   const pr = f.prices;
-  const pricesBody = pr.businessDefault === null && pr.products.every((p) => p.own === null)
-    ? `<p class="fwarn">${esc(t(locale, 'factory.prices.none', { name }))}</p>`
-    : `<div class="fprices">${pr.businessDefault
-        // Phase 9 — the sentence says only what is true here: no discount written, nothing comes off.
-        ? `<p class="fdesc">${esc(t(locale, noDiscount ? 'prices.stated.noDiscount' : 'prices.stated', {
-            floor: show.money(locale, pr.businessDefault.floor), max: pr.businessDefault.maxDiscountPct,
-            ask: pr.businessDefault.askAbovePct, name }))}</p>`
-        : ''}
-       ${pr.unanswered > 0
-        ? `<p class="fwarn">${esc(t(locale, 'factory.prices.some', { n: pr.unanswered }))}</p>`
-        : `<p class="fok">${esc(t(locale, 'factory.prices.all'))}</p>`}</div>`;
+  const noLimits = pr.businessDefault === null && pr.products.every((x) => x.own === null);
+  const prices = menuRow({ href: viewer.isOwner ? '/app/business/prices' : null, icon: 'coins', label: t(locale, 'factory.prices.title'),
+    desc: noLimits ? t(locale, 'factory.prices.none', { name }) : null,
+    value: noLimits ? t(locale, 'setup.value.notSetUp') : pr.unanswered > 0 ? tn(locale, 'business.value.withoutLimit', pr.unanswered) : t(locale, 'business.value.allSet'),
+    tone: noLimits || pr.unanswered > 0 ? 'warn' : 'ok' });
 
-  // 4 · Where buyers reach you — connected or not, and what happens next.
+  // What she promises: the certificates and claims by their names.
+  const certs = f.promises.certs.map((c) => claimName(locale, c));
+  const promises = menuRow({ href: BUSINESS_SCREEN_PATH.promises, icon: 'shield', label: t(locale, 'factory.promise.title'),
+    value: certs.length ? inLine(certs) : t(locale, 'business.value.noneConfirmed') });
+
+  // How you sell: where the questions stand (the owner's — rule 11).
+  const hs = m?.howYouSell ?? null;
+  const how = menuRow({ href: BUSINESS_SCREEN_PATH.how, icon: 'receipt', label: t(locale, 'factory.sellhow.title'),
+    value: hs ? t(locale, 'hs.progress', { done: hs.answered, total: hs.total }) : null,
+    tone: hs ? (hs.answered >= hs.total ? 'ok' : 'warn') : undefined });
+
+  return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
+    ${flashBanner(flash)}
+    <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
+    ${next}
+    ${menuGroup('business', t(locale, 'business.group.main'), [profile, kind, reach, live])}
+    ${menuGroup('selling', t(locale, 'factory.sell.title'), [products, prices, promises, how])}`;
+}
+
+/* ── the screens a level down ─────────────────────────────────────────────── */
+
+/** Each screen starts with the way back to the menu it was opened from, then its name. */
+const head = (locale: Locale, title: string, flash: Flash | null, to: { href: string; label: string } | null = null): string =>
+  `${back(to?.href ?? '/app/business', to?.label ?? t(locale, 'nav.factory'))}
+    <h1 class="page">${esc(title)}</h1>
+    ${flashBanner(flash)}`;
+
+export function renderBusinessScreen(
+  screen: BusinessScreen, f: FactoryView, locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
+): string {
+  switch (screen) {
+    case 'channels': return channelsScreen(f, locale, flash, viewer);
+    case 'allowlist': return allowlistScreen(f, locale, flash, viewer);
+    case 'ready': return readyScreen(f, locale, flash, viewer);
+    case 'promises': return promisesScreen(f, locale, flash);
+    case 'how': return howScreen(f, locale, flash, viewer);
+  }
+}
+
+/**
+ * Where customers reach you — the ONE home of the channels (phase 7): a row
+ * for each place a customer can write, in the order she named them at
+ * sign-up, each with where it stands and the way to the Channels page; under
+ * WhatsApp, who may be messaged; and where her own alerts go.
+ */
+function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer): string {
+  const name = assistantName(locale);
+  const s = standing(f);
+  const c = f.connection.channel;
   // M20.3.1 — one lifecycle, four honest states. "Paused" and "never connected"
   // are different problems with different next steps, so they read differently.
-  const lc = f.readiness.lifecycle;
-  const c = f.connection.channel;
-  const others = f.connection.others ?? [];
   // Phase 4b — "cannot receive or answer a buyer" is false the moment she is
   // answering them on Instagram: then an unconnected WhatsApp says only that
-  // buyers who write THERE are not answered.
-  const elsewhere = others.some((o) => o.state === 'connected');
-  const waHint = lc === 'not_connected' && elsewhere
+  // customers who write THERE are not answered.
+  const elsewhere = s.others.some((o) => o.state === 'connected');
+  const waHint = s.lc === 'not_connected' && elsewhere
     ? t(locale, 'factory.reach.other.notConnected', { name })
-    : t(locale, `channel.state.${lc}.hint` as MessageKey, { name });
-  const conn = `<div>
-        <div class="fconn-t">${esc(t(locale, 'reach.channel.whatsapp'))}</div>
-        <div class="fconn-s">${esc(t(locale, `channel.state.${lc}` as MessageKey, { name }))}</div>
-        <div class="fconn-h muted">${esc(waHint)}</div>
-      </div>`;
-  // M20.4 (F-06) — the allowlist lives here, where the blocker sends her. It
-  // reuses pilot_allowlist and the existing add/archive services: no second
-  // store, no permission system. (Kept OUT of the template — an HTML comment
-  // ships to the owner's browser, and this one tripped the banned-vocabulary
-  // guard by containing a word owners never see.)
-  // Phase 4b (CC-11) — the list of who may be messaged is WhatsApp's alone (the
-  // pilot number's activation reads it), so it appears only under a WhatsApp
-  // that is, or was, connected — or that already holds numbers she added.
-  const showAllowlist = lc !== 'not_connected' || f.readiness.recipients.length > 0;
-  const allowlist = !showAllowlist ? '' : `
-    <h3 class="sub3">${esc(t(locale, 'allowlist.title', { name }))}</h3>
-    <p class="fdesc">${esc(t(locale, 'allowlist.note', { name }))}</p>
-    ${f.readiness.recipients.length === 0
-      ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
-      : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
-          <li class="done">✓ <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
-            ${viewer.isOwner ? `<form method="post" action="/app/business/allowlist/remove" class="inline rm">
-              <input type="hidden" name="phone" value="${esc(r.phone)}" />
-              <button class="btn ghost" type="submit"
-                      onclick="return confirm(this.dataset.confirm)"
-                      data-confirm="${esc(t(locale, 'allowlist.remove.confirm', { who: r.label ?? r.phone, name }))}"
-              >${esc(t(locale, 'allowlist.remove'))}</button>
-            </form>` : ''}</li>`).join('')}</ul>`}
-    ${!viewer.isOwner ? `<p class="fdesc muted">${esc(t(locale, 'staff.ownerDecides'))}</p>` : `<form method="post" action="/app/business/allowlist/add" class="alform">
+    : t(locale, `channel.state.${s.lc}.hint` as MessageKey, { name });
+  const whatsapp = menuRow({ href: '/app/channels', label: t(locale, 'reach.channel.whatsapp'),
+    descHtml: [s.lc !== 'not_connected' && c.displayId ? `<bdi>${esc(c.displayId)}</bdi>` : '', esc(waHint)].filter(Boolean).join(' · '),
+    value: t(locale, `channel.state.${s.lc}` as MessageKey, { name }),
+    // Phase 9 — the waiting signal is for a connection that stopped; a number
+    // never connected waits on nothing, so it carries no state colour.
+    tone: s.lc === 'active' || s.lc === 'ready' ? 'ok' : s.lc === 'paused' ? 'warn' : undefined });
+
+  const other = (o: ReachChannel): string => menuRow({ href: '/app/channels', label: t(locale, `reach.channel.${o.channel}` as MessageKey),
+    descHtml: o.state === 'connected'
+      ? [o.as ? `<bdi>${esc(o.as)}</bdi>` : '', esc(t(locale, 'reach.inbound.connected', { name }))].filter(Boolean).join(' · ')
+      : o.state === 'attention' && o.channel === 'email' && o.as
+        // the address isolated, not the sentence (connect.ts's withAddress lesson)
+        ? esc(t(locale, 'connect.mail.attention', { address: '\u0000' })).replace('\u0000', `<bdi>${esc(o.as)}</bdi>`)
+      : o.state === 'attention'
+        ? [o.as ? `<bdi>${esc(o.as)}</bdi>` : '', esc(t(locale, 'reach.inbound.attention'))].filter(Boolean).join(' · ')
+        : esc(t(locale, 'factory.reach.other.notConnected', { name })),
+    value: t(locale, o.state === 'connected' ? 'connect.state.connected' : o.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'),
+    tone: o.state === 'connected' ? 'ok' : o.state === 'attention' ? 'warn' : undefined });
+
+  const rows = [{ key: 'whatsapp', html: whatsapp }, ...s.others.map((o) => ({ key: o.channel as string, html: other(o) }))]
+    .map((b, i) => ({ ...b, at: s.rank(b.key, i) })).sort((a, b) => a.at - b.at).map((b) => b.html);
+
+  // WA (0120) — once WhatsApp is live, who may get a reply: the list only
+  // (pilot mode, how going live always starts), or every customer who writes.
+  const pilotOn = f.readiness.pilotMode ?? true;
+  const listed = f.readiness.recipients.length;
+  const allowlist = !s.showAllowlist ? '' : menuGroup('whatsapp', t(locale, 'reach.channel.whatsapp'), [menuRow({
+    href: BUSINESS_SCREEN_PATH.allowlist, label: t(locale, 'allowlist.title', { name }),
+    value: s.lc === 'active' && !pilotOn ? t(locale, 'business.value.everyone')
+      : listed === 0 ? t(locale, 'business.value.nobody') : tn(locale, 'business.value.numbers', listed),
+    tone: listed === 0 && pilotOn ? 'warn' : undefined })]);
+
+  // Phase 9 — the instruction to add a number comes with the place to add it.
+  const alerts = f.connection.ownerPhone
+    ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
+    : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>
+       ${viewer.isOwner ? deeper('/app/channels#alerts', t(locale, 'factory.reach.addAlerts')) : ''}`;
+
+  return `${head(locale, t(locale, 'factory.reach.title'), flash)}
+    ${menuGroup('channels', null, rows)}
+    ${allowlist}
+    ${alerts}`;
+}
+
+/**
+ * Who may be messaged on WhatsApp (M20.4, F-06), and — once WhatsApp is live —
+ * whether only they get replies (WA, 0120). It reuses pilot_allowlist and the
+ * existing add/archive services: no second store, no permission system.
+ */
+function allowlistScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer): string {
+  const name = assistantName(locale);
+  const lc = f.readiness.lifecycle;
+  const list = f.readiness.recipients.length === 0
+    ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
+    : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
+        <li class="done">✓ <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
+          ${viewer.isOwner ? `<form method="post" action="/app/business/allowlist/remove" class="inline rm">
+            <input type="hidden" name="phone" value="${esc(r.phone)}" />
+            <button class="btn ghost" type="submit"
+                    onclick="return confirm(this.dataset.confirm)"
+                    data-confirm="${esc(t(locale, 'allowlist.remove.confirm', { who: r.label ?? r.phone, name }))}"
+            >${esc(t(locale, 'allowlist.remove'))}</button>
+          </form>` : ''}</li>`).join('')}</ul>`;
+  const add = !viewer.isOwner ? `<p class="fdesc muted">${esc(t(locale, 'staff.ownerDecides'))}</p>` : `<form method="post" action="/app/business/allowlist/add" class="alform">
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.phone'))}</span>
         <input name="phone" inputmode="tel" placeholder="${esc(phonePlaceholder(locale, f.connection.country))}" required /></label>
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.label'))}</span>
         <input name="label" placeholder="${esc(t(locale, 'allowlist.label.ph'))}" /></label>
       <button class="btn send" type="submit">${esc(t(locale, 'allowlist.add'))}</button>
-    </form>`}
-    <p class="fdesc">${esc(t(locale,
-      // D6 — the card above says "connected"; this line used to say "until this
-      // is connected" in the same breath, because it knew only active/not.
-      lc === 'active' ? 'factory.reach.nextConnected'
-      : lc === 'ready' ? 'factory.reach.nextReady'
-      : 'factory.reach.nextNot', { name }))}</p>`;
-  // WA (0120) — once WhatsApp is live, who may get a reply: the list only
-  // (pilot mode, how going live always starts), or every customer who writes.
+    </form>`;
+  // D6 — the line under the list knows which of the three the number is in;
+  // phase 7: the switch it speaks of is a screen away, so its door follows it.
+  const nextLine = `<p class="fdesc">${esc(t(locale,
+    lc === 'active' ? 'factory.reach.nextConnected' : lc === 'ready' ? 'factory.reach.nextReady' : 'factory.reach.nextNot', { name }))}</p>
+    ${lc === 'ready' ? deeper(BUSINESS_SCREEN_PATH.ready, t(locale, 'business.row.live')) : ''}`;
   const pilotOn = f.readiness.pilotMode ?? true;
-  const pilotBlock = lc !== 'active' ? '' : `
-    <h3 class="sub3">${esc(t(locale, 'pilot.mode.title'))}</h3>
+  const pilot = lc !== 'active' ? '' : `
+    <h2 class="sub3">${esc(t(locale, 'pilot.mode.title'))}</h2>
     <p class="fdesc">${esc(t(locale, pilotOn ? 'pilot.mode.on' : 'pilot.mode.off', { name }))}</p>
     ${!viewer.isOwner ? '' : pilotOn
       ? `<form method="post" action="/app/business/pilot/end" class="inline"><button class="btn send" type="submit"
            onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'pilot.mode.endConfirm', { name }))}">${esc(t(locale, 'pilot.mode.end'))}</button></form>`
       : `<form method="post" action="/app/business/pilot/resume" class="inline"><button class="btn" type="submit">${esc(t(locale, 'pilot.mode.resume'))}</button></form>`}`;
-  // Phase 9 — amber ○ is "this waits for you": a connection that stopped. A
-  // number never connected is not waiting on anything; it is a door, plain.
-  const whatsappBlock = `
-    ${lc === 'active' || lc === 'ready'
-      ? `<div class="fconn on">${conn}</div>`
-      : `<a class="fconn ${lc === 'not_connected' ? 'todo' : 'off'}" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
-    ${lc !== 'not_connected' && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
-    ${allowlist}
-    ${pilotBlock}`;
+  return `${head(locale, t(locale, 'allowlist.title', { name }), flash, { href: BUSINESS_SCREEN_PATH.channels, label: t(locale, 'factory.reach.title') })}
+    <section class="fblock">
+      <p class="fdesc fdesc-lead">${esc(t(locale, 'allowlist.note', { name }))}</p>
+      ${list}
+      ${add}
+      ${nextLine}
+      ${pilot}
+    </section>`;
+}
 
-  // The other places she can be reached, each as the same card: tappable to the
-  // Channels page while it still needs her, still once it is connected.
-  const otherBlock = (o: ReachChannel): string => {
-    const card = `<div>
-        <div class="fconn-t">${esc(t(locale, `reach.channel.${o.channel}` as MessageKey))}</div>
-        <div class="fconn-s">${esc(t(locale, o.state === 'connected' ? 'connect.state.connected'
-          : o.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'))}</div>
-        <div class="fconn-h muted">${o.state === 'connected'
-          ? esc(t(locale, 'reach.inbound.connected', { name }))
-          : o.state === 'attention' && o.channel === 'email' && o.as
-            // the address isolated, not the sentence (connect.ts's withAddress lesson)
-            ? esc(t(locale, 'connect.mail.attention', { address: '\u0000' })).replace('\u0000', `<bdi>${esc(o.as)}</bdi>`)
-          : o.state === 'attention'
-            ? esc(t(locale, 'reach.inbound.attention'))
-            : esc(t(locale, 'factory.reach.other.notConnected', { name }))}</div>
-        ${o.as && !(o.state === 'attention' && o.channel === 'email')
-          ? `<div class="fconn-h muted"><bdi>${esc(o.as)}</bdi></div>` : ''}
-      </div>`;
-    return o.state === 'connected'
-      ? `<div class="fconn on">${card}</div>`
-      : `<a class="fconn ${o.state === 'attention' ? 'off' : 'todo'}" href="/app/channels">${card}<span class="go" aria-hidden="true">›</span></a>`;
-  };
-
-  // In the order she named them at sign-up; the rest after, in the page's own order.
-  const used = f.connection.channelsUsed ?? [];
-  const rank = (k: string, i: number): number => { const u = used.indexOf(k); return u === -1 ? used.length + i : u; };
-  const blocks = [{ key: 'whatsapp', html: whatsappBlock }, ...others.map((o) => ({ key: o.channel as string, html: otherBlock(o) }))]
-    .map((b, i) => ({ ...b, r: rank(b.key, i) }))
-    .sort((a, b) => a.r - b.r)
-    .map((b) => b.html).join('');
-
-  // Phase 9 — the instruction to add a number comes with the place to add it.
-  const reachBody = `
-    ${blocks}
-    ${f.connection.ownerPhone
-      ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
-      : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>
-         ${viewer.isOwner ? deeper('/app/channels#alerts', t(locale, 'factory.reach.addAlerts')) : ''}`}`;
-  // One door to the Channels page from this section: each card that needs the
-  // owner already is one; the section's own door only when none is.
-  const anyCardIsDoor = lc === 'not_connected' || lc === 'paused' || others.some((o) => o.state !== 'connected');
-
-  // 5 · Can she be activated now? — answered by the SAME preconditions the
-  //     activate action obeys. Either the list of blockers is empty, or it says
-  //     exactly what is in the way and where to fix it. No score, no grade.
-  const r = f.readiness;
+/**
+ * Before the assistant talks to real customers — answered by the SAME
+ * preconditions the activate action obeys: either the list of blockers is
+ * empty, or it says exactly what is in the way and where to fix it. No score,
+ * no grade. The owner's Stop on every channel leads (0070): it is the one
+ * switch that binds all of them, and it is never further away than the
+ * channels it stops.
+ */
+function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer): string {
+  const name = assistantName(locale);
+  const s = standing(f);
+  const r = s.r;
   const recipientList = r.recipients.length
     ? `<ul class="fsteps">${r.recipients.slice(0, 8).map((x) =>
         `<li class="done">✓ <bdi>${esc(x.label ?? x.phone)}</bdi>${x.label ? ` <span class="muted">${esc(x.phone)}</span>` : ''}</li>`).join('')}
@@ -822,18 +930,10 @@ export function renderFactory(
   // under WhatsApp's name and its Stop says what it stops, and each other
   // connected channel says it is already answering and how that is stopped.
   // Display only: nothing here changes what the gate decides.
-  const liveElsewhere = others.filter((o) => o.state === 'connected');
-  // 0070 — while stopped, no line on this page may say the assistant is
-  // answering anyone: WhatsApp's "talking to real buyers" and "Instagram keeps
-  // answering" both go, and the every-channel block says what is true.
-  const stoppedAt = r.assistantStop?.stoppedAt ?? null;
-  // 0071 — ops paused sending: the same lines are untrue, for another reason.
-  const held = stoppedAt !== null || r.opsSilenced === true;
-  const elsewhereNames = liveElsewhere.length === 0 ? '' : new Intl.ListFormat(locale, { type: 'conjunction' })
-    .format(liveElsewhere.map((o) => t(locale, `reach.channel.${o.channel}` as MessageKey)));
-  const waRelevant = r.live || lc !== 'not_connected' || r.recipients.length > 0 || used.includes('whatsapp');
+  const elsewhereNames = s.liveElsewhere.length === 0 ? '' : new Intl.ListFormat(locale, { type: 'conjunction' })
+    .format(s.liveElsewhere.map((o) => t(locale, `reach.channel.${o.channel}` as MessageKey)));
   const whatsappBody = r.live
-    ? `${held ? '' : `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>`}
+    ? `${s.held ? '' : `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>`}
        ${r.activatedAt ? `<p class="fdesc">${esc(t(locale, 'activation.live.since', {
           when: show.date(locale, r.activatedAt),
           // G9b — a name, or "you" for the reader; never the id in the column.
@@ -842,7 +942,7 @@ export function renderFactory(
           }) }))}</p>` : ''}
        ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
        <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
-       ${elsewhereNames && !held ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
+       ${elsewhereNames && !s.held ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
        <div class="facts">${confirmBtn('deactivate', 'danger',
           t(locale, 'activation.action.deactivate'),
           t(locale, 'activation.action.deactivateConfirm', { name }))}</div>`
@@ -860,7 +960,7 @@ export function renderFactory(
          ${blockerList}
          <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
          ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
-  const elsewhereBody = liveElsewhere.length === 0 || held ? '' : `
+  const elsewhereBody = s.liveElsewhere.length === 0 || s.held ? '' : `
        <p class="fok">${esc(t(locale, 'golive.other.live', { channels: elsewhereNames, name }))}</p>
        <p class="fdesc fdesc-lead">${esc(t(locale, 'golive.other.stopHow'))}</p>
        <div class="doors">${deeper('/app/employee', t(locale, 'golive.other.stopDrafts'))}${deeper('/app/channels', t(locale, 'golive.other.stopDisconnect'))}</div>`;
@@ -870,9 +970,9 @@ export function renderFactory(
   const who = (id: string | null) => actorName(id, f.people ?? [], viewer, {
     you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
   });
-  const everyBody = stoppedAt
+  const everyBody = s.stoppedAt
     ? `<p class="fwarn">${esc(t(locale, 'assistant.stop.stopped', { name }))}</p>
-       <p class="fdesc">${esc(t(locale, 'assistant.stop.since', { when: show.date(locale, stoppedAt), who: who(r.assistantStop?.stoppedBy ?? null) }))}</p>
+       <p class="fdesc">${esc(t(locale, 'assistant.stop.since', { when: show.date(locale, s.stoppedAt), who: who(r.assistantStop?.stoppedBy ?? null) }))}</p>
        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>
        <div class="facts">${confirmBtn('start-assistant', 'send',
           t(locale, 'assistant.stop.action.start', { name }),
@@ -886,75 +986,136 @@ export function renderFactory(
   // still works and is still hers.
   const silencedNote = r.opsSilenced
     ? `<p class="fwarn" data-golive="silenced">${esc(t(locale, 'assistant.silenced.note', { name }))}</p>` : '';
-  const everyBlock = held || waRelevant || liveElsewhere.length > 0
-    ? `<h3 class="sub3" data-golive="every">${esc(t(locale, 'assistant.stop.title'))}</h3>${silencedNote}${everyBody}` : '';
+  const everyBlock = s.held || s.waRelevant || s.liveElsewhere.length > 0
+    ? `<h2 class="sub3" data-golive="every">${esc(t(locale, 'assistant.stop.title'))}</h2>${silencedNote}${everyBody}` : '';
   // G3 — today's allowance, always visible: what is used, and when it renews.
   const a = r.allowance;
-  const allowanceBlock = a ? `<h3 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h3>
+  const allowanceBlock = a ? `<h2 class="sub3" data-golive="allowance">${esc(t(locale, 'business.allowance.title'))}</h2>
        ${a.pctUsed === null ? `<p class="fdesc">${esc(t(locale, 'business.allowance.none'))}</p>`
          : `<p class="${a.used ? 'fwarn' : 'fdesc'}">${esc(t(locale, 'business.allowance.used', { pct: Math.min(100, a.pctUsed), time: show.time(locale, a.renewsAt) }))}</p>
             ${a.used ? `<p class="fdesc">${esc(t(locale, 'business.allowance.waiting'))}</p>
             <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>` : ''}`}` : '';
-  const readyBody = everyBlock + allowanceBlock + (waRelevant
-    ? `<h3 class="sub3" data-golive="whatsapp">${esc(t(locale, 'reach.channel.whatsapp'))}</h3>${whatsappBody}${elsewhereBody
-        ? `<h3 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h3>${elsewhereBody}` : ''}`
+  const readyBody = everyBlock + allowanceBlock + (s.waRelevant
+    ? `<h2 class="sub3" data-golive="whatsapp">${esc(t(locale, 'reach.channel.whatsapp'))}</h2>${whatsappBody}${elsewhereBody
+        ? `<h2 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h2>${elsewhereBody}` : ''}`
     : `${elsewhereBody
         ? `<div data-golive="elsewhere">${elsewhereBody}</div>`
-        : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>`}
+        : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>
+           ${deeper(BUSINESS_SCREEN_PATH.channels, t(locale, 'factory.reach.title'))}`}
        ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`);
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These
   // are things the assistant cannot answer yet; none is a reason to stay off.
   const rehearsed = f.rehearsal ? rehearsalBlock(f.rehearsal, locale, name, f.products.namesZh) : '';
 
-  // Phase 9 — the section's heading asks a question; this line answers it,
-  // from the same facts the section lists below (and the activate action
-  // obeys): stopped, answering, ready to start, or how many things are first.
-  const answer = held
+  // Phase 9 — the heading asks a question; this line answers it, from the same
+  // facts the screen lists below (and the activate action obeys): stopped,
+  // answering, ready to start, or how many things are first.
+  const answer = s.held
     ? `<p class="fready">${signalMark('waiting')} ${esc(t(locale, 'factory.ready.answer.held', { name }))}</p>`
-    : r.live || liveElsewhere.length > 0
+    : r.live || s.liveElsewhere.length > 0
       ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.live', { name }))}</p>`
-      : !waRelevant
+      : !s.waRelevant
         ? `<p class="fready">${esc(t(locale, 'factory.ready.answer.nothing', { name }))}</p>`
         : r.canActivate
           ? `<p class="fready">${signalMark('ok')} ${esc(t(locale, 'factory.ready.answer.ready', { name }))}</p>`
           : `<p class="fready">${signalMark('waiting')} ${esc(tn(locale, 'factory.ready.answer.notYet', r.blockers.length, { name }))}</p>`;
 
-  // D — HOW you sell, beside WHAT you sell. Four pages that lived under
-  // Settings, where an owner who edits a price every week had to go looking
-  // for the payment terms next to the sign-in page. The pages did not move;
-  // the doors did.
+  return `${head(locale, t(locale, 'factory.ready.title', { name }), flash)}
+    ${answer}
+    <section class="fblock">
+      ${readyBody}
+      ${rehearsed}
+      ${deeper('/app/onboarding', t(locale, 'factory.ready.more'))}
+    </section>`;
+}
+
+/**
+ * What she promises customers — the claims guard's OWN allowlist in her words,
+ * and the price rules it enforces. Everything not listed is refused; that rule
+ * is stated, never implied.
+ */
+function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null): string {
+  const name = assistantName(locale);
+  // Only what the guard actually enforces, and only in the shape the owner's
+  // own data takes: one floor, or a range across her products.
+  const lo = f.promises.floorLow;
+  const hi = f.promises.floorHigh;
+  const ceil = f.promises.ceilingPct;
+  const ask = f.promises.askPct ?? null;
+  // Phase 9 — nothing comes off a price unless she wrote a discount (the price
+  // page says the same); with none, the ceiling and ask line limit nothing.
+  const noDiscount = f.prices.volume.length === 0;
+  const priceRules = [
+    lo !== null && hi !== null
+      ? (lo.amount === hi.amount && lo.currency === hi.currency
+        ? t(locale, 'factory.promise.floor', { price: show.money(locale, lo), name })
+        : t(locale, 'factory.promise.floorRange', { low: show.money(locale, lo), high: show.money(locale, hi), name }))
+      : null,
+    noDiscount ? t(locale, 'factory.promise.noDiscount', { name }) : null,
+    !noDiscount && ceil !== null
+      ? t(locale, f.promises.ceilingVaries ? 'factory.promise.ceilingVaries' : 'factory.promise.ceiling', { ceil, name })
+      : null,
+    // G7a — a gate now, so a promise. Not stated when it can never fire: an
+    // ask line at the ceiling is a question the clamp means she never asks.
+    !noDiscount && ask !== null && ceil !== null && ask < ceil
+      ? t(locale, f.promises.askVaries ? 'factory.promise.askVaries' : 'factory.promise.ask', { ask, name })
+      : null,
+  ].filter((x): x is string => x !== null);
+
+  return `${head(locale, t(locale, 'factory.promise.title'), flash)}
+    <section class="fblock">
+      ${f.promises.certs.length
+        ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'factory.promise.certsOn', { name }))}</p>
+           <div class="fchips">${f.promises.certs.map((c) =>
+             `<span class="fchip">${esc(claimName(locale, c))}</span>`).join('')}</div>`
+        : `<p class="fempty">${esc(t(locale, 'factory.promise.none', { name }))}</p>`}
+      ${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>
+      ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}
+    </section>`;
+}
+
+/**
+ * How you sell — D: HOW you sell, beside WHAT you sell. The questions first
+ * (the owner's), then the same facts changed directly, each with what it is
+ * set to now. Staff see the facts they may change (closures, a sample's
+ * address) and never the questions, which only refuse them (rule 11).
+ */
+function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer): string {
+  const m = f.menu ?? null;
+  const hs = m?.howYouSell ?? null;
+  const questions = !viewer.isOwner ? '' : menuGroup('questions', null, [menuRow({
+    href: HS_BASE, icon: 'question', label: t(locale, 'hs.questions.title'), desc: t(locale, 'factory.sellhow.questions'),
+    value: hs ? t(locale, 'hs.progress', { done: hs.answered, total: hs.total }) : null,
+    tone: hs ? (hs.answered >= hs.total ? 'ok' : 'warn') : undefined })]);
   // CUR — the rate door only where there is something to convert: a workspace
   // that sells in another currency than its country's own (`ratePairOf`).
   const home = currencyOfCountry(f.connection.country);
-  // Phase 9 — the first door is the questions (it repeated the heading); the
-  // rest change one of the same facts directly, and say so.
-  const sellHowBody = `<div class="doors">
-    ${viewer.isOwner ? deeper('/app/business/selling', t(locale, 'factory.sellhow.questions')) : ''}
-  </div>
-  ${viewer.isOwner ? `<p class="fdesc">${esc(t(locale, 'factory.sellhow.direct'))}</p>` : ''}
-  <div class="doors">
-    ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
-    ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
-    ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
-    ${home !== null && home !== f.prices.currency ? deeper('/app/settings/rate', t(locale, 'rate.title')) : ''}
-  </div>`;
-
-  // Phase 9 — the details are edited on the profile page, the same page the
-  // first next step opens (it was Setup's hub, a second place for one thing).
-  return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
-    ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
-    ${next}
-    ${section(t(locale, 'factory.about.title'), '', aboutBody, '/app/settings/profile', t(locale, 'factory.about.more'))}
-    ${section(t(locale, 'factory.sell.title'), '', sellBody, '/app/products', t(locale, 'factory.sell.more'))}
-    ${section(t(locale, 'factory.promise.title'), '', promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
-    ${section(t(locale, 'factory.prices.title'), '', pricesBody,
-      // G9a — the price-rules page is the owner's; no link to a refusal.
-      viewer.isOwner ? '/app/business/prices' : null, t(locale, 'factory.prices.more'))}
-    ${section(t(locale, 'factory.sellhow.title'), '', sellHowBody, null, '')}
-    ${section(t(locale, 'factory.reach.title'), '', reachBody, anyCardIsDoor ? null : '/app/channels', t(locale, 'factory.reach.more'))}
-    ${section(t(locale, 'factory.ready.title'), answer, readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}
-    `;
+  const samples = m?.samples ?? null;
+  const rows = [
+    menuRow({ href: '/app/settings/terms', icon: 'receipt', label: t(locale, 'terms.title'),
+      value: m === null ? null : m.terms ? inLine([m.terms.incoterm, m.terms.payment]) : t(locale, 'setup.value.notSetUp'),
+      tone: m !== null && !m.terms ? 'warn' : undefined }),
+    menuRow({ href: '/app/settings/samples', icon: 'gift', label: t(locale, 'samples.title'),
+      value: samples === null ? null : samples.waiting > 0 ? tn(locale, 'business.value.samplesWaiting', samples.waiting)
+        : samples.price === null ? t(locale, 'setup.value.notSetUp')
+        : samples.price.amount === 0 ? t(locale, 'business.value.free') : show.money(locale, samples.price),
+      tone: samples !== null && (samples.waiting > 0 || samples.price === null) ? 'warn' : undefined }),
+    menuRow({ href: '/app/settings/closures', icon: 'calendar', label: t(locale, 'closures.title'),
+      value: m === null ? null : m.closure
+        ? inLine([m.closure.label, t(locale, 'closures.range', { from: show.date(locale, m.closure.from), to: show.date(locale, m.closure.to) })])
+        : t(locale, 'business.value.noClosures') }),
+    ...(home !== null && home !== f.prices.currency ? [menuRow({ href: '/app/settings/rate', icon: 'exchange', label: t(locale, 'rate.title'),
+      value: m === null ? null : m.rate ? t(locale, 'rate.current', { rate: m.rate.rate, from: m.rate.from, to: m.rate.to }) : t(locale, 'setup.value.notSetUp'),
+      tone: m !== null && !m.rate ? 'warn' : undefined })] : []),
+  ];
+  // Phase 9 — the first door is the questions; the rest change one of the
+  // same facts directly, and say so.
+  return `${head(locale, t(locale, 'factory.sellhow.title'), flash)}
+    ${questions}
+    <section class="sgroup">
+      ${viewer.isOwner ? `<p class="sgroup-h">${esc(t(locale, 'factory.sellhow.direct'))}</p>` : ''}
+      <ul class="scard">${rows.join('')}</ul>
+    </section>`;
 }
-

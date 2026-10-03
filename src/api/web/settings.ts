@@ -5,7 +5,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName, setupState, businessName } from './say.js';
-import { icon } from './icons.js';
+import { icon, type IconId } from './icons.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR, FLOOR_BY_LANGUAGE } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
@@ -25,7 +25,13 @@ import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvali
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
-import { STEP_LINK } from './onboarding.js';
+
+/**
+ * Phase 7 — My business › How you sell: the menu the terms, samples, closures
+ * and rate pages are opened from, and lead back to (factory.ts names it
+ * `BUSINESS_SCREEN_PATH.how`; written out here, as factory.ts reads this file).
+ */
+const HOW_YOU_SELL = '/app/business/how-you-sell';
 
 /** Phase 4 — in place of a form only the owner may send: the values stay
  *  on the page to read, and this says whose decision they are. */
@@ -184,26 +190,62 @@ export async function saveBusinessProfile(
 export type ProfileDraft = Partial<Record<ProfileField, string>> & { readonly languagesServed?: readonly string[] };
 
 /**
- * PHASE 3 OF THE UI REBUILD (2026-10-02) — Setup in labelled groups. Each
- * group is one card of rows; each row says what the setting is (its name and
- * one line under it), what it is set to now, and opens it. A search finds a
- * row by its name, its line or its value, in the owner's language, without
- * the script: the page is filtered on the server.
+ * THE WARMTH RUN (2026-10-03), phase 7 — THE SETTINGS MODEL: one row of a
+ * menu. Its shape, its name (and a line under it only where the value cannot
+ * say the whole thing), what it is set to now, and the door. A row with no
+ * door (`href: null`) is one only the owner may open (rule 11): a sales
+ * assistant reads where it stands and is offered no door to a refusal.
  *
- * The groups (my call, named by the owner as mine to decide): setting up;
- * your business; customers and alerts; people and sign-in; billing and data.
- * The language switch leads, the one thing here an owner looks for in a hurry.
- * "How it looks" — the components gallery — is a developer's page and is no
- * longer listed; its address still works for whoever builds the product.
- * Log out is the rail's, and here only on a phone.
+ * A row is 56 px; one with a line under it is 64 px (`sr-two`).
+ */
+export type MenuRow = {
+  readonly href: string | null;
+  readonly icon?: IconId;
+  readonly label: string;
+  readonly desc?: string | null;
+  /** The line under the name, already escaped — for a line that isolates an address or a number. */
+  readonly descHtml?: string;
+  readonly value?: string | null;
+  /** A value that is a STATE carries its signal (phase 4); one that only names something carries none. */
+  readonly tone?: 'ok' | 'warn' | 'bad' | undefined;
+};
+
+export const menuRow = (r: MenuRow): string => {
+  const line = r.descHtml ?? (r.desc ? esc(r.desc) : '');
+  const inner = `${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}</span>`
+    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
+  const cls = `srow sr-menu${line ? ' sr-two' : ''}`;
+  return r.href
+    ? `<li><a class="${cls}" href="${r.href}">${inner}<span class="go" aria-hidden="true">›</span></a></li>`
+    : `<li><div class="${cls}">${inner}</div></li>`;
+};
+
+/** A group of rows: one card, under a short heading (none where the screen's own name says it). A group with no row is not drawn. */
+export const menuGroup = (id: string, title: string | null, rows: readonly string[]): string =>
+  rows.length === 0 ? ''
+    : title === null ? `<div class="sgroup"><ul class="scard">${rows.join('')}</ul></div>`
+    : `<section class="sgroup" aria-labelledby="sg-${id}"><h2 class="sgroup-h" id="sg-${id}">${esc(title)}</h2>
+        <ul class="scard">${rows.join('')}</ul></section>`;
+
+/**
+ * THE WARMTH RUN (2026-10-03), phase 7 — SETUP: how the app is wired for the
+ * owner, as a menu of two short cards (it was six labelled groups, a search
+ * and a switch). Setting up: the guide and its steps, what is checked before
+ * going live, alerts on this phone, the language. Your account: who works
+ * here, how you sign in, billing, your data.
+ *
+ * What is ABOUT the business moved to My business, its one home: the profile,
+ * the kind of business, How you sell — and where customers reach you, which
+ * is a fact about this business and where an owner looks for it. The five
+ * steps of setting up are one tap down, on Getting started (`/app/guide`),
+ * the row that says how many are done; the channels step there opens My
+ * business's channels screen (`STEP_LINK`). The search went with the length:
+ * eight rows in two cards are read faster than they are searched. Log out is
+ * Settings' foot.
  */
 export type SetupView = {
-  /** "What kind of business" as the owner last answered it; null = not yet. */
-  readonly kind: string | null;
   /** How many people work here. */
   readonly people: number;
-  /** HS — how many of How you sell's questions are answered; null for staff (the page is the owner's). */
-  readonly howYouSell?: { readonly answered: number; readonly total: number } | null;
   /** Phase 3 — alerts on this person's phones: whether this installation can send them, and how many phones. */
   readonly alerts?: { readonly available: boolean; readonly phones: number } | null;
   /** Phase 3 — how this person signs in: their e-mail, or the access code when they have no login. */
@@ -212,116 +254,62 @@ export type SetupView = {
   readonly billing?: { readonly configured: boolean; readonly exempt: boolean; readonly status: string } | null;
   /** Phase 3 — customers' deletion requests waiting for the owner; null for staff. */
   readonly dataWaiting?: number | null;
-  /** The search, as typed. */
-  readonly query?: string;
+  /** Phase 7 — who is looking. Who works here, billing and your data are the owner's pages (rule 11). Absent: the owner. */
+  readonly viewer?: Viewer;
 };
-
-/**
- * Phase 4 — a value that is a STATE carries its signal (✓ done or on, ○ waits
- * for you, ✕ did not happen); a value that only names something (a kind, an
- * e-mail, a count of people) carries none.
- */
-type SetupRow = {
-  readonly href: string; readonly label: string; readonly desc: string; readonly value: string; readonly tone?: 'ok' | 'warn' | 'bad' | undefined;
-  /** Phase 9 (today-onboarding-new-25) — other words an owner may search by ("password", "team"); never shown. */
-  readonly find?: string;
-  /** Phase 9 (V1-155) — one of the five counted steps, drawn as a step under Getting started. */
-  readonly step?: true;
-};
-
-/** Lower case, width-folded, so a search matches what is shown whatever way it was typed. */
-const fold = (s: string): string => s.normalize('NFKC').toLocaleLowerCase();
 
 export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): string {
   const setup = setupState();
+  const owner = (v.viewer ?? OWNER_VIEW).isOwner;
   const step = (k: string): boolean | null => setup?.steps.find((x) => x.step === k)?.done ?? null;
-  const state = (done: boolean | null, yes: MessageKey, no: MessageKey): string =>
-    done === null ? '' : t(locale, done ? yes : no);
   const toneOf = (done: boolean | null): 'ok' | 'warn' | undefined => done === null ? undefined : done ? 'ok' : 'warn';
+  const named = step('name');
   const billingTone = !v.billing || !v.billing.configured ? undefined
     : v.billing.exempt || ['cardSaved', 'trial', 'active'].includes(v.billing.status) ? 'ok' as const
     : ['past_due', 'lapsed'].includes(v.billing.status) ? 'bad' as const : undefined;
-  const ready = setup
-    ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))
-    : '';
   const billing = v.billing
     ? (!v.billing.configured ? t(locale, 'setup.value.notSetUp')
       : v.billing.exempt ? t(locale, 'setup.value.billing.exempt')
       : (['none', 'cardSaved', 'trial', 'active', 'past_due', 'lapsed'] as const).includes(v.billing.status as never)
         ? t(locale, `setup.value.billing.${v.billing.status}` as MessageKey) : '')
     : '';
-  const find = (k: MessageKey): string => t(locale, k);
-  // Phase 9 (V1-155) — while setting up is unfinished, the five steps the nav
-  // counts are on the page it opens, each with where it stands and its door,
-  // named as Today and the guide name them.
-  const steps: readonly SetupRow[] = setup && setup.next !== null
-    ? setup.steps.map((x, i) => ({ href: STEP_LINK[x.step], label: `${show.count(locale, i + 1)}. ${t(locale, `factory.next.${x.step}` as MessageKey)}`,
-        desc: '', value: t(locale, x.done ? 'guide.done' : 'guide.todo'), tone: toneOf(x.done), step: true as const }))
-    : [];
-  // Phase 9 (today-onboarding-new-23) — a row not answered yet waits for the owner, and says so the same way on every row.
-  const answered = (done: number, total: number): 'ok' | 'warn' => (done >= total ? 'ok' : 'warn');
-  const groups: readonly { readonly id: string; readonly title: string; readonly rows: readonly SetupRow[] }[] = [
-    { id: 'start', title: t(locale, 'setup.group.start'), rows: [
-      { href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready,
-        tone: setup ? toneOf(setup.next === null) : undefined, find: find('setup.find.guide') },
-      ...steps,
-      { href: '/app/onboarding', label: t(locale, 'nav.onboarding'), desc: t(locale, 'setup.desc.onboarding'),
-        value: state(step('name'), 'setup.value.nameConfirmed', 'setup.value.nameNotConfirmed'), tone: toneOf(step('name')), find: find('setup.find.onboarding') },
-    ] },
-    { id: 'business', title: t(locale, 'setup.group.business'), rows: [
-      { href: '/app/settings/profile', label: t(locale, 'settings.profile.title'), desc: t(locale, 'setup.desc.profile'),
-        value: state(step('profile'), 'setup.state.done', 'setup.state.toDo'), tone: toneOf(step('profile')), find: find('setup.find.profile') },
-      { href: '/app/settings/business', label: t(locale, 'business.kind.label'), desc: t(locale, 'setup.desc.kind'),
-        value: v.kind ?? t(locale, 'setup.state.notAnswered'), tone: v.kind ? undefined : 'warn', find: find('setup.find.kind') },
-      ...(v.howYouSell ? [{ href: '/app/business/selling', label: t(locale, 'hs.title'), desc: t(locale, 'setup.desc.selling'),
-        value: t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total }),
-        tone: answered(v.howYouSell.answered, v.howYouSell.total) }] : []),
-    ] },
-    { id: 'reach', title: t(locale, 'setup.group.reach'), rows: [
-      { href: '/app/channels', label: t(locale, 'nav.channels'), desc: t(locale, 'setup.desc.channels'),
-        value: state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'), tone: toneOf(step('channels')), find: find('setup.find.channels') },
-      { href: '/app/settings/alerts', label: t(locale, 'alerts.phone.title'), desc: t(locale, 'setup.desc.alerts'),
-        value: !v.alerts ? '' : !v.alerts.available ? t(locale, 'setup.value.unavailable')
-          : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
-        tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined, find: find('setup.find.alerts') },
-    ] },
-    { id: 'people', title: t(locale, 'setup.group.people'), rows: [
-      { href: '/app/settings/people', label: t(locale, 'people.title'), desc: t(locale, 'setup.desc.people'),
-        value: tn(locale, 'setup.state.people', v.people), find: find('setup.find.people') },
-      { href: '/app/settings/account', label: t(locale, 'account.title'), desc: t(locale, 'setup.desc.account'),
-        value: !v.signIn ? '' : v.signIn.email ?? t(locale, 'setup.value.accessCode'), find: find('setup.find.account') },
-    ] },
-    { id: 'account', title: t(locale, 'setup.group.account'), rows: [
-      { href: '/app/settings/billing', label: t(locale, 'billing.title'), desc: t(locale, 'setup.desc.billing'), value: billing, tone: billingTone, find: find('setup.find.billing') },
-      { href: '/app/settings/data', label: t(locale, 'data.title'), desc: t(locale, 'setup.desc.data'),
-        value: v.dataWaiting === null || v.dataWaiting === undefined ? ''
-          : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
-        tone: v.dataWaiting ? 'warn' : undefined, find: find('setup.find.data') },
-    ] },
+  const start = [
+    // The guided path, with where setting up stands: its five steps are one tap down.
+    menuRow({ href: '/app/guide', icon: 'guide', label: t(locale, 'guide.title'),
+      value: setup ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total })) : null,
+      tone: setup ? toneOf(setup.next === null) : undefined }),
+    menuRow({ href: '/app/onboarding', icon: 'setup', label: t(locale, 'nav.onboarding'),
+      value: named === null ? null : t(locale, named ? 'setup.value.nameConfirmed' : 'setup.value.nameNotConfirmed'), tone: toneOf(named) }),
+    menuRow({ href: '/app/settings/alerts', icon: 'bell', label: t(locale, 'alerts.phone.title'),
+      value: !v.alerts ? null : !v.alerts.available ? t(locale, 'setup.value.unavailable')
+        : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
+      tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
+    // The switch, a tap down: the row says which language is in force, in its own name.
+    menuRow({ href: '/app/settings/language', icon: 'globe', label: t(locale, 'settings.language.title'), value: LOCALE_LABEL[locale] }),
   ];
-
-  const q = (v.query ?? '').trim();
-  const hit = (...words: string[]): boolean => q === '' || words.some((w) => fold(w).includes(fold(q)));
-  const row = (r: SetupRow): string => `<li${r.step ? ' class="sr-step"' : ''}><a class="srow" href="${r.href}">
-      <span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${r.desc ? `<span class="sr-desc">${esc(r.desc)}</span>` : ''}</span>
-      ${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
-  const shown = groups.map((g) => ({ ...g, rows: g.rows.filter((r) => hit(g.title, r.label, r.desc, r.value, r.find ?? '')) })).filter((g) => g.rows.length > 0);
-  const language = hit(t(locale, 'settings.language.title'))
-    ? `<section class="sgroup" aria-labelledby="sg-language"><h2 class="sgroup-h" id="sg-language">${esc(t(locale, 'settings.language.title'))}</h2>
-        <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings/setup')}</span></div></div></section>` : '';
-  const search = `<form class="search" method="get" action="/app/settings/setup" role="search">
-      <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'setup.search.placeholder'))}" aria-label="${esc(t(locale, 'setup.search.label'))}" />
-      <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
-      ${q ? `<a class="clear" href="/app/settings/setup">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
-    </form>`;
-  const body = shown.length === 0 && !language
-    ? `<div class="empty" role="status">${esc(t(locale, 'setup.search.none', { q }))}<div>${deeper('/app/settings/setup', t(locale, 'setup.search.all'))}</div></div>`
-    : `${language}${shown.map((g) => `<section class="sgroup" aria-labelledby="sg-${g.id}"><h2 class="sgroup-h" id="sg-${g.id}">${esc(g.title)}</h2>
-        <ul class="scard">${g.rows.map(row).join('')}</ul></section>`).join('')}`;
+  const account = [
+    menuRow({ href: owner ? '/app/settings/people' : null, icon: 'person', label: t(locale, 'people.title'), value: tn(locale, 'setup.state.people', v.people) }),
+    menuRow({ href: '/app/settings/account', icon: 'key', label: t(locale, 'account.title'),
+      value: !v.signIn ? null : v.signIn.email ?? t(locale, 'setup.value.accessCode') }),
+    ...(owner ? [
+      menuRow({ href: '/app/settings/billing', icon: 'card', label: t(locale, 'billing.title'), value: billing, tone: billingTone }),
+      menuRow({ href: '/app/settings/data', icon: 'folder', label: t(locale, 'data.title'),
+        value: v.dataWaiting === null || v.dataWaiting === undefined ? null
+          : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
+        tone: v.dataWaiting ? 'warn' : undefined }),
+    ] : []),
+  ];
   return `<h1 class="page">${esc(t(locale, 'nav.setup'))}</h1>
     ${flashBanner(flash)}
-    ${search}
-    ${body}`;
+    ${menuGroup('start', t(locale, 'setup.group.start'), start)}
+    ${menuGroup('account', t(locale, 'setup.group.yours'), account)}`;
+}
+
+/** Phase 7 — the language switch, on a small screen of its own: Setup's row says which language is in force. */
+export function renderLanguage(locale: Locale): string {
+  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
+    <h1 class="page">${esc(t(locale, 'settings.language.title'))}</h1>
+    <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings/language')}</span></div></div>`;
 }
 
 /**
@@ -512,7 +500,9 @@ export function renderProfile(
   </form>`;
 
   const missing = needs.description || needs.location || needs.contact;
-  return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
+  // Phase 7 — the business's facts have ONE home, My business (two doors, one
+  // data: the assistant's page links here for what it can talk about).
+  return `${back('/app/business', t(locale, 'nav.factory'))}
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
     ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}
@@ -749,8 +739,9 @@ export async function setRate(
 
 export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
-  // Phase 9 (V1-529, V1-530) — the page is reached from My business, and leads back there.
-  const backTo = back('/app/business', t(locale, 'nav.factory'));
+  // Phase 9 (V1-529, V1-530) — the page leads back where it is reached from:
+  // since phase 7, My business › How you sell.
+  const backTo = back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'));
   if (!v.pair) {
     // Phase 9 (V1-529, V1-531, V1-532, new-06) — nothing to convert is a state,
     // drawn as one: the currency by its name, and the door to where it is set.
@@ -868,9 +859,9 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
   // Phase 9 (V1-482) — the words a customer gets, as the reply is told to say
   // them (`closureNote`): the closure's name, and that no date can be promised.
   const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.add.placeholder') });
-  // Phase 9 (V1-478, settings-a-new-09) — the way back to My business, which
-  // links here; the intro is the settings pages' one lede.
-  return `${back('/app/business', t(locale, 'nav.factory'))}
+  // Phase 9 (V1-478, settings-a-new-09) — the way back to where it is linked
+  // from (phase 7: How you sell); the intro is the settings pages' one lede.
+  return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
     <h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
@@ -1028,7 +1019,7 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, v
     ? [...OFFERED_INCOTERMS, v.terms.incoterm] : OFFERED_INCOTERMS;
   const options = choices.map((k) =>
     `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('');
-  return `${back('/app/business', t(locale, 'nav.factory'))}
+  return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
     <h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
@@ -1112,8 +1103,8 @@ export function renderSamples(
         </div>
       </li>`).join('')}</ul>`;
 
-  // Phase 9 (V1-534) — reached from My business ("Samples ›"), and back there.
-  return `${back('/app/business', t(locale, 'nav.factory'))}
+  // Phase 9 (V1-534) — reached from How you sell ("Samples ›"), and back there.
+  return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
     <h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">

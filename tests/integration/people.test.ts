@@ -198,7 +198,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       (await app.inject({ method: 'GET', url, headers: { cookie } })).body;
     const owner = { factory: await get(ownerCookie, '/app/business'), channels: await get(ownerCookie, '/app/channels') };
     const staff = {
-      factory: await get(staffCookie, '/app/business'),
+      factory: (await get(staffCookie, '/app/business')) + (await get(staffCookie, '/app/business/ready')),
       employee: await get(staffCookie, '/app/employee'),
       channels: await get(staffCookie, '/app/channels'),
     };

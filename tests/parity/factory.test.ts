@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
-import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
+import { renderFactory, renderBusinessScreen, BUSINESS_SCREEN_PATH, type BusinessScreen, type FactoryView } from '../../src/api/web/factory.js';
+import type { Viewer } from '../../src/core/conversation/people.js';
 import type { ChannelView } from '../../src/api/web/channels.js';
 import type { ActivationRefusal } from '../../src/channels/activation.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { t as say } from '../../src/api/web/say.js';
-import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { esc } from '../../src/api/web/layout.js';
 import { readFileSync } from 'node:fs';
 import { withoutIsolates } from './isolates.js';
@@ -19,6 +19,19 @@ const factorySectionOfShell = (): string => {
   return start > 0 ? src.slice(start, end > start ? end : undefined) : '';
 };
 
+
+/**
+ * THE WARMTH RUN, phase 7 — My business is a menu, and each of its old
+ * sections a screen a level down. `screen` draws one; `everything` draws the
+ * menu and every screen together, for what must hold wherever she reads it
+ * (no unfilled placeholder, no software word, nothing she typed unescaped).
+ */
+const SCREENS = Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[];
+const screen = (s: BusinessScreen, v: FactoryView, l: Locale = 'en', viewer?: Viewer): string =>
+  withoutIsolates(renderBusinessScreen(s, v, l, null, viewer));
+const menu = (v: FactoryView, l: Locale = 'en', viewer?: Viewer): string => withoutIsolates(renderFactory(v, l, null, viewer));
+const everything = (v: FactoryView, l: Locale = 'en', viewer?: Viewer): string =>
+  [menu(v, l, viewer), ...SCREENS.map((x) => screen(x, v, l, viewer))].join('\n');
 
 /** A catalogue sentence as the page prints it: the page's own `t`, escaped the same way. */
 const shown = (l: Locale, key: MessageKey, params?: Record<string, string | number>): string => esc(say(l, key, params));
@@ -74,50 +87,50 @@ const fresh: FactoryView = {
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {
-  it('every section is present, in the order an owner thinks about them', () => {
-    const html = withoutIsolates(renderFactory(complete, 'en'));
-    const at = (s: string) => html.indexOf(s);
-    expect(at('About your business')).toBeGreaterThan(-1);
-    expect(at('What you sell')).toBeGreaterThan(at('About your business'));
-    expect(at('What you promise customers')).toBeGreaterThan(at('What you sell'));
-    expect(at('Where customers reach you')).toBeGreaterThan(at('What you promise customers'));
+  it('phase 7 · the landing is a menu: every former section a row, in the order an owner thinks about them', () => {
+    const html = menu(complete);
+    const rows = [...html.matchAll(/<a class="srow sr-menu[^"]*" href="([^"]+)">[\s\S]*?<span class="sr-label">([^<]+)<\/span>/g)].map((m) => [m[1], m[2]]);
+    expect(rows).toEqual([
+      ['/app/settings/profile', shown('en', 'settings.profile.title')],
+      ['/app/settings/business', shown('en', 'business.kind.label')],
+      [BUSINESS_SCREEN_PATH.channels, shown('en', 'factory.reach.title')],
+      [BUSINESS_SCREEN_PATH.ready, shown('en', 'business.row.live')],
+      ['/app/products', shown('en', 'nav.products')],
+      ['/app/business/prices', shown('en', 'factory.prices.title')],
+      [BUSINESS_SCREEN_PATH.promises, shown('en', 'factory.promise.title')],
+      [BUSINESS_SCREEN_PATH.how, shown('en', 'factory.sellhow.title')],
+    ]);
     // Phase 9 (V1-390) — no grey question restating each heading in another voice.
     for (const q of ['Who are we?', 'What do we sell?', 'Where can customers reach us?', 'class="fq"'])
       expect(html).not.toContain(q);
   });
 
-  it('shows the real business facts it was given, and omits the ones it was not', () => {
-    const html = withoutIsolates(renderFactory(complete, 'en'));
-    expect(html).toContain('Yiwu Sunrise Housewares');
-    expect(html).toContain('Vacuum cups and kitchen goods since 2011.');
-    expect(html).toContain('Yiwu, Zhejiang');
-    expect(html).toContain('sales@sunrise.example');
-    expect(html).toContain('English · 中文');
-    const noHours = withoutIsolates(renderFactory({ ...complete, profile: { ...complete.profile, workingHours: null } }, 'en'));
-    expect(noHours).not.toContain('Working hours');   // absent facts leave no empty row
-
-    // a phone is labelled a phone, even when there is no email beside it
-    const phoneOnly = withoutIsolates(renderFactory({ ...complete, profile: { ...complete.profile, contactEmail: null, contactPhone: '+86 579 8888 1234' } }, 'en'));
-    expect(phoneOnly).toContain('+86 579 8888 1234');
-    expect(phoneOnly).not.toContain('Contact email');
-    expect(phoneOnly).toContain('Contact phone');
+  it('the profile row carries the business’s name once the step is done, and says when it is not', () => {
+    expect(menu(complete)).toContain('<span class="sr-value"><bdi>Yiwu Sunrise Housewares</bdi></span>');
+    // the facts themselves have ONE home, the profile page the row opens (two doors, one data)
+    expect(menu(complete)).not.toContain('Vacuum cups and kitchen goods since 2011.');
+    const noPlace = menu({ ...complete, profile: { ...complete.profile, location: null } });
+    expect(noPlace).toContain(`<span class="sr-value warn"><bdi>${shown('en', 'setup.state.toDo')}</bdi></span>`);
+    expect(noPlace).not.toContain('Yiwu Sunrise Housewares');
   });
 
   it('products are a real count with the honest pricing state', () => {
-    expect(withoutIsolates(renderFactory(complete, 'en'))).toContain('>12<span');
-    expect(withoutIsolates(renderFactory(complete, 'en'))).toContain(shown('en', 'factory.sell.allPriced'));
-    const some = withoutIsolates(renderFactory({ ...complete, products: { ...complete.products, needPrice: 3 } }, 'en'));
+    expect(menu(complete)).toContain('<span class="sr-value"><bdi>12 products</bdi></span>');
+    expect(menu(complete)).toContain(shown('en', 'factory.sell.allPriced'));
+    const some = menu({ ...complete, products: { ...complete.products, needPrice: 3 } });
     expect(some).toContain('3 still need a price');
   });
 
   it('promises are the guard’s allowlist, named in the owner’s words not the guard’s keys', () => {
-    const html = withoutIsolates(renderFactory(complete, 'en'));
+    const html = screen('promises', complete);
     expect(html).toContain('Food-safe materials'); expect(html).toContain('BPA free');
     expect(html).not.toContain('food_grade');        // never an internal key
     expect(html).toContain(shown('en', 'factory.promise.certsOn'));
     expect(html).toContain(shown('en', 'factory.promise.never'));      // default-deny, in owner language
     // meaning arrives before the tokens it explains
     expect(html.indexOf(shown('en', 'factory.promise.certsOn'))).toBeLessThan(html.indexOf('Food-safe materials'));
+    // and the menu's row names them too, never by key
+    expect(menu(complete)).toContain('<bdi>Food-safe materials · BPA free</bdi>');
   });
 
   it('states the three rules the guard actually enforces', () => {
@@ -125,20 +138,21 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // and since G7a a discount past her ask-first line holds the reply for her
     // (core/conversation/hold.ts). Before G7a that line decided nothing, so the
     // page did not state it; now it is a gate, so it is a promise.
-    const rules = withoutIsolates(renderFactory(complete, 'en')).match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
+    const rules = screen('promises', complete).match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
     expect(rules).toContain('never quotes below $0.75');
     expect(rules).toContain('never discounts more than 8%');
     expect(rules).toContain(shown('en', 'factory.promise.ask', { ask: 5 }));
   });
 
   it('G9a · a sales assistant sees whether messaging is live — not the switch, and not a link to the floor', () => {
-    const owner = withoutIsolates(renderFactory(complete, 'en'));
-    expect(owner).toContain('action="/app/business/activate"');
-    expect(owner).toContain('href="/app/business/prices"');
-    const staff = withoutIsolates(renderFactory(complete, 'en', null, { isOwner: false }));
-    expect(staff).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
-    expect(staff).not.toContain('href="/app/business/prices"');
-    expect(staff).toContain('The owner decides this.');
+    expect(screen('ready', complete)).toContain('action="/app/business/activate"');
+    expect(menu(complete)).toContain('href="/app/business/prices"');
+    const staff = { isOwner: false };
+    expect(everything(complete, 'en', staff)).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
+    expect(everything(complete, 'en', staff)).not.toContain('href="/app/business/prices"');
+    expect(screen('ready', complete, 'en', staff)).toContain('The owner decides this.');
+    // the price limits' row still says where they stand, with no door to a refusal
+    expect(menu(complete, 'en', staff)).toMatch(/<div class="srow sr-menu">[^]*?<span class="sr-label">Your price limits<\/span>/);
   });
 
   it('an ask line at the ceiling is never stated — the clamp means the owner is never asked', () => {
@@ -146,7 +160,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const askTail = esc(say('en', 'factory.promise.ask', { ask: '§' }).split('§')[1]!);
     const askVariesTail = esc(say('en', 'factory.promise.askVaries', { ask: '§' }).split('§')[1]!);
     for (const askPct of [8, 9, null]) {
-      const rules = withoutIsolates(renderFactory({ ...complete, promises: { ...complete.promises, askPct } }, 'en'))
+      const rules = screen('promises', { ...complete, promises: { ...complete.promises, askPct } })
         .match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
       expect(rules, String(askPct)).not.toContain(askTail);
       expect(rules, String(askPct)).not.toContain(askVariesTail);
@@ -156,8 +170,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('a catalogue with different floors reports the range, never one product’s number', () => {
     // The guard reads the PER-PRODUCT policy; quoting a single business-wide
     // floor described numbers no quote had ever used.
-    const html = withoutIsolates(renderFactory({ ...complete, promises: {
-      ...complete.promises, floorLow: usd(0.30), floorHigh: usd(2.40), ceilingVaries: true } }, 'en'));
+    const html = screen('promises', { ...complete, promises: {
+      ...complete.promises, floorLow: usd(0.30), floorHigh: usd(2.40), ceilingVaries: true } });
     expect(html).toContain('$0.30');
     expect(html).toContain('$2.40');
     expect(html).toContain('less on some products');
@@ -165,7 +179,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   });
 
   it('price rules appear only when the owner actually has them', () => {
-    const none = withoutIsolates(renderFactory({ ...complete, promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false } }, 'en'));
+    const none = screen('promises', { ...complete, promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false } });
     expect(none).not.toContain('never quotes below');
     expect(none).not.toContain('never discounts more than');
     expect(none).toContain(shown('en', 'factory.promise.none'));
@@ -176,38 +190,39 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // computeQuote takes a discount only from a rule she wrote; the price page
     // says the same, so the two pages can no longer disagree.
     for (const l of LOCALES) {
-      const rules = withoutIsolates(renderFactory({ ...complete, prices: { ...complete.prices, volume: [] } }, l))
+      const rules = screen('promises', { ...complete, prices: { ...complete.prices, volume: [] } }, l)
         .match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
       expect(rules, l).toContain(shown(l, 'factory.promise.noDiscount'));
       expect(rules, l).not.toContain(shown(l, 'factory.promise.ask', { ask: 5 }));
     }
-    const en = withoutIsolates(renderFactory({ ...complete, prices: { ...complete.prices, volume: [] } }, 'en'));
+    const en = screen('promises', { ...complete, prices: { ...complete.prices, volume: [] } });
     expect(en).toContain('offers no discount: you have not written one.');
     expect(en).not.toContain('never discounts more than');
   });
 
   it('connection says which of the four states it is in, and what that means', () => {
-    const on = withoutIsolates(renderFactory(complete, 'en'));
+    const on = screen('channels', complete);
     expect(on).toContain('Connected');
     expect(on).toContain(shown('en', 'channel.state.ready.hint'));
     expect(on).toContain('+971 50 ••• 4444');
-    const off = withoutIsolates(renderFactory(fresh, 'en'));
+    const off = screen('channels', fresh);
     expect(off).toContain('Not connected');
     expect(off).toContain('Customers who write to your WhatsApp are not answered until it is connected.');
   });
 
   it('a finished factory shows no next step; a new one shows exactly one', () => {
     // V1 review fix: the next step is a door like the others, marked `next` so it can be counted.
-    expect(withoutIsolates(renderFactory(complete, 'en'))).not.toContain('class="deeper next"');
-    for (const [step, href] of [['profile', '/app/settings/profile'], ['products', '/app/products'], ['channels', '/app/channels'], ['first_success', '/app/inbox']] as const) {
-      const html = withoutIsolates(renderFactory({ ...fresh, nextStep: step }, 'en'));
+    expect(menu(complete)).not.toContain('class="deeper next"');
+    // Phase 7 — the channels step opens the channels' one home, My business's screen.
+    for (const [step, href] of [['profile', '/app/settings/profile'], ['products', '/app/products'], ['channels', BUSINESS_SCREEN_PATH.channels], ['first_success', '/app/inbox']] as const) {
+      const html = menu({ ...fresh, nextStep: step });
       expect(html.split('class="deeper next"').length - 1, step).toBe(1);
       expect(html).toContain(`class="deeper next" href="${href}"`);
     }
   });
 
   it('an empty factory is honest about being empty, never a wall of zeros', () => {
-    const html = withoutIsolates(renderFactory(fresh, 'en'));
+    const html = menu(fresh);
     expect(html).toContain('nothing to tell customers about you yet');
     expect(html).toContain('nothing to quote yet');
     expect(html).not.toContain('>0<');
@@ -216,77 +231,76 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('every section offers a way through to the surface that owns it', () => {
     // P5 — Practice is every workspace's own: its door is always drawn.
-    const html = withoutIsolates(renderFactory(complete, 'en'));
-    for (const href of ['/app/settings/profile', '/app/products', '/app/knowledge', '/app/channels', '/app/onboarding', '/app/sandbox'])
-      expect(html, href).toContain(`href="${href}"`);
+    const all = everything(complete);
+    for (const href of ['/app/settings/profile', '/app/settings/business', '/app/products', '/app/business/prices', '/app/knowledge',
+      '/app/channels', '/app/onboarding', '/app/sandbox', ...Object.values(BUSINESS_SCREEN_PATH)])
+      expect(all, href).toContain(`href="${href}"`);
   });
 
   it('is a page, not a settings panel — it collects only go-live decisions', () => {
-    const html = withoutIsolates(renderFactory(complete, 'en'));
-    // M20.3 added activate/deactivate; M20.4 added the allowlist, because the
-    // blocker pointed here and had nowhere to send her. Nothing else on this
-    // page collects input — every other edit happens on the surface that owns it.
-    // 0070 — and the owner's Stop / Start on every channel: go-live decisions too.
-    for (const f of html.match(/<form[^>]*action="([^"]*)"/g) ?? [])
-      expect(f).toMatch(/\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove))/);
-    expect(html).not.toContain('<textarea');
-    expect(html).not.toContain('<table');
+    // The menu collects nothing. Its screens collect only what they always did:
+    // M20.3 activate/deactivate; M20.4 the allowlist, because the blocker
+    // pointed there and had nowhere to send her; 0070 the owner's Stop / Start
+    // on every channel; WA (0120) who gets replies. Every other edit happens
+    // on the page that owns it.
+    expect(menu(complete)).not.toContain('<form');
+    const live = { ...complete, readiness: { ...complete.readiness, lifecycle: 'active' as const, live: true } };
+    const forms = [...everything(complete).matchAll(/<form[^>]*action="([^"]*)"/g), ...everything(live).matchAll(/<form[^>]*action="([^"]*)"/g)];
+    expect(forms.length).toBeGreaterThan(0);
+    for (const f of forms)
+      expect(f[1]).toMatch(/^\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove)|pilot\/(end|resume))$/);
+    expect(everything(complete)).not.toContain('<textarea');
+    expect(everything(complete)).not.toContain('<table');
   });
 });
 
 describe('Phase E · language (all locales, RTL-safe)', () => {
   it('renders fully in every locale and each keeps its own words', () => {
-    for (const l of LOCALES) expect(withoutIsolates(renderFactory(complete, l)).length).toBeGreaterThan(800);
-    const zh = withoutIsolates(renderFactory(complete, 'zh'));
-    expect(zh).toContain('我的生意'); expect(zh).toContain('关于你的生意'); expect(zh).toContain('你对客户的承诺');
-    expect(zh).not.toContain('About your business');
-    const ar = withoutIsolates(renderFactory(complete, 'ar'));
-    expect(ar).toContain('نشاطي التجاري'); expect(ar).toContain(shown('ar', 'factory.about.title')); expect(ar).toContain(shown('ar', 'factory.promise.title'));
-    expect(ar).not.toContain('About your business');
+    for (const l of LOCALES) expect(everything(complete, l).length).toBeGreaterThan(800);
+    const zh = everything(complete, 'zh');
+    expect(zh).toContain('我的生意'); expect(zh).toContain(shown('zh', 'settings.profile.title')); expect(zh).toContain('你对客户的承诺');
+    expect(zh).not.toContain('Business profile');
+    const ar = everything(complete, 'ar');
+    expect(ar).toContain('نشاطي التجاري'); expect(ar).toContain(shown('ar', 'factory.reach.title')); expect(ar).toContain(shown('ar', 'factory.promise.title'));
+    expect(ar).not.toContain('Business profile');
   });
 
   it('the empty and next-step states are localized too — no English leaks', () => {
     for (const l of ['zh', 'ar'] as const) {
-      const html = withoutIsolates(renderFactory(fresh, l)).replace(/<style>[\s\S]*?<\/style>/g, '');
+      const html = everything(fresh, l).replace(/<style>[\s\S]*?<\/style>/g, '');
       expect(html).not.toMatch(/nothing to (tell|quote)/);
       expect(html).not.toContain('Not connected');
       expect(html).not.toContain(shown('en', 'factory.next.profile'));
     }
   });
 
-  it('uses the shell’s one “go deeper” link rather than a page-local variant', () => {
-    const html = withoutIsolates(renderFactory(complete, 'en'));
-    expect(html).toContain('<a class="deeper" href="/app/settings/profile">');
-    expect(html).toContain('<span class="go" aria-hidden="true">›</span>');
-    expect(html).not.toContain('class="fmore"');
+  it('uses the shell’s one “go deeper” link and the menu’s one row, rather than page-local variants', () => {
+    expect(screen('promises', complete)).toContain('<a class="deeper" href="/app/knowledge">');
+    expect(menu(complete)).toContain('<a class="srow sr-menu" href="/app/settings/profile">');
+    expect(menu(complete)).toContain('<span class="go" aria-hidden="true">›</span>');
+    expect(everything(complete)).not.toContain('class="fmore"');
   });
 
   it('Latin runs are isolated so an Arabic reader gets them in source order', () => {
-    const ar = withoutIsolates(renderFactory(complete, 'ar'));
-    // product names and field values are Latin inside an Arabic paragraph
-    expect(ar).toContain('<bdi>Vacuum cup</bdi>');
-    expect(ar).toContain('<bdi class="fval">');
+    // the business's name and a connected number are Latin inside an Arabic page
+    expect(menu(complete, 'ar')).toContain('<bdi>Yiwu Sunrise Housewares</bdi>');
+    expect(screen('channels', complete, 'ar')).toContain('<bdi>+971 50 ••• 4444</bdi>');
   });
 
-  it('a channel that cannot carry a message is its own remedy — the block links to the fix', () => {
-    // Phase 9 (new-01) — a paused number waits for the owner (amber ○); one never
-    // connected waits on nothing, so it is a plain door with no state colour.
-    const of = (lc: FactoryView['readiness']['lifecycle']) =>
-      withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'ar'));
-    expect(of('paused')).toContain('<a class="fconn off" href="/app/channels"');
-    expect(of('not_connected')).toContain('<a class="fconn todo" href="/app/channels"');
-    expect(of('not_connected')).not.toContain('fconn off');
-    for (const lc of ['ready', 'active'] as const) {
-      const html = withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'en'));
-      expect(html, lc).toContain('<div class="fconn on"');
-      expect(html, lc).not.toContain('fconn off');
-    }
+  it('a channel that cannot carry a message is its own remedy — the row opens the fix', () => {
+    // Phase 9 (new-01) — a paused number waits for the owner (○); one never
+    // connected waits on nothing, so it carries no state colour.
+    const wa = (lc: FactoryView['readiness']['lifecycle'], l: Locale = 'ar') => screen('channels', { ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, l)
+      .match(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels"><span class="sr-main"><span class="sr-label">${shown(l, 'reach.channel.whatsapp')}</span>[^]*?</a>`))![0];
+    expect(wa('paused')).toContain(`<span class="sr-value warn"><bdi>${shown('ar', 'channel.state.paused')}</bdi></span>`);
+    expect(wa('not_connected')).toContain(`<span class="sr-value"><bdi>${shown('ar', 'channel.state.not_connected')}</bdi></span>`);
+    for (const lc of ['ready', 'active'] as const) expect(wa(lc, 'en'), lc).toContain('<span class="sr-value ok">');
   });
 
   it('RTL-safe layout: no physical left/right in the page’s styles, which live in the shell now', () => {
     // V1 step four: My business carries no stylesheet; its rules are the shell's
     // "factory.ts" section. The page must be bare, and that section logical.
-    expect(withoutIsolates(renderFactory(complete, 'ar'))).not.toContain('<style');
+    expect(everything(complete, 'ar')).not.toContain('<style');
     const style = factorySectionOfShell();
     expect(style.length).toBeGreaterThan(200);
     expect(style).not.toMatch(/\bmargin-left\b|\bmargin-right\b|\bpadding-left\b|\bpadding-right\b/);
@@ -296,18 +310,19 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   it('no message is left half-written: every placeholder is filled, every locale', () => {
     for (const l of LOCALES) {
       for (const view of [complete, fresh]) {
-        const html = withoutIsolates(renderFactory(view, l)).replace(/<style>[\s\S]*?<\/style>/g, '');
+        const html = everything(view, l).replace(/<style>[\s\S]*?<\/style>/g, '');
         expect(html.match(/\{[a-zA-Z]+\}/g) ?? [], `${l}: unsubstituted placeholder`).toEqual([]);
       }
     }
   });
 
   it('escapes everything the owner typed', () => {
-    const evil = withoutIsolates(renderFactory({
+    const evil = everything({
       ...complete,
       profile: { ...complete.profile, name: '<script>alert(1)</script>', description: '<img src=x onerror=alert(1)>' },
-      products: { ...complete.products, names: [{ name: '</p><script>bad()</script>', nameZh: null }] },
-    }, 'en'));
+      connection: { ...complete.connection, channel: { ...complete.connection.channel, displayId: '<img src=x onerror=alert(2)>' } },
+      readiness: { ...complete.readiness, recipients: [{ phone: '971500001111', label: '</li><script>bad()</script>' }] },
+    });
     expect(evil).not.toContain('<script>alert(1)</script>');
     expect(evil).not.toContain('<img src=x onerror');
     expect(evil).not.toContain('<script>bad()</script>');
@@ -316,7 +331,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('speaks about a business, never about software — any locale', () => {
     for (const l of LOCALES) {
-      const all = (withoutIsolates(renderFactory(complete, l)) + withoutIsolates(renderFactory(fresh, l))).toLowerCase();
+      const all = (everything(complete, l) + everything(fresh, l)).toLowerCase();
       for (const banned of [
         'ai', 'llm', 'model', 'token', 'api', 'webhook', 'database', 'confidence', 'automation', 'prompt',
         'configure', 'configuration', 'settings panel', 'policy engine', 'validation', 'constraint',
@@ -331,22 +346,16 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('invents no metric: no score, no rating, no performance percentage', () => {
     for (const l of LOCALES) {
-      const html = withoutIsolates(renderFactory(complete, l)).replace(/<style>[\s\S]*?<\/style>/g, '')
-          .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '')
-          // Excised BY PROVENANCE, not by value. `.frules` and `.fprices` are the
-          // only regions carrying numbers the OWNER wrote; everything left must
-          // contain no percentage at all. A whitelist of literals ('8%','10%')
-          // would pass a computed metric that happened to render as 10%.
-          //
-          // The non-greedy `[\s\S]*?</div>` and the missing /g flag are correct
-          // only because `.fprices` (src/api/web/factory.ts) holds <p> children
-          // and no nested <div>, and renders once. Nest a div there and this
-          // strip stops at the inner close — which is why this comment exists.
-          .replace(/<div class="fprices">[\s\S]*?<\/div>/, '');
+      const html = everything(complete, l).replace(/<style>[\s\S]*?<\/style>/g, '')
+          // Excised BY PROVENANCE, not by value. `.frules` holds the numbers
+          // the OWNER wrote (her floor, her ceiling, her ask line); everything
+          // left must contain no percentage at all. A whitelist of literals
+          // ('8%','10%') would pass a computed metric that happened to render as 10%.
+          .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
       for (const banned of ['score', 'rating', 'ranking', 'accuracy', 'performance', '评分', '成功率'])
         expect(html.toLowerCase().includes(banned), `${l}:${banned}`).toBe(false);
       // A number she wrote down is not a metric; a number we computed about her
-      // would be. With both owner regions removed, NO percentage may survive.
+      // would be. With the owner's region removed, NO percentage may survive.
       expect(html).not.toMatch(/\d+\s*%/);
     }
   });
@@ -378,7 +387,7 @@ describe('Release hardening · My factory quotes the guard, not a second reading
         askPct: Math.max(...policies.map((p) => p.humanRequiredAbovePct)), askVaries: false,
       },
     };
-    const html = withoutIsolates(renderFactory(view, 'en'));
+    const html = screen('promises', view);
 
     // 1. Every floor the page states must bound every real quote.
     // (Typing this fixture surfaced the assumption: floorLow is nullable,
@@ -435,17 +444,22 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const { esc } = await import('../../src/api/web/layout.js');
     for (const l of LOCALES) {
-      const rules = withoutIsolates(renderFactory(complete, l)).match(/<ul class="frules">[\s\S]*?<\/ul>/)?.[0] ?? '';
+      const rules = screen('promises', complete, l).match(/<ul class="frules">[\s\S]*?<\/ul>/)?.[0] ?? '';
       expect(rules, l).toContain(esc(t(l, 'factory.promise.ask', { ask: 5, name: '' })));
     }
   });
 });
 
 describe('Release hardening · the catalogue speaks the owner’s language', () => {
+  // Phase 7 — the menu shows a count, not a handful of names; the names are
+  // read where a gap lists them, on going live (the products page lists all).
+  const gaps: FactoryView = { ...complete,
+    products: { ...complete.products, namesZh: { 'Vacuum cup': '保温杯' } },
+    rehearsal: { findings: [{ reason: 'nothing_taught', productName: 'Vacuum cup', probeId: null }, { reason: 'nothing_taught', productName: 'Only English', probeId: null }],
+      violations: [], probesRun: 4, productsChecked: 2, productsTotal: 2 } };
+  const names = (l: 'en' | 'zh') => screen('ready', gaps, l).match(/<p class="fnames">.*?<\/p>/s)![0];
+
   it('a Chinese owner sees the Chinese product names her catalogue already holds', () => {
-    // Scope to the names line: the business DESCRIPTION is owner-entered text
-    // and stays exactly as she typed it, in whatever language that was.
-    const names = (l: 'en' | 'zh') => withoutIsolates(renderFactory(complete, l)).match(/<p class="fnames">.*?<\/p>/s)![0];
     expect(names('zh')).toContain('保温杯');
     expect(names('zh')).not.toContain('Vacuum cup');
     expect(names('en')).toContain('Vacuum cup');
@@ -453,10 +467,7 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
   });
 
   it('falls back to whichever name exists, never to a blank', () => {
-    const html = withoutIsolates(renderFactory({ ...complete, products: { ...complete.products,
-      names: [{ name: 'Only English', nameZh: null }, { name: null, nameZh: '只有中文' }] } }, 'zh'));
-    expect(html).toContain('Only English');
-    expect(html).toContain('只有中文');
+    expect(names('zh')).toContain('<bdi>Only English</bdi>');
   });
 });
 
@@ -465,8 +476,9 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
  * never say more than the preconditions say, and never less.
  */
 describe('M20.2 · the activation readiness surface', () => {
+  // Phase 7 — the answer, the blockers and the switch are the going-live screen's.
   const withReadiness = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
-    withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l));
+    screen('ready', { ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l);
 
   it('ready: says so, and names exactly who can receive a message', () => {
     const html = withReadiness({ canActivate: true, blockers: [], live: false });
@@ -499,11 +511,12 @@ describe('M20.2 · the activation readiness surface', () => {
       .not.toContain('<a class="blink" href="/app/onboarding">');
   });
 
-  it('a blocker with no surface yet states the requirement instead of a dead link', () => {
-    // The allowlist UI arrives in M20.4; until then this must not pretend.
+  it('phase 7 · the list of who may be messaged is a screen of its own, so its blocker opens it', () => {
+    // M20.4 put the list on this page, so the blocker had no link; since phase
+    // 7 the list is a level under where customers reach you, and the line opens it.
     const html = withReadiness({ canActivate: false, blockers: ['no_allowlist'] });
     expect(html).toContain('start with your own');
-    expect(html).not.toMatch(/<a class="blink"[^>]*>[^<]*start with your own/);
+    expect(html).toMatch(new RegExp(`<a class="blink" href="${BUSINESS_SCREEN_PATH.allowlist}">[^<]*start with your own`));
   });
 
   it('live: reports that the assistant is talking to real buyers, and to whom', () => {
@@ -549,7 +562,7 @@ describe('M20.2 · the activation readiness surface', () => {
 /** M20.3 — going live is an owner decision, made here, and reversible here. */
 describe('M20.3 · activate and deactivate as owner actions', () => {
   const view = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
-    withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l));
+    screen('ready', { ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l);
 
   it('ready: offers the decision, and says what it does before it is taken', () => {
     const html = view({ canActivate: true, blockers: [], live: false });
@@ -586,10 +599,10 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
     // printed a uuid.
     const html = view({ live: true, activatedAt: new Date('2026-08-03T09:00:00Z'), activatedBy: 'owner' });
     expect(html).toMatch(/Started .* by you\./);
-    const byChen = withoutIsolates(renderFactory({
+    const byChen = screen('ready', {
       ...complete, readiness: { ...complete.readiness, live: true, activatedAt: new Date('2026-08-03T09:00:00Z'), activatedBy: 'p-chen' },
       people: [{ id: 'p-chen', name: 'Xiao Chen', isOwner: false }],
-    }, 'en'));
+    });
     expect(byChen).toMatch(/Started .* by Xiao Chen\./);
     expect(byChen).not.toContain('p-chen');
   });
@@ -619,14 +632,18 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
 
 /** M20.3.1 — the page states one channel truth, in every language. */
 describe('M20.3.1 · activation truth, localized', () => {
+  // Phase 7 — one truth on two screens: the channel's state where customers
+  // reach her, and what it means for going live. Both are read together.
   const at = (lifecycle: FactoryView['readiness']['lifecycle'], l: 'en' | 'zh' | 'ar' | 'es' | 'fr',
-              over: Partial<FactoryView['readiness']> = {}) =>
-    // the stylesheet carries English comments; the owner reads the markup
-    withoutIsolates(renderFactory({ ...complete, readiness: {
+              over: Partial<FactoryView['readiness']> = {}) => {
+    const v = { ...complete, readiness: {
       ...complete.readiness, lifecycle, live: lifecycle === 'active',
       canActivate: lifecycle === 'ready',
       blockers: lifecycle === 'ready' || lifecycle === 'active' ? [] : ['no_channel'],
-      ...over } } as FactoryView, l)).replace(/<style>[\s\S]*?<\/style>/g, '');
+      ...over } } as FactoryView;
+    // the stylesheet carries English comments; the owner reads the markup
+    return (screen('channels', v, l) + screen('ready', v, l)).replace(/<style>[\s\S]*?<\/style>/g, '');
+  };
 
   it('each state reads as itself, and says what it means for the owner’s day', () => {
     expect(at('not_connected', 'en')).toContain('Not connected');
@@ -673,9 +690,7 @@ describe('M20.3.1 · activation truth, localized', () => {
   });
 
   it('RTL: the Arabic page still mirrors, and the state block stays logical', () => {
-    const ar = withoutIsolates(renderFactory({ ...complete, readiness: {
-      ...complete.readiness, lifecycle: 'paused', live: false, canActivate: false,
-      blockers: ['no_channel'] } } as FactoryView, 'ar'));
+    const ar = at('paused', 'ar');
     expect(ar).toContain('class="go"');                       // mirrored by the shell
     const style = factorySectionOfShell();                     // V1 step four: the page's rules live there
     for (const physical of ['margin-left', 'margin-right', 'padding-left', 'padding-right',
@@ -690,8 +705,18 @@ describe('M20.3.1 · activation truth, localized', () => {
  * no route. She could not finish setup without an engineer.
  */
 describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
+  // Phase 7 — the list is a screen of its own, a level under where customers reach you.
   const view = (recipients: FactoryView['readiness']['recipients'], l: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
-    withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, recipients } } as FactoryView, l));
+    screen('allowlist', { ...complete, readiness: { ...complete.readiness, recipients } } as FactoryView, l);
+
+  it('phase 7 · it is reached from where customers reach you, with how many are on it, and leads back there', () => {
+    const reach = screen('channels', complete);
+    expect(reach).toContain(`href="${BUSINESS_SCREEN_PATH.allowlist}"`);
+    expect(reach).toContain(`<bdi>${shown('en', 'business.value.numbers.other', { n: 2 })}</bdi>`);
+    expect(view([])).toMatch(new RegExp(`^<a class="back" href="${BUSINESS_SCREEN_PATH.channels}">`));
+    // WhatsApp's alone: under a WhatsApp never connected and with nobody on it, there is no such row
+    expect(screen('channels', fresh)).not.toContain(BUSINESS_SCREEN_PATH.allowlist);
+  });
 
   it('THE M21 REPRODUCTION: there is now a way to add a number', () => {
     const html = view([]);
@@ -746,15 +771,17 @@ describe('Phase 9 · B5 · My business', () => {
     rehearsal: { findings: [...NAMES.map((n) => ({ reason: 'nothing_taught' as const, productName: n, probeId: null })),
       { reason: 'claim_not_authorised' as const, productName: null, probeId: null }], violations: [], probesRun: 30, productsChecked: 12, productsTotal: 12 },
   };
-  const page = (l: Locale, v: FactoryView = audit) => withoutIsolates(renderFactory(v, l));
+  // Phase 7 — "the page" is the menu and its screens; each test reads the screen it is about.
+  const page = (l: Locale, v: FactoryView = audit) => everything(v, l);
   const text = (html: string) => html.replace(/<[^>]*>/g, ' ');
   const css = readFileSync(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
 
   it('V1-386 · V1-401 · a name and its "·" are one unit: no line breaks inside a name or starts with "·"', () => {
     for (const l of LOCALES) {
-      const html = page(l);
+      const html = screen('ready', audit, l);
       const lists = html.match(/<p class="fnames">[\s\S]*?<\/p>/g) ?? [];
-      expect(lists.length, l).toBe(2);
+      // phase 7 — one list: the gaps' names (the menu shows a count, not names)
+      expect(lists.length, l).toBe(1);
       for (const list of lists) {
         expect(list, l).not.toMatch(/<\/span>\s*·/);                       // no separator outside a unit
         expect(list, l).toMatch(/^<p class="fnames">(<span class="fitem"><bdi>[^<]+<\/bdi>( ·| …)?<\/span> ?)+<\/p>$/);
@@ -766,20 +793,31 @@ describe('Phase 9 · B5 · My business', () => {
 
   it('V1-388 · the heading’s question is answered, from the same facts as the list under it', () => {
     for (const l of LOCALES) {
-      expect(page(l), l).toContain(esc(say(l, 'factory.ready.answer.nothing')));
-      const wa = page(l, { ...audit, connection: { ...audit.connection, channelsUsed: ['whatsapp'] } });
+      const ready = (v: FactoryView) => screen('ready', v, l);
+      expect(ready(audit), l).toContain(esc(say(l, 'factory.ready.answer.nothing')));
+      const wa = ready({ ...audit, connection: { ...audit.connection, channelsUsed: ['whatsapp'] } });
       expect(wa, l).toContain(esc(say(l, 'factory.ready.answer.notYet.two').replace('{n}', '2')));
-      const ready = page(l, { ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'ready' }, connection: { ...audit.connection, channel: channel(true) } });
-      expect(ready, l).toContain(esc(say(l, 'factory.ready.answer.ready')));
-      const live = page(l, { ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'active', live: true } });
+      const can = ready({ ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'ready' }, connection: { ...audit.connection, channel: channel(true) } });
+      expect(can, l).toContain(esc(say(l, 'factory.ready.answer.ready')));
+      const live = ready({ ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'active', live: true } });
       expect(live, l).toContain(esc(say(l, 'factory.ready.answer.live')));
-      const stopped = page(l, { ...audit, readiness: { ...audit.readiness, assistantStop: { stoppedAt: new Date(), stoppedBy: null } } });
+      const stopped = ready({ ...audit, readiness: { ...audit.readiness, assistantStop: { stoppedAt: new Date(), stoppedBy: null } } });
       expect(stopped, l).toContain(esc(say(l, 'factory.ready.answer.held')));
     }
   });
 
+  it('phase 7 · the menu’s Going live row says the same answer in a word, with its signal', () => {
+    const value = (v: FactoryView) => menu(v).match(new RegExp(`href="${BUSINESS_SCREEN_PATH.ready}">[^]*?<span class="sr-value([^"]*)"><bdi>([^<]+)</bdi>`))!.slice(1, 3);
+    expect(value(audit)).toEqual(['', shown('en', 'setup.state.notConnected')]);
+    expect(value({ ...audit, connection: { ...audit.connection, channelsUsed: ['whatsapp'] } })).toEqual([' warn', shown('en', 'business.live.notYet')]);
+    expect(value({ ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'ready' } })).toEqual([' ok', shown('en', 'business.live.ready')]);
+    expect(value({ ...audit, readiness: { ...audit.readiness, lifecycle: 'active', live: true } })).toEqual([' ok', shown('en', 'business.live.on')]);
+    expect(value({ ...audit, readiness: { ...audit.readiness, assistantStop: { stoppedAt: new Date(), stoppedBy: null } } })).toEqual([' warn', shown('en', 'business.live.stopped')]);
+    expect(value({ ...audit, readiness: { ...audit.readiness, opsSilenced: true } })).toEqual([' warn', shown('en', 'business.live.paused')]);
+  });
+
   it('V1-389 · the allowance says what it limits, with no "workspace" and no money word', () => {
-    for (const l of LOCALES) expect(page(l), l).toContain(esc(say(l, 'business.allowance.none')));
+    for (const l of LOCALES) expect(screen('ready', audit, l), l).toContain(esc(say(l, 'business.allowance.none')));
     expect(say('en', 'business.allowance.none')).toMatch(/messages/);
     expect(say('en', 'business.allowance.title') + say('en', 'business.allowance.none')).not.toMatch(/workspace|allowance/i);
     expect(say('ar', 'business.allowance.title')).not.toContain('رصيد');
@@ -792,7 +830,7 @@ describe('Phase 9 · B5 · My business', () => {
     expect(page('es')).not.toContain('¿tu asistente');
   });
 
-  it('V1-391 · V1-402 · missed-04 · the price section is named like the page it opens; "floor" is not a word here', () => {
+  it('V1-391 · V1-402 · missed-04 · the price row is named like the page it opens; "floor" is not a word here', () => {
     for (const l of LOCALES) expect(say(l, 'factory.prices.title'), l).toBe(say(l, 'prices.title'));
     expect(say('zh', 'factory.prices.title')).toBe('你的价格底线');
     expect(say('ar', 'factory.prices.title')).toBe('حدود أسعارك');
@@ -802,35 +840,41 @@ describe('Phase 9 · B5 · My business', () => {
 
   it('V1-392 · the first door is the questions, not the heading again; the rest say they are the same facts', () => {
     for (const l of LOCALES) {
-      const html = page(l);
-      expect(html, l).toContain(`href="/app/business/selling">${esc(say(l, 'factory.sellhow.questions'))}`);
-      expect(say(l, 'factory.sellhow.questions'), l).not.toBe(say(l, 'factory.sellhow.title'));
+      const html = screen('how', audit, l);
+      expect(html, l).toMatch(new RegExp(`href="/app/business/selling">[^]*?<span class="sr-label">${esc(say(l, 'hs.questions.title'))}</span><span class="sr-desc">${esc(say(l, 'factory.sellhow.questions'))}</span>`));
+      expect(say(l, 'hs.questions.title'), l).not.toBe(say(l, 'factory.sellhow.title'));
       expect(html, l).toContain(esc(say(l, 'factory.sellhow.direct')));
+      for (const href of ['/app/settings/terms', '/app/settings/samples', '/app/settings/closures']) expect(html, `${l} ${href}`).toContain(`href="${href}"`);
     }
     expect(page('en')).not.toContain('exchange rate</p>');
+    // the questions are the owner's (rule 11): a sales assistant sees the facts, never a door that refuses
+    const staff = screen('how', audit, 'en', { isOwner: false });
+    expect(staff).not.toContain('href="/app/business/selling"');
+    expect(staff).not.toContain(esc(say('en', 'factory.sellhow.direct')));
+    expect(staff).toContain('href="/app/settings/closures"');
   });
 
-  it('V1-393 · one door per place: the details open the profile; the channels section has one way to Channels', () => {
-    const html = page('en');
-    expect(html).toContain(`href="/app/settings/profile">${esc(say('en', 'factory.about.more'))}`);
-    expect(html).not.toContain('href="/app/settings">');
-    const reach = html.slice(html.indexOf(esc(say('en', 'factory.reach.title'))), html.indexOf(esc(say('en', 'factory.ready.title'))));
-    expect(reach.split('href="/app/channels"').length - 1).toBe(1);
+  it('V1-393 · one door per place: the details open the profile; each channel row opens Channels, with no second door', () => {
+    expect(menu(audit)).toContain('<a class="srow sr-menu" href="/app/settings/profile">');
+    expect(page('en')).not.toContain('href="/app/settings">');
+    const reach = screen('channels', audit);
+    expect(reach.split('href="/app/channels"').length - 1).toBe(1 + (audit.connection.others ?? []).length);
     expect(reach).not.toContain(esc(say('en', 'factory.reach.more')));
-    const none = page('en', { ...audit, connection: { ...audit.connection, channelsUsed: [] } });
-    const ready = none.slice(none.indexOf(esc(say('en', 'factory.ready.title'))));
+    const ready = screen('ready', { ...audit, connection: { ...audit.connection, channelsUsed: [] } });
     expect(ready).not.toContain(`href="/app/channels">${esc(say('en', 'nav.channels'))}`);
+    // nothing connected: the way to where customers reach her, by its name
+    expect(ready).toContain(`href="${BUSINESS_SCREEN_PATH.channels}">${esc(say('en', 'factory.reach.title'))}`);
   });
 
   it('V1-394 · "add your number" comes with the place to add it', () => {
-    const html = page('en');
+    const html = screen('channels', audit);
     const at = html.indexOf(esc(say('en', 'factory.reach.noAlerts')));
     expect(at).toBeGreaterThan(-1);
     expect(html.slice(at)).toMatch(/^[^]*?href="\/app\/channels#alerts">Add your number for alerts/);
   });
 
   it('V1-395 · a gap is a sentence and a door, not an underlined heading; no "checked all 12" under a list', () => {
-    const html = page('en');
+    const html = screen('ready', audit);
     expect(html).not.toContain('class="blink" href="/app/knowledge"');
     expect(html).toContain(`<p class="fgap-s">${esc(say('en', 'factory.rehearsal.nothing_taught'))}</p>`);
     expect(html).toContain(`href="/app/knowledge">${esc(say('en', 'factory.rehearsal.fix.teach'))}`);
@@ -839,12 +883,12 @@ describe('Phase 9 · B5 · My business', () => {
   });
 
   it('V1-396 · the door names the list it opens', () => {
-    for (const l of LOCALES) expect(page(l), l).toContain(`href="/app/onboarding">${esc(say(l, 'factory.ready.more'))}`);
+    for (const l of LOCALES) expect(screen('ready', audit, l), l).toContain(`href="/app/onboarding">${esc(say(l, 'factory.ready.more'))}`);
     expect(say('en', 'factory.ready.more')).not.toMatch(/whole list/);
   });
 
   it('V1-397 · one language for the names on a Chinese page', () => {
-    const zh = page('zh');
+    const zh = screen('ready', audit, 'zh');
     const gaps = zh.slice(zh.indexOf(esc(say('zh', 'factory.rehearsal.title'))));
     expect(gaps).toContain('<bdi>帆布袋</bdi>');
     expect(gaps).toContain('<bdi>保温杯</bdi>');
@@ -862,18 +906,18 @@ describe('Phase 9 · B5 · My business', () => {
   });
 
   it('new-01 · missed-02 · a WhatsApp never connected is a plain door, and speaks of WhatsApp only', () => {
-    const html = page('en');
-    expect(html).toContain('<a class="fconn todo" href="/app/channels"');
-    expect(html).toContain('Customers who write to your WhatsApp are not answered until it is connected.');
+    const html = screen('channels', audit);
+    expect(html).toMatch(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels"><span class="sr-main"><span class="sr-label">WhatsApp</span><span class="sr-desc">Customers who write to your WhatsApp are not answered until it is connected.</span></span><span class="sr-value"><bdi>`));
     expect(html).not.toContain('cannot receive or answer a customer');
-    expect(css).toMatch(/\.fconn\.todo \{ border:1px solid var\(--color-border\)/);
-    expect(css).not.toMatch(/'\.fconn\.todo/);    // not one of the signals' selectors
+    // phase 7 — the cards' rules went with the cards
+    expect(css).not.toMatch(/\.fconn\.todo \{/);
   });
 
   it('missed-03 · the count’s noun agrees with the count in Arabic', () => {
-    expect(page('ar')).toContain('<span class="fcount-l">منتجًا</span>');
-    expect(page('ar', { ...audit, products: { ...audit.products, total: 3 } })).toContain('<span class="fcount-l">منتجات</span>');
-    expect(page('en', { ...audit, products: { ...audit.products, total: 1 } })).toContain('<span class="fcount-l">product</span>');
+    expect(menu(audit, 'ar')).toContain('<bdi>12 منتجًا</bdi>');
+    expect(menu({ ...audit, products: { ...audit.products, total: 3 } }, 'ar')).toContain('<bdi>3 منتجات</bdi>');
+    expect(menu({ ...audit, products: { ...audit.products, total: 1 } }, 'en')).toContain('<bdi>1 product</bdi>');
+    expect(menu({ ...audit, products: { ...audit.products, total: 12 } }, 'zh')).toContain('<bdi>12个产品</bdi>');
   });
 
   it('V1-403 · no pictures for the channels', () => {

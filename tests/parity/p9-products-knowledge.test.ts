@@ -14,7 +14,7 @@ import { renderImportReview } from '../../src/api/web/importFlow.js';
 import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
 import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
-import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
+import { renderFactory, renderBusinessScreen, type FactoryView } from '../../src/api/web/factory.js';
 import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
 import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
@@ -544,14 +544,19 @@ describe('Your price limits', () => {
       rehearsal: { findings: [], violations: [], probesRun: 1, productsChecked: 1, productsTotal: 1 },
       prices: { currency: 'USD', businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 }, products: [], unanswered: 0, volume: [] },
     } as unknown as FactoryView;
+    // Phase 7 — My business no longer restates the price page's sentence: its
+    // row opens that page (one home for the limits), and What you promise says
+    // the same truth in its own words — nothing comes off unless she wrote it.
     for (const l of LOCALES) {
-      const html = plain(renderFactory(f, l));
+      const html = plain(renderFactory(f, l)) + plain(renderBusinessScreen('promises', f, l));
       const said = (k: 'prices.stated' | 'prices.stated.noDiscount') => esc(plain(t(l, k, { floor: show.money(l, usd(0.35)), max: 10, ask: 7 })));
-      expect(html, l).toContain(said('prices.stated.noDiscount'));
+      expect(html, l).not.toContain(said('prices.stated.noDiscount'));
       expect(html, l).not.toContain(said('prices.stated'));
+      expect(html, l).toContain(esc(plain(t(l, 'factory.promise.noDiscount', { name: '§' }))).split('§').pop()!);
     }
-    const withOne = plain(renderFactory({ ...f, prices: { ...f.prices, volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 100, discountPct: 4, asksFirst: false }] } }, 'en'));
-    expect(withOne).toContain('Of the discounts you have written, up to 7% goes out without you');
+    const withOne = plain(renderBusinessScreen('promises', { ...f, prices: { ...f.prices, volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 100, discountPct: 4, asksFirst: false }] } }, 'en'));
+    expect(withOne).not.toContain('offers no discount');
+    expect(withOne).toContain('never discounts more than 8%');
   });
 });
 

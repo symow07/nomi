@@ -74,8 +74,9 @@ describe('Guide · the files', () => {
 });
 
 describe('Guide · where it is reached', () => {
-  it('Setup\'s first door, and Today\'s "finish setting up" line', () => {
-    expect(src('src/api/web/settings.ts')).toContain("{ href: '/app/guide', label: t(locale, 'guide.title'), desc: t(locale, 'setup.desc.guide'), value: ready,");
+  it('Setup\'s first row, and Today\'s "finish setting up" line', () => {
+    // Phase 7 — a menu row now: the guide is Setup's first, with where setting up stands.
+    expect(src('src/api/web/settings.ts')).toContain("menuRow({ href: '/app/guide', icon: 'guide', label: t(locale, 'guide.title'),");
     expect(src('src/api/web/operations.ts')).toContain("deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))");
   });
 });
