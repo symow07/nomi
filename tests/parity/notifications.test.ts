@@ -500,8 +500,8 @@ describe('the Notifications page, in every language', () => {
     const html = row('email');
     // Setup is a menu since phase 7: the row is drawn by `menuRow` (its icon, its value in its own direction).
     expect(html).toMatch(new RegExp(`href="/app/settings/alerts"><svg[\\s\\S]*?</svg><span class="sr-main"><span class="sr-label">${t('en', 'alerts.title')}</span>`));
-    expect(html).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'alerts.way.email')}</bdi></span>`);
-    expect(row('whatsapp')).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'conv.channel.whatsapp')}</bdi></span>`);
+    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'alerts.way.email')}</bdi></span>`);
+    expect(row('whatsapp')).toContain(`<span class="sr-value"><bdi>${t('en', 'conv.channel.whatsapp')}</bdi></span>`);
     // Phase 9 (w4-settings-a-02) — nothing reaches them: the row says so, and names no way.
     expect(row(null)).toContain(`<span class="sr-desc">${t('en', 'setup.alerts.nothing')}</span>`);
     expect(/href="\/app\/settings\/alerts">([\s\S]*?)<\/a>/.exec(row(null))![1]).not.toContain('sr-value');
