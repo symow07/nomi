@@ -335,11 +335,12 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   .pc-qty, .pc-none { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .pc-none { margin:0; }
   .pc-top + .pc-facts, .pc-things + .pc-open { margin-block-start:var(--space-4); }
-  /* Phase 9 (w4-customers-26) — the card's one action is the primary one: graphite, its words inside their own padding. */
-  .pc-open { align-self:stretch; width:auto; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-16);
+  /* Phase 9 (w4-customers-26) — the card's one action is the primary one: graphite, its words inside their own padding
+     (scoped to the card, so it is not the plain door's colour and inset, which the shell draws later). */
+  .pcard .pc-open { align-self:stretch; width:auto; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-16);
     border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface); font-weight:600; }
-  .pc-open .go { color:var(--color-surface); }
-  .pc-open:hover, .pc-open:focus-visible { box-shadow:var(--shadow-lift2); }
+  .pcard .pc-open .go { color:var(--color-surface); }
+  .pcard .pc-open:hover, .pcard .pc-open:focus-visible { box-shadow:var(--shadow-lift2); }
   dialog.sheet { border:0; padding:0; background:transparent; color:var(--color-ink); overflow:visible;
     inline-size:min(var(--measure-form), calc(100vw - var(--space-32))); max-width:var(--measure-form); }
   dialog.sheet::backdrop { background:var(--color-ink); opacity:0.35; }

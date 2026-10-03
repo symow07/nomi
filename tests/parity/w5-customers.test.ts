@@ -115,11 +115,11 @@ describe('w4-customers-25 · w4-conversation-12 · the card: what they asked abo
   });
 
   it('w4-customers-26 · its one action is the graphite primary one, its words inside their padding', () => {
-    const r = /\n\s*\.pc-open \{([^}]*)\}/.exec(CSS)![1]!;
+    const r = /\n\s*\.pcard \.pc-open \{([^}]*)\}/.exec(CSS)![1]!;
     expect(r).toContain('background:var(--color-ink)');
     expect(r).toContain('color:var(--color-surface)');
     expect(r).toMatch(/padding:var\(--space-12\) var\(--space-16\)/);
-    expect(CSS).toContain('.pc-open .go { color:var(--color-surface); }');
+    expect(CSS).toContain('.pcard .pc-open .go { color:var(--color-surface); }');
   });
 });
 

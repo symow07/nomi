@@ -12319,7 +12319,7 @@ const ES: Record<MessageKey, string> = {
   'buyers.page.position': '{from}–{to} de {total}',
   // The warmth run, phase 4 — the Inbox: two lenses, the row, the "needs attention" band.
   'buyers.lens.label': 'Cómo se ordena la lista',
-  'buyers.lens.waiting': 'Te necesita primero',
+  'buyers.lens.waiting': 'Te necesita',
   'buyers.lens.value': 'Por importancia',
   'buyers.lens.waitingSays': 'Primero quien te necesita, luego el contacto más reciente.',
   'buyers.lens.valueSays': 'Primero quien más ha gastado contigo, luego los presupuestos más altos aún sin pedido, luego el contacto más reciente.',
@@ -16021,7 +16021,7 @@ const FR: Record<MessageKey, string> = {
   'buyers.page.position': '{from}–{to} sur {total}',
   // The warmth run, phase 4 — the Inbox: two lenses, the row, the "needs attention" band.
   'buyers.lens.label': 'Ordre de la liste',
-  'buyers.lens.waiting': 'Vous attend d’abord',
+  'buyers.lens.waiting': 'Vous attend',
   'buyers.lens.value': 'Par importance',
   'buyers.lens.waitingSays': 'D’abord les clients qui vous attendent, puis le contact le plus récent.',
   'buyers.lens.valueSays': 'D’abord les clients qui ont le plus dépensé chez vous, puis les plus gros devis sans commande, puis le contact le plus récent.',
