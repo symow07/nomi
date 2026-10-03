@@ -231,6 +231,14 @@ export type Signal = keyof typeof DESIGN_TOKENS.signal;
 const SIGNAL_CLASS: Readonly<Record<Signal, string>> = { ok: 'ok', waiting: 'warn', failed: 'bad', assistant: 'as' };
 export const signalMark = (s: Signal): string =>
   `<span class="dot ${SIGNAL_CLASS[s]}" aria-hidden="true">${DESIGN_TOKENS.signal[s]}</span>`;
+/**
+ * THE WARMTH RUN'S RE-AUDIT (w4-whole-06) — something left TO DO that is not a
+ * customer waiting: a setup step, a hold, a check. The same open ○, in the
+ * secondary ink, so the magenta ○ keeps its one meaning — a customer waits for
+ * you — and a chore never reads as one.
+ */
+export const todoMark = (): string =>
+  `<span class="dot todo" aria-hidden="true">${DESIGN_TOKENS.signal.waiting}</span>`;
 
 /**
  * Where the stylesheet draws a signal's shape BEFORE a state's own words — a
@@ -242,7 +250,9 @@ export const signalMark = (s: Signal): string =>
  */
 export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
   ok: ['.pill.ok', '.pill.taught', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
-  waiting: ['.pill.warn', '.pill.reason', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob', '.pc-wait', 'nav.side .navcount'],
+  // The warmth run's re-audit (w4-whole-06): magenta's ○ is a CUSTOMER waiting for you — a reply, a hand-over,
+  // an order, a deletion asked. A chore or a check carries the same ○ in the secondary ink (TODO_BEFORE).
+  waiting: ['.pill.warn', '.pill.reason', '.draft .held-why', '.chip.draft', '.pc-wait', 'nav.side .navcount'],
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
   assistant: ['.pill.as'],
 };
@@ -250,8 +260,12 @@ const markBefore = (s: Signal, selectors: readonly string[]): string => {
   const shape = DESIGN_TOKENS.signal[s];
   return `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:"${shape}"; content:"${shape}" / ""; margin-inline-end:var(--space-4); font-weight:600; }`;
 };
+/** Lines drawn with the to-do ○ before them, in their own (secondary) ink — never magenta's. */
+export const TODO_BEFORE: readonly string[] = ['.fwarn', '.imp-warn', '.sr-value.warn', '.prob:not(.bad)'];
 const SIGNAL_CSS = `  /* Phase 4 — the four signals: a colour and a shape. */
   .dot { font-weight:600; }
+  .dot.todo { color:var(--color-ink-secondary); }
+  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:"${DESIGN_TOKENS.signal.waiting}"; content:"${DESIGN_TOKENS.signal.waiting}" / ""; margin-inline-end:var(--space-4); font-weight:600; }
   .dot.ok { color:var(--color-ok); }
   .dot.warn { color:var(--color-waiting); }
   .dot.bad { color:var(--color-warn); }
@@ -667,7 +681,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .sr-value { flex:0 1 auto; max-width:45%; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-align:end; overflow-wrap:anywhere; }
   /* A value that is a state says which, with its shape (the four signals); any other value stays quiet. */
   .sr-value.ok { color:var(--color-ok); font-weight:600; }
-  .sr-value.warn { color:var(--color-waiting); font-weight:600; }
+  .sr-value.warn { color:var(--color-ink-secondary); font-weight:600; }
   .sr-value.bad { color:var(--color-warn); font-weight:600; }
   .srow .go { flex:none; }
   /* Phase 9 (w4-today-setup-23, w4-whole-08) — a menu row is a grid of four: the shape, the name, the value, the door.
@@ -1276,7 +1290,7 @@ const STYLE_PAGES = `
   .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
   /* Phase 9 — a name and its separator are one unit: a line breaks between names, never inside one or before a "·". */
   .fitem { display:inline-block; }
-  .fwarn { color:var(--color-waiting); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
+  .fwarn { color:var(--color-ink); font-weight:600; font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fok { color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:var(--radius-chip); background:var(--color-paper); color:var(--color-ink); border:1px solid var(--color-border); }
@@ -1350,10 +1364,10 @@ const STYLE_PAGES = `
   .imp-photo figcaption { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-top:var(--space-4); }
   .imp-row { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .imp-row:last-child { border-bottom:0; }
-  .imp-row.need { border-inline-start:3px solid var(--color-waiting-line); padding-inline-start:var(--space-12); }
+  .imp-row.need { border-inline-start:3px solid var(--color-ink-secondary); padding-inline-start:var(--space-12); }
   .imp-row.out { opacity:0.6; }
   .imp-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  .imp-warn { display:block; color:var(--color-waiting); font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .imp-warn { display:block; color:var(--color-ink-secondary); font-weight:600; font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .imp-typed, .imp-q { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); margin-top:var(--space-8); }
   .imp-typed input, .imp-pct input, .imp-edit input, .imp-edit select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
   .imp-typed input, .imp-pct input { width:8em; }
@@ -1411,7 +1425,7 @@ const STYLE_PAGES = `
   .ch-desc { font-size:var(--font-size-caption); margin:var(--space-8) 0 var(--space-12); }
   .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
-  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:var(--radius-control); padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
+  .prob { background:var(--color-paper); color:var(--color-ink); border-radius:var(--radius-control); padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
   .prob.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
   .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
@@ -1787,12 +1801,12 @@ const STYLE_PAGES = `
   #approve summary { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); cursor:pointer; min-height:44px; align-items:center; }
   /* Phase 9 (conversation-new-04) — what needs the owner follows the fold's own words, and starts its own line when it wraps: right-aligned under them, it read as cut off. */
   #approve summary .c { color:var(--color-ink-secondary); }
-  #approve summary .c.warn { color:var(--color-waiting); font-weight:600; }
+  #approve summary .c.warn { color:var(--color-ink-secondary); font-weight:600; }
   #approve details .und { margin:var(--space-4) 0 0; }
   .reasons { list-style:none; margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12); display:grid; gap:var(--space-4);
     background:var(--color-paper); border-radius:var(--radius-control); }
   .reasons li { display:grid; grid-template-columns:1.2em minmax(6em, max-content) 1fr; gap:var(--space-8); align-items:baseline; }
-  .reasons .mk.warn { color:var(--color-waiting); }
+  .reasons .mk.warn { color:var(--color-ink-secondary); }
   /* Phase 9 (V1-242) — a product's name stays whole where the line has room. */
   .reasons .pname { display:inline-block; }
   /* Phase 9 (conversation-missed-03) — on a phone the source goes under what it explains, not into a sliver of a column. */
@@ -1903,7 +1917,7 @@ const STYLE_PAGES = `
   .card.refused, .card.unsure { background:var(--color-surface); }
   .card.refused .rf-h, .card.unsure .rf-h { margin:0 0 var(--space-8); }
   .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
-  .rf { padding:var(--space-12) 0; border-top:1px solid var(--color-waiting-wash); }
+  .rf { padding:var(--space-12) 0; border-top:1px solid var(--color-border); }
   .rf:first-of-type { border-top:0; padding-top:0; }
   .rf-w { font-size:var(--font-size-small); color:var(--color-ink); font-weight:600; }
   .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
@@ -2028,7 +2042,7 @@ const STYLE_PAGES = `
   .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
   textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
-  .sbx-trust { border-color:var(--color-waiting-line); }
+  .sbx-trust { border-color:var(--color-border); }
   .sbx-trust.pass { border-color:var(--color-ok-line); }
   .sbx-trust.fail { border-color:var(--color-warn-line); }
   /* Phase 9 (V1-294) — the verdict in the heading is a word, not the general verdict box (padding, border, radius, centred). */
@@ -2037,7 +2051,7 @@ const STYLE_PAGES = `
   .sbx-trust.pass .verdict { color:var(--color-ok); }
   .sbx-trust.fail .verdict { color:var(--color-warn); }
   .chip.auto { background:var(--color-ok-wash); color:var(--color-ok); border-color:var(--color-ok-line); }
-  .chip.draft { background:var(--color-waiting-wash); color:var(--color-waiting); border-color:var(--color-waiting-line); }
+  .chip.draft { background:var(--color-waiting-wash); color:var(--color-waiting); border-color:var(--color-border); }
   .chip.warn { background:var(--color-warn-wash); color:var(--color-warn); }
   .chip.badge { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
   .checks { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
@@ -2047,7 +2061,7 @@ const STYLE_PAGES = `
   .chk.bad .mk { color:var(--color-warn); }
   .chk .lbl { font-size:var(--font-size-small); }
   .chk .dt { grid-column:2; font-size:var(--font-size-caption); word-break:break-word; }
-  .card.draft { border-color:var(--color-waiting-line); }
+  .card.draft { border-color:var(--color-border); }
   /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech components live in one place so the two voices cannot fork per page. */
   .takeover.owner { flex-direction:column; align-items:stretch; }
 

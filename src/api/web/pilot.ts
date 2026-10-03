@@ -17,7 +17,7 @@ import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './o
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
-import { esc, deeper, back, signalMark } from './layout.js';
+import { esc, deeper, back, todoMark } from './layout.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -565,7 +565,7 @@ export function renderPilotReadiness(
         ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</div></div>`;
     const verdict = d.readyToLaunch
       ? `<p class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</p>`
-      : `<p class="verdict">${signalMark('waiting')} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+      : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
     return `
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
@@ -589,7 +589,7 @@ export function renderPilotReadiness(
   // Phase 9 (V1-130) — a state line, not a box that looks pressable.
   const verdict = d.readyToLaunch
     ? `<p class="verdict ok">✓ ${esc(t(locale, 'pilot.allReady'))}</p>`
-    : `<p class="verdict">${signalMark('waiting')} ${esc(t(locale, 'pilot.notReady'))}</p>`;
+    : `<p class="verdict">${todoMark()} ${esc(t(locale, 'pilot.notReady'))}</p>`;
 
   return `
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
@@ -745,7 +745,7 @@ function metaSection(m: MetaReadiness, locale: Locale, templateState: TemplateSt
     <h2>${esc(t(locale, 'meta.title'))}</h2>
     <p class="muted">${esc(t(locale, 'meta.intro'))}</p>
     ${rows}
-    <p class="verdict${m.live ? ' ok' : ''}">${m.live ? '✓' : signalMark('waiting')} ${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</p>
+    <p class="verdict${m.live ? ' ok' : ''}">${m.live ? '✓' : todoMark()} ${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</p>
     ${blockers ? `<ul class="rbsteps muted">${blockers}</ul>` : ''}
     ${templateRow(locale, templateState)}
   </div>`;
