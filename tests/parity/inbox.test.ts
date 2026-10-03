@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import {
-  renderInboxList, renderConversationDetail, defaultFilter,
+  renderInboxList, renderConversationDetail,
   type InboxList, type ConversationDetail, type HumanActionType,
 } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -52,16 +52,19 @@ describe('M9.3 · inbox list (localized)', () => {
     // the country is the customer panel's; the row is the state, who, the time and the message
     expect(html).not.toContain('🇦🇪');
     expect(html).toContain(shown('zh', 'buyers.badge.reviewShort'));
-    expect(html).toContain('保温杯'); expect(html).toContain('5000个'); expect(html).toContain('$0.92');
+    // The warmth run, phase 4 — the row is the customer's: what they asked about and its
+    // figures left it (the conversation and the card carry them); what they spent is its number.
+    expect(html).not.toContain('5000个'); expect(html).not.toContain('$0.92');
     // CC-25 — a buyer opens on the newest message, with the reply waiting under it.
     expect(html).toContain('href="/app/inbox/conv-1#latest"');
   });
 
-  it('en: localized chrome, latin product name', () => {
+  // The warmth run (phase 4): a row is the customer — face, name, spent, last contact; the
+  // product and its quantity left the row (the conversation's strip and the card carry them).
+  it('en: localized chrome', () => {
     const html = renderInboxList(listWithWork, 'en', NOW);
     expect(html).toContain('Inbox'); expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));
-    expect(html).toContain('Needs you'); expect(html).toContain('Vacuum cup');
-    expect(html).toContain('5,000\u00a0pcs');   // CC-13 — a figure and its unit, spaced (no-break)
+    expect(html).toContain('Needs you');
     expect(html).not.toContain('保温杯');
   });
 
@@ -76,10 +79,9 @@ describe('M9.3 · inbox list (localized)', () => {
     expect(renderInboxList({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW)).toContain('No conversations yet');
   });
 
-  it('default filter opens pending only when work is waiting', () => {
-    expect(defaultFilter(2)).toBe('pending');
-    expect(defaultFilter(0)).toBe('all');
-  });
+  // The warmth run, phase 4 — there is no default filter any more: the Inbox opens on the whole
+  // list in "waiting now", where everyone who needs the owner already leads
+  // (tests/parity/warmth-inbox.test.ts). `defaultFilter` is gone with the "open on Needs you" rule.
 });
 
 describe('M9.3 · conversation detail (localized)', () => {

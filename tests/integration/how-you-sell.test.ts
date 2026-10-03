@@ -118,8 +118,9 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     const notOurs = await get('/app/business/selling/offered');
     expect(notOurs.statusCode).toBe(302);
     expect(notOurs.headers['location']).toBe('/app/business/selling');
-    // My business opens it.
-    expect((await get('/app/business')).body).toContain('href="/app/business/selling"');
+    // My business opens it: its How you sell row, then the questions (phase 7).
+    expect((await get('/app/business')).body).toContain('href="/app/business/how-you-sell"');
+    expect((await get('/app/business/how-you-sell')).body).toContain('href="/app/business/selling"');
   });
 
   it('AN ANSWER IS A DRAFT UNTIL ITS LINES ARE TICKED; then each goes to its own row, and the next question opens', async () => {
@@ -243,11 +244,15 @@ d('HS · How you sell, end to end (requires DATABASE_URL)', () => {
     const hub = await get('/app/business/selling');
     expect(hub.body).toContain('Answered');
     expect(hub.body).toContain('Left for later');
-    // Setup carries the door and where she is: price, words, minimum, returns, hours, payment.
-    const setup = await get('/app/settings/setup');
-    expect(setup.body).toContain('href="/app/business/selling"');
+    // My business carries the door and where she is (phase 7 — it was Setup's):
+    // price, words, minimum, returns, hours, payment.
+    const menu = await get('/app/business');
+    const how = await get('/app/business/how-you-sell');
+    expect(how.body).toContain('href="/app/business/selling"');
     // CK (0110) added "What you sell" to a shop's questions: nine now.
-    expect(setup.body).toContain('6 of 9 answered');
+    expect(menu.body).toContain('6 of 9 answered');
+    expect(how.body).toContain('6 of 9 answered');
+    expect((await get('/app/settings/setup')).body).not.toContain('href="/app/business/selling"');
   });
 
   it('A REFUSED ANSWER is shown back with its problem, and nothing is kept', async () => {

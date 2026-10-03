@@ -152,13 +152,13 @@ d('CH1 · "Your accounts", read live (requires DATABASE_URL)', () => {
     const drawn = await get('/app/channels');
     const mark = /data-live="\/app\/live\/channels\?since=([0-9a-f.]+)"/.exec(drawn.body)?.[1];
     expect(mark).toBeTruthy();
-    expect((await get(`/app/live/channels?since=${mark}`)).json()).toEqual({ news: false, orders: 0 });
+    expect((await get(`/app/live/channels?since=${mark}`)).json()).toEqual({ news: false });   // phase 8: no order count on a live answer (the rail's question carries who waits)
     await tx(async (x) => {
       const client = (await sql<{ id: string }>`insert into clients (business_id, display_name) values (${BIZ}, 'Lina') returning id::text as id`.execute(x)).rows[0]!.id;
       await sql`insert into client_channels (client_id, channel, channel_user_id, last_inbound_at)
                 values (${client}::uuid, 'instagram', ${`IGSID_${RUN}`}, now())`.execute(x);
     });
-    expect((await get(`/app/live/channels?since=${mark}`)).json()).toEqual({ news: true, what: 'channels', orders: 0 });
+    expect((await get(`/app/live/channels?since=${mark}`)).json()).toEqual({ news: true, what: 'channels' });
     const html = await panel();
     expect(markOf(html, 'accounts.test')).toBe('done');
     expect(stepOf(html, 'accounts.test')).toContain('Instagram');

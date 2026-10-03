@@ -117,10 +117,13 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     }
   });
 
-  it('"MINE" WITH NOTHING HELD is not an empty business', async () => {
+  // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out: its address leads
+  // to the whole list (the closest lens), so its empty panel is never drawn.
+  it('"MINE" is not a view any more: its address leads to the whole list', async () => {
     const r = await get('/app/inbox?filter=mine');
-    expect(r.body).toContain(t('en', 'inbox.empty.mine'));
-    expect(r.body).not.toContain(t('en', 'inbox.empty.noneBody'));
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe('/app/inbox');
+    expect((await get('/app/inbox')).body).not.toContain(t('en', 'inbox.empty.mine'));
   });
 
   it('BILLING ASKS WHETHER THE CARD IS CONFIRMED: at work until it is', async () => {

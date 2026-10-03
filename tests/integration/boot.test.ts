@@ -54,6 +54,26 @@ const M203_REF = `m203-ref-${RUN_NS}`;
  *  (channel, channel_user_id) GLOBALLY — cannot collide with a previous run. */
 const ph = runPhone;
 
+/**
+ * Phase 8 of the warmth run — a hand-over reaches the owner's alert number only
+ * where the owner's WhatsApp path is open: Meta approved Nomi (the test passes
+ * `whatsappApproved`, or sets META_APP_REVIEW for the worker) and a channel is
+ * live. This turns the run tenant's WhatsApp channel live or not, and returns
+ * what it was so the test can put it back.
+ */
+async function whatsappLive(db: import('../../src/db/client.js').Db, on: Date | null): Promise<Date | null> {
+  const { withTenantTx } = await import('../../src/db/client.js');
+  const { parseBusinessId } = await import('../../src/core/types/ids.js');
+  const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
+  return withTenantTx(db, p.value, async (tx) => {
+    const was = (await sql<{ at: Date | null }>`select activated_at as at from channels
+      where business_id = ${DEMO_BIZ} and kind = 'whatsapp'`.execute(tx)).rows[0]?.at ?? null;
+    await sql`update channels set activated_at = ${on}, activated_by = ${on ? 'test' : null}
+      where business_id = ${DEMO_BIZ} and kind = 'whatsapp'`.execute(tx);
+    return was;
+  });
+}
+
 beforeAll(async () => {
   if (!DATABASE_URL || !MIGRATE_URL) return;
   // `buildProduction` resolves the owner's tenant from process.env, not from
@@ -216,20 +236,28 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
     await withTenantTx(prod.db, parsed.value, (tx) =>
       sql`update businesses set owner_locale='en', owner_phone=${'+' + ph('8613800000001')} where id=${parsed.value}`.execute(tx));
-
-    const before = sim.sentIds.length;
-    // Enqueue a neutral alert; the consumer registered by buildProduction must
-    // resolve the destination and deliver through the SAME adapter (sim records the send).
-    await prod.boss.send('notify.team', { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null });
-    let delivered = false;
-    for (let i = 0; i < 50; i++) {
-      if (sim.sentIds.length > before) { delivered = true; break; }
-      await new Promise((r) => setTimeout(r, 100));
+    // Phase 8 of the warmth run — a hand-over (a hot lead now waits in the app), by
+    // WhatsApp: the worker reads Meta's approval as each job leaves, and a channel is live.
+    const review = process.env['META_APP_REVIEW'];
+    process.env['META_APP_REVIEW'] = 'approved:2026-11-20';
+    const was = await whatsappLive(prod.db, new Date());
+    try {
+      const before = sim.sentIds.length;
+      // Enqueue a neutral alert; the consumer registered by buildProduction must
+      // resolve the destination and deliver through the SAME adapter (sim records the send).
+      await prod.boss.send('notify.team', { businessId: DEMO_BIZ, kind: 'handoff', conversationId: null });
+      let delivered = false;
+      for (let i = 0; i < 50; i++) {
+        if (sim.sentIds.length > before) { delivered = true; break; }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      expect(delivered).toBe(true);   // the notify consumer is wired and sent via the adapter
+    } finally {
+      if (review === undefined) delete process.env['META_APP_REVIEW']; else process.env['META_APP_REVIEW'] = review;
+      await whatsappLive(prod.db, was);
+      await withTenantTx(prod.db, parsed.value, (tx) =>
+        sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
     }
-    expect(delivered).toBe(true);   // the notify consumer is wired and sent via the adapter
-
-    await withTenantTx(prod.db, parsed.value, (tx) =>
-      sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
   }, 15_000);
 
   it('shuts down cleanly and idempotently', async () => {
@@ -836,22 +864,30 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const sent: { to: string; body: string }[] = [];
     const rec = { sendText: async (to: string, body: string) => { sent.push({ to, body }); return { ok: true as const, providerMessageId: 'x' }; } };
     const job = (kind: 'hot_lead' | 'handoff') => ({ businessId: DEMO_BIZ, kind, conversationId: null });
+    // Phase 8 of the warmth run — the WhatsApp path is open: Meta approved Nomi, a channel is live.
+    const deps = { db: prod.db, adapter: rec, whatsappApproved: true };
+    const was = await whatsappLive(prod.db, new Date());
 
     await setOwner('zh', `+${ph('8613800000000')}`);
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'))).toBe('sent');
+    expect(await deliverOwnerAlert(deps, job('handoff'))).toBe('sent');
     expect(sent).toHaveLength(1);                    // exactly one send — no duplicate
     expect(sent[0]!.to).toBe(`+${ph('8613800000000')}`);      // persisted destination
     expect(sent[0]!.body).toContain(ASSISTANT_FALLBACK.zh);   // zh — no name confirmed, so the fallback
 
     await setOwner('en', `+${ph('8613800000000')}`);
-    await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'));
-    expect(sent[1]!.body).toContain(ASSISTANT_FALLBACK.en);   // locale switched to en
+    await deliverOwnerAlert(deps, job('handoff'));
+    expect(sent[1]!.body.toLowerCase()).toContain(ASSISTANT_FALLBACK.en.toLowerCase());   // locale switched to en (it opens the sentence)
 
     await setOwner('ar', `+${ph('8613800000000')}`);
-    await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('handoff'));
+    await deliverOwnerAlert(deps, job('handoff'));
     expect(sent[2]!.body).toContain(ASSISTANT_FALLBACK.ar);   // ar
 
+    // A customer ready to buy waits in the app (the owner's rule, 2026-10-03): nothing is sent.
+    expect(await deliverOwnerAlert(deps, job('hot_lead'))).toBe('skipped_quiet');
+    expect(sent).toHaveLength(3);
+
     await setOwner('en', null);                        // restore
+    await whatsappLive(prod.db, was);
   });
 
   it('P3 owner alert: no destination → skipped, never a fake send', async () => {
@@ -863,7 +899,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
     const sent: unknown[] = [];
     const rec = { sendText: async () => { sent.push(1); return { ok: true as const, providerMessageId: 'x' }; } };
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null })).toBe('skipped_no_destination');
+    // Phase 8 — a hand-over with no alert number, no sign-in address and no sender: nowhere to go.
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec, whatsappApproved: true }, { businessId: DEMO_BIZ, kind: 'handoff', conversationId: null })).toBe('skipped_no_destination');
     expect(sent).toHaveLength(0);
   });
 
@@ -874,13 +911,16 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
     await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_locale='en', owner_phone=${'+' + ph('8613800000009')} where id=${parsed.value}`.execute(tx));
-    const j = { businessId: DEMO_BIZ, kind: 'hot_lead' as const, conversationId: null };
+    // Phase 8 — a hand-over, by WhatsApp (approved, a channel live), with no e-mail to fall back on.
+    const j = { businessId: DEMO_BIZ, kind: 'handoff' as const, conversationId: null };
+    const was = await whatsappLive(prod.db, new Date());
 
     const retry = { sendText: async () => ({ ok: false as const, retryable: true, error: '503' }) };
-    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry }, j)).rejects.toThrow();
+    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry, whatsappApproved: true }, j)).rejects.toThrow();
 
     const perm = { sendText: async () => ({ ok: false as const, retryable: false, error: 'invalid number' }) };
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: perm }, j)).toBe('failed_permanent');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: perm, whatsappApproved: true }, j)).toBe('failed_permanent');
+    await whatsappLive(prod.db, was);
 
     await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
   });
@@ -908,10 +948,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // saved
     expect(await auditCount()).toBe(before + 1);          // audited
 
-    // A notification now resolves the destination.
+    // A notification now resolves the destination (phase 8: a hand-over, once Meta approved Nomi, on a live channel).
     const sent: { to: string }[] = [];
     const rec = { sendText: async (to: string) => { sent.push({ to }); return { ok: true as const, providerMessageId: 'x' }; } };
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null })).toBe('sent');
+    const was = await whatsappLive(prod.db, new Date());
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec, whatsappApproved: true }, { businessId: DEMO_BIZ, kind: 'handoff', conversationId: null })).toBe('sent');
+    await whatsappLive(prod.db, was);
     expect(sent[0]!.to).toBe(`+${ph('8613800000042')}`);
 
     // invalid input is rejected — number unchanged.
@@ -1520,7 +1562,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // factory where nothing could reach her at all.
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
-      expect(html).toContain('href="/app/business"');
+      expect(html).toContain('href="/app/business/ready"');
       // The warmth run — with messaging off, the plain fact, never "all caught up".
       expect(html).toContain(`<h2 id="today-now" class="tw-head">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
@@ -2080,10 +2122,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const inList = (await list('all')).conversations.find((c) => c.conversationId === aiId)!;
       expect(inList.ownership).toBe('OWNER_CONTROLLED');
-      // Phase 1 — the row's ● mark says a person here has it; in words, for a screen reader and the group heading
+      // A person here has it: said in words, for a screen reader and the group heading.
+      // The warmth run, phase 4 — the customer's row (`irow`), its conversation behind `ir-main`.
       const listHtml = (await import('../../src/api/web/inbox.js')).renderInboxList(await list('all'), 'en', new Date());
       expect(listHtml).toContain(esc(t('en', 'buyers.group.yours')));
-      expect(listHtml).toMatch(new RegExp(`<a class="crow is-yours[^"]*" href="/app/inbox/${aiId}#latest">`));
+      expect(listHtml).toMatch(new RegExp(`<div class="irow is-yours[^"]*">(?:(?!<div class="irow)[\\s\\S])*?<a class="ir-main" href="/app/inbox/${aiId}#latest">`));
 
       await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: aiId, actor: 'owner' });
       expect((await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!.ownership).toBe('AI');
@@ -2130,9 +2173,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
     const view = (b = DEMO_BIZ) => import('../../src/api/web/factory.js')
       .then(({ loadFactory }) => loadFactory(prod.db, b, false));
+    // Phase 7 — My business is a menu and the screens a level down: "the page"
+    // is all of them, as the owner reads them one tap apart.
     const html = async (b = DEMO_BIZ) => {
-      const { renderFactory } = await import('../../src/api/web/factory.js');
-      return renderFactory(await view(b), 'en');
+      const { renderFactory, renderBusinessScreen, BUSINESS_SCREEN_PATH } = await import('../../src/api/web/factory.js');
+      const v = await view(b);
+      return [renderFactory(v, 'en'), ...(Object.keys(BUSINESS_SCREEN_PATH) as (keyof typeof BUSINESS_SCREEN_PATH)[])
+        .map((s) => renderBusinessScreen(s, v, 'en'))].join('\n');
     };
 
     beforeAll(async () => {
@@ -2149,7 +2196,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       ]);
       expect(f.profile.name).toBe(row.name);
       expect(f.profile.location).toBe(row.location);
-      expect(await html()).toContain(row.name);
+      // the facts' one home (phase 7): the profile page My business's first row opens
+      const { renderProfile } = await import('../../src/api/web/settings.js');
+      expect(renderProfile(f.profile, 'en', null)).toContain(`value="${esc(row.name)}"`);
     });
 
     it('products are the real active catalog, with the real unpriced count', async () => {
@@ -2314,10 +2363,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('M20.3.1: the connection section and the activation section never disagree', async () => {
-      const { loadFactory, renderFactory } = await import('../../src/api/web/factory.js');
+      const { loadFactory, renderBusinessScreen } = await import('../../src/api/web/factory.js');
       for (const provider of [false, true]) {
         const v = await loadFactory(prod.db, DEMO_BIZ, provider);
-        const page = renderFactory(v, 'en');
+        // Phase 7 — the two sections are two screens: where customers reach you, and going live.
+        const page = renderBusinessScreen('channels', v, 'en') + renderBusinessScreen('ready', v, 'en');
         const offersActivate = page.includes('action="/app/business/activate"');
         const saysReady = page.includes('whenever you say so');
         // "you can start" may only appear when the channel is genuinely ready
@@ -2550,8 +2600,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect((await channel())!.activated_at, 'activated despite a blocker').toBeNull();
       expect(flashSaid(r, WEB_SECRET)).toContain('start with your own');
 
-      // the page and the refusal must say the SAME thing
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
+      // the page and the refusal must say the SAME thing (phase 7: going live's screen)
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } });
       expect(page.body).toContain('start with your own');
       expect(page.body).not.toContain('action="/app/business/activate"');
 
@@ -2590,7 +2640,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('activates: writes through the service, audits the actor, and shows it at once', async () => {
       const { activate } = await import('../../src/channels/activation.js');
-      const { loadFactory, renderFactory } = await import('../../src/api/web/factory.js');
+      const { loadFactory, renderBusinessScreen } = await import('../../src/api/web/factory.js');
       const beforeAudit = (await audits('activate')).n;
       const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
@@ -2604,7 +2654,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(a.actor).toBe('owner');
 
       // rendered as an installation that HAS a provider — this one has none
-      const page = renderFactory(await loadFactory(prod.db, DEMO_BIZ, true), 'en');
+      const page = renderBusinessScreen('ready', await loadFactory(prod.db, DEMO_BIZ, true), 'en');
       expect(page).toContain('is talking to real customers');
       expect(page).toContain('action="/app/business/deactivate"');
       expect(page).not.toContain('action="/app/business/activate"');
@@ -2633,7 +2683,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(await q((tx) => sql<{ n: number }>`select count(*)::int n from conversations`
         .execute(tx as never).then((x) => x.rows[0]!.n))).toBe(buyersBefore);
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } });
       expect(page.body).not.toContain('is talking to real buyers');
     });
 
@@ -2717,7 +2767,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(stored.archived).toBeNull();
       expect(flashSaid(add, WEB_SECRET)).toContain('can now receive');
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
+      // Phase 7 — the list is a screen of its own under My business.
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business/allowlist', headers: { cookie } });
       expect(page.body).toContain('my own phone');
 
       const rm = await post('/app/business/allowlist/remove', `phone=${ph('861390000222')}2`, cookie);

@@ -51,6 +51,19 @@
  *      dialog says the question, its button carries the button's word, and
  *      going ahead submits the form as that button would. With no dialog in
  *      the browser the click goes through and the button asks as before.
+ *   8. THE WARMTH RUN (2026-10-03), phase 8 — wherever the owner is in Nomi,
+ *      a customer newly waiting surfaces: every page asks the rail's question
+ *      (`data-rail`, live.ts `railAnswer`) on the same twenty-second rhythm;
+ *      the rail's number is redrawn in place, and a RISE also puts a quiet
+ *      dot on Inbox and one small card at the foot of the screen — who and
+ *      why, a door to the conversation — that goes after six seconds or when
+ *      it is tapped. One at a time, in a polite live region; its motion is
+ *      the stylesheet's, so a reader who asked for less gets none. No sound,
+ *      no counter in the tab's title. On Today (`data-live-redraw`) news is
+ *      drawn into the page in place, as item 5 draws a reply, instead of the
+ *      line. (The browser's own "an order waits" notice, asked for on Today,
+ *      is retired: how anyone hears outside Nomi is their choice on
+ *      Notifications, and the card says it inside.)
  *
  * Progressive: every page works exactly as before with scripting off — read,
  * reply, approve, send. Nothing here is needed for any of it.
@@ -190,37 +203,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     if (door) door.addEventListener('click', function (e) { go(e, door); });
   }
 
-  /* An order waiting: the browser says so, where the owner asked it to. */
-  function mayTell() {
-    try { return 'Notification' in window && window.Notification.permission === 'granted'; } catch (e) { return false; }
-  }
-  function tellOrder(region) {
-    var door = region.getAttribute('data-live-notify-door');
-    try {
-      var n = new window.Notification(region.getAttribute('data-live-notify'), { tag: 'nomi-order' });
-      n.onclick = function () { window.focus(); if (door) location.href = door; };
-    } catch (e) { /* the e-mail still says it */ }
-  }
-  function askToTell() {
-    var box = doc.querySelector('[data-notify]');
-    var ask = doc.querySelector('[data-notify-ask]');
-    var on = doc.querySelector('[data-notify-on]');
-    if (!box || !ask || !('Notification' in window)) return;
-    box.hidden = false;
-    function settle() {
-      var p = window.Notification.permission;
-      ask.hidden = p !== 'default';
-      if (on) on.hidden = p !== 'granted';
-    }
-    settle();
-    ask.addEventListener('click', function () {
-      try {
-        var asked = window.Notification.requestPermission(settle);
-        if (asked && asked.then) asked.then(settle, settle);
-      } catch (e) { settle(); }
-    });
-  }
-
   /* G5b: alerts on this phone. The browser's push service gives an address
      and two keys; Nomi keeps them, and the phone's own worker shows the alert. */
   function phone() {
@@ -296,76 +278,135 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     }).catch(function () { show(region, what || 'reply'); });
   }
 
-  function watch(region) {
-    var ask = region.getAttribute('data-live');
-    var raw = region.getAttribute('data-live-orders');
-    var known = Number(raw);
-    var counting = !!raw && known >= 0;
-    /* Phase 5: drawn with the assistant at work: ask often, and draw its answer in. */
-    var working = region.getAttribute('data-live-working') === '1';
-    var every = working ? WORKING : EVERY;
-    var lined = false;
-    var rounds = 0;
+  /* One question, asked again and again: every so often while the tab is in
+     view, at once when it is shown again, longer after each failure (up to
+     five minutes), let go after fifteen seconds without an answer, and never
+     again once the answer says the session or the page is gone. */
+  function asker(address, every, use, before) {
     var wait = every;
     var timer = 0;
     var over = false;
-    var asking = false;
+    var busy = false;
+    var self = {
+      stop: function () { over = true; clearTimeout(timer); },
+      shown: function () { later(0); },
+      hidden: function () { clearTimeout(timer); }
+    };
     function later(ms) {
       clearTimeout(timer);
       timer = over ? 0 : setTimeout(look, ms);
     }
-    function stop() { over = true; clearTimeout(timer); }
     function look() {
-      if (over || asking || (doc.visibilityState === 'hidden' && !(counting && mayTell()))) return;
-      if (working && ++rounds > WORKING_ROUNDS) {
-        stop();
-        if (doc.querySelector('template[data-live-news="slow"]')) show(region, 'slow');
-        return;
-      }
-      asking = true;
+      if (over || busy || doc.visibilityState === 'hidden') return;
+      if (before && !before(self)) return;
+      busy = true;
       var init = {
         credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
         headers: { Accept: 'application/json' }
       };
-      /* An answer that never comes is let go after fifteen seconds, like any failure. */
       var ctl = window.AbortController ? new window.AbortController() : 0;
       var cut = ctl ? setTimeout(function () { ctl.abort(); }, 15000) : 0;
       if (ctl) init.signal = ctl.signal;
-      fetch(ask, init).then(function (r) {
+      fetch(address(), init).then(function (r) {
         /* Signed out, the page gone, or an answer this page cannot use: stop, quietly. */
         if (r.type === 'opaqueredirect' || (r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429)) {
-          stop();
+          self.stop();
           return;
         }
         if (!r.ok) throw new Error('not now');
         return r.json().then(function (said) {
           wait = every;
-          if (counting && said && typeof said.orders === 'number') {
-            if (said.orders > known && mayTell()) tellOrder(region);
-            known = said.orders;
-          }
-          /* The work is done, or something else changed: the page is drawn again, in place. */
-          if (working && said && (said.working !== true || said.news === true)) {
-            stop();
-            redraw(region, said.what);
-            return;
-          }
-          if (said && said.news === true && !lined) { show(region, said.what); lined = true; }
-          /* The line goes in once; then only a page that tells of orders asks on. */
-          if (lined && !(counting && mayTell())) stop();
-          else later(doc.visibilityState === 'hidden' ? HIDDEN : every);
+          use(said, self);
+          later(every);
         });
       }).catch(function () {
         wait = Math.min(wait * 2, LONGEST);
         later(wait);
-      }).then(function () { clearTimeout(cut); asking = false; });
+      }).then(function () { clearTimeout(cut); busy = false; });
     }
     later(every);
-    return {
-      stop: stop,
-      shown: function () { later(0); },
-      hidden: function () { if (counting && mayTell()) later(HIDDEN); else clearTimeout(timer); }
-    };
+    return self;
+  }
+
+  function watch(region) {
+    var ask = region.getAttribute('data-live');
+    /* Phase 5: drawn with the assistant at work: ask often, and draw its answer in. */
+    var working = region.getAttribute('data-live-working') === '1';
+    /* Phase 8: a page that is drawn again in place when it changes (Today). */
+    var redraws = region.getAttribute('data-live-redraw') === '1';
+    var rounds = 0;
+    return asker(function () { return ask; }, working ? WORKING : EVERY, function (said, self) {
+      if (!said) return;
+      /* The work is done, or something else changed: the page is drawn again, in place. */
+      if ((working && (said.working !== true || said.news === true)) || (redraws && said.news === true)) {
+        self.stop();
+        redraw(region, said.what);
+        return;
+      }
+      /* The line goes in once, and asking stops. */
+      if (said.news === true) { show(region, said.what); self.stop(); }
+    }, function (self) {
+      if (working && ++rounds > WORKING_ROUNDS) {
+        self.stop();
+        if (doc.querySelector('template[data-live-news="slow"]')) show(region, 'slow');
+        return false;
+      }
+      return true;
+    });
+  }
+
+  /* Phase 8: the rail's question, from every page. The number is redrawn in
+     place; a rise also marks Inbox and says who and why in one small card. */
+  var SHOWN = 6000;
+  var card = 0;
+  var cardTimer = 0;
+  function drop(c) {
+    if (c.parentNode) c.parentNode.removeChild(c);
+    if (card === c) { card = 0; clearTimeout(cardTimer); }
+  }
+  function toast(slot, said) {
+    var door = String(said.door || '');
+    /* Only an address inside the app, as the answer gives it. */
+    if (!/^\\/app\\/[A-Za-z0-9\\/_.#-]*$/.test(door)) return;
+    if (card) drop(card);
+    var c = doc.createElement('a');
+    c.className = 'toast';
+    c.href = door;
+    c.textContent = String(said.say || '');
+    c.addEventListener('click', function () { drop(c); });
+    slot.appendChild(c);
+    card = c;
+    cardTimer = setTimeout(function () { drop(c); }, SHOWN);
+  }
+  function tally(entry, said) {
+    var badge = entry.querySelector('.navcount');
+    if (said.n > 0) {
+      if (!badge) {
+        badge = doc.createElement('span');
+        badge.className = 'navcount';
+        badge.setAttribute('aria-hidden', 'true');
+        entry.appendChild(badge);
+      }
+      badge.textContent = String(said.shown);
+      entry.setAttribute('aria-label', String(said.label));
+    } else {
+      if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
+      entry.removeAttribute('aria-label');
+      entry.removeAttribute('data-fresh');
+    }
+  }
+  function rail(slot) {
+    var ask = slot.getAttribute('data-rail');
+    return asker(function () { return ask; }, EVERY, function (said) {
+      if (!said || typeof said.n !== 'number' || !/^[0-9]+$/.test(String(said.mark))) return;
+      ask = ask.replace(/since=[0-9]+/, 'since=' + said.mark);
+      var entry = doc.querySelector('[data-nav="inbox"]');
+      if (entry) tally(entry, said);
+      if (said.toast) {
+        if (entry) entry.setAttribute('data-fresh', '1');
+        toast(slot, said.toast);
+      }
+    });
   }
 
   /* One watcher at a time: a page drawn in place starts its own, and the old one stops. */
@@ -385,11 +426,21 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var region = doc.querySelector('[data-live]');
     if (region && window.fetch) watcher = watch(region);
   }
+  var railer = 0;
+  function startRail() {
+    var slot = doc.querySelector('[data-rail]');
+    if (slot && window.fetch) railer = rail(slot);
+  }
   doc.addEventListener('visibilitychange', function () {
-    if (!watcher) return;
-    if (doc.visibilityState === 'hidden') watcher.hidden(); else watcher.shown();
+    var hidden = doc.visibilityState === 'hidden';
+    if (watcher) { if (hidden) watcher.hidden(); else watcher.shown(); }
+    if (railer) { if (hidden) railer.hidden(); else railer.shown(); }
   });
-  window.addEventListener('pageshow', function (e) { if (e.persisted && watcher) watcher.shown(); });
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    if (watcher) watcher.shown();
+    if (railer) railer.shown();
+  });
 
   /* Phase 5: the product's own dialog in place of the browser's grey box, for
      every button that asks first (its question in data-confirm). Without it,
@@ -491,13 +542,13 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
 
   toToday();
   keepWords();
-  askToTell();
   phone();
   asking();
   sending();
   cards();
   faces();
   begin();
+  startRail();
   window.addEventListener('pagehide', keepNow);
   window.addEventListener('load', function () {
     try { if (history.scrollRestoration === 'manual') history.scrollRestoration = 'auto'; } catch (e) { /* the browser keeps its own */ }

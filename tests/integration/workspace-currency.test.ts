@@ -161,7 +161,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     const r = await form('/app/settings/rate', { rate: '3.67' }, cookie);
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
     expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);
-    expect((await get('/app/business')).body).not.toContain('href="/app/settings/rate"');
+    // Phase 7 — the rate's row is How you sell's, and absent there too.
+    expect((await get('/app/business/how-you-sell')).body).not.toContain('href="/app/settings/rate"');
   });
 
   it('A QUOTE FROM THOSE ROWS IS IN DIRHAMS, and the same figure in dollars does not leave', async () => {

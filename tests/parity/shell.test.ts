@@ -176,13 +176,14 @@ describe('Phase F · the shell is usable with a thumb', () => {
     const STATE_FRAGMENTS = [
       'pill', 'tag', 'badge', 'flash', 'err', 'prob', 'need', 'knew',
       'draft', 'refused', 'takeover', 'verdict', 'banner', 'chk', 'cert',
-      'cond', 'ditem', 'fconn', 'calm-mark', 'sbx-trust', '.ev', '.pr', '.mk',
+      'cond', 'ditem', 'calm-mark', 'sbx-trust', '.ev', '.pr', '.mk',
       '.ok', '.bad', 'warn', 'pass', 'fail', 'met', 'danger', 'blocked',
       'chip',   // an authorised claim (.fchip) or a granted autonomy (.chip.auto)
       '.rf',    // the refusal explanation panel — a refused send IS a state
       'unsure', // 0052 — a send nobody can account for is a state, and an amber one
       'aria-invalid', // phase 9 (cross-new-03) — a field sent back is a state the owner reacts to
       'navcount', 'pc-wait', // the warmth run — customers waiting for the owner: the waiting signal
+      'data-fresh', // the warmth run, phase 8 — the rail's marker when a customer newly waits
     ];
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);

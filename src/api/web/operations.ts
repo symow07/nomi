@@ -312,7 +312,7 @@ export function renderOperationsHome(
     ? `<div class="tw-note">
         <p class="tw-note-t">${esc(t(locale, 'today.stopped.title', { name }))}</p>
         <p class="muted">${esc(t(locale, 'today.stopped.body', { name }))}</p>
-        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/business', t(locale, 'today.stopped.start', { name }))}</div>
+        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/business/ready', t(locale, 'today.stopped.start', { name }))}</div>
       </div>`
     : '';
   // 0071 — ops paused sending: the same honesty, in the words ops uses.
@@ -387,7 +387,7 @@ export function renderOperationsHome(
   //     way forward instead of an empty row (M22, F-01). Sending, only where
   //     messaging is live, closes the zone.
   const reach = !live && (today.handled?.total ?? 0) === 0
-    ? `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper('/app/business', t(locale, 'today.calm.notLive.go'))}`
+    ? `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper('/app/business/ready', t(locale, 'today.calm.notLive.go'))}`
     : renderHandled(today, locale, { ready: live && !holding });
   // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
   const notLive = !live ? `<p class="muted notlive">${signalMark('waiting')} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
@@ -404,17 +404,14 @@ export function renderOperationsHome(
     ${deeper('/app/analytics', t(locale, 'today.results.link'))}
   </section>`;
 
-  // 0080 — an order a customer said yes to waits for the owner's tap. The
-  // e-mail always says so; this browser can too, if the owner asks it. Hidden
-  // until the page's script finds a browser that can (liveScript.ts).
-  const tellMe = `<div class="block" data-notify hidden>
-    ${/* Phase 9 (V1-093) — a button that looks like one, at the content's edge: it was grey ghost text. */ ''}<button type="button" class="btn" data-notify-ask hidden>${esc(t(locale, 'live.notify.ask'))}</button>
-    <p class="caption muted" data-notify-on hidden>${esc(t(locale, 'live.notify.on'))}</p>
-  </div>`;
+  // 0080 — an order a customer said yes to waits for the owner's tap. The warmth
+  // run, phase 8: how that reaches the owner outside Nomi is their choice on
+  // Notifications, and inside it the rail's card says it; this page no longer
+  // offers its own browser notice.
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))} <span class="muted today-date">· ${esc(show.dayLong(locale, today.now))}</span></h1>
   ${band}
   ${hero}
   ${tally}
-  ${tellMe}`;
+`;
 }

@@ -81,10 +81,19 @@ export const NAV_ICON: Readonly<Record<string, IconId>> = {
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
+  // THE WARMTH RUN, phase 7 — My business is a menu: each row opens a page
+  // that already owned its part (the profile, the kind, the products, the
+  // price limits) or a screen of its own a level down.
   { hub: '/app/business', routes: [
-    '/app/products', '/app/business/prices',
-    '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
+    '/app/settings/profile', '/app/settings/business', '/app/business/channels', '/app/business/ready',
+    '/app/products', '/app/business/prices', '/app/business/promises', '/app/business/how-you-sell',
   ] },
+  // …How you sell is a menu of its own: the questions, then the same facts changed directly.
+  { hub: '/app/business/how-you-sell', routes: [
+    '/app/business/selling', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
+  ] },
+  // …and the channels have ONE home, Where customers reach you: each of its rows opens Channels.
+  { hub: '/app/business/channels', routes: ['/app/channels'] },
   // THE WARMTH RUN, phase 7 — the assistant's page is a menu: each row opens
   // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
   // row only while a check waits, so it is not walked from here).
@@ -97,9 +106,11 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // THE WARMTH RUN — My business is a row of Settings now, and the pages
   // reached from it follow it there (the map chains).
   { hub: '/app/settings', routes: ['/app/business', '/app/settings/setup'] },
+  // Phase 7 — Setup is how the app is wired for the owner: getting started,
+  // what is checked before going live, alerts, the language; the account.
   { hub: '/app/settings/setup', routes: [
-    '/app/onboarding', '/app/channels',
-    '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
+    '/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
+    '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data',
   ] },
   // Phase 3 of the UI rebuild — the component gallery (`/app/settings/components`)
   // is no longer a door on Setup: it is a page for whoever builds the product
@@ -230,8 +241,8 @@ export const signalMark = (s: Signal): string =>
  * here or named there with the way its shape is drawn.
  */
 export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
-  ok: ['.pill.ok', '.pill.taught', '.fconn.on .fconn-s', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
-  waiting: ['.pill.warn', '.pill.reason', '.fconn.off .fconn-s', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob', '.pc-wait', 'nav.side .navcount'],
+  ok: ['.pill.ok', '.pill.taught', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
+  waiting: ['.pill.warn', '.pill.reason', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob', '.pc-wait', 'nav.side .navcount'],
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
   assistant: ['.pill.as'],
 };
@@ -1042,11 +1053,12 @@ ${SIGNAL_CSS}${MOTION_CSS}
  */
 const STYLE_PAGES = `
   /* ── settings.ts — moved here whole in step four: page-specific names, defined once. */
-  /* Phase 9 (V1-155) — the five steps under Getting started: rows of the same card, lighter, so the step reads as part of it. */
-  .scard > li.sr-step .srow { min-height:44px; padding-block:var(--space-4); padding-inline-start:var(--space-24); }
-  .sr-step .sr-label { font-weight:400; }
-  /* Phase 9 — five languages on the switch: it wraps inside Setup's card rather than running past it on a phone. */
+  /* Phase 9 — five languages on the switch: it wraps inside its card rather than running past it on a phone. */
   .scard .langsw { flex-wrap:wrap; }
+  /* Phase 7 — a menu row with a line under its name is 64 px; the line wraps rather than being cut,
+     and the value beside it keeps its words (up to its half of the row) instead of giving way to the line. */
+  .srow.sr-two { min-height:64px; }
+  .srow.sr-menu.sr-two > .sr-main { flex:1 1 0; }
   /* ── guide.ts — the guided path: five steps, each with its video and its words. */
   .guide { list-style:none; margin:var(--space-16) 0 var(--space-32); padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
   .guide-step { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-16); background:var(--color-surface); }
@@ -1159,6 +1171,30 @@ const STYLE_PAGES = `
   .checks.rd .rd-state { grid-column:2; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-wrap:pretty; }
   .checks.rd .deeper { grid-column:2; padding:0; min-height:44px; }
 
+  /* ── Notifications (the warmth run, phase 8) — while the owner is in Nomi, a customer newly waiting
+     shows wherever they are: a dot on Inbox, the count, and one small card. No sound, no counter
+     in the tab's title, nothing that is not a customer waiting. */
+  nav.side a.navlink[data-fresh] { position:relative; }
+  nav.side a.navlink[data-fresh]::after { content:""; position:absolute; inset-block-start:var(--space-8);
+    inset-inline-start:calc(var(--space-24) + 16px); inline-size:8px; block-size:8px;
+    border-radius:var(--radius-chip); background:var(--color-waiting); }
+  .toasts { position:fixed; z-index:6; inset-block-end:var(--space-24); inset-inline-end:var(--space-24);
+    inline-size:min(var(--measure-form), calc(100vw - var(--space-48))); display:flex; flex-direction:column;
+    align-items:flex-end; pointer-events:none; }
+  .toast { pointer-events:auto; display:flex; align-items:center; min-block-size:44px; max-inline-size:100%;
+    padding:var(--space-12) var(--space-16); border-radius:var(--radius-card); background:var(--color-surface);
+    color:var(--color-ink); box-shadow:var(--shadow-lift2); font-size:var(--font-size-small); text-decoration:none;
+    overflow-wrap:anywhere; }
+  @media (max-width: 720px) {
+    nav.side a.navlink[data-fresh]::after { inset-block-start:var(--space-4); inset-inline-start:calc(50% - 16px); }
+    .toasts { inset-inline:var(--space-16); inset-block-end:var(--space-16); inline-size:auto; align-items:stretch; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+  }
+  /* The Notifications page: the three ways one under another; one that cannot be chosen yet reads as such. */
+  .choices.ways { flex-direction:column; }
+  .choices.ways label.check:has(> input:disabled) { color:var(--color-ink-secondary); }
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
   .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
@@ -1225,14 +1261,10 @@ const STYLE_PAGES = `
   .fready { margin:var(--space-8) 0 0; font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); }
   /* The next step stands apart from the first section, not on its heading. */
   .lede + .deeper.next { margin-bottom:var(--space-16); }
-  .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
   .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
   .fdesc-lead { margin:0 0 var(--space-12); }
   .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:0; max-width:var(--measure-prose); }
   .fval { color:var(--color-ink); }
-  /* A product tally is never the loudest thing an owner reads. */
-  .fcount { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8); font-variant-numeric:tabular-nums; }
-  .fcount-l { font-size:var(--font-size-small); font-weight:400; color:var(--color-ink-secondary); }
   .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
   /* Phase 9 — a name and its separator are one unit: a line breaks between names, never inside one or before a "·". */
   .fitem { display:inline-block; }
@@ -1257,20 +1289,7 @@ const STYLE_PAGES = `
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
   .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
-  .fconn { display:flex; align-items:center; gap:var(--space-12); }
-  .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
-  .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  .fconn.on .fconn-s { color:var(--color-ok); }
-  /* Not connected stops everything, so it looks like it and links to the fix. */
-  .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:var(--radius-card); padding:14px 16px; }
-  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-ink-secondary); }
-  .fconn.off .fconn-s { color:var(--color-waiting); }
-  .fconn.off .go { margin-inline-start:auto; }
-  /* Phase 9 — never connected is not waiting on anything: a plain door, no wash and no mark. */
-  .fconn.todo { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px 16px; }
-  .fconn.todo:hover, .fconn.todo:focus-visible { border-color:var(--color-ink-secondary); }
-  .fconn.todo .go { margin-inline-start:auto; }
+  /* Phase 7 — the channels are rows of their own screen now (the menu row's value carries the state); the cards' rules went with them. */
   .fblock .deeper { margin-top:var(--space-8); }
   /* Doors in a column keep the column's own gap, as everywhere else. */
   .fblock .doors .deeper { margin-top:0; }
@@ -1651,6 +1670,73 @@ const STYLE_PAGES = `
   /* Phase 9 (inbox-calendar-new-03) — what the row marks mean, under the rows. */
   .cr-key { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-16); margin:var(--space-8) 0 var(--space-12); }
   .ck-i { display:inline-flex; align-items:baseline; gap:var(--space-4); }
+  /* THE WARMTH RUN, phase 4 — the Inbox. One customer, one row, 64 px: the face
+     (40 px, it opens their card), the name and the mark on a regular, what they
+     spent as the headline number; under them why they need you (the waiting
+     signal), the last message, the last contact. The row follows the page's
+     direction: in Arabic the face is on the right, the time on the left. */
+  .irows { list-style:none; margin:0; padding:0; background:var(--color-surface); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); overflow:hidden; }
+  .irows > li + li { border-top:1px solid var(--color-border); }
+  .irow { display:flex; align-items:stretch; min-height:64px; color:var(--color-ink); }
+  .irow:hover, .irow:focus-within, .irow.on { background:var(--color-paper); }
+  @media (prefers-reduced-motion: no-preference) { .irow, .arow { transition:background-color var(--motion-fast) var(--motion-ease); } }
+  .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-12) 10px; }
+  .ir-main { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:var(--space-8);
+    align-content:center; align-items:baseline; padding-block:5px; padding-inline-end:var(--space-12); color:inherit; }
+  .ir-main:focus-visible { outline:2px solid var(--color-ink); outline-offset:-2px; }
+  .ir-l1 { grid-row:1; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; font-size:var(--font-size-small); }
+  .ir-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
+  .irow.unanswered .ir-name { font-weight:600; }
+  .ir-reg { flex:none; display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap;
+    font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .ir-reg .ni { inline-size:1.1em; block-size:1.1em; flex:none; }
+  .ir-spent { grid-row:1; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-base); font-weight:600;
+    line-height:1.35; font-variant-numeric:tabular-nums; }
+  .ir-l2 { grid-row:2; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; overflow:hidden;
+    white-space:nowrap; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Why they need you comes before the message, whole where it fits: the message takes what is left. */
+  .ir-wait { flex:0 0 auto; max-width:100%; overflow:hidden; text-overflow:ellipsis; color:var(--color-waiting); font-weight:600; }
+  .ir-wait .dot { margin-inline-end:var(--space-4); }
+  .ir-hold, .ir-by { flex:none; }
+  .ir-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; text-align:match-parent; }
+  [dir="rtl"] .ir-text:dir(ltr) { text-align:end; }
+  .irow.unanswered .ir-text { color:var(--color-ink); }
+  .ir-when { grid-row:2; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-caption);
+    color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
+  /* On a phone the name keeps the room: the regular's mark is its shape (its word still said, and
+     explained under the list), the channel goes, the narrowings are a size smaller. */
+  @media (max-width: 720px) {
+    .ir-reg-w { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    .ir-chan { display:none; }
+    .tabs.filters .tab { padding:8px 12px; font-size:var(--font-size-caption); }
+  }
+  /* The two lenses: one segmented switch, the width of a phone, its own size on a wide screen;
+     the narrowings that hold something beside it, and what the lens orders by under it. */
+  .lensbar { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-16); margin:var(--space-8) 0 var(--space-4); }
+  .lensbar .tabs { margin:0; }
+  .tabs.lens { flex:1 1 100%; gap:var(--space-4); padding:3px; background:var(--color-paper);
+    border:1px solid var(--color-border); border-radius:var(--radius-chip); }
+  .tabs.lens .tab { flex:1 1 0; justify-content:center; background:transparent; border-color:transparent; }
+  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; }
+  @media (min-width: 721px) { .tabs.lens { flex:none; } .tabs.lens .tab { flex:none; } }
+  .tabs.filters { flex-wrap:wrap; align-items:center; }
+  .tabs.filters .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small);
+    color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .lens-says { margin:0 0 var(--space-12); }
+  /* "Needs attention": relationships slipping, in a soft panel above the switch. A face, a name, one
+     line that may wrap — nothing cut; five, then the rest folded. */
+  .attn { margin:0 0 var(--space-16); padding:var(--space-8) var(--space-16); background:var(--color-surface);
+    border:1px solid var(--color-border); border-radius:var(--radius-panel); }
+  .attn-h { font-size:var(--font-size-small); font-weight:600; margin:var(--space-4) 0; }
+  .arows { list-style:none; margin:0; padding:0; }
+  .arow { display:flex; align-items:stretch; min-height:52px; }
+  .arow > .ar-face { flex:none; display:inline-flex; align-items:center; padding-inline-end:var(--space-12); }
+  .ar-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; justify-content:center; padding-block:4px; color:inherit; }
+  /* The name sits at the line's start in the page's direction, whatever its own script: a Latin name on an Arabic page stays on the right. */
+  .ar-name { align-self:flex-start; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--font-size-small); font-weight:600; }
+  .ar-line { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .attn-more > summary { font-size:var(--font-size-small); color:var(--color-ink); }
   /* Phase 9 (V1-166) — a door the rail already holds on a wide screen is the phone's alone. */
   @media (min-width: 721px) { .deeper.on-phone { display:none; } }
   .dhead .who { font-size:var(--font-size-small); }
@@ -1734,6 +1820,14 @@ const STYLE_PAGES = `
   .listpane a.crow { padding-inline:var(--space-12) var(--space-16); }
   .listpane a.crow:hover, .listpane a.crow:focus-visible, .listpane a.crow.on { background:var(--color-surface); }
   .listpane .crows > li.lp-group, .listpane .crows > li.lp-group + li { border-top:0; }
+  /* Phase 4 — the Inbox's own row beside a conversation: the open customer marked by an ink edge. */
+  .listpane .irows { margin:var(--space-8) 0; background:none; border:0; border-radius:0; }
+  .listpane .irow { border-inline-start:3px solid transparent; }
+  .listpane .irow:hover, .listpane .irow:focus-within, .listpane .irow.on { background:var(--color-surface); }
+  .listpane .irow.on { border-inline-start-color:var(--color-ink); }
+  .listpane .irows > li.lp-group, .listpane .irows > li.lp-group + li { border-top:0; }
+  .listpane .tabs.lens { margin:0 var(--space-16) var(--space-8); padding:3px; }
+  .listpane .tabs.filters { margin:0 0 var(--space-8); }
   /* Beside a conversation the group heading says why; the narrow column keeps the name and the message. */
   .listpane .cr-why { display:none; }
   .lp-group { padding:var(--space-12) var(--space-16) var(--space-4); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -2195,10 +2289,13 @@ export function hubFor(path: string, active: string): string {
  * it only where the page has none, so a page that draws its own keeps it.
  */
 export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly label: MessageKey }>> = {
-  '/app/settings/closures': { href: '/app/business', label: 'nav.factory' },
-  '/app/settings/rate': { href: '/app/business', label: 'nav.factory' },
-  '/app/settings/samples': { href: '/app/business', label: 'nav.factory' },
-  '/app/settings/terms': { href: '/app/business', label: 'nav.factory' },
+  '/app/settings/closures': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  '/app/settings/rate': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  '/app/settings/samples': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  '/app/settings/terms': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
+  // Phase 7 — the products and the channels are rows of My business now.
+  '/app/products': { href: '/app/business', label: 'nav.factory' },
+  '/app/channels': { href: '/app/business/channels', label: 'factory.reach.title' },
   '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
   // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
   '/app/knowledge': { href: '/app/employee', label: 'nav.employee' },
@@ -2312,6 +2409,16 @@ export function shell(input: {
   // (an account page, a closure list, an order, a product), the area's name
   // only where the page has none. Every Setup page was "Setup · …".
   const ownHeading = /<h1 class="page"[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
+  /**
+   * THE WARMTH RUN (2026-10-03), phase 8 — every page in a workspace asks the
+   * rail's question (`railAnswer`, live.ts) from the number it was drawn with,
+   * and this is where the answer surfaces: the one small card, in a polite
+   * live region present and empty from the start. Outside a workspace (a
+   * fragment, a page whose count could not be read) nothing asks.
+   */
+  const waiting = needsYouCount();
+  const toasts = waiting === null ? ''
+    : `<div class="toasts" role="status" aria-live="polite" data-rail="/app/live/rail?since=${waiting}"></div>`;
   const tabTitle = (ownHeading ? unescapeHtml(ownHeading.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '') || input.title;
   // CC-20 — the first stop for a keyboard or a screen reader: past the five
   // nav entries, straight to the page. Out of sight until it has focus.
@@ -2332,7 +2439,7 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div>${askDialog(locale)}${cardSheet(locale)}</body></html>`;
+</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`;
 }
 
 /**

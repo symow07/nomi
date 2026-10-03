@@ -96,30 +96,37 @@ describe('the list pane', () => {
     conversations: [conv('c-1', { awaitingReview: true, lastFrom: 'buyer' }), conv('c-2', { lastFrom: 'assistant' })],
   };
 
+  // The warmth run, phase 4 — the pane draws the Inbox's own row (face, name, spent, last contact):
+  // `irow`, its conversation link `ir-main`; the ○ ● ✦ column gave its place to the face.
   it('the current conversation is marked; each row is name, last message, time; its state is the heading above it', () => {
     const html = renderListPane(list, 'en', NOW, 'c-1');
-    expect(html).toMatch(/<a class="crow is-\w+[^"]* on" href="\/app\/inbox\/c-1#latest" aria-current="page">/);
+    expect(html).toMatch(/<div class="irow is-\w+[^"]* on">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/c-1#latest" aria-current="page">/);
     // Phase 9 (V1-233) — headed as the list page heads them: under the Needs-you tab the tab is the heading.
     expect(html).not.toContain('class="lp-group"');
     expect(renderListPane({ ...list, filter: 'all' }, 'en', NOW, 'c-1')).toContain(`<li class="lp-group" aria-hidden="true">${t('en', 'buyers.group.needsYou')}</li>`);
     expect(html).not.toContain('class="tag');
-    // the list page's own row: the assistant holds c-2, so its mark is the one magenta ✦
-    expect(html).toMatch(/<a class="crow is-hers[^"]*" href="\/app\/inbox\/c-2#latest">\s*<span class="cr-mark" aria-hidden="true">✦<\/span>/);
-    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<span class="cr-text" dir="auto">last from c-2/);
+    // the list page's own row: the assistant wrote c-2's last message, so the one magenta ✦ leads it
+    expect(html).toMatch(/<div class="irow is-hers[^"]*">/);
+    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<span class="as" aria-hidden="true">✦<\/span>[\s\S]*?<span class="ir-text" dir="auto">last from c-2/);
     const first = html.slice(html.indexOf('href="/app/inbox/c-1#latest"'));
     expect(first.slice(0, first.indexOf('</a>'))).not.toContain('✦');
-    // beside a conversation there is no product line
+    // no product line anywhere on the row
     expect(html).not.toContain('class="cr-detail"');
   });
 
-  it('an empty tab is not shown: Mine only with colleagues, the problem tabs only while one exists', () => {
+  // phase 4 — the pane's tabs are the Inbox's two lenses; the problem narrowings only while one
+  // exists; "Mine" never (team machinery the owner ruled out).
+  it('an empty tab is not shown: never Mine, the problem tabs only while one exists', () => {
     const html = renderListPane(list, 'en', NOW, 'c-1');
+    expect(html).toContain('<nav class="tabs lens"');
+    expect(html).toContain('href="/app/inbox?lens=value"');
     expect(html).not.toContain('filter=mine');
     expect(html).not.toContain('filter=blocked');
     expect(html).not.toContain('filter=deletion');
     const busy = renderListPane({ ...list, blockedCount: 2, deletionCount: 1 }, 'en', NOW, 'c-1',
       [{ id: 'p1', name: 'Owner', isOwner: true }, { id: 'p2', name: 'Xiao', isOwner: false }]);
-    for (const f of ['mine', 'blocked', 'deletion']) expect(busy).toContain(`filter=${f}`);
+    for (const f of ['blocked', 'deletion']) expect(busy).toContain(`filter=${f}`);
+    expect(busy).not.toContain('filter=mine');
   });
 });
 

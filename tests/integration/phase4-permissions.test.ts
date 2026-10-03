@@ -243,7 +243,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
   it('a refusal lands on the page the form was on', async () => {
     const where = async (url: string, payload = '') => String((await post(staffCookie, url, payload)).headers['location']);
     expect(await where('/app/onboarding/attest', 'which=owner_ready')).toBe('/app/onboarding');
-    expect(await where('/app/business/allowlist/add', 'phone=%2B971500001111')).toBe('/app/business');
+    // Phase 7 — the list is a screen of its own under My business.
+    expect(await where('/app/business/allowlist/add', 'phone=%2B971500001111')).toBe('/app/business/allowlist');
     expect(await where('/app/channels/whatsapp/disconnect')).toBe('/app/channels');
     expect(await where(`/app/products/${PID}/edit`, 'moq=1')).toBe(`/app/products/${PID}`);
     expect(await where('/app/products/add/confirm', 'text=x')).toBe('/app/products');
@@ -255,7 +256,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
   it('STAFF SEE NO FORM THAT WOULD REFUSE THEM — the values, and whose decision they are', async () => {
     const pages: ReadonlyArray<readonly [string, RegExp]> = [
       ['/app/onboarding', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
-      ['/app/business', /action="\/app\/business\/allowlist\/(add|remove)"/],
+      ['/app/business/allowlist', /action="\/app\/business\/allowlist\/(add|remove)"/],
       ['/app/channels', /action="\/app\/(channels\/whatsapp\/(test|disconnect|reconnect)|settings\/owner-phone)"/],
       ['/app/products', /href="\/app\/products\/add"/],
       ['/app/products/add', /action="\/app\/products\/add\/(review|photo)"/],
@@ -277,7 +278,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const product = (await get(staffCookie, `/app/products/${PID}`)).body;
     expect(product).toContain('Canvas tote');
     expect(product).toContain('500');
-    const factory = (await get(staffCookie, '/app/business')).body;
+    const factory = (await get(staffCookie, '/app/business/allowlist')).body;
     expect(factory).toContain(digits(LISTED));
     // Nor a door that opens only onto a refusal: the price limits are an owner page.
     for (const url of ['/app/onboarding', '/app/products', `/app/products/${PID}`, '/app/business']) {

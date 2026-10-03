@@ -52,6 +52,8 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '.as': ['mark', 'the ✦ beside what the assistant wrote, and its name beside the ✦'],
   '.is-needs .cr-mark': ['mark', 'ROW_MARK ○'], '.is-hers .cr-mark': ['mark', 'ROW_MARK ✦'],
   '.is-needs .cr-why': ['row', 'the row opens with ○'],
+  // The warmth run, phase 4 — the Inbox row's waiting words open with signalMark's ○.
+  '.ir-wait': ['text', 'signalMark ○ before the words'],
   '#approve summary .c.warn': ['text', '○ Not every figure has a source'],
   '.reasons .mk.warn': ['mark', '○ beside the figure with no source'],
   '.ok-line': ['text', '✓ before the calm sentence'],
@@ -155,7 +157,7 @@ describe('phase 4 · Setup says which values are states', () => {
     setup: setupFrom({ profile: false, products: true, name: false, channels: true, first_success: false }), ...over,
   });
   const html = withWorkspace(scope(), () => renderSetup({
-    kind: 'Retailer', people: 2, alerts: { available: true, phones: 1 }, signIn: { email: 'owner@example.test' },
+    people: 2, alerts: { available: true, phones: 1 }, signIn: { email: 'owner@example.test' },
     billing: { configured: true, exempt: false, status: 'past_due' }, dataWaiting: 2,
   }, 'en', null));
   const valueOf = (href: string) => new RegExp(`href="${href}">[\\s\\S]*?<span class="sr-value([^"]*)"`).exec(html)?.[1];
@@ -163,13 +165,13 @@ describe('phase 4 · Setup says which values are states', () => {
   it('done or on ✓, waiting ○, did not happen ✕ — and a value that only names something carries none', () => {
     expect(valueOf('/app/guide')).toBe(' warn');               // 2 of 5 done
     expect(valueOf('/app/onboarding')).toBe(' warn');          // name not confirmed
-    expect(valueOf('/app/settings/profile')).toBe(' warn');    // to do
-    expect(valueOf('/app/channels')).toBe(' ok');              // connected
     expect(valueOf('/app/settings/alerts')).toBe(' ok');       // a phone gets them
     expect(valueOf('/app/settings/billing')).toBe(' bad');     // a payment failed
     expect(valueOf('/app/settings/data')).toBe(' warn');       // two requests wait
-    expect(valueOf('/app/settings/business')).toBe('');        // a kind is a name, not a state
+    expect(valueOf('/app/settings/language')).toBe('');        // a language is a name, not a state
     expect(valueOf('/app/settings/people')).toBe('');
     expect(valueOf('/app/settings/account')).toBe('');
+    // phase 7 — the profile, the kind and the channels are My business's rows
+    // now; their states are held in warmth-settings-business.test.ts.
   });
 });

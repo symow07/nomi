@@ -111,11 +111,11 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
     const html = await page(`/app/inbox/${maya}`);
     // V1-105 — on a phone every page says whose workspace it is, so its line may come first.
     expect(html).toMatch(/<main id="main" class="wide">(?:<p class="business-name"><bdi>[^<]*<\/bdi><\/p>)?<div class="panes"><aside class="listpane"/);
-    expect(html).toMatch(new RegExp(`<a class="crow is-\\w+[^"]* on" href="/app/inbox/${maya}#latest" aria-current="page">`));
-    // the list opens on its own default tab: someone needs the owner, so "Needs you" — Omar is under All
-    expect(html).not.toContain(`href="/app/inbox/${omar}#latest"`);
-    expect(html).toMatch(/<a class="tab on" aria-current="page" href="\/app\/inbox\?filter=pending">Needs you<span class="tab-n">1<\/span><\/a>/);
-    expect(html).toContain('href="/app/inbox?filter=all"');
+    // The warmth run, phase 4 — the Inbox's own row, and its own first page: "waiting now", the
+    // whole list, whoever needs the owner first. Maya (a reply to review) leads it; Omar is under her.
+    expect(html).toMatch(new RegExp(`<div class="irow is-\\w+[^"]* on">(?:(?!<div class="irow)[\\s\\S])*?<a class="ir-main" href="/app/inbox/${maya}#latest" aria-current="page">`));
+    expect(html.indexOf(`href="/app/inbox/${omar}#latest"`)).toBeGreaterThan(html.indexOf(`href="/app/inbox/${maya}#latest"`));
+    expect(html).toContain('<a class="tab on" aria-current="true" href="/app/inbox">Waiting now</a><a class="tab" href="/app/inbox?lens=value">Matters most</a>');
     expect(html).toContain('<title>Maya Rahman · Hana Skincare</title>');
     expect(buttonsAndDoors(html)).toEqual([]);
   });

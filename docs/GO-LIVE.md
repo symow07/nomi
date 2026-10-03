@@ -171,7 +171,10 @@ drafts only, operator-assisted (decision 34). `docs/FACTORY-PROVISIONING.md`
 
 **Cohort 1b — real customers, the day App Review approves (M4).**
 
-1. Set `META_APP_REVIEW=approved:<YYYY-MM-DD>`.
+1. Set `META_APP_REVIEW=approved:<YYYY-MM-DD>`. Owners on the default
+   notification way (Notifications, 0124) then hear of an order waiting and a
+   customer handed over by WhatsApp at their alert number, where a channel is
+   live; e-mail stays the fallback. No template or App Review step is part of it.
 2. Run the launch acceptance test on production (`docs/LAUNCH-ACCEPTANCE.md`)
    and check it with `tools/acceptance-check.mjs`. 1b opens when it passes.
 3. Watch `tools/workspaces.mjs --funnel` against decision 33's exit criteria;

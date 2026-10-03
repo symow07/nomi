@@ -181,17 +181,17 @@ export type LiveWatch = {
   /** What the address can report, each with its sentence. */
   readonly says: readonly { readonly what: string; readonly key: MessageKey }[];
   /**
-   * 0080 — how many orders were waiting for the owner when the page was drawn.
-   * Every answer says how many wait now; a rise, where the owner asked for it,
-   * is told in the browser (liveScript.ts). Absent: the page does not tell.
-   */
-  readonly orders?: number;
-  /**
    * Phase 5 — the page was drawn with the assistant at work on it: the script
    * asks every few seconds, and when the work is done it draws the new page in
    * place of this one, without a reload (liveScript.ts).
    */
   readonly working?: boolean;
+  /**
+   * The warmth run, phase 8 — news is drawn INTO the page, in place: the script
+   * fetches the same address and swaps the page's `main` (Today, so its zones
+   * update while the owner looks at them). The line is the fallback.
+   */
+  readonly redraw?: boolean;
 };
 
 /**
@@ -210,8 +210,6 @@ export type LiveWatch = {
  * it never reloads by itself, and nothing above it moves.
  */
 export const liveRegion = (locale: Locale, w: LiveWatch): string =>
-  `<div class="live" role="status" aria-live="polite" data-live="${esc(w.ask)}"${w.working ? ' data-live-working="1"' : ''}${
-    w.orders === undefined ? '' : ` data-live-orders="${w.orders}" data-live-notify="${
-      esc(t(locale, 'notify.order_proposed.subject'))}" data-live-notify-door="/app/inbox?filter=pending"`}></div>`
+  `<div class="live" role="status" aria-live="polite" data-live="${esc(w.ask)}"${w.redraw ? ' data-live-redraw="1"' : ''}${w.working ? ' data-live-working="1"' : ''}></div>`
   + w.says.map((s) => `<template data-live-news="${esc(s.what)}"><div class="flash live-line">${
     deeper(esc(w.door), t(locale, s.key), 'live-door')}</div></template>`).join('');

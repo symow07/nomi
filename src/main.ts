@@ -1298,9 +1298,13 @@ export async function buildProduction(
   };
   await boss.work<NotifyJob>(QUEUES.notify, async ([job]: { data: NotifyJob }[]) => {
     if (!job) return;
+    // Phase 8 of the warmth run — WhatsApp is a way out of Nomi only once Meta
+    // approved Nomi (`META_APP_REVIEW=approved:<date>`): the day it does, everyone
+    // on the default notification way is on WhatsApp, with nothing rebuilt.
+    const whatsappApproved = metaReviewFrom(process.env).state === 'approved';
     // The backup alert also travels by the installation's own mail (A3), so
     // it reaches the owner with no channel connected at all.
-    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: alertMail, operatorMail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut }, job.data);   // throws on retryable failure → pg-boss retries
+    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: alertMail, operatorMail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut, whatsappApproved }, job.data);   // throws on retryable failure → pg-boss retries
   });
 
   // CH3 — a reply the owner typed in Instagram's or Messenger's own app. Our

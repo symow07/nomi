@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { flashSaid, runDigits } from './tenant.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 
 /**
@@ -269,7 +270,9 @@ d('Silence · DOOR — nothing takes a waiting buyer off Needs you during the si
   });
 
   it('DOOR · My business says sending is paused, and nothing says the assistant is answering', async () => {
-    const html = (await get('/app/business')).body;
+    // Phase 7 — on its going-live screen; the menu's row says it in a word.
+    expect((await get('/app/business')).body).toContain(`<bdi>${t('en', 'business.live.paused')}</bdi>`);
+    const html = (await get('/app/business/ready')).body;
     expect(html).toContain('data-golive="silenced"');
     expect(html).toContain('this was not you');
     expect(html).not.toContain('replies go out as soon as they are sent');

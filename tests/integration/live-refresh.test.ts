@@ -22,6 +22,8 @@ import { randomUUID } from 'node:crypto';
  *     a mark no page could carry is refused (400);
  *   - staff are told the same as the owner, and a stopped assistant changes
  *     nothing about it.
+ *   - the warmth run, phase 8: every page asks the rail's address from the
+ *     count it shows; only a rise names who arrived and why.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -61,8 +63,9 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
   /** The address a page's script asks, as the browser reads it out of the attribute. */
   const askOf = (html: string): string => {
-    // 0080 — the region also carries the orders waiting when it was drawn (liveScript.ts).
-    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"(?: data-live-orders="\d+" data-live-notify="[^"]+" data-live-notify-door="[^"]+")?><\/div>/.exec(html);
+    // Phase 8 of the warmth run — Today's region says it is drawn again in place (`data-live-redraw`);
+    // 0080's count of orders waiting, for the browser's own notice, is retired with that notice.
+    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"(?: data-live-redraw="1")?><\/div>/.exec(html);
     expect(m, 'the page carries its live region').not.toBeNull();
     return m![1]!.replace(/&amp;/g, '&');
   };
@@ -73,9 +76,9 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   };
   const ask = async (url: string, cookie = owner) => {
     const r = await get(url, cookie, JSON_ACCEPT);
-    // 0080 — every answer also counts the orders waiting (a number, for the browser's notice).
-    const { orders, ...said } = r.json() as { news: boolean; what?: string; orders?: number };
-    if (r.statusCode === 200) expect(typeof orders, url).toBe('number');
+    // Phase 8 — the answer is what the page's script is told, and nothing else (0080's order count is retired).
+    const said = r.json() as { news: boolean; what?: string; orders?: number };
+    expect(said.orders, url).toBeUndefined();
     return { status: r.statusCode, said, headers: r.headers };
   };
   /** A buyer writes: the worker's own recorder, in the business's own transaction. */
@@ -248,8 +251,8 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     const r = await get('/app/inbox?filter=all');
     const url = askOf(r.body);
     expect(url).toMatch(/^\/app\/live\/buyers\?since=2\.[0-9a-f]{16}$/);
-    // the door is the first page of the tab she is on
-    expect(r.body).toContain('<a class="deeper live-door" href="/app/inbox?filter=all">');
+    // the door is the first page of the list she is on — phase 4: the whole list is its own address
+    expect(r.body).toContain('<a class="deeper live-door" href="/app/inbox">');
     expect((await ask(url)).said).toEqual({ news: false });
     await buyerWrites(BIZ, second, 'Does the 1L bottle come in amber?');
     expect((await ask(url)).said).toEqual({ news: true, what: 'list' });
@@ -318,5 +321,44 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     expect(r.statusCode).toBe(200);
     expect(r.body).not.toContain('data-live=');
     expect(r.body.match(/<script src="\/assets\/live\.[0-9a-f]{16}\.js" defer><\/script>/g)).toHaveLength(1);
+  });
+
+  it('phase 8 · the rail: every page asks it from the count it shows; only a rise names who and why', async () => {
+    const { ensureConversation } = await import('../../src/db/channels.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { WAITING_HUMAN_AGENT } = await import('../../src/core/conversation/ownership.js');
+    type Rail = { n: number; mark: string; shown: string; label: string; toast?: { say: string; door: string } };
+    // Every page in the workspace — here one that watches nothing — draws the slot, with the rail's own count.
+    const page = await get('/app/settings');
+    const since = /data-rail="\/app\/live\/rail\?since=(\d+)"/.exec(page.body)?.[1];
+    expect(since, 'the page draws the rail slot').toBeDefined();
+    const ask = async (mark: string, cookie = owner) => get(`/app/live/rail?since=${mark}`, cookie, JSON_ACCEPT);
+    const same = await ask(since!);
+    expect(same.statusCode).toBe(200);
+    expect(same.headers['cache-control']).toBe('no-store');
+    expect(same.json()).toMatchObject({ n: Number(since), mark: since });
+    expect((same.json() as Rail).toast).toBeUndefined();
+
+    // A customer is handed over: one more needs the owner, and the answer says who and why.
+    const nadia = await as(BIZ, async (x) => {
+      const b = parseBusinessId(BIZ); if (!b.ok) throw new Error('fixture');
+      const id = (await ensureConversation(x, b.value, `ig-live-d-${RUN}`, 'Nadia Karim', 'instagram')).conversationId;
+      await sql`update conversations set assigned_to = ${WAITING_HUMAN_AGENT}, assigned_at = now() where id = ${id}::uuid`.execute(x);
+      return id;
+    });
+    const rose = (await ask(since!)).json() as Rail;
+    expect(rose.n).toBe(Number(since) + 1);
+    expect(rose.toast).toEqual({ say: 'Nadia Karim is waiting for you', door: `/app/inbox/${nadia}#latest` });
+    // The count is the rail's own: a page drawn now carries it.
+    expect((await get('/app/settings')).body).toContain(`data-rail="/app/live/rail?since=${rose.n}"`);
+    // Asked from the new mark, nothing is news; another business's customers never count.
+    expect(((await ask(rose.mark)).json() as Rail).toast).toBeUndefined();
+    await as(OTHER, (x) => sql`update conversations set assigned_to = ${WAITING_HUMAN_AGENT} where id = ${theirs}::uuid`.execute(x));
+    expect(((await ask(rose.mark)).json() as Rail).n).toBe(rose.n);
+    // A mark no page could carry is refused; signed out, the script is told so.
+    expect((await ask('x')).statusCode).toBe(400);
+    expect((await get('/app/live/rail?since=0', '', JSON_ACCEPT)).statusCode).toBe(401);
+    await as(BIZ, (x) => sql`update conversations set assigned_to = null where id = ${nadia}::uuid`.execute(x));
+    await as(OTHER, (x) => sql`update conversations set assigned_to = null where id = ${theirs}::uuid`.execute(x));
   });
 });

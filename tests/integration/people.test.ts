@@ -198,7 +198,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       (await app.inject({ method: 'GET', url, headers: { cookie } })).body;
     const owner = { factory: await get(ownerCookie, '/app/business'), channels: await get(ownerCookie, '/app/channels') };
     const staff = {
-      factory: await get(staffCookie, '/app/business'),
+      factory: (await get(staffCookie, '/app/business')) + (await get(staffCookie, '/app/business/ready')),
       employee: await get(staffCookie, '/app/employee'),
       channels: await get(staffCookie, '/app/channels'),
     };
@@ -334,11 +334,16 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(aiMaySpeak(ownershipOf(held))).toBe(false);
 
     // It is on HIS list — the only way a staff member learns of it: no phone.
-    const mine = await app.inject({ method: 'GET', url: '/app/inbox?filter=mine', headers: { cookie: staffCookie } });
+    // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out: its address
+    // leads to the whole list now. A conversation he holds is on HIS "Needs you" (V1-163).
+    const old = await app.inject({ method: 'GET', url: '/app/inbox?filter=mine', headers: { cookie: staffCookie } });
+    expect(old.statusCode).toBe(302);
+    expect(old.headers['location']).toBe('/app/inbox');
+    const mine = await app.inject({ method: 'GET', url: '/app/inbox?filter=pending', headers: { cookie: staffCookie } });
     expect(mine.statusCode).toBe(200);
     expect(mine.body).toContain('Farid');
     // And not on hers.
-    const hers = await app.inject({ method: 'GET', url: '/app/inbox?filter=mine', headers: { cookie: ownerCookie } });
+    const hers = await app.inject({ method: 'GET', url: '/app/inbox?filter=pending', headers: { cookie: ownerCookie } });
     expect(hers.body).not.toContain('Farid');
 
     // The conversation says who has it, and what happened last.

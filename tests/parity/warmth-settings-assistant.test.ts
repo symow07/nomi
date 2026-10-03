@@ -262,12 +262,12 @@ describe('phase 7 · what holds the control is said beside it (rules 1, 2 and 13
       const stopped = control(landing({ ...base, stopped: true }, l));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.body'))));
-      expect(stopped).toContain('href="/app/business"');
+      expect(stopped).toContain('href="/app/business/ready"');
       expect(stopped.indexOf('held-all')).toBeLessThan(stopped.indexOf(esc(t(l, 'autonomy.intro'))));
       expect(stopped.indexOf('held-all')).toBeLessThan(stopped.indexOf('name="level"'));
       const staff = control(landing({ ...base, stopped: true }, l, STAFF));
       expect(staff).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
-      expect(staff).not.toContain('href="/app/business"');
+      expect(staff).not.toContain('href="/app/business/ready"');
       expect(control(landing({ ...base, silenced: true }, l))).toContain(esc(withAssistantName('Lily', () => t(l, 'today.silenced.title'))));
       expect(control(landing(base, l))).not.toContain('held-all');
     });

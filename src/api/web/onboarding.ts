@@ -19,7 +19,9 @@ export type OnboardingStep = SetupStep;
 export const STEP_LINK: Record<OnboardingStep, string> = {
   // Phase 9 (V1-112) — the name step opens at the name's own field, not the page's top.
   profile: '/app/settings/profile', products: '/app/products', name: '/app/onboarding#name',
-  channels: '/app/channels', first_success: '/app/inbox',
+  // THE WARMTH RUN, phase 7 — channels have one home: My business › Where
+  // customers reach you (each row there opens the Channels page to connect).
+  channels: '/app/business/channels', first_success: '/app/inbox',
 };
 
 export type OnboardingData = {

@@ -14,7 +14,9 @@ import { isPracticeCopy } from '../db/practice.js';
 import { zoneOf } from '../db/zone.js';
 import { conversationUrl } from '../core/owner/addresses.js';
 import { sendPush, type VapidKeys, type PushFetch } from '../net/webPush.js';
-import { livePhones, archivePhone, markPhoneSent } from '../db/pushSubscriptions.js';
+import { archivePhone, markPhoneSent, type PhoneSubscription } from '../db/pushSubscriptions.js';
+import { alertChannelFor, ownerWhatsAppReachable, type AlertChannel } from '../core/owner/alertChannel.js';
+import { interruptionPeople, ownerAlertFacts, type InterruptionPerson } from '../db/alertChannel.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -36,7 +38,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 
 export type AlertKind = NotifyJob['kind'];
-export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice' | 'failed_permanent';
+export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice' | 'skipped_quiet' | 'failed_permanent';
 
 /**
  * OPERATOR alerts — about the installation, not about a buyer: its backups
@@ -55,18 +57,26 @@ export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
- * 0076 — the alerts that may not depend on WhatsApp: every operator alert, and
- * one about a buyer — `deletion_requested`. A buyer asking for their data to be
- * deleted starts a clock the owner answers to, and the ordinary hand-off alert
- * goes nowhere at all when no alert number is set. So it travels the operator
- * alerts' way: by e-mail to the owner's sign-in address, always, and by
- * WhatsApp too where a channel is live and a number is set. Each needs
+ * The alerts that may not depend on WhatsApp and go by e-mail ALWAYS (and by
+ * WhatsApp too where a channel is live and a number is set): every operator
+ * alert, and the account's own letters — the operator's answer to a request to
+ * connect, the warning before erasure, and money. Each needs
  * `notify.<kind>.subject` in every locale.
+ *
+ * THE WARMTH RUN (2026-10-03), phase 8 — the owner: "Only two things may
+ * interrupt the owner outside the app: an order waiting for their tap, and a
+ * conversation the assistant handed over because it could not handle it.
+ * Everything else waits quietly in-app." So a deletion request (a hand-over,
+ * 0076) and an order waiting (0080) left this list for `INTERRUPTION_KINDS`:
+ * they travel the person's own way, and fall back to e-mail, so neither
+ * depends on WhatsApp still. The allowance (G3) and the assistant stepping
+ * back (R5) left it for `QUIET_KINDS`. The account's letters stay: they are
+ * not news about the business's customers, and what they warn of (a workspace
+ * erased, a payment failed, a connection refused) cannot wait in an app the
+ * owner may not be opening.
  */
 export const goesByMail = (kind: AlertKind): boolean =>
-  isOperatorAlert(kind) || isAllowanceAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed'
-  // R5 — the assistant stepped back on its own: the owner hears of it, by e-mail always.
-  || kind === 'self_demoted'
+  isOperatorAlert(kind)
   // KS6 — the operator decided on the first connection: the owner may have no channel at all yet.
   || kind === 'connection_approved' || kind === 'connection_refused'
   // RET — the workspace will be erased: the warning cannot wait for a channel it does not have.
@@ -89,32 +99,54 @@ export const SELF_DEMOTION_REASONS = ['policy_violation', 'hallucination', 'seri
 export const SELF_DEMOTION_PAGE = '/app/employee#on-her-own';
 
 /**
- * G3 — the day's allowance, at the soft-warn line and at 100%: to the
- * workspace's own owner, by e-mail always (WhatsApp where live), each once a
- * UTC day (`claim_allowance_alerts()`, 0101). At 100% new messages are held
- * for the owner, so this is the one alert that says why they are waiting.
+ * G3 — the day's allowance, at the soft-warn line and at 100%, each once a UTC
+ * day (`claim_allowance_alerts()`, 0101). Phase 8 of the warmth run: they wait
+ * in the app (`QUIET_KINDS`) — at 100% each new message is handed over, and
+ * that hand-over is what reaches the owner.
  */
 export const ALLOWANCE_ALERT_KINDS = ['allowance_warn', 'allowance_reached'] as const satisfies readonly AlertKind[];
-export const isAllowanceAlert = (kind: AlertKind): boolean =>
-  (ALLOWANCE_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
- * G5 — the alerts about a customer that a stranger running Nomi must hear of:
- * a hand-off, a customer who looks ready to buy, and a reply waiting for the
- * owner (which had no alert at all). Each goes by E-MAIL to the owner's
- * sign-in address, and by WhatsApp to the alert number where one is set — as
- * these two always went. Most owners who sign up have no number set, and
- * until now heard of nothing. Each needs `notify.<kind>.subject`.
+ * THE WARMTH RUN (2026-10-03), phase 8 — THE TWO INTERRUPTIONS, the only news
+ * about the business's customers that reaches anyone outside Nomi (the owner:
+ * "Only two things may interrupt the owner outside the app: an order waiting
+ * for their tap, and a conversation the assistant handed over because it could
+ * not handle it."):
+ *
+ *   · `order_proposed` — a customer said yes, and the order waits for the tap (0080);
+ *   · `handoff` — any hand-over: asked for a person, not answered, an unlisted
+ *     number, the assistant stopped or held, …; and `deletion_requested`, the
+ *     hand-over a deletion request is (0076), which keeps its own words.
+ *
+ * Each goes the way its reader chose on Notifications (`deliverOwnerInterruption`).
+ * Each needs `notify.<kind>` and `notify.<kind>.subject` in every locale.
  */
-export const CUSTOMER_ALERT_KINDS = ['handoff', 'hot_lead', 'draft_waiting'] as const satisfies readonly AlertKind[];
-export const mailsToo = (kind: AlertKind): boolean => (CUSTOMER_ALERT_KINDS as readonly AlertKind[]).includes(kind);
+export const INTERRUPTION_KINDS = ['order_proposed', 'handoff', 'deletion_requested'] as const satisfies readonly AlertKind[];
+export const interrupts = (kind: AlertKind): boolean => (INTERRUPTION_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
- * G5 — a reply waiting for the owner is told at most once an hour for a
- * conversation: a customer who writes five lines makes five drafts, and the
- * owner needs one e-mail to open it, not five.
+ * …and what used to reach the owner outside Nomi and now waits in it, by the
+ * same rule ("Everything else waits quietly in-app"). Where each waits:
+ *
+ *   · `hot_lead` — a customer who looks ready to buy: the assistant is still
+ *     answering them; their conversation is in the Inbox;
+ *   · `draft_waiting` — a reply waiting for the owner: Needs you, the rail's
+ *     count and the toast (a plain draft is not an order waiting for a tap);
+ *   · `self_demoted` — the assistant stepped back: its replies wait under
+ *     Needs you, and its page says why;
+ *   · `allowance_warn`, `allowance_reached` — at 100% each new message is
+ *     handed over, and each of those hand-overs is an interruption itself;
+ *   · `dead_letter` (`delivery_failed` shares its words) — a job that gave up:
+ *     the operator hears of it (`app_error`, CC-10), a message that did not go
+ *     is on the Inbox's "Did not send" tab, and a turn that gave up hands its
+ *     customer over (0077) — an interruption.
+ *
+ * Nothing is lost: the words stay in the catalogue, and a job of these kinds
+ * already queued at a deploy is consumed and dropped (`skipped_quiet`).
  */
-export const DRAFT_ALERT_EVERY_SECONDS = 3600;
+export const QUIET_KINDS = ['hot_lead', 'draft_waiting', 'self_demoted', ...ALLOWANCE_ALERT_KINDS,
+  'dead_letter', 'delivery_failed'] as const satisfies readonly AlertKind[];
+export const waitsInApp = (kind: AlertKind): boolean => (QUIET_KINDS as readonly AlertKind[]).includes(kind);
 
 /** Where the alert's link opens: the conversation, at its newest message — the one address (CC-25). */
 export const alertLink = (base: string, conversationId: string): string =>
@@ -316,20 +348,30 @@ export type NotifyDeps = {
   readonly publicBaseUrl?: string | null;
   /** G5b — the installation's push keys and the way out to a push service; null: no phone alerts. */
   readonly push?: { readonly keys: VapidKeys; readonly fetch: PushFetch } | null;
+  /**
+   * Phase 8 of the warmth run — Meta approved Nomi (`META_APP_REVIEW=approved:<date>`,
+   * `metaReviewFrom`). Until it says so, WhatsApp is not the default way out of
+   * Nomi; an owner may still choose it where their alert number is on a live channel.
+   */
+  readonly whatsappApproved?: boolean;
 };
 
 /**
- * Deliver one owner alert through the EXISTING adapter send path. Returns an
- * outcome; throws only on a RETRYABLE provider failure so pg-boss retries (a
- * permanent failure is swallowed to avoid a dead-letter loop). No owner phone =
- * honestly skipped, never a fake send.
+ * Deliver one alert. Returns an outcome; throws only when nothing was
+ * delivered and a way that failed may work later (pg-boss retries; a permanent
+ * failure is swallowed to avoid a dead-letter loop). Nowhere to send it is
+ * said honestly (`skipped_no_destination`), never a fake send.
  *
- * The OPERATOR alerts (`OPERATOR_ALERT_KINDS`, `backup_stale` first) are the
- * exception, on purpose: they must not depend on WhatsApp, because the channel
- * they would travel on is itself something that can be down, unverified, or
- * never connected. They go by E-MAIL to the address the owner signs in with,
- * always; and by WhatsApp as well when a channel is live and a number is set.
- * See `deliverOperatorAlert`.
+ * Every kind is one of three, and the type below fails to compile when a new
+ * kind is none of them:
+ *
+ *   · the operator's alerts and the account's letters (`goesByMail`): by
+ *     E-MAIL always, WhatsApp too where a channel is live and a number is set
+ *     — they must not depend on WhatsApp, which can itself be what is down
+ *     (`deliverOperatorAlert`). Left exactly as they were;
+ *   · the two interruptions (`INTERRUPTION_KINDS`): the way each person chose
+ *     (`deliverOwnerInterruption`);
+ *   · everything else (`QUIET_KINDS`): it waits in the app, and nothing leaves.
  */
 export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promise<AlertOutcome> {
   const bid = parseBusinessId(job.businessId);
@@ -339,35 +381,22 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
   // those queues an alert: this one check refuses them all, whichever path
   // queued it. The owner is on the Practice page, watching it happen.
   if (await withTenantTx(deps.db, bid.value, (tx) => isPracticeCopy(tx, bid.value))) return 'skipped_practice';
+  if (waitsInApp(job.kind)) return 'skipped_quiet';
   if (goesByMail(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
-  if (mailsToo(job.kind)) return deliverCustomerAlert(deps, bid.value, job);
-
-  const found = await withTenantTx(deps.db, bid.value, async (tx) => {
-    const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
-      select owner_locale, owner_phone from businesses where id = ${bid.value}`.execute(tx)).rows[0] ?? null;
-    // Looked up only when there is somewhere to send it.
-    const name = row?.owner_phone
-      ? (job.conversationId && UUID.test(job.conversationId)
-          ? await assistantNameOfConversation(tx, bid.value, job.conversationId)
-          : await mainAssistantName(tx, bid.value))
-      : null;
-    return { row, name };
-  });
-  const dest = found.row;
-
-  if (!dest || !dest.owner_phone) return 'skipped_no_destination';
-
-  const locale: Locale = parseLocale(dest.owner_locale) ?? 'en';
-  const body = renderOwnerAlert(locale, job.kind, found.name);
-  const res = await deps.adapter.sendText(dest.owner_phone, body);
-  if (res.ok) return 'sent';
-  if (res.retryable) throw new Error(`owner alert send failed (retryable): ${res.error}`);
-  return 'failed_permanent';
+  // What is left is an interruption: `Unclassified` below proves there is nothing else.
+  return deliverOwnerInterruption(deps, bid.value, job);
 }
 
+/** Every kind is classified: an operator alert or an account letter, an interruption, or quiet. */
+type Unclassified = Exclude<AlertKind, typeof OPERATOR_ALERT_KINDS[number] | typeof BILLING_ALERT_KINDS[number]
+  | 'connection_approved' | 'connection_refused' | 'retention_warning'
+  | typeof INTERRUPTION_KINDS[number] | typeof QUIET_KINDS[number]>;
+const everyKindClassified: [Unclassified] extends [never] ? true : false = true;
+void everyKindClassified;
+
 /**
- * An operator alert (the backup alert first) — or a buyer's deletion request
- * (`MAIL_ALWAYS_KINDS`): e-mail first, WhatsApp too where it can actually arrive.
+ * An operator alert (the backup alert first), or one of the account's letters
+ * (`goesByMail`): e-mail first, WhatsApp too where it can actually arrive.
  *
  * Outcome is `sent` when at least one way delivered; `failed_permanent` when
  * every way that existed failed; `skipped_no_destination` when there was no
@@ -415,62 +444,140 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
   return sent > 0 ? 'sent' : 'failed_permanent';
 }
 
+/** How one way out went: delivered, refused for good, or worth trying again later. */
+export type WayResult = 'sent' | 'failed' | 'later';
+
+/** The three ways out of Nomi, as `reachPeople` asks them; each says how it went. */
+export type InterruptionWays = {
+  /** Absent: this installation sends no e-mail. */
+  readonly email?: ((to: string) => Promise<WayResult>) | null;
+  readonly browser: (phones: readonly PhoneSubscription[]) => Promise<WayResult>;
+  /** To the business's alert number — the owner's. */
+  readonly whatsapp: () => Promise<WayResult>;
+};
+
+/** Whom it reached, and which way: null for a person nothing reached. */
+export type Reached = { readonly outcome: AlertOutcome; readonly went: readonly (AlertChannel | null)[]; readonly later: boolean };
+
 /**
- * G5 — an alert about a customer: by e-mail to the owner's sign-in address,
- * and by WhatsApp to the alert number where one is set (as hand-offs and hot
- * leads always went). The words name the assistant this conversation is with,
- * and end with a link to it when the installation knows its own address.
+ * THE ONE CHOICE OF WAY, for each person an interruption goes to: their
+ * choice, or the default (`alertChannelFor`); and e-mail when that way cannot
+ * be used now (WhatsApp with no number on a live channel, Browser with no
+ * phone turned on) or when it fails — a WhatsApp outside Meta's day before
+ * approval among them. Pure but for the ways it is handed, so a test asks it
+ * with fakes.
  *
- * `sent` when one way delivered; a retryable WhatsApp failure throws for
- * pg-boss to retry only when nothing was delivered — a retry after the e-mail
- * left would send the e-mail twice.
+ * `mailOwnerAlways` — rule 18 (CLAUDE.md): a deletion request reaches the
+ * owner's sign-in address by e-mail ALWAYS, and the way the owner chose as
+ * well when that way is not e-mail.
  */
-async function deliverCustomerAlert(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
+export async function reachPeople(
+  people: readonly InterruptionPerson[],
+  o: { readonly whatsappReachable: boolean; readonly approved: boolean; readonly pushOn: boolean; readonly mailOwnerAlways?: boolean },
+  ways: InterruptionWays,
+): Promise<Reached> {
+  const went: (AlertChannel | null)[] = [];
+  let tried = false; let later = false;
+  for (const p of people) {
+    const way = alertChannelFor(p.choice, {
+      whatsapp: p.isOwner && o.whatsappReachable, browser: o.pushOn && p.phones.length > 0, approved: o.approved });
+    let r: WayResult | null = way === 'whatsapp' ? await ways.whatsapp()
+      : way === 'browser' ? await ways.browser(p.phones) : null;
+    let by: AlertChannel | null = r === 'sent' ? way : null;
+    if (r !== null) { tried = true; if (r === 'later') later = true; }
+    // E-mail: the way chosen, the floor under any other, or (a deletion request) always to the owner.
+    if ((r !== 'sent' || (o.mailOwnerAlways === true && p.isOwner)) && ways.email && p.email) {
+      tried = true;
+      const m = await ways.email(p.email);
+      if (m === 'sent') by ??= 'email'; else if (m === 'later') later = true;
+    }
+    went.push(by);
+  }
+  const reached = went.some((w) => w !== null);
+  return {
+    outcome: reached ? 'sent' : tried ? 'failed_permanent' : 'skipped_no_destination',
+    went, later: !reached && later,
+  };
+}
+
+/**
+ * THE WARMTH RUN (2026-10-03), phase 8 — THE ONE WAY OUT OF NOMI for the two
+ * interruptions (an order waiting for the owner's tap; a customer handed
+ * over), to the owner and to each colleague who asked (`interruptionPeople`).
+ *
+ * The words are each kind's own, as they always were (`renderOwnerAlert`),
+ * naming the assistant the conversation is with, with the conversation's
+ * address when the installation knows its own. Each person hears ONE way:
+ *
+ *   · e-mail — to their sign-in address, under the kind's subject;
+ *   · browser — every phone or browser of theirs that turned alerts on (G5b):
+ *     a phone the push service says is gone is archived;
+ *   · WhatsApp — the owner's alert number, through the installation's adapter,
+ *     where a channel is live: chosen, or the default once Meta approved Nomi
+ *     (`whatsappApproved`). Before approval a send outside Meta's day fails,
+ *     and e-mail carries it.
+ *
+ * A way that fails, or cannot be used now, falls back to e-mail; a deletion
+ * request is e-mailed to the owner always (rule 18). Nothing is thrown once
+ * anyone was reached: a retry would tell them twice.
+ */
+export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
   const conversationId = job.conversationId && UUID.test(job.conversationId) ? job.conversationId : null;
   const found = await withTenantTx(deps.db, bid, async (tx) => {
-    const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
-      select owner_locale, owner_phone from businesses where id = ${bid}`.execute(tx)).rows[0] ?? null;
-    const email = deps.mail ? await ownerLoginEmail(tx, bid) : null;
-    const name = row
-      ? (conversationId ? await assistantNameOfConversation(tx, bid, conversationId) : await mainAssistantName(tx, bid))
-      : null;
-    return { row, email, name };
-  });
-  if (!found.row) return 'skipped_no_destination';
-  const locale: Locale = parseLocale(found.row.owner_locale) ?? 'en';
-  const words = renderOwnerAlert(locale, job.kind, found.name);
-  const body = deps.publicBaseUrl && conversationId
-    ? `${words}\n\n${t(locale, 'notify.open', { url: alertLink(deps.publicBaseUrl, conversationId) })}` : words;
-
-  let tried = 0; let sent = 0;
-  if (deps.mail && found.email) {
-    tried++;
-    const r = await deps.mail.send({ to: found.email, subject: t(locale, `notify.${job.kind}.subject` as MessageKey), text: body });
-    if (r.ok) sent++; else console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`);
-  }
-  // G5b — every phone that turned alerts on: the words, and the conversation it opens.
-  if (deps.push) {
-    const phones = await withTenantTx(deps.db, bid, (tx) => livePhones(tx, bid));
-    const message = {
-      title: t(locale, `notify.${job.kind}.subject` as MessageKey), body: words,
-      url: deps.publicBaseUrl && conversationId ? alertLink(deps.publicBaseUrl, conversationId) : null,
+    const facts = await ownerAlertFacts(tx, bid);
+    if (!facts) return null;
+    return {
+      ...facts,
+      name: conversationId ? await assistantNameOfConversation(tx, bid, conversationId) : await mainAssistantName(tx, bid),
+      people: await interruptionPeople(tx, bid),
     };
-    for (const phone of phones) {
-      tried++;
-      const r = await sendPush(phone, message, deps.push.keys, deps.push.fetch);
-      if (r.kind === 'sent') { sent++; await withTenantTx(deps.db, bid, (tx) => markPhoneSent(tx, phone.id)); }
-      else if (r.kind === 'gone') await withTenantTx(deps.db, bid, (tx) => archivePhone(tx, bid, phone.id, 'gone'));
-      else console.warn(`[notify] ${job.kind} phone alert failed (${r.status ?? 'no answer'})`);
-    }
-  }
-  if (found.row.owner_phone) {
-    tried++;
-    const r = await deps.adapter.sendText(found.row.owner_phone, body);
-    if (r.ok) sent++;
-    else if (r.retryable && sent === 0) throw new Error(`owner alert send failed (retryable): ${r.error}`);
-  }
-  if (tried === 0) return 'skipped_no_destination';
-  return sent > 0 ? 'sent' : 'failed_permanent';
+  });
+  if (!found) return 'skipped_no_destination';
+  const locale: Locale = parseLocale(found.locale) ?? 'en';
+  const words = renderOwnerAlert(locale, job.kind, found.name);
+  const subject = t(locale, `notify.${job.kind}.subject` as MessageKey);
+  const link = deps.publicBaseUrl && conversationId ? alertLink(deps.publicBaseUrl, conversationId) : null;
+  const text = link ? `${words}\n\n${t(locale, 'notify.open', { url: link })}` : words;
+  const push = deps.push ?? null;
+  const ownerPhone = found.ownerPhone;
+
+  const r = await reachPeople(found.people, {
+    whatsappReachable: ownerWhatsAppReachable({ ownerPhone, channelLive: found.channelLive }),
+    approved: deps.whatsappApproved === true,
+    pushOn: push !== null,
+    // Rule 18 — a deletion request reaches the owner's sign-in address by e-mail always.
+    mailOwnerAlways: job.kind === 'deletion_requested',
+  }, {
+    email: deps.mail ? async (to) => {
+      const m = await deps.mail!.send({ to, subject, text });
+      if (!m.ok) console.warn(`[notify] ${job.kind} alert e-mail failed: ${m.error}`);
+      return m.ok ? 'sent' : 'failed';
+    } : null,
+    browser: async (phones) => {
+      if (!push) return 'failed';
+      let result: WayResult = 'failed';
+      for (const phone of phones) {
+        const sent = await sendPush(phone, { title: subject, body: words, url: link }, push.keys, push.fetch);
+        if (sent.kind === 'sent') { result = 'sent'; await withTenantTx(deps.db, bid, (tx) => markPhoneSent(tx, phone.id)); }
+        else if (sent.kind === 'gone') await withTenantTx(deps.db, bid, (tx) => archivePhone(tx, bid, phone.id, 'gone'));
+        else {
+          console.warn(`[notify] ${job.kind} phone alert failed (${sent.status ?? 'no answer'})`);
+          if (sent.retryable && result === 'failed') result = 'later';
+        }
+      }
+      return result;
+    },
+    whatsapp: async () => {
+      if (!ownerPhone) return 'failed';
+      const sent = await deps.adapter.sendText(ownerPhone, text);
+      if (sent.ok) return 'sent';
+      console.warn(`[notify] ${job.kind} WhatsApp alert failed: ${sent.error}`);
+      return sent.retryable ? 'later' : 'failed';
+    },
+  });
+  if (r.later) throw new Error(`owner alert not delivered yet (retryable): ${job.kind}`);
+  if (r.outcome === 'skipped_no_destination') console.warn(`[notify] ${job.kind} alert has nowhere to go: no sign-in e-mail or sender, no phone, no open WhatsApp path`);
+  return r.outcome;
 }
 
 /** The job's own fields, as the words for its kind need them. Dates travel as ISO strings. */

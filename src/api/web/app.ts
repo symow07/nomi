@@ -51,10 +51,11 @@ import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
-  defaultFilter, buyersHref, productName, type InboxFilter,
+  buyersHref, productName, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, billingMark, billingWatch, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
+  railAnswer, railSaid,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -90,7 +91,7 @@ import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS } from './appIcons.js';
-import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, type PushOut } from './phoneAlerts.js';
+import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -105,7 +106,7 @@ import {
 } from './assistants.js';
 import { assistantNameOfConversation } from '../../db/assistants.js';
 import { workspaceFacts, type WorkspaceFacts } from '../../db/workspace.js';
-import { readBuyerCounts } from '../../db/buyersList.js';
+import { readBuyerCounts, lensOf, searchOf } from '../../db/buyersList.js';
 import { handToAssistant } from '../../conversations/assistant.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
@@ -153,10 +154,10 @@ import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderSettingsHome, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
-import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
+import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate, setPilotMode } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
@@ -1996,7 +1997,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, { ...todayWatch(todayMark(snapshot.attention)), orders: snapshot.attention.ordersWaiting ?? 0 }),
+      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
     };
   }));
 
@@ -2008,31 +2009,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown };
+    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown };
     const requested = query.filter;
-    const ask = { q: query.q, after: query.after, before: query.before };
-    // G12 — 'mine' needs to know who is looking.
-    const me = personOf(s).id;
-    const chosen: InboxFilter | null = requested === 'pending' || requested === 'all'
-      || requested === 'blocked' || requested === 'mine' || requested === 'deletion' ? requested : null;
-    // A search with no tab looks across every buyer: it is a find, not a view.
+    // The warmth run, phase 4 — two lenses on one list, the lens in the address.
+    const lens = lensOf(query.lens);
+    const ask = { q: query.q, after: query.after, before: query.before, lens };
     const searching = typeof ask.q === 'string' && ask.q.trim() !== '';
+    // "Mine" was team machinery (the owner ruled it out): its old address leads
+    // to the closest lens — the whole list, where a customer a person here
+    // holds sits in its own group, near the top — keeping the lens and the search.
+    if (requested === 'mine') return reply.redirect(buyersHref({ lens, q: searching ? searchOf(ask.q) : '' }));
+    const me = personOf(s).id;
+    // "All" is the list itself; a narrowing is "Needs you" (Today's doors),
+    // "Did not send" or "Deletion requests" (rule 18).
+    const filter: InboxFilter = requested === 'pending' || requested === 'blocked' || requested === 'deletion' ? requested : 'all';
     // CC-26 — the list's mark BEFORE the list: a change between the two reads
     // is announced once too often, never lost.
     const bid = parseBusinessId(s.businessId);
     const mark = bid.ok ? await buyersMark(deps.db, bid.value) : null;
-    const list0 = await loadInboxList(deps.db, s.businessId, chosen ?? 'all', me, ask);
-    const filter: InboxFilter = chosen ?? (searching ? 'all' : defaultFilter(list0.waitingCount));
-    const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter, me, ask);
+    // The "needs attention" band sits on the first page of the whole list, not on a find or a narrowing.
+    const firstPage = query.after === undefined && query.before === undefined;
+    const data = await loadInboxList(deps.db, s.businessId, filter, me, { ...ask, attention: firstPage && !searching && filter === 'all' });
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
-      // The door: the first page of the tab and the search she is on — where the newest lands.
-      ...(mark && bid.ok ? { live: liveRegion(locale, {
-        ...buyersWatch(mark, buyersHref({ ...(chosen ? { filter: chosen } : {}), q: data.query ?? '' })),
-        orders: await ordersWaitingCount(deps.db, bid.value),
-      }) } : {}),
+      // The door: the first page of the lens, the narrowing and the search she is on — where the newest lands.
+      ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '' }))) } : {}),
     }));
   });
 
@@ -2072,8 +2075,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      */
     const me = personOf(s).id;
     const people = await loadPeople(deps.db, s.businessId);
-    const everyone = await loadInboxList(deps.db, s.businessId, 'all', me);
-    const list = everyone.waitingCount > 0 ? await loadInboxList(deps.db, s.businessId, 'pending', me) : everyone;
+    // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
+    const list = await loadInboxList(deps.db, s.businessId, 'all', me);
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
     // The warmth run, phase 5 — the catch-up strip over the messages: their face, what they bought, where things stand.
     const catchUp = customer && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCatchUp(tx, customer, conversationId, now)) : null;
@@ -2089,12 +2092,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: withAssistantName(detail.assistantName, () => renderPanes(
         // Phase 9 (V1-257) — and the open conversation, when the tab beside it does not list it.
         renderListPane(list, locale, now, conversationId, people,
-          everyone.conversations.find((c) => c.conversationId === conversationId) ?? paneRowOf(detail)),
+          list.conversations.find((c) => c.conversationId === conversationId)
+            ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
         renderConversationDetail({ ...withProof, catchUp }, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
-      ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>
-        withAssistantName(detail.assistantName, () => liveRegion(locale, { ...conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'), orders }))) } : {}),
+      ...(mark && bid.ok ? { live:
+        withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'))) } : {}),
     }));
   });
 
@@ -2123,8 +2127,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = (req.query ?? {}) as { since?: unknown };
     const id = String((req.params as { conversationId?: string } | undefined)?.conversationId ?? '');
     const answer = await liveAnswer(deps.db, bid.value, kind, q.since, id);
-    return reply.code(answer.status).header('cache-control', 'no-store')
-      .send(answer.orders === undefined ? answer.said : { ...answer.said, orders: answer.orders });
+    return reply.code(answer.status).header('cache-control', 'no-store').send(answer.said);
   };
   // Asked three times a minute by every open tab: its request lines would bury
   // the log. A fault is still written (an error is above `warn`).
@@ -2134,6 +2137,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/live/conversation/:conversationId', quiet, liveAsk('conversation'));
   app.get('/app/live/channels', quiet, liveAsk('channels'));
   app.get('/app/live/billing', quiet, liveAsk('billing'));
+  /**
+   * The warmth run, phase 8 — the rail's question, from every signed-in page
+   * (`railAnswer` in live.ts): how many customers need this reader now, and,
+   * when that rose, who and why, for the toast. Counted for the reader, as the
+   * rail is; signed out, 401 and the script stops, as above.
+   */
+  app.get('/app/live/rail', quiet, async (req, reply) => {
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    if (!s || !bid || !bid.ok) {
+      return String(req.headers['accept'] ?? '').includes('application/json')
+        ? reply.code(401).header('cache-control', 'no-store').send({ n: 0 })
+        : reply.redirect('/login');
+    }
+    const answer = await railAnswer(deps.db, bid.value, personOf(s).id, ((req.query ?? {}) as { since?: unknown }).since);
+    return reply.code(answer.status).header('cache-control', 'no-store')
+      .send(answer.status === 200 ? railSaid(localeOf(req), answer) : { n: 0 });
+  });
 
   // CH2 — what to check at each step of connecting a Page, and why.
   // Phase 9 — it lights Setup, where the Channels page it belongs to sits, and
@@ -2770,31 +2791,61 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // One calm page over the EXISTING profile / products / claims / channel read
   // models. Read-only by design: every change still happens on the surface that
   // owns it, so there is exactly one place that writes each thing.
+  // Phase 4b (CC-11) — every channel this installation offers, as /app/channels states it.
+  const businessOffer = async (businessId: string) => ({
+    inbound: await inboundLinks(businessId),
+    mailConnectable: Object.values(mailConnectable(deps.oauthClients ?? {}, deps.publicBaseUrl ?? null)).some(Boolean),
+  });
+  // THE WARMTH RUN, phase 7 — My business is a menu; each row's value is read
+  // through the loader of the page it opens (`loadBusinessMenu`).
   app.get('/app/business', authed('factory', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
-    // Phase 4b (CC-11) — every channel this installation offers, as /app/channels states it.
-    const offer = {
-      inbound: await inboundLinks(s.businessId),
-      mailConnectable: Object.values(mailConnectable(deps.oauthClients ?? {}, deps.publicBaseUrl ?? null)).some(Boolean),
-    };
-    return renderFactory(await loadFactory(deps.db, s.businessId, whatsappConfigured, offer), locale, flash, personOf(s));
+    const [view, menu] = await Promise.all([
+      loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: false }),
+      loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner),
+    ]);
+    return renderFactory({ ...view, menu }, locale, flash, personOf(s));
   }));
+  // …and the screens a level down, each one former section of the page,
+  // unchanged in substance: where customers reach you (the channels' one
+  // home), who may be messaged, going live, what is promised, how you sell.
+  const BUSINESS_SCREEN_TITLE: Readonly<Record<BusinessScreen, (locale: Locale) => string>> = {
+    channels: (l) => t(l, 'factory.reach.title'), allowlist: (l) => t(l, 'allowlist.title'),
+    ready: (l) => t(l, 'factory.ready.title'), promises: (l) => t(l, 'factory.promise.title'),
+    how: (l) => t(l, 'factory.sellhow.title'),
+  };
+  for (const screen of Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[]) {
+    app.get(BUSINESS_SCREEN_PATH[screen], authed('factory', async (s, req, locale, reply) => {
+      const flash = takeFlash(req, reply);
+      const [view, menu] = await Promise.all([
+        loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: screen === 'ready' }),
+        screen === 'how' ? loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner) : Promise.resolve(undefined),
+      ]);
+      return { title: BUSINESS_SCREEN_TITLE[screen](locale),
+        bodyHtml: renderBusinessScreen(screen, menu ? { ...view, menu } : view, locale, flash, personOf(s)) };
+    }));
+  }
 
   // M20.3 — going live, and coming back. Both go through the EXISTING service:
   // `activate` re-runs its own preconditions and refuses with the same blocker
   // codes My factory already shows, and both write channel_audit themselves.
   // Post/Redirect/Get, so a refresh never re-fires the most consequential
   // action in the product.
-  const factoryFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>) =>
-    flashTo(reply, '/app/business', key, params);
+  // Phase 7 — the notice lands on the screen that holds the control: going
+  // live and the Stop on Before-talking-to-customers, the list and who gets
+  // replies on its own screen.
+  const READY = BUSINESS_SCREEN_PATH.ready;
+  const LISTED = BUSINESS_SCREEN_PATH.allowlist;
+  const factoryFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>, to: string = READY) =>
+    flashTo(reply, to, key, params);
 
   app.post('/app/business/activate', async (req, reply) => {
     // OWNER ONLY: the one step that cannot be undone — a buyer who has been
     // written to has been written to.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     const r = await activate(deps.db, bid.value, personOf(s).id, { providerConfigured: whatsappConfigured });
     // A refusal names the same blocker the page was already showing, so the
     // owner never sees a reason that contradicts what they just read.
@@ -2809,37 +2860,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // what the service actually persisted, never assumed.
   app.post('/app/business/allowlist/add', async (req, reply) => {
     // Phase 4 — who may be written to during the pilot is the owner's call.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', LISTED);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(LISTED);
     const b = (req.body ?? {}) as { phone?: string; label?: string };
     const label = String(b.label ?? '').trim() || null;
     const r = await addToAllowlist(deps.db, bid.value, String(b.phone ?? ''), label, personOf(s).id);
     return r.ok
-      ? factoryFlash(reply, 'allowlist.flash.added', { who: label ?? r.phone })
-      : factoryFlash(reply, 'allowlist.flash.invalid');
+      ? factoryFlash(reply, 'allowlist.flash.added', { who: label ?? r.phone }, LISTED)
+      : factoryFlash(reply, 'allowlist.flash.invalid', undefined, LISTED);
   });
 
   app.post('/app/business/allowlist/remove', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', LISTED);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(LISTED);
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await archiveFromAllowlist(deps.db, bid.value, phone, personOf(s).id);
     return r.ok
-      ? factoryFlash(reply, 'allowlist.flash.removed', { who: r.phone })
-      : factoryFlash(reply, 'allowlist.flash.invalid');
+      ? factoryFlash(reply, 'allowlist.flash.removed', { who: r.phone }, LISTED)
+      : factoryFlash(reply, 'allowlist.flash.invalid', undefined, LISTED);
   });
 
   app.post('/app/business/deactivate', async (req, reply) => {
     // OWNER ONLY: the one step that cannot be undone — a buyer who has been
     // written to has been written to.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     await deactivate(deps.db, bid.value, personOf(s).id, 'owner stopped messaging');
     return factoryFlash(reply, 'activation.flash.deactivated');
   });
@@ -2848,12 +2899,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // each decides who on WhatsApp may get a reply.
   for (const [path, on] of [['/app/business/pilot/end', false], ['/app/business/pilot/resume', true]] as const) {
     app.post(path, async (req, reply) => {
-      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+      const s = await ownerOnly(req, reply, 'messaging_activation', LISTED);
       if (!s) return reply;
       const bid = parseBusinessId(s.businessId);
-      if (!bid.ok) return reply.redirect('/app/business');
+      if (!bid.ok) return reply.redirect(LISTED);
       const r = await setPilotMode(deps.db, bid.value, personOf(s).id, on);
-      return factoryFlash(reply, r === 'not_active' ? 'pilot.flash.not_active' : on ? 'pilot.flash.resumed' : 'pilot.flash.ended');
+      return factoryFlash(reply, r === 'not_active' ? 'pilot.flash.not_active' : on ? 'pilot.flash.resumed' : 'pilot.flash.ended', undefined, LISTED);
     });
   }
 
@@ -2863,18 +2914,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Start never skips WhatsApp's own checklist, and Stop binds the channels
   // that have no switch of their own.
   app.post('/app/business/stop-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     const r = await stopAssistant(deps.db, bid.value, personOf(s).id);
     return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already');
   });
   app.post('/app/business/start-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
+    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/business');
+    if (!bid.ok) return reply.redirect(READY);
     const r = await startAssistant(deps.db, bid.value, personOf(s).id);
     return factoryFlash(reply, r === 'started' ? 'assistant.stop.flash.started' : 'assistant.stop.flash.alreadyStarted');
   });
@@ -3223,7 +3274,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Money and going live are the owner's (rule 11): every route is `price_rules`.
   // Phase 9 — the tab says "How you sell", like its heading and its questions' pages.
   app.get(HS_BASE, async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/business');
+    const s = await ownerOnly(req, reply, 'price_rules', BUSINESS_SCREEN_PATH.how);
     if (!s) return reply;
     const locale = localeOf(req);
     const v = await loadHub(deps.db, s.businessId);
@@ -3924,10 +3975,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const owner = personOf(s).isOwner;
     const bid = parseBusinessId(s.businessId);
     // Phase 3 — what each row is set to now: read here, so the page says it without opening anything.
-    const [kind, people, hub, phones, login, billing, data] = await Promise.all([
-      loadBusinessKind(deps.db, s.businessId), loadPeople(deps.db, s.businessId),
-      owner ? loadHub(deps.db, s.businessId) : Promise.resolve(null),
+    const [people, phones, ways, login, billing, data] = await Promise.all([
+      loadPeople(deps.db, s.businessId),
       loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null).catch(() => null),
+      // The warmth run, phase 8 — the row says how notifications reach this reader.
+      loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()).catch(() => undefined),
       bid.ok ? loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : Promise.resolve(null),
       owner && bid.ok ? withTenantTx(deps.db, bid.value, (tx) => billingState(tx)).catch(() => null) : Promise.resolve(null),
       owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
@@ -3935,26 +3987,41 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.setup'), active: 'settings',
       bodyHtml: renderSetup({
-        kind: kind.kind ? t(locale, `business.kind.${kind.kind}` as MessageKey) : null, people: people.length,
-        howYouSell: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
-        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length } : null,
+        people: people.length, viewer: personOf(s),
+        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length, ...(ways !== undefined ? { way: ways ? alertWayNow(ways, phones) : null } : {}) } : null,
         signIn: { email: login?.email ?? null },
         billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
         dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
-        query: String((req.query as { q?: string } | undefined)?.q ?? '').slice(0, 80),
       }, locale, flash),
     }));
   });
+  // Phase 7 — the language switch, a tap down from Setup's Language row.
+  app.get('/app/settings/language', authed('settings', (_s, _req, locale) => ({
+    title: t(locale, 'settings.language.title'), bodyHtml: renderLanguage(locale),
+  })));
   // The design pass (UI-PASS 7) — the business profile, on its own page.
   // ── G5b Alerts on your phone: anyone signed in turns them on for their own phone ──
   const phonePerson = (s: OwnerSession): string | null => {
     const id = personOf(s).id;
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null;
   };
+  // The warmth run, phase 8 — the page is Notifications: what reaches anyone
+  // outside Nomi, how it reaches this person (their own choice, 0124), and the phones.
+  const whatsappApproved = (): boolean => deps.metaReview?.state === 'approved';
   app.get('/app/settings/alerts', authed('settings', async (s, req, locale, reply) => ({
-    title: t(locale, 'alerts.phone.title'),
-    bodyHtml: renderPhoneAlerts(await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null), locale, takeFlash(req, reply)),
+    title: t(locale, 'alerts.title'),
+    bodyHtml: renderPhoneAlerts({
+      ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
+      ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
+    }, locale, takeFlash(req, reply)),
   })));
+  app.post('/app/settings/alerts/channel', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const way = await chooseAlertWay(deps.db, s.businessId, personOf(s).id, b['channel'],
+      { approved: whatsappApproved(), pushOn: Boolean(deps.push) });
+    return flashTo(reply, '/app/settings/alerts', way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
+  });
   app.post('/app/settings/alerts/phone', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;
@@ -4000,7 +4067,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // before sign-up asked gives the answer for the first time.
   app.get('/app/settings/business', authed('settings', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
-    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.setup'));
+    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.factory'));
   }));
   app.post('/app/settings/business', async (req, reply) => {
     const s = sessionOf(req);

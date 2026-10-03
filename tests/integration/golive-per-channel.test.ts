@@ -57,7 +57,8 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM,
     })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
     expect(cookie).not.toBe('');
-    const page = async () => (await app.inject({ method: 'GET', url: '/app/business', headers: { cookie } })).body;
+    // Phase 7 — going live is a screen of its own under My business.
+    const page = async () => (await app.inject({ method: 'GET', url: '/app/business/ready', headers: { cookie } })).body;
     return { app, cookie, page };
   };
   const connectInstagram = (biz: string) => tx(biz, (x) => sql`

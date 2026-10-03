@@ -185,7 +185,7 @@ describe('Today, in three zones (render)', () => {
   it('M22 (F-01) · a quiet day with messaging OFF says nobody can reach the assistant, with the way forward — and never "all caught up"', () => {
     const html = renderOperationsHome(emptyFactory, 'en', NOTHING_TODAY(NOW));
     expect(html).toContain(t('en', 'today.calm.notLive.title'));
-    expect(html).toContain('href="/app/business"');
+    expect(html).toContain('href="/app/business/ready"');
     expect(html).toContain(t('en', 'ops.system.notLive'));
     expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
     expect(html).toContain(`<h2 id="today-now" class="tw-head">${t('en', 'today.needs.none')}</h2>`);

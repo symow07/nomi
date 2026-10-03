@@ -66,22 +66,37 @@ describe('P3 · owner alerts (pure)', () => {
   });
 });
 
-describe('G5 · a waiting reply, a hand-off and a hot lead, by e-mail too', () => {
-  it('a waiting reply has its own alert, the least of them', async () => {
-    const { alertKindFor } = await import('../../src/pipeline/notify.js');
+/*
+ * G5 sent a waiting reply, a hand-off and a hot lead to the owner by e-mail
+ * (and WhatsApp). Phase 8 of the warmth run changed that ON PURPOSE — the
+ * owner, 2026-10-03: "Only two things may interrupt the owner outside the app:
+ * an order waiting for their tap, and a conversation the assistant handed over
+ * because it could not handle it. Everything else waits quietly in-app." The
+ * events keep their codes and their words; only the two interruptions leave.
+ */
+describe('G5 → phase 8 · a waiting reply and a hot lead keep their codes, and wait in the app', () => {
+  it('a waiting reply has its own code, the least of them — and nothing about it leaves Nomi', async () => {
+    const { alertKindFor, interrupts, waitsInApp } = await import('../../src/pipeline/notify.js');
     expect(alertKindFor({ handoffAlert: false, hotLeadAlert: false, draftCreated: { draftId: 'd' } })).toBe('draft_waiting');
     expect(alertKindFor({ handoffAlert: true, hotLeadAlert: false, draftCreated: { draftId: 'd' } })).toBe('handoff');
     expect(alertKindFor({ handoffAlert: false, hotLeadAlert: true, draftCreated: { draftId: 'd' } })).toBe('hot_lead');
     expect(alertKindFor({ handoffAlert: false, hotLeadAlert: false, draftCreated: null })).toBeNull();
-  });
-  it('each has its words and an e-mail subject in every language, naming the assistant', async () => {
-    const { CUSTOMER_ALERT_KINDS, mailsToo } = await import('../../src/pipeline/notify.js');
-    const { t } = await import('../../src/core/owner/i18n/messages.js');
-    for (const l of LOCALES) for (const k of CUSTOMER_ALERT_KINDS) {
-      expect(mailsToo(k)).toBe(true);
-      expect(t(l, `notify.${k}.subject` as MessageKey), `${l}:${k}`).not.toMatch(/^notify\./);
-      expect(renderOwnerAlert(l, k, 'Lily'), `${l}:${k}`).toContain('Lily');
+    for (const k of ['draft_waiting', 'hot_lead'] as const) {
+      expect(waitsInApp(k), k).toBe(true);
+      expect(interrupts(k), k).toBe(false);
     }
+    expect(interrupts('handoff')).toBe(true);
+  });
+  it('each interruption has its words and an e-mail subject in every language; a hand-off names the assistant', async () => {
+    const { INTERRUPTION_KINDS } = await import('../../src/pipeline/notify.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    expect([...INTERRUPTION_KINDS].sort()).toEqual(['deletion_requested', 'handoff', 'order_proposed']);
+    for (const l of LOCALES) for (const k of INTERRUPTION_KINDS) {
+      expect(t(l, `notify.${k}.subject` as MessageKey), `${l}:${k}`).not.toMatch(/^notify\./);
+      expect(renderOwnerAlert(l, k, 'Lily'), `${l}:${k}`).not.toMatch(/^notify\./);
+    }
+    for (const l of LOCALES) expect(renderOwnerAlert(l, 'handoff', 'Lily'), l).toContain('Lily');
+    // The words a quiet kind had are kept, unchanged, for the day it is asked for again.
     expect(renderOwnerAlert('en', 'draft_waiting', 'Lily')).toBe('Lily wrote a reply for a customer. It waits for you to send it, change it or leave it.');
   });
   it('the link opens the conversation where the web app does', async () => {
@@ -90,8 +105,11 @@ describe('G5 · a waiting reply, a hand-off and a hot lead, by e-mail too', () =
     const id = '0b1e5c2a-6f1d-4c8e-9a3b-2d4f6a8b0c1d';
     expect(alertLink('https://app.nomidoes.com/', id)).toBe(`https://app.nomidoes.com${conversationUrl(id)}`);
   });
-  it('the worker tells a waiting reply once an hour per conversation', () => {
+  it('the worker queues only the two interruptions: no job for a waiting reply, and none for a job that gave up', () => {
     const src = readFileSync(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
-    expect(src).toMatch(/alertKind === 'draft_waiting' \? \{ singletonSeconds: DRAFT_ALERT_EVERY_SECONDS \}/);
+    expect(src).toMatch(/if \(alertKind && interrupts\(alertKind\)\) \{/);
+    expect(src).toMatch(/if \(!kind \|\| !interrupts\(kind\)\) return;/);
+    expect(src).not.toContain('draft_waiting');
+    expect(src).not.toContain("kind: 'dead_letter'");
   });
 });

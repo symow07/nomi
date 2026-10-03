@@ -4,7 +4,7 @@ import { countryName, orderStatusName, type MessageKey } from '../../core/owner/
 import { dayStart } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl, signalMark } from './layout.js';
-import { buyersHref, reachedOn, productName, customerRow, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
+import { buyersHref, reachedOn, channelName, productName, customerRow, inboxRow, waitingGroups, lensSwitch, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
 import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
@@ -24,66 +24,62 @@ import * as show from './values.js';
  * drawn and the stylesheet leaves them out, so nothing depends on a script.
  */
 
-/** The list beside the conversation: the tabs, the rows by who needs whom, the search. */
+/**
+ * The list beside the conversation: the Inbox's own rows (phase 4 — face,
+ * name, spent, last contact), in its "waiting now" order and groups, the
+ * switch to "matters most", and the search. The open customer is marked as the
+ * current page — by the customer, so a customer with two conversations is lit
+ * whichever of them is open.
+ */
 export function renderListPane(
   data: InboxList, locale: Locale, now: Date, currentId: string, people: readonly Person[] = [],
   /**
    * Phase 9 (V1-257) — the open conversation, as a row. Shown first, under its
-   * own heading, when the tab beside it does not list it: Carlos's conversation
-   * was open beside a "Needs you" list that did not hold him, and nothing said
-   * where the owner was.
+   * own heading, when the list beside it does not hold its customer: Carlos's
+   * conversation was open beside a "Needs you" list that did not hold him, and
+   * nothing said where the owner was.
    */
   current: ConversationSummary | null = null,
 ): string {
   const name = assistantName(locale);
-  const tab = (f: InboxFilter, n: number | undefined) => {
-    const on = data.filter === f;
-    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="page"' : ''} href="${esc(buyersHref({ filter: f }))}">${
-      esc(t(locale, `inbox.filter.${f}` as MessageKey))}${(n ?? 0) > 0 ? `<span class="tab-n">${n}</span>` : ''}</a>`;
-  };
-  // An empty tab is not shown (the plan's §2): Mine only with colleagues, the
-  // two that list a problem only while one exists.
-  const tabs = `<nav class="tabs" aria-label="${esc(t(locale, 'buyers.tabs'))}">${tab('pending', data.waitingCount)}${tab('all', undefined)}${
-    people.length > 1 ? tab('mine', data.mineCount) : ''}${
-    data.blockedCount > 0 ? tab('blocked', data.blockedCount) : ''}${
-    (data.deletionCount ?? 0) > 0 ? tab('deletion', data.deletionCount) : ''}</nav>`;
+  const all = data.conversations;
+  const currentClient = current?.clientId;
+  const isCurrent = (c: ConversationSummary): boolean =>
+    c.conversationId === currentId || (currentClient !== undefined && c.clientId === currentClient);
+  // The switch, and — the plan's §2: an empty narrowing is not shown — the two that list a problem while one exists.
+  const chip = (f: 'blocked' | 'deletion', n: number | undefined) => (n ?? 0) > 0
+    ? `<a class="tab" href="${esc(buyersHref({ filter: f }))}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}<span class="tab-n">${n}</span></a>` : '';
+  const problems = `${chip('blocked', data.blockedCount)}${chip('deletion', data.deletionCount)}`;
+  const tabs = `${lensSwitch(locale, data.lens ?? 'waiting', '')}${problems ? `<nav class="tabs filters" aria-label="${esc(t(locale, 'buyers.tabs'))}">${problems}</nav>` : ''}`;
 
-  // Phase 1 — the list page's own row, so the two lists cannot drift apart:
-  // the state mark, who, the time, one line of the last message.
+  // The list page's own row, so the two lists cannot drift apart.
   const row = (c: ConversationSummary) =>
-    `<li>${customerRow(locale, c, { now, people, pane: { current: c.conversationId === currentId } })}</li>`;
+    `<li>${inboxRow(locale, c, { now, people, pane: { current: isCurrent(c) } })}</li>`;
   // The list page's groups, in its order (`buyersList.ts` ranks by them): a
   // row's state is the heading it sits under, said once, not a chip on each.
-  const all = data.conversations;
-  const orders = all.filter((c) => c.orderWaiting === true);
-  const deletion = all.filter((c) => !orders.includes(c) && c.deletionWaiting === true);
-  const rest = all.filter((c) => !orders.includes(c) && !deletion.includes(c));
-  const needsYou = rest.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
-  const yours = rest.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
-  const hers = rest.filter((c) => !needsYou.includes(c) && !yours.includes(c));
-  // Phase 9 (V1-233) — headed as the list page heads them: every group on All,
-  // only an order and a deletion elsewhere. Under "Needs you 2" a conversation
-  // the reader holds counts, and was headed "Your team is handling".
+  const g = waitingGroups(all);
+  // Phase 9 (V1-233) — headed as the list page heads them: every group on the
+  // whole list, only an order and a deletion elsewhere.
   const heads = data.filter === 'all';
   const group = (title: string, rows: readonly ConversationSummary[], always = false) => rows.length === 0 ? ''
     : `${heads || always ? `<li class="lp-group" aria-hidden="true">${esc(title)}</li>` : ''}${rows.map(row).join('')}`;
-  const here = current && !all.some((c) => c.conversationId === currentId)
-    ? `<ul class="crows lp-rows lp-current"><li class="lp-group" aria-hidden="true">${esc(t(locale, 'pane.current'))}</li>${row(current)}</ul>` : '';
+  const here = current && !all.some(isCurrent)
+    ? `<ul class="irows lp-rows lp-current"><li class="lp-group" aria-hidden="true">${esc(t(locale, 'pane.current'))}</li>${row(current)}</ul>` : '';
   const rows = all.length === 0
     // Phase 9 — an empty FILTER is not an empty business: each says what it is.
     ? `<p class="muted lp-empty">${esc(data.query ? t(locale, 'buyers.search.none', { q: data.query })
         : t(locale, data.filter === 'pending' ? 'buyers.empty.calm' : data.filter === 'mine' ? 'inbox.empty.mine'
           : data.filter === 'deletion' ? 'inbox.empty.deletion' : data.filter === 'blocked' ? 'refused.none' : 'inbox.empty.none'))}</p>`
-    : `<ul class="crows lp-rows">${group(t(locale, 'buyers.group.order'), orders, true)}${group(t(locale, 'buyers.group.deletion'), deletion, true)}${
-        group(t(locale, 'buyers.group.needsYou'), needsYou)}${
-        group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), yours)}${
-        group(t(locale, 'buyers.group.hers', { name }), hers)}</ul>`;
-  const more = data.page?.next ? deeper(esc(buyersHref({ filter: data.filter, after: data.page.next })), t(locale, 'buyers.page.next')) : '';
+    : `<ul class="irows lp-rows">${group(t(locale, 'buyers.group.order'), g.orders, true)}${group(t(locale, 'buyers.group.deletion'), g.deletion, true)}${
+        group(t(locale, 'buyers.group.needsYou'), g.needsYou)}${
+        group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), g.yours)}${
+        group(t(locale, 'buyers.group.hers', { name }), [...g.hersWaiting, ...g.hersRest])}</ul>`;
+  const more = data.page?.next ? deeper(esc(buyersHref({ filter: data.filter, lens: data.lens, after: data.page.next })), t(locale, 'buyers.page.next')) : '';
   const search = `<form class="search" method="get" action="/app/inbox" role="search">
       <input type="search" name="q" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
       <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
     </form>`;
-  // Phase 9 (conversation-missed-02) — the list's own name, as its page and the back link say it: it was "Conversations" here.
+  // Phase 9 (conversation-missed-02) — the list's own name, as its page and the back link say it.
   return `<aside class="listpane" aria-label="${esc(t(locale, 'nav.inbox'))}">
       <h2 class="lp-h">${esc(t(locale, 'nav.inbox'))}</h2>
       ${here}${tabs}${rows}${more}${search}
