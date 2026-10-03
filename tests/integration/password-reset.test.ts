@@ -38,7 +38,8 @@ const NEWB = `a5c00000-0000-4000-8000-${RUN}0003`;
 const OWNER = `owner-${RUN}@reset.example`;
 const STAFF = `staff-${RUN}@reset.example`;
 const FRESH = `fresh-${RUN}@reset.example`;
-const TIMED = `timed-${RUN}@reset.example`;
+/** Known addresses for the timing run: each asked once, so each ask makes a link and sends a mail. */
+const TIMED = Array.from({ length: 30 }, (_, i) => `timed${i}-${RUN}@reset.example`);
 const BROKEN = `broken-${RUN}@reset.example`;
 const GONE = `gone-${RUN}@reset.example`;
 const OLD = `old-password-${RUN}`;
@@ -112,7 +113,7 @@ d('PWR2 · a self-service reset, to the standard (requires DATABASE_URL + MIGRAT
     }
     // [business, e-mail, owner?, address proven?, archived?]
     const people: [string, string, boolean, boolean, boolean][] = [
-      [SHOP, OWNER, true, true, false], [SHOP, STAFF, false, true, false], [SHOP, TIMED, false, true, false],
+      [SHOP, OWNER, true, true, false], [SHOP, STAFF, false, true, false], ...TIMED.map((e) => [SHOP, e, false, true, false] as [string, string, boolean, boolean, boolean]),
       [SHOP, BROKEN, false, true, false], [SHOP, GONE, false, true, true], [NEWB, FRESH, true, false, false],
     ];
     for (const [biz, email, owner, proven, archived] of people) {
@@ -255,20 +256,22 @@ d('PWR2 · a self-service reset, to the standard (requires DATABASE_URL + MIGRAT
         return ms;
       };
       for (let i = 0; i < 4; i++) { await time(`warm-${i}-${RUN}@reset.example`); }
-      for (let i = 0; i < 40; i++) {
-        known.push(await time(TIMED));
+      // interleaved: a known address (a link made, a mail sent — slowly), then one nobody signs in with
+      for (const [i, email] of TIMED.entries()) {
+        known.push(await time(email));
         unknown.push(await time(`nobody-${i}-${RUN}@reset.example`));
       }
       const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
       const [k, u] = [median(known), median(unknown)];
       // eslint-disable-next-line no-console
-      console.log(`PWR2 timing over 40 each: known median ${k.toFixed(2)} ms, unknown median ${u.toFixed(2)} ms`);
+      console.log(`PWR2 timing over ${TIMED.length} each: known median ${k.toFixed(2)} ms, unknown median ${u.toFixed(2)} ms`);
       expect(k, 'a known address does not wait for its mail').toBeLessThan(100);
       expect(Math.abs(k - u), `medians ${k.toFixed(2)} vs ${u.toFixed(2)} ms`).toBeLessThan(10);
     } finally {
       mailDelayMs = 0;
     }
-    expect(await until(() => mailsTo(TIMED).length >= 3, 5000)).toBe(true);
+    // every known address was sent its link — after the answer, not before it
+    expect(await until(() => TIMED.every((e) => mailsTo(e).length === 1), 10_000)).toBe(true);
   });
 
   it('the link opens in the language its mail was written in, and switching language keeps it', async () => {

@@ -6,7 +6,7 @@ import { type MessageKey, ASSISTANT_FALLBACK } from '../../core/owner/i18n/messa
 import { t, assistantName, assistantsAreSeveral, businessName, needsYouCount, needsYouSince, tn } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
-import { isolate, isolateFigures } from './values.js';
+import { isolate } from './values.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
@@ -3018,11 +3018,11 @@ export type SetPasswordProblem = 'short' | 'long' | 'mismatch' | 'is_email';
 
 /**
  * PWR2 — a door sentence with an e-mail address in it: the address in its own
- * `<bdi>` (every language), the sentence's figures isolated where the page runs
- * right to left. Escaped.
+ * `<bdi>` (every language); the sentence's figures are isolated by `t` itself
+ * where the page runs right to left (say.ts). Escaped.
  */
 function withAddress(locale: Locale, key: MessageKey, email: string | null, params: Record<string, string | number> = {}): string {
-  const said = esc(isolateFigures(locale, t(locale, key, { ...params, ...(email === null ? {} : { email: '\u0000' }) })));
+  const said = esc(t(locale, key, { ...params, ...(email === null ? {} : { email: '\u0000' }) }));
   return email === null ? said : said.replace('\u0000', `<bdi>${esc(email)}</bdi>`);
 }
 
