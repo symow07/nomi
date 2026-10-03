@@ -4,6 +4,10 @@ import type { BusinessId } from '../../core/types/ids.js';
 import { checklistFor, checklistKind, NOT_YET, type ChecklistItem } from '../../db/practiceChecklist.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { sendingAloneEarned } from '../../db/earned.js';
+import { assistantStopped } from '../../db/assistantStop.js';
+import { loadKillSwitches } from '../../db/opsFlags.js';
+import { aloneNow } from '../../core/conversation/aloneNow.js';
+import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
@@ -28,6 +32,9 @@ export type ReadyView = {
   readonly named: boolean;
   readonly connected: boolean;
   readonly earned: boolean;
+  /** The fix wave (V1-417) — the owner's Stop and the operator's pause: nothing goes out alone while either holds. Absent reads as neither. */
+  readonly stopped?: boolean;
+  readonly silenced?: boolean;
 };
 
 /** Items still to see: an item that cannot pass yet (`NOT_YET`) is not counted against the owner. */
@@ -42,7 +49,8 @@ export async function loadReady(db: Db, live: BusinessId): Promise<ReadyView> {
       .execute(tx)).rows.map((r) => r.item as ChecklistItem));
     const named = (await sql<{ n: boolean }>`select assistant_named_at is not null as n from onboarding_state where business_id = ${live}::uuid`
       .execute(tx)).rows[0]?.n ?? false;
-    return { items, seen, named, connected: anyConnected(await connectedChannels(tx, live)), earned: await sendingAloneEarned(tx) };
+    return { items, seen, named, connected: anyConnected(await connectedChannels(tx, live)), earned: await sendingAloneEarned(tx),
+      stopped: await assistantStopped(tx, live), silenced: (await loadKillSwitches(tx, live)).globalSilence };
   });
 }
 
@@ -61,7 +69,14 @@ export function renderReady(v: ReadyView, locale: Locale): string {
   // in place, its own door — the step's own words.
   const fact = (ok: boolean, label: string, state: string, door: string) => `<li class="chk ${ok ? 'ok' : ''}">${mark(ok)}<span class="lbl">${esc(label)}</span>
       <span class="rd-state">${esc(state)}</span>${ok ? '' : door}</li>`;
-  const alone = v.earned && v.named;
+  // The fix wave (V1-417) — "may send alone" only when nothing holds every
+  // reply: the one answer the assistant's page reads (`aloneNow`).
+  const hold = aloneNow({ capabilities: [], released: autonomyReleased(), named: v.named, earned: v.earned,
+    ...(v.stopped ? { stopped: true } : {}), ...(v.silenced ? { silenced: true } : {}) }).hold;
+  const alone = hold === null;
+  const aloneSaid: MessageKey = hold === 'silenced' ? 'today.silenced.title' : hold === 'stopped' ? 'today.stopped.title'
+    : hold === 'release' ? 'her.handles.held.why.release'
+    : !v.earned ? 'ready.alone.not' : v.named ? 'ready.alone.earned' : 'ready.alone.needsName';
   return `<h1 class="page">${esc(t(locale, 'ready.title'))}</h1>
   <p class="muted">${esc(t(locale, 'ready.intro', { name }))}</p>
   <section class="block" aria-labelledby="ready-checks">
@@ -78,7 +93,7 @@ export function renderReady(v: ReadyView, locale: Locale): string {
       ${fact(v.connected, t(locale, 'nav.channels'), t(locale, v.connected ? 'ready.channel.done' : 'ready.channel.todo'),
         deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name })))}
       ${/* Phase 9 (V1-145) — sending alone needs both: earned AND the name confirmed (commitTurn's gates). */ ''}${fact(alone, t(locale, 'ready.alone.label', { name }),
-        t(locale, !v.earned ? 'ready.alone.not' : v.named ? 'ready.alone.earned' : 'ready.alone.needsName', { name }),
+        t(locale, aloneSaid, { name }),
         v.earned ? '' : deeper('/app/employee', t(locale, 'ready.alone.go', { name })))}
     </ul>
   </section>`;

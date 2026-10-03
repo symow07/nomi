@@ -146,3 +146,20 @@ describe('w4-business-assistant-26 · the levels come first after the name; the 
     });
   }
 });
+
+describe('V1-417 · Ready for customers reads the same answer', () => {
+  for (const l of LOCALES) {
+    it(`${l} · "may send alone" only while nothing holds every reply`, async () => {
+      const { renderReady } = await import('../../src/api/web/ready.js');
+      const v = { items: [], seen: new Set<never>(), named: true, connected: true, earned: true };
+      const said = (k: Parameters<typeof t>[1]) => esc(withAssistantName('Lily', () => t(l, k, { name: 'Lily' })));
+      const page = (over: object) => withAssistantName('Lily', () => renderReady({ ...v, ...over }, l));
+      expect(page({})).toContain(said('ready.alone.earned'));
+      expect(page({ stopped: true })).toContain(said('today.stopped.title'));
+      expect(page({ stopped: true })).not.toContain(said('ready.alone.earned'));
+      expect(page({ silenced: true })).toContain(said('today.silenced.title'));
+      gate.released = false;
+      expect(page({})).toContain(said('her.handles.held.why.release'));
+    });
+  }
+});
