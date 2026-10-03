@@ -122,6 +122,9 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     expect(await modes()).toEqual(before);
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: staff } });
     expect(page.body).not.toContain('id="on-her-own"');
+    // THE WARMTH RUN, phase 7 — staff read where it stands, and who decides; never the form.
+    expect(page.body).not.toContain('action="/app/employee/autonomy"');
+    expect(page.body).toContain('The owner decides this.');
   });
 });
 

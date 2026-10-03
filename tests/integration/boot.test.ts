@@ -626,14 +626,25 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);  // Phase C: the page IS the assistant
-    expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C
-    expect(res.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
-    // Phase 9 (V1-422) — the history and the next step, in plain words.
+    // THE WARMTH RUN, phase 7 — the landing is a menu; each section is its row's screen.
+    expect(res.body).toContain(`href="/app/employee/replies"><svg`);
+    expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C — the row
+    // Phase 9 (V1-422) — the history and the next step, in plain words: rows here, screens one tap down.
     expect(res.body).toContain(esc(t('en', 'employee.growth.title')));
     expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
-    // demo: greet is promoted (auto) → appears under Can do now as Greeting
-    expect(res.body).toContain('Greeting');
     expect(res.body).not.toContain('置信度');       // no invented score
+    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: `/app/employee/${s}`, headers: { cookie } }));
+    const replies = await screen('replies');
+    expect(replies.statusCode).toBe(200);
+    expect(replies.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
+    // demo: greet is promoted (auto) → appears under Can do now as Greeting
+    expect(replies.body).toContain('Greeting');
+    expect(replies.body).toContain('<a class="back" href="/app/employee">');
+    for (const s of ['history', 'next']) {
+      const r = await screen(s);
+      expect(r.statusCode, s).toBe(200);
+      expect(r.body, s).not.toContain('置信度');
+    }
   });
 
   it('M9.6 capability action: revoke flips autonomy + writes a capability event', async () => {
@@ -1908,6 +1919,16 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.body).toContain(esc(t('en', 'her.handles.title')));
       expect(res.body).toContain(esc(t('en', 'her.recent.title')));
       expect(res.body).toContain(esc(t('en', 'her.teach.title')));
+    });
+
+    it('THE WARMTH RUN, phase 7 — what the assistant can talk about is My business\'s, opened there, edited nowhere else', async () => {
+      const cookie = await login();
+      const res = await prod.app.inject({ method: 'GET', url: '/app/employee/talk', headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+      for (const page of ['/app/settings/profile', '/app/products']) expect(res.body, page).toContain(`href="${page}"`);
+      const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
+      expect(main).not.toContain('<form');
+      expect(main).toContain('<a class="back" href="/app/employee">');
     });
 
     it('SECURITY: unauthenticated /app/employee redirects', async () => {

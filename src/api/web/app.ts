@@ -51,7 +51,7 @@ import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
-  defaultFilter, buyersHref, type InboxFilter,
+  defaultFilter, buyersHref, productName, type InboxFilter,
 } from './inbox.js';
 import {
   liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, billingMark, billingWatch, type LiveKind,
@@ -143,7 +143,7 @@ import {
   updateStepFrom,
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
-import { loadEmployee, renderEmployee } from './employee.js';
+import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
@@ -3371,32 +3371,80 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M9.6 Employee Profile: personnel file over the existing trust data ────
+  // Phase C: "who is she today?" composes her profile with EXISTING read
+  // models — M14 knowledge (gaps + report), the operations snapshot (activity)
+  // and the pilot feedback loop. No new query, no new storage.
+  const herContext = async (businessId: string): Promise<HerContext> => {
+    const [ops, snapshot, feedback] = await Promise.all([
+      loadKnowledgeOps(deps.db, businessId, 'month'),
+      loadOperationsSnapshot(deps.db, businessId, 'month', deps.provider, messagingEnabled),
+      loadPilotFeedback(deps.db, businessId, 'month'),
+    ]);
+    return {
+      taughtRecently: ops.report.factsAdded,
+      corrected: ops.report.answersCorrected,
+      handled: snapshot.activity.handled,
+      draftsPrepared: snapshot.activity.draftsCreated,
+      neededYou: feedback.conversationsNeedingYou,
+      gaps: ops.gaps.slice(0, 5).map((g) => ({ question: g.question, count: g.count })),
+    };
+  };
+  /**
+   * THE WARMTH RUN, phase 7 — two doors, one data: what the assistant can
+   * talk about, read through the very loaders My business draws from (the
+   * profile, How you sell, the products), so nothing is entered twice and the
+   * two pages cannot disagree.
+   */
+  const talkAbout = async (businessId: string, locale: Locale): Promise<TalkAbout> => {
+    const [profile, products, hub] = await Promise.all([
+      loadBusinessProfile(deps.db, businessId), loadProductList(deps.db, businessId), loadHub(deps.db, businessId),
+    ]);
+    const sold = products.filter((p) => p.isActive);
+    return {
+      business: profile.name,
+      given: [
+        ...(['description', 'location', 'workingHours', 'contactEmail', 'contactPhone'] as const).filter((k) => Boolean(profile[k]?.trim())),
+        ...(profile.languagesServed.length ? ['languages' as const] : []),
+      ],
+      selling: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
+      products: {
+        total: sold.length,
+        names: sold.slice(0, 3).map((p) => productName(locale, p)).filter((n): n is string => Boolean(n)),
+      },
+    };
+  };
+  // THE WARMTH RUN, phase 7 — the landing: the name, how much the assistant
+  // does alone (the control, whole), and the menu.
   app.get('/app/employee', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
-    // Phase C: "who is she today?" composes her profile with EXISTING read
-    // models — M14 knowledge (gaps + report), the operations snapshot (activity)
-    // and the pilot feedback loop. No new query, no new storage.
-    const [e, ops, snapshot, feedback] = await Promise.all([
-      loadEmployee(deps.db, s.businessId),
-      loadKnowledgeOps(deps.db, s.businessId, 'month'),
-      loadOperationsSnapshot(deps.db, s.businessId, 'month', deps.provider, messagingEnabled),
-      loadPilotFeedback(deps.db, s.businessId, 'month'),
-    ]);
+    const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.employee'), active: 'employee',
-      bodyHtml: renderEmployee(e, locale, flash, {
-        taughtRecently: ops.report.factsAdded,
-        corrected: ops.report.answersCorrected,
-        handled: snapshot.activity.handled,
-        draftsPrepared: snapshot.activity.draftsCreated,
-        neededYou: feedback.conversationsNeedingYou,
-        gaps: ops.gaps.slice(0, 5).map((g) => ({ question: g.question, count: g.count })),
-      }, personOf(s)),
+      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s)),
     }));
   });
+  // …and each row's screen: one former section, under its way back. Each is
+  // its own route, so every walk of the GET routes opens every one of them.
+  for (const screen of EMPLOYEE_SCREENS) {
+    app.get(screenHref(screen), async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const flash = takeFlash(req, reply);
+      const [e, ctx, talk] = await Promise.all([
+        loadEmployee(deps.db, s.businessId),
+        screen === 'learning' || screen === 'month' ? herContext(s.businessId) : Promise.resolve(undefined),
+        screen === 'talk' ? talkAbout(s.businessId, locale) : Promise.resolve(undefined),
+      ]);
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: screenTitle(locale, screen), active: 'employee',
+        bodyHtml: renderEmployeeScreen(screen, e, locale, flash, ctx, personOf(s), talk ? { talk } : {}),
+      }));
+    });
+  }
   /**
    * G7 — new connections stopped by the operator (`connections_off`); KS6 —
    * or this workspace's first connection waits for the operator's approval
@@ -3427,16 +3475,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // The single-capability grant is the same decision as a level, so it is
       // held to the same gate. Taking one back is never refused.
       if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
-        return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
+        return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notReleased');
       }
       // G4 / R2 — and a workspace that signed itself up grants nothing past its rung.
       // (An unknown capability, or confirm_order, is refused by the grant itself.)
       const need = (CAPABILITIES as readonly string[]).includes(cap) ? rungOf(cap as Capability) : 3;
       if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {
-        return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notEarned');
+        return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notEarned');
       }
       const r = await run(s.businessId, cap, personOf(s).id);
-      return flashTo(reply, '/app/employee', `employee.flash.${r.code}` as MessageKey);
+      // Phase 7 — back to the screen the buttons are on, its notice at the top.
+      return flashTo(reply, screenHref('one-kind'), `employee.flash.${r.code}` as MessageKey);
     });
   // T1 — how much she does on her own is the owner's choice, from day one. The
   // same gate as a single grant: it is the same decision, made for several at once.
@@ -3484,7 +3533,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : r.verdict === 'correct' ? 'spotcheck.flash.ok'
       : r.verdict === 'serious' ? 'spotcheck.flash.problem'
       : 'spotcheck.flash.fixed';
-    return flashTo(reply, '/app/employee', key as MessageKey);
+    // Phase 7 — back to the checks, where the next one waits (or the screen says none do).
+    return flashTo(reply, screenHref('checks'), key as MessageKey);
   });
 
   // ── M35.1 · the owner issues and revokes the buyer's proof link ───────────
@@ -5211,7 +5261,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         // Phase 9 (V1-286) — the conversation first; the safety checks folded under it.
-        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
+        // Phase 7 — a row of the assistant's menu: its way back leads (the transcript's own "earlier" link is not one).
+        bodyHtml: `${back('/app/employee', t(locale, 'nav.employee'))}<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
             ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`)
