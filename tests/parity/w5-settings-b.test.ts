@@ -74,9 +74,12 @@ describe('V1-537 · how customers pay can be saved without a delivery term', () 
     // The proforma still needs a delivery term (proformaText), so none is made.
     expect(read('src/api/web/orders.ts')).toContain('if (!unitPrice || !total || !v.paymentTerms || !v.incoterm) return null;');
   });
-  it('the column may be null: a pending migration says so, for the driver to number', () => {
-    const sql = read('migrations/PENDING-trade-terms-no-delivery-term.sql').split('\n').filter((x) => !x.trimStart().startsWith('--')).join('\n');
+  it('the column may be null (0125), and the app requires it', async () => {
+    const sql = read('migrations/0125_trade_terms_optional_incoterm.sql').split('\n').filter((x) => !x.trimStart().startsWith('--')).join('\n');
     expect(sql).toContain('alter table trade_terms alter column incoterm drop not null;');
+    expect(sql).toContain("values (125, 'trade_terms_optional_incoterm')");
+    const { REQUIRED_SCHEMA_VERSION } = await import('../../src/db/schemaVersion.js');
+    expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(125);
   });
 
   // How you sell's payment question for a maker writes the same terms.

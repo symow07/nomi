@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- PENDING (the driver numbers it) — payment terms without a delivery term.
+-- 0125 — payment terms without a delivery term (the warmth run's re-audit, V1-537).
 --
 -- WHAT WAS WRONG (V1-537, the warmth run's re-audit). `trade_terms.incoterm`
 -- is NOT NULL (0041), so the terms page refused "Save" until an Incoterm was
@@ -16,12 +16,10 @@
 --     one (src/api/web/orders.ts `proformaText`), so nothing a customer is
 --     sent reads differently.
 --
--- Until this is applied, saving terms without a delivery term fails at the
--- insert and the page says "Something went wrong"; saving with one works as
--- before. Additive and forward-only (ADR-0007): no row is rewritten.
+-- Additive and forward-only (ADR-0007): no row is rewritten.
 -- ---------------------------------------------------------------------------
 
 alter table trade_terms alter column incoterm drop not null;
 
--- insert into _migrations (version, name) values (NNNN, 'trade_terms_optional_incoterm')
--- on conflict (version) do nothing;
+insert into _migrations (version, name) values (125, 'trade_terms_optional_incoterm')
+on conflict (version) do nothing;

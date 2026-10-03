@@ -310,9 +310,9 @@ describe('0124 — the person\'s way, or NULL for the default', () => {
     // the header says so
     expect(m.replace(/\n-- /g, ' ')).toContain('a business with no owner row is left as it is');
   });
-  it('is version 124, and the app requires it', () => {
+  it('is version 124, and the app requires it (or a later one)', () => {
     expect(m).toMatch(/insert into _migrations \(version, name\) values \(124, 'alert_channel'\)\non conflict \(version\) do nothing;\s*$/);
-    expect(REQUIRED_SCHEMA_VERSION).toBe(124);
+    expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(124);
   });
 });
 

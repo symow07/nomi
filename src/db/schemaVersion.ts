@@ -316,7 +316,9 @@ import type { Db } from './client.js';
 // 124 = how a notification reaches each person (0124): `people.alert_channel`.
 //       The two interruptions and the Notifications page read it; against a
 //       123 database every hand-over alert fails.
-export const REQUIRED_SCHEMA_VERSION = 124;
+// 125 = payment terms without a delivery term (0125): `trade_terms.incoterm` may be
+//       null. The terms page saves "No delivery term"; against a 124 database that save fails.
+export const REQUIRED_SCHEMA_VERSION = 125;
 
 export type SchemaState = {
   readonly required: number;
