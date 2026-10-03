@@ -1171,6 +1171,30 @@ const STYLE_PAGES = `
   .checks.rd .rd-state { grid-column:2; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-wrap:pretty; }
   .checks.rd .deeper { grid-column:2; padding:0; min-height:44px; }
 
+  /* ── Notifications (the warmth run, phase 8) — while the owner is in Nomi, a customer newly waiting
+     shows wherever they are: a dot on Inbox, the count, and one small card. No sound, no counter
+     in the tab's title, nothing that is not a customer waiting. */
+  nav.side a.navlink[data-fresh] { position:relative; }
+  nav.side a.navlink[data-fresh]::after { content:""; position:absolute; inset-block-start:var(--space-8);
+    inset-inline-start:calc(var(--space-24) + 16px); inline-size:8px; block-size:8px;
+    border-radius:var(--radius-chip); background:var(--color-waiting); }
+  .toasts { position:fixed; z-index:6; inset-block-end:var(--space-24); inset-inline-end:var(--space-24);
+    inline-size:min(var(--measure-form), calc(100vw - var(--space-48))); display:flex; flex-direction:column;
+    align-items:flex-end; pointer-events:none; }
+  .toast { pointer-events:auto; display:flex; align-items:center; min-block-size:44px; max-inline-size:100%;
+    padding:var(--space-12) var(--space-16); border-radius:var(--radius-card); background:var(--color-surface);
+    color:var(--color-ink); box-shadow:var(--shadow-lift2); font-size:var(--font-size-small); text-decoration:none;
+    overflow-wrap:anywhere; }
+  @media (max-width: 720px) {
+    nav.side a.navlink[data-fresh]::after { inset-block-start:var(--space-4); inset-inline-start:calc(50% - 16px); }
+    .toasts { inset-inline:var(--space-16); inset-block-end:var(--space-16); inline-size:auto; align-items:stretch; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+  }
+  /* The Notifications page: the three ways one under another; one that cannot be chosen yet reads as such. */
+  .choices.ways { flex-direction:column; }
+  .choices.ways label.check:has(> input:disabled) { color:var(--color-ink-secondary); }
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
   .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
@@ -2385,6 +2409,16 @@ export function shell(input: {
   // (an account page, a closure list, an order, a product), the area's name
   // only where the page has none. Every Setup page was "Setup · …".
   const ownHeading = /<h1 class="page"[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
+  /**
+   * THE WARMTH RUN (2026-10-03), phase 8 — every page in a workspace asks the
+   * rail's question (`railAnswer`, live.ts) from the number it was drawn with,
+   * and this is where the answer surfaces: the one small card, in a polite
+   * live region present and empty from the start. Outside a workspace (a
+   * fragment, a page whose count could not be read) nothing asks.
+   */
+  const waiting = needsYouCount();
+  const toasts = waiting === null ? ''
+    : `<div class="toasts" role="status" aria-live="polite" data-rail="/app/live/rail?since=${waiting}"></div>`;
   const tabTitle = (ownHeading ? unescapeHtml(ownHeading.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '') || input.title;
   // CC-20 — the first stop for a keyboard or a screen reader: past the five
   // nav entries, straight to the page. Out of sight until it has focus.
@@ -2405,7 +2439,7 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div>${askDialog(locale)}${cardSheet(locale)}</body></html>`;
+</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`;
 }
 
 /**

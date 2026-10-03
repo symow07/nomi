@@ -32,6 +32,7 @@ import * as show from './values.js';
  * `BUSINESS_SCREEN_PATH.how`; written out here, as factory.ts reads this file).
  */
 const HOW_YOU_SELL = '/app/business/how-you-sell';
+import { alertWayName } from './phoneAlerts.js';
 
 /** Phase 4 — in place of a form only the owner may send: the values stay
  *  on the page to read, and this says whose decision they are. */
@@ -250,7 +251,8 @@ export type SetupView = {
   /** How many people work here. */
   readonly people: number;
   /** Phase 3 — alerts on this person's phones: whether this installation can send them, and how many phones. */
-  readonly alerts?: { readonly available: boolean; readonly phones: number } | null;
+  /** The warmth run, phase 8 — `way`: how notifications reach this reader now (null: nothing does). */
+  readonly alerts?: { readonly available: boolean; readonly phones: number; readonly way?: 'email' | 'browser' | 'whatsapp' | null } | null;
   /** Phase 3 — how this person signs in: their e-mail, or the access code when they have no login. */
   readonly signIn?: { readonly email: string | null } | null;
   /** Phase 3 — billing as it stands (the owner's); null for staff. */
@@ -283,10 +285,12 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       tone: setup ? toneOf(setup.next === null) : undefined }),
     menuRow({ href: '/app/onboarding', icon: 'setup', label: t(locale, 'nav.onboarding'),
       value: named === null ? null : t(locale, named ? 'setup.value.nameConfirmed' : 'setup.value.nameNotConfirmed'), tone: toneOf(named) }),
-    menuRow({ href: '/app/settings/alerts', icon: 'bell', label: t(locale, 'alerts.phone.title'),
-      value: !v.alerts ? null : !v.alerts.available ? t(locale, 'setup.value.unavailable')
+    // The warmth run, phase 8 — Notifications: the row says how they reach this reader now.
+    menuRow({ href: '/app/settings/alerts', icon: 'bell', label: t(locale, 'alerts.title'),
+      value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : t(locale, 'setup.value.off'))
+        : !v.alerts.available ? t(locale, 'setup.value.unavailable')
         : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
-      tone: v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
+      tone: v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
     // The switch, a tap down: the row says which language is in force, in its own name.
     menuRow({ href: '/app/settings/language', icon: 'globe', label: t(locale, 'settings.language.title'), value: LOCALE_LABEL[locale] }),
   ];

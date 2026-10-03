@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { confirmableFromProposal } from '../../src/core/commerce/confirmable.js';
 import { driveConversationOutbound, type ConversationSendContext, type OutboundStore, type OutboundWorkRow } from '../../src/outbound/worker.js';
 import type { ChannelAdapter, SendResult } from '../../src/channels/contract.js';
-import { alertKindFor, goesByMail, renderOwnerAlert } from '../../src/pipeline/notify.js';
+import { alertKindFor, goesByMail, interrupts, renderOwnerAlert } from '../../src/pipeline/notify.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -134,7 +134,10 @@ describe('0080 · the owner is told, by e-mail as well', () => {
     expect(alertKindFor({ ...base, orderProposed: { fresh: true } })).toBe('order_proposed');
     expect(alertKindFor({ ...base, orderProposed: { fresh: false } })).toBeNull();
     expect(alertKindFor({ ...base, deletionAlert: true, orderProposed: { fresh: true } })).toBe('deletion_requested');
-    expect(goesByMail('order_proposed')).toBe(true);
+    // Phase 8 of the warmth run, deliberately — the owner (2026-10-03): "Only two things may interrupt the owner outside the app: an order waiting for their tap, and a conversation the assistant handed over because it could not handle it. Everything else waits quietly in-app."
+    // An order waiting is one of the two: it goes the owner's own way, e-mail under it, not "e-mail always".
+    expect(goesByMail('order_proposed')).toBe(false);
+    expect(interrupts('order_proposed')).toBe(true);
   });
 
   it('says what happened and what to do, in every language, with a subject', () => {

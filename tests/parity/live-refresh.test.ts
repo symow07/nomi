@@ -102,8 +102,11 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // a reload (the redraw and one watcher at a time), and asking first in the
     // product's own dialog instead of the browser's box: 10,500 became 16,000.
     // Phase 6 — a busy button on a form on its way, and a limit to asking: 17,500.
-    // The warmth run (2026-10-03): the profile card's sheet and the failed-photo fallback (about 2 KB) — raised deliberately.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(21_500);
+    // The warmth run, phase 8 — the rail's question from every page, its marker, its number and
+    // the one card, and Today drawn again in place; the browser's own order notice retired, and
+    // one asker shared by every question. Measured at 18,433; the cap is that plus 4,000, raised
+    // deliberately, for the driver's profile card (about 3 KB) and failed-photo handling (0.3 KB).
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(22_433);
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();
     // It ships to the owner's browser like the stylesheet, and is held to the same list.
     // The exceptions are the browser's own two names for the answer's format — the

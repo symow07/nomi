@@ -54,6 +54,26 @@ const M203_REF = `m203-ref-${RUN_NS}`;
  *  (channel, channel_user_id) GLOBALLY — cannot collide with a previous run. */
 const ph = runPhone;
 
+/**
+ * Phase 8 of the warmth run — a hand-over reaches the owner's alert number only
+ * where the owner's WhatsApp path is open: Meta approved Nomi (the test passes
+ * `whatsappApproved`, or sets META_APP_REVIEW for the worker) and a channel is
+ * live. This turns the run tenant's WhatsApp channel live or not, and returns
+ * what it was so the test can put it back.
+ */
+async function whatsappLive(db: import('../../src/db/client.js').Db, on: Date | null): Promise<Date | null> {
+  const { withTenantTx } = await import('../../src/db/client.js');
+  const { parseBusinessId } = await import('../../src/core/types/ids.js');
+  const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
+  return withTenantTx(db, p.value, async (tx) => {
+    const was = (await sql<{ at: Date | null }>`select activated_at as at from channels
+      where business_id = ${DEMO_BIZ} and kind = 'whatsapp'`.execute(tx)).rows[0]?.at ?? null;
+    await sql`update channels set activated_at = ${on}, activated_by = ${on ? 'test' : null}
+      where business_id = ${DEMO_BIZ} and kind = 'whatsapp'`.execute(tx);
+    return was;
+  });
+}
+
 beforeAll(async () => {
   if (!DATABASE_URL || !MIGRATE_URL) return;
   // `buildProduction` resolves the owner's tenant from process.env, not from
@@ -216,20 +236,28 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
     await withTenantTx(prod.db, parsed.value, (tx) =>
       sql`update businesses set owner_locale='en', owner_phone=${'+' + ph('8613800000001')} where id=${parsed.value}`.execute(tx));
-
-    const before = sim.sentIds.length;
-    // Enqueue a neutral alert; the consumer registered by buildProduction must
-    // resolve the destination and deliver through the SAME adapter (sim records the send).
-    await prod.boss.send('notify.team', { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null });
-    let delivered = false;
-    for (let i = 0; i < 50; i++) {
-      if (sim.sentIds.length > before) { delivered = true; break; }
-      await new Promise((r) => setTimeout(r, 100));
+    // Phase 8 of the warmth run — a hand-over (a hot lead now waits in the app), by
+    // WhatsApp: the worker reads Meta's approval as each job leaves, and a channel is live.
+    const review = process.env['META_APP_REVIEW'];
+    process.env['META_APP_REVIEW'] = 'approved:2026-11-20';
+    const was = await whatsappLive(prod.db, new Date());
+    try {
+      const before = sim.sentIds.length;
+      // Enqueue a neutral alert; the consumer registered by buildProduction must
+      // resolve the destination and deliver through the SAME adapter (sim records the send).
+      await prod.boss.send('notify.team', { businessId: DEMO_BIZ, kind: 'handoff', conversationId: null });
+      let delivered = false;
+      for (let i = 0; i < 50; i++) {
+        if (sim.sentIds.length > before) { delivered = true; break; }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      expect(delivered).toBe(true);   // the notify consumer is wired and sent via the adapter
+    } finally {
+      if (review === undefined) delete process.env['META_APP_REVIEW']; else process.env['META_APP_REVIEW'] = review;
+      await whatsappLive(prod.db, was);
+      await withTenantTx(prod.db, parsed.value, (tx) =>
+        sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
     }
-    expect(delivered).toBe(true);   // the notify consumer is wired and sent via the adapter
-
-    await withTenantTx(prod.db, parsed.value, (tx) =>
-      sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
   }, 15_000);
 
   it('shuts down cleanly and idempotently', async () => {
@@ -836,22 +864,30 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const sent: { to: string; body: string }[] = [];
     const rec = { sendText: async (to: string, body: string) => { sent.push({ to, body }); return { ok: true as const, providerMessageId: 'x' }; } };
     const job = (kind: 'hot_lead' | 'handoff') => ({ businessId: DEMO_BIZ, kind, conversationId: null });
+    // Phase 8 of the warmth run — the WhatsApp path is open: Meta approved Nomi, a channel is live.
+    const deps = { db: prod.db, adapter: rec, whatsappApproved: true };
+    const was = await whatsappLive(prod.db, new Date());
 
     await setOwner('zh', `+${ph('8613800000000')}`);
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'))).toBe('sent');
+    expect(await deliverOwnerAlert(deps, job('handoff'))).toBe('sent');
     expect(sent).toHaveLength(1);                    // exactly one send — no duplicate
     expect(sent[0]!.to).toBe(`+${ph('8613800000000')}`);      // persisted destination
     expect(sent[0]!.body).toContain(ASSISTANT_FALLBACK.zh);   // zh — no name confirmed, so the fallback
 
     await setOwner('en', `+${ph('8613800000000')}`);
-    await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'));
+    await deliverOwnerAlert(deps, job('handoff'));
     expect(sent[1]!.body).toContain(ASSISTANT_FALLBACK.en);   // locale switched to en
 
     await setOwner('ar', `+${ph('8613800000000')}`);
-    await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('handoff'));
+    await deliverOwnerAlert(deps, job('handoff'));
     expect(sent[2]!.body).toContain(ASSISTANT_FALLBACK.ar);   // ar
 
+    // A customer ready to buy waits in the app (the owner's rule, 2026-10-03): nothing is sent.
+    expect(await deliverOwnerAlert(deps, job('hot_lead'))).toBe('skipped_quiet');
+    expect(sent).toHaveLength(3);
+
     await setOwner('en', null);                        // restore
+    await whatsappLive(prod.db, was);
   });
 
   it('P3 owner alert: no destination → skipped, never a fake send', async () => {
@@ -863,7 +899,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
     const sent: unknown[] = [];
     const rec = { sendText: async () => { sent.push(1); return { ok: true as const, providerMessageId: 'x' }; } };
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null })).toBe('skipped_no_destination');
+    // Phase 8 — a hand-over with no alert number, no sign-in address and no sender: nowhere to go.
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec, whatsappApproved: true }, { businessId: DEMO_BIZ, kind: 'handoff', conversationId: null })).toBe('skipped_no_destination');
     expect(sent).toHaveLength(0);
   });
 
@@ -874,13 +911,16 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
     await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_locale='en', owner_phone=${'+' + ph('8613800000009')} where id=${parsed.value}`.execute(tx));
-    const j = { businessId: DEMO_BIZ, kind: 'hot_lead' as const, conversationId: null };
+    // Phase 8 — a hand-over, by WhatsApp (approved, a channel live), with no e-mail to fall back on.
+    const j = { businessId: DEMO_BIZ, kind: 'handoff' as const, conversationId: null };
+    const was = await whatsappLive(prod.db, new Date());
 
     const retry = { sendText: async () => ({ ok: false as const, retryable: true, error: '503' }) };
-    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry }, j)).rejects.toThrow();
+    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry, whatsappApproved: true }, j)).rejects.toThrow();
 
     const perm = { sendText: async () => ({ ok: false as const, retryable: false, error: 'invalid number' }) };
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: perm }, j)).toBe('failed_permanent');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: perm, whatsappApproved: true }, j)).toBe('failed_permanent');
+    await whatsappLive(prod.db, was);
 
     await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
   });
@@ -908,10 +948,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // saved
     expect(await auditCount()).toBe(before + 1);          // audited
 
-    // A notification now resolves the destination.
+    // A notification now resolves the destination (phase 8: a hand-over, once Meta approved Nomi, on a live channel).
     const sent: { to: string }[] = [];
     const rec = { sendText: async (to: string) => { sent.push({ to }); return { ok: true as const, providerMessageId: 'x' }; } };
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null })).toBe('sent');
+    const was = await whatsappLive(prod.db, new Date());
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec, whatsappApproved: true }, { businessId: DEMO_BIZ, kind: 'handoff', conversationId: null })).toBe('sent');
+    await whatsappLive(prod.db, was);
     expect(sent[0]!.to).toBe(`+${ph('8613800000042')}`);
 
     // invalid input is rejected — number unchanged.

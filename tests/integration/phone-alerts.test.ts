@@ -11,8 +11,10 @@ import type { Analysis } from '../../src/core/conversation/decide.js';
  * it is sent and a phone (the test) that opens it with its own key.
  *
  *   · The phone's worker, the manifest and the icons are served to anyone.
- *   · Alerts are turned on from the page; a waiting reply reaches the phone,
- *     encrypted to it, with the conversation it opens.
+ *   · Alerts are turned on from the page. Phase 8 of the warmth run: the
+ *     owner chooses Browser on Notifications; a waiting reply then stays in
+ *     the app, and a customer handed over reaches the phone, encrypted to it,
+ *     with the conversation it opens.
  *   · A phone the push service says is gone is archived; one the owner stops
  *     is archived too; a test alert reaches the phones that are on.
  *   · A reply waiting past the day its channel allows is marked expired, and
@@ -110,6 +112,8 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
       await sql`insert into assistants (business_id, name, is_default) values (${BIZ}, 'Lily', true)`.execute(t);
       await sql`insert into onboarding_state (business_id, assistant_named_at) values (${BIZ}, now())
                 on conflict (business_id) do update set assistant_named_at = now()`.execute(t);
+      // Every workspace has its owner's row (0035, sign-up): Notifications keeps the owner's way on it.
+      await sql`insert into people (business_id, name, is_owner) values (${BIZ}, 'Mona', true)`.execute(t);
     });
     await setup.destroy();
     process.env['PILOT_BUSINESS_ID'] = BIZ;
@@ -146,7 +150,7 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
     expect((await get('/app')).body).toContain('<link rel="manifest" href="/manifest.webmanifest">');
   });
 
-  it('TURNED ON FROM THE PAGE, a waiting reply reaches the phone — encrypted to it, with the conversation it opens', async () => {
+  it('TURNED ON FROM THE PAGE and chosen on Notifications, a hand-over reaches the phone — encrypted to it, with the conversation it opens; a waiting reply does not', async () => {
     const page = await get('/app/settings/alerts');
     expect(page.body).toContain(`data-push-key="${process.env['VAPID_PUBLIC_KEY']}"`);
     const on = await post('/app/settings/alerts/phone', { subscription: mine.subscription, device: 'Mona’s iPhone' });
@@ -164,9 +168,26 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
       intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
       recommendedPhase: 'clarification', wantsPerson: false,
     } satisfies Analysis;
+    // Phase 8 — Browser is chosen on the same page; the choice is the owner's own row.
+    const chose = await post('/app/settings/alerts/channel', { channel: 'browser' });
+    expect(chose.statusCode).toBe(302);
+    expect(await q((tx) => sql<{ way: string | null }>`select alert_channel as way from people
+      where business_id = ${BIZ}::uuid and is_owner`.execute(tx).then((r) => r.rows[0]!.way))).toBe('browser');
+
     replyWriter.replies = ['Yes, we ship to Dubai.'];
+    const quiet = `9715${runDigits(RUN, 6)}3`;
+    const wq = sim.inboundText({ from: quiet, text: 'Do you ship to Dubai?' });
+    expect((await prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: wq.rawBody,
+      headers: { 'content-type': 'application/json', ...wq.headers } })).statusCode).toBe(200);
+    await until(() => q((tx) => sql<{ n: number }>`select count(*)::int as n from drafts d join conversations c on c.id = d.conversation_id
+      join clients cl on cl.id = c.client_id where c.business_id = ${BIZ}::uuid and cl.phone like ${`%${quiet}`}`
+      .execute(tx).then((r) => (r.rows[0]!.n > 0 ? true : undefined))), 'the waiting reply');
+    await new Promise((r) => setTimeout(r, 2000));
+    // A waiting reply waits in the app (the owner's rule, 2026-10-03): nothing reached the phone.
+    expect(pushed.filter((p) => p.url === mine.endpoint)).toHaveLength(0);
+
     const from = `9715${runDigits(RUN, 6)}1`;
-    const w = sim.inboundText({ from, text: 'Do you ship to Dubai?' });
+    const w = sim.inboundText({ from, text: 'Can I talk to a real person please?' });
     expect((await prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: w.rawBody,
       headers: { 'content-type': 'application/json', ...w.headers } })).statusCode).toBe(200);
     const sent = await until(async () => pushed.find((p) => p.url === mine.endpoint), 'the alert on the phone');
@@ -175,7 +196,7 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
     const said = mine.open(sent.body);
     const conv = await q((tx) => sql<{ id: string }>`select c.id::text as id from conversations c join clients cl on cl.id = c.client_id
       where c.business_id = ${BIZ}::uuid and cl.phone like ${`%${from}`}`.execute(tx).then((r) => r.rows[0]!.id));
-    expect(said).toEqual({ title: 'A reply is waiting for you', body: expect.stringContaining('wrote a reply for a customer'), url: `${BASE}/app/inbox/${conv}#latest` });
+    expect(said).toEqual({ title: 'A customer is waiting for you', body: expect.stringContaining('a customer wants to talk to a person'), url: `${BASE}/app/inbox/${conv}#latest` });
   }, 120_000);
 
   it('A PHONE THE PUSH SERVICE SAYS IS GONE is archived; a test reaches the phones that are on; the owner stops one', async () => {

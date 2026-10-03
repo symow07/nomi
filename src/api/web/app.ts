@@ -54,7 +54,8 @@ import {
   buyersHref, productName, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, billingMark, billingWatch, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
+  railAnswer, railSaid,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -90,7 +91,7 @@ import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS } from './appIcons.js';
-import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, type PushOut } from './phoneAlerts.js';
+import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -1996,7 +1997,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, { ...todayWatch(todayMark(snapshot.attention)), orders: snapshot.attention.ordersWaiting ?? 0 }),
+      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
     };
   }));
 
@@ -2034,10 +2035,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
       // The door: the first page of the lens, the narrowing and the search she is on — where the newest lands.
-      ...(mark && bid.ok ? { live: liveRegion(locale, {
-        ...buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '' })),
-        orders: await ordersWaitingCount(deps.db, bid.value),
-      }) } : {}),
+      ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '' }))) } : {}),
     }));
   });
 
@@ -2099,8 +2097,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         renderConversationDetail({ ...withProof, catchUp }, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
-      ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>
-        withAssistantName(detail.assistantName, () => liveRegion(locale, { ...conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'), orders }))) } : {}),
+      ...(mark && bid.ok ? { live:
+        withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'))) } : {}),
     }));
   });
 
@@ -2129,8 +2127,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = (req.query ?? {}) as { since?: unknown };
     const id = String((req.params as { conversationId?: string } | undefined)?.conversationId ?? '');
     const answer = await liveAnswer(deps.db, bid.value, kind, q.since, id);
-    return reply.code(answer.status).header('cache-control', 'no-store')
-      .send(answer.orders === undefined ? answer.said : { ...answer.said, orders: answer.orders });
+    return reply.code(answer.status).header('cache-control', 'no-store').send(answer.said);
   };
   // Asked three times a minute by every open tab: its request lines would bury
   // the log. A fault is still written (an error is above `warn`).
@@ -2140,6 +2137,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/live/conversation/:conversationId', quiet, liveAsk('conversation'));
   app.get('/app/live/channels', quiet, liveAsk('channels'));
   app.get('/app/live/billing', quiet, liveAsk('billing'));
+  /**
+   * The warmth run, phase 8 — the rail's question, from every signed-in page
+   * (`railAnswer` in live.ts): how many customers need this reader now, and,
+   * when that rose, who and why, for the toast. Counted for the reader, as the
+   * rail is; signed out, 401 and the script stops, as above.
+   */
+  app.get('/app/live/rail', quiet, async (req, reply) => {
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    if (!s || !bid || !bid.ok) {
+      return String(req.headers['accept'] ?? '').includes('application/json')
+        ? reply.code(401).header('cache-control', 'no-store').send({ n: 0 })
+        : reply.redirect('/login');
+    }
+    const answer = await railAnswer(deps.db, bid.value, personOf(s).id, ((req.query ?? {}) as { since?: unknown }).since);
+    return reply.code(answer.status).header('cache-control', 'no-store')
+      .send(answer.status === 200 ? railSaid(localeOf(req), answer) : { n: 0 });
+  });
 
   // CH2 — what to check at each step of connecting a Page, and why.
   // Phase 9 — it lights Setup, where the Channels page it belongs to sits, and
@@ -3960,9 +3975,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const owner = personOf(s).isOwner;
     const bid = parseBusinessId(s.businessId);
     // Phase 3 — what each row is set to now: read here, so the page says it without opening anything.
-    const [people, phones, login, billing, data] = await Promise.all([
+    const [people, phones, ways, login, billing, data] = await Promise.all([
       loadPeople(deps.db, s.businessId),
       loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null).catch(() => null),
+      // The warmth run, phase 8 — the row says how notifications reach this reader.
+      loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()).catch(() => undefined),
       bid.ok ? loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : Promise.resolve(null),
       owner && bid.ok ? withTenantTx(deps.db, bid.value, (tx) => billingState(tx)).catch(() => null) : Promise.resolve(null),
       owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
@@ -3971,7 +3988,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'nav.setup'), active: 'settings',
       bodyHtml: renderSetup({
         people: people.length, viewer: personOf(s),
-        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length } : null,
+        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length, ...(ways !== undefined ? { way: ways ? alertWayNow(ways, phones) : null } : {}) } : null,
         signIn: { email: login?.email ?? null },
         billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
         dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
@@ -3988,10 +4005,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = personOf(s).id;
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null;
   };
+  // The warmth run, phase 8 — the page is Notifications: what reaches anyone
+  // outside Nomi, how it reaches this person (their own choice, 0124), and the phones.
+  const whatsappApproved = (): boolean => deps.metaReview?.state === 'approved';
   app.get('/app/settings/alerts', authed('settings', async (s, req, locale, reply) => ({
-    title: t(locale, 'alerts.phone.title'),
-    bodyHtml: renderPhoneAlerts(await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null), locale, takeFlash(req, reply)),
+    title: t(locale, 'alerts.title'),
+    bodyHtml: renderPhoneAlerts({
+      ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
+      ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
+    }, locale, takeFlash(req, reply)),
   })));
+  app.post('/app/settings/alerts/channel', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const way = await chooseAlertWay(deps.db, s.businessId, personOf(s).id, b['channel'],
+      { approved: whatsappApproved(), pushOn: Boolean(deps.push) });
+    return flashTo(reply, '/app/settings/alerts', way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
+  });
   app.post('/app/settings/alerts/phone', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;

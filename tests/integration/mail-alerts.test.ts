@@ -10,12 +10,19 @@ import type { Analysis } from '../../src/core/conversation/decide.js';
  * production's own composition: a signed webhook → the worker → the turn →
  * the notify queue → the installation's mail.
  *
- *   · A reply waiting for the owner (no alert existed for it) is e-mailed to
- *     the owner's sign-in address, with the assistant's name and a link to
- *     the conversation — once an hour for a conversation, however many
- *     drafts it makes.
- *   · A hand-off is e-mailed too, and still goes by WhatsApp where a number
- *     is set; a WhatsApp failure after the e-mail left never sends it twice.
+ * PHASE 8 OF THE WARMTH RUN (2026-10-03) changed what leaves, deliberately —
+ * the owner: "Only two things may interrupt the owner outside the app: an
+ * order waiting for their tap, and a conversation the assistant handed over
+ * because it could not handle it. Everything else waits quietly in-app."
+ *
+ *   · A reply waiting for the owner is no longer e-mailed: it waits under
+ *     Needs you.
+ *   · A hand-off is e-mailed to the sign-in address, with a link.
+ *   · Each person hears ONE way — their choice, or the default (WhatsApp once
+ *     Meta approved Nomi and a number is set on a live channel, e-mail
+ *     otherwise) — and e-mail whenever that way fails. WhatsApp may be chosen
+ *     before approval where a number is set on a live channel (the pilot's
+ *     way until now). A deletion request is e-mailed to the owner always.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -108,7 +115,7 @@ d('G5 · alerts by e-mail (requires DATABASE_URL)', () => {
   }, 60_000);
   afterAll(async () => { await prod?.close(); });
 
-  it('A REPLY WAITING FOR THE OWNER is e-mailed to the sign-in address, with the name and a link — once an hour for the conversation', async () => {
+  it('A REPLY WAITING FOR THE OWNER waits in the app: nothing is e-mailed for it (phase 8)', async () => {
     analyzer.next = {
       language: { detected: 'en', replyIn: 'en' },
       intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
@@ -117,18 +124,16 @@ d('G5 · alerts by e-mail (requires DATABASE_URL)', () => {
     replyWriter.replies = ['Yes, we have it in blue.'];
     const from = `9715${runDigits(RUN, 6)}1`;
     const first = await writes(from, 'Do you have the scarf in blue?');
-    const [mail] = await mailFor('A reply is waiting for you');
-    expect(mail!.to).toBe(OWNER);
-    expect(mail!.text).toContain('Lily wrote a reply for a customer');
-    expect(mail!.text).toContain(`Open the conversation: ${BASE}/app/inbox/${first.conv}#latest`);
-
-    // The same customer again: a second draft, and no second e-mail this hour.
+    expect(first.drafts).toBeGreaterThanOrEqual(1);
     await writes(from, 'And in green?', 2);
     await new Promise((r) => setTimeout(r, 3000));
-    expect(ours('A reply is waiting for you')).toHaveLength(1);
-    // Another conversation is its own: the control that the quiet above was the hour, not a broken queue.
-    await writes(`9715${runDigits(RUN, 6)}2`, 'Is the silk one washable?');
-    await mailFor('A reply is waiting for you', 2);
+    // No e-mail, and no job queued for one: the worker queues only the two interruptions.
+    expect(ours('A reply is waiting for you')).toHaveLength(0);
+    const queued = await q(async (tx) => (await sql<{ n: number }>`
+      select count(*)::int as n from pgboss.job where name = 'notify.team' and data->>'businessId' = ${BIZ}
+         and data->>'kind' = 'draft_waiting'`.execute(tx)).rows[0]!.n);
+    expect(queued).toBe(0);
+    // The control that the quiet above is the rule, not a broken queue: the hand-off below is e-mailed.
   }, 180_000);
 
   it('A HAND-OFF is e-mailed too', async () => {
@@ -139,23 +144,64 @@ d('G5 · alerts by e-mail (requires DATABASE_URL)', () => {
     expect(mails.some((m) => m.text.includes(`${BASE}/app/inbox/${r.conv}#latest`))).toBe(true);
   }, 120_000);
 
-  it('BOTH WAYS where a number is set; a WhatsApp failure after the e-mail left is not retried; no way at all is said', async () => {
+  it('ONE WAY per person: the default is e-mail until Meta approves, then WhatsApp; a choice is kept; a failure falls back to e-mail', async () => {
     const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
     const mails: string[] = [];
     const mail = { send: async (m: { to: string }) => { mails.push(m.to); return { ok: true as const }; } };
     const texts: string[] = [];
     const ok = { sendText: async (to: string) => { texts.push(to); return { ok: true as const, providerMessageId: 'x' }; } };
     const retry = { sendText: async () => ({ ok: false as const, retryable: true, error: '503' }) };
+    const clear = () => { mails.length = 0; texts.length = 0; };
+    const choose = (way: string | null) => q((tx) => sql`update people set alert_channel = ${way}
+      where business_id = ${BIZ}::uuid and is_owner`.execute(tx));
+    // A number is set and the channel is live (beforeAll): only approval is missing.
     await q((tx) => sql`update businesses set owner_phone = '+971500009999' where id = ${BIZ}::uuid`.execute(tx));
-    const job = { businessId: BIZ, kind: 'hot_lead' as const, conversationId: null };
+    const job = { businessId: BIZ, kind: 'handoff' as const, conversationId: null };
+
+    // Before approval, the default is e-mail — and only e-mail.
     expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail }, job)).toBe('sent');
+    expect([mails, texts]).toEqual([[OWNER], []]);
+    // The day it lands, the same row (still the default) is WhatsApp — and only WhatsApp.
+    clear();
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail, whatsappApproved: true }, job)).toBe('sent');
+    expect([mails, texts]).toEqual([[], ['+971500009999']]);
+    // WhatsApp failing falls back to e-mail at once; nothing is thrown (a retry would tell twice).
+    clear();
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: retry, mail, whatsappApproved: true }, job)).toBe('sent');
+    expect(mails).toEqual([OWNER]);
+    // With no e-mail to fall back on, a retryable failure is retried.
+    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry, whatsappApproved: true }, job)).rejects.toThrow();
+    // An owner who chose e-mail stays on it after approval.
+    clear();
+    await choose('email');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail, whatsappApproved: true }, job)).toBe('sent');
+    expect([mails, texts]).toEqual([[OWNER], []]);
+    // Before approval, WhatsApp CHOSEN where reachable: WhatsApp only; refused outside Meta's day, e-mail.
+    clear();
+    await choose('whatsapp');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail }, job)).toBe('sent');
+    expect([mails, texts]).toEqual([[], ['+971500009999']]);
+    clear();
+    const refused = { sendText: async () => ({ ok: false as const, retryable: false, error: 'outside the 24 hours' }) };
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: refused, mail }, job)).toBe('sent');
+    expect(mails).toEqual([OWNER]);
+    // A deletion request: the chosen way AND e-mail, always (rule 18).
+    clear();
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail }, { businessId: BIZ, kind: 'deletion_requested', conversationId: null })).toBe('sent');
     expect([mails, texts]).toEqual([[OWNER], ['+971500009999']]);
-    // The e-mail left; WhatsApp's retryable failure does not throw (a retry would mail twice).
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: retry, mail }, job)).toBe('sent');
-    // With no e-mail sender, the retryable failure is retried as before.
-    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry }, job)).rejects.toThrow();
+    // Browser with no phone turned on: e-mail carries it.
+    clear();
+    await choose('browser');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail, whatsappApproved: true }, job)).toBe('sent');
+    expect([mails, texts]).toEqual([[OWNER], []]);
+    await choose(null);
+    // What waits in the app leaves by no way at all.
+    clear();
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail, whatsappApproved: true },
+      { businessId: BIZ, kind: 'hot_lead', conversationId: null })).toBe('skipped_quiet');
+    expect([mails, texts]).toEqual([[], []]);
     // No number and no sender: nowhere to go, and it says so.
     await q((tx) => sql`update businesses set owner_phone = null where id = ${BIZ}::uuid`.execute(tx));
-    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok }, job)).toBe('skipped_no_destination');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, whatsappApproved: true }, job)).toBe('skipped_no_destination');
   });
 });

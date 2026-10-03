@@ -11,7 +11,9 @@ import type { Analysis } from '../../src/core/conversation/decide.js';
  * own composition: a signed webhook → the worker → the hold.
  *
  *   · Below the cap a customer is answered as ever; yesterday's use is not today's.
- *   · The owner hears at the soft-warn line and at 100% — once each a day.
+ *   · The soft-warn line and 100% are claimed once each a day — and, since
+ *     phase 8 of the warmth run, wait in the app: the owner hears of the
+ *     customers it holds, each one handed over (an interruption), instead.
  *   · At the cap: the message is recorded, the customer handed to a person in
  *     silence (`allowance_used`), no model asked, nothing sent.
  *   · Handing back and approving are refused while it lasts; the draft waits.
@@ -137,7 +139,10 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
     expect(analyzer.calls).toBeGreaterThan(before);
   }, 120_000);
 
-  it('THE OWNER HEARS at the soft-warn line and at 100% — by e-mail, once each a day', async () => {
+  it('THE SOFT-WARN LINE AND 100% wait in the app: claimed once each a day, and nothing is e-mailed (phase 8)', async () => {
+    // Deliberately changed from "by e-mail, once each a day" — the owner (2026-10-03): "Only two things
+    // may interrupt the owner outside the app: an order waiting for their tap, and a conversation the
+    // assistant handed over because it could not handle it. Everything else waits quietly in-app."
     const { allowanceAlerts } = await import('../../src/pipeline/allowanceWatch.js');
     const { QUEUES } = await import('../../src/queue/boss.js');
     // The five-minute sweep may get there first; the claim is once a day either way.
@@ -146,17 +151,14 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
     };
     await used(850);
     await sweep();
-    const warn = await until(async () => mails(t('en', 'notify.allowance_warn.subject'))[0], 'the 80% e-mail');
-    expect(warn.text).toMatch(/^85% of today's allowance is used\. At 100%, new messages wait for you until it renews at \u2068?04:00\u2069?\.$/);
-    await sweep();
     await used(CAP);
     await sweep();
-    const reached = await until(async () => mails(t('en', 'notify.allowance_reached.subject'))[0], 'the 100% e-mail');
-    expect(reached.text).toContain('Needs you');
     await sweep();
-    await new Promise((r) => setTimeout(r, 1500));
-    expect(mails(t('en', 'notify.allowance_warn.subject'))).toHaveLength(1);
-    expect(mails(t('en', 'notify.allowance_reached.subject'))).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 3000));
+    expect(mails(t('en', 'notify.allowance_warn.subject'))).toHaveLength(0);
+    expect(mails(t('en', 'notify.allowance_reached.subject'))).toHaveLength(0);
+    // Their words are kept, for the day they are asked for again.
+    expect(t('en', 'notify.allowance_reached', { time: '04:00' })).toContain('Needs you');
   }, 60_000);
 
   it('AT THE CAP: recorded, handed to a person in silence, no model asked, nothing sent', async () => {
@@ -178,6 +180,8 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
              (select assigned_to::text from conversations where id = ${conv}::uuid) as owner`.execute(tx)).rows[0]!);
     expect(row).toMatchObject({ msgs: 1, outbound: 0, held: 'allowance_used' });
     expect(row.owner, 'the conversation is with a person').not.toBeNull();
+    // Phase 8 — this hand-over is what reaches the owner outside Nomi: e-mail, the default before Meta's approval.
+    await until(async () => mails(t('en', 'notify.handoff.subject')).find((m) => m.text.includes(conv)), 'the hand-over e-mail');
   }, 120_000);
 
   it('HANDING BACK and APPROVING are refused while it lasts; the draft waits', async () => {

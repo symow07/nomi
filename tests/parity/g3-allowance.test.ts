@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { renderPhotoRefusal } from '../../src/api/web/products.js';
-import { renderOwnerAlert, goesByMail, ALLOWANCE_ALERT_KINDS } from '../../src/pipeline/notify.js';
+import { renderOwnerAlert, goesByMail, waitsInApp, ALLOWANCE_ALERT_KINDS } from '../../src/pipeline/notify.js';
 import { allowanceRenewsAt, PHOTO_READS_A_DAY } from '../../src/db/allowance.js';
 import { HOLD_OUTCOME, HOLD_REASON } from '../../src/db/assistantStop.js';
 import { PROBLEM_SIGNAL_KINDS, TRIGGER_REASONS, toTriggerReason, SIGNAL_SAMPLES } from '../../src/core/scoring/signals.js';
@@ -92,8 +92,12 @@ describe('G3 · what the owner reads', () => {
       expect(left).not.toContain(esc(t(locale, 'product.photo.retake')));
     });
   }
-  it('both e-mails go by mail always, as the operator alerts do', () => {
-    for (const k of ALLOWANCE_ALERT_KINDS) expect(goesByMail(k), k).toBe(true);
+  it('phase 8 of the warmth run: both wait in the app now — at 100% each new message is handed over, and that is what reaches the owner', () => {
+    // Deliberately changed from "by mail always": the owner (2026-10-03): "Only two things may interrupt the owner outside the app: an order waiting for their tap, and a conversation the assistant handed over because it could not handle it. Everything else waits quietly in-app."
+    for (const k of ALLOWANCE_ALERT_KINDS) {
+      expect(goesByMail(k), k).toBe(false);
+      expect(waitsInApp(k), k).toBe(true);
+    }
   });
   it('My business shows the allowance always: none, how much, or used up with a door to who waits', () => {
     const f = src('src/api/web/factory.ts');

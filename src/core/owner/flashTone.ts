@@ -29,6 +29,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'hs.flash.noneTicked',
   // G5b — a phone that could not be added, or a test no phone received.
   'alerts.flash.bad', 'alerts.flash.testNone',
+  // The warmth run, phase 8 — a way that cannot be chosen here: nothing was saved.
+  'alerts.flash.wayBad',
   'account.flash.failed', 'account.flash.short', 'account.flash.wrong', 'allowlist.flash.invalid',
   // 0080 — the order still waits, or was already decided; and like
   // `inbox.flash.sentNotLive`, recorded but nothing sent.
@@ -163,7 +165,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // HS — an answer's ticked lines saved, or the question left for later.
   'hs.flash.saved', 'hs.flash.skipped',
   // G5b — alerts turned on, stopped, or a test sent.
-  'alerts.flash.on', 'alerts.flash.removed', 'alerts.flash.tested',
+  'alerts.flash.on', 'alerts.flash.removed', 'alerts.flash.tested', 'alerts.flash.way',
   'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',
