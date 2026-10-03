@@ -475,6 +475,11 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       if (!b || !b.form || typeof b.form.requestSubmit !== 'function') return;
       e.preventDefault();
       e.stopPropagation();
+      /* A form not filled in is said so first, by the browser, under its field; nothing is asked (w4-settings-a-15). */
+      if (typeof b.form.checkValidity === 'function' && !b.form.checkValidity()) {
+        if (typeof b.form.reportValidity === 'function') b.form.reportValidity();
+        return;
+      }
       pending = b;
       said.textContent = b.getAttribute('data-confirm');
       yes.textContent = String(b.textContent || '').trim();
