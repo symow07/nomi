@@ -231,6 +231,10 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
   });
 
   it('A MEMBER OF STAFF is refused by the route, and by the database if a route ever forgot', async () => {
+    // The route alone: not even the page that asks is drawn for them.
+    const first = await post(staff, `/app/conversations/${C.chat.conv}/deletion/erase`, { asked: '0' });
+    expect(first.statusCode).toBe(302);
+    expect(flashSaid(first, SECRET)).toBe(t('en', 'staff.notAllowed'));
     const res = await post(staff, `/app/conversations/${C.chat.conv}/deletion/erase`, { asked: '1' });
     expect(flashSaid(res, SECRET)).toBe(t('en', 'staff.notAllowed'));
     expect(await footprint(C.chat)).toEqual({ messages: 1, identities: 1, named: 1, conversations: 1 });
@@ -359,6 +363,8 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
   it('CLOSING: staff refused; a wrong name refused; no script answered with a page that asks — nothing erased', async () => {
     const tried = await post(staff, '/app/settings/data/close', { name: SHOP_NAME, asked: '1' });
     expect(flashSaid(tried, SECRET)).toBe(t('en', 'staff.notAllowed'));
+    const triedFirst = await post(staff, '/app/settings/data/close', { name: SHOP_NAME, asked: '0' });
+    expect(flashSaid(triedFirst, SECRET), 'the route alone refuses, before the page that asks').toBe(t('en', 'staff.notAllowed'));
     const wrong = await post(owner, '/app/settings/data/close', { name: 'Not my shop', asked: '1' });
     expect(flashSaid(wrong, SECRET)).toBe(t('en', 'data.flash.name_wrong'));
     const ask = await post(owner, '/app/settings/data/close', { name: SHOP_NAME.toUpperCase(), asked: '0' });
