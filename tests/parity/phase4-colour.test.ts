@@ -63,6 +63,9 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '.verdict.ok': ['text', '✓ All ready'],
   '.cert.on': ['text', '✓ before a certification that is on'],
   '.btn.danger': ['verb', 'Remove, Disconnect, Revoke…'],
+  // The warmth run (2026-10-03): today's marker is magenta's third job (the owner's words), said by its word.
+  '.cal-now': ['word', 'the word "Today" itself'],
+  '.mo td.today .mo-d': ['word', "today's date, the cell's own number, in weight as well as colour"],
 };
 
 describe('phase 4 · the four signals', () => {
