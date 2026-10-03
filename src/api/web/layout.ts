@@ -1775,7 +1775,7 @@ const STYLE_PAGES = `
   /* Every day CHOOSES itself: its number's door covers the whole cell, under the faces (each opens its card) and "+N more".
      The chosen day wears a neutral ring, graphite like the primary action: magenta keeps its three jobs. */
   .mo td { position:relative; }
-  .mo-d::after { content:""; position:absolute; inset:2px; border-radius:var(--radius-control); }
+  .mo-d::after { content:""; position:absolute; inset:0; border-radius:var(--radius-control); }
   .mo td:hover .mo-d::after { box-shadow:inset 0 0 0 1px var(--color-border); }
   .mo td.sel .mo-d::after { box-shadow:inset 0 0 0 2px var(--color-ink); }
   .mo-d:focus-visible { outline:none; }
@@ -1802,7 +1802,7 @@ const STYLE_PAGES = `
     .mo-e .mo-n { position:absolute; inline-size:1px; block-size:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
     .mo-d { display:flex; margin-inline:auto; }
     .mo td.today .cal-now { display:block; margin:0; text-align:center; overflow-wrap:anywhere; hyphens:auto; }
-    .mo-more { display:flex; justify-content:center; padding-inline:0; }
+    .mo-more { display:flex; justify-content:center; padding-inline:0; text-align:center; }
   }
 
   /* ── orders.ts — an order (phase 9 of the warmth run): whose order it is, their face beside the heading; an article
