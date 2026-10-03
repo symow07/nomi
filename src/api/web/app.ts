@@ -24,7 +24,7 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { keptFace } from '../../db/faces.js';
 import { loadCustomerCard } from '../../db/customerCard.js';
-import { renderCustomerCard } from './customerCard.js';
+import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
@@ -96,7 +96,7 @@ import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
 } from './priceRules.js';
-import { loadOrder, recordOrderUpdate, renderOrder, proformaText, proformaFileName } from './orders.js';
+import { loadOrder, recordOrderUpdate, renderOrder, proformaText, proformaFileName, orderTitle } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renamePerson, renderPeople, personForCode, ownerPerson, hashCode,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
@@ -2020,7 +2020,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // A1 — HER business, from her session. This read the environment's one
       // business, which was the same thing until a second factory could sign in.
       loadOperationsSnapshot(deps.db, s.businessId, 'today', deps.provider, messagingEnabled),
-      loadInsights(deps.db, s.businessId),
+      loadInsights(deps.db, s.businessId, personOf(s).id),
       loadToday(deps.db, s.businessId, personOf(s).id, new Date()),
     ]);
     return {
@@ -4200,6 +4200,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * page. Every face in the product links here; the page's script lifts the
    * card into a sheet over the page it was opened from. Another business's
    * customer is not found, as a missing one is (row security).
+   *
+   * Phase 9 — waiting is read as THIS reader sees it (the Inbox's rule), and
+   * the conversation the card was opened from (the page that asked for it,
+   * this site's own conversation page) is told to the card: its door does
+   * not lead back to it, and the page's back link does.
    */
   app.get('/app/customers/:clientId', async (req, reply) => {
     const s = sessionOf(req);
@@ -4207,14 +4212,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const bid = parseBusinessId(s.businessId);
     const id = (req.params as { clientId: string }).clientId;
-    const card = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerCard(tx, id)) : null;
+    const card = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerCard(tx, id, personOf(s).id)) : null;
     if (!card) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       bodyHtml: missingPage(locale, t(locale, 'inbox.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') }),
     }));
+    const from = cardOpenedFrom(req.headers.referer, req.headers.host);
     return reply.type('text/html; charset=utf-8').header('cache-control', 'private, no-store').send(page(req, {
       title: card.name ?? t(locale, 'common.buyer'), active: 'inbox',
-      bodyHtml: `${back('/app/inbox', t(locale, 'nav.inbox'))}${renderCustomerCard(card, locale, new Date())}`,
+      bodyHtml: `${from ? back(conversationUrl(from), t(locale, 'pcard.back')) : back('/app/inbox', t(locale, 'nav.inbox'))}${renderCustomerCard(card, locale, new Date(), from)}`,
     }));
   });
 
@@ -4222,7 +4228,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     const v = await loadOrder(deps.db, sess.businessId, id);
     if (!v) return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') });
-    return renderOrder(v, locale, takeFlash(req, reply));
+    // Phase 9 of the warmth run (V1-184) — the tab names whose order it is, as the heading does.
+    return { bodyHtml: renderOrder(v, locale, takeFlash(req, reply)), title: orderTitle(locale, v) };
   }));
 
   // Phase 9 (V1-188) — the proforma as a file, the same text the page shows:

@@ -827,10 +827,19 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const bidv = parsed.value;
 
     const d = await loadAnalytics(prod.db, DEMO_BIZ, 'month');
+    // Phase 9 of the warmth run — new customers are those in touch this month (w4-customers-19), and a quote
+    // counts once it was given: not held back, and a line left after it (PRICE_GIVEN, w4-customers-20).
     const truth = await withTenantTx(prod.db, bidv, (tx) => sql<{ clients: number; inbound: number; quotes: number }>`
-      select (select count(*)::int from clients where created_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as clients,
-             (select count(*)::int from messages where direction='inbound' and sent_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as inbound,
-             (select count(*)::int from quotes where created_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as quotes
+      with m0 as (select (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c)
+      select (select count(distinct cl.id)::int from clients cl join conversations cv on cv.client_id = cl.id
+                join messages m on m.conversation_id = cv.id, m0
+               where cl.created_at >= m0.c and m.sent_at >= m0.c) as clients,
+             (select count(*)::int from messages, m0 where direction='inbound' and sent_at >= m0.c) as inbound,
+             (select count(*)::int from quotes q, m0 where q.created_at >= m0.c
+                 and not exists (select 1 from turns t join drafts d on d.turn_message_id = t.message_id
+                                  where t.quote_id = q.id and d.status <> 'approved')
+                 and exists (select 1 from messages m where m.conversation_id = q.conversation_id
+                              and m.direction = 'outbound' and m.sent_at >= q.created_at)) as quotes
     `.execute(tx).then((r) => r.rows[0]!));
     expect(d.summary.newClients).toBe(truth.clients);
     expect(d.activity.inbound).toBe(truth.inbound);

@@ -303,6 +303,9 @@ describe('M49 · buttons and empty states', () => {
       ['layout.ts  .td-more', 'the row\'s last tile, "+N more", drawn like a face over its word'],
       // The fix wave (w4-public-07) — the site's button: a label that wraps sits in the middle of its box.
       ['site.ts  .site-go', 'a button\'s own label, centred in its button when it takes two lines'],
+      // Phase 9 of the warmth run — the month on a phone: seven narrow columns, each day a face over its signal.
+      ['layout.ts  .mo thead th', 'the weekday over its narrow column, on a phone where the week fits the screen'],
+      ['layout.ts  .mo td.today .cal-now', 'today\'s word under its date, centred in the day\'s narrow cell on a phone'],
     ]);
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {

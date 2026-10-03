@@ -66,7 +66,9 @@ describe('M9.8 · business review (localized)', () => {
   it('real order value only when orders exist — localized status + note', () => {
     // Phase 9 (V1-210) — a figure and its words, as every other row: "1 order · Confirmed", "$4,600.00 in sales".
     expect(renderAnalytics(active, 'en')).toContain('<div class="stat"><div class="v">1</div><div class="l">order · Confirmed</div></div>');
-    expect(renderAnalytics(active, 'en')).toContain('<div class="stat"><div class="v">$4,600.00</div><div class="l">in sales</div></div>');
+    // phase 9 of the warmth run (w4-customers-22) — what the orders come to is the Sales section's headline line, under its own heading
+    expect(renderAnalytics(active, 'en')).toContain('<p class="an-total"><span class="v">$4,600.00</span> <span class="l">in sales</span></p>');
+    expect(renderAnalytics(active, 'en')).toContain('<h2>Sales</h2>');
     expect(renderAnalytics(active, 'zh')).toContain('个订单 · 已成交');
     const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totals: [] } }, 'en');
     expect(noOrders).not.toContain('in sales');

@@ -5,6 +5,7 @@ import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/c
 import { zoneOf } from '../../db/zone.js';
 import { faceVersions } from '../../db/faces.js';
 import { SPEND_STATUSES } from '../../db/customerValue.js';
+import { PRICE_GIVEN } from '../../db/quotesGiven.js';
 import { ownershipOf } from '../../core/conversation/ownership.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
@@ -150,9 +151,10 @@ async function readHandled(tx: Tx, B: BusinessId, start: Date): Promise<NonNulla
 /**
  * Today's three figures, in the workspace's day.
  *   orders      orders that stand (`SPEND_STATUSES`) confirmed today;
- *   quotes      prices worked out today that a reply (the assistant's or the
- *               owner's) went out after, in the same conversation — a price
- *               nobody sent is not "sent";
+ *   quotes      prices worked out today that were GIVEN (`PRICE_GIVEN`,
+ *               `quotesGiven.ts` — not held back, and a line left after it):
+ *               a price nobody sent is not "sent". Results and the calendar
+ *               count by the same rule (phase 9, w4-customers-20);
  *   afterHours  conversations the assistant answered outside 08:00–20:00 local
  *               time (`OPEN_HOUR`, `CLOSE_HOUR`).
  */
@@ -163,10 +165,7 @@ async function readTally(tx: Tx, B: BusinessId, zone: string, start: Date): Prom
         where r.business_id = ${B} and r.status = any(${[...SPEND_STATUSES]}::text[])
           and coalesce(r.confirmed_at, r.created_at) >= ${start}) as orders,
       (select count(*)::int from quotes q
-        where q.business_id = ${B} and q.created_at >= ${start}
-          and exists (select 1 from outbound_messages o
-                       where o.conversation_id = q.conversation_id and o.origin in ('employee', 'owner')
-                         and o.status in ('sent', 'delivered', 'read') and o.sent_at >= q.created_at)) as quotes,
+        where q.business_id = ${B} and q.created_at >= ${start} and ${PRICE_GIVEN}) as quotes,
       (select count(distinct o.conversation_id)::int from outbound_messages o
         where o.business_id = ${B} and o.origin = 'employee'
           and o.status in ('sent', 'delivered', 'read') and o.sent_at >= ${start}

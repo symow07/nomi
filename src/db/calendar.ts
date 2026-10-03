@@ -6,6 +6,7 @@ import { type Money, moneyFromRow } from '../core/types/money.js';
 import { closureDate } from '../core/commerce/closures.js';
 import { addDays, dayKey, dayStart } from '../core/owner/i18n/format.js';
 import { faceVersions } from './faces.js';
+import { PRICE_GIVEN, PRICE_IN_REVIEW } from './quotesGiven.js';
 
 /**
  * V2 — the calendar: a timeline over dates the data ALREADY holds.
@@ -92,6 +93,12 @@ export type CalendarEntry = {
     readonly title?: string;
     readonly endsAt?: Date;
     readonly entryId?: string;
+    /**
+     * Phase 9 (w4-customers-13) — where a price stands: given to them, its
+     * reply waiting for the owner's OK, or never sent (`quotesGiven.ts`).
+     * Only a price given is done; one in review is still owed.
+     */
+    readonly priceState?: 'given' | 'review' | 'unsent';
     /** 0083 — a promise: the sentence as sent, who said it, and whether it is kept. */
     readonly said?: string;
     readonly byAssistant?: boolean;
@@ -215,9 +222,11 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
   // which is the one named as the source.
   const quotes = (await sql<BuyerCols & {
     id: string; conv: string; created_at: Date; quantity: number; unit_price_usd: string; currency: string;
+    given: boolean; review: boolean;
   }>`
     select q.id::text as id, q.conversation_id::text as conv, q.created_at, q.quantity,
            q.unit_price_usd::text as unit_price_usd, q.currency,
+           ${PRICE_GIVEN} as given, ${PRICE_IN_REVIEW} as review,
            cl.id::text as client_id, cl.display_name as buyer, cl.country
       from quotes q
       join conversations c on c.id = q.conversation_id and c.business_id = q.business_id
@@ -225,15 +234,27 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
      where q.business_id = ${bid} and q.created_at >= ${start} and q.created_at < ${end}
      order by q.created_at desc
      limit ${PER_SOURCE}`.execute(tx)).rows;
+  // Phase 9 (w4-customers-13) — the same figure worked out twice stands as
+  // far as it got: given, if either row was; else in review; else unsent.
+  const keyOf = (r: (typeof quotes)[number]): string => `${r.conv}|${dayKey(r.created_at, zone)}|${r.quantity}|${r.unit_price_usd}|${r.currency}`;
+  const stateOf = (r: (typeof quotes)[number]): 'given' | 'review' | 'unsent' => (r.given ? 'given' : r.review ? 'review' : 'unsent');
+  const STRENGTH = { given: 2, review: 1, unsent: 0 } as const;
+  const best = new Map<string, 'given' | 'review' | 'unsent'>();
+  for (const r of quotes) {
+    const k = keyOf(r);
+    const was = best.get(k);
+    if (was === undefined || STRENGTH[stateOf(r)] > STRENGTH[was]) best.set(k, stateOf(r));
+  }
   const seenQuote = new Set<string>();
   for (const r of quotes) {
     const price = moneyFromRow(Number(r.unit_price_usd), r.currency);
     if (price === null) continue;
-    const key = `${r.conv}|${dayKey(r.created_at, zone)}|${r.quantity}|${r.unit_price_usd}|${r.currency}`;
+    const key = keyOf(r);
     if (seenQuote.has(key)) continue;
     seenQuote.add(key);
     timed({ category: 'negotiation', kind: 'price_worked_out', at: r.created_at, conversationId: r.conv, orderId: null,
-      buyer: buyerOf(r), identity: null, detail: { price, quantity: r.quantity },
+      buyer: buyerOf(r), identity: null,
+      detail: { price, quantity: r.quantity, priceState: best.get(key) ?? stateOf(r) },
       source: { table: 'quotes', id: r.id, column: 'created_at' } });
   }
   const handoffs = (await sql<BuyerCols & { id: string; conv: string; sla_deadline_at: Date }>`

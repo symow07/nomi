@@ -2,6 +2,8 @@ import { sql, type RawBuilder } from 'kysely';
 import type { Tx } from './client.js';
 import { WAITING_HUMAN_AGENT, OWNER_AGENT } from '../core/conversation/ownership.js';
 import { SPEND_STATUSES } from './customerValue.js';
+import { PRICE_GIVEN } from './quotesGiven.js';
+import { moneyFromRow, type Money } from '../core/types/money.js';
 
 /**
  * A — Buyers and Customers are ONE list (the owner's decision 5, 2026-09-28;
@@ -48,8 +50,11 @@ import { SPEND_STATUSES } from './customerValue.js';
  * TWO LENSES ON THE SAME LIST (`BuyersLens`): "waiting now", the order above
  * (who needs the owner first, then the newest contact), and "matters most",
  * by what each customer has spent (`customerValue.ts`'s SPENT, in SQL below),
- * then by newest contact, the customers with nothing spent after. Each lens
- * pages by its own keyset, its cursor carrying its own key.
+ * then — phase 9 of the warmth run (w4-customers-04) — those with nothing
+ * spent by the price they were last given (`QUOTED`, `PRICE_GIVEN`), the
+ * biggest first, then by newest contact. Without the second tier the lens
+ * was one row and then "Waiting now" without its groups. Each lens pages by
+ * its own keyset, its cursor carrying its own key.
  */
 
 /** How many rows a page shows. The old window's size: the page reads the same, it only stops dropping people. */
@@ -191,15 +196,16 @@ export const searchOf = (raw: unknown): string =>
  * of their conversations'), their last contact in microseconds since 1970
  * (null: no message yet — those sort last in their rank), and the customer's
  * id. "Matters most": what they have spent (a decimal as Postgres writes it;
- * nothing spent is 0), the same last contact, and the id.
+ * nothing spent is 0), the price they were last given when they spent
+ * nothing (0 otherwise), the same last contact, and the id.
  */
 export type ListKey =
   | { readonly lens: 'waiting'; readonly rank: number; readonly at: string | null; readonly id: string }
-  | { readonly lens: 'value'; readonly spent: string; readonly at: string | null; readonly id: string };
+  | { readonly lens: 'value'; readonly spent: string; readonly quoted: string; readonly at: string | null; readonly id: string };
 
 /**
- * `<rank>_<µs or n>_<id>` for "waiting now"; `v<spent>_<µs or n>_<id>` for
- * "matters most" — digits, a point, hex, hyphens, underscores and two letters,
+ * `<rank>_<µs or n>_<id>` for "waiting now"; `v<spent>_q<given>_<µs or n>_<id>`
+ * for "matters most" — digits, a point, hex, hyphens, underscores and three letters,
  * nothing a URL percent-encodes, so no `%` reaches the page (the transcript
  * cursor's rule). Microseconds, not milliseconds: the bound is the stored
  * stamp to the microsecond, or two messages inside one millisecond could put
@@ -207,14 +213,16 @@ export type ListKey =
  * (two decimals), so the next page starts at exactly that amount.
  */
 export const encodeListKey = (k: ListKey): string =>
-  k.lens === 'waiting' ? `${k.rank}_${k.at ?? 'n'}_${k.id}` : `v${k.spent}_${k.at ?? 'n'}_${k.id}`;
+  k.lens === 'waiting' ? `${k.rank}_${k.at ?? 'n'}_${k.id}` : `v${k.spent}_q${k.quoted}_${k.at ?? 'n'}_${k.id}`;
 
 const AT = '(n|0|-?[1-9][0-9]{0,17})';
 const ID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
 // The ranks LIST_RANK can give: 0–7 (0080 added the waiting order as 0).
 const WAITING_KEY = new RegExp(`^([0-7])_${AT}_${ID}$`);
 // An amount as Postgres writes a numeric: no exponent, no grouping, a point.
-const VALUE_KEY = new RegExp(`^v(-?(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,6})?)_${AT}_${ID}$`);
+const AMOUNT = '(-?(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,6})?)';
+// Phase 9 — what they spent, then the price they were last given (0 for a customer who spent, or was given none).
+const VALUE_KEY = new RegExp(`^v${AMOUNT}_q${AMOUNT}_${AT}_${ID}$`);
 
 /**
  * Exactly the shape `encodeListKey` writes for THIS lens, or null — and null
@@ -228,7 +236,7 @@ export function parseListKey(lens: BuyersLens, raw: unknown): ListKey | null {
     return m ? { lens, rank: Number(m[1]), at: m[2] === 'n' ? null : m[2]!, id: m[3]! } : null;
   }
   const m = VALUE_KEY.exec(raw);
-  return m ? { lens, spent: m[1]!, at: m[2] === 'n' ? null : m[2]!, id: m[3]! } : null;
+  return m ? { lens, spent: m[1]!, quoted: m[2]!, at: m[3] === 'n' ? null : m[3]!, id: m[4]! } : null;
 }
 
 /** Within one rank (or one amount): `at desc nulls last, id desc`, after `k`. */
@@ -243,17 +251,19 @@ const earlierIn = (k: ListKey): RawBuilder<boolean> => k.at === null
 /** Rows AFTER `k` in the lens's order: `rank` up, or `spent` down; then the newest contact. */
 const afterKey = (k: ListKey): RawBuilder<boolean> => k.lens === 'waiting'
   ? sql<boolean>`(rank > ${k.rank} or (rank = ${k.rank} and ${laterIn(k)}))`
-  : sql<boolean>`(spent < ${k.spent}::numeric or (spent = ${k.spent}::numeric and ${laterIn(k)}))`;
+  : sql<boolean>`(spent < ${k.spent}::numeric or (spent = ${k.spent}::numeric and (quoted < ${k.quoted}::numeric
+      or (quoted = ${k.quoted}::numeric and ${laterIn(k)}))))`;
 
 /** Rows BEFORE `k` in the same order. */
 const beforeKey = (k: ListKey): RawBuilder<boolean> => k.lens === 'waiting'
   ? sql<boolean>`(rank < ${k.rank} or (rank = ${k.rank} and ${earlierIn(k)}))`
-  : sql<boolean>`(spent > ${k.spent}::numeric or (spent = ${k.spent}::numeric and ${earlierIn(k)}))`;
+  : sql<boolean>`(spent > ${k.spent}::numeric or (spent = ${k.spent}::numeric and (quoted > ${k.quoted}::numeric
+      or (quoted = ${k.quoted}::numeric and ${earlierIn(k)}))))`;
 
 /** The lens's order, as `row_number` reads it. */
 const ORDER: Readonly<Record<BuyersLens, RawBuilder<unknown>>> = {
   waiting: sql`rank, at_us desc nulls last, id desc`,
-  value: sql`spent desc, at_us desc nulls last, id desc`,
+  value: sql`spent desc, quoted desc, at_us desc nulls last, id desc`,
 };
 
 export type BuyersPage = {
@@ -289,6 +299,31 @@ const SPENT = sql<string>`coalesce((select sum(o.total_value_usd) from orders o
                         order by coalesce(o2.confirmed_at, o2.created_at) desc limit 1)), 0)`;
 
 /**
+ * Phase 9 (w4-customers-04) — the price a customer who has spent nothing was
+ * last GIVEN (`PRICE_GIVEN`: not held back, and a line left after it), its
+ * total as stored; 0 for a customer who has spent (they are ordered by that)
+ * or was given none. "Matters most" orders those with nothing spent by it,
+ * and the row shows it (`quotesGiven`).
+ */
+const QUOTED = sql<string>`coalesce((select q.total_usd from quotes q join conversations cq on cq.id = q.conversation_id
+   where cq.client_id = ch.client_id and ${PRICE_GIVEN}
+   order by q.created_at desc limit 1), 0)`;
+
+/** The price each of these customers was last given (`QUOTED`'s reading), in its own currency. */
+export async function lastQuoteGiven(tx: Tx, clientIds: readonly string[]): Promise<ReadonlyMap<string, Money>> {
+  if (clientIds.length === 0) return new Map();
+  const rows = (await sql<{ client_id: string; total: string; currency: string }>`
+    select distinct on (c.client_id) c.client_id::text as client_id, q.total_usd::text as total, q.currency
+      from quotes q join conversations c on c.id = q.conversation_id
+     where c.client_id = any(${[...clientIds]}::uuid[]) and ${PRICE_GIVEN}
+     order by c.client_id, q.created_at desc`.execute(tx)).rows;
+  return new Map(rows.flatMap((r) => {
+    const m = moneyFromRow(Number(r.total), r.currency);
+    return m && m.amount > 0 ? [[r.client_id, m] as const] : [];
+  }));
+}
+
+/**
  * One page of the list. `after` / `before` are whatever the request carried:
  * a malformed cursor is the first page, and so is a cursor past the end of a
  * list that shrank — never an error, and never an empty page while there is
@@ -304,7 +339,7 @@ export async function readBuyersPage(tx: Tx, o: {
   const after = parseListKey(lens, o.after);
   const before = after ? null : parseListKey(lens, o.before);
   const read = async (bound: RawBuilder<boolean>, backward: boolean) => (await sql<{
-    id: string; conversation_id: string; rank: number; spent: string; at_us: string | null; pos: number; total: number;
+    id: string; conversation_id: string; rank: number; spent: string; quoted: string; at_us: string | null; pos: number; total: number;
   }>`
     with conv as (
       -- Every conversation the tab and the search hold, with its rank.
@@ -325,18 +360,21 @@ export async function readBuyersPage(tx: Tx, o: {
        order by client_id, rank, at_us desc nulls last, id desc
     ), listed as (
       -- The customer's last contact is their newest message on ANY conversation.
-      select ch.client_id as id, ch.conversation_id, ch.rank, ${SPENT} as spent,
+      select ch.client_id as id, ch.conversation_id, ch.rank, ${SPENT} as spent, ${lens === 'value' ? QUOTED : sql`0`} as given,
              (select (extract(epoch from max(m.sent_at)) * 1000000)::bigint
                 from messages m join conversations c2 on c2.id = m.conversation_id
                where c2.client_id = ch.client_id) as at_us
         from ch
     ), placed as (
-      select id, conversation_id, rank, spent, at_us,
+      select id, conversation_id, rank, spent, quoted, at_us,
              (row_number() over (order by ${ORDER[lens]}))::int as pos,
              (count(*) over ())::int as total
-        from listed
+        from (
+          -- Only a customer who has spent nothing is ordered by the price they were given.
+          select id, conversation_id, rank, spent, at_us, (case when spent > 0 then 0 else given end)::numeric as quoted from listed
+        ) l0
     )
-    select id::text as id, conversation_id::text as conversation_id, rank, spent::text as spent,
+    select id::text as id, conversation_id::text as conversation_id, rank, spent::text as spent, quoted::text as quoted,
            at_us::text as at_us, pos, total from placed
      where ${bound}
      order by pos ${backward ? sql`desc` : sql`asc`}
@@ -354,7 +392,7 @@ export async function readBuyersPage(tx: Tx, o: {
   if (!first || !last) return { rows: [], ids: [], total: 0, from: 0, to: 0, next: null, prev: null };
   const key = (r: typeof first): string => encodeListKey(lens === 'waiting'
     ? { lens, rank: r.rank, at: r.at_us, id: r.id }
-    : { lens, spent: r.spent, at: r.at_us, id: r.id });
+    : { lens, spent: r.spent, quoted: r.quoted, at: r.at_us, id: r.id });
   return {
     rows: rows.map((r) => ({ clientId: r.id, conversationId: r.conversation_id })),
     ids: rows.map((r) => r.conversation_id),

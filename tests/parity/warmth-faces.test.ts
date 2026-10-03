@@ -164,7 +164,7 @@ describe('phase 3 · the profile card', () => {
       expect(html, l).toContain('data-card-body');
       expect(html, l).toContain('<span class="face face-xl');
       expect(html, l).toContain('<h1 class="pc-name" id="pc-name"><bdi>Maya Rahman</bdi></h1>');
-      expect(html, l).toContain(`<p class="pc-wait">${esc(t(l, 'pcard.waiting'))}</p>`);
+      expect(html, l).toContain(`<p class="pc-wait">${esc(t(l, 'inbox.filter.pending'))}</p>`);
       expect(html, l).toContain(`<p class="pc-regular">${esc(t(l, 'pcard.regular'))}</p>`);
       expect(html, l).toContain(esc(t(l, 'pcard.spent')));
       expect(html, l).toContain(esc(t(l, 'pcard.orders')));
