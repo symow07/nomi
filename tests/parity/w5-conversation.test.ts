@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { usd } from '../../src/core/types/money.js';
-import { esc } from '../../src/api/web/layout.js';
+import { esc, shell } from '../../src/api/web/layout.js';
+import { linkedCss } from './linked-css.js';
+import { readFileSync } from 'node:fs';
 import { withAssistantName } from '../../src/api/web/say.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import * as show from '../../src/api/web/values.js';
@@ -99,5 +101,27 @@ describe('the owner\'s deletion form names the profile photo, as the privacy pag
       expect(t(l, 'conv.deletion.erased'), l).toMatch(words[l]);
       expect(t(l, 'conv.deletion.erased'), l).not.toMatch(/WhatsApp/);
     }
+  });
+});
+
+describe('w4-conversation-20, -25 · "… is writing a reply"', () => {
+  it('a line somebody already answered does not count: a person\'s reply, one from the phone, or a hand-over after it (live.ts)', () => {
+    const src = readFileSync(new URL('../../src/api/web/live.ts', import.meta.url), 'utf8');
+    const fn = src.slice(src.indexOf('export async function assistantWorking'), src.indexOf('export type LiveAnswer'));
+    expect(fn.match(/nobodyAnsweredSince\(sql\.ref\('(f\.received_at|j\.created_on)'\)\)/g)).toHaveLength(2);
+    const rule = src.slice(src.indexOf('const nobodyAnsweredSince'), src.indexOf('export async function assistantWorking'));
+    expect(rule).toContain("o.origin = 'owner'");
+    expect(rule).toContain("o.status not in ('failed', 'canceled')");
+    expect(rule).toContain("m.external_id like 'echo:%'");
+    expect(rule).toContain("e.type = 'handoff'");
+    // the integration case walks it against the database
+    expect(readFileSync(new URL('../integration/phase5-undo-working.test.ts', import.meta.url), 'utf8')).toContain('w4-conversation-20');
+  });
+
+  it('the dots follow the last word when the line wraps, in every language', () => {
+    const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'es', path: '/app/inbox', bodyHtml: '' }));
+    expect(css).toMatch(/\.working \{ display:block;/);
+    expect(css).not.toMatch(/\.working \{ display:flex/);
+    expect(css).toMatch(/\.working \.dots \{ display:inline-flex;[^}]*margin-inline-start:var\(--space-8\)/);
   });
 });

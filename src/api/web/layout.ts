@@ -303,9 +303,10 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
   @keyframes nomi-fade { from { opacity:0; } }
   @keyframes nomi-spring { from { opacity:0; transform:translateY(var(--space-48)) scale(0.97); } }
-  /* The assistant at work: its mark, what it is doing, three dots. */
-  .working { display:flex; align-items:baseline; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .working .dots { display:inline-flex; gap:var(--space-4); }
+  /* The assistant at work: its mark, what it is doing, three dots. One run of text, so the dots follow
+     the last word when the words wrap (w4-conversation-25), not the far edge of the line. */
+  .working { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .working .dots { display:inline-flex; gap:var(--space-4); margin-inline-start:var(--space-8); vertical-align:middle; }
   .working .dots i { width:6px; height:6px; border-radius:var(--radius-chip); background:var(--color-ink-secondary); }
   /* Asking first: the product's own dialog over a dimmed page. */
   dialog.ask { border:0; border-radius:var(--radius-card); padding:var(--space-24); max-width:var(--measure-form);

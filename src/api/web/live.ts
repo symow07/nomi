@@ -221,8 +221,28 @@ export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks' | 'ordersWaiti
  * failed turn hands the conversation to a person (`not_answered`, PR 110): a
  * line saying the assistant is writing must never outlive the writing. A
  * conversation a person holds never shows it — the assistant is not answering.
+ *
+ * The fix wave (w4-conversation-20) — NOR A MESSAGE SOMEBODY ALREADY ANSWERED.
+ * A turn that failed leaves its line untaken; the owner took the conversation,
+ * replied and handed it back, and the line read "✦ … is writing a reply" under
+ * the owner's own answer for the rest of the fifteen minutes. A line counts
+ * only while nothing has answered it since it came: no reply by a person after
+ * it (queued or sent — one that failed or was cancelled reached nobody), none
+ * from the phone (Meta's echo), and no hand-over to a person after it (the
+ * failed turn's own `not_answered` among them). The assistant's own replies are
+ * not counted: a line that came while it was answering the one before is the
+ * next one it takes.
  */
 export const WORKING_WINDOW_MIN = 15;
+const nobodyAnsweredSince = (at: ReturnType<typeof sql.ref>) => sql`
+  not exists (select 1 from outbound_messages o
+               where o.conversation_id = c.id and o.origin = 'owner'
+                 and o.status not in ('failed', 'canceled') and o.created_at > ${at})
+  and not exists (select 1 from messages m
+                   where m.conversation_id = c.id and m.direction = 'outbound'
+                     and m.external_id like 'echo:%' and m.sent_at > ${at})
+  and not exists (select 1 from conversation_events e
+                   where e.conversation_id = c.id and e.type = 'handoff' and e.created_at > ${at})`;
 export async function assistantWorking(db: Db, bid: BusinessId, conversationId: string): Promise<boolean> {
   if (!UUID.test(conversationId)) return false;
   return withTenantTx(db, bid, async (tx) => (await sql<{ working: boolean }>`
@@ -230,11 +250,13 @@ export async function assistantWorking(db: Db, bid: BusinessId, conversationId: 
        where c.id = ${conversationId}::uuid and c.business_id = ${bid} and c.assigned_to is null
          and (exists (select 1 from message_fragments f
                        where f.conversation_id = c.id and f.processed_in is null
-                         and f.received_at > now() - make_interval(mins => ${WORKING_WINDOW_MIN}))
+                         and f.received_at > now() - make_interval(mins => ${WORKING_WINDOW_MIN})
+                         and ${nobodyAnsweredSince(sql.ref('f.received_at'))})
               or exists (select 1 from pgboss.job j
                           where j.name = ${QUEUES.inbound} and j.singleton_key = ${conversationId}
                             and j.state in ('created', 'retry', 'active')
-                            and j.created_on > now() - make_interval(mins => ${WORKING_WINDOW_MIN})))) as working`.execute(tx)).rows[0]?.working === true);
+                            and j.created_on > now() - make_interval(mins => ${WORKING_WINDOW_MIN})
+                            and ${nobodyAnsweredSince(sql.ref('j.created_on'))}))) as working`.execute(tx)).rows[0]?.working === true);
 }
 
 /**
