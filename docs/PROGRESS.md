@@ -162,6 +162,9 @@ under "Decided" below.
   - the scripted pre-pilot ran 12/12 on main before;
   - the scripted pre-pilot ran 12/12 after;
   - check passed 6,385, trust 44/44, the build passed, and integration ran 1,238 of 1,238 with none skipped.
+- **Merged** 2026-10-03 12:20 UTC as `8482b10`. CI reported on both jobs (integration 19m1s). Deployed; `/health` ok; schema 124.
+  - Read-only, in production: 0124 recorded WhatsApp for the 2 owners who had set an alert number; the other 4 people are on the default.
+  - The background job had already kept 2 customers' photos.
 
 ## Two fixes the owner ordered (2026-10-03)
 

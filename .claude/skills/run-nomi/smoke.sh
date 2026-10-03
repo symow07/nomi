@@ -126,9 +126,14 @@ get /app/business   "$SK/app-factory.html" "What you promise customers" "My busi
 get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Before going live' "Pilot runbook did not render"
 get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandbox did not render"
 
-#  My factory is the door to the four surfaces it contains — they must stay reachable
-for r in /app/settings /app/products /app/knowledge /app/channels; do
-  grep -q "href=\"$r\"" "$SK/app-factory.html" || fail "My factory no longer links to $r"
+#  The warmth run — My business, the assistant and Settings are menus: each is the
+#  door to the surfaces it holds, and they must stay reachable.
+get /app/employee   "$SK/app-employee.html" 'level-control'               "The assistant's page did not render"
+get /app/settings   "$SK/app-settings.html" 'href="/app/settings/setup"'  "Settings did not render"
+for pair in app-factory.html:/app/products app-factory.html:/app/business/channels \
+            app-employee.html:/app/knowledge app-settings.html:/app/business; do
+  f="${pair%%:*}"; r="${pair#*:}"
+  grep -q "href=\"$r\"" "$SK/$f" || fail "$f no longer links to $r"
   [ "$(curl -sS -b "$J" -o /dev/null -w '%{http_code}' "$BASEURL$r")" = "200" ] || fail "$r stopped rendering"
 done
 
