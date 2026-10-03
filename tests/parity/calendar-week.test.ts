@@ -13,9 +13,11 @@ const draw = (...a: Parameters<typeof renderCalendar>) => withZone('Asia/Shangha
 
 /**
  * THE CALENDAR WEEK (the design pass, decided 2026-09-29; the plan's §5), and
- * the owner's own dates (0082). Days are columns and hours rows; where a date
- * came from is its edge (solid: a conversation; dashed: the owner); colour is
- * left for state; the week starts on the business's country's first day.
+ * the owner's own dates (0082). Where a date came from is its edge (solid: a
+ * conversation; dashed: the owner); colour is left for state; the week starts
+ * on the business's country's first day. The warmth run (2026-10-03) — the
+ * page opens on the list, and the week is a list too, a day at a time: the
+ * days × hours grid is gone.
  */
 
 const NOW = new Date('2026-09-29T04:00:00Z');   // Tuesday, 12:00 in the business timezone
@@ -46,17 +48,18 @@ const week = (over: Partial<CalendarView> = {}): CalendarView => ({
   categories: ['samples', 'negotiation', 'yours', 'closures'], entries: ENTRIES, ...over,
 });
 
-describe('the week, by default', () => {
-  it('the page opens on the week holding today, starting on the business\'s first day', () => {
-    expect(parseCalendarQuery({}, NOW)).toEqual({ view: 'week', at: TODAY, from: MON, to: addDays(MON, 7), category: null, buyer: null });
+describe('the week', () => {
+  it('the week holding today starts on the business\'s first day; the page itself opens on the list (the warmth run)', () => {
+    expect(parseCalendarQuery({ view: 'week' }, NOW)).toEqual({ view: 'week', at: TODAY, from: MON, to: addDays(MON, 7), category: null, buyer: null });
+    expect(parseCalendarQuery({}, NOW).view).toBe('list');
     // Sunday-first (the US, Saudi Arabia) and Saturday-first (Egypt)
-    expect(new Date(`${parseCalendarQuery({}, NOW, 7).from}T00:00:00Z`).getUTCDay()).toBe(0);
-    expect(new Date(`${parseCalendarQuery({}, NOW, 6).from}T00:00:00Z`).getUTCDay()).toBe(6);
+    expect(new Date(`${parseCalendarQuery({ view: 'week' }, NOW, 7).from}T00:00:00Z`).getUTCDay()).toBe(0);
+    expect(new Date(`${parseCalendarQuery({ view: 'week' }, NOW, 6).from}T00:00:00Z`).getUTCDay()).toBe(6);
     expect(parseCalendarQuery({ view: 'day', at: '2026-10-02' }, NOW)).toMatchObject({ view: 'day', from: '2026-10-02', to: '2026-10-03' });
     const m = parseCalendarQuery({ view: 'month', at: '2026-10-15' }, NOW);
     expect(m.at).toBe('2026-10-01');
     expect(m.from <= '2026-10-01' && m.to > '2026-10-31').toBe(true);
-    expect(parseCalendarQuery({ view: 'year' }, NOW).view).toBe('week');
+    expect(parseCalendarQuery({ view: 'year' }, NOW).view).toBe('list');
   });
 
   it('the first day comes from the country the business gave, not the language', () => {
@@ -69,21 +72,21 @@ describe('the week, by default', () => {
     expect(firstDayOfWeek('not a country')).toBe(1);
   });
 
-  it('days are columns, hours are rows; today is marked by a line under its date and in words for a reader', () => {
+  it('the week is a list a day at a time — the days that hold a date, and today always, said in words; no grid of empty hours', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
-    const head = html.slice(html.indexOf('<thead>'), html.indexOf('</thead>'));
-    expect(head.match(/<th scope="col"/g)).toHaveLength(8);   // the hours' corner + seven days
-    expect(head).toMatch(/<th scope="col" class="today" aria-current="date">/);
-    expect(html).toMatch(/<tr><th scope="row">09<\/th>/);
-    expect(html).toMatch(/<tr class="wk-all"><th scope="row">All day<\/th>/);
-    expect(html).toContain('<a class="tab on" aria-current="page" href="/app/calendar?at=');
+    expect(html).not.toContain('<table');
+    const days = [...html.matchAll(/<h2 class="cal-day"[^>]*>([\s\S]*?)<\/h2>/g)];
+    // Monday's sample, today's price and reply, tomorrow's shoot, and the closure's two days
+    expect(days).toHaveLength(5);
+    expect(html).toContain('<h2 class="cal-day" aria-current="date"><span class="cal-now">Today</span> ');
+    expect(html).toContain('<a class="tab on" aria-current="page" href="/app/calendar?view=week&amp;at=');
   });
 
   it('where a date came from is its edge: solid from a conversation (and opens there), dashed when the owner put it there', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
-    expect(html).toMatch(new RegExp(`<a class="wk-e solid past" data-src="sample_requests:s1"[^>]*href="/app/inbox/${CONV}#latest">`));
-    expect(html).toMatch(/<div class="wk-e dashed" data-src="calendar_entries:55555555-5555-4555-8555-555555555555"/);
-    expect(html).toContain('<b><bdi>Photo shoot</bdi></b><span class="wk-t">11:00–13:00</span>');
+    expect(html).toMatch(new RegExp(`<li class="dl-row solid done" data-src="sample_requests:s1"[\\s\\S]*?<a class="dl-go" href="/app/inbox/${CONV}#latest">`));
+    expect(html).toMatch(/<li class="dl-row dashed" data-src="calendar_entries:55555555-5555-4555-8555-555555555555"/);
+    expect(html).toMatch(/<span class="dl-hour">11:00–13:00<\/span><span class="dl-who dl-only"><svg class="kind-icon"[\s\S]*?<span class="dl-say"><bdi>Photo shoot<\/bdi><\/span>/);
     // the closure is drawn on each day it covers, dashed
     expect(html.match(/data-src="factory_closures:c1"/g)).toHaveLength(2);
     expect(edgeOf({ kind: 'closure', conversationId: null, orderId: null })).toBe('dashed');
@@ -92,8 +95,8 @@ describe('the week, by default', () => {
 
   it('colour is left for state and the assistant: ○ on a reply that is due, ✦ on a price it worked out', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
-    expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="wk-k"><span class="dot warn" aria-hidden="true">○<\/span> Reply due<\/span>/);
-    expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="wk-k"><span class="as" aria-hidden="true">✦<\/span> Price worked out<\/span>/);
+    expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn" aria-hidden="true">○<\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
+    expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><span class="as" aria-hidden="true">✦<\/span> Price worked out for <bdi>Maya Rahman<\/bdi><\/span>/);
   });
 
   it('an owner\'s date can be taken off: a button in a form, at once — the notice that follows carries Undo (phase 5); every other date is a door or nothing', () => {
@@ -106,9 +109,9 @@ describe('the week, by default', () => {
 
   it('‹ Last week · This week · Next week › move a week, in words (phase 9, V1-199); in Arabic the same doors, mirrored by the chevrons', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW });
-    expect(html).toContain(`<a class="back" href="/app/calendar?at=${addDays(TODAY, -7)}"><span class="go" aria-hidden="true">‹</span>Last week</a>`);
-    expect(html).toContain(`<a class="deeper" href="/app/calendar?at=${addDays(TODAY, 7)}">Next week<span class="go" aria-hidden="true">›</span></a>`);
-    expect(html).toContain('<a class="tab cal-today" href="/app/calendar">This week</a>');
+    expect(html).toContain(`<a class="back" href="/app/calendar?view=week&amp;at=${addDays(TODAY, -7)}"><span class="go" aria-hidden="true">‹</span>Last week</a>`);
+    expect(html).toContain(`<a class="deeper" href="/app/calendar?view=week&amp;at=${addDays(TODAY, 7)}">Next week<span class="go" aria-hidden="true">›</span></a>`);
+    expect(html).toContain('<a class="tab cal-today" href="/app/calendar?view=week">This week</a>');
     // the period's name comes first, as the label of what the doors move
     expect(html.indexOf('<p class="cal-span">')).toBeLessThan(html.indexOf('<nav class="cal-move"'));
     const ar = draw(week(), 'ar', { view: 'week', at: TODAY, now: NOW });
@@ -116,14 +119,19 @@ describe('the week, by default', () => {
     expect(ar).toContain('<span class="go" aria-hidden="true">‹</span>');
   });
 
-  it('the month shows its days, up to two dates each, and "+N more" — a door to the rest — instead of a taller row (phase 7)', () => {
+  it('the month shows its days, two or three dates each, and "+N more" — a door to the rest — instead of a taller row (phase 7)', () => {
     const busy = Array.from({ length: 5 }, (_, i) => e({ category: 'samples', kind: 'sample_asked', at: at(TODAY, `0${i + 1}:00`),
       source: { table: 'sample_requests', id: `m${i}`, column: 'requested_at' } }));
     const q = parseCalendarQuery({ view: 'month', at: TODAY }, NOW);
-    const html = draw(week({ from: q.from, to: q.to, entries: busy }), 'en', { view: 'month', at: q.at, now: NOW });
+    const month = (entries: CalendarEntry[]) => draw(week({ from: q.from, to: q.to, entries }), 'en', { view: 'month', at: q.at, now: NOW });
+    const html = month(busy);
     expect(html).toContain('<table class="mo">');
     expect(html).toContain(`<a class="mo-more" href="/app/calendar?view=day&amp;at=${TODAY}">+3 more</a>`);
     expect(html).toMatch(/<td class=" today" aria-current="date">/);
+    // three are shown whole: "+1 more" would hide the very one it stands for
+    expect(month(busy.slice(0, 3))).not.toContain('mo-more');
+    expect(month(busy.slice(0, 3)).match(/<span class="mo-e /g)).toHaveLength(3);
+    expect(month(busy.slice(0, 4))).toContain('+2 more');
   });
 });
 
@@ -163,7 +171,7 @@ describe('phase 7 · the day as one list in time order', () => {
     const rows = [...html.matchAll(/<li class="dl-row[^"]*" data-src="([^"]+)"/g)].map((m) => m[1]);
     expect(rows).toEqual(['quotes:q1', 'handoffs:h1', 'quotes:q2']);      // 12:40, 16:00, 18:05
     expect(html).toContain('<svg class="kind-icon"');
-    expect(html).toContain('<b><bdi>Maya Rahman</bdi></b>');
+    expect(html).toContain('<bdi>Maya Rahman</bdi>');
   });
 
   it('done is greyed, never hidden; what is owed carries its signal however old', () => {
@@ -188,24 +196,27 @@ describe('phase 7 · the day as one list in time order', () => {
   });
 });
 
-describe('phase 7 · on a phone the grids scroll visibly, and no name is cut', () => {
-  it('a chip\'s name wraps — never an ellipsis — and the hours stay in view', async () => {
-    expect(draw(week(), 'en', { view: 'week', at: TODAY, now: NOW })).toContain('<div class="wk-scroll"><table class="wk">');
+describe('phase 7 · on a phone the month scrolls visibly, and no name is cut', () => {
+  it('a name wraps — never an ellipsis — in the month and in the lists; the month\'s frame is rounded and shaded at an edge with more', async () => {
+    const q = parseCalendarQuery({ view: 'month', at: TODAY }, NOW);
+    expect(draw(week({ from: q.from, to: q.to }), 'en', { view: 'month', at: q.at, now: NOW })).toContain('<div class="wk-scroll"><table class="mo">');
     const { shell } = await import('../../src/api/web/layout.js');
     const { linkedCss } = await import('./linked-css.js');
     const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })).replace(/\/\*[\s\S]*?\*\//g, '');
     const rule = (sel: string) => new RegExp(`(?:^|\\s)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
-    expect(rule('.wk-e b')).not.toMatch(/ellipsis|nowrap/);
-    expect(rule('.wk-k, .wk-t')).not.toMatch(/ellipsis|nowrap/);
-    expect(rule('.wk-e')).not.toContain('overflow:hidden');
+    for (const sel of ['.mo-n', '.dl-say', '.mo-e', '.dl-body']) expect(rule(sel), sel).not.toMatch(/ellipsis|nowrap|overflow:hidden/);
+    expect(rule('.mo-n')).toContain('overflow-wrap:break-word');
+    expect(rule('.dl-say')).toContain('overflow-wrap:break-word');
     expect(rule('.wk-scroll')).toContain('background-attachment:local, local, scroll, scroll');
-    expect(rule('.wk tbody th, .wk .wk-corner')).toContain('position:sticky');
+    expect(rule('.wk-scroll')).toContain('border-radius:var(--radius-panel)');
+    // the shade over an edge is covered whole while that edge is in view, so a grid that fits shows none
+    expect(rule('.wk-scroll')).toContain('linear-gradient(to right, var(--color-surface) var(--space-12), transparent)');
   });
 
   it('the add form comes back open, the reason under its field, what was typed kept', () => {
     const html = draw(week(), 'en', { view: 'week', at: TODAY, now: NOW,
       kept: { values: { title: 'Kiln', day: TODAY, from: '15:00', to: '14:00' }, field: 'to', text: t('en', 'calendar.flash.order') } });
-    expect(html).toContain('<details class="cal-add" open>');
+    expect(html).toContain('<details class="cal-tools" open>');
     expect(html).toContain('value="Kiln"');
     expect(html).toContain('name="to" value="14:00" aria-invalid="true" aria-describedby="ca-to-err" autofocus');
     expect(html).toContain(`<span class="fielderr" role="alert" id="ca-to-err">${t('en', 'calendar.flash.order')}</span>`);
