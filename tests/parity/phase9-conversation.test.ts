@@ -7,11 +7,11 @@ import { t } from '../../src/core/owner/i18n/messages.js';
  * the findings of the merged audit (docs/UI-AUDIT-V2.md §5), each held here.
  */
 
-describe('V1-269 · the buyer file records the customer\'s request; the owner does not ask for one', () => {
-  it('the fold and its button say the customer asked, and that pressing records it', () => {
+describe('V1-269 · the buyer file acts on the customer\'s request; the owner does not ask for one', () => {
+  it('the fold says the customer asked, and its button says pressing deletes their data now (0126)', () => {
     expect(t('en', 'conv.deletion.ask')).toMatch(/^This customer asked/);
-    expect(t('en', 'conv.deletion.submit')).toBe('Record the request');
-    for (const l of LOCALES) expect(t(l, 'conv.deletion.submit'), l).not.toBe(t(l, 'conv.deletion.ask'));
+    expect(t('en', 'conv.deletion.erase')).toBe("Delete this customer's data now");
+    for (const l of LOCALES) expect(t(l, 'conv.deletion.erase'), l).not.toBe(t(l, 'conv.deletion.ask'));
   });
 });
 

@@ -23,16 +23,20 @@ runs the product. The draft terms for the business itself are in
   business sees their face.
 - Who sees it: the business; Meta (carriage); Anthropic (drafting); Railway
   (hosting); Google or Microsoft when a mailbox is connected. Nobody else.
-- How long: until the business asks for its records to be deleted, or the
-  person asks for theirs.
-- Deletion (CC-02a, 2026-09-27): the person asks the business — a message from
-  the account they used — or writes to `LEGAL_CONTACT_EMAIL`, and **the
-  operator passes it on to that business**. The business records it on the
-  buyer's page (`/app/conversations/:id`), which writes a `deletion_requests`
-  row (`scope = 'buyer'`). **The operator carries it out by hand within 30
-  days of it being recorded.** When the row is closed as done, the business
-  sees it on the buyer's page and on Your data and can tell the person; the
-  product sends the person nothing, and the page says so.
+- How long (0126, the owner's direction of 2026-10-04): for as long as the
+  business uses Nomi; deleted when the person asks the business, or when the
+  business closes its workspace, which erases everything in it. Never "after
+  90 days": RET (0116) is retired.
+- Deletion (0126): the person asks the business — a message from the account
+  they used — or writes to `LEGAL_CONTACT_EMAIL`, and **the operator passes it
+  on to that business**. **The business deletes it, at once and for good**:
+  "Delete this customer's data now" on the customer's page or Your data
+  records the request and erases in one transaction (`erase_customer`). There
+  is no public form, and the page says why: only the business knows which
+  conversation is the asker's, and a form anyone could fill in could erase
+  someone else. The product sends the person nothing, and the page says so.
+  A request recorded before 0126 and still open is carried out the same way
+  by the owner, or by the operator (`tools/erase-buyer.mjs`).
 - What is deleted: their identities on every channel; their profile photo;
   every message to or
   from them; drafts, quotes and sample requests written for them; notes and
@@ -41,17 +45,28 @@ runs the product. The draft terms for the business itself are in
   from contact details and messages; a do-not-contact note if they asked not
   to be written to; the record that they asked and when it was done; Meta's
   own copies; anything the business keeps outside Nomi (its mailbox, files it
-  exported); and copies inside backups until those backups are deleted.
+  exported); and copies inside backups until those backups are deleted (the
+  owner's sentence, public-missed-21, unchanged). And: if the service is ever
+  restored from a backup, every deletion made since is carried out again
+  before it runs (`erasure_ledger`, `tools/replay-erasures.mjs`,
+  `docs/BACKUP-RESTORE.md` "Restore" step 5).
+- A closed workspace (0126): the owner types its name on Your data; everything
+  in it is erased at once (`close_workspace`) and everyone is signed out; an
+  ids-only line in `erasure_ledger` is all that is left.
 
-`tests/parity/deletion-page.test.ts` holds every item above in all three
-locales, holds the old promises out ("the same channel", a confirmation, an
-instant or automatic deletion), and ties the 30 days to `DELETION_DAYS` and to
-migration 0073. Change one, change all three.
+`tests/parity/deletion-page.test.ts` holds every item above in all five
+locales, and holds the old promises out ("the same channel", a confirmation,
+an automatic deletion, an operator by hand within 30 days). The 30 days are now
+only the operator's safety net for a request still open (`DELETION_DAYS`,
+migration 0073), never a promise on any page.
 
 ### The deadline, and who hears of it
 
-- The day a business records a request, a notice goes to `LEGAL_CONTACT_EMAIL`
-  (ids and dates only — never the note, never the buyer's name).
+- Each erasure the owner carries out mails its ledger line to
+  `LEGAL_CONTACT_EMAIL` (ids only — never the note, never the buyer's name):
+  keep those mails, they are a copy of the ledger outside the database.
+- The installation's own workspace asking to be erased: a notice goes to
+  `LEGAL_CONTACT_EMAIL` the day it is asked (ids and dates only).
 - Every morning at 07:00 UTC the app asks `deletion_requests_due()` (0073, a
   definer function: business name, scope, asked-at, nothing else) for every
   open request within 7 days of its 30, or past them, across all businesses,
@@ -61,28 +76,17 @@ migration 0073. Change one, change all three.
 
 ## Keeping the deletion promise
 
-Nothing in the product deletes a person's data — by design, the app role holds
-no `DELETE` on any product table (G20), so a deletion is an operator's act
-with the migrate role, done once per request:
-
-1. Find the person: `clients` (and `client_channels`, keyed by channel and the
-   platform identifier) for the business that received the request.
-2. Delete their `conversations`. Nearly everything hangs off a conversation
-   with `on delete cascade` — messages, drafts, turns, events, outbound rows,
-   signals, samples — so this is the bulk of it.
-3. Delete the raw webhook payloads: `channel_events` rows whose
-   `conversation_external_id` names the identifier (`<channel>:<sender>:<account>`).
-4. Delete the `client_channels` and `clients` rows. `contacts` and
-   `suppressions` rows for an e-mail address go too, unless the person asked to
-   be left alone — a suppression is the record that keeps that promise, and
-   the page says so.
-5. Take a backup before, verify after (`docs/BACKUP-RESTORE.md`), then close
-   the request (`state = 'done'`, `closed_at`, `closed_by`). The business
-   sees it done and tells the person; the product does not write to them.
-
-What stays, and the page says so: an invoice or order the business must keep
-by law (leave `orders` rows for a confirmed order; the conversation they came
-from may still go), and anything Meta holds on its own side.
+Since 0126 the product keeps it itself, and the app role still holds no
+`DELETE` on any product table (G20): the owner's two buttons call two definer
+functions (`erase_customer`, `close_workspace`) that take the workspace from
+the transaction, check that the person is its owner, and carry out exactly the
+contract the operator's tools carry out — the tools call the same functions.
+What goes and what stays, table by table, is `tools/erase-buyer.mjs`'s RULES,
+which the database states as `customer_erasure_contract()`; a table nobody
+classified stops every erasure by name (`customer_erasure_problems()`).
+`docs/DATA-DELETION-RUNBOOK.md` is the operator's part: a request still open
+from before 0126, the installation's own workspace, and the replay after a
+restore.
 
 ## Publishing the app (Meta)
 

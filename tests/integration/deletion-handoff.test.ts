@@ -293,17 +293,22 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     expect(buyerPage.slice(buyerPage.indexOf('id="deletion"'))).not.toContain('name="note"');
   });
 
-  it('0076 · recording it asks for no note, and dates it from when they asked', async () => {
+  it('0076, 0126 · deleting it asks for no note: recorded from their message, dated when they asked, carried out at once', async () => {
     const conv = convs['en']!;
     const [noted] = await askOf(conv);
-    const r = await postForm(`/app/conversations/${conv}/deletion`, { note: '' });
-    expect(flashSaid(r, WEB_SECRET)).toContain('dated from when they asked');
-    const [after] = await askOf(conv);
-    expect(after!.state).toBe('recorded');
+    const client = noted!.client;
+    const r = await postForm(`/app/conversations/${conv}/deletion/erase`, { asked: '1', note: '' });
+    expect(String(r.headers['location'])).toBe('/app/settings/data#buyers');
+    expect(flashSaid(r, WEB_SECRET)).toContain('Deleted for good');
+    // The note in chat went with them: the request is what stays, dated when they asked, closed as done.
+    expect(await askOf(conv)).toEqual([]);
     const request = await q((tx) => sql<{ state: string; asked_at: Date; subject_note: string | null }>`
-      select state, asked_at, subject_note from deletion_requests where id = ${after!.request}::uuid`.execute(tx).then((x) => x.rows[0]!));
-    expect(request).toMatchObject({ state: 'open', subject_note: null });
+      select state, asked_at, subject_note from deletion_requests where client_id = ${client}::uuid`.execute(tx).then((x) => x.rows[0]!));
+    expect(request).toMatchObject({ state: 'done', subject_note: null });
     expect(request.asked_at.getTime()).toBe(noted!.asked_at.getTime());
+    const left = await q((tx) => sql<{ n: number }>`
+      select count(*)::int as n from messages where conversation_id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.n));
+    expect(left).toBe(0);
     expect((await get('/app')).body).toContain('href="/app/inbox?filter=deletion">2 customers asked for their data to be deleted');
   });
 

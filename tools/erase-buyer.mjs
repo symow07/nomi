@@ -61,11 +61,21 @@
  *   · run as a role that row security filters — it would see nothing to erase
  *     and close the request as done.
  *
- * One transaction. It locks the buyer's rows, plans, carries the plan out
- * checking every statement's row count against the plan, closes the request,
- * then plans AGAIN inside the same transaction and commits only if nothing is
- * left to erase and every kept row is still there. A second run refuses: the
- * request is no longer open.
+ * One transaction. It locks the buyer's rows, plans, and then carries the
+ * request out through the DATABASE's erasure (`carry_out_customer_request`,
+ * 0126) — the very function the owner's "Delete this customer's data now"
+ * calls through `erase_customer`. So the product and this tool cannot erase
+ * differently: there is one implementation, in SQL, and this file's RULES is
+ * its list, checked against `customer_erasure_contract()` on every run (a
+ * difference is a refusal, before anything changes). The plan below is the
+ * second opinion: the function's counts must equal the plan's, table by
+ * table, and after it the tool plans AGAIN inside the same transaction and
+ * commits only if nothing is left to erase and every kept row is still there.
+ * A second run refuses: the request is no longer open.
+ *
+ * The function closes the request as done, writes the ids-only record of the
+ * erasure (`erasure_ledger`, replayed after any restore by
+ * tools/replay-erasures.mjs) and a `customer_erased` entry on the audit trail.
  *
  * Not reachable from `npm` scripts and not imported by any source file. Usage:
  *
@@ -246,6 +256,44 @@ const qt = (t) => String(t).split('.').map(q).join('.');
  */
 const USER_SCHEMAS = (n) => `${n}.nspname not in ('pg_catalog', 'information_schema', 'pgboss') and ${n}.nspname not like 'pg\\_%'`;
 const NAME = (c, n) => `(case when ${n}.nspname = 'public' then ${c}.relname::text else ${n}.nspname || '.' || ${c}.relname end)`;
+
+/**
+ * ONE LIST, TWO READERS. The database's erasure states the contract it
+ * implements (`customer_erasure_contract()`, 0126); RULES is this tool's. Any
+ * difference — a table, an action, a column cleared, blanked or detached, how
+ * a table is matched — is returned, and the tool refuses on it.
+ */
+export function contractDifferences(rows, rules = RULES) {
+  const norm = (xs) => [...(xs ?? [])].sort().join(',');
+  const db = new Map(rows.map((r) => [r.tbl, r]));
+  const out = [];
+  for (const [t, r] of Object.entries(rules)) {
+    const d = db.get(t);
+    if (!d) { out.push(`${t} is in RULES and not in the database's contract`); continue; }
+    if (d.action !== r.do) out.push(`${t}: RULES says '${r.do}', the database '${d.action}'`);
+    for (const k of ['clear', 'blank', 'detach']) {
+      if (norm(d[k]) !== norm(r[k])) out.push(`${t}.${k}: RULES [${norm(r[k])}], the database [${norm(d[k])}]`);
+    }
+    if ((d.match ?? null) !== (r.match ?? null)) out.push(`${t}.match: RULES ${r.match ?? 'none'}, the database ${d.match ?? 'none'}`);
+  }
+  for (const t of db.keys()) if (!(t in rules)) out.push(`${t} is in the database's contract and not in RULES`);
+  return out.sort();
+}
+
+/** The database's contract, or null where 0126 has not run. */
+export async function databaseContract(client) {
+  const ok = (await client.query("select to_regprocedure('customer_erasure_contract()') is not null as ok")).rows[0]?.ok;
+  if (!ok) return null;
+  return (await client.query('select tbl, action, clear, blank, detach, match from customer_erasure_contract()')).rows;
+}
+
+/** Two count maps the same, nothing counted as zero. */
+export function sameCounts(plan, done) {
+  const a = Object.fromEntries([...plan].filter(([, n]) => n > 0).map(([t, n]) => [t, Number(n)]));
+  const b = Object.fromEntries(Object.entries(done ?? {}).filter(([, n]) => Number(n) > 0).map(([t, n]) => [t, Number(n)]));
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+  return keys.filter((t) => a[t] !== b[t]).map((t) => `${t}: planned ${a[t] ?? 0}, erased ${b[t] ?? 0}`);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The schema, as the database in front of us has it.
@@ -892,16 +940,6 @@ async function textLinks(client, { businessId, clientId, requestId, identities, 
   return { erase, changes, jobs, others };
 }
 
-/** Carry a plan out. Inside the caller's transaction; throws on any surprise. */
-export async function executePlan(client, plan) {
-  for (const s of plan.steps) {
-    const r = await client.query(s.sql, s.params);
-    if ((r.rowCount ?? 0) !== s.expect) {
-      throw new Error(`${s.kind} on ${s.table} touched ${r.rowCount} rows where the plan said ${s.expect}. Rolled back; nothing changed.`);
-    }
-  }
-}
-
 /** What must be true after a run, judged by planning again. */
 export function afterProblems(before, after) {
   const problems = [...after.refusals];
@@ -916,15 +954,6 @@ export function afterProblems(before, after) {
 
 /** "messages 6, turns 3" — the closing note and the refusal messages. */
 const list = (m) => [...m].filter(([, n]) => n > 0).sort(([a], [b]) => a.localeCompare(b)).map(([t, n]) => `${t} ${n}`).join(', ');
-
-export function summaryNote(plan) {
-  return [
-    `erased ${plan.totals.erased}: ${list(plan.erased) || 'nothing'}`,
-    `kept ${plan.totals.kept}: ${list(plan.kept) || 'nothing'}`,
-    ...(plan.totals.changed ? [`changed in place ${plan.totals.changed}: ${list(plan.changed)}`] : []),
-    'carried out with tools/erase-buyer.mjs',
-  ].join(' · ');
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The command.
@@ -1037,6 +1066,15 @@ async function main() {
 
     const subject = { businessId: req.business_id, clientId: req.client_id, requestId: req.id };
 
+    // The database's erasure and this list must agree, or nothing runs.
+    const contract = await databaseContract(client);
+    if (!contract) return refuse('This database has no customer_erasure_contract() — it predates migration 0126. Migrate it first. Nothing was changed.');
+    const differ = contractDifferences(contract);
+    if (differ.length) {
+      return refuse(`This tool's RULES and the database's erasure (customer_erasure_contract(), 0126) differ:\n   · ${differ.join('\n   · ')}\n`
+        + '   Make them one list again — a new migration and RULES together. Nothing was changed.');
+    }
+
     if (!go) {
       // A dry run cannot write, even by mistake: the database refuses it.
       await client.query('begin isolation level repeatable read read only');
@@ -1084,11 +1122,20 @@ async function main() {
       console.log('');
       printPlan(plan);
 
-      await executePlan(client, plan);
-      const closed = await client.query(
-        `update deletion_requests set state = 'done', closed_at = now(), closed_by = $2, closed_note = $3
-          where id = $1 and state = 'open'`, [req.id, by, summaryNote(plan)]);
-      if (closed.rowCount !== 1) throw new Error('The request could not be closed. Rolled back; nothing changed.');
+      // The one erasure: the database's, as the product's owner runs it.
+      const done = (await client.query(
+        "select carry_out_customer_request($1::uuid, $2::uuid, $3, 'operator') as r",
+        [req.business_id, req.id, by])).rows[0]?.r;
+      const disagree = [
+        ...sameCounts(plan.erased, done?.erased),
+        ...sameCounts(plan.kept, done?.kept).map((x) => `kept ${x}`),
+        ...sameCounts(plan.changed, done?.changed).map((x) => `changed ${x}`),
+      ];
+      if (disagree.length) {
+        throw new Error(`The database's erasure and this tool's plan disagree:\n   · ${disagree.join('\n   · ')}\n   Rolled back; nothing changed.`);
+      }
+      const closed = (await client.query("select state from deletion_requests where id = $1", [req.id])).rows[0]?.state;
+      if (closed !== 'done') throw new Error('The request was not closed as done. Rolled back; nothing changed.');
 
       // Plan again, in the same transaction: nothing left to erase, nothing
       // kept lost. Only then commit.
@@ -1096,10 +1143,10 @@ async function main() {
       const wrong = afterProblems(plan, after);
       if (wrong.length) throw new Error(`After the erasure the database is not what the plan said:\n   · ${wrong.join('\n   · ')}\n   Rolled back; nothing changed.`);
 
-      // The audit trail has no verb for a carried-out deletion (0064 added
-      // 'deletion_requested' and 'deletion_withdrawn' only) and this tool adds
-      // no migration, so the closed request is the record: state, when, by
-      // whom, and the counts in closed_note.
+      // The record is the database's: the closed request (state, when, by
+      // whom, the counts in closed_note), the ids-only `erasure_ledger` row and
+      // the `customer_erased` entry on the audit trail — all written by
+      // carry_out_customer_request in this transaction.
       await client.query('commit');
     } catch (e) {
       await client.query('rollback').catch(() => {});
@@ -1108,6 +1155,9 @@ async function main() {
       // left anything half done.
       if (e && e.code === '40001') {
         return refuse("Something changed this buyer's rows while the tool ran. Nothing was changed; run it again.");
+      }
+      if (e && (e.code === 'NE002')) {
+        return refuse('A worker is handling this buyer right now. Nothing was changed; run it again in a minute.');
       }
       if (e && e.code === '55P03') {
         return refuse('Their rows are locked by something else right now — the app in the middle of a reply, perhaps. '
@@ -1135,7 +1185,8 @@ async function main() {
     console.log(`   Request ${req.id} is closed as done, by ${plain(by)}.`);
     console.log('   Tell the owner; confirming to the buyer is theirs.');
     console.log('   Backups still hold them until they age out: dailies after 60 days, manual pairs after 180 —');
-    console.log('   the newest manual pair only once a newer one exists (docs/BACKUP-RESTORE.md, "How long copies are kept").\n');
+    console.log('   the newest manual pair only once a newer one exists (docs/BACKUP-RESTORE.md, "How long copies are kept").');
+    console.log('   If a backup is ever restored, tools/replay-erasures.mjs carries this erasure out again (erasure_ledger).\n');
   } catch (e) {
     console.error(`\n✗  ${e instanceof Error ? e.message : String(e)}\n`);
     process.exitCode = 1;

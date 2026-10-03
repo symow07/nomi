@@ -13,11 +13,13 @@
  * force_draft (six rows, one per capability: every reply waits), connections_off
  * (no Page or WhatsApp can be connected), practice_off, approve_connections
  * (KS6, --all only: a workspace that signed itself up connects its first channel
- * only after tools/connections.mjs approves it — opening step 4), retention (RET,
- * --all only: warnings, then tools/retention.mjs erases workspaces that never
- * connected a channel in 90 days — off until the owner decides), billing_required
+ * only after tools/connections.mjs approves it — opening step 4), billing_required
  * (BILL, --all only: a card saved before a self-serve workspace connects a channel). --all is everyone;
  * --business one workspace. Dry run unless --yes. Reads MIGRATE_DATABASE_URL.
+ *
+ * `retention` (RET, 0116) is RETIRED (0126): nothing is erased after 90 days.
+ * A customer's data goes when they ask, a workspace's when it closes. This
+ * tool refuses to set it, and so does the database.
  */
 import { toolClient } from './lib/db.mjs';
 
@@ -35,8 +37,13 @@ const has = (name) => process.argv.includes(name);
 
 const url = process.env['MIGRATE_DATABASE_URL'];
 if (!url) { console.error('✗  MIGRATE_DATABASE_URL must be set. Nothing was changed.'); process.exit(2); }
-const { OPERATOR_FLAGS, setOperatorFlag, clearOperatorFlag } = await import('./lib/operator.mjs');
+const { OPERATOR_FLAGS, RETIRED_FLAGS, setOperatorFlag, clearOperatorFlag } = await import('./lib/operator.mjs');
 const set = arg('--set'); const clear = arg('--clear'); const yes = has('--yes');
+if (set && RETIRED_FLAGS.includes(set)) {
+  console.error(`✗  ${set} is retired (0126): nothing is erased after 90 days. A customer's data is deleted when they ask, `
+    + 'a workspace when its owner closes it. Nothing was changed.');
+  process.exit(2);
+}
 const business = arg('--business'); const all = has('--all'); const reason = arg('--reason'); const by = arg('--by');
 const flag = set ?? clear;
 const client = toolClient(url, { replyTimeoutMs: 30_000 });

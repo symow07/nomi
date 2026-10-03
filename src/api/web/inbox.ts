@@ -33,7 +33,6 @@ import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals
 import { orderConfirmedReply } from '../../core/conversation/templates.js';
 import { fixedLanguage } from '../../core/conversation/gateLanguage.js';
 import { buyerDeletionOf } from './dataRights.js';
-import { deletionDueBy } from '../../core/ops/deletions.js';
 import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, lensOf, lastQuoteGiven, type BuyersFilter, type BuyersLens } from '../../db/buyersList.js';
 import { customerValues, REGULAR_ORDERS } from '../../db/customerValue.js';
 import { faceVersions } from '../../db/faces.js';
@@ -2502,7 +2501,8 @@ export function renderConversationDetail(
    * 0076 — the card outlives the hand-off. Handing the conversation back
    * clears the hand-off's reason, not the request: while one noted from this
    * buyer's message waits, the card stays and says when it was noted; once the
-   * owner recorded one, a new ask says it is already recorded, and by when.
+   * owner recorded one, a new ask says it is already recorded, and since when
+   * (0126: the owner deletes it, on the customer's page; nothing waits for anyone else).
    */
   const deletionAsked = d.handoffReasons.includes('deletion_requested');
   const deletionCard = deletionAsked || d.deletionAsk
@@ -2513,7 +2513,7 @@ export function renderConversationDetail(
           ${d.deletionAsk
             ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.noted', { date: show.date(locale, d.deletionAsk.askedAt) }))}</div>`
             : d.deletionRecorded
-              ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.recorded', { due: show.date(locale, deletionDueBy(d.deletionRecorded.askedAt)) }))}</div>`
+              ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.recorded', { date: show.date(locale, d.deletionRecorded.askedAt) }))}</div>`
               : ''}
           <div class="rf-y muted">${esc(t(locale, 'deletionAsked.why'))}</div>
           <div class="rf-d">${viewer.isOwner

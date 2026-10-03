@@ -13,6 +13,18 @@ import { PgBoss } from 'pg-boss';
  * Money gets a database invariant, not just a queue guarantee.
  */
 
+/**
+ * Queues that no longer run, kept by name only so a boot can take their
+ * schedules out of pg-boss's own table. RET (0116) erased never-connected
+ * workspaces after 90 days; 0126 retired it.
+ */
+export const RETIRED_QUEUES = { retention: 'ops.retention' } as const;
+
+/** Every boot: a retired queue's schedule, if anything wrote it back, goes. */
+export async function unscheduleRetired(boss: { unschedule(name: string): Promise<void> }): Promise<void> {
+  for (const name of Object.values(RETIRED_QUEUES)) await boss.unschedule(name).catch(() => undefined);
+}
+
 export const QUEUES = {
   /** one job per inbound message; serialized per conversation */
   inbound: 'message.inbound',
@@ -82,8 +94,6 @@ export const QUEUES = {
   allowance: 'ops.allowance',
   /** R5 — once a day: spot checks offered on work that went out alone. */
   spotChecks: 'trust.spot_checks',
-  /** RET (0116) — once a day: the warnings before a never-connected workspace is erased. */
-  retention: 'ops.retention',
   /**
    * THE WARMTH RUN (0123) — every ten minutes: the photos of Instagram and
    * Messenger customers who are due a look (`faces_due`), fetched and kept
@@ -207,7 +217,7 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused' | 'retention_warning'
+  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance';
   conversationId: string | null;
@@ -238,10 +248,6 @@ export type NotifyJob = {
   mail?: { codes: number; alerts: number; refused: number };
   /** `signup_digest` (KS6): asks to connect a first channel waiting for the operator. */
   approvals?: number;
-  /** `signup_digest` (RET): workspaces past their date, warned twice, waiting for the operator's command. */
-  retentionDue?: number;
-  /** `retention_warning` (RET): the day the workspace will be erased, `YYYY-MM-DD`. */
-  eraseOn?: string;
   /** BILL: the trial's end (`billing_trial_ending`), ISO. */
   billingAt?: string;
   /** `spend_breaker` (KS5): the installation's day so far, and its ceiling. */

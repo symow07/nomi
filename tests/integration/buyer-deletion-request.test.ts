@@ -12,6 +12,14 @@ import { esc } from '../../src/api/web/layout.js';
 /**
  * CC-02a — A BUYER'S DELETION REQUEST CAN BE MADE, AND ITS DEADLINE IS KEPT.
  *
+ * 0126 — since the owner deletes at once (tests/integration/customer-erasure
+ * .test.ts), a request is recorded and carried out in one act. What this file
+ * still holds is the operator's safety net for a request that stays OPEN (one
+ * recorded before 0126, or the installation's own workspace's): it is listed
+ * on Your data, can be taken back, says when it was done, and the daily check
+ * tells the operator as its 30 days near. The old "record it" route answers
+ * that deleting is one step now, and writes nothing.
+ *
  * /data-deletion promised every buyer that "a person at the business" removes
  * their records within 30 days and tells them "on the same channel", while
  * nothing could record a buyer's request, nothing counted the days and nothing
@@ -180,112 +188,51 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     await app?.close(); await db?.destroy(); await admin?.end();
   });
 
-  it('the owner is offered the control on the buyer\'s page; a sales assistant sees whose decision it is', async () => {
-    const owner = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
-    expect(owner).toContain(`action="/app/conversations/${CONV}/deletion"`);
-    expect(owner).toContain(esc(t('en', 'conv.deletion.ask')));
-    expect(staffCookie, 'fixture: staff must be signed in').not.toBe('');
-    const staff = (await get(staffCookie, `/app/conversations/${CONV}`)).body;
-    expect(staff).not.toContain(`/app/conversations/${CONV}/deletion`);
-    expect(staff).toContain(t('en', 'staff.ownerDecides'));
-  });
+  /** A request as one recorded before 0126 is: open, by the owner, with a note. */
+  const openRequest = async (note = NOTE) => (await admin.query(
+    `insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note) values ($1, 'buyer', $2, $3, $4) returning id::text as id`,
+    [BIZ, CLIENT, OWNER_ID, note])).rows[0].id as string;
 
-  it('a note is required and bounded — without one nothing is written', async () => {
-    const empty = await ask(ownerCookie, '   ');
-    expect(flashSaid(empty, SECRET)).toBe(t('en', 'conv.deletion.flash.note_missing'));
-    const long = await ask(ownerCookie, 'x'.repeat(301));
-    expect(flashSaid(long, SECRET)).toBe(t('en', 'conv.deletion.flash.note_long', { n: 300 }));
+  it('the old "record it" route answers that deleting is one step now — and writes nothing', async () => {
+    const res = await ask(ownerCookie, NOTE);
+    expect(res.statusCode).toBe(302);
+    expect(String(res.headers['location'])).toBe(`/app/conversations/${CONV}#deletion`);
+    expect(flashSaid(res, SECRET)).toBe(t('en', 'conv.deletion.flash.moved'));
     expect(await requests()).toEqual([]);
     expect(await audits()).toEqual([]);
+    // A member of staff is refused before that, with the owner's sentence.
+    expect(flashSaid(await ask(staffCookie, NOTE), SECRET)).toBe(t('en', 'staff.notAllowed'));
+    // The owner's page offers the one act instead; staff see whose decision it is.
+    expect((await get(ownerCookie, `/app/conversations/${CONV}`)).body).toContain(`action="/app/conversations/${CONV}/deletion/erase"`);
+    expect((await get(staffCookie, `/app/conversations/${CONV}`)).body).not.toContain('/deletion/erase');
   });
 
-  it('THE OWNER RECORDS IT: the row, the audit line, the page says by when, the operator hears of it', async () => {
-    notices.length = 0;
-    const res = await ask(ownerCookie, `  ${NOTE}  `);
-    expect(res.statusCode).toBe(302);
-    expect(String(res.headers['location'])).toBe(`/app/conversations/${CONV}`);
-    expect(flashSaid(res, SECRET)).toBe(t('en', 'conv.deletion.flash.asked'));
-
-    const rows = await requests();
-    expect(rows).toHaveLength(1);
-    const row = rows[0]!;
-    expect(row).toMatchObject({ scope: 'buyer', client_id: CLIENT, asked_by: OWNER_ID, subject_note: NOTE, state: 'open' });
-
-    // The trail: that a request was made, and which — never the note, never whom.
-    const trail = await audits();
-    expect(trail).toHaveLength(1);
-    expect(trail[0]!.actor).toBe(OWNER_ID);
-    expect(trail[0]!.detail).toEqual({ scope: 'buyer', request: row.id });
-
-    // Nothing was deleted by asking: the buyer and their message are still here.
-    const still = await tx((t) => sql<{ n: number }>`
-      select count(*)::int as n from messages where conversation_id = ${CONV}::uuid`.execute(t).then((r) => r.rows[0]!.n));
-    expect(still).toBe(1);
-
-    // The page says it was asked, and the date it must be carried out by.
-    const page = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
-    expect(page).toContain(t('en', 'conv.deletion.open', {
-      asked: formatDate('en', row.asked_at, ZONE), due: formatDate('en', deletionDueBy(row.asked_at), ZONE),
-    }));
-    expect(page, 'an open request is not asked for again').not.toContain(`action="/app/conversations/${CONV}/deletion"`);
-
-    // The operator's address hears of it the day it is recorded — ids and
-    // dates only.
-    await expect.poll(() => notices.length).toBe(1);
-    expect(notices[0]!.to).toBe(LEGAL);
-    expect(notices[0]!.text).toContain(row.id);
-    expect(notices[0]!.text).toContain(deletionDueBy(row.asked_at).toISOString().slice(0, 10));
-    expect(notices[0]!.text, 'the note went into an e-mail').not.toContain('27 September');
-    expect(notices[0]!.text, 'the buyer\'s name went into an e-mail').not.toContain(BUYER);
-  });
-
-  it('asking twice is ONE request — the route says so, and the index holds it without the route', async () => {
-    const again = await ask(ownerCookie, 'asked again on Instagram');
-    expect(flashSaid(again, SECRET)).toBe(t('en', 'conv.deletion.flash.already_open'));
-    expect((await requests()).filter((r) => r.state === 'open')).toHaveLength(1);
-    // Two presses in the same instant both pass the count; 0073's partial
-    // unique index is what refuses the second.
+  it('asking twice is ONE request — 0073\'s index holds it', async () => {
+    const id = await openRequest();
     await expect(admin.query(
       `insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note)
        values ($1, 'buyer', $2, 'owner', 'race')`, [BIZ, CLIENT])).rejects.toThrow(/deletion_requests_one_open_buyer/);
+    await admin.query(`update deletion_requests set state = 'withdrawn', closed_at = now(), closed_by = 'test' where id = $1`, [id]);
   });
 
-  it('A SALES ASSISTANT is refused with the owner\'s sentence, and nothing is written', async () => {
-    const before = { requests: (await requests()).length, audits: (await audits()).length };
-    const res = await ask(staffCookie, 'staff tried');
-    expect(res.statusCode).toBe(302);
-    expect(String(res.headers['location'])).toBe(`/app/conversations/${CONV}`);
-    expect(flashSaid(res, SECRET)).toBe(t('en', 'staff.notAllowed'));
-    expect((await requests()).length).toBe(before.requests);
-    expect((await audits()).length).toBe(before.audits);
-    // …and the page the assistant is sent back to shows the state, not a form.
-    const page = (await get(staffCookie, `/app/conversations/${CONV}`)).body;
-    expect(page).toContain(t('en', 'data.deletion.state.open'));
-    expect(page).not.toContain(`action="/app/conversations/${CONV}/deletion"`);
-  });
-
-  it('Your data lists it with its due date, and it can be taken back while it waits', async () => {
-    const row = (await requests()).find((r) => r.state === 'open')!;
+  it('an open request is on Your data — deleted from there, or taken back while it waits', async () => {
+    const id = await openRequest();
+    const row = (await requests()).find((r) => r.id === id)!;
     const page = (await get(ownerCookie, '/app/settings/data')).body;
     expect(page).toContain(t('en', 'data.buyers.title'));
     expect(page).toContain(BUYER);
-    expect(page).toContain(t('en', 'data.buyers.due', {
-      asked: formatDate('en', row.asked_at, ZONE), due: formatDate('en', deletionDueBy(row.asked_at), ZONE),
-    }));
+    expect(page).toContain(t('en', 'data.buyers.open', { asked: formatDate('en', row.asked_at, ZONE) }));
     expect(page).toContain(`name="id" value="${row.id}"`);
+    expect(page).toContain(`action="/app/conversations/${CONV}/deletion/erase"`);
 
     const back = await post(ownerCookie, '/app/settings/data/withdraw', `id=${row.id}`);
     expect(flashSaid(back, SECRET)).toBe(t('en', 'data.flash.withdrawn'));
     expect((await requests()).find((r) => r.id === row.id)!.state).toBe('withdrawn');
-    // Taken back, it may be asked for again.
-    const file = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
-    expect(file).toContain(`action="/app/conversations/${CONV}/deletion"`);
   });
 
-  it('when the operator has carried it out, both pages say so, with the date', async () => {
-    const res = await ask(ownerCookie, NOTE);
-    expect(flashSaid(res, SECRET)).toBe(t('en', 'conv.deletion.flash.asked'));
-    const row = (await requests()).find((r) => r.state === 'open')!;
+  it('when one was carried out, both pages say so, with the date', async () => {
+    const id = await openRequest();
+    const row = (await requests()).find((r) => r.id === id)!;
     // The operator's side (tools/erase-buyer.mjs) closes the row.
     const done = new Date(row.asked_at.getTime() + 3 * DAY);
     await admin.query(
@@ -298,7 +245,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     expect(data, 'a done request is not offered back').not.toContain(`name="id" value="${row.id}"`);
     const file = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
     expect(file).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done, ZONE) })));
-    expect(file).not.toContain(`action="/app/conversations/${CONV}/deletion"`);
+    expect(file).not.toContain(`action="/app/conversations/${CONV}/deletion/erase"`);
   });
 
   it('THE DAILY CHECK: a request 25 days old sends ONE e-mail, to the owner who runs the installation', async () => {
@@ -391,8 +338,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     await admin.query(
       `update deletion_requests set state = 'withdrawn', closed_at = now(), closed_by = 'owner'
         where business_id = $1 and scope = 'workspace' and state = 'open'`, [OTHER]);
-    const fresh = await ask(ownerCookie, NOTE);
-    expect(flashSaid(fresh, SECRET)).toBe(t('en', 'conv.deletion.flash.asked'));
+    // (The one this file marked done above stands; a fresh request has no date near.)
 
     const due = await dueDeletionRequests(db);
     expect(due.filter((x) => x.business === OTHER_NAME || x.business === BIZ_NAME)).toEqual([]);

@@ -91,6 +91,8 @@ export const PRACTICE_SKIP = [
   'workspace_billing', 'customers_answered', 'stripe_events',
   // The warmth run (0123) — customers' photos: the copy has no customers of the workspace's.
   'client_faces',
+  // 0126 — the ids-only record of every erasure: the operator's, outliving any workspace; never a copy's.
+  'erasure_ledger',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

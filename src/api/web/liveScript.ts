@@ -489,6 +489,9 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     yes.addEventListener('click', function () {
       var b = pending;
       shut();
+      /* 0126 — a form that erases carries asked=0; said yes here, it goes with asked=1. With no script, the route asks on a page. */
+      var said1 = b && b.form.querySelector ? b.form.querySelector('input[name="asked"]') : 0;
+      if (said1) said1.value = '1';
       if (b) b.form.requestSubmit(b);
     });
     no.addEventListener('click', shut);

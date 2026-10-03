@@ -681,28 +681,29 @@ describe('the settings pages', () => {
     expect(draw('data', 'en')).toContain('up to 20,000 rows');
   });
 
-  it('V1-493 · settings-a-new-13 · settings-a-missed-15 · asking for everything to be deleted: a card of rows, a red button, words that agree with it', () => {
+  it('V1-493 · settings-a-new-13 · settings-a-missed-15 · closing the workspace (0126): a card of rows, a red button, words that agree with it', () => {
     const h = draw('data', 'en');
-    expect(h).toMatch(/<form method="post" action="\/app\/settings\/data\/delete">\s*<section class="sgroup"><div class="scard"><div class="setrow"><div class="fr-l"><label class="fr-name" for="dr-name">/);
+    expect(h).toMatch(/<form method="post" action="\/app\/settings\/data\/close">\s*<input type="hidden" name="asked" value="0" \/>\s*<section class="sgroup"><div class="scard"><div class="setrow"><div class="fr-l"><label class="fr-name" for="dr-name">/);
     expect(h).toContain('<button class="btn danger" type="submit"');
     for (const l of LOCALES) {
-      expect(t(l, 'data.deletion.byHand'), l).not.toMatch(/not a button|不是一个按|ليس زرًّا|no es un botón|n’est pas un bouton/i);
+      expect(t(l, 'data.deletion.now'), l).not.toMatch(/not a button|不是一个按|ليس زرًّا|no es un botón|n’est pas un bouton/i);
     }
   });
 
   it('V1-494 · V1-495 · V1-496 · V1-498 · V1-501 · settings-a-missed-16 · one name for the list, the team not the operator, an address for "us", Arabic kept together', () => {
     for (const l of LOCALES) expect(t(l, 'data.export.subject.contacts'), l).toBe(t(l, 'contacts.title'));
-    expect(t('en', 'data.buyers.lead')).toContain('The Nomi team');
+    // 0126 — the owner deletes now; nobody else carries it out, so nobody else is named.
+    expect(t('en', 'data.buyers.lead')).toContain('you delete it');
     for (const w of ['operator', '运营方', 'مشغّل', 'opérateur']) for (const l of LOCALES) expect(t(l, 'data.buyers.lead'), l).not.toContain(w);
     const withAddress = withoutIsolates(renderDataRights({ ...DATA, contact: 'privacy@nomi.example' }, 'en', null, OWNER, 'x'));
     expect(withAddress).toContain('write to privacy@nomi.example and we will send the rest');
     expect(draw('data', 'en')).not.toMatch(/write to us/);
     expect(t('en', 'data.deletion.why')).toBe('Anything the Nomi team should know (optional)');
-    expect(t('ar', 'data.buyers.lead')).toContain('30 يومًا');
+    expect(t('ar', 'data.buyers.lead')).not.toContain('30 يومًا');
     expect(t('ar', 'data.buyers.lead')).not.toContain('فـNomi');
     expect(t('ar', 'data.export.configTitle')).not.toMatch(/إعداد/);
     expect(t('en', 'data.buyers.fromChat')).not.toContain('usually');
-    expect(t('en', 'data.buyers.fromChat')).toContain('is not listed: record it yourself');
+    expect(t('en', 'data.buyers.fromChat')).toContain('is not listed: delete their data yourself');
   });
 
   it('settings-a-new-14 · settings-a-missed-17 · nobody asked yet is a state; a heading that wraps does so evenly', () => {
