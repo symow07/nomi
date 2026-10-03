@@ -174,10 +174,12 @@ describe('Today, in three zones (render)', () => {
   });
 
   it('nobody waiting, messaging on: the calm, warm state — the fact stated, no grid of zeros', () => {
-    const html = renderOperationsHome(live(emptyFactory), 'en', NOTHING_TODAY(NOW));
+    // Phase 9 (w4-whole-11) — "caught up" where customers can reach the assistant: a channel is connected.
+    const html = renderOperationsHome(live(emptyFactory), 'en', { ...NOTHING_TODAY(NOW), sending: ['whatsapp'] });
     // The owner's words: "you're all caught up", warm (was: "No one is waiting for you." as the heading).
     expect(html).toContain(`<h2 id="today-now" class="tw-head">${t('en', 'today.calm.title')}</h2>`);
-    expect(html).toContain(t('en', 'today.needs.none'));
+    // Phase 9 (w4-today-setup-09) — said once: no second line that says it again.
+    expect(html).not.toContain(t('en', 'today.needs.none'));
     expect(html).toContain(t('en', 'today.calm.care'));
     expect(html).not.toContain(t('en', 'ops.activity.title'));
   });
@@ -185,7 +187,8 @@ describe('Today, in three zones (render)', () => {
   it('M22 (F-01) · a quiet day with messaging OFF says nobody can reach the assistant, with the way forward — and never "all caught up"', () => {
     const html = renderOperationsHome(emptyFactory, 'en', NOTHING_TODAY(NOW));
     expect(html).toContain(t('en', 'today.calm.notLive.title'));
-    expect(html).toContain('href="/app/business/ready"');
+    // Phase 9 (w4-today-setup-16) — the way forward is the setup step's own door.
+    expect(html).toContain('href="/app/business/channels"');
     expect(html).toContain(t('en', 'ops.system.notLive'));
     expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
     expect(html).toContain(`<h2 id="today-now" class="tw-head">${t('en', 'today.needs.none')}</h2>`);

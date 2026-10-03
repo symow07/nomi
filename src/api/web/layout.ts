@@ -690,7 +690,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .srow.sr-menu { display:grid; grid-template-columns:min-content minmax(0, auto) minmax(0, max-content) min-content; column-gap:0; }
   .srow.sr-menu > .ni { grid-column:1; margin-inline-end:var(--space-12); }
   .srow.sr-menu > .sr-main { grid-column:2; }
-  .srow.sr-menu > .sr-value { grid-column:3; margin-inline-start:var(--space-12); max-width:none; min-width:0; overflow-wrap:break-word; }
+  .srow.sr-menu > .sr-value { grid-column:3; margin-inline-start:var(--space-12); max-width:100%; min-width:0; overflow-wrap:break-word; }
   .srow.sr-menu > .go { grid-column:4; margin-inline-start:var(--space-12); }
   .sr-ctl { flex:0 1 auto; min-width:0; }
   /* THE WARMTH RUN — a menu row (Settings, and the menus phase 7 makes of My
@@ -735,14 +735,19 @@ ${SIGNAL_CSS}${MOTION_CSS}
     a.srow { flex-wrap:wrap; row-gap:0; }
     a.srow .sr-main { flex-basis:0; }
     .sr-value { order:3; flex-basis:100%; max-width:100%; text-align:start; }
-    .srow.sr-menu > .sr-value { order:0; max-width:none; text-align:end; }
+    .srow.sr-menu > .sr-value { order:0; max-width:100%; text-align:end; }
   }
   .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .today-date { font-weight:400; }
   .today-worth { margin-top:var(--space-12); }
-  .today-worth .grow { text-wrap:pretty; }
+  /* Phase 9 (w4-today-setup-05) — a line worth the owner's attention is said at the size of the band's own lines,
+     and one about a customer leads with their face. */
+  .today-worth .grow { text-wrap:pretty; font-size:var(--font-size-small); }
+  .today-worth .row.has-face { display:grid; grid-template-columns:min-content minmax(0, 1fr) auto; column-gap:var(--space-12); }
   .today-foot { font-size:var(--font-size-small); margin:var(--space-16) 0 0; }
   .today-foot p { margin:0; }
+  /* Phase 9 (w4-today-setup-07) — setting up is its own small block under the band, never inside the calm panel. */
+  .today-foot.setup { margin:0 0 var(--space-24); }
   /* Phase 9 (V1-102) — the next step and its video, side by side where they fit. */
   .today-next { display:flex; flex-wrap:wrap; column-gap:var(--space-24); }
   /* THE WARMTH RUN, phase 2 — Today in three zones. 1 · who waits for you: a
@@ -777,6 +782,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
      Arabic), snaps to a face, and fades at its end to say there is more. The
      padding at the end leaves the last face clear of the fade. */
   main h2.td-head { font-size:var(--font-size-display); font-weight:600; margin:0 0 var(--space-16); }
+  /* Nothing connected yet: a heading for the way forward, not the day's news. */
+  main h2.td-head.is-plain { font-size:var(--font-size-title); margin-block-end:var(--space-8); }
   .td-ready { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .td-row { list-style:none; margin:0 0 var(--space-8); padding:var(--space-4) 0; padding-inline-end:var(--space-48);
     display:flex; gap:var(--space-8); overflow-x:auto; overscroll-behavior-inline:contain;
@@ -789,12 +796,14 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .td-row > li { flex:none; scroll-snap-align:start; }
   .td-face, .td-more { display:flex; flex-direction:column; align-items:center; gap:var(--space-4);
     inline-size:calc(56px + var(--space-16)); padding-block:var(--space-4); color:var(--color-ink); text-align:center; }
-  .td-word { font-size:var(--font-size-caption); color:var(--color-ink-secondary); overflow-wrap:anywhere; }
-  .td-face:hover .td-word, .td-more:hover .td-word { color:var(--color-ink); }
+  /* Phase 9 (w4-today-setup-02, -03) — under a face, the customer's name, then one word of what happened; neither
+     breaks inside itself, and a name too long for the column ends in an ellipsis on its own side. */
+  .td-name, .td-word { max-inline-size:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .td-name { font-size:var(--font-size-caption); font-weight:600; }
+  .td-word { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .td-face:hover .td-word { color:var(--color-ink); }
   .td-plus { display:grid; place-items:center; inline-size:56px; block-size:56px; border-radius:var(--radius-chip);
     background:var(--color-surface); box-shadow:var(--shadow-lift1); font-size:var(--font-size-small); font-weight:600; }
-  .td-more:focus-visible { outline:none; }
-  .td-more:focus-visible .td-plus { outline:2px solid var(--color-ink); outline-offset:2px; }
   /* 3 · the day's three figures: a figure over its word, in ink, side by side. */
   main h2.tt-head { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .tt-row { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--space-12); }
@@ -808,6 +817,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (V1-094) — on a phone a line's door goes under its sentence, so the sentence keeps the width. */
   @media (max-width: 560px) {
     .today-worth .row { flex-direction:column; align-items:flex-start; gap:0; }
+    .today-worth .row.has-face { grid-template-columns:min-content minmax(0, 1fr); align-items:center; }
+    .today-worth .row.has-face > .tw-face { grid-row:1 / 3; align-self:start; }
+    .today-worth .row.has-face > .deeper { grid-column:2; }
   }
   /* The chevron above mirrors because it POINTS — "onward" is to the left in
      Arabic. The mark does NOT, and its absence here is deliberate rather than an

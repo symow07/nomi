@@ -71,7 +71,16 @@ describe('G20 · one writer of outbound messages', () => {
       .filter((f) => /insert\s+into\s+outbound_messages/i.test(f.src))
       .map((f) => f.path)
       .sort();
-    expect(writers).toEqual(['db/channels.ts']);
+    // The warmth run, phase 9 (w4-today-setup-01): the usability workspace's
+    // fixture writes the replies of a local demo AS SENT — rows the send path
+    // never picks up (only 'queued' is sendable), so Today and Results read
+    // them as they read a real send. It is a fixture, named here so a second
+    // writer cannot be added quietly; every row it writes is already sent.
+    expect(writers).toEqual(['db/channels.ts', 'demo/usability.ts']);
+    const fixture = await readFile(new URL('demo/usability.ts', SRC), 'utf8');
+    const rows = [...fixture.matchAll(/insert into outbound_messages \([^)]*\) values`,\n\s*`[^`]*`/g)].map((m) => m[0]);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r, 'a fixture row is written sent, never queued').toMatch(/, 'sent', /);
 
     const channels = await readFile(new URL('db/channels.ts', SRC), 'utf8');
     const fn = channels.slice(channels.indexOf('export async function enqueueOutboundRow'));

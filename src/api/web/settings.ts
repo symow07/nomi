@@ -4,7 +4,7 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
-import { t, tn, assistantName, setupState, businessName } from './say.js';
+import { t, tn, assistantName, setupState } from './say.js';
 import { icon, type IconId } from './icons.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR, FLOOR_BY_LANGUAGE } from '../../core/safety/forbiddenWords.js';
@@ -332,15 +332,16 @@ export function renderLanguage(locale: Locale): string {
  */
 export function renderSettingsHome(locale: Locale, flash: Flash | null): string {
   const setup = setupState();
-  const business = businessName();
   const progress = setup ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total })) : '';
-  // One row as every menu draws it (`menuRow`): a value cut short keeps its beginning, in Arabic too.
+  // One row as every menu draws it (`menuRow`). A step still to do carries the to-do ○ in the
+  // secondary ink (`.sr-value.warn`, w4-whole-06), never the waiting signal.
   const row = (href: string, shape: Parameters<typeof icon>[0], label: string, value: string, tone?: 'ok' | 'warn') =>
     menuRow({ href, icon: shape, label, value, ...(tone ? { tone } : {}) });
+  // Phase 9 (w4-today-setup-28) — My business carries no value: the business's name is printed just above the heading.
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
     <ul class="scard">
-      ${row('/app/business', 'business', t(locale, 'nav.factory'), business ?? '')}
+      ${row('/app/business', 'business', t(locale, 'nav.factory'), '')}
       ${row('/app/settings/setup', 'setup', t(locale, 'nav.setup'), progress, setup ? (setup.next === null ? 'ok' : 'warn') : undefined)}
     </ul>
     <form class="scard sr-foot" method="post" action="/logout">

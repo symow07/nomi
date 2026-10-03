@@ -115,7 +115,8 @@ describe('1 · who waits for you', () => {
       const band = zone(html, 'today-now');
       expect(html, l).toContain('class="block today-now tw is-calm"');
       expect(band, l).toContain(`<h2 id="today-now" class="tw-head">${esc(t(l, 'today.calm.title'))}</h2>`);
-      expect(band, l).toContain(esc(t(l, 'today.needs.none')));
+      // Phase 9 (w4-today-setup-09) — the calm state is said once: the title, then the assistant's care.
+      expect(band, l).not.toContain(esc(t(l, 'today.needs.none')));
       expect(bare(band), l).toContain(bare(esc(t(l, 'today.calm.care', { name: 'Lily' }))));
       expect(band, l).not.toContain('class="empty"');
       expect(band, l).not.toContain('tw-need');
@@ -125,7 +126,7 @@ describe('1 · who waits for you', () => {
     expect(css).toContain('.tw.is-calm { background:var(--color-surface); border-radius:var(--radius-panel);');
   });
 
-  it('what Today must still say lives in the band: stopped, a reply that never arrived, a deletion request, Setup unfinished', () => {
+  it('what Today must still say lives in the band: stopped, a reply that never arrived, a deletion request — and Setup unfinished just under it', () => {
     const s: OperationsSnapshot = { ...live, assistantStoppedAt: NOW, attention: { ...live.attention, blockedMessages: 2, deletionAsks: 1 } };
     const setup = setupFrom({ profile: false, products: true, name: true, channels: true, first_success: false });
     const html = withWorkspace({ ...scope('Lily'), setup }, () => renderOperationsHome(s, 'en', day(0)));
@@ -133,7 +134,9 @@ describe('1 · who waits for you', () => {
     expect(band).toContain(esc(t('en', 'today.stopped.title', { name: 'Lily' })));
     expect(band).toContain(`href="/app/inbox?filter=blocked">${esc(tn('en', 'today.blocked', 2))}`);
     expect(band).toContain(`href="/app/inbox?filter=deletion">${esc(tn('en', 'today.deletion', 1))}`);
-    expect(band).toContain('class="today-foot setup"');
+    // Phase 9 (w4-today-setup-07) — setting up is its own block under the band, never inside it.
+    expect(band).not.toContain('class="today-foot setup"');
+    expect(html.indexOf('class="today-foot setup"')).toBeGreaterThan(html.indexOf('</section>', html.indexOf('aria-labelledby="today-now"')));
     // One reply that never arrived is enough to break "all caught up"; stopped, nothing says the assistant is looking after anyone.
     expect(band).not.toContain(esc(t('en', 'today.calm.title')));
     expect(html).not.toContain(esc(t('en', 'today.calm.care', { name: 'Lily' })));
@@ -159,13 +162,15 @@ describe('2 · what the assistant handled', () => {
     }
   });
 
-  it('two hundred: sixty faces drawn, then one tile "+140 more" to the Inbox — the row never draws 200', () => {
+  it('two hundred: sixty faces drawn, then one tile "+140 more" — the row never draws 200', () => {
     for (const l of LOCALES) {
       const hero = zone(render(l, day(200)), 'today-done');
       expect(hero.match(/<a class="face-link td-face" href="\/app\/customers\/[0-9a-f-]{36}" data-card /g), l).toHaveLength(60);
       expect(hero.match(/data-card/g), l).toHaveLength(60);
-      expect(bare(hero), l).toContain('<a class="td-more" href="/app/inbox?filter=all"><span class="td-plus"><bdi>+140</bdi></span>');
-      expect(hero, l).toContain(`<span class="td-word">${esc(t(l, 'today.handled.more'))}</span></a></li></ul>`);
+      // Phase 9 (w4-today-setup-04) — the tile says how many more and opens nothing: no list singles them out.
+      expect(bare(hero), l).toContain('<span class="td-more"><span class="td-plus"><bdi>+140</bdi></span>');
+      expect(hero, l).toContain(`<span class="td-word">${esc(t(l, 'today.handled.more'))}</span></span></li></ul>`);
+      expect(hero, l).not.toContain('href="/app/inbox?filter=all"');
       expect(bare(hero), l).toContain(bare(esc(tn(l, 'today.handled.title', 200, { name: 'Lily' }))));
       // photos load lazily, as face() draws them
       expect(hero, l).toContain('loading="lazy"');

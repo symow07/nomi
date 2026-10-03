@@ -250,7 +250,7 @@ describe('Phase 9 · Today', () => {
   });
   it('V1-094, V1-101 · on a phone a line\'s door goes under its sentence; the sentence avoids a lone last word', () => {
     expect(css).toMatch(/@media \(max-width: 560px\) \{\s*\.today-worth \.row \{ flex-direction:column; align-items:flex-start; gap:0; \}/);
-    expect(css).toContain('.today-worth .grow { text-wrap:pretty; }');
+    expect(css).toMatch(/\.today-worth \.grow \{ text-wrap:pretty;[^}]*\}/);
     // V1-101 — the Arabic month line (rewritten in #206) no longer ends on "هذا الشهر".
     expect(t('ar', 'insight.monthChange.inquiries.down')).not.toMatch(/الشهر\.$/);
   });
