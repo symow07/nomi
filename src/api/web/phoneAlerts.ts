@@ -210,11 +210,11 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
       <li>${esc(t(locale, 'alerts.two.order'))}</li>
       <li>${esc(t(locale, 'alerts.two.handover'))}</li>
     </ul>
-    <p class="muted">${esc(t(locale, 'alerts.rest'))}</p>
+    <p class="muted measure-prose">${esc(t(locale, 'alerts.rest'))}</p>
     ${v.ways ? waysForm(v.ways, v, locale) : ''}
     <section class="block" aria-labelledby="alerts-phones">
       <h2 id="alerts-phones">${esc(t(locale, 'alerts.phone.title'))}</h2>
-      <p>${esc(t(locale, v.publicKey ? 'alerts.phone.lede' : 'alerts.phone.ledeOff'))}</p>
+      <p class="measure-prose">${esc(t(locale, v.publicKey ? 'alerts.phone.lede' : 'alerts.phone.ledeOff'))}</p>
       ${turnOn}
       ${v.publicKey || v.phones.length ? `<h3>${esc(t(locale, 'alerts.phone.yours'))}</h3>${phones}` : ''}
     </section>`;

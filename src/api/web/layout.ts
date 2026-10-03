@@ -1065,6 +1065,9 @@ const STYLE_PAGES = `
   @media (prefers-reduced-motion: no-preference) {
     .toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
   }
+  /* The Notifications page: the three ways one under another; one that cannot be chosen yet reads as such. */
+  .choices.ways { flex-direction:column; }
+  .choices.ways label.check:has(> input:disabled) { color:var(--color-ink-secondary); }
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
   .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
