@@ -42,9 +42,6 @@ export async function facesDue(db: Db, max: number): Promise<readonly FaceDue[]>
     ? [{ businessId: r.business_id, clientId: r.client_id, channel: r.channel, channelUserId: r.channel_user_id }] : []);
 }
 
-export const FACE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
-export const FACE_MAX_BYTES = 524_288;
-
 /** What a look found: a photo, no photo, or no answer. */
 export type FaceFound =
   | { readonly state: 'kept'; readonly type: string; readonly bytes: Buffer }

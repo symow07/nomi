@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { shell, loginPage } from '../../src/api/web/layout.js';
-import { renderSetup } from '../../src/api/web/settings.js';
+import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
 import { MARK_FIGURE } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withSheets } from './linked-css.js';
@@ -76,11 +76,9 @@ describe('V1 step three · the collapse is CSS, and cannot be stuck', () => {
       expect(html).not.toContain('<header');
       expect(html).not.toContain('header.top');
       expect(html).not.toContain('class="langsw"');
-      // The design pass (2026-09-29): Log out is the rail's foot on a wide
-      // screen — a button in a form, inside the nav, never a band of its own.
-      const nav = html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
-      expect(nav).toMatch(/<form method="post" action="\/logout" class="navout"><button type="submit" class="subnav">/);
-      expect(html.split('/logout')).toHaveLength(2);
+      // THE WARMTH RUN (2026-10-03): "Log out leaves the rail entirely" — it is
+      // the foot of Settings (renderSettingsHome), never a band of its own.
+      expect(html).not.toContain('/logout');
     }
   });
 });
@@ -93,22 +91,20 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(html).not.toContain('class="who"');
   });
 
-  it('the language switch leads Setup, log out is its last thing — a button — and the login page keeps its switcher', () => {
+  it('the language switch leads Setup; log out is the last thing on Settings — a button — and the login page keeps its switcher', () => {
     // V1 close-out: log out ends the session, so it is a button and the last
-    // thing on the page, after every row. Phase 3 kept the order: the switch
-    // first, the groups of rows, log out.
+    // thing on its page. The warmth run moved it from Setup to Settings' foot.
     const html = renderSetup({ kind: null, people: 1 }, 'en', null);
     const lang = html.indexOf('class="langsw"');
     const firstRow = html.indexOf('<a class="srow" href="/app/guide">');
-    const lastRow = html.indexOf('<a class="srow" href="/app/settings/data">');
-    const out = html.indexOf('<form method="post" action="/logout">');
     expect(lang).toBeGreaterThan(0);
     expect(firstRow).toBeGreaterThan(lang);
-    expect(lastRow).toBeGreaterThan(firstRow);
-    expect(out, 'log out comes after every row').toBeGreaterThan(lastRow);
-    expect(html).not.toContain('href="/logout"');
-    // Phase 9 (V1-154) — a button that looks like one: outlined, at the cards' edge, not ghost text.
-    expect(html.slice(out, html.indexOf('</form>', out))).toMatch(/<button class="btn" type="submit">/);
+    expect(html).not.toContain('/logout');
+    const home = renderSettingsHome('en', null);
+    const out = home.indexOf('action="/logout"');
+    expect(out, 'log out comes after every row').toBeGreaterThan(home.lastIndexOf('class="srow sr-menu" href='));
+    expect(home).not.toContain('href="/logout"');
+    expect(home.slice(out, home.indexOf('</form>', out))).toMatch(/<button class="srow sr-menu sr-out" type="submit">/);
     expect(loginPage({ locale: 'en', path: '/login' })).toContain('class="langsw"');
   });
 
@@ -130,11 +126,12 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(block).toContain('nav.side .brand .brandname { display:none; }');
   });
 
-  it('the Setup count sits beside its word, not at the far end', () => {
+  // The warmth run: the rail's one count is the customers waiting, on Inbox.
+  it('the rail\'s count sits beside its word, not at the far end', () => {
     const rule = drawn().match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
     expect(rule).toContain('margin-inline-start:var(--space-8)');
     expect(rule).not.toContain('auto');
-    // Phase 7 — and on a phone the entry never breaks in two: one line, the count beside the word.
-    expect(phoneBlock()).toMatch(/nav\.side a\.navlink \{[^}]*flex-direction:row; flex-wrap:nowrap; white-space:nowrap/);
+    // On a phone each entry is a tile, icon over word, and never breaks in two; the figure rides the icon's corner.
+    expect(phoneBlock()).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex-direction:column; flex-wrap:nowrap; white-space:nowrap/);
   });
 });

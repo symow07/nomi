@@ -59,7 +59,7 @@ describe('M9.3 · inbox list (localized)', () => {
 
   it('en: localized chrome, latin product name', () => {
     const html = renderInboxList(listWithWork, 'en', NOW);
-    expect(html).toContain('Customers'); expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));
+    expect(html).toContain('Inbox'); expect(html).toContain(shown('en', 'buyers.badge.reviewShort'));
     expect(html).toContain('Needs you'); expect(html).toContain('Vacuum cup');
     expect(html).toContain('5,000\u00a0pcs');   // CC-13 — a figure and its unit, spaced (no-break)
     expect(html).not.toContain('保温杯');

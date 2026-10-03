@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { shell, esc, NAV, CONTEXTUAL_ROUTES_BY_HUB, CONTEXTUAL_ROUTES, hubFor, isOutreachRoute, OUTREACH_PREFIXES } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, outreachShown, setupState, type RequestScope } from '../../src/api/web/say.js';
-import { renderSetup } from '../../src/api/web/settings.js';
+import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { renderInboxList } from '../../src/api/web/inbox.js';
@@ -11,7 +11,6 @@ import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { setupFrom, SETUP_STEPS, NOTHING_DONE } from '../../src/db/setup.js';
 import { t, messages, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { withSheets } from './linked-css.js';
 
 /**
  * D — the drawer split (docs/IA-PROPOSAL.md §D, decided 2026-09-21).
@@ -37,14 +36,22 @@ const page = (path: string, scope: RequestScope | null = null) => {
 const navOf = (html: string) => html.split('<nav class="side"')[1]?.split('</nav>')[0] ?? '';
 
 describe('D · five entries', () => {
-  it('Today, Buyers, the assistant, My business, Setup — in that order, and no conditional sixth', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/business', '/app/settings']);
-    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'employee', 'factory', 'settings']);
+  // THE WARMTH RUN (2026-10-03), phase 1 — the owner's rail is exactly Today;
+  // Customers (Inbox, Calendar); the assistant; Settings. My business and
+  // Setup are Settings' two rows (its screen, `renderSettingsHome`).
+  it('Today, Inbox, Calendar, the assistant, Settings — in that order, and no conditional sixth', () => {
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/employee', '/app/settings']);
+    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'calendar', 'employee', 'settings']);
   });
 
-  it('Setup is named in every language, in owner words', () => {
-    expect(t('en', 'nav.settings')).toBe('Setup');
-    for (const l of LOCALES) expect(messages[l]['nav.settings'].length).toBeGreaterThan(0);
+  it('Settings and Setup are named in every language, in owner words', () => {
+    expect(t('en', 'nav.settings')).toBe('Settings');
+    expect(t('en', 'nav.setup')).toBe('Setup');
+    for (const l of LOCALES) {
+      expect(messages[l]['nav.settings'].length).toBeGreaterThan(0);
+      expect(messages[l]['nav.setup'].length).toBeGreaterThan(0);
+      expect(messages[l]['nav.setup'], l).not.toBe(messages[l]['nav.settings']);
+    }
   });
 
   it('the map puts what you sell under My business, behaviour under the assistant, wiring under Setup', () => {
@@ -59,9 +66,13 @@ describe('D · five entries', () => {
   });
 
   it('every page lights the entry it now sits under — URLs did not move, doors did', () => {
-    expect(hubFor('/app/settings/terms', 'x')).toBe('factory');
-    expect(hubFor('/app/settings/rate', 'x')).toBe('factory');
-    expect(hubFor('/app/products/abc', 'x')).toBe('factory');
+    // The warmth run: what you sell sits under My business, which sits under Settings.
+    expect(hubFor('/app/business', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/terms', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/rate', 'x')).toBe('settings');
+    expect(hubFor('/app/products/abc', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/setup', 'x')).toBe('settings');
+    expect(hubFor('/app/calendar', 'x')).toBe('calendar');
     expect(hubFor('/app/knowledge', 'x')).toBe('employee');
     expect(hubFor('/app/settings/forbidden', 'x')).toBe('employee');
     expect(hubFor('/app/sandbox', 'x')).toBe('employee');
@@ -76,34 +87,22 @@ describe('D · five entries', () => {
   });
 });
 
-describe('D · the Setup count', () => {
-  it('shows "done/total" on Setup while setup is unfinished, with a spoken form', () => {
-    const html = page('/app', facts());
-    const nav = navOf(html);
-    expect(nav).toContain('<span class="navcount" aria-hidden="true">3/5</span>');
-    expect(nav).toContain(`aria-label="${t('en', 'nav.settings')}, ${t('en', 'nav.setup.progress', { done: 3, total: 5 })}"`);
-    // only on Setup
-    expect(nav.split('navcount').length - 1).toBe(1);
-  });
-
-  it('disappears when the last step is done, and the entry stays', () => {
-    const nav = navOf(page('/app', facts({ setup: COMPLETE })));
-    expect(nav).not.toContain('navcount');
-    expect(nav).toContain('href="/app/settings"');
+// THE WARMTH RUN (2026-10-03) — the rail counts nothing but customers waiting:
+// "No badges … that do not correspond to a customer genuinely waiting." Where
+// setting up stands is said on Settings' Setup row and on Today's card.
+describe('D · the Setup count left the rail', () => {
+  it('no count on Settings while setup is unfinished; Settings\' Setup row says where it stands', () => {
+    const nav = navOf(page('/app', facts()));
+    expect(nav).not.toContain('3/5');
+    expect(nav).not.toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    const home = withWorkspace(facts(), () => renderSettingsHome('en', null));
+    expect(home).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSettingsHome('en', null))).toContain(t('en', 'setup.state.done'));
   });
 
   it('is absent outside a workspace — a public page, a bare render', () => {
     expect(navOf(page('/app'))).not.toContain('navcount');
     expect(setupState()).toBeNull();
-  });
-
-  it('the count is a figure in secondary ink, not a state colour', () => {
-    // V1 close-out — the rule is in the sheet the page links.
-    const html = withSheets(page('/app', facts()));
-    const rule = html.match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
-    expect(rule, 'the rule is found').not.toBe('');
-    expect(rule).toContain('var(--color-ink-secondary)');
-    expect(rule).not.toMatch(/warn|jade|ok|waiting/);
   });
 });
 
@@ -151,7 +150,7 @@ describe('D · the doors moved, the pages did not', () => {
       expect(html).toContain(`href="${href}"`);
     for (const href of ['/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate', '/app/settings/forbidden'])
       expect(html).not.toContain(`href="${href}"`);
-    expect(html).toContain(`<h1 class="page">${t('en', 'nav.settings')}</h1>`);
+    expect(html).toContain(`<h1 class="page">${t('en', 'nav.setup')}</h1>`);
   });
 
   it('phase 3 · each row says what the setting is, what it is set to now, and opens it; the profile\'s form is not on Setup', () => {
@@ -181,7 +180,7 @@ describe('D · the doors moved, the pages did not', () => {
     expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.notSetUp')}</bdi></span>`);
     expect(html).toContain('1 request waiting');
     // the search is a plain form: the page is filtered on the server
-    expect(html).toMatch(/<form class="search" method="get" action="\/app\/settings" role="search">/);
+    expect(html).toMatch(/<form class="search" method="get" action="\/app\/settings\/setup" role="search">/);
     const found = withWorkspace(facts(), () => renderSetup({ ...v, query: 'BILL' }, 'en', null));
     // a group's own name finds the whole group, in whatever case it is typed
     expect([...found.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/billing', '/app/settings/data']);
@@ -192,7 +191,7 @@ describe('D · the doors moved, the pages did not', () => {
     expect([...byLine.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/settings/profile']);
     const none = withWorkspace(facts(), () => renderSetup({ ...v, query: 'zzzz' }, 'en', null));
     expect(none).toContain(esc(t('en', 'setup.search.none', { q: 'zzzz' })));
-    expect(none).toContain('<a class="clear" href="/app/settings">');
+    expect(none).toContain('<a class="clear" href="/app/settings/setup">');
     // in Chinese the search reads Chinese
     const zh = withWorkspace(facts(), () => renderSetup({ ...v, query: '提醒' }, 'zh', null));
     expect([...zh.matchAll(/<a class="srow" href="([^"]+)"/g)].map((m) => m[1])).toContain('/app/settings/alerts');

@@ -42,7 +42,8 @@ import { accountMailTransport } from './channels/email/accountTransport.js';
 import { smtpMailTransport } from './channels/email/smtpTransport.js';
 import { smtpConfigFrom } from './channels/email/smtp.js';
 import { instagramAdapter } from './channels/instagram/adapter.js';
-import { socialAppSecret, metaProfileLookup, type MetaFetch } from './channels/meta/messaging.js';
+import { socialAppSecret, metaProfileLookup, metaProfilePhoto, type MetaFetch } from './channels/meta/messaging.js';
+import { fetchFaces } from './worker/faces.js';
 import { metaLoginFrom, metaAccountToken } from './channels/meta/connect.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, type MetaAccount } from './db/metaAccounts.js';
 import { messengerAdapter } from './channels/messenger/adapter.js';
@@ -1359,6 +1360,28 @@ export async function buildProduction(
    * told of any workspace over the line (src/core/ops/metaErrors.ts), by e-mail
    * always, at most once in six hours — the next hour's check would repeat it.
    */
+  /**
+   * THE WARMTH RUN (0123) — customers' photos, fetched in the background: a
+   * handful every ten minutes, each with its business's own Page token. A
+   * business whose Page needs attention is not asked (`faces_due` leaves it
+   * out); a look that fails is tried again later, and a kept photo stays.
+   */
+  await boss.schedule(QUEUES.faces, '*/10 * * * *', {});
+  await boss.work(QUEUES.faces, async () => {
+    const r = await fetchFaces({
+      db,
+      look: async (due) => {
+        const bid = parseBusinessId(due.businessId);
+        if (!bid.ok) return { state: 'failed' };
+        const account = await withTenantTx(db, bid.value, (tx) => liveMetaAccount(tx, bid.value));
+        const token = account && !account.needsAttention ? metaAccountToken(account, credentialKey) : null;
+        if (!token) return { state: 'failed' };
+        return metaProfilePhoto({ accessToken: token, graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch })(due.channelUserId);
+      },
+    });
+    if (r.looked > 0) console.warn(`[faces] looked at ${r.looked}, kept ${r.kept}`);
+  });
+
   await boss.schedule(QUEUES.metaErrors, '15 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies MetaErrorWatchJob);
   await boss.work<MetaErrorWatchJob>(QUEUES.metaErrors, async ([job]: { data: MetaErrorWatchJob }[]) => {
     if (!job) return;

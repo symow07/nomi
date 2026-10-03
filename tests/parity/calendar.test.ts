@@ -161,8 +161,8 @@ describe('V2 · the calendar page, by structure', () => {
   it('ar: the page sits in a right-to-left document', () => {
     const page = shell({ title: 'x', active: 'calendar', locale: 'ar', path: '/app/calendar', bodyHtml: renderCalendar(view(), 'ar') });
     expect(page).toContain('dir="rtl"');
-    // Buyers is lit: the calendar is reached from it.
-    expect(page).toMatch(/<a href="\/app\/inbox" class="navlink active" aria-current="page"/);
+    // The warmth run: the calendar is its own entry under Customers, and it is lit.
+    expect(page).toMatch(/<a href="\/app\/calendar" class="navlink sub active" data-nav="calendar" aria-current="page"/);
   });
 
   it('a chosen category keeps its tab and carries through the doors', () => {

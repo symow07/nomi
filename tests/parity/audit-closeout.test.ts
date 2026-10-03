@@ -344,7 +344,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
 
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
-      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/business" class="navlink active" aria-current="page"/);
+      // The warmth run: products are My business's, a row of Settings — Settings is lit.
+      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/settings" class="navlink active" data-nav="settings" aria-current="page"/);
       // Phase 9 (V1-358) — the period's tabs sit with its counts at the foot of the page, and keep it there.
       expect(withoutIsolates(renderKnowledgePeriod(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week#period"');
     }

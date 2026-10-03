@@ -23,6 +23,8 @@ import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { keptFace } from '../../db/faces.js';
+import { loadCustomerCard } from '../../db/customerCard.js';
+import { renderCustomerCard } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
@@ -4034,6 +4036,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // M46 — one order: what she recorded, the proforma, and the form that
   // records the next thing. Reached from the conversation it came out of.
+  /**
+   * THE WARMTH RUN (2026-10-03), phase 3 — a customer's profile card, as a
+   * page. Every face in the product links here; the page's script lifts the
+   * card into a sheet over the page it was opened from. Another business's
+   * customer is not found, as a missing one is (row security).
+   */
+  app.get('/app/customers/:clientId', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    const id = (req.params as { clientId: string }).clientId;
+    const card = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerCard(tx, id)) : null;
+    if (!card) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'nav.inbox'), active: 'inbox',
+      bodyHtml: missingPage(locale, t(locale, 'inbox.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') }),
+    }));
+    return reply.type('text/html; charset=utf-8').header('cache-control', 'private, no-store').send(page(req, {
+      title: card.name ?? t(locale, 'common.buyer'), active: 'inbox',
+      bodyHtml: `${back('/app/inbox', t(locale, 'nav.inbox'))}${renderCustomerCard(card, locale, new Date())}`,
+    }));
+  });
+
   app.get('/app/orders/:id', authed('inbox', async (sess, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const v = await loadOrder(deps.db, sess.businessId, id);

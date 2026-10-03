@@ -166,7 +166,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('V1-165 · the area is Customers: its empty Mine speaks of customers, not conversations', () => {
     expect(t('en', 'inbox.empty.mine')).toBe('No customer is in your hands right now.');
     expect(t('en', 'inbox.empty.mine')).not.toMatch(/conversation/i);
-    expect(t('en', 'nav.conversations')).toBe('Customer list');
+    // The warmth run: the list's rail entry is "Inbox" (the owner renamed it), under Customers.
+    expect(t('en', 'nav.conversations')).toBe('Inbox');
     expect(t('en', 'inbox.empty.seeAll')).toBe('See all customers');
   });
 
@@ -206,7 +207,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('V1-172 · the rail\'s number says what it counts', () => {
     for (const l of LOCALES) {
       const page = withWorkspace({ ...SCOPE, needsYou: 3 }, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/inbox', bodyHtml: '' }));
-      expect(withoutIsolates(page), l).toContain(`<span class="navcount" aria-hidden="true">${shown(l, 'nav.waiting', { n: 3 })}</span>`);
+      // The warmth run: on a wide screen the words; on a phone's tile the figure alone, at the icon's corner.
+      expect(withoutIsolates(page), l).toContain(`<span class="navcount" aria-hidden="true"><span class="nl-long">${shown(l, 'nav.waiting', { n: 3 })}</span>`);
     }
   });
 });
@@ -480,7 +482,7 @@ describe('an order', () => {
     expect(hubFor('/app/orders/44444444-4444-4444-8444-444444444444', 'inbox')).toBe('inbox');
     for (const l of LOCALES) {
       const page = withWorkspace(SCOPE, () => shell({ title: 'T', active: 'inbox', locale: l, path: '/app/orders/o1', bodyHtml: orderPage(l) }));
-      expect(page, l).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page"/);
+      expect(page, l).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page"/);
       expect(orderPage(l), l).toContain(`${shown(l, 'order.back')}</a>`);
     }
     expect(t('en', 'order.back')).toBe('Back to the customer');
@@ -533,7 +535,8 @@ describe('the settings pages', () => {
   });
 
   it('V1-478 · V1-506 · V1-491 · V1-468 · each page leads back to where it is reached from, drawn the same way, the heading under it', () => {
-    const backs: Record<string, string> = { closures: '/app/business', forbidden: '/app/employee', components: '/app/settings', alerts: '/app/settings' };
+    // The warmth run: the components gallery and the alerts are Setup's, which moved to /app/settings/setup.
+    const backs: Record<string, string> = { closures: '/app/business', forbidden: '/app/employee', components: '/app/settings/setup', alerts: '/app/settings/setup' };
     for (const l of LOCALES) for (const [p, href] of Object.entries(backs)) {
       expect(draw(p, l).trimStart().startsWith(`<a class="back" href="${href}">`), `${l}/${p}`).toBe(true);
     }

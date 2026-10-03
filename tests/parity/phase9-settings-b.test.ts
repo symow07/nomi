@@ -45,21 +45,21 @@ describe('V1-547, V1-562, V1-563 · a page reached from the customer list lights
     for (const [path, active] of [['/app/contacts', 'contacts'], ['/app/prospects', 'prospects'], ['/app/sequences', 'sequences'],
       ['/app/contacts/suppress', 'contacts'], ['/app/sequences/x', 'sequences']] as const) {
       const html = page(path, active);
-      expect(html, path).toMatch(/<a href="\/app\/inbox" class="subnav active"/);
-      expect(html, path).not.toMatch(/<a href="\/app\/calendar" class="subnav active"/);
+      expect(html, path).toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
+      expect(html, path).not.toMatch(/<a href="\/app\/calendar" class="navlink sub active"/);
       // …and the phone row lights Customers, as it did.
-      expect(html, path).toMatch(/<a href="\/app\/inbox" class="navlink active"/);
+      expect(html, path).toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
     }
   });
   it('the calendar still lights only the calendar; Today lights neither', () => {
-    expect(page('/app/calendar', 'inbox')).toMatch(/<a href="\/app\/calendar" class="subnav active"/);
-    expect(page('/app/calendar', 'inbox')).not.toMatch(/<a href="\/app\/inbox" class="subnav active"/);
-    expect(page('/app', 'home')).not.toMatch(/class="subnav active"/);
+    expect(page('/app/calendar', 'inbox')).toMatch(/<a href="\/app\/calendar" class="navlink sub active"/);
+    expect(page('/app/calendar', 'inbox')).not.toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
+    expect(page('/app', 'home')).not.toMatch(/class="navlink sub active"/);
   });
   it('in every locale', () => {
     for (const l of LOCALES) {
       expect(shell({ title: 'T', active: 'contacts', locale: l, path: '/app/contacts', bodyHtml: '' }), l)
-        .toMatch(/<a href="\/app\/inbox" class="subnav active"/);
+        .toMatch(/<a href="\/app\/inbox" class="navlink sub active"/);
     }
   });
 });
@@ -141,8 +141,8 @@ describe('V1-512 · Who works here names itself and leads back to Setup', () => 
   it('the back link, and the tab is the heading', () => {
     for (const l of LOCALES) {
       const html = people(l);
-      expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeGreaterThan(-1);
-      expect(html.indexOf('<a class="back" href="/app/settings">'), l).toBeLessThan(html.indexOf('<h1 class="page">'));
+      expect(html.indexOf('<a class="back" href="/app/settings/setup">'), l).toBeGreaterThan(-1);
+      expect(html.indexOf('<a class="back" href="/app/settings/setup">'), l).toBeLessThan(html.indexOf('<h1 class="page">'));
       const doc = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: '/app/settings/people', bodyHtml: html }));
       expect(doc, l).toContain(`<title>${esc(t(l, 'people.title'))} · 义乌宏发日用品厂 (demo)</title>`);
     }

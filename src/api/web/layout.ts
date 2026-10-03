@@ -226,7 +226,7 @@ export const signalMark = (s: Signal): string =>
  */
 export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
   ok: ['.pill.ok', '.pill.taught', '.fconn.on .fconn-s', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
-  waiting: ['.pill.warn', '.pill.reason', '.fconn.off .fconn-s', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob'],
+  waiting: ['.pill.warn', '.pill.reason', '.fconn.off .fconn-s', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob', '.pc-wait', 'nav.side .navcount'],
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
   assistant: ['.pill.as'],
 };
@@ -270,6 +270,9 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     dialog.ask[open] { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     .btn[aria-busy="true"]::after { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     dialog.ask[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
+    /* THE WARMTH RUN — the profile card springs up (its one curve of its own). */
+    dialog.sheet[open] { animation:nomi-spring var(--motion-normal) var(--motion-spring) both; }
+    dialog.sheet[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
@@ -279,6 +282,7 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   @keyframes nomi-rise { from { opacity:0; transform:translateY(8px); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
   @keyframes nomi-fade { from { opacity:0; } }
+  @keyframes nomi-spring { from { opacity:0; transform:translateY(var(--space-48)) scale(0.97); } }
   /* The assistant at work: its mark, what it is doing, three dots. */
   .working { display:flex; align-items:baseline; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .working .dots { display:inline-flex; gap:var(--space-4); }
@@ -288,6 +292,42 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     inline-size:min(var(--measure-form), calc(100vw - var(--space-32))); box-shadow:var(--shadow-lift2);
     background:var(--color-surface); color:var(--color-ink); }
   dialog.ask::backdrop { background:var(--color-ink); opacity:0.35; }
+  /* THE WARMTH RUN, phase 3 — THE PROFILE CARD (customerCard.ts): a rounded
+     panel, the face large at its head, two figures, what they bought, and one
+     action at its foot. As a page it sits in the column; lifted by the script
+     into its sheet, it springs up over the page — from the bottom edge on a
+     phone, where it is a bottom sheet. */
+  .pcard { display:flex; flex-direction:column; gap:var(--space-16); max-width:var(--measure-form); margin-inline:auto;
+    padding:var(--space-24); background:var(--color-surface); border-radius:var(--radius-panel); box-shadow:var(--shadow-lift1); }
+  .pc-top { display:flex; flex-direction:column; align-items:center; gap:var(--space-4); text-align:center; }
+  .pc-top .face { margin-block-end:var(--space-8); }
+  .pc-name { margin:0; font-size:var(--font-size-display); line-height:1.2; overflow-wrap:anywhere; }
+  .pc-meta { margin:0; display:flex; flex-wrap:wrap; justify-content:center; gap:var(--space-4) var(--space-12);
+    color:var(--color-ink-secondary); font-size:var(--font-size-small); }
+  .pc-wait { margin:0; color:var(--color-waiting); font-weight:600; font-size:var(--font-size-small); }
+  .pc-regular { margin:0; color:var(--color-ink-secondary); font-weight:600; font-size:var(--font-size-caption); }
+  .pc-facts { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-8); margin:0; }
+  .pc-facts > div { padding:var(--space-12) var(--space-16); background:var(--color-paper); border-radius:var(--radius-card); }
+  .pc-facts dt { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .pc-facts dd { margin:0; font-size:var(--font-size-title); font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .pc-h { margin:0 0 var(--space-4); font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); }
+  .pc-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
+  .pc-qty, .pc-none { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
+  .pc-none { margin:0; }
+  .pc-top + .pc-facts, .pc-things + .pc-open { margin-block-start:var(--space-4); }
+  .pc-open { align-self:stretch; width:auto; justify-content:center; min-height:48px; border-radius:var(--radius-control); background:var(--color-paper); font-weight:600; }
+  dialog.sheet { border:0; padding:0; background:transparent; color:var(--color-ink); overflow:visible;
+    inline-size:min(var(--measure-form), calc(100vw - var(--space-32))); max-width:var(--measure-form); }
+  dialog.sheet::backdrop { background:var(--color-ink); opacity:0.35; }
+  dialog.sheet .pcard { box-shadow:var(--shadow-lift2); max-block-size:calc(100vh - 2 * var(--space-48)); overflow-y:auto; }
+  .sheet-bar { display:flex; justify-content:flex-end; margin:0 0 var(--space-8); }
+  .sheet-x { inline-size:44px; block-size:44px; border:0; border-radius:var(--radius-chip); background:var(--color-surface);
+    color:var(--color-ink); font:inherit; font-size:var(--font-size-title); line-height:1; cursor:pointer; box-shadow:var(--shadow-lift1); }
+  @media (max-width: 720px) {
+    dialog.sheet { inline-size:100%; max-width:100%; margin:auto 0 0; }
+    dialog.sheet .pcard { border-end-start-radius:0; border-end-end-radius:0; max-block-size:calc(100vh - 2 * var(--space-48)); }
+    .sheet-bar { padding-inline:var(--space-8); }
+  }
   .ask-q { margin:0 0 var(--space-16); }
   /* Phase 9 (cross-new-04) — the two buttons share one row on a phone: a long word wraps inside its own button. */
   .ask-acts { display:flex; gap:var(--space-8); flex-wrap:nowrap; align-items:stretch; }
@@ -432,7 +472,7 @@ ${cssVariables()}
   .nl-short { display:none; }
   /* The rail's one number: customers waiting for the owner, in the waiting
      signal's colour, beside its word. */
-  nav.side .navcount { margin-inline-start:auto; min-inline-size:1.6em; padding:0 var(--space-4); text-align:center;
+  nav.side .navcount { display:inline-flex; justify-content:center; margin-inline-start:var(--space-8); min-inline-size:1.6em; padding:0 var(--space-4);
     font-size:var(--font-size-caption); font-weight:700; color:var(--color-waiting); background:var(--color-waiting-wash);
     border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
@@ -875,7 +915,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
     nav.side a.navlink, nav.side a.navlink.sub { position:relative; flex:1 1 0; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
-      gap:2px; margin:0; padding:var(--space-4) 2px; min-height:56px; min-width:0; align-items:center; justify-content:center;
+      gap:var(--space-4); margin:0; padding:var(--space-4) 2px; min-height:56px; min-width:0; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
@@ -2019,6 +2059,8 @@ export function hubFor(path: string, active: string): string {
     consider(MERGED_INTO_BUYERS, { hub: '/app/inbox' });
     // Phase 9 (V1-191) — an order is one customer's, opened from their conversation: Customers' too.
     consider('/app/orders', { hub: '/app/inbox' });
+    // THE WARMTH RUN — a customer's profile card is one of the customers'.
+    consider('/app/customers', { hub: '/app/inbox' });
     return best ?? {};
   };
 
@@ -2108,7 +2150,10 @@ export function shell(input: {
       ? t(locale, 'nav.team')
       : t(locale, `nav.${n.id}` as MessageKey);
     const waiting = n.id === 'inbox' ? needsYouCount() : null;
-    const badge = waiting ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, String(waiting)))}</span>` : '';
+    // Phase 9 (V1-172) — the number says what it counts ("3 waiting") where
+    // there is room; on a phone's tile it is the figure alone, on the icon's corner.
+    const badge = waiting ? `<span class="navcount" aria-hidden="true"><span class="nl-long">${esc(isolate(locale, t(locale, 'nav.waiting', { n: waiting })))}</span>`
+      + `<span class="nl-short">${esc(isolate(locale, String(waiting)))}</span></span>` : '';
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
     // On a phone the five entries share one line, icon over word: the longer
     // words have a phone form. The stylesheet shows one; a screen reader hears
@@ -2173,7 +2218,7 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div>${askDialog(locale)}</body></html>`;
+</div>${askDialog(locale)}${cardSheet(locale)}</body></html>`;
 }
 
 /**
@@ -2189,6 +2234,16 @@ const askDialog = (locale: Locale): string =>
   // Its fill (or its red) is set when it opens, from the button that asked: closed, it is no page's primary act.
   + `<button type="button" class="btn" data-ask-yes>${esc(t(locale, 'common.goAhead'))}</button>`
   + `<button type="button" class="btn" data-ask-no autofocus>${esc(t(locale, 'common.cancel'))}</button></div></dialog>`;
+
+/**
+ * THE WARMTH RUN (2026-10-03), phase 3 — the sheet the profile card springs up
+ * in. Empty and closed until a face is pressed; the page's script fetches the
+ * card's own page and puts its card here (liveScript.ts). Closing is the
+ * dialog's own: its button, Escape, or a press outside the card.
+ */
+const cardSheet = (locale: Locale): string =>
+  `<dialog class="sheet" aria-labelledby="pc-name" data-sheet><form method="dialog" class="sheet-bar">`
+  + `<button type="submit" class="sheet-x" aria-label="${esc(t(locale, 'pcard.close'))}">×</button></form><div data-sheet-body></div></dialog>`;
 
 /**
  * A1 — the two pages a stranger may see: the door, and how to get a key.

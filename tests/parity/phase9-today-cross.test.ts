@@ -16,7 +16,7 @@ import { renderGuide } from '../../src/api/web/guide.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { renderPilotReadiness, renderPilotRunbook, renderPilotTechnical, type PilotReadiness, type PilotRunbook } from '../../src/api/web/pilot.js';
 import { renderReady } from '../../src/api/web/ready.js';
-import { renderSetup } from '../../src/api/web/settings.js';
+import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
 import { checklistFor } from '../../src/db/practiceChecklist.js';
 import { SETUP_STEPS } from '../../src/db/setup.js';
 import { readFileSync } from 'node:fs';
@@ -136,19 +136,27 @@ describe('Phase 9 · the shell', () => {
     for (const path of ['/app', '/app/settings', '/app/guide', '/app/onboarding', '/app/onboarding/technical', '/app/ready'])
       expect(page('zh', path, '<h1 class="page">x</h1>'), path).toContain('<p class="business-name"><bdi>义乌宏发日用品厂 (demo)</bdi></p>');
   });
-  it('cross-new-02, today-onboarding-new-06 · an entry has one name at every width in en, zh, ar and es', () => {
+  // THE WARMTH RUN (2026-10-03) — on a phone the five entries are five tiles,
+  // icon over word, a fifth of the screen each: an entry whose word does not
+  // fit a fifth (Arabic's, Spanish's and French's Inbox) has its phone form;
+  // every other entry keeps one name at every width.
+  it('cross-new-02, today-onboarding-new-06 · an entry has one name at every width, unless its word cannot fit a fifth of a phone', () => {
     for (const l of ['en', 'zh', 'ar', 'es'] as const) {
       const nav = navOf(page(l, '/app', ''));
-      expect(nav, l).not.toContain('nl-short');
-      expect(nav, l).toContain(`>${t(l, 'nav.factory')}<`);
+      // (a figure is the waiting count's phone form, not a name)
+      const shorts = [...nav.matchAll(/<span class="nl-short">([^<]*)<\/span>/g)].map((m) => m[1]).filter((s) => !/\d/.test(s ?? ''));
+      expect(shorts, l).toEqual(t(l, 'nav.short.inbox') === t(l, 'nav.inbox') ? [] : [t(l, 'nav.short.inbox')]);
+      expect(nav, l).toContain(`>${t(l, 'nav.settings')}<`);
     }
   });
   it('V1-012, V1-110, V1-151 · a page reached from a hub that drew no way back gets one, to its hub; one that drew its own keeps it alone', () => {
     const cases: [string, string, MessageKey][] = [
       ['/app/settings/closures', '/app/business', 'nav.factory'], ['/app/settings/rate', '/app/business', 'nav.factory'],
       ['/app/settings/samples', '/app/business', 'nav.factory'], ['/app/settings/terms', '/app/business', 'nav.factory'],
-      ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings', 'nav.settings'],
-      ['/app/guide', '/app/settings', 'nav.settings'], ['/app/onboarding', '/app/settings', 'nav.settings'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
+      ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
+      ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
+      // The warmth run: Settings' two rows lead back to it.
+      ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
@@ -253,11 +261,12 @@ describe('Phase 9 · Today', () => {
   it('today-onboarding-new-07 · Arabic "follow up" is not the dialog\'s "continue"', () => {
     expect(t('ar', 'insight.action.follow_up')).not.toBe(t('ar', 'common.goAhead'));
   });
-  it('V1-097 · the rail\'s list entry is the customer list, under Customers, the page it opens', () => {
-    expect(t('en', 'nav.conversations')).toBe('Customer list');
+  // The warmth run: "Inbox (rename from 'Customer list')", under Customers, with its shape.
+  it('V1-097 · the rail\'s list entry is the Inbox, under Customers, the page it opens', () => {
+    expect(t('en', 'nav.conversations')).toBe('Inbox');
     for (const l of LOCALES) {
       const nav = navOf(page(l, '/app/inbox', ''));
-      expect(nav, l).toContain(`<span class="navhead" id="nav-customers">${esc(t(l, 'nav.customers'))}</span>`);
+      expect(nav, l).toMatch(new RegExp(`<span class="navhead" id="nav-customers"><svg[^>]*>[\\s\\S]*?</svg><span>${esc(t(l, 'nav.customers'))}</span></span>`));
       expect(nav, l).toContain(`>${esc(t(l, 'nav.conversations'))}<`);
       expect(t(l, 'nav.conversations'), l).not.toBe(t(l, 'pane.label'));
     }
@@ -508,10 +517,15 @@ describe('Phase 9 · Setup', () => {
     expect(setupHtml('zh', '团队')).toContain('href="/app/settings/people"');
     const none = setupHtml('en', 'zzzz');
     expect(none).toContain(esc(t('en', 'setup.search.none', { q: 'zzzz' })));
-    expect(none).toContain(`<a class="deeper" href="/app/settings">${t('en', 'setup.search.all')}`);
+    expect(none).toContain(`<a class="deeper" href="/app/settings/setup">${t('en', 'setup.search.all')}`);
   });
-  it('V1-154 · Log out is a button that looks like one', () => {
-    expect(setupHtml('en')).toContain(`<button class="btn" type="submit">${t('en', 'header.logout')}</button>`);
+  // The warmth run: Log out left the rail and Setup; it is the foot of Settings,
+  // a button drawn as Settings' last row, in its own card.
+  it('V1-154 · Log out is a button, the last thing on Settings', () => {
+    const home = inScope(() => renderSettingsHome('en', null));
+    expect(home).toMatch(new RegExp(`<form class="scard sr-foot" method="post" action="/logout">\\s*<button class="srow sr-menu sr-out" type="submit">[\\s\\S]*${t('en', 'header.logout')}`));
+    expect(home.lastIndexOf('/logout')).toBeGreaterThan(home.lastIndexOf('href="/app/settings/setup"'));
+    expect(setupHtml('en')).not.toContain('/logout');
   });
   it('V1-157 · Chinese names the people page and the billing group for what they are', () => {
     expect(t('zh', 'people.title')).not.toBe('这里有谁');

@@ -84,6 +84,12 @@ export const QUEUES = {
   spotChecks: 'trust.spot_checks',
   /** RET (0116) — once a day: the warnings before a never-connected workspace is erased. */
   retention: 'ops.retention',
+  /**
+   * THE WARMTH RUN (0123) — every ten minutes: the photos of Instagram and
+   * Messenger customers who are due a look (`faces_due`), fetched and kept
+   * (src/worker/faces.ts). No page ever waits on this.
+   */
+  faces: 'ops.faces',
 } as const;
 
 /** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */

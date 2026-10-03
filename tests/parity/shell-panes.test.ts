@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { shell } from '../../src/api/web/layout.js';
 import { withWorkspace } from '../../src/api/web/say.js';
+import { renderSettingsHome } from '../../src/api/web/settings.js';
 import { renderListPane, renderCustomerPanel, renderPanes } from '../../src/api/web/panes.js';
 import type { InboxList, ConversationSummary } from '../../src/api/web/inbox.js';
 import type { CustomerPanel } from '../../src/db/customerPanel.js';
@@ -22,33 +23,42 @@ const page = (path: string, locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
   withWorkspace(SCOPE, () => shell({ title: 'Maya Rahman', active: 'inbox', locale, path, bodyHtml: '<p>x</p>' }));
 
 describe('the rail', () => {
-  it('in groups: Today and the customers; the assistant and the business; Setup and Log out at the foot', () => {
+  // THE WARMTH RUN (2026-10-03), phase 1 — daily work at the top, management at the foot.
+  it('in groups: Today; the customers (Inbox, Calendar); the assistant; Settings at the foot — and no Log out', () => {
     const html = page('/app/inbox/c-1');
     const nav = html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
     const at = (s: string) => nav.indexOf(s);
     expect(at('href="/app"')).toBeLessThan(at('id="nav-customers"'));
-    expect(at('id="nav-customers"')).toBeLessThan(at('href="/app/employee"'));
+    expect(at('id="nav-customers"')).toBeLessThan(at('href="/app/inbox"'));
+    expect(at('href="/app/inbox"')).toBeLessThan(at('href="/app/calendar"'));
+    expect(at('href="/app/calendar"')).toBeLessThan(at('href="/app/employee"'));
     expect(at('<div class="navfoot">')).toBeLessThan(at('href="/app/settings"'));
-    expect(at('href="/app/settings"')).toBeLessThan(at('action="/logout"'));
-    // still five entries — the phone's one row
-    expect(nav.match(/class="navlink /g)).toHaveLength(5);
+    expect(nav).not.toContain('/logout');
+    expect(nav).not.toContain('href="/app/business"');
+    // five entries — the phone's one row — each with its shape
+    expect(nav.match(/class="navlink[ "]/g)).toHaveLength(5);
+    expect(nav.match(/<a [^>]*class="navlink[\s\S]*?<\/a>/g)?.every((a) => a.includes('<svg class="ni"'))).toBe(true);
   });
 
   it('"Customers" heads its two pages; the customer list carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
     const html = page('/app/inbox/c-1');
-    expect(html).toMatch(/<span class="navhead" id="nav-customers">Customers<\/span>/);
-    expect(html).toMatch(/<a href="\/app\/inbox" class="subnav active" aria-current="page" aria-label="Customer list, 3 customers need you">Customer list<span class="navcount" aria-hidden="true">3 waiting<\/span><\/a>/);
-    expect(html).toMatch(/<a href="\/app\/calendar" class="subnav">Calendar<\/a>/);
+    expect(html).toMatch(/<span class="navhead" id="nav-customers"><svg[^>]*>[\s\S]*?<\/svg><span>Customers<\/span><\/span>/);
+    expect(html).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page" aria-label="Inbox, 3 customers need you"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true"><span class="nl-long">3 waiting<\/span><span class="nl-short">3<\/span><\/span><\/a>/);
+    expect(html).toMatch(/<a href="\/app\/calendar" class="navlink sub" data-nav="calendar"\s*><svg/);
     const cal = page('/app/calendar');
-    expect(cal).toMatch(/<a href="\/app\/calendar" class="subnav active" aria-current="page">/);
+    expect(cal).toMatch(/<a href="\/app\/calendar" class="navlink sub active" data-nav="calendar" aria-current="page"/);
     // nobody waiting: no number at all, not a zero
     const calm = withWorkspace({ ...SCOPE, needsYou: 0 }, () => shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
-    expect(calm).toMatch(/<a href="\/app\/inbox" class="subnav">Customer list<\/a>/);
+    expect(calm).toMatch(/<a href="\/app\/inbox" class="navlink sub" data-nav="inbox"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-text">Inbox<\/span><\/a>/);
   });
 
-  it('Log out is a button in a form — it changes something', () => {
-    expect(page('/app')).toContain('<form method="post" action="/logout" class="navout"><button type="submit" class="subnav">Log out</button></form>');
+  // The warmth run: "Log out leaves the rail entirely" — it is the foot of Settings.
+  it('Log out is a button in a form — it changes something — at the foot of Settings, not in the rail', () => {
+    expect(page('/app')).not.toContain('action="/logout"');
+    const home = withWorkspace(SCOPE, () => renderSettingsHome('en', null));
+    expect(home).toMatch(/<form class="scard sr-foot" method="post" action="\/logout">\s*<button class="srow sr-menu sr-out" type="submit">/);
     expect(buttonsAndDoors(page('/app'))).toEqual([]);
+    expect(buttonsAndDoors(home)).toEqual([]);
   });
 
   it('the tab names the page, then the business — never the assistant', () => {
@@ -69,8 +79,8 @@ describe('the rail', () => {
     expect(ar).toContain(`>${t('ar', 'nav.customers')}</span>`);
     const css = linkedCss(ar);
     const phone = css.slice(css.indexOf('@media (max-width: 720px)'));
-    expect(phone).toMatch(/\.navgroup, \.navfoot \{ display:contents; \}/);
-    expect(phone).toMatch(/\.navhub, \.navout \{ display:none; \}/);
+    expect(phone).toMatch(/\.navgroup, \.navfoot, \.navhub \{ display:contents; \}/);
+    expect(phone).toMatch(/\.navhead \{ display:none; \}/);
   });
 });
 
