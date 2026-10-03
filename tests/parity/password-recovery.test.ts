@@ -157,6 +157,23 @@ describe('PWR · the door', () => {
     expect(routeBody('post', '/login/forgot')).not.toMatch(/req\.(hostname|host|headers\.host)/);
   });
 
+  it('PWR2 — the mailbox a reset link leaves through is ready in every mode, deployment mode included', () => {
+    const main = readFileSync(fileURLToPath(new URL('../../src/main.ts', import.meta.url)), 'utf8');
+    const early = main.indexOf('  if (channelsHere.length === 0) {');
+    expect(early).toBeGreaterThan(0);
+    for (const part of ['const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);', 'const oauthFetch = fetch as unknown as OAuthFetch;',
+      'const tokenCache = new Map', 'const mailSenders = { google: gmailSender(oauthFetch)']) {
+      expect(main.indexOf(part), part).toBeGreaterThan(0);
+      expect(main.indexOf(part), `${part} is made before the deployment-mode return`).toBeLessThan(early);
+    }
+  });
+
+  it('the link\'s routes write no request line (the token is in the address) and ask for no referrer', () => {
+    for (const method of ['get', 'post'] as const) expect(routeBody(method, '/login/set-password')).toContain("'/login/set-password', quietDoor,");
+    expect(APP).toContain("const quietDoor = { logLevel: 'warn' } as const;");
+    expect(APP).toContain(".header('referrer-policy', 'no-referrer').header('cache-control', 'no-store')");
+  });
+
   it('both routes are listed as public, with their reasons', () => {
     for (const method of ['GET', 'POST'] as const) {
       expect(PUBLIC_ROUTES.find((r) => r.method === method && r.url === '/login/forgot')?.why, method).toMatch(/PWR/);

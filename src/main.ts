@@ -745,6 +745,18 @@ export async function buildProduction(
    * sending her to a provider page that will refuse the app.
    */
   const oauthClients = oauthClientsFrom(process.env);
+  /**
+   * PWR2 — what a mailbox send needs, made HERE, before the deployment-mode
+   * return below. They were made after it, so an installation with no messaging
+   * channel yet answered every system mail's mailbox try with "Cannot access
+   * 'credentialKey' before initialization": sign-in codes and reset links could
+   * leave only by SMTP, which the host blocks. Found by
+   * tests/integration/password-reset-mailbox.test.ts.
+   */
+  const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
+  const oauthFetch = fetch as unknown as OAuthFetch;
+  const tokenCache = new Map<string, { token: string; until: number }>();
+  const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
 
   const TEMPLATE_STATE = templateState({
     providerConfigured: cfg.provider !== 'disabled',
@@ -1054,11 +1066,9 @@ export async function buildProduction(
    * her verified domain. The recording fake that stood here until C6 said `ok` to
    * mail that went nowhere; tests still pass one in as `overrides.mailTransport`.
    */
-  const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
-  const oauthFetch = fetch as unknown as OAuthFetch;
-  const tokenCache = new Map<string, { token: string; until: number }>();
-  const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
   // A3 — built here, where its parts exist; called only when a code is mailed.
+  // Its parts (`credentialKey`, `oauthFetch`, `tokenCache`, `mailSenders`) are
+  // made above the deployment-mode return — see PWR2 there.
   function systemMailboxTransport(): MailTransport {
     const operator = parseBusinessId(PILOT_BUSINESS_ID);
     if (!operator.ok || !systemSmtp) {
