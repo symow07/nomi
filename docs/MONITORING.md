@@ -84,7 +84,7 @@ Every failure path writes the error down in `app_errors` (migration 0074):
 | Where | What is recorded |
 |---|---|
 | `web` | a page or webhook that crashed — status 500 or above only (a refusal the code meant, a 4xx, is not an error) |
-| `web` · `DoorMailFailed` | a reset link or a "your password was changed" mail that could not leave (PWR2). The door said "on its way" whatever happened — it must, or it would tell a stranger which addresses sign in — so this row is the only sign. The transport's reason is kept, with any address taken out; a daily cap that held the mail is not a failure |
+| `web` · `RecoveryMailFailed`, `PasswordChangedMailFailed` | a reset link or a "your password was changed" mail that could not leave (PWR2). The door said "on its way" whatever happened — it must, or it would tell a stranger which addresses sign in — so this row is the only sign. The transport's reason is kept, with any address taken out; a daily cap that held the mail is not a failure |
 | `worker:<queue>` | a queue job that failed — `message.inbound`, `message.outbound`, `notify.team`, the scheduled jobs — each attempt; a **dead letter** (a job that gave up after its retries) as its own kind; the minute sweep's own caught failures |
 | `process` | an unhandled rejection or uncaught exception. The process still ends with code 1 and Railway restarts it, as before — it is only written down first (at most 2 s) |
 

@@ -191,7 +191,7 @@ d('PWR2 · the reset mail leaves over HTTPS (requires DATABASE_URL + MIGRATE_DAT
       const r = await ask(prod, SECOND);
       expect(r.statusCode).toBe(200);
       const row = async () => (await admin.query(
-        `select message, route from app_errors where name = 'DoorMailFailed' and last_seen >= $1 order by last_seen desc limit 1`, [since])).rows[0];
+        `select message, route from app_errors where name = 'RecoveryMailFailed' and last_seen >= $1 order by last_seen desc limit 1`, [since])).rows[0];
       expect(await until(async () => Boolean(await row()), 15_000), 'written down').toBe(true);
       const e = await row();
       expect(e.route).toBe('POST /login/forgot');

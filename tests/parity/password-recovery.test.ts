@@ -153,7 +153,7 @@ describe('PWR · the door', () => {
   it('PWR2 — a failed mail is written down for the operator; a cap that held it is not a failure', () => {
     const post = routeBody('post', '/login/forgot');
     expect(post).toContain("if (!refusedByCap(mailed)) reportDoorMail('recovery', mailed.error);");
-    expect(APP).toContain("e.name = 'DoorMailFailed';");
+    expect(APP).toContain("e.name = what === 'recovery' ? 'RecoveryMailFailed' : 'PasswordChangedMailFailed';");
     // the address never reaches app_errors
     expect(APP).toMatch(/const reason = error\.replace\(\/\[\^\\s@<>"'\]\+@\[\^\\s@<>"'\]\+\/g, '<address>'\)/);
   });

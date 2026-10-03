@@ -330,7 +330,8 @@ this same page (`/login/set-password?t=…&l=<language>`):
   set, else the operator's connected Gmail mailbox over the Gmail API (HTTPS),
   from `SYSTEM_SMTP_FROM`, and SMTP only last — Railway blocks SMTP, so on
   Railway a reset mail leaves over HTTPS or not at all. A mail that cannot
-  leave is written to `app_errors` as `DoorMailFailed` (the reason, never the
+  leave is written to `app_errors` as `RecoveryMailFailed` or
+  `PasswordChangedMailFailed` (the reason, never the
   address), and the operator is e-mailed like any error (`tools/errors.mjs`).
 - **Where the installation sends no system mail** (or has no
   `PUBLIC_BASE_URL`, which the link needs — it is never built from the

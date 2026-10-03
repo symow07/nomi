@@ -1299,7 +1299,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!deps.reportError) return;
     const reason = error.replace(/[^\s@<>"']+@[^\s@<>"']+/g, '<address>').slice(0, 300);
     const e = new Error(`${what} mail could not be sent: ${reason}`);
-    e.name = 'DoorMailFailed';
+    // Two names, so the two are two rows (one fingerprint each), not one that hides the other.
+    e.name = what === 'recovery' ? 'RecoveryMailFailed' : 'PasswordChangedMailFailed';
     void deps.reportError(e, 'web', { route: what === 'recovery' ? 'POST /login/forgot' : 'POST /login/set-password' })
       .catch(() => undefined);
   };

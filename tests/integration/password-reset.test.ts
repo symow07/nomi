@@ -313,7 +313,7 @@ d('PWR2 · a self-service reset, to the standard (requires DATABASE_URL + MIGRAT
       expect(r.body).toContain(t('en', 'forgot.sent', { email: `<bdi>${BROKEN}</bdi>`, minutes: 60 }));
       const row = async () => (await admin.query(
         `select "where", name, message, route from app_errors
-          where name = 'DoorMailFailed' and message like '%recovery mail%' and last_seen >= $1
+          where name = 'RecoveryMailFailed' and message like '%recovery mail%' and last_seen >= $1
           order by last_seen desc limit 1`, [since])).rows[0];
       expect(await until(async () => Boolean(await row()), 5000), 'written down').toBe(true);
       const e = await row();
