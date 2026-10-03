@@ -2063,24 +2063,24 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   })();
 
   const facts = !c ? [] : [
-    reachedOn(locale, c.channel, c.address),
     c.bought.length > 0
       ? around('catchup.bought', 'items', `${c.bought.map((b) => `<bdi>${esc(productName(locale, b) ?? '')}</bdi>${
-          b.orders > 1 ? ` <bdi dir="ltr">×${esc(show.count(locale, b.orders))}</bdi>` : ''}`).join(LIST_SEP[locale])}${
+          b.orders > 1 ? `&nbsp;<bdi dir="ltr">×${esc(show.count(locale, b.orders))}</bdi>` : ''}`).join(LIST_SEP[locale])}${
           c.boughtMore > 0 ? ` ${esc(t(locale, 'catchup.more', { n: c.boughtMore }))}` : ''}`)
       : c.askedAbout && productName(locale, c.askedAbout)
         ? around('catchup.asked', 'product', `<bdi>${esc(productName(locale, c.askedAbout)!)}</bdi>`) : '',
-    c.value.spent ? around('catchup.spent', 'money', `<bdi>${esc(show.money(locale, c.value.spent))}</bdi>`) : '',
+    // The sum and its word never wrap apart (`.fig`): "$1,240.00" at a line's end and "spent" under it read as two facts.
+    c.value.spent ? `<span class="fig">${around('catchup.spent', 'money', `<bdi>${esc(show.money(locale, c.value.spent))}</bdi>`)}</span>` : '',
   ].filter(Boolean);
   const regular = c?.value.regular ? ` <span class="cu-regular">${esc(t(locale, 'catchup.regular'))}</span>` : '';
 
-  return `<header class="catchup">
+  // Beside the face: who and where. Under both, the width of the column: what they bought, and where things stand.
+  return `<header class="catchup${c ? '' : ' bare'}">
       ${c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : ''}
-      <div class="cu-main">
-        ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
-        ${facts.length || regular ? `<p class="cu-facts">${facts.join(' · ')}${regular}</p>` : ''}
-        <p class="cu-state">${pill}${story ? ` <span class="cu-story">${story}</span>` : ''}</p>
-      </div>
+      ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
+      ${c ? `<p class="cu-where">${reachedOn(locale, c.channel, c.address)}</p>` : ''}
+      ${facts.length || regular ? `<p class="cu-facts">${facts.join(' · ')}${regular}</p>` : ''}
+      <p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>
     </header>`;
 }
 

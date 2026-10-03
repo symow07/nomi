@@ -53,7 +53,7 @@ const detail = (over: Partial<ConversationDetail> = {}, rows: Partial<CatchUp> =
 
 const page = (d: ConversationDetail, l: Locale, name: string | null = 'Mira'): string =>
   plain(withAssistantName(name, () => renderConversationDetail(d, l, NOW, null)));
-const strip = (html: string): string => /<header class="catchup">[\s\S]*?<\/header>/.exec(html)?.[0] ?? '';
+const strip = (html: string): string => /<header class="catchup[^"]*">[\s\S]*?<\/header>/.exec(html)?.[0] ?? '';
 const stateLine = (html: string): string => /<p class="cu-state">[\s\S]*?<\/p>/.exec(strip(html))?.[0] ?? '';
 /** A sentence of the catalogue with a piece drawn into it: the words on either side of the piece. */
 const sides = (l: Locale, key: MessageKey, param: string): string[] =>
@@ -134,11 +134,12 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       expect(s, l).toContain(`${esc(t(l, 'conv.channel.whatsapp'))} <bdi dir="ltr">+2348035550101</bdi>`);
       // what they bought: the products of their orders that stand, with how many
       const [tote, apron] = l === 'zh' ? ['帆布袋', '围裙'] : ['Canvas tote', 'Apron'];
-      expect(s, l).toContain(`<bdi>${tote}</bdi> <bdi dir="ltr">×2</bdi>`);
+      expect(s, l).toContain(`<bdi>${tote}</bdi>&nbsp;<bdi dir="ltr">×2</bdi>`);
       expect(s, l).toContain(`<bdi>${apron}</bdi>`);
-      expect(s, l).not.toContain(`<bdi>${apron}</bdi> <bdi dir="ltr">`);
+      expect(s, l).not.toContain(`<bdi>${apron}</bdi>&nbsp;<bdi dir="ltr">`);
       for (const side of sides(l, 'catchup.bought', 'items')) expect(s, l).toContain(side);
       // what they spent, and the Regular mark
+      expect(s, l).toContain(`<span class="fig">`);
       expect(s, l).toContain(`<bdi>${plain(show.money(l, usd(1240)))}</bdi>`);
       for (const side of sides(l, 'catchup.spent', 'money')) expect(s, l).toContain(side);
       expect(s, l).toContain(`<span class="cu-regular">${esc(t(l, 'catchup.regular'))}</span>`);
@@ -164,12 +165,13 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
     const s = strip(page(detail({}, {
       bought: [{ name: 'A', nameZh: null, orders: 1 }, { name: 'B', nameZh: null, orders: 1 }, { name: 'C', nameZh: null, orders: 4 }], boughtMore: 2,
     }), 'en'));
-    expect(s).toContain('<bdi>A</bdi>, <bdi>B</bdi>, <bdi>C</bdi> <bdi dir="ltr">×4</bdi> and 2 more');
+    expect(s).toContain('<bdi>A</bdi>, <bdi>B</bdi>, <bdi>C</bdi>&nbsp;<bdi dir="ltr">×4</bdi> and 2 more');
   });
 
   it('right to left, the face sits at the start and every Latin name keeps its own order', () => {
     const s = strip(page(detail(), 'ar'));
-    expect(s.indexOf('class="face-link"')).toBeLessThan(s.indexOf('class="cu-main"'));
+    expect(s.indexOf('class="face-link"')).toBeGreaterThan(-1);
+    expect(s.indexOf('class="face-link"')).toBeLessThan(s.indexOf('<h1 class="who">'));
     expect(s).toContain('<bdi>Aisha Bello</bdi>');
     expect(s).toContain('<bdi>Canvas tote</bdi>');
     // the strip's own rules use the logical sides only, so they mirror with the page
@@ -183,7 +185,9 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
     const html = page(detail({ catchUp: null, ownership: 'OWNER_CONTROLLED' }), 'en');
     const s = strip(html);
     expect(s).toContain('<h1 class="who">🇳🇬 <b><bdi>Aisha Bello</bdi></b>');
+    expect(s).toContain('<header class="catchup bare">');
     expect(s).not.toContain('face-link');
+    expect(s).not.toContain('cu-where');
     expect(s).not.toContain('cu-facts');
     expect(stateLine(html)).toContain(`<span class="pill owner">${esc(t('en', 'takeover.status.owner'))}</span>`);
   });

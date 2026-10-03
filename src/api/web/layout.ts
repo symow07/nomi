@@ -1527,18 +1527,21 @@ const STYLE_PAGES = `
      in the header is the page's title (an h1), drawn the size it always was. */
   .dhead h1.who { margin:0; font-weight:400; }
   /* THE WARMTH RUN, phase 5 — the catch-up strip over the messages: the customer's face (it opens
-     their card), their name, where they write, what they bought and spent, and where things stand.
-     Two or three short lines beside the face; right to left the face sits at the start. */
-  .catchup { display:flex; align-items:flex-start; gap:var(--space-12); margin:var(--space-4) 0 var(--space-16); }
-  .catchup > .face-link { flex:none; }
-  .cu-main { display:flex; flex-direction:column; gap:var(--space-4); flex:1 1 auto; min-width:0; }
-  .catchup h1.who { margin:0; font-size:var(--font-size-base); font-weight:400; }
-  .cu-facts { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+     their card) beside their name and where they write; under both, the column's width for what
+     they bought and spent, and where things stand. Right to left the face sits at the start. */
+  .catchup { display:grid; grid-template-columns:auto minmax(0, 1fr); align-items:center; gap:var(--space-4) var(--space-12);
+    margin:var(--space-4) 0 var(--space-16); }
+  .catchup.bare { display:block; }
+  .catchup > .face-link { grid-row:span 2; }
+  .catchup h1.who { margin:0; font-size:var(--font-size-base); font-weight:400; align-self:end; }
+  .cu-where { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); align-self:start; }
+  .cu-facts, .cu-state { grid-column:1 / -1; margin:0; font-size:var(--font-size-small); }
+  .cu-facts { color:var(--color-ink-secondary); }
   .cu-facts bdi { color:var(--color-ink); }
   .cu-regular { display:inline-block; padding:0 var(--space-8); border-radius:var(--radius-chip);
     background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-ink);
     font-size:var(--font-size-caption); white-space:nowrap; }
-  .cu-state { margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-4) var(--space-8); font-size:var(--font-size-small); }
+  .cu-state .pill { margin-block-end:0; }
   .cu-story b { font-weight:600; }
   .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
     margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
