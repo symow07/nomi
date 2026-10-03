@@ -188,3 +188,35 @@ describe('w4-settings-a-11 · a refused business answer is sent back with all th
     });
   }
 });
+
+describe('w4-settings-a-19 · how a word is matched is shown with an example in each language, and the example is true', () => {
+  it('es and fr name a word of their own; the shorter word does not catch the longer one, and stands caught alone', async () => {
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { findForbidden, effectiveForbidden } = await import('../../src/core/safety/forbiddenWords.js');
+    for (const [l, word, longer] of [['es', 'caro', 'caroteno'], ['fr', 'nul', 'annuler']] as const) {
+      const s = t(l, 'forbidden.howMatched');
+      expect(s, l).not.toContain('liar');
+      expect(s, l).toContain(word); expect(s, l).toContain(longer);
+      expect(findForbidden(longer, effectiveForbidden([word])).map((x) => x.term), l).not.toContain(word);
+      expect(findForbidden(word, effectiveForbidden([word])).map((x) => x.term), l).toContain(word);
+    }
+  });
+  it('the languages in the fold are labels, capitalised where the script has case', async () => {
+    const { renderForbidden } = await import('../../src/api/web/settings.js');
+    const fr = renderForbidden({ own: [], floor: ['idiot'] }, 'fr', null);
+    expect(fr).toContain('<dt>Anglais</dt>');
+    expect(fr).not.toContain('<dt>anglais</dt>');
+    expect(renderForbidden({ own: [], floor: [] }, 'es', null)).toContain('<dt>Inglés</dt>');
+  });
+});
+
+describe('settings-a-new-09 · w4-settings-a-20 · closures and forbidden words: one width for the intro, and room above the fixed list', () => {
+  it('the second intro paragraph keeps the lede\'s measure; the fixed list is set apart from the empty panel', async () => {
+    const { renderClosures, renderForbidden } = await import('../../src/api/web/settings.js');
+    const { stylesheetAt, shell } = await import('../../src/api/web/layout.js');
+    expect(renderClosures({ closures: [] }, 'en', null)).toContain('<p class="muted small closure-said measure-prose">');
+    expect(renderForbidden({ own: [], floor: [] }, 'en', null)).toMatch(/<p class="muted small measure-prose">[^<]*familiar/);
+    const sheet = /href="\/assets\/(app\.[0-9a-f]+\.css)"/.exec(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app', bodyHtml: '' }))![1]!;
+    expect(stylesheetAt(sheet)!.css).toContain('.block.floor { margin-top:var(--space-24); }');
+  });
+});

@@ -620,8 +620,12 @@ export async function restoreForbidden(
  * since V1-504 the floor is written by language, so the page cannot drift from it.
  */
 export { FLOOR_BY_LANGUAGE };
+// Phase 9 of the warmth run (w4-settings-a-19) — a language's name starts its line as a label: capitalised
+// where the script has case (French and Spanish write "anglais", "inglés" mid-sentence).
 const languageOf = (locale: Locale, code: string): string => {
-  try { return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { return code; }
+  let n = code;
+  try { n = new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { /* the code itself */ }
+  return n.charAt(0).toLocaleUpperCase(locale) + n.slice(1);
 };
 const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
 
@@ -632,7 +636,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
     <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
-    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<p class="muted small">${esc(t(locale, 'forbidden.howMatched'))}</p>
+    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<p class="muted small measure-prose">${esc(t(locale, 'forbidden.howMatched'))}</p>
     <form method="post" action="/app/settings/forbidden">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
@@ -920,14 +924,15 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
     t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
   // Phase 9 (V1-482) — the words a customer gets, as the reply is told to say
   // them (`closureNote`): the closure's name, and that no date can be promised.
-  const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.add.placeholder') });
+  // Phase 9 of the warmth run (w4-settings-a-13) — with no closure yet, the sample is said as it reads mid-sentence.
+  const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.example.sample') });
   // Phase 9 (V1-478, settings-a-new-09) — the way back to where it is linked
   // from (phase 7: How you sell); the intro is the settings pages' one lede.
   return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
     <h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
-    <p class="muted small closure-said">${esc(example)}</p>
+    <p class="muted small closure-said measure-prose">${esc(example)}</p>
     <form method="post" action="/app/settings/closures">
       ${rowsCard(null, [
         fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),

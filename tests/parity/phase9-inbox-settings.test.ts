@@ -624,9 +624,15 @@ describe('the settings pages', () => {
   it('V1-480 · V1-482 · V1-484 · closures: the label asks what is meant, the page shows what a customer is told, Arabic in sentences', () => {
     for (const l of LOCALES) {
       expect(t(l, 'closures.add.label'), l).toMatch(/[?？؟]$/);
-      expect(draw('closures', l), l).toContain(shown(l, 'closures.example', { label: t(l, 'closures.add.placeholder') }));
+      // the warmth run, phase 9 (w4-settings-a-13) — with no closure yet, the sample as it reads mid-sentence
+      expect(draw('closures', l), l).toContain(shown(l, 'closures.example', { label: t(l, 'closures.example.sample') }));
     }
     expect(t('en', 'closures.example')).toContain('“We are closed for {label}, so no delivery date can be promised for this order yet.”');
+    expect(t('en', 'closures.example', { label: t('en', 'closures.example.sample') })).toContain('“We are closed for the annual holiday,');
+    for (const l of ['es', 'fr'] as const) expect(t(l, 'closures.example.sample'), l).toMatch(/^\p{Ll}/u);
+    // (w4-settings-a-14) the Chinese notices: no space before a Chinese name, and the page's own word for the days
+    expect(t('zh', 'closures.flash.added', { label: '春节' })).toContain('，你的助手不会承诺。');
+    expect(t('zh', 'closures.flash.restored')).toContain('休息的日子');
     expect(t('ar', 'closures.empty')).toContain('مدة التسليم');
     expect(t('ar', 'closures.intro')).not.toMatch(/لا وعد|لا اختلاق/);
   });

@@ -1084,6 +1084,8 @@ const STYLE_PAGES = `
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   /* Phase 9 (V1-502) — the fixed words, one line a language, inside their fold. */
+  /* Phase 9 of the warmth run (w4-settings-a-20) — the fixed list stands apart from the empty panel above it. */
+  .block.floor { margin-top:var(--space-24); }
   .floor-fold summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:var(--font-size-small); }
   .floor-langs { margin:var(--space-8) 0 0; }
   .floor-langs div { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-12); padding:var(--space-4) 0; font-size:var(--font-size-small); }
