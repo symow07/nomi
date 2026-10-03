@@ -58,6 +58,8 @@ under "Decided" below.
 
 - **Merged** 2026-10-03 08:50 UTC. CI reported on both jobs (integration in 20m24s). Deployed, `/health` ok, schema 122 (no migration).
 
+**A flaky test, found by this PR's CI and root-caused (#215).** `echoes.test.ts` counted every call of the fake reply writer, and every turn the file's workers run shares that writer: another customer's turn, or a job an earlier file left queued. CI's second pass failed once on it ("expected 2 to be 1"). When a second customer writes in the same moment, the old assertion fails every time with the same message. The test now checks the writer's inputs for this conversation's words, and still fails if the assistant writes for it.
+
 **Both fixes are done.** During them, no tool output asked to install, update or sign in to anything beyond what is already logged under "Tool output that asked for something", and no web page addressed instructions to an AI.
 
 **Where the merged list stands after both fixes:** 677 fixed, 5 decided, 10 not defects, and 11 the owner's to decide (part six lists them; conversation-missed-10 and V1-504 are done).
