@@ -15,6 +15,16 @@
  * halfway through — with half a workspace gone. This reads the live schema and
  * computes the order, so it is correct for the database in front of it.
  *
+ * ONE CONTRACT, THE DATABASE'S (0126). Since an owner can close a workspace
+ * in the product (Your data → Close this workspace, `close_workspace`), the
+ * steps live in the database: `workspace_erasure_steps()` reads the live
+ * schema and orders them, `erase_workspace_rows()` counts (the dry run here)
+ * or carries them out, and this tool's real run is
+ * `carry_out_workspace_erasure()` — the same steps the owner's button runs,
+ * so the two cannot erase differently. It also writes the ids-only record of
+ * the erasure (`erasure_ledger`), which outlives the workspace and is replayed
+ * after any restore (tools/replay-erasures.mjs).
+ *
  * WHAT IT REFUSES TO DO:
  *   · run without an OPEN `deletion_requests` row for that business — the
  *     request is the authorisation, and it is made in the product by the owner;
@@ -27,7 +37,7 @@
  *
  *   MIGRATE_DATABASE_URL=… node tools/erase-workspace.mjs --business <uuid>
  *   MIGRATE_DATABASE_URL=… node tools/erase-workspace.mjs --business <uuid> \
- *     --confirm "Their Business Name" --yes
+ *     --confirm "Their Business Name" --yes [--by "<your name>"]
  *
  * Exit 0 all done · 1 a real refusal or failure · 2 bad usage.
  */
@@ -43,11 +53,12 @@ const has = (name) => args.includes(`--${name}`);
 
 const usage = (msg) => {
   console.error(`${msg}\n
-  MIGRATE_DATABASE_URL=… node tools/erase-workspace.mjs --business <uuid> [--confirm "<name>"] [--yes]
+  MIGRATE_DATABASE_URL=… node tools/erase-workspace.mjs --business <uuid> [--confirm "<name>"] [--yes] [--by "<your name>"]
 
   --business  the workspace to erase
   --confirm   its own name, exactly as the product shows it (required with --yes)
   --yes       actually delete. Without it this is a dry run and changes nothing.
+  --by        who is carrying it out, for the erasure ledger (default: operator)
 `);
   process.exit(2);
 };
@@ -61,111 +72,31 @@ if (!business || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 const go = has('yes');
 const confirm = flag('confirm');
 if (go && !confirm) usage('--yes needs --confirm "<the business name>".');
+const by = (flag('by') ?? 'operator').trim();
+if (!by || by.length > 120) usage('--by is a name, 1 to 120 characters.');
 
 // Five minutes for any one statement: the deletes are one transaction, and a
 // connection that stops answering must end it rather than hold it open.
 const client = toolClient(url, { replyTimeoutMs: 5 * 60_000 });
 
-/**
- * Every table that holds this workspace's rows, and the statement that removes
- * them — deepest first, so nothing blocks on a foreign key.
- *
- * Three shapes, because three shapes is what the schema has:
- *   · a `business_id` column — most tables;
- *   · a join through one parent — `messages`, `price_tiers`, `client_channels`…;
- *   · `businesses` itself, last.
- */
-async function plan() {
-  // Tables carrying the tenant directly. `ops_flags` is excluded here and
-  // handled below: its `business_id` is NULLABLE and a null row is a GLOBAL
-  // operator flag that belongs to no business and must survive.
-  const direct = (await client.query(`
-    select c.relname as t
-      from pg_class c
-      join pg_namespace n on n.oid = c.relnamespace
-      join information_schema.columns k
-        on k.table_name = c.relname and k.table_schema = 'public' and k.column_name = 'business_id'
-     where n.nspname = 'public' and c.relkind = 'r'
-     order by c.relname`)).rows.map((r) => r.t);
-
-  // How deep each table sits below `businesses`, so the deepest goes first.
-  const depth = new Map((await client.query(`
-    with recursive fk as (
-      select con.conrelid::regclass::text as child, con.confrelid::regclass::text as parent
-        from pg_constraint con join pg_namespace n on n.oid = con.connamespace
-       where con.contype = 'f' and n.nspname = 'public'
-    ), d(t, depth) as (
-      select 'businesses'::text, 0
-      union all
-      select fk.child, d.depth + 1 from fk join d on fk.parent = d.t
-       where fk.child <> d.t and d.depth < 12
-    )
-    select t, max(depth) as depth from d group by t`)).rows.map((r) => [r.t, Number(r.depth)]));
-
-  const steps = [];
-  // The indirect ones, by the parent they hang off. Written out rather than
-  // derived: each is a product decision about what belongs to a workspace, and
-  // a wrong guess here deletes somebody else's row.
-  const indirect = [
-    ['messages', `conversation_id in (select id from conversations where business_id = $1)`],
-    ['conversation_state', `conversation_id in (select id from conversations where business_id = $1)`],
-    ['client_channels', `client_id in (select id from clients where business_id = $1)`],
-    ['price_tiers', `product_id in (select id from products where business_id = $1)`],
-    ['product_aliases', `product_id in (select id from products where business_id = $1)`],
-    ['product_images', `product_id in (select id from products where business_id = $1)`],
-    ['email_confirmations', `order_id in (select id from orders where business_id = $1)`],
-    ['login_codes', `login_id in (select id from logins where business_id = $1)`],
-  ];
-  const indirectNames = new Set(indirect.map(([t]) => t));
-
-  // Deepest first. Ties broken by name so two runs print the same order.
-  const ordered = [...direct, ...indirectNames]
-    .filter((t) => t !== 'businesses' && t !== 'ops_flags')
-    .sort((a, b) => (depth.get(b) ?? 0) - (depth.get(a) ?? 0) || a.localeCompare(b));
-
-  // Each step carries BOTH statements, rather than deriving the count from the
-  // delete by string surgery: one typo in that regex is a count that reassures
-  // an operator about rows a different statement is about to remove.
-  const rows = (table, where) => ({
-    table, run: `delete from ${table} where ${where}`, count: `select count(*)::int as n from ${table} where ${where}`,
-  });
-  for (const t of ordered) {
-    const one = indirect.find(([n]) => n === t);
-    steps.push(rows(t, one ? one[1] : 'business_id = $1'));
-  }
-  // Outside `public`, so the scan above never sees it, and with no foreign key
-  // to follow: `shadow.turn_decisions` (0005) carries a bare business_id — and
-  // what the service would have said to each buyer. Found by
-  // tools/erase-buyer.mjs's coverage walk (2026-09-27); erased here since.
-  if ((await client.query("select to_regclass('shadow.turn_decisions') is not null as ok")).rows[0]?.ok) {
-    steps.push(rows('shadow.turn_decisions', 'business_id = $1'));
-  }
-  // Queued and finished work: an inbound job carries a buyer's own words, and
-  // pg-boss keeps finished jobs a week. One a worker holds right now cannot be
-  // taken from under it — `activeJobs` below makes the run refuse until it is
-  // done, so this step never meets one.
-  if ((await client.query("select to_regclass('pgboss.job') is not null as ok")).rows[0]?.ok) {
-    steps.push(rows('pgboss.job', "data->>'businessId' = $1 and state <> 'active'"));
-  }
-  // A flag this business owns goes; a global one (business_id is null) stays.
-  steps.push(rows('ops_flags', 'business_id = $1'));
-  // An invitation this workspace was created from is the OPERATOR's record of
-  // who was let in. It is unlinked, never deleted — otherwise erasing a
-  // workspace also erases the evidence that it was ever invited.
-  steps.push({
-    table: 'signup_invites (unlinked, not deleted)',
-    run: 'update signup_invites set used_by = null where used_by = $1',
-    count: 'select count(*)::int as n from signup_invites where used_by = $1',
-  });
-  steps.push(rows('businesses', 'id = $1'));
-  return steps;
-}
-
-/** Jobs a worker is running for this business right now. */
-async function activeJobs(id = business) {
+/** Jobs a worker is running for this business (or its practice copies) right now. */
+async function activeJobs(ids) {
   if (!(await client.query("select to_regclass('pgboss.job') is not null as ok")).rows[0]?.ok) return 0;
   return (await client.query(
-    "select count(*)::int as n from pgboss.job where data->>'businessId' = $1 and state = 'active'", [id])).rows[0]?.n ?? 0;
+    "select count(*)::int as n from pgboss.job where data->>'businessId' = any($1::text[]) and state = 'active'", [ids])).rows[0]?.n ?? 0;
+}
+
+/** "  12  messages" lines, sorted by table, from the database's counts. */
+function printCounts(counts) {
+  let total = 0;
+  const lines = (m, suffix) => Object.entries(m ?? {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([t, n]) => {
+    total += Number(n);
+    console.log(`  ${String(n).padStart(8)}  ${t}${suffix}`);
+  });
+  lines(counts?.tables, '');
+  lines(counts?.copies, ' (its practice copy)');
+  console.log(`  ${String(total).padStart(8)}  rows in all\n`);
+  return total;
 }
 
 try {
@@ -182,6 +113,10 @@ try {
       + '   Use the migration (owner) role in MIGRATE_DATABASE_URL. Nothing was changed.\n');
     process.exit(1);
   }
+  if (!(await client.query("select to_regprocedure('erase_workspace_rows(uuid, boolean, boolean)') is not null as ok")).rows[0]?.ok) {
+    console.error('\n✗  This database has no erase_workspace_rows() — it predates migration 0126. Migrate it first. Nothing was changed.\n');
+    process.exit(1);
+  }
 
   const biz = (await client.query('select id::text as id, name from businesses where id = $1', [business])).rows[0];
   if (!biz) {
@@ -195,10 +130,11 @@ try {
       order by asked_at limit 1`, [business])).rows[0];
   if (!open) {
     console.error(`\n✗  ${biz.name} has no OPEN workspace deletion request.\n
-   The request is the authorisation, and the owner makes it in the product at
-   /app/settings/data. Erasing without one means somebody decided on their
-   behalf. If the request arrived another way — an e-mail, a letter — record
-   it first, from their own account.\n`);
+   The request is the authorisation, and the owner makes it in the product —
+   since 0126 by closing the workspace on Your data, which erases it at once.
+   Erasing without one means somebody decided on their behalf. If the request
+   arrived another way — an e-mail, a letter — the owner closes it from their
+   own account.\n`);
     process.exit(1);
   }
 
@@ -207,25 +143,19 @@ try {
   if (open.subject_note) console.log(`  they said: ${open.subject_note}`);
   console.log('');
 
-  const steps = await plan();
-  // Practice (0086): the workspace's practice copy is a business of its own,
-  // `practice_of` this one. It goes first, by the same steps — the cascade from
-  // this row alone would stop on the copy's own products and conversation.
-  const copies = (await client.query('select id::text as id from businesses where practice_of = $1', [business])).rows.map((r) => r.id);
-  const erased = [...copies, business];
-  let total = 0;
-  for (const id of erased) {
-    for (const step of steps) {
-      const n = (await client.query(step.count, [id])).rows[0]?.n ?? 0;
-      if (n === 0) continue;
-      console.log(`  ${String(n).padStart(8)}  ${step.table}${id === business ? '' : ' (its practice copy)'}`);
-      total += n;
-    }
+  // The dry run is the database's own count of the same steps, in a
+  // transaction that cannot write.
+  await client.query('begin isolation level repeatable read read only');
+  let planned;
+  try {
+    planned = (await client.query('select erase_workspace_rows($1::uuid, true) as c', [business])).rows[0]?.c;
+  } finally {
+    await client.query('rollback').catch(() => {});
   }
-  console.log(`  ${String(total).padStart(8)}  rows in all\n`);
+  const total = printCounts(planned);
 
-  let busy = 0;
-  for (const id of erased) busy += await activeJobs(id);
+  const copies = (await client.query('select id::text as id from businesses where practice_of = $1', [business])).rows.map((r) => r.id);
+  const busy = await activeJobs([...copies, business]);
   if (busy > 0) {
     console.error(`✗  A worker is running ${busy} job(s) for ${biz.name} right now. It must finish before its rows can go —`
       + ' try again in a minute. Nothing was deleted.\n');
@@ -244,17 +174,20 @@ try {
 
   // One transaction: a half-erased workspace is worse than either end of it.
   await client.query('begin');
+  let done;
   try {
-    for (const id of erased) for (const step of steps) await client.query(step.run, [id]);
-    // The request row lives in `deletion_requests`, which the loop above has
-    // just emptied for this business — so the record of what was done goes
-    // where an operator will find it: the process log, and the line below.
+    done = (await client.query('select carry_out_workspace_erasure($1::uuid, $2::uuid, $3) as c', [business, open.id, by])).rows[0]?.c;
     await client.query('commit');
   } catch (e) {
     await client.query('rollback');
+    if (e && e.code === 'NE002') {
+      console.error(`✗  A worker is running a job for ${biz.name} right now. Nothing was deleted; try again in a minute.\n`);
+      process.exit(1);
+    }
     throw e;
   }
-  console.log(`\n✓  ${biz.name} erased — ${total} rows, request ${open.id}.`);
+  console.log(`\n✓  ${biz.name} erased — ${done?.rows ?? total} rows, request ${open.id}.`);
+  console.log(`   Recorded in the erasure ledger (${done?.ledger}), ids only: tools/replay-erasures.mjs carries it out again after any restore.`);
   console.log('   Record it where your team keeps such records, and reply to whoever asked.\n');
 } catch (e) {
   console.error(`\n✗  ${e instanceof Error ? e.message : String(e)}\n`);
