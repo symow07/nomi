@@ -1,6 +1,7 @@
 import { zoneOf } from '../../db/zone.js';
 import { loadAssistantStop } from '../../db/assistantStop.js';
 import { loadKillSwitches } from '../../db/opsFlags.js';
+import { providerRefusing } from '../../db/providerState.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
@@ -115,6 +116,12 @@ export type OperationsSnapshot = {
   /** 0071 — ops has paused sending (the kill switch); absent = not paused. */
   readonly opsSilenced?: boolean;
   /**
+   * 0128 — the model provider refuses for billing: Nomi's own account with it
+   * is out of credit, so no reply can be written. Absent = it answers. Only
+   * the fact: the figures and the provider's words are the operator's.
+   */
+  readonly providerRefusing?: boolean;
+  /**
    * R5 — supervision after promotion: spot checks waiting for the owner, and
    * the capabilities the system stepped back on its own in the last seven
    * days and that still wait. Absent is none.
@@ -227,7 +234,7 @@ export async function loadOperationsSnapshot(
   const unit = RANGE_UNIT[range];
 
   // Compose the existing loaders (their own RLS-scoped txns) — no duplicated SQL.
-  const [ops, channels, attention, counts, budgetRow, stop, opsSilenced] = await Promise.all([
+  const [ops, channels, attention, counts, budgetRow, stop, opsSilenced, refusing] = await Promise.all([
     loadKnowledgeOps(db, businessIdRaw, range),
     loadChannels(db, businessIdRaw, provider !== 'disabled'),
     // CC-26 — what needs her, from the one reader the live line asks too.
@@ -254,6 +261,8 @@ export async function loadOperationsSnapshot(
     loadAssistantStop(db, B),
     // 0071 — whether ops has paused sending.
     withTenantTx(db, B, (tx) => loadKillSwitches(tx, B)).then((k) => k.globalSilence),
+    // 0128 — whether the model provider refuses for billing.
+    providerRefusing(db),
   ]);
   // R5 — what supervision asks of the owner: work to check, and what stepped back.
   const supervision = await withTenantTx(db, B, async (tx) => ({
@@ -282,6 +291,7 @@ export async function loadOperationsSnapshot(
                 + attention.ownerHandling + attention.blockedMessages + attention.deletionAsks + attention.ordersWaiting > 0,   // see needsOwnerAttention
     assistantStoppedAt: stop.stoppedAt,
     opsSilenced,
+    providerRefusing: refusing,
     supervision,
   };
 }
@@ -322,7 +332,8 @@ export function renderOperationsHome(
   const reachable = today.sending.length > 0;
   // 0070, 0071, G3 — while the assistant is stopped, silenced or out of its
   // allowance, nothing it writes goes out: nothing may say it is answering.
-  const holding = Boolean(s.assistantStoppedAt || s.opsSilenced || (s.budget?.reached && s.budget.stops));
+  // 0128 — nor while the model provider refuses for billing: nothing new is written.
+  const holding = Boolean(s.assistantStoppedAt || s.opsSilenced || (s.budget?.reached && s.budget.stops) || s.providerRefusing);
 
   // 0070 — stopped on every channel: said first in the band, with the two ways
   // forward (who is waiting; where Start is).
@@ -338,6 +349,18 @@ export function renderOperationsHome(
     ? `<div class="tw-note">
         <p class="tw-note-t">${esc(t(locale, 'today.silenced.title', { name }))}</p>
         <p class="muted">${esc(t(locale, 'today.silenced.body', { name }))}</p>
+        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}</div>
+      </div>`
+    : '';
+  // 0128 — the model provider refuses for billing: said first, plainly, in the
+  // owner's words — Nomi's own account ran out, nothing was sent, Nomi's team
+  // was told, nothing to pay — with the one way forward (who is waiting). It
+  // goes as soon as the provider answers again; the reason stays on each
+  // conversation it touched.
+  const refusing = s.providerRefusing
+    ? `<div class="tw-note" id="provider-billing" role="status">
+        <p class="tw-note-t">${esc(t(locale, 'today.providerBilling.title', { name }))}</p>
+        <p class="muted">${esc(t(locale, 'today.providerBilling.body', { name }))}</p>
         <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}</div>
       </div>`
     : '';
@@ -397,7 +420,7 @@ export function renderOperationsHome(
 
   const band = `<section class="block today-now tw${quietNow ? ' is-calm' : ''}" aria-labelledby="today-now">
     ${head}
-    ${silenced}${stopped}${budget}
+    ${refusing}${silenced}${stopped}${budget}
     ${renderWaitingPeople(today, locale)}
     ${more ? `<div class="doors">${more}</div>` : ''}
     ${lead ? `<div class="today-worth">${lead}</div>` : ''}

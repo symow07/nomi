@@ -318,7 +318,10 @@ import type { Db } from './client.js';
 //       123 database every hand-over alert fails.
 // 125 = payment terms without a delivery term (0125): `trade_terms.incoterm` may be
 //       null. The terms page saves "No delivery term"; against a 124 database that save fails.
-export const REQUIRED_SCHEMA_VERSION = 125;
+// 128 = the model provider's account (0128): `provider_health`, `provider_refusing()`,
+//       the balance checks, and the hand-over reason 'provider_billing'. /health,
+//       Today and every model call read or write them; against a 125 database each fails.
+export const REQUIRED_SCHEMA_VERSION = 128;
 
 export type SchemaState = {
   readonly required: number;

@@ -23,6 +23,7 @@ import { stripeConfigFrom, stripeClient, type StripeClient } from './billing/str
 import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
+import { providerRefusing } from './db/providerState.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
@@ -550,7 +551,7 @@ export async function buildProduction(
   const retired = process.env['CREDENTIAL_KEY_PREVIOUS'];
   acceptRetiredKeys(retired ? [deriveKey(retired)] : []);
   if (retired) console.log('CREDENTIAL_KEY_PREVIOUS is set: tokens sealed with the old key are still opened until tools/rekey.mjs re-seals them. Remove it afterwards (docs/SECRET-ROTATION.md).');
-  const { db, boss, errors } = await startWorker({
+  const { db, boss, errors, watch } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
     // G11 — the worker mints the proof link a quote carries, so it needs the
     // address as much as the web app does.
@@ -588,14 +589,40 @@ export async function buildProduction(
     production: process.env['NODE_ENV'] === 'production',
   });
 
+  /**
+   * 0128 — BILLING RESILIENCE: the model provider's account, in both modes
+   * (Practice runs turns in deployment mode too). Every five minutes: while it
+   * refuses for billing, one small call asks whether it answers again, the
+   * operator's escalating alert goes when due, and the end is told. Every hour,
+   * where the provider has a balance to read (DeepSeek): the low-balance steps.
+   * Each run is a few rows read when nothing is wrong (src/pipeline/providerWatch.ts).
+   */
+  await boss.schedule(QUEUES.provider, '*/5 * * * *', {});
+  await boss.work(QUEUES.provider, async () => { await watch.sweep(); });
+  await boss.schedule(QUEUES.providerBalance, '25 * * * *', {});
+  await boss.work(QUEUES.providerBalance, async () => { await watch.balanceSweep(); });
+
   // /health is the one route both modes share. providerStatus reports the
   // messaging surface; db is probed live; the worker infra is up in both modes.
+  //
+  // 0128 — and `model` says whether the model provider answers: 'refusing'
+  // while it refuses for billing (Nomi's account with it is out of credit),
+  // 'answering' otherwise, 'unknown' when that could not be read. Still a 200:
+  // the app serves, the owner answers by hand, and Railway reads /health only
+  // to let a deploy go live ("Railway does not monitor the healthcheck endpoint
+  // after the deployment has gone live", docs.railway.com/reference/healthchecks)
+  // — a 503 here would block the very deploy that might fix it. The heartbeat
+  // reads this field and pings its /fail (src/worker/heartbeat.ts).
   const mountHealth = (a: FastifyInstance, providerStatus: 'active' | 'disabled') => {
     a.get('/health', async (_req, reply) => {
       let dbOk = false;
       try { await sql`select 1`.execute(db); dbOk = true; } catch { /* → 503 */ }
+      let model: 'answering' | 'refusing' | 'unknown' = 'unknown';
+      if (dbOk) {
+        try { model = (await providerRefusing(db)) ? 'refusing' : 'answering'; } catch { /* unknown */ }
+      }
       return reply.code(dbOk ? 200 : 503)
-        .send({ ok: dbOk, db: dbOk, worker: true, provider: providerStatus });
+        .send({ ok: dbOk, db: dbOk, worker: true, provider: providerStatus, model });
     });
   };
 
@@ -763,13 +790,13 @@ export async function buildProduction(
   // M37 — the page reader, wired at the production entrypoint. A feature whose
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
-  const pageTranscriber = anthropicPageTranscriber(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const pageTranscriber = anthropicPageTranscriber(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // EXT — the closer reading of a list's lines, on the same provider.
-  const catalogExtractor = anthropicCatalogExtractor(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const catalogExtractor = anthropicCatalogExtractor(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // EXT — a page of her site read into facts she ticks.
-  const pageFactsReader = anthropicPageFactsReader(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const pageFactsReader = anthropicPageFactsReader(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // G10 — a draft in a language its owner may not read, translated on request (never sent).
-  const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
   // and the way out to a push service. Unset: no phone alerts, and the page says so.
   const vapid = vapidFrom(process.env);

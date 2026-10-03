@@ -185,6 +185,12 @@ export function unansweredIn(data: unknown): Unanswered | null {
  */
 export async function handOverUnanswered(
   tx: Tx, tenant: ReturnType<typeof tenantRepos>, u: Unanswered,
+  /**
+   * 0128 — why nobody answered it: `not_answered` (the queue gave up), or
+   * `provider_billing` (the model provider refused for billing — handed over
+   * at once, never retried; src/worker/main.ts). Everything else is the same.
+   */
+  why: Extract<Signal, { kind: 'not_answered' | 'provider_billing' }> = { kind: 'not_answered' },
 ): Promise<TurnEffects | null> {
   await lockConversation(tx, u.conversationId);
   const exists = await sql<{ one: number }>`
@@ -202,7 +208,7 @@ export async function handOverUnanswered(
     await tenant.events.append(u.conversationId, 'dead_letter_answered', { messageId: u.messageId, by: answered });
     return null;
   }
-  return handToPerson(tenant, u.conversationId, { kind: 'not_answered' },
+  return handToPerson(tenant, u.conversationId, why,
     u.messageId === null ? [] : [{ messageId: u.messageId, text: u.text }]);
 }
 

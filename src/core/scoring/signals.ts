@@ -111,6 +111,14 @@ export type Signal =
    * month are answered as before.
    */
   | { readonly kind: 'plan_limit' }
+  /**
+   * 0128 — the model provider refused for billing: Nomi's own account with it
+   * ran out of credit. No reply could be written, so a person answers, and the
+   * customer is told nothing — the path `not_answered` takes (rule 19), under
+   * its own name so the owner reads the real reason. Not the owner's to pay:
+   * the operator is told (src/pipeline/providerWatch.ts).
+   */
+  | { readonly kind: 'provider_billing' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -157,6 +165,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   // BILL (0117) — the payment lapsed; a plan's month used for a new customer.
   'billing_lapsed',
   'plan_limit',
+  // 0128 — the model provider refused for billing; a person answers.
+  'provider_billing',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -185,6 +195,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   allowance_used: { kind: 'allowance_used' },
   billing_lapsed: { kind: 'billing_lapsed' },
   plan_limit: { kind: 'plan_limit' },
+  provider_billing: { kind: 'provider_billing' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -225,6 +236,7 @@ export const TRIGGER_REASONS = [
   'stock_asked',
   'billing_lapsed',
   'plan_limit',
+  'provider_billing',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -265,6 +277,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'billing_lapsed';
     case 'plan_limit':
       return 'plan_limit';
+    case 'provider_billing':
+      return 'provider_billing';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -318,6 +332,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'not_answered':
         problem = 100; // absolute: nobody knows what it asked, so a person answers.
+        break;
+      case 'provider_billing':
+        problem = 100; // absolute: no reply can be written, so a person answers.
         break;
       case 'price_to_owner':
         problem = 100; // absolute: her prices are hers to give.
