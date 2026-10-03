@@ -213,11 +213,15 @@ export type MenuRow = {
 
 export const menuRow = (r: MenuRow): string => {
   const line = r.descHtml ?? (r.desc ? esc(r.desc) : '');
-  // The value takes the direction of its own words (`dir="auto"`): cut short
-  // on a phone, an e-mail address or a Latin name on an Arabic page loses its
-  // end, never its beginning.
+  // Phase 9 of the warmth run (w4-today-setup-24, w4-whole-08) — the value's
+  // cell takes the PAGE's direction, so its state mark stands where reading
+  // starts (on the right in Arabic) and the cell lines up at the row's end;
+  // the `<bdi>` alone isolates the words, so an e-mail address or a Latin name
+  // keeps its own order. (`dir="auto"` on the cell skipped the text inside the
+  // `<bdi>` and resolved every Arabic value left to right.) Nothing is cut
+  // (w4-today-setup-23): a value that does not fit wraps under itself.
   const inner = `${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}</span>`
-    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}" dir="auto"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
+    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
   const cls = `srow sr-menu${line ? ' sr-two' : ''}`;
   return r.href
     ? `<li><a class="${cls}" href="${r.href}">${inner}<span class="go" aria-hidden="true">›</span></a></li>`

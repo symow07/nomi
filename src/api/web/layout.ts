@@ -659,6 +659,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .scard > li + li, .scard > .srow + .srow { border-top:1px solid var(--color-border); }
   .srow { display:flex; align-items:center; gap:var(--space-12); min-height:56px; padding:var(--space-8) var(--space-16); color:var(--color-ink); }
   a.srow:hover, a.srow:focus-visible { background:var(--color-paper); }
+  /* Phase 9 (w4-whole-16) — the card clips its rows to its corners, so a row's focus ring is drawn inside the row, rounded like the card. */
+  .scard .srow:focus-visible { outline-offset:-2px; border-radius:calc(var(--radius-card) - 1px); }
   .sr-main { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
   .sr-label { font-weight:600; font-size:var(--font-size-small); }
   .sr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -668,11 +670,19 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .sr-value.warn { color:var(--color-waiting); font-weight:600; }
   .sr-value.bad { color:var(--color-warn); font-weight:600; }
   .srow .go { flex:none; }
+  /* Phase 9 (w4-today-setup-23, w4-whole-08) — a menu row is a grid of four: the shape, the name, the value, the door.
+     The name and the value share the room equally until the shorter of the two is whole, then the longer one wraps
+     between words; nothing is cut, and the columns follow the page's direction. */
+  .srow.sr-menu { display:grid; grid-template-columns:min-content minmax(0, auto) minmax(0, max-content) min-content; column-gap:0; }
+  .srow.sr-menu > .ni { grid-column:1; margin-inline-end:var(--space-12); }
+  .srow.sr-menu > .sr-main { grid-column:2; }
+  .srow.sr-menu > .sr-value { grid-column:3; margin-inline-start:var(--space-12); max-width:none; min-width:0; overflow-wrap:break-word; }
+  .srow.sr-menu > .go { grid-column:4; margin-inline-start:var(--space-12); }
   .sr-ctl { flex:0 1 auto; min-width:0; }
   /* THE WARMTH RUN — a menu row (Settings, and the menus phase 7 makes of My
      business, the assistant and Setup): its shape, its name, where it stands,
-     and the door. The value keeps to its line on a phone, cut short rather
-     than pushed under. A row that does something (Log out) is a button drawn
+     and the door. The value stays beside the name on a phone, and wraps under
+     itself rather than being cut. A row that does something (Log out) is a button drawn
      as a row, in its own card at the foot. */
   .sr-menu > .ni { flex:none; inline-size:22px; block-size:22px; color:var(--color-ink-secondary); }
   /* The owner's decision (2026-10-03): 56 for a row, 64 for a row that carries a line under its name. */
@@ -711,9 +721,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     a.srow { flex-wrap:wrap; row-gap:0; }
     a.srow .sr-main { flex-basis:0; }
     .sr-value { order:3; flex-basis:100%; max-width:100%; text-align:start; }
-    a.srow.sr-menu { flex-wrap:nowrap; }
-    a.srow.sr-menu .sr-main { flex-basis:auto; }
-    .sr-menu .sr-value { order:0; flex-basis:auto; max-width:50%; text-align:end; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .srow.sr-menu > .sr-value { order:0; max-width:none; text-align:end; }
   }
   .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .today-date { font-weight:400; }

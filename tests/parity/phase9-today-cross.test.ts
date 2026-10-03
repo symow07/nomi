@@ -505,12 +505,12 @@ describe('Phase 9 · Setup', () => {
     for (const l of LOCALES) {
       const h = setupHtml(l).replace(/[\u2066-\u2069]/g, '');
       expect(h, l).not.toContain('sr-step');
-      expect(h, l).toMatch(new RegExp(`href="/app/guide">[^]*?<span class="sr-value warn" dir="auto"><bdi>${esc(t(l, 'nav.setup.progress', { done: '\\d', total: '5' }))}</bdi>`));
+      expect(h, l).toMatch(new RegExp(`href="/app/guide">[^]*?<span class="sr-value warn"><bdi>${esc(t(l, 'nav.setup.progress', { done: '\\d', total: '5' }))}</bdi>`));
       const guide = renderGuide({ steps: SETUP_STEPS.map((step) => ({ step, done: false })), next: 'profile' }, l, 'Lily', () => false);
       for (const step of SETUP_STEPS) expect(guide, `${l} ${step}`).toContain(`href="${STEP_LINK[step]}"`);
     }
     expect(setupHtml('en', { setup: { steps: SETUP_STEPS.map((step) => ({ step, done: true })), done: 5, total: 5, next: null } }))
-      .toContain(`<span class="sr-value ok" dir="auto"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
+      .toContain(`<span class="sr-value ok"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
   });
   it('today-onboarding-new-22 · a row\'s line does not repeat its label', () => {
     for (const l of LOCALES) expect(t(l, 'setup.desc.kind').toLocaleLowerCase(), l).not.toContain(t(l, 'business.kind.label').toLocaleLowerCase());
@@ -520,7 +520,7 @@ describe('Phase 9 · Setup', () => {
     // now (factory.test.ts, warmth-settings-business.test.ts); Setup's own
     // unfinished rows wait the same way.
     const h = setupHtml('en');
-    expect(h).toContain(`<span class="sr-value warn" dir="auto"><bdi>${t('en', 'setup.value.nameNotConfirmed')}</bdi></span>`);
+    expect(h).toContain(`<span class="sr-value warn"><bdi>${t('en', 'setup.value.nameNotConfirmed')}</bdi></span>`);
     expect(h).not.toContain('href="/app/settings/business"');
     expect(h).not.toContain('href="/app/business/selling"');
   });

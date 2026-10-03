@@ -406,9 +406,9 @@ describe('the Notifications page, in every language', () => {
     const html = row('email');
     // Setup is a menu since phase 7: the row is drawn by `menuRow` (its icon, its value in its own direction).
     expect(html).toMatch(new RegExp(`href="/app/settings/alerts"><svg[\\s\\S]*?</svg><span class="sr-main"><span class="sr-label">${t('en', 'alerts.title')}</span>`));
-    expect(html).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'alerts.way.email')}</bdi></span>`);
-    expect(row('whatsapp')).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'conv.channel.whatsapp')}</bdi></span>`);
-    expect(row(null)).toContain(`<span class="sr-value" dir="auto"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
+    expect(html).toContain(`<span class="sr-value"><bdi>${t('en', 'alerts.way.email')}</bdi></span>`);
+    expect(row('whatsapp')).toContain(`<span class="sr-value"><bdi>${t('en', 'conv.channel.whatsapp')}</bdi></span>`);
+    expect(row(null)).toContain(`<span class="sr-value"><bdi>${t('en', 'setup.value.off')}</bdi></span>`);
     // the way it reaches them now — the e-mail a Browser with no phone falls back to
     const ways = ownerWays({ choice: 'browser' });
     expect(alertWayNow(ways, { publicKey: 'K', phones: [] })).toBe('email');
