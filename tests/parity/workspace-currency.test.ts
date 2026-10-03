@@ -22,7 +22,8 @@ import { t } from '../../src/core/owner/i18n/messages.js';
  *   · a country whose own money is on the list sells in it without being
  *     asked; any other is asked, and only the list answers;
  *   · a figure the owner types is read the way the currency writes it
- *     ("15.000" is fifteen thousand rupiah; "12,50" is refused for dollars);
+ *     ("15.000" is fifteen thousand rupiah; "12,50" is 12.50 in every currency,
+ *     since no thousands group is two digits long — the warmth run, V1-334);
  *   · the price list is read in the workspace's currency — its own marks are
  *     its price, anyone else's a refusal — and dollars read exactly as before;
  *   · floors and samples are in the workspace's currency;
@@ -83,10 +84,13 @@ describe('CUR · a figure the owner types, read the currency\'s way', () => {
     expect(readTypedAmount('12,50', 'BRL')).toBe(12.5);
     expect(readTypedAmount('12.50', 'BRL')).toBe(12.5);
   });
-  it('every other: a comma groups thousands (and lakhs), a dot marks decimals; the two-way reading is refused', () => {
+  it('every other: a comma groups thousands (and lakhs), a dot marks decimals; a comma before one or two digits is the decimal', () => {
     expect(readTypedAmount('1,250.50', 'USD')).toBe(1250.5);
     expect(readTypedAmount('1,50,000', 'INR')).toBe(150000);
-    expect(readTypedAmount('12,50', 'USD')).toBeNull();
+    expect(readTypedAmount('1,250', 'USD')).toBe(1250);
+    expect(readTypedAmount('12,50', 'USD')).toBe(12.5);
+    expect(readTypedAmount('2,5', 'MXN')).toBe(2.5);
+    expect(readTypedAmount('1,2,3', 'USD')).toBeNull();
     expect(readTypedAmount('abc', 'AED')).toBeNull();
     expect(readTypedAmount('', 'AED')).toBeNull();
     expect(readTypedAmount('-5', 'USD')).toBe(-5);

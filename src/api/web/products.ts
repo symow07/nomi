@@ -772,7 +772,7 @@ export function renderAddForm(
       <h2>${esc(t(locale, 'product.add.photoTitle'))}</h2>
       <p>${esc(t(locale, 'product.add.photoIntro'))}</p>
       <form method="post" action="/app/products/add/photo" enctype="multipart/form-data">
-        <fieldset class="choices"><legend>${esc(t(locale, 'import.hand.q'))}</legend>
+        ${/* w4-products-knowledge-12 — a question asked of the owner reads at the size of every other label on the page. */ ''}<fieldset class="choices hand"><legend>${esc(t(locale, 'import.hand.q'))}</legend>
           <label class="pcheck"><input type="radio" name="hand" value="printed" required${hand === 'printed' ? ' checked' : ''} /> ${esc(t(locale, 'import.hand.printed'))}</label>
           <label class="pcheck"><input type="radio" name="hand" value="handwritten"${hand === 'handwritten' ? ' checked' : ''} /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
         </fieldset>

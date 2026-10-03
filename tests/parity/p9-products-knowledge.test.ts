@@ -325,11 +325,17 @@ describe('The import review', () => {
     plain(renderImportReview(reviewModel(text), l, { canExtract: true, ...opts }));
 
   it('V1-334 — a plain price is read, flagged for its own tick; a figure that reads two ways is refused, never guessed', () => {
-    const [tote, scarf, mug, sale] = parsePriceLines(LIST, 'USD');
+    const [tote, scarf, mug, bowl, sale] = parsePriceLines(LIST, 'USD');
     expect(tote).toMatchObject({ name: 'Canvas tote', price: usd(18) });
-    expect(scarf).toMatchObject({ price: null, problem: 'ambiguous_price' });   // T4: "24,50" in a dollar workspace
-    expect(mug).toMatchObject({ price: null });
+    // The warmth run, phase 9 — "24,50" reads one way only (no thousands group is two digits long).
+    expect(scarf).toMatchObject({ name: 'Wool scarf', price: usd(24.5) });
+    expect(scarf!.problem).toBeUndefined();
+    // …and "Mug 8 or bowl 12" is two products, each with the whole line as where it was read from.
+    expect(mug).toMatchObject({ name: 'Mug', price: usd(8), half: 1, sourceLine: 'Mug 8 or bowl 12' });
+    expect(bowl).toMatchObject({ name: 'bowl', price: usd(12), half: 2, sourceLine: 'Mug 8 or bowl 12' });
     expect(sale).toMatchObject({ price: null });
+    // A figure that truly reads two ways is still refused.
+    expect(parsePriceLines('Bag $1.250', 'USD')[0]).toMatchObject({ price: null, problem: 'ambiguous_price' });
     expect(parsePriceLines('Mug 2.50 each', 'USD')[0]).toMatchObject({ name: 'Mug', price: usd(2.5) });
     // A size, a quantity, a model number: no cents, never a price.
     for (const line of ['Thermos 500ml', 'Version 2.0', 'Bottle 0.75 l', 'Model ZX 300']) {
@@ -343,11 +349,66 @@ describe('The import review', () => {
     expect(review('en')).toContain(t('en', 'import.flag.no_sign', { currency: 'USD' }));
   });
 
-  it('V1-335 — a line with no price and no figure is said to be added unpriced, with the way to leave it out', () => {
-    for (const l of LOCALES) expect(review(l), l).toContain(esc(t(l, 'import.row.noPriceNote')));
+  it('V1-334 — "24,50" is read and flagged for its own tick; a two-product line is a row each, both flagged; the count is of lines', () => {
+    const m = reviewModel(LIST);
+    const [tote, scarf, mug, bowl] = m.imp.rows;
+    expect(flagsOf(scarf!, m.imp.rows, m.ctx)).toContain('decimal_comma');
+    expect(flagsOf(tote!, m.imp.rows, m.ctx)).not.toContain('decimal_comma');
+    for (const half of [mug!, bowl!]) {
+      expect(flagsOf(half, m.imp.rows, m.ctx)).toEqual(['split_line']);
+      expect(needsTick(half, m.imp.rows, m.ctx, false)).toBe(true);
+    }
+    // A sign makes it no less two products, and no "two prices" warning besides.
+    const signed = reviewModel('Tote $18 or bag $24').imp.rows;
+    expect(signed.map((r) => [r.name, r.price])).toEqual([['Tote', 18], ['bag', 24]]);
+    expect(flagsOf(signed[0]!, signed, m.ctx)).toEqual(['split_line']);
+    // Never cut: a size range, a price per size, a name with "and" in it.
+    for (const line of ['Pillow 40 or 60', 'Hoodie S-M $40 / L-XL $45', 'Salt and pepper set 12.00', 'Tote\t18\tor bag\t24']) {
+      expect(parsePriceLines(line, 'USD').length, line).toBe(1);
+    }
+    for (const l of LOCALES) {
+      const html = review(l);
+      expect(html, l).toContain(esc(t(l, 'import.flag.decimal_comma')));
+      expect(html, l).toContain(esc(t(l, 'import.flag.split_line')));
+      // Four lines were read, though five rows stand.
+      expect(html, l).toMatch(/<p><b>[^<0-9]*4[^<0-9]*<\/b>/);
+    }
+    expect(t('en', 'product.add.intro')).not.toMatch(/messy/i);
+  });
+
+  it('V1-334 — a line set aside says where it is corrected, and its reason is a sentence', () => {
+    for (const l of LOCALES) {
+      const html = plain(renderImportReview(reviewModel('Canvas tote 18.00\nBag $1.250'), l));
+      expect(html, l).toContain(esc(t(l, 'import.rejected.fixPaste')));
+      expect(html, l).toContain('id="paste-text"');
+    }
+    for (const l of ['en', 'es', 'fr'] as const) {
+      expect(t(l, 'product.reject.ambiguous_price'), l).toMatch(/^\p{Lu}/u);
+      expect(t(l, 'product.reject.ambiguous_price'), l).not.toContain('1250.00');
+    }
+  });
+
+  it('V1-335 — a pasted line with no figure at all waits for the owner\'s tick, is counted among those that need them, and not as new until ticked', () => {
+    const m = reviewModel(LIST);
+    const sale = m.imp.rows.find((r) => r.name === 'SPRING SALE')!;
+    expect(flagsOf(sale, m.imp.rows, m.ctx)).toEqual(['no_price']);
+    expect(needsTick(sale, m.imp.rows, m.ctx, false)).toBe(true);
+    for (const l of LOCALES) {
+      const html = review(l);
+      expect(html, l).toContain(esc(t(l, 'import.flag.no_price')));
+      expect(html, l).not.toContain(esc(t(l, 'import.row.noPriceNote')));
+      expect(html, l).toContain(`name="tick:${sale.key}"`);
+    }
     const en = review('en');
-    // "3 new": the scarf is refused with its reason, not counted as a product.
-    expect(en).toContain('3 new — not in your catalogue yet');
+    // Four new products (the tote, the scarf, the mug, the bowl); the heading is not one until ticked.
+    expect(en).toContain('4 new — not in your catalogue yet');
+    // Every row needs its tick: the tote and the scarf carry no sign, the halves were split, the heading has no figure.
+    expect(en).toContain('5 need you');
+    const ticked = plain(renderImportReview(reviewModel(LIST, { rows: (rs) => rs.map((r) => (r.name === 'SPRING SALE' ? { ...r, ticked: true } : r)) }), 'en'));
+    expect(ticked).toContain('5 new — not in your catalogue yet');
+    // A store's list keeps its own rule: an unpriced product is said, not held.
+    const store = reviewModel('Tote', { kind: 'store' });
+    expect(flagsOf(store.imp.rows[0]!, store.imp.rows, store.ctx)).not.toContain('no_price');
   });
 
   it('V1-336 — the tick is something the owner says, on its own line, never run into the name', () => {
@@ -413,17 +474,19 @@ describe('The import review', () => {
     }
   });
 
+  // A list with a line refused and a figure left unread: the scarf and the mug read now.
+  const UNREAD = 'Canvas tote 18.00\nBag $1.250\nThermos 500ml\nSPRING SALE';
   it('missed-10 — the offer to read again comes after the lines it names, counts them right, and its note has no "it"', () => {
-    const en = review('en');
+    const en = review('en', UNREAD);
     expect(en.indexOf('id="extract"')).toBeGreaterThan(en.indexOf('id="row-l4"'));
-    // Two lines hold a figure and no price (the scarf is refused, the mug unread); the heading has none.
+    // Two lines hold a figure and no price (the bag is refused, the thermos unread); the heading has none.
     expect(en).toContain('2 lines have a figure that was not read as a price, or were not read as a product.');
     expect(t('en', 'import.extract.hint')).not.toMatch(/\bit\b/);
   });
 
   it('missed-11 — an unread figure is said as that, never as digits left in the name', () => {
     for (const l of LOCALES) {
-      const html = review(l);
+      const html = review(l, UNREAD);
       expect(html, l).toContain(esc(t(l, 'import.flag.unread_figure')));
       expect(html, l).not.toContain(esc(t(l, 'import.flag.digits_in_name')));
     }
@@ -435,8 +498,25 @@ describe('The import review', () => {
     expect(en).not.toContain('no price yet');
     expect(review('es')).toContain('<option value="pcs" selected>ud.</option>');
     expect(review('zh')).not.toMatch(/。<\/b> /);
+    // The warmth run, phase 9 (V1-345) — no space after a Chinese full stop or colon anywhere on the page:
+    // the count, what stands before adding, and "Read from:".
+    const zh = review('zh');
+    expect(zh).toContain('这一行读到的：<bdi>');
+    expect(zh).not.toMatch(/[。：](?:<\/b>)? /);
     expect(t('es', 'import.needYou.other')).not.toContain('van primero');
     for (const l of LOCALES) expect(t(l, 'import.countYours'), l).not.toMatch(/count|数一数|عدّ|Cuenta|Comptez/i);
+  });
+
+  it('w4-products-knowledge-13 — the pasted text and a photo\'s text are each a named box', () => {
+    for (const l of LOCALES) {
+      expect(review(l), l).toContain(`<textarea name="text" rows="8" dir="auto" aria-label="${esc(t(l, 'import.pasteText'))}">`);
+    }
+  });
+
+  it('w4-products-knowledge-12 — "printed or handwritten?" is drawn at the size of the page\'s labels', () => {
+    for (const l of LOCALES) expect(renderAddForm(l), l).toContain(`<fieldset class="choices hand"><legend>${esc(t(l, 'import.hand.q'))}</legend>`);
+    const css = linkedCss(shell({ title: 't', active: 'products', locale: 'en', path: '/app/products/add', bodyHtml: '' }));
+    expect(css).toMatch(/\.choices\.hand legend \{ font-size:var\(--font-size-small\)/);
   });
 });
 

@@ -1312,6 +1312,8 @@ const STYLE_PAGES = `
   .prod-b { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .p-tag { display:block; color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .prod-add { margin:0 0 var(--space-16); }
+  /* w4-products-knowledge-12 — "printed or handwritten?" is a question, at the size of the page's other labels. */
+  .choices.hand legend { font-size:var(--font-size-small); color:var(--color-ink); }
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .info { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }

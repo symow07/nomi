@@ -1,6 +1,6 @@
 import { lessSure, figuresOn, type FieldConfidence } from './extract.js';
 import type { Currency } from '../types/money.js';
-import { type ExtractedProduct, type RejectReason, ownPriceCount, validateExtracted, validatePage } from './catalogImport.js';
+import { type ExtractedProduct, type RejectReason, ownPriceCount, readWithDecimalComma, validateExtracted, validatePage } from './catalogImport.js';
 import { parseCustomerNames, MAX_ALIAS_LENGTH } from './aliases.js';
 
 /**
@@ -37,10 +37,13 @@ export type ImportFlag =
   | 'challenge_mismatch'  // K7: typed from the paper differently, or next to one that was
   | 'low_confidence'      // EXT: read by the extractor, less surely than LOW_CONFIDENCE somewhere
   | 'no_sign'             // phase 9: a price read with no currency sign anywhere on the line
-  | 'unread_figure';      // phase 9: no price, and a figure on the line that was not read as one
+  | 'unread_figure'       // phase 9: no price, and a figure on the line that was not read as one
+  | 'decimal_comma'       // warmth run, phase 9 (V1-334): "24,50" read as 24.50 — the owner checks the figure
+  | 'split_line'          // warmth run, phase 9 (V1-334): the line held two products, now a row each
+  | 'no_price';           // warmth run, phase 9 (V1-335): a pasted line with no figure at all — a heading, or a product to price later
 
 export const FLAG_ORDER: readonly ImportFlag[] = [
-  'challenge_mismatch', 'low_confidence', 'two_prices', 'from_or_vat', 'bare_dollar', 'no_sign', 'outlier', 'many_decimals', 'unread_figure', 'digits_in_name',
+  'challenge_mismatch', 'low_confidence', 'split_line', 'two_prices', 'from_or_vat', 'bare_dollar', 'decimal_comma', 'no_sign', 'outlier', 'many_decimals', 'unread_figure', 'no_price', 'digits_in_name',
 ];
 
 export type ImportKind = 'paste' | 'photo' | 'store' | 'file';
@@ -85,6 +88,8 @@ export type ImportRow = {
   readonly options?: string;
   /** EXT — read by the model extractor, with how sure it was of each field: the row needs its own tick. */
   readonly confidence?: FieldConfidence;
+  /** Phase 9 (V1-334) — the line held two products; this row is the first or the second of them. */
+  readonly half?: 1 | 2;
 };
 
 /** What the review needs to know about the business to read its rows. */
@@ -133,7 +138,10 @@ export function flagsOf(row: ImportRow, all: readonly ImportRow[], ctx: ReviewCo
   const out = new Set<ImportFlag>();
   if (row.challenge === 'mismatch' || row.reopened) out.add('challenge_mismatch');
   if (row.confidence && lessSure(row.confidence, row).length > 0) out.add('low_confidence');
-  if (ownPriceCount(row.line, ctx.currency) >= 2) out.add('two_prices');
+  // V1-334 — half of a line that held two products: one sentence says so, and
+  // the two prices or the missing sign it shares with its other half are that.
+  if (row.half) out.add('split_line');
+  else if (ownPriceCount(row.line, ctx.currency) >= 2) out.add('two_prices');
   if (FROM_OR_VAT.test(row.line)) out.add('from_or_vat');
   if (ctx.currency === 'USD' && ctx.country !== null && !DOLLAR_COUNTRIES.has(ctx.country)
       && /(?<![A-Za-z])[$＄]\s*\d/.test(row.line) && !/(?<![A-Za-z])US[$＄]|USD/i.test(row.line)) out.add('bare_dollar');
@@ -141,12 +149,17 @@ export function flagsOf(row: ImportRow, all: readonly ImportRow[], ctx: ReviewCo
   if (row.price !== null && median !== null && (row.price < median * 0.1 || row.price > median * 10)) out.add('outlier');
   if (row.price !== null && moreThanTwoDecimals(row.price)) out.add('many_decimals');
   // Phase 9 (V1-334) — a price nothing on the line said was money: its own tick.
-  if (row.price !== null && (ctx.kind === 'paste' || ctx.kind === 'photo') && !row.confidence
+  if (row.price !== null && (ctx.kind === 'paste' || ctx.kind === 'photo') && !row.confidence && !row.half
       && ownPriceCount(row.line, ctx.currency) === 0 && !row.line.includes('\t')) out.add('no_sign');
+  // V1-334 — "24,50" was read as 24.50: its own tick, so the owner sees the figure it became.
+  if (row.price !== null && !row.confidence && readWithDecimalComma(row.line, ctx.currency)) out.add('decimal_comma');
   // Phase 9 (missed-11) — a line with a figure and no price: the figure was not
   // read as its price. Said as that, not as a name with digits left in it.
   if (row.price === null && figuresOn(row.line).length > 0) out.add('unread_figure');
   else if (/\d/.test(row.name) || CURRENCY_SIGN.test(row.name)) out.add('digits_in_name');
+  // V1-335 — a pasted line with no figure at all ("SPRING SALE") is a heading as
+  // often as a product to price later: never added without the owner's tick.
+  if (row.price === null && ctx.kind === 'paste' && !row.confidence && figuresOn(row.line).length === 0) out.add('no_price');
   return FLAG_ORDER.filter((f) => out.has(f));
 }
 
@@ -207,6 +220,7 @@ export function rowsFromParsed(
     challenge: null,
     reopened: false,
     edited: false,
+    ...(p.half ? { half: p.half } : {}),
   }));
 }
 
@@ -398,5 +412,5 @@ export function blockers(rows: readonly ImportRow[], ctx: ReviewContext, checkEv
   return out;
 }
 
-/** "We read N lines" — every line the list had, refused ones included. */
-export const linesRead = (rows: readonly ImportRow[]): number => rows.length;
+/** "We read N lines" — every line the list had, refused ones included; a line that held two products is one line. */
+export const linesRead = (rows: readonly ImportRow[]): number => rows.filter((r) => r.half !== 2).length;

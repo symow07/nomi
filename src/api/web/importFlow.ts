@@ -556,6 +556,13 @@ const unitOptions = (locale: Locale, current: string): string => {
   return codes.map((u) => `<option value="${esc(u)}"${u === current ? ' selected' : ''}>${esc(unitOne(locale, u))}</option>`).join('');
 };
 
+/**
+ * Phase 9 (V1-345) — two sentences, or a label and its value, side by side: a
+ * space between them, except after Chinese, whose full stop and colon carry
+ * their own ("读到 4 行。每一行…", "这一行读到的：Canvas tote").
+ */
+const then = (locale: Locale, a: string, b: string): string => `${a}${locale === 'zh' ? '' : ' '}${b}`;
+
 const flagLine = (locale: Locale, f: ImportFlag, currency: Currency): string =>
   `<span class="imp-warn">${esc(t(locale, `import.flag.${f}` as MessageKey, { currency }))}</span>`;
 
@@ -577,9 +584,10 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
   const summary = asking
     ? `<b dir="auto">${esc(r.name)}</b> <span class="muted">${esc(t(locale, 'import.row.challengeHidden'))}</span>`
     : `<b dir="auto">${esc(r.name)}</b> <span class="muted">${esc(price)} · ${esc(minimum)}</span>${r.options ? ` <span class="muted small" dir="auto">${esc(r.options)}</span>` : ''}`;
-  // Phase 9 (V1-335) — a line with no price and no figure (a heading, a "SPRING
-  // SALE") is added as a product to price later: said, with the way to leave it out.
-  const unpriced = r.price === null && !asking && !r.removed && !flags.includes('unread_figure')
+  // Phase 9 (V1-335) — a line with no price is added as a product to price
+  // later: said, with the way to leave it out. A pasted one with no figure at
+  // all (a heading, a "SPRING SALE") says it as its flag, and waits for a tick.
+  const unpriced = r.price === null && !asking && !r.removed && !flags.includes('unread_figure') && !flags.includes('no_price')
     ? `<span class="imp-note muted">${esc(t(locale, 'import.row.noPriceNote', { name: assistantName(locale) }))}</span>` : '';
   // Phase 9 (V1-336) — the tick is something the owner says ("This line is
   // right"), on its own line under the row, never run into the product's name.
@@ -610,7 +618,7 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
         <span class="muted small">${esc(t(locale, 'import.row.namesHint'))}</span>
         <label class="pcheck"><input type="checkbox" name="remove:${esc(r.key)}"${r.removed ? ' checked' : ''} /> ${esc(t(locale, 'import.row.remove'))}</label>
       </details>
-      ${asking ? '' : `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(r.line)}</bdi></span>`}
+      ${asking ? '' : `<span class="rev-src muted">${then(locale, esc(t(locale, 'product.review.fromLine')), `<bdi>${esc(r.line)}</bdi>`)}</span>`}
     </div>`;
 }
 
@@ -661,7 +669,7 @@ export function renderImportReview(
           <input type="text" inputmode="decimal" name="typed:${esc(key)}" value="${esc(typed[`typed:${key}`] ?? '')}" autocomplete="off" /> <span class="muted">${esc(imp.currency)}</span></label></div>`;
     }
     return `<label class="rev chg"><input type="checkbox" name="apply:${esc(key)}"${on ? ' checked' : ''} /> <b dir="auto">${esc(c.product.name)}</b>${moves}
-      <span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(r.line)}</bdi></span></label>`;
+      <span class="rev-src muted">${then(locale, esc(t(locale, 'product.review.fromLine')), `<bdi>${esc(r.line)}</bdi>`)}</span></label>`;
   }).join('');
   // K7 — while a challenge row is asked, what was read stays hidden: the text
   // read from a photo carries every price on it.
@@ -676,16 +684,16 @@ export function renderImportReview(
       ${asking ? `<p class="muted small">${esc(t(locale, 'import.transcriptLater'))}</p>` : `<details><summary>${esc(t(locale, 'import.transcript'))}</summary>
         <form method="post" action="${base(imp.id)}/reread">
           <input type="hidden" name="photo" value="${p.position}" />
-          <textarea name="text" rows="8" dir="auto">${esc(p.transcript)}</textarea>
+          <textarea name="text" rows="8" dir="auto" aria-label="${esc(t(locale, 'import.transcript'))}">${esc(p.transcript)}</textarea>
           <p class="muted small">${esc(t(locale, 'import.transcriptHint'))}</p>
           <button class="btn" type="submit">${esc(t(locale, 'import.reread'))}</button>
         </form>
       </details>`}
     </figure>`).join('');
   const paste = imp.kind === 'paste' ? `
-    <details class="block"><summary>${esc(t(locale, 'import.pasteText'))}</summary>
+    <details class="block" id="paste-text"><summary>${esc(t(locale, 'import.pasteText'))}</summary>
       <form method="post" action="${base(imp.id)}/reread">
-        <textarea name="text" rows="8" dir="auto">${esc(imp.sourceText ?? '')}</textarea>
+        <textarea name="text" rows="8" dir="auto" aria-label="${esc(t(locale, 'import.pasteText'))}">${esc(imp.sourceText ?? '')}</textarea>
         <p class="muted small">${esc(t(locale, 'import.pasteHint'))}</p>
         <button class="btn" type="submit">${esc(t(locale, 'import.reread'))}</button>
       </form>
@@ -705,7 +713,7 @@ export function renderImportReview(
     <h1 class="page">${esc(t(locale, 'import.title'))}</h1>
     ${flashBanner(opts.flash ?? null)}
     <div class="block">
-      <p><b>${esc(tn(locale, 'import.count', linesRead(imp.rows), { n: show.count(locale, linesRead(imp.rows)) }))}</b>${locale === 'zh' ? '' : ' '}${esc(t(locale, 'import.countYours'))}</p>
+      <p>${then(locale, `<b>${esc(tn(locale, 'import.count', linesRead(imp.rows), { n: show.count(locale, linesRead(imp.rows)) }))}</b>`, esc(t(locale, 'import.countYours')))}</p>
       ${need > 0 ? `<p class="fwarn">${esc(tn(locale, 'import.needYou', need, { n: show.count(locale, need) }))}</p>` : ''}
       ${imp.checkEveryRow ? `<p class="fwarn" role="alert">${esc(t(locale, 'import.checkEvery'))}</p>` : ''}
       ${m.currencyNow !== imp.currency ? `<p class="perr" role="alert">${esc(t(locale, 'import.currencyChanged', { now: m.currencyNow, was: imp.currency }))}</p>` : ''}
@@ -719,14 +727,18 @@ export function renderImportReview(
         <input type="hidden" name="applies" value="${esc(m.diff.changed.map((c) => keyOfLine(c.line)).join(','))}" />
         ${changes ? `<div class="block"><h2>${esc(t(locale, 'product.review.changedTitle', { count: m.diff.changed.length }))}</h2>
           <p class="muted">${esc(t(locale, 'product.review.changedHint'))}</p>${changes}</div>` : ''}
-        ${newRows.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.addedTitle', { count: newRows.filter((r) => !r.removed).length }))}</h2>
+        ${/* Phase 9 (V1-335) — a line with no figure at all is not counted as a new product until the owner ticks it as one. */ ''}
+        ${newRows.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.addedTitle', { count: newRows.filter((r) => !r.removed
+          && !(flagsOf(r, imp.rows, m.ctx).includes('no_price') && !r.ticked)).length }))}</h2>
           ${newRows.map((r) => rowHtml(locale, m, r, errors.get(r.key) ?? [], typed)).join('')}</div>` : ''}
         ${held.size ? `<div class="block"><h2>${esc(t(locale, 'product.review.heldTitle'))}</h2>${[...held.values()].map((h) => `
           <div class="rev">${h.product ? `<b dir="auto">${esc(h.product.name)}</b>` : `<b dir="auto">${esc(h.line.name)}</b>`}
             <span class="rev-move">${esc(t(locale, `product.review.held.${h.reason}`))}</span>
             ${h.product ? `<a href="/app/products/${esc(h.product.id)}">${esc(t(locale, 'product.review.openProduct'))}</a>` : ''}</div>`).join('')}</div>` : ''}
         ${unchanged.size ? `<div class="block"><h2>${esc(t(locale, 'product.review.unchangedTitle', { count: unchanged.size }))}</h2>${m.diff.unchanged.map((u) => `<div class="rev"><b dir="auto">${esc(u.product.name)}</b></div>`).join('')}</div>` : ''}
-        ${refused.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${refused.map((r) => `<div class="rev muted"><bdi>${esc(r.line)}</bdi> <span class="rev-move">${esc(t(locale, `product.reject.${r.refused}` as MessageKey, { currency: imp.currency, sign: currencySymbol(imp.currency).trim() }))}</span></div>`).join('')}</div>` : ''}
+        ${/* Phase 9 (V1-334) — a line set aside has no form of its own: where it is corrected is said under the heading. */ ''}
+        ${refused.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>
+          <p class="muted small">${esc(t(locale, imp.kind === 'photo' ? 'import.rejected.fixPhoto' : imp.kind === 'paste' ? 'import.rejected.fixPaste' : 'import.rejected.fixList'))}</p>${refused.map((r) => `<div class="rev muted"><bdi>${esc(r.line)}</bdi> <span class="rev-move">${esc(t(locale, `product.reject.${r.refused}` as MessageKey, { currency: imp.currency, sign: currencySymbol(imp.currency).trim() }))}</span></div>`).join('')}</div>` : ''}
         ${/* Phase 9 (missed-10) — the offer to read again comes after the lines it is about, and names them by what they share. */ ''}
         ${opts.canExtract && !asking && imp.state === 'open' && imp.rows.some(extractCandidate) ? `<div class="block" id="extract">
           <p>${esc(tn(locale, 'import.extract.lead', imp.rows.filter(extractCandidate).length, { n: show.count(locale, imp.rows.filter(extractCandidate).length) }))}</p>
@@ -738,7 +750,7 @@ export function renderImportReview(
           ${opts.discountError ? `<p class="perr" role="alert">${esc(t(locale, 'import.discount.invalid'))}</p>` : ''}
           <p class="muted small">${esc(t(locale, 'import.discount.hint'))}</p>
         </div>
-        ${offered === 0 ? `<div class="block"><p class="muted">${esc(t(locale, 'product.review.nothingToChange'))}</p></div>` : `${pending.length ? `<p class="imp-pending">${pending.map((b) => blockerLine(locale, b)).join(' ')} ${esc(t(locale, 'import.pending.why'))}</p>` : ''}<div class="imp-acts">
+        ${offered === 0 ? `<div class="block"><p class="muted">${esc(t(locale, 'product.review.nothingToChange'))}</p></div>` : `${pending.length ? `<p class="imp-pending">${then(locale, pending.map((b) => blockerLine(locale, b)).join(locale === 'zh' ? '' : ' '), esc(t(locale, 'import.pending.why')))}</p>` : ''}<div class="imp-acts">
           <button class="btn send" type="submit" name="next" value="add">${esc(t(locale, newRows.length === 0 ? 'product.review.confirmChanges' : 'import.add'))}</button>
           <button class="btn" type="submit" name="next" value="save">${esc(t(locale, 'import.save'))}</button>
         </div>`}
