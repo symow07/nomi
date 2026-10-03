@@ -249,3 +249,11 @@ describe('Your data · w4-settings-a-16, -17, -18', () => {
     expect(stylesheetAt(sheet)!.css).not.toContain('.dl-files { max-width');
   });
 });
+
+describe('w4-settings-a-23 · Billing says "nothing is charged" once, in its row', () => {
+  it('the lede says payments are off; the row says what is charged', async () => {
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    for (const l of LOCALES) expect(t(l, 'billing.notConfigured'), l).not.toMatch(/charged|收费|رسم|cobra|factur/i);
+  });
+});
