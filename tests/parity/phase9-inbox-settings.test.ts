@@ -575,7 +575,11 @@ describe('the settings pages', () => {
       expect(h, l).toContain(`<span class="fr-name">${shown(l, 'account.row.password')}</span>`);
       expect(t(l, 'account.row.password'), l).not.toBe(t(l, 'account.title'));
     }
-    expect(t('zh', 'account.codeOnly')).toBe('没有：你用登录码登录。');
+    // The warmth run, phase 9 — the door's word for the code (访问码 / رمز الوصول), on Setup's row and this page alike.
+    expect(t('zh', 'account.codeOnly')).toBe('没有：你用访问码登录。');
+    expect(t('zh', 'setup.value.accessCode')).toBe(t('zh', 'login.passwordLabel'));
+    expect(t('ar', 'setup.value.accessCode')).toBe('رمز الوصول');
+    expect(t('ar', 'account.codeOnly')).toContain('رمز الوصول');
     expect(t('zh', 'account.codeOnly')).toContain(t('zh', 'setup.value.accessCode'));
     expect(t('zh', 'account.codeOnly')).not.toContain('进入密码');
     expect(t('ar', 'account.codeOnly').split('دخول').length - 1).toBe(1);

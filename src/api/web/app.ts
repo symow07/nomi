@@ -1836,7 +1836,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
-    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.setup'));
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn }, locale, flash, t(locale, 'nav.setup'));
   }));
 
   /**

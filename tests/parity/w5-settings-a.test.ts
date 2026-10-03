@@ -152,3 +152,20 @@ describe('V1-008 · a closure\'s dates are drawn in the owner\'s language, not t
     expect(back.body).toContain('<option value="02" selected>');
   });
 });
+
+describe('w4-settings-a-22 · Your sign-in says what to do when the code or the password is lost', () => {
+  it('in every language: with a code, who gives a new one; with a password, the door\'s link where it can e-mail one, else whom to ask', async () => {
+    const { renderAccount } = await import('../../src/api/web/account.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { esc } = await import('../../src/api/web/layout.js');
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    for (const l of LOCALES) {
+      expect(renderAccount({ email: null, passwordMin: 10 }, l, null, 'Setup'), l).toContain(esc(t(l, 'account.lost.code')));
+      const mailed = renderAccount({ email: 'a@example.test', passwordMin: 10, recovery: true }, l, null, 'Setup');
+      expect(mailed, l).toContain(`${esc(t(l, 'account.lost.password'))} <a href="/login/forgot">${esc(t(l, 'login.forgot'))}</a>`);
+      const asked = renderAccount({ email: 'a@example.test', passwordMin: 10 }, l, null, 'Setup');
+      expect(asked, l).toContain(esc(t(l, 'account.lost.passwordAsk')));
+      expect(asked, l).not.toContain('/login/forgot');
+    }
+  });
+});
