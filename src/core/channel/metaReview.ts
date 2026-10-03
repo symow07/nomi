@@ -13,7 +13,8 @@
  * every Meta path is built as if approval had passed). It says where things
  * stand — and, since the warmth run's phase 8, it opens WhatsApp as the way
  * the two notifications reach an owner on the default (`ownerWhatsAppOpen`,
- * src/core/owner/alertChannel.ts): before approval they go by e-mail.
+ * src/core/owner/alertChannel.ts): before approval they go by e-mail, unless
+ * the owner chose WhatsApp where their alert number is on a live channel.
  */
 export type MetaReview = { readonly state: 'approved'; readonly on: Date } | { readonly state: 'reviewing' };
 
