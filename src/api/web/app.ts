@@ -149,6 +149,7 @@ import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
 import { renderListPane, renderCustomerPanel, renderPanes, paneRowOf } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
+import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
@@ -2074,6 +2075,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const everyone = await loadInboxList(deps.db, s.businessId, 'all', me);
     const list = everyone.waitingCount > 0 ? await loadInboxList(deps.db, s.businessId, 'pending', me) : everyone;
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
+    // The warmth run, phase 5 — the catch-up strip over the messages: their face, what they bought, where things stand.
+    const catchUp = customer && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCatchUp(tx, customer, conversationId, now)) : null;
     const today = dayKey(now, workspaceZone());
     const dated = customer
       ? (await loadCalendar(deps.db, s.businessId, {
@@ -2087,7 +2090,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         // Phase 9 (V1-257) — and the open conversation, when the tab beside it does not list it.
         renderListPane(list, locale, now, conversationId, people,
           everyone.conversations.find((c) => c.conversationId === conversationId) ?? paneRowOf(detail)),
-        renderConversationDetail(withProof, locale, now, flash, personOf(s)),
+        renderConversationDetail({ ...withProof, catchUp }, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>

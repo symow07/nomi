@@ -821,6 +821,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .msg.outbound .bubble { font-size:var(--font-size-small);
     background:var(--color-surface); border:1px solid var(--color-border);
     border-start-end-radius:4px; }
+  /* THE WARMTH RUN, phase 5 — what the ASSISTANT said sits on its wash, and the caption under it
+     says "✦ name" in magenta; a person's reply keeps the plain bubble. A newcomer to the
+     conversation tells the two apart at a glance. A wash, never a frame: the hairline goes. */
+  .msg.outbound .bubble.by-as { background:var(--color-assistant-wash); border-color:transparent; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .as { color:var(--color-assistant); }
   /* CC-25 — a link into a transcript lands on its newest message: clear of the
@@ -1260,7 +1264,7 @@ const STYLE_PAGES = `
   .fconn.on .fconn-s { color:var(--color-ok); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
   .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:var(--radius-card); padding:14px 16px; }
-  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-waiting); }
+  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-ink-secondary); }
   .fconn.off .fconn-s { color:var(--color-waiting); }
   .fconn.off .go { margin-inline-start:auto; }
   /* Phase 9 — never connected is not waiting on anything: a plain door, no wash and no mark. */
@@ -1319,7 +1323,7 @@ const STYLE_PAGES = `
   .imp-photo figcaption { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-top:var(--space-4); }
   .imp-row { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .imp-row:last-child { border-bottom:0; }
-  .imp-row.need { border-inline-start:3px solid var(--color-waiting); padding-inline-start:var(--space-12); }
+  .imp-row.need { border-inline-start:3px solid var(--color-waiting-line); padding-inline-start:var(--space-12); }
   .imp-row.out { opacity:0.6; }
   .imp-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .imp-warn { display:block; color:var(--color-waiting); font-size:var(--font-size-caption); margin-top:var(--space-4); }
@@ -1653,6 +1657,23 @@ const STYLE_PAGES = `
   /* CC-20 — on the conversation, the buyer's and the product's page, the name
      in the header is the page's title (an h1), drawn the size it always was. */
   .dhead h1.who { margin:0; font-weight:400; }
+  /* THE WARMTH RUN, phase 5 — the catch-up strip over the messages: the customer's face (it opens
+     their card) beside their name and where they write; under both, the column's width for what
+     they bought and spent, and where things stand. Right to left the face sits at the start. */
+  .catchup { display:grid; grid-template-columns:auto minmax(0, 1fr); align-items:center; gap:var(--space-4) var(--space-12);
+    margin:var(--space-4) 0 var(--space-16); }
+  .catchup.bare { display:block; }
+  .catchup > .face-link { grid-row:span 2; }
+  .catchup h1.who { margin:0; font-size:var(--font-size-base); font-weight:400; align-self:end; }
+  .cu-where { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); align-self:start; }
+  .cu-facts, .cu-state { grid-column:1 / -1; margin:0; font-size:var(--font-size-small); }
+  .cu-facts { color:var(--color-ink-secondary); }
+  .cu-facts bdi { color:var(--color-ink); }
+  .cu-regular { display:inline-block; padding:0 var(--space-8); border-radius:var(--radius-chip);
+    background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-ink);
+    font-size:var(--font-size-caption); white-space:nowrap; }
+  .cu-state .pill { margin-block-end:0; }
+  .cu-story b { font-weight:600; }
   .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
     margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
   /* The approval card (the design pass): who asked, what was understood, how

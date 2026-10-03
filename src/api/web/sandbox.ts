@@ -14,7 +14,7 @@ import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
-import { approvalCard, workingLine, orderCard, loadConversationDetail, type ConversationDetail } from './inbox.js';
+import { approvalCard, workingLine, orderCard, loadConversationDetail, bubbleClass, speakerOf, type ConversationDetail } from './inbox.js';
 import { expectTotal, NOT_YET, type ChecklistItem, type PracticeTotal } from '../../db/practiceChecklist.js';
 import { unitLabel } from './products.js';
 import { formatList } from '../../core/owner/i18n/format.js';
@@ -424,7 +424,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
   const timeline = view.messages.length
     ? `<div class="timeline">${view.messages.map((m, i) => `
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
-          <div dir="auto" class="bubble">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
+          <div dir="auto" class="${bubbleClass(speakerOf(m))}">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
           <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.by.customer'))
             : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : byAssistant(name)}</div>
         </div>`).join('')}</div>`
