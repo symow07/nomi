@@ -157,6 +157,8 @@ describe('Phase 9 · the shell', () => {
       ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
       // The warmth run: Settings' two rows lead back to it.
       ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],
+      // Phase 7b: knowledge is a row of the assistant's menu, and leads back to it.
+      ['/app/knowledge', '/app/employee', 'nav.employee'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
