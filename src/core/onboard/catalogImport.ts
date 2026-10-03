@@ -38,6 +38,12 @@ export type ExtractedProduct = {
   readonly sourceLine?: string;
   readonly unit: string;               // default 'pcs'
   /**
+   * Phase 9 (V1-334) — the line held two products ("Mug 8 or bowl 12"): this is
+   * the first or the second of them. Both keep the whole line as `sourceLine`,
+   * and the review asks the owner to check each.
+   */
+  readonly half?: 1 | 2;
+  /**
    * T4 — the line has a price this parser will not guess at: written two ways
    * at once (`1.250,00` in a dollar workspace), in a currency other than the
    * workspace's own (CUR: one currency per workspace, nothing converted), or a
@@ -74,11 +80,17 @@ const MOQ_WORD = String.raw`(?:MOQ|起订|最低|(?:ال)?حد\s*(?:ال)?أدن
 
 /**
  * T4 — a figure as written, read one way or refused. Thousands commas
- * (`1,250.00`) are thousands: that line was read as $1.00. A comma used as the
- * decimal point, or a dot before exactly three digits after a non-zero whole
- * part (`1.250,00`, `12,50`, `1.250`), could be read two ways, and a wrong
- * reading is a price a customer is quoted — so it is refused. Sentence
- * punctuation after the figure is not part of it.
+ * (`1,250.00`) are thousands: that line was read as $1.00. A dot before
+ * exactly three digits after a non-zero whole part, or both marks at once
+ * (`1.250`, `1.250,00`), could be read two ways, and a wrong reading is a price
+ * a customer is quoted — so it is refused. Sentence punctuation after the
+ * figure is not part of it.
+ *
+ * The warmth run, phase 9 (V1-334) — a comma before exactly two digits and
+ * nothing else (`24,50`) reads ONE way: no thousands group is two digits long
+ * (the rupee's lakhs end in a group of three, "1,50,000"). It is how French and
+ * Spanish write a price, and it is read as 24.50; the review flags the row for
+ * its own tick (`decimal_comma`), so the owner sees the figure it became.
  */
 function readAmount(raw: string, currency: Currency): number | 'ambiguous' {
   const s = raw.replace(/[.,]+$/, '');
@@ -91,9 +103,22 @@ function readAmount(raw: string, currency: Currency): number | 'ambiguous' {
     return 'ambiguous';
   }
   if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''));
+  if (DECIMAL_COMMA_FIGURE.test(s)) return Number(s.replace(',', '.'));
   if (/^[1-9]\d{0,2}\.\d{3}$/.test(s)) return 'ambiguous';
   if (/^\d+(?:\.\d+)?$/.test(s)) return Number(s);
   return 'ambiguous';
+}
+
+/** Phase 9 (V1-334) — "24,50": a decimal comma and its cents, the only way such a figure reads. */
+const DECIMAL_COMMA_FIGURE = /^\d+,\d{2}$/;
+
+/**
+ * Phase 9 (V1-334) — does this line carry a price written with a decimal comma
+ * ("24,50"), in a currency whose own lists write a decimal point? The review
+ * flags such a row, so the owner checks the figure it was read as.
+ */
+export function readWithDecimalComma(line: string, currency: Currency): boolean {
+  return !DOT_THOUSANDS.has(currency) && /(?<![\d.,])\d+,\d{2}(?![\d]|[.,]\d)/.test(line);
 }
 
 /**
@@ -215,81 +240,115 @@ export function parsePriceLines(text: string, currency: Currency): readonly Extr
   const reading = readingFor(currency);
   const out: ExtractedProduct[] = [];
   for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line || line.length < 3) continue;
-
-    const article = line.match(ARTICLE_NO)?.[1] ?? null;
-
-    // T4 — a price in any currency but the workspace's is refused, not ignored:
-    // "18元" once came in as a product with no price, and "HK$25" as $25.
-    let problem: ReadingProblem | null = reading.foreign(line) ? 'other_currency' : null;
-    let price: number | null = null;
-    const written = line.match(reading.before)?.[1] ?? line.match(reading.after)?.[1] ?? null;
-    if (!problem && written !== null) {
-      const a = readAmount(written, currency);
-      if (a === 'ambiguous') problem = 'ambiguous_price';
-      else price = a;
-    }
-
-    // A spreadsheet row: the price is the one number after the name, or the
-    // first of two when the second is a whole minimum ("保温杯\t2.6\t1000").
-    // More numbers than that, and nothing marks the price: refused, not priced
-    // from whichever came first.
-    let rowMoq: string | null = null;
-    if (!problem && price === null && line.includes('\t')) {
-      const nums = line.split('\t').map((c) => c.trim()).filter(Boolean).slice(1).filter((c) => NUMBER_CELL.test(c));
-      if (nums.length === 1 || (nums.length === 2 && /^\d{2,}$/.test(nums[1]!))) {
-        const a = readAmount(nums[0]!, currency);
-        if (a === 'ambiguous') problem = 'ambiguous_price';
-        else price = a;
-        rowMoq = nums[1] ?? null;
-      } else if (nums.length >= 2) {
-        problem = 'several_numbers';
-      }
-    }
-
-    // Phase 9 (V1-334) — no sign anywhere, and the line ends in a price: that is its price.
-    const bare = !problem && price === null && written === null ? barePrice(line) : null;
-    if (bare) {
-      const a = readAmount(bare[1]!, currency);
-      if (a === 'ambiguous') problem = 'ambiguous_price';
-      else price = a;
-    }
-    const body = bare ? line.slice(0, line.length - bare[0].length) : line;
-
-    const moq =
-      line.match(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*(\\d[\\d,]*)`, 'i'))?.[1] ??
-      line.match(/(\d[\d,]*)\s*(?:个|件|套|pcs)?\s*起/)?.[1] ??
-      rowMoq ??
-      line.match(/\t(\d{2,})\s*$/)?.[1] ?? null;
-
-    // Name = the line minus the article number, price/moq/currency fragments.
-    const name = (article ? body.slice(article.length) : body)
-      .replace(reading.beforeAll, ' ')
-      .replace(reading.afterAll, ' ')
-      .replace(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*\\d[\\d,]*`, 'gi'), ' ')
-      .replace(/\d[\d,]*\s*(?:个|件|套|pcs)?\s*起/g, ' ')
-      .replace(/\t\d[\d.,]*/g, ' ')
-      .replace(new RegExp(`\\b(${UNIT_WORDS})\\b`, 'gi'), ' ')
-      .replace(/\s+/g, ' ').trim();
-    // A line that is ONLY an article number has no name to sell under; keep it
-    // as the name rather than dropping the product or inventing a description.
-    const finalName = name || article;
-    if (!finalName) continue;
-
-    const zh = /[一-鿿]/.test(finalName);
-    out.push({
-      sku: article,
-      name: finalName,
-      nameZh: zh ? finalName : null,
-      price: price !== null ? { amount: price, currency } : null,
-      moq: moq ? Number(moq.replace(/,/g, '')) : null,
-      unit: 'pcs',
-      sourceLine: line,
-      ...(problem ? { problem } : {}),
+    const whole = raw.trim();
+    if (!whole || whole.length < 3) continue;
+    // Phase 9 (V1-334) — "Mug 8 or bowl 12" is two products, each read on its own.
+    const halves = twoProducts(whole);
+    (halves ?? [whole]).forEach((line, i) => {
+      const p = readLine(line, whole, reading, currency, halves !== null);
+      if (p) out.push(halves ? { ...p, half: (i + 1) as 1 | 2 } : p);
     });
   }
   return out;
+}
+
+/**
+ * Phase 9 (V1-334) — a line that names two products, each with its figure,
+ * joined by "or" or "and" in the languages owners write their lists in: "Mug 8
+ * or bowl 12", "Tote $18 and bag $24", "杯子 8元 或 碗 12元". Each half must start
+ * with a letter, carry no figure but its last, and end in that figure — so a
+ * size range ("Pillow 40 or 60"), a tab row or a "S-M $40 / L-XL $45" is never
+ * cut in two. Null when the line is one product.
+ */
+const AND_OR = /\s+(?:or|and|ou|et|o|y|oder|und|ou bien|或者|或|和|أو)\s+/iu;
+const HALF = /^(\p{L}[^\d]*?)\s*((?:[$＄¥￥€£₹]|US\$)?\s*\d+(?:[.,]\d{1,2})?\s*(?:美元|元|USD|درهم|ريال)?)\s*[.;]?$/u;
+export function twoProducts(line: string): readonly [string, string] | null {
+  if (line.includes('\t')) return null;
+  const parts = line.split(AND_OR);
+  if (parts.length !== 2) return null;
+  const [a, b] = [parts[0]!.trim(), parts[1]!.trim()];
+  const ok = (s: string) => {
+    const m = HALF.exec(s);
+    return m !== null && (m[1]!.match(/\p{L}/gu) ?? []).length >= 2;
+  };
+  return ok(a) && ok(b) ? [a, b] : null;
+}
+
+/** One product from one line (or one half of a line that holds two). */
+function readLine(line: string, whole: string, reading: Reading, currency: Currency, half: boolean): ExtractedProduct | null {
+  const article = line.match(ARTICLE_NO)?.[1] ?? null;
+
+  // T4 — a price in any currency but the workspace's is refused, not ignored:
+  // "18元" once came in as a product with no price, and "HK$25" as $25.
+  let problem: ReadingProblem | null = reading.foreign(line) ? 'other_currency' : null;
+  let price: number | null = null;
+  const written = line.match(reading.before)?.[1] ?? line.match(reading.after)?.[1] ?? null;
+  if (!problem && written !== null) {
+    const a = readAmount(written, currency);
+    if (a === 'ambiguous') problem = 'ambiguous_price';
+    else price = a;
+  }
+
+  // A spreadsheet row: the price is the one number after the name, or the
+  // first of two when the second is a whole minimum ("保温杯\t2.6\t1000").
+  // More numbers than that, and nothing marks the price: refused, not priced
+  // from whichever came first.
+  let rowMoq: string | null = null;
+  if (!problem && price === null && line.includes('\t')) {
+    const nums = line.split('\t').map((c) => c.trim()).filter(Boolean).slice(1).filter((c) => NUMBER_CELL.test(c));
+    if (nums.length === 1 || (nums.length === 2 && /^\d{2,}$/.test(nums[1]!))) {
+      const a = readAmount(nums[0]!, currency);
+      if (a === 'ambiguous') problem = 'ambiguous_price';
+      else price = a;
+      rowMoq = nums[1] ?? null;
+    } else if (nums.length >= 2) {
+      problem = 'several_numbers';
+    }
+  }
+
+  // Phase 9 (V1-334) — no sign anywhere, and the line ends in a price: that is
+  // its price. Half of a line that holds two products ends in its figure by
+  // the shape that split it, so a whole figure there is its price too.
+  const bare = !problem && price === null && written === null
+    ? (half ? line.match(/(?:^|\s)(\d+(?:[.,]\d{1,2})?)\s*[.;]?\s*$/) : barePrice(line)) : null;
+  if (bare) {
+    const a = readAmount(bare[1]!, currency);
+    if (a === 'ambiguous') problem = 'ambiguous_price';
+    else price = a;
+  }
+  const body = bare ? line.slice(0, line.length - bare[0].length) : line;
+
+  const moq =
+    line.match(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*(\\d[\\d,]*)`, 'i'))?.[1] ??
+    line.match(/(\d[\d,]*)\s*(?:个|件|套|pcs)?\s*起/)?.[1] ??
+    rowMoq ??
+    line.match(/\t(\d{2,})\s*$/)?.[1] ?? null;
+
+  // Name = the line minus the article number, price/moq/currency fragments.
+  const name = (article ? body.slice(article.length) : body)
+    .replace(reading.beforeAll, ' ')
+    .replace(reading.afterAll, ' ')
+    .replace(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*\\d[\\d,]*`, 'gi'), ' ')
+    .replace(/\d[\d,]*\s*(?:个|件|套|pcs)?\s*起/g, ' ')
+    .replace(/\t\d[\d.,]*/g, ' ')
+    .replace(new RegExp(`\\b(${UNIT_WORDS})\\b`, 'gi'), ' ')
+    .replace(/\s+/g, ' ').trim();
+  // A line that is ONLY an article number has no name to sell under; keep it
+  // as the name rather than dropping the product or inventing a description.
+  const finalName = name || article;
+  if (!finalName) return null;
+
+  const zh = /[一-鿿]/.test(finalName);
+  return {
+    sku: article,
+    name: finalName,
+    nameZh: zh ? finalName : null,
+    price: price !== null ? { amount: price, currency } : null,
+    moq: moq ? Number(moq.replace(/,/g, '')) : null,
+    unit: 'pcs',
+    sourceLine: whole,
+    ...(problem ? { problem } : {}),
+  };
 }
 
 /** Neutral reject code (ADR-0008); reasonZh is kept for the P3 onboarding flow. */

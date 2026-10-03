@@ -257,6 +257,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       /* The page's own nodes, as Nomi drew them, moved across: the script writes no markup. */
       while (main.firstChild) main.removeChild(main.firstChild);
       while (fresh.firstChild) main.appendChild(doc.adoptNode(fresh.firstChild));
+      if (main.setAttribute) main.setAttribute('data-drawn-again', '1');
       if (next.title) doc.title = next.title;
       var found = main.querySelectorAll('textarea[data-keep]');
       for (var i = 0; i < found.length; i++) keepBox(found[i], '');
@@ -374,9 +375,16 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     c.href = door;
     c.textContent = String(said.say || '');
     c.addEventListener('click', function () { drop(c); });
+    /* Read at the reader's pace: held while pointed at or focused, then its time again. */
+    function hold() { clearTimeout(cardTimer); }
+    function release() { clearTimeout(cardTimer); cardTimer = setTimeout(function () { drop(c); }, SHOWN); }
+    c.addEventListener('mouseenter', hold);
+    c.addEventListener('focus', hold);
+    c.addEventListener('mouseleave', release);
+    c.addEventListener('blur', release);
     slot.appendChild(c);
     card = c;
-    cardTimer = setTimeout(function () { drop(c); }, SHOWN);
+    release();
   }
   function tally(entry, said) {
     var badge = entry.querySelector('.navcount');
@@ -385,9 +393,18 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         badge = doc.createElement('span');
         badge.className = 'navcount';
         badge.setAttribute('aria-hidden', 'true');
-        entry.appendChild(badge);
+        (entry.querySelector('.nl-body') || entry).appendChild(badge);
       }
-      badge.textContent = String(said.shown);
+      /* The words where there is room, the figure on a phone's tile, as the page draws them. */
+      while (badge.firstChild) badge.removeChild(badge.firstChild);
+      var long = doc.createElement('span');
+      long.className = 'nl-long';
+      long.textContent = String(said.words || said.shown);
+      var short = doc.createElement('span');
+      short.className = 'nl-short';
+      short.textContent = String(said.shown);
+      badge.appendChild(long);
+      badge.appendChild(short);
       entry.setAttribute('aria-label', String(said.label));
     } else {
       if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
@@ -398,8 +415,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   function rail(slot) {
     var ask = slot.getAttribute('data-rail');
     return asker(function () { return ask; }, EVERY, function (said) {
-      if (!said || typeof said.n !== 'number' || !/^[0-9]+$/.test(String(said.mark))) return;
-      ask = ask.replace(/since=[0-9]+/, 'since=' + said.mark);
+      if (!said || typeof said.n !== 'number' || !/^[0-9]+([.][0-9]+)?$/.test(String(said.mark))) return;
+      ask = ask.replace(/since=[0-9.]+/, 'since=' + said.mark);
       var entry = doc.querySelector('[data-nav="inbox"]');
       if (entry) tally(entry, said);
       if (said.toast) {
@@ -458,6 +475,11 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       if (!b || !b.form || typeof b.form.requestSubmit !== 'function') return;
       e.preventDefault();
       e.stopPropagation();
+      /* A form not filled in is said so first, by the browser, under its field; nothing is asked (w4-settings-a-15). */
+      if (typeof b.form.checkValidity === 'function' && !b.form.checkValidity()) {
+        if (typeof b.form.reportValidity === 'function') b.form.reportValidity();
+        return;
+      }
       pending = b;
       said.textContent = b.getAttribute('data-confirm');
       yes.textContent = String(b.textContent || '').trim();
@@ -513,14 +535,22 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       from = a;
+      /* The press is heard at once: the face says it is opening (w4-whole-22). */
+      if (a.setAttribute) a.setAttribute('aria-busy', 'true');
       fetch(a.href, { credentials: 'same-origin', redirect: 'manual', headers: { Accept: 'text/html' } }).then(function (r) {
         if (!r.ok || r.type === 'opaqueredirect') throw new Error('no card');
         return r.text();
       }).then(function (html) {
         var card = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-card-body]');
         if (!card) throw new Error('no card');
+        if (a.removeAttribute) a.removeAttribute('aria-busy');
         while (body.firstChild) body.removeChild(body.firstChild);
         body.appendChild(doc.adoptNode(card));
+        /* Opened over the conversation it would open, its door closes the card instead. */
+        var door = card.querySelector ? card.querySelector('a.pc-open') : 0;
+        if (door && String(door.getAttribute('href') || '').split('#')[0] === location.pathname) {
+          door.addEventListener('click', function (ev) { ev.preventDefault(); sheet.close(); });
+        }
         if (!sheet.open) sheet.showModal();
       }).catch(function () { location.href = a.href; });
     });

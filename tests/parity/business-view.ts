@@ -18,7 +18,7 @@ export const SET_UP: FactoryView = {
   profile: {
     name: 'Yiwu Sunrise Housewares', description: 'Vacuum cups and kitchen goods since 2011.',
     location: 'Yiwu, Zhejiang', workingHours: 'Mon–Sat 9:00–18:00',
-    contactEmail: 'sales@sunrise.example', contactPhone: null, languagesServed: ['en', 'zh'], categories: ['drinkware'],
+    contactEmail: 'sales@sunrise.example', contactPhone: null, languagesServed: ['en', 'zh'],
   },
   products: { total: 12, needPrice: 0, names: [{ name: 'Vacuum cup', nameZh: '保温杯' }] },
   promises: { certs: ['food_grade'], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false, askPct: 5, askVaries: false },
@@ -40,7 +40,7 @@ export const SET_UP: FactoryView = {
 };
 
 export const FIRST_DAY: FactoryView = {
-  profile: { name: '', description: null, location: null, workingHours: null, contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
+  profile: { name: '', description: null, location: null, workingHours: null, contactEmail: null, contactPhone: null, languagesServed: [] },
   products: { total: 0, needPrice: 0, names: [] },
   promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: whatsapp(false), ownerPhone: null, country: null, channelsUsed: [], others: [] },

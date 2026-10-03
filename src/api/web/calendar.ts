@@ -234,11 +234,22 @@ function withValue(locale: Locale, key: MessageKey, param: string, value: string
  */
 function sentence(locale: Locale, e: CalendarEntry): string {
   if (e.kind === 'own') return `<bdi>${esc(e.detail.title ?? '')}</bdi>`;
-  return withValue(locale, `calendar.say.${e.kind}` as MessageKey, 'who', nameOf(locale, e));
+  return withValue(locale, sayKey(e), 'who', nameOf(locale, e));
 }
 /** The same sentence as plain text: a title, a screen reader's words. */
 const sentenceText = (locale: Locale, e: CalendarEntry): string =>
-  e.kind === 'own' ? e.detail.title ?? '' : t(locale, `calendar.say.${e.kind}` as MessageKey, { who: nameOf(locale, e) });
+  e.kind === 'own' ? e.detail.title ?? '' : t(locale, sayKey(e), { who: nameOf(locale, e) });
+
+/**
+ * Phase 9 (w4-customers-13, V1-201) — a price is said as far as it got, in
+ * Today's word for it (a quote): "Quote sent to Carlos", "Quote for Aisha
+ * waits for your OK", "Quote for Layla, not sent". It was "Price worked out
+ * for …", and "✓ done" while the reply that carried it waited for review.
+ */
+const sayKey = (e: CalendarEntry): MessageKey => e.kind !== 'price_worked_out' ? `calendar.say.${e.kind}` as MessageKey
+  : e.detail.priceState === 'review' ? 'calendar.say.price_review'
+  : e.detail.priceState === 'unsent' ? 'calendar.say.price_unsent'
+  : 'calendar.say.price_worked_out';
 
 /** Where an entry opens: its order, else its conversation (at the newest message, CC-25), else nowhere. */
 const doorOf = (e: CalendarEntry): string | null => e.orderId ? `/app/orders/${encodeURIComponent(e.orderId)}`
@@ -257,6 +268,7 @@ const removeForm = (locale: Locale, e: CalendarEntry): string => e.kind === 'own
 function isOwed(e: CalendarEntry, now: Date): boolean {
   if (isDone(e, now)) return false;
   return e.kind === 'reply_due' || (e.kind === 'sample_asked' && e.detail.open === true)
+    || (e.kind === 'price_worked_out' && e.detail.priceState === 'review')
     || (e.kind.startsWith('promise_') && e.day <= dayKey(now, workspaceZone()));
 }
 
@@ -268,12 +280,14 @@ function isOwed(e: CalendarEntry, now: Date): boolean {
  */
 function marksOf(locale: Locale, e: CalendarEntry, now: Date): { readonly done: boolean; readonly marks: string } {
   const done = isDone(e, now);
-  const promise = e.kind.startsWith('promise_');
   const state = isOwed(e, now) ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} `
     : done ? `${signalMark('ok')}<span class="sr">${esc(t(locale, 'calendar.done'))}</span> ` : '';
-  const hand = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant) ? '<span class="as" aria-hidden="true">✦</span> ' : '';
+  const hand = byHand(e) ? '<span class="as" aria-hidden="true">✦</span> ' : '';
   return { done, marks: `${state}${hand}` };
 }
+
+/** The assistant's hand: a price it worked out, a promise it made. */
+const byHand = (e: CalendarEntry): boolean => e.kind === 'price_worked_out' || (e.kind.startsWith('promise_') && e.detail.byAssistant === true);
 
 /**
  * The KIND of a date as a small drawn icon (phase 7; the warmth run moved the
@@ -290,12 +304,14 @@ export const kindIcon = (e: CalendarEntry): string => icon(DATE_ICON[e.kind], 'k
 
 /**
  * Phase 7 — is this date DONE: handled, kept, closed, or simply past? A reply
- * owed, a sample nobody has dealt with, a promise not kept are never done
- * however old: they are what the owner still has to do. Done dates are greyed,
- * never hidden.
+ * owed, a sample nobody has dealt with, a promise not kept, a price whose reply
+ * waits for review are never done however old: they are what the owner still
+ * has to do. Done dates are greyed, never hidden.
  */
 export function isDone(e: CalendarEntry, now: Date): boolean {
   if (e.kind === 'reply_due') return false;
+  // Phase 9 (w4-customers-13) — a price is done once it was given: one waiting for review is owed, one never sent is neither.
+  if (e.kind === 'price_worked_out' && (e.detail.priceState === 'review' || e.detail.priceState === 'unsent')) return false;
   if (e.kind === 'sample_asked' && e.detail.open) return false;
   if (e.kind.startsWith('promise_')) return e.detail.kept === true;
   if (e.kind === 'sample_handled' || e.kind === 'conversation_closed') return true;
@@ -376,7 +392,8 @@ export const MONTH_WHOLE = 3;
 function monthItem(locale: Locale, e: CalendarEntry, now: Date): string {
   const done = isDone(e, now);
   const owed = isOwed(e, now) ? ` ${signalMark(e.detail.overdue ? 'failed' : 'waiting')}` : '';
-  const name = `<span class="mo-n"><bdi>${esc(nameOf(locale, e))}</bdi>${owed}</span>`;
+  // The mark beside the name, not inside it: on a phone the name folds away (the face says who) and the mark stays.
+  const name = `<span class="mo-n"><bdi>${esc(nameOf(locale, e))}</bdi></span>${owed}`;
   const kind = `<span class="sr"> · ${esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}</span>`;
   const attrs = `class="mo-e ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}"`;
   if (e.buyer) return `<span ${attrs}>${faceLink(faceOf(e.buyer), { size: 'xs', after: `${name}${kind}` })}</span>`;
@@ -470,7 +487,12 @@ function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, stri
         <label class="fld"><span class="muted">${esc(t(locale, 'calendar.filter.kind'))}</span>
           <select name="category">
             <option value="">${esc(t(locale, 'calendar.cat.allKinds'))}</option>
-            ${kinds.map((c) => `<option value="${c}"${c === v.category ? ' selected' : ''}>${esc(t(locale, `calendar.cat.${c}` as MessageKey))}</option>`).join('')}
+            ${kinds.map((c) => {
+              // Phase 9 (w4-customers-18) — the same list in every view, but a kind this period does not hold cannot be chosen: five of eight led to an empty list.
+              const none = c !== v.category && !v.categories.includes(c);
+              const word = t(locale, `calendar.cat.${c}` as MessageKey);
+              return `<option value="${c}"${c === v.category ? ' selected' : ''}${none ? ' disabled' : ''}>${esc(none ? t(locale, 'calendar.cat.none', { kind: word }) : word)}</option>`;
+            }).join('')}
           </select></label>
         ${buyers.length ? `<label class="fld"><span class="muted">${esc(t(locale, 'calendar.buyer.label'))}</span>
           <select name="who">
@@ -485,21 +507,30 @@ function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, stri
  * What the page's marks mean, drawn with the marks themselves: where a date
  * came from (its edge), the assistant's hand (✦), owed (○) and done (✓).
  * Phase 9 (V1-200, inbox-calendar-new-14, missed-16) — the edge drawn as a
- * small square-cornered swatch, not a pill that read as a switch. The warmth
- * run — at the foot of the page's one fold, under what the page holds.
+ * small square-cornered swatch, not a pill that read as a switch. Phase 9 of
+ * the warmth run (w4-customers-14) — under the dates it explains, as the
+ * Inbox's key sits under its rows, and only the marks the page shows: it was
+ * at the foot of the fold "Filter or add a date", after the whole form.
  */
-const legend = (locale: Locale): string => `<p class="cal-legend small">
-    <span class="cal-li"><span class="cal-sw solid" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.solid'))}</span>
-    <span class="cal-li"><span class="cal-sw dashed" aria-hidden="true"></span> ${esc(t(locale, 'calendar.legend.dashed'))}</span>
-    <span class="cal-li"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'calendar.legend.assistant', { name: assistantName(locale) }))}</span>
-    <span class="cal-li">${signalMark('waiting')} ${esc(t(locale, 'calendar.legend.owed'))}</span>
-    <span class="cal-li">${signalMark('ok')} ${esc(t(locale, 'calendar.legend.done'))}</span></p>`;
+function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): string {
+  const item = (mark: string, key: MessageKey, params: Record<string, string> = {}): string =>
+    `<span class="cal-li">${mark} ${esc(t(locale, key, params))}</span>`;
+  const items = [
+    entries.some((e) => edgeOf(e) === 'solid') ? item('<span class="cal-sw solid" aria-hidden="true"></span>', 'calendar.legend.solid') : '',
+    entries.some((e) => edgeOf(e) === 'dashed') ? item('<span class="cal-sw dashed" aria-hidden="true"></span>', 'calendar.legend.dashed') : '',
+    entries.some(byHand) ? item('<span class="as" aria-hidden="true">✦</span>', 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
+    entries.some((e) => isOwed(e, now)) ? item(signalMark('waiting'), 'calendar.legend.owed') : '',
+    entries.some((e) => isDone(e, now)) ? item(signalMark('ok'), 'calendar.legend.done') : '',
+  ].filter(Boolean);
+  return items.length ? `<p class="cal-legend small">${items.join('')}</p>` : '';
+}
 
 /**
  * THE PAGE'S ONE FOLD (the warmth run): the choice of one kind or one
  * customer (only when there is something to choose between), adding a date,
- * and — at its foot — what the page holds and what its marks mean. Closed
- * until reached for; open when the add form came back with a reason.
+ * and — at its foot — what the page holds. Closed until reached for; open
+ * when the add form came back with a reason. What the marks mean is under
+ * the dates (`legend`).
  */
 function toolsFold(locale: Locale, v: CalendarView, hidden: Record<string, string | null>, day: string, kept: Kept | null): string {
   const choose = filterable(v);
@@ -508,7 +539,7 @@ function toolsFold(locale: Locale, v: CalendarView, hidden: Record<string, strin
       <div class="cal-tools-in">
         ${choose ? filterForm(locale, v, hidden) : ''}
         <div class="cal-add">${choose ? `<p class="cal-sub">${esc(t(locale, 'calendar.add'))}</p>` : ''}${addFields(locale, day, kept)}</div>
-        <div class="cal-key"><p class="muted cal-lede">${esc(t(locale, 'calendar.lede'))}</p>${legend(locale)}</div>
+        <div class="cal-key"><p class="muted cal-lede">${esc(t(locale, 'calendar.lede'))}</p></div>
       </div>
     </details>`;
 }
@@ -589,15 +620,18 @@ function renderPeriod(v: CalendarView, locale: Locale, view: Exclude<CalendarVie
   if (v.entries.length === 0) {
     return wrap(`${head}${emptyPeriod(locale, v, view === 'week' ? 'calendar.empty.week' : view === 'day' ? 'calendar.empty.day' : 'calendar.empty.month', clear, day, kept)}`);
   }
-  if (view === 'month') return `${head}${month(locale, v, at, now)}`;
-  if (view === 'day') return wrap(`${head}<ol class="dl">${inOrder(v.entries.filter((e) => covers(e, at))).map((e) => dateRow(locale, e, now)).join('')}</ol>`);
+  if (view === 'month') return `${head}${month(locale, v, at, now)}${legend(locale, v.entries, now)}`;
+  if (view === 'day') {
+    const here = inOrder(v.entries.filter((e) => covers(e, at)));
+    return wrap(`${head}<ol class="dl">${here.map((e) => dateRow(locale, e, now)).join('')}</ol>${legend(locale, here, now)}`);
+  }
   // The week: its days that hold something, and today always, each a list in time order.
   const days: string[] = [];
   for (let d = v.from; d < v.to; d = addDays(d, 1)) days.push(d);
   return wrap(`${head}${days.map((d) => {
     const here = v.entries.filter((e) => covers(e, d));
     return here.length || d === v.today ? daySection(locale, v, d, here, now) : '';
-  }).join('')}`);
+  }).join('')}${legend(locale, v.entries, now)}`);
 }
 
 /**
@@ -645,5 +679,10 @@ function renderList(v: CalendarView, locale: Locale, now: Date, at: string | nul
       ${before.map(section).join('')}
     </details>`
     : '';
-  return `<div class="measure-prose">${head}${ahead.map(section).join('')}${fold}</div>`;
+  // Phase 9 (w4-customers-15) — the list says where its dates stop: it showed
+  // "Sat, Sep 26 to Fri, Oct 16", today, and simply ended.
+  const lastHeld = ahead.at(-1) ?? null;
+  const rest = lastHeld !== null && lastHeld < last
+    ? `<p class="muted cal-rest">${esc(t(locale, 'calendar.rest', { date: show.date(locale, dayStart(last, workspaceZone())) }))}</p>` : '';
+  return `<div class="measure-prose">${head}${ahead.map(section).join('')}${rest}${fold}${legend(locale, v.entries, now)}</div>`;
 }

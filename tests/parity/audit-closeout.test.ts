@@ -214,7 +214,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     // Phase 9 (missed-02) — "2,000 and up" in words: a bare "2,000+" is drawn "+2,000" in Arabic.
     expect(page).toContain(`2,000${NBSP}قطعة فأكثر`);
     expect(page).not.toContain('2,000+');
-    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>\u200F0.92${NBSP}US$ لكل قطعة</bdi>`);   // recent quotes, each figure isolated
+    expect(page).toContain(`<bdi class="q-fact">5,000${NBSP}قطعة</bdi> · <bdi class="q-fact">\u200F0.92${NBSP}US$ لكل قطعة</bdi>`);   // recent quotes, each figure isolated (and whole on its line, w4-products-knowledge-10)
     expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000个起');
   });
 
@@ -655,7 +655,8 @@ describe('CC-31 · an article number the owner never typed is not shown as their
     expect(proforma).toContain('PROFORMA INVOICE');
     expect(proforma).not.toContain(made);
     expect(proforma).toMatch(/\nVacuum cup\nQty:/);
-    expect(withoutIsolates(renderOrder(order(), 'en', null))).toContain('Vacuum cup (ZX-200)');
+    // phase 9 of the warmth run (w4-customers-09) — the article number held whole on its line
+    expect(withoutIsolates(renderOrder(order(), 'en', null))).toContain('Vacuum cup <span class="doc-code">(ZX-200)</span>');
   });
 });
 
@@ -685,7 +686,8 @@ describe('Phase 9 · the order page (V1-184–V1-187)', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderOrder(order(), l, null));
       expect(html, l).toMatch(/<h1 class="page">[^<]*<bdi>/);
-      expect(html, l).toContain(t(l, 'order.heading', { ref: '' }).trim().slice(0, 4));
+      // phase 9 of the warmth run — whose order it is: the customer, isolated, in the heading
+      expect(html, l).toContain(withoutIsolates(t(l, 'order.heading', { who: '\u0000' })).split('\u0000')[0]!.trim());
       expect(html, l).toContain('<pre class="doc" dir="ltr">');
       expect(html.includes(t(l, 'order.invoice.english')), l).toBe(l !== 'en');
     }

@@ -14,7 +14,17 @@ import { DEMO_BUSINESS, DEMO_NAMESPACE, DEMO_PRODUCTS, demoPhone, type DemoProdu
  *   - a draft waiting for approval, on a buyer who wrote within the hour;
  *   - three products with price tiers (the demo factory's twelve);
  *   - activity yesterday, so Results has something to show;
- *   - Instagram not connected (the demo factory connects WhatsApp only).
+ *   - Instagram not connected (the demo factory connects WhatsApp only);
+ *   - every reply in it SENT the way the product records a send (the warmth
+ *     run, phase 9, w4-today-setup-01): a sent `outbound_messages` row, and
+ *     its copy in `messages` under the row's own id (`out:<id>`, as
+ *     `channels.ts` writes it at 'sent'). Today, the assistant's month and
+ *     Results all read those rows, so the hero, its faces and the scoreboard
+ *     show in this workspace, and the three pages count the same replies;
+ *   - one regular customer (three orders that stand, `REGULAR_ORDERS`), so
+ *     the Regular mark can be seen: Khalid Mansoor, whose two earlier orders
+ *     were shipped from conversations of their own (one open order per
+ *     conversation, 0003).
  *
  * Same business and products as the demo factory, same namespace scheme, so
  * `tools/seed-usability.mjs` lays it on a local instance and the integration
@@ -28,7 +38,7 @@ import { DEMO_BUSINESS, DEMO_NAMESPACE, DEMO_PRODUCTS, demoPhone, type DemoProdu
 
 const B = DEMO_BUSINESS.id;
 
-/** Blocks e1–e7 of the demo id space; nothing else in the repo uses them. */
+/** Blocks e1–e9 of the demo id space; nothing else in the repo uses them (e8, e9: the sent rows). */
 const uid = (block: string, n: number): string =>
   `de300000-0000-4000-8000-00000000${block}${n.toString(16).padStart(2, '0')}`;
 
@@ -245,6 +255,31 @@ export const USABILITY_CONVERSATIONS: readonly UsabilityConversation[] = [
 ];
 
 export const USABILITY_HANDED = USABILITY_CONVERSATIONS[HANDED]!;
+/** The regular customer (w4-today-setup-01): the buyer of the order in production. */
+export const USABILITY_REGULAR = USABILITY_CONVERSATIONS[ORDER]!;
+
+/**
+ * The regular's two earlier orders, each from a conversation of its own that
+ * closed when the goods shipped: 120 and 60 days ago, so with the order
+ * confirmed two days ago they are three that stand, a month or two apart —
+ * a regular, and not one gone quiet.
+ */
+export const USABILITY_REGULAR_PAST: readonly { readonly id: string; readonly orderId: string; readonly ageMin: number; readonly qty: number }[] = [
+  { id: uid('e2', 66), orderId: uid('e5', 66), ageMin: 120 * 1440, qty: 3000 },
+  { id: uid('e2', 67), orderId: uid('e5', 67), ageMin: 60 * 1440, qty: 4000 },
+];
+
+/**
+ * The sent row of the j-th reply (j = 0, 1) of conversation i: one id block a
+ * reply, so every one is fixed. A conversation's replies are the ones its
+ * lines carry; the handed conversation's was written by the colleague who
+ * holds it (`owner`), every other one by the assistant (`employee` — sent
+ * alone, or approved by the owner, as the approved draft of 64 was).
+ */
+const sentId = (i: number, j: number): string => {
+  if (j > 1) throw new Error(`usability seed: conversation ${i} has more than two replies`);
+  return uid(j === 0 ? 'e8' : 'e9', i);
+};
 export const USABILITY_DRAFT = USABILITY_CONVERSATIONS[DRAFT]!;
 
 /** The text of the draft that waits (task two: "she has written a reply"). */
@@ -252,6 +287,9 @@ export const USABILITY_DRAFT_TEXT =
   `Hello Aisha — for 5,000 pcs of ${sku('ZX-300').name} (ZX-300): ${money(tierPrice(sku('ZX-300'), 5000))}/pc FOB Ningbo, lead time ${sku('ZX-300').leadTimeDays} days, CE certified. Would you like a proforma invoice?`;
 
 const esc = (s: string): string => s.replace(/'/g, "''");
+/** The regular has been a customer since their first order, not since this conversation. */
+const regularSince = (b: UsabilityBuyer, firstIn: number): number =>
+  b.id === USABILITY_REGULAR.buyer.id ? Math.max(firstIn, USABILITY_REGULAR_PAST[0]!.ageMin + 30) : firstIn;
 const ago = (min: number): string => `now() - interval '${min} minutes'`;
 
 /**
@@ -290,7 +328,7 @@ export function usabilitySeedSql(namespace: string = DEMO_NAMESPACE): string {
     const firstIn = conv ? conv.messages[0]!.ageMin : 60;
     out.push(
       `insert into clients (id, business_id, display_name, phone, country, preferred_language, total_orders, created_at, last_seen_at) values`,
-      `  ('${b.id}', '${B}', '${esc(b.name)}', '${b.phone}', '${b.country}', '${b.language}', ${conv?.kind === 'order' ? 1 : 0}, ${ago(firstIn)}, ${ago(lastIn)}) on conflict (id) do nothing;`,
+      `  ('${b.id}', '${B}', '${esc(b.name)}', '${b.phone}', '${b.country}', '${b.language}', ${conv?.kind === 'order' ? 1 + USABILITY_REGULAR_PAST.length : 0}, ${ago(regularSince(b, firstIn))}, ${ago(lastIn)}) on conflict (id) do nothing;`,
       `insert into client_channels (client_id, channel, channel_user_id, last_inbound_at) values`,
       `  ('${b.id}', 'whatsapp', '${b.phone}', ${ago(lastIn)}) on conflict (channel, channel_user_id) do nothing;`,
     );
@@ -309,10 +347,23 @@ export function usabilitySeedSql(namespace: string = DEMO_NAMESPACE): string {
       `  on conflict (conversation_id) do nothing;`,
     );
     const freshest = c.id === USABILITY_CONVERSATIONS[0]!.id;
+    const ci = USABILITY_CONVERSATIONS.indexOf(c);
+    let replies = 0;
     c.messages.forEach((m, k) => {
+      const at = freshest ? agoToday(m.ageMin, k) : ago(m.ageMin);
+      // A reply is SENT, as the product records it: the sent row first, then
+      // its copy on the transcript under the row's own id (w4-today-setup-01).
+      const sent = m.dir === 'outbound' ? sentId(ci, replies++) : null;
+      if (sent) {
+        out.push(
+          `insert into outbound_messages (id, business_id, conversation_id, seq, body, status, origin, channel, created_at, sent_at) values`,
+          `  ('${sent}', '${B}', '${c.id}', ${k}, '${esc(m.text)}', 'sent', '${handed ? 'owner' : 'employee'}', 'whatsapp', ${at}, ${at})`,
+          `  on conflict (id) do nothing;`,
+        );
+      }
       out.push(
         `insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at) values`,
-        `  ('${c.id}', 'usab-${c.id.slice(-4)}-${k}', '${m.dir}', 'text', '${esc(m.text)}', ${freshest ? agoToday(m.ageMin, k) : ago(m.ageMin)})`,
+        `  ('${c.id}', '${sent ? `out:${sent}` : `usab-${c.id.slice(-4)}-${k}`}', '${m.dir}', 'text', '${esc(m.text)}', ${at})`,
         `  on conflict do nothing;`,
       );
     });
@@ -352,6 +403,33 @@ export function usabilitySeedSql(namespace: string = DEMO_NAMESPACE): string {
     `  ('${orderId}', 'USAB-${DEMO_NAMESPACE}-0001', '${B}', '${order.buyer.id}', '${order.id}', '${order.product.id}', ${order.qty}, 'pcs', ${unit}, ${(order.qty * unit).toFixed(2)}, 'confirmed', '30% deposit, balance before shipment', 'Jebel Ali Free Zone, Dubai, UAE', 'FOB', '${uid('e4', ORDER)}', ${ago(2880)}, ${ago(2880)})`,
     `  on conflict (id) do nothing;`,
   );
+
+  // 62 · and the regular's two earlier orders, shipped, each in a
+  //      conversation of its own that closed when the goods left (one open
+  //      order per conversation, 0003). With the one above: three that stand.
+  USABILITY_REGULAR_PAST.forEach((p, n) => {
+    const r = USABILITY_REGULAR;
+    const price = tierPrice(r.product, p.qty);
+    const asked = `We need ${thousands(p.qty)} pcs of the ${r.product.name} again, same as before.`;
+    const said = `Confirmed: ${thousands(p.qty)} pcs ${r.product.sku} at ${money(price)}/pc. Proforma invoice attached.`;
+    out.push(
+      `insert into conversations (id, business_id, client_id, channel, phase, is_active, created_at, updated_at) values`,
+      `  ('${p.id}', '${B}', '${r.buyer.id}', 'whatsapp', 'confirmation', false, ${ago(p.ageMin + 30)}, ${ago(p.ageMin - 20 * 1440)})`,
+      `  on conflict (id) do nothing;`,
+      `insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at) values`,
+      `  ('${p.id}', 'usab-${p.id.slice(-4)}-0', 'inbound', 'text', '${esc(asked)}', ${ago(p.ageMin + 30)})`,
+      `  on conflict do nothing;`,
+      `insert into outbound_messages (id, business_id, conversation_id, seq, body, status, origin, channel, created_at, sent_at) values`,
+      `  ('${sentId(USABILITY_CONVERSATIONS.length + n, 0)}', '${B}', '${p.id}', 1, '${esc(said)}', 'sent', 'employee', 'whatsapp', ${ago(p.ageMin)}, ${ago(p.ageMin)})`,
+      `  on conflict (id) do nothing;`,
+      `insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at) values`,
+      `  ('${p.id}', 'out:${sentId(USABILITY_CONVERSATIONS.length + n, 0)}', 'outbound', 'text', '${esc(said)}', ${ago(p.ageMin)})`,
+      `  on conflict do nothing;`,
+      `insert into orders (id, order_reference, business_id, client_id, conversation_id, product_id, quantity, unit, agreed_unit_price_usd, total_value_usd, status, payment_terms, shipping_address, incoterm, created_at, confirmed_at) values`,
+      `  ('${p.orderId}', 'USAB-${DEMO_NAMESPACE}-000${n + 2}', '${B}', '${r.buyer.id}', '${p.id}', '${r.product.id}', ${p.qty}, 'pcs', ${price}, ${(p.qty * price).toFixed(2)}, 'shipped', '30% deposit, balance before shipment', 'Jebel Ali Free Zone, Dubai, UAE', 'FOB', ${ago(p.ageMin)}, ${ago(p.ageMin)})`,
+      `  on conflict (id) do nothing;`,
+    );
+  });
 
   // 63 · the sample, handled yesterday.
   const sample = USABILITY_CONVERSATIONS[SAMPLE]!;

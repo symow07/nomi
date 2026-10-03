@@ -87,7 +87,9 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     expect(r.body).toContain('action="/app/settings/closures"');
     expect(r.body).toContain('value="Eid"');
     expect(r.body).toContain(`<span class="fielderr" role="alert" id="cl-to-err">${t('en', 'closures.flash.ends_before_starts')}</span>`);
-    expect(r.body).toContain('value="2026-12-01" aria-invalid="true"');
+    // The warmth run, phase 9 (V1-008) — a date posted whole comes back in its three parts, the wrong one marked.
+    expect(r.body).toContain('name="to_d" inputmode="numeric" autocomplete="off" required maxlength="2" value="01" aria-invalid="true"');
+    expect(r.body).toContain('<option value="12" selected>');
     expect((await one<{ n: number }>(`select count(*)::int as n from factory_closures where business_id = $1`, [bid])).n).toBe(0);
   });
 
@@ -111,10 +113,14 @@ d('phase 6 · states (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   });
 
   it('A PRODUCT, A CONVERSATION AND AN ORDER THAT ARE NOT THERE: a state with the reason and the way back', async () => {
-    for (const url of ['/app/products/00000000-0000-4000-8000-000000000000', '/app/inbox/00000000-0000-4000-8000-000000000000', '/app/orders/00000000-0000-4000-8000-000000000000']) {
+    for (const url of ['/app/inbox/00000000-0000-4000-8000-000000000000', '/app/orders/00000000-0000-4000-8000-000000000000']) {
       const r = await get(url);
       expect(r.body, url).toContain(`<div class="empty">${t('en', 'common.notFoundBody')}`);
     }
+    // (w4-products-knowledge-16) a product not here says so in its own words — never "removed".
+    const product = await get('/app/products/00000000-0000-4000-8000-000000000000');
+    expect(product.statusCode).toBe(404);
+    expect(product.body).toContain(`<div class="empty">${t('en', 'product.notFound.body')}`);
   });
 
   // The warmth run, phase 4 — "Mine" was team machinery the owner ruled out: its address leads

@@ -140,20 +140,20 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
   return `<section class="block" id="assistants">
       <h2>${esc(t(locale, 'assistants.title'))}</h2>
       <p class="muted">${esc(t(locale, 'assistants.intro'))}</p>
-      <ul class="rows">${assistants.map((a) => `<li class="row top">
+      <ul class="rows team">${assistants.map((a) => `<li class="row top">
         <span class="person"><span><bdi>${esc(a.name)}</bdi></span>
           <span class="caption muted">${about(a)}</span>
           ${confirmed(a) ? '' : `<span class="caption muted">${esc(t(locale, 'assistants.unconfirmed'))}</span>
-          ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}`}
-          ${/* Phase 9 (V1-510) — the fold is a control and says what it changes. */ ''}<details class="act-fold"><summary class="btn">${esc(t(locale, a.isDefault ? 'assistants.change' : 'assistants.change.channels'))}</summary>
-            <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="sform">
-              ${rowsCard(null, [...fields(locale, a, `as-${a.id.slice(0, 8)}`),
-                cardActs(`<button class="btn" type="submit">${esc(t(locale, 'assistants.save'))}</button>`)])}
-            </form>
-          </details></span>
+          ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}`}</span>
         ${a.isDefault ? '' : `<form method="post" action="/app/settings/people/assistants/${esc(a.id)}/archive" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'assistants.archive.confirm', { who: a.name }))}">${esc(t(locale, 'assistants.archive'))}</button></form>`}
+        ${/* Phase 9 (V1-510) — the fold is a control and says what it changes. The warmth run (-03, -04): the row's whole width, as the page's other forms, its act drawn as theirs. */ ''}<details class="act-fold"><summary class="btn">${esc(t(locale, a.isDefault ? 'assistants.change' : 'assistants.change.channels'))}</summary>
+          <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="sform">
+            ${rowsCard(null, [...fields(locale, a, `as-${a.id.slice(0, 8)}`),
+              cardActs(`<button class="btn" type="submit">${esc(t(locale, 'assistants.save'))}</button>`)])}
+          </form>
+        </details>
       </li>`).join('')}</ul>
       <details class="act-fold"><summary class="btn">${esc(t(locale, 'assistants.add.summary'))}</summary>
         <form method="post" action="/app/settings/people/assistants" class="sform">

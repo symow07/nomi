@@ -161,7 +161,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     const hs = await prod.app.inject({ method: 'GET', url: '/webhook/messenger?hub.mode=subscribe&hub.verify_token=mc-verify-token&hub.challenge=c1' });
     expect([hs.statusCode, hs.body]).toEqual([200, 'c1']);
     // And her page offers the login, not the host's account.
-    const page = await get('/app/channels');
+    const page = await get('/app/channels/meta');
     expect(page.body).toContain('action="/app/connect/meta/start"');
     expect(page.body).not.toContain('action="/app/channels/messenger/connect"');
   }, 60_000);
@@ -191,7 +191,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     expect(calls.some((c) => c.method === 'POST' && c.url.includes(`/${PAGE_A}/subscribed_apps?`) && c.url.includes('access_token=page-token-A'))).toBe(true);
     expect(calls.some((c) => c.url.includes('grant_type=fb_exchange_token'))).toBe(true);
 
-    const page = await get('/app/channels');
+    const page = await get('/app/channels/meta');
     expect(page.body).toContain(esc(t('en', 'reach.inbound.connectedAs', { page: 'Atlas Bags' })));
     expect(page.body).toContain(esc(t('en', 'reach.inbound.connectedAs', { page: 'Atlas Bags · @atlasbags' })));
     expect(page.body).toContain('action="/app/connect/meta/disconnect"');
@@ -239,7 +239,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     await tx((x) => enqueueOutboundRow(x, b, conv.id, 'And to Casablanca.', 'owner'));
     await prod.boss.send(QUEUES.outbound, { businessId: BIZ, conversationId: conv.id }, { singletonKey: conv.id });
     await until(async () => ((await account())?.last_error === 'revoked') || undefined);
-    const page = await get('/app/channels');
+    const page = await get('/app/channels/meta');
     expect(page.body).toContain(esc(t('en', 'reach.inbound.attention')));
     expect(page.body).toContain('action="/app/connect/meta/start"');
     dead.delete('page-token-A');
@@ -305,7 +305,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     expect((await credentials()).every((c) => !c.is_active)).toBe(true);
     const r = await inbound('/webhook/messenger', 'page', { sender: buyer('karim'), recipient: PAGE_B2, text: 'anyone?' });
     expect(JSON.parse(r.body)).toMatchObject({ received: 0 });
-    const page = await get('/app/channels');
+    const page = await get('/app/channels/meta');
     expect(page.body).toContain('action="/app/connect/meta/start"');
     expect(page.body).not.toContain('action="/app/connect/meta/disconnect"');
   }, 60_000);

@@ -84,7 +84,7 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
     }
     // and the pages around it still answer — Buyers, where its door would hang
     // (A: Customers merged into Buyers; the old address is a redirect there)
-    expect((await get('/app/channels')).statusCode).toBe(200);
+    expect((await get('/app/business/channels')).statusCode).toBe(200);
     expect((await get('/app/inbox?filter=all')).statusCode).toBe(200);
     expect((await get('/app/conversations')).statusCode).toBe(302);
   });
@@ -135,12 +135,12 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
       for (const route of routes) expect(page.body, `${route} from ${hub}`).toContain(`href="${route}"`);
     }
     // and the switch on the channels page is back
-    expect((await get('/app/channels')).body).toContain('action="/app/channels/outreach"');
+    expect((await get('/app/channels/whatsapp')).body).toContain('action="/app/channels/outreach"');
   });
 
   it('OFF again: gone at once, nothing deleted', async () => {
     await area(false);
     expect((await get('/app/contacts')).statusCode).toBe(404);
-    expect((await get('/app/channels')).body.match(STRAY)?.[0] ?? null).toBeNull();
+    expect(((await get('/app/channels/whatsapp')).body + (await get('/app/channels/email')).body).match(STRAY)?.[0] ?? null).toBeNull();
   });
 });

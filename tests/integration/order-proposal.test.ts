@@ -234,8 +234,8 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     const live = await get('/app/live/today?since=0.0.0.0.0.0');
     expect(live.statusCode).toBe(200);
     expect((live.json() as { news: boolean }).news).toBe(true);
-    const since = /data-rail="\/app\/live\/rail\?since=(\d+)"/.exec(today.body)?.[1];
-    expect(Number(since)).toBeGreaterThanOrEqual(1);
+    const since = /data-rail="\/app\/live\/rail\?since=([0-9.]+)"/.exec(today.body)?.[1];
+    expect(Number(since?.split('.')[0])).toBeGreaterThanOrEqual(1);
   });
 
   it('the conversation page shows what they said yes to, and the two answers', async () => {

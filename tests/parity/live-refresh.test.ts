@@ -106,7 +106,9 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // the one card, and Today drawn again in place; the browser's own order notice retired, and
     // one asker shared by every question. Measured at 18,433; the cap is that plus 4,000, raised
     // deliberately, for the driver's profile card (about 3 KB) and failed-photo handling (0.3 KB).
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(22_433);
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(23_500);
+    // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
+    // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();
     // It ships to the owner's browser like the stylesheet, and is held to the same list.
     // The exceptions are the browser's own two names for the answer's format — the

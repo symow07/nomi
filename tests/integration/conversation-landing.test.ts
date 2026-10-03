@@ -260,7 +260,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
       // nothing to say, on the newest message itself
       const html = await land(r);
       if (notice) expect(landing(html), what).toBeGreaterThan(at(html, '<bdi>line-6</bdi>'));
-      else expect(html, what).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>line-6<\/bdi>/);
+      else expect(html, what).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>line-6<\/bdi>/);
     }
     expect(answered).toEqual([conv]);   // "answer now" reached the worker's door, once
   });
@@ -288,9 +288,10 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const page = await get('/app/sandbox').then((r) => r.body);
     const order = [
       at(page, 'class="timeline"'), at(page, 'id="latest"'), at(page, 'class="card draft"'),
-      at(page, 'class="card takeover'), at(page, 'class="card sbx-trust'), at(page, 'id="compose"'),
+      at(page, 'class="card sbx-trust'), at(page, 'id="compose"'),
     ];
     expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(page).not.toContain('class="card takeover');   // the fix wave (w4-conversation-03): the draft card's "I'll reply" is the take-over
     expect(page).toMatch(/id="latest" class="msg (?:inbound|outbound)">/);
     expect(at(page, 'We can commit to 5000 units')).toBeLessThan(at(page, 'class="card draft"'));
 
@@ -306,7 +307,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const after = await land(replied);
     // her reply is the newest line now, and the notice — the landing — is under it
     // the signature line may carry the assistant's ✦ and name in spans (the design pass)
-    expect(after).toMatch(/<div class="msg outbound">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>Let me check the floor for you\.<\/bdi><\/div>\s*<div class="ts muted">(?:[^<]|<\/?span[^>]*>)*<\/div>\s*<\/div><\/div>/);
+    expect(after).toMatch(/<div class="msg outbound">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>Let me check the floor for you\.<\/bdi><\/div>\s*<div class="ts muted">(?:[^<]|<\/?span[^>]*>)*<\/div>\s*<\/div><\/div>/);
     expect(landing(after)).toBeGreaterThan(at(after, 'Let me check the floor for you.'));
 
     const resumed = await post('/app/sandbox/resume');

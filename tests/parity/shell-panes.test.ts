@@ -43,13 +43,13 @@ describe('the rail', () => {
   it('"Customers" heads its two pages; the customer list carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
     const html = page('/app/inbox/c-1');
     expect(html).toMatch(/<span class="navhead" id="nav-customers"><svg[^>]*>[\s\S]*?<\/svg><span>Customers<\/span><\/span>/);
-    expect(html).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page" aria-label="Inbox, 3 customers need you"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true"><span class="nl-long">3 waiting<\/span><span class="nl-short">3<\/span><\/span><\/a>/);
+    expect(html).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page" aria-label="Inbox, 3 customers need you"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true"><span class="nl-long">3 waiting<\/span><span class="nl-short">3<\/span><\/span><\/span><\/a>/);
     expect(html).toMatch(/<a href="\/app\/calendar" class="navlink sub" data-nav="calendar"\s*><svg/);
     const cal = page('/app/calendar');
     expect(cal).toMatch(/<a href="\/app\/calendar" class="navlink sub active" data-nav="calendar" aria-current="page"/);
     // nobody waiting: no number at all, not a zero
     const calm = withWorkspace({ ...SCOPE, needsYou: 0 }, () => shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
-    expect(calm).toMatch(/<a href="\/app\/inbox" class="navlink sub" data-nav="inbox"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-text">Inbox<\/span><\/a>/);
+    expect(calm).toMatch(/<a href="\/app\/inbox" class="navlink sub" data-nav="inbox"\s*><svg[^>]*>[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Inbox<\/span><\/span><\/a>/);
   });
 
   // The warmth run: "Log out leaves the rail entirely" — it is the foot of Settings.
@@ -152,7 +152,7 @@ describe('the customer panel', () => {
     const html = withWorkspace(SCOPE, () => renderCustomerPanel(panel, [], 'en', NOW, 'c-1'));
     expect(html).toContain('<h2><bdi>Maya Rahman</bdi></h2>');
     expect(html).toContain('WhatsApp <bdi dir="ltr">+447700900123</bdi> · writes in English · ');
-    expect(html).toContain('First wrote ');
+    expect(html).toContain('First wrote: ');   // the fix wave (w4-conversation-06): the file's words, the day's own form
     expect(html).toContain('2 conversations');
     expect(html).toContain('<bdi>Rose Face Serum</bdi></span><span class="pn-r">3 times · 18:00</span>');
     expect(html).toContain('<h3>Prices worked out</h3>');

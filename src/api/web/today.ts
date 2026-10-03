@@ -5,6 +5,7 @@ import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/c
 import { zoneOf } from '../../db/zone.js';
 import { faceVersions } from '../../db/faces.js';
 import { SPEND_STATUSES } from '../../db/customerValue.js';
+import { PRICE_GIVEN } from '../../db/quotesGiven.js';
 import { ownershipOf } from '../../core/conversation/ownership.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
@@ -150,9 +151,10 @@ async function readHandled(tx: Tx, B: BusinessId, start: Date): Promise<NonNulla
 /**
  * Today's three figures, in the workspace's day.
  *   orders      orders that stand (`SPEND_STATUSES`) confirmed today;
- *   quotes      prices worked out today that a reply (the assistant's or the
- *               owner's) went out after, in the same conversation — a price
- *               nobody sent is not "sent";
+ *   quotes      prices worked out today that were GIVEN (`PRICE_GIVEN`,
+ *               `quotesGiven.ts` — not held back, and a line left after it):
+ *               a price nobody sent is not "sent". Results and the calendar
+ *               count by the same rule (phase 9, w4-customers-20);
  *   afterHours  conversations the assistant answered outside 08:00–20:00 local
  *               time (`OPEN_HOUR`, `CLOSE_HOUR`).
  */
@@ -163,10 +165,7 @@ async function readTally(tx: Tx, B: BusinessId, zone: string, start: Date): Prom
         where r.business_id = ${B} and r.status = any(${[...SPEND_STATUSES]}::text[])
           and coalesce(r.confirmed_at, r.created_at) >= ${start}) as orders,
       (select count(*)::int from quotes q
-        where q.business_id = ${B} and q.created_at >= ${start}
-          and exists (select 1 from outbound_messages o
-                       where o.conversation_id = q.conversation_id and o.origin in ('employee', 'owner')
-                         and o.status in ('sent', 'delivered', 'read') and o.sent_at >= q.created_at)) as quotes,
+        where q.business_id = ${B} and q.created_at >= ${start} and ${PRICE_GIVEN}) as quotes,
       (select count(distinct o.conversation_id)::int from outbound_messages o
         where o.business_id = ${B} and o.origin = 'employee'
           and o.status in ('sent', 'delivered', 'read') and o.sent_at >= ${start}
@@ -252,11 +251,21 @@ const WORD: Readonly<Record<HandledWord, MessageKey>> = {
 };
 
 /**
+ * The name under a face: the first word of the customer's name, so two
+ * customers drawn as the same initial (WhatsApp gives no photo) are told
+ * apart without opening a card (phase 9, w4-today-setup-03). A name in a
+ * script written without spaces is whole.
+ */
+export const shortName = (name: string): string => name.trim().split(/\s+/u)[0] ?? name;
+
+/**
  * The hero: the headline in the assistant's chosen name (rule 7: "your
  * assistant" until one is chosen), then the faces — each the profile card's
- * door, its word under it — in a row that scrolls sideways (from the right in
- * Arabic) and fades at its end to say so. Past 60 the row ends in one tile to
- * the Inbox. Nothing handled: the fact, in a sentence; no empty row.
+ * door, the customer's name and one word of what happened under it — in a row
+ * that scrolls sideways (from the right in Arabic) and fades at its end to say
+ * so. Past 60 the row ends in one tile that says how many more; it opens
+ * nothing, because no list singles out the others (phase 9,
+ * w4-today-setup-04). Nothing handled: the fact, in a sentence; no empty row.
  */
 export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready: boolean }): string {
   const h = d.handled ?? { total: 0, people: [] };
@@ -267,16 +276,18 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
   const drawn = h.people.slice(0, TODAY_FACES);
   const faces = drawn.map((p) => {
     const word = t(locale, WORD[p.word]);
+    const name = p.name ?? t(locale, 'common.buyer');
     return `<li>${faceLink(p, {
       size: 'l', className: 'td-face',
-      label: `${p.name ?? t(locale, 'common.buyer')}${locale === 'zh' ? '：' : ': '}${word}`,
-      after: `<span class="td-word">${esc(word)}</span>`,
+      label: `${name}${locale === 'zh' ? '：' : ': '}${word}`,
+      // The name's own direction, from its own letters (no inner <bdi>, which `dir="auto"` would skip).
+      after: `<span class="td-name" dir="auto">${esc(shortName(name))}</span><span class="td-word">${esc(word)}</span>`,
     })}</li>`;
   }).join('');
   const rest = h.total - drawn.length;
   const more = rest > 0
-    ? `<li><a class="td-more" href="/app/inbox?filter=all"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
-      + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></a></li>`
+    ? `<li><span class="td-more"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
+      + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></span></li>`
     : '';
   return `<h2 id="today-done" class="td-head"><span class="as" aria-hidden="true">✦</span> ${esc(tn(locale, 'today.handled.title', h.total))}</h2>
     <ul class="td-row">${faces}${more}</ul>`;

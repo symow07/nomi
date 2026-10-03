@@ -183,7 +183,8 @@ describe('M43a · the schema carries it too', () => {
 
   it('the build REQUIRES it — it reads the column on every quote', async () => {
     const { REQUIRED_SCHEMA_VERSION } = await import('../../src/db/schemaVersion.js');
-    const files = (await readdir(new URL('../../migrations/', import.meta.url))).filter((f) => f.endsWith('.sql'));
+    // The files the runner applies (tools/migrate.mjs's own filter): a PENDING-*.sql awaiting its number is not one yet.
+    const files = (await readdir(new URL('../../migrations/', import.meta.url))).filter((f) => /^\d{4}_.+\.sql$/.test(f));
     expect(REQUIRED_SCHEMA_VERSION).toBe(Math.max(...files.map((f) => Number(f.slice(0, 4)))));
   });
 });

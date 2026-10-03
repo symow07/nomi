@@ -154,8 +154,8 @@ export function renderSequenceList(
     <section class="block">
       <p class="muted">${esc(t(locale, 'seq.intro'))}</p>
       ${/* Phase 9 (V1-564) — what they need before anyone can be sent one: e-mail, and someone who may be written to first. */ ''}<p class="note">${esc(t(locale, 'seq.needs'))}</p>
-      ${opts.ready === 0 ? `<p class="muted">${esc(t(locale, 'seq.noneReady'))}</p>${deeper('/app/contacts', t(locale, 'contacts.title'))}` : ''}
-      ${/* Phase 9 (new-14) — the empty list says what will be here and where to start. */ ''}${list.length === 0 ? `<div class="empty">${esc(t(locale, 'seq.empty'))}</div>` : `<ul class="sqs">${rows}</ul>`}
+      ${/* The warmth run (-20) — the way to Contacts is the "‹ Contacts" above; a second door to it said the same twice. */ ''}${opts.ready === 0 ? `<p class="muted">${esc(t(locale, 'seq.noneReady'))}</p>` : ''}
+      ${/* Phase 9 (new-14) — the empty list says what will be here and where to start. */ ''}${list.length === 0 ? `<div class="empty whole">${esc(t(locale, 'seq.empty'))}</div>` : `<ul class="sqs">${rows}</ul>`}
     </section>
     <section class="block" id="new">
       <h2>${esc(t(locale, 'seq.new.title'))}</h2>

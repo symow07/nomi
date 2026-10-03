@@ -100,7 +100,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
 
   it('the rail counts who needs the owner, read fresh on every page', async () => {
     const html = await page('/app');
-    expect(html).toMatch(/class="navlink sub" data-nav="inbox" aria-label="Inbox, 1 customer needs you"\s*><svg[\s\S]*?<\/svg><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true"><span class="nl-long">1 waiting<\/span>/);
+    expect(html).toMatch(/class="navlink sub" data-nav="inbox" aria-label="Inbox, 1 customer needs you"\s*><svg[\s\S]*?<\/svg><span class="nl-body"><span class="nl-text">Inbox<\/span><span class="navcount" aria-hidden="true"><span class="nl-long">1 waiting<\/span>/);
     // Omar's conversation is handed to a person: the rail says so on the next page, not a minute later
     await tx((x) => sql`update conversations set assigned_to = 'unclaimed' where id = ${omar}::uuid`.execute(x));
     expect(await page('/app')).toContain('<span class="nl-short">2</span>');
@@ -115,7 +115,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
     // whole list, whoever needs the owner first. Maya (a reply to review) leads it; Omar is under her.
     expect(html).toMatch(new RegExp(`<div class="irow is-\\w+[^"]* on">(?:(?!<div class="irow)[\\s\\S])*?<a class="ir-main" href="/app/inbox/${maya}#latest" aria-current="page">`));
     expect(html.indexOf(`href="/app/inbox/${omar}#latest"`)).toBeGreaterThan(html.indexOf(`href="/app/inbox/${maya}#latest"`));
-    expect(html).toContain('<a class="tab on" aria-current="true" href="/app/inbox">Waiting now</a><a class="tab" href="/app/inbox?lens=value">Matters most</a>');
+    expect(html).toContain('<a class="tab on" aria-current="true" href="/app/inbox">Needs you first</a><a class="tab" href="/app/inbox?lens=value">Matters most</a>');
     expect(html).toContain('<title>Maya Rahman · Hana Skincare</title>');
     expect(buttonsAndDoors(html)).toEqual([]);
   });

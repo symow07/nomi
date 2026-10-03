@@ -270,7 +270,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
       select enabled, daily_cap from outreach_settings where business_id = ${BIZ} and channel = 'email'
        order by at desc, id desc limit 1`.execute(x).then((r) => r.rows[0]!));
     expect(setting).toEqual({ enabled: true, daily_cap: 1 });
-    expect((await get('/app/channels')).body).toMatch(/name="cap"[^>]*value="1"/);
+    expect((await get('/app/channels/email')).body).toMatch(/name="cap"[^>]*value="1"/);
 
     const third = addr('third');
     await addAndAttest(third, 'Third Buyer');

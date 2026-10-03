@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import Fastify from 'fastify';
-import { loginPage, signupPage, setPasswordPage, errorPage, esc } from '../../src/api/web/layout.js';
+import { loginPage, signupPage, setPasswordPage, errorPage, esc, inviteMailto } from '../../src/api/web/layout.js';
 import { registerWebApp } from '../../src/api/web/app.js';
 import { renderPrivacy } from '../../src/api/web/legal.js';
 import { DEFAULT_PROCESSOR, HOSTING } from '../../src/core/legal/processors.js';
@@ -9,7 +9,7 @@ import { messages, t } from '../../src/core/owner/i18n/messages.js';
 import { linkedCss } from './linked-css.js';
 
 /**
- * PHASE 9 — the public pages against the merged defect list (docs/UI-AUDIT.md,
+ * PHASE 9 — the public pages against the merged defect list (docs/UI-AUDIT-V2.md,
  * §2): the door, the access code, sign-up, a spent link, a wrong address, the
  * policies. Each block names the findings it holds; each assertion fails on
  * the page as it was at 29e5e5a.
@@ -21,7 +21,8 @@ describe('the door says one thing, the site\'s way (V1-032, V1-035, V1-038–V1-
   for (const l of LOCALES) {
     it(`${l} · a heading for the task, the button its word, the site's mark and tagline, a foot of real places`, () => {
       const html = loginPage({ locale: l, path: '/login' });
-      expect(html).toContain(`<title>Nomi · ${esc(t(l, 'login.title'))}</title>`);
+      // w4-public-14 — the page first, like the policies and every owner page.
+      expect(html).toContain(`<title>${esc(t(l, 'login.title'))} · Nomi</title>`);
       expect(html).toContain(`<h1>${esc(t(l, 'login.title'))}</h1>`);
       expect(html).toContain(`<button type="submit">${esc(t(l, 'login.submit'))}</button>`);
       expect(html).toMatch(/<div class="brand"><svg class="mark"/);
@@ -117,7 +118,8 @@ describe('sign-up: the invitation first, examples that are not cut, refusals tha
       const html = signupPage({ locale: l, path: '/signup', mode: 'invite', passwordMin: 10, contact: 'hello@example.test' });
       expect(html.indexOf('id="su-invite"')).toBeLessThan(html.indexOf('id="su-factory"'));
       expect(html).toMatch(/id="su-invite"[^>]*autofocus/);
-      expect(html).toContain(esc(t(l, 'signup.inviteAsk', { email: '\u0000' })).replace('\u0000', '<a href="mailto:hello@example.test">hello@example.test</a>'));
+      // w4-public-13 — the mail opens prepared, like the site's.
+      expect(html).toContain(esc(t(l, 'signup.inviteAsk', { email: '\u0000' })).replace('\u0000', `<a href="${esc(inviteMailto(l, 'hello@example.test'))}">hello@example.test</a>`));
       expect(between(html, 'id="su-sells"', '</div>')).toContain(`<div class="hint">${esc(t(l, 'signup.sells.hint'))}`);
       expect(html).not.toContain('placeholder="e.g.');
       expect(html).toContain(`placeholder="${esc(t(l, 'signup.website.placeholder'))}"`);
@@ -152,7 +154,7 @@ describe('a spent choose-a-password link (V1-078, V1-079, V1-080)', () => {
     it(`${l} · says what happened, offers a new link or Nomi's team, and signing in only to whoever chose one`, () => {
       const base = { locale: l, path: '/login/set-password', passwordMin: 10, passwordMax: 200, link: null };
       const withMail = setPasswordPage({ ...base, recoveryOn: true, contact: 'hello@example.test' });
-      expect(withMail).toContain(`<title>Nomi · ${esc(t(l, 'setpw.gone.title'))}</title>`);
+      expect(withMail).toContain(`<title>${esc(t(l, 'setpw.gone.title'))} · Nomi</title>`);
       expect(withMail).toContain(`<h1>${esc(t(l, 'setpw.gone.title'))}</h1>`);
       expect(withMail).not.toContain(esc(t(l, 'setpw.title')));
       expect(withMail).toContain(`<a href="/login/forgot">${esc(t(l, 'setpw.gone.newLink'))}</a>`);

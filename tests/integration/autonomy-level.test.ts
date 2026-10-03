@@ -76,7 +76,9 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
   it('THE PRODUCTION CALLER: she chooses "talks" — four kinds of reply go out alone, prices and orders still wait', async () => {
     const res = await post(ownerCookie, '/app/employee/autonomy', 'level=talks');
     expect(res.statusCode).toBe(302);
-    expect(flashSaid(res, SECRET)).toContain('works this way');
+    // V1-417 (the fix wave) — the choice is saved, and the notice says what happens NOW: this workspace never
+    // confirmed its assistant's name (rule 2), so every reply still waits, and it says so rather than "works this way".
+    expect(flashSaid(res, SECRET)).toContain('every reply still waits');
     const m = await modes();
     for (const c of ['greet', 'qualify', 'recommend', 'follow_up']) expect(m[c], c).toBe('auto');
     for (const c of ['quote', 'negotiate', 'confirm_order']) expect(m[c] ?? 'draft', c).toBe('draft');
@@ -203,6 +205,13 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
   it('and the page names the languages whose replies wait — it reads the real flags (es, fr and pt, and any other language)', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+    // (The fix wave, V1-417) while something holds EVERY reply — here the name nobody confirmed — the page says
+    // that one hold instead; the line per language is for a workspace where only the language decides. Confirmed:
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const gate = parseBusinessId(GATE_BIZ); if (!gate.ok) throw new Error('fixture');
+    await withTenantTx(db, gate.value, (t) => sql`insert into onboarding_state (business_id, assistant_named_at) values (${GATE_BIZ}, now())
+      on conflict (business_id) do update set assistant_named_at = now()`.execute(t));
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('English, Chinese, and Arabic');

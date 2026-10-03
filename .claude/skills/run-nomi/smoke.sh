@@ -81,6 +81,7 @@ env -u NODE_ENV \
   WEBHOOK_SECRET="smoke-webhook-secret-0000000000000000" \
   OWNER_ACCESS_CODE="$CODE" \
   LEGAL_CONTACT_EMAIL="privacy@example.com" \
+  COMPONENT_GALLERY=on \
   PORT="$APPPORT" \
   node dist/main.js &> "$SK/app.log" &
 APP_PID=$!
@@ -123,12 +124,17 @@ curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE
 #  the owner surfaces
 get /app            "$SK/app-home.html"   '<h1 class="page">Today'  "Today did not render"
 get /app/business   "$SK/app-factory.html" "What you promise customers" "My business did not render"
-get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Before going live' "Pilot runbook did not render"
+get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Checklist' "The checklist did not render"
 get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandbox did not render"
 
-#  My factory is the door to the four surfaces it contains — they must stay reachable
-for r in /app/settings /app/products /app/knowledge /app/channels; do
-  grep -q "href=\"$r\"" "$SK/app-factory.html" || fail "My factory no longer links to $r"
+#  The warmth run — My business, the assistant and Settings are menus: each is the
+#  door to the surfaces it holds, and they must stay reachable.
+get /app/employee   "$SK/app-employee.html" 'level-control'               "The assistant's page did not render"
+get /app/settings   "$SK/app-settings.html" 'href="/app/settings/setup"'  "Settings did not render"
+for pair in app-factory.html:/app/products app-factory.html:/app/business/channels \
+            app-employee.html:/app/knowledge app-settings.html:/app/business; do
+  f="${pair%%:*}"; r="${pair#*:}"
+  grep -q "href=\"$r\"" "$SK/$f" || fail "$f no longer links to $r"
   [ "$(curl -sS -b "$J" -o /dev/null -w '%{http_code}' "$BASEURL$r")" = "200" ] || fail "$r stopped rendering"
 done
 
@@ -148,12 +154,12 @@ post /app/sandbox/resume   "" "practice resume"
 get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "did not hand back to the employee"
 
 #  the runbook must now observe the rehearsal it just practised
-get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Before going live' "Pilot runbook did not re-render"
-# Phase 9 — the rehearsal is a ticked list ("What you have practiced so far"),
-# no longer a "· 3/5" count: the three acts just rehearsed must each be ticked.
-for act in "Take-over practiced" "Owner reply practiced" "Hand-back practiced"; do
-  grep -q "class=\"pr done\"><span class=\"mk\">✓</span> <span class=\"lbl\">$act" "$SK/app-onboard.html" \
-    || fail "rehearsal not observed by the runbook ($act not ticked)"
+get /app/onboarding/practice "$SK/app-practice.html" '<h1 class="page">Practice before you go live' "The checklist's Practice screen did not render"
+# Phase 9 of the warmth run — what to try in Practice is its own screen under the
+# checklist, one list of tasks: the three acts just rehearsed must each be ticked.
+for act in "Take over the conversation" "Reply as yourself" "Hand it back to"; do
+  grep -q "class=\"pr done\"><span class=\"mk\">✓</span> <span class=\"lbl\">$act" "$SK/app-practice.html" \
+    || fail "rehearsal not observed by the checklist ($act not ticked)"
 done
 
 #  nothing was really delivered: a practice copy can hold no channel credential (0086's trigger)
@@ -172,7 +178,7 @@ PASS — Nomi is running and the owner walkthrough was driven end-to-end.
   URL:          $BASEURL
   health:       $HEALTH
   login code:   $CODE          (POST /login  code=$CODE)
-  pages:        $SK/app-home.html · app-factory.html · app-onboard.html · app-sandbox.html
+  pages:        $SK/app-home.html · app-factory.html · app-onboard.html · app-practice.html · app-sandbox.html
   cookie jar:   $SK/cookies.txt     (authenticated session)
   app log:      $SK/app.log
   server PID:   $APP_PID            (LEFT RUNNING)

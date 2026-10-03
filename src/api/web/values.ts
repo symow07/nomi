@@ -2,7 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { currencySymbol } from '../../core/types/money.js';
-import { workspaceZone, workspaceCountry } from './zone.js';
+import { workspaceZone, workspaceCountry, countryUnknown } from './zone.js';
 import { RFC4180, type CsvDialect } from '../../core/owner/csv.js';
 
 /**
@@ -95,12 +95,25 @@ const arabicMoney = (m: Money, fraction: number): string =>
  * Nothing sent to a customer is written here — the send path has its own.
  */
 const LANG: Readonly<Record<Exclude<Locale, 'ar'>, string>> = { en: 'en', zh: 'zh', es: 'es', fr: 'fr' };
-const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): string | null => {
+/**
+ * The reader's language in the workspace's country, as Intl names it ("es-MX").
+ * The warmth run, phase 9 (w4-products-knowledge-08) — a workspace with no
+ * country on record reads Spanish and French figures in the language's own
+ * way ("2000", "10.000", "2 000", "1,05 $"): "2,000" is two to a French reader,
+ * and the same page's own counts were already written so. English and Chinese
+ * there, and every page outside a workspace, write a figure as they always did.
+ */
+const regionOf = (locale: Exclude<Locale, 'ar'>): string | null => {
   const country = workspaceCountry();
-  if (!country || !/^[A-Z]{2}$/.test(country)) return null;
+  if (country && /^[A-Z]{2}$/.test(country)) return `${LANG[locale]}-${country}`;
+  return (locale === 'es' || locale === 'fr') && countryUnknown() ? LANG[locale] : null;
+};
+const localMoney = (locale: Exclude<Locale, 'ar'>, m: Money, fraction: number): string | null => {
+  const region = regionOf(locale);
+  if (!region) return null;
   let parts: Intl.NumberFormatPart[];
   try {
-    parts = new Intl.NumberFormat(`${LANG[locale]}-${country}`, {
+    parts = new Intl.NumberFormat(region, {
       style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction,
     }).formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount);
   } catch { return null; }
@@ -127,9 +140,9 @@ export const money = (locale: Locale, m: Money): string =>
  */
 const localQty = (locale: Locale, n: number): string | null => {
   if (locale !== 'es' && locale !== 'fr') return null;
-  const country = workspaceCountry();
-  if (!country || !/^[A-Z]{2}$/.test(country)) return null;
-  try { return new Intl.NumberFormat(`${LANG[locale]}-${country}`).format(n); } catch { return null; }
+  const region = regionOf(locale);
+  if (!region) return null;
+  try { return new Intl.NumberFormat(region).format(n); } catch { return null; }
 };
 
 /**
@@ -140,10 +153,10 @@ const localQty = (locale: Locale, n: number): string | null => {
  */
 export const csvDialectFor = (locale: Locale): CsvDialect => {
   if (locale !== 'es' && locale !== 'fr') return RFC4180;
-  const country = workspaceCountry();
-  if (!country || !/^[A-Z]{2}$/.test(country)) return RFC4180;
+  const region = regionOf(locale);
+  if (!region) return RFC4180;
   let decimal: string | undefined;
-  try { decimal = new Intl.NumberFormat(`${LANG[locale]}-${country}`).formatToParts(1.5).find((p) => p.type === 'decimal')?.value; } catch { return RFC4180; }
+  try { decimal = new Intl.NumberFormat(region).formatToParts(1.5).find((p) => p.type === 'decimal')?.value; } catch { return RFC4180; }
   return decimal === ',' ? { sep: ';', decimal: ',' } : RFC4180;
 };
 

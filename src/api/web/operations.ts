@@ -14,7 +14,7 @@ import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
-import { esc, deeper, signalMark } from './layout.js';
+import { esc, deeper, signalMark, todoMark } from './layout.js';
 import { waitingHead, renderWaitingPeople, renderHandled, renderSending, renderTally, type TodayData } from './today.js';
 import * as show from './values.js';
 
@@ -65,7 +65,15 @@ export type OperationsSnapshot = {
   };
   /** What the employee did in the range. */
   readonly activity: {
-    readonly handled: number;            // conversations with a processed turn
+    /**
+     * Customers answered: conversations in which a reply the assistant wrote
+     * went out in the range — sent alone, or approved or edited by the owner.
+     * The warmth run, phase 9 (V1-011): the same sent rows Today's hero counts
+     * (`today.ts` `readHandled`) and Results' replies are copies of, so the
+     * three pages count the same replies. It counted conversations with a
+     * processed turn, which a drafted reply nobody sent also has.
+     */
+    readonly handled: number;
     readonly draftsCreated: number;
     readonly corrections: number;        // drafts the owner edited before sending
   };
@@ -232,8 +240,9 @@ export async function loadOperationsSnapshot(
       `.execute(tx)).rows[0]!.c;
       return (await sql<{ handled: number; drafts: number; corrections: number }>`
         select
-          (select count(distinct conversation_id)::int from turns where business_id = ${B} and created_at >= ${cutoff}
-             and decision->'action'->>'kind' is distinct from 'held') as handled,
+          (select count(distinct o.conversation_id)::int from outbound_messages o
+            where o.business_id = ${B} and o.origin = 'employee'
+              and o.status in ('sent', 'delivered', 'read') and o.sent_at >= ${cutoff}) as handled,
           (select count(*)::int from drafts where business_id = ${B} and created_at >= ${cutoff}) as drafts,
           (select count(*)::int from drafts where business_id = ${B} and status = 'edited' and decided_at >= ${cutoff}) as corrections
       `.execute(tx)).rows[0]!;
@@ -301,7 +310,16 @@ export function renderOperationsHome(
   lead = '',
 ): string {
   const name = assistantName(locale);
+  // Whether this installation carries messages at all — a fact about where
+  // Nomi runs, said in its own words, never as "nothing is connected".
   const live = s.channel.live ?? s.channel.provider !== 'disabled';
+  // THE WARMTH RUN, phase 9 (w4-whole-11, w4-today-setup-21) — ONE answer to
+  // "is anything connected?": a place customers write to is connected
+  // (`connectedChannels`, the definition Setup's step, Getting started,
+  // Before going live and Ready read). Today said "nobody can reach your
+  // assistant" whenever the installation's messaging was off, while every
+  // other page said the channel was connected.
+  const reachable = today.sending.length > 0;
   // 0070, 0071, G3 — while the assistant is stopped, silenced or out of its
   // allowance, nothing it writes goes out: nothing may say it is answering.
   const holding = Boolean(s.assistantStoppedAt || s.opsSilenced || (s.budget?.reached && s.budget.stops));
@@ -357,18 +375,22 @@ export function renderOperationsHome(
   const quietNow = today.needs.total === 0 && blocked === 0 && asks === 0;
   // M22 (F-01) — "all caught up" only where customers can reach the assistant:
   // with messaging off nothing has been achieved, and the page says so plainly.
+  // Phase 9 (w4-today-setup-09) — said once: the title, then what the assistant does.
+  const calm = live && reachable;
   const head = quietNow
-    ? `<h2 id="today-now" class="tw-head">${esc(t(locale, live ? 'today.calm.title' : 'today.needs.none'))}</h2>${
-        live ? `<p class="tw-calm-line">${esc(t(locale, 'today.needs.none'))}</p>` : ''}${
-        live && !holding ? `<p class="tw-calm-line"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'today.calm.care', { name }))}</p>` : ''}`
+    ? `<h2 id="today-now" class="tw-head">${esc(t(locale, calm ? 'today.calm.title' : 'today.needs.none'))}</h2>${
+        calm && !holding ? `<p class="tw-calm-line"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'today.calm.care', { name }))}</p>` : ''}`
     : today.needs.total > 0 ? waitingHead(locale, today.needs.total)
     : `<h2 id="today-now" class="tw-head"><span class="tw-need">${signalMark('waiting')} ${esc(t(locale, 'ops.attention.title'))}</span></h2>`;
 
   // Rule 9 — Setup while it is unfinished: the guide's count, named as the
   // guide is, the next step and the video that shows it together under it.
+  // Phase 9 — its own small block under the band, never inside the calm panel
+  // that says everything is done (w4-today-setup-07); a chore's to-do ○, never
+  // the waiting signal, which says a CUSTOMER waits (w4-today-setup-06).
   const setup = setupState();
   const finishSetup = setup && setup.next !== null
-    ? `<div class="today-foot setup"><p>${signalMark('waiting')} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
+    ? `<div class="today-foot setup"><p>${todoMark()} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
         <div class="today-next">${deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
         deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
     : '';
@@ -379,18 +401,20 @@ export function renderOperationsHome(
     ${renderWaitingPeople(today, locale)}
     ${more ? `<div class="doors">${more}</div>` : ''}
     ${lead ? `<div class="today-worth">${lead}</div>` : ''}
-    ${finishSetup}
-  </section>`;
+  </section>
+  ${finishSetup}`;
 
   // ── 2 · WHAT THE ASSISTANT HANDLED — the headline in its chosen name, the
-  //     faces with a word each. With messaging off, nobody can reach it: the
-  //     way forward instead of an empty row (M22, F-01). Sending, only where
-  //     messaging is live, closes the zone.
-  const reach = !live && (today.handled?.total ?? 0) === 0
-    ? `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper('/app/business/ready', t(locale, 'today.calm.notLive.go'))}`
-    : renderHandled(today, locale, { ready: live && !holding });
+  //     faces with a name and a word each. With nothing connected, nobody can
+  //     reach it: the way forward instead of an empty row (M22, F-01), its
+  //     door the setup step's own (phase 9, w4-today-setup-16), at the size
+  //     of a heading, not of the day's news. Sending, only where messaging is
+  //     live, closes the zone.
+  const reach = !reachable && (today.handled?.total ?? 0) === 0
+    ? `<h2 id="today-done" class="td-head is-plain">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name }))}`
+    : renderHandled(today, locale, { ready: calm && !holding });
   // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
-  const notLive = !live ? `<p class="muted notlive">${signalMark('waiting')} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
+  const notLive = !live ? `<p class="muted notlive">${todoMark()} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
   const hero = `<section class="block today-done td" aria-labelledby="today-done">
     ${reach}
     ${live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}

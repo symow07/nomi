@@ -20,6 +20,8 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 
 import { back, deeper, esc } from './layout.js';
+import { face, faceLink } from './faces.js';
+import { faceVersions } from '../../db/faces.js';
 import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
 import { companyLineHtml } from './prospects.js';
@@ -63,6 +65,8 @@ export type ContactsView = {
   /** Phase 9 (V1-544) — the search, as typed, and the page of the list. */
   readonly query?: string;
   readonly page?: number;
+  /** The warmth run (-14) — the photo's version of each customer who has one kept (`faceVersions`). */
+  readonly photos?: ReadonlyMap<string, string>;
 };
 
 export type ContactsFlash =
@@ -78,15 +82,19 @@ export async function loadContacts(
 ): Promise<ContactsView> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { contacts: [], outreach: new Map(), satisfied: satisfiedRequirements(templateState, null, new Date()) };
-  return withTenantTx(db, bid.value, async (tx) => ({
-    contacts: await listContacts(tx, bid.value),
-    outreach: await outreachEnabled(tx, bid.value),
-    // G14 — with the DOMAIN, so this page and the connections page answer
-    // "may she write to someone who never wrote first?" the same way. Without
-    // it, a verified domain read as unverified here and the requirement she
-    // had already met stayed on her list.
-    satisfied: satisfiedRequirements(templateState, await sendingDomain(tx, bid.value), new Date()),
-  }));
+  return withTenantTx(db, bid.value, async (tx) => {
+    const contacts = await listContacts(tx, bid.value);
+    return {
+      contacts,
+      photos: await faceVersions(tx, contacts.flatMap((c) => (c.clientId ? [c.clientId] : []))),
+      outreach: await outreachEnabled(tx, bid.value),
+      // G14 — with the DOMAIN, so this page and the connections page answer
+      // "may she write to someone who never wrote first?" the same way. Without
+      // it, a verified domain read as unverified here and the requirement she
+      // had already met stayed on her list.
+      satisfied: satisfiedRequirements(templateState, await sendingDomain(tx, bid.value), new Date()),
+    };
+  });
 }
 
 export async function addContactFrom(db: Db, businessIdRaw: string, form: {
@@ -287,12 +295,24 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
         <button class="btn" type="submit">${esc(t(locale, 'contacts.attest.button'))}</button></form>` : ''}
       ${g === 'can' ? deeper(`/app/contacts/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}`,
         t(locale, 'contacts.write.button')) : ''}
-      <form method="get" action="/app/contacts/suppress" class="inline">${hidden}
-        <button class="btn ghost" type="submit">${esc(t(locale, 'contacts.suppress.button'))}</button></form>
+      ${/* The warmth run (-16) — the row's act drawn as a button, outlined like its neighbours; ghost words read as a caption. */ ''}<form method="get" action="/app/contacts/suppress" class="inline">${hidden}
+        <button class="btn" type="submit">${esc(t(locale, 'contacts.suppress.button'))}</button></form>
       ${c.id ? `<form method="post" action="/app/contacts/${esc(c.id)}/archive" class="inline">
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'contacts.archive.confirm', { who: c.displayName ?? shown(c) }))}">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
+    /**
+     * The warmth run (w4-settings-b-outreach-14) — a face on every row, the
+     * customers' own colour, as on the Inbox and Today. Someone who has
+     * written is a customer with a card, and the face opens it; someone added
+     * by hand who never wrote has no card, and the face is only their initial.
+     */
+    const who = c.displayName ?? shown(c);
+    const faceHtml = c.clientId
+      ? faceLink({ clientId: c.clientId, name: who, photo: v.photos?.get(c.clientId) ?? null }, { size: 'm', label: t(locale, 'buyers.row.card', { who }), className: 'ct-face' })
+      : face({ clientId: `${c.channel}:${c.identity}`, name: who }, 'm', 'ct-face');
     return `<li class="ct ${c.archivedAt ? 'gone' : ''} ${stopped ? 'stopped' : ''}">
+      ${faceHtml}
+      <div class="ct-main">
       <div class="ct-h">
         <span class="who">${c.displayName ? `<bdi>${esc(c.displayName)}</bdi>` : ''}
           <span class="id"><bdi>${esc(shown(c))}</bdi></span></span>
@@ -301,6 +321,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       <div class="ct-b muted">${facts}</div>
       ${company}
       ${actions.trim() ? `<div class="ct-a">${actions}</div>` : ''}
+      </div>
     </li>`;
   };
 
@@ -366,7 +387,9 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       </form>
     </details>`;
 
-  return `<h1 class="page">${esc(t(locale, 'contacts.title'))}</h1>
+  // The warmth run (w4-settings-b-outreach-13) — reached from the Inbox, and back there, as every other page here leads back.
+  return `${back('/app/inbox', t(locale, 'nav.inbox'))}
+    <h1 class="page">${esc(t(locale, 'contacts.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.intro'))}</p>

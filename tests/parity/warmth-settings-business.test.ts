@@ -10,6 +10,7 @@ import {
 import { renderBusinessKind } from '../../src/api/web/businessKind.js';
 import { renderPriceRules } from '../../src/api/web/priceRules.js';
 import { shell, esc, CONTEXTUAL_ROUTES_BY_HUB, BACK_TO, hubFor } from '../../src/api/web/layout.js';
+import { renderChannelScreen, CHANNEL_SCREENS } from '../../src/api/web/channels.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { withWorkspace, t, type RequestScope } from '../../src/api/web/say.js';
 import { setupFrom } from '../../src/db/setup.js';
@@ -54,7 +55,7 @@ const rowsOf = (html: string) => [...html.matchAll(
 )].map((m) => ({
   href: m[3] ?? null, two: m[2]!.includes('sr-two'),
   label: /<span class="sr-label">([^<]+)<\/span>/.exec(m[4]!)?.[1] ?? '',
-  value: /<span class="sr-value[^"]*" dir="auto"><bdi>([^<]+)<\/bdi><\/span>/.exec(m[4]!)?.[1] ?? null,
+  value: /<span class="sr-value[^"]*"><bdi>([^<]+)<\/bdi><\/span>/.exec(m[4]!)?.[1] ?? null,
   icon: m[4]!.includes('<svg class="ni'),
 }));
 
@@ -116,7 +117,7 @@ describe('phase 7 · every former section is one tap from the landing', () => {
     ['factory.about.title', BUSINESS_FACTS_PATH], ['business.kind.label', '/app/settings/business'],
     ['factory.sell.title', BUSINESS_PRODUCTS_PATH], ['factory.promise.title', BUSINESS_SCREEN_PATH.promises],
     ['factory.prices.title', '/app/business/prices'], ['factory.sellhow.title', BUSINESS_SCREEN_PATH.how],
-    ['factory.reach.title', BUSINESS_SCREEN_PATH.channels], ['factory.ready.title', BUSINESS_SCREEN_PATH.ready],
+    ['factory.reach.title', BUSINESS_SCREEN_PATH.channels], ['business.row.live', BUSINESS_SCREEN_PATH.ready],
   ];
   const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
     '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data'];
@@ -138,14 +139,16 @@ describe('phase 7 · every former section is one tap from the landing', () => {
       // going live: the answer (Instagram answers already), the Stop on every
       // channel, WhatsApp's switch, what answers elsewhere, the checks
       const ready = screen('ready', l);
-      for (const k of ['factory.ready.answer.live', 'assistant.stop.running', 'activation.stillDrafts', 'golive.other.stopHow', 'factory.ready.more'] as const)
+      for (const k of ['factory.ready.answer.live', 'assistant.stop.running', 'activation.stillDrafts', 'golive.other.stopHow', 'pilot.title'] as const)
         expect(ready, `${l} ${k}`).toContain(say(k));
       expect(ready).toContain('action="/app/business/stop-assistant"');
       expect(ready).toContain('action="/app/business/activate"');
       // the channels: each place, its state, the alerts
       const reach = screen('channels', l);
       expect(reach, l).toContain(say('channel.state.ready.hint'));
-      expect(reach, l).toContain(say('factory.reach.alerts', { phone: '971500001111' }));
+      // the alert number, as it stands (its own screen holds the form)
+      expect(reach, l).toContain('971500001111');
+      expect(reach, l).toContain('href="/app/channels/alerts"');
       // who may be messaged: the note, the list, the form
       const list = screen('allowlist', l);
       expect(list, l).toContain(say('allowlist.note'));
@@ -189,7 +192,8 @@ describe('phase 7 · the channels have ONE home: My business', () => {
       const row = rowsOf(business(l)).find((r) => r.href === BUSINESS_SCREEN_PATH.channels)!;
       expect(row.label).toBe(inScope(() => esc(t(l, 'factory.reach.title'))));
       expect(row.value).toBe(`${inScope(() => t(l, 'reach.channel.whatsapp'))} · ${inScope(() => t(l, 'reach.channel.instagram'))}`);
-      expect(screen('channels', l).match(/href="\/app\/channels"/g), l).toHaveLength(3);   // WhatsApp, Instagram, e-mail
+      // Phase 9 (w4-business-assistant-05) — a row per channel, each opening its own screen once.
+      for (const s of CHANNEL_SCREENS) expect(screen('channels', l).split(`href="/app/channels/${s}"`).length - 1, `${l} ${s}`).toBe(1);
       const s = setup(l);
       for (const gone of ['href="/app/channels"', `href="${BUSINESS_SCREEN_PATH.channels}"`, `>${inScope(() => esc(t(l, 'nav.channels')))}<`])
         expect(s, `${l} ${gone}`).not.toContain(gone);
@@ -198,7 +202,9 @@ describe('phase 7 · the channels have ONE home: My business', () => {
 
   it('Setup’s channels step, Getting started’s and Today’s open the same screen', () => {
     expect(STEP_LINK.channels).toBe(BUSINESS_SCREEN_PATH.channels);
-    expect(business('en', { ...FIRST_DAY, nextStep: 'channels' })).toContain(`class="deeper next" href="${BUSINESS_SCREEN_PATH.channels}"`);
+    // w4-business-assistant-03 — on My business itself the step is its row, never a second door above it.
+    expect(business('en', { ...FIRST_DAY, nextStep: 'channels' })).not.toContain('class="deeper next"');
+    expect(business('en', { ...FIRST_DAY, nextStep: 'channels' })).toContain(`href="${BUSINESS_SCREEN_PATH.channels}"`);
   });
 });
 
@@ -228,11 +234,17 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
     });
   }
 
-  it('the products list and the Channels page, which draw none, get theirs from the shell', () => {
-    for (const [path, href, title] of [['/app/products', '/app/business', 'nav.factory'], ['/app/channels', BUSINESS_SCREEN_PATH.channels, 'factory.reach.title']] as const) {
-      expect(BACK_TO[path]).toEqual({ href, label: title });
-      const html = inScope(() => shell({ title: 'x', active: 'settings', locale: 'en', path, bodyHtml: '<h1 class="page">x</h1>' }));
-      expect(html).toContain(`<a class="back" href="${href}">`);
+  it('the products list, which draws none, gets its own from the shell; each channel’s screen draws its own, to the channels’ home', () => {
+    expect(BACK_TO['/app/products']).toEqual({ href: '/app/business', label: 'nav.factory' });
+    const html = inScope(() => shell({ title: 'x', active: 'settings', locale: 'en', path: '/app/products', bodyHtml: '<h1 class="page">x</h1>' }));
+    expect(html).toContain('<a class="back" href="/app/business">');
+    // Phase 9 (w4-business-assistant-07) — no screen is named like the one above it.
+    expect(BACK_TO['/app/channels']).toBeUndefined();
+    for (const s of CHANNEL_SCREENS) {
+      const page = inScope(() => renderChannelScreen(s, { whatsapp: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
+        displayId: null, lastActivityAt: null, problem: null, activated: false }, ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null }, 'en', null));
+      expect(page.startsWith(`<a class="back" href="${BUSINESS_SCREEN_PATH.channels}">`), s).toBe(true);
+      expect(page, s).not.toContain(`<h1 class="page">${esc(t('en', 'factory.reach.title'))}</h1>`);
     }
   });
 });

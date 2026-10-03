@@ -97,7 +97,7 @@ d('M40.1 · the sending domain (requires DATABASE_URL)', () => {
 
   it('and the page refuses to call it ready', async () => {
     const { t } = await import('../../src/core/owner/i18n/messages.js');
-    const res = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/app/channels/email', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('k1._domainkey.yiwuhf.com');
     expect(res.body).toContain(t('en', 'domain.neverChecked'));
@@ -122,7 +122,7 @@ d('M40.1 · the sending domain (requires DATABASE_URL)', () => {
     const r = await row();
     expect([r!.spf_state, r!.dkim_state, r!.dmarc_state]).toEqual(['ok', 'ok', 'ok']);
 
-    const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/channels/email', headers: { cookie } });
     expect(page.body).toContain(t('en', 'domain.ready'));
     // The registry requirement it satisfies is now shown as done.
     expect(page.body).toContain(t('en', 'reach.req.verified_sending_domain'));
@@ -133,7 +133,7 @@ d('M40.1 · the sending domain (requires DATABASE_URL)', () => {
     answers = { spf: ['v=spf1 include:someone-else.net ~all'], dkim: [DKIM], dmarc: [DMARC] };
     await post('/app/channels/domain/check');
     expect((await row())!.spf_state).toBe('unauthorized');
-    const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/channels/email', headers: { cookie } });
     expect(page.body).toContain(t('en', 'domain.state.unauthorized'));
     expect(page.body).not.toContain(t('en', 'domain.ready'));
   });
@@ -164,7 +164,7 @@ d('M40.1 · the sending domain (requires DATABASE_URL)', () => {
     const long = new Date(Date.now() - DOMAIN_CHECK_TTL_MS - 60_000);
     await tx((t) => sql`update sending_domains set checked_at = ${long}
                          where business_id = ${BIZ}`.execute(t));
-    const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/channels/email', headers: { cookie } });
     expect(page.body).not.toContain(t('en', 'domain.ready'));
     expect(page.body).toContain('Last looked at');
   });

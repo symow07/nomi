@@ -72,11 +72,11 @@ describe('M9.6 · employee profile (localized)', () => {
   it('growth: neutral event kinds render localized (with capability name)', () => {
     const zh = everyScreen(base, 'zh', null);
     expect(zh).toContain(t('zh', 'employee.growth.title'));
-    expect(zh).toContain('「接待问候」开始不等你就发出');
+    expect(zh).toContain('「接待问候」设为不等你就发出');
     expect(zh).toContain('你检查了你的助手的一条回复：没问题');
     expect(zh).toContain('你在发出前改了一条回复（报价）');
     const en = everyScreen(base, 'en', null);
-    expect(en).toContain('Greeting now goes out without you');
+    expect(en).toContain('Greeting was set to go out without you');
     expect(en).toContain('You checked one of your assistant’s replies: it was right');
     expect(en).toContain('You corrected a reply before it went out (Quoting)');
     expect(everyScreen({ ...base, growth: [] }, 'en', null)).toContain('Nothing has changed yet.');
@@ -224,10 +224,10 @@ describe('Nomi Phase C · 小雅 (render)', () => {
 
   it('renders in zh + ar, with the RTL chevron handled', () => {
     const zh = everyScreen(base, 'zh', null, ctx);
-    expect(zh).toContain(t('zh', 'her.knows.title')); expect(zh).toContain(t('zh', 'her.handles.title'));
+    expect(zh).toContain(t('zh', 'nav.knowledge')); expect(zh).toContain(t('zh', 'her.handles.title'));
     expect(zh).toContain(t('zh', 'her.teach.title'));
     const ar = everyScreen(base, 'ar', null, ctx);
-    expect(ar).toContain(t('ar', 'her.knows.title')); expect(ar).toContain(t('ar', 'her.handles.title'));
+    expect(ar).toContain(t('ar', 'nav.knowledge')); expect(ar).toContain(t('ar', 'her.handles.title'));
     expect(ar).toContain('<span class="go" aria-hidden="true">');   // the shell mirrors it
   });
 
@@ -351,12 +351,13 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
   };
   const quiet = { taughtRecently: 0, corrected: 0, handled: 0, draftsPrepared: 2, neededYou: 0, gaps: [] };
 
-  it('V1-418 · no level matches: the page says which kinds are set to go alone, above the choices', () => {
+  it('V1-418 · no level matches: the page says which kinds are set to go alone, beside the choices (under them since w4-business-assistant-26)', () => {
     for (const l of LOCALES) {
       const html = renderEmployee(mix, l, null, quiet);
       const said = t(l, 'autonomy.mixed', { list: new Intl.ListFormat(l, { type: 'conjunction' }).format([t(l, 'capability.greet'), t(l, 'capability.qualify')]) });
       expect(html, l).toContain(said.replace(/&/g, '&amp;'));
-      expect(html.indexOf(said), l).toBeLessThan(html.indexOf('name="level"'));
+      expect(html.indexOf(said), l).toBeGreaterThan(html.indexOf('name="level"'));
+      expect(html.indexOf(said), l).toBeLessThan(html.indexOf(t(l, 'autonomy.save')));
       expect(html, l).not.toContain('class="muted lnote">' + t(l, 'autonomy.mixed'));
     }
   });
@@ -367,8 +368,10 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       const hold = html.indexOf(t(l, 'autonomy.needsName'));
       expect(hold, l).toBeGreaterThan(-1);
       expect(hold, l).toBeLessThan(html.indexOf('name="level"'));
-      expect(html, l).toContain(`href="/app/onboarding">${t(l, 'autonomy.confirmName')}`);
-      expect(html.split('href="/app/onboarding"').length - 1, `${l}: one door to confirm the name`).toBe(1);
+      // Phase 9 (V1-420) — the door opens the Name screen, where the name is confirmed.
+      expect(html, l).toContain(`href="/app/employee/name">${t(l, 'autonomy.confirmName')}`);
+      expect(html.split('href="/app/employee/name"').length - 1, `${l}: the door, and the Name row`).toBe(2);
+      expect(html, l).not.toContain('href="/app/onboarding"');
       expect(html, l).not.toContain(`>${t(l, 'pilot.open')}</a>`);           // the bare "Open"
       expect(visible(html), `${l}: no page called by a name the nav does not use`).not.toContain(t(l, 'pilot.title'));
       // The card is not a second name under the h1. Phase 7 — the card is the
@@ -378,7 +381,10 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       expect(html, l).toContain(t(l, 'her.menu.name.unconfirmed'));
       const named = screen('name', mix, l, quiet);
       expect(named, l).toContain(t(l, 'employee.name.unconfirmed'));
-      expect(named.split('href="/app/onboarding"').length - 1, `${l}: one door on the name's screen`).toBe(1);
+      // V1-420 — the name that waits is shown, and confirmed here, back to this screen.
+      expect(named, l).toContain('<form method="post" action="/app/onboarding/assistant-name"');
+      expect(named, l).toContain('<input type="hidden" name="from" value="employee" />');
+      expect(named, l).not.toContain('href="/app/onboarding"');
       expect(named, l).not.toContain('emp-name');
     }
   });
@@ -440,8 +446,9 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
   });
 
   it('V1-425 · the rules and the disclosure are at the size of the text around them, in plain words', () => {
-    const html = renderEmployee(mix, 'en', null, quiet);
-    expect(html).toContain(`<p class="muted small">${t('en', 'autonomy.intro')}</p>`);
+    // Phase 9 (w4-business-assistant-26) — one level down, on "How sending without you works".
+    const html = screen('alone', mix, 'en', quiet);
+    expect(html).toContain(`<p>${t('en', 'autonomy.intro')}</p>`);
     expect(html).toContain(`<p class="muted small disclose">`);
     expect(t('en', 'autonomy.intro')).not.toMatch(/price rules|your rules hold/);
     expect(t('en', 'autonomy.level.sells.note')).not.toMatch(/floor/);
@@ -455,7 +462,7 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
     expect(t('ar', 'her.handles.title')).not.toContain(t('ar', 'her.handles.alone'));
   });
 
-  it('missed-11 · the languages that always wait are said above the levels', () => {
+  it('missed-11 · w4-business-assistant-26 · the languages that always wait are said beside the levels, which come first', () => {
     expect(disclosureAwaitingReview().length).toBeGreaterThan(0);
     for (const l of LOCALES) {
       const html = renderEmployee({ ...mix, assistantNamed: true }, l, null, quiet);
@@ -465,7 +472,8 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       });
       const at = html.indexOf(said);
       expect(at, l).toBeGreaterThan(-1);
-      expect(at, l).toBeLessThan(html.indexOf('name="level"'));
+      expect(at, l).toBeGreaterThan(html.indexOf('name="level"'));
+      expect(at, l).toBeLessThan(html.indexOf('</section>', html.indexOf('level-control')));
     }
   });
 

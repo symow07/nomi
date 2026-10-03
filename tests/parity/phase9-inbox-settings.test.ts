@@ -49,8 +49,8 @@ const LIST: InboxList = {
   conversations: [
     conv('c-wait', { buyer: 'Omar Haddad', ownership: 'WAITING_HUMAN', heldBy: 'unclaimed', handoffReason: 'human_requested', lastFrom: 'buyer', unanswered: true }),
     conv('c-review', { buyer: 'Leila Haddad', awaitingReview: true, status: 'awaiting', needsAction: true, lastFrom: 'buyer', unanswered: true }),
-    conv('c-new', { buyer: 'Fatima Zahra', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(20) }),
-    conv('c-old', { buyer: 'Camila Rocha', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(60 * 24 * 15) }),
+    conv('c-new', { buyer: 'Fatima Zahra', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(20), latestMessage: 'Can you do 3 colours per set?' }),
+    conv('c-old', { buyer: 'Camila Rocha', lastFrom: 'buyer', unanswered: true, live: true, latestAt: AGO(60 * 24 * 15), latestMessage: 'Thanks, noted.' }),
     conv('c-answered', { buyer: 'Layla Mansour', latestAt: AGO(60) }),
     conv('c-closed', { buyer: 'Lucia Ferreira', lastFrom: 'buyer', unanswered: true, live: false, latestAt: AGO(60 * 24 * 2) }),
   ],
@@ -86,6 +86,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
       const h = list(l);
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="ir-hold"><bdi>${shown(l, 'buyers.row.noReply')}</bdi></span>`);
       expect(rowOf(h, 'c-closed'), l).not.toContain(shown(l, 'buyers.row.noReply'));
+      // the warmth run's phase 9 (w4-customers-03) — words that asked nothing are not owed a reply
+      expect(rowOf(h, 'c-old'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // the mark, then who wrote it for a screen reader (the conversation batch), then the words
       expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
@@ -181,12 +183,12 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
     expect(t('en', 'inbox.empty.seeAll')).toBe('See all customers');
   });
 
-  it('V1-166 · the calendar door is the phone\'s (the rail has it on a wide screen); the list of contacts says what it is for', () => {
+  it('V1-166 · no calendar door (the rail has Calendar on every width, and on a phone it repeated the tile); the list of contacts says what it is', () => {
     const h = withWorkspace(SCOPE, () => list('en'));
-    expect(h).toContain('<a class="deeper on-phone" href="/app/calendar">');
-    expect(CSS).toMatch(/@media \(min-width: 721px\) \{ \.deeper\.on-phone \{ display:none; \} \}/);
-    expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.door'))}`);
-    expect(t('en', 'contacts.door')).toBe('Who you may write to first');
+    expect(h).not.toContain('href="/app/calendar"');
+    expect(CSS).not.toContain('.deeper.on-phone');
+    // the door says the page's own name (V1-548, settings-b's fix)
+    expect(h).toContain(`href="/app/contacts">${esc(t('en', 'contacts.title'))}`);
   });
 
   it('V1-167 · V1-175 · Chinese: the search button is 搜索, the holder runs on without a space, the tab and its group say the same', () => {
@@ -266,7 +268,7 @@ describe('the calendar', () => {
       expect(move, `${l}/${v}`).toContain(`<a class="tab cal-today" href=`);
       expect(h.indexOf('<p class="cal-span">'), `${l}/${v}`).toBeLessThan(h.indexOf('<nav class="cal-move"'));
       expect(h.indexOf('<nav class="cal-move"'), `${l}/${v}: at the top`).toBeLessThan(h.indexOf('cal-legend'));
-      // the same lede and legend on every view (since the warmth run, in the page's one fold); no second way of moving at the foot of the list
+      // the same lede on every view (in the page's one fold) and the legend under the dates (phase 9 of the warmth run); no second way of moving at the foot of the list
       expect(h, `${l}/${v}`).toContain(`<div class="cal-key"><p class="muted cal-lede">${esc(t(l, 'calendar.lede'))}</p>`);
       expect(h, `${l}/${v}`).toContain('<p class="cal-legend small">');
       expect(h, `${l}/${v}`).not.toContain('<nav class="pager"');
@@ -275,7 +277,8 @@ describe('the calendar', () => {
 
   it('V1-200 · inbox-calendar-new-14 · the legend draws each mark it explains — ✦, owed, done — and its edges are swatches, not pills', () => {
     for (const l of LOCALES) {
-      const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'day'))![1]!;
+      // the week holds a mark of each kind (phase 9 of the warmth run, w4-customers-14: the legend explains only the marks its page shows)
+      const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'week'))![1]!;
       expect(legend, l).toContain(`<span class="as" aria-hidden="true">✦</span> ${shown(l, 'calendar.legend.assistant')}`);
       expect(legend, l).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${shown(l, 'calendar.legend.owed')}`);
       expect(legend, l).toContain(`<span class="dot ok" aria-hidden="true">✓</span> ${shown(l, 'calendar.legend.done')}`);
@@ -417,14 +420,14 @@ describe('Results', () => {
       const overview = results(l).split(shown(l, 'analytics.section.activity'))[0]!;
       expect(statsOf(overview), l).toHaveLength(2);
     }
-    // "Quotes sent" counted every price worked out, sent or not: it says what it counts
-    expect(statsOf(results('en'))).toContain('12 prices worked out');
+    // The warmth run's phase 9 (w4-customers-20) — Today's figure, in Today's words: quotes GIVEN, orders confirmed
+    expect(statsOf(results('en'))).toContain('12 quotes sent');
   });
 
   it('V1-209 · a count\'s words agree with it, in each language\'s own forms', () => {
     const en = statsOf(results('en'));
-    expect(en).toEqual(expect.arrayContaining(['1 order placed', '1 reply waiting for your OK', '0 replies you changed before they went', '6 new customers']));
-    expect(statsOf(results('es'))).toEqual(expect.arrayContaining(['1 pedido realizado', '1 respuesta que espera tu visto bueno']));
+    expect(en).toEqual(expect.arrayContaining(['1 order confirmed', '1 reply waiting for your OK', '0 replies you changed before they went', '6 new customers']));
+    expect(statsOf(results('es'))).toEqual(expect.arrayContaining(['1 pedido confirmado', '1 respuesta que espera tu visto bueno']));
     expect(statsOf(results('ar', { summary: { ...RESULTS.summary, newClients: 12 } }))).toContain('12 عميلًا جديدًا');
     expect(statsOf(results('ar', { summary: { ...RESULTS.summary, newClients: 2 } }))).toContain('2 عميلان جديدان');
     for (const l of LOCALES) for (const r of statsOf(results(l))) expect(r, l).not.toMatch(/^1 (Orders|Pedidos|الطلبات)/);
@@ -434,7 +437,8 @@ describe('Results', () => {
     for (const l of LOCALES) {
       const h = results(l);
       expect(h, l).not.toContain('class="chip"');
-      expect(h, l).toContain(`<div class="v">${withoutIsolates(esc(showMoney(l, usd(11750))))}</div><div class="l">${shown(l, 'analytics.commerce.value')}</div>`);
+      // the warmth run's phase 9 (w4-customers-22) — the Sales section's headline line, under its own heading
+      expect(h, l).toContain(`<p class="an-total"><span class="v">${withoutIsolates(esc(showMoney(l, usd(11750))))}</span> <span class="l">${shown(l, 'analytics.commerce.value')}</span></p>`);
       expect(h, l).toContain(`${esc(t(l, `analytics.n.order.${new Intl.PluralRules(l).select(1)}` as MessageKey))} · ${esc(t(l, 'order.status.confirmed' as MessageKey))}`);
     }
   });
@@ -467,7 +471,11 @@ describe('an order', () => {
     for (const l of LOCALES) {
       const h = orderPage(l);
       expect(h, l).toContain(`<a class="deeper" href="/app/orders/${ORDER_VIEW.orderId}/proforma.txt" download>${shown(l, 'order.invoice.download')}`);
-      expect(h, l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
+      // the same text the file holds; the warmth run's phase 9 (w4-customers-09) — the article number held whole
+      expect(h.replace(/<span class="doc-code">([^<]*)<\/span>/g, '$1'), l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
+      expect(h, l).toContain('<span class="doc-code">(ZX-200)</span>');
+      // w4-customers-12 — it says it saves a file, with a file's mark, not a door's chevron
+      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">↓</span></a>`);
     }
     expect(proformaFileName({ ...ORDER_VIEW, reference: 'PI/2026 "x"' })).toBe('proforma-PI-2026-x-.txt');
     expect(proformaText({ ...ORDER_VIEW, paymentTerms: null })).toBeNull();
@@ -499,7 +507,8 @@ describe('an order', () => {
       expect(page, l).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page"/);
       expect(orderPage(l), l).toContain(`${shown(l, 'order.back')}</a>`);
     }
-    expect(t('en', 'order.back')).toBe('Back to the customer');
+    // the fix wave (w4-whole-13) — it opens the conversation, and says so
+    expect(t('en', 'order.back')).toBe('Back to the conversation');
   });
 
   it('V1-192 · Chinese: the product as the Customers list names it, the figures said to be below, no stray space', () => {
@@ -510,8 +519,13 @@ describe('an order', () => {
   });
 
   it('V1-193 · the confirmation date has its year; the proforma keeps the prose measure', () => {
-    expect(orderPage('en')).toContain('<span class="fval"><bdi>Wed, Sep 30, 2026</bdi></span>');
-    expect(orderPage('es')).toMatch(/2026<\/bdi><\/span>/);
+    // the warmth run's phase 9 (w4-customers-11) — said once, with its year, by the line that says where it stands;
+    // a "Confirmed on" row only once something has happened since
+    expect(orderPage('en')).toContain('since Wed, Sep 30, 2026');
+    expect(orderPage('en')).not.toContain(shown('en', 'order.field.confirmed'));
+    const shipped = orderPage('en', { history: [{ state: 'shipped', at: new Date('2026-10-02T06:00:00Z'), note: null, trackingReference: null, by: 'owner' }] });
+    expect(shipped).toContain('<span class="fval"><bdi>Wed, Sep 30, 2026</bdi></span>');
+    expect(orderPage('es')).toMatch(/2026<\/span><\/p>/);
     expect(CSS).toMatch(/pre\.doc \{ white-space:pre-wrap; overflow-wrap:anywhere; text-align:start; max-width:var\(--measure-prose\); \}/);
   });
 
@@ -575,7 +589,11 @@ describe('the settings pages', () => {
       expect(h, l).toContain(`<span class="fr-name">${shown(l, 'account.row.password')}</span>`);
       expect(t(l, 'account.row.password'), l).not.toBe(t(l, 'account.title'));
     }
-    expect(t('zh', 'account.codeOnly')).toBe('没有：你用登录码登录。');
+    // The warmth run, phase 9 — the door's word for the code (访问码 / رمز الوصول), on Setup's row and this page alike.
+    expect(t('zh', 'account.codeOnly')).toBe('没有：你用访问码登录。');
+    expect(t('zh', 'setup.value.accessCode')).toBe(t('zh', 'login.passwordLabel'));
+    expect(t('ar', 'setup.value.accessCode')).toBe('رمز الوصول');
+    expect(t('ar', 'account.codeOnly')).toContain('رمز الوصول');
     expect(t('zh', 'account.codeOnly')).toContain(t('zh', 'setup.value.accessCode'));
     expect(t('zh', 'account.codeOnly')).not.toContain('进入密码');
     expect(t('ar', 'account.codeOnly').split('دخول').length - 1).toBe(1);
@@ -584,7 +602,7 @@ describe('the settings pages', () => {
   it('V1-467 · settings-a-new-04 · settings-a-new-06 · alerts: why the day-long window matters, where to turn a phone on, the phones as rows', () => {
     expect(t('en', 'alerts.phone.lede')).toContain('so you can answer in time: Instagram, Messenger and WhatsApp let you answer only within a day');
     for (const l of LOCALES) expect(draw('alerts', l), l).toContain(shown(l, 'alerts.phone.none'));
-    expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn alerts on there.');
+    expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn notifications on there.');  // the warmth run, phase 9 (w4-settings-a-06): one name, notifications
     const one = withoutIsolates(renderPhoneAlerts({ publicKey: 'BPk', phones: [{ id: '66666666-6666-4666-8666-666666666666', personId: null, endpoint: 'https://push.example/x', p256dh: 'k', auth: 'a', device: 'iPhone', createdAt: NOW }] }, 'en', null));
     expect(one).toContain('<div class="scard"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
   });
@@ -620,9 +638,15 @@ describe('the settings pages', () => {
   it('V1-480 · V1-482 · V1-484 · closures: the label asks what is meant, the page shows what a customer is told, Arabic in sentences', () => {
     for (const l of LOCALES) {
       expect(t(l, 'closures.add.label'), l).toMatch(/[?？؟]$/);
-      expect(draw('closures', l), l).toContain(shown(l, 'closures.example', { label: t(l, 'closures.add.placeholder') }));
+      // the warmth run, phase 9 (w4-settings-a-13) — with no closure yet, the sample as it reads mid-sentence
+      expect(draw('closures', l), l).toContain(shown(l, 'closures.example', { label: t(l, 'closures.example.sample') }));
     }
     expect(t('en', 'closures.example')).toContain('“We are closed for {label}, so no delivery date can be promised for this order yet.”');
+    expect(t('en', 'closures.example', { label: t('en', 'closures.example.sample') })).toContain('“We are closed for the annual holiday,');
+    for (const l of ['es', 'fr'] as const) expect(t(l, 'closures.example.sample'), l).toMatch(/^\p{Ll}/u);
+    // (w4-settings-a-14) the Chinese notices: no space before a Chinese name, and the page's own word for the days
+    expect(t('zh', 'closures.flash.added', { label: '春节' })).toContain('，你的助手不会承诺。');
+    expect(t('zh', 'closures.flash.restored')).toContain('休息的日子');
     expect(t('ar', 'closures.empty')).toContain('مدة التسليم');
     expect(t('ar', 'closures.intro')).not.toMatch(/لا وعد|لا اختلاق/);
   });
@@ -646,7 +670,8 @@ describe('the settings pages', () => {
     for (const l of LOCALES) {
       const h = draw('data', l);
       expect(h, l).not.toContain('<ul class="chips">');
-      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="deeper" href="\/app\/settings\/data\/[a-z-]+\.csv" download>/g)];
+      // the warmth run, phase 9 (w4-settings-a-18) — Download saves a file: its own mark, not a door's chevron
+      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="dl-get" href="\/app\/settings\/data\/[a-z-]+\.csv" download><svg class="ni"/g)];
       expect(files, l).toHaveLength(9);
       // "What you set up" opens its own section, with the space sections have (it touched the rows above)
       expect(h, l).toMatch(new RegExp(`</section>\\s*<section class="block">\\s*<h2>${esc(t(l, 'data.export.configTitle'))}</h2>`));

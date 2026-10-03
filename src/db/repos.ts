@@ -131,6 +131,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         .set({
           phase: state.phase,
           assigned_to: state.assignedTo,
+          // The warmth run (w4-whole-03) — a hand-over a turn makes is stamped
+          // as `assign()` stamps one, so the moment a customer began to wait is
+          // on record; an unchanged holder keeps its stamp.
+          assigned_at: sql<Date | null>`case when ${state.assignedTo}::text is null then null
+            when assigned_to is distinct from ${state.assignedTo}::text then now() else assigned_at end`,
           ai_disclosed_at: state.aiDisclosedAt,
         })
         .where('id', '=', state.conversationId)
@@ -347,7 +352,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
 
     // G6 — newest in force, as with her sample policy and her rate.
     async tradeTerms() {
-      const r = await sql<{ payment_terms: string; incoterm: string; stated_at: Date }>`
+      // V1-537 — the delivery term is null when she ships under none.
+      const r = await sql<{ payment_terms: string; incoterm: string | null; stated_at: Date }>`
         select payment_terms, incoterm, stated_at from trade_terms
          where business_id = ${businessId} order by stated_at desc, id desc limit 1`.execute(tx);
       const row = r.rows[0];

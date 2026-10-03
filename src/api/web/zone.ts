@@ -25,3 +25,10 @@ const country = new AsyncLocalStorage<string | null>();
 export const withCountry = <T>(code: string | null, fn: () => T): T => country.run(code, fn);
 
 export const workspaceCountry = (): string | null => country.getStore() ?? null;
+
+/**
+ * The warmth run, phase 9 (w4-products-knowledge-08) — a workspace with no
+ * country on record (the demo, one made before sign-up asked): inside it the
+ * store holds null; outside any workspace it holds nothing at all.
+ */
+export const countryUnknown = (): boolean => country.getStore() === null;

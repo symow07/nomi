@@ -95,7 +95,8 @@ d('usability workspace · what the pages read (requires DATABASE_URL + MIGRATE_D
     const at = `'2026-09-28 00:12:00+08'::timestamptz`;
     const fresh = USABILITY_CONVERSATIONS[0]!;
     const seeded = usabilitySeedSql(RUN_NS);
-    const lines = seeded.split('\n').filter((l) => l.includes(`'usab-${fresh.id.slice(-4)}-`));
+    // Its lines on the transcript: an inbound line keeps its seed id, a reply the id of its sent row (phase 9).
+    const lines = seeded.split('\n').filter((l) => l.startsWith(`  ('${inNamespace(fresh.id, RUN_NS)}', '`) && l.includes(', greatest('));
     expect(lines.length).toBe(fresh.messages.length);
     const weekStart = `(date_trunc('week', ${at} at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')`;
     for (const [k, line] of lines.entries()) {

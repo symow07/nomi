@@ -314,7 +314,8 @@ describe('phase 4 · the "needs attention" band', () => {
     expect(window.sort((a, b) => a - b)).toEqual([QUIET_AFTER_DAYS, QUIET_AFTER_DAYS, QUIET_UNTIL_DAYS, QUIET_UNTIL_DAYS]);
     // "asked something" is a question mark in any of the scripts
     expect(asked[1]!.sql).toContain("lw.text_content ~ '[?？؟]'");
-    expect(asked[1]!.sql).toContain("lw.direction = 'outbound'");
+    // phase 9 (w4-customers-03) — whoever wrote last: our question (reply) or theirs (asked)
+    expect(asked[1]!.sql).toContain('lw.direction');
     // a quote counts as sent the way G7b counts a price given
     expect(asked[0]!.sql).toContain("d.status <> 'approved'");
   });
@@ -326,18 +327,20 @@ describe('phase 4 · the cursors: each lens pages by its own key', () => {
     const keys = [
       { lens: 'waiting', rank: 0, at: '1790000000000000', id },
       { lens: 'waiting', rank: 7, at: null, id },
-      { lens: 'value', spent: '48250.50', at: '1790000000000001', id },
-      { lens: 'value', spent: '0', at: null, id },
-      { lens: 'value', spent: '12', at: '-5', id },
+      { lens: 'value', spent: '48250.50', quoted: '0', at: '1790000000000001', id },
+      { lens: 'value', spent: '0', quoted: '7250.00', at: null, id },
+      { lens: 'value', spent: '12', quoted: '0', at: '-5', id },
     ] as const;
     for (const k of keys) {
       const s = encodeListKey(k);
-      expect(s).toMatch(/^[0-9a-fnv._-]+$/);
+      expect(s).toMatch(/^[0-9a-fnqv._-]+$/);
       expect(encodeURIComponent(s)).toBe(s);
       expect(parseListKey(k.lens, s)).toEqual(k);
     }
     expect(encodeListKey(keys[0])).toBe(`0_1790000000000000_${id}`);
-    expect(encodeListKey(keys[2])).toBe(`v48250.50_1790000000000001_${id}`);
+    expect(encodeListKey(keys[2])).toBe(`v48250.50_q0_1790000000000001_${id}`);
+    // phase 9 (w4-customers-04) — a cursor written before the second tier is no place: the first page
+    expect(parseListKey('value', `v48250.50_1790000000000001_${id}`)).toBeNull();
   });
 
   it('a malformed cursor, or one from the other lens, is no place: the first page', () => {
@@ -355,20 +358,23 @@ describe('phase 4 · the cursors: each lens pages by its own key', () => {
 
   it('the "matters most" page is cut by spend, then the newest contact, then the customer — and hands out its own cursor', async () => {
     const r = recorder((q) => q.includes('row_number()')
-      ? [{ id: CLIENT(1), conversation_id: ID(1), rank: 6, spent: '1240.00', at_us: '1790000000000000', pos: 51, total: 130 },
-         { id: CLIENT(2), conversation_id: ID(2), rank: 2, spent: '830.00', at_us: null, pos: 52, total: 130 }] : []);
-    const page = await readBuyersPage(r.tx, { filter: 'all', q: '', lens: 'value', after: `v1500.00_1790000000000009_${id}`, size: 2 });
+      ? [{ id: CLIENT(1), conversation_id: ID(1), rank: 6, spent: '1240.00', quoted: '0', at_us: '1790000000000000', pos: 51, total: 130 },
+         { id: CLIENT(2), conversation_id: ID(2), rank: 2, spent: '830.00', quoted: '0', at_us: null, pos: 52, total: 130 }] : []);
+    const page = await readBuyersPage(r.tx, { filter: 'all', q: '', lens: 'value', after: `v1500.00_q0_1790000000000009_${id}`, size: 2 });
     const asked = r.seen[0]!;
-    expect(asked.sql).toContain('row_number() over (order by spent desc, at_us desc nulls last, id desc)');
-    expect(asked.sql).toMatch(/spent < \$\d+::numeric or \(spent = \$\d+::numeric and/);
+    expect(asked.sql).toContain('row_number() over (order by spent desc, quoted desc, at_us desc nulls last, id desc)');
+    expect(asked.sql).toMatch(/spent < \$\d+::numeric or \(spent = \$\d+::numeric and \(quoted < \$\d+::numeric/);
+    // phase 9 (w4-customers-04) — nothing spent: the price they were last given, by the rule every page counts a quote by
+    expect(asked.sql).toContain('(case when spent > 0 then 0 else given end)::numeric as quoted');
+    expect(asked.sql).toContain("d.status <> 'approved'");
     expect(asked.params).toContain('1500.00');
     // the spend is the same SPENT customerValue.ts defines: the orders that stand, in the newest one's currency
     expect(asked.sql).toMatch(/coalesce\(\(select sum\(o\.total_value_usd\) from orders o[\s\S]*o\.status = any\(\$\d+::text\[\]\)[\s\S]*order by coalesce\(o2\.confirmed_at, o2\.created_at\) desc limit 1\)\), 0\)/);
     expect(asked.params).toContainEqual(['confirmed', 'in_production', 'shipped']);
     expect(page.rows).toEqual([{ clientId: CLIENT(1), conversationId: ID(1) }, { clientId: CLIENT(2), conversationId: ID(2) }]);
     expect(page.ids).toEqual([ID(1), ID(2)]);
-    expect(page.next).toBe(`v830.00_n_${CLIENT(2)}`);
-    expect(page.prev).toEqual({ cursor: `v1240.00_1790000000000000_${CLIENT(1)}` });
+    expect(page.next).toBe(`v830.00_q0_n_${CLIENT(2)}`);
+    expect(page.prev).toEqual({ cursor: `v1240.00_q0_1790000000000000_${CLIENT(1)}` });
     // a "waiting now" cursor means nothing in "matters most": no bound, the first page
     const r2 = recorder(() => []);
     await readBuyersPage(r2.tx, { filter: 'all', q: '', lens: 'value', after: `6_1_${id}` });

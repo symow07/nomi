@@ -2,6 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { esc, back } from './layout.js';
+import { channelScreenHref, channelScreenTitle } from './channels.js';
 import * as show from './values.js';
 
 /**
@@ -60,7 +61,8 @@ export const META_HELP_STEPS: readonly HelpStep[] = [
 export function renderMetaHelp(locale: Locale, o: { readonly statusShown?: boolean } = {}): string {
   const name = assistantName(locale);
   const shown = o.statusShown ?? true;
-  const where = { section: t(locale, 'accounts.title'), page: t(locale, 'nav.channels') };
+  // Phase 9 (w4-business-assistant-07) — the steps are on Instagram and Messenger's own screen, under its name.
+  const where = { section: t(locale, 'accounts.title'), page: channelScreenTitle(locale, 'meta') };
   const steps = META_HELP_STEPS.map((s, i) => `
     <section class="block help-step" id="${s.id}" aria-labelledby="${s.id}-h">
       <h2 id="${s.id}-h">${esc(show.count(locale, i + 1))}. ${esc(t(locale, s.title))}</h2>
@@ -70,7 +72,7 @@ export function renderMetaHelp(locale: Locale, o: { readonly statusShown?: boole
         `<li><a href="${esc(m.href)}" rel="noopener noreferrer" target="_blank">${esc(t(locale, m.label))}<span class="go ext" aria-hidden="true">↗</span><span class="sr">${esc(t(locale, 'help.meta.opensMeta'))}</span></a></li>`).join('')}</ul>` : ''}
     </section>`).join('');
   return `
-    <div class="dhead">${back(shown ? '/app/channels#your-accounts' : '/app/channels', t(locale, 'nav.channels'))}</div>
+    <div class="dhead">${back(`${channelScreenHref('meta')}${shown ? '#your-accounts' : ''}`, channelScreenTitle(locale, 'meta'))}</div>
     <h1 class="page">${esc(t(locale, 'help.meta.title'))}</h1>
     <p class="lede">${esc(t(locale, shown ? 'help.meta.lead' : 'help.meta.lead.noStatus', { name, ...where }))}</p>
     ${steps}

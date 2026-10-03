@@ -26,6 +26,11 @@ import type { PlayFacts, Speaker } from '../core/conversation/stateOfPlay.js';
  *     failed or cancelled). A sent row does not name the turn it answers, so
  *     this is the first reply out after the price was worked out; one that
  *     never left means no quote is waiting on them.
+ *   WHAT THEY ASKED ABOUT — the panel's reading (the products the turns'
+ *     analysis found), else the product of the newest price worked out for
+ *     them: a price is worked out because they asked. The fix wave
+ *     (w4-conversation-05): with turns the analysis never named a product in,
+ *     a customer quoted for string lights read as one who had asked nothing.
  *   THEIR NEWEST MESSAGE, in any of their conversations, and this
  *     conversation's newest message with who wrote it (the transcript's own
  *     reading of a sent row's origin, CH3's echo included).
@@ -43,7 +48,7 @@ export type CatchUp = Pick<CustomerPanel, 'clientId' | 'channel' | 'address'> & 
   readonly bought: readonly Bought[];
   /** Products bought beyond those named. */
   readonly boughtMore: number;
-  /** What they asked about most recently, for a customer who has bought nothing (the panel's reading). */
+  /** What they asked about most recently (the panel's reading, else the newest price worked out for them). */
   readonly askedAbout: { readonly name: string | null; readonly nameZh: string | null } | null;
 };
 
@@ -97,7 +102,11 @@ export async function loadCatchUp(
   const from: Speaker | null = !newest ? null
     : newest.direction === 'inbound' ? 'buyer' : newest.origin === 'owner' ? 'person' : 'assistant';
 
-  const asked = panel.askedAbout[0];
+  const asked = panel.askedAbout[0] ?? (await sql<{ name: string | null; name_zh: string | null }>`
+    select p.name, p.name_zh
+      from quotes q join conversations c on c.id = q.conversation_id join products p on p.id = q.product_id
+     where c.client_id = ${client}::uuid
+     order by q.created_at desc limit 1`.execute(tx)).rows.map((r) => ({ name: r.name, nameZh: r.name_zh }))[0];
   return {
     clientId: client, channel: panel.channel, address: panel.address,
     photo: photos.get(client) ?? null,

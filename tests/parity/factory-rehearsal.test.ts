@@ -361,7 +361,7 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
 
 const view = (rehearsal: RehearsalReport | null): FactoryView => ({
   profile: { name: 'Yiwu Sunrise', description: null, location: null, workingHours: null,
-    contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
+    contactEmail: null, contactPhone: null, languagesServed: [] },
   products: { total: 2, needPrice: 0, names: [] },
   promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: OFFLINE_CHANNEL, ownerPhone: null },
@@ -427,7 +427,7 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
     const blocked = readyScreen(view(withFindings), 'en');
     const clean = readyScreen(view({ ...withFindings, findings: [] }), 'en');
     // Both render the SAME activation verdict; only the findings list differs.
-    const verdict = (h: string) => h.slice(at(h, shown('en', 'factory.ready.title')), at(h, shown('en', 'factory.rehearsal.title')));
+    const verdict = (h: string) => h.slice(at(h, shown('en', 'business.row.live')), at(h, shown('en', 'factory.rehearsal.title')));
     expect(verdict(blocked)).toBe(verdict(clean));
   });
 

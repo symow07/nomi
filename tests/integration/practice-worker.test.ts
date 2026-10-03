@@ -418,7 +418,8 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
       const b = (await page()).body; return b.includes('Owner here — 4,800 pcs is fine.') ? b : undefined;
     }, 'the owner\'s reply, on the page');
     const bubble = shownMine.slice(shownMine.indexOf('Owner here — 4,800 pcs is fine.'));
-    expect(bubble.match(/<div class="ts muted">([\s\S]*?)<\/div>/)?.[1]?.trim()).toBe('You');
+    // (the fix wave) the caption carries its time too: "01:41 · You" — the owner's, never the assistant's.
+    expect(bubble.match(/<div class="ts muted">([\s\S]*?)<\/div>/)?.[1]?.trim()).toMatch(/(^|· )You$/);
 
     expect((await post('/app/sandbox/resume')).statusCode).toBe(302);
     const back = await inCopy((tx) => sql<{ a: string | null }>`select assigned_to as a from conversations where id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.a));

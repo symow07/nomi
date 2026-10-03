@@ -24,7 +24,7 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { keptFace } from '../../db/faces.js';
 import { loadCustomerCard } from '../../db/customerCard.js';
-import { renderCustomerCard } from './customerCard.js';
+import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
@@ -55,7 +55,7 @@ import {
 } from './inbox.js';
 import {
   liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
-  railAnswer, railSaid,
+  railAnswer, railSaid, newestWaiting, railMomentOf,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -64,11 +64,12 @@ import { renderMetaHelp } from './help.js';
 import { checkMetaAccount } from '../../channels/meta/health.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } from '../../db/metaAccounts.js';
 import {
-  loadChannels, renderChannels, renderConnectGuide, channelFlash,
+  loadChannels, renderChannelScreen, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
+  channelScreenHref, channelScreenTitle, screenOfChannel,
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
 } from './channels.js';
 import {
-  loadProductList, loadProductDetail, renderProductList, renderProductDetail, businessKind,
+  loadProductList, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
   renderAddForm, updateProduct, removeProductName, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
 import {
@@ -91,12 +92,12 @@ import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS } from './appIcons.js';
-import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, type PushOut } from './phoneAlerts.js';
+import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, alertsFrom, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
 } from './priceRules.js';
-import { loadOrder, recordOrderUpdate, renderOrder, proformaText, proformaFileName } from './orders.js';
+import { loadOrder, recordOrderUpdate, renderOrder, proformaText, proformaFileName, orderTitle } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renamePerson, renderPeople, personForCode, ownerPerson, hashCode,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
@@ -154,10 +155,10 @@ import { loadCatchUp } from '../../db/catchUp.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
-import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
+import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate, setPilotMode } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
@@ -166,8 +167,10 @@ import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.j
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import { autonomyReleased } from '../../core/conversation/disclosure.js';
+import { aloneNow } from '../../core/conversation/aloneNow.js';
 import {
   loadPilotRunbook, renderPilotRunbook, renderPilotTechnical, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
+  renderPilotScreen, PILOT_SCREENS, PILOT_SCREEN_PATH,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
 import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
@@ -207,10 +210,10 @@ import {
   OTP_TTL_SECONDS, PENDING_TTL_MS, DEVICE_TTL_MS, type OtpPurpose,
 } from '../../security/otp.js';
 import { renderAccount } from './account.js';
-import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
+import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindProblem } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
-import { exportSubjectOf, exportFileName, loadExport, recordExport } from './dataExport.js';
+import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
 import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
@@ -229,7 +232,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 
@@ -437,6 +440,13 @@ export type WebDeps = {
   readonly push?: PushOut | null;
   /** CH4 — where Nomi stands with Meta (`META_APP_REVIEW`); absent: the panel is not drawn. */
   readonly metaReview?: MetaReview | null;
+  /**
+   * The warmth run, phase 9 (V1-006) — the component gallery is served at all:
+   * a page for whoever builds the product, walked by the screenshots tool on a
+   * local instance (`COMPONENT_GALLERY=on`, which the run-nomi smoke script
+   * sets). Absent or false — every normal installation — it is no page.
+   */
+  readonly componentGallery?: boolean;
   /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
@@ -745,8 +755,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
       if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
-      withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)).then(
-        (c) => withWorkspace({ ...f, needsYou: c.waiting }, done),
+      // The warmth run (w4-whole-03) — and when the latest customer began to wait, for the rail's mark.
+      Promise.all([
+        withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)),
+        newestWaiting(deps.db, bid.value).catch(() => null),
+      ]).then(
+        ([c, newest]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at) }, done),
         () => withWorkspace(f, done),
       );
     };
@@ -825,7 +839,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (signedIn && (req.url === '/app' || req.url.startsWith('/app/'))) {
       const locale = localeOf(req);
       return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'error.notfound.title'), active: 'home',
+        title: t(locale, 'error.notfound.title'), active: 'none',   // w4-whole-19 — a mistyped address is no entry's page
         bodyHtml: notFoundInside(locale),
       }));
     }
@@ -934,6 +948,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
     'closures.flash.label_missing': 'label', 'closures.flash.from_missing': 'from', 'closures.flash.not_a_date': 'from',
     'closures.flash.to_missing': 'to', 'closures.flash.ends_before_starts': 'to',
+    'business.kind.bad.kind': 'kind', 'business.kind.bad.country': 'country', 'business.kind.bad.website': 'website',
     'terms.flash.payment_missing': 'payment', 'terms.flash.payment_too_long': 'payment', 'terms.flash.incoterm_invalid': 'incoterm',
     'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.negative': 'price',
     // Phase 7 — the calendar's own date.
@@ -946,8 +961,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     for (const [k, v] of Object.entries(values)) if (typeof v === 'string') typed[k] = v;
     return { values: typed, field, text: t(locale, key as MessageKey) };
   };
-  const sentBack = (req: FastifyRequest, reply: FastifyReply, active: string, bodyHtml: string) =>
-    reply.code(400).type('text/html; charset=utf-8').send(page(req, { title: t(localeOf(req), `nav.${active}` as MessageKey), active, bodyHtml }));
+  /**
+   * The warmth run, phase 9 (w4-settings-a-24) — a form sent back is a PAGE,
+   * drawn from a POST: the request's look-up reads the rail's count for a GET
+   * only, so it is read here, as fresh as any page's. Without it the rail lost
+   * its waiting count, and with it the live check (`data-rail`) that brings the
+   * marker and the toast while the owner corrects the form.
+   */
+  const sentBack = async (req: FastifyRequest, reply: FastifyReply, active: string, bodyHtml: string) => {
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    const waiting = s && bid?.ok
+      ? await withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)).then((c) => c.waiting, () => null)
+      : null;
+    return withNeedsYou(waiting, () => reply.code(400).type('text/html; charset=utf-8')
+      .send(page(req, { title: t(localeOf(req), `nav.${active}` as MessageKey), active, bodyHtml })));
+  };
 
   // ── M35 · the proof link: the ONE public page inside the app ─────────────
   //
@@ -1703,10 +1732,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 9 — the component gallery is a developer's page: no link reaches it
   // (phase 3), and like the machine room only the installation's own workspace
   // gets it at all. Every other owner is told there is no such page.
+  // The warmth run, phase 9 (V1-006) — and only where the installation serves
+  // it (`componentGallery`, a local instance's switch): on a normal one the
+  // owner of the installation's own workspace is told the same.
   app.get('/app/settings/components', {
     preHandler: async (req, reply) => {
       const s = sessionOf(req);
-      if (s && s.businessId !== deps.businessId) return reply.callNotFound();
+      if (s && (deps.componentGallery !== true || s.businessId !== deps.businessId)) return reply.callNotFound();
     },
   }, authed('settings', (s, req, locale) => renderComponents(locale)));
 
@@ -1812,7 +1844,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
-    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.setup'));
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn }, locale, flash, t(locale, 'nav.setup'));
   }));
 
   /**
@@ -1859,7 +1891,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // space, and `nomi-buyers-2026-09-21.csv` has none today but the next
       // subject might. `attachment` so a browser saves rather than renders —
       // a CSV rendered inline is a page of somebody's private messages.
-      .header('content-disposition', `attachment; filename="${csvFilename(exportFileName(subject), now)}"`)
+      // The warmth run, phase 9 (V1-380) — named in the reader's plain-letter words, as its page names it.
+      .header('content-disposition', `attachment; filename="${csvFilename(downloadName(subject, localeOf(req)), now)}"`)
       // It is her data, freshly read. Nothing between here and her laptop may
       // keep a copy to hand to the next person who asks.
       .header('cache-control', 'no-store')
@@ -1991,7 +2024,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // A1 — HER business, from her session. This read the environment's one
       // business, which was the same thing until a second factory could sign in.
       loadOperationsSnapshot(deps.db, s.businessId, 'today', deps.provider, messagingEnabled),
-      loadInsights(deps.db, s.businessId),
+      loadInsights(deps.db, s.businessId, personOf(s).id),
       loadToday(deps.db, s.businessId, personOf(s).id, new Date()),
     ]);
     return {
@@ -2611,10 +2644,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post(path, async (req, reply) => {
       // Phase 4 — the number's lifecycle is the owner's, like connecting it:
       // a disconnect stops buyers' messages, a test writes to a real phone.
-      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+      const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp'));
       if (!s) return reply;
       const r = await run(s.businessId, personOf(s).id);
-      return flashTo(reply, '/app/channels', channelFlash(r.code));
+      return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
     });
   // G3 — connect the number the HOST is configured with. Owner-only under the
   // same decision as activation: it is the step that lets buyers' messages in.
@@ -2627,11 +2660,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   for (const kind of ['instagram', 'messenger'] as const) {
     app.post(`/app/channels/${kind}/connect`, async (req, reply) => {
-      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+      const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta'));
       if (!s) return reply;
       // G7 / KS6 — the same one question as the other connect routes (found 2026-10-01: this one never asked).
       const refused = await connectionRefusal(s.businessId);
-      if (refused) return flashTo(reply, '/app/channels', refused);
+      if (refused) return flashTo(reply, CHANNELS_HOME, refused);
       const configured = kind === 'instagram' ? deps.instagramAccountId : deps.messengerPageId;
       const r = await connectMetaChannel(deps.db, s.businessId, kind, configured ?? null, personOf(s).id);
       facts.evict(s.businessId);   // Phase 4b — any connected channel completes the setup step
@@ -2640,19 +2673,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : r.code === 'account_taken' ? 'reach.inbound.flash.taken'
         : r.code === 'not_configured' ? 'reach.inbound.flash.notConfigured'
         : 'channel.flash.failed';
-      return flashTo(reply, '/app/channels', key as MessageKey);
+      return flashTo(reply, channelScreenHref('meta'), key as MessageKey);
     });
   }
 
   app.post('/app/channels/whatsapp/connect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp'));
     if (!s) return reply;
     // G7 — the operator stopped new connections; KS6 — or the first one waits for approval.
     const refused = await connectionRefusal(s.businessId);
-    if (refused) return flashTo(reply, '/app/channels', refused);
+    if (refused) return flashTo(reply, CHANNELS_HOME, refused);
     const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
     facts.evict(s.businessId);   // D — a channel connected is a setup step done
-    return flashTo(reply, '/app/channels', channelFlash(r.code));
+    return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
   });
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
   channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
@@ -2665,31 +2698,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * mail; the decision comes back to the owner by e-mail (the five-minute sweep).
    */
   app.post('/app/channels/approval', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    const s = await ownerOnly(req, reply, 'messaging_activation', CHANNELS_HOME);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return flashTo(reply, '/app/channels', 'approval.flash.failed');
+    if (!bid.ok) return flashTo(reply, CHANNELS_HOME, 'approval.flash.failed');
     const raw = (req.body as { page?: unknown } | undefined)?.page;
     const page = whereSeenFrom(typeof raw === 'string' ? raw : '');
-    if (!page) return flashTo(reply, '/app/channels#approval', 'approval.flash.bad_page');
+    if (!page) return flashTo(reply, `${CHANNELS_HOME}#approval`, 'approval.flash.bad_page');
     const r = await withTenantTx(deps.db, bid.value, async (tx) =>
       (await approvalState(tx, bid.value)).needed ? askApproval(tx, page, personOf(s).name) : 'not_needed' as const)
       .catch(() => null);
-    if (r === null) return flashTo(reply, '/app/channels', 'approval.flash.failed');
+    if (r === null) return flashTo(reply, CHANNELS_HOME, 'approval.flash.failed');
     if (r === 'asked' && deps.systemMail) {
       void notifyOperatorOfConnectionAsk({ db: deps.db, mail: deps.systemMail }, deps.businessId, s.businessId).catch(() => undefined);
     }
-    return flashTo(reply, '/app/channels#approval', r === 'asked' ? 'approval.flash.asked' : r === 'not_needed' ? 'approval.flash.not_needed' : 'approval.flash.already');
+    return flashTo(reply, `${CHANNELS_HOME}#approval`, r === 'asked' ? 'approval.flash.asked' : r === 'not_needed' ? 'approval.flash.not_needed' : 'approval.flash.already');
   });
 
   // P3 follow-up: owner alert destination (minimal action, validated + audited).
   app.post('/app/settings/owner-phone', async (req, reply) => {
     // Phase 4 — where the owner's own alerts go is the owner's to change.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('alerts'));
     if (!s) return reply;
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await saveOwnerPhone(deps.db, s.businessId, phone, personOf(s).id);
-    return flashTo(reply, '/app/channels', `settings.flash.${r.code}` as MessageKey);
+    return flashTo(reply, channelScreenHref('alerts'), `settings.flash.${r.code}` as MessageKey);
   });
 
   /**
@@ -2749,43 +2782,53 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     };
   };
 
-  // Re-render the channels page with a flash after a redirect (?flash=).
+  /*
+   * Phase 9 (w4-business-assistant-05, -07; w4-whole-15) — the channels are a
+   * screen each, under their one home, My business › Where customers reach
+   * you. `/app/channels` answers with that home: an old link, a bookmark and
+   * the approval e-mail (CONNECTION_APPROVAL_PAGE) all still land.
+   */
   app.get('/app/channels', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
-    const locale = localeOf(req);
-    const flash = takeFlash(req, reply);
-    const loaded = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none',
-      deps.connectableNumber ?? null);
-    // C6 — every other account she links, read beside the WhatsApp card.
-    const bid = parseBusinessId(s.businessId);
-    // WA — her own WhatsApp number, and whether Embedded Signup is offered at all.
-    const waOwn = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => liveWhatsAppAccount(tx, bid.value)).catch(() => null) : null;
-    const waTemplates = bid.ok && waOwn ? await withTenantTx(deps.db, bid.value, (tx) => listReopenTemplates(tx, bid.value, waOwn.wabaId)).catch(() => []) : [];
-    const data = {
-      ...loaded, waSelfServe: waReady() !== null, waTemplates,
-      waOwn: waOwn ? { display: waOwn.display, verifiedName: waOwn.verifiedName, nameStatus: waOwn.nameStatus, needsAttention: waOwn.needsAttention !== null } : null,
-    };
-    const accounts = bid.ok ? await loadAccounts(deps.db, bid.value, {
-      clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
-      smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
-    }) : null;
-    // C9 — which inbound channels this host can offer, and which she connected.
-    const inbound = await inboundLinks(s.businessId);
-    const yours = await yourAccountsFor(s.businessId);
-    const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
-    // KS6 — before the first channel connects, the operator looks at the business.
-    const approval = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => approvalState(tx, bid.value)).catch(() => null) : null;
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.channels'), active: 'channels',
-      bodyHtml: renderChannels(data, locale, flash, personOf(s),
-        accounts ? renderAccounts(accounts, locale, personOf(s), inbound) : '', inbound,
-        yours ? renderYourAccounts(yours, locale) : '', deps.metaReview ?? null,
-        approval ? renderApprovalCard(approval, locale, personOf(s), deps.legalContact ?? null) : ''),
-      // CH1 — the page says when a first message arrives, or a connection changes.
-      ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
-    }));
+    if (!sessionOf(req)) return reply.redirect('/login');
+    return reply.redirect(CHANNELS_HOME);
   });
+  for (const screen of CHANNEL_SCREENS) {
+    app.get(channelScreenHref(screen), async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const flash = takeFlash(req, reply);
+      const bid = parseBusinessId(s.businessId);
+      const loaded = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none',
+        deps.connectableNumber ?? null);
+      // WA — her own WhatsApp number, and whether Embedded Signup is offered at all.
+      const waOwn = screen === 'whatsapp' && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => liveWhatsAppAccount(tx, bid.value)).catch(() => null) : null;
+      const waTemplates = bid.ok && waOwn ? await withTenantTx(deps.db, bid.value, (tx) => listReopenTemplates(tx, bid.value, waOwn.wabaId)).catch(() => []) : [];
+      const data = {
+        ...loaded, waSelfServe: waReady() !== null, waTemplates,
+        waOwn: waOwn ? { display: waOwn.display, verifiedName: waOwn.verifiedName, nameStatus: waOwn.nameStatus, needsAttention: waOwn.needsAttention !== null } : null,
+      };
+      // C9 — which inbound channels this host can offer, and which she connected.
+      const inbound = await inboundLinks(s.businessId);
+      // C6 — the mail accounts, on E-mail's screen.
+      const accounts = screen === 'email' && bid.ok ? await loadAccounts(deps.db, bid.value, {
+        clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
+        smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
+      }) : null;
+      // CH1 — each step of connecting a Page, on Instagram and Messenger's screen.
+      const yours = screen === 'meta' ? await yourAccountsFor(s.businessId) : null;
+      const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: channelScreenTitle(locale, screen), active: 'channels',
+        bodyHtml: renderChannelScreen(screen, data, locale, flash, personOf(s), {
+          ...(accounts ? { accountsHtml: renderAccounts(accounts, locale, personOf(s), inbound, 'mail') } : {}),
+          inbound, ...(yours ? { yourAccountsHtml: renderYourAccounts(yours, locale) } : {}), metaReview: deps.metaReview ?? null,
+        }),
+        // CH1 — the screen says when a first message arrives, or a connection changes.
+        ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
+      }));
+    });
+  }
 
   // ── Nomi Phase E · My factory ──────────────────────────────────────────────
   // One calm page over the EXISTING profile / products / claims / channel read
@@ -2811,7 +2854,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // home), who may be messaged, going live, what is promised, how you sell.
   const BUSINESS_SCREEN_TITLE: Readonly<Record<BusinessScreen, (locale: Locale) => string>> = {
     channels: (l) => t(l, 'factory.reach.title'), allowlist: (l) => t(l, 'allowlist.title'),
-    ready: (l) => t(l, 'factory.ready.title'), promises: (l) => t(l, 'factory.promise.title'),
+    ready: (l) => t(l, 'business.row.live'), promises: (l) => t(l, 'factory.promise.title'),
     how: (l) => t(l, 'factory.sellhow.title'),
   };
   for (const screen of Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[]) {
@@ -2821,8 +2864,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: screen === 'ready' }),
         screen === 'how' ? loadBusinessMenu(deps.db, s.businessId, personOf(s).isOwner) : Promise.resolve(undefined),
       ]);
+      // KS6 — the approval the first connection waits for leads the channels' home.
+      const bid = parseBusinessId(s.businessId);
+      const approval = screen === 'channels' && bid.ok
+        ? await withTenantTx(deps.db, bid.value, (tx) => approvalState(tx, bid.value)).catch(() => null) : null;
       return { title: BUSINESS_SCREEN_TITLE[screen](locale),
-        bodyHtml: renderBusinessScreen(screen, menu ? { ...view, menu } : view, locale, flash, personOf(s)) };
+        bodyHtml: renderBusinessScreen(screen, menu ? { ...view, menu } : view, locale, flash, personOf(s),
+          approval ? { approvalHtml: renderApprovalCard(approval, locale, personOf(s), deps.legalContact ?? null) } : {}) };
     }));
   }
 
@@ -2914,12 +2962,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Start never skips WhatsApp's own checklist, and Stop binds the channels
   // that have no switch of their own.
   app.post('/app/business/stop-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', READY);
+    // Phase 9 (rule 13) — pressed on the assistant's own page, the notice lands there.
+    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? '/app/employee#on-her-own' : READY;
+    const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect(READY);
+    if (!bid.ok) return reply.redirect(to);
     const r = await stopAssistant(deps.db, bid.value, personOf(s).id);
-    return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already');
+    return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already', undefined, to);
   });
   app.post('/app/business/start-assistant', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', READY);
@@ -2957,8 +3007,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
-    return d ? renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s))
-      : missingPage(locale, t(locale, 'product.notFound'), { href: '/app/products', label: t(locale, 'product.detail.back') });
+    // The warmth run, phase 9 (w4-products-knowledge-16) — a product that is not here answers 404, as its knowledge page does.
+    if (!d) { reply.code(404); return renderProductMissing(locale); }
+    return renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s));
   }));
   /**
    * K1 — a pasted list becomes an import that is KEPT (0094): the owner lands on
@@ -3096,7 +3147,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** K1 — the review of one import, as she left it. */
   app.get('/app/products/import/:importId', ownerPage('price_rules', 'products', '/app/products', async (s, req, reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
-    if (!m) return notFoundImport(locale);
+    // w4-products-knowledge-16 — a list that is not here is not "already added": its own words, and 404.
+    if (!m) { reply.code(404); return notFoundImport(locale); }
     // K8 — a table whose columns are not mapped yet shows its columns first.
     const table = m.imp.kind === 'file' && m.imp.rows.length === 0 && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
     if (table) return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
@@ -3247,7 +3299,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     facts.evict(s.businessId);   // D — a first price is a setup step done
+    // The warmth run, phase 9 (V1-305) — the larger orders' prices, one box each ("tier:2000").
+    const tiers = Object.fromEntries(Object.entries(b).filter(([k]) => /^tier:\d+$/.test(k)).map(([k, v]) => [k.slice('tier:'.length), String(v ?? '')]));
     const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
+      tiers: Object.keys(tiers).length ? tiers : null,
       price: b['price'] ?? null,
       moq: b['moq'] ?? null,
       unit: b['unit'] ?? null,
@@ -3261,9 +3316,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     if (!r.ok) {
       const d = await loadProductDetail(deps.db, s.businessId, id);
+      // The warmth run, phase 9 (w4-products-knowledge-17) — the page sent back is the
+      // product's own page: its name is the tab's, as when it is opened (V1-320).
+      if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'product.notFound'), active: 'products', bodyHtml: renderProductMissing(locale),
+      }));
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'product.edit.title'), active: 'products',
-        bodyHtml: d ? renderProductDetail(d, locale, null, r.errors, b) : '',
+        title: productName(locale, d) ?? d.name, active: 'products',
+        bodyHtml: renderProductDetail(d, locale, null, r.errors, b, personOf(s)),
       }));
     }
     return flashTo(reply, `/app/products/${encodeURIComponent(id)}`,
@@ -3450,16 +3510,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * two pages cannot disagree.
    */
   const talkAbout = async (businessId: string, locale: Locale): Promise<TalkAbout> => {
-    const [profile, products, hub] = await Promise.all([
+    const [profile, products, hub, known] = await Promise.all([
       loadBusinessProfile(deps.db, businessId), loadProductList(deps.db, businessId), loadHub(deps.db, businessId),
+      loadKnowledgeIndex(deps.db, businessId),
     ]);
     const sold = products.filter((p) => p.isActive);
     return {
-      business: profile.name,
-      given: [
-        ...(['description', 'location', 'workingHours', 'contactEmail', 'contactPhone'] as const).filter((k) => Boolean(profile[k]?.trim())),
-        ...(profile.languagesServed.length ? ['languages' as const] : []),
-      ],
+      finished: profileFinished(profile),
+      taught: known.business.length + known.products.reduce((n, p) => n + p.count, 0),
+      certs: known.certs ?? [],
       selling: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
       products: {
         total: sold.length,
@@ -3564,7 +3623,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     const r = await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id)
       .catch(() => ({ ok: false, changed: 0 }));
-    return flashTo(reply, `/app/employee#on-her-own`, r.ok ? 'autonomy.flash.saved' : 'people.flash.failed');
+    if (!r.ok) return flashTo(reply, `/app/employee#on-her-own`, 'people.flash.failed');
+    // V1-417 — the notice says what happens now, by the page's own answer (`aloneNow`).
+    const held = level !== 'waits' && await loadEmployee(deps.db, s.businessId)
+      .then((e) => aloneNow({ capabilities: e.capabilities, released: (deps.autonomyReleased ?? autonomyReleased)(), named: e.assistantNamed,
+        ...(e.earned === undefined ? {} : { earned: e.earned }), stopped: e.stopped === true, silenced: e.silenced === true }).hold !== null)
+      .catch(() => false);
+    return flashTo(reply, `/app/employee#on-her-own`, held ? 'autonomy.flash.savedHeld' : 'autonomy.flash.saved');
   });
   capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));
   capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
@@ -3835,6 +3900,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
   });
 
+  // The warmth run, phase 9 (w4-today-setup-15) — the two screens under the
+  // checklist: what to try in Practice, and how it is going. Same readers as
+  // the checklist; each screen draws its part.
+  for (const which of PILOT_SCREENS) {
+    app.get(PILOT_SCREEN_PATH[which], async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const bid0 = parseBusinessId(s.businessId);
+      const data = await loadPilotRunbook(deps.db, s.businessId, {
+        practiceBusinessId: bid0.ok ? await practiceCopyOf(deps.db, bid0.value) : null, provider: deps.provider,
+      });
+      const feedback = which === 'activity' ? await loadPilotFeedback(deps.db, s.businessId, 'month') : undefined;
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, which === 'practice' ? 'runbook.practice.title' : 'runbook.during.title'), active: 'onboarding',
+        bodyHtml: renderPilotScreen(which, data, locale, feedback),
+      }));
+    });
+  }
+
   // G6 — "Ready for customers": the owner's own evidence before customers write.
   app.get('/app/ready', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -3910,15 +3995,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // route rather than a branch of /attest: this one carries an answer, and the
   // attest route exists precisely because those items have no answer to carry.
   app.post('/app/onboarding/assistant-name', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    // Phase 9 (V1-420) — confirmed on the assistant's Name screen, it comes back there.
+    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? screenHref('name') : '/app/onboarding';
+    const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const raw = String((req.body as { name?: string } | undefined)?.name ?? '');
     const r = await nameAssistant(deps.db, s.businessId, raw, personOf(s).id);
-    if (!r.ok) return flashTo(reply, '/app/onboarding', `pilot.assistant.problem.${r.problem}` as MessageKey);
+    if (!r.ok) return flashTo(reply, to, `pilot.assistant.problem.${r.problem}` as MessageKey);
     // Confirming is what makes the name SHOWN (chosenName), so the cached
     // "no name yet" must go now, not a minute from now.
     facts.evict(s.businessId);
-    return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
+    return flashTo(reply, to, 'pilot.flash.attested');
   });
 
   app.post('/app/onboarding/validate', async (req, reply) => {
@@ -3988,7 +4075,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'nav.setup'), active: 'settings',
       bodyHtml: renderSetup({
         people: people.length, viewer: personOf(s),
-        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length, ...(ways !== undefined ? { way: ways ? alertWayNow(ways, phones) : null } : {}) } : null,
+        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length, ...(ways !== undefined ? {
+          // Phase 9 (w4-settings-a-02, w4-today-setup-25) — null when no way can reach this reader: the row says so.
+          way: ways ? alertWayNow(ways, phones) : null,
+        } : {}) } : null,
         signIn: { email: login?.email ?? null },
         billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
         dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
@@ -4008,19 +4098,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The warmth run, phase 8 — the page is Notifications: what reaches anyone
   // outside Nomi, how it reaches this person (their own choice, 0124), and the phones.
   const whatsappApproved = (): boolean => deps.metaReview?.state === 'approved';
+  // Phase 9 (w4-settings-a-10) — opened from the channels screen's card, its way back leads there.
   app.get('/app/settings/alerts', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'alerts.title'),
     bodyHtml: renderPhoneAlerts({
       ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
       ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
-    }, locale, takeFlash(req, reply)),
+    }, locale, takeFlash(req, reply), alertsFrom((req.query as { from?: unknown } | undefined)?.from)),
   })));
   app.post('/app/settings/alerts/channel', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const way = await chooseAlertWay(deps.db, s.businessId, personOf(s).id, b['channel'],
       { approved: whatsappApproved(), pushOn: Boolean(deps.push) });
-    return flashTo(reply, '/app/settings/alerts', way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
+    return flashTo(reply, alertsFrom(b['from']) === 'channels' ? '/app/settings/alerts?from=channels' : '/app/settings/alerts',
+      way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
   });
   app.post('/app/settings/alerts/phone', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -4073,8 +4165,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;
-    const r = await saveBusinessKind(deps.db, s.businessId,
-      { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') }, personOf(s).id);
+    const typed = { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') };
+    // Phase 9 (w4-settings-a-11) — a refused answer is sent back with the three kept and the wrong one marked.
+    const problem = businessKindProblem(typed);
+    const kept = problem ? keptFrom(localeOf(req), `business.kind.bad.${problem}`, typed) : null;
+    if (kept) {
+      return sentBack(req, reply, 'settings', renderBusinessKind({ kind: typed.kind, country: typed.country || null, website: typed.website },
+        localeOf(req), null, t(localeOf(req), 'nav.factory'), kept));
+    }
+    const r = await saveBusinessKind(deps.db, s.businessId, typed, personOf(s).id);
     facts.evict(s.businessId);   // Phase 9 (V1-009) — the country decides how an amount is written on every page
     return flashTo(reply, '/app/settings/business', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
   });
@@ -4125,8 +4224,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
+    // The warmth run, phase 9 (V1-008) — each date arrives as day, month and year; put together, validated as before.
     const r = await addClosure(deps.db, s.businessId, {
-      label: b['label'] ?? null, from: b['from'] ?? null, to: b['to'] ?? null,
+      label: b['label'] ?? null, from: closureDateField(b, 'from'), to: closureDateField(b, 'to'),
     });
     if (r.code === 'added') return flashTo(reply, '/app/settings/closures', 'closures.flash.added', { label: r.label });
     const kept = keptFrom(locale, `closures.flash.${r.code}`, b);
@@ -4161,6 +4261,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * page. Every face in the product links here; the page's script lifts the
    * card into a sheet over the page it was opened from. Another business's
    * customer is not found, as a missing one is (row security).
+   *
+   * Phase 9 — waiting is read as THIS reader sees it (the Inbox's rule), and
+   * the conversation the card was opened from (the page that asked for it,
+   * this site's own conversation page) is told to the card: its door does
+   * not lead back to it, and the page's back link does.
    */
   app.get('/app/customers/:clientId', async (req, reply) => {
     const s = sessionOf(req);
@@ -4168,14 +4273,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const bid = parseBusinessId(s.businessId);
     const id = (req.params as { clientId: string }).clientId;
-    const card = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerCard(tx, id)) : null;
+    const card = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerCard(tx, id, personOf(s).id)) : null;
     if (!card) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       bodyHtml: missingPage(locale, t(locale, 'inbox.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') }),
     }));
+    const from = cardOpenedFrom(req.headers.referer, req.headers.host);
     return reply.type('text/html; charset=utf-8').header('cache-control', 'private, no-store').send(page(req, {
       title: card.name ?? t(locale, 'common.buyer'), active: 'inbox',
-      bodyHtml: `${back('/app/inbox', t(locale, 'nav.inbox'))}${renderCustomerCard(card, locale, new Date())}`,
+      bodyHtml: `${from ? back(conversationUrl(from), t(locale, 'pcard.back')) : back('/app/inbox', t(locale, 'nav.inbox'))}${renderCustomerCard(card, locale, new Date(), from)}`,
     }));
   });
 
@@ -4183,7 +4289,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     const v = await loadOrder(deps.db, sess.businessId, id);
     if (!v) return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') });
-    return renderOrder(v, locale, takeFlash(req, reply));
+    // Phase 9 of the warmth run (V1-184) — the tab names whose order it is, as the heading does.
+    return { bodyHtml: renderOrder(v, locale, takeFlash(req, reply)), title: orderTitle(locale, v) };
   }));
 
   // Phase 9 (V1-188) — the proforma as a file, the same text the page shows:
@@ -4302,7 +4409,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * is silent. Setting it CLEARS any previous check — see `setSendingDomain`.
    */
   app.post('/app/channels/domain', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', channelScreenHref('email'));
     if (!sess) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
@@ -4312,20 +4419,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const shaped = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain)
       && /^[a-z0-9][a-z0-9-]*$/.test(selector);
     if (!bid.ok || !shaped) {
-      return flashTo(reply, '/app/channels', bid.ok ? 'domain.flash.invalid' : 'domain.flash.failed');
+      return flashTo(reply, channelScreenHref('email'), bid.ok ? 'domain.flash.invalid' : 'domain.flash.failed');
     }
     await withTenantTx(deps.db, bid.value, (tx) =>
       setSendingDomain(tx, bid.value, { domain, dkimSelector: selector, by: personOf(sess).name }));
-    return flashTo(reply, '/app/channels', 'domain.flash.saved');
+    return flashTo(reply, channelScreenHref('email'), 'domain.flash.saved');
   });
 
   app.post('/app/channels/domain/check', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', channelScreenHref('email'));
     if (!sess) return reply;
     const locale = localeOf(req);
     const bid = parseBusinessId(sess.businessId);
     if (!bid.ok) {
-      return flashTo(reply, '/app/channels', 'domain.flash.failed');
+      return flashTo(reply, channelScreenHref('email'), 'domain.flash.failed');
     }
     // The lookup is I/O and can fail; a failure returns empty lists, which read
     // as 'missing'. It is never allowed to read as "fine". The mechanism to
@@ -4336,9 +4443,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       db: deps.db, resolveDns: deps.resolveDns, sendingInclude: deps.sendingInclude ?? null,
     }, bid.value, new Date());
     if (!check) {
-      return flashTo(reply, '/app/channels', 'domain.flash.failed');
+      return flashTo(reply, channelScreenHref('email'), 'domain.flash.failed');
     }
-    return flashTo(reply, '/app/channels', 'domain.flash.checked');
+    return flashTo(reply, channelScreenHref('email'), 'domain.flash.checked');
   });
 
   /**
@@ -4349,19 +4456,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * be able to do on her behalf.
    */
   app.post('/app/channels/outreach', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', CHANNELS_HOME);
     if (!sess) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
     const channel = OUTREACH_CHANNELS.find((c) => c === b['channel']);
     const bid = parseBusinessId(sess.businessId);
     if (!channel || !bid.ok) {
-      return flashTo(reply, '/app/channels', 'outreach.flash.failed');
+      return flashTo(reply, CHANNELS_HOME, 'outreach.flash.failed');
     }
     const enabled = b['enabled'] === 'true';
     const done = await withTenantTx(deps.db, bid.value, (tx) =>
       setOutreach(tx, bid.value, { channel, enabled, by: personOf(sess).name }));
-    return flashTo(reply, '/app/channels', !done ? 'outreach.flash.failed' : enabled ? 'outreach.flash.on' : 'outreach.flash.off');
+    return flashTo(reply, channelScreenHref(screenOfChannel(channel)), !done ? 'outreach.flash.failed' : enabled ? 'outreach.flash.on' : 'outreach.flash.off');
   });
 
   /**
@@ -4372,7 +4479,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * stands, so changing the number never changes whether writing first is on.
    */
   app.post('/app/channels/outreach/cap', async (req, reply) => {
-    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    const sess = await ownerOnly(req, reply, 'outreach', CHANNELS_HOME);
     if (!sess) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
@@ -4380,7 +4487,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(sess.businessId);
     const raw = typeof b['cap'] === 'string' ? b['cap'].trim() : '';
     const cap = raw === '' ? null : /^\d{1,5}$/.test(raw) && Number(raw) >= 1 ? Number(raw) : undefined;
-    const failed = () => flashTo(reply, '/app/channels', 'outreach.flash.failed');
+    const failed = () => flashTo(reply, channel ? channelScreenHref(screenOfChannel(channel)) : CHANNELS_HOME, 'outreach.flash.failed');
     if (!channel || !bid.ok || cap === undefined) return failed();
     const done = await withTenantTx(deps.db, bid.value, async (tx) => {
       const current = (await outreachSettings(tx, bid.value)).get(channel);
@@ -4389,7 +4496,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       });
     });
     if (!done) return failed();
-    return flashTo(reply, '/app/channels', 'outreach.flash.cap', { n: String(cap ?? DAILY_OUTREACH_CEILING) });
+    return flashTo(reply, channelScreenHref(screenOfChannel(channel)), 'outreach.flash.cap', { n: String(cap ?? DAILY_OUTREACH_CEILING) });
   });
 
   /**
@@ -4415,16 +4522,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const OAUTH_COOKIE = 'yf_oauth';
   const redirectUriFor = (provider: string) =>
     `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/${provider}/callback`;
-  const channelsFlash = (reply: FastifyReply, key: string, vars?: Record<string, string>) =>
-    flashTo(reply, '/app/channels', key as MessageKey, vars);
+  const channelsFlash = (reply: FastifyReply, key: string, vars?: Record<string, string>, to: string = CHANNELS_HOME) =>
+    flashTo(reply, to, key as MessageKey, vars);
 
   app.get('/app/connect/:provider/start', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
     const locale = localeOf(req);
     const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
     const client = provider ? deps.oauthClients?.[provider] : undefined;
     if (!provider || !client || !deps.publicBaseUrl || !deps.credentialKey) {
-      return channelsFlash(reply, 'connect.flash.not_configured');
+      return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('email'));
     }
     const { verifier, challenge } = pkcePair();
     const nonce = randomBytes(24).toString('base64url');
@@ -4436,7 +4543,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.get('/app/connect/:provider/callback', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
     const locale = localeOf(req);
     const q = req.query as { code?: string; state?: string; error?: string };
     const cookie = parseCookies(req.headers.cookie)[OAUTH_COOKIE];
@@ -4446,13 +4553,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
     if (!provider || !state || state.provider !== provider || state.personId !== personOf(s).id
         || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('email'));
     }
     if (q.error || typeof q.code !== 'string' || !q.code) {
-      return channelsFlash(reply, 'connect.flash.denied');
+      return channelsFlash(reply, 'connect.flash.denied', undefined, channelScreenHref('email'));
     }
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return channelsFlash(reply, 'connect.flash.rejected');
+    if (!bid.ok) return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('email'));
     const r = await completeMailConnection({
       db: deps.db, credentialKey: deps.credentialKey ?? null, clients: deps.oauthClients ?? {},
       fetchImpl: deps.oauthFetch ?? (fetch as unknown as OAuthFetch), now: () => new Date(),
@@ -4462,16 +4569,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     facts.evict(s.businessId);   // Phase 4b — a mailbox is a place buyers write: a setup step
     return r.outcome === 'connected'
-      ? channelsFlash(reply, 'connect.flash.connected', { address: r.address ?? '' })
-      : channelsFlash(reply, `connect.flash.${r.outcome}`);
+      ? channelsFlash(reply, 'connect.flash.connected', { address: r.address ?? '' }, channelScreenHref('email'))
+      : channelsFlash(reply, `connect.flash.${r.outcome}`, undefined, channelScreenHref('email'));
   });
 
   app.post('/app/connect/mail/disconnect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'outreach', channelScreenHref('email')); if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     const done = bid.ok && await disconnectMailbox(deps.db, { businessId: bid.value, by: personOf(s).name });
     facts.evict(s.businessId);
-    return channelsFlash(reply, done ? 'connect.flash.disconnected' : 'connect.flash.rejected');
+    return channelsFlash(reply, done ? 'connect.flash.disconnected' : 'connect.flash.rejected', undefined, channelScreenHref('email'));
   });
 
   /**
@@ -4487,22 +4594,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const metaReady = () => (deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect) ? deps.metaConnect : null;
   const metaFlash = (reply: FastifyReply, r: MetaConnectOutcome): FastifyReply => {
     switch (r.outcome) {
-      case 'connected': return channelsFlash(reply, r.instagram ? 'connect.meta.flash.connected' : 'connect.meta.flash.connectedNoIg', { page: r.page });
+      case 'connected': return channelsFlash(reply, r.instagram ? 'connect.meta.flash.connected' : 'connect.meta.flash.connectedNoIg', { page: r.page }, channelScreenHref('meta'));
       case 'no_pages': case 'page_taken': case 'subscribe_failed': case 'unavailable':
-        return channelsFlash(reply, `connect.meta.flash.${r.outcome}`);
-      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured');
-      default: return channelsFlash(reply, 'connect.flash.rejected');
+        return channelsFlash(reply, `connect.meta.flash.${r.outcome}`, undefined, channelScreenHref('meta'));
+      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
+      default: return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('meta'));
     }
   };
 
   app.get('/app/connect/meta/start', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     // G7 — the operator stopped new connections, or (KS6) the first one waits for approval: nothing is asked of Meta.
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
     const locale = localeOf(req);
     const mc = metaReady();
-    if (!mc || !deps.metaLogin) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!mc || !deps.metaLogin) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
     const nonce = randomBytes(24).toString('base64url');
     writeCookie(reply, META_COOKIE,
       mintMetaState(deps.sessionSecret, { nonce, personId: personOf(s).id, tokenCiphertext: null }, Date.now()),
@@ -4511,7 +4618,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.get('/app/connect/meta/callback', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     const locale = localeOf(req);
     const q = req.query as { code?: string; state?: string; error?: string };
     const cookie = parseCookies(req.headers.cookie)[META_COOKIE];
@@ -4522,12 +4629,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (refused) return channelsFlash(reply, refused);
     const state = readMetaState(deps.sessionSecret, cookie, Date.now());
     if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('meta'));
     }
-    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied');
+    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied', undefined, channelScreenHref('meta'));
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
-    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
     const r = await completeMetaConnection(mc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(), code: q.code.slice(0, 2048),
     });
@@ -4543,7 +4650,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/connect/meta/choose', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     // G7 — the last step of connecting a Page: refused while connections are stopped, or (KS6) not yet approved.
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
@@ -4551,18 +4658,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, unknown>;
     const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
     if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('meta'));
     }
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
-    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('meta'));
     facts.evict(s.businessId);   // D — a Page connected is a setup step done
     const pageId = typeof b['page_id'] === 'string' ? b['page_id'].slice(0, 40) : '';
     const r = await completeMetaConnection(mc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(),
       userTokenCiphertext: state.tokenCiphertext, pageId,
     });
-    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected') : metaFlash(reply, r);
+    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('meta')) : metaFlash(reply, r);
   });
 
   /**
@@ -4580,20 +4687,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     switch (r.outcome) {
       case 'connected':
         return channelsFlash(reply, r.nameStatus && r.nameStatus !== 'APPROVED' && r.verifiedName ? 'connect.wa.flash.connectedNamePending' : 'connect.wa.flash.connected',
-          { number: r.display ?? '', verified: r.verifiedName ?? '' });
+          { number: r.display ?? '', verified: r.verifiedName ?? '' }, channelScreenHref('whatsapp'));
       case 'no_account': case 'no_number': case 'number_taken': case 'refused': case 'unavailable':
-        return channelsFlash(reply, `connect.wa.flash.${r.outcome}`);
-      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured');
-      default: return channelsFlash(reply, 'connect.flash.rejected');
+        return channelsFlash(reply, `connect.wa.flash.${r.outcome}`, undefined, channelScreenHref('whatsapp'));
+      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
+      default: return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('whatsapp'));
     }
   };
 
   app.get('/app/connect/whatsapp/start', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
     const wc = waReady();
-    if (!wc || !deps.waLogin) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!wc || !deps.waLogin) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const nonce = randomBytes(24).toString('base64url');
     writeCookie(reply, WA_COOKIE,
       mintMetaState(deps.sessionSecret, { nonce, personId: personOf(s).id, tokenCiphertext: null }, Date.now()),
@@ -4602,7 +4709,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.get('/app/connect/whatsapp/callback', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const locale = localeOf(req);
     const q = req.query as { code?: string; state?: string; error?: string };
     const cookie = parseCookies(req.headers.cookie)[WA_COOKIE];
@@ -4611,12 +4718,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (refused) return channelsFlash(reply, refused);
     const state = readMetaState(deps.sessionSecret, cookie, Date.now());
     if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
-      return channelsFlash(reply, 'connect.flash.expired');
+      return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('whatsapp'));
     }
-    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied');
+    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied', undefined, channelScreenHref('whatsapp'));
     const wc = waReady();
     const bid = parseBusinessId(s.businessId);
-    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const r = await completeWhatsAppConnection(wc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: waRedirectUri(), code: q.code.slice(0, 2048),
     });
@@ -4633,24 +4740,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/connect/whatsapp/choose', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const refused = await connectionRefusal(s.businessId);
     if (refused) return channelsFlash(reply, refused);
     const b = (req.body ?? {}) as Record<string, unknown>;
     const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
-    if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) return channelsFlash(reply, 'connect.flash.expired');
+    if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) return channelsFlash(reply, 'connect.flash.expired', undefined, channelScreenHref('whatsapp'));
     const wc = waReady();
     const bid = parseBusinessId(s.businessId);
-    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!wc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const wabaId = typeof b['waba_id'] === 'string' && /^[0-9]{5,30}$/.test(b['waba_id']) ? b['waba_id'] : '';
     const numberId = typeof b['number_id'] === 'string' ? b['number_id'].slice(0, 40) : '';
-    if (!wabaId || !numberId) return channelsFlash(reply, 'connect.flash.rejected');
+    if (!wabaId || !numberId) return channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('whatsapp'));
     const r = await completeWhatsAppConnection(wc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: waRedirectUri(),
       tokenCiphertext: state.tokenCiphertext, wabaId, phoneNumberId: numberId,
     });
     if (r.outcome === 'connected') facts.evict(s.businessId);
-    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected') : waFlash(reply, r);
+    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected', undefined, channelScreenHref('whatsapp')) : waFlash(reply, r);
   });
 
   /**
@@ -4668,9 +4775,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return token ? { wc, bid: bid.value, account, token } : null;
   };
   app.post('/app/channels/whatsapp/templates/submit', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const c = await waTemplateContext(s);
-    if (!c) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!c) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const biz = (await withTenantTx(deps.db, c.bid, (tx) => sql<{ name: string; served: string[] | null }>`
       select name, languages_served as served from businesses where id = ${c.bid}`.execute(tx))).rows[0];
     const have = new Map((await withTenantTx(deps.db, c.bid, (tx) => listReopenTemplates(tx, c.bid, c.account.wabaId))).map((r) => [r.language, r.status]));
@@ -4687,34 +4794,34 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       asked++;
     }
     return channelsFlash(reply, asked > 0 ? 'channel.wa.template.flash.submitted' : unavailable ? 'channel.wa.template.flash.unavailable' : 'channel.wa.template.flash.nothing',
-      { n: String(asked) });
+      { n: String(asked) }, channelScreenHref('whatsapp'));
   });
   app.post('/app/channels/whatsapp/templates/check', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const c = await waTemplateContext(s);
-    if (!c) return channelsFlash(reply, 'connect.flash.not_configured');
+    if (!c) return channelsFlash(reply, 'connect.flash.not_configured', undefined, channelScreenHref('whatsapp'));
     const statuses = await reopenTemplateStatuses({ wabaId: c.account.wabaId, token: c.token, graphVersion: c.wc.graphVersion }, c.wc.fetchImpl);
-    if (statuses === null) return channelsFlash(reply, 'channel.wa.template.flash.unavailable');
+    if (statuses === null) return channelsFlash(reply, 'channel.wa.template.flash.unavailable', undefined, channelScreenHref('whatsapp'));
     await withTenantTx(deps.db, c.bid, (tx) => recordStatuses(tx, c.bid, c.account.wabaId, statuses));
-    return channelsFlash(reply, 'channel.wa.template.flash.checked');
+    return channelsFlash(reply, 'channel.wa.template.flash.checked', undefined, channelScreenHref('whatsapp'));
   });
 
   app.post('/app/connect/whatsapp/disconnect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('whatsapp')); if (!s) return reply;
     const wc = waReady();
     const bid = parseBusinessId(s.businessId);
     const done = wc !== null && bid.ok && await disconnectWhatsAppAccount(wc, { businessId: bid.value, by: personOf(s).name });
     facts.evict(s.businessId);
-    return channelsFlash(reply, done ? 'connect.wa.flash.disconnected' : 'connect.flash.rejected');
+    return channelsFlash(reply, done ? 'connect.wa.flash.disconnected' : 'connect.flash.rejected', undefined, channelScreenHref('whatsapp'));
   });
 
   app.post('/app/connect/meta/disconnect', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta')); if (!s) return reply;
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
     const done = mc !== null && bid.ok && await disconnectMetaAccount(mc, { businessId: bid.value, by: personOf(s).name });
     facts.evict(s.businessId);
-    return channelsFlash(reply, done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected');
+    return channelsFlash(reply, done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected', undefined, channelScreenHref('meta'));
   });
 
   /**
@@ -5173,11 +5280,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
     // Phase 9 (V1-358) — what to do first; the period's counts last.
-    return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
+    // The warmth run, phase 9 (new-17) — one wrapper, so the page keeps one measure (`.kpage`).
+    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
         : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
-      + renderKnowledgePeriod(ops, locale, new Date());
+      + renderKnowledgePeriod(ops, locale, new Date()) + '</div>';
   };
   app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);
@@ -5230,7 +5338,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const d = await loadProductKnowledge(deps.db, s.businessId, id);
     if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: missingPage(locale, t(locale, 'product.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
+      bodyHtml: renderProductMissing(locale, { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
     }));
     const usage = await loadUsageFacts(deps.db, s.businessId, id);
     const flash = takeFlash(req, reply);
@@ -5279,11 +5387,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? flashTo(reply, `/app/knowledge/${encodeURIComponent(r.productId)}`, 'knowledge.flash.restored')
       : flashTo(reply, '/app/knowledge', r.code === 'restored' ? 'knowledge.flash.restored' : 'knowledge.flash.notRestored');
   });
+  // The warmth run, phase 9 (w4-products-knowledge-02) — the certifications are
+  // switched in one place, My business › What you promise customers: the notice lands there.
   app.post('/app/knowledge/cert', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; key?: string; allowed?: string };
     const r = await setCertification(deps.db, s.businessId, String(b.key ?? ''), b.allowed === '1');
-    return kBack(reply, req, String(b.productId ?? ''), r.code);
+    return flashTo(reply, BUSINESS_SCREEN_PATH.promises, `knowledge.flash.${r.code}` as MessageKey);
   });
 
   // ── Practice (M12.2; per workspace since P3, docs/PRACTICE.md) ─────────────

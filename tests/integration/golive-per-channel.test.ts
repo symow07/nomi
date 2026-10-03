@@ -98,14 +98,17 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
     expect(html).toContain(esc(t('en', 'golive.other.live', { channels: 'Instagram', name: 'your assistant' })));
     // the two ways those replies are stopped, each a real door
     expect(html).toMatch(/href="\/app\/employee"[^>]*>[\s\S]*?Make every reply wait for you/);
-    expect(html).toMatch(/href="\/app\/channels"[^>]*>[\s\S]*?Disconnect the channel/);
+    // (the fix wave) channels' one home, where each channel's screen is
+    expect(html).toMatch(/href="\/app\/business\/channels"[^>]*>[\s\S]*?Disconnect the channel/);
   });
 
   it('NOTHING CONNECTED and WhatsApp not among its channels: a neutral next step, no WhatsApp blocker', async () => {
     const { page } = await open(NONE_BIZ, { provider: 'disabled', messagingEnabled: false });
     const html = await page();
-    expect(html).toContain('data-golive="none"');
-    expect(html).toContain(esc(t('en', 'golive.none', { name: 'your assistant' })));
+    // (w4-business-assistant-14) the screen's answer line says it once; the line under it is only for a stop.
+    expect(html).toContain(esc(t('en', 'factory.ready.answer.nothing', { name: 'your assistant' })));
+    expect(html).not.toContain('data-golive="none"');
+    expect(html).toContain('href="/app/business/channels"');
     expect(html).not.toContain(noChannel());
     expect(html).not.toContain('data-golive="elsewhere"');
   });

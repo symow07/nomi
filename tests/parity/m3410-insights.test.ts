@@ -111,7 +111,8 @@ describe('M34.10 · every insight carries somewhere to go', () => {
     const src = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     // A1 — HER business, from her session: Today read the environment's one
     // business until a second factory could sign in.
-    expect(src).toContain('loadInsights(deps.db, s.businessId)');
+    // Phase 9 (w4-customers-02) — and as THIS reader sees who waits: the quiet-after-a-price line is the Inbox band's.
+    expect(src).toContain('loadInsights(deps.db, s.businessId, personOf(s).id)');
     expect(src).not.toContain('loadInsights(deps.db, deps.businessId)');
     // The design pass: the lines, bare, inside Today's first block.
     expect(src).toContain('renderInsights(insights, locale, { bare: true })');

@@ -180,9 +180,10 @@ describe('M39 · what she reads', () => {
     // Phase 9 (new-16) — the headline waits on nothing the owner started: the plain pill, never the ✓.
     expect(whatsapp).toMatch(/class="pill stop">You can write first once these are in place/);
     expect(whatsapp).not.toMatch(/class="pill ok">You can write first</);
-    // one done, two still outstanding
+    // one done; the two this page cannot see say so (w4-business-assistant-08), never "Not yet"
     expect(whatsapp.split(t('en', 'reach.req.ready')).length - 1).toBe(1);
-    expect(whatsapp.split(`class="pill stop">${t('en', 'reach.req.waiting')}`).length - 1).toBe(2);
+    expect(whatsapp.split(`class="pill stop">${t('en', 'reach.req.unseen')}`).length - 1).toBe(2);
+    expect(whatsapp).not.toContain(`class="pill stop">${t('en', 'reach.req.waiting')}`);
   });
 
   it('the channels that cannot be written to first say what works instead', () => {
@@ -284,7 +285,8 @@ describe('M39 · what she reads', () => {
     // clock). The rule this pins is unchanged: the page renders the predicate's
     // answer, never a second derivation of it.
     expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),');
-    expect(src).toContain('${reach}');
+    expect(src).toContain("${reach('whatsapp')}");
+    expect(src).toContain("${reach('email')}");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     // G3 added the configured number as a fifth argument; what this pins is
     // that the page is handed the REAL template state, not a default. The

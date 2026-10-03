@@ -146,7 +146,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
   }, 60_000);
 
   it('she connects the two accounts from her own page, and only the owner may', async () => {
-    const page = await get('/app/channels');
+    const page = await get('/app/channels/meta');
     expect(page.body).toContain('/app/channels/instagram/connect');
     expect(page.body).toContain('/app/channels/messenger/connect');
 
@@ -161,7 +161,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     // The token is NAMED, never stored.
     for (const c of creds) expect(c.secret_ref).toBe('env:META_PAGE_ACCESS_TOKEN');
 
-    const after = await get('/app/channels');
+    const after = await get('/app/channels/meta');
     const { ASSISTANT_FALLBACK } = await import('../../src/core/owner/i18n/messages.js');
     expect(after.body).toContain(esc(t('en', 'reach.inbound.connected', { name: ASSISTANT_FALLBACK.en })));
     // CH4 — where Nomi stands with Meta (no META_APP_REVIEW here: reviewing), and nothing held back.

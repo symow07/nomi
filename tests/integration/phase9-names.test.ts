@@ -92,6 +92,10 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
                 values (${BIZ}, ${CONV}, ${PID}, 10, '{}'::jsonb, 2.00, 20, 'test')`.execute(t);
       await sql`insert into outbound_messages (business_id, conversation_id, seq, body, origin, status, sent_at)
                 values (${BIZ}, ${CONV}, 902, 'Ten totes are 20.', 'employee', 'sent', now())`.execute(t);
+      // …and the line it wrote when it left (channels.ts writes it at 'sent'): a quote counts once a line LEFT
+      // after it (PRICE_GIVEN, phase 9 of the warmth run — Today, Results and the calendar read the same rule).
+      await sql`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
+                values (${CONV}, ${`out-${RUN}-902`}, 'outbound', 'text', 'Ten totes are 20.', now())`.execute(t);
       // A reply that never left counts for nothing.
       await sql`insert into outbound_messages (business_id, conversation_id, seq, body, origin, status, sent_at)
                 values (${BIZ}, ${CONV}, 903, 'Refused', 'employee', 'canceled', null)`.execute(t);

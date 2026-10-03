@@ -104,13 +104,13 @@ describe('C · Results has a door', () => {
 describe('C · the nav entry for the assistants', () => {
   it('is her NAME while there is one of her', () => {
     const html = withAssistantName('Sara', () => page('/app'), false);
-    expect(html).toContain('>Sara</span></a>');
-    expect(html).not.toContain('>Team</span></a>');
+    expect(html).toContain('>Sara</span></span></a>');
+    expect(html).not.toContain('>Team</span></span></a>');
   });
 
   it('…and "Team" once there are several', () => {
     const html = withAssistantName('Sara', () => page('/app'), true);
-    expect(html).toContain('>Team</span></a>');
+    expect(html).toContain('>Team</span></span></a>');
     // Her name still appears in the header — that is the main assistant, and
     // the page is still hers. Only the MENU stops claiming to be one person.
     expect(html).toContain('Sara');

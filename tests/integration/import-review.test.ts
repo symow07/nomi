@@ -248,7 +248,10 @@ d('K1 · the kept import review (requires DATABASE_URL)', () => {
       return id;
     }, OTHER);
     const at = `/app/products/import/${theirs}`;
-    expect((await get(at)).body).toContain(t('en', 'import.gone'));
+    // The warmth run, phase 9 (w4-products-knowledge-16) — another business's list is not here: said as that, 404.
+    const theirsPage = await get(at);
+    expect(theirsPage.statusCode).toBe(404);
+    expect(theirsPage.body).toContain(t('en', 'import.notFound'));
     expect((await get(`${at}/photo/1`)).statusCode).toBe(404);
     const save = await app.inject({ method: 'POST', url: `${at}/save`, headers: { cookie, ...FORM }, payload: 'next=add' });
     expect(save.headers['location']).toBe('/app/products/add');

@@ -89,6 +89,7 @@ const PAGES = list('pages', [
   { name: 'teach-products', path: '/app/products/add' },
   { name: 'knowledge', path: '/app/knowledge' },
   { name: 'settings', path: '/app/settings' },
+  // The gallery answers only on an instance started with COMPONENT_GALLERY=on (the smoke script sets it).
   { name: 'components', path: '/app/settings/components' },
   { name: 'people', path: '/app/settings/people' },
   { name: 'terms', path: '/app/settings/terms' },

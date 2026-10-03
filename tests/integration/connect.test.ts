@@ -134,7 +134,7 @@ d('G3 · connect the factory’s number (requires DATABASE_URL)', () => {
   });
 
   it('the page offers to connect the number, rather than a guide', async () => {
-    const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(t('en', 'channel.action.connectNumber'));
     expect(res.body).toContain('action="/app/channels/whatsapp/connect"');
@@ -167,7 +167,7 @@ d('G3 · connect the factory’s number (requires DATABASE_URL)', () => {
   it('disconnecting drops messages again; the page then offers Reconnect, not Connect', async () => {
     expect(flashOf(await act('/app/channels/whatsapp/disconnect'))).toBe(t('en', 'channel.flash.disconnected'));
     expect(await inbound('still there?')).toBe(0);
-    const page = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    const page = await prod.app.inject({ method: 'GET', url: '/app/channels/whatsapp', headers: { cookie } });
     expect(page.body).toContain('action="/app/channels/whatsapp/reconnect"');
     expect(page.body).not.toContain('action="/app/channels/whatsapp/connect"');
   });

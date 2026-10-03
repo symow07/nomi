@@ -6,7 +6,7 @@ import { linkedCss } from './linked-css.js';
 /**
  * Phase 9 — Who works here, the business profile, the rate, samples and terms,
  * and the outreach area (contacts, finding customers, first e-mails): the
- * findings of the merged audit (docs/UI-AUDIT.md §9), each held here.
+ * findings of the merged audit (docs/UI-AUDIT-V2.md §9), each held here.
  */
 
 const page = (path: string, active: string, bodyHtml = '<h1 class="page">X</h1>') =>
@@ -125,7 +125,7 @@ describe('V1-511 · one name for the assistant on the page', () => {
       const html = withWorkspace(SCOPE, () => people(l));
       expect(html, l).toContain(esc(t(l, 'assistants.unconfirmed')));
       expect(html, l).toContain('href="/app/onboarding"');
-      const intro = html.slice(html.indexOf('id="assistants"'), html.indexOf('<ul class="rows">', html.indexOf('id="assistants"')));
+      const intro = html.slice(html.indexOf('id="assistants"'), html.indexOf('<ul class="rows', html.indexOf('id="assistants"')));
       expect(intro, l).not.toContain('Lily');
     }
   });
@@ -237,11 +237,11 @@ import { renderProfile, type BusinessProfile } from '../../src/api/web/settings.
 
 const fullProfile: BusinessProfile = {
   name: 'Yiwu Hongfa', description: 'Daily-use goods', location: 'Yiwu', workingHours: '9-18',
-  contactEmail: 'sales@example.com', contactPhone: null, languagesServed: ['en'], categories: ['bags', 'home'],
+  contactEmail: 'sales@example.com', contactPhone: null, languagesServed: ['en'],
 };
 const bareProfile: BusinessProfile = {
   name: 'Yiwu Hongfa', description: null, location: null, workingHours: null,
-  contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
+  contactEmail: null, contactPhone: null, languagesServed: [],
 };
 const profile = (l: (typeof LOCALES)[number], p: BusinessProfile = bareProfile, zone = 'Asia/Shanghai', country: string | null = null) =>
   renderProfile(p, l, null, {}, {}, { zone, country }, { currency: 'USD', fixed: true });
@@ -259,8 +259,9 @@ describe('V1-522, V1-528 · the full zone list: grouped, in the owner\'s languag
     for (const l of ['zh', 'ar'] as const) expect(dubai(l), l).not.toMatch(/[A-Za-z]/);
     // Phase 9 (V1-522) — China's two zones keep two times, so neither needs a city.
     expect(optionsOf(profile('zh')).find((o) => o.z === 'Asia/Shanghai')!.label, 'zh Shanghai').not.toMatch(/[A-Za-z]/);
-    // Brazil's Recife and Fortaleza keep the same time: the city tells them apart.
-    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Recife')!.label).toMatch(/（Recife）/);
+    // The warmth run (V1-522) — Brazil's zones on Brasília time keep the same clock all year: one choice, named by it.
+    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Recife')).toBeUndefined();
+    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Sao_Paulo')!.label).toBe('巴西 — 巴西利亚标准时间');
     expect(optionsOf(profile('en')).find((o) => o.z === 'Europe/Paris')!.label).toMatch(/^France — /);
   });
   it('no station in Antarctica or Svalbard is offered — unless it is the zone already kept', () => {
@@ -279,7 +280,9 @@ describe('V1-523 · the page marks what the setup step still needs', () => {
     for (const l of LOCALES) {
       const html = profile(l);
       expect(html, l).toContain(esc(t(l, 'settings.profile.needs')));
-      expect(html.split(`<span class="fr-need">${esc(t(l, 'settings.profile.need'))}</span>`).length - 1, l).toBe(4);
+      // The warmth run (w4-settings-b-outreach-06): the description and the location are each needed; of the e-mail and the phone, either.
+      expect(html.split(`<span class="fr-need">${esc(t(l, 'settings.profile.need'))}</span>`).length - 1, l).toBe(2);
+      expect(html.split('<span class="fr-need">').length - 1, l).toBe(4);
     }
   });
   it('a finished one marks nothing', () => {
@@ -289,14 +292,12 @@ describe('V1-523 · the page marks what the setup step still needs', () => {
   });
 });
 
-describe('V1-524, V1-525 · who reads what, and where the categories come from', () => {
+describe('V1-524 · who reads what', () => {
   it('the description says the assistant reads it; the contact details say nobody is given them', () => {
     for (const l of LOCALES) {
       const html = withWorkspace(SCOPE, () => profile(l, fullProfile));
       expect(html, l).toContain(esc(t(l, 'settings.desc.description')));
       expect(html, l).toContain(esc(t(l, 'settings.desc.contact')));
-      expect(html, l).toContain(esc(t(l, 'settings.categories.from')));
-      expect(html, l).toMatch(/class="deeper" href="\/app\/products"/);
     }
   });
 });
@@ -326,11 +327,11 @@ describe('settings-b-outreach-missed-05 · typographic quotes around "today"', (
 
 // ── The rate, samples, terms ───────────────────────────────────────────────
 import { renderRate, renderSamples, renderTerms, OFFERED_INCOTERMS } from '../../src/api/web/settings.js';
-import { currencyLabel } from '../../src/core/owner/currencies.js';
+import { currencyLabel, currencyInLine } from '../../src/core/owner/currencies.js';
 
 const noRate = (l: (typeof LOCALES)[number]) => renderRate({ current: null, previous: [], pair: null, currency: 'USD' }, l, null);
 const samples = (l: (typeof LOCALES)[number]) => renderSamples({ policy: null, waiting: [], currency: 'USD' }, l, null, NOW);
-const terms = (l: (typeof LOCALES)[number], stated: { incoterm: string } | null = null) =>
+const terms = (l: (typeof LOCALES)[number], stated: { incoterm: string | null } | null = null) =>
   renderTerms({ terms: stated ? { paymentTerms: '30% with order', incoterm: stated.incoterm, statedAt: NOW } : null }, l, null);
 
 describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate page is not a dead end', () => {
@@ -339,10 +340,10 @@ describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate
       const html = noRate(l);
       expect(html.indexOf('<a class="back" href="/app/business/how-you-sell">'), l).toBe(0);
       expect(html, l).toContain('<div class="empty notset" role="status">');
-      expect(html, l).toContain(esc(currencyLabel(l, 'USD')));
+      expect(html, l).toContain(esc(currencyInLine(l, 'USD')));
       expect(html, l).toMatch(/class="deeper" href="\/app\/settings\/profile#zone"/);
     }
-    expect(text(noRate('en'))).toContain('Your prices are in US Dollar (USD)');
+    expect(text(noRate('en'))).toContain('Your prices are in US dollars (USD)');   // the warmth run (-11): as a sentence says it
     // ar: the last two words never part
     expect(t('ar', 'rate.none', { from: 'x' })).toContain('سعر صرف');
     expect(rulesFor('.empty.notset').join(';')).toContain('text-wrap:pretty');
@@ -375,7 +376,7 @@ describe('V1-534, V1-541 · Samples and Terms lead back to How you sell, where t
 
 describe('V1-535 · the sample price says which money it is in', () => {
   it('the line under the field names the currency', () => {
-    for (const l of LOCALES) expect(samples(l), l).toContain(esc(t(l, 'samples.price.desc', { currency: currencyLabel(l, 'USD') })));
+    for (const l of LOCALES) expect(samples(l), l).toContain(esc(t(l, 'samples.price.desc', { currency: currencyInLine(l, 'USD') })));
     expect(t('en', 'samples.price.label')).not.toMatch(/\(0/);
   });
 });
@@ -410,10 +411,10 @@ describe('settings-b-outreach-new-08 · the tick sits at the start, beside its n
 });
 
 describe('V1-537, V1-006-terms · the delivery term is a choice the owner can read', () => {
-  it('each term says what it means; the blank first choice says what to do; DDU is not offered', () => {
+  it('each term says what it means; the first choice is none at all (the warmth run, V1-537); DDU is not offered', () => {
     for (const l of LOCALES) {
       const html = terms(l);
-      expect(html, l).toContain(`<option value="" selected disabled>${esc(t(l, 'terms.incoterm.choose'))}</option>`);
+      expect(html, l).toContain(`<option value="" selected>${esc(t(l, 'terms.incoterm.none'))}</option>`);
       const opts = optionsOf(html);
       expect(opts.map((o) => o.z), l).toEqual([...OFFERED_INCOTERMS]);
       for (const o of opts) expect(o.label, `${l} ${o.z}`).toBe(esc(`${o.z} — ${t(l, `terms.incoterm.${o.z}` as never)}`));
@@ -515,9 +516,10 @@ describe('V1-544 · the list is searched and paged, and adding someone opens abo
 });
 
 describe('V1-546 · never writing to someone again is a button, not a door', () => {
-  it('a quiet button that opens the question; no "›" door to it', () => {
+  it('a button that opens the question; no "›" door to it', () => {
     const html = renderContacts(cview([wa(1)]), 'en', null);
-    expect(html).toContain(`<button class="btn ghost" type="submit">${esc(t('en', 'contacts.suppress.button'))}</button>`);
+    // The warmth run (w4-settings-b-outreach-16) — outlined like the row's other acts, never ghost words.
+    expect(html).toContain(`<button class="btn" type="submit">${esc(t('en', 'contacts.suppress.button'))}</button>`);
     expect(html).not.toMatch(/class="deeper" href="\/app\/contacts\/suppress/);
   });
 });
@@ -650,12 +652,14 @@ describe('V1-560, V1-561 · before a key, the page says what the search will be'
 });
 
 describe('V1-564, V1-565, settings-b-outreach-new-14 · first e-mails say what they need, and the form is a card', () => {
-  it('e-mail only, to people who may be written to first; with nobody ready, said, with the door to Contacts', () => {
+  it('e-mail only, to people who may be written to first; with nobody ready, said, with the one way to Contacts', () => {
     for (const l of LOCALES) {
       const html = renderSequenceList([], l, null, { ready: 0 });
       expect(html, l).toContain(esc(t(l, 'seq.needs')));
       expect(html, l).toContain(esc(t(l, 'seq.noneReady')));
-      expect(html, l).toMatch(/class="deeper" href="\/app\/contacts"/);
+      // The warmth run (w4-settings-b-outreach-20) — the "‹ Contacts" at the top is the door; no second one.
+      expect(html.match(/href="\/app\/contacts"/g)?.length, l).toBe(1);
+      expect(html, l).toMatch(/class="back" href="\/app\/contacts"/);
       expect(html, l).not.toContain('class="sqform"');
       expect(html, l).toMatch(/<div class="fr-acts"><button class="btn send" type="submit">/);
     }

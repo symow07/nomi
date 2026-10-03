@@ -89,7 +89,9 @@ describe('TZ · sign-up asks only where the country has several', () => {
 
   it('a zone reads as the place, then the time it keeps, in the owner\'s language', () => {
     expect(zoneLabel('en', 'America/New_York')).toMatch(/^New York — .+/);
-    expect(zoneLabel('zh', 'America/Argentina/Buenos_Aires')).toMatch(/^Buenos Aires, Argentina — .+/);
+    // The warmth run (V1-522) — the place in the owner's language too, where this build names it.
+    expect(zoneLabel('zh', 'America/Argentina/Buenos_Aires')).toBe('布宜诺斯艾利斯 — 阿根廷标准时间');
+    expect(zoneLabel('en', 'America/Argentina/Buenos_Aires')).toMatch(/^Buenos Aires — .+/);   // never the country again inside it
   });
 });
 

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  renderPilotReadiness, renderPilotRunbook, renderPilotTechnical,
+  renderPilotReadiness, renderPilotRunbook, renderPilotScreen, renderPilotTechnical,
   type PilotReadiness, type PilotRunbook, type PilotFeedback,
 } from '../../src/api/web/pilot.js';
 import { type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { readDeployment } from '../../src/api/web/deployment.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 
 const NOW = new Date('2026-08-01T10:00:00Z');
@@ -110,9 +110,12 @@ const rb = (over: Partial<PilotRunbook> = {}): PilotRunbook => ({
 });
 
 describe('M16.2d · pilot operations runbook (localized renderer)', () => {
+  // The warmth run, phase 9 (w4-today-setup-15) — the checklist, and the two screens a tap under it.
+  const all = (r: PilotRunbook, l: Locale, f?: PilotFeedback): string =>
+    renderPilotRunbook(r, l, null, f) + renderPilotScreen('practice', r, l) + renderPilotScreen('activity', r, l, f);
   it('renders all four phases (before / during / practice / after) in en/zh/ar', () => {
     for (const l of LOCALES) {
-      const html = renderPilotRunbook(rb(), l, null);
+      const html = all(rb(), l);
       expect(html).toContain(t(l, 'pilot.title'));            // before launch (M15, reused)
       expect(html).toContain(t(l, 'runbook.during.title'));
       expect(html).toContain(t(l, 'runbook.practice.title'));
@@ -121,7 +124,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
   });
 
   it('during pilot: real counts + deep links into the owning surfaces', () => {
-    const html = renderPilotRunbook(rb(), 'en', null);
+    const html = all(rb(), 'en');
     for (const href of ['/app/inbox', '/app/inbox?filter=pending', '/app/knowledge', '/app/analytics']) {
       expect(html).toContain(`href="${href}"`);
     }
@@ -135,24 +138,24 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
       knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
       hasAttention: false,
     });
-    const html = renderPilotRunbook(rb({ operations: quiet }), 'en', null);
+    const html = all(rb({ operations: quiet }), 'en');
     expect(html).toContain(t('en', 'runbook.during.quiet'));
     expect(html).not.toContain(t('en', 'ops.card.waiting'));   // no count rows in the quiet state
   });
 
   it('rehearsal progress: ✓ for practiced, ○ for not, under their own heading — no second n/total beside the nav\'s — and the sandbox link', () => {
-    const html = renderPilotRunbook(rb(), 'en', null);
-    expect(html).toContain('Take-over practiced');   // done → ✓
-    expect(html).toContain('✓'); expect(html).toContain('○');
-    // Phase 9 (V1-124) — the heading carries no "2/5" that means something else than the nav's count.
+    const html = all(rb(), 'en');
+    // Phase 9 (w4-today-setup-17) — each item is a task, ✓ once Practice has seen it.
+    expect(html).toContain(`<div class="pr done"><span class="mk">✓</span> <span class="lbl">${t('en', 'runbook.step.takeover')}</span>`);
+    expect(html).toContain(`<div class="pr todo"><span class="mk dot todo">○</span> <span class="lbl">${t('en', 'runbook.step.reply')}</span>`);
+    // Phase 9 (V1-124) — no "2/5" that means something else than the nav's count.
     expect(html).not.toContain('2/5');
-    expect(html).toContain(`<h3 class="rbsub">${t('en', 'runbook.practice.done')}</h3>`);
     // P5 — every workspace practises on its own copy: the door is always there
     expect(html).toContain('href="/app/sandbox"');
   });
 
   it('after pilot: read-only review links, no new POST actions', () => {
-    const html = renderPilotRunbook(rb(), 'en', null);
+    const html = all(rb(), 'en');
     expect(html).toContain(t('en', 'runbook.after.promotion'));
     expect(html).toContain(t('en', 'runbook.after.gaps'));
     expect(html).toContain('href="/app/employee"');
@@ -162,7 +165,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
   });
 
   it('no percentages anywhere', () => {
-    for (const l of LOCALES) expect(renderPilotRunbook(rb(), l, null)).not.toMatch(/\d+\s*%/);
+    for (const l of LOCALES) expect(all(rb(), l)).not.toMatch(/\d+\s*%/);
   });
 
   it('M17.1 deployment section: real facts when reported, honest blank when not', () => {
@@ -190,12 +193,12 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
 
   it('M17.1 deployment section is omitted entirely when not supplied — and never on Getting ready', () => {
     expect(renderPilotTechnical('en')).not.toContain(t('en', 'runbook.deploy.title'));
-    expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'runbook.deploy.title'));
+    expect(all(rb(), 'en')).not.toContain(t('en', 'runbook.deploy.title'));
   });
 
   it('M17.4 delivery health: honest all-clear when nothing is stuck', () => {
     for (const l of LOCALES) {
-      const html = renderPilotRunbook(rb(), l, null);
+      const html = all(rb(), l);
       expect(html).toContain(t(l, 'ops.health.title'));
       expect(html).toContain(t(l, 'ops.health.ok'));
       expect(html).not.toContain(t(l, 'ops.health.stuck'));
@@ -204,7 +207,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
 
   it('M17.4 delivery health: a real count + timestamp + the one action to take', () => {
     const stuck = rb({ reliability: { stuckOutbound: 3, oldestQueuedAt: NOW } });
-    const html = renderPilotRunbook(stuck, 'en', null);
+    const html = all(stuck, 'en');
     expect(html).toContain(t('en', 'ops.health.stuck'));
     expect(html).toContain('>3<');                              // a real count
     expect(html).toContain(t('en', 'ops.health.oldest'));
@@ -220,7 +223,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
       lastActivityAt: null, hasActivity: false,
     };
     for (const l of LOCALES) {
-      const html = renderPilotRunbook(rb(), l, null, none);
+      const html = all(rb(), l, none);
       expect(html).toContain(t(l, 'feedback.title'));
       expect(html).toContain(t(l, 'feedback.none'));
     }
@@ -239,7 +242,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
       ],
       conversationsNeedingYou: 6, lastActivityAt: NOW, hasActivity: true,
     };
-    const html = renderPilotRunbook(rb(), 'en', null, f);
+    const html = all(rb(), 'en', f);
     expect(html).toContain(t('en', 'feedback.reasons'));
     expect(html).toContain(t('en', 'takeover.reason.human_requested'));  // M16.1 wording reused
     expect(html).toContain('>5<'); expect(html).toContain('>2<');
@@ -255,12 +258,12 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
   });
 
   it('M17.6 feedback section is omitted when not supplied', () => {
-    expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'feedback.title'));
+    expect(all(rb(), 'en')).not.toContain(t('en', 'feedback.title'));
   });
 
   it('no score / grade / technical vocabulary — any locale', () => {
     for (const l of LOCALES) {
-      const html = renderPilotRunbook(rb(), l, null).toLowerCase();
+      const html = all(rb(), l).toLowerCase();
       for (const banned of ['confidence', 'score', 'grade', 'percentage', 'ranking', 'rating', 'model', 'webhook']) {
         expect(html.includes(banned), `${l}:${banned}`).toBe(false);
       }

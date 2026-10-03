@@ -196,7 +196,9 @@ describe('M46 · the owner page', () => {
       for (const locale of LOCALES) {
         const html = renderOrder(view(over), locale, null);
         expect(html, `${locale} ${JSON.stringify(over)}`).not.toContain('PROFORMA INVOICE');
-        expect(html).toContain(esc(t(locale, 'order.invoice.noTerms')));
+        // The warmth run (V1-537) — payment terms with no delivery term is a
+        // state of its own: the page names the one thing a proforma lacks.
+        expect(html).toContain(esc(t(locale, over.paymentTerms === null ? 'order.invoice.noTerms' : 'order.invoice.noIncoterm')));
         expect(html).toContain('href="/app/settings/terms"');
       }
     }

@@ -135,7 +135,8 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     const at = importAt(await shoot());
     const res = await app.inject({ method: 'GET', url: at, headers: { cookie } });
     expect(res.body).toContain('TIANHE TEXTILE CO., LTD');
-    expect(res.body).toContain('no price on this line');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    expect(res.body).toContain(t('en', 'product.reject.no_price_on_page'));
     const rows = formFields(res.body, `${at}/save`).get('rows') ?? '';
     expect(rows.split(',')).toHaveLength(2);
   });
