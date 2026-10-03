@@ -70,6 +70,17 @@ export const withAssistantName = <T>(
   }, fn);
 };
 
+/**
+ * Phase 9 of the warmth run (w4-settings-a-24) — the rail's count for a page
+ * drawn where the request's own look-up does not read it: a form sent back
+ * from a POST. Inside a request it keeps the request's other facts; outside
+ * one there is no rail to count for.
+ */
+export const withNeedsYou = <T>(needsYou: number | null, fn: () => T): T => {
+  const outer = scope.getStore();
+  return outer ? scope.run({ ...outer, needsYou }, fn) : fn();
+};
+
 /** Is the outreach area shown for this workspace? Outside a scope: no. */
 export const outreachShown = (): boolean => scope.getStore()?.outreach ?? false;
 

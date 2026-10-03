@@ -229,7 +229,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 
@@ -946,8 +946,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     for (const [k, v] of Object.entries(values)) if (typeof v === 'string') typed[k] = v;
     return { values: typed, field, text: t(locale, key as MessageKey) };
   };
-  const sentBack = (req: FastifyRequest, reply: FastifyReply, active: string, bodyHtml: string) =>
-    reply.code(400).type('text/html; charset=utf-8').send(page(req, { title: t(localeOf(req), `nav.${active}` as MessageKey), active, bodyHtml }));
+  /**
+   * The warmth run, phase 9 (w4-settings-a-24) — a form sent back is a PAGE,
+   * drawn from a POST: the request's look-up reads the rail's count for a GET
+   * only, so it is read here, as fresh as any page's. Without it the rail lost
+   * its waiting count, and with it the live check (`data-rail`) that brings the
+   * marker and the toast while the owner corrects the form.
+   */
+  const sentBack = async (req: FastifyRequest, reply: FastifyReply, active: string, bodyHtml: string) => {
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    const waiting = s && bid?.ok
+      ? await withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)).then((c) => c.waiting, () => null)
+      : null;
+    return withNeedsYou(waiting, () => reply.code(400).type('text/html; charset=utf-8')
+      .send(page(req, { title: t(localeOf(req), `nav.${active}` as MessageKey), active, bodyHtml })));
+  };
 
   // ── M35 · the proof link: the ONE public page inside the app ─────────────
   //
