@@ -13,6 +13,36 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The truth-and-trust run (started 2026-10-04) — read this first
+
+**The owner's instruction (2026-10-04).** Three investigations first, looking only and fixing nothing, written to docs/ so that decisions are made from fact. Then four builds and a calendar correction. Merge own green PRs, update this file after each, and come back only when all is done or on a genuine undecidable.
+
+**The investigations (PR #220).**
+
+- **Motion (`docs/MOTION-TRUTH.md`).** Motion is wired, and it fires, but almost all of it is too small and too quick to see.
+  - The three timings resolve in the browser to 120, 200 and 250 ms.
+  - Most motion is an 8 px rise during page load, about 90 % done within 100 ms.
+  - Nine of the twelve kinds of page animate nothing when they load.
+  - Only the profile card moves visibly: 48 px over 200 ms.
+  - "Menus opening" does not exist. The face row is never scrolled. The four `MOTION_SPECS` are never imported.
+  - Reduced motion is OFF on the owner's Mac (Brave, the same engine), so it is not the cause.
+  - The test that "held" motion (`phase5-motion.test.ts`) only reads the stylesheet's text and never renders a page. That is why two rebuilds reported it as wired.
+- **Fonts and icons (`docs/TYPE-ICONS-TRUTH.md`).**
+  - **Fonts:** Noto is really served to the app and to sign-in and sign-up (over 99 % of glyphs from its files). The public pages (site, privacy, terms, data deletion) load no font and fall back to the device's, so a stranger meets a different typeface.
+  - **Weights:** the app renders only two, 400 and 600. Every 700 renders as 600, and every 500 as 400.
+  - **Sizes:** they stay on the tokens, but the hierarchy is flat: 54 % of text is 15 px, and the page title is 20 px. On Today, a 26 px heading is bigger than the page title.
+  - **Icons** come from four sources: SVG line icons at 14–22 px (strokes from 1.05 to 2.11 px); the marks ○ ✓ in SF Pro Bold; ✦ drawn by Zapf Dingbats through fallback; and text chevrons. A flag emoji also renders.
+  - **CLAUDE.md §6's note is out of date.** It says English renders in PingFang; the stack now starts with Noto Sans.
+- **The product-code check (`docs/PRODUCT-CODE-CHECK.md`).**
+  - **The check is the figure guard** (`guardNumerals`). A product's own name and code are not sources, so "ZX-300" and "Thermos 500ml" are refused unless the customer typed the figure. Reproduced on the real function, in en, zh and ar.
+  - **In production it has held nothing, ever.** There are 0 `guard_violation` events and 0 held drafts; live traffic was 12 turns, from 18 to 20 September.
+  - **The exposure is real:** all 5 of Westlake's active products carry a figure above 12 in their name or code.
+  - **Side effect:** one refusal also moves an auto capability back to drafts (`selfDemote`).
+  - **Recommendation:** exempt the exact text of the business's own product names and codes, never their figures by value. By value, "$300 each" and "Minimum order is 500" would pass.
+  - The decision is the owner's: it is the send path. Nothing changed.
+
+**The builds.** Five builders work in parallel worktrees: customer deletion (0126), billing resilience (0128), password reset (0129 if needed), the warmth pass, and the calendar together. Their results are recorded here as each merges.
+
 ## The warmth run (started 2026-10-03) — read this first
 
 **State (2026-10-04): done.** All nine phases are merged and deployed (#216, #217, #218, #219), and production is at schema 125.
@@ -1320,7 +1350,7 @@ delivered or not answered 2xx).
 **From the warmth run (2026-10-04):**
 
 - **Stopping a larger order's price.** It can be changed, not removed: the app deletes nothing (0005). A one-function migration is drafted and was not shipped (PROGRESS, phase 9's fix wave). Say whether the app may delete that one kind of row.
-- **The figure guard and product codes** (send path). A reply quoting "ZX-300" or "Thermos 500ml" is held as an unsourced figure.
+- **The figure guard and product codes** (send path). A reply quoting "ZX-300" or "Thermos 500ml" is held as an unsourced figure. Investigated 2026-10-04 (`docs/PRODUCT-CODE-CHECK.md`): it has never fired in production, all 5 of Westlake's products would trip it, and the safe change is to exempt by exact catalogue text, never by value.
 - **Free disk space on the Mac.** 431 of 460 GiB were used, and every command failed while it was full.
 
 These items cannot be built without a decision the plan left open and the
