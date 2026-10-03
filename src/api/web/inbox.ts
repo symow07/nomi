@@ -2574,7 +2574,6 @@ export function renderConversationDetail(
     <div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
       ${LIVE_SLOT}
-      ${/* The design pass — where the customer panel is folded away, this opens it over the page. */ ''}<a class="panel-open" href="#customer">${esc(t(locale, 'panel.open'))}<span class="go" aria-hidden="true">›</span></a>
     </div>
     ${catchUpStrip(d, locale, now, viewer)}
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
@@ -2584,8 +2583,13 @@ export function renderConversationDetail(
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
       d.quantity !== null ? `<bdi>${esc(show.quantityOf(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
-    ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
-      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}
+    ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now.
+         The fix wave (w4-whole-13, w4-conversation-16) — ONE door to "About this customer", in one place, by one name:
+         on a phone the page; where the panel is folded away (1100–1440 px) the panel, which ends with the
+         door to the full page; from 1440 px the panel stands beside, and neither door is drawn. The face
+         opens the card. The stylesheet chooses; nothing waits on a script. */ ''}${
+      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}${
+      deeper('#customer', t(locale, 'panel.open'), 'panel-open')}
     ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
       viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
       ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}

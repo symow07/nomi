@@ -772,7 +772,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('About this customer');   // A — one word: customer (the positioning rewrite)
-    expect(res.body).toContain('First contact');
+    expect(res.body).toContain('First wrote');   // the fix wave (w4-conversation-16): the panel's words
     expect(res.body).toContain('History');
   });
 

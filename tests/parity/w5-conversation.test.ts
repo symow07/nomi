@@ -7,7 +7,10 @@ import { esc, shell } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
 import { readFileSync } from 'node:fs';
 import { withAssistantName } from '../../src/api/web/say.js';
-import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
+import { renderConversationDetail, type ConversationDetail, type ConversationSummary, type InboxList } from '../../src/api/web/inbox.js';
+import { renderCustomerPanel, renderListPane, PANE_ROWS_IN_VIEW } from '../../src/api/web/panes.js';
+import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
+import type { CustomerPanel } from '../../src/db/customerPanel.js';
 import * as show from '../../src/api/web/values.js';
 import type { CatchUp } from '../../src/db/catchUp.js';
 import { conversationDetail } from './fixtures.js';
@@ -23,7 +26,7 @@ const MIN = 60_000;
 const DAY = 86_400_000;
 const ago = (ms: number): Date => new Date(NOW.getTime() - ms);
 const CLIENT = 'c1c1c1c1-0000-4000-8000-000000000002';
-const plain = (s: string): string => s.replace(/[⁦-⁩]/g, '');
+const plain = (s: string): string => s.replace(/[\u2066-\u2069]/g, '');
 
 const rows = (over: Partial<CatchUp> = {}): CatchUp => ({
   clientId: CLIENT, channel: 'whatsapp', address: '5511900000001', photo: null,
@@ -188,5 +191,88 @@ describe('the take-over card (w4-conversation-03, -04)', () => {
     const waiting = plain(renderConversationDetail(detail({ ownership: 'WAITING_HUMAN', people: [OWNER, CHEN] }), 'en', NOW, null, { id: OWNER.id, isOwner: true }));
     expect(waiting).toContain(`<option value="${CHEN.id}">`);
     expect(waiting).not.toContain(`<option value="${OWNER.id}">`);
+  });
+});
+
+describe('w4-whole-13, w4-conversation-16 · one customer, two things to open, each named for what it opens', () => {
+  it('one door to "About this customer", in one place: the page on a phone, the panel where it folds away; the panel says it is that', () => {
+    for (const l of LOCALES) {
+      const html = page(detail(), l);
+      const about = esc(t(l, 'conv.file.title'));
+      expect(html, l).toContain(`<a class="deeper file-door" href="/app/conversations/${detail().conversationId}">${about}<span class="go"`);
+      expect(html, l).toContain(`<a class="deeper panel-open" href="#customer">${about}<span class="go"`);
+      // side by side in the page, not one in the header row and one under the strip
+      expect(html.indexOf('panel-open') - html.indexOf('file-door'), l).toBeLessThan(400);
+      expect(html.slice(html.indexOf('<div class="dhead">'), html.indexOf('</div>', html.indexOf('<div class="dhead">'))), l).not.toContain('panel-open');
+      expect(t(l, 'panel.open'), l).toBe(t(l, 'conv.file.title'));
+      expect(t(l, 'panel.label'), l).toBe(t(l, 'conv.file.title'));
+      // the face says it opens the card, a different thing with a different name
+      expect(t(l, 'catchup.card', { who: 'X' }), l).not.toContain(t(l, 'conv.file.title'));
+    }
+    const css = linkedCss(shell({ title: 'T', active: 'inbox', locale: 'en', path: '/app/inbox', bodyHtml: '' }));
+    const at1100 = css.slice(css.indexOf('@media (min-width: 1100px)'), css.indexOf('@media (min-width: 1440px)'));
+    expect(at1100).toContain('.conv .panel-open { display:flex; }');
+    expect(at1100).toContain('.conv .file-door { display:none; }');
+    const at1440 = css.slice(css.indexOf('@media (min-width: 1440px)'));
+    expect(at1440).toMatch(/\.conv \.panel-open, [^{]*\.conv \.file-door \{ display:none; \}/);
+  });
+
+  it('the panel\'s door onward names the full page; an order\'s way back names the conversation it opens', () => {
+    const panel: CustomerPanel = {
+      clientId: CLIENT, name: 'Aisha Bello', country: 'NG', channel: 'whatsapp', address: null, language: null,
+      firstWrote: ago(3 * 60 * MIN), conversations: 1, askedAbout: [], prices: [], samples: [], promised: [], orders: [], activity: [],
+    };
+    const words: Record<Locale, string> = { en: 'Back to the conversation', zh: '回到对话', ar: 'العودة إلى المحادثة', es: 'Volver a la conversación', fr: 'Retour à la conversation' };
+    for (const l of LOCALES) {
+      const html = plain(renderCustomerPanel(panel, [], l, NOW, 'c-1'));
+      expect(html, l).toContain(`>${esc(t(l, 'panel.fileDoor'))}<span class="go"`);
+      // w4-conversation-06 — "Today", as the divider and the file say it, in the file's words
+      expect(html, l).toContain(esc(`${t(l, 'conv.file.firstContact')}${l === 'zh' ? '：' : l === 'fr' ? '\u00a0: ' : ': '}${plain(show.day(l, ago(3 * 60 * MIN), NOW))}`));
+      expect(t(l, 'order.back'), l).toBe(words[l]);
+    }
+  });
+});
+
+describe('w4-conversation-19 · the customer\'s file has their face, what they spent and how many orders stand', () => {
+  const file = (over: Partial<CustomerFile> = {}): CustomerFile => ({
+    conversationId: 'conv-1', buyer: 'Aisha Bello', country: 'NG', channel: 'whatsapp',
+    status: { t: 'awaiting' }, statusTone: 'warn', needsOwner: false,
+    profile: { firstContact: ago(DAY), products: [], quoteCount: 1, orderCount: 0 },
+    timeline: [], context: { products: [], latestQuote: null, order: null, corrections: [] },
+    customer: { clientId: CLIENT, photo: null, value: { clientId: CLIENT, spent: null, orders: 0, lastOrderAt: null, regular: false, quietSince: null } },
+    ...over,
+  });
+  it('the face opens their card; spent and orders in the card\'s words', () => {
+    for (const l of LOCALES) {
+      const none = plain(renderCustomerFile(file(), l, NOW));
+      const head = none.slice(none.indexOf('<div class="dhead">'), none.indexOf('</h1>'));
+      expect(head, l).toContain(`<a class="face-link" href="/app/customers/${CLIENT}" data-card aria-label="${esc(t(l, 'catchup.card', { who: 'Aisha Bello' }))}">`);
+      expect(none, l).toContain(`<span class="muted">${esc(t(l, 'pcard.spent'))}</span><b>${esc(t(l, 'pcard.nothingSpent'))}</b>`);
+      expect(none, l).toContain(`<span class="muted">${esc(t(l, 'pcard.orders'))}</span><b>${esc(plain(show.count(l, 0)))}</b>`);
+      const spent = plain(renderCustomerFile(file({ customer: { clientId: CLIENT, photo: 'v1', value: { clientId: CLIENT, spent: usd(11750), orders: 3, lastOrderAt: ago(DAY), regular: true, quietSince: null } } }), l, NOW));
+      expect(spent, l).toContain(`<b><bdi>${plain(show.money(l, usd(11750)))}</bdi></b>`);
+      expect(spent, l).toContain(`<img class="face-p" src="/app/faces/${CLIENT}?v=v1"`);
+    }
+  });
+});
+
+describe('V1-257 · the list beside a conversation says where the owner is, however far down the open one sits', () => {
+  const row = (id: string, over: Partial<ConversationSummary> = {}): ConversationSummary => ({
+    conversationId: id, buyer: `Buyer ${id}`, country: null, status: 'handled', needsAction: false, ownership: 'AI', heldBy: null,
+    awaitingReview: false, handoffReason: null, latestMessage: 'hi', latestAt: ago(DAY), product: { name: null, nameZh: null },
+    quantity: null, unitPrice: null, ...over,
+  });
+  const list = (n: number): InboxList => ({
+    filter: 'all', waitingCount: 0, blockedCount: 0, deletionCount: 0, mineCount: 0,
+    conversations: Array.from({ length: n }, (_, i) => row(`c-${i}`)),
+  });
+  it('pinned first, under its heading, when it is past the rows the pane shows; not when it is in view', () => {
+    for (const l of LOCALES) {
+      const far = renderListPane(list(30), l, NOW, 'c-25', [], row('c-25'));
+      expect(far, l).toContain('lp-current');
+      expect(far.indexOf('lp-current'), l).toBeLessThan(far.indexOf('href="/app/inbox/c-0'));
+      const near = renderListPane(list(30), l, NOW, `c-${PANE_ROWS_IN_VIEW - 1}`, [], row(`c-${PANE_ROWS_IN_VIEW - 1}`));
+      expect(near, l).not.toContain('lp-current');
+    }
   });
 });

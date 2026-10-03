@@ -499,7 +499,8 @@ describe('an order', () => {
       expect(page, l).toMatch(/<a href="\/app\/inbox" class="navlink sub active" data-nav="inbox" aria-current="page"/);
       expect(orderPage(l), l).toContain(`${shown(l, 'order.back')}</a>`);
     }
-    expect(t('en', 'order.back')).toBe('Back to the customer');
+    // the fix wave (w4-whole-13) — it opens the conversation, and says so
+    expect(t('en', 'order.back')).toBe('Back to the conversation');
   });
 
   it('V1-192 · Chinese: the product as the Customers list names it, the figures said to be below, no stray space', () => {

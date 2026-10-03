@@ -1858,7 +1858,9 @@ const STYLE_PAGES = `
     .panes > .listpane { display:block; position:sticky; top:0; height:100vh; overflow-y:auto; padding:var(--space-16) 0;
       background:var(--color-paper); border-inline-end:1px solid var(--color-border); }
     .panes > .conv { background:var(--color-surface); padding:var(--space-24); min-height:100vh; }
-    .panel-open { display:inline-flex; align-items:center; gap:var(--space-4); margin-inline-start:auto; font-size:var(--font-size-small); }
+    /* The fix wave (w4-whole-13) — one door to "About this customer": here it opens the panel, in the file door's place. */
+    .conv .panel-open { display:flex; }
+    .conv .file-door { display:none; }
     /* Folded away until its door is used; then over the page, with a way to close it. */
     .panes > .panel:target { display:block; position:fixed; inset-block:0; inset-inline-end:0; width:320px; z-index:5;
       overflow-y:auto; padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift2); }
@@ -1874,7 +1876,7 @@ const STYLE_PAGES = `
     .panes { grid-template-columns:300px minmax(560px, 1fr) 300px; }
     .panes > .panel, .panes > .panel:target { display:block; position:sticky; top:0; height:100vh; width:auto; overflow-y:auto; z-index:auto;
       padding:var(--space-16); background:var(--color-paper); box-shadow:none; border-inline-start:1px solid var(--color-border); }
-    .panel-open, .panes > .panel:target .panel-close, .conv .file-door { display:none; }
+    .conv .panel-open, .panes > .panel:target .panel-close, .conv .file-door { display:none; }
   }
   /* The reply waiting for review. */
   .review-intro { margin:0 0 var(--space-12); }

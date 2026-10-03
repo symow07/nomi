@@ -152,7 +152,7 @@ describe('the customer panel', () => {
     const html = withWorkspace(SCOPE, () => renderCustomerPanel(panel, [], 'en', NOW, 'c-1'));
     expect(html).toContain('<h2><bdi>Maya Rahman</bdi></h2>');
     expect(html).toContain('WhatsApp <bdi dir="ltr">+447700900123</bdi> · writes in English · ');
-    expect(html).toContain('First wrote ');
+    expect(html).toContain('First wrote: ');   // the fix wave (w4-conversation-06): the file's words, the day's own form
     expect(html).toContain('2 conversations');
     expect(html).toContain('<bdi>Rose Face Serum</bdi></span><span class="pn-r">3 times · 18:00</span>');
     expect(html).toContain('<h3>Prices worked out</h3>');

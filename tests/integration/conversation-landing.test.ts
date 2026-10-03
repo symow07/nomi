@@ -288,9 +288,10 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     const page = await get('/app/sandbox').then((r) => r.body);
     const order = [
       at(page, 'class="timeline"'), at(page, 'id="latest"'), at(page, 'class="card draft"'),
-      at(page, 'class="card takeover'), at(page, 'class="card sbx-trust'), at(page, 'id="compose"'),
+      at(page, 'class="card sbx-trust'), at(page, 'id="compose"'),
     ];
     expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(page).not.toContain('class="card takeover');   // the fix wave (w4-conversation-03): the draft card's "I'll reply" is the take-over
     expect(page).toMatch(/id="latest" class="msg (?:inbound|outbound)">/);
     expect(at(page, 'We can commit to 5000 units')).toBeLessThan(at(page, 'class="card draft"'));
 

@@ -159,7 +159,9 @@ describe('V1-234, V1-266, conversation-missed-05 · the customer panel\'s doors'
           { unitPrice: usd(1.5), name: 'LED String Lights 10m', nameZh: null, at: ago(9000), conversationId: 'conv-before' },
         ],
       }), [], l, NOW, 'conv-here');
-      expect(html, l).toContain(`>${esc(t(l, 'conv.file.title'))}<span class="go"`);
+      // the fix wave (w4-whole-13) — the panel is "About this customer" (its label, its door's words); its door onward is the full page
+      expect(html, l).toContain(`aria-label="${esc(t(l, 'conv.file.title'))}"`);
+      expect(html, l).toContain(`<a class="deeper" href="/app/conversations/conv-here">${esc(t(l, 'panel.fileDoor'))}<span class="go"`);
       expect(html, l).not.toContain('href="/app/inbox/conv-here#latest"');
       expect(html, l).toContain(`<a class="pn-door" href="/app/inbox/conv-before#latest">${esc(t(l, 'panel.priceDoor'))}<span class="go"`);
     }

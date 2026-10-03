@@ -159,7 +159,7 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
     const draft = html.indexOf('class="card draft"');
     const takeover = html.indexOf('class="card takeover');
     expect(draft).toBeGreaterThan(newest);
-    expect(takeover).toBeGreaterThan(draft);
+    expect(takeover).toBe(-1);   // the fix wave (w4-conversation-03): no second card under the draft
     expect(html.slice(newest, draft)).not.toContain('class="card');   // nothing between the question and the approval
     expect(earlierOf(html, long)).not.toBeNull();
     expect(html).toContain('Earlier messages');

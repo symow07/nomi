@@ -114,8 +114,9 @@ describe('CC-25 · the conversation page', () => {
     expect(marked).toBeLessThan(newest);
     expect(html.indexOf('id="latest"', marked + 1)).toBe(-1);   // one mark
     expect(newest).toBeLessThan(draft);
-    expect(draft).toBeLessThan(own);
-    expect(own).toBeLessThan(unheard);                          // what went wrong follows what to do
+    // the fix wave (w4-conversation-03) — under a reply the assistant drafted, no second card repeats it
+    expect(own).toBe(-1);
+    expect(draft).toBeLessThan(unheard);                        // what went wrong follows what to do
     // while a reply waits, what it leaned on is one of the card's reasons, not a section after
     expect(knew).toBe(-1);
     expect(unheard).toBeLessThan(ctx);
