@@ -318,7 +318,10 @@ import type { Db } from './client.js';
 //       123 database every hand-over alert fails.
 // 125 = payment terms without a delivery term (0125): `trade_terms.incoterm` may be
 //       null. The terms page saves "No delivery term"; against a 124 database that save fails.
-export const REQUIRED_SCHEMA_VERSION = 125;
+// 129 = a reset link only to an address that answered (0129): `logins.email_verified_at`,
+//       `login_email_proven()`. A code typed back on /verify writes it; against a 128
+//       database that write fails and no reset link is ever mailed.
+export const REQUIRED_SCHEMA_VERSION = 129;
 
 export type SchemaState = {
   readonly required: number;

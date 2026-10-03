@@ -222,7 +222,7 @@ import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
   lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, selfServeCount, loginOfPerson, setPassword,
-  setupLinkEmail, spendSetupLink, requestRecoveryLink,
+  setupLinkEmail, spendSetupLink, requestRecoveryLink, markLoginEmailProven,
 } from '../../db/accounts.js';
 import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
@@ -1266,12 +1266,43 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   };
   // The second line of defence; the first is the per-login lock in the database.
   const loginThrottle = makeThrottle({ max: 20, windowMs: 5 * 60_000 });
-  /** PWR — the door can e-mail a link only where the installation sends system mail. */
-  const recoveryOn = Boolean(codeMail);
+  /**
+   * PWR — the door can e-mail a link only where the installation sends system
+   * mail, and (PWR2) knows its own address: the link in the mail must be
+   * whole, and it is never built from the request's Host header, which the
+   * asker writes.
+   */
+  const recoveryOn = Boolean(codeMail) && Boolean(deps.publicBaseUrl);
+  /**
+   * PWR2 — "Forgot your password?" is on the door wherever it leads somewhere:
+   * a link by e-mail, or else the page that says who sets a new password.
+   */
+  const forgotOnDoor = recoveryOn || Boolean(deps.legalContact);
   const signupThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
   const callerOf = (req: FastifyRequest): string => callerKey(req.headers['x-forwarded-for'], req.ip);
   const html = (reply: FastifyReply, code: number, body: string) =>
     reply.code(code).type('text/html; charset=utf-8').send(body);
+  /** The language chosen before signing in, for a year (the switcher's `/locale` and the reset link's `l`). */
+  const setLocaleCookie = (reply: FastifyReply, l: Locale): void => {
+    const flags = ['Path=/', 'SameSite=Lax', 'Max-Age=31536000'];
+    if (deps.secureCookie) flags.push('Secure');
+    reply.header('set-cookie', `${LOCALE_COOKIE}=${l}; ${flags.join('; ')}`);
+  };
+  /**
+   * PWR2 — a reset or "password changed" mail that could not leave is written
+   * down (`app_errors`) and the operator hears of it. The door said "on its
+   * way" whatever happened — it must, or it would tell a stranger which
+   * addresses sign in here — so nobody else would ever know. Kept: the
+   * transport's own phrase with any address taken out; never the link.
+   */
+  const reportDoorMail = (what: 'recovery' | 'password_changed', error: string): void => {
+    if (!deps.reportError) return;
+    const reason = error.replace(/[^\s@<>"']+@[^\s@<>"']+/g, '<address>').slice(0, 300);
+    const e = new Error(`${what} mail could not be sent: ${reason}`);
+    e.name = 'DoorMailFailed';
+    void deps.reportError(e, 'web', { route: what === 'recovery' ? 'POST /login/forgot' : 'POST /login/set-password' })
+      .catch(() => undefined);
+  };
   /**
    * Opens a session. `pv` is WHICH password it was opened with (S1) — read
    * back from the row, so a later change can end this session by no longer
@@ -1292,7 +1323,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (sessionOf(req)) return reply.redirect('/app');
     const signupMode = await signupModeNow();
     return reply.type('text/html; charset=utf-8').send(
-      loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
+      loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor,
         withCode: (req.query as { with?: string }).with === 'code' }));
   });
 
@@ -1415,7 +1446,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const email = normalizeEmail(String(body.email ?? ''));
       const password = String(body.password ?? '');
       const refuse = (status: number, problem: LoginProblem) =>
-        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
       if (email === '') return refuse(400, 'email_missing');
       if (password === '') return refuse(400, 'password_missing');
       if (!loginThrottle.allow(callerOf(req), Date.now())) return refuse(429, 'slow');
@@ -1469,7 +1500,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // the environment's business first, exactly as before, so nothing about
       // the pilot's staff depends on the new lookup.
       if (!loginThrottle.allow(callerOf(req), Date.now())) {
-        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
       }
       const mine = code.trim() === '' ? null
         : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
@@ -1477,7 +1508,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : await personForCodeHash(deps.db, hashCode(deps.sessionSecret, code)).catch(() => null);
       if (!mine && !theirs) {
         return reply.code(401).type('text/html; charset=utf-8')
-          .send(loginPage({ locale: localeOf(req), path: '/login?with=code', error: true, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+          .send(loginPage({ locale: localeOf(req), path: '/login?with=code', error: true, signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
       }
       if (theirs) return signIn(reply, theirs.businessId, theirs.person);
       person = mine!;
@@ -1506,25 +1537,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return email ? { token, email } : null;
   };
   const setPwPage = (req: FastifyRequest, reply: FastifyReply, status: number,
-    link: { token: string; email: string } | null, problem: SetPasswordProblem | null = null) =>
+    link: { token: string; email: string } | null, problem: SetPasswordProblem | null = null, locale: Locale = localeOf(req)) =>
     reply.code(status).header('referrer-policy', 'no-referrer').header('cache-control', 'no-store')
       .type('text/html; charset=utf-8')
-      .send(setPasswordPage({ locale: localeOf(req), path: '/login/set-password', passwordMin: PASSWORD_MIN,
+      .send(setPasswordPage({ locale, path: '/login/set-password', passwordMin: PASSWORD_MIN,
         passwordMax: PASSWORD_MAX, link, problem, recoveryOn, contact: deps.legalContact ?? null }));
 
   app.get('/login/set-password', quietDoor, async (req, reply) => {
-    const raw = (req.query as { t?: unknown } | undefined)?.t;
+    const q = req.query as { t?: unknown; l?: unknown } | undefined;
+    const raw = q?.t;
     // No link at all is somebody at the wrong door, not a spent link: the door.
     if (raw === undefined || raw === '') return reply.redirect('/login');
+    // PWR2 — the link opens in the language its mail was written in (`l`), and
+    // the page's own switcher comes back here with another: the choice is kept,
+    // as the switcher's `/locale` keeps it, and the token never leaves this route.
+    const chosen = typeof q?.l === 'string' ? parseLocale(q.l) : null;
+    if (chosen) setLocaleCookie(reply, chosen);
     const link = await setupLinkOf(raw);
-    return setPwPage(req, reply, link ? 200 : 404, link);
+    return setPwPage(req, reply, link ? 200 : 404, link, null, chosen ?? localeOf(req));
   });
 
   app.post('/login/set-password', quietDoor, async (req, reply) => {
     const b = (req.body ?? {}) as { t?: unknown; password?: unknown; repeat?: unknown };
     const signupMode = await signupModeNow();
     if (!loginThrottle.allow(callerOf(req), Date.now())) {
-      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
     }
     const link = await setupLinkOf(b.t);
     if (!link) return setPwPage(req, reply, 404, null);
@@ -1538,9 +1575,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (problem) return setPwPage(req, reply, 400, link, problem);
     const email = await spendSetupLink(deps.db, setupTokenHash(link.token), await hashPassword(password)).catch(() => null);
     if (!email) return setPwPage(req, reply, 404, null);
+    // PWR2 — every other session of this login ends NOW: the password stamp it
+    // was opened with no longer matches, and this process forgets the answer it
+    // held for a minute (as a password change on Setup does).
+    const who = await lookupLogin(deps.db, email).catch(() => null);
+    if (who) liveness.evict(livenessKey(who.businessId, who.person.id));
+    // PWR2 — and the address hears of it: if it was not the owner, they know
+    // at once and can ask for a link of their own. Best effort, after the reply.
+    if (recoveryOn) {
+      const locale = localeOf(req);
+      const base = (deps.publicBaseUrl ?? '').replace(/\/+$/, '');
+      const contact = deps.legalContact ? t(locale, 'setpw.changed.mail.contact', { contact: deps.legalContact }) : '';
+      void codeMail!.send({
+        to: email, subject: t(locale, 'setpw.changed.mail.subject'),
+        text: `${t(locale, 'setpw.changed.mail.body', { email: show.isolate(locale, email), forgot: `${base}/login/forgot` })}${contact}`,
+      }).then((m) => { if (!m.ok && !refusedByCap(m)) reportDoorMail('password_changed', m.error); })
+        .catch(() => reportDoorMail('password_changed', 'unreachable'));
+    }
     return html(reply, 200, loginPage({
       locale: localeOf(req), path: '/login', email, notice: t(localeOf(req), 'login.passwordSet'),
-      signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
+      signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor,
     }));
   });
 
@@ -1554,13 +1608,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const RECOVERY_MINUTES = 60;
   const recoveryThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
   const forgot = (req: FastifyRequest, extra: Omit<Parameters<typeof forgotPasswordPage>[0], 'locale' | 'path' | 'minutes'> = {}) =>
-    forgotPasswordPage({ locale: localeOf(req), path: '/login/forgot', minutes: RECOVERY_MINUTES, ...extra });
+    forgotPasswordPage({ locale: localeOf(req), path: '/login/forgot', minutes: RECOVERY_MINUTES,
+      // PWR2 — no system mail: the page says who sets a new password, and asks for nothing.
+      ...(recoveryOn ? {} : { mailOff: true, contact: deps.legalContact ?? null }), ...extra });
   app.get('/login/forgot', async (req, reply) => {
-    if (!recoveryOn) return reply.redirect('/login');
+    if (!forgotOnDoor) return reply.redirect('/login');
     return html(reply, 200, forgot(req));
   });
   app.post('/login/forgot', async (req, reply) => {
-    if (!recoveryOn) return reply.redirect('/login');
+    if (!forgotOnDoor) return reply.redirect('/login');
+    if (!recoveryOn) return html(reply, 200, forgot(req));
     if (!recoveryThrottle.allow(callerOf(req), Date.now())) return html(reply, 429, forgot(req, { problem: 'slow' }));
     const raw = (req.body as { email?: unknown } | undefined)?.email;
     const email = normalizeEmail(typeof raw === 'string' ? raw : '');
@@ -1571,12 +1628,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const token = randomBytes(32).toString('base64url');
       const to = await requestRecoveryLink(deps.db, email, setupTokenHash(token), RECOVERY_MINUTES).catch(() => null);
       if (!to) return;
-      const link = `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login/set-password?t=${token}`;
+      // PWR2 — `l`: the page opens in the language this mail is written in.
+      const link = `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login/set-password?t=${token}&l=${locale}`;
       const mailed = await codeMail!.send({
-        to, subject: t(locale, 'forgot.mail.subject'), text: t(locale, 'forgot.mail.body', { email: to, link, minutes: RECOVERY_MINUTES }),
+        to, subject: t(locale, 'forgot.mail.subject'),
+        // PWR2 — the address isolated inside an Arabic sentence; the link alone on its line, bare.
+        text: t(locale, 'forgot.mail.body', { email: show.isolate(locale, to), link, minutes: RECOVERY_MINUTES }),
       }).catch(() => ({ ok: false as const, error: 'unreachable' }));
       // A fixed phrase per way tried — never the address, never the link.
-      if (!mailed.ok) log.warn({ reason: mailed.error }, 'recovery mail could not be sent');
+      if (!mailed.ok) {
+        log.warn({ reason: mailed.error }, 'recovery mail could not be sent');
+        if (!refusedByCap(mailed)) reportDoorMail('recovery', mailed.error);
+      }
     })();
     return html(reply, 200, forgot(req, { sent: email }));
   });
@@ -1685,7 +1748,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         }));
       }
       const login = await lookupLogin(deps.db, p.email).catch(() => null);
-      if (login) rememberDevice(reply, login.loginId);
+      if (login) {
+        rememberDevice(reply, login.loginId);
+        // PWR2 (0129) — the address answered the code: a reset link may go there.
+        await markLoginEmailProven(deps.db, login.loginId).catch(() => undefined);
+      }
       toldOfSignup(made.businessId);
       noticeOnNextPage(reply, 'signup.welcome');
       return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
@@ -1695,6 +1762,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const login = await lookupLogin(deps.db, r.email).catch(() => null);
     if (!login || login.loginId !== r.loginId) return reply.redirect('/login');
     rememberDevice(reply, login.loginId);
+    // PWR2 (0129) — the address answered the code: a reset link may go there.
+    await markLoginEmailProven(deps.db, login.loginId).catch(() => undefined);
     return signIn(reply, login.businessId, login.person, '/app', await passwordVersionOf(login.businessId, login.person.id));
   });
 
@@ -1993,9 +2062,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const nextRaw = typeof q.next === 'string' ? q.next : '/app';
     const next = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/app';
     if (set) {
-      const flags = ['Path=/', 'SameSite=Lax', 'Max-Age=31536000'];
-      if (deps.secureCookie) flags.push('Secure');
-      reply.header('set-cookie', `${LOCALE_COOKIE}=${set}; ${flags.join('; ')}`);
+      setLocaleCookie(reply, set);
       // Persist for the logged-in owner so WhatsApp alerts use the same language.
       const s = sessionOf(req);
       const bid = s ? parseBusinessId(s.businessId) : null;
