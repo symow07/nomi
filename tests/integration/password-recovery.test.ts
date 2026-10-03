@@ -89,7 +89,7 @@ d('PWR · a forgotten password, by e-mail (requires DATABASE_URL + MIGRATE_DATAB
     expect(door.body).toContain(`<a href="/login/forgot">${t('en', 'login.forgot')}</a>`);
     const page = await prod.app.inject({ method: 'GET', url: '/login/forgot' });
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('<form method="post" action="/login/forgot">');
+    expect(page.body).toContain('<form method="post" action="/login/forgot" novalidate>');
     expect(page.body).toContain(t('en', 'forgot.lead', { minutes: 60 }));
   });
 

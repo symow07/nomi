@@ -1600,7 +1600,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const base = (deps.publicBaseUrl ?? '').replace(/\/+$/, '');
       // A mail is not a page: the catalogue's plain sentence (`mailT`), the
       // address alone isolated, each address of ours bare on its own line.
-      const contact = deps.legalContact ? mailT(locale, 'setpw.changed.mail.contact', { contact: deps.legalContact }) : '';
+      const contact = deps.legalContact ? mailT(locale, 'setpw.changed.mail.contact', { contact: show.isolate(locale, deps.legalContact) }) : '';
       void codeMail!.send({
         to: email, subject: mailT(locale, 'setpw.changed.mail.subject'),
         text: `${mailT(locale, 'setpw.changed.mail.body', { email: show.isolate(locale, email), forgot: `${base}/login/forgot` })}${contact}`,

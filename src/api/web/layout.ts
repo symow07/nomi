@@ -3056,22 +3056,29 @@ export function setPasswordPage(input: {
   const problem = input.problem
     ? t(locale, `setpw.problem.${input.problem}` as MessageKey, { n: input.problem === 'long' ? input.passwordMax : input.passwordMin })
     : null;
+  // PWR2 — the page, not the browser, says what is wrong (`novalidate`): the
+  // browser's own bubble is in the browser's language, not the page's. The
+  // sentence sits under the field it is about, tied to it, and that field
+  // takes the cursor.
+  const onRepeat = input.problem === 'mismatch';
+  const tied = (id: string, on: boolean): string => (problem && on ? ` class="err-field" aria-invalid="true" aria-describedby="${id}-err"` : '');
+  const under = (id: string, on: boolean): string => (problem && on ? `<div class="fld-err" id="${id}-err" role="alert">${esc(problem)}</div>` : '');
   // PWR2 — the address is isolated inside the sentence (not the sentence as a
   // whole), so in Arabic it keeps its own order and the sentence its direction.
   const card = `
     <h1>${esc(t(locale, 'setpw.title'))}</h1>
     <p class="lead">${withAddress(locale, 'setpw.lead', input.link.email)}</p>
-    ${problem ? `<div class="err" role="alert">${esc(problem)}</div>` : ''}
-    <form method="post" action="/login/set-password">
+    <form method="post" action="/login/set-password" novalidate>
       <input type="hidden" name="t" value="${esc(input.link.token)}" />
       <input type="email" name="email" value="${esc(input.link.email)}" autocomplete="username" hidden readonly />
       <label for="setpw-password">${esc(t(locale, 'setpw.password'))}</label>
       <input id="setpw-password" type="password" name="password" required minlength="${input.passwordMin}"
-        maxlength="${input.passwordMax}" autocomplete="new-password" autofocus />
-      <div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>
+        maxlength="${input.passwordMax}" autocomplete="new-password"${onRepeat ? '' : ' autofocus'}${tied('setpw-password', !onRepeat)} />
+      ${under('setpw-password', !onRepeat) || `<div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>`}
       <label for="setpw-repeat">${esc(t(locale, 'setpw.repeat'))}</label>
       <input id="setpw-repeat" type="password" name="repeat" required minlength="${input.passwordMin}"
-        maxlength="${input.passwordMax}" autocomplete="new-password" />
+        maxlength="${input.passwordMax}" autocomplete="new-password"${onRepeat ? ' autofocus' : ''}${tied('setpw-repeat', onRepeat)} />
+      ${under('setpw-repeat', onRepeat)}
       <button type="submit">${esc(t(locale, 'setpw.submit'))}</button>
     </form>`;
   return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other);
@@ -3117,21 +3124,25 @@ export function forgotPasswordPage(input: {
       ${codes}`, other);
   }
   if (input.sent) {
-    return doorFrame(locale, input.path, t(locale, 'forgot.title'),
-      `<h1>${esc(t(locale, 'forgot.title'))}</h1>
+    // PWR2 — the page says what to do now (the heading), and how to ask again.
+    return doorFrame(locale, input.path, t(locale, 'forgot.sent.title'),
+      `<h1>${esc(t(locale, 'forgot.sent.title'))}</h1>
       <p class="lead" role="status">${said('forgot.sent', input.sent)}</p>
+      <p><a href="/login/forgot">${esc(t(locale, 'forgot.again'))}</a></p>
       ${codes}`, other);
   }
-  const problem = input.problem === 'email' ? t(locale, 'signup.problem.email_invalid')
-    : input.problem === 'slow' ? t(locale, 'login.slow') : null;
+  // PWR2 — the page, not the browser, says an address is not one (`novalidate`),
+  // in the page's language, under the field and tied to it.
+  const bad = input.problem === 'email';
   const card = `
     <h1>${esc(t(locale, 'forgot.title'))}</h1>
     <p class="lead">${said('forgot.lead')}</p>
-    ${problem ? `<div class="err" role="alert">${esc(problem)}</div>` : ''}
-    <form method="post" action="/login/forgot">
+    ${input.problem === 'slow' ? `<div class="err" role="alert">${esc(t(locale, 'login.slow'))}</div>` : ''}
+    <form method="post" action="/login/forgot" novalidate>
       <label for="forgot-email">${esc(t(locale, 'login.emailLabel'))}</label>
       <input id="forgot-email" type="email" name="email" value="${esc(input.email ?? '')}" required maxlength="254"
-        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus />
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus${bad ? ' class="err-field" aria-invalid="true" aria-describedby="forgot-email-err"' : ''} />
+      ${bad ? `<div class="fld-err" id="forgot-email-err" role="alert">${esc(t(locale, 'signup.problem.email_invalid'))}</div>` : ''}
       <button type="submit">${esc(t(locale, 'forgot.submit'))}</button>
     </form>
     ${codes}`;

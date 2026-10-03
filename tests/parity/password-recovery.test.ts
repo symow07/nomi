@@ -37,12 +37,15 @@ describe('PWR · the door', () => {
   it('asks for the address, says how long the link works, and says the same thing once asked', () => {
     for (const l of LOCALES) {
       const page = withoutIsolates(forgotPasswordPage({ locale: l, path: '/login/forgot', minutes: 60 }));
-      expect(page, l).toContain('<form method="post" action="/login/forgot">');
+      expect(page, l).toContain('<form method="post" action="/login/forgot" novalidate>');
       expect(page, l).toContain(t(l, 'forgot.lead', { minutes: 60 }));
       const sent = withoutIsolates(forgotPasswordPage({ locale: l, path: '/login/forgot', minutes: 60, sent: 'sara@example.com' }));
       // PWR2 — the address in its own isolate, inside the sentence.
       expect(sent, l).toContain(t(l, 'forgot.sent', { email: '<bdi>sara@example.com</bdi>', minutes: 60 }));
       expect(sent, l).not.toContain('<form');
+      // PWR2 — headed by what to do now, with a door to ask again
+      expect(sent, l).toContain(`<h1>${t(l, 'forgot.sent.title')}</h1>`);
+      expect(sent, l).toContain(`<a href="/login/forgot">${t(l, 'forgot.again')}</a>`);
     }
     // the words themselves never say whether the address has a login
     expect(t('en', 'forgot.sent', { email: 'x@y.com', minutes: 60 })).toMatch(/^If x@y\.com signs in/);
@@ -50,7 +53,10 @@ describe('PWR · the door', () => {
 
   it('a refusal is said as one', () => {
     const bad = forgotPasswordPage({ locale: 'en', path: '/login/forgot', minutes: 60, problem: 'email', email: 'nope' });
-    expect(bad).toContain(`<div class="err" role="alert">${t('en', 'signup.problem.email_invalid')}</div>`);
+    // PWR2 — under the field, tied to it; the page says it, not the browser
+    expect(bad).toContain(`<div class="fld-err" id="forgot-email-err" role="alert">${t('en', 'signup.problem.email_invalid')}</div>`);
+    expect(bad).toContain('aria-describedby="forgot-email-err"');
+    expect(bad).toContain('<form method="post" action="/login/forgot" novalidate>');
     expect(bad).toContain('value="nope"');
     expect(forgotPasswordPage({ locale: 'en', path: '/login/forgot', minutes: 60, problem: 'slow' })).toContain(t('en', 'login.slow'));
   });
@@ -172,6 +178,23 @@ describe('PWR · the door', () => {
     for (const method of ['get', 'post'] as const) expect(routeBody(method, '/login/set-password')).toContain("'/login/set-password', quietDoor,");
     expect(APP).toContain("const quietDoor = { logLevel: 'warn' } as const;");
     expect(APP).toContain(".header('referrer-policy', 'no-referrer').header('cache-control', 'no-store')");
+  });
+
+  it('PWR2 — the set-password page says what is wrong itself, under the field it is about', () => {
+    const link = { token: 'T'.repeat(43), email: 'o@shop.example' };
+    for (const l of LOCALES) {
+      const page = (problem: 'short' | 'mismatch' | null) =>
+        setPasswordPage({ locale: l, path: '/login/set-password', passwordMin: 10, passwordMax: 200, link, problem });
+      expect(page(null), l).toContain('<form method="post" action="/login/set-password" novalidate>');
+      expect(page(null), l).not.toContain('role="alert"');
+      const short = page('short');
+      expect(short, l).toContain('id="setpw-password-err" role="alert"');
+      expect(short, l).toMatch(/id="setpw-password"[^>]*autofocus class="err-field" aria-invalid="true" aria-describedby="setpw-password-err"/);
+      const twice = page('mismatch');
+      expect(twice, l).toContain(`<div class="fld-err" id="setpw-repeat-err" role="alert">${t(l, 'setpw.problem.mismatch')}</div>`);
+      expect(twice, l).toMatch(/id="setpw-repeat"[^>]*autofocus class="err-field"/);
+      expect(twice.match(/autofocus/g), l).toHaveLength(1);
+    }
   });
 
   it('both routes are listed as public, with their reasons', () => {
