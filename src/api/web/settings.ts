@@ -326,9 +326,9 @@ export function renderSettingsHome(locale: Locale, flash: Flash | null): string 
   const setup = setupState();
   const business = businessName();
   const progress = setup ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total })) : '';
+  // One row as every menu draws it (`menuRow`): a value cut short keeps its beginning, in Arabic too.
   const row = (href: string, shape: Parameters<typeof icon>[0], label: string, value: string, tone?: 'ok' | 'warn') =>
-    `<li><a class="srow sr-menu" href="${href}">${icon(shape)}<span class="sr-main"><span class="sr-label">${esc(label)}</span></span>`
-    + `${value ? `<span class="sr-value${tone ? ` ${tone}` : ''}"><bdi>${esc(value)}</bdi></span>` : ''}<span class="go" aria-hidden="true">›</span></a></li>`;
+    menuRow({ href, icon: shape, label, value, ...(tone ? { tone } : {}) });
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
     <ul class="scard">

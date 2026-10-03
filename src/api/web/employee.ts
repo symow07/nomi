@@ -462,7 +462,7 @@ function heldEverywhere(e: EmployeeProfile, locale: Locale, viewer: Viewer): str
   const stop = e.stopped
     ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.stopped.title', { name }))}</p>
         <p class="small">${esc(t(locale, 'today.stopped.body', { name }))}</p>
-        ${viewer.isOwner ? deeper('/app/business', t(locale, 'today.stopped.start', { name })) : ''}</div>`
+        ${viewer.isOwner ? deeper('/app/business/ready', t(locale, 'today.stopped.start', { name })) : ''}</div>`
     : '';
   const paused = e.silenced
     ? `<div class="held-all" role="status"><p class="fwarn">${esc(t(locale, 'today.silenced.title', { name }))}</p>

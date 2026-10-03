@@ -241,8 +241,8 @@ export const signalMark = (s: Signal): string =>
  * here or named there with the way its shape is drawn.
  */
 export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
-  ok: ['.pill.ok', '.pill.taught', '.fconn.on .fconn-s', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
-  waiting: ['.pill.warn', '.pill.reason', '.fconn.off .fconn-s', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob', '.pc-wait', 'nav.side .navcount'],
+  ok: ['.pill.ok', '.pill.taught', '.sbx-trust.pass .verdict', '.chip.auto', '.sr-value.ok', '.p-tag.big'],
+  waiting: ['.pill.warn', '.pill.reason', '.fwarn', '.imp-warn', '.draft .held-why', '.chip.draft', '.sr-value.warn', '.prob', '.pc-wait', 'nav.side .navcount'],
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
   assistant: ['.pill.as'],
 };

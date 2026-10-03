@@ -176,7 +176,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
     const STATE_FRAGMENTS = [
       'pill', 'tag', 'badge', 'flash', 'err', 'prob', 'need', 'knew',
       'draft', 'refused', 'takeover', 'verdict', 'banner', 'chk', 'cert',
-      'cond', 'ditem', 'fconn', 'calm-mark', 'sbx-trust', '.ev', '.pr', '.mk',
+      'cond', 'ditem', 'calm-mark', 'sbx-trust', '.ev', '.pr', '.mk',
       '.ok', '.bad', 'warn', 'pass', 'fail', 'met', 'danger', 'blocked',
       'chip',   // an authorised claim (.fchip) or a granted autonomy (.chip.auto)
       '.rf',    // the refusal explanation panel — a refused send IS a state

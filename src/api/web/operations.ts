@@ -312,7 +312,7 @@ export function renderOperationsHome(
     ? `<div class="tw-note">
         <p class="tw-note-t">${esc(t(locale, 'today.stopped.title', { name }))}</p>
         <p class="muted">${esc(t(locale, 'today.stopped.body', { name }))}</p>
-        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/business', t(locale, 'today.stopped.start', { name }))}</div>
+        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/business/ready', t(locale, 'today.stopped.start', { name }))}</div>
       </div>`
     : '';
   // 0071 — ops paused sending: the same honesty, in the words ops uses.
@@ -387,7 +387,7 @@ export function renderOperationsHome(
   //     way forward instead of an empty row (M22, F-01). Sending, only where
   //     messaging is live, closes the zone.
   const reach = !live && (today.handled?.total ?? 0) === 0
-    ? `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper('/app/business', t(locale, 'today.calm.notLive.go'))}`
+    ? `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper('/app/business/ready', t(locale, 'today.calm.notLive.go'))}`
     : renderHandled(today, locale, { ready: live && !holding });
   // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
   const notLive = !live ? `<p class="muted notlive">${signalMark('waiting')} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
