@@ -177,4 +177,35 @@ d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_UR
     await prod.boss.cancel(QUEUES.inbound, job!);
     expect((await get(`/app/live/conversation/${cid}?since=${mark}`)).json()).not.toHaveProperty('working');
   });
+
+  it('the fix wave (w4-conversation-20) · a line somebody already answered is not "being written": the owner replied, or it was handed to a person', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { ensureConversation } = await import('../../src/db/channels.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const b = parseBusinessId(bid); if (!b.ok) throw new Error('fixture');
+    const c = await withTenantTx(prod.db, b.value, (tx) => ensureConversation(tx, b.value, `+9716${RUN.replace(/\D/g, '').padEnd(8, '3').slice(0, 8)}`, 'Rana'));
+    const cid = c.conversationId as string;
+    const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie, accept: 'application/json' } });
+    const page = async () => (await prod.app.inject({ method: 'GET', url: `/app/inbox/${cid}`, headers: { cookie } })).body;
+    const working = async () => (await get(`/app/live/conversation/${cid}?since=0.0.00000000`)).json() as { working?: boolean };
+
+    // A line no turn took (its turn failed), two minutes old: the assistant still holds it.
+    await admin.query(`insert into message_fragments (id, business_id, conversation_id, text, received_at)
+                       values ($1, $2, $3, 'Do you make them in 500 pieces?', now() - interval '2 minutes')`, [`wamid.w5.${RUN}`, bid, cid]);
+    expect(await working()).toMatchObject({ working: true });
+    // The owner answered it (took it, replied, handed it back): nothing is being written.
+    await admin.query(`insert into outbound_messages (business_id, conversation_id, seq, body, origin, status, sent_at)
+                       values ($1, $2, 1, 'Yes, we make them. 500 pieces is fine.', 'owner', 'sent', now() - interval '1 minute')`, [bid, cid]);
+    expect(await working()).not.toHaveProperty('working');
+    expect(await page()).not.toContain('class="block working"');
+    // A reply that never reached them answers nothing.
+    await admin.query(`update outbound_messages set status = 'failed' where conversation_id = $1`, [cid]);
+    expect(await working()).toMatchObject({ working: true });
+    // Handed to a person after it (the failed turn's own hand-over): not being written either.
+    await admin.query(`insert into conversation_events (business_id, conversation_id, type, payload) values ($1, $2, 'handoff', '{"reason":"not_answered"}')`, [bid, cid]);
+    expect(await working()).not.toHaveProperty('working');
+    // A new line after all that is the assistant at work again.
+    await admin.query(`insert into message_fragments (id, business_id, conversation_id, text) values ($1, $2, $3, 'And with our logo?')`, [`wamid.w5b.${RUN}`, bid, cid]);
+    expect(await working()).toMatchObject({ working: true });
+  });
 });

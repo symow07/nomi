@@ -320,9 +320,10 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
   @keyframes nomi-fade { from { opacity:0; } }
   @keyframes nomi-spring { from { opacity:0; transform:translateY(var(--space-48)) scale(0.97); } }
-  /* The assistant at work: its mark, what it is doing, three dots. */
-  .working { display:flex; align-items:baseline; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .working .dots { display:inline-flex; gap:var(--space-4); }
+  /* The assistant at work: its mark, what it is doing, three dots. One run of text, so the dots follow
+     the last word when the words wrap (w4-conversation-25), not the far edge of the line. */
+  .working { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .working .dots { display:inline-flex; gap:var(--space-4); margin-inline-start:var(--space-8); vertical-align:middle; }
   .working .dots i { width:6px; height:6px; border-radius:var(--radius-chip); background:var(--color-ink-secondary); }
   /* Asking first: the product's own dialog over a dimmed page. */
   dialog.ask { border:0; border-radius:var(--radius-card); padding:var(--space-24); max-width:var(--measure-form);
@@ -891,6 +892,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
      conversation tells the two apart at a glance. A wash, never a frame: the hairline goes. */
   .msg.outbound .bubble.by-as { background:var(--color-assistant-wash); border-color:transparent; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* The fix wave (w4-conversation-17) — "✦ name" over the assistant's words, so the mark is read first. */
+  .msg-by { font-size:var(--font-size-caption); margin-bottom:var(--space-4); }
   .as { color:var(--color-assistant); }
   /* CC-25 — a link into a transcript lands on its newest message: clear of the
      sticky phone nav, with the message before it still in view. After an
@@ -900,6 +903,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (V1-239) — on a laptop the newest message lands lower: a short conversation does not
      move at all, so the header is never cut through; a long one keeps the reply under it in view. */
   @media (min-width: 1100px) { #latest { scroll-margin-top:40vh; } }
+  /* The fix wave (V1-239) — a conversation that fits the first screen does not move to reach its newest
+     message: the strip above it made the old 40vh scroll the page and cut through the way back. */
+  @media (min-width: 1100px) { .timeline.few #latest { scroll-margin-top:100vh; } }
   /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
      boxed rival: a quiet serif paragraph behind a jade hairline that means
      "hers, awaiting your decision". border-inline-start keeps the hairline on
@@ -1923,12 +1929,13 @@ const STYLE_PAGES = `
   #approve summary { display:flex; flex-wrap:wrap; gap:var(--space-4) var(--space-8); cursor:pointer; min-height:44px; align-items:center; }
   /* Phase 9 (conversation-new-04) — what needs the owner follows the fold's own words, and starts its own line when it wraps: right-aligned under them, it read as cut off. */
   #approve summary .c { color:var(--color-ink-secondary); }
-  #approve summary .c.warn { color:var(--color-ink-secondary); font-weight:600; }
+  /* The fix wave (w4-conversation-01) — what to check is ink, marked by a question: magenta and ○ mean "waiting for you". */
+  #approve summary .c.check { color:var(--color-ink); font-weight:600; }
   #approve details .und { margin:var(--space-4) 0 0; }
   .reasons { list-style:none; margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12); display:grid; gap:var(--space-4);
     background:var(--color-paper); border-radius:var(--radius-control); }
   .reasons li { display:grid; grid-template-columns:1.2em minmax(6em, max-content) 1fr; gap:var(--space-8); align-items:baseline; }
-  .reasons .mk.warn { color:var(--color-ink-secondary); }
+  .reasons .mk.check { color:var(--color-ink); }
   /* Phase 9 (V1-242) — a product's name stays whole where the line has room. */
   .reasons .pname { display:inline-block; }
   /* Phase 9 (conversation-missed-03) — on a phone the source goes under what it explains, not into a sliver of a column. */
@@ -2000,7 +2007,9 @@ const STYLE_PAGES = `
     .panes > .listpane { display:block; position:sticky; top:0; height:100vh; overflow-y:auto; padding:var(--space-16) 0;
       background:var(--color-paper); border-inline-end:1px solid var(--color-border); }
     .panes > .conv { background:var(--color-surface); padding:var(--space-24); min-height:100vh; }
-    .panel-open { display:inline-flex; align-items:center; gap:var(--space-4); margin-inline-start:auto; font-size:var(--font-size-small); }
+    /* The fix wave (w4-whole-13) — one door to "About this customer": here it opens the panel, in the file door's place. */
+    .conv .panel-open { display:flex; }
+    .conv .file-door { display:none; }
     /* Folded away until its door is used; then over the page, with a way to close it. */
     .panes > .panel:target { display:block; position:fixed; inset-block:0; inset-inline-end:0; width:320px; z-index:5;
       overflow-y:auto; padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift2); }
@@ -2016,7 +2025,7 @@ const STYLE_PAGES = `
     .panes { grid-template-columns:300px minmax(560px, 1fr) 300px; }
     .panes > .panel, .panes > .panel:target { display:block; position:sticky; top:0; height:100vh; width:auto; overflow-y:auto; z-index:auto;
       padding:var(--space-16); background:var(--color-paper); box-shadow:none; border-inline-start:1px solid var(--color-border); }
-    .panel-open, .panes > .panel:target .panel-close, .conv .file-door { display:none; }
+    .conv .panel-open, .panes > .panel:target .panel-close, .conv .file-door { display:none; }
   }
   /* The reply waiting for review. */
   .review-intro { margin:0 0 var(--space-12); }
@@ -2137,8 +2146,9 @@ const STYLE_PAGES = `
 
   /* ── sandbox.ts — moved here whole in step four: page-specific names, defined once. */
   .pcount { font-size:var(--font-size-display); font-weight:600; color:var(--color-ink); font-variant-numeric:tabular-nums; margin:var(--space-4) 0 var(--space-12); }
-  .pchecks > summary { cursor:pointer; }
-  .pchecks > summary h2 { display:inline; }
+  /* The fix wave (w4-conversation-24) — the chevron on the heading's first line, however the heading wraps. */
+  .pchecks > summary { cursor:pointer; align-items:baseline; }
+  .pchecks > summary h2 { display:inline; margin:0; flex:1 1 auto; min-width:0; }
   .pchecks > summary .pcount { font-size:inherit; margin:0; }
   .pcases { list-style:none; margin:0; padding:0; }
   .pcase { display:flex; gap:var(--space-8); padding:7px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
@@ -2162,6 +2172,10 @@ const STYLE_PAGES = `
   .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
   .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
+  /* The fix wave (w4-conversation-22) — the total's label, its field and the hint under it, one group. */
+  .sbx-total { display:flex; flex-direction:column; gap:var(--space-4); }
+  .sbx-total input { max-width:var(--measure-form); }
+  .sbx-total p { margin:0; font-size:var(--font-size-caption); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
   textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   .sbx-trust { border-color:var(--color-border); }

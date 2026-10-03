@@ -79,20 +79,28 @@ describe('the state of play — one pure function, its precedence in one place',
   });
 
   it('then an order just confirmed — within the week, not after it', () => {
-    const at = (ms: number) => facts({ lastOrder: { reference: 'ZX-1042', confirmedAt: ago(ms) }, quoteSentAt: ago(30 * DAY) });
+    const at = (ms: number, quote = ago(30 * DAY)) => facts({ lastOrder: { reference: 'ZX-1042', confirmedAt: ago(ms) }, quoteSentAt: quote });
     expect(stateOfPlay(at(2 * DAY), NOW)).toEqual({ kind: 'ordered', reference: 'ZX-1042', at: ago(2 * DAY) });
     expect(stateOfPlay(at(ORDER_JUST_DAYS * DAY), NOW).kind).toBe('ordered');
-    expect(stateOfPlay(at(ORDER_JUST_DAYS * DAY + MIN), NOW).kind).toBe('quoted');
+    // past the week: a quote given after that order still waits; the order answered the one before it
+    expect(stateOfPlay(at(ORDER_JUST_DAYS * DAY + MIN, ago(3 * DAY)), NOW).kind).toBe('quoted');
+    expect(stateOfPlay(at(ORDER_JUST_DAYS * DAY + MIN), NOW).kind).toBe('none');
     // a confirmation stamped a moment ahead of the clock is still "just"
     expect(stateOfPlay(at(-MIN), NOW).kind).toBe('ordered');
   });
 
-  it('then a quote they were given and have not answered — any word from them after it ends the wait', () => {
+  it('then a quote they were given and have not answered with an order — a question after it does not end the wait (w4-conversation-13)', () => {
     const sent = ago(3 * DAY);
     expect(stateOfPlay(facts({ quoteSentAt: sent, lastFromThemAt: ago(4 * DAY) }), NOW)).toEqual({ kind: 'quoted', at: sent });
     expect(stateOfPlay(facts({ quoteSentAt: sent, lastFromThemAt: null }), NOW)).toEqual({ kind: 'quoted', at: sent });
-    expect(stateOfPlay(facts({ quoteSentAt: sent, lastFromThemAt: ago(2 * DAY), lastMessage: { from: 'buyer', at: ago(2 * DAY) } }), NOW).kind)
-      .toBe('last');
+    // Carlos: quoted, then "What plug type?", then answered — the quote still waits on him
+    expect(stateOfPlay(facts({ quoteSentAt: sent, lastFromThemAt: ago(2 * DAY), lastMessage: { from: 'assistant', at: ago(2 * DAY - MIN) } }), NOW))
+      .toEqual({ kind: 'quoted', at: sent });
+    // an order of theirs from then on is their answer
+    const answered = facts({ quoteSentAt: sent, lastOrder: { reference: 'R', confirmedAt: ago(2 * DAY) }, lastMessage: { from: 'buyer', at: ago(DAY) } });
+    expect(stateOfPlay({ ...answered, lastOrder: { reference: 'R', confirmedAt: ago(10 * DAY) } }, NOW).kind).toBe('quoted');
+    expect(stateOfPlay({ ...answered, lastOrder: { reference: 'R', confirmedAt: ago(2 * DAY) } }, NOW).kind).toBe('ordered');
+    expect(stateOfPlay({ ...answered, quoteSentAt: ago(12 * DAY), lastOrder: { reference: 'R', confirmedAt: ago(10 * DAY) } }, NOW).kind).toBe('last');
     // a long-unanswered quote is still what they owe an answer to, before "gone quiet"
     expect(stateOfPlay(facts({ quoteSentAt: ago(40 * DAY), lastFromThemAt: ago(41 * DAY) }), NOW).kind).toBe('quoted');
   });
@@ -121,7 +129,7 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       const s = strip(html);
       expect(s, l).not.toBe('');
       // above the messages, right under the row of doors, and the page's one heading
-      expect(html.indexOf('<header class="catchup">'), l).toBeLessThan(html.indexOf('class="timeline"'));
+      expect(html.indexOf('<header class="catchup">'), l).toBeLessThan(html.indexOf('class="timeline'));
       expect(html.indexOf('<div class="dhead">'), l).toBeLessThan(html.indexOf('<header class="catchup">'));
       expect(html.match(/<h1[\s>]/g), l).toHaveLength(1);
       // the face: a link to the card, at the strip's size, drawn from what the page knew
@@ -146,14 +154,24 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
     }
   });
 
-  it('a customer who has bought nothing: what they asked about, no spend, no Regular; their photo when one is kept', () => {
+  it('a customer who has bought nothing: what they asked about, "nothing bought yet", no spend, no Regular; their photo when one is kept', () => {
+    const none = { bought: [], value: { clientId: CLIENT, spent: null, orders: 0, lastOrderAt: null, regular: false, quietSince: null }, lastOrder: null };
     for (const l of LOCALES) {
-      const s = strip(page(detail({}, {
-        bought: [], value: { clientId: CLIENT, spent: null, orders: 0, lastOrderAt: null, regular: false, quietSince: null },
-        lastOrder: null, photo: 'abc123def456',
-      }), l));
-      for (const side of sides(l, 'catchup.asked', 'product')) expect(s, l).toContain(side);
-      expect(s, l).toContain(`<bdi>${l === 'zh' ? '帆布袋' : 'Canvas tote'}</bdi>`);
+      // the conversation's own product and quantity, labelled (w4-conversation-05): not an unlabelled line under the strip
+      const html = page(detail({}, { ...none, photo: 'abc123def456' }), l);
+      const s = strip(html);
+      expect(s, l).toContain(esc(t(l, 'catchup.askedQty', { product: '\u0000', qty: '\u0001' }))
+        .replace('\u0000', '<bdi>Vacuum cup</bdi>').replace('\u0001', `<bdi class="fig">${plain(show.quantityOf(l, 5000, t(l, 'product.unit.pcs')))}</bdi>`));
+      expect(s, l).toContain(esc(t(l, 'catchup.none')));
+      expect(html, l).not.toContain('class="muted subline"');
+      // no product of its own: the panel's reading, else the newest price worked out for them (the loader)
+      const bare = strip(page(detail({ product: { name: null, nameZh: null }, quantity: null }, none), l));
+      for (const side of sides(l, 'catchup.asked', 'product')) expect(bare, l).toContain(side);
+      expect(bare, l).toContain(`<bdi>${l === 'zh' ? '帆布袋' : 'Canvas tote'}</bdi>`);
+      expect(bare, l).toContain(esc(t(l, 'catchup.none')));
+      // nothing asked and nothing bought still says so
+      expect(strip(page(detail({ product: { name: null, nameZh: null }, quantity: null }, { ...none, askedAbout: null }), l)), l)
+        .toContain(`<p class="cu-facts"><span class="fig">${esc(t(l, 'catchup.none'))}</span></p>`);
       for (const side of sides(l, 'catchup.bought', 'items')) expect(s, l).not.toContain(side);
       expect(s, l).not.toContain('cu-regular');
       expect(s, l).not.toContain(esc(t(l, 'catchup.regular')));
@@ -219,17 +237,18 @@ describe('the state of play, drawn — one line, from the rows', () => {
     for (const l of LOCALES) {
       const head = (k: MessageKey) => `<b>${esc(t(l, k))}</b>`;
       const ordered = stateLine(page(detail({}, { lastOrder: { reference: 'ZX-1042', confirmedAt: ago(2 * DAY) } }), l));
-      expect(ordered, l).toContain(`${head('catchup.state.ordered')} · <bdi>ZX-1042</bdi>`);
+      // w4-conversation-14 — a break only after a separator, and never inside a reference, a name or a time
+      expect(ordered, l).toContain(`${head('catchup.state.ordered')}&nbsp;· <bdi class="fig">ZX-1042</bdi>&nbsp;· <span class="fig">`);
       const quoted = stateLine(page(detail({}, { quoteSentAt: ago(3 * DAY), lastFromThemAt: ago(4 * DAY) }), l));
       expect(quoted, l).toContain(head('catchup.state.quoted'));
       const quiet = stateLine(page(detail({}, { lastFromThemAt: ago(20 * DAY), lastMessage: { from: 'assistant', at: ago(19 * DAY) } }), l));
-      expect(quiet, l).toContain(`${head('catchup.state.quiet')} · ${esc(t(l, 'catchup.state.quietSince', { date: plain(show.date(l, ago(20 * DAY))) }))}`);
+      expect(quiet, l).toContain(`${head('catchup.state.quiet')}&nbsp;· ${esc(t(l, 'catchup.state.quietSince', { date: plain(show.date(l, ago(20 * DAY))) }))}`);
       const talking = stateLine(page(detail({}, { lastMessage: { from: 'assistant', at: ago(5 * MIN) } }), l));
-      expect(talking, l).toContain(`${head('catchup.state.talking')} · <span class="as"><span aria-hidden="true">✦</span> Mira</span>`);
+      expect(talking, l).toContain(`${head('catchup.state.talking')}&nbsp;· <span class="fig"><span class="as"><span aria-hidden="true">✦</span> Mira</span></span>&nbsp;· <span class="fig">`);
       const last = stateLine(page(detail(), l));
-      expect(last, l).toContain(`${head('catchup.state.last')} · <bdi>Aisha Bello</bdi>`);
+      expect(last, l).toContain(`${head('catchup.state.last')}&nbsp;· <span class="fig"><bdi>Aisha Bello</bdi></span>`);
       const mine = stateLine(page(detail({}, { lastMessage: { from: 'person', at: ago(DAY) } }), l));
-      expect(mine, l).toContain(`${head('catchup.state.last')} · ${esc(t(l, 'conv.by.you'))}`);
+      expect(mine, l).toContain(`${head('catchup.state.last')}&nbsp;· <span class="fig">${esc(t(l, 'conv.by.you'))}</span>`);
       const none = stateLine(page(detail({}, { lastMessage: null, lastFromThemAt: null }), l));
       expect(none, l).toContain(head('catchup.state.none'));
       // away from "needs you", the pill says who holds the conversation, as the header did
@@ -249,11 +268,11 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
     ],
     ...over,
   });
-  /** One message of the transcript: its bubble and its caption. */
+  /** One message of the transcript: the assistant's label over it (w4-conversation-17), its bubble and its caption. */
   const msg = (html: string, words: string): string =>
-    new RegExp(`<div(?: id="latest")? class="msg [a-z]+">\\s*<div dir="auto" class="[^"]+"><bdi>${words}</bdi></div>\\s*<div class="ts muted">[\\s\\S]*?</div>`).exec(html)?.[0] ?? '';
+    new RegExp(`<div(?: id="latest")? class="msg [a-z]+">\\s*(?:<div class="msg-by">.*?</div>\\s*)?<div dir="auto" class="[^"]+"><bdi>${words}</bdi></div>\\s*<div class="ts muted">[\\s\\S]*?</div>`).exec(html)?.[0] ?? '';
 
-  it('the assistant\'s bubble is on its wash with "✦ name" under it; the customer\'s and a person\'s keep the plain bubble', () => {
+  it('the assistant\'s bubble is on its wash with "✦ name" over it; the customer\'s and a person\'s keep the plain bubble', () => {
     for (const l of LOCALES) {
       const html = page(thread(), l);
       for (const w of ['ASSISTANT-WORDS', 'FIRST-WORDS']) {

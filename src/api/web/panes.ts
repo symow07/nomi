@@ -1,7 +1,7 @@
 import { workspaceZone } from './zone.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { dayStart } from '../../core/owner/i18n/format.js';
+import { dayStart, labelled } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl, signalMark } from './layout.js';
 import { buyersHref, reachedOn, channelName, productName, customerRow, inboxRow, waitingGroups, lensSwitch, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
@@ -31,6 +31,9 @@ import * as show from './values.js';
  * current page — by the customer, so a customer with two conversations is lit
  * whichever of them is open.
  */
+/** How many of the list's rows a 900 px window shows under the pane's heading and switch. */
+export const PANE_ROWS_IN_VIEW = 6;
+
 export function renderListPane(
   data: InboxList, locale: Locale, now: Date, currentId: string, people: readonly Person[] = [],
   /**
@@ -63,7 +66,12 @@ export function renderListPane(
   const heads = data.filter === 'all';
   const group = (title: string, rows: readonly ConversationSummary[], always = false) => rows.length === 0 ? ''
     : `${heads || always ? `<li class="lp-group" aria-hidden="true">${esc(title)}</li>` : ''}${rows.map(row).join('')}`;
-  const here = current && !all.some(isCurrent)
+  // The fix wave (V1-257) — and when the list holds it far down: Carlos's row was 2,616 px down a pane
+  // that opens at its top, so nothing in view said where the owner was. Pinned first unless it is
+  // among the first rows the pane shows.
+  const drawn = [...g.orders, ...g.deletion, ...g.needsYou, ...g.yours, ...g.hersWaiting, ...g.hersRest];
+  const at = drawn.findIndex(isCurrent);
+  const here = current && (at < 0 || at >= PANE_ROWS_IN_VIEW)
     ? `<ul class="irows lp-rows lp-current"><li class="lp-group" aria-hidden="true">${esc(t(locale, 'pane.current'))}</li>${row(current)}</ul>` : '';
   const rows = all.length === 0
     // Phase 9 — an empty FILTER is not an empty business: each says what it is.
@@ -124,8 +132,10 @@ export function renderCustomerPanel(
     language ? esc(t(locale, 'panel.writesIn', { language })) : '',
     p.country ? esc(countryName(locale, p.country) ?? p.country) : '',
   ].filter(Boolean).join(' · ');
+  // The fix wave (w4-conversation-06, -16) — the file's own words and the page's own form for the day:
+  // "First wrote: Today", as the file says it, not "First wrote Sat, Oct 3" beside a "Today" divider.
   const since = [
-    p.firstWrote ? esc(t(locale, 'panel.firstWrote', { date: show.date(locale, p.firstWrote) })) : '',
+    p.firstWrote ? esc(labelled(locale, t(locale, 'conv.file.firstContact'), show.day(locale, p.firstWrote, now))) : '',
     p.conversations > 0 ? esc(tn(locale, 'panel.conversations', p.conversations)) : '',
   ].filter(Boolean).join(' · ');
 
@@ -174,8 +184,8 @@ export function renderCustomerPanel(
       ${block('panel.onRecord', record)}
       ${block('panel.onCalendar', dated)}
       ${block('panel.activity', act)}
-      ${/* Phase 9 (V1-234) — the buyer's page by the one name the conversation page gives it. */ ''}${
-        deeper(`/app/conversations/${encodeURIComponent(conversationId)}`, t(locale, 'conv.file.title'))}
+      ${/* The fix wave (w4-whole-13) — the panel IS "About this customer" (its door's words); its door onward is the full page. */ ''}${
+        deeper(`/app/conversations/${encodeURIComponent(conversationId)}`, t(locale, 'panel.fileDoor'))}
     </aside>`;
 }
 

@@ -114,8 +114,9 @@ describe('CC-25 · the conversation page', () => {
     expect(marked).toBeLessThan(newest);
     expect(html.indexOf('id="latest"', marked + 1)).toBe(-1);   // one mark
     expect(newest).toBeLessThan(draft);
-    expect(draft).toBeLessThan(own);
-    expect(own).toBeLessThan(unheard);                          // what went wrong follows what to do
+    // the fix wave (w4-conversation-03) — under a reply the assistant drafted, no second card repeats it
+    expect(own).toBe(-1);
+    expect(draft).toBeLessThan(unheard);                        // what went wrong follows what to do
     // while a reply waits, what it leaned on is one of the card's reasons, not a section after
     expect(knew).toBe(-1);
     expect(unheard).toBeLessThan(ctx);
@@ -127,7 +128,7 @@ describe('CC-25 · the conversation page', () => {
     expect(html).toContain(`href="/app/inbox/${CONV}#latest"`);
     expect(html).toContain(t('en', 'inbox.log.latest'));
     expect(html).toContain(`?before=1790000000000_${ID}#latest`);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>m-400<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>m-400<\/bdi>/);
     for (const gone of ['class="card draft"', 'class="card takeover', 'class="ctx"', 'class="block knew"', t('en', 'unheard.title'), 'class="as-hand"']) {
       expect(html, gone).not.toContain(gone);
     }
@@ -180,7 +181,7 @@ describe('CC-25 · the practice page reads the same window', () => {
   it('the door back pages Practice back; the newest line is marked', () => {
     const html = renderSandbox(view(), 'en', { flash: null });
     expect(html).toContain(`href="/app/sandbox?before=1790000000123_${ID}#latest"`);
-    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble(?: by-as)?"><bdi>p-50<\/bdi>/);
+    expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*(?:<div class="msg-by">.*?<\/div>\s*)?<div dir="auto" class="bubble(?: by-as)?"><bdi>p-50<\/bdi>/);
     expect(html).not.toContain(t('en', 'inbox.log.latest'));
     const older = renderSandbox(view({ transcript: { earlier: null, older: true } }), 'en', { flash: null });
     expect(older).toContain('href="/app/sandbox#latest"');

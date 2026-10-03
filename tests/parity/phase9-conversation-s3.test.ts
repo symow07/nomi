@@ -93,19 +93,15 @@ describe('V1-262 · the same act has one name on every page', () => {
   });
 });
 
-describe('V1-243, V1-264 · "Hand to" offers the reader as the label\'s own object', () => {
-  it('"Pasar a mí", «إحالة إلى نفسي», "Hand to me" — never "Pasar a Tú" or «إحالة إلى أنت»', () => {
+describe('V1-243, V1-264, w4-conversation-18 · the reader is never an option of "Hand to": taking it is its own button', () => {
+  it('held by a colleague, "I\'ll reply" hands it to the reader; the list offers only colleagues — no "Confier à [moi]", no "Pasar a Tú"', () => {
     const held = draft({ pendingDraft: null, ownership: 'OWNER_CONTROLLED', heldBy: CHEN.id, people: [OWNER, CHEN] });
-    const option = (l: Locale) => {
+    for (const l of LOCALES) {
       const html = renderConversationDetail(held, l, NOW, null, { id: OWNER.id, isOwner: true });
-      return html.slice(html.indexOf('<select id="handto"'), html.indexOf('</select>', html.indexOf('<select id="handto"')));
-    };
-    expect(option('es')).toContain('>mí</option>');
-    expect(option('es')).not.toContain('>Tú</option>');
-    expect(option('ar')).toContain('>نفسي</option>');
-    expect(option('ar')).not.toContain('>أنت</option>');
-    expect(option('en')).toContain('>me</option>');
-    for (const l of LOCALES) expect(option(l), l).toContain(`>${esc(t(l, 'handto.self'))}</option>`);
+      expect(html, l).toMatch(new RegExp(`<form method="post" action="/app/inbox/[^"]+/handto" class="inline">\\s*<input type="hidden" name="personId" value="${OWNER.id}" />\\s*<button class="btn" type="submit">${esc(t(l, 'takeover.action.take'))}</button>`));
+      expect(html, l).not.toContain(`<option value="${OWNER.id}">`);
+      expect(html, l).not.toContain(`>${esc(t(l, 'handto.self'))}</option>`);
+    }
   });
 });
 
@@ -163,7 +159,9 @@ describe('V1-234, V1-266, conversation-missed-05 · the customer panel\'s doors'
           { unitPrice: usd(1.5), name: 'LED String Lights 10m', nameZh: null, at: ago(9000), conversationId: 'conv-before' },
         ],
       }), [], l, NOW, 'conv-here');
-      expect(html, l).toContain(`>${esc(t(l, 'conv.file.title'))}<span class="go"`);
+      // the fix wave (w4-whole-13) — the panel is "About this customer" (its label, its door's words); its door onward is the full page
+      expect(html, l).toContain(`aria-label="${esc(t(l, 'conv.file.title'))}"`);
+      expect(html, l).toContain(`<a class="deeper" href="/app/conversations/conv-here">${esc(t(l, 'panel.fileDoor'))}<span class="go"`);
       expect(html, l).not.toContain('href="/app/inbox/conv-here#latest"');
       expect(html, l).toContain(`<a class="pn-door" href="/app/inbox/conv-before#latest">${esc(t(l, 'panel.priceDoor'))}<span class="go"`);
     }
@@ -199,7 +197,11 @@ describe('V1-222, conversation-new-04, V1-240 · the fold\'s line says which fig
       const summary = c.slice(c.indexOf('<summary>'), c.indexOf('</summary>'));
       expect(summary, l).toContain(esc(t(l, 'card.unsourcedWhich', { figures: plain(formatList(l, ['300', '25'])) })));
       const claimOnly = plain(card(renderConversationDetail(draft({ pendingDraft: { ...draft().pendingDraft!, draftText: 'All our lamps are CE certified.' } }), l, NOW, null)));
-      expect(claimOnly, l).toContain(esc(t(l, 'card.unconfirmedWhich', { claims: '“CE certified”' })));
+      // w4-conversation-09 — in the locale's own quotation marks
+      const q = l === 'ar' || l === 'es' ? '«CE certified»' : l === 'fr' ? '«\u00a0CE certified\u00a0»' : '“CE certified”';
+      expect(claimOnly, l).toContain(esc(t(l, 'card.unconfirmedWhich', { claims: q })));
+      // w4-conversation-02 — with a figure unsourced too, the claim is still named on the line
+      expect(summary, l).toContain(esc(t(l, 'card.unconfirmedWhich', { claims: q })));
       const fine = plain(card(renderConversationDetail(draft({ pendingDraft: { ...draft().pendingDraft!, draftText: 'For 5,000 pcs of LED String Lights 10m: $1.45/pc.' } }), l, NOW, null)));
       expect(fine.slice(fine.indexOf('<summary>'), fine.indexOf('</summary>')), l).not.toContain('class="c');
       expect(c, l).toContain(`<p class="und"><span class="k">${esc(labelled(l, t(l, 'card.understood'), '').trimEnd())}</span> <span>`);
@@ -544,7 +546,7 @@ describe('V1-295 · nothing in Practice shouts', () => {
 });
 
 describe('V1-296, V1-297 · the situation\'s button says what it does; the expected total says its currency', () => {
-  it('"Send it as the customer"; "…in USD (optional)" with its explanation between label and field', () => {
+  it('"Send this situation"; "…in USD (optional)", its field, then its explanation under the field (w4-conversation-21, -22)', () => {
     for (const l of LOCALES) {
       const html = renderSandbox(practiceView({ ownership: 'AI', messages: [] }), l, { flash: null, settings,
         checklist: { items: ['quoted'], seen: new Set(), totals: [], currency: 'AED' } });
@@ -553,11 +555,14 @@ describe('V1-296, V1-297 · the situation\'s button says what it does; the expec
       const hint = html.indexOf('id="expected-hint"');
       const field = html.indexOf('<input id="expected"');
       expect(label, l).toBeGreaterThan(-1);
-      expect(label, l).toBeLessThan(hint);
-      expect(hint, l).toBeLessThan(field);
+      expect(label, l).toBeLessThan(field);
+      expect(field, l).toBeLessThan(hint);
       expect(html, l).toContain('aria-describedby="expected-hint"');
+      expect(html, l).toContain('<div class="sbx-total">');
+      // the two buttons on the card no longer say nearly the same thing
+      expect(t(l, 'sandbox.scenario.load'), l).not.toBe(t(l, 'sandbox.composer.send'));
     }
-    expect(t('en', 'sandbox.scenario.load')).toBe('Send it as the customer');
+    expect(t('en', 'sandbox.scenario.load')).toBe('Send this situation');
   });
 });
 

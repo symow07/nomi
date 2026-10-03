@@ -1,4 +1,4 @@
-import { extractNumerals, isSafeSmall, near } from '../safety/numerals.js';
+import { asciiDigits, extractNumerals, isSafeSmall, near } from '../safety/numerals.js';
 
 /**
  * "HOW {name} READ THIS" — the approval card's reasons (the design pass,
@@ -24,6 +24,8 @@ export type ReadingSource =
 
 export type ReadingLine =
   | { readonly kind: 'product'; readonly name: string }
+  /** The fix wave (V1-220) — the product's own code as the reply writes it ("ZX-300"): its digits are the code, not a figure. */
+  | { readonly kind: 'code'; readonly code: string }
   | { readonly kind: 'figure'; readonly value: number; readonly source: Exclude<ReadingSource, 'product'> };
 
 export type ReadingQuote = {
@@ -40,11 +42,34 @@ export function readReply(input: {
   readonly theirTexts: readonly string[];
   /** The quantity the conversation already holds, which the guard counts as theirs. */
   readonly heldQuantity: number | null;
+  /**
+   * The fix wave (V1-220) — the identified product's own code (its SKU, when
+   * it is the owner's: `ownSku`). "ZX-300" in a reply is the product's name
+   * for itself; the card listed its "300" as a figure with no source, and the
+   * line every owner reads said "No source for 300".
+   */
+  readonly productCodes?: readonly string[];
 }): { readonly lines: readonly ReadingLine[]; readonly everyFigureSourced: boolean } {
   const lines: ReadingLine[] = [];
   const lower = input.reply.toLocaleLowerCase();
   const named = input.productNames.find((n) => n.trim().length >= 2 && lower.includes(n.toLocaleLowerCase()));
   if (named) lines.push({ kind: 'product', name: named });
+
+  // Where the product's name and its code stand in the reply: a figure inside
+  // either is part of the name ("Thermos 500ml", "ZX-300"), said by its line.
+  const text = asciiDigits(input.reply);
+  const spans: (readonly [number, number])[] = [];
+  const occurrences = (needle: string): (readonly [number, number])[] =>
+    [...text.matchAll(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'giu'))].map((m) => [m.index, m.index + m[0].length] as const);
+  if (named) spans.push(...occurrences(asciiDigits(named)));
+  for (const code of new Set((input.productCodes ?? []).map((c) => c.trim()).filter((c) => c.length >= 3 && /\d/.test(c)))) {
+    const at = occurrences(asciiDigits(code));
+    if (at.length === 0) continue;
+    lines.push({ kind: 'code', code: input.reply.slice(at[0]![0], at[0]![1]) });
+    spans.push(...at);
+  }
+  const inside = (n: { readonly at?: readonly [number, number] }): boolean =>
+    !!n.at && spans.some(([s, e]) => n.at![0] >= s && n.at![1] <= e);
 
   const theirs = [
     ...input.theirTexts.flatMap((x) => extractNumerals(x).map((n) => n.value)),
@@ -63,13 +88,13 @@ export function readReply(input: {
 
   const seen: number[] = [];
   for (const n of extractNumerals(input.reply)) {
-    if (isSafeSmall(n) || seen.some((s) => near(s, n.value))) continue;
+    if (isSafeSmall(n) || inside(n) || seen.some((s) => near(s, n.value))) continue;
     seen.push(n.value);
     lines.push({ kind: 'figure', value: n.value, source: sourceOf(n.value) });
   }
   return {
     lines,
-    everyFigureSourced: lines.every((l) => l.kind === 'product' || l.source !== 'unsourced'),
+    everyFigureSourced: lines.every((l) => l.kind !== 'figure' || l.source !== 'unsourced'),
   };
 }
 

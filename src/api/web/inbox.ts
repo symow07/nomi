@@ -11,6 +11,7 @@ import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
+import { ownSku } from '../../core/owner/sku.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import { t, assistantName, outreachShown, tn } from './say.js';
 import { formatList, labelled, dayKey } from '../../core/owner/i18n/format.js';
@@ -453,6 +454,17 @@ const quoted = (locale: Locale, terms: readonly string[]): string =>
     : locale === 'ar' ? terms.map((x) => `«${x}»`).join('، ')
       : terms.map((x) => `“${x}”`).join(', ');
 
+/**
+ * The fix wave (w4-conversation-09) — one name or claim the reply wrote, in the
+ * locale's own quotation marks, as the rest of each catalogue writes them:
+ * “…” in English and Chinese, «…» in Arabic and Spanish, « … » in French.
+ */
+const inQuotes = (locale: Locale, x: string): string =>
+  locale === 'ar' || locale === 'es' ? `«${x}»` : locale === 'fr' ? `«\u00a0${x}\u00a0»` : `“${x}”`;
+
+/** The fold's mark for "check this": a question, in the locale's own question mark. */
+const UNSURE: Readonly<Record<Locale, string>> = { en: '?', zh: '？', ar: '؟', es: '?', fr: '?' };
+
 function contradictionBlock(c: DraftContradiction, locale: Locale): string {
   const line = (label: string, price: Money, quantity: number) =>
     `<div><span class="muted">${esc(label)}</span> <b><bdi>${esc(show.money(locale, price))}</bdi></b> <span class="muted">${
@@ -584,7 +596,8 @@ export type ConversationDetail = {
   readonly assistantChoices?: readonly { readonly id: string; readonly name: string; readonly current: boolean }[];
   readonly country: string | null;
   readonly status: InboxStatus;
-  readonly product: { readonly name: string | null; readonly nameZh: string | null };
+  /** The fix wave (V1-220) — `sku`: the product's own code, so the card reads "ZX-300" as the code. Optional for fixtures. */
+  readonly product: { readonly name: string | null; readonly nameZh: string | null; readonly sku?: string | null };
   readonly quantity: number | null;
   readonly quote: { unitPrice: Money; total: Money; quantity: number } | null;
   /**
@@ -816,11 +829,11 @@ export async function loadConversationDetail(
   return withTenantTx(db, bid.value, async (tx) => {
     const head = (await sql<{
       id: string; buyer: string | null; country: string | null;
-      name_zh: string | null; name: string | null; qty: number | null;
+      name_zh: string | null; name: string | null; sku: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null; pending: number;
       answered_by: string | null; assistants: number; owner_unsent_reply: string | null; channel: string; owner_testing: boolean;
     }>`
-      select c.id, c.channel, cl.display_name as buyer, cl.country, p.name_zh, p.name,
+      select c.id, c.channel, cl.display_name as buyer, cl.country, p.name_zh, p.name, p.sku,
              cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply, c.owner_testing,
              -- A5: the conversation's own assistant; one that started before
              -- there was a second belongs to the main one.
@@ -983,7 +996,7 @@ export async function loadConversationDetail(
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
-      product: { name: head.name, nameZh: head.name_zh }, quantity: head.qty ?? null,
+      product: { name: head.name, nameZh: head.name_zh, sku: head.sku }, quantity: head.qty ?? null,
       // G18 — both halves in the quote's OWN currency, and no dollar fallback:
       // a row whose currency this build cannot price is a row it must not put a
       // "$" in front of, so the context line is left off instead.
@@ -1786,36 +1799,56 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   // Phase 9 (V1-218, V1-251) — nor to yourself where taking it already has its
   // own control ("Take over", or the draft card's "Hand to me"): a second one
   // offering "Hand to [You]" did the same. Held by a colleague, it is the way.
+  /*
+   * The fix wave (w4-conversation-03, -04, -18) — Nomi has one owner and no
+   * team machinery (UI-BENCHMARK §10). Handing on to a colleague stays only
+   * where a PERSON must answer: the conversation waits for a person, or a
+   * colleague holds it. On a conversation the assistant holds — answered, or
+   * with a reply waiting under the draft card — it is gone. The reader is never
+   * an option in the list: taking it yourself is its own button ("I'll reply"),
+   * which for a conversation a colleague holds posts the same hand-to with your
+   * own id ("Confier à [moi]" was not French).
+   */
   const isViewer = (p: Person): boolean => (viewer.id ? p.id === viewer.id : p.isOwner);
-  const selfHasOwnControl = d.ownership !== 'OWNER_CONTROLLED';
-  const others = (d.people ?? []).length > 1
-    ? (d.people ?? []).filter((p) => p.id !== d.heldBy && !(selfHasOwnControl && isViewer(p))) : [];
+  const me = (d.people ?? []).find(isViewer) ?? null;
+  const personMustAnswer = d.ownership !== 'AI';
+  const others = personMustAnswer && (d.people ?? []).length > 1
+    ? (d.people ?? []).filter((p) => p.id !== d.heldBy && !isViewer(p)) : [];
   const handToForm = others.length === 0 ? '' : `
     <form method="post" action="/app/inbox/${cid}/handto" class="handto">
       <label class="muted" for="handto">${esc(t(locale, 'handto.label'))}</label>
       <select id="handto" name="personId" required>
-        ${/* Phase 9 (V1-243, V1-264) — the reader as the label's own object: "Pasar a mí", «إحالة إلى نفسي», not "Pasar a Tú". */ ''}${
-          others.map((p) => `<option value="${esc(p.id)}">${esc(isViewer(p) ? t(locale, 'handto.self') : p.name)}</option>`).join('')}
+        ${others.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
       </select>
       <button class="btn" type="submit">${esc(t(locale, 'handto.button'))}</button>
     </form>`;
+  // Held by a colleague: taking it yourself is handing it to yourself.
+  const heldByOther = d.ownership === 'OWNER_CONTROLLED' && me !== null && d.heldBy !== null && d.heldBy !== undefined
+    && d.heldBy !== me.id && !(d.heldBy === 'owner' && viewer.isOwner);
+  const takeFromColleague = heldByOther ? `
+    <form method="post" action="/app/inbox/${cid}/handto" class="inline">
+      <input type="hidden" name="personId" value="${esc(me!.id)}" />
+      <button class="btn" type="submit">${esc(t(locale, 'takeover.action.take'))}</button>
+    </form>` : '';
 
   const ownerPill = esc(holderLabel(d, locale, viewer));
 
   switch (d.ownership) {
     case 'AI':
-      // Phase 9 (V1-215) — with a reply waiting for the owner, the card says so,
-      // as the header's "Awaiting you" does; "is handling this" contradicted it.
+      // The fix wave (w4-conversation-03) — with a reply waiting, the draft card above is the whole
+      // story and its "I'll reply" the take-over: a second card under it repeated "it waits for your OK".
+      if (d.pendingDraft) return '';
       // Phase 9 (conversation-new-06) — with nothing waiting, the card says so itself: in a dashed box
       // of its own the line read as an empty drop zone, narrower than the cards around it.
-      return `<div class="card takeover"><span class="pill as">${esc(t(locale, d.pendingDraft ? 'takeover.status.aiDraft' : 'takeover.status.ai'))}</span>${
-        d.pendingDraft || d.working === true ? '' : `<p class="muted takeover-note">${esc(t(locale, 'inbox.draft.none'))}</p>`}${last}${takeBtn}${handToForm}</div>`;
+      return `<div class="card takeover"><span class="pill as">${esc(t(locale, 'takeover.status.ai'))}</span>${
+        d.working === true ? '' : `<p class="muted takeover-note">${esc(t(locale, 'inbox.draft.none'))}</p>`}${last}${takeBtn}</div>`;
     case 'WAITING_HUMAN':
       return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}${handToForm}</div>`;
     case 'OWNER_CONTROLLED':
       return `<div class="card takeover owner">
         <span class="pill owner">${ownerPill}</span>
         ${last}
+        ${takeFromColleague}
         ${handToForm}
         <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
@@ -2069,14 +2102,19 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     } : null),
     theirTexts: d.messages.filter((m) => m.direction === 'inbound').map((m) => m.text),
     heldQuantity: d.quantity,
+    productCodes: [ownSku(d.product.sku)].filter((x): x is string => x !== null),
   });
   const figure = (l: Extract<ReadingLine, { kind: 'figure' }>): string =>
     l.source === 'price' && d.quote ? show.money(locale, d.quote.unitPrice)
     : l.source === 'total' && d.quote ? show.money(locale, d.quote.total)
     : l.value.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  // The fix wave (w4-conversation-01) — "check this" is not "waiting for you": ink, and a question
+  // mark, never the magenta ○. (w4-conversation-07) — each part in a span of the page's direction,
+  // so in Arabic the figure stands beside its mark, not at the far edge of the row.
+  // (w4-conversation-08) — a code in the pointer never breaks at its hyphen.
   const line = (ok: boolean, said: string, source: string, where = '') =>
-    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${source}${
-      where ? ` <bdi class="muted">${esc(where)}</bdi>` : ''}</span></li>`;
+    `<li><span class="${ok ? 'mk' : 'mk check'}" aria-hidden="true">${ok ? '✓' : UNSURE[locale]}</span><span><bdi>${esc(said)}</bdi></span><span>${source}${
+      where ? ` <bdi class="muted">${esc(where).replace(/[^\s]*[\p{L}\p{N}]-[\p{L}\p{N}][^\s]*/gu, (w) => `<span class="fig">${w}</span>`)}</bdi>` : ''}</span></li>`;
   // Phase 9 (V1-242) — the product's name kept whole where the line has room:
   // «سعر LED String Lights / 10m في قائمة أسعارك» broke the name in two.
   const priceSource = (product: string): string =>
@@ -2095,7 +2133,8 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   };
   const reasons = [
     ...read.lines.map((l) => l.kind === 'product'
-      ? line(true, `“${l.name}”`, esc(t(locale, 'card.source.product')))
+      ? line(true, inQuotes(locale, l.name), esc(t(locale, 'card.source.product')))
+      : l.kind === 'code' ? line(true, l.code, esc(t(locale, 'card.source.code')))
       : line(l.source !== 'unsourced', figure(l), l.source === 'price'
         ? (prod ? priceSource(prod) : esc(t(locale, 'card.source.priceAny')))
         : esc(t(locale, `card.source.${l.source}` as MessageKey)), l.source === 'unsourced' ? whereIn(l.value) : '')),
@@ -2105,7 +2144,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     // a draft with nothing on the card, while no certification was confirmed.
     ...detectClaims(p.draftText).map((c) => {
       const confirmed = (d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`);
-      return line(confirmed, `“${c.matchedText}”`, esc(t(locale, confirmed ? 'card.source.claim' : 'card.source.claimUnconfirmed')));
+      return line(confirmed, inQuotes(locale, c.matchedText), esc(t(locale, confirmed ? 'card.source.claim' : 'card.source.claimUnconfirmed')));
     }),
     ...(r?.differsOn === null || r?.differsOn === undefined ? []
       : r.differsOn.length === 0 ? [line(true, t(locale, 'card.checked'), esc(t(locale, 'card.checked.same')))]
@@ -2121,12 +2160,14 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   // it said nothing the owner acts on, so the line carries only what needs them.
   const unsourced = [...new Set(read.lines.flatMap((l) => (l.kind === 'figure' && l.source === 'unsourced' ? [figure(l)] : [])))];
   const unconfirmed = [...new Set(detectClaims(p.draftText)
-    .filter((c) => !(d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`)).map((c) => `“${c.matchedText}”`))];
+    .filter((c) => !(d.claimsAllowed ?? []).includes(`${c.kind}:${c.claimKey}`)).map((c) => inQuotes(locale, c.matchedText)))];
+  // The fix wave (w4-conversation-02) — both, when both: a claim you never confirmed was left
+  // off the line whenever a figure had no source, and the owner had to open the fold to learn it.
+  const check = (words: string) => `<span class="c check"><span aria-hidden="true">${UNSURE[locale]}</span> ${esc(words)}</span>`;
   const how = reasons.length || und
     ? `<details class="reading"><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span>${
-        unsourced.length ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) }))}</span>`
-          : unconfirmed.length ? `<span class="c warn"><span aria-hidden="true">○</span> ${esc(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) }))}</span>`
-          : ''}</summary>${
+        unsourced.length ? check(t(locale, 'card.unsourcedWhich', { figures: formatList(locale, unsourced) })) : ''}${
+        unconfirmed.length ? check(t(locale, 'card.unconfirmedWhich', { claims: formatList(locale, unconfirmed) })) : ''}</summary>${
         und}${reasons.length ? `<ul class="reasons">${reasons.join('')}</ul>` : ''}</details>`
     : '';
 
@@ -2190,6 +2231,13 @@ export function languageName(locale: Locale, code: string): string {
   }
 }
 
+/** A transcript this short sits whole in a laptop's first screen under the strip (V1-239). */
+const FEW_MESSAGES = 6;
+const FEW_CHARS = 600;
+
+/** The strip's separator: a line may break after it, never before it. */
+const CU_SEP = '&nbsp;· ';
+
 /** Items said one after another the way the language lists them, without an "and". */
 const LIST_SEP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
 
@@ -2203,9 +2251,16 @@ const LIST_SEP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '�
  *   - Their face, which opens their card (`faceLink`), and their name — the
  *     page's one heading, drawn as the header always drew it (`buyerWho`).
  *   - Where they write (`reachedOn`, the panel's own line); what they bought —
- *     the products of their orders that stand, "Canvas tote ×2, Apron" — or,
- *     with none, what they asked about; what they spent (`customerValues`);
- *     "Regular" when Nomi counts them one.
+ *     the products of their orders that stand, "Canvas tote ×2, Apron" — and
+ *     what they spent (`customerValues`), or "Nothing bought yet"; what this
+ *     conversation is about, when it is not something they bought: "Asked
+ *     about LED String Lights 10m, 5,000 pcs" (the conversation's product and
+ *     quantity, else the panel's reading or the newest price worked out for
+ *     them); "Regular" when Nomi counts them one.
+ *   - The fix wave (w4-conversation-05, -15): a customer who bought nothing
+ *     had no line about buying at all, and the product under the strip was
+ *     unlabelled — bought, or asked about? — and repeated what "Bought" named.
+ *     It is the strip's own labelled line now, said once.
  *   - THE STATE OF PLAY (`stateOfPlay`, pure, its precedence in one place):
  *     the pill says who it waits for — "Needs you" whenever the Buyers list
  *     puts them under it, in its words; otherwise who holds the conversation,
@@ -2241,29 +2296,41 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   const speaker = (s: Speaker): string => s === 'buyer' ? `<bdi>${esc(who)}</bdi>`
     : s === 'person' ? esc(t(locale, 'conv.by.you')) : byAssistant(assistantName(locale));
   const head = (key: MessageKey): string => `<b>${esc(t(locale, key))}</b>`;
-  const when = (at: Date): string => esc(show.shortWhen(locale, at, now));
+  // The fix wave (w4-conversation-14) — a line breaks only after a separator, never
+  // before one, and never inside a time, a name or a reference: "Last message · ✦
+  // Your assistant" over "· 16:31", and "USAB-de300000-" over "0001", read as broken.
+  const when = (at: Date): string => `<span class="fig">${esc(show.shortWhen(locale, at, now))}</span>`;
   const story = !c ? '' : ((): string => {
     switch (play.kind) {
       case 'needs': return `<b><bdi>${esc(needsWhy(locale, row))}</bdi></b>`;
-      case 'ordered': return [head('catchup.state.ordered'), `<bdi>${esc(play.reference)}</bdi>`, when(play.at)].join(' · ');
-      case 'quoted': return [head('catchup.state.quoted'), when(play.at)].join(' · ');
-      case 'quiet': return [head('catchup.state.quiet'), esc(t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }))].join(' · ');
-      case 'talking': return [head('catchup.state.talking'), speaker(play.from), when(play.at)].join(' · ');
-      case 'last': return [head('catchup.state.last'), speaker(play.from), when(play.at)].join(' · ');
+      case 'ordered': return [head('catchup.state.ordered'), `<bdi class="fig">${esc(play.reference)}</bdi>`, when(play.at)].join(CU_SEP);
+      case 'quoted': return [head('catchup.state.quoted'), when(play.at)].join(CU_SEP);
+      case 'quiet': return [head('catchup.state.quiet'), esc(t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }))].join(CU_SEP);
+      case 'talking': return [head('catchup.state.talking'), `<span class="fig">${speaker(play.from)}</span>`, when(play.at)].join(CU_SEP);
+      case 'last': return [head('catchup.state.last'), `<span class="fig">${speaker(play.from)}</span>`, when(play.at)].join(CU_SEP);
       case 'none': return head('catchup.state.none');
     }
   })();
 
-  const facts = !c ? [] : [
-    c.bought.length > 0
-      ? around('catchup.bought', 'items', `${c.bought.map((b) => `<bdi>${esc(productName(locale, b) ?? '')}</bdi>${
-          b.orders > 1 ? `&nbsp;<bdi dir="ltr">×${esc(show.count(locale, b.orders))}</bdi>` : ''}`).join(LIST_SEP[locale])}${
-          c.boughtMore > 0 ? ` ${esc(t(locale, 'catchup.more', { n: c.boughtMore }))}` : ''}`)
-      : c.askedAbout && productName(locale, c.askedAbout)
-        ? around('catchup.asked', 'product', `<bdi>${esc(productName(locale, c.askedAbout)!)}</bdi>`) : '',
+  // What this conversation is about: its own product and quantity, else what they asked about last.
+  const about = !c ? null
+    : productName(locale, d.product) ? { name: productName(locale, d.product)!, qty: d.quantity }
+    : c.askedAbout && productName(locale, c.askedAbout) ? { name: productName(locale, c.askedAbout)!, qty: null } : null;
+  const boughtNames = new Set((c?.bought ?? []).map((b) => productName(locale, b)));
+  const asked = !about || boughtNames.has(about.name) ? ''
+    : about.qty !== null
+      ? esc(t(locale, 'catchup.askedQty', { product: '\u0000', qty: '\u0001' }))
+          .replace('\u0000', `<bdi>${esc(about.name)}</bdi>`)
+          .replace('\u0001', `<bdi class="fig">${esc(show.quantityOf(locale, about.qty, t(locale, 'product.unit.pcs')))}</bdi>`)
+      : around('catchup.asked', 'product', `<bdi>${esc(about.name)}</bdi>`);
+  const facts = !c ? [] : c.bought.length > 0 ? [
+    around('catchup.bought', 'items', `${c.bought.map((b) => `<bdi>${esc(productName(locale, b) ?? '')}</bdi>${
+      b.orders > 1 ? `&nbsp;<bdi dir="ltr">×${esc(show.count(locale, b.orders))}</bdi>` : ''}`).join(LIST_SEP[locale])}${
+      c.boughtMore > 0 ? ` ${esc(t(locale, 'catchup.more', { n: c.boughtMore }))}` : ''}`),
+    asked,
     // The sum and its word never wrap apart (`.fig`): "$1,240.00" at a line's end and "spent" under it read as two facts.
     c.value.spent ? `<span class="fig">${around('catchup.spent', 'money', `<bdi>${esc(show.money(locale, c.value.spent))}</bdi>`)}</span>` : '',
-  ].filter(Boolean);
+  ].filter(Boolean) : [asked, `<span class="fig">${esc(t(locale, 'catchup.none'))}</span>`].filter(Boolean);
   const regular = c?.value.regular ? ` <span class="cu-regular">${esc(t(locale, 'catchup.regular'))}</span>` : '';
 
   // Beside the face: who and where. Under both, the width of the column: what they bought, and where things stand.
@@ -2271,7 +2338,7 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
       ${c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : ''}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
       ${c ? `<p class="cu-where">${reachedOn(locale, c.channel, c.address)}</p>` : ''}
-      ${facts.length || regular ? `<p class="cu-facts">${facts.join(' · ')}${regular}</p>` : ''}
+      ${facts.length || regular ? `<p class="cu-facts">${facts.join(CU_SEP)}${regular}</p>` : ''}
       <p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>
     </header>`;
 }
@@ -2323,9 +2390,18 @@ export function renderConversationDetail(
     return k !== null && (i === 0 || dayOf(d.messages[i - 1]!) !== k)
       ? `<p class="tday"><span>${esc(show.day(locale, m.at!, now))}</span></p>` : '';
   };
+  // The fix wave (V1-239) — a conversation short enough to sit whole in a laptop's first screen is
+  // not scrolled at all to reach its newest message: with the catch-up strip above it, landing there
+  // moved the page 41-65 px and cut through the way back. The stylesheet does it (`.timeline.few`),
+  // on a wide screen only; on a phone the newest message still lands with the reply under it.
+  const few = !older && !earlier && d.messages.length <= FEW_MESSAGES
+    && d.messages.reduce((n, m) => n + m.text.length, 0) <= FEW_CHARS;
   const timeline = d.messages.length
-    ? `<div class="timeline">${d.messages.map((m, i) => `${divider(m, i)}
+    ? `<div class="timeline${few ? ' few' : ''}">${d.messages.map((m, i) => `${divider(m, i)}
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
+          ${/* The fix wave (w4-conversation-17) — what the assistant said is marked BEFORE its words, as phase 5
+               meant: under a long reply the mark came after it. The caption under keeps the time. */ ''}${
+            m.direction === 'outbound' && m.by !== 'owner' ? `<div class="msg-by">${byAssistant(assistantName(locale))}</div>` : ''}
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div dir="auto" class="${bubbleClass(speakerOf(m))}"><bdi>${esc(m.text)}</bdi></div>`}
@@ -2334,8 +2410,7 @@ export function renderConversationDetail(
             // customer's, "You", the assistant's — never a role word; a
             // customer with no name yet is just their message.
             m.direction === 'inbound' ? (d.buyer ? `<bdi>${esc(d.buyer)}</bdi>` : '')
-            : m.by === 'owner' ? esc(t(locale, 'conv.by.you'))
-            : byAssistant(assistantName(locale))].filter(Boolean).join(' · ')}</div>
+            : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : ''].filter(Boolean).join(' · ')}</div>
         </div>`).join('')}</div>`
     // "No messages yet" only where it is true: not on a window further back,
     // and not on one whose every message was a reaction left out (G2c).
@@ -2537,17 +2612,22 @@ export function renderConversationDetail(
     <div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
       ${LIVE_SLOT}
-      ${/* The design pass — where the customer panel is folded away, this opens it over the page. */ ''}<a class="panel-open" href="#customer">${esc(t(locale, 'panel.open'))}<span class="go" aria-hidden="true">›</span></a>
     </div>
     ${catchUpStrip(d, locale, now, viewer)}
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${older ? '' : assistantControl(d, locale, viewer)}
-    ${prod || d.quantity !== null ? `<div class="muted subline">${[
+    ${/* The fix wave (w4-conversation-05, -15) — the strip names it, labelled; this line stays only where the strip has no customer rows. */ ''}${
+      !d.catchUp && (prod || d.quantity !== null) ? `<div class="muted subline">${[
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
       d.quantity !== null ? `<bdi>${esc(show.quantityOf(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
-    ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
-      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}
+    ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now.
+         The fix wave (w4-whole-13, w4-conversation-16) — ONE door to "About this customer", in one place, by one name:
+         on a phone the page; where the panel is folded away (1100–1440 px) the panel, which ends with the
+         door to the full page; from 1440 px the panel stands beside, and neither door is drawn. The face
+         opens the card. The stylesheet chooses; nothing waits on a script. */ ''}${
+      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}${
+      deeper('#customer', t(locale, 'panel.open'), 'panel-open')}
     ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
       viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
       ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}

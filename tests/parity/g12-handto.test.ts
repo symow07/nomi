@@ -54,20 +54,24 @@ describe('G12 · the conversation says whose it is', () => {
     proof: { quoteId: null, token: null }, ...over,
   });
 
-  it('the design pass (UI-PASS 5) — in "Hand to", the reader is "me" (the label’s own object), whatever the row is called', () => {
+  it('the fix wave (w4-conversation-18) — the reader is never a row of "Hand to": held by a colleague, "I\'ll reply" hands it to you', () => {
     // An owner provisioned before logins was named after the business, and the
     // list offered "Westlake Canvas Co." as a person.
     const named = [{ ...owner, name: 'Westlake Canvas Co.' }, chen];
+    const mine = (who: string) => new RegExp(`<input type="hidden" name="personId" value="${who}" />\\s*<button class="btn" type="submit">`);
     for (const l of LOCALES) {
-      // Held by Chen, the owner takes it back through "Hand to": the owner is "You".
+      // Held by Chen, the owner takes it back with the take-over's own words.
       const byChen = detail({ people: named, heldBy: chen.id, ownership: 'OWNER_CONTROLLED', lastHumanAction: null });
       const asOwner = renderConversationDetail(byChen, l, NOW, null, { id: owner.id, isOwner: true });
-      expect(asOwner, l).toContain(`<option value="${owner.id}">${esc(t(l, 'handto.self'))}</option>`);
+      expect(asOwner, l).toMatch(mine(owner.id));
+      expect(asOwner, l).toContain(esc(t(l, 'takeover.action.take')));
+      expect(asOwner, l).not.toContain(`<option value="${owner.id}">`);
       expect(asOwner, l).not.toContain('>Westlake Canvas Co.</option>');
-      // Held by the owner, Chen sees the owner as the row names them — and is not offered back to the holder.
+      // Held by the owner, Chen takes it the same way — and is not offered back to the holder.
       const byOwner = detail({ people: named, heldBy: owner.id, ownership: 'OWNER_CONTROLLED', lastHumanAction: null });
       const asChen = renderConversationDetail(byOwner, l, NOW, null, { id: chen.id, isOwner: false });
-      expect(asChen, l).toContain(`<option value="${chen.id}">${esc(t(l, 'handto.self'))}</option>`);
+      expect(asChen, l).toMatch(mine(chen.id));
+      expect(asChen, l).not.toContain(`<option value="${chen.id}">`);
     }
   });
 

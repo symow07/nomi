@@ -167,8 +167,11 @@ describe('M16.2c · inbox human control surface (localized)', () => {
   it('AI state: employee-handling status + ONE take-over control; no reply/return', () => {
     // A reply waits: the card's "Hand to me" is the take-over, and nothing else offers it.
     const html = renderConversationDetail(detailIn('AI'), 'en', NOW, null);
-    // Phase 9 (V1-215) — with a reply waiting, the card says the reply waits, as the header does.
-    expect(html).toContain(shown('en', 'takeover.status.aiDraft'));
+    // The fix wave (w4-conversation-03) — with a reply waiting, the draft card is the whole story:
+    // no second card under it repeating that the reply waits, nor a "Hand to" a colleague (-04).
+    expect(html).not.toContain(shown('en', 'takeover.status.aiDraft'));
+    expect(html).not.toContain('class="card takeover');
+    expect(html).not.toContain('/handto');
     expect(html).toContain('formaction="/app/inbox/conv-1/takeover"');
     expect(html).not.toMatch(/ action="\/app\/inbox\/conv-1\/takeover"/);
     expect(html).toContain(shown('en', 'card.handToMe'));
@@ -221,11 +224,11 @@ describe('M16.2c · inbox human control surface (localized)', () => {
 
   it('a team member is NAMED, escaped — and an id nobody holds is never shown raw (G9b)', () => {
     const named = renderConversationDetail({
-      ...withLast('AI', 'takeover', 'p-7'), people: [{ id: 'p-7', name: '<b>Xiao Chen</b>', isOwner: false }],
+      ...withLast('AI', 'takeover', 'p-7'), pendingDraft: null, people: [{ id: 'p-7', name: '<b>Xiao Chen</b>', isOwner: false }],
     }, 'en', NOW, null);
     expect(named).toContain('Taken over by &lt;b&gt;Xiao Chen&lt;/b&gt;');
     expect(named).not.toContain('<b>Xiao Chen</b>');
-    const unknown = renderConversationDetail(withLast('AI', 'takeover', '<b>agent-7</b>'), 'en', NOW, null);
+    const unknown = renderConversationDetail({ ...withLast('AI', 'takeover', '<b>agent-7</b>'), pendingDraft: null }, 'en', NOW, null);
     expect(unknown).not.toContain('agent-7');
     expect(unknown).toContain(t('en', 'people.held.gone'));
   });
@@ -365,6 +368,12 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
       const newest = html.indexOf('id="latest"');  // its newest message
       const own = html.indexOf('card takeover');   // the ownership card
       expect(msg, `${o}: transcript must render`).toBeGreaterThan(-1);
+      // the fix wave (w4-conversation-03) — under a reply the assistant holds, the draft card is the ownership card too
+      if (o === 'AI') {
+        expect(own, 'AI with a reply waiting: no second card').toBe(-1);
+        expect(html.indexOf('card draft')).toBeGreaterThan(html.indexOf('id="latest"'));
+        continue;
+      }
       expect(own, `${o}: ownership card must render`).toBeGreaterThan(-1);
       // the header: everything above the transcript's own section
       const head = html.slice(html.indexOf('<div class="dhead">'), html.indexOf('<div class="block">'));
