@@ -5,6 +5,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import { t } from './say.js';
 import { back, esc, publicDocument, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { recordBuyerRequest, BUYER_NOTE_MAX } from './dataRights.js';
+import * as show from './values.js';
 
 /**
  * 0126 — THE OWNER DELETES; IT IS GONE (the owner's direction, 2026-10-04).
@@ -171,7 +172,7 @@ export function renderEraseAsk(
 /** The same for closing the workspace: the name already typed, and the one button. */
 export function renderCloseAsk(locale: Locale, typedName: string, businessName: string): string {
   return `${back('/app/settings/data#close', t(locale, 'data.title'))}
-    <h1 class="page">${esc(t(locale, 'close.ask.title', { name: businessName }))}</h1>
+    <h1 class="page">${esc(t(locale, 'close.ask.title', { name: show.isolate(locale, businessName) }))}</h1>
     <p>${esc(t(locale, 'data.deletion.lead'))}</p>
     <p>${esc(t(locale, 'data.deletion.now'))}</p>
     <form method="post" action="/app/settings/data/close" class="pform">

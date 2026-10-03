@@ -342,7 +342,7 @@ export function renderDataRights(
   // asks the Nomi team, who carry it out with the same steps (erase-workspace).
   const request = open ? '' : `<form method="post" action="/app/settings/data/delete">
           ${rowsCard(null, [
-            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: v.businessName }), forId: 'dr-name',
+            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }), forId: 'dr-name',
               control: '<input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" />' }),
             fieldRow({ label: t(locale, 'data.deletion.why'), forId: 'dr-note',
               control: '<input id="dr-note" name="note" maxlength="500" autocomplete="off" />' }),
@@ -359,7 +359,7 @@ export function renderDataRights(
       : `${pending}<form method="post" action="/app/settings/data/close">
           <input type="hidden" name="asked" value="0" />
           ${rowsCard(null, [
-            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: v.businessName }), forId: 'dr-name',
+            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }), forId: 'dr-name',
               control: '<input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" />' }),
             cardActs(`${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.close'))}</button>`),
