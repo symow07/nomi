@@ -111,7 +111,9 @@ describe('Phase F · every empty surface says what happens next', () => {
 
   it('the quiet branches still lead somewhere', () => {
     expect(emptyToday).toContain('href="/app/business"');     // nobody can reach the assistant yet: the way to go live
-    expect(emptyToday).toContain('href="/app/calendar"');    // nothing coming up: the calendar all the same
+    // The warmth run — "Coming up" left Today (the calendar has its nav entry);
+    // the day's figures keep their door to Results, whatever the day held.
+    expect(emptyToday).toContain('href="/app/analytics"');
     expect(emptyBuyers('all')).toContain('href="/app/business"');
     expect(emptySearch).toContain('href="/app/inbox?filter=all"');   // every buyer, the search let go
     // the warmth run — an empty calendar's one door is adding a date to it

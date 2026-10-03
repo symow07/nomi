@@ -308,7 +308,8 @@ d('Stop · WAITING — silent while stopped, and a buyer who writes is still the
     const today = await get('/app');
     expect(today.body).toContain('is stopped on every channel');
     // The design pass: the one handed over is named on Today, a door to the newest message.
-    expect(today.body).toContain(`<h2 id="today-now">1 customer needs you</h2>`);
+    // The warmth run — the band's heading, in the owner's words, with the waiting ○ (was nav.needsYou).
+    expect(today.body).toContain(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> 1 waiting for you</span></h2>`);
     expect(today.body).toContain(`href="/app/inbox/${convA}#latest"`);
   });
 

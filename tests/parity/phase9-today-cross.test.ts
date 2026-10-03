@@ -9,7 +9,7 @@ import { messages, type MessageKey } from '../../src/core/owner/i18n/messages.js
 import { shell, notFoundInside, esc, BACK_TO } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
-import { renderLastDay, NOTHING_TODAY, type TodayData } from '../../src/api/web/today.js';
+import { NOTHING_TODAY, type TodayData } from '../../src/api/web/today.js';
 import { renderInsights } from '../../src/api/web/insights.js';
 import type { ConversationSummary } from '../../src/api/web/inbox.js';
 import { renderGuide } from '../../src/api/web/guide.js';
@@ -89,7 +89,6 @@ const today: TodayData = {
     person({ conversationId: 'c-2', buyer: 'Omar Haddad', ownership: 'OWNER_CONTROLLED', heldBy: 'owner',
       latestMessage: 'Yes — one-colour logo print, $2.05/pc for 3,000 pcs, lead time 20 days. Shall I send a proforma?' }),
   ] },
-  last24: { wrote: 1, answered: 0, sent: 0, handed: 0, yourself: 0 },
 };
 const snap: OperationsSnapshot = {
   range: 'today',
@@ -170,7 +169,8 @@ describe('Phase 9 · the shell', () => {
     expect(page('en', '/app/products', '<h1 class="page">x</h1>')).not.toContain('class="back"');
   });
   it('V1-012 · Today\'s lines end in the product\'s one chevron, not "→"', () => {
-    const h = renderLastDay(today, 'en');
+    // The warmth run — the last-24-hours lines are gone; the band's people and doors carry the chevron now.
+    const h = todayHtml('en');
     expect(h).toContain('<span class="go" aria-hidden="true">›</span>');
     expect(h).not.toContain('→');
   });
@@ -207,17 +207,19 @@ describe('Phase 9 · Today', () => {
   it('today-onboarding-new-04 · the conversation the owner holds says so in words; no word is said twice to a screen reader', () => {
     for (const l of LOCALES) {
       const h = todayHtml(l);
-      expect(h, l).toContain(`<span class="cr-why"><bdi>${esc(t(l, 'buyers.group.yours'))}</bdi></span>`);
+      // The warmth run — the band's own line of why (was the Inbox row's .cr-why).
+      expect(h, l).toContain(`<span class="tw-why"><bdi>${esc(t(l, 'buyers.group.yours'))}</bdi></span>`);
       expect(h, l).not.toContain(`<span class="sr">${esc(t(l, 'buyers.group.yours'))}</span>`);
     }
   });
-  it('today-onboarding-new-02, new-03, new-05 · the row is the list\'s: the short reason, a preview cut where a word ends with "…", a Latin preview under the name in Arabic', () => {
+  it('today-onboarding-new-02, new-03, new-05 · the short reason; the message itself is the Inbox\'s, not the band\'s', () => {
     const h = todayHtml('es');
     expect(h).toContain(`<bdi>${t('es', 'buyers.badge.reviewShort')}</bdi>`);
-    for (const text of [...h.matchAll(/<span class="cr-text" dir="auto">([^<]*)<\/span>/g)].map((m) => m[1]!)) {
-      expect(text.endsWith('…'), text).toBe(true);
-      expect(text, text).not.toMatch(/\s…$/);
-    }
+    // The warmth run (the owner: "each item: face, name, one line of why") — the
+    // band shows no preview of the last message; the Inbox still cuts its
+    // preview where a word ends and keeps a Latin one at the Arabic line's end.
+    expect(h).not.toContain('class="cr-text"');
+    expect(h).not.toContain('Lagos');
     expect(css).toContain('[dir="rtl"] .cr-text:dir(ltr) { text-align:end; }');
   });
   it('V1-093 · "tell me in this browser" is a button that looks like one', () => {
@@ -238,9 +240,8 @@ describe('Phase 9 · Today', () => {
   });
   it('V1-092 · Chinese calls the calendar 日程 on Today as the rail and the page do', () => {
     expect(t('zh', 'nav.calendar')).toBe('日程');
-    expect(t('zh', 'today.coming.all')).toBe('日程');
-    expect(t('zh', 'today.coming.none')).toContain('日程');
-    expect(t('zh', 'today.coming.none')).not.toContain('日历');
+    // The warmth run — "Coming up" left Today, and with it the two lines that named the calendar there.
+    expect(todayHtml('zh')).not.toContain('日历');
   });
   it('V1-094, V1-101 · on a phone a line\'s door goes under its sentence; the sentence avoids a lone last word', () => {
     expect(css).toMatch(/@media \(max-width: 560px\) \{\s*\.today-worth \.row \{ flex-direction:column; align-items:flex-start; gap:0; \}/);

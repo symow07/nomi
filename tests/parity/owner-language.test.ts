@@ -100,8 +100,9 @@ const emptyOps = renderOperationsHome({
     latestMessage: null, latestAt: new Date('2026-09-29T07:40:00Z'),
     product: { name: 'Canvas tote', nameZh: '帆布袋' }, quantity: 20000, unitPrice: null,
   }] },
-  last24: { answered: 9, sent: 3, handed: 1, yourself: 2 },
-  comingUp: [],
+  // The warmth run — the hero's faces and the day's three figures replace the last 24 hours and Coming up.
+  handled: { total: 9, people: [{ conversationId: 'c9', clientId: '99999999-9999-4999-8999-999999999999', name: 'Ahmed', photo: null, word: 'quoted' }] },
+  tally: { orders: 1, quotes: 3, afterHours: 2 },
   sending: ['whatsapp'],
 } satisfies TodayData);
 

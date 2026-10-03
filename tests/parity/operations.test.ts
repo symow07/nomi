@@ -5,6 +5,7 @@ import type { ConversationSummary } from '../../src/api/web/inbox.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, OWNER_AGENT } from '../../src/core/conversation/ownership.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, tn, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
+import { esc } from '../../src/api/web/layout.js';
 
 /**
  * M16.2a — the Operations snapshot is a neutral, honest shape. These pure tests
@@ -109,34 +110,42 @@ const busy: TodayData = {
     person({ conversationId: 'c-1', buyer: 'Maya Rahman', awaitingReview: true }),
     person({ conversationId: 'c-2', buyer: 'Omar Haddad', ownership: 'WAITING_HUMAN', handoffReason: 'human_requested' }),
     person({ conversationId: 'c-3', buyer: 'Li Wei', ownership: 'OWNER_CONTROLLED', heldBy: 'owner' }),
+  ], faces: {
+    'c-1': { clientId: '11111111-1111-4111-8111-111111111111', name: 'Maya Rahman', photo: null },
+    'c-2': { clientId: '22222222-2222-4222-8222-222222222222', name: 'Omar Haddad', photo: 'abc123' },
+    'c-3': { clientId: '33333333-3333-4333-8333-333333333333', name: 'Li Wei', photo: null },
+  } },
+  handled: { total: 14, people: [
+    { conversationId: 'h-1', clientId: '44444444-4444-4444-8444-444444444444', name: 'Ana Souza', photo: null, word: 'confirmed' },
+    { conversationId: 'h-2', clientId: '55555555-5555-4555-8555-555555555555', name: 'Chen Li', photo: null, word: 'answered' },
   ] },
-  last24: { answered: 14, sent: 5, handed: 2, yourself: 1 },
-  comingUp: [],
+  tally: { orders: 1, quotes: 3, afterHours: 2 },
   sending: ['instagram', 'messenger'],
 };
 const live = (s: OperationsSnapshot): OperationsSnapshot => ({ ...s, channel: { status: 'connected', provider: 'meta', live: true } });
 
 /**
- * THE DESIGN PASS (§4) — Today by time: who needs you now, the last 24
- * hours, what is coming up. One heading each; every line a door; figures in
- * sentences through the plural rules, never tiles. The sections it replaced
- * (the counts grid, "How often you stepped in", "What she is learning") are
- * gone on purpose: Results holds the history, Knowledge the teaching.
+ * THE WARMTH RUN, phase 2 (2026-10-03) — Today in three zones: who waits for
+ * you, what the assistant handled, the day's three figures. The design pass's
+ * "by time" blocks are replaced on purpose: "The last 24 hours" became the
+ * hero (what the assistant did, by face) and the three figures; "Coming up"
+ * left Today — the calendar has its own place in the nav. The full structure,
+ * in five languages and at 0, 2 and 200 customers, is `warmth-today.test.ts`;
+ * what stays here is what this page has always had to say.
  */
-describe('Today, by time (render)', () => {
-  it('who needs you: counted in a sentence, then each person by name — the Buyers row\'s own reason, a door to the newest message', () => {
+describe('Today, in three zones (render)', () => {
+  it('who waits: counted in the band\'s heading with ○, then each person by face and name — the Inbox\'s own reason, a door to the newest message', () => {
     const html = renderOperationsHome(live(populated), 'en', busy);
-    expect(html).toContain(`<h2 id="today-now">${tn('en', 'nav.needsYou', 7)}</h2>`);
+    // The owner's words: "N waiting for you", in the waiting signal's colour with its shape (was nav.needsYou).
+    expect(html).toContain(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> ${tn('en', 'today.waiting', 7)}</span></h2>`);
     expect(html).toContain('href="/app/inbox/c-1#latest"');
     expect(html).toContain('<bdi>Maya Rahman</bdi>');
     expect(html).toContain(t('en', 'buyers.badge.reviewShort'));
     expect(html).toContain(t('en', 'takeover.reason.human_requested'));   // the stored reason, never inferred
-    // Phase 4 — Buyers' own row: ○ for whoever waits for the owner, ● for one the owner holds.
-    expect(html).toMatch(/class="crow is-needs[^"]*"[\s\S]*?<span class="cr-mark" aria-hidden="true">○<\/span>/);
-    expect(html).toMatch(/class="crow is-yours[^"]*"[\s\S]*?<span class="cr-mark" aria-hidden="true">●<\/span>/);
-    // Phase 9 (today-onboarding-new-04) — Today has no group headings: the row the owner holds says so in words.
-    expect(html).toContain(`<span class="cr-why"><bdi>${t('en', 'buyers.group.yours')}</bdi></span>`);
-    expect(html).not.toContain(`<span class="sr">${t('en', 'buyers.group.yours')}</span>`);
+    // The warmth run — each face opens the customer's card (was: the Inbox's row mark ○/●).
+    expect(html).toContain('href="/app/customers/11111111-1111-4111-8111-111111111111" data-card aria-label="Maya Rahman"');
+    // A conversation the owner holds says so in words.
+    expect(html).toContain(`<span class="tw-why"><bdi>${t('en', 'buyers.group.yours')}</bdi></span>`);
     // in the list's own order
     expect(html.indexOf('Maya Rahman')).toBeLessThan(html.indexOf('Omar Haddad'));
     // more than it names: one door to all of them, with the count
@@ -146,35 +155,41 @@ describe('Today, by time (render)', () => {
     expect(html).not.toContain('class="stat need"');   // no tiles
   });
 
-  it('the last 24 hours: what the assistant did (its ✦) and what you did, each a door; zeros unsaid', () => {
+  it('what the assistant handled: the headline in its name, a face and a word each; the door to Results stays (CC-05)', () => {
     const html = renderOperationsHome(live(populated), 'en', busy);
-    expect(html).toContain(t('en', 'today.last.title'));
-    expect(html).toMatch(/<span class="as" aria-hidden="true">✦<\/span> [^<]*14/);
-    expect(html).toContain(tn('en', 'today.last.yourself', 1));
-    const quiet = renderOperationsHome(live(populated), 'en', { ...busy, last24: { answered: 0, sent: 0, handed: 0, yourself: 0 } });
-    expect(quiet).toContain(`<div class="empty">${t('en', 'today.last.none')}</div>`);   // phase 9 — a panel, not a grey line
+    expect(html).toContain(tn('en', 'today.handled.title', 14));
+    expect(html).toContain(`<span class="td-word">${t('en', 'today.word.confirmed')}</span>`);
+    expect(html).toContain('href="/app/customers/44444444-4444-4444-8444-444444444444" data-card');
+    const quiet = renderOperationsHome(live(populated), 'en', { ...busy, handled: { total: 0, people: [] } });
+    expect(quiet).toContain(t('en', 'today.handled.none'));
+    expect(quiet).not.toContain('class="td-row"');
     // CC-05 — the way into Results stays, whatever the day held.
     expect(quiet).toContain('href="/app/analytics"');
   });
 
-  it('coming up: the calendar\'s next things, or the fact that there are none — and a door to the calendar', () => {
+  it('coming up has left Today: the calendar is its own place in the nav', () => {
     const html = renderOperationsHome(live(emptyFactory), 'en', NOTHING_TODAY(NOW));
-    expect(html).toContain(`<div class="empty">${t('en', 'today.coming.none')}</div>`);
-    expect(html).toContain('href="/app/calendar"');
+    expect(html).not.toContain('today-coming');
+    expect(html).not.toContain('today-last');
   });
 
-  it('nobody waiting: the fact, stated — no calm-page speech, no grid of zeros', () => {
+  it('nobody waiting, messaging on: the calm, warm state — the fact stated, no grid of zeros', () => {
     const html = renderOperationsHome(live(emptyFactory), 'en', NOTHING_TODAY(NOW));
-    expect(html).toContain(`<h2 id="today-now">${t('en', 'today.needs.none')}</h2>`);
+    // The owner's words: "you're all caught up", warm (was: "No one is waiting for you." as the heading).
+    expect(html).toContain(`<h2 id="today-now" class="tw-head">${t('en', 'today.calm.title')}</h2>`);
+    expect(html).toContain(t('en', 'today.needs.none'));
+    expect(html).toContain(t('en', 'today.calm.care'));
     expect(html).not.toContain(t('en', 'ops.activity.title'));
   });
 
-  it('M22 (F-01) · a quiet day with messaging OFF says nobody can reach the assistant, with the way forward', () => {
+  it('M22 (F-01) · a quiet day with messaging OFF says nobody can reach the assistant, with the way forward — and never "all caught up"', () => {
     const html = renderOperationsHome(emptyFactory, 'en', NOTHING_TODAY(NOW));
     expect(html).toContain(t('en', 'today.calm.notLive.title'));
     expect(html).toContain('href="/app/business"');
     expect(html).toContain(t('en', 'ops.system.notLive'));
     expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
+    expect(html).toContain(`<h2 id="today-now" class="tw-head">${t('en', 'today.needs.none')}</h2>`);
+    expect(html).not.toContain(t('en', 'today.calm.title'));
   });
 
   it('sending: the channels customers reach, on — or paused while stopped or silenced', () => {
@@ -182,6 +197,8 @@ describe('Today, by time (render)', () => {
     expect(on).toContain(`${t('en', 'today.sending')}</span> Instagram <span class="dot ok" aria-hidden="true">✓</span> ${t('en', 'today.sending.on')}`);
     const stopped = renderOperationsHome({ ...live(emptyFactory), assistantStoppedAt: NOW }, 'en', busy);
     expect(stopped).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${t('en', 'today.sending.paused')}`);
+    // Stopped: nothing may say the assistant is looking after anyone.
+    expect(renderOperationsHome({ ...live(emptyFactory), assistantStoppedAt: NOW }, 'en', NOTHING_TODAY(NOW))).not.toContain(t('en', 'today.calm.care'));
     expect(renderOperationsHome(live(emptyFactory), 'en', { ...busy, sending: [] })).not.toContain(t('en', 'today.sending'));
     // A channel connected to an installation that cannot send is not "on":
     // the page says messaging is not active instead (found in the screenshots).
@@ -196,10 +213,10 @@ describe('Today, by time (render)', () => {
 
   it('zh + ar render in their own language; the arrows are the shell\'s, mirrored', () => {
     const zh = renderOperationsHome(live(populated), 'zh', busy);
-    expect(zh).toContain(tn('zh', 'nav.needsYou', 7));
-    expect(zh).toContain(t('zh', 'today.last.title'));
+    expect(zh).toContain(tn('zh', 'today.waiting', 7));
+    expect(zh).toContain(t('zh', 'today.tally.title'));
     const ar = renderOperationsHome(live(populated), 'ar', busy);
-    expect(ar).toContain(t('ar', 'today.coming.title'));
+    expect(ar).toContain(t('ar', 'today.tally.title'));
     expect(ar).toContain('class="go"');
   });
 
@@ -241,18 +258,16 @@ describe('Today, by time (render)', () => {
   });
 });
 
-describe('Phase 9 · Today counts who wrote, and claims nothing it cannot know (V1-088)', () => {
-  it('a customer who wrote is the block\'s first line, in every locale; "nothing" only when nobody did', async () => {
-    const { renderLastDay, NOTHING_TODAY } = await import('../../src/api/web/today.js');
-    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
-    const { tn } = await import('../../src/api/web/say.js');
-    const base = NOTHING_TODAY(new Date('2026-10-02T09:00:00Z'));
+describe('Phase 9 · Today claims nothing it cannot know (V1-088)', () => {
+  // The warmth run — "The last 24 hours" and its "customers who wrote" line
+  // are gone with the block. What V1-088 protected still holds: a customer who
+  // wrote and waits is the band's, and the hero's quiet line speaks only of the
+  // assistant's replies — never "nothing happened".
+  it('a customer waiting is named in the band while the hero says only that the assistant has not replied yet, in every locale', () => {
     for (const l of LOCALES) {
-      const bare = (h: string) => h.replace(/[\u2066-\u2069]/g, '');
-      const wrote = bare(renderLastDay({ ...base, last24: { ...base.last24, wrote: 2 } }, l));
-      expect(wrote, l).toContain(bare(tn(l, 'today.last.wrote', 2)));
-      expect(wrote, l).not.toContain(bare(t(l, 'today.last.none')));
-      expect(bare(renderLastDay(base, l)), l).toContain(bare(t(l, 'today.last.none')));
+      const html = renderOperationsHome(live(populated), l, { ...busy, handled: { total: 0, people: [] } });
+      expect(html, l).toContain('<bdi>Maya Rahman</bdi>');
+      expect(html, l).toContain(esc(t(l, 'today.handled.none')));
     }
   });
   it('"not live" says only what is true — nothing is sent — never that nothing is received', () => {

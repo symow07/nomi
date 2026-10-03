@@ -298,6 +298,9 @@ describe('M49 · buttons and empty states', () => {
       ['layout.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],
       // The warmth run, phase 3.
       ['layout.ts  .pc-top', 'the profile card\'s head: the large face and the name under it — a portrait, centred'],
+      // The warmth run (phase 2) — Today's face row: each tile is a face over its one word.
+      ['layout.ts  .td-face', 'a customer\'s face over the one word of what happened, in its tile'],
+      ['layout.ts  .td-more', 'the row\'s last tile, "+N more", drawn like a face over its word'],
     ]);
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {
