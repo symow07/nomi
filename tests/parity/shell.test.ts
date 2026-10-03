@@ -183,6 +183,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
       'unsure', // 0052 — a send nobody can account for is a state, and an amber one
       'aria-invalid', // phase 9 (cross-new-03) — a field sent back is a state the owner reacts to
       'navcount', 'pc-wait', // the warmth run — customers waiting for the owner: the waiting signal
+      'data-fresh', // the warmth run, phase 8 — the rail's marker when a customer newly waits
     ];
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);

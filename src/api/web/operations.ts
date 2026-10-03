@@ -412,5 +412,6 @@ export function renderOperationsHome(
   return `<h1 class="page">${esc(t(locale, 'ops.title'))} <span class="muted today-date">· ${esc(show.dayLong(locale, today.now))}</span></h1>
   ${band}
   ${hero}
-  ${tally}`;
+  ${tally}
+`;
 }
