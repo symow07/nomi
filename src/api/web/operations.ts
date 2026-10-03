@@ -65,7 +65,15 @@ export type OperationsSnapshot = {
   };
   /** What the employee did in the range. */
   readonly activity: {
-    readonly handled: number;            // conversations with a processed turn
+    /**
+     * Customers answered: conversations in which a reply the assistant wrote
+     * went out in the range — sent alone, or approved or edited by the owner.
+     * The warmth run, phase 9 (V1-011): the same sent rows Today's hero counts
+     * (`today.ts` `readHandled`) and Results' replies are copies of, so the
+     * three pages count the same replies. It counted conversations with a
+     * processed turn, which a drafted reply nobody sent also has.
+     */
+    readonly handled: number;
     readonly draftsCreated: number;
     readonly corrections: number;        // drafts the owner edited before sending
   };
@@ -232,8 +240,9 @@ export async function loadOperationsSnapshot(
       `.execute(tx)).rows[0]!.c;
       return (await sql<{ handled: number; drafts: number; corrections: number }>`
         select
-          (select count(distinct conversation_id)::int from turns where business_id = ${B} and created_at >= ${cutoff}
-             and decision->'action'->>'kind' is distinct from 'held') as handled,
+          (select count(distinct o.conversation_id)::int from outbound_messages o
+            where o.business_id = ${B} and o.origin = 'employee'
+              and o.status in ('sent', 'delivered', 'read') and o.sent_at >= ${cutoff}) as handled,
           (select count(*)::int from drafts where business_id = ${B} and created_at >= ${cutoff}) as drafts,
           (select count(*)::int from drafts where business_id = ${B} and status = 'edited' and decided_at >= ${cutoff}) as corrections
       `.execute(tx)).rows[0]!;

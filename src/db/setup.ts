@@ -15,6 +15,14 @@ import { anyConnected, connectedChannels } from './connectedChannels.js';
  *
  * Order is the order an owner meets them: the name sits before the channel
  * because nothing can go live, or be sent alone, until it is confirmed.
+ *
+ * The fifth step — "send your assistant's first reply to a customer" — is
+ * done when such a reply WENT OUT (the warmth run, phase 9, V1-109): a sent
+ * row the assistant wrote (`outbound_messages.origin = 'employee'`, sent alone
+ * or approved by the owner), in one of this business's own conversations.
+ * It counted an approved draft, so a reply approved and then refused, or one
+ * approved where nothing could carry it, ticked the step while Before going
+ * live said nothing had been sent — and a reply sent alone never ticked it.
  */
 export type SetupStep = 'profile' | 'products' | 'name' | 'channels' | 'first_success';
 export const SETUP_STEPS: readonly SetupStep[] = ['profile', 'products', 'name', 'channels', 'first_success'];
@@ -44,7 +52,7 @@ export const NOTHING_DONE: SetupProgress = setupFrom({
 export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<SetupProgress> {
   // Each figure is a live EXISTS over real rows. Explicit business_id filters
   // keep it tenant-safe regardless of a table's RLS, and first_success joins
-  // conversations so an approved draft must belong to one.
+  // conversations so the sent reply must belong to one of this business's.
   const r = (await sql<{
     profile_done: boolean; products_done: boolean; name_done: boolean; first_success_done: boolean;
   }>`
@@ -60,9 +68,10 @@ export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<Set
        or coalesce((select prices_to_owner from businesses where id = ${businessId}::uuid), false)) as products_done,
       exists(select 1 from onboarding_state
               where business_id = ${businessId}::uuid and assistant_named_at is not null) as name_done,
-      exists(select 1 from drafts d
-               join conversations c on c.id = d.conversation_id and c.business_id = ${businessId}::uuid
-              where d.business_id = ${businessId}::uuid and d.status in ('approved','edited') and d.decided_at is not null) as first_success_done
+      exists(select 1 from outbound_messages o
+               join conversations c on c.id = o.conversation_id and c.business_id = ${businessId}::uuid
+              where o.business_id = ${businessId}::uuid and o.origin = 'employee'
+                and o.status in ('sent', 'delivered', 'read')) as first_success_done
   `.execute(tx)).rows[0]!;
   // Phase 4b — ANY place a buyer writes, connected: WhatsApp, Instagram,
   // Messenger or a mailbox. The same definition the Channels page reads.
