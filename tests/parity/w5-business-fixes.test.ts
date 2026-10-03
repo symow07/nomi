@@ -289,3 +289,18 @@ it('no software words or raw keys on any of the new screens', () => {
     expect(all, l).not.toMatch(/\b(her|reach|channels|golive|factory|autonomy)\.[a-z]+\.[a-zA-Z.]+/);
   }
 });
+
+describe('w4-business-assistant-09, -16 · names whole, and in Arabic letters on the channels\' screens', () => {
+  it('Arabic: Meta is ميتا where the channels\' screens and the help page say it', () => {
+    for (const k of ['meta.panel.reviewing', 'accounts.lead', 'reach.inbound.attention', 'channel.wa.template.submit', 'help.meta.opensMeta'] as const) {
+      expect(t('ar', k), k).not.toContain('Meta');
+      expect(t('ar', k), k).toContain('ميتا');
+    }
+  });
+  it('a name with its own brackets stays one unit in a right-to-left line', async () => {
+    const { listOfNames } = await import('../../src/api/web/channels.js');
+    const said = listOfNames('ar', 'connect.unavailable', ['Gmail (Google Workspace)', 'Outlook (Microsoft 365)']);
+    expect(said).toContain('<bdi>Gmail (Google Workspace)</bdi>');
+    expect(said).toContain('<bdi>Outlook (Microsoft 365)</bdi>');
+  });
+});
