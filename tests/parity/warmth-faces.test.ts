@@ -203,7 +203,7 @@ describe('phase 3 · the profile card', () => {
 
 describe('phase 3 · the script lifts the card into the sheet, and a photo that fails leaves the initial', () => {
   /** The least of a page the two parts touch: a sheet, a face link, a photo. */
-  function page(o: { answer?: () => Promise<unknown> } = {}) {
+  function page(o: { answer?: () => Promise<unknown>; at?: string } = {}) {
     const handlers: Record<string, ((e: unknown) => void)[]> = {};
     const body = { children: [] as unknown[], get firstChild() { return this.children[0]; },
       removeChild(c: unknown) { this.children.splice(this.children.indexOf(c), 1); }, appendChild(c: unknown) { this.children.push(c); } };
@@ -220,13 +220,16 @@ describe('phase 3 · the script lifts the card into the sheet, and a photo that 
       addEventListener: (k: string, h: (e: unknown) => void) => { (handlers[k] ??= []).push(h); },
       adoptNode: (n: unknown) => n,
     };
-    const location = { href: 'https://nomi.test/app', pathname: '/app', search: '', hash: '' };
+    const location = { href: `https://nomi.test${o.at ?? '/app'}`, pathname: o.at ?? '/app', search: '', hash: '' };
     const asked: string[] = [];
     const win = {
       addEventListener: () => undefined, sessionStorage: undefined,
       fetch: (u: string) => { asked.push(u); return o.answer ? o.answer() : Promise.resolve({ ok: true, type: 'basic', text: async () => '<main></main>' }); },
     };
-    const cardNode = { card: true };
+    const doorListeners: ((e: { preventDefault(): void }) => void)[] = [];
+    const door = { getAttribute: (n: string) => (n === 'href' ? '/app/inbox/c1#latest' : null),
+      addEventListener: (_k: string, h: (e: { preventDefault(): void }) => void) => { doorListeners.push(h); } };
+    const cardNode = { card: true, querySelector: (s: string) => (s === 'a.pc-open' ? door : null) };
     const context = vm.createContext({
       window: win, document: doc, location, history: { scrollRestoration: 'auto' }, URL, fetch: win.fetch,
       DOMParser: class { parseFromString() { return { querySelector: (s: string) => (s === '[data-card-body]' ? cardNode : null) }; } },
@@ -239,7 +242,7 @@ describe('phase 3 · the script lifts the card into the sheet, and a photo that 
       for (const h of handlers['click'] ?? []) h(e);
       return prevented;
     };
-    return { sheet, body, asked, location, click, handlers, cardNode, flush: () => new Promise<void>((r) => setImmediate(r)) };
+    return { sheet, body, asked, location, click, handlers, cardNode, doorListeners, flush: () => new Promise<void>((r) => setImmediate(r)) };
   }
 
   it('a press on a face fetches the card\'s own page and opens it in the sheet; closing empties it', async () => {
@@ -252,6 +255,34 @@ describe('phase 3 · the script lifts the card into the sheet, and a photo that 
     expect(p.body.children).toEqual([p.cardNode]);
     p.sheet.close();
     expect(p.body.children).toEqual([]);
+  });
+
+  it('w4-whole-22 · the pressed face says it is opening until the card is there', async () => {
+    const p = page();
+    const attrs: Record<string, string> = {};
+    const a = { href: `https://nomi.test${cardHref(ID)}`, focus: () => undefined,
+      setAttribute: (k: string, v: string) => { attrs[k] = v; }, removeAttribute: (k: string) => { delete attrs[k]; } };
+    p.click(a);
+    expect(attrs['aria-busy']).toBe('true');
+    await p.flush(); await p.flush();
+    expect(attrs['aria-busy']).toBeUndefined();
+    expect(p.sheet.open).toBe(true);
+  });
+
+  it('w4-whole-22 · opened over the conversation its door would open, the door closes the card instead', async () => {
+    const over = page({ at: '/app/inbox/c1' });
+    over.click({ href: `https://nomi.test${cardHref(ID)}`, focus: () => undefined });
+    await over.flush(); await over.flush();
+    expect(over.doorListeners).toHaveLength(1);
+    let prevented = false;
+    over.doorListeners[0]!({ preventDefault: () => { prevented = true; } });
+    expect(prevented).toBe(true);
+    expect(over.sheet.open).toBe(false);
+    // anywhere else, the door is a door
+    const elsewhere = page({ at: '/app' });
+    elsewhere.click({ href: `https://nomi.test${cardHref(ID)}`, focus: () => undefined });
+    await elsewhere.flush(); await elsewhere.flush();
+    expect(elsewhere.doorListeners).toHaveLength(0);
   });
 
   it('a card that cannot be had: the face\'s link goes to the card\'s page', async () => {
@@ -270,5 +301,13 @@ describe('phase 3 · the script lifts the card into the sheet, and a photo that 
     const other = { tagName: 'IMG', className: 'product-photo', parentNode: parent };
     for (const h of p.handlers['error'] ?? []) { h({ target: img }); h({ target: other }); }
     expect(parent.removed).toEqual([img]);
+  });
+});
+
+describe('the warmth run\'s re-audit (w4-whole-20) · an Arabic name\'s article is not its initial', () => {
+  it('الشركة المتحدة is ش; a name without the article keeps its first letter; ال alone stays itself', () => {
+    expect(initialOf('الشركة المتحدة')).toBe('ش');
+    expect(initialOf('أحمد')).toBe('أ');
+    expect(initialOf('ال')).toBe('ا');
   });
 });

@@ -302,9 +302,12 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     dialog.ask[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
     /* THE WARMTH RUN — the profile card springs up (its one curve of its own). */
     dialog.sheet[open] { animation:nomi-spring var(--motion-normal) var(--motion-spring) both; }
+    .face-link[aria-busy="true"] .face { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     dialog.sheet[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
     /* The warmth run — Today's band and hero rise into place as the page arrives, the hero a beat after; its face row scrolls smoothly. */
     .tw, .td { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    /* w4-whole-21 — drawn again in place for a newcomer, Today does not rise in again. */
+    main[data-drawn-again] .tw, main[data-drawn-again] .td { animation:none; }
     .td { animation-delay:var(--motion-fast); }
     .td-row { scroll-behavior:smooth; }
   }
@@ -440,6 +443,8 @@ ${cssVariables()}
   .face-link { display:inline-flex; align-items:center; gap:var(--space-8); color:inherit; min-width:0; }
   .face-link:focus-visible { outline:none; }
   .face-link:focus-visible .face { outline:2px solid var(--color-ink); outline-offset:2px; }
+  /* w4-whole-22 — a pressed face is opening its card: it dims until the card is there. */
+  .face-link[aria-busy="true"] .face { opacity:0.6; }
   .layout { display: grid; grid-template-columns: 208px 1fr; min-height: 100vh; }
   /* A grid child does not shrink below its own content unless told to: its
      default min-width is auto, so one unbreakable string — a long sku, a URL a

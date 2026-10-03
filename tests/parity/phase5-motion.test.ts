@@ -46,7 +46,8 @@ describe('phase 5 · three durations, one curve, and nothing moves for a reader 
   const still = mediaBlocks(css, 'prefers-reduced-motion: reduce');
 
   it('the tokens: 120, 200 and 300 ms, and one decelerating curve that never overshoots', () => {
-    expect(DESIGN_TOKENS.motionMs).toEqual({ fast: 120, normal: 200, max: 300 });
+    // The warmth run's re-audit (w4-whole-21): within the owner's 100–250 ms.
+    expect(DESIGN_TOKENS.motionMs).toEqual({ fast: 120, normal: 200, max: 250 });
     const m = /^cubic-bezier\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)$/.exec(DESIGN_TOKENS.motionEase);
     expect(m).not.toBeNull();
     const [x1, y1, x2, y2] = m!.slice(1).map(Number) as [number, number, number, number];

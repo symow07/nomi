@@ -257,6 +257,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       /* The page's own nodes, as Nomi drew them, moved across: the script writes no markup. */
       while (main.firstChild) main.removeChild(main.firstChild);
       while (fresh.firstChild) main.appendChild(doc.adoptNode(fresh.firstChild));
+      if (main.setAttribute) main.setAttribute('data-drawn-again', '1');
       if (next.title) doc.title = next.title;
       var found = main.querySelectorAll('textarea[data-keep]');
       for (var i = 0; i < found.length; i++) keepBox(found[i], '');
@@ -529,14 +530,22 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       from = a;
+      /* The press is heard at once: the face says it is opening (w4-whole-22). */
+      if (a.setAttribute) a.setAttribute('aria-busy', 'true');
       fetch(a.href, { credentials: 'same-origin', redirect: 'manual', headers: { Accept: 'text/html' } }).then(function (r) {
         if (!r.ok || r.type === 'opaqueredirect') throw new Error('no card');
         return r.text();
       }).then(function (html) {
         var card = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-card-body]');
         if (!card) throw new Error('no card');
+        if (a.removeAttribute) a.removeAttribute('aria-busy');
         while (body.firstChild) body.removeChild(body.firstChild);
         body.appendChild(doc.adoptNode(card));
+        /* Opened over the conversation it would open, its door closes the card instead. */
+        var door = card.querySelector ? card.querySelector('a.pc-open') : 0;
+        if (door && String(door.getAttribute('href') || '').split('#')[0] === location.pathname) {
+          door.addEventListener('click', function (ev) { ev.preventDefault(); sheet.close(); });
+        }
         if (!sheet.open) sheet.showModal();
       }).catch(function () { location.href = a.href; });
     });

@@ -241,7 +241,8 @@ export const DESIGN_TOKENS = {
     lift1: '0 1px 1px rgba(26,26,26,0.04), 0 2px 6px rgba(26,26,26,0.05), 0 0 0 1px rgba(26,26,26,0.04)',
     lift2: '0 2px 4px rgba(26,26,26,0.05), 0 10px 24px rgba(26,26,26,0.09), 0 0 0 1px rgba(26,26,26,0.05)',
   },
-  motionMs: { fast: 120, normal: 200, max: 300 },  // spec: ≤300ms, skippable
+  // The warmth run's re-audit (w4-whole-21): the owner's range is 100–250 ms, so the longest is 250.
+  motionMs: { fast: 120, normal: 200, max: 250 },  // skippable; nothing moves under reduced motion
   /**
    * PHASE 5 OF THE UI REBUILD (2026-10-02) — THE ONE CURVE. Decelerating: a
    * thing starts moving at once and settles into place, and nothing overshoots
