@@ -232,11 +232,15 @@ export type MenuRow = {
 
 export const menuRow = (r: MenuRow): string => {
   const line = r.descHtml ?? (r.desc ? esc(r.desc) : '');
-  // The value takes the direction of its own words (`dir="auto"`): cut short
-  // on a phone, an e-mail address or a Latin name on an Arabic page loses its
-  // end, never its beginning.
+  // Phase 9 of the warmth run (w4-today-setup-24, w4-whole-08) — the value's
+  // cell takes the PAGE's direction, so its state mark stands where reading
+  // starts (on the right in Arabic) and the cell lines up at the row's end;
+  // the `<bdi>` alone isolates the words, so an e-mail address or a Latin name
+  // keeps its own order. (`dir="auto"` on the cell skipped the text inside the
+  // `<bdi>` and resolved every Arabic value left to right.) Nothing is cut
+  // (w4-today-setup-23): a value that does not fit wraps under itself.
   const inner = `${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}</span>`
-    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}" dir="auto"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
+    + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
   const cls = `srow sr-menu${line ? ' sr-two' : ''}`;
   return r.href
     ? `<li><a class="${cls}" href="${r.href}">${inner}<span class="go" aria-hidden="true">›</span></a></li>`
@@ -311,7 +315,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : null)
         : !v.alerts.available ? t(locale, 'setup.value.unavailable')
         : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
-      tone: v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
+      tone: v.alerts?.way === null ? 'warn' : v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
     // The switch, a tap down: the row says which language is in force, in its own name.
     menuRow({ href: '/app/settings/language', icon: 'globe', label: t(locale, 'settings.language.title'), value: LOCALE_LABEL[locale] }),
   ];
@@ -329,15 +333,27 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
   ];
   return `<h1 class="page">${esc(t(locale, 'nav.setup'))}</h1>
     ${flashBanner(flash)}
-    ${menuGroup('start', t(locale, 'setup.group.start'), start)}
+    ${/* Phase 9 (V1-153) — the screen's own name says what this card is: no third name for setting up above it. */ ''}${menuGroup('start', null, start)}
     ${menuGroup('account', t(locale, 'setup.group.yours'), account)}`;
 }
 
-/** Phase 7 — the language switch, on a small screen of its own: Setup's row says which language is in force. */
+/**
+ * Phase 7 — the language switch, on a small screen of its own: Setup's row says which language is in force.
+ * Phase 9 (w4-today-setup-29) — five rows like every menu's, each in its own language and at a row's size;
+ * the one in force says so in words and to a screen reader (`aria-current`), not by a class alone.
+ */
 export function renderLanguage(locale: Locale): string {
+  const rows = LOCALES.map((l) => {
+    const on = l === locale;
+    return `<li><a class="srow sr-menu" href="/locale?set=${l}&next=/app/settings/language" hreflang="${l}"${on ? ' aria-current="true"' : ''}>`
+      // The name keeps the page's side; its own letters' order is isolated (a `dir` on the cell would move it to the other side).
+      + `<span class="sr-main"><span class="sr-label" lang="${l}"><bdi>${esc(LOCALE_LABEL[l])}</bdi></span></span>`
+      + `${on ? `<span class="sr-value ok"><bdi>${esc(t(locale, 'settings.language.inUse'))}</bdi></span>` : ''}`
+      + `<span class="go" aria-hidden="true">›</span></a></li>`;
+  }).join('');
   return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'settings.language.title'))}</h1>
-    <div class="scard"><div class="srow"><span class="sr-ctl">${switcher(locale, '/app/settings/language')}</span></div></div>`;
+    <ul class="scard" aria-label="${esc(t(locale, 'switcher.aria'))}">${rows}</ul>`;
 }
 
 /**
@@ -349,15 +365,16 @@ export function renderLanguage(locale: Locale): string {
  */
 export function renderSettingsHome(locale: Locale, flash: Flash | null): string {
   const setup = setupState();
-  const business = businessName();
   const progress = setup ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total })) : '';
-  // One row as every menu draws it (`menuRow`): a value cut short keeps its beginning, in Arabic too.
+  // One row as every menu draws it (`menuRow`). A step still to do carries the to-do ○ in the
+  // secondary ink (`.sr-value.warn`, w4-whole-06), never the waiting signal.
   const row = (href: string, shape: Parameters<typeof icon>[0], label: string, value: string, tone?: 'ok' | 'warn') =>
     menuRow({ href, icon: shape, label, value, ...(tone ? { tone } : {}) });
+  // Phase 9 (w4-today-setup-28) — My business carries no value: the business's name is printed just above the heading.
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
     <ul class="scard">
-      ${row('/app/business', 'business', t(locale, 'nav.factory'), business ?? '')}
+      ${row('/app/business', 'business', t(locale, 'nav.factory'), '')}
       ${row('/app/settings/setup', 'setup', t(locale, 'nav.setup'), progress, setup ? (setup.next === null ? 'ok' : 'warn') : undefined)}
     </ul>
     <form class="scard sr-foot" method="post" action="/logout">

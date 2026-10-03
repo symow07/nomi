@@ -14,7 +14,7 @@ import { renderInsights } from '../../src/api/web/insights.js';
 import type { ConversationSummary } from '../../src/api/web/inbox.js';
 import { renderGuide } from '../../src/api/web/guide.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
-import { renderPilotReadiness, renderPilotRunbook, renderPilotTechnical, type PilotReadiness, type PilotRunbook } from '../../src/api/web/pilot.js';
+import { renderPilotReadiness, renderPilotRunbook, renderPilotScreen, renderPilotTechnical, type PilotReadiness, type PilotRunbook } from '../../src/api/web/pilot.js';
 import { renderReady } from '../../src/api/web/ready.js';
 import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
 import { checklistFor } from '../../src/db/practiceChecklist.js';
@@ -158,6 +158,9 @@ describe('Phase 9 · the shell', () => {
       ['/app/products', '/app/business', 'nav.factory'], ['/app/channels', '/app/business/channels', 'factory.reach.title'],
       ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
       ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
+      // The warmth run, phase 9 — the checklist's two screens and the machine room lead back to the checklist.
+      ['/app/onboarding/practice', '/app/onboarding', 'nav.onboarding'], ['/app/onboarding/activity', '/app/onboarding', 'nav.onboarding'],
+      ['/app/onboarding/technical', '/app/onboarding', 'nav.onboarding'],
       ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],
       // Phase 7b: knowledge is a row of the assistant's menu, and leads back to it.
       ['/app/knowledge', '/app/employee', 'nav.employee'],
@@ -250,7 +253,7 @@ describe('Phase 9 · Today', () => {
   });
   it('V1-094, V1-101 · on a phone a line\'s door goes under its sentence; the sentence avoids a lone last word', () => {
     expect(css).toMatch(/@media \(max-width: 560px\) \{\s*\.today-worth \.row \{ flex-direction:column; align-items:flex-start; gap:0; \}/);
-    expect(css).toContain('.today-worth .grow { text-wrap:pretty; }');
+    expect(css).toMatch(/\.today-worth \.grow \{ text-wrap:pretty;[^}]*\}/);
     // V1-101 — the Arabic month line (rewritten in #206) no longer ends on "هذا الشهر".
     expect(t('ar', 'insight.monthChange.inquiries.down')).not.toMatch(/الشهر\.$/);
   });
@@ -330,7 +333,8 @@ describe('Phase 9 · Getting started', () => {
     const h = guide('es');
     expect(h).toContain(`<h2 class="gs-h"><span class="gs-n muted">1.</span><span class="gs-t">${esc(t('es', 'factory.next.profile'))}`);
     expect(css).toContain('.gs-n { flex:none; }');
-    expect(css).toContain('.gs-t { flex:1 1 auto; min-width:0; text-wrap:pretty; }');
+    // Phase 9 of the warmth run (w4-today-setup-13) — balanced, so no last word is left alone beside the state.
+    expect(css).toContain('.gs-t { flex:1 1 auto; min-width:0; text-wrap:balance; }');
   });
   it('V1-115, V1-116, extra-guide-css · one .guide rule — the cards start at the heading\'s edge — and a gap before what follows the steps', () => {
     const rules = [...css.matchAll(/(?<![\w-])\.guide \{([^}]*)\}/g)].map((m) => m[1]!);
@@ -358,6 +362,9 @@ describe('Phase 9 · Getting started', () => {
 // ── Before going live ───────────────────────────────────────────────────────
 describe('Phase 9 · Before going live', () => {
   const runbook = (l: Locale, over: Partial<PilotRunbook> = {}) => inScope(() => renderPilotRunbook(rb(over), l, null));
+  // The warmth run, phase 9 (w4-today-setup-15) — what followed the checklist is two screens a tap under it.
+  const screens = (l: Locale, over: Partial<PilotRunbook> = {}) =>
+    inScope(() => renderPilotScreen('practice', rb(over), l) + renderPilotScreen('activity', rb(over), l));
   it('V1-123 · the practice check is listed once, where its button is', () => {
     for (const l of LOCALES) {
       const h = renderPilotReadiness(pr(), l, null);
@@ -366,20 +373,21 @@ describe('Phase 9 · Before going live', () => {
       expect(h, l).toContain('action="/app/onboarding/validate"');
     }
   });
-  it('V1-124, V1-146 · no second count beside the nav\'s: the practice marks sit under their own heading', () => {
+  it('V1-124, V1-146 · no second count beside the nav\'s; what to try in Practice is one list, every item with its mark', () => {
     for (const l of LOCALES) {
-      const h = runbook(l);
-      expect(h, l).toContain(`<h2>${esc(t(l, 'runbook.practice.title'))}</h2>`);
+      const h = inScope(() => renderPilotScreen('practice', rb(), l));
+      expect(h, l).toContain(`<h1 class="page">${esc(t(l, 'runbook.practice.title'))}</h1>`);
       expect(bare(h), l).not.toContain('3/5');
-      expect(h, l).toContain(`<h3 class="rbsub">${esc(t(l, 'runbook.practice.done'))}</h3>`);
+      expect(h, l).not.toContain('<ol');
+      expect(h.match(/<div class="pr (done|todo)"><span class="mk[^"]*">[✓○]<\/span> <span class="lbl">/g), l).toHaveLength(5);
     }
   });
   it('V1-125 · nothing sent yet is said as that, with no tick', () => {
     for (const l of LOCALES) {
-      const none = runbook(l);
+      const none = screens(l);
       expect(none, l).toContain(esc(inScope(() => t(l, 'ops.health.none'))));
       expect(none, l).not.toContain(esc(inScope(() => t(l, 'ops.health.ok'))));
-      expect(runbook(l, { reliability: { stuckOutbound: 0, oldestQueuedAt: null, sent: 4 } }), l).toContain(`✓ ${esc(inScope(() => t(l, 'ops.health.ok')))}`);
+      expect(screens(l, { reliability: { stuckOutbound: 0, oldestQueuedAt: null, sent: 4 } }), l).toContain(`✓ ${esc(inScope(() => t(l, 'ops.health.ok')))}`);
     }
   });
   it('V1-126 · the two counts of corrections say what each counts', () => {
@@ -387,7 +395,7 @@ describe('Phase 9 · Before going live', () => {
     expect(t('en', 'ops.activity.corrections')).toBe('Drafts you changed before sending');
   });
   it('V1-127, V1-128 · a count follows its label; every door is "Open ›" at the row\'s end', () => {
-    const h = runbook('en');
+    const h = screens('en');
     expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><a class="deeper rbgo" href="[^"]+">Open<span class="go" aria-hidden="true">›<\/span><\/a>/);
     expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><\/div>/);
     expect(h).not.toContain('class="rblink"');
@@ -418,11 +426,14 @@ describe('Phase 9 · Before going live', () => {
     for (const l of LOCALES) {
       const h = renderPilotReadiness(pr(), l, null);
       expect(h, l).toContain('<div class="pr todo under" id="name">');
-      expect(h, l).toContain('<form method="post" action="/app/onboarding/assistant-name" class="pr-name">');
+      expect(h, l).toContain('<form method="post" action="/app/onboarding/assistant-name" class="pr-nameform">');
     }
     expect(css).toContain('.pr { display:grid; grid-template-columns:1.5em minmax(10em, 1fr) minmax(0, auto);');
     expect(css).toContain('.pr > .mk { grid-column:1; justify-self:center;');
-    expect(css).toContain('.pr-name { display:flex; flex-wrap:nowrap;');
+    // Phase 9 (V1-134) — the form's own class (the price list's .pr-name, later in the sheet, wrapped Confirm under
+    // the field), and the name row in two columns so its label keeps its line.
+    expect(css).toContain('.pr-nameform { display:flex; flex-wrap:nowrap;');
+    expect(css).toContain('.pr.under { grid-template-columns:1.5em minmax(0, 1fr); }');
     expect(css).toMatch(/@media \(max-width: 560px\) \{\s*\.pr \{ grid-template-columns:1\.5em minmax\(0, 1fr\); \}\s*\.pr > :not\(\.mk\):not\(\.lbl\):not\(\.pr-note\) \{ grid-column:2; justify-self:start; \}/);
     expect(css).toContain('.checks.rd .chk { grid-template-columns:1.25em minmax(0, 1fr); }');
   });
@@ -435,18 +446,20 @@ describe('Phase 9 · Before going live', () => {
     expect(t('zh', 'pilot.blocker.claims')).toContain('开启');
     expect(t('zh', 'pilot.blocker.claims')).not.toContain('打开');
   });
-  it('today-onboarding-new-11 · an open mark is the waiting ○ in its amber, as on Setup and Today', () => {
+  it('today-onboarding-new-11, w4-today-setup-06 · an open mark is the to-do ○, one colour on every page — never the waiting signal\'s magenta', () => {
     const h = renderPilotReadiness(pr(), 'en', null);
-    expect(h).toContain('<span class="mk dot warn">○</span>');
+    expect(h).toContain('<span class="mk dot todo">○</span>');
+    expect(h).not.toContain('<span class="mk dot warn">○</span>');
     expect(h).not.toContain('<span class="mk">○</span>');
     expect(css).toContain('.pr.todo .mk:not(.dot) { color:var(--color-ink-secondary); }');
-    expect(renderReady(readyView(false, false, false), 'en')).toContain('<span class="mk dot warn" aria-hidden="true">○</span>');
+    expect(renderReady(readyView(false, false, false), 'en')).toContain('<span class="mk dot todo" aria-hidden="true">○</span>');
+    expect(renderReady(readyView(false, false, false), 'en')).not.toContain('dot warn');
   });
   it('today-onboarding-missed-12, missed-13, missed-14 · Spanish, English and Arabic words', () => {
     expect(t('es', 'ops.health.title')).not.toBe('Estado de las entregas');
     expect(t('es', 'pilot.blocker.sandbox')).not.toContain('de abajo');
-    for (const h of [runbook('en'), renderReady(readyView(false, false, false), 'en')]) expect(h).not.toMatch(/Practise/);
-    const ar = runbook('ar') + renderReady(readyView(false, false, false), 'ar');
+    for (const h of [runbook('en') + screens('en'), renderReady(readyView(false, false, false), 'en')]) expect(h).not.toMatch(/Practise/);
+    const ar = runbook('ar') + screens('ar') + renderReady(readyView(false, false, false), 'ar');
     expect(ar).not.toMatch(/الإطلاق|الانطلاق|التمرّن/);
   });
 });
@@ -506,12 +519,12 @@ describe('Phase 9 · Setup', () => {
     for (const l of LOCALES) {
       const h = setupHtml(l).replace(/[\u2066-\u2069]/g, '');
       expect(h, l).not.toContain('sr-step');
-      expect(h, l).toMatch(new RegExp(`href="/app/guide">[^]*?<span class="sr-value warn" dir="auto"><bdi>${esc(t(l, 'nav.setup.progress', { done: '\\d', total: '5' }))}</bdi>`));
+      expect(h, l).toMatch(new RegExp(`href="/app/guide">[^]*?<span class="sr-value warn"><bdi>${esc(t(l, 'nav.setup.progress', { done: '\\d', total: '5' }))}</bdi>`));
       const guide = renderGuide({ steps: SETUP_STEPS.map((step) => ({ step, done: false })), next: 'profile' }, l, 'Lily', () => false);
       for (const step of SETUP_STEPS) expect(guide, `${l} ${step}`).toContain(`href="${STEP_LINK[step]}"`);
     }
     expect(setupHtml('en', { setup: { steps: SETUP_STEPS.map((step) => ({ step, done: true })), done: 5, total: 5, next: null } }))
-      .toContain(`<span class="sr-value ok" dir="auto"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
+      .toContain(`<span class="sr-value ok"><bdi>${t('en', 'setup.state.done')}</bdi></span>`);
   });
   it('today-onboarding-new-22 · a row\'s line does not repeat its label', () => {
     for (const l of LOCALES) expect(t(l, 'setup.desc.kind').toLocaleLowerCase(), l).not.toContain(t(l, 'business.kind.label').toLocaleLowerCase());
@@ -521,7 +534,7 @@ describe('Phase 9 · Setup', () => {
     // now (factory.test.ts, warmth-settings-business.test.ts); Setup's own
     // unfinished rows wait the same way.
     const h = setupHtml('en');
-    expect(h).toContain(`<span class="sr-value warn" dir="auto"><bdi>${t('en', 'setup.value.nameNotConfirmed')}</bdi></span>`);
+    expect(h).toContain(`<span class="sr-value warn"><bdi>${t('en', 'setup.value.nameNotConfirmed')}</bdi></span>`);
     expect(h).not.toContain('href="/app/settings/business"');
     expect(h).not.toContain('href="/app/business/selling"');
   });

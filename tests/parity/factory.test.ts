@@ -108,15 +108,15 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('the profile row says where the profile stands: done once setting up has what it asks of it', () => {
     // The business's name heads every page already (the shell); the row says
     // whether the profile holds a description, a place and a way to be reached.
-    expect(menu(complete)).toContain(`<span class="sr-value ok" dir="auto"><bdi>${shown('en', 'setup.state.done')}</bdi></span>`);
+    expect(menu(complete)).toContain(`<span class="sr-value ok"><bdi>${shown('en', 'setup.state.done')}</bdi></span>`);
     // the facts themselves have ONE home, the profile page the row opens (two doors, one data)
     expect(menu(complete)).not.toContain('Vacuum cups and kitchen goods since 2011.');
     const noPlace = menu({ ...complete, profile: { ...complete.profile, location: null } });
-    expect(noPlace).toContain(`<span class="sr-value warn" dir="auto"><bdi>${shown('en', 'setup.state.toDo')}</bdi></span>`);
+    expect(noPlace).toContain(`<span class="sr-value warn"><bdi>${shown('en', 'setup.state.toDo')}</bdi></span>`);
   });
 
   it('products are a real count with the honest pricing state', () => {
-    expect(menu(complete)).toContain('<span class="sr-value" dir="auto"><bdi>12 products</bdi></span>');
+    expect(menu(complete)).toContain('<span class="sr-value"><bdi>12 products</bdi></span>');
     expect(menu(complete)).toContain(shown('en', 'factory.sell.allPriced'));
     const some = menu({ ...complete, products: { ...complete.products, needPrice: 3 } });
     expect(some).toContain('3 still need a price');
@@ -284,10 +284,10 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('Latin runs are isolated so an Arabic reader gets them in source order', () => {
     // a connected number and a value she typed are Latin inside an Arabic page;
-    // a value takes its own words' direction, so cut short it keeps its beginning
+    // a value's cell takes the page's direction and its <bdi> isolates the words (w4-whole-08)
     expect(screen('channels', complete, 'ar')).toContain('<bdi>+971 50 ••• 4444</bdi>');
     expect(menu({ ...complete, promises: { ...complete.promises, certs: [] }, menu: { kind: null, howYouSell: null, terms: null,
-      samples: { price: null, waiting: 0 }, closure: null, rate: null } }, 'ar')).toMatch(/<span class="sr-value[^"]*" dir="auto"><bdi>/);
+      samples: { price: null, waiting: 0 }, closure: null, rate: null } }, 'ar')).toMatch(/<span class="sr-value[^"]*"><bdi>/);
   });
 
   it('a channel that cannot carry a message is its own remedy — the row opens the fix', () => {
@@ -295,9 +295,9 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
     // connected waits on nothing, so it carries no state colour.
     const wa = (lc: FactoryView['readiness']['lifecycle'], l: Locale = 'ar') => screen('channels', { ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, l)
       .match(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels"><span class="sr-main"><span class="sr-label">${shown(l, 'reach.channel.whatsapp')}</span>[^]*?</a>`))![0];
-    expect(wa('paused')).toContain(`<span class="sr-value warn" dir="auto"><bdi>${shown('ar', 'channel.state.paused')}</bdi></span>`);
-    expect(wa('not_connected')).toContain(`<span class="sr-value" dir="auto"><bdi>${shown('ar', 'channel.state.not_connected')}</bdi></span>`);
-    for (const lc of ['ready', 'active'] as const) expect(wa(lc, 'en'), lc).toContain('<span class="sr-value ok" dir="auto">');
+    expect(wa('paused')).toContain(`<span class="sr-value warn"><bdi>${shown('ar', 'channel.state.paused')}</bdi></span>`);
+    expect(wa('not_connected')).toContain(`<span class="sr-value"><bdi>${shown('ar', 'channel.state.not_connected')}</bdi></span>`);
+    for (const lc of ['ready', 'active'] as const) expect(wa(lc, 'en'), lc).toContain('<span class="sr-value ok">');
   });
 
   it('RTL-safe layout: no physical left/right in the page’s styles, which live in the shell now', () => {
@@ -810,7 +810,7 @@ describe('Phase 9 · B5 · My business', () => {
   });
 
   it('phase 7 · the menu’s Going live row says the same answer in a word, with its signal', () => {
-    const value = (v: FactoryView) => menu(v).match(new RegExp(`href="${BUSINESS_SCREEN_PATH.ready}">[^]*?<span class="sr-value([^"]*)" dir="auto"><bdi>([^<]+)</bdi>`))!.slice(1, 3);
+    const value = (v: FactoryView) => menu(v).match(new RegExp(`href="${BUSINESS_SCREEN_PATH.ready}">[^]*?<span class="sr-value([^"]*)"><bdi>([^<]+)</bdi>`))!.slice(1, 3);
     expect(value(audit)).toEqual(['', shown('en', 'setup.state.notConnected')]);
     expect(value({ ...audit, connection: { ...audit.connection, channelsUsed: ['whatsapp'] } })).toEqual([' warn', shown('en', 'business.live.notYet')]);
     expect(value({ ...audit, readiness: { ...audit.readiness, canActivate: true, blockers: [], lifecycle: 'ready' } })).toEqual([' ok', shown('en', 'business.live.ready')]);
@@ -910,7 +910,7 @@ describe('Phase 9 · B5 · My business', () => {
 
   it('new-01 · missed-02 · a WhatsApp never connected is a plain door, and speaks of WhatsApp only', () => {
     const html = screen('channels', audit);
-    expect(html).toMatch(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels"><span class="sr-main"><span class="sr-label">WhatsApp</span><span class="sr-desc">Customers who write to your WhatsApp are not answered until it is connected.</span></span><span class="sr-value" dir="auto"><bdi>`));
+    expect(html).toMatch(new RegExp(`<a class="srow sr-menu sr-two" href="/app/channels"><span class="sr-main"><span class="sr-label">WhatsApp</span><span class="sr-desc">Customers who write to your WhatsApp are not answered until it is connected.</span></span><span class="sr-value"><bdi>`));
     expect(html).not.toContain('cannot receive or answer a customer');
     // phase 7 — the cards' rules went with the cards
     expect(css).not.toMatch(/\.fconn\.todo \{/);

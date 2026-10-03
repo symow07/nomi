@@ -168,6 +168,7 @@ import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import {
   loadPilotRunbook, renderPilotRunbook, renderPilotTechnical, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
+  renderPilotScreen, PILOT_SCREENS, PILOT_SCREEN_PATH,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
 import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
@@ -3864,6 +3865,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
   });
 
+  // The warmth run, phase 9 (w4-today-setup-15) — the two screens under the
+  // checklist: what to try in Practice, and how it is going. Same readers as
+  // the checklist; each screen draws its part.
+  for (const which of PILOT_SCREENS) {
+    app.get(PILOT_SCREEN_PATH[which], async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const bid0 = parseBusinessId(s.businessId);
+      const data = await loadPilotRunbook(deps.db, s.businessId, {
+        practiceBusinessId: bid0.ok ? await practiceCopyOf(deps.db, bid0.value) : null, provider: deps.provider,
+      });
+      const feedback = which === 'activity' ? await loadPilotFeedback(deps.db, s.businessId, 'month') : undefined;
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, which === 'practice' ? 'runbook.practice.title' : 'runbook.during.title'), active: 'onboarding',
+        bodyHtml: renderPilotScreen(which, data, locale, feedback),
+      }));
+    });
+  }
+
   // G6 — "Ready for customers": the owner's own evidence before customers write.
   app.get('/app/ready', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -4017,7 +4038,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'nav.setup'), active: 'settings',
       bodyHtml: renderSetup({
         people: people.length, viewer: personOf(s),
-        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length, ...(ways !== undefined ? { way: ways ? alertWayNow(ways, phones) : null } : {}) } : null,
+        alerts: phones ? { available: phones.publicKey !== null, phones: phones.phones.length, ...(ways !== undefined ? {
+          // Phase 9 (w4-settings-a-02, w4-today-setup-25) — null when no way can reach this reader: the row says so.
+          way: ways ? alertWayNow(ways, phones) : null,
+        } : {}) } : null,
         signIn: { email: login?.email ?? null },
         billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
         dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,

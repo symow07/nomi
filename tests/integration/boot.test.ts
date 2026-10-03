@@ -1074,21 +1074,32 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description='Household goods', location='Yiwu', contact_email='a@b.co' where id=${bidv}`.execute(tx));
     expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'profile')).toBe(true);
 
-    // Step 4 guard: an approved draft on a REAL conversation counts. Neutralize any
-    // existing approved/edited drafts first (app role has no DELETE — archive, not
-    // erase — so status→rejected; demo drafts are all test-created).
+    // Step 5 guard (phase 9, V1-109): the assistant's reply must have GONE OUT on a REAL
+    // conversation. An approved draft alone is not a sent reply. Neutralize any sent
+    // replies of the assistant first (app role has no DELETE — archive, not erase — so
+    // status→failed), and any approved/edited drafts (status→rejected).
     await withTenantTx(prod.db, bidv, (tx) => sql`update drafts set status='rejected' where business_id=${bidv} and status in ('approved','edited')`.execute(tx));
+    const sentBefore = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
+      update outbound_messages set status='failed' where business_id=${bidv} and origin='employee'
+         and status in ('sent','delivered','read') returning id`.execute(tx).then((r) => r.rows.map((x) => x.id)));
     expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(false);
     const draftId = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
       insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status, decided_at)
       values (${bidv}, ${CONV}, 'quote', 'first reply', null, 'approved', now()) returning id`.execute(tx).then((r) => r.rows[0]!.id));
+    expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(false);
+    const sentId = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
+      insert into outbound_messages (business_id, conversation_id, seq, body, status, origin, sent_at)
+      values (${bidv}, ${CONV}, (select coalesce(max(seq), 0) + 1 from outbound_messages where conversation_id = ${CONV}),
+              'first reply', 'sent', 'employee', now()) returning id`.execute(tx).then((r) => r.rows[0]!.id));
     expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(true);
 
     // onboarding_state is NEVER touched by completion logic.
     expect(await stateStep()).toBe(onbStateBefore);
 
-    // cleanup (archive the test draft, restore profile)
+    // cleanup (archive the test draft and the test reply, put back the replies set aside, restore profile)
     await withTenantTx(prod.db, bidv, (tx) => sql`update drafts set status='rejected' where id=${draftId}`.execute(tx));
+    await withTenantTx(prod.db, bidv, (tx) => sql`update outbound_messages set status='failed' where id=${sentId}`.execute(tx));
+    if (sentBefore.length > 0) await withTenantTx(prod.db, bidv, (tx) => sql`update outbound_messages set status='sent' where id = any(${sentBefore}::uuid[])`.execute(tx));
     await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description=null, location=null, contact_email=null, contact_phone=null where id=${bidv}`.execute(tx));
   });
 
@@ -1397,7 +1408,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
           (select count(*)::int from drafts where business_id=${DEMO_BIZ} and status='pending') as pending,
           (select count(*)::int from conversations where business_id=${DEMO_BIZ} and is_active and assigned_to='unclaimed') as handoffs,
           (select count(*)::int from conversations where business_id=${DEMO_BIZ} and is_active and assigned_to is not null and assigned_to<>'unclaimed') as owner_handling,
-          (select count(distinct conversation_id)::int from turns where business_id=${DEMO_BIZ} and created_at>=(select c from cut)) as handled,
+          -- Phase 9 (V1-011) — customers answered: a reply the assistant wrote WENT OUT (Today's hero's rows).
+          (select count(distinct conversation_id)::int from outbound_messages where business_id=${DEMO_BIZ} and origin='employee'
+             and status in ('sent','delivered','read') and sent_at>=(select c from cut)) as handled,
           (select count(*)::int from drafts where business_id=${DEMO_BIZ} and created_at>=(select c from cut)) as drafts_created,
           (select count(*)::int from drafts where business_id=${DEMO_BIZ} and status='edited' and decided_at>=(select c from cut)) as corrections
       `.execute(tx as never).then((r) => r.rows[0]!));
@@ -1574,7 +1587,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // factory where nothing could reach her at all.
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
-      expect(html).toContain('href="/app/business/ready"');
+      // Phase 9 of the warmth run (w4-today-setup-16) — the way forward is the setup step's own door.
+      expect(html).toContain('href="/app/business/channels"');
       // The warmth run — with messaging off, the plain fact, never "all caught up".
       expect(html).toContain(`<h2 id="today-now" class="tw-head">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');

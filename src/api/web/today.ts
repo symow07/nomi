@@ -251,11 +251,21 @@ const WORD: Readonly<Record<HandledWord, MessageKey>> = {
 };
 
 /**
+ * The name under a face: the first word of the customer's name, so two
+ * customers drawn as the same initial (WhatsApp gives no photo) are told
+ * apart without opening a card (phase 9, w4-today-setup-03). A name in a
+ * script written without spaces is whole.
+ */
+export const shortName = (name: string): string => name.trim().split(/\s+/u)[0] ?? name;
+
+/**
  * The hero: the headline in the assistant's chosen name (rule 7: "your
  * assistant" until one is chosen), then the faces — each the profile card's
- * door, its word under it — in a row that scrolls sideways (from the right in
- * Arabic) and fades at its end to say so. Past 60 the row ends in one tile to
- * the Inbox. Nothing handled: the fact, in a sentence; no empty row.
+ * door, the customer's name and one word of what happened under it — in a row
+ * that scrolls sideways (from the right in Arabic) and fades at its end to say
+ * so. Past 60 the row ends in one tile that says how many more; it opens
+ * nothing, because no list singles out the others (phase 9,
+ * w4-today-setup-04). Nothing handled: the fact, in a sentence; no empty row.
  */
 export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready: boolean }): string {
   const h = d.handled ?? { total: 0, people: [] };
@@ -266,16 +276,18 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
   const drawn = h.people.slice(0, TODAY_FACES);
   const faces = drawn.map((p) => {
     const word = t(locale, WORD[p.word]);
+    const name = p.name ?? t(locale, 'common.buyer');
     return `<li>${faceLink(p, {
       size: 'l', className: 'td-face',
-      label: `${p.name ?? t(locale, 'common.buyer')}${locale === 'zh' ? '：' : ': '}${word}`,
-      after: `<span class="td-word">${esc(word)}</span>`,
+      label: `${name}${locale === 'zh' ? '：' : ': '}${word}`,
+      // The name's own direction, from its own letters (no inner <bdi>, which `dir="auto"` would skip).
+      after: `<span class="td-name" dir="auto">${esc(shortName(name))}</span><span class="td-word">${esc(word)}</span>`,
     })}</li>`;
   }).join('');
   const rest = h.total - drawn.length;
   const more = rest > 0
-    ? `<li><a class="td-more" href="/app/inbox?filter=all"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
-      + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></a></li>`
+    ? `<li><span class="td-more"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
+      + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></span></li>`
     : '';
   return `<h2 id="today-done" class="td-head"><span class="as" aria-hidden="true">✦</span> ${esc(tn(locale, 'today.handled.title', h.total))}</h2>
     <ul class="td-row">${faces}${more}</ul>`;

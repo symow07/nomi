@@ -10,6 +10,7 @@ import { t, assistantName, tn } from './say.js';
 import { biggestChange, MONTH_DRIVERS, MONTH_CHANGE_MIN_DAYS, type MonthDriver } from '../../core/insights/changed.js';
 import { esc, conversationUrl, deeper } from './layout.js';
 import { quietAfterPrice } from '../../db/inboxAttention.js';
+import { faceLink, type FaceOf } from './faces.js';
 
 
 /**
@@ -70,6 +71,12 @@ export type Insight = {
   readonly params: Record<string, string | number>;
   /** Structurally mandatory. There is no Insight without somewhere to go. */
   readonly action: InsightAction;
+  /**
+   * The warmth run, phase 9 (w4-today-setup-05) — the one customer the line is
+   * about, so Today draws their face (the profile card's door) beside it, as
+   * it draws everyone it names. Absent: the line is about no one person.
+   */
+  readonly who?: FaceOf;
 };
 
 export type InsightsData = {
@@ -109,6 +116,8 @@ export async function loadInsights(db: Db, businessIdRaw: string, viewerId?: str
         params: { buyer },
         // CC-25 — on the newest message: the quote she is following up is the last thing said.
         action: { kind: 'follow_up', href: conversationUrl(quoted.conversationId), buyer },
+        // The fix wave — the line carries their face, which opens their card (Today's).
+        who: { clientId: quoted.clientId, name: quoted.name, photo: quoted.photo },
       });
     }
 
@@ -293,7 +302,10 @@ export function renderInsights(d: InsightsData, locale: Locale, o: {
       ...(i.params['buyer'] === '' ? { buyer: t(locale, 'common.buyer') } : {}) };
     const line = isCounted(i.key) ? tn(locale, i.key, Number(i.params['count']), params) : t(locale, i.key, params);
     const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
-    return `<div class="row">
+    // Phase 9 (w4-today-setup-05) — on Today, a line about one customer leads with their face, which opens their card.
+    const face = o.bare && i.who
+      ? faceLink(i.who, { size: 's', label: String(params['buyer'] ?? t(locale, 'common.buyer')), className: 'tw-face' }) : '';
+    return `<div class="row${face ? ' has-face' : ''}">${face}
       <div class="grow">${esc(line)}</div>
       ${deeper(esc(i.action.href), label)}
     </div>`;

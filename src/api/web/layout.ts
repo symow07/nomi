@@ -119,7 +119,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   // Phase 4b — the machine room was reached from Getting ready. Phase 9: no
   // owner's page links to it any more (it is the operator's, by its address),
   // so it is not a contextual route of any hub; it lights nothing.
-  { hub: '/app/onboarding', routes: ['/app/ready'] },
+  { hub: '/app/onboarding', routes: ['/app/ready', '/app/onboarding/practice', '/app/onboarding/activity'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
   { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
@@ -693,6 +693,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .scard > li + li, .scard > .srow + .srow { border-top:1px solid var(--color-border); }
   .srow { display:flex; align-items:center; gap:var(--space-12); min-height:56px; padding:var(--space-8) var(--space-16); color:var(--color-ink); }
   a.srow:hover, a.srow:focus-visible { background:var(--color-paper); }
+  /* Phase 9 (w4-whole-16) — the card clips its rows to its corners, so a row's focus ring is drawn inside the row, rounded like the card. */
+  .scard .srow:focus-visible { outline-offset:-2px; border-radius:calc(var(--radius-card) - 1px); }
   .sr-main { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
   .sr-label { font-weight:600; font-size:var(--font-size-small); }
   .sr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -702,11 +704,19 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .sr-value.warn { color:var(--color-ink-secondary); font-weight:600; }
   .sr-value.bad { color:var(--color-warn); font-weight:600; }
   .srow .go { flex:none; }
+  /* Phase 9 (w4-today-setup-23, w4-whole-08) — a menu row is a grid of four: the shape, the name, the value, the door.
+     The name and the value share the room equally until the shorter of the two is whole, then the longer one wraps
+     between words; nothing is cut, and the columns follow the page's direction. */
+  .srow.sr-menu { display:grid; grid-template-columns:min-content minmax(0, auto) minmax(0, max-content) min-content; column-gap:0; }
+  .srow.sr-menu > .ni { grid-column:1; margin-inline-end:var(--space-12); }
+  .srow.sr-menu > .sr-main { grid-column:2; }
+  .srow.sr-menu > .sr-value { grid-column:3; margin-inline-start:var(--space-12); max-width:100%; min-width:0; overflow-wrap:break-word; }
+  .srow.sr-menu > .go { grid-column:4; margin-inline-start:var(--space-12); }
   .sr-ctl { flex:0 1 auto; min-width:0; }
   /* THE WARMTH RUN — a menu row (Settings, and the menus phase 7 makes of My
      business, the assistant and Setup): its shape, its name, where it stands,
-     and the door. The value keeps to its line on a phone, cut short rather
-     than pushed under. A row that does something (Log out) is a button drawn
+     and the door. The value stays beside the name on a phone, and wraps under
+     itself rather than being cut. A row that does something (Log out) is a button drawn
      as a row, in its own card at the foot. */
   .sr-menu > .ni { flex:none; inline-size:22px; block-size:22px; color:var(--color-ink-secondary); }
   /* The owner's decision (2026-10-03): 56 for a row, 64 for a row that carries a line under its name. */
@@ -745,16 +755,19 @@ ${SIGNAL_CSS}${MOTION_CSS}
     a.srow { flex-wrap:wrap; row-gap:0; }
     a.srow .sr-main { flex-basis:0; }
     .sr-value { order:3; flex-basis:100%; max-width:100%; text-align:start; }
-    a.srow.sr-menu { flex-wrap:nowrap; }
-    a.srow.sr-menu .sr-main { flex-basis:auto; }
-    .sr-menu .sr-value { order:0; flex-basis:auto; max-width:50%; text-align:end; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .srow.sr-menu > .sr-value { order:0; max-width:100%; text-align:end; }
   }
   .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .today-date { font-weight:400; }
   .today-worth { margin-top:var(--space-12); }
-  .today-worth .grow { text-wrap:pretty; }
+  /* Phase 9 (w4-today-setup-05) — a line worth the owner's attention is said at the size of the band's own lines,
+     and one about a customer leads with their face. */
+  .today-worth .grow { text-wrap:pretty; font-size:var(--font-size-small); }
+  .today-worth .row.has-face { display:grid; grid-template-columns:min-content minmax(0, 1fr) auto; column-gap:var(--space-12); }
   .today-foot { font-size:var(--font-size-small); margin:var(--space-16) 0 0; }
   .today-foot p { margin:0; }
+  /* Phase 9 (w4-today-setup-07) — setting up is its own small block under the band, never inside the calm panel. */
+  .today-foot.setup { margin:0 0 var(--space-24); }
   /* Phase 9 (V1-102) — the next step and its video, side by side where they fit. */
   .today-next { display:flex; flex-wrap:wrap; column-gap:var(--space-24); }
   /* THE WARMTH RUN, phase 2 — Today in three zones. 1 · who waits for you: a
@@ -789,6 +802,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
      Arabic), snaps to a face, and fades at its end to say there is more. The
      padding at the end leaves the last face clear of the fade. */
   main h2.td-head { font-size:var(--font-size-display); font-weight:600; margin:0 0 var(--space-16); }
+  /* Nothing connected yet: a heading for the way forward, not the day's news. */
+  main h2.td-head.is-plain { font-size:var(--font-size-title); margin-block-end:var(--space-8); }
   .td-ready { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .td-row { list-style:none; margin:0 0 var(--space-8); padding:var(--space-4) 0; padding-inline-end:var(--space-48);
     display:flex; gap:var(--space-8); overflow-x:auto; overscroll-behavior-inline:contain;
@@ -801,12 +816,14 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .td-row > li { flex:none; scroll-snap-align:start; }
   .td-face, .td-more { display:flex; flex-direction:column; align-items:center; gap:var(--space-4);
     inline-size:calc(56px + var(--space-16)); padding-block:var(--space-4); color:var(--color-ink); text-align:center; }
-  .td-word { font-size:var(--font-size-caption); color:var(--color-ink-secondary); overflow-wrap:anywhere; }
-  .td-face:hover .td-word, .td-more:hover .td-word { color:var(--color-ink); }
+  /* Phase 9 (w4-today-setup-02, -03) — under a face, the customer's name, then one word of what happened; neither
+     breaks inside itself, and a name too long for the column ends in an ellipsis on its own side. */
+  .td-name, .td-word { max-inline-size:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .td-name { font-size:var(--font-size-caption); font-weight:600; }
+  .td-word { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .td-face:hover .td-word { color:var(--color-ink); }
   .td-plus { display:grid; place-items:center; inline-size:56px; block-size:56px; border-radius:var(--radius-chip);
     background:var(--color-surface); box-shadow:var(--shadow-lift1); font-size:var(--font-size-small); font-weight:600; }
-  .td-more:focus-visible { outline:none; }
-  .td-more:focus-visible .td-plus { outline:2px solid var(--color-ink); outline-offset:2px; }
   /* 3 · the day's three figures: a figure over its word, in ink, side by side. */
   main h2.tt-head { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .tt-row { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--space-12); }
@@ -820,6 +837,9 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (V1-094) — on a phone a line's door goes under its sentence, so the sentence keeps the width. */
   @media (max-width: 560px) {
     .today-worth .row { flex-direction:column; align-items:flex-start; gap:0; }
+    .today-worth .row.has-face { grid-template-columns:min-content minmax(0, 1fr); align-items:center; }
+    .today-worth .row.has-face > .tw-face { grid-row:1 / 3; align-self:start; }
+    .today-worth .row.has-face > .deeper { grid-column:2; }
   }
   /* The chevron above mirrors because it POINTS — "onward" is to the left in
      Arabic. The mark does NOT, and its absence here is deliberate rather than an
@@ -1100,7 +1120,8 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-114) — the number holds the first line of a heading that wraps; the state ends its words. */
   .guide-step h2.gs-h { display:flex; align-items:baseline; gap:var(--space-8); margin:0 0 var(--space-12); }
   .gs-n { flex:none; }
-  .gs-t { flex:1 1 auto; min-width:0; text-wrap:pretty; }
+  /* Phase 9 (w4-today-setup-13) — balanced, so a heading that wraps never leaves its last word alone beside its state. */
+  .gs-t { flex:1 1 auto; min-width:0; text-wrap:balance; }
   .gs-t .pill { margin:0; margin-inline-start:var(--space-8); }
   .guide-step ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose); }
   .guide-step ol li + li { margin-top:var(--space-4); }
@@ -1201,9 +1222,14 @@ const STYLE_PAGES = `
   .pr-b { display:flex; align-items:center; justify-content:flex-end; gap:var(--space-4) var(--space-8); flex-wrap:wrap; }
   .pr .deeper, .pr .btn { flex:none; }
   /* The name row: its label, the line under it, then the field with Confirm beside it — in every language. */
-  .pr.under > .pr-b { grid-column:2 / -1; justify-self:stretch; flex-direction:column; align-items:flex-start; }
-  .pr-name { display:flex; flex-wrap:nowrap; align-items:center; gap:var(--space-8); width:100%; max-width:var(--measure-form); }
-  .pr-name input { flex:1 1 auto; min-width:0; }
+  /* Phase 9 (V1-134) — two columns, so the label keeps its line; the form is its own class (the price list's
+     .pr-name, later in the sheet, wrapped Confirm under the field). */
+  .pr.under { grid-template-columns:1.5em minmax(0, 1fr); }
+  .pr.under > :not(.mk):not(.lbl):not(.pr-note) { grid-column:2; justify-self:stretch; }
+  .pr.under > .pr-b { flex-direction:column; align-items:flex-start; }
+  .pr-nameform { display:flex; flex-wrap:nowrap; align-items:center; gap:var(--space-8); width:100%; max-width:var(--measure-form); }
+  .pr-nameform input { flex:1 1 auto; min-width:0; }
+  .pr-nameform .btn { align-self:center; }
   @media (max-width: 560px) {
     .pr { grid-template-columns:1.5em minmax(0, 1fr); }
     .pr > :not(.mk):not(.lbl):not(.pr-note) { grid-column:2; justify-self:start; }
@@ -1214,6 +1240,8 @@ const STYLE_PAGES = `
   .badge.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
   /* Phase 9 (V1-130, missed-17) — where the page stands, said as a state line with its mark: not a box that looks pressable. */
   .verdict { margin:var(--space-16) 0 0; font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); text-wrap:pretty; }
+  /* Phase 9 (w4-today-setup-19) — the checklist says where it stands under its intro, clear of the first section. */
+  .muted + .verdict { margin:var(--space-8) 0 var(--space-24); }
   .verdict.ok { color:var(--color-ok); }
   /* ── ready.ts — Phase 9: the marks in one column, the state in words, its door under it. */
   .checks.rd .chk { grid-template-columns:1.25em minmax(0, 1fr); }
@@ -2422,6 +2450,10 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/setup': { href: '/app/settings', label: 'nav.settings' },
   '/app/business': { href: '/app/settings', label: 'nav.settings' },
   '/app/ready': { href: '/app/onboarding', label: 'nav.onboarding' },
+  // The warmth run, phase 9 — the checklist's two screens, and the machine room (w4-today-setup-20: its way back above its heading).
+  '/app/onboarding/practice': { href: '/app/onboarding', label: 'nav.onboarding' },
+  '/app/onboarding/activity': { href: '/app/onboarding', label: 'nav.onboarding' },
+  '/app/onboarding/technical': { href: '/app/onboarding', label: 'nav.onboarding' },
 };
 const wayBack = (locale: Locale, path: string, body: string): string => {
   const to = BACK_TO[(path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '')];
@@ -2435,7 +2467,8 @@ const wayBack = (locale: Locale, path: string, body: string): string => {
  * whoever is not signed in.
  */
 export const notFoundInside = (locale: Locale): string =>
-  `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><div class="empty">${esc(t(locale, 'error.notfound.body'))}<div>${deeper('/app', t(locale, 'error.home'))}</div></div>`;
+  // Phase 9 (w4-today-setup-30) — a calm line and its door, not the dashed box the run retired.
+  `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><p class="muted">${esc(t(locale, 'error.notfound.body'))}</p>${deeper('/app', t(locale, 'error.home'))}`;
 
 export function shell(input: {
   readonly title: string;

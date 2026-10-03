@@ -110,7 +110,8 @@ describe('Phase F · every empty surface says what happens next', () => {
   });
 
   it('the quiet branches still lead somewhere', () => {
-    expect(emptyToday).toContain('href="/app/business/ready"');     // nobody can reach the assistant yet: the way to go live
+    // nobody can reach the assistant yet: the setup step's own door, to connect where customers write (phase 9, w4-today-setup-16)
+    expect(emptyToday).toContain('href="/app/business/channels"');
     // The warmth run — "Coming up" left Today (the calendar has its nav entry);
     // the day's figures keep their door to Results, whatever the day held.
     expect(emptyToday).toContain('href="/app/analytics"');
