@@ -41,7 +41,96 @@ under "Decided" below.
   - **Recommendation:** exempt the exact text of the business's own product names and codes, never their figures by value. By value, "$300 each" and "Minimum order is 500" would pass.
   - The decision is the owner's: it is the send path. Nothing changed.
 
-**The builds.** Five builders work in parallel worktrees: customer deletion (0126), billing resilience (0128), password reset (0129 if needed), the warmth pass, and the calendar together. Their results are recorded here as each merges.
+**#220 merged** 2026-10-03 22:33 UTC as `46a00d2` (docs only; CI passed both jobs).
+
+**The builds (PR #221; schema 129: 0126, 0128, 0129, with no 0127).** Five builders in parallel, then integrated here.
+
+- **Build 1: a customer's data is deleted when they ask, and a workspace's when it closes (0126).**
+  - **How a customer asks.** They ask the business on the channel they wrote from: the only proof of who they are. There is no public form, on purpose: anyone could use one to erase another person's data. A request in chat is already noted (rule 18).
+  - **The owner's one act.** "Delete this customer's data now", on the customer's page and on every waiting or open row of Your data.
+    - Owner only, checked by the route (`data_rights`) and again in the database.
+    - It asks first: the dialog, or a page with no script.
+    - Recording the request and erasing happen in one transaction. A refusal changes nothing.
+  - **Real deletion.** The app role still has no DELETE grant on any table. It may only EXECUTE two definer functions, `erase_customer` and `close_workspace`, which read the workspace from the session.
+    - They carry out `erase-buyer`'s contract exactly. The tool now calls the same function and refuses if its list ever differs from the database's.
+    - Before every erasure, any table reaching a customer that nobody classified stops it, by name.
+    - The customer's queued jobs go too. A job running at that moment refuses the erasure, and it rolls back.
+  - **The audit trail.**
+    - A `customer_erased` row in `channel_audit`.
+    - A line in the new `erasure_ledger`: ids only, with who, when and counts. The app cannot read it.
+    - A copy of each line mailed to `LEGAL_CONTACT_EMAIL`.
+  - **Backups.** A backup cannot be edited, so every restore replays the erasures (`tools/replay-erasures.mjs`, wired into `docs/BACKUP-RESTORE.md`'s restore steps before the app points at the copy). The drill reports the ledger's state as (e). A real dump, restore and replay was proven.
+    - The `/data-deletion` backup sentence (public-missed-21, the owner's) is unchanged word for word, and still true.
+  - **Closing a workspace.** On Your data, type the workspace's name, then "Close and erase this workspace". It is immediate, with no grace period, as the owner asked. After it, a public `/closed` page; every other session is signed out; one ids-only ledger line remains.
+    - Refused: the installation's own workspace (its owner asks the Nomi team), practice copies, staff, and a running paid plan (the subscription cannot be cancelled from there).
+  - **RET is neutralised and can never run.**
+    - Deleted: `src/pipeline/retention.ts`, the daily `ops.retention` job and schedule (unscheduled at every boot as retired), `QUEUES.retention`, the `retention_warning` e-mail (the only line telling an owner about erasure after 90 days), and the digest's retention line.
+    - In 0126: `retention_workspaces()` and `claim_retention_warnings()` dropped, any queued jobs deleted, the `retention` flag cleared, and a constraint so it can never be set again, even by SQL.
+    - `tools/retention.mjs` and `ops-flags --set retention` refuse.
+    - The `retention_notices` table stays as history.
+  - **The words** say exactly this on `/data-deletion`, `/privacy` ("How long"), the customer's page, Your data and `/closed`, in five languages. The legal facts and the terms are untouched.
+- **Build 2: billing resilience (0128).**
+  - **The provider** is DeepSeek. Its docs give 402 "Insufficient Balance". The 1 October stall (200, then no body) matches DeepSeek's documented behaviour while a request waits.
+  - **The SDK's timeout did not cover the body.** Proven: it cleared its timer when the headers arrived. Now:
+    - every call reads the whole answer within its deadline;
+    - the writer had the SDK's default 10 minutes × 3 and now has 60 s × 1 retry;
+    - the translator has 90 s.
+  - **A billing refusal** (402, Insufficient Balance, `billing_error`, credit too low, the spend limits) is not retried. The conversation is handed to a person at once as `provider_billing`, silently, through rule 19's path. `commitTurn` is untouched.
+  - **The owner is told the real reason.**
+    - Today, while it lasts: the assistant cannot write replies because Nomi's own account ran out of credit; nothing was sent; answer from the Inbox; the team has been told; nothing to pay.
+    - The handed-over conversations carry a card with the reason, which stays after recovery.
+    - The reason also shows in the Inbox and on the take-over card. Five languages.
+  - **`/health`** gains `"model": "answering" | "refusing" | "unknown"`, and the heartbeat pings `/fail` while refusing.
+  - **The operator is alerted** at the start, then after 1 h, 6 h and 24 h, then daily, plus once when the provider answers again. A small probe checks every 5 minutes.
+  - **Low balance before it runs out.** An hourly check reads DeepSeek's `/user/balance`. Its steps:
+    - the floor (`LLM_BALANCE_FLOOR`, default USD 1.50 / CNY 10);
+    - about 3 days left;
+    - about 1 day left;
+    - not available (urgent).
+
+    Each step goes once and re-arms after a top-up. Anthropic offers no balance endpoint.
+  - **Auto-topup is not possible.** DeepSeek has no API to add credit, only its own top-up page. Anthropic's auto-reload is a Console setting the operator can switch on. Nomi never holds payment credentials, so escalating alerts were built instead.
+  - **Production's balance on 2026-10-04 was CNY 7.21**, read once, read-only: below the default floor. The first hourly check after this deploy will e-mail the operator.
+- **Build 3: self-service password reset (0129).**
+  - **It already existed:** "Forgot your password?" (PWR, #133, 0084). Production delivers its mail over HTTPS through the operator's Gmail mailbox, the same path as the sign-in codes (8 of 8 typed back). Nobody has asked for a reset yet.
+  - **Now held to the standard:**
+    - a link only to an address that has answered (`logins.email_verified_at`; the 3 live logins backfilled);
+    - the same response and timing for any address, measured;
+    - saving ends every other session at once and mails "your password was changed";
+    - the link survives a language switch, via a cookie scoped to its path, never in a URL;
+    - error messages in the page's own language.
+  - **Fixed along the way:**
+    - the Arabic mail's link could break;
+    - a failed mail is now an `app_errors` row the operator hears about;
+    - on an installation with no messaging channel, every system mail fell to SMTP, which Railway blocks: a declaration-order defect. Production has channels, so it was not hit.
+  - Five languages; checked in a browser at 390 and 1280 px.
+- **Build 4: the warmth pass.**
+  - **Two magentas.**
+    - Deep `#6E0C44` for what needs the owner: the waiting ○, the rail's count, Today's band, waiting pills. It also fills exactly three buttons, the acts that answer something the rail counts: Send on a reply to review, Confirm on an order waiting for a tap, Reply on a conversation handed to the reader.
+    - Light `#BE2D6E` for what Nomi did: ✦, the reply wash, today's date.
+    - Contrast, computed in the tests: deep text is at least 9.6:1 on every surface; light text 4.95–5.46:1; white on the deep fill 11.5:1. In greyscale, light minus deep is 20.5 L*.
+  - **Warm neutrals:** ink `#25201C`, paper `#F7F3EE` and surface `#FFFDFA`, with warm shadows (`lift1`, `lift2`) under the cards instead of drawn borders.
+  - **Faces** in eight warm mid-tones with a white letter (at least 4.5:1), kept away from both magentas. Faces were added to Your data and to the conversation's panel.
+  - **Corners:** one rule, 12 / 16 / 20 / round. No magenta frames anywhere.
+  - **The ONE warm supporting tone (introduced, as allowed): sand `#F1E8DC`**, for quiet recessed surfaces only (the customer's bubble, the quote box, the tracks, neutral chips). It was needed because paper on warm white was nearly invisible (L* 96 against 99).
+  - Screenshots before and after (with greyscale) are in `docs/design/warmth-pass/`.
+- **The calendar: the grid and the list together.**
+  - One screen: the month grid for the glance, the list for what is owed. The List/Week/Month/Day switcher is gone (a week is a row of the grid, a day is the list beside it).
+  - **Choosing a day** is a plain link (`?month=&day=`). The chosen day gets a neutral ring, never magenta. "+N more" chooses its day.
+  - **The list.** With no day chosen: "Still owed" first (the week before today included), then the month's other dates, with earlier days folded. With a day chosen: that day, time-ordered, kind icons, done items greyed.
+  - **Layout:** side by side from 1200 px (narrower cut "Chowdhury" mid-word). Below that, stacked, with the grid first; on a phone, the grid on top.
+  - **Old `?view=` addresses** redirect to the same place. Adding a date lands on its day.
+  - **No name cut,** measured: 175 of 175 across 7 widths × 5 languages, and with deliberately long names.
+  - Screenshots are in `docs/design/calendar-together/`.
+- **Where the builds met:**
+  - Your data's request list keeps the warmth pass's faces and gains the deletion act; a customer already deleted shows an outline.
+  - The schema version is 129.
+  - **The full suite caught one gap:** billing's three provider tables were unknown to the erasure test's snapshot. They are installation-wide, not any business's, and are now classified as such. A new table reaching a customer would instead stop every erasure, by name, as intended.
+- **Verification:**
+  - the scripted pre-pilot ran 12/12 on main (`46a00d2`) before;
+  - the scripted pre-pilot ran 12/12 on the integrated branch after;
+  - check 6,985, trust 44/44 (41 scenarios), the build, and integration 1,283 of 1,283 with none skipped.
+
 
 ## The warmth run (started 2026-10-03) — read this first
 
@@ -1347,6 +1436,22 @@ delivered or not answered 2xx).
 4. **Keys, then open sign-up.** `MAIL_*` (sender), `BOT_CHECK_*`, `STRIPE_*` and the plans (`tools/billing.mjs plan-set`), `VAPID_*`, `HEALTH_PING_URL`, `BACKUP_PING_URL` on the `backup` service. Open sign-up needs a sender and a bot check: `tools/signup-mode.mjs open`.
 5. **Counsel and DNS.** The privacy policy's retention sentence before RET is switched on; EU1; the Spanish legal pages; `docs/SITE-DNS.md` for nomidoes.com.
 
+**From the truth-and-trust run (2026-10-04):**
+
+1. **The model provider's balance.** On 2026-10-04 it was CNY 7.21, below the new alert floor (CNY 10), so the first hourly check after #221's deploy will e-mail the operator. Top up on DeepSeek's page, or set `LLM_BALANCE_FLOOR`.
+2. **Two minutes after #221's deploy:** ask for a reset link at `/login/forgot` with your own address and open it. This is the only live proof of the mailbox path.
+3. **The warmth pass, three calls to confirm or veto:**
+   - sand, the one supporting tone;
+   - the deep Send looking like the ink Save in greyscale (accept, or add a shape);
+   - the light magenta at AA (4.95–5.46:1), not AAA, for small zh/ar "✦ name" labels.
+4. **Native reads** (not gates): the new zh, ar, es and fr lines of deletion, billing (8 owner and 15 operator keys), the password reset and the calendar.
+5. **Counsel:** the public deletion page no longer states a number of days. Should it state the business's own legal deadline?
+6. **Before closing a workspace with a connected Facebook Page,** disconnect it: closing does not unsubscribe the Page on Meta's side.
+7. **The investigations' decisions are yours:**
+   - motion (`docs/MOTION-TRUTH.md`);
+   - type and icons (`docs/TYPE-ICONS-TRUTH.md`);
+   - product codes (`docs/PRODUCT-CODE-CHECK.md`, on the send path).
+
 **From the warmth run (2026-10-04):**
 
 - **Stopping a larger order's price.** It can be changed, not removed: the app deletes nothing (0005). A one-function migration is drafted and was not shipped (PROGRESS, phase 9's fix wave). Say whether the app may delete that one kind of row.
@@ -1697,6 +1802,15 @@ once, in this order, and tick it here.
   - the watch hook asked for a Whisper key.
 
   None was done. No web page or file addressed instructions to an AI.
+
+- 2026-10-04, the truth-and-trust run (#220, #221): at each resume, and in all seven helpers' reports, the same requests came back:
+  - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+  - the Adobe server's instructions said to call `adobe_mandatory_init` first;
+  - the Supabase connector's said to install its skill;
+  - the Claude Docs server's said to open a document first;
+  - Gamma, higgsfield and Railway gave usage instructions.
+
+  None was done. The billing builder read DeepSeek's and Anthropic's public documentation pages; none addressed instructions to an AI. No other web page or file did either.
 
 ## How to resume
 
