@@ -90,6 +90,9 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
          as always or never would be wrong for half the businesses here. -->
     <p>${esc(t(l, 'legal.privacy.ai'))}</p>
     ${section('legal.privacy.kept.title', 'legal.privacy.kept.body')}
+    ${/* w4-public-01 — since 0123 an Instagram or Messenger customer's profile photo is kept
+         (client_faces, src/worker/faces.ts): its own line, so the list above stays the owner's words. */ ''}
+    <p>${esc(t(l, 'legal.privacy.kept.photo'))}</p>
     ${section('legal.privacy.why.title', 'legal.privacy.why.body')}
     <h2>${esc(t(l, 'legal.privacy.who.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.who.body'))}</p>
@@ -173,7 +176,8 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
       email ? `<p>${k('legal.deletion.viaUs')}</p>` : ''}
     <h2>${k('legal.deletion.erased.title')}</h2>
     <ul>${list([
-      'legal.deletion.erased.identity', 'legal.deletion.erased.messages', 'legal.deletion.erased.prepared',
+      // w4-public-02 — the photo, which erase-buyer erases (`client_faces: { do: 'erase' }`).
+      'legal.deletion.erased.identity', 'legal.deletion.erased.photo', 'legal.deletion.erased.messages', 'legal.deletion.erased.prepared',
       'legal.deletion.erased.notes', 'legal.deletion.erased.conversations',
     ])}</ul>
     <h2>${k('legal.deletion.kept.title')}</h2>

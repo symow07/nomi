@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms, type LegalFacts } from '../../src/api/web/legal.js';
 import { DEFAULT_PROCESSOR, HOSTING, aiProcessor, processorLabel } from '../../src/core/legal/processors.js';
 import { PUBLIC_ROUTES } from '../../src/api/web/app.js';
 import { LOCALES, dirOf } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * The legal pages — what a stranger may read about what is kept, and how to
@@ -227,5 +230,63 @@ describe('Legal pages · the address they promise', () => {
         expect(html(l), `${name} ${l}`).toContain('mailto:privacy@nomidoes.com');
       }
     }
+  });
+});
+
+/**
+ * w4-public-01, -02 (S1) — the warmth run started keeping Instagram and
+ * Messenger customers' profile photos (0123 `client_faces`). The privacy page
+ * listed what is kept and did not name them; the deletion page listed what is
+ * erased and did not either, though erase-buyer erases them. Each page now
+ * names the photo, and this ties the words to the code that keeps and erases
+ * it: if the faces job starts asking another channel, or the erasure stops
+ * taking the photo, this fails before the page says something untrue.
+ */
+describe('Legal pages · the customer\'s profile photo is said where it is kept and where it is erased', () => {
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
+  const WHATSAPP: Record<(typeof LOCALES)[number], string> = { en: 'WhatsApp', zh: 'WhatsApp', ar: 'واتساب', es: 'WhatsApp', fr: 'WhatsApp' };
+  const NAMES: Record<(typeof LOCALES)[number], readonly string[]> = {
+    en: ['Instagram', 'Messenger'], zh: ['Instagram', 'Messenger'], ar: ['إنستغرام', 'ماسنجر'],
+    es: ['Instagram', 'Messenger'], fr: ['Instagram', 'Messenger'],
+  };
+
+  it('privacy: under "What is kept", after its list and before "Why", in every locale', () => {
+    for (const l of LOCALES) {
+      const h = withoutIsolates(renderPrivacy(l, 'privacy@nomidoes.test', FACTS));
+      const kept = h.indexOf(`<h2>${esc(t(l, 'legal.privacy.kept.title'))}</h2><p>${esc(t(l, 'legal.privacy.kept.body'))}</p>`);
+      const photo = h.indexOf(`<p>${esc(t(l, 'legal.privacy.kept.photo'))}</p>`);
+      const why = h.indexOf(`<h2>${esc(t(l, 'legal.privacy.why.title'))}</h2>`);
+      expect(kept, l).toBeGreaterThan(-1);
+      expect(photo, `${l}: the photo is not said to be kept`).toBeGreaterThan(kept);
+      expect(why, l).toBeGreaterThan(photo);
+    }
+  });
+
+  it('deletion: the photo is among what is deleted, right after who you are on every channel', () => {
+    for (const l of LOCALES) {
+      const h = withoutIsolates(renderDataDeletion(l, 'privacy@nomidoes.test'));
+      const li = (k: string) => `<li>${esc(t(l, k as Parameters<typeof t>[1]))}</li>`;
+      expect(h, `${l}: the photo is not said to be deleted`).toContain(li('legal.deletion.erased.identity') + li('legal.deletion.erased.photo'));
+    }
+  });
+
+  it('both lines name the two channels the photo comes from, and never WhatsApp, which gives none', () => {
+    for (const l of LOCALES) {
+      for (const key of ['legal.privacy.kept.photo', 'legal.deletion.erased.photo'] as const) {
+        const s = t(l, key);
+        for (const name of NAMES[l]) expect(s, `${l}/${key} names ${name}`).toContain(name);
+        expect(s, `${l}/${key}`).not.toContain(WHATSAPP[l]);
+      }
+    }
+  });
+
+  it('…which is what the code does: only Instagram and Messenger are asked, and erasing a customer takes the photo', () => {
+    const due = read('migrations/0123_client_faces.sql');
+    expect(due).toMatch(/c\.channel in \('instagram', 'messenger'\)/);
+    expect(read('src/db/faces.ts')).toMatch(/r\.channel === 'instagram' \|\| r\.channel === 'messenger'/);
+    expect(read('tools/erase-buyer.mjs')).toMatch(/client_faces: \{ do: 'erase' \}/);
+    // A customer erased has no channel identity left, so the job cannot ask for the photo again.
+    expect(due).toMatch(/from client_channels c\s+where c\.client_id = cl\.id/);
+    expect(read('tools/erase-buyer.mjs')).toMatch(/client_channels: \{ do: 'erase'/);
   });
 });

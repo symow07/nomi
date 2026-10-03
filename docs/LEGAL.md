@@ -17,7 +17,10 @@ runs the product. The draft terms for the business itself are in
 ## What the pages promise
 
 - What is kept: the message, attachments, the sender's display name and
-  platform identifier, the time; for e-mail, the address and the thread.
+  platform identifier, the time; for e-mail, the address and the thread; for
+  an Instagram or Messenger customer, their profile photo as the platform
+  shows it (0123 `client_faces`, looked at again every 30 days), so the
+  business sees their face.
 - Who sees it: the business; Meta (carriage); Anthropic (drafting); Railway
   (hosting); Google or Microsoft when a mailbox is connected. Nobody else.
 - How long: until the business asks for its records to be deleted, or the
@@ -30,7 +33,8 @@ runs the product. The draft terms for the business itself are in
   days of it being recorded.** When the row is closed as done, the business
   sees it on the buyer's page and on Your data and can tell the person; the
   product sends the person nothing, and the page says so.
-- What is deleted: their identities on every channel; every message to or
+- What is deleted: their identities on every channel; their profile photo;
+  every message to or
   from them; drafts, quotes and sample requests written for them; notes and
   signals about their conversations; the conversations, except what an order
   needs. What is kept: their orders (items, prices, status history) detached
