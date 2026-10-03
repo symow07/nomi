@@ -1,4 +1,4 @@
-import { zoneChoices, zoneLabel, zoneLabelsAmong, zonePlace, zoneKept, zonesOf, countryOfZone, regionOf, isZone, ALL_ZONES, SHOP_ZONES, ZONE_GROUPS } from '../../core/owner/zones.js';
+import { zoneChoices, zoneLabel, zoneLabelsAmong, zonePlace, zoneKept, zoneCity, zonesKeptApart, countryOfZone, regionOf, isZone, ALL_ZONES, SHOP_ZONES, ZONE_GROUPS } from '../../core/owner/zones.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
@@ -14,7 +14,9 @@ import { type SamplePolicy, type SamplePolicyError, validateSamplePolicy } from 
 import {
   type TradeTerms, type TradeTermsError, validateTradeTerms, MAX_PAYMENT_TERMS,
 } from '../../core/commerce/terms.js';
-import { INCOTERM_KEYS } from '../../core/safety/claims.js';
+import { INCOTERM_KEYS, isProductCategory, type ProductCategory } from '../../core/safety/claims.js';
+import { questionsFor } from '../../core/owner/howYouSell.js';
+import { profileOf } from '../../core/owner/sellingStyle.js';
 import { tenantRepos } from '../../db/repos.js';
 import { type Currency, parseCurrency } from '../../core/types/money.js';
 import { currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
@@ -42,9 +44,16 @@ const ownerDecides = (locale: Locale): string =>
 /**
  * M11.1 — Business Profile & Owner Settings. A VIEW + edit over the EXISTING
  * businesses row (no second business model). Field labels localize via t();
- * the VALUES are business data, stored verbatim, never translated. Product
- * categories are DERIVED from products.category (reuse the catalog). Working
+ * the VALUES are business data, stored verbatim, never translated. Working
  * hours are free text; languages_served is informational (no behavior gating).
+ *
+ * The warmth run, phase 9 (V1-006, V1-525, w4-settings-b-outreach-07) — what
+ * the business sells is the one category the owner sets: How you sell's
+ * "What do you sell" (`businesses.product_category`), named in the owner's
+ * language, with the door to that question. The page used to list
+ * `products.category`, which only the demo's seed ever wrote — raw English
+ * codes no page shows or edits — under a line sending the owner to a product
+ * page that has no category.
  */
 
 export type ProfileInput = {
@@ -112,13 +121,21 @@ export type BusinessProfile = {
   readonly contactEmail: string | null;
   readonly contactPhone: string | null;
   readonly languagesServed: readonly string[];
-  readonly categories: readonly string[];        // derived from products.category
+  /**
+   * What the business sells, as How you sell asks it (`product_category`):
+   * `category` null until answered. Absent where How you sell does not ask it
+   * (a business with no catalogue), so the page draws no row for it.
+   */
+  readonly whatYouSell?: { readonly category: ProductCategory | null } | null;
 };
+
+/** How you sell's question about what the business sells (HS_BASE in howYouSell.ts, which reads this file). */
+const WHAT_YOU_SELL = '/app/business/selling/product_claims';
 
 export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promise<BusinessProfile> {
   const empty: BusinessProfile = {
     name: '', description: null, location: null, workingHours: null, contactEmail: null,
-    contactPhone: null, languagesServed: [], categories: [],
+    contactPhone: null, languagesServed: [], whatYouSell: null,
   };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return empty;
@@ -127,18 +144,19 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
     const b = (await sql<{
       name: string; description: string | null; location: string | null; working_hours: string | null;
       contact_email: string | null; contact_phone: string | null; languages_served: string[] | null;
-    }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served
+      kind: string | null; prices_to_owner: boolean | null; product_category: string | null;
+    }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served,
+              kind, prices_to_owner, product_category
          from businesses where id = ${bid.value}`.execute(tx)).rows[0] ?? null;
     if (!b) return empty;
 
-    const categories = (await sql<{ category: string }>`
-      select distinct category from products where category is not null order by category`.execute(tx))
-      .rows.map((r) => r.category);
-
+    // Asked only of a business with a catalogue (How you sell's own rule, `questionsFor`).
+    const asked = questionsFor(profileOf(b.kind), b.prices_to_owner ?? false).includes('product_claims');
     return {
       name: b.name, description: b.description, location: b.location, workingHours: b.working_hours,
       contactEmail: b.contact_email, contactPhone: b.contact_phone,
-      languagesServed: b.languages_served ?? [], categories,
+      languagesServed: b.languages_served ?? [],
+      whatYouSell: asked ? { category: b.product_category && isProductCategory(b.product_category) ? b.product_category : null } : null,
     };
   });
 }
@@ -375,7 +393,8 @@ function zoneRow(c: ZoneChoice, locale: Locale): string {
   const row = (control: string) => fieldRow({ label: t(locale, 'settings.zone.label'), forId: 'pf-zone', desc: t(locale, 'settings.zone.why'), control });
   // A country narrows the list to its own zones, told apart by their places.
   if (own.length > 0 && own !== ALL_ZONES) {
-    const all = own.includes(c.zone) ? own : [c.zone, ...own];
+    // The warmth run (V1-522) — zones that keep the same clock all year are one choice.
+    const all = zonesKeptApart(own.includes(c.zone) ? own : [c.zone, ...own], c.zone);
     const label = zoneLabelsAmong(locale, all);
     return row(`<select id="pf-zone" name="zone">${all.map((z) => option(z, label(z))).join('')}</select>`);
   }
@@ -383,23 +402,28 @@ function zoneRow(c: ZoneChoice, locale: Locale): string {
   // research stations), under its region, named by its country in the
   // owner's language; the city only where a country keeps several.
   const open = (zh: boolean, s: string) => (zh ? `（${s}）` : ` (${s})`);
-  // V1-522 — within a country, the city (in the tz database's English) only
-  // where two of its zones keep the same time; elsewhere the time tells them apart.
+  // The warmth run (V1-522) — zones of one country that keep the same clock
+  // all year are one choice (Argentina's twelve are one); within a country,
+  // the city — in the owner's language (`zoneCity`) — only where two of the
+  // choices keep the same time, or the time has no name; the zone a country
+  // is named by needs none.
+  const zones = zonesKeptApart(SHOP_ZONES, c.zone);
   const shared = new Map<string, number>();
-  for (const z of SHOP_ZONES) { const cc = countryOfZone(z); const k = zoneKept(locale, z); if (cc && k) shared.set(`${cc}|${k}`, (shared.get(`${cc}|${k}`) ?? 0) + 1); }
+  for (const z of zones) { const cc = countryOfZone(z); const k = zoneKept(locale, z); if (cc && k) shared.set(`${cc}|${k}`, (shared.get(`${cc}|${k}`) ?? 0) + 1); }
   const named = (z: string): string => {
     const cc = countryOfZone(z);
     const country = cc ? countryName(locale, cc) : null;
     const kept = zoneKept(locale, z);
-    const city = !kept || (shared.get(`${cc}|${kept}`) ?? 0) > 1;
-    const place = country ? (cc && zonesOf(cc).length > 1 && city ? `${country}${open(locale === 'zh', zonePlace(z))}` : country) : zonePlace(z);
+    const needsCity = !kept || (shared.get(`${cc}|${kept}`) ?? 0) > 1;
+    const city = needsCity ? zoneCity(locale, z) : null;
+    const place = country ? (city ? `${country}${open(locale === 'zh', city)}` : country) : zoneCity(locale, z) ?? zonePlace(z);
     return kept ? `${place} — ${kept}` : place;
   };
   const order = new Intl.Collator(locale).compare;
-  const lone = SHOP_ZONES.includes(c.zone) ? '' : option(c.zone, zoneLabel(locale, c.zone));
+  const lone = zones.includes(c.zone) ? '' : option(c.zone, zoneLabel(locale, c.zone));
   const continents = new Intl.DisplayNames([INTL_LOCALE[locale]], { type: 'region' });
   const groups = ZONE_GROUPS.map((g) => {
-    const zs = SHOP_ZONES.filter((z) => g.regions.some((r) => regionOf(z) === r)).map((z) => ({ z, label: named(z) })).sort((a, b) => order(a.label, b.label));
+    const zs = zones.filter((z) => g.regions.some((r) => regionOf(z) === r)).map((z) => ({ z, label: named(z) })).sort((a, b) => order(a.label, b.label));
     const label = g.m49 ? continents.of(g.m49) ?? '' : t(locale, `settings.zone.region.${g.key}` as MessageKey);
     return `<optgroup label="${esc(label)}">${zs.map((x) => option(x.z, x.label)).join('')}</optgroup>`;
   }).join('');
@@ -481,28 +505,32 @@ export function renderProfile(
   const description = fieldRow({ label: t(locale, 'settings.field.description'), forId: 'pf-description', error: errLine('description') || undefined,
     need: need(needs.description), desc: t(locale, 'settings.desc.description'),
     control: `<textarea id="pf-description" name="description" rows="3">${esc(val('description', p.description))}</textarea>` });
-  // The categories the import found: what they are, as words — nothing to
-  // press. Phase 9 (V1-525): where they come from, and where to change one.
-  const categories = fieldRow({ label: t(locale, 'settings.field.categories'), desc: t(locale, 'settings.categories.from'),
-    control: `<span class="fr-value">${p.categories.length ? p.categories.map((c) => `<bdi>${esc(c)}</bdi>`).join(' · ')
-      : `<span class="muted">${esc(t(locale, 'settings.categories.empty'))}</span>`}</span>${deeper('/app/products', t(locale, 'nav.products'))}` });
+  // The warmth run (V1-006, V1-525, -07) — what the business sells, in the
+  // owner's words for it, and the door to the one place it is answered.
+  const sells = p.whatYouSell ? fieldRow({ label: t(locale, 'settings.field.whatYouSell'), desc: t(locale, 'settings.whatYouSell.from'),
+    control: `<span class="fr-value">${p.whatYouSell.category
+      ? esc(t(locale, `hs.category.${p.whatYouSell.category}` as MessageKey))
+      : `<span class="muted">${esc(t(locale, 'setup.state.notAnswered'))}</span>`}</span>${deeper(WHAT_YOU_SELL, t(locale, 'hs.q.product_claims'))}` }) : '';
 
   // Phase 3 — ONE form, ONE save: the profile, the zone and the currency
   // were three forms with a Save each; the route saves all three.
   const form = `<form method="post" action="/app/settings" class="sform">
     ${rowsCard(t(locale, 'profile.group.business'), [
-      field('name', 'settings.field.name', 'name', p.name), description,
+      field('name', 'settings.field.name', 'name', p.name), description, ...(sells ? [sells] : []),
       field('location', 'settings.field.location', 'location', p.location, '', { need: need(needs.location) }),
       field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
       languages,
     ])}
     ${rowsCard(t(locale, 'profile.group.contact'), [
-      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail, '', { need: need(needs.contact), desc: t(locale, 'settings.desc.contact') }),
-      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'), { need: need(needs.contact) }),
+      // The warmth run (w4-settings-b-outreach-06) — either one finishes the
+      // step (setup.ts), and each field says so: marking both "needed" read
+      // as asking for both.
+      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail, '', { need: needs.contact ? t(locale, 'settings.profile.needOrPhone') : undefined, desc: t(locale, 'settings.desc.contact') }),
+      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'), { need: needs.contact ? t(locale, 'settings.profile.needOrEmail') : undefined }),
     ])}
-    ${rowsCard(t(locale, 'profile.group.zone'), [
-      ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []), categories,
-    ], 'zone')}
+    ${zone || currency ? rowsCard(t(locale, 'profile.group.zone'), [
+      ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []),
+    ], 'zone') : ''}
     ${saveBar(t(locale, 'settings.alerts.save'))}
   </form>`;
 

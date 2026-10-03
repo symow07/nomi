@@ -98,3 +98,87 @@ describe('V1-537 · how customers pay can be saved without a delivery term', () 
     expect(confirm).toContain('<bdi>Cash when you collect</bdi> · <bdi>No delivery term</bdi>');
   });
 });
+
+// ── Business profile ───────────────────────────────────────────────────────
+import { renderProfile, type BusinessProfile } from '../../src/api/web/settings.js';
+import { zoneKept, zoneCity } from '../../src/core/owner/zones.js';
+
+const bare: BusinessProfile = { name: 'Shop', description: null, location: null, workingHours: null, contactEmail: null, contactPhone: null, languagesServed: [] };
+const profile = (l: Locale, p: BusinessProfile = bare, zone = 'Asia/Shanghai', country: string | null = null) =>
+  renderProfile(p, l, null, {}, {}, { zone, country }, { currency: 'USD', fixed: true });
+const zoneOptions = (html: string) => {
+  const at = html.indexOf('<select id="pf-zone"');
+  return [...html.slice(at, html.indexOf('</select>', at)).matchAll(/<option value="([^"]+)"([^>]*)>([^<]*)<\/option>/g)]
+    .map((m) => ({ z: m[1]!, selected: m[2]!.includes('selected'), label: m[3]! }));
+};
+
+describe('w4-settings-b-outreach-06, -08 · either contact detail is enough, and each field says so', () => {
+  it('with neither, the e-mail says "this or the phone" and the phone "this or the e-mail" — never both "needed"', () => {
+    for (const l of LOCALES) {
+      const html = profile(l);
+      const row = (id: string) => html.slice(html.lastIndexOf('<div class="setrow', html.indexOf(`for="${id}"`)), html.indexOf('</div></div>', html.indexOf(`id="${id}"`)));
+      expect(row('pf-contact_email'), l).toContain(`<span class="fr-need">${esc(t(l, 'settings.profile.needOrPhone'))}</span>`);
+      expect(row('pf-contact_phone'), l).toContain(`<span class="fr-need">${esc(t(l, 'settings.profile.needOrEmail'))}</span>`);
+      expect(row('pf-contact_email'), l).not.toContain(esc(t(l, 'settings.profile.need')) + '<');
+    }
+  });
+  it('one of them given, neither is marked', () => {
+    for (const l of LOCALES) expect(profile(l, { ...bare, contactPhone: '+971500000000' }), l).not.toContain(esc(t(l, 'settings.profile.needOrPhone')));
+  });
+  it('English writes "e-mail" one way on the page', () => {
+    expect(t('en', 'settings.field.contactEmail')).toBe('Contact e-mail');
+    expect(profile('en').replace(/<[^>]*>/g, ' ')).not.toMatch(/\b[Ee]mail\b/);   // the words, not the field's name
+  });
+});
+
+describe('V1-006 (part: categories), V1-525, w4-settings-b-outreach-07 · what the business sells, in the owner\'s words, with a door that leads there', () => {
+  it('How you sell\'s answer, named in the owner\'s language, and the door to that very question', () => {
+    for (const l of LOCALES) {
+      const html = profile(l, { ...bare, whatYouSell: { category: 'cosmetics' } });
+      expect(html, l).toContain(esc(t(l, 'settings.field.whatYouSell')));
+      expect(html, l).toContain(`<span class="fr-value">${esc(t(l, 'hs.category.cosmetics'))}</span>`);
+      expect(html, l).toContain(`href="/app/business/selling/product_claims"`);
+      expect(html, l).not.toContain('href="/app/products"');
+    }
+  });
+  it('not answered yet says so; a business How you sell does not ask draws no row; no raw code anywhere', () => {
+    expect(profile('zh', { ...bare, whatYouSell: { category: null } })).toContain(esc(t('zh', 'setup.state.notAnswered')));
+    expect(profile('en', bare)).not.toContain(esc(t('en', 'settings.field.whatYouSell')));
+    // The catalogue no longer carries the old line that sent the owner to a product page.
+    expect(read('src/core/owner/i18n/messages.ts')).not.toContain("'settings.categories.from'");
+    expect(read('src/api/web/settings.ts')).not.toContain('select distinct category from products');
+  });
+});
+
+describe('V1-522, w4-settings-b-outreach-09, -10 · the zone list in the owner\'s language, each zone by the time it keeps now', () => {
+  it('no English city in Chinese or Arabic, and no country named twice, in the whole list', () => {
+    for (const l of LOCALES) {
+      const opts = zoneOptions(profile(l));
+      expect(opts.length, l).toBeGreaterThan(250);
+      if (l === 'zh' || l === 'ar') expect(opts.filter((o) => /[A-Za-z]{2,}/.test(o.label)).map((o) => o.label), l).toEqual([]);
+      expect(opts.filter((o) => /\([^)]*, [^)]*\)|（[^）]*，[^）]*）/.test(o.label)).map((o) => o.label), l).toEqual([]);
+      const labels = opts.map((o) => o.label);
+      expect(labels.filter((x, i) => labels.indexOf(x) !== i), `${l}: two choices read the same`).toEqual([]);
+    }
+  });
+  it('zones of a country that keep the same clock all year are one choice; the workspace\'s own zone stays chosen', () => {
+    const ar = zoneOptions(profile('en', bare, 'America/Argentina/Buenos_Aires', 'AR'));
+    expect(ar.map((o) => o.z)).toEqual(['America/Argentina/Buenos_Aires']);
+    const knox = zoneOptions(profile('en', bare, 'America/Indiana/Knox', 'US'));
+    expect(knox.find((o) => o.selected)?.z).toBe('America/Indiana/Knox');
+    expect(knox.map((o) => o.z)).not.toContain('America/Chicago');   // the same clock: Knox stands for it here
+    expect(zoneOptions(profile('en', bare, 'America/New_York', 'US')).map((o) => o.z)).toContain('America/Chicago');
+    expect(zoneOptions(profile('zh')).map((o) => o.z)).not.toContain('America/Argentina/Cordoba');
+  });
+  it('Lord Howe and Galápagos are named by the time they keep today, not by Sydney\'s and Ecuador\'s in 1970', () => {
+    expect(zoneKept('en', 'Australia/Lord_Howe')).toBe('Lord Howe Time');
+    expect(zoneKept('en', 'Pacific/Galapagos')).toBe('Galapagos Time');
+    expect(zoneKept('zh', 'Australia/Lord_Howe')).not.toBe(zoneKept('zh', 'Australia/Sydney'));
+  });
+  it('French never falls back to "heure : …"; a city reads in the owner\'s language where this build names it', () => {
+    expect(zoneOptions(profile('fr')).filter((o) => o.label.includes('heure :')).map((o) => o.label)).toEqual([]);
+    expect(zoneCity('zh', 'America/Argentina/Cordoba')).toBe('科尔多瓦');
+    expect(zoneCity('ar', 'America/Argentina/Cordoba')).toBe('كوردوبا');
+    expect(zoneCity('zh', 'Europe/Madrid')).toBeNull();   // Spain's own: the country says it
+  });
+});

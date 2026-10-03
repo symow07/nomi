@@ -237,11 +237,11 @@ import { renderProfile, type BusinessProfile } from '../../src/api/web/settings.
 
 const fullProfile: BusinessProfile = {
   name: 'Yiwu Hongfa', description: 'Daily-use goods', location: 'Yiwu', workingHours: '9-18',
-  contactEmail: 'sales@example.com', contactPhone: null, languagesServed: ['en'], categories: ['bags', 'home'],
+  contactEmail: 'sales@example.com', contactPhone: null, languagesServed: ['en'],
 };
 const bareProfile: BusinessProfile = {
   name: 'Yiwu Hongfa', description: null, location: null, workingHours: null,
-  contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
+  contactEmail: null, contactPhone: null, languagesServed: [],
 };
 const profile = (l: (typeof LOCALES)[number], p: BusinessProfile = bareProfile, zone = 'Asia/Shanghai', country: string | null = null) =>
   renderProfile(p, l, null, {}, {}, { zone, country }, { currency: 'USD', fixed: true });
@@ -259,8 +259,9 @@ describe('V1-522, V1-528 · the full zone list: grouped, in the owner\'s languag
     for (const l of ['zh', 'ar'] as const) expect(dubai(l), l).not.toMatch(/[A-Za-z]/);
     // Phase 9 (V1-522) — China's two zones keep two times, so neither needs a city.
     expect(optionsOf(profile('zh')).find((o) => o.z === 'Asia/Shanghai')!.label, 'zh Shanghai').not.toMatch(/[A-Za-z]/);
-    // Brazil's Recife and Fortaleza keep the same time: the city tells them apart.
-    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Recife')!.label).toMatch(/（Recife）/);
+    // The warmth run (V1-522) — Brazil's zones on Brasília time keep the same clock all year: one choice, named by it.
+    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Recife')).toBeUndefined();
+    expect(optionsOf(profile('zh')).find((o) => o.z === 'America/Sao_Paulo')!.label).toBe('巴西 — 巴西利亚标准时间');
     expect(optionsOf(profile('en')).find((o) => o.z === 'Europe/Paris')!.label).toMatch(/^France — /);
   });
   it('no station in Antarctica or Svalbard is offered — unless it is the zone already kept', () => {
@@ -279,7 +280,9 @@ describe('V1-523 · the page marks what the setup step still needs', () => {
     for (const l of LOCALES) {
       const html = profile(l);
       expect(html, l).toContain(esc(t(l, 'settings.profile.needs')));
-      expect(html.split(`<span class="fr-need">${esc(t(l, 'settings.profile.need'))}</span>`).length - 1, l).toBe(4);
+      // The warmth run (w4-settings-b-outreach-06): the description and the location are each needed; of the e-mail and the phone, either.
+      expect(html.split(`<span class="fr-need">${esc(t(l, 'settings.profile.need'))}</span>`).length - 1, l).toBe(2);
+      expect(html.split('<span class="fr-need">').length - 1, l).toBe(4);
     }
   });
   it('a finished one marks nothing', () => {
@@ -289,14 +292,12 @@ describe('V1-523 · the page marks what the setup step still needs', () => {
   });
 });
 
-describe('V1-524, V1-525 · who reads what, and where the categories come from', () => {
+describe('V1-524 · who reads what', () => {
   it('the description says the assistant reads it; the contact details say nobody is given them', () => {
     for (const l of LOCALES) {
       const html = withWorkspace(SCOPE, () => profile(l, fullProfile));
       expect(html, l).toContain(esc(t(l, 'settings.desc.description')));
       expect(html, l).toContain(esc(t(l, 'settings.desc.contact')));
-      expect(html, l).toContain(esc(t(l, 'settings.categories.from')));
-      expect(html, l).toMatch(/class="deeper" href="\/app\/products"/);
     }
   });
 });

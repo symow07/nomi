@@ -324,7 +324,7 @@ const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar', e
  * the same time; the place tells them apart.
  */
 export function zoneLabel(locale: Locale, zone: string): string {
-  const place = zonePlace(zone);
+  const place = zoneCity(locale, zone) ?? zonePlace(zone);
   const kept = zoneKept(locale, zone);
   return kept ? `${place} — ${kept}` : place;
 }
@@ -333,36 +333,130 @@ export function zoneLabel(locale: Locale, zone: string): string {
 export const zonePlace = (zone: string): string =>
   zone.split('/').slice(1).reverse().join(', ').replace(/_/g, ' ') || zone;
 
-/** The time a zone keeps, in the owner's language ("北美东部时间"); '' when this build cannot name it. */
-export function zoneKept(locale: Locale, zone: string): string {
-  const key = `${locale}|${zone}`;
+/**
+ * THE WARMTH RUN, phase 9 (w4-settings-b-outreach-09, -10) — a zone is named
+ * by the time it keeps NOW. It was named at 1970-01-01, the epoch: Lord Howe
+ * then kept Sydney's time and Galápagos Ecuador's, so both carried a name
+ * that is no longer theirs, and a zone that has a name today but had none
+ * then fell back to the bare "heure : Soudan". A fixed day of this year keeps
+ * every render alike; the names are generic, so the season does not matter.
+ */
+const NAMED_AT = new Date(Date.UTC(2026, 0, 15, 12));
+
+const nameOf = (locale: Locale, zone: string, style: 'longGeneric' | 'shortGeneric'): string => {
+  const key = `${style}|${locale}|${zone}`;
   const hit = KEPT.get(key);
   if (hit !== undefined) return hit;
   let name = '';
   try {
-    name = new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: zone, timeZoneName: 'longGeneric' })
-      .formatToParts(new Date(0)).find((p) => p.type === 'timeZoneName')?.value ?? '';
+    name = new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: zone, timeZoneName: style })
+      .formatToParts(NAMED_AT).find((p) => p.type === 'timeZoneName')?.value ?? '';
   } catch { /* this build cannot name it */ }
   KEPT.set(key, name);
   return name;
-}
+};
 /** A list of every zone names each a few hundred times a render; the names never change within a build. */
 const KEPT = new Map<string, string>();
 
 /**
+ * The time a zone keeps, in the owner's language ("北美东部时间"); '' when this
+ * build cannot name it — or names it only by its place ("乌鲁木齐时间",
+ * "heure : Maroc"), which says nothing the place beside it does not.
+ */
+export function zoneKept(locale: Locale, zone: string): string {
+  const name = nameOf(locale, zone, 'longGeneric');
+  return name && !(name === nameOf(locale, zone, 'shortGeneric') && BY_PLACE[locale].test(name)) ? name : '';
+}
+
+/**
+ * Phase 9 (V1-522) — the place a zone is named after, in the owner's
+ * language: the city this build's own data names ("科尔多瓦", "كوردوبا",
+ * "Córdoba"), read out of the zone's name by its place ("科尔多瓦时间",
+ * "توقيت كوردوبا", "heure : Córdoba"). Null for the zone a country is named
+ * by ("西班牙时间": Madrid is Spain's own), where the country says it all.
+ * Where this build names the place no other way ("CT" in English), the city
+ * as the tz database names it — never the country again inside it
+ * ("Buenos Aires", not "Buenos Aires, Argentina").
+ */
+const BY_PLACE: Readonly<Record<Locale, RegExp>> = {
+  en: /^(.+) Time$/u, zh: /^(.+)时间$/u, ar: /^توقيت (.+)$/u, es: /^hora de (.+)$/u, fr: /^heure : (.+)$/u,
+};
+const REGION_NAMES = new Map<Locale, Intl.DisplayNames>();
+const regionName = (locale: Locale, cc: string): string | null => {
+  let names = REGION_NAMES.get(locale);
+  if (!names) { names = new Intl.DisplayNames([INTL_TAG[locale]], { type: 'region' }); REGION_NAMES.set(locale, names); }
+  try { return names.of(cc) ?? null; } catch { return null; }
+};
+export function zoneCity(locale: Locale, zone: string): string | null {
+  const cc = countryOfZone(zone);
+  const read = BY_PLACE[locale].exec(nameOf(locale, zone, 'shortGeneric'))?.[1]?.trim() ?? '';
+  if (read && cc && read === regionName(locale, cc)) return null;
+  if (read) return read;
+  const parts = zone.split('/').slice(1).map((x) => x.replace(/_/g, ' '));
+  const city = parts[parts.length - 1] ?? zone;
+  // America/Argentina/Cordoba: the middle is the country, said already; America/Indiana/Knox: the state, kept.
+  const middle = parts.length === 3 && cc && parts[1] !== regionName('en', cc) ? parts[1] : null;
+  return middle ? `${city}, ${middle}` : city;
+}
+
+/**
+ * Phase 9 (V1-522) — the zones of one country that keep the same time all
+ * year, today, are one choice for a shop: Argentina's twelve, Indiana's
+ * eight towns on Eastern Time. Each set is offered once, by the zone the
+ * workspace already keeps when it is one of them, else by its best-known
+ * city, else by the tz database's first. What is stored for a new choice is
+ * that zone; every member keeps the same clock.
+ */
+const PRINCIPAL: ReadonlySet<string> = new Set([
+  'America/Sao_Paulo', 'Australia/Sydney', 'America/Toronto', 'America/Mexico_City', 'America/Argentina/Buenos_Aires',
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Anchorage',
+]);
+const OFFSETS = new Map<string, string>();
+const offsetsOf = (zone: string): string => {
+  const hit = OFFSETS.get(zone);
+  if (hit !== undefined) return hit;
+  let sig = zone;
+  try {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' });
+    sig = Array.from({ length: 24 }, (_, i) => f.formatToParts(new Date(Date.UTC(2026, Math.floor(i / 2), i % 2 ? 16 : 1, 12)))
+      .find((p) => p.type === 'timeZoneName')?.value ?? '').join(',');
+  } catch { /* unknown: its own choice */ }
+  OFFSETS.set(zone, sig);
+  return sig;
+};
+export function zonesKeptApart(zones: readonly string[], kept: string | null = null): readonly string[] {
+  const groups = new Map<string, string[]>();
+  for (const z of zones) {
+    const k = `${countryOfZone(z) ?? z}|${offsetsOf(z)}|${zoneKept('en', z)}`;
+    const g = groups.get(k);
+    if (g) g.push(z); else groups.set(k, [z]);
+  }
+  const first = (g: readonly string[]): string => {
+    const own = zonesOf(countryOfZone(g[0]!));
+    return [...g].sort((a, b) => own.indexOf(a) - own.indexOf(b))[0]!;
+  };
+  const pick = (g: readonly string[]): string =>
+    (kept && g.includes(kept) ? kept : g.find((z) => PRINCIPAL.has(z)) ?? first(g));
+  const chosen = new Set([...groups.values()].map(pick));
+  return zones.filter((z) => chosen.has(z));
+}
+
+/**
  * Phase 9 (V1-522) — the zones of ONE list, each named by the time it keeps in
- * the owner's language ("北美东部时间", "北美中部时间"); the tz city, which only
- * this build's English can name, is added only where two zones of the list
- * keep the same time ("巴西利亚时间 (Recife)"), or where the time has no name.
+ * the owner's language ("北美东部时间", "北美中部时间"); the city, in the
+ * owner's language too (`zoneCity`), is added only where two zones of the list
+ * keep the same time ("巴西利亚标准时间（累西腓）"), or where the time has no name.
  */
 export function zoneLabelsAmong(locale: Locale, zones: readonly string[]): (zone: string) => string {
   const times = new Map<string, number>();
   for (const z of zones) { const k = zoneKept(locale, z); if (k) times.set(k, (times.get(k) ?? 0) + 1); }
   const open = (s: string) => (locale === 'zh' ? `（${s}）` : ` (${s})`);
+  // Phase 9 (V1-522) — the city in the owner's language; the country's own zone needs none.
   return (zone) => {
     const kept = zoneKept(locale, zone);
-    if (!kept) return zonePlace(zone);
-    return (times.get(kept) ?? 0) > 1 ? `${kept}${open(zonePlace(zone))}` : kept;
+    const city = zoneCity(locale, zone);
+    if (!kept) return city ?? zonePlace(zone);
+    return (times.get(kept) ?? 0) > 1 && city ? `${kept}${open(city)}` : kept;
   };
 }
 
@@ -393,6 +487,11 @@ export const ZONE_GROUPS: readonly { readonly regions: readonly ZoneRegion[]; re
 
 /** The one country the table files this zone under, or null when it is several or none. */
 export function countryOfZone(zone: string): string | null {
+  const hit = COUNTRY_OF.get(zone);
+  if (hit !== undefined) return hit;
   const found = Object.entries(ZONES).filter(([, zs]) => zs.includes(zone)).map(([c]) => c);
-  return found.length === 1 ? found[0]! : null;
+  const cc = found.length === 1 ? found[0]! : null;
+  COUNTRY_OF.set(zone, cc);
+  return cc;
 }
+const COUNTRY_OF = new Map<string, string | null>();
