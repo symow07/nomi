@@ -244,8 +244,8 @@ under "Decided" below.
 - **Schema 125** (0125: a delivery term may be "none", so a term with no Incoterm is allowed).
 - **Verification:**
   - the scripted pre-pilot ran 12/12 on main before;
-  - the scripted pre-pilot ran 12/12 after, each run on its own fresh cluster migrated by its own code;
-  - VERIFY_COUNTS.
+  - the scripted pre-pilot ran 12/12 after (at `3f9828b`; the commits after it touch nothing on the send path), each run on its own fresh cluster migrated by its own code;
+  - check 6,779, trust 44/44 (41 scenarios), the build, and integration 1,246 of 1,246 with none skipped.
 - **The disk filled during the run.** The Mac had 431 of 460 GiB used and about 1 GiB free, and every shell call failed. 34 finished worktrees (all merged, all clean) were removed from the session scratchpad, which freed about 4 GiB. The rest of the disk is the owner's to clear.
 
 ## Two fixes the owner ordered (2026-10-03)
