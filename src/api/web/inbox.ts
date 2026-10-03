@@ -2164,6 +2164,9 @@ export function languageName(locale: Locale, code: string): string {
   }
 }
 
+/** The strip's separator: a line may break after it, never before it. */
+const CU_SEP = '&nbsp;· ';
+
 /** Items said one after another the way the language lists them, without an "and". */
 const LIST_SEP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
 
@@ -2177,9 +2180,16 @@ const LIST_SEP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '�
  *   - Their face, which opens their card (`faceLink`), and their name — the
  *     page's one heading, drawn as the header always drew it (`buyerWho`).
  *   - Where they write (`reachedOn`, the panel's own line); what they bought —
- *     the products of their orders that stand, "Canvas tote ×2, Apron" — or,
- *     with none, what they asked about; what they spent (`customerValues`);
- *     "Regular" when Nomi counts them one.
+ *     the products of their orders that stand, "Canvas tote ×2, Apron" — and
+ *     what they spent (`customerValues`), or "Nothing bought yet"; what this
+ *     conversation is about, when it is not something they bought: "Asked
+ *     about LED String Lights 10m, 5,000 pcs" (the conversation's product and
+ *     quantity, else the panel's reading or the newest price worked out for
+ *     them); "Regular" when Nomi counts them one.
+ *   - The fix wave (w4-conversation-05, -15): a customer who bought nothing
+ *     had no line about buying at all, and the product under the strip was
+ *     unlabelled — bought, or asked about? — and repeated what "Bought" named.
+ *     It is the strip's own labelled line now, said once.
  *   - THE STATE OF PLAY (`stateOfPlay`, pure, its precedence in one place):
  *     the pill says who it waits for — "Needs you" whenever the Buyers list
  *     puts them under it, in its words; otherwise who holds the conversation,
@@ -2215,29 +2225,41 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
   const speaker = (s: Speaker): string => s === 'buyer' ? `<bdi>${esc(who)}</bdi>`
     : s === 'person' ? esc(t(locale, 'conv.by.you')) : byAssistant(assistantName(locale));
   const head = (key: MessageKey): string => `<b>${esc(t(locale, key))}</b>`;
-  const when = (at: Date): string => esc(show.shortWhen(locale, at, now));
+  // The fix wave (w4-conversation-14) — a line breaks only after a separator, never
+  // before one, and never inside a time, a name or a reference: "Last message · ✦
+  // Your assistant" over "· 16:31", and "USAB-de300000-" over "0001", read as broken.
+  const when = (at: Date): string => `<span class="fig">${esc(show.shortWhen(locale, at, now))}</span>`;
   const story = !c ? '' : ((): string => {
     switch (play.kind) {
       case 'needs': return `<b><bdi>${esc(needsWhy(locale, row))}</bdi></b>`;
-      case 'ordered': return [head('catchup.state.ordered'), `<bdi>${esc(play.reference)}</bdi>`, when(play.at)].join(' · ');
-      case 'quoted': return [head('catchup.state.quoted'), when(play.at)].join(' · ');
-      case 'quiet': return [head('catchup.state.quiet'), esc(t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }))].join(' · ');
-      case 'talking': return [head('catchup.state.talking'), speaker(play.from), when(play.at)].join(' · ');
-      case 'last': return [head('catchup.state.last'), speaker(play.from), when(play.at)].join(' · ');
+      case 'ordered': return [head('catchup.state.ordered'), `<bdi class="fig">${esc(play.reference)}</bdi>`, when(play.at)].join(CU_SEP);
+      case 'quoted': return [head('catchup.state.quoted'), when(play.at)].join(CU_SEP);
+      case 'quiet': return [head('catchup.state.quiet'), esc(t(locale, 'catchup.state.quietSince', { date: show.date(locale, play.since) }))].join(CU_SEP);
+      case 'talking': return [head('catchup.state.talking'), `<span class="fig">${speaker(play.from)}</span>`, when(play.at)].join(CU_SEP);
+      case 'last': return [head('catchup.state.last'), `<span class="fig">${speaker(play.from)}</span>`, when(play.at)].join(CU_SEP);
       case 'none': return head('catchup.state.none');
     }
   })();
 
-  const facts = !c ? [] : [
-    c.bought.length > 0
-      ? around('catchup.bought', 'items', `${c.bought.map((b) => `<bdi>${esc(productName(locale, b) ?? '')}</bdi>${
-          b.orders > 1 ? `&nbsp;<bdi dir="ltr">×${esc(show.count(locale, b.orders))}</bdi>` : ''}`).join(LIST_SEP[locale])}${
-          c.boughtMore > 0 ? ` ${esc(t(locale, 'catchup.more', { n: c.boughtMore }))}` : ''}`)
-      : c.askedAbout && productName(locale, c.askedAbout)
-        ? around('catchup.asked', 'product', `<bdi>${esc(productName(locale, c.askedAbout)!)}</bdi>`) : '',
+  // What this conversation is about: its own product and quantity, else what they asked about last.
+  const about = !c ? null
+    : productName(locale, d.product) ? { name: productName(locale, d.product)!, qty: d.quantity }
+    : c.askedAbout && productName(locale, c.askedAbout) ? { name: productName(locale, c.askedAbout)!, qty: null } : null;
+  const boughtNames = new Set((c?.bought ?? []).map((b) => productName(locale, b)));
+  const asked = !about || boughtNames.has(about.name) ? ''
+    : about.qty !== null
+      ? esc(t(locale, 'catchup.askedQty', { product: '\u0000', qty: '\u0001' }))
+          .replace('\u0000', `<bdi>${esc(about.name)}</bdi>`)
+          .replace('\u0001', `<bdi class="fig">${esc(show.quantityOf(locale, about.qty, t(locale, 'product.unit.pcs')))}</bdi>`)
+      : around('catchup.asked', 'product', `<bdi>${esc(about.name)}</bdi>`);
+  const facts = !c ? [] : c.bought.length > 0 ? [
+    around('catchup.bought', 'items', `${c.bought.map((b) => `<bdi>${esc(productName(locale, b) ?? '')}</bdi>${
+      b.orders > 1 ? `&nbsp;<bdi dir="ltr">×${esc(show.count(locale, b.orders))}</bdi>` : ''}`).join(LIST_SEP[locale])}${
+      c.boughtMore > 0 ? ` ${esc(t(locale, 'catchup.more', { n: c.boughtMore }))}` : ''}`),
+    asked,
     // The sum and its word never wrap apart (`.fig`): "$1,240.00" at a line's end and "spent" under it read as two facts.
     c.value.spent ? `<span class="fig">${around('catchup.spent', 'money', `<bdi>${esc(show.money(locale, c.value.spent))}</bdi>`)}</span>` : '',
-  ].filter(Boolean);
+  ].filter(Boolean) : [asked, esc(t(locale, 'catchup.none'))].filter(Boolean);
   const regular = c?.value.regular ? ` <span class="cu-regular">${esc(t(locale, 'catchup.regular'))}</span>` : '';
 
   // Beside the face: who and where. Under both, the width of the column: what they bought, and where things stand.
@@ -2245,7 +2267,7 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
       ${c ? faceLink({ clientId: c.clientId, name: d.buyer, photo: c.photo }, { size: 'l', label: t(locale, 'catchup.card', { who }) }) : ''}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
       ${c ? `<p class="cu-where">${reachedOn(locale, c.channel, c.address)}</p>` : ''}
-      ${facts.length || regular ? `<p class="cu-facts">${facts.join(' · ')}${regular}</p>` : ''}
+      ${facts.length || regular ? `<p class="cu-facts">${facts.join(CU_SEP)}${regular}</p>` : ''}
       <p class="cu-state">${pill}${story ? `<span class="cu-story">${story}</span>` : ''}</p>
     </header>`;
 }
@@ -2516,7 +2538,8 @@ export function renderConversationDetail(
     ${catchUpStrip(d, locale, now, viewer)}
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${older ? '' : assistantControl(d, locale, viewer)}
-    ${prod || d.quantity !== null ? `<div class="muted subline">${[
+    ${/* The fix wave (w4-conversation-05, -15) — the strip names it, labelled; this line stays only where the strip has no customer rows. */ ''}${
+      !d.catchUp && (prod || d.quantity !== null) ? `<div class="muted subline">${[
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
       d.quantity !== null ? `<bdi>${esc(show.quantityOf(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
