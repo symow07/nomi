@@ -26,14 +26,22 @@ import { INCOTERM_KEYS } from '../safety/claims.js';
  * ABSENCE IS THE ANSWER when she has said nothing: no terms, no proforma, and
  * she is told why. There is no default to fall back to.
  *
+ * Phase 9 of the warmth run (V1-537) — THE DELIVERY TERM IS HERS TO LEAVE OUT.
+ * A shop that hands goods over the counter, or delivers in its own town, has
+ * payment terms and no Incoterm. She states the payment alone, and the
+ * delivery term is null — never a code she did not choose. Nothing a customer
+ * is sent reads differently for it: no delivery term is allowed to be said
+ * (the claims guard stays default-deny, as with no terms at all), and a
+ * proforma still needs one (`proformaText`), so none is made without it.
+ *
  * Pure per ADR-0002.
  */
 
 export type TradeTerms = {
   /** Hers, verbatim — "30% deposit, balance against copy of B/L". Never parsed. */
   readonly paymentTerms: string;
-  /** One of the delivery terms the claims guard knows. */
-  readonly incoterm: string;
+  /** One of the delivery terms the claims guard knows; null when she ships under none (V1-537). */
+  readonly incoterm: string | null;
   readonly statedAt: Date;
 };
 
@@ -50,7 +58,9 @@ export function validateTradeTerms(input: {
   const payment = (input.payment ?? '').trim();
   if (!payment) return err('payment_missing');
   if (payment.length > MAX_PAYMENT_TERMS) return err('payment_too_long');
-  const incoterm = (input.incoterm ?? '').trim().toUpperCase();
-  if (!INCOTERM_KEYS.includes(incoterm)) return err('incoterm_invalid');
-  return ok({ paymentTerms: payment, incoterm, statedAt: input.now });
+  const code = (input.incoterm ?? '').trim().toUpperCase();
+  // V1-537 — left empty is "no delivery term", a choice of its own; anything
+  // else must be one of the guard's own codes.
+  if (code !== '' && !INCOTERM_KEYS.includes(code)) return err('incoterm_invalid');
+  return ok({ paymentTerms: payment, incoterm: code === '' ? null : code, statedAt: input.now });
 }

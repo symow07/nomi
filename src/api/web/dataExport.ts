@@ -422,12 +422,13 @@ export function priceRulesSheet(p: PriceRulesParts, locale: Locale): ExportSheet
 const sellingTerms: Loader = async (tx, businessId) => {
   const rows: Cell[][] = [];
 
-  const terms = await sql<{ payment_terms: string; incoterm: string; stated_at: Date; stated_by: string }>`
+  const terms = await sql<{ payment_terms: string; incoterm: string | null; stated_at: Date; stated_by: string }>`
     select payment_terms, incoterm, stated_at, stated_by from trade_terms
      where business_id = ${businessId} order by stated_at desc`.execute(tx);
   for (const x of terms.rows) {
     rows.push(['How you get paid', x.payment_terms, '', x.stated_at, x.stated_by]);
-    rows.push(['Delivery term', x.incoterm, '', x.stated_at, x.stated_by]);
+    // V1-537 — payment terms stated with no delivery term: the row says so, empty.
+    rows.push(['Delivery term', x.incoterm ?? '', '', x.stated_at, x.stated_by]);
   }
 
   const samples = await sql<{

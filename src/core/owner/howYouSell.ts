@@ -66,7 +66,7 @@ export type Answer =
   | { readonly q: 'price'; readonly quantityFirst: boolean }
   | { readonly q: 'minimum'; readonly mode: 'none' | 'same' | 'depends'; readonly qty: number | null }
   | { readonly q: 'returns' | 'delivery'; readonly offers: readonly string[]; readonly told: string }
-  | { readonly q: 'payment'; readonly told: string; readonly terms: { readonly payment: string; readonly incoterm: string } | null }
+  | { readonly q: 'payment'; readonly told: string; readonly terms: { readonly payment: string; readonly incoterm: string | null } | null }
   | { readonly q: 'certifications'; readonly keys: readonly string[] }
   | { readonly q: 'product_claims'; readonly category: ProductCategory | null; readonly keys: readonly string[] }
   | { readonly q: 'hours'; readonly hours: string; readonly closures: readonly { readonly label: string; readonly from: string; readonly to: string }[] }
@@ -179,7 +179,8 @@ export type SellingState = {
   readonly allowed: ReadonlySet<string>;
   /** CK — what the owner said the shop sells; null until picked. */
   readonly productCategory?: ProductCategory | null;
-  readonly terms: { readonly payment: string; readonly incoterm: string } | null;
+  /** V1-537 — the delivery term is null when she ships under none. */
+  readonly terms: { readonly payment: string; readonly incoterm: string | null } | null;
   readonly workingHours: string | null;
   readonly closures: readonly { readonly label: string; readonly from: string; readonly to: string }[];
   /** Lower-cased forbidden terms in force. */
@@ -193,7 +194,7 @@ export type Line =
   | { readonly key: string; readonly kind: 'minimum'; readonly productId: string; readonly product: string; readonly from: number | null; readonly to: number | null }
   | { readonly key: string; readonly kind: 'promise' | 'cert' | 'attr'; readonly claimKind: ClaimKind; readonly claim: string; readonly to: boolean }
   | { readonly key: string; readonly kind: 'category'; readonly to: ProductCategory }
-  | { readonly key: string; readonly kind: 'terms'; readonly payment: string; readonly incoterm: string }
+  | { readonly key: string; readonly kind: 'terms'; readonly payment: string; readonly incoterm: string | null }
   | { readonly key: string; readonly kind: 'hours'; readonly text: string }
   | { readonly key: string; readonly kind: 'closure'; readonly label: string; readonly from: string; readonly to: string }
   | { readonly key: string; readonly kind: 'word'; readonly term: string }

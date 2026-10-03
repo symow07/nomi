@@ -293,7 +293,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
           : ''}</section>`
     : unitPrice && total
       ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
-          <p class="muted">${esc(t(locale, 'order.invoice.noTerms'))}</p>
+          ${/* V1-537 — confirmed under payment terms with no delivery term: a proforma needs one, so the page says which is missing. */ ''}<p class="muted">${esc(t(locale, v.paymentTerms && !v.incoterm ? 'order.invoice.noIncoterm' : 'order.invoice.noTerms'))}</p>
           ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`
       : '';
 

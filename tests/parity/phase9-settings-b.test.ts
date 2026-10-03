@@ -330,7 +330,7 @@ import { currencyLabel } from '../../src/core/owner/currencies.js';
 
 const noRate = (l: (typeof LOCALES)[number]) => renderRate({ current: null, previous: [], pair: null, currency: 'USD' }, l, null);
 const samples = (l: (typeof LOCALES)[number]) => renderSamples({ policy: null, waiting: [], currency: 'USD' }, l, null, NOW);
-const terms = (l: (typeof LOCALES)[number], stated: { incoterm: string } | null = null) =>
+const terms = (l: (typeof LOCALES)[number], stated: { incoterm: string | null } | null = null) =>
   renderTerms({ terms: stated ? { paymentTerms: '30% with order', incoterm: stated.incoterm, statedAt: NOW } : null }, l, null);
 
 describe('V1-529, V1-530, V1-531, V1-532, settings-b-outreach-new-06 · the rate page is not a dead end', () => {
@@ -410,10 +410,10 @@ describe('settings-b-outreach-new-08 · the tick sits at the start, beside its n
 });
 
 describe('V1-537, V1-006-terms · the delivery term is a choice the owner can read', () => {
-  it('each term says what it means; the blank first choice says what to do; DDU is not offered', () => {
+  it('each term says what it means; the first choice is none at all (the warmth run, V1-537); DDU is not offered', () => {
     for (const l of LOCALES) {
       const html = terms(l);
-      expect(html, l).toContain(`<option value="" selected disabled>${esc(t(l, 'terms.incoterm.choose'))}</option>`);
+      expect(html, l).toContain(`<option value="" selected>${esc(t(l, 'terms.incoterm.none'))}</option>`);
       const opts = optionsOf(html);
       expect(opts.map((o) => o.z), l).toEqual([...OFFERED_INCOTERMS]);
       for (const o of opts) expect(o.label, `${l} ${o.z}`).toBe(esc(`${o.z} — ${t(l, `terms.incoterm.${o.z}` as never)}`));

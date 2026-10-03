@@ -232,7 +232,8 @@ export type BusinessMenu = {
   readonly kind: string | null;
   /** How many of How you sell's questions are answered; null for staff (the questions are the owner's). */
   readonly howYouSell: { readonly answered: number; readonly total: number } | null;
-  readonly terms: { readonly incoterm: string; readonly payment: string } | null;
+  /** V1-537 — the delivery term is null when the owner ships under none. */
+  readonly terms: { readonly incoterm: string | null; readonly payment: string } | null;
   /** The sample price stated (amount 0 = free), null when nothing is stated; and how many customers wait for one. */
   readonly samples: { readonly price: Money | null; readonly waiting: number };
   /** The closure in force, or the next one to come; null when none is ahead. */
@@ -1096,7 +1097,7 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
   const samples = m?.samples ?? null;
   const rows = [
     menuRow({ href: '/app/settings/terms', icon: 'receipt', label: t(locale, 'business.row.terms'),
-      value: m === null ? null : m.terms ? inLine([m.terms.incoterm, m.terms.payment]) : t(locale, 'setup.value.notSetUp'),
+      value: m === null ? null : m.terms ? inLine([...(m.terms.incoterm ? [m.terms.incoterm] : []), m.terms.payment]) : t(locale, 'setup.value.notSetUp'),
       tone: m !== null && !m.terms ? 'warn' : undefined }),
     menuRow({ href: '/app/settings/samples', icon: 'gift', label: t(locale, 'samples.title'),
       value: samples === null ? null : samples.waiting > 0 ? tn(locale, 'business.value.samplesWaiting', samples.waiting)

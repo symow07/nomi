@@ -983,6 +983,11 @@ export async function loadTerms(db: Db, businessIdRaw: string): Promise<TermsVie
  * record. And the delivery term she puts on her proformas is one her employee
  * may also SAY — the same decision, written where the claims guard reads it,
  * so a proforma saying FOB and a reply refused for saying FOB cannot coexist.
+ *
+ * Phase 9 of the warmth run (V1-537) — with no delivery term, nothing is
+ * allowed to be said: the guard stays as it was. A term allowed before is not
+ * taken back here, as choosing a second term never took back the first; what
+ * the assistant may say is How you sell's and the guard's to change.
  */
 export async function saveTerms(
   db: Db, businessIdRaw: string,
@@ -996,11 +1001,13 @@ export async function saveTerms(
     await sql`insert into trade_terms (business_id, payment_terms, incoterm, stated_at, stated_by)
               values (${bid.value}::uuid, ${v.value.paymentTerms}, ${v.value.incoterm},
                       ${v.value.statedAt}, ${input.actor})`.execute(tx);
-    await sql`
-      insert into claims_policy (business_id, kind, claim_key, allowed)
-      values (${bid.value}, 'incoterm', ${v.value.incoterm}, true)
-      on conflict (business_id, kind, claim_key) do update set allowed = true, updated_at = now()
-    `.execute(tx);
+    if (v.value.incoterm !== null) {
+      await sql`
+        insert into claims_policy (business_id, kind, claim_key, allowed)
+        values (${bid.value}, 'incoterm', ${v.value.incoterm}, true)
+        on conflict (business_id, kind, claim_key) do update set allowed = true, updated_at = now()
+      `.execute(tx);
+    }
     return { code: 'saved' as const };
   });
 }
@@ -1015,17 +1022,29 @@ export const OFFERED_INCOTERMS = ['EXW', 'FCA', 'FOB', 'CFR', 'CIF', 'DAP', 'DDP
 export const incotermMeaning = (locale: Locale, code: string): string =>
   INCOTERM_KEYS.includes(code) ? `${code} — ${t(locale, `terms.incoterm.${code}` as MessageKey)}` : code;
 
+/**
+ * Phase 9 of the warmth run (V1-537) — the delivery terms as options, the
+ * first being none at all: a shop whose customers collect, or that delivers
+ * in its own area, ships under no Incoterm. A workspace that chose DDU keeps it.
+ * The terms page and How you sell's payment question draw the same list.
+ */
+export function incotermOptions(locale: Locale, chosen: string | null): string {
+  const choices: readonly string[] = chosen && !(OFFERED_INCOTERMS as readonly string[]).includes(chosen)
+    ? [...OFFERED_INCOTERMS, chosen] : OFFERED_INCOTERMS;
+  return `<option value=""${chosen === null ? ' selected' : ''}>${esc(t(locale, 'terms.incoterm.none'))}</option>${
+    choices.map((k) => `<option value="${esc(k)}"${chosen === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('')}`;
+}
+
 export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
+  // V1-537 — payment terms stated alone say so, and what follows from it.
   const stated = v.terms
-    ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
-       <p class="muted">${esc(incotermMeaning(locale, v.terms.incoterm))}</p>
+    ? `<p class="stated-now">${v.terms.incoterm ? `<bdi>${esc(v.terms.incoterm)}</bdi> · ` : ''}<bdi>${esc(v.terms.paymentTerms)}</bdi></p>
+       <p class="muted">${esc(v.terms.incoterm ? incotermMeaning(locale, v.terms.incoterm) : t(locale, 'terms.stated.noIncoterm'))}</p>
        <p class="muted">${esc(t(locale, 'terms.setOn', { date: show.date(locale, v.terms.statedAt) }))}</p>`
     : `<div class="empty notset">${esc(t(locale, 'terms.none', { name }))}</div>`;
-  const choices: readonly string[] = v.terms && !(OFFERED_INCOTERMS as readonly string[]).includes(v.terms.incoterm)
-    ? [...OFFERED_INCOTERMS, v.terms.incoterm] : OFFERED_INCOTERMS;
-  const options = choices.map((k) =>
-    `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('');
+  const kept0 = kept?.values['incoterm'];
+  const chosen = kept0 !== undefined ? (kept0.trim().toUpperCase() || null) : v.terms?.incoterm ?? null;
   return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
     <h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
     ${flashBanner(flash)}
@@ -1038,7 +1057,7 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, v
             control: `<input id="tm-payment" name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
               value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
           fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }), error: keptError(kept, 'incoterm', 'tm-incoterm-err'),
-            control: `<select id="tm-incoterm" name="incoterm" required${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${v.terms ? '' : `<option value="" selected disabled>${esc(t(locale, 'terms.incoterm.choose'))}</option>`}${options}</select>` }),
+            control: `<select id="tm-incoterm" name="incoterm"${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${incotermOptions(locale, chosen)}</select>` }),
         ])}
         ${saveBar(t(locale, 'terms.save'))}
       </form>` : ownerDecides(locale)}
