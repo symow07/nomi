@@ -274,7 +274,7 @@ describe('the warmth run · an empty period is one warm panel with one door', ()
     }
     // warm: a rounded panel, no dashed grey box
     expect(rule('.empty.cal-empty')).toContain('border:0');
-    expect(rule('.empty.cal-empty')).toContain('border-radius:var(--radius-panel)');
+    expect(rule('.empty.cal-empty')).toContain('border-radius:var(--radius-card)');   // w4-whole-17: a panel of words is a card; the grid is the panel
   });
 });
 

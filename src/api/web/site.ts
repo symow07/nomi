@@ -231,7 +231,7 @@ export const SITE_CSS = `
   .site-cta { display:flex; align-items:center; gap:var(--space-16) var(--space-24); flex-wrap:wrap;
     margin:var(--space-32) 0 0; }
   .site-go { display:inline-flex; align-items:center; min-height:48px; padding:var(--space-12) var(--space-24);
-    border-radius:var(--radius-card); background:var(--color-ink); color:var(--color-surface);
+    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface);
     font-weight:600; text-decoration:none; }
   .site-go:hover { box-shadow:var(--shadow-lift2); }
   .site-go.site-go-2 { background:transparent; color:var(--color-ink); border:1px solid var(--color-ink-secondary); }

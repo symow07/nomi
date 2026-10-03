@@ -14,7 +14,7 @@ import { linkedCss } from './linked-css.js';
  * and no border anywhere is drawn in the waiting or the assistant's colours.
  */
 const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
-const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }));
+const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }));
 
 describe('magenta for meaning', () => {
   it('no border, outline or edge is drawn in magenta or its tints', () => {
@@ -34,5 +34,17 @@ describe('magenta for meaning', () => {
     for (const chore of ['.fwarn', '.imp-warn', '.sr-value.warn', '.prob']) expect(SIGNAL_BEFORE.waiting, chore).not.toContain(chore);
     // and the customer-waiting marks still are
     for (const waits of ['.pc-wait', 'nav.side .navcount', '.pill.reason']) expect(SIGNAL_BEFORE.waiting).toContain(waits);
+  });
+});
+
+describe('rounded for warmth: one rule for corners (w4-whole-17)', () => {
+  it('a button shares a field\'s corner; a band shares its list\'s; the sheet and the calendar\'s grid are the panels', () => {
+    const radius = (sel: string) => rules.filter((r) => r.sel === sel)
+      .map((r) => /border-radius:\s*var\(--radius-([a-z]+)\)/.exec(r.body)?.[1]).find(Boolean);
+    expect(radius('.btn')).toBe('control');
+    expect(radius('.attn')).toBe('card');
+    expect(radius('.scard')).toBe('card');
+    expect(radius('.pcard')).toBe('panel');
+    expect(radius('.wk-scroll')).toBe('panel');
   });
 });

@@ -564,7 +564,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      white; a quiet one is words; red takes something away. No button is
      ever magenta — that colour is the assistant's hand. */
   .btn { display:inline-flex; align-items:center; justify-content:center; min-height:44px;
-    padding:10px 18px; border-radius:var(--radius-card);
+    padding:10px 18px; border-radius:var(--radius-control);
     border:1.5px solid var(--color-ink-secondary);
     background:var(--color-surface); color:var(--color-ink);
     font:inherit; font-size:var(--font-size-small); font-weight:600; cursor:pointer; }
@@ -748,7 +748,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   main h2.tw-head { margin:0 0 var(--space-12); }
   .tw-need { color:var(--color-waiting); font-weight:600; }
   .tw-calm-line { margin:var(--space-4) 0 0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .tw.is-calm { background:var(--color-surface); border-radius:var(--radius-panel); box-shadow:var(--shadow-lift1);
+  .tw.is-calm { background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1);
     padding:var(--space-16) var(--space-24); margin-block-end:var(--space-24); }
   main .tw.is-calm h2.tw-head { margin:0; }
   .tw-note { margin:0 0 var(--space-12); }
@@ -1590,7 +1590,7 @@ const STYLE_PAGES = `
   .cal-owed { display:inline-flex; align-items:center; gap:var(--space-4); font-weight:400; font-size:var(--font-size-caption); }
   /* An empty period: one warm panel, its one door — never a grey box under rows of scaffolding. */
   .empty.cal-empty { display:grid; justify-items:start; gap:var(--space-8); margin:var(--space-16) 0 0; padding:var(--space-24);
-    border:0; border-radius:var(--radius-panel); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
+    border:0; border-radius:var(--radius-card); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
   .cal-empty-i { display:grid; place-items:center; inline-size:56px; block-size:56px; border-radius:var(--radius-chip);
     background:var(--color-paper); color:var(--color-ink-secondary); }
   .cal-empty-ic { inline-size:28px; block-size:28px; }
@@ -1745,7 +1745,7 @@ const STYLE_PAGES = `
   /* "Needs attention": relationships slipping, in a soft panel above the switch. A face, a name, one
      line that may wrap — nothing cut; five, then the rest folded. */
   .attn { margin:0 0 var(--space-16); padding:var(--space-8) var(--space-16); background:var(--color-surface);
-    border:1px solid var(--color-border); border-radius:var(--radius-panel); }
+    border:1px solid var(--color-border); border-radius:var(--radius-card); }
   .attn-h { font-size:var(--font-size-small); font-weight:600; margin:var(--space-4) 0; }
   .arows { list-style:none; margin:0; padding:0; }
   .arow { display:flex; align-items:stretch; min-height:52px; }
@@ -2509,15 +2509,15 @@ const DOOR_STYLE = `
   /* V1-034, V1-050 — a link on the door looks like one. */
   .login .card a, .login .other a, .login .foot a { color:var(--color-ink); text-decoration:underline;
     text-underline-offset:0.2em; }
-  input { width:100%; padding:12px 14px; border-radius:var(--radius-card);
+  input { width:100%; padding:12px 14px; border-radius:var(--radius-control);
     border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   /* M49 — as wide as its word, like every other button in the product. */
-  button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-card);
+  button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-control);
     background:var(--color-ink); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
   button:hover { box-shadow:var(--shadow-lift2); }
-  select { width:100%; min-height:44px; padding:10px 14px; border-radius:var(--radius-card);
+  select { width:100%; min-height:44px; padding:10px 14px; border-radius:var(--radius-control);
     border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   .login h2 { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:var(--space-24) 0 var(--space-8); font-weight:600; }

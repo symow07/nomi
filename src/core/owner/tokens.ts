@@ -206,8 +206,11 @@ export const DESIGN_TOKENS = {
   measure: { column: '1040px', prose: '62ch', form: '40ch' },
   /**
    * THE WARMTH RUN (2026-10-03) — rounded for warmth. Every corner in the
-   * product is one of these: a control (a field, a button, a row), a card, a
-   * panel (a sheet, the calendar grid, a grouped menu), a chip, a face.
+   * product is one of these: a control (a field, a button), a card (a card, a
+   * band, a grouped menu of rows, a panel of facts), a panel (the sheet that
+   * springs up, the calendar's grid), a chip, a face. The re-audit
+   * (w4-whole-17) held the app to it: a button beside a field shares its corner,
+   * and a band above a list shares the list's.
    */
   radiusPx: { control: 12, card: 16, panel: 20, chip: 999 },
   /**

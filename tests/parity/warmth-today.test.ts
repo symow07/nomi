@@ -122,7 +122,7 @@ describe('1 · who waits for you', () => {
     }
     // The calm card is white and rounded, not the dashed panel of an empty state.
     const css = linkedCss(withWorkspace(scope(null), () => shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })));
-    expect(css).toContain('.tw.is-calm { background:var(--color-surface); border-radius:var(--radius-panel);');
+    expect(css).toContain('.tw.is-calm { background:var(--color-surface); border-radius:var(--radius-card);');
   });
 
   it('what Today must still say lives in the band: stopped, a reply that never arrived, a deletion request, Setup unfinished', () => {
