@@ -93,8 +93,10 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // number chosen) and disconnected. Phase 3 of the UI rebuild — the zone is
     // saved with the profile's one form now: one more. Phase 9 (V1-009) — the
     // country, saved with the kind of business, decides how an amount is
-    // written on every page: one more.
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(21);
+    // written on every page: one more. 0126 — two more: a customer's data
+    // deleted (the setup step "first reply" may count their replies) and the
+    // workspace closed.
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(23);
   });
 });
 

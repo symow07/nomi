@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Db } from '../db/client.js';
 import { QUEUES, type HeartbeatJob } from '../queue/boss.js';
+import { providerRefusing } from '../db/providerState.js';
 
 /**
  * CC-10 — THE UPTIME HEARTBEAT: a dead-man's switch, like the backup's.
@@ -33,6 +34,13 @@ export type HeartbeatDeps = {
   readonly url: string | null;
   readonly probeDb: () => Promise<boolean>;
   readonly probeHttp: () => Promise<boolean>;
+  /**
+   * 0128 — does the model provider answer? False while it refuses for billing
+   * (`/health` says `"model":"refusing"`): the app serves, but no reply can be
+   * written, so the check is marked failed and the operator hears it from
+   * outside Railway too. Absent: not asked.
+   */
+  readonly probeModel?: () => Promise<boolean>;
   readonly fetch: PingFetch;
   readonly log: (line: string) => void;
   /** Each probe's own limit; a probe that has not answered by then has failed. Default 5 s. */
@@ -76,11 +84,13 @@ const reasonOf = (e: unknown): string =>
 export async function heartbeatTick(deps: HeartbeatDeps): Promise<HeartbeatOutcome> {
   if (!deps.url) return 'off';
   const limit = deps.probeTimeoutMs ?? 5_000;
-  const [db, http] = await Promise.all([within(deps.probeDb, limit), within(deps.probeHttp, limit)]);
-  const healthy = db && http;
+  const [db, http, model] = await Promise.all([within(deps.probeDb, limit), within(deps.probeHttp, limit),
+    deps.probeModel ? within(deps.probeModel, limit) : Promise.resolve(true)]);
+  const healthy = db && http && model;
   const state = healthy ? 'healthy' : `unhealthy (${[
     db ? null : 'the database did not answer',
     http ? null : '/health did not answer on loopback',
+    model ? null : 'the model provider refuses for billing',
   ].filter(Boolean).join('; ')})`;
   let target: string;
   try {
@@ -120,6 +130,8 @@ export async function startHeartbeat(
     readonly db: Db;
     /** Tests only; production asks `select 1` of `db`. */
     readonly probeDb?: () => Promise<boolean>;
+    /** Tests only; production asks `provider_refusing()` of `db`. */
+    readonly probeModel?: () => Promise<boolean>;
     readonly fetch?: PingFetch;
     readonly log?: (line: string) => void;
   },
@@ -143,7 +155,7 @@ export async function startHeartbeat(
 
 async function scheduleHeartbeat(
   boss: Pick<PgBoss, 'schedule' | 'work'>,
-  o: { readonly port: number; readonly db: Db; readonly probeDb?: () => Promise<boolean>; readonly fetch?: PingFetch },
+  o: { readonly port: number; readonly db: Db; readonly probeDb?: () => Promise<boolean>; readonly probeModel?: () => Promise<boolean>; readonly fetch?: PingFetch },
   url: string, log: (line: string) => void,
 ): Promise<'on'> {
   const fetchImpl = o.fetch ?? (fetch as unknown as PingFetch);
@@ -151,6 +163,7 @@ async function scheduleHeartbeat(
     url,
     probeDb: o.probeDb ?? (async () => { await sql`select 1`.execute(o.db); return true; }),
     probeHttp: loopbackHealth(o.port, fetchImpl),
+    probeModel: o.probeModel ?? (async () => !(await providerRefusing(o.db))),
     fetch: fetchImpl,
     log,
   };

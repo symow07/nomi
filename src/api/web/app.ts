@@ -1,5 +1,6 @@
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
+import { providerRefusing } from '../../db/providerState.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
@@ -148,7 +149,7 @@ import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core
 import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
-import { renderCalendar, parseCalendarQuery } from './calendar.js';
+import { renderCalendar, parseCalendarQuery, legacyCalendarAddress } from './calendar.js';
 import { renderListPane, renderCustomerPanel, renderPanes, paneRowOf } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { loadCatchUp } from '../../db/catchUp.js';
@@ -214,15 +215,14 @@ import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindPro
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
-import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
-import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
+import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
+import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
-import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
 import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
   lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, selfServeCount, loginOfPerson, setPassword,
-  setupLinkEmail, spendSetupLink, requestRecoveryLink,
+  setupLinkEmail, spendSetupLink, requestRecoveryLink, markLoginEmailProven,
 } from '../../db/accounts.js';
 import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
@@ -231,7 +231,7 @@ import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } fr
 import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
@@ -494,6 +494,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/hooks/email/inbound', why: 'C4.c — a buyer\'s reply to her e-mail, HMAC-verified; the tenant comes from the mail he quoted' },
   { method: 'GET', url: '/privacy', why: 'what is kept about the people who write in — Meta reads it before the app may go live; names no tenant' },
   { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
+  { method: 'GET', url: '/closed', why: '0126 — where an owner lands, signed out, after closing a workspace: says it was erased; reads nothing and names no tenant' },
   { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
   { method: 'GET', url: '/sw.js', why: 'G5b — the phone\'s own worker: shows an alert Nomi sent and opens the app when it is tapped. The same text for everyone; names no tenant' },
   { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
@@ -1179,6 +1180,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, siteOf(req))));
   app.get('/terms', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
+  // 0126 — after a workspace is closed: signed out, and told what happened. Reads nothing.
+  app.get('/closed', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderClosed(localeOf(req), siteOf(req))));
 
   // ── The stylesheets (V1 close-out) and the one script (CC-26) ───────────
   // Named by their content, so this build's own address is kept by a browser
@@ -1266,12 +1270,44 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   };
   // The second line of defence; the first is the per-login lock in the database.
   const loginThrottle = makeThrottle({ max: 20, windowMs: 5 * 60_000 });
-  /** PWR — the door can e-mail a link only where the installation sends system mail. */
-  const recoveryOn = Boolean(codeMail);
+  /**
+   * PWR — the door can e-mail a link only where the installation sends system
+   * mail, and (PWR2) knows its own address: the link in the mail must be
+   * whole, and it is never built from the request's Host header, which the
+   * asker writes.
+   */
+  const recoveryOn = Boolean(codeMail) && Boolean(deps.publicBaseUrl);
+  /**
+   * PWR2 — "Forgot your password?" is on the door wherever it leads somewhere:
+   * a link by e-mail, or else the page that says who sets a new password.
+   */
+  const forgotOnDoor = recoveryOn || Boolean(deps.legalContact);
   const signupThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
   const callerOf = (req: FastifyRequest): string => callerKey(req.headers['x-forwarded-for'], req.ip);
   const html = (reply: FastifyReply, code: number, body: string) =>
     reply.code(code).type('text/html; charset=utf-8').send(body);
+  /** The language chosen before signing in, for a year (the switcher's `/locale` and the reset link's `l`). */
+  const setLocaleCookie = (reply: FastifyReply, l: Locale): void => {
+    const flags = ['Path=/', 'SameSite=Lax', 'Max-Age=31536000'];
+    if (deps.secureCookie) flags.push('Secure');
+    reply.header('set-cookie', `${LOCALE_COOKIE}=${l}; ${flags.join('; ')}`);
+  };
+  /**
+   * PWR2 — a reset or "password changed" mail that could not leave is written
+   * down (`app_errors`) and the operator hears of it. The door said "on its
+   * way" whatever happened — it must, or it would tell a stranger which
+   * addresses sign in here — so nobody else would ever know. Kept: the
+   * transport's own phrase with any address taken out; never the link.
+   */
+  const reportDoorMail = (what: 'recovery' | 'password_changed', error: string): void => {
+    if (!deps.reportError) return;
+    const reason = error.replace(/[^\s@<>"']+@[^\s@<>"']+/g, '<address>').slice(0, 300);
+    const e = new Error(`${what} mail could not be sent: ${reason}`);
+    // Two names, so the two are two rows (one fingerprint each), not one that hides the other.
+    e.name = what === 'recovery' ? 'RecoveryMailFailed' : 'PasswordChangedMailFailed';
+    void deps.reportError(e, 'web', { route: what === 'recovery' ? 'POST /login/forgot' : 'POST /login/set-password' })
+      .catch(() => undefined);
+  };
   /**
    * Opens a session. `pv` is WHICH password it was opened with (S1) — read
    * back from the row, so a later change can end this session by no longer
@@ -1292,7 +1328,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (sessionOf(req)) return reply.redirect('/app');
     const signupMode = await signupModeNow();
     return reply.type('text/html; charset=utf-8').send(
-      loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
+      loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor,
         withCode: (req.query as { with?: string }).with === 'code' }));
   });
 
@@ -1415,7 +1451,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const email = normalizeEmail(String(body.email ?? ''));
       const password = String(body.password ?? '');
       const refuse = (status: number, problem: LoginProblem) =>
-        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
       if (email === '') return refuse(400, 'email_missing');
       if (password === '') return refuse(400, 'password_missing');
       if (!loginThrottle.allow(callerOf(req), Date.now())) return refuse(429, 'slow');
@@ -1469,7 +1505,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // the environment's business first, exactly as before, so nothing about
       // the pilot's staff depends on the new lookup.
       if (!loginThrottle.allow(callerOf(req), Date.now())) {
-        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
       }
       const mine = code.trim() === '' ? null
         : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
@@ -1477,7 +1513,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : await personForCodeHash(deps.db, hashCode(deps.sessionSecret, code)).catch(() => null);
       if (!mine && !theirs) {
         return reply.code(401).type('text/html; charset=utf-8')
-          .send(loginPage({ locale: localeOf(req), path: '/login?with=code', error: true, signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+          .send(loginPage({ locale: localeOf(req), path: '/login?with=code', error: true, signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
       }
       if (theirs) return signIn(reply, theirs.businessId, theirs.person);
       person = mine!;
@@ -1506,28 +1542,46 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return email ? { token, email } : null;
   };
   const setPwPage = (req: FastifyRequest, reply: FastifyReply, status: number,
-    link: { token: string; email: string } | null, problem: SetPasswordProblem | null = null) =>
+    link: { token: string; email: string } | null, problem: SetPasswordProblem | null = null, locale: Locale = localeOf(req)) =>
     reply.code(status).header('referrer-policy', 'no-referrer').header('cache-control', 'no-store')
       .type('text/html; charset=utf-8')
-      .send(setPasswordPage({ locale: localeOf(req), path: '/login/set-password', passwordMin: PASSWORD_MIN,
+      .send(setPasswordPage({ locale, path: '/login/set-password', passwordMin: PASSWORD_MIN,
         passwordMax: PASSWORD_MAX, link, problem, recoveryOn, contact: deps.legalContact ?? null }));
 
+  /**
+   * PWR2 — the link the page was opened with, held for this one address
+   * (HttpOnly, an hour), so that switching language — through `/locale`, which
+   * comes back here without the token — still finds it. The token itself stays
+   * out of everything the page links to. Spent or gone, it is forgotten.
+   */
+  const SETLINK_COOKIE = 'yf_setlink';
+  const keepSetLink = (reply: FastifyReply, token: string | null) =>
+    writeCookie(reply, SETLINK_COOKIE, token ?? '', { path: '/login/set-password', maxAgeSec: token ? 3600 : 0 });
+
   app.get('/login/set-password', quietDoor, async (req, reply) => {
-    const raw = (req.query as { t?: unknown } | undefined)?.t;
+    const q = req.query as { t?: unknown; l?: unknown } | undefined;
+    const held = parseCookies(req.headers.cookie)[SETLINK_COOKIE];
+    const raw = q?.t !== undefined && q.t !== '' ? q.t : held;
     // No link at all is somebody at the wrong door, not a spent link: the door.
     if (raw === undefined || raw === '') return reply.redirect('/login');
+    // PWR2 — the link opens in the language its mail was written in (`l`); the
+    // choice is kept, as the switcher's `/locale` keeps it.
+    const chosen = typeof q?.l === 'string' ? parseLocale(q.l) : null;
+    if (chosen) setLocaleCookie(reply, chosen);
     const link = await setupLinkOf(raw);
-    return setPwPage(req, reply, link ? 200 : 404, link);
+    if (link) keepSetLink(reply, link.token);
+    else if (held) keepSetLink(reply, null);
+    return setPwPage(req, reply, link ? 200 : 404, link, null, chosen ?? localeOf(req));
   });
 
   app.post('/login/set-password', quietDoor, async (req, reply) => {
     const b = (req.body ?? {}) as { t?: unknown; password?: unknown; repeat?: unknown };
     const signupMode = await signupModeNow();
     if (!loginThrottle.allow(callerOf(req), Date.now())) {
-      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn }));
+      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
     }
     const link = await setupLinkOf(b.t);
-    if (!link) return setPwPage(req, reply, 404, null);
+    if (!link) { keepSetLink(reply, null); return setPwPage(req, reply, 404, null); }
     const password = typeof b.password === 'string' ? b.password : '';
     const repeat = typeof b.repeat === 'string' ? b.repeat : '';
     // The same rules sign-up holds a password to (core/owner/signup.ts).
@@ -1537,10 +1591,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : password !== repeat ? 'mismatch' : null;
     if (problem) return setPwPage(req, reply, 400, link, problem);
     const email = await spendSetupLink(deps.db, setupTokenHash(link.token), await hashPassword(password)).catch(() => null);
+    keepSetLink(reply, null);
     if (!email) return setPwPage(req, reply, 404, null);
+    // PWR2 — every other session of this login ends NOW: the password stamp it
+    // was opened with no longer matches, and this process forgets the answer it
+    // held for a minute (as a password change on Setup does).
+    const who = await lookupLogin(deps.db, email).catch(() => null);
+    if (who) liveness.evict(livenessKey(who.businessId, who.person.id));
+    // PWR2 — and the address hears of it: if it was not the owner, they know
+    // at once and can ask for a link of their own. Best effort, after the reply.
+    if (recoveryOn) {
+      const locale = localeOf(req);
+      const base = (deps.publicBaseUrl ?? '').replace(/\/+$/, '');
+      // A mail is not a page: the catalogue's plain sentence (`mailT`), the
+      // address alone isolated, each address of ours bare on its own line.
+      const contact = deps.legalContact ? mailT(locale, 'setpw.changed.mail.contact', { contact: show.isolate(locale, deps.legalContact) }) : '';
+      void codeMail!.send({
+        to: email, subject: mailT(locale, 'setpw.changed.mail.subject'),
+        text: `${mailT(locale, 'setpw.changed.mail.body', { email: show.isolate(locale, email), forgot: `${base}/login/forgot` })}${contact}`,
+      }).then((m) => { if (!m.ok && !refusedByCap(m)) reportDoorMail('password_changed', m.error); })
+        .catch(() => reportDoorMail('password_changed', 'unreachable'));
+    }
     return html(reply, 200, loginPage({
       locale: localeOf(req), path: '/login', email, notice: t(localeOf(req), 'login.passwordSet'),
-      signupOpen: signupMode !== 'closed', signupMode, recoveryOn,
+      signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor,
     }));
   });
 
@@ -1554,13 +1628,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const RECOVERY_MINUTES = 60;
   const recoveryThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
   const forgot = (req: FastifyRequest, extra: Omit<Parameters<typeof forgotPasswordPage>[0], 'locale' | 'path' | 'minutes'> = {}) =>
-    forgotPasswordPage({ locale: localeOf(req), path: '/login/forgot', minutes: RECOVERY_MINUTES, ...extra });
+    forgotPasswordPage({ locale: localeOf(req), path: '/login/forgot', minutes: RECOVERY_MINUTES,
+      // PWR2 — no system mail: the page says who sets a new password, and asks for nothing.
+      ...(recoveryOn ? {} : { mailOff: true, contact: deps.legalContact ?? null }), ...extra });
   app.get('/login/forgot', async (req, reply) => {
-    if (!recoveryOn) return reply.redirect('/login');
+    if (!forgotOnDoor) return reply.redirect('/login');
     return html(reply, 200, forgot(req));
   });
   app.post('/login/forgot', async (req, reply) => {
-    if (!recoveryOn) return reply.redirect('/login');
+    if (!forgotOnDoor) return reply.redirect('/login');
+    if (!recoveryOn) return html(reply, 200, forgot(req));
     if (!recoveryThrottle.allow(callerOf(req), Date.now())) return html(reply, 429, forgot(req, { problem: 'slow' }));
     const raw = (req.body as { email?: unknown } | undefined)?.email;
     const email = normalizeEmail(typeof raw === 'string' ? raw : '');
@@ -1571,12 +1648,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const token = randomBytes(32).toString('base64url');
       const to = await requestRecoveryLink(deps.db, email, setupTokenHash(token), RECOVERY_MINUTES).catch(() => null);
       if (!to) return;
-      const link = `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login/set-password?t=${token}`;
+      // PWR2 — `l`: the page opens in the language this mail is written in.
+      const link = `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login/set-password?t=${token}&l=${locale}`;
       const mailed = await codeMail!.send({
-        to, subject: t(locale, 'forgot.mail.subject'), text: t(locale, 'forgot.mail.body', { email: to, link, minutes: RECOVERY_MINUTES }),
+        to, subject: mailT(locale, 'forgot.mail.subject'),
+        // PWR2 — a mail is not a page: the catalogue's plain sentence (`mailT`).
+        // The address alone is isolated inside an Arabic sentence; the link
+        // stays bare on its own line — a mark around it would be taken into
+        // the address by a mail program that makes it a link, and spoil the token.
+        text: mailT(locale, 'forgot.mail.body', { email: show.isolate(locale, to), link, minutes: RECOVERY_MINUTES }),
       }).catch(() => ({ ok: false as const, error: 'unreachable' }));
       // A fixed phrase per way tried — never the address, never the link.
-      if (!mailed.ok) log.warn({ reason: mailed.error }, 'recovery mail could not be sent');
+      if (!mailed.ok) {
+        log.warn({ reason: mailed.error }, 'recovery mail could not be sent');
+        if (!refusedByCap(mailed)) reportDoorMail('recovery', mailed.error);
+      }
     })();
     return html(reply, 200, forgot(req, { sent: email }));
   });
@@ -1685,7 +1771,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         }));
       }
       const login = await lookupLogin(deps.db, p.email).catch(() => null);
-      if (login) rememberDevice(reply, login.loginId);
+      if (login) {
+        rememberDevice(reply, login.loginId);
+        // PWR2 (0129) — the address answered the code: a reset link may go there.
+        await markLoginEmailProven(deps.db, login.loginId).catch(() => undefined);
+      }
       toldOfSignup(made.businessId);
       noticeOnNextPage(reply, 'signup.welcome');
       return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
@@ -1695,6 +1785,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const login = await lookupLogin(deps.db, r.email).catch(() => null);
     if (!login || login.loginId !== r.loginId) return reply.redirect('/login');
     rememberDevice(reply, login.loginId);
+    // PWR2 (0129) — the address answered the code: a reset link may go there.
+    await markLoginEmailProven(deps.db, login.loginId).catch(() => undefined);
     return signIn(reply, login.businessId, login.person, '/app', await passwordVersionOf(login.businessId, login.person.id));
   });
 
@@ -1857,8 +1949,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
     async (s, req, reply, locale) => renderDataRights(
-      { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null }, locale, takeFlash(req, reply),
-      personOf(s), t(locale, 'nav.setup'))));
+      { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null,
+        // 0126 — the installation's own workspace (the one the access code opens) is never closed from inside it.
+        closable: s.businessId !== deps.businessId && personOf(s).id !== 'owner' },
+      locale, takeFlash(req, reply), personOf(s), t(locale, 'nav.setup'))));
 
   /**
    * One file, streamed as an attachment.
@@ -1899,45 +1993,105 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(csvFile(sheet.header, sheet.rows, show.csvDialectFor(localeOf(req))));
   });
 
+  /**
+   * The workspace that cannot close itself asks the Nomi team instead.
+   *
+   * 0126 — closing is the owner's own act (below), for every workspace but
+   * the installation's own (the one the access code opens): that one is never
+   * erased from inside it, so its owner records a request here and the
+   * operator carries it out with tools/erase-workspace.mjs — the same steps
+   * closing runs. Any other workspace posting here (a page left open from
+   * before closing was a button) is told where it went; nothing is recorded.
+   *
+   * THE NAME IS TYPED; pressing twice is ONE request (0064's index). A
+   * REQUEST NOBODY HEARS IS A ROW IN A TABLE: the operator is told the day it
+   * is asked, at LEGAL_CONTACT_EMAIL, after the row is written and never
+   * instead of it; the ids and the date, never the note.
+   */
   app.post('/app/settings/data/delete', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/data');
     if (!s) return reply;
+    if (!(s.businessId === deps.businessId || personOf(s).id === 'owner')) {
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.moved');
+    }
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const note = String(b['note'] ?? '').trim().slice(0, 500) || null;
     const r = await askWorkspaceDeletion(deps.db, s.businessId, String(b['name'] ?? ''), personOf(s).id, note);
-
-    /**
-     * A REQUEST NOBODY HEARS IS A ROW IN A TABLE. The page now promises the
-     * buyer's business that this is done within 30 days, and the thing that
-     * makes that keepable is somebody finding out the day it was asked — not
-     * whenever an operator next thinks to look at `deletion_requests`.
-     *
-     * It goes to LEGAL_CONTACT_EMAIL, which the boot refuses to start without
-     * (PR 2), and it leaves over HTTPS through the connected mailbox because
-     * Railway's Hobby plan blocks every outbound SMTP port.
-     *
-     * AFTER the row is written and never instead of it: the record is what the
-     * runbook works from, and a send that fails must not lose the request. A
-     * failure is logged and the owner is still told her request was made —
-     * telling her it failed would be telling her about our mail setup.
-     */
     if (r === 'asked' && deps.systemMail && deps.legalContact) {
       const when = new Date().toISOString().slice(0, 10);
       void deps.systemMail.send({
         to: deps.legalContact,
         subject: `Deletion requested · ${s.businessId}`,
-        // The id and the date, never the note: the note is the business's own
-        // words about why they are leaving, and it is in the row already.
-        text: `A workspace asked for everything to be deleted.\n\n`
+        text: `The installation's own workspace asked for everything to be deleted.\n\n`
           + `workspace: ${s.businessId}\nasked by: ${personOf(s).id}\nasked on: ${when}\n\n`
-          + `Due within 30 days, which /data-deletion now states.\n`
-          + `Follow docs/DATA-DELETION-RUNBOOK.md — offer the export first.\n`,
+          + `Follow docs/DATA-DELETION-RUNBOOK.md — offer the export first; tools/erase-workspace.mjs carries it out.\n`,
       }).then(
         (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'deletion request notice could not be sent'); },
         (e: unknown) => req.log.warn({ err: e }, 'deletion request notice could not be sent'),
       );
     }
-    return flashTo(reply, '/app/settings/data', `data.flash.${r}` as MessageKey);
+    return flashTo(reply, '/app/settings/data#close', `data.flash.${r}` as MessageKey);
+  });
+
+  /**
+   * 0126 — THE OWNER CLOSES THE WORKSPACE, AND IT IS ERASED AT ONCE (the
+   * owner's direction, 2026-10-04: "delete them … when the workspace closes";
+   * no grace — the typed name and the asking are the guard, and the copy of
+   * everything is one row above on the same page).
+   *
+   * Owner only, twice: the route (`data_rights`) and the database
+   * (`close_workspace` checks the person is this workspace's owner, and takes
+   * the workspace from the transaction). Never the installation's own
+   * workspace — the one the access code opens — nor a practice copy, nor while
+   * a paid plan runs. With no script the first post is answered with a page
+   * that asks; then the database erases everything, the session is ended and
+   * the owner lands, signed out, on a page that says what happened. Everyone
+   * else signed in to it is signed out at their next page (S1: their person is
+   * gone). The operator is sent the erasure's ledger line, ids only.
+   */
+  app.post('/app/settings/data/close', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/data');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const typed = String(b['name'] ?? '').slice(0, 200);
+    if (s.businessId === deps.businessId || personOf(s).id === 'owner') {
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.protected');
+    }
+    const bid = parseBusinessId(s.businessId);
+    const name = bid.ok ? await withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ name: string }>`
+      select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? '') : '';
+    if (typed.trim().toLocaleLowerCase() !== name.trim().toLocaleLowerCase() || name === '') {
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.name_wrong');
+    }
+    if (b['asked'] !== '1') {
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'data.title'), active: 'settings', bodyHtml: renderCloseAsk(locale, typed, name),
+      }));
+    }
+    const r = await closeWorkspace(deps.db, s.businessId, typed, personOf(s).id);
+    if (r.outcome === 'refused') {
+      req.log.error({ err: r.error }, 'closing a workspace was refused by the erasure');
+      if (deps.reportError) void deps.reportError(r.error, 'web', { route: 'POST /app/settings/data/close', businessId: s.businessId });
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.eraseRefused');
+    }
+    if (r.outcome !== 'closed') {
+      return flashTo(reply, '/app/settings/data#close', ({
+        name_wrong: 'data.flash.name_wrong', protected: 'data.flash.protected', paid: 'data.flash.paid',
+        not_owner: 'staff.notAllowed', busy: 'data.flash.busy',
+      } as const)[r.outcome]);
+    }
+    facts.evict(s.businessId);
+    liveness.evictBusiness(s.businessId);
+    if (deps.systemMail && deps.legalContact) {
+      const mail = erasureNotice('workspace', r.line);
+      void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
+        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'workspace erasure notice could not be sent'); },
+        (e: unknown) => req.log.warn({ err: e }, 'workspace erasure notice could not be sent'),
+      );
+    }
+    setCookie(reply, '', 0);
+    return reply.redirect('/closed');
   });
 
   app.post('/app/settings/data/withdraw', async (req, reply) => {
@@ -1993,9 +2147,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const nextRaw = typeof q.next === 'string' ? q.next : '/app';
     const next = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/app';
     if (set) {
-      const flags = ['Path=/', 'SameSite=Lax', 'Max-Age=31536000'];
-      if (deps.secureCookie) flags.push('Secure');
-      reply.header('set-cookie', `${LOCALE_COOKIE}=${set}; ${flags.join('; ')}`);
+      setLocaleCookie(reply, set);
       // Persist for the logged-in owner so WhatsApp alerts use the same language.
       const s = sessionOf(req);
       const bid = s ? parseBusinessId(s.businessId) : null;
@@ -2030,7 +2182,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
+      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true))),
     };
   }));
 
@@ -2119,6 +2271,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           from: today, to: addDays(today, 15), category: null, buyer: customer.clientId, outreach: outreachShown(),
         }, now)).entries.filter((e) => e.at >= now || e.allDay).slice(0, 4)
       : [];
+    // 0128 — whether the model provider refuses for billing, said on the page while it lasts.
+    const refusing = await providerRefusing(deps.db);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
@@ -2127,7 +2281,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         renderListPane(list, locale, now, conversationId, people,
           list.conversations.find((c) => c.conversationId === conversationId)
             ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
-        renderConversationDetail({ ...withProof, catchUp }, locale, now, flash, personOf(s)),
+        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live:
@@ -3733,57 +3887,82 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
-   * CC-02a — a buyer asked for their data to be deleted, and the owner records
-   * it here, on that buyer's page. OWNER-ONLY (`data_rights`, the workspace
-   * request's own action): it is the business's word to Nomi's operator that
-   * this person asked, and once carried out nobody can undo it. A sales
-   * assistant is refused with the owner's sentence and nothing is written.
+   * 0126 — the old "Record the request" button. Deleting is now one act
+   * (below); a page left open from before posts here and is told so: nothing
+   * is recorded, nothing erased.
    */
   app.post('/app/conversations/:conversationId/deletion', async (req, reply) => {
     const conversationId = (req.params as { conversationId: string }).conversationId;
-    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const here = `/app/conversations/${encodeURIComponent(conversationId)}#deletion`;
     const s = await ownerOnly(req, reply, 'data_rights', here);
     if (!s) return reply;
-    // 0076 — the note says how and when they asked, so it is needed only when
-    // nothing was noted from their message; askBuyerDeletion decides which.
-    const raw = String((req.body as { note?: unknown } | undefined)?.note ?? '');
-    const note = raw.trim() === '' ? null : buyerDeletionNote(raw);
-    if (note && !note.ok) {
-      return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    return flashTo(reply, here, 'conv.deletion.flash.moved');
+  });
+
+  /**
+   * 0126 — "DELETE THIS CUSTOMER'S DATA NOW": the request (theirs from chat,
+   * one already open, or a new one with the owner's note of how they asked)
+   * and the database's erasure, in one transaction (`eraseCustomerNow`).
+   * OWNER-ONLY twice: the route (`data_rights`) and the database
+   * (`erase_customer` checks the person, and takes the workspace from the
+   * transaction — another business's customer cannot be reached). With no
+   * script, the first post is answered with a page that asks. After it, the
+   * owner lands on Your data, where the request shows as done, and the notice
+   * says what went and what stayed. Nothing is sent to the customer (rule 18).
+   * The operator is sent the erasure's ledger line, ids only — the copy that
+   * outlives a restore.
+   */
+  app.post('/app/conversations/:conversationId/deletion/erase', async (req, reply) => {
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const from = b['from'] === 'data' ? 'data' : 'conversation';
+    const here = from === 'data' ? '/app/settings/data#buyers' : `/app/conversations/${encodeURIComponent(conversationId)}#deletion`;
+    const s = await ownerOnly(req, reply, 'data_rights', here);
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const raw = String(b['note'] ?? '');
+    const checked = raw.trim() === '' ? null : buyerDeletionNote(raw);
+    if (checked && !checked.ok) return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    const note = checked?.ok ? checked.value : null;
+    if (b['asked'] !== '1') {
+      // With no script: the page that asks. It names who, and what goes and stays.
+      const bid = parseBusinessId(s.businessId);
+      const buyer = bid.ok && /^[0-9a-f-]{36}$/i.test(conversationId)
+        ? await withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ name: string | null }>`
+            select c.display_name as name from conversations v join clients c on c.id = v.client_id
+             where v.id = ${conversationId}::uuid`.execute(tx)).rows[0]) : undefined;
+      if (!buyer) return reply.redirect('/app/inbox');
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'erase.ask.title'), active: 'inbox',
+        bodyHtml: renderEraseAsk(locale, { conversationId, buyer: buyer.name, note, from }),
+      }));
     }
-    const r = await askBuyerDeletion(deps.db, s.businessId, conversationId, note?.ok ? note.value : null, personOf(s).id);
+    const r = await eraseCustomerNow(deps.db, s.businessId, conversationId, note, personOf(s).id);
     if (r.outcome === 'not_found') return reply.redirect('/app/inbox');
     if (r.outcome === 'note_missing') return flashTo(reply, here, 'conv.deletion.flash.note_missing');
-    /**
-     * The operator hears of it the day it is recorded, as a workspace request
-     * is heard of — the daily deadline check only speaks a week before the
-     * date. AFTER the row is written and never instead of it; a send that
-     * fails is logged and the owner is still told it was recorded. The ids
-     * and the dates only: never the note and never the buyer's name, which
-     * are the buyer's and are in the row already.
-     */
-    if (r.outcome === 'asked' && deps.systemMail && deps.legalContact) {
-      const day = (d: Date) => d.toISOString().slice(0, 10);
-      void deps.systemMail.send({
-        to: deps.legalContact,
-        subject: `Customer deletion requested · ${s.businessId}`,
-        text: `A business recorded a buyer's request to have their data deleted.\n\n`
-          + `workspace: ${s.businessId}\nrequest: ${r.requestId}\nrecorded by: ${personOf(s).id}\n`
-          + (r.fromChat ? `asked in a message on: ${day(r.askedAt)} (noted when it arrived)\n` : '')
-          + `recorded on: ${day(r.fromChat ? new Date() : r.askedAt)}\ndue by: ${day(deletionDueBy(r.askedAt))}\n\n`
-          + `Due within ${DELETION_DAYS} days of being recorded, which /data-deletion states.\n`
-          + `Follow docs/DATA-DELETION-RUNBOOK.md.\n`,
-      }).then(
-        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'buyer deletion notice could not be sent'); },
-        (e: unknown) => req.log.warn({ err: e }, 'buyer deletion notice could not be sent'),
+    if (r.outcome === 'note_long') return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    if (r.outcome === 'not_owner') return flashTo(reply, here, 'staff.notAllowed');
+    if (r.outcome === 'busy') return flashTo(reply, here, 'data.flash.busy');
+    if (r.outcome === 'refused') {
+      req.log.error({ err: r.error }, 'a customer erasure was refused');
+      if (deps.reportError) void deps.reportError(r.error, 'web', { route: 'POST /app/conversations/:conversationId/deletion/erase', businessId: s.businessId });
+      return flashTo(reply, here, 'data.flash.eraseRefused');
+    }
+    facts.evict(s.businessId);
+    if (deps.systemMail && deps.legalContact) {
+      const mail = erasureNotice('customer', r.line);
+      void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
+        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'customer erasure notice could not be sent'); },
+        (e: unknown) => req.log.warn({ err: e }, 'customer erasure notice could not be sent'),
       );
     }
-    if (r.outcome === 'asked' && r.fromChat) {
-      return flashTo(reply, here, 'conv.deletion.flash.recordedAsk',
-        { due: show.date(localeOf(req), deletionDueBy(r.askedAt)) });
-    }
-    return flashTo(reply, here, r.outcome === 'asked' ? 'conv.deletion.flash.asked'
-      : r.outcome === 'already_open' ? 'conv.deletion.flash.already_open' : 'data.flash.failed');
+    // What went, then each thing that stayed and why — in the owner's words.
+    return flashTo(reply, '/app/settings/data#buyers', [
+      { key: 'data.flash.erased' },
+      ...(r.ordersKept > 0 ? [{ key: 'data.flash.erasedOrders' as const, params: { n: show.count(locale, r.ordersKept) } }] : []),
+      ...(r.doNotContactKept > 0 ? [{ key: 'data.flash.erasedDoNotContact' as const }] : []),
+      { key: 'data.flash.erasedRecord' },
+    ]);
   });
 
   /**
@@ -3824,16 +4003,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── V2 · the calendar: a read-only list of dates already on record ─────────
   // Reached from Buyers. No writes, no job, no table: a view over the columns
   // that already hold a date. Follow-ups show only where the outreach area is on.
-  app.get('/app/calendar', authed('calendar', async (s, req, locale, reply) => {
+  // The owner's correction (2026-10-04) — one screen, the month and the list together. The old views'
+  // addresses (?view=, ?at=, ?from=) answer with the same place on this screen, the day they meant chosen.
+  const calendarPage = authed('calendar', async (s, req, locale, reply) => {
     const now = new Date();
     // The design pass — the week starts on the business's country's first day.
     const bid = parseBusinessId(s.businessId);
     const firstDay = bid.ok ? firstDayOfWeek(await withTenantTx(deps.db, bid.value, (tx) => businessCountry(tx, bid.value))) : 1;
-    const q = parseCalendarQuery(req.query, now, firstDay);
+    const ask = parseCalendarQuery(req.query, now, firstDay);
     const flash = takeFlash(req, reply);
-    return `${flashBanner(flash)}${renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale,
-      { view: q.view, at: q.at, now })}`;
-  }));
+    return `${flashBanner(flash)}${renderCalendar(await loadCalendar(deps.db, s.businessId, { ...ask, outreach: outreachShown() }, now), locale,
+      { ask, now })}`;
+  });
+  app.get('/app/calendar', async (req, reply) => {
+    const old = legacyCalendarAddress(req.query, new Date());
+    if (old !== null) return reply.redirect(sessionOf(req) ? old : '/login');
+    return calendarPage(req, reply);
+  });
 
   /**
    * 0082 — the owner's own dates: put one on the calendar, or take it off
@@ -3852,13 +4038,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!kept) return flashTo(reply, '/app/calendar', `calendar.flash.${r.problem}` as MessageKey);
       const now = new Date();
       const firstDay = firstDayOfWeek(await withTenantTx(deps.db, bid.value, (tx) => businessCountry(tx, bid.value)));
-      const q = parseCalendarQuery({}, now, firstDay);
-      return sentBack(req, reply, 'calendar', renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale,
-        { view: q.view, at: q.at, now, kept }));
+      // Back on the day being added, when it is a day: the form sits beside it.
+      const ask = parseCalendarQuery({ day: (req.body as Record<string, unknown> | undefined)?.['day'] }, now, firstDay);
+      return sentBack(req, reply, 'calendar', renderCalendar(await loadCalendar(deps.db, s.businessId, { ...ask, outreach: outreachShown() }, now), locale,
+        { ask, now, kept }));
     }
     const entry = r.entry;
     await withTenantTx(deps.db, bid.value, (tx) => addEntry(tx, bid.value, entry, personOf(s).id));
-    return flashTo(reply, `/app/calendar?at=${dayKey(entry.startsAt, workspaceZone())}`, 'calendar.flash.added');
+    // On the screen, the day it was added on chosen, so the owner sees it there.
+    const added = dayKey(entry.startsAt, workspaceZone());
+    return flashTo(reply, `/app/calendar?month=${added.slice(0, 7)}&day=${added}`, 'calendar.flash.added');
   });
 
   app.post('/app/calendar/entries/:id/remove', async (req, reply) => {

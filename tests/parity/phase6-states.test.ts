@@ -29,7 +29,11 @@ const NOW = new Date('2026-10-02T09:00:00Z');
 describe('phase 6 · empty', () => {
   it('an empty state is a panel of its own, never a grey line that reads as the caption of the button above it', () => {
     const rule = /\.empty \{([^}]*)\}/.exec(css)?.[1] ?? '';
-    expect(rule).toMatch(/border:1px dashed var\(--color-border\)/);
+    // The warmth pass (2026-10-04) — no dashed box: a soft card resting on the page, a paper recess inside a card.
+    expect(rule).toMatch(/border:0;/);
+    expect(rule).toMatch(/background:var\(--color-surface\)/);
+    expect(rule).toMatch(/box-shadow:var\(--shadow-lift1\)/);
+    expect(css).toMatch(/\.card \.empty, [^{]*\{ background:var\(--color-paper\); box-shadow:none; \}/);
     expect(rule).toMatch(/padding:var\(--space-16\)/);
     expect(rule).toMatch(/margin:var\(--space-12\) 0 0/);
     for (const f of readdirSync(WEB).filter((x) => x.endsWith('.ts'))) {

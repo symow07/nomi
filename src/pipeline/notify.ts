@@ -52,7 +52,9 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice
  * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
  * locale, and its words in `renderOwnerAlert`.
  */
-export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest', 'spend_breaker'] as const satisfies readonly AlertKind[];
+export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest', 'spend_breaker',
+  // 0128 — the model provider refused for billing (escalating), answers again, or its balance runs low.
+  'provider_refusing', 'provider_answering', 'provider_balance'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -79,8 +81,6 @@ export const goesByMail = (kind: AlertKind): boolean =>
   isOperatorAlert(kind)
   // KS6 — the operator decided on the first connection: the owner may have no channel at all yet.
   || kind === 'connection_approved' || kind === 'connection_refused'
-  // RET — the workspace will be erased: the warning cannot wait for a channel it does not have.
-  || kind === 'retention_warning'
   // BILL — money: the trial ending, a failed payment, the hold, a plan's month used.
   || isBillingAlert(kind);
 
@@ -183,10 +183,6 @@ export type OperatorAlertDetail = {
   readonly mail?: { readonly codes: number; readonly alerts: number; readonly refused: number };
   /** `signup_digest` (KS6): how many workspaces wait for the operator's approval to connect. */
   readonly approvals?: number;
-  /** `signup_digest` (RET): workspaces due for erasure, waiting for the operator's command. */
-  readonly retentionDue?: number;
-  /** `retention_warning` (RET): the day the workspace will be erased, `YYYY-MM-DD`. */
-  readonly eraseOn?: string;
   /** `billing_trial_ending` (BILL): when the trial ends, ISO. */
   readonly billingAt?: string;
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
@@ -196,7 +192,17 @@ export type OperatorAlertDetail = {
   readonly spend?: { readonly tokens: number; readonly calls: number; readonly maxTokens: number; readonly maxCalls: number };
   /** `self_demoted` (R5): which capabilities stepped back, and the reason codes. */
   readonly demoted?: { readonly capabilities: readonly string[]; readonly reasons: readonly string[] };
+  /** `provider_refusing` / `provider_answering` (0128): the refusal, its step, its words, and its end. */
+  readonly providerRefusal?: { readonly provider: string; readonly since: Date; readonly step: number; readonly words: string; readonly until?: Date };
+  /** `provider_balance` (0128): the step and the paying currency's figures. */
+  readonly providerBalance?: {
+    readonly provider: string; readonly step: string; readonly currency: string; readonly total: number;
+    readonly floor: number | null; readonly daysLeft: number | null; readonly available: boolean;
+  };
 };
+
+/** How long a refusal has lasted, in whole hours (at least one once it is past the first). */
+const hoursBetween = (from: Date, to: Date): number => Math.max(0, Math.round((to.getTime() - from.getTime()) / 3_600_000));
 
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
 const DELETION_ALERT_LINES = 10;
@@ -255,6 +261,30 @@ export function renderOwnerAlert(
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
   if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
+  // 0128 — the model provider's account: the refusal (first, then still), its end, a low balance.
+  if (kind === 'provider_refusing' || kind === 'provider_answering') {
+    const r = detail.providerRefusal ?? { provider: '—', since: new Date(0), step: 0, words: '' };
+    const zone = detail.zone ?? 'UTC';
+    const when = (d: Date) => `${formatDate(locale, d, zone)} ${formatTime(locale, d, zone)}`;
+    if (kind === 'provider_answering') {
+      return t(locale, 'notify.provider_answering', { provider: r.provider, since: when(r.since), until: when(r.until ?? new Date()) });
+    }
+    const first = r.step === 0
+      ? t(locale, 'notify.provider_refusing', { provider: r.provider, since: when(r.since) })
+      : t(locale, 'notify.provider_refusing.still', { provider: r.provider, since: when(r.since), hours: hoursBetween(r.since, new Date()) });
+    return [first, t(locale, 'notify.provider_refusing.words', { words: r.words || '—' }), t(locale, 'notify.provider_refusing.how')].join('\n');
+  }
+  if (kind === 'provider_balance') {
+    const b = detail.providerBalance ?? { provider: '—', step: 'floor', currency: '', total: 0, floor: null, daysLeft: null, available: true };
+    const n = (x: number) => new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(x);
+    const step = (['floor', 'days3', 'days1', 'unavailable'] as const).find((x) => x === b.step) ?? 'floor';
+    const head = t(locale, `notify.provider_balance.${step}` as MessageKey, {
+      provider: b.provider, balance: `${b.currency} ${n(b.total)}`,
+      floor: b.floor !== null ? `${b.currency} ${n(b.floor)}` : '—',
+      days: b.daysLeft !== null ? new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale, { maximumFractionDigits: 1 }).format(b.daysLeft) : '—',
+    });
+    return [head, t(locale, 'notify.provider_balance.how')].join('\n');
+  }
   // KS5 — how much the installation used today, against what; the beta waits, the pilots run.
   if (kind === 'spend_breaker') {
     const s = detail.spend ?? { tokens: 0, calls: 0, maxTokens: 0, maxCalls: 0 };
@@ -268,10 +298,6 @@ export function renderOwnerAlert(
     return t(locale, 'notify.billing_trial_ending', { date: formatDate(locale, detail.billingAt ? new Date(detail.billingAt) : new Date(), detail.zone ?? 'UTC') });
   }
   if (kind === 'billing_payment_failed' || kind === 'billing_lapsed' || kind === 'plan_limit') return t(locale, `notify.${kind}`);
-  // RET — the day it goes, in the workspace's own zone, and what keeps it.
-  if (kind === 'retention_warning') {
-    return t(locale, 'notify.retention_warning', { date: formatDate(locale, new Date(`${detail.eraseOn ?? '1970-01-01'}T12:00:00Z`), detail.zone ?? 'UTC') });
-  }
   // R5 — which replies wait for the owner again, and why; a reason with no words is left out.
   if (kind === 'self_demoted') {
     const d = detail.demoted ?? { capabilities: [], reasons: [] };
@@ -303,11 +329,9 @@ export function renderOwnerAlert(
     const mail = detail.mail ? [t(locale, detail.mail.refused ? 'notify.signup_digest.mail.capped' : 'notify.signup_digest.mail', detail.mail)] : [];
     // KS6 — asks to connect a first channel, waiting for the operator.
     const approvals = detail.approvals ? [t(locale, 'notify.signup_digest.approvals', { n: detail.approvals })] : [];
-    // RET — workspaces past their date, warned twice: the operator's command erases them.
-    const retention = detail.retentionDue ? [t(locale, 'notify.signup_digest.retention', { n: detail.retentionDue })] : [];
     return [t(locale, 'notify.signup_digest', { n: list.length }),
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
-      ...forms, ...cohort, ...mail, ...approvals, ...retention, ...flags].join('\n');
+      ...forms, ...cohort, ...mail, ...approvals, ...flags].join('\n');
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -389,7 +413,7 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
 
 /** Every kind is classified: an operator alert or an account letter, an interruption, or quiet. */
 type Unclassified = Exclude<AlertKind, typeof OPERATOR_ALERT_KINDS[number] | typeof BILLING_ALERT_KINDS[number]
-  | 'connection_approved' | 'connection_refused' | 'retention_warning'
+  | 'connection_approved' | 'connection_refused'
   | typeof INTERRUPTION_KINDS[number] | typeof QUIET_KINDS[number]>;
 const everyKindClassified: [Unclassified] extends [never] ? true : false = true;
 void everyKindClassified;
@@ -421,7 +445,7 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
   // R5 — the self-demotion opens the level on the assistant's page, when the installation knows its address.
   // KS6 — an approval opens Channels, where the first channel can now connect.
   const opens = job.kind === 'self_demoted' ? SELF_DEMOTION_PAGE
-    : job.kind === 'connection_approved' || job.kind === 'retention_warning' ? CONNECTION_APPROVAL_PAGE
+    : job.kind === 'connection_approved' ? CONNECTION_APPROVAL_PAGE
     : isBillingAlert(job.kind) ? BILLING_PAGE : null;
   const body = opens && deps.publicBaseUrl
     ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${opens}` })}` : words;
@@ -431,7 +455,7 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
   const mail = isOperatorAlert(job.kind) ? (deps.operatorMail ?? deps.mail) : deps.mail;
   if (mail && found.email) {
     tried++;
-    const r = await mail.send({ to: found.email, subject: t(locale, `notify.${job.kind}.subject` as MessageKey), text: body });
+    const r = await mail.send({ to: found.email, subject: t(locale, operatorSubjectKey(job)), text: body });
     if (r.ok) sent++; else console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`);
   }
   if (found.live && found.row.owner_phone) {
@@ -582,6 +606,17 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
 }
 
 /** The job's own fields, as the words for its kind need them. Dates travel as ISO strings. */
+/**
+ * The subject line: the kind's own, and for the model provider's account (0128)
+ * the escalation said in it — "still refusing" after the first, "urgent" when
+ * the balance no longer pays for a reply.
+ */
+export function operatorSubjectKey(job: Pick<NotifyJob, 'kind' | 'providerRefusal' | 'providerBalance'>): MessageKey {
+  if (job.kind === 'provider_refusing' && (job.providerRefusal?.step ?? 0) > 0) return 'notify.provider_refusing.subject.still';
+  if (job.kind === 'provider_balance' && job.providerBalance?.step === 'unavailable') return 'notify.provider_balance.subject.unavailable';
+  return `notify.${job.kind}.subject` as MessageKey;
+}
+
 function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
   return {
     lastBackupAt: job.lastBackupAt ? new Date(job.lastBackupAt) : null,
@@ -596,13 +631,16 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.cohort ? { cohort: job.cohort } : {}),
     ...(job.mail ? { mail: job.mail } : {}),
     ...(job.approvals ? { approvals: job.approvals } : {}),
-    ...(job.retentionDue ? { retentionDue: job.retentionDue } : {}),
-    ...(job.eraseOn ? { eraseOn: job.eraseOn } : {}),
     ...(job.billingAt ? { billingAt: job.billingAt } : {}),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
     ...(job.demoted ? { demoted: job.demoted } : {}),
     ...(job.spend ? { spend: job.spend } : {}),
+    ...(job.providerRefusal ? { providerRefusal: {
+      provider: job.providerRefusal.provider, since: new Date(job.providerRefusal.since), step: job.providerRefusal.step,
+      words: job.providerRefusal.words, ...(job.providerRefusal.until ? { until: new Date(job.providerRefusal.until) } : {}),
+    } } : {}),
+    ...(job.providerBalance ? { providerBalance: job.providerBalance } : {}),
   };
 }
 

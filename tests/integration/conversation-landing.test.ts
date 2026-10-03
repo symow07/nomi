@@ -181,8 +181,8 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
   it('Today, the calendar, an order, the samples list, Buyers and the buyer file open it on its newest message', async () => {
     const landing = `href="/app/inbox/${conv}#latest"`;
     const top = `href="/app/inbox/${conv}"`;
-    // the calendar's three-week list: its window holds yesterday's sample and this week's order, whatever today is
-    for (const url of ['/app', '/app/calendar?view=list', `/app/orders/${order}`, '/app/settings/samples',
+    // the calendar's list, nothing chosen: what is owed leads it, and yesterday's sample, never dealt with, is owed whatever today is
+    for (const url of ['/app', '/app/calendar', `/app/orders/${order}`, '/app/settings/samples',
       '/app/inbox?filter=all', `/app/conversations/${conv}`]) {
       const r = await get(url);
       expect(r.statusCode, url).toBe(200);
@@ -194,8 +194,11 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
         expect(href, url).not.toContain('%');
       }
     }
-    // The calendar's order row opens the order; the order opens the conversation.
-    expect((await get('/app/calendar?view=list')).body).toContain(`href="/app/orders/${order}"`);
+    // The calendar's order row opens the order (the order's day, chosen in the grid); the order opens the conversation.
+    const orderDay = (await as(BIZ, (x) => sql<{ day: string }>`
+      select (o.confirmed_at at time zone coalesce(b.timezone, 'UTC'))::date::text as day
+        from orders o join businesses b on b.id = o.business_id where o.id = ${order}::uuid`.execute(x))).rows[0]!.day;
+    expect((await get(`/app/calendar?day=${orderDay}`)).body).toContain(`href="/app/orders/${order}"`);
     expect((await get(`/app/orders/${order}`)).body).toContain(`<a class="back" href="/app/inbox/${conv}#latest">`);
   });
 

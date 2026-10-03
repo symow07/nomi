@@ -35,7 +35,9 @@ describe('CC-02b · the erasure tool is an operator tool, never the app', () => 
       const rel = `${dir}/${f}`;
       return statSync(join(ROOT, rel)).isDirectory() ? walk(rel) : /\.(ts|mjs|js)$/.test(f) ? [rel] : [];
     });
-    const importers = walk('src').filter((f) => read(f).includes('erase-buyer'));
+    // An import or a spawn of the tool, never a comment naming it: since 0126 the app's own
+    // erasure (src/api/web/erasure.ts) says, in words, that it is the same contract.
+    const importers = walk('src').filter((f) => /(from|import\(|require\(|spawn\w*\()\s*[^;\n]*erase-buyer/.test(read(f)));
     expect(importers).toEqual([]);
   });
 
@@ -140,7 +142,11 @@ const INDIRECT: Record<string, string> = {
   login_codes: 'x.login_id in (select id from logins where business_id = any($1::uuid[]))',
 };
 /** Tables that belong to no business at all. */
-const GLOBAL = new Set(['_migrations', 'backup_runs', 'signup_invites', 'mail_sends', 'installation_limits', 'spend_breaker_alerts', 'signup_settings', 'signup_throttles', 'plans', 'billing_settings']);
+const GLOBAL = new Set(['_migrations', 'backup_runs', 'signup_invites', 'mail_sends', 'installation_limits', 'spend_breaker_alerts', 'signup_settings', 'signup_throttles', 'plans', 'billing_settings',
+  // 0126 — the ids-only record of every erasure: the operator's, outliving any workspace, asserted on its own below.
+  'erasure_ledger',
+  // 0128 — the model provider's account: the installation's, no business's (one health row, the balance's readings and steps).
+  'provider_health', 'provider_balance_checks', 'provider_balance_alerts']);
 /** Every schema but the system's and the queue's (the queue is read on its own, below). */
 const USER_SCHEMA = "n.nspname not in ('pg_catalog', 'information_schema', 'pgboss') and n.nspname not like 'pg\\_%'";
 const NAMED = "(case when n.nspname = 'public' then c.relname::text else n.nspname || '.' || c.relname end)";
@@ -579,7 +585,18 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     expect(r.out).toMatch(/✓ {2}Erase Buyer Co .*: buyer erased/);
 
     const change = diff(seeded, await snapshot(db, [B1, B2]));
-    expect(change.added).toEqual([]);
+    // 0126 — one row added: the business's own audit trail says a customer was
+    // erased, and under which request — never whose.
+    expect(change.added).toHaveLength(1);
+    expect(change.added[0]).toMatch(/^channel_audit:\(\d+\)$/);
+    const trail = (await db.query<{ action: string; actor: string; detail: Record<string, string> }>(
+      'select action, actor, detail from channel_audit where id = $1', [change.added[0]!.slice('channel_audit:('.length, -1)])).rows[0]!;
+    expect(trail).toMatchObject({ action: 'customer_erased', actor: 'Operator Test', detail: { request: A.req } });
+    const ledger = (await db.query<Record<string, unknown>>(
+      `select * from erasure_ledger where id = $1::uuid`, [trail.detail['erasure']])).rows[0]!;
+    expect(ledger).toMatchObject({ kind: 'customer', business_id: B1, customer_id: A.client, request_id: A.req, via: 'operator', by_who: 'Operator Test' });
+    expect((ledger['counts'] as { erased: Record<string, number> }).erased['messages']).toBe(4);
+    for (const personal of [PHONE_A, EMAIL_A, IG_A, NAME_A, SAID_A]) expect(JSON.stringify(ledger)).not.toContain(personal);
     expect(change.removed).toEqual([
       ...[A.ccWa, A.ccIg, A.ccMail].map((x) => `client_channels:${k(x)}`),
       ...[A.c1, A.c3].map((x) => `conversations:${k(x)}`),
@@ -696,7 +713,12 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     const r = tool(['--request', A.dup, '--yes', '--confirm', A.dup.slice(0, 8), '--by', 'Operator Test']);
     expect(r.err).toBe('');
     expect(r.code).toBe(0);
-    expect(diff(before, await snapshot(db, [B1, B2]))).toEqual({ removed: [], changed: [`deletion_requests:${k(A.dup)}`], added: [] });
+    const again = diff(before, await snapshot(db, [B1, B2]));
+    expect(again.removed).toEqual([]);
+    expect(again.changed).toEqual([`deletion_requests:${k(A.dup)}`]);
+    // The audit trail's line for this request; nothing of theirs was left to change.
+    expect(again.added).toHaveLength(1);
+    expect(again.added[0]).toMatch(/^channel_audit:/);
     const closed = (await db.query<{ state: string; closed_note: string }>('select state, closed_note from deletion_requests where id = $1', [A.dup])).rows[0]!;
     expect(closed.state).toBe('done');
     expect(closed.closed_note).toMatch(/^erased 0: nothing · kept \d+: /);

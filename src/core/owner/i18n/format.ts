@@ -198,6 +198,12 @@ export function formatMonth(locale: Locale, ymd: string): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(first));
 }
 
+/** "Oct 2", "10月2日", "2 أكتوبر" — a day of the year without its weekday, for a day 'YYYY-MM-DD' (the calendar's list of what is owed). */
+export function formatDayMonth(locale: Locale, ymd: string): string {
+  const midnight = `${ymd}T00:00:00Z`;
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(midnight));
+}
+
 /** "Mon", "周一", "الاثنين" — a weekday's short name, for a day 'YYYY-MM-DD'. */
 export function formatWeekday(locale: Locale, ymd: string): string {
   const midnight = `${ymd}T00:00:00Z`;

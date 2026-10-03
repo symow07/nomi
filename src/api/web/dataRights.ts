@@ -1,11 +1,10 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 
-import { deletionDueBy } from '../../core/ops/deletions.js';
 import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, exportFileName, type ExportSubject } from './dataExport.js';
 import { back, deeper, esc } from './layout.js';
 import { icon } from './icons.js';
@@ -13,6 +12,8 @@ import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
 import type { Viewer } from '../../core/conversation/people.js';
 import { waitingAsks, type WaitingAsk } from '../../db/deletionAsks.js';
+import { faceVersions } from '../../db/faces.js';
+import { face, faceLink } from './faces.js';
 import * as show from './values.js';
 
 /**
@@ -24,24 +25,17 @@ import * as show from './values.js';
  * copy first. Splitting them across two pages would put the irreversible one
  * somewhere the reversible one is not.
  *
- * WHAT DELETION IS HERE, SAID PLAINLY ON THE PAGE. It is a REQUEST, not a
- * button that erases. The app role holds no DELETE grant on any product table
- * — by design, and `tests/integration/grants.test.ts` holds it — so nothing
- * this route can reach could erase a row even if it tried. A person does the
- * work against the database, following `docs/DATA-DELETION-RUNBOOK.md`.
+ * WHAT DELETION IS HERE (0126, the owner's direction of 2026-10-04): the
+ * owner's act, at once and for good. A customer's data goes when they ask —
+ * the owner deletes it here or on the customer's page — and the whole
+ * workspace goes when the owner closes it here, by typing its name. Both are
+ * the database's own erasure (`erase_customer`, `close_workspace`): the app
+ * role still holds no DELETE on any product table (G20), and the functions
+ * carry out exactly the contract the operator's tools carry out. What stays,
+ * and why, is said before anything is pressed and again after.
  *
- * That is slower than a button, and it is what the public pages promise. The
- * row is what makes the promise checkable: before it, a request lived in
- * somebody's inbox and nobody could say how many were open or how old the
- * oldest was.
- *
- * CC-02a — A BUYER'S REQUEST, TOO. A buyer asks the business; the owner
- * records it on that buyer's page (`askBuyerDeletion`), and this page lists
- * every one with the date it must be carried out by — 30 days from being
- * recorded, the number /data-deletion states — and, once the operator has
- * carried it out, the date it was done, which is when the owner tells the
- * buyer. The operator hears of it the day it is recorded, and again every day
- * from a week before the date (`deletionDueAlert`).
+ * Before 0126 both were requests a person carried out by hand within 30 days;
+ * a request still open from then can be deleted now, or taken back.
  */
 
 export type DeletionRequest = {
@@ -63,6 +57,9 @@ export type DeletionRequest = {
 export type BuyerDeletionRequest = DeletionRequest & {
   readonly buyer: string | null;
   readonly conversationId: string | null;
+  /** The warmth pass — whom it is about, for their face; null once they are erased. */
+  readonly clientId?: string | null;
+  readonly photo?: string | null;
 };
 
 export type DataRightsView = {
@@ -72,10 +69,18 @@ export type DataRightsView = {
   readonly buyers?: readonly BuyerDeletionRequest[];
   /** 0076 — requests noted from a buyer's message, waiting for the owner to decide. */
   readonly asks?: readonly WaitingAsk[];
+  /** The warmth pass — the kept photos' versions of the customers listed, by client id. */
+  readonly photos?: ReadonlyMap<string, string>;
   /** The name she must type to confirm — her own business's. */
   readonly businessName: string;
   /** Phase 9 (V1-496) — the address the legal pages name (`LEGAL_CONTACT_EMAIL`), for "write to us". Absent: no such sentence. */
   readonly contact?: string | null;
+  /**
+   * 0126 — whether this workspace can be closed here. Not the installation's
+   * own workspace (the one the access code opens), never a practice copy.
+   * Absent: closable.
+   */
+  readonly closable?: boolean;
 };
 
 type RequestRow = {
@@ -99,9 +104,9 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
        order by asked_at desc limit 20`.execute(tx);
     // An open request is never pushed off the list by closed ones: those are
     // the ones with a date still to keep.
-    const b = await sql<RequestRow & { buyer: string | null; conversation_id: string | null }>`
+    const b = await sql<RequestRow & { buyer: string | null; conversation_id: string | null; client_id: string | null }>`
       select r.id::text as id, r.scope, r.subject_note, r.asked_by, r.asked_at, r.state,
-             r.closed_at, r.closed_note, c.display_name as buyer,
+             r.closed_at, r.closed_note, c.display_name as buyer, c.id::text as client_id,
              (select v.id::text from conversations v where v.client_id = r.client_id
                order by v.updated_at desc limit 1) as conversation_id
         from deletion_requests r
@@ -109,11 +114,15 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
        where r.business_id = ${bid.value} and r.scope = 'buyer'
        order by (r.state = 'open') desc, r.asked_at desc
        limit 100`.execute(tx);
+    const asks = await waitingAsks(tx, bid.value);
+    // The warmth pass — every customer named on this page is drawn with their face.
+    const photos = await faceVersions(tx, [...b.rows.map((x) => x.client_id), ...asks.map((a) => a.clientId)].filter((x): x is string => !!x));
     return {
       businessName: name,
       requests: r.rows.map(requestOf),
-      buyers: b.rows.map((x) => ({ ...requestOf(x), buyer: x.buyer, conversationId: x.conversation_id })),
-      asks: await waitingAsks(tx, bid.value),
+      buyers: b.rows.map((x) => ({ ...requestOf(x), buyer: x.buyer, conversationId: x.conversation_id, clientId: x.client_id, photo: x.client_id ? photos.get(x.client_id) ?? null : null })),
+      asks,
+      photos,
     };
   });
 }
@@ -226,72 +235,52 @@ export type BuyerAskOutcome =
   /** Nothing was noted from chat, and the owner gave no note of how they asked. */
   | { readonly outcome: 'already_open' | 'not_found' | 'failed' | 'note_missing' };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
- * CC-02a — a buyer asked to be deleted, and the owner writes it down here, on
- * that buyer's page: which buyer (the conversation's client), who recorded it,
- * the note. The deadline starts now — /data-deletion promises the buyer 30
- * days from this moment, and the operator is told as it nears.
- *
- * NOTHING IS ERASED BY THIS. As with the workspace request, the app role holds
- * no DELETE grant; Nomi's operator carries it out by hand, following
- * docs/DATA-DELETION-RUNBOOK.md.
- *
- * ONE OPEN REQUEST PER BUYER. Asked twice, the second is told, not written:
- * the count below answers the ordinary case, and the partial unique index in
- * 0073 answers the race — two presses in the same instant — which surfaces as
- * a unique violation and is read as the same answer.
- *
- * 0076 — AND WHAT WAS ALREADY NOTED IS NOT ASKED FOR AGAIN. A request the
- * buyer made in a message was written down when it arrived (`deletion_asks`),
- * with the conversation, the message and the time. Recording it needs no note
- * — those say how and when they asked — and the request is dated from when
- * they asked, because that is when it was received. The noted row points at
- * the request from then on. The note is required only when nothing was noted.
+ * The request behind a customer's deletion, inside the caller's tenant
+ * transaction: their open one if there is one; else the one noted from their
+ * message, recorded now and dated from when they asked; else a new one with
+ * the owner's note of how and when they asked. 0126 — the owner's "Delete
+ * this customer's data now" (`eraseCustomerNow`) calls this and then the
+ * erasure, in ONE transaction: a refused erasure leaves nothing recorded.
  */
-export async function askBuyerDeletion(
-  db: Db, businessIdRaw: string, conversationId: string, note: string | null, actor: string,
+export async function recordBuyerRequest(
+  tx: Tx, businessId: BusinessId, conversationId: string, note: string | null, actor: string,
+  options: { readonly reuseOpen?: boolean } = {},
 ): Promise<BuyerAskOutcome> {
-  const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { outcome: 'failed' };
-  if (!UUID.test(conversationId)) return { outcome: 'not_found' };
-  try {
-    return await withTenantTx(db, bid.value, async (tx): Promise<BuyerAskOutcome> => {
-      const client = (await sql<{ client_id: string }>`
-        select client_id::text as client_id from conversations
-         where id = ${conversationId}::uuid and client_id is not null limit 1`.execute(tx)).rows[0]?.client_id ?? null;
-      if (client === null) return { outcome: 'not_found' };
-      const open = (await sql<{ n: number }>`
-        select count(*)::int as n from deletion_requests
-         where client_id = ${client}::uuid and scope = 'buyer' and state = 'open'`.execute(tx)).rows[0]?.n ?? 0;
-      if (open > 0) return { outcome: 'already_open' };
-      const noted = (await sql<{ id: string; asked_at: Date }>`
-        select id::text as id, asked_at from deletion_asks
-         where client_id = ${client}::uuid and state = 'waiting'
-         for update`.execute(tx)).rows[0] ?? null;
-      if (noted === null && note === null) return { outcome: 'note_missing' };
-      const row = (await sql<{ id: string; asked_at: Date }>`
-        insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note, asked_at)
-        values (${bid.value}, 'buyer', ${client}::uuid, ${actor}, ${note},
-                coalesce(${noted?.asked_at ?? null}::timestamptz, now()))
-        returning id::text as id, asked_at`.execute(tx)).rows[0]!;
-      if (noted !== null) {
-        await sql`update deletion_asks
-                     set state = 'recorded', request_id = ${row.id}::uuid, decided_at = now(), decided_by = ${actor}
-                   where id = ${noted.id}::uuid and state = 'waiting'`.execute(tx);
-      }
-      // The trail says a request was made and which one — never the note, and
-      // never whom it is about: both are the buyer's, and the row holds them.
-      await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
-                values (${bid.value}, null, 'deletion_requested', ${actor},
-                        ${JSON.stringify({ scope: 'buyer', request: row.id, ...(noted ? { noted: noted.id } : {}) })}::jsonb)`.execute(tx);
-      return { outcome: 'asked', requestId: row.id, askedAt: row.asked_at, fromChat: noted !== null };
-    });
-  } catch (e) {
-    if ((e as { code?: string }).code === '23505') return { outcome: 'already_open' };
-    throw e;
+  const client = (await sql<{ client_id: string }>`
+    select client_id::text as client_id from conversations
+     where id = ${conversationId}::uuid and client_id is not null limit 1`.execute(tx)).rows[0]?.client_id ?? null;
+  if (client === null) return { outcome: 'not_found' };
+  const open = (await sql<{ id: string; asked_at: Date }>`
+    select id::text as id, asked_at from deletion_requests
+     where client_id = ${client}::uuid and scope = 'buyer' and state = 'open'
+     limit 1`.execute(tx)).rows[0] ?? null;
+  if (open !== null) {
+    return options.reuseOpen
+      ? { outcome: 'asked', requestId: open.id, askedAt: open.asked_at, fromChat: false }
+      : { outcome: 'already_open' };
   }
+  const noted = (await sql<{ id: string; asked_at: Date }>`
+    select id::text as id, asked_at from deletion_asks
+     where client_id = ${client}::uuid and state = 'waiting'
+     for update`.execute(tx)).rows[0] ?? null;
+  if (noted === null && note === null) return { outcome: 'note_missing' };
+  const row = (await sql<{ id: string; asked_at: Date }>`
+    insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note, asked_at)
+    values (${businessId}, 'buyer', ${client}::uuid, ${actor}, ${note},
+            coalesce(${noted?.asked_at ?? null}::timestamptz, now()))
+    returning id::text as id, asked_at`.execute(tx)).rows[0]!;
+  if (noted !== null) {
+    await sql`update deletion_asks
+                 set state = 'recorded', request_id = ${row.id}::uuid, decided_at = now(), decided_by = ${actor}
+               where id = ${noted.id}::uuid and state = 'waiting'`.execute(tx);
+  }
+  // The trail says a request was made and which one — never the note, and
+  // never whom it is about: both are the buyer's, and the row holds them.
+  await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
+            values (${businessId}, null, 'deletion_requested', ${actor},
+                    ${JSON.stringify({ scope: 'buyer', request: row.id, ...(noted ? { noted: noted.id } : {}) })}::jsonb)`.execute(tx);
+  return { outcome: 'asked', requestId: row.id, askedAt: row.asked_at, fromChat: noted !== null };
 }
 
 /** ── The page ─────────────────────────────────────────────────────────────── */
@@ -342,30 +331,49 @@ export function renderDataRights(
   // G9a's rule, applied here: a page that refuses on submit is worse than a
   // page that says whose decision it is. Staff see the history; they are not
   // shown a form that will turn them away.
-  const ask = !viewer.isOwner
-    ? `<p class="muted">${esc(t(locale, 'data.deletion.ownerOnly'))}</p>`
-    : open
-      // CC-20 — a standing state, said the way the buyer's page says one (a pill
-      // and a sentence): it was drawn as a refusal notice, announced as a passing status.
-      ? `<p><span class="pill warn">${esc(t(locale, 'data.deletion.state.open'))}</span>${esc(t(locale, 'data.deletion.pending', {
-          date: show.date(locale, open.askedAt),
-        }))}</p>
-        <form method="post" action="/app/settings/data/withdraw" class="pform">
-          <input type="hidden" name="id" value="${esc(open.id)}" />
-          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
-            data-confirm="${esc(t(locale, 'data.deletion.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
-        </form>`
-      // Phase 9 (settings-a-new-13, V1-493) — the request as the settings pages'
-      // card of rows; its button red, for what it takes away (it was a grey
-      // outline that read as disabled).
-      : `<form method="post" action="/app/settings/data/delete">
+  //
+  // 0126 — CLOSING ERASES, AT ONCE. The owner types the workspace's name and
+  // the database erases everything in it (`close_workspace`), signs everyone
+  // out and keeps an ids-only line that it happened. An older open request
+  // (the operator's to carry out, before closing was a button) can still be
+  // taken back.
+  const pending = open && viewer.isOwner
+    // CC-20 — a standing state, said the way the buyer's page says one (a pill
+    // and a sentence): it was drawn as a refusal notice, announced as a passing status.
+    ? `<p><span class="pill warn">${esc(t(locale, 'data.deletion.state.open'))}</span>${esc(t(locale, 'data.deletion.pending', {
+        date: show.date(locale, open.askedAt),
+      }))}</p>
+      <form method="post" action="/app/settings/data/withdraw" class="pform">
+        <input type="hidden" name="id" value="${esc(open.id)}" />
+        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'data.deletion.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
+      </form>`
+    : '';
+  // The installation's own workspace is never erased from inside it: its owner
+  // asks the Nomi team, who carry it out with the same steps (erase-workspace).
+  const request = open ? '' : `<form method="post" action="/app/settings/data/delete">
           ${rowsCard(null, [
-            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: v.businessName }), forId: 'dr-name',
+            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }), forId: 'dr-name',
               control: '<input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" />' }),
             fieldRow({ label: t(locale, 'data.deletion.why'), forId: 'dr-note',
               control: '<input id="dr-note" name="note" maxlength="500" autocomplete="off" />' }),
+            cardActs(`<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'data.deletion.askConfirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button>`),
+          ])}
+        </form>`;
+  const ask = !viewer.isOwner
+    ? `<p class="muted">${esc(t(locale, 'data.deletion.ownerOnly'))}</p>`
+    : v.closable === false
+      ? `<p class="muted">${esc(t(locale, 'data.deletion.protected'))}</p>${pending}${request}`
+      // Phase 9 (settings-a-new-13, V1-493) — the request as the settings pages'
+      // card of rows; its button red, for what it takes away.
+      : `${pending}<form method="post" action="/app/settings/data/close">
+          <input type="hidden" name="asked" value="0" />
+          ${rowsCard(null, [
+            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }), forId: 'dr-name',
+              control: '<input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" />' }),
             cardActs(`${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-            data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button>`),
+            data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.close'))}</button>`),
           ])}
         </form>`;
 
@@ -384,10 +392,10 @@ export function renderDataRights(
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
     ${files}
-    ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both)}
-    <section class="block">
+    ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both, v.photos)}
+    <section class="block" id="close">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
-      <p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.byHand')))}</p>
+      <p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.now')))}</p>
       ${ask}
     </section>
     ${history}
@@ -401,52 +409,67 @@ const STATE_TONE: Readonly<Record<DeletionRequest['state'], string>> = {
 };
 
 /**
- * CC-02a — the buyers who asked to be deleted. Each is recorded on that
- * buyer's own page; here the owner sees every one in one place — when it was
- * asked, the date it must be carried out by, and when it was done, which is
- * the moment to tell the buyer (Nomi does not write to them about it). While a
- * request is still waiting it can be taken back, with the workspace request's
- * own route: one way back, not two.
- *
- * 0076 — a request noted from a buyer's message leads the list until the owner
- * decides, on the buyer's page, where the door goes.
+ * CC-02a, 0126 — the customers who asked to be deleted, in one place. The
+ * owner deletes from here or from the customer's own page — the same act,
+ * the same route (`/app/conversations/:id/deletion/erase`), at once and for
+ * good. A request noted from a customer's message leads the list until the
+ * owner decides; one still open from before deleting was a button can be
+ * deleted or taken back. Done, it says when, and what stayed. Nomi does not
+ * write to the customer about it.
  */
 function buyerRequests(
   buyers: readonly BuyerDeletionRequest[], locale: Locale, viewer: Viewer, asks: readonly WaitingAsk[] = [],
-  both: (a: string, b: string) => string = (a, b) => `${a} ${b}`,
+  _both: (a: string, b: string) => string = (a, b) => `${a} ${b}`, photos: ReadonlyMap<string, string> = new Map(),
 ): string {
-  const noted = asks.map((a) => `<li class="row">
+  // The warmth pass — each customer named here with their face (it opens their card); one erased has
+  // no card and no name left, so a quiet outline stands in their place.
+  const faceOf = (clientId: string | null | undefined, name: string | null, key: string, photo?: string | null): string => clientId
+    ? faceLink({ clientId, name, photo: photo ?? photos.get(clientId) ?? null }, { size: 's', label: name ?? t(locale, 'common.buyer') })
+    : face({ clientId: key, name: null }, 's');
+  const erase = (conversationId: string) => viewer.isOwner
+    ? `<form method="post" action="/app/conversations/${encodeURIComponent(conversationId)}/deletion/erase" class="inline">
+          <input type="hidden" name="asked" value="0" />
+          <input type="hidden" name="from" value="data" />
+          <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'conv.deletion.eraseConfirm'))}">${esc(t(locale, 'conv.deletion.erase'))}</button>
+        </form>`
+    : '';
+  const noted = asks.map((a) => `<li class="row has-face">${faceOf(a.clientId, a.buyer, a.id)}
       <div class="person"><a href="/app/conversations/${encodeURIComponent(a.conversationId)}#deletion"><b><bdi>${esc(a.buyer ?? t(locale, 'common.buyer'))}</bdi></b></a>
         <span class="muted">${esc(t(locale, 'data.buyers.waiting', { asked: show.date(locale, a.askedAt) }))}</span>
       </div>
       <span class="pill warn">${esc(t(locale, 'data.ask.state.waiting'))}</span>
+      ${erase(a.conversationId)}
     </li>`).join('');
   const rows = buyers.map((r) => {
     const who = esc(r.buyer ?? t(locale, 'common.buyer'));
     const name = r.conversationId && r.state !== 'done'
-      ? `<a href="/app/conversations/${encodeURIComponent(r.conversationId)}"><b><bdi>${who}</bdi></b></a>`
+      ? `<a href="/app/conversations/${encodeURIComponent(r.conversationId)}#deletion"><b><bdi>${who}</bdi></b></a>`
       : `<b><bdi>${who}</bdi></b>`;
     const asked = show.date(locale, r.askedAt);
     const when = r.state === 'open'
-      ? t(locale, 'data.buyers.due', { asked, due: show.date(locale, deletionDueBy(r.askedAt)) })
+      ? t(locale, 'data.buyers.open', { asked })
       : r.state === 'done' && r.closedAt
         ? t(locale, 'data.buyers.done', { asked, done: show.date(locale, r.closedAt) })
         : t(locale, 'data.buyers.asked', { asked });
-    const withdraw = r.state === 'open' && viewer.isOwner
-      ? `<form method="post" action="/app/settings/data/withdraw" class="inline">
+    const acts = r.state === 'open' && viewer.isOwner
+      ? `${r.conversationId ? erase(r.conversationId) : ''}
+        <form method="post" action="/app/settings/data/withdraw" class="inline">
           <input type="hidden" name="id" value="${esc(r.id)}" />
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'data.buyers.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
         </form>`
       : '';
-    return `<li class="row">
+    // A deleted customer has no card left to open: the outline, never a door to nothing.
+    return `<li class="row has-face">${faceOf(r.state === 'done' ? null : r.clientId, r.buyer, r.id, r.photo)}
       <div class="person">${name}
         <span class="muted">${esc(when)}</span>
         ${r.subjectNote ? `<span class="muted"><bdi>${esc(r.subjectNote)}</bdi></span>` : ''}
+        ${r.state === 'done' ? `<span class="muted">${esc(t(locale, 'data.buyers.kept'))}</span>` : ''}
         ${r.state === 'refused' && r.closedNote ? `<span class="muted"><bdi>${esc(r.closedNote)}</bdi></span>` : ''}
       </div>
       <span class="pill ${STATE_TONE[r.state]}">${esc(t(locale, STATE_KEY[r.state]))}</span>
-      ${withdraw}
+      ${acts}
     </li>`;
   }).join('');
   return `<section class="block" id="buyers">
@@ -458,4 +481,3 @@ function buyerRequests(
     ${/* Phase 9 (settings-a-new-14) — nobody yet is a state: the empty panel, not one more grey line. */ ''}${noted || rows ? `<ul class="rows">${noted}${rows}</ul>` : `<div class="empty whole">${esc(t(locale, 'data.buyers.none'))}</div>`}
   </section>`;
 }
-

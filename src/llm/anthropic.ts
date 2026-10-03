@@ -106,6 +106,16 @@ const ANALYSIS_REQUEST = { timeout: 30_000, maxRetries: 1 } as const;
  * minutes. A read that times out is refused as unreadable / failed.
  */
 const OWNER_READ_REQUEST = { timeout: 90_000, maxRetries: 1 } as const;
+/**
+ * BILLING RESILIENCE (2026-10-04) — the reply and the look at a photo had no
+ * limit of their own: the SDK's ten minutes and two retries, inside the turn's
+ * transaction, holding the conversation's lock — up to half an hour for one
+ * customer while the provider sent headers and no body. A reply is a few
+ * hundred words: a minute, and one quick retry, as the analysis has. A turn
+ * that still fails goes to the queue's retry and then to a person (rule 19),
+ * or — refused for billing — to a person at once (src/worker/main.ts).
+ */
+const REPLY_REQUEST = { timeout: 60_000, maxRetries: 1 } as const;
 
 export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): Analyzer {
   const prompt = loadPrompt('analysis.txt');
@@ -298,7 +308,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
           role: 'user',
           content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nCLIENT MESSAGE:\n${text || '[media]'}`,
         }],
-      });
+      }, REPLY_REQUEST);
 
       const block = firstText(res.content);
       const raw = block?.type === 'text' ? stripFences(block.text) : '';
@@ -332,7 +342,7 @@ export function anthropicVision(client: Anthropic, model: string = MODEL, extra:
             { type: 'text', text: caption ? `Customer caption: ${caption}` : 'No caption.' },
           ],
         }],
-      });
+      }, REPLY_REQUEST);
 
       const block = firstText(res.content);
       const raw = block?.type === 'text' ? stripFences(block.text) : '{}';
@@ -432,7 +442,7 @@ export function anthropicDraftTranslator(client: Anthropic, model: string = MODE
           `Translate it into ${toLanguage}. Keep every number, price, unit, date, product name and person's name exactly as written. ` +
           'Do not add, explain, soften or correct anything. Output only the translation.',
         messages: [{ role: 'user', content: text }],
-      });
+      }, OWNER_READ_REQUEST);
       const block = firstText(res.content);
       const out = block?.type === 'text' ? block.text.trim() : '';
       if (!out || res.stop_reason === 'max_tokens') return null;

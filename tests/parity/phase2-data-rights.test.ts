@@ -6,6 +6,7 @@ import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages
 import { OWNER_ONLY, mayDo, OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, isExportSubject, exportFileName, exportSubjectOf } from '../../src/api/web/dataExport.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
+import { esc } from '../../src/api/web/layout.js';
 
 /**
  * Phase 2 — CC-12 (an owner cannot get their own data out) and CC-02
@@ -100,16 +101,22 @@ describe('CC-12 · she can take her own data out', () => {
   });
 });
 
-describe('CC-02 · deletion is a request, and the page says so', () => {
-  it('the page says a person does it, and that nothing here erases on its own', () => {
+describe('CC-02, 0126 · closing erases, at once, and the page says so', () => {
+  it('the page says closing erases everything at once and signs everyone out; the installation\'s own workspace asks the team instead', () => {
     for (const locale of LOCALES) {
       const html = renderDataRights(VIEW, locale, null, OWNER_VIEW, 'x');
-      expect(html).toContain(t(locale, 'data.deletion.byHand'));
+      expect(html).toContain(esc(t(locale, 'data.deletion.now')));
+      expect(html).toContain('action="/app/settings/data/close"');
+      expect(html).not.toContain('action="/app/settings/data/delete"');
+      // The installation's own workspace (the access code's) is never closed from inside it.
+      const own = renderDataRights({ ...VIEW, closable: false }, locale, null, OWNER_VIEW, 'x');
+      expect(own).toContain(esc(t(locale, 'data.deletion.protected')));
+      expect(own).toContain('action="/app/settings/data/delete"');
+      expect(own).not.toContain('action="/app/settings/data/close"');
     }
-    // In English, in as many words. Phase 9 (settings-a-missed-15) — said as what the button does
-    // (it sends a request), no longer as what it is not, right above it.
-    expect(messages.en['data.deletion.byHand']).toMatch(/button below sends your request/i);
-    expect(messages.en['data.deletion.byHand']).toMatch(/by hand/i);
+    expect(messages.en['data.deletion.now']).toMatch(/at once/i);
+    expect(messages.en['data.deletion.now']).toMatch(/everyone is signed out/i);
+    expect(messages.en['data.deletion.lead']).toMatch(/for good/i);
   });
 
   it('she must type her own name — a checkbox is not a confirmation', () => {
@@ -140,8 +147,8 @@ describe('CC-02 · deletion is a request, and the page says so', () => {
     expect(html).toContain(t('en', 'data.export.title'));
   });
 
-  it('the app role is never asked to delete anything', () => {
-    for (const rel of ['src/api/web/dataRights.ts', 'src/api/web/dataExport.ts']) {
+  it('the app role is never asked to delete anything — it calls the definer functions (0126)', () => {
+    for (const rel of ['src/api/web/dataRights.ts', 'src/api/web/dataExport.ts', 'src/api/web/erasure.ts']) {
       expect(read(rel), `${rel} writes a delete`).not.toMatch(/\bdelete from\b/i);
     }
     // The migration keeps the grant exactly where every other table has it.
@@ -180,6 +187,9 @@ describe('who may do it', () => {
     expect(src).toMatch(/app\.get\('\/app\/settings\/data\/:file'[\s\S]{0,200}ownerOnly\(req, reply, 'data_rights'/);
     expect(src).toMatch(/app\.post\('\/app\/settings\/data\/delete'[\s\S]{0,200}ownerOnly\(req, reply, 'data_rights'/);
     expect(src).toMatch(/app\.post\('\/app\/settings\/data\/withdraw'[\s\S]{0,200}ownerOnly\(req, reply, 'data_rights'/);
+    // 0126 — the two erasures.
+    expect(src).toMatch(/app\.post\('\/app\/settings\/data\/close'[\s\S]{0,200}ownerOnly\(req, reply, 'data_rights'/);
+    expect(src).toMatch(/app\.post\('\/app\/conversations\/:conversationId\/deletion\/erase'[\s\S]{0,600}ownerOnly\(req, reply, 'data_rights'/);
   });
 
   it('it is reachable — Settings links to it', () => {
@@ -198,9 +208,9 @@ describe('the sentences', () => {
     }
   });
 
-  it('the Chinese says a PERSON does it, with none of the banned vocabulary', () => {
-    const zh = messages.zh['data.deletion.byHand'];
-    expect(zh).toContain('手动');
+  it('the Chinese says it is at once, with none of the banned vocabulary', () => {
+    const zh = messages.zh['data.deletion.now'];
+    expect(zh).toContain('立即');
     for (const banned of ['自动', '系统', '模型']) {
       expect(zh, `the Chinese uses ${banned}`).not.toContain(banned);
     }
@@ -254,21 +264,18 @@ describe('the follow-ups · a request reaches a person, and the page states a ti
     expect(block, 'the row is written first, by askWorkspaceDeletion, and never instead').not.toBe('');
     expect(block).toMatch(/could not be sent/);
     // She is still told her request was made — a mail failure is ours.
-    expect(src).toMatch(/\}\s*\n\s*return flashTo\(reply, '\/app\/settings\/data', `data\.flash\./);
+    expect(src).toMatch(/\}\s*\n\s*return flashTo\(reply, '\/app\/settings\/data#close', `data\.flash\./);
   });
 
-  it('/data-deletion COMMITS to 30 days, in all three languages', () => {
-    // CC-02a — the step that carries the date is now the operator's (step 3),
-    // and the date runs from the business RECORDING the request: that is the
-    // moment the row, and so the clock, exists. tests/parity/deletion-page
-    // holds the rest of the page.
+  it('/data-deletion says the business deletes it, at once — and promises no operator and no delay (0126)', () => {
+    // CC-02a committed to 30 days, an operator's, by hand. Since 0126 the
+    // business's own act erases, at once; the page says that, and the days are
+    // the operator's safety net for a request still open, never a promise.
     for (const locale of LOCALES) {
-      expect(messages[locale]['legal.deletion.step3'], locale).toContain('30');
+      expect(messages[locale]['legal.deletion.step2'], locale).not.toContain('30');
+      expect(messages[locale]['legal.deletion.step3'], locale).not.toContain('30');
     }
-    // Not "ask again if you have not heard" — that was the old wording, which
-    // set a date for the BUYER to chase rather than one we keep. There is now
-    // a row, a notice, a daily deadline check and a runbook behind it.
-    expect(messages.en['legal.deletion.step3']).toMatch(/within 30 days of the business recording/i);
+    expect(messages.en['legal.deletion.step2']).toMatch(/deletes your data there\. It is deleted at once/);
     expect(messages.en['legal.deletion.step3']).not.toMatch(/ask again/i);
   });
 });

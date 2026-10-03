@@ -9,7 +9,7 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
-import { renderCalendar } from '../../src/api/web/calendar.js';
+import { renderCalendar, parseCalendarQuery } from '../../src/api/web/calendar.js';
 import { type CalendarEntry, type CalendarView } from '../../src/db/calendar.js';
 import { dayKey, dayStart, addDays } from '../../src/core/owner/i18n/format.js';
 import { money as showMoney } from '../../src/api/web/values.js';
@@ -250,25 +250,30 @@ const calView = (from: string, to: string, over: Partial<CalendarView> = {}): Ca
   from, to, today: CAL_TODAY, category: null, buyer: null, buyers: [NADIA, ANNA],
   categories: ['samples', 'orders', 'negotiation'], entries: DATES.filter((x) => x.day >= from && x.day < to), ...over,
 });
-const drawCal = (l: Locale, view: 'week' | 'month' | 'day' | 'list', over: Partial<CalendarView> = {}): string => withZone(CAL_ZONE, () => withoutIsolates(
-  view === 'week' ? renderCalendar(calView(MONDAY, addDays(MONDAY, 7), over), l, { view, at: CAL_TODAY, now: CAL_NOW })
-    : view === 'month' ? renderCalendar(calView('2026-09-28', '2026-11-02', over), l, { view, at: '2026-10-01', now: CAL_NOW })
-    : view === 'day' ? renderCalendar(calView(addDays(MONDAY, 2), addDays(MONDAY, 3), over), l, { view, at: addDays(MONDAY, 2), now: CAL_NOW })
-    : renderCalendar(calView(addDays(CAL_TODAY, -7), addDays(CAL_TODAY, 14), over), l, { view, now: CAL_NOW })));
-const VIEWS4 = ['week', 'month', 'day', 'list'] as const;
-const UNIT = { week: 'week', month: 'month', day: 'day', list: 'list' } as const;
+/**
+ * The owner's correction (2026-10-04) — ONE screen, the month and the list together. What were four views are
+ * now three places on it: this month with nothing chosen ('screen'), September — the month holding the week's
+ * dates, all behind today ('sept') — and a day chosen in the grid ('day', Wednesday).
+ */
+const CAL_PLACES = { screen: {}, sept: { month: '2026-09' }, day: { month: '2026-09', day: addDays(MONDAY, 2) } } as const;
+type CalPlace = keyof typeof CAL_PLACES;
+const drawCal = (l: Locale, place: CalPlace, over: Partial<CalendarView> = {}): string => withZone(CAL_ZONE, () => {
+  const ask = parseCalendarQuery(CAL_PLACES[place], CAL_NOW);
+  return withoutIsolates(renderCalendar(calView(ask.from, ask.to, over), l, { ask, now: CAL_NOW }));
+});
+const PLACES = ['screen', 'sept', 'day'] as const;
 
 describe('the calendar', () => {
-  it('V1-199 · inbox-calendar-missed-16 · every view moves the same way, in words, under the name of the period', () => {
-    for (const l of LOCALES) for (const v of VIEWS4) {
+  it('V1-199 · inbox-calendar-missed-16 · the screen moves a month at a time, in words, under the name of the month', () => {
+    for (const l of LOCALES) for (const v of PLACES) {
       const h = drawCal(l, v);
       const move = /<nav class="cal-move"[^>]*>([\s\S]*?)<\/nav>/.exec(h)?.[1] ?? '';
-      expect(move, `${l}/${v}`).toContain(`<span class="go" aria-hidden="true">‹</span>${esc(t(l, `calendar.prev.${UNIT[v]}` as MessageKey))}</a>`);
-      expect(move, `${l}/${v}`).toContain(`${esc(t(l, `calendar.next.${UNIT[v]}` as MessageKey))}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(move, `${l}/${v}`).toContain(`<span class="go" aria-hidden="true">‹</span>${esc(t(l, 'calendar.prev.month'))}</a>`);
+      expect(move, `${l}/${v}`).toContain(`${esc(t(l, 'calendar.next.month'))}<span class="go" aria-hidden="true">›</span></a>`);
       expect(move, `${l}/${v}`).toContain(`<a class="tab cal-today" href=`);
       expect(h.indexOf('<p class="cal-span">'), `${l}/${v}`).toBeLessThan(h.indexOf('<nav class="cal-move"'));
       expect(h.indexOf('<nav class="cal-move"'), `${l}/${v}: at the top`).toBeLessThan(h.indexOf('cal-legend'));
-      // the same lede on every view (in the page's one fold) and the legend under the dates (phase 9 of the warmth run); no second way of moving at the foot of the list
+      // the same lede in the page's one fold, and the legend under the dates (phase 9 of the warmth run); no second way of moving at the foot of the list
       expect(h, `${l}/${v}`).toContain(`<div class="cal-key"><p class="muted cal-lede">${esc(t(l, 'calendar.lede'))}</p>`);
       expect(h, `${l}/${v}`).toContain('<p class="cal-legend small">');
       expect(h, `${l}/${v}`).not.toContain('<nav class="pager"');
@@ -277,8 +282,8 @@ describe('the calendar', () => {
 
   it('V1-200 · inbox-calendar-new-14 · the legend draws each mark it explains — ✦, owed, done — and its edges are swatches, not pills', () => {
     for (const l of LOCALES) {
-      // the week holds a mark of each kind (phase 9 of the warmth run, w4-customers-14: the legend explains only the marks its page shows)
-      const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'week'))![1]!;
+      // September holds a mark of each kind (phase 9 of the warmth run, w4-customers-14: the legend explains only the marks its list shows)
+      const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'sept'))![1]!;
       expect(legend, l).toContain(`<span class="as" aria-hidden="true">✦</span> ${shown(l, 'calendar.legend.assistant')}`);
       expect(legend, l).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${shown(l, 'calendar.legend.owed')}`);
       expect(legend, l).toContain(`<span class="dot ok" aria-hidden="true">✓</span> ${shown(l, 'calendar.legend.done')}`);
@@ -286,47 +291,45 @@ describe('the calendar', () => {
       expect(legend, l).not.toContain('wk-e');
     }
     expect(CSS).toMatch(/\.cal-sw \{[^}]*border-radius:2px; \}/);
-    // the lists' rows carry the solid edge the legend names, as dashed ones carry theirs
-    // the lists' rows (the list, a week's days, the day: one row since the warmth run) carry the solid edge the legend names
+    // the list's rows (what is owed, the month's other dates, a chosen day: one row since the warmth run) carry the solid edge the legend names
     expect(CSS).toMatch(/\.dl-row\.solid \.dl-go \{ border-inline-start:2px solid/);
     expect(CSS).toMatch(/\.dl-row\.dashed \.dl-go \{ border-inline-start:2px dashed/);
   });
 
-  it('V1-201 · inbox-calendar-new-13 · done is a ✓ as well as grey, in every view; in Arabic an order is not "a request"', () => {
+  it('V1-201 · inbox-calendar-new-13 · done is a ✓ as well as grey, in the list and in the grid; in Arabic an order is not "a request"', () => {
     for (const l of LOCALES) {
       const day = drawCal(l, 'day');
       expect(day, l).toMatch(/<li class="dl-row solid done"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span><span class="sr">/);
-      expect(drawCal(l, 'week'), l).toMatch(/<li class="dl-row solid done" data-src="quotes:q1"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span>/);
+      expect(drawCal(l, 'sept'), l).toMatch(/<li class="dl-row solid done" data-src="quotes:q1"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span>/);
       // a reply still owed is never greyed or ticked, whatever the hour
-      expect(drawCal(l, 'week'), l).toMatch(/<li class="dl-row solid" data-src="handoffs:h1"[^>]*>[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
-      // the month, too: done greyed, owed marked
-      expect(drawCal(l, 'month'), l).toMatch(/<span class="mo-e solid done" data-src="quotes:q1"/);
-      expect(drawCal(l, 'month'), l).toMatch(/<span class="mo-e solid" data-src="handoffs:h1"[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
+      expect(drawCal(l, 'screen'), l).toMatch(/<li class="dl-row solid" data-src="handoffs:h1"[^>]*>[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
+      // the grid, too: done greyed, owed marked
+      expect(drawCal(l, 'screen'), l).toMatch(/<span class="mo-e solid done" data-src="quotes:q1"/);
+      expect(drawCal(l, 'screen'), l).toMatch(/<span class="mo-e solid" data-src="handoffs:h1"[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
     }
     expect(t('ar', 'calendar.kind.order_state')).toBe('طلب شراء');
     expect(t('ar', 'calendar.kind.order_state')).not.toBe(t('ar', 'calendar.kind.sample_asked').split(' ')[0]);
   });
 
-  it('V1-202 · inbox-calendar-new-15 · one form chooses a kind or a customer, offering the same kinds in every view', () => {
+  it('V1-202 · inbox-calendar-new-15 · one form chooses a kind or a customer, offering the same kinds wherever the screen is', () => {
     const options = (h: string) => [...(/<select name="category">([\s\S]*?)<\/select>/.exec(h)?.[1] ?? '').matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
     for (const l of LOCALES) {
-      const all = VIEWS4.map((v) => drawCal(l, v));
-      for (const h of all) {
+      for (const h of PLACES.map((v) => drawCal(l, v))) {
         expect(h, l).not.toContain('cal-tabs');
         expect(h, l).toContain(`<form method="get" action="/app/calendar" class="pform cal-filter">\n        <p class="cal-sub">${shown(l, 'calendar.filter.choose')}</p>`);
         expect(options(h), l).toEqual(['', 'promised', 'samples', 'orders', 'negotiation', 'yours', 'closures', 'conversations']);
+        // the owner's correction — no row of view pills at all
+        expect(h, l).not.toMatch(/<nav class="tabs/);
       }
-      // the views' tabs are the only row of pills
-      expect([...all[0]!.matchAll(/<nav class="tabs/g)], l).toHaveLength(1);
     }
-    const chosen = drawCal('en', 'week', { category: 'samples', buyer: NADIA });
+    const chosen = drawCal('en', 'screen', { category: 'samples', buyer: NADIA });
     expect(chosen).toContain('<p class="cal-chosen small">Showing: Samples · <bdi>Nadia Rahimi · UAE</bdi>');
   });
 
-  it('V1-203 · adding a date is near the top of every view, above the dates', () => {
-    for (const v of VIEWS4) {
+  it('V1-203 · adding a date is near the top of the screen, above the dates', () => {
+    for (const v of PLACES) {
       const h = drawCal('en', v);
-      const body = Math.min(...['<table', '<ol class="dl"', '<h2 class="cal-day"'].map((s) => h.indexOf(s)).filter((i) => i >= 0));
+      const body = Math.min(...['<table', '<ol class="dl"', '<h3 class="cal-day"'].map((s) => h.indexOf(s)).filter((i) => i >= 0));
       expect(h.indexOf('<div class="cal-add">'), v).toBeGreaterThan(0);
       expect(h.indexOf('<div class="cal-add">'), v).toBeLessThan(body);
     }
@@ -347,39 +350,38 @@ describe('the calendar', () => {
     }
   });
 
-  it('inbox-calendar-missed-17 · inbox-calendar-missed-18 · the list names a date as the other views do, with no record code', () => {
+  it('inbox-calendar-missed-17 · inbox-calendar-missed-18 · the list names a date as a chosen day does, with no record code', () => {
     for (const l of LOCALES) {
-      const h = drawCal(l, 'list');
-      const order = /<li class="dl-row[^"]*" data-src="order_updates:u1"[\s\S]*?<\/li>/.exec(h)![0];
+      const order = /<li class="dl-row[^"]*" data-src="order_updates:u1"[\s\S]*?<\/li>/.exec(drawCal(l, 'screen'))![0];
       expect(order, l).not.toContain('USAB-de300000-0001');
       expect(order.replace(/<[^>]+>/g, ''), l).toContain(t(l, 'calendar.say.order_state', { who: ANNA.name }));
       expect(order, l).toContain(`<span class="small"><bdi>${esc(t(l, 'order.status.confirmed' as MessageKey))}</bdi></span>`);
-      const price = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(h)![0];
+      const price = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(drawCal(l, 'sept'))![0];
       expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok" aria-hidden="true">✓<\/span><span class="sr">[^<]*<\/span> )?<span class="as" aria-hidden="true">✦<\/span> /);
       expect(price, l).not.toContain(`>${esc(t(l, 'calendar.cat.negotiation'))} · `);
     }
   });
 
   it('inbox-calendar-missed-19 · no flag beside some customers and not others, in the rows or the customer choice', () => {
-    for (const l of LOCALES) for (const v of VIEWS4) expect(drawCal(l, v), `${l}/${v}`).not.toMatch(/[\u{1F1E6}-\u{1F1FF}]/u);
+    for (const l of LOCALES) for (const v of PLACES) expect(drawCal(l, v), `${l}/${v}`).not.toMatch(/[\u{1F1E6}-\u{1F1FF}]/u);
   });
 
-  it('inbox-calendar-missed-20 · the lists keep the prose measure, their head included; the month takes the column', () => {
-    for (const v of ['list', 'week', 'day'] as const) expect(drawCal('en', v).startsWith('<div class="measure-prose"><div class="cal-top">'), v).toBe(true);
-    expect(drawCal('en', 'month').startsWith('<div class="measure-prose">')).toBe(false);
+  it('inbox-calendar-missed-20 · the list keeps the prose measure; the head and the grid take the column', () => {
+    for (const v of PLACES) expect(drawCal('en', v).startsWith('<h1 class="page">'), v).toBe(true);
+    expect(CSS).toMatch(/\.cal-list \{ max-width:var\(--measure-prose\); \}/);
+    expect(CSS).not.toMatch(/\.cal-grid \{[^}]*max-width/);
   });
 
-  it('V1-204 · inbox-calendar-new-10 · the week has a day only where a date is, and today; today is said in a word, in magenta', () => {
-    const h = drawCal('en', 'week');
-    const days = [...h.matchAll(/<h2 class="cal-day"[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '').trim());
-    expect(days).toHaveLength(4);     // Monday, Wednesday, Thursday, and today (Friday)
-    expect(h).toMatch(/<h2 class="cal-day" aria-current="date"><span class="cal-now">Today<\/span> <span>Fri, Oct 2<\/span><\/h2>/);
-    // nothing dated this week: the warm panel, and nothing drawn for the days
-    const none = drawCal('en', 'week', { entries: [], categories: [] });
-    expect(none).toContain(`<p class="cal-empty-t">${t('en', 'calendar.empty.week')}</p>`);
-    expect(none).not.toContain('<h2 class="cal-day"');
-    const month = drawCal('en', 'month');
-    expect(month).toMatch(/<td class=" today" aria-current="date">\s*<a class="mo-d" [^>]*>2<\/a><span class="cal-now">Today<\/span>/);
+  it('V1-204 · inbox-calendar-new-10 · the month\'s list has a day only where a date is; today is said in a word, in magenta', () => {
+    const h = drawCal('en', 'sept');
+    const days = [...h.matchAll(/<h3 class="cal-day"[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '').trim());
+    expect(days).toEqual(['Mon, Sep 28', 'Wed, Sep 30']);     // what is owed (today's reply) stands under its own heading
+    // nothing dated this month: the warm panel, and nothing drawn for the days
+    const none = drawCal('en', 'screen', { entries: [], categories: [] });
+    expect(none).toContain(`<p class="cal-empty-t">${t('en', 'calendar.empty.month')}</p>`);
+    expect(none).not.toContain('<h3 class="cal-day"');
+    const month = drawCal('en', 'screen');
+    expect(month).toMatch(/<td class="today" aria-current="date">\s*<a class="mo-d" [^>]*>2<\/a><span class="cal-now">Today<\/span>/);
     expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ color:var\(--color-assistant\); font-weight:700; \}/);
   });
 });
@@ -679,28 +681,29 @@ describe('the settings pages', () => {
     expect(draw('data', 'en')).toContain('up to 20,000 rows');
   });
 
-  it('V1-493 · settings-a-new-13 · settings-a-missed-15 · asking for everything to be deleted: a card of rows, a red button, words that agree with it', () => {
+  it('V1-493 · settings-a-new-13 · settings-a-missed-15 · closing the workspace (0126): a card of rows, a red button, words that agree with it', () => {
     const h = draw('data', 'en');
-    expect(h).toMatch(/<form method="post" action="\/app\/settings\/data\/delete">\s*<section class="sgroup"><div class="scard"><div class="setrow"><div class="fr-l"><label class="fr-name" for="dr-name">/);
+    expect(h).toMatch(/<form method="post" action="\/app\/settings\/data\/close">\s*<input type="hidden" name="asked" value="0" \/>\s*<section class="sgroup"><div class="scard"><div class="setrow"><div class="fr-l"><label class="fr-name" for="dr-name">/);
     expect(h).toContain('<button class="btn danger" type="submit"');
     for (const l of LOCALES) {
-      expect(t(l, 'data.deletion.byHand'), l).not.toMatch(/not a button|不是一个按|ليس زرًّا|no es un botón|n’est pas un bouton/i);
+      expect(t(l, 'data.deletion.now'), l).not.toMatch(/not a button|不是一个按|ليس زرًّا|no es un botón|n’est pas un bouton/i);
     }
   });
 
   it('V1-494 · V1-495 · V1-496 · V1-498 · V1-501 · settings-a-missed-16 · one name for the list, the team not the operator, an address for "us", Arabic kept together', () => {
     for (const l of LOCALES) expect(t(l, 'data.export.subject.contacts'), l).toBe(t(l, 'contacts.title'));
-    expect(t('en', 'data.buyers.lead')).toContain('The Nomi team');
+    // 0126 — the owner deletes now; nobody else carries it out, so nobody else is named.
+    expect(t('en', 'data.buyers.lead')).toContain('you delete it');
     for (const w of ['operator', '运营方', 'مشغّل', 'opérateur']) for (const l of LOCALES) expect(t(l, 'data.buyers.lead'), l).not.toContain(w);
     const withAddress = withoutIsolates(renderDataRights({ ...DATA, contact: 'privacy@nomi.example' }, 'en', null, OWNER, 'x'));
     expect(withAddress).toContain('write to privacy@nomi.example and we will send the rest');
     expect(draw('data', 'en')).not.toMatch(/write to us/);
     expect(t('en', 'data.deletion.why')).toBe('Anything the Nomi team should know (optional)');
-    expect(t('ar', 'data.buyers.lead')).toContain('30 يومًا');
+    expect(t('ar', 'data.buyers.lead')).not.toContain('30 يومًا');
     expect(t('ar', 'data.buyers.lead')).not.toContain('فـNomi');
     expect(t('ar', 'data.export.configTitle')).not.toMatch(/إعداد/);
     expect(t('en', 'data.buyers.fromChat')).not.toContain('usually');
-    expect(t('en', 'data.buyers.fromChat')).toContain('is not listed: record it yourself');
+    expect(t('en', 'data.buyers.fromChat')).toContain('is not listed: delete their data yourself');
   });
 
   it('settings-a-new-14 · settings-a-missed-17 · nobody asked yet is a state; a heading that wraps does so evenly', () => {

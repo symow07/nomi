@@ -243,7 +243,55 @@ pg_restore -d "postgresql://postgres@<host>/nomi_restored" --no-owner nomi-<date
 
 # 3. the app role must be able to log in (migration 0005 creates it NOLOGIN)
 psql "postgresql://postgres@<host>/nomi_restored" -c "alter role nomi_app login password '<new>';"
+
+# 4. bring it to the current schema (a copy older than the code is refused at boot anyway)
+MIGRATE_DATABASE_URL=<the restored copy> node tools/migrate.mjs
+
+# 5. ERASURES MADE SINCE THE BACKUP ARE CARRIED OUT AGAIN — before the app is
+#    pointed at it, every time. Dry run first; read the counts; then --yes.
+#    The ledger lines come from every place they still are: the live database
+#    if it still answers (its URL in an environment variable, by NAME), the
+#    newest backup's ledger, the erasure mails sent to LEGAL_CONTACT_EMAIL.
+LIVE_LEDGER_URL=<the database being replaced, if it answers> \
+MIGRATE_DATABASE_URL=<the restored copy> node tools/replay-erasures.mjs --ledger-db-env LIVE_LEDGER_URL [--ledger lines.jsonl]
+LIVE_LEDGER_URL=… MIGRATE_DATABASE_URL=… node tools/replay-erasures.mjs --ledger-db-env LIVE_LEDGER_URL [--ledger lines.jsonl] --yes --by "<your name>"
 ```
+
+### Erasures and backups (0126)
+
+A customer's data is deleted when they ask (the owner's "Delete this
+customer's data now"), and a workspace's when its owner closes it. A backup
+cannot be edited to remove one person: their data stays inside every backup
+taken before, and leaves when that backup is pruned (the table above — 60 days
+for dailies, 180 for manual pairs; PITR and Railway's own copies on Railway's
+schedule). That is exactly what `/data-deletion` says, and it stays true.
+
+What must never happen is a restore that brings someone **back**. So every
+erasure writes one line in `erasure_ledger` — ids, who acted, when, the
+request, how many rows of each table; never a name, a number or a word — in
+the erasure's own transaction, and mails the same line to
+`LEGAL_CONTACT_EMAIL`. The ledger outlives the workspace (no foreign key; the
+workspace erasure leaves it). After ANY restore — a dump pair, PITR, a scratch
+copy restored to fetch one thing back — step 5 above carries out again every
+erasure the restored copy does not hold:
+
+| Where the newer lines are | How the replay reads them |
+|---|---|
+| The restored copy itself | always (and any of its own lines that do not hold in it) |
+| The database being replaced, if it still answers | `--ledger-db-env <NAME>` — its URL in that variable, never on the command line |
+| The newest backup, or a copy of the live ledger saved earlier | `node tools/replay-erasures.mjs --export > lines.jsonl` against it, then `--ledger lines.jsonl` |
+| The erasure mails sent to `LEGAL_CONTACT_EMAIL` | each mail's JSON line, saved one per line, `--ledger mails.jsonl` |
+
+The replay erases with the same contract the owner's button runs
+(`erase_customer_rows`, `erase_workspace_rows`), closes the request (writing it
+back as done where the copy predates it), writes each line into the copy's
+ledger, and is a dry run until `--yes`. A second run says every line holds.
+`tests/integration/replay-erasures.test.ts` runs it for real.
+
+The drill reports the ledger too: `tools/verify-restore.sh` prints `(e)` — how
+many erasures the copy records, and any that do not hold in it (none, in a
+consistent dump). It is a report, never a failed drill: a copy that predates an
+erasure is still a usable backup; step 5 is what makes restoring it safe.
 
 ## Verify — a restore is not done until these pass
 
@@ -293,8 +341,9 @@ psql "postgresql://nomi_app@<host>/nomi_restored" -tAc "select count(*) from cli
 psql "$DST" -tAc "select (select count(*) from businesses), (select count(*) from messages);"
 ```
 
-Then point a **non-production** instance at the restored database and open
-`/app` — the Operations Home rendering with real counts is the end-to-end proof.
+Then — after step 5, the erasure replay — point a **non-production** instance
+at the restored database and open `/app`: the Operations Home rendering with
+real counts is the end-to-end proof.
 
 ## What "backup tested" means on the readiness page
 

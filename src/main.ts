@@ -23,6 +23,7 @@ import { stripeConfigFrom, stripeClient, type StripeClient } from './billing/str
 import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
+import { providerRefusing } from './db/providerState.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
@@ -60,7 +61,7 @@ import { liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount }
 import { withTenantTx, lockConversation, type Db, type Tx } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
-import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
+import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
@@ -78,7 +79,6 @@ import { signupDigestAlert } from './pipeline/signupDigest.js';
 import { allowanceAlerts, spendBreakerAlert } from './pipeline/allowanceWatch.js';
 import { demotionAlerts, spotCheckSweep } from './pipeline/supervision.js';
 import { connectionDecisionAlerts } from './pipeline/approvalWatch.js';
-import { retentionWarnings } from './pipeline/retention.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
@@ -550,7 +550,7 @@ export async function buildProduction(
   const retired = process.env['CREDENTIAL_KEY_PREVIOUS'];
   acceptRetiredKeys(retired ? [deriveKey(retired)] : []);
   if (retired) console.log('CREDENTIAL_KEY_PREVIOUS is set: tokens sealed with the old key are still opened until tools/rekey.mjs re-seals them. Remove it afterwards (docs/SECRET-ROTATION.md).');
-  const { db, boss, errors } = await startWorker({
+  const { db, boss, errors, watch } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
     // G11 — the worker mints the proof link a quote carries, so it needs the
     // address as much as the web app does.
@@ -588,14 +588,40 @@ export async function buildProduction(
     production: process.env['NODE_ENV'] === 'production',
   });
 
+  /**
+   * 0128 — BILLING RESILIENCE: the model provider's account, in both modes
+   * (Practice runs turns in deployment mode too). Every five minutes: while it
+   * refuses for billing, one small call asks whether it answers again, the
+   * operator's escalating alert goes when due, and the end is told. Every hour,
+   * where the provider has a balance to read (DeepSeek): the low-balance steps.
+   * Each run is a few rows read when nothing is wrong (src/pipeline/providerWatch.ts).
+   */
+  await boss.schedule(QUEUES.provider, '*/5 * * * *', {});
+  await boss.work(QUEUES.provider, async () => { await watch.sweep(); });
+  await boss.schedule(QUEUES.providerBalance, '25 * * * *', {});
+  await boss.work(QUEUES.providerBalance, async () => { await watch.balanceSweep(); });
+
   // /health is the one route both modes share. providerStatus reports the
   // messaging surface; db is probed live; the worker infra is up in both modes.
+  //
+  // 0128 — and `model` says whether the model provider answers: 'refusing'
+  // while it refuses for billing (Nomi's account with it is out of credit),
+  // 'answering' otherwise, 'unknown' when that could not be read. Still a 200:
+  // the app serves, the owner answers by hand, and Railway reads /health only
+  // to let a deploy go live ("Railway does not monitor the healthcheck endpoint
+  // after the deployment has gone live", docs.railway.com/reference/healthchecks)
+  // — a 503 here would block the very deploy that might fix it. The heartbeat
+  // reads this field and pings its /fail (src/worker/heartbeat.ts).
   const mountHealth = (a: FastifyInstance, providerStatus: 'active' | 'disabled') => {
     a.get('/health', async (_req, reply) => {
       let dbOk = false;
       try { await sql`select 1`.execute(db); dbOk = true; } catch { /* → 503 */ }
+      let model: 'answering' | 'refusing' | 'unknown' = 'unknown';
+      if (dbOk) {
+        try { model = (await providerRefusing(db)) ? 'refusing' : 'answering'; } catch { /* unknown */ }
+      }
       return reply.code(dbOk ? 200 : 503)
-        .send({ ok: dbOk, db: dbOk, worker: true, provider: providerStatus });
+        .send({ ok: dbOk, db: dbOk, worker: true, provider: providerStatus, model });
     });
   };
 
@@ -745,6 +771,18 @@ export async function buildProduction(
    * sending her to a provider page that will refuse the app.
    */
   const oauthClients = oauthClientsFrom(process.env);
+  /**
+   * PWR2 — what a mailbox send needs, made HERE, before the deployment-mode
+   * return below. They were made after it, so an installation with no messaging
+   * channel yet answered every system mail's mailbox try with "Cannot access
+   * 'credentialKey' before initialization": sign-in codes and reset links could
+   * leave only by SMTP, which the host blocks. Found by
+   * tests/integration/password-reset-mailbox.test.ts.
+   */
+  const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
+  const oauthFetch = fetch as unknown as OAuthFetch;
+  const tokenCache = new Map<string, { token: string; until: number }>();
+  const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
 
   const TEMPLATE_STATE = templateState({
     providerConfigured: cfg.provider !== 'disabled',
@@ -763,13 +801,13 @@ export async function buildProduction(
   // M37 — the page reader, wired at the production entrypoint. A feature whose
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
-  const pageTranscriber = anthropicPageTranscriber(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const pageTranscriber = anthropicPageTranscriber(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // EXT — the closer reading of a list's lines, on the same provider.
-  const catalogExtractor = anthropicCatalogExtractor(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const catalogExtractor = anthropicCatalogExtractor(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // EXT — a page of her site read into facts she ticks.
-  const pageFactsReader = anthropicPageFactsReader(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const pageFactsReader = anthropicPageFactsReader(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // G10 — a draft in a language its owner may not read, translated on request (never sent).
-  const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(llmClient(llm), llm.model, requestExtrasFor(llm));
+  const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
   // and the way out to a push service. Unset: no phone alerts, and the page says so.
   const vapid = vapidFrom(process.env);
@@ -1054,11 +1092,9 @@ export async function buildProduction(
    * her verified domain. The recording fake that stood here until C6 said `ok` to
    * mail that went nowhere; tests still pass one in as `overrides.mailTransport`.
    */
-  const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
-  const oauthFetch = fetch as unknown as OAuthFetch;
-  const tokenCache = new Map<string, { token: string; until: number }>();
-  const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
   // A3 — built here, where its parts exist; called only when a code is mailed.
+  // Its parts (`credentialKey`, `oauthFetch`, `tokenCache`, `mailSenders`) are
+  // made above the deployment-mode return — see PWR2 there.
   function systemMailboxTransport(): MailTransport {
     const operator = parseBusinessId(PILOT_BUSINESS_ID);
     if (!operator.ok || !systemSmtp) {
@@ -1430,13 +1466,11 @@ export async function buildProduction(
     }
   });
 
-  // RET (0116) — once a day, while the operator's switch is on: the warnings
-  // before a workspace that never connected a channel is erased. Nothing is
-  // erased here: the operator runs tools/retention.mjs.
-  await boss.schedule(QUEUES.retention, '50 6 * * *', {});
-  await boss.work(QUEUES.retention, async () => {
-    for (const job of await retentionWarnings(db)) await boss.send(QUEUES.notify, job satisfies NotifyJob);
-  });
+  // RET (0116) is RETIRED (0126, the owner's direction of 2026-10-04): nothing
+  // is erased after 90 days, so nothing warns of it. Its daily job had a
+  // schedule in pg-boss's own table; 0126 removed it, and so does every boot,
+  // in case an older instance wrote it back before it stopped.
+  await unscheduleRetired(boss);
 
   // R5 — once a day: spot checks offered on work that went out alone.
   await boss.schedule(QUEUES.spotChecks, '20 5 * * *', {});

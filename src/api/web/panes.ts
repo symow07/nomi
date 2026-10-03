@@ -8,6 +8,7 @@ import { buyersHref, reachedOn, channelName, productName, customerRow, inboxRow,
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
 import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
+import { face } from './faces.js';
 import type { Person } from '../../core/conversation/people.js';
 import * as show from './values.js';
 
@@ -174,7 +175,7 @@ export function renderCustomerPanel(
   return `<aside class="panel" id="customer" aria-label="${esc(t(locale, 'panel.label'))}">
       <a class="panel-close" href="#latest">${esc(t(locale, 'panel.close'))}</a>
       <header class="pn-head">
-        <h2><bdi>${esc(p.name ?? t(locale, 'common.buyer'))}</bdi></h2>
+        ${/* The warmth pass — the customer's face beside their name, as everywhere they are named; the panel is already about them, so it opens nothing. */ ''}<div class="pn-who">${face({ clientId: p.clientId, name: p.name, photo: p.photo ?? null }, 'm')}<h2><bdi>${esc(p.name ?? t(locale, 'common.buyer'))}</bdi></h2></div>
         ${facts ? `<p class="pn-facts">${facts}</p>` : ''}
         ${since ? `<p class="pn-facts">${since}</p>` : ''}
       </header>

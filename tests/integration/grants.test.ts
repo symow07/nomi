@@ -44,6 +44,34 @@ d('G20 · the app role cannot erase (requires DATABASE_URL)', () => {
     expect(rows.some((r) => r.table_schema === 'pgboss')).toBe(true);
   });
 
+  /**
+   * 0126 — THE OWNER ERASES, AND THE ROLE STILL CANNOT. A customer's data is
+   * deleted when they ask, a workspace when it closes, through two definer
+   * functions that take the workspace from the transaction and check who is
+   * asking. Those two are all the app may call; the rest of the erasure — the
+   * contract, the steps, the operator's and the replay's doors — is the
+   * migration role's alone, and so is the ledger.
+   */
+  it('0126 · EXECUTE on exactly the two erasures the owner may run, and nothing else of the erasure', async () => {
+    const may = async (fn: string) => (await sql<{ ok: boolean }>`
+      select has_function_privilege('nomi_app', ${fn}, 'EXECUTE') as ok`.execute(db)).rows[0]!.ok;
+    expect(await may('erase_customer(uuid, text)')).toBe(true);
+    expect(await may('close_workspace(text, text)')).toBe(true);
+    for (const fn of [
+      'erase_customer_rows(uuid, uuid, uuid, boolean)', 'carry_out_customer_request(uuid, uuid, text, text)',
+      'erase_workspace_rows(uuid, boolean, boolean)', 'carry_out_workspace_erasure(uuid, uuid, text)',
+      'workspace_erasure_steps()', 'customer_erasure_problems()', 'customer_erasure_contract()', 'customer_erasure_edges()',
+      'erasure_ledger_unkept()', 'erasure_owner_of(uuid, text)', 'erasure_note(jsonb, text)',
+      'erasure_prune(jsonb, text[])', 'erasure_mentions(jsonb, text[])', 'erasure_identity(text, text)',
+    ]) expect(await may(fn), fn).toBe(false);
+    // The ledger: nothing granted at all, and nothing readable through row security either.
+    const held = (await sql<{ p: string }>`
+      select privilege_type as p from information_schema.role_table_grants
+       where grantee = 'nomi_app' and table_name = 'erasure_ledger'`.execute(db)).rows;
+    expect(held).toEqual([]);
+    await expect(sql`select count(*) from erasure_ledger`.execute(db)).rejects.toThrow(/permission denied/);
+  });
+
   it('and TRUNCATE is nobody’s either', async () => {
     const truncate = (await sql<{ table_name: string }>`
       select table_name from information_schema.role_table_grants

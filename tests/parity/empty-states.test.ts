@@ -9,7 +9,7 @@ import { renderFactory } from '../../src/api/web/factory.js';
 import type { OperationsSnapshot } from '../../src/api/web/operations.js';
 import type { FactoryView } from '../../src/api/web/factory.js';
 import type { EmployeeProfile, HerContext } from '../../src/api/web/employee.js';
-import { renderCalendar } from '../../src/api/web/calendar.js';
+import { renderCalendar, parseCalendarQuery } from '../../src/api/web/calendar.js';
 
 /**
  * Phase F — every surface must answer "what happens next?" when it is empty.
@@ -66,7 +66,7 @@ const emptyFactory = renderFactory(emptyFactoryView, 'en');
 // A — Customers merged into Buyers; its empty room is a search that found nobody.
 const emptySearch = renderInboxList({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [], query: 'Zhang' }, 'en', NOW);
 
-// V2 — a calendar with nothing dated in its three weeks.
+// V2 — a calendar with nothing dated in its month.
 const emptyCalendar = renderCalendar({
   from: '2026-07-26', to: '2026-08-16', today: '2026-08-02', category: null, buyer: null,
   buyers: [], categories: [], entries: [],
@@ -141,13 +141,12 @@ describe('Phase F · every empty surface says what happens next', () => {
 });
 
 describe('Phase 9 · the five empties phase 6 missed are panels too (cross-missed-01)', () => {
-  it('the week, the day, the month and the day list say "nothing" in a panel, never a grey line (the warmth run: one warm panel)', () => {
-    const base = { from: '2026-07-26', to: '2026-08-16', today: '2026-08-02', category: null, buyer: null, buyers: [], categories: [], entries: [] };
-    for (const view of ['week', 'day', 'month', 'list'] as const) {
-      const html = renderCalendar({ ...base }, 'en', { view });
-      expect(html, view).not.toMatch(/<p class="muted">Nothing/);
-    }
-    const week = renderCalendar({ ...base }, 'en', { view: 'week' });
-    expect(week).toMatch(new RegExp(`<div class="empty cal-empty">[\\s\\S]*?<p class="cal-empty-t">${t('en', 'calendar.empty.week')}</p>`));
+  it('an empty month and an empty chosen day say "nothing" in a panel, never a grey line (the warmth run: one warm panel)', () => {
+    const base = { from: '2026-07-27', to: '2026-09-07', today: '2026-08-02', category: null, buyer: null, buyers: [], categories: [], entries: [] };
+    const month = renderCalendar({ ...base }, 'en');
+    const day = renderCalendar({ ...base }, 'en', { ask: parseCalendarQuery({ month: '2026-08', day: '2026-08-12' }, new Date('2026-08-02T04:00:00Z')) });
+    for (const html of [month, day]) expect(html).not.toMatch(/<p class="muted">Nothing/);
+    expect(month).toMatch(new RegExp(`<div class="empty cal-empty">[\\s\\S]*?<p class="cal-empty-t">${t('en', 'calendar.empty.month')}</p>`));
+    expect(day).toMatch(new RegExp(`<div class="empty cal-empty">[\\s\\S]*?<p class="cal-empty-t">${t('en', 'calendar.empty.day')}</p>`));
   });
 });

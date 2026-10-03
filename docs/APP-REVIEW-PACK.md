@@ -180,8 +180,9 @@ when a customer refers to it, and keeps only the matched product's name.
    your products) so drafts have something to say, and confirm the assistant's
    name on Getting ready.
 4. Paste the e-mail and password into Meta's credentials field for each
-   submission. For a lost password, `tools/add-login.mjs <business-id>
-   <e-mail> --reset` prints a one-time link to choose a new one.
+   submission. For a lost password, "Forgot your password?" on the sign-in
+   page mails a one-time link to the reviewer address; `tools/add-login.mjs
+   <business-id> <e-mail> --reset` prints one if that mail does not arrive.
 
 ---
 

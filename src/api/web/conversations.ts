@@ -11,7 +11,6 @@ import { esc, deeper, back, conversationUrl, signalMark, type Signal } from './l
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
 import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
-import { deletionDueBy } from '../../core/ops/deletions.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
@@ -368,21 +367,24 @@ export async function renameBuyer(
 }
 
 /**
- * CC-02a — the buyer asked to be deleted: where the owner records it, and
- * where anyone looking after this buyer sees that it was asked, by when it is
- * carried out, and when it was done.
+ * CC-02a, 0126 — the customer asked to be deleted: where the owner deletes
+ * their data, and where anyone looking after them sees that it was asked.
+ *
+ * 0126 (the owner's direction, 2026-10-04): the owner's act IS the deletion —
+ * "Delete this customer's data now", at once and for good, through the
+ * database's own erasure (`erase_customer`). It asks first: the product's
+ * dialog (`data-confirm`), and with no script at all the route answers with a
+ * page that asks (`renderEraseAsk`). It says what goes and what stays before
+ * anything is pressed — the same words the public page gives the customer.
  *
  * The control is the OWNER's (`data_rights`): a sales assistant sees the state
- * and whose decision it is, never a form that would only refuse them. It sits
- * behind a disclosure, last on the page, and says what goes and what stays
- * before it asks for anything — the same words the public page gives the buyer.
- * The note is required: it is the record of the asking, and the buyer's own
- * message may be among what is deleted.
+ * and whose decision it is, never a form that would only refuse them.
  *
- * 0076 — UNLESS IT WAS NOTED FROM THEIR MESSAGE. Then the section says when
- * they asked and what they wrote, and asks the owner only for the decision:
- * record it (no note — the message is the record of how and when), or mark it
- * as not a deletion request. It is never offered as something to create.
+ * 0076 — a request noted from their message shows when they asked and what
+ * they wrote; the owner deletes, or sets it aside as not a deletion request.
+ * One asked any other way (a call, an e-mail, words nobody recognised) needs
+ * the owner's note of how and when — it is the record of the asking, and
+ * their own message is among what goes.
  */
 function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
   const d = f.deletion ?? null;
@@ -391,23 +393,33 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
     `<span class="pill ${tone}">${esc(t(locale, key))}</span>`;
   const head = `<h2>${esc(t(locale, 'conv.deletion.title'))}</h2>`;
   const here = `/app/conversations/${encodeURIComponent(f.conversationId)}`;
+  const what = `<p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
+        <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
+        <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>`;
+  // The one act. `asked` is 1 only when the product's dialog said yes; with no
+  // script the route answers with a page that asks.
+  const erase = (withNote: boolean) => `<form method="post" action="${here}/deletion/erase" class="pform">
+          <input type="hidden" name="asked" value="0" />
+          ${withNote ? `<div class="fld"><label for="deletion-note">${esc(t(locale, 'conv.deletion.note'))}</label>
+            <textarea id="deletion-note" name="note" rows="2" required maxlength="${BUYER_NOTE_MAX}"></textarea>
+            <span class="muted">${esc(t(locale, 'conv.deletion.noteHint'))}</span></div>` : ''}
+          <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'conv.deletion.eraseConfirm'))}">${esc(t(locale, 'conv.deletion.erase'))}</button>
+        </form>`;
+  const staff = `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
 
   const ask = f.deletionAsk ?? null;
   if (ask && d?.state !== 'open') {
     const decide = viewer.isOwner
-      ? `<p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
-        <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
-        <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>
-        ${deeper('/app/settings/data', t(locale, 'data.title'))}
-        <form method="post" action="${here}/deletion" class="pform">
-          <button class="btn danger" type="submit">${esc(t(locale, 'conv.deletion.record'))}</button>
-        </form>
+      ? `${what}
+        ${deeper('/app/settings/data#buyers', t(locale, 'data.title'))}
+        ${erase(false)}
         <form method="post" action="${here}/deletion/dismiss" class="pform">
           <p class="muted">${esc(t(locale, 'conv.deletion.dismissHint'))}</p>
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'conv.deletion.dismissConfirm'))}">${esc(t(locale, 'conv.deletion.dismiss'))}</button>
         </form>`
-      : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+      : staff;
     return `<div class="block" id="deletion">${head}
       <p>${state('warn', 'data.ask.state.waiting')}${esc(t(locale, 'conv.deletion.waiting', { date: date(ask.askedAt) }))}</p>
       ${ask.words ? `<p class="voice"><bdi dir="auto">${esc(ask.words)}</bdi></p>` : ''}
@@ -417,11 +429,12 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
 
   if (d?.state === 'open') {
     return `<div class="block" id="deletion">${head}
-      <p>${state('warn', 'data.deletion.state.open')}${esc(t(locale, 'conv.deletion.open', {
-        asked: date(d.askedAt), due: date(deletionDueBy(d.askedAt)) }))}</p>
+      <p>${state('warn', 'data.deletion.state.open')}${esc(t(locale, 'conv.deletion.open', { asked: date(d.askedAt) }))}</p>
       ${viewer.isOwner
-        ? `<p class="muted">${esc(t(locale, 'conv.deletion.takeBack'))}</p>${deeper('/app/settings/data', t(locale, 'data.title'))}`
-        : ''}
+        ? `${what}
+        ${erase(false)}
+        <p class="muted">${esc(t(locale, 'conv.deletion.takeBack'))}</p>${deeper('/app/settings/data#buyers', t(locale, 'data.title'))}`
+        : staff}
     </div>`;
   }
   if (d?.state === 'done') {
@@ -438,18 +451,11 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
   const control = viewer.isOwner
     ? `<details>
         <summary>${esc(t(locale, 'conv.deletion.ask'))}</summary>
-        <p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
-        <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
-        <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>
-        ${/* Phase 9 (conversation-missed-09) — the page the sentence names, one door away. */ ''}${deeper('/app/settings/data', t(locale, 'data.title'))}
-        <form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/deletion" class="pform">
-          <div class="fld"><label for="deletion-note">${esc(t(locale, 'conv.deletion.note'))}</label>
-            <textarea id="deletion-note" name="note" rows="2" required maxlength="${BUYER_NOTE_MAX}"></textarea>
-            <span class="muted">${esc(t(locale, 'conv.deletion.noteHint'))}</span></div>
-          <button class="btn danger" type="submit">${esc(t(locale, 'conv.deletion.submit'))}</button>
-        </form>
+        ${what}
+        ${/* Phase 9 (conversation-missed-09) — the page the sentence names, one door away. */ ''}${deeper('/app/settings/data#buyers', t(locale, 'data.title'))}
+        ${erase(true)}
       </details>`
-    : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+    : staff;
   return `<div class="block" id="deletion">${head}
     ${refused}
     <p class="muted">${esc(t(locale, 'conv.deletion.lead'))}</p>

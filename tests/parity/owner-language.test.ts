@@ -246,7 +246,10 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
       // RET — the day a never-connected workspace goes.
       date: '31 Dec',
       // Phase 9 — the WhatsApp number an owner gave, and the address to write back to.
-      number: '971505550101', email: 'owner@shop.example' };
+      number: '971505550101', email: 'owner@shop.example',
+      // 0128 — the model provider's account: who, its words, how long, the end; the balance's figures.
+      provider: 'DeepSeek', words: 'Insufficient Balance', hours: 6, until: '1 Oct 23:28',
+      balance: 'CNY 7.21', floor: 'CNY 10.00', days: 2.5 };
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };

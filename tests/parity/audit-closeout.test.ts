@@ -445,10 +445,11 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     const camel = (k: string) => k.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
     it('every state reads at 4.5:1 or better as text on its own wash (waiting sat at 4.15)', () => {
-      for (const s of ['ok', 'waiting', 'warn']) {
+      // The warmth pass — waiting is the deep magenta, `needs`, on its own wash.
+      for (const s of ['ok', 'needs', 'warn']) {
         expect(ratio(C[s]!, C[`${s}Wash`]!), s).toBeGreaterThanOrEqual(4.5);
       }
-      // The assistant's magenta is text on either ground (6.7 and 6.1).
+      // The assistant's light magenta is text on either ground (5.5 and 5.0; warmth-pass.test.ts has the whole table).
       for (const bg of ['surface', 'paper']) expect(ratio(C['assistant']!, C[bg]!), `magenta on ${bg}`).toBeGreaterThanOrEqual(4.5);
       for (const bg of ['surface', 'paper']) {
         expect(ratio(C['inkSecondary']!, C[bg]!), `ink secondary on ${bg}`).toBeGreaterThanOrEqual(4.5);
@@ -507,6 +508,10 @@ describe('CC-29 · everything that takes something away asks first, the one way 
     ['priceRules.ts', /\/prices\/volume\/\$\{[^}]+\}\/archive$/],
     ['dataRights.ts', /^\/app\/settings\/data\/withdraw$/],
     ['dataRights.ts', /^\/app\/settings\/data\/delete$/],
+    // 0126 — the owner's two erasures: a customer's data now, the whole workspace on closing.
+    ['dataRights.ts', /^\/app\/settings\/data\/close$/],
+    ['dataRights.ts', /^\/app\/conversations\/\$\{[^}]+\}\/deletion\/erase$/],
+    ['conversations.ts', /\/deletion\/erase$/],
     ['conversations.ts', /\/deletion\/dismiss$/],
     ['inbox.ts', /\/proof\/revoke$/],
     ['people.ts', /\/people\/\$\{[^}]+\}\/remove$/],
@@ -548,7 +553,7 @@ describe('CC-29 · everything that takes something away asks first, the one way 
   ];
 
   it('and nothing that takes something away slips past: any form whose address says so asks — or offers Undo', () => {
-    const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop)$|^\/app\/channels\/outreach$/;
+    const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop|erase|close)$|^\/app\/channels\/outreach$/;
     const undone = (f: { file: string; action: string }) => UNDONE.some(([file, a]) => f.file === `${WEB}/${file}` && a.test(f.action));
     const silent = forms.filter((f) => TAKES.test(f.action) && !f.text.includes(ASK) && !undone(f)).map((f) => `${f.file} ${f.action}`);
     expect(silent).toEqual([]);
@@ -578,10 +583,10 @@ describe('CC-29 · everything that takes something away asks first, the one way 
   it('left one tap on purpose: they take nothing away (an answer, a hand-back)', () => {
     // Considered on 2026-09-28 and kept as they are. A spot-check answer is
     // the owner answering the page's question; handing back and "leave it" are
-    // decisions about one conversation; recording a deletion request can be
-    // taken back on Your data. Practice's Start over left this list with P6: it
-    // ERASES now (0089), so it asks first.
-    const oneTap = ['/app/inbox/${cid}/resume', '/app/outbound/${esc(u.outboundId)}/leave', '${here}/deletion'];
+    // decisions about one conversation. Practice's Start over left this list
+    // with P6: it ERASES now (0089), so it asks first. Recording a deletion
+    // request left it with 0126: the one act now deletes, so it asks first.
+    const oneTap = ['/app/inbox/${cid}/resume', '/app/outbound/${esc(u.outboundId)}/leave'];
     for (const a of oneTap) {
       const f = forms.find((x) => x.action === a);
       expect(f, a).toBeDefined();

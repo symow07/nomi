@@ -8,6 +8,7 @@ import { readAttention, type AttentionCounts } from './operations.js';
 import { isRefusal, UNCERTAIN } from './refusals.js';
 import { conversationUrl } from './layout.js';
 import { QUEUES } from '../../queue/boss.js';
+import { providerRefusing } from '../../db/providerState.js';
 import { billingState } from '../../db/billing.js';
 import type { LiveWatch } from './flash.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
@@ -85,14 +86,15 @@ const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
  *
  *   conversation  `<buyer messages>.<the reply waiting, or 0>.<eight hex of who holds it and what did not go>`
  *   buyers        `<conversations>.<sixteen hex of the list's fingerprint>`
- *   today         `<replies waiting>.<waiting for a person>.<held by a person>.<did not go>.<deletion asked>`
+ *   today         `<replies waiting>.<waiting for a person>.<held by a person>.<did not go>.<deletion asked>.<orders waiting>`,
+ *                 then `.1` while the model provider refuses for billing (0128)
  *   channels      `<channels a customer wrote on>.<sixteen hex of when, and of the Page connection>`
  *   practice      a conversation's shape, the first figure counting BOTH sides (P3)
  */
 const MARK: Record<LiveKind, RegExp> = {
   conversation: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
   buyers: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
-  today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}$`),
+  today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}(?:\\.1)?$`),
   channels: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
   practice: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
   // Phase 6 — billing: whether a card is saved, and the plan's state.
@@ -205,8 +207,11 @@ export async function buyersMark(db: Db, bid: BusinessId): Promise<string> {
  */
 export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks' | 'ordersWaiting'> & {
   readonly deletionAsks?: number; readonly ordersWaiting?: number;
-}): string =>
-  [a.pendingApprovals, a.handoffs, a.ownerHandling, a.blockedMessages, a.deletionAsks ?? 0, a.ordersWaiting ?? 0].join('.');
+}, providerRefusing = false): string =>
+  [a.pendingApprovals, a.handoffs, a.ownerHandling, a.blockedMessages, a.deletionAsks ?? 0, a.ordersWaiting ?? 0,
+    // 0128 — the line Today draws while the model provider refuses for billing:
+    // when it starts or ends, an open Today redraws itself, so the line comes and goes.
+    ...(providerRefusing ? [1] : [])].join('.');
 
 /**
  * PHASE 5 OF THE UI REBUILD (2026-10-02) — IS THE ASSISTANT AT WORK ON THIS
@@ -284,7 +289,7 @@ export async function liveAnswer(
     : kind === 'buyers' ? await buyersMark(db, bid)
     : kind === 'channels' ? await channelsMark(db, bid)
     : kind === 'billing' ? await billingMark(db, bid)
-    : todayMark(await readAttention(db, bid));
+    : todayMark(await readAttention(db, bid), await providerRefusing(db));
   if (now === null) return { status: 404, said: { news: false } };
   const news = liveNews(kind, since, now);
   // Phase 5 — a conversation and Practice also say whether the assistant is at work on it.

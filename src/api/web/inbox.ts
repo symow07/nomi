@@ -18,7 +18,7 @@ import { formatList, labelled, dayKey } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
-import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork } from './layout.js';
+import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork, NEEDS_ACT } from './layout.js';
 import { face, faceLink } from './faces.js';
 import { icon } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -33,7 +33,6 @@ import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals
 import { orderConfirmedReply } from '../../core/conversation/templates.js';
 import { fixedLanguage } from '../../core/conversation/gateLanguage.js';
 import { buyerDeletionOf } from './dataRights.js';
-import { deletionDueBy } from '../../core/ops/deletions.js';
 import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, lensOf, lastQuoteGiven, type BuyersFilter, type BuyersLens } from '../../db/buyersList.js';
 import { customerValues, REGULAR_ORDERS } from '../../db/customerValue.js';
 import { faceVersions } from '../../db/faces.js';
@@ -578,6 +577,12 @@ export type LastHumanAction = {
 
 export type ConversationDetail = {
   readonly conversationId: string;
+  /**
+   * 0128 — the model provider refuses for billing right now (Nomi's own
+   * account with it is out of credit): the page says so while it lasts.
+   * Absent = it answers.
+   */
+  readonly providerRefusing?: boolean;
   readonly buyer: string | null;
   /**
    * A5 — which assistant answers this conversation. Named only when the
@@ -1768,7 +1773,7 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       <div class="acts">
         <form method="post" action="${esc(to.confirm)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
-          <button class="btn send" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
+          <button class="${NEEDS_ACT}" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
         </form>
         <form method="post" action="${esc(to.stepIn)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
@@ -1850,10 +1855,10 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${last}
         ${takeFromColleague}
         ${handToForm}
-        <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
+        ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
           <textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
-          <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+          <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
@@ -2195,7 +2200,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
         ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
              CC-26 — and what is typed in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="reply" name="edit" rows="${replyRows(p.ownerEdit ?? p.draftText)}" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
         <div class="acts">
-          <button class="btn send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
+          <button class="${NEEDS_ACT}" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
           <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
         </div>
         ${/* Phase 9 (V1-237) — the owner's call (2026-10-03): "No reply needed" leaves the row of
@@ -2496,7 +2501,8 @@ export function renderConversationDetail(
    * 0076 — the card outlives the hand-off. Handing the conversation back
    * clears the hand-off's reason, not the request: while one noted from this
    * buyer's message waits, the card stays and says when it was noted; once the
-   * owner recorded one, a new ask says it is already recorded, and by when.
+   * owner recorded one, a new ask says it is already recorded, and since when
+   * (0126: the owner deletes it, on the customer's page; nothing waits for anyone else).
    */
   const deletionAsked = d.handoffReasons.includes('deletion_requested');
   const deletionCard = deletionAsked || d.deletionAsk
@@ -2507,7 +2513,7 @@ export function renderConversationDetail(
           ${d.deletionAsk
             ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.noted', { date: show.date(locale, d.deletionAsk.askedAt) }))}</div>`
             : d.deletionRecorded
-              ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.recorded', { due: show.date(locale, deletionDueBy(d.deletionRecorded.askedAt)) }))}</div>`
+              ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.recorded', { date: show.date(locale, d.deletionRecorded.askedAt) }))}</div>`
               : ''}
           <div class="rf-y muted">${esc(t(locale, 'deletionAsked.why'))}</div>
           <div class="rf-d">${viewer.isOwner
@@ -2516,6 +2522,31 @@ export function renderConversationDetail(
         </div>
       </div>`
     : '';
+
+  /**
+   * 0128 — handed over because the model provider refused for billing. The
+   * same three parts: nothing was written or sent; why — Nomi's own account
+   * ran out of credit, not the owner's, nothing to pay, Nomi's team told; what
+   * to do — reply in person. It stays with the conversation after the provider
+   * answers again, like every hand-over's reason. While the provider refuses,
+   * a conversation it has not touched says the same in one line, so no page
+   * leaves the owner waiting for a reply that cannot come.
+   */
+  const billingCard = d.handoffReasons.includes('provider_billing')
+    ? `<div class="card refused" id="provider-billing">
+        ${stateHead('warn', t(locale, 'providerBilling.title'))}
+        <div class="rf">
+          <div class="rf-w">${esc(t(locale, 'providerBilling.what', { name: assistantName(locale) }))}</div>
+          <div class="rf-y muted">${esc(t(locale, 'providerBilling.why'))}</div>
+          <div class="rf-d">${esc(t(locale, 'providerBilling.do'))}</div>
+        </div>
+      </div>`
+    : d.providerRefusing
+      ? `<div class="card refused" id="provider-billing">
+        ${stateHead('warn', t(locale, 'today.providerBilling.title', { name: assistantName(locale) }))}
+        <div class="rf"><div class="rf-y muted">${esc(t(locale, 'conv.providerBilling'))}</div></div>
+      </div>`
+      : '';
 
   /**
    * M44 — she promised no date, and this says which of her own closures is the
@@ -2595,6 +2626,7 @@ export function renderConversationDetail(
     ${working}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${takeoverCard(d, locale, now, viewer)}
+    ${billingCard}
     ${deletionCard}
     ${unheardCard}
     ${unreadableCard}

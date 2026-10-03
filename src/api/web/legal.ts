@@ -146,13 +146,14 @@ export function renderLegalTerms(l: Locale, email: string | null, home = '/site'
  * counted the days, and nothing told anyone. Every sentence here now names a
  * step the product or its operator performs:
  *
- *   HOW — the buyer asks the business (or writes to the legal address, and
- *   the operator passes it on); the business records it on the buyer's page
- *   (`askBuyerDeletion`); Nomi's operator carries it out by hand within 30
- *   days of that (docs/DATA-DELETION-RUNBOOK.md), told a week ahead by the
- *   daily check (`deletionDueAlert`); the business then sees it marked done
- *   and can tell the buyer. Nothing writes to the buyer by itself, and the
- *   page says so rather than leaving it to be assumed.
+ *   HOW (0126, the owner's direction of 2026-10-04) — the customer asks the
+ *   business, from the account they wrote from (or writes to the legal
+ *   address, and the operator passes it on); the business deletes their data
+ *   in Nomi, at once and for good (`erase_customer`); nothing writes to the
+ *   customer by itself, and the page says so. There is NO FORM here, and the
+ *   page says why: only the business knows which conversation is the
+ *   asker's, and a form anyone could fill in could erase someone else.
+ *   Closing a workspace erases everything in it (`close_workspace`).
  *
  *   WHAT IS DELETED and WHAT IS KEPT — the operator's contract, item by item,
  *   including the copies no deletion inside Nomi reaches (Meta's, the
@@ -170,10 +171,12 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
     <h2>${k('legal.deletion.how.title')}</h2>
     <ol>
       <li>${k('legal.deletion.step1')}</li>
-      ${list(['legal.deletion.step2', 'legal.deletion.step3', 'legal.deletion.step4'])}
+      ${list(['legal.deletion.step2', 'legal.deletion.step3'])}
     </ol>
     ${/* V1-071 — the other way to ask is its own sentence, not a second route inside step 1. */
       email ? `<p>${k('legal.deletion.viaUs')}</p>` : ''}
+    ${/* 0126 — why there is no form here, and what closing a workspace does. */ ''}<p>${k('legal.deletion.noForm')}</p>
+    <p>${k('legal.deletion.closed')}</p>
     <h2>${k('legal.deletion.erased.title')}</h2>
     <ul>${list([
       // w4-public-02 — the photo, which the operator's buyer erasure erases (`client_faces: { do: 'erase' }`).
@@ -184,6 +187,8 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
     <ul>${list([
       'legal.deletion.kept.orders', 'legal.deletion.kept.doNotContact', 'legal.deletion.kept.record',
       'legal.deletion.kept.meta', 'legal.deletion.kept.elsewhere', 'legal.deletion.kept.backups',
+      // 0126 — a restore brings nobody back: tools/replay-erasures.mjs, docs/BACKUP-RESTORE.md.
+      'legal.deletion.kept.restored',
     ])}</ul>
     ${contact(l, email, !email)}
     <p><a href="/privacy">${k('legal.privacyLink')}</a> · <a href="/terms">${k('legal.termsLink')}</a></p>

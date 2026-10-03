@@ -355,6 +355,21 @@ describe('phase 5 · asking first in the product\'s own dialog, not the browser\
     expect(p.form.submitted).toEqual([p.button]);
   });
 
+  // 0126 — a form that erases carries asked=0; the dialog's yes turns it to 1, so the route knows it asked.
+  // With no script it arrives as 0, and the route answers with a page that asks.
+  it('a form that erases goes with asked=1 only when the dialog said yes', () => {
+    const p = asks({ dialogs: true });
+    const asked = p.form.appendChild(new Nd('INPUT', { name: 'asked', type: 'hidden' }));
+    asked.value = '0';
+    p.doc.fire('click', p.button);
+    for (const fn of p.no.listeners.get('click') ?? []) fn({});
+    expect(asked.value).toBe('0');
+    p.doc.fire('click', p.button);
+    for (const fn of p.yes.listeners.get('click') ?? []) fn({});
+    expect(asked.value).toBe('1');
+    expect(p.form.submitted).toEqual([p.button]);
+  });
+
   it('in a browser without dialogs the click goes through, and the button asks the old way', () => {
     const p = asks({ dialogs: false });
     const ev = p.doc.fire('click', p.button);

@@ -84,22 +84,24 @@ export type WaitingAsk = {
   /** Their message, when it is still there. */
   readonly words: string | null;
   readonly buyer: string | null;
+  /** The warmth pass — who asked, for their face on Your data's list. */
+  readonly clientId?: string | null;
 };
 
 type AskRow = {
   id: string; asked_at: Date; asks: number; conversation_id: string;
-  words: string | null; buyer: string | null;
+  words: string | null; buyer: string | null; client_id: string | null;
 };
 const askOf = (r: AskRow): WaitingAsk => ({
   id: r.id, askedAt: r.asked_at, asks: r.asks, conversationId: r.conversation_id,
-  words: r.words, buyer: r.buyer,
+  words: r.words, buyer: r.buyer, clientId: r.client_id,
 });
 
 /** The waiting request of THIS conversation's buyer, from any of their conversations. */
 export async function waitingAskOf(tx: Tx, conversationId: string): Promise<WaitingAsk | null> {
   const r = (await sql<AskRow>`
     select a.id::text as id, a.asked_at, a.asks, a.conversation_id::text as conversation_id,
-           m.text_content as words, c.display_name as buyer
+           m.text_content as words, c.display_name as buyer, a.client_id::text as client_id
       from deletion_asks a
       left join messages m on m.id = a.message_id
       left join clients c on c.id = a.client_id
@@ -113,7 +115,7 @@ export async function waitingAskOf(tx: Tx, conversationId: string): Promise<Wait
 export async function waitingAsks(tx: Tx, businessId: BusinessId): Promise<readonly WaitingAsk[]> {
   return (await sql<AskRow>`
     select a.id::text as id, a.asked_at, a.asks, a.conversation_id::text as conversation_id,
-           m.text_content as words, c.display_name as buyer
+           m.text_content as words, c.display_name as buyer, a.client_id::text as client_id
       from deletion_asks a
       left join messages m on m.id = a.message_id
       left join clients c on c.id = a.client_id

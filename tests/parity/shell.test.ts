@@ -150,7 +150,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
   it('no ground colour is used as a foreground', async () => {
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);
-    const grounds = /(^|[^-])color:\s*var\(--color-(paper|paper-sunk|border|[a-z]+-wash|[a-z]+-line)\)/g;
+    const grounds = /(^|[^-])color:\s*var\(--color-(paper|sand|paper-sunk|border|[a-z]+-wash|[a-z]+-line)\)/g;
     const offences: string[] = [];
     for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts'))) {
       const src = await readFile(new URL(f, dir), 'utf8');
@@ -192,7 +192,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
       const src = (await readFile(new URL(f, dir), 'utf8')).replace(cssVariables(), '');
       for (const m of src.matchAll(/([^{};]+)\{([^}]*)\}/g)) {
         const [, selector, body] = m as unknown as [string, string, string];
-        if (!/var\(--color-(ok|warn|waiting)[a-z-]*\)/.test(body)) continue;
+        if (!/var\(--color-(ok|warn|needs)[a-z-]*\)/.test(body)) continue;
         if (!STATE_FRAGMENTS.some((frag) => selector.includes(frag))) {
           offences.push(`${f}: ${selector.trim().slice(0, 60)}`);
         }

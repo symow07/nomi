@@ -13,6 +13,18 @@ import { PgBoss } from 'pg-boss';
  * Money gets a database invariant, not just a queue guarantee.
  */
 
+/**
+ * Queues that no longer run, kept by name only so a boot can take their
+ * schedules out of pg-boss's own table. RET (0116) erased never-connected
+ * workspaces after 90 days; 0126 retired it.
+ */
+export const RETIRED_QUEUES = { retention: 'ops.retention' } as const;
+
+/** Every boot: a retired queue's schedule, if anything wrote it back, goes. */
+export async function unscheduleRetired(boss: { unschedule(name: string): Promise<void> }): Promise<void> {
+  for (const name of Object.values(RETIRED_QUEUES)) await boss.unschedule(name).catch(() => undefined);
+}
+
 export const QUEUES = {
   /** one job per inbound message; serialized per conversation */
   inbound: 'message.inbound',
@@ -82,14 +94,21 @@ export const QUEUES = {
   allowance: 'ops.allowance',
   /** R5 — once a day: spot checks offered on work that went out alone. */
   spotChecks: 'trust.spot_checks',
-  /** RET (0116) — once a day: the warnings before a never-connected workspace is erased. */
-  retention: 'ops.retention',
   /**
    * THE WARMTH RUN (0123) — every ten minutes: the photos of Instagram and
    * Messenger customers who are due a look (`faces_due`), fetched and kept
    * (src/worker/faces.ts). No page ever waits on this.
    */
   faces: 'ops.faces',
+  /**
+   * BILLING RESILIENCE (0128) — every five minutes: while the model provider
+   * refuses for billing, one small call asks whether it answers again, the
+   * operator's escalating alert goes when it is due, and the "it answers
+   * again" notice once it does (src/pipeline/providerWatch.ts).
+   */
+  provider: 'ops.provider',
+  /** …and every hour, where the provider has a balance to read (DeepSeek): the low-balance steps. */
+  providerBalance: 'ops.provider_balance',
 } as const;
 
 /** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */
@@ -198,8 +217,9 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused' | 'retention_warning'
-    | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit';
+  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
+    | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
+    | 'provider_refusing' | 'provider_answering' | 'provider_balance';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -228,10 +248,6 @@ export type NotifyJob = {
   mail?: { codes: number; alerts: number; refused: number };
   /** `signup_digest` (KS6): asks to connect a first channel waiting for the operator. */
   approvals?: number;
-  /** `signup_digest` (RET): workspaces past their date, warned twice, waiting for the operator's command. */
-  retentionDue?: number;
-  /** `retention_warning` (RET): the day the workspace will be erased, `YYYY-MM-DD`. */
-  eraseOn?: string;
   /** BILL: the trial's end (`billing_trial_ending`), ISO. */
   billingAt?: string;
   /** `spend_breaker` (KS5): the installation's day so far, and its ceiling. */
@@ -241,6 +257,18 @@ export type NotifyJob = {
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */
   allowancePct?: number;
   renewsAt?: string;
+  /**
+   * `provider_refusing` / `provider_answering` (0128): the model provider's
+   * billing refusal — who (the provider's name), since when (ISO), which step
+   * of the escalation (0 = the first), its own words; and for the end, until
+   * when. The operator's only: never sent to an owner.
+   */
+  providerRefusal?: { provider: string; since: string; step: number; words: string; until?: string };
+  /**
+   * `provider_balance` (0128): the step, the paying currency's figures, the
+   * floor and the days left at the recent spend. The operator's only.
+   */
+  providerBalance?: { provider: string; step: string; currency: string; total: number; floor: number | null; daysLeft: number | null; available: boolean };
 };
 
 /**

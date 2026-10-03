@@ -206,7 +206,8 @@ describe('M49 · colour once or twice per screen', () => {
     for (const { f, src } of await renderers()) {
       const onLinks = new Set([...src.matchAll(/<a\b[^>]*?class="([^"$]+)"/g)].flatMap((m) => m[1]!.split(/\s+/)));
       for (const r of rules(src)) {
-        if (!/(?<![\w-])color\s*:\s*var\(--color-assistant/.test(r.body)) continue;
+        // The warmth pass — neither magenta: a link is ink (the deep one says "waiting", the light one "Nomi did this").
+        if (!/(?<![\w-])color\s*:\s*var\(--color-(assistant|needs)/.test(r.body)) continue;
         for (const sel of r.selectors) {
           if (/:hover|:focus/.test(sel)) continue;          // feedback on the pointer, not a resting colour
           const last = sel.split(/\s+/).pop() ?? '';
@@ -306,6 +307,8 @@ describe('M49 · buttons and empty states', () => {
       // Phase 9 of the warmth run — the month on a phone: seven narrow columns, each day a face over its signal.
       ['layout.ts  .mo thead th', 'the weekday over its narrow column, on a phone where the week fits the screen'],
       ['layout.ts  .mo td.today .cal-now', 'today\'s word under its date, centred in the day\'s narrow cell on a phone'],
+      // The owner's correction (2026-10-04) — "+2 / more" on two lines under the centred faces, clear of the chosen day's ring.
+      ['layout.ts  .mo-more', '"+N more" in a day\'s narrow cell on a phone, centred under the faces it follows when it takes two lines'],
     ]);
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {

@@ -108,22 +108,22 @@ describe('Legal pages · what a stranger may read', () => {
     expect(t('en', 'legal.terms.intro')).toContain('privacy page');
   });
 
-  it('what is promised is what the operator can keep: a PERSON, by hand, within thirty days', () => {
-    // This used to pin the SENTENCE ("30 days") and nothing else, which read as
-    // assurance that the promise was covered. It was not: the app role holds no
-    // DELETE on any table (migration 0005 and seven `revoke delete` since), so
-    // nothing in the product can remove a record. What the page may promise is
-    // therefore what a person does — and it must say so out loud.
-    // CC-02a — that person is Nomi's operator, and the step is step 3; the
-    // whole page is held by tests/parity/deletion-page.test.ts.
+  it('what is promised is what the product does (0126): the business deletes, at once, and nothing is said to be by hand', () => {
+    // Until 0126 this held "a PERSON, by hand, within thirty days": the app
+    // role holds no DELETE on any table, so nothing in the product could remove
+    // a record. Since 0126 the business's own act erases, through a definer
+    // function the app may call (`erase_customer`) — the role still holds no
+    // DELETE (tests/integration/grants.test.ts). The page now says exactly
+    // that, and no longer promises an operator or a delay.
+    // The whole page is held by tests/parity/deletion-page.test.ts.
+    expect(t('en', 'legal.deletion.step2')).toMatch(/deletes your data there\. It is deleted at once: gone, not hidden/);
     for (const l of LOCALES) {
-      expect(t(l, 'legal.deletion.step3'), `${l} must keep the window`).toContain('30');
+      expect(t(l, 'legal.deletion.step2'), l).not.toContain('30');
+      expect(t(l, 'legal.deletion.step3'), l).not.toContain('30');
     }
-    expect(t('en', 'legal.deletion.step3')).toMatch(/by hand/i);
-    // …and must not say the product does it, in any language.
-    expect(t('en', 'legal.deletion.step3')).not.toMatch(/are removed from Nomi/i);
-    expect(t('zh', 'legal.deletion.step3')).toContain('手动');
-    expect(t('ar', 'legal.deletion.step3')).toContain('يدويًا');
+    expect(t('en', 'legal.deletion.step3')).not.toMatch(/by hand/i);
+    expect(t('zh', 'legal.deletion.step3')).not.toContain('手动');
+    expect(t('ar', 'legal.deletion.step3')).not.toContain('يدويًا');
   });
 });
 

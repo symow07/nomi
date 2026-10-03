@@ -40,8 +40,11 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'order.flash.allowance_used', 'order.flash.billing_lapsed',
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
-  // CC-02a — a buyer's deletion request that was not recorded.
-  'conv.deletion.flash.already_open', 'conv.deletion.flash.note_missing', 'conv.deletion.flash.note_long',
+  // 0126 — nothing was deleted or closed: the old form, the installation's own workspace, a paid plan, a reply in hand, a refusal.
+  'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.busy', 'data.flash.eraseRefused',
+  'conv.deletion.flash.moved',
+  // CC-02a — a customer's deletion that was not carried out: how they asked is missing, or too long.
+  'conv.deletion.flash.note_missing', 'conv.deletion.flash.note_long',
   // 0076 — a noted request that was already decided: nothing changed.
   'conv.deletion.flash.not_waiting',
   // P5 — a practice message Practice would not take: the day's are used, or the operator paused it.
@@ -143,9 +146,10 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // WA-S — asked of Meta, Meta's answers read, a reply reopening the window.
   'channel.wa.template.flash.submitted', 'channel.wa.template.flash.checked', 'inbox.flash.reopening',
   'data.flash.asked', 'data.flash.withdrawn',
-  'conv.deletion.flash.asked',
+  // 0126 — deleted, and what stayed.
+  'data.flash.erased', 'data.flash.erasedOrders', 'data.flash.erasedDoNotContact', 'data.flash.erasedRecord',
   // 0076 — a noted request recorded, or set aside as not one: both happened.
-  'conv.deletion.flash.recordedAsk', 'conv.deletion.flash.dismissed',
+  'conv.deletion.flash.dismissed',
   'contacts.flash.attested', 'contacts.flash.queued', 'contacts.flash.suppressed',
   'contacts.lookup.flash.found', 'contacts.lookup.flash.reused', 'conv.assistant.flash.changed',
   'conv.flash.nameCleared', 'conv.flash.nameSaved', 'domain.flash.checked', 'domain.flash.saved',

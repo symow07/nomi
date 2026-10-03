@@ -274,7 +274,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       select name from businesses where id = ${RUN_BIZ}::uuid`.execute(tx).then((r) => r.rows[0]!.name));
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const ASK = 'onclick="return confirm(this.dataset.confirm)"';
-    const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop)$|^\/app\/channels\/outreach$/;
+    const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop|erase|close)$|^\/app\/channels\/outreach$/;
     // Phase 5 — these set something aside at once, and the notice that follows carries Undo
     // (audit-closeout.test.ts holds which, and that each route offers it).
     const UNDONE = /^\/app\/settings\/forbidden\/[0-9a-f-]{36}\/remove$|^\/app\/settings\/closures\/[0-9a-f-]{36}\/remove$|^\/app\/knowledge\/archive$|^\/app\/calendar\/entries\/[0-9a-f-]{36}\/remove$/;

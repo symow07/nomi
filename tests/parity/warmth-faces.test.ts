@@ -60,17 +60,19 @@ describe('a face: the photo where there is one, a coloured initial where there i
     expect(seen.size).toBe(8);
   });
 
-  it('eight tints, each initial at least 6:1 on its ground; none is magenta\'s, nor a state\'s', () => {
+  // The warmth pass (2026-10-04) — real colour: full mid-tones under a white letter, at least 4.5:1 (the
+  // owner's bar); their distance from both magentas and from the states is computed in warmth-pass.test.ts.
+  it('eight tints, each initial at least 4.5:1 on its ground; none is magenta\'s, nor a state\'s', () => {
     const tints = DESIGN_TOKENS.faceTint;
     expect(tints).toHaveLength(8);
     for (const f of tints) {
-      expect(contrast(f.fg, f.bg), `${f.fg} on ${f.bg}`).toBeGreaterThanOrEqual(6);
+      expect(contrast(f.fg, f.bg), `${f.fg} on ${f.bg}`).toBeGreaterThanOrEqual(4.5);
       const h = hue(f.bg);
       expect(h < 300 || h > 350, `${f.bg} is not magenta`).toBe(true);
     }
-    const values = tints.flatMap((f) => [f.bg, f.fg]);
+    const values = tints.map((f) => f.bg);
     const C = DESIGN_TOKENS.color;
-    for (const state of [C.ok, C.okWash, C.waiting, C.waitingWash, C.warn, C.warnWash, C.assistant, C.assistantWash]) expect(values).not.toContain(state);
+    for (const state of [C.ok, C.okWash, C.needs, C.needsWash, C.warn, C.warnWash, C.assistant, C.assistantWash]) expect(values).not.toContain(state);
   });
 
   it('no photo: the initial on its tint, hidden from a screen reader; never an <img>', () => {

@@ -45,7 +45,9 @@ d('erase-workspace: nothing of a workspace is left anywhere (requires DATABASE_U
         from pg_class c
         join pg_namespace n on n.oid = c.relnamespace
         join information_schema.columns k on k.table_schema = n.nspname and k.table_name = c.relname and k.column_name = 'business_id'
-       where c.relkind = 'r' and n.nspname in ('public', 'shadow')`)).rows as { s: string; t: string }[];
+       where c.relkind = 'r' and n.nspname in ('public', 'shadow')
+         -- 0126 — the ids-only record of the erasure outlives the workspace on purpose; asserted on its own.
+         and c.relname <> 'erasure_ledger'`)).rows as { s: string; t: string }[];
     const out: Record<string, number> = {};
     for (const { s, t } of tables) {
       const n = (await db.query(`select count(*)::int as n from ${s}.${t} where business_id = $1`, [biz])).rows[0].n as number;
@@ -144,5 +146,10 @@ d('erase-workspace: nothing of a workspace is left anywhere (requires DATABASE_U
     expect(await footprint(W1)).toEqual({});
     expect(await footprint(copy)).toEqual({});
     expect(await footprint(W2)).toEqual(neighbour);
+    // 0126 — what is left is the ledger's line: ids, who, when, how many rows. Nothing that was erased.
+    const ledger = (await db.query(`select kind, customer_id, via, by_who, counts from erasure_ledger where business_id = $1`, [W1])).rows;
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({ kind: 'workspace', customer_id: null, via: 'operator', by_who: 'operator' });
+    expect(JSON.stringify(ledger[0])).not.toMatch(/hello|A Buyer|a buyer said this|Erase Me/);
   });
 });

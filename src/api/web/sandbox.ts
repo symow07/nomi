@@ -11,7 +11,7 @@ import { t, assistantName } from './say.js';
 import { labelled } from '../../core/owner/i18n/format.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { PracticeTrust } from '../../trust/practiceChecks.js';
-import { esc, deeper, back, byAssistant } from './layout.js';
+import { esc, deeper, back, byAssistant, NEEDS_ACT } from './layout.js';
 import { dayKey } from '../../core/owner/i18n/format.js';
 import { workspaceZone } from './zone.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -322,7 +322,7 @@ function sandboxTakeoverCard(view: SandboxView, locale: Locale): string {
         <span class="pill owner">${esc(t(locale, 'takeover.status.owner'))}</span>
         <form method="post" action="/app/sandbox/reply" class="replyform">
           <textarea name="text" rows="2" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required></textarea>
-          <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+          <button class="${NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         <form method="post" action="/app/sandbox/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;

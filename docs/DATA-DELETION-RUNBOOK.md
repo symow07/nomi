@@ -3,6 +3,33 @@
 Written for whoever operates this installation. Everything below is done by a
 person, on purpose, and none of it can be undone.
 
+## Since 0126 (2026-10-04): the owner deletes; this runbook is the exception
+
+The owner's direction: a customer's conversations are kept while the workspace
+is active, and deleted when the customer asks, or when the workspace closes —
+never "after 90 days" (RET, 0116, is retired: no job, no warning, no switch).
+
+- **A customer asks** (in chat, or the business is told another way): the
+  owner presses **Delete this customer's data now** on the customer's page or
+  on Your data. That records the request and erases, at once, in one
+  transaction, through `erase_customer` (0126) — exactly the contract below
+  ("What goes, and what stays"), because `tools/erase-buyer.mjs` calls the same
+  database function (`carry_out_customer_request`) and refuses to run when its
+  RULES and `customer_erasure_contract()` differ.
+- **A workspace closes**: the owner types its name on Your data and presses
+  **Close and erase this workspace**: `close_workspace` erases everything, the
+  same steps `tools/erase-workspace.mjs` runs (`erase_workspace_rows`), and
+  signs everyone out.
+- **Every erasure leaves one ids-only line** in `erasure_ledger` (who was
+  erased by id, the request, who acted, when, the counts) and mails it to
+  `LEGAL_CONTACT_EMAIL`. After any restore, `tools/replay-erasures.mjs`
+  carries those lines out again before the app runs on the copy
+  (`docs/BACKUP-RESTORE.md`, "Restore", step 5). Keep the mails.
+
+The tools below are now for what the owner cannot do in the product: a request
+still open from before 0126 (both kinds), and the installation's own workspace,
+which is never closed from inside it — its owner's request lands here.
+
 ## Why a person does this at all
 
 The application role (`nomi_app`) holds no `DELETE` grant on any product table.
