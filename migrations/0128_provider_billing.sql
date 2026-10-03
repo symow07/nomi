@@ -82,7 +82,9 @@ revoke all on function provider_health_now() from public;
 grant execute on function provider_health_now() to nomi_app;
 
 -- A billing refusal: starts the outage, or counts another while it lasts.
--- `began` is true when this refusal started it.
+-- `began` is true when this refusal started it. Its start is kept to the
+-- millisecond: the app reads it back as a JavaScript date and names it again
+-- when it claims an alert, so it must survive the round trip exactly.
 create or replace function provider_refused(p_reason text, p_words text)
 returns table (since timestamptz, began boolean)
 language plpgsql volatile security definer set search_path = public as $$
@@ -90,7 +92,7 @@ declare was timestamptz;
 begin
   select h.refusing_since into was from provider_health h where h.id for update;
   update provider_health h set
-    refusing_since  = coalesce(h.refusing_since, now()),
+    refusing_since  = coalesce(h.refusing_since, date_trunc('milliseconds', now())),
     reason          = p_reason,
     last_refused_at = now(),
     refusals        = case when was is null then 1 else h.refusals + 1 end,
@@ -130,7 +132,8 @@ language plpgsql volatile security definer set search_path = public as $$
 declare n integer;
 begin
   update provider_health h set alerts_sent = p_step + 1, last_alert_at = now()
-   where h.id and h.refusing_since = p_since and h.alerts_sent = p_step;
+   where h.id and date_trunc('milliseconds', h.refusing_since) = date_trunc('milliseconds', p_since)
+     and h.alerts_sent = p_step;
   get diagnostics n = row_count;
   return n > 0;
 end $$;

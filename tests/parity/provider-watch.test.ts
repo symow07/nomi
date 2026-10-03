@@ -148,3 +148,32 @@ describe('the steps: floor, three days, one day, unavailable', () => {
     expect(mostUrgent([])).toBeNull();
   });
 });
+
+describe('what counts as billing when a turn fails (the watch’s own question)', () => {
+  // A database nobody may touch: every case here must answer before any write.
+  const untouchable = new Proxy({}, { get: () => { throw new Error('the database was touched'); } }) as never;
+  const watchWith = async (readBalance: (() => Promise<BalanceReading | null>) | null) => {
+    const { providerWatch } = await import('../../src/pipeline/providerWatch.js');
+    return providerWatch({ db: untouchable, operatorBusinessId: null, send: async () => {}, provider: 'DeepSeek', probe: null, readBalance, log: () => {} });
+  };
+  const timeout = Object.assign(new Error('Request timed out.'), { name: 'APIConnectionTimeoutError' });
+
+  it('a timeout while the balance still pays is not billing: the queue retries it as before (rule 19)', async () => {
+    const w = await watchWith(async () => ({ available: true, lines: [{ currency: 'CNY', total: 50, granted: 0, toppedUp: 50 }] }));
+    expect(await w.billingReason(timeout)).toBeNull();
+  });
+  it('a timeout where no balance can be read (Anthropic) is not billing either', async () => {
+    expect(await (await watchWith(null)).billingReason(timeout)).toBeNull();
+  });
+  it('a balance that cannot be read is not taken for an empty one', async () => {
+    expect(await (await watchWith(async () => { throw new Error('network'); })).billingReason(timeout)).toBeNull();
+    expect(await (await watchWith(async () => null)).billingReason(timeout)).toBeNull();
+  });
+  it('an error that is not the provider’s is never billing, and asks no balance', async () => {
+    let asked = 0;
+    const w = await watchWith(async () => { asked++; return { available: false, lines: [] }; });
+    expect(await w.billingReason(new Error('relation "turns" does not exist'))).toBeNull();
+    expect(await w.billingReason(Object.assign(new Error('500'), { status: 500, error: { error: { message: 'Server Error' } } }))).toBeNull();
+    expect(asked).toBe(0);
+  });
+});
