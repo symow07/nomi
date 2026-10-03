@@ -1,5 +1,6 @@
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
+import { providerRefusing } from '../../db/providerState.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
@@ -2116,7 +2117,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
+      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention, snapshot.providerRefusing === true))),
     };
   }));
 
@@ -2205,6 +2206,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           from: today, to: addDays(today, 15), category: null, buyer: customer.clientId, outreach: outreachShown(),
         }, now)).entries.filter((e) => e.at >= now || e.allDay).slice(0, 4)
       : [];
+    // 0128 — whether the model provider refuses for billing, said on the page while it lasts.
+    const refusing = await providerRefusing(deps.db);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
@@ -2213,7 +2216,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         renderListPane(list, locale, now, conversationId, people,
           list.conversations.find((c) => c.conversationId === conversationId)
             ?? { ...paneRowOf(detail), ...(customer ? { clientId: customer.clientId } : {}) }),
-        renderConversationDetail({ ...withProof, catchUp }, locale, now, flash, personOf(s)),
+        renderConversationDetail({ ...withProof, catchUp, providerRefusing: refusing }, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live:

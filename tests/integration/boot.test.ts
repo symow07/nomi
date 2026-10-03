@@ -128,7 +128,8 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
   it('health reports process + database + active provider', async () => {
     const res = await prod.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'active' });
+    // 0128 — and whether the model provider answers (`refusing` while it refuses for billing).
+    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'active', model: 'answering' });
     expect(prod.channels).toEqual(['whatsapp']);
   });
 
@@ -305,7 +306,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   it('boots and health reports database + worker healthy, provider disabled', async () => {
     const res = await prod.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled' });
+    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled', model: 'answering' });
     expect(prod.channels, 'deployment mode mounted a channel').toEqual([]);
   });
 
@@ -1705,7 +1706,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const res = await prod.app.inject({ method: 'GET', url: '/health' });
       expect(res.statusCode).toBe(200);
       // exactly these keys — adding build info here would leak it publicly
-      expect(Object.keys(res.json() as object).sort()).toEqual(['db', 'ok', 'provider', 'worker']);
+      // 0128 — `model`: answering or refusing (billing), a state, never a build fact.
+      expect(Object.keys(res.json() as object).sort()).toEqual(['db', 'model', 'ok', 'provider', 'worker']);
       const body = res.body.toLowerCase();
       for (const leak of ['commit', 'sha', 'branch', 'version', 'railway']) {
         expect(body.includes(leak), `/health leaks "${leak}"`).toBe(false);

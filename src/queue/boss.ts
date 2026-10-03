@@ -90,6 +90,15 @@ export const QUEUES = {
    * (src/worker/faces.ts). No page ever waits on this.
    */
   faces: 'ops.faces',
+  /**
+   * BILLING RESILIENCE (0128) — every five minutes: while the model provider
+   * refuses for billing, one small call asks whether it answers again, the
+   * operator's escalating alert goes when it is due, and the "it answers
+   * again" notice once it does (src/pipeline/providerWatch.ts).
+   */
+  provider: 'ops.provider',
+  /** …and every hour, where the provider has a balance to read (DeepSeek): the low-balance steps. */
+  providerBalance: 'ops.provider_balance',
 } as const;
 
 /** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */
@@ -199,7 +208,8 @@ export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
   kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused' | 'retention_warning'
-    | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit';
+    | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
+    | 'provider_refusing' | 'provider_answering' | 'provider_balance';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -241,6 +251,18 @@ export type NotifyJob = {
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */
   allowancePct?: number;
   renewsAt?: string;
+  /**
+   * `provider_refusing` / `provider_answering` (0128): the model provider's
+   * billing refusal — who (the provider's name), since when (ISO), which step
+   * of the escalation (0 = the first), its own words; and for the end, until
+   * when. The operator's only: never sent to an owner.
+   */
+  providerRefusal?: { provider: string; since: string; step: number; words: string; until?: string };
+  /**
+   * `provider_balance` (0128): the step, the paying currency's figures, the
+   * floor and the days left at the recent spend. The operator's only.
+   */
+  providerBalance?: { provider: string; step: string; currency: string; total: number; floor: number | null; daysLeft: number | null; available: boolean };
 };
 
 /**

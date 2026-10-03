@@ -578,6 +578,12 @@ export type LastHumanAction = {
 
 export type ConversationDetail = {
   readonly conversationId: string;
+  /**
+   * 0128 — the model provider refuses for billing right now (Nomi's own
+   * account with it is out of credit): the page says so while it lasts.
+   * Absent = it answers.
+   */
+  readonly providerRefusing?: boolean;
   readonly buyer: string | null;
   /**
    * A5 — which assistant answers this conversation. Named only when the
@@ -2518,6 +2524,31 @@ export function renderConversationDetail(
     : '';
 
   /**
+   * 0128 — handed over because the model provider refused for billing. The
+   * same three parts: nothing was written or sent; why — Nomi's own account
+   * ran out of credit, not the owner's, nothing to pay, Nomi's team told; what
+   * to do — reply in person. It stays with the conversation after the provider
+   * answers again, like every hand-over's reason. While the provider refuses,
+   * a conversation it has not touched says the same in one line, so no page
+   * leaves the owner waiting for a reply that cannot come.
+   */
+  const billingCard = d.handoffReasons.includes('provider_billing')
+    ? `<div class="card refused" id="provider-billing">
+        ${stateHead('warn', t(locale, 'providerBilling.title'))}
+        <div class="rf">
+          <div class="rf-w">${esc(t(locale, 'providerBilling.what', { name: assistantName(locale) }))}</div>
+          <div class="rf-y muted">${esc(t(locale, 'providerBilling.why'))}</div>
+          <div class="rf-d">${esc(t(locale, 'providerBilling.do'))}</div>
+        </div>
+      </div>`
+    : d.providerRefusing
+      ? `<div class="card refused" id="provider-billing">
+        ${stateHead('warn', t(locale, 'today.providerBilling.title', { name: assistantName(locale) }))}
+        <div class="rf"><div class="rf-y muted">${esc(t(locale, 'conv.providerBilling'))}</div></div>
+      </div>`
+      : '';
+
+  /**
    * M44 — she promised no date, and this says which of her own closures is the
    * reason. Same three-part shape as the refusal and unheard cards: what
    * happened, why, and what she can go and do about it.
@@ -2595,6 +2626,7 @@ export function renderConversationDetail(
     ${working}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${takeoverCard(d, locale, now, viewer)}
+    ${billingCard}
     ${deletionCard}
     ${unheardCard}
     ${unreadableCard}

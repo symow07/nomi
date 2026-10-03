@@ -32,6 +32,9 @@ import { redactSecrets } from '../security/credentials.js';
 import {
   appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
 } from './appErrors.js';
+import { providerWatch, deepSeekBalanceReader, type ProviderWatch } from '../pipeline/providerWatch.js';
+import { balanceEndpointFor, type BalanceReading } from '../core/ops/providerWatch.js';
+import { aiProcessor } from '../core/legal/processors.js';
 
 /**
  * Entrypoint 2: the worker. Becomes the LIVE engine at cutover — until then it
@@ -72,7 +75,17 @@ export async function startWorker(
    * photo through this worker needs a turn to COMPLETE, and a fake key would
    * make every turn a network failure against the real API.
    */
-  models: { analyzer?: Analyzer; replyWriter?: ReplyWriter; vision?: VisionDescriber } = {},
+  models: {
+    analyzer?: Analyzer; replyWriter?: ReplyWriter; vision?: VisionDescriber;
+    /**
+     * 0128 — the provider watch's two outside calls, for tests only: the small
+     * call that asks whether the provider answers again, and its balance. A
+     * test that scripts any model port and not these gets neither — it never
+     * reaches a real provider (CLAUDE.md #48).
+     */
+    probe?: () => Promise<void>;
+    balance?: () => Promise<BalanceReading | null>;
+  } = {},
   /**
    * The pre-pilot walkthrough only: behave as if the AI disclosure had passed
    * native review, so it can prove what she does once autonomy is allowed.
@@ -97,10 +110,39 @@ export async function startWorker(
   reportJobFailures(boss, errors.report, isAppErrorAlertJob);
   // N6a — the same client, at whichever provider this installation pays for.
   const llm = llmProviderFrom(process.env, env.ANTHROPIC_API_KEY);
-  const anthropic = llmClient(llm);
+  // 0128 — every answer it sends tells the provider watch whether it refuses for billing.
+  let watchOf: ProviderWatch | null = null;
+  const anthropic = llmClient(llm, { observe: (a) => watchOf?.observe(a) });
 
   const { transcriber, audio, image: mediaFetcher, postCaption } = media;
   const extras = requestExtrasFor(llm);
+  /**
+   * 0128 — BILLING RESILIENCE: the provider's account, watched
+   * (src/pipeline/providerWatch.ts). Its two outside calls — the probe while
+   * refusing, and DeepSeek's balance — are production's own only: a test that
+   * scripts a model port and not these gets neither.
+   */
+  const scripted = Object.keys(models).length > 0;
+  const balanceAt = balanceEndpointFor(llm.baseURL);
+  const watch = providerWatch({
+    db,
+    operatorBusinessId: env.PILOT_BUSINESS_ID ?? null,
+    send: async (job, key) => { await boss.send(QUEUES.notify, job, { singletonKey: key }); },
+    provider: aiProcessor(llm.baseURL).name,
+    probe: models.probe ?? (scripted ? null : async () => {
+      // The smallest question there is; paid for only when it is answered, once per outage.
+      const res = await anthropic.messages.create({
+        model: llm.model, ...extras, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the word OK.' }],
+      }, { timeout: 20_000, maxRetries: 0 });
+      if (env.PILOT_BUSINESS_ID) {
+        await recordSpendAlone(db, env.PILOT_BUSINESS_ID,
+          { llmCalls: 1, inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens }, { turn: false });
+      }
+    }),
+    readBalance: models.balance ?? (scripted || !balanceAt ? null : deepSeekBalanceReader(balanceAt, llm.apiKey)),
+    floorSetting: process.env['LLM_BALANCE_FLOOR'],
+  });
+  watchOf = watch;
   const analyzer = models.analyzer ?? anthropicAnalyzer(anthropic, llm.model, extras);
   const replyWriter = models.replyWriter ?? anthropicReplyWriter(anthropic, llm.model, extras);
   const vision = models.vision ?? anthropicVision(anthropic, llm.model, extras);
@@ -213,6 +255,10 @@ export async function startWorker(
       // a turn is counted once, when it is kept (a retry is the same turn).
       if (spent) await recordSpendAlone(db, payer, spent, { turn: committed });
     });
+    // 0128 — the model answered this turn: if the provider was refusing for billing, it is back.
+    if ((spent as { llmCalls: number } | null)?.llmCalls) {
+      await watch.answered().catch((e: unknown) => console.warn(`[provider] could not record the answer: ${(e as Error).message}`));
+    }
 
     // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers
     // are idempotent (outbound keyed by messageId, notifications tolerated).
@@ -299,9 +345,34 @@ export async function startWorker(
       await onInbound(job);
     } catch (e) {
       console.error('[inbound failed]', redactSecrets(e instanceof Error ? e.message : String(e)).slice(0, 300));
+      // 0128 — refused for billing: retrying cannot help, so a person answers now.
+      if (job && await handOverForBilling(job, e)) return;
       throw e;
     }
   };
+
+  /**
+   * 0128 — BILLING RESILIENCE. The provider refused the turn for billing
+   * (Nomi's own account with it is out of credit), or gave no answer in time
+   * while its balance says it no longer pays for a call. Retrying cannot help —
+   * it answers the same way until somebody tops the account up — so the job is
+   * NOT retried: the customer goes to a person now, exactly as a turn the queue
+   * gave up on does (`handOverUnanswered`, rule 19: silent, nothing sent, the
+   * ordinary hand-off alert), under the real reason, `provider_billing`. The
+   * refusal is written down (the owner's pages say it; /health says
+   * `refusing`) and the operator is told (src/pipeline/providerWatch.ts).
+   * True when it was handled; false sends the error on to the queue's retry.
+   */
+  async function handOverForBilling(job: { data: InboundJob }, e: unknown): Promise<boolean> {
+    const words = await watch.billingReason(e).catch(() => null);
+    if (words === null) return false;
+    const u = unansweredIn(job.data);
+    if (!u) return true;    // nothing to hand over; the refusal is written down and the operator told
+    const effects = await withTenantTx(db, u.businessId, (tx) =>
+      handOverUnanswered(tx, tenantRepos(tx, u.businessId), u, { kind: 'provider_billing' }));
+    await alertHandoff(u.businessId, u.conversationId, effects);
+    return true;
+  }
   for (let i = 0; i < INBOUND_WORK.workers; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, (INBOUND_WORK.pollSeconds * 1000) / INBOUND_WORK.workers));
     await boss.work<InboundJob>(QUEUES.inbound, {
@@ -680,7 +751,7 @@ export async function startWorker(
     });
   }
 
-  return { db, boss, errors };
+  return { db, boss, errors, watch };
 }
 
 // Exact-file check: a suffix match ('main.js') also fires when this module is

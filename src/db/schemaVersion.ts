@@ -318,6 +318,9 @@ import type { Db } from './client.js';
 //       123 database every hand-over alert fails.
 // 125 = payment terms without a delivery term (0125): `trade_terms.incoterm` may be
 //       null. The terms page saves "No delivery term"; against a 124 database that save fails.
+// 128 = the model provider's account (0128): `provider_health`, `provider_refusing()`,
+//       the balance checks, and the hand-over reason 'provider_billing'. /health,
+//       Today and every model call read or write them; against a 125 database each fails.
 // 129 = a reset link only to an address that answered (0129): `logins.email_verified_at`,
 //       `login_email_proven()`. A code typed back on /verify writes it; against a 128
 //       database that write fails and no reset link is ever mailed.
