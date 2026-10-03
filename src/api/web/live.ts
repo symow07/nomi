@@ -208,18 +208,6 @@ export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks' | 'ordersWaiti
   [a.pendingApprovals, a.handoffs, a.ownerHandling, a.blockedMessages, a.deletionAsks ?? 0, a.ordersWaiting ?? 0].join('.');
 
 /**
- * 0080 — how many orders customers said yes to are waiting for the owner, in
- * the whole business. Every live answer carries it, whichever page asked, so a
- * page left open anywhere can tell the owner — in the browser, when they asked
- * for that — that a new one arrived (liveScript.ts).
- */
-export async function ordersWaitingCount(db: Db, bid: BusinessId): Promise<number> {
-  return withTenantTx(db, bid, async (tx) => (await sql<{ n: number }>`
-    select count(*)::int as n from order_proposals
-     where business_id = ${bid} and state = 'pending'`.execute(tx)).rows[0]?.n ?? 0);
-}
-
-/**
  * PHASE 5 OF THE UI REBUILD (2026-10-02) — IS THE ASSISTANT AT WORK ON THIS
  * CONVERSATION? A customer's message no turn has taken yet, from the last
  * fifteen minutes, in a conversation the assistant holds: a fragment with no
@@ -249,8 +237,13 @@ export async function assistantWorking(db: Db, bid: BusinessId, conversationId: 
                             and j.created_on > now() - make_interval(mins => ${WORKING_WINDOW_MIN})))) as working`.execute(tx)).rows[0]?.working === true);
 }
 
-/** What the address answers: the status, and what the page's script is told. */
-export type LiveAnswer = { readonly status: 200 | 400 | 404; readonly said: LiveSaid; readonly orders?: number };
+/**
+ * What the address answers: the status, and what the page's script is told.
+ * (0080's count of orders waiting rode on every answer, for the browser's own
+ * notice; the warmth run's phase 8 retired that notice — the rail's question
+ * says a customer newly waits, an order among them.)
+ */
+export type LiveAnswer = { readonly status: 200 | 400 | 404; readonly said: LiveSaid };
 
 /**
  * The address a watching page asks. The session has already said whose
@@ -276,9 +269,7 @@ export async function liveAnswer(
   const said: LiveSaid = ((kind === 'conversation' || kind === 'practice') && await assistantWorking(db, bid, conversationId))
     || (kind === 'billing' && now.startsWith('0.'))
     ? { ...news, working: true } : news;
-  // A practice copy's orders are not the workspace's: the rail's count is left as it is.
-  if (kind === 'practice') return { status: 200, said };
-  return { status: 200, said, orders: await ordersWaitingCount(db, bid) };
+  return { status: 200, said };
 }
 
 /**

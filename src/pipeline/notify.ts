@@ -15,7 +15,7 @@ import { zoneOf } from '../db/zone.js';
 import { conversationUrl } from '../core/owner/addresses.js';
 import { sendPush, type VapidKeys, type PushFetch } from '../net/webPush.js';
 import { archivePhone, markPhoneSent, type PhoneSubscription } from '../db/pushSubscriptions.js';
-import { alertChannelFor, ownerWhatsAppOpen, type AlertChannel } from '../core/owner/alertChannel.js';
+import { alertChannelFor, ownerWhatsAppReachable, type AlertChannel } from '../core/owner/alertChannel.js';
 import { interruptionPeople, ownerAlertFacts, type InterruptionPerson } from '../db/alertChannel.js';
 
 /**
@@ -350,7 +350,8 @@ export type NotifyDeps = {
   readonly push?: { readonly keys: VapidKeys; readonly fetch: PushFetch } | null;
   /**
    * Phase 8 of the warmth run — Meta approved Nomi (`META_APP_REVIEW=approved:<date>`,
-   * `metaReviewFrom`). Until it says so, WhatsApp is no one's way out of Nomi.
+   * `metaReviewFrom`). Until it says so, WhatsApp is not the default way out of
+   * Nomi; an owner may still choose it where their alert number is on a live channel.
    */
   readonly whatsappApproved?: boolean;
 };
@@ -461,28 +462,34 @@ export type Reached = { readonly outcome: AlertOutcome; readonly went: readonly 
 /**
  * THE ONE CHOICE OF WAY, for each person an interruption goes to: their
  * choice, or the default (`alertChannelFor`); and e-mail when that way cannot
- * be used now (WhatsApp before approval, Browser with no phone turned on) or
- * when it fails. Pure but for the ways it is handed, so a test asks it with
- * fakes.
+ * be used now (WhatsApp with no number on a live channel, Browser with no
+ * phone turned on) or when it fails — a WhatsApp outside Meta's day before
+ * approval among them. Pure but for the ways it is handed, so a test asks it
+ * with fakes.
+ *
+ * `mailOwnerAlways` — rule 18 (CLAUDE.md): a deletion request reaches the
+ * owner's sign-in address by e-mail ALWAYS, and the way the owner chose as
+ * well when that way is not e-mail.
  */
 export async function reachPeople(
   people: readonly InterruptionPerson[],
-  o: { readonly whatsappOpen: boolean; readonly pushOn: boolean },
+  o: { readonly whatsappReachable: boolean; readonly approved: boolean; readonly pushOn: boolean; readonly mailOwnerAlways?: boolean },
   ways: InterruptionWays,
 ): Promise<Reached> {
   const went: (AlertChannel | null)[] = [];
   let tried = false; let later = false;
   for (const p of people) {
-    const way = alertChannelFor(p.choice, { whatsapp: p.isOwner && o.whatsappOpen, browser: o.pushOn && p.phones.length > 0 });
+    const way = alertChannelFor(p.choice, {
+      whatsapp: p.isOwner && o.whatsappReachable, browser: o.pushOn && p.phones.length > 0, approved: o.approved });
     let r: WayResult | null = way === 'whatsapp' ? await ways.whatsapp()
       : way === 'browser' ? await ways.browser(p.phones) : null;
     let by: AlertChannel | null = r === 'sent' ? way : null;
     if (r !== null) { tried = true; if (r === 'later') later = true; }
-    // E-mail: the way chosen, or the floor under any other.
-    if (r !== 'sent' && ways.email && p.email) {
+    // E-mail: the way chosen, the floor under any other, or (a deletion request) always to the owner.
+    if ((r !== 'sent' || (o.mailOwnerAlways === true && p.isOwner)) && ways.email && p.email) {
       tried = true;
-      r = await ways.email(p.email);
-      if (r === 'sent') by = 'email'; else if (r === 'later') later = true;
+      const m = await ways.email(p.email);
+      if (m === 'sent') by ??= 'email'; else if (m === 'later') later = true;
     }
     went.push(by);
   }
@@ -506,10 +513,13 @@ export async function reachPeople(
  *   · browser — every phone or browser of theirs that turned alerts on (G5b):
  *     a phone the push service says is gone is archived;
  *   · WhatsApp — the owner's alert number, through the installation's adapter,
- *     only once Meta approved Nomi (`whatsappApproved`) and a channel is live.
+ *     where a channel is live: chosen, or the default once Meta approved Nomi
+ *     (`whatsappApproved`). Before approval a send outside Meta's day fails,
+ *     and e-mail carries it.
  *
- * A way that fails, or cannot be used now, falls back to e-mail. Nothing is
- * thrown once anyone was reached: a retry would tell them twice.
+ * A way that fails, or cannot be used now, falls back to e-mail; a deletion
+ * request is e-mailed to the owner always (rule 18). Nothing is thrown once
+ * anyone was reached: a retry would tell them twice.
  */
 export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
   const conversationId = job.conversationId && UUID.test(job.conversationId) ? job.conversationId : null;
@@ -532,8 +542,11 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
   const ownerPhone = found.ownerPhone;
 
   const r = await reachPeople(found.people, {
-    whatsappOpen: ownerWhatsAppOpen({ approved: deps.whatsappApproved === true, ownerPhone, channelLive: found.channelLive }),
+    whatsappReachable: ownerWhatsAppReachable({ ownerPhone, channelLive: found.channelLive }),
+    approved: deps.whatsappApproved === true,
     pushOn: push !== null,
+    // Rule 18 — a deletion request reaches the owner's sign-in address by e-mail always.
+    mailOwnerAlways: job.kind === 'deletion_requested',
   }, {
     email: deps.mail ? async (to) => {
       const m = await deps.mail!.send({ to, subject, text });

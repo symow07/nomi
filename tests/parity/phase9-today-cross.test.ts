@@ -210,8 +210,9 @@ describe('Phase 9 · Today', () => {
     }
     expect(css).toContain('[dir="rtl"] .cr-text:dir(ltr) { text-align:end; }');
   });
-  it('V1-093 · "tell me in this browser" is a button that looks like one', () => {
-    expect(todayHtml('en')).toContain(`<button type="button" class="btn" data-notify-ask hidden>${esc(t('en', 'live.notify.ask'))}</button>`);
+  it('V1-093 → phase 8 · Today offers no browser notice of its own: how anyone hears outside Nomi is chosen on Notifications', () => {
+    // The button V1-093 drew as a button is retired with the notice it asked for (the warmth run, phase 8).
+    expect(todayHtml('en')).not.toContain('data-notify');
   });
   it('V1-100, V1-102 · the setup line is the guide\'s count, named as the guide is; its door says what it shows', () => {
     for (const l of LOCALES) {

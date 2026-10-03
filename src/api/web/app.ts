@@ -52,7 +52,7 @@ import {
   defaultFilter, buyersHref, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, assistantWorking, billingMark, billingWatch, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, assistantWorking, billingMark, billingWatch, type LiveKind,
   railAnswer, railSaid,
   channelsMark, channelsWatch,
 } from './live.js';
@@ -1994,7 +1994,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, { ...todayWatch(todayMark(snapshot.attention)), orders: snapshot.attention.ordersWaiting ?? 0 }),
+      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
     };
   }));
 
@@ -2027,10 +2027,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
       // The door: the first page of the tab and the search she is on — where the newest lands.
-      ...(mark && bid.ok ? { live: liveRegion(locale, {
-        ...buyersWatch(mark, buyersHref({ ...(chosen ? { filter: chosen } : {}), q: data.query ?? '' })),
-        orders: await ordersWaitingCount(deps.db, bid.value),
-      }) } : {}),
+      ...(mark && bid.ok ? { live: liveRegion(locale,
+        buyersWatch(mark, buyersHref({ ...(chosen ? { filter: chosen } : {}), q: data.query ?? '' }))) } : {}),
     }));
   });
 
@@ -2089,8 +2087,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         renderConversationDetail(withProof, locale, now, flash, personOf(s)),
         customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
-      ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>
-        withAssistantName(detail.assistantName, () => liveRegion(locale, { ...conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'), orders }))) } : {}),
+      ...(mark && bid.ok ? { live:
+        withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark, detail.working === true && detail.ownership === 'AI'))) } : {}),
     }));
   });
 
@@ -2119,8 +2117,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = (req.query ?? {}) as { since?: unknown };
     const id = String((req.params as { conversationId?: string } | undefined)?.conversationId ?? '');
     const answer = await liveAnswer(deps.db, bid.value, kind, q.since, id);
-    return reply.code(answer.status).header('cache-control', 'no-store')
-      .send(answer.orders === undefined ? answer.said : { ...answer.said, orders: answer.orders });
+    return reply.code(answer.status).header('cache-control', 'no-store').send(answer.said);
   };
   // Asked three times a minute by every open tab: its request lines would bury
   // the log. A fault is still written (an error is above `warn`).

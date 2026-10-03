@@ -355,13 +355,10 @@ export function renderOperationsHome(
       : ''}
   </section>`;
 
-  // 0080 — an order a customer said yes to waits for the owner's tap. The
-  // e-mail always says so; this browser can too, if the owner asks it. Hidden
-  // until the page's script finds a browser that can (liveScript.ts).
-  const tellMe = `<div class="block" data-notify hidden>
-    ${/* Phase 9 (V1-093) — a button that looks like one, at the content's edge: it was grey ghost text. */ ''}<button type="button" class="btn" data-notify-ask hidden>${esc(t(locale, 'live.notify.ask'))}</button>
-    <p class="caption muted" data-notify-on hidden>${esc(t(locale, 'live.notify.on'))}</p>
-  </div>`;
+  // 0080 — an order a customer said yes to waits for the owner's tap. The warmth
+  // run, phase 8: how that reaches the owner outside Nomi is their choice on
+  // Notifications, and inside it the rail's card says it; this page no longer
+  // offers its own browser notice.
 
   // 2 · THE LAST 24 HOURS — what the assistant did (its ✦) and what you did,
   //     each a door to the list it counts. CC-05: the door to Results stays,
@@ -411,6 +408,5 @@ export function renderOperationsHome(
   ${budget}
   ${live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}
   ${finishSetup}
-  ${notLive}
-  ${tellMe}`;
+  ${notLive}`;
 }

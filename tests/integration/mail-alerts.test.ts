@@ -20,7 +20,9 @@ import type { Analysis } from '../../src/core/conversation/decide.js';
  *   · A hand-off is e-mailed to the sign-in address, with a link.
  *   · Each person hears ONE way — their choice, or the default (WhatsApp once
  *     Meta approved Nomi and a number is set on a live channel, e-mail
- *     otherwise) — and e-mail whenever that way fails.
+ *     otherwise) — and e-mail whenever that way fails. WhatsApp may be chosen
+ *     before approval where a number is set on a live channel (the pilot's
+ *     way until now). A deletion request is e-mailed to the owner always.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -174,6 +176,19 @@ d('G5 · alerts by e-mail (requires DATABASE_URL)', () => {
     await choose('email');
     expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail, whatsappApproved: true }, job)).toBe('sent');
     expect([mails, texts]).toEqual([[OWNER], []]);
+    // Before approval, WhatsApp CHOSEN where reachable: WhatsApp only; refused outside Meta's day, e-mail.
+    clear();
+    await choose('whatsapp');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail }, job)).toBe('sent');
+    expect([mails, texts]).toEqual([[], ['+971500009999']]);
+    clear();
+    const refused = { sendText: async () => ({ ok: false as const, retryable: false, error: 'outside the 24 hours' }) };
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: refused, mail }, job)).toBe('sent');
+    expect(mails).toEqual([OWNER]);
+    // A deletion request: the chosen way AND e-mail, always (rule 18).
+    clear();
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail }, { businessId: BIZ, kind: 'deletion_requested', conversationId: null })).toBe('sent');
+    expect([mails, texts]).toEqual([[OWNER], ['+971500009999']]);
     // Browser with no phone turned on: e-mail carries it.
     clear();
     await choose('browser');

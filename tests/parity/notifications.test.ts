@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  ALERT_CHANNELS, alertChannelFor, defaultAlertChannel, ownerWhatsAppOpen, parseAlertChannel, storedAlertChoice,
+  ALERT_CHANNELS, alertChannelFor, defaultAlertChannel, ownerWhatsAppReachable, ownerWhatsAppDefault, parseAlertChannel, storedAlertChoice,
 } from '../../src/core/owner/alertChannel.js';
 import {
   reachPeople, deliverOwnerAlert, interrupts, waitsInApp, goesByMail, INTERRUPTION_KINDS, QUIET_KINDS, OPERATOR_ALERT_KINDS,
@@ -45,41 +45,56 @@ const PHONE: PhoneSubscription = {
 };
 
 describe('the default and the choice', () => {
-  it('the owner\'s WhatsApp path is open only when Meta approved Nomi AND a number is set AND a channel is live', () => {
+  const combos = function* () {
     for (const approved of [false, true]) for (const ownerPhone of [null, '+971500000000']) for (const channelLive of [false, true]) {
-      expect(ownerWhatsAppOpen({ approved, ownerPhone, channelLive }), JSON.stringify({ approved, ownerPhone, channelLive }))
-        .toBe(approved && ownerPhone !== null && channelLive);
+      yield { approved, ownerPhone, channelLive };
     }
+  };
+
+  it('WhatsApp is CHOOSABLE wherever the owner\'s path is reachable today — a number on a live channel — approval or not', () => {
+    for (const f of combos()) expect(ownerWhatsAppReachable(f), JSON.stringify(f)).toBe(f.ownerPhone !== null && f.channelLive);
   });
 
-  it('the default is WhatsApp where that path is open, e-mail otherwise', () => {
+  it('WhatsApp is the DEFAULT only when it is reachable AND Meta approved Nomi', () => {
+    for (const f of combos()) expect(ownerWhatsAppDefault(f), JSON.stringify(f)).toBe(f.approved && f.ownerPhone !== null && f.channelLive);
     expect(defaultAlertChannel(true)).toBe('whatsapp');
     expect(defaultAlertChannel(false)).toBe('email');
   });
 
   it('the way a notification takes: the choice, or the default; e-mail when that way cannot be used now', () => {
-    const none = { whatsapp: false, browser: false };
-    const all = { whatsapp: true, browser: true };
+    const none = { whatsapp: false, browser: false, approved: false };
+    const all = { whatsapp: true, browser: true, approved: true };
     // the default follows approval, with nothing stored
     expect(alertChannelFor(null, none)).toBe('email');
-    expect(alertChannelFor(null, { whatsapp: true, browser: false })).toBe('whatsapp');
-    // a choice is kept while it can be used…
+    expect(alertChannelFor(null, { whatsapp: true, browser: false, approved: false })).toBe('email');   // reachable, not approved
+    expect(alertChannelFor(null, { whatsapp: true, browser: false, approved: true })).toBe('whatsapp');
+    expect(alertChannelFor(null, { whatsapp: false, browser: false, approved: true })).toBe('email');   // approved, not reachable
+    // a choice is kept while it can be used — WhatsApp before approval too, where reachable…
     expect(alertChannelFor('email', all)).toBe('email');
     expect(alertChannelFor('browser', all)).toBe('browser');
     expect(alertChannelFor('whatsapp', all)).toBe('whatsapp');
-    // …and is e-mail while it cannot: Browser with no phone on, WhatsApp before approval
-    expect(alertChannelFor('browser', { whatsapp: true, browser: false })).toBe('email');
-    expect(alertChannelFor('whatsapp', { whatsapp: false, browser: true })).toBe('email');
+    expect(alertChannelFor('whatsapp', { whatsapp: true, browser: false, approved: false })).toBe('whatsapp');
+    // …and is e-mail while it cannot: Browser with no phone on, WhatsApp with no number on a live channel
+    expect(alertChannelFor('browser', { whatsapp: true, browser: false, approved: true })).toBe('email');
+    expect(alertChannelFor('whatsapp', { whatsapp: false, browser: true, approved: true })).toBe('email');
   });
 
-  it('what is stored: the choice, or NULL when the owner chose what is the default now — so approval moves them', () => {
-    // Before approval: the owner choosing e-mail is "the default"; the day WhatsApp opens, they are on it.
+  it('what is stored: the choice, or NULL when the owner chose what is the default now', () => {
+    const reachableEarly = { whatsapp: true, browser: false, approved: false };
+    const reachableApproved = { ...reachableEarly, approved: true };
+    // Before approval the default is e-mail: an owner who picks e-mail is "the default"…
     expect(storedAlertChoice('email', true, false)).toBeNull();
-    expect(alertChannelFor(storedAlertChoice('email', true, false), { whatsapp: true, browser: false })).toBe('whatsapp');
+    // …and moves to WhatsApp the day approval lands, with nothing written.
+    expect(alertChannelFor(storedAlertChoice('email', true, false), reachableEarly)).toBe('email');
+    expect(alertChannelFor(storedAlertChoice('email', true, false), reachableApproved)).toBe('whatsapp');
+    // An owner who picks WhatsApp before approval stores it, and hears by WhatsApp now.
+    expect(storedAlertChoice('whatsapp', true, false)).toBe('whatsapp');
+    expect(alertChannelFor('whatsapp', reachableEarly)).toBe('whatsapp');
     expect(storedAlertChoice('browser', true, false)).toBe('browser');
-    // After approval: choosing e-mail is a choice, and it stays e-mail.
-    expect(storedAlertChoice('email', true, true)).toBe('email');
+    // After approval: WhatsApp is the default; e-mail is a choice, and it stays e-mail.
     expect(storedAlertChoice('whatsapp', true, true)).toBeNull();
+    expect(storedAlertChoice('email', true, true)).toBe('email');
+    expect(alertChannelFor('email', reachableApproved)).toBe('email');
     // A colleague's choice is stored as made: choosing is how they ask for notifications at all.
     expect(storedAlertChoice('email', false, false)).toBe('email');
   });
@@ -150,13 +165,67 @@ describe('the one delivery function chooses each person\'s way, and falls back t
     };
     return { asked, ways };
   };
-  const closed = { whatsappOpen: false, pushOn: true };
-  const open = { whatsappOpen: true, pushOn: true };
+  /** No number on a live channel. */
+  const closed = { whatsappReachable: false, approved: false, pushOn: true };
+  /** The pilot today: a number on a live channel, Meta not yet approved. */
+  const early = { whatsappReachable: true, approved: false, pushOn: true };
+  const open = { whatsappReachable: true, approved: true, pushOn: true };
 
-  it('before approval the owner\'s default is e-mail, and only e-mail', async () => {
+  it('before approval the owner\'s default is e-mail, and only e-mail — reachable or not', async () => {
+    for (const o of [closed, early]) {
+      const f = fakes();
+      expect(await reachPeople([owner()], o, f.ways)).toEqual({ outcome: 'sent', went: ['email'], later: false });
+      expect(f.asked).toEqual(['email:owner@example.test']);
+    }
+  });
+
+  it('before approval an owner who CHOSE WhatsApp hears by WhatsApp where it is reachable — the pilot keeps it', async () => {
     const f = fakes();
-    expect(await reachPeople([owner()], closed, f.ways)).toEqual({ outcome: 'sent', went: ['email'], later: false });
-    expect(f.asked).toEqual(['email:owner@example.test']);
+    expect(await reachPeople([owner({ choice: 'whatsapp' })], early, f.ways)).toEqual({ outcome: 'sent', went: ['whatsapp'], later: false });
+    expect(f.asked).toEqual(['whatsapp']);
+    // no number on a live channel: e-mail, and WhatsApp is never asked
+    const g = fakes();
+    expect((await reachPeople([owner({ choice: 'whatsapp' })], closed, g.ways)).went).toEqual(['email']);
+    expect(g.asked).toEqual(['email:owner@example.test']);
+  });
+
+  it('before approval a WhatsApp refused outside Meta\'s day goes by e-mail, at once', async () => {
+    for (const r of ['failed', 'later'] as const) {
+      const f = fakes({ whatsapp: r });
+      expect(await reachPeople([owner({ choice: 'whatsapp' })], early, f.ways), r).toEqual({ outcome: 'sent', went: ['email'], later: false });
+      expect(f.asked).toEqual(['whatsapp', 'email:owner@example.test']);
+    }
+  });
+
+  it('a deletion request is e-mailed to the owner always, and goes the chosen way as well when that way is not e-mail (rule 18)', async () => {
+    const del = (o: typeof open) => ({ ...o, mailOwnerAlways: true });
+    // chosen WhatsApp: WhatsApp and e-mail
+    const f = fakes();
+    expect(await reachPeople([owner({ choice: 'whatsapp' })], del(early), f.ways)).toEqual({ outcome: 'sent', went: ['whatsapp'], later: false });
+    expect(f.asked).toEqual(['whatsapp', 'email:owner@example.test']);
+    // the default after approval (WhatsApp): the same
+    const g = fakes();
+    expect((await reachPeople([owner()], del(open), g.ways)).went).toEqual(['whatsapp']);
+    expect(g.asked).toEqual(['whatsapp', 'email:owner@example.test']);
+    // chosen Browser: the phones and e-mail
+    const h = fakes();
+    await reachPeople([owner({ choice: 'browser', phones: [PHONE] })], del(early), h.ways);
+    expect(h.asked).toEqual(['browser:1', 'email:owner@example.test']);
+    // e-mail chosen: one e-mail, never two
+    const i = fakes();
+    expect((await reachPeople([owner({ choice: 'email' })], del(open), i.ways)).went).toEqual(['email']);
+    expect(i.asked).toEqual(['email:owner@example.test']);
+    // the chosen way failing: the one e-mail carries it
+    const j = fakes({ whatsapp: 'failed' });
+    expect((await reachPeople([owner({ choice: 'whatsapp' })], del(early), j.ways)).went).toEqual(['email']);
+    expect(j.asked).toEqual(['whatsapp', 'email:owner@example.test']);
+    // the sign-in address is the owner's: a colleague hears their own way only
+    const k = fakes();
+    await reachPeople([colleague({ choice: 'browser', phones: [PHONE] })], del(open), k.ways);
+    expect(k.asked).toEqual(['browser:1']);
+    // and the delivery passes it for a deletion request, and only for one
+    const src = readFileSync(new URL('../../src/pipeline/notify.ts', import.meta.url), 'utf8');
+    expect(src).toContain("mailOwnerAlways: job.kind === 'deletion_requested',");
   });
 
   it('the day approval lands, the same owner — still on the default — is WhatsApp, and only WhatsApp', async () => {
@@ -189,7 +258,7 @@ describe('the one delivery function chooses each person\'s way, and falls back t
     expect(g.asked).toEqual(['email:owner@example.test']);
     // An installation that sends no phone alerts: e-mail.
     const h = fakes();
-    expect((await reachPeople([owner({ choice: 'browser', phones: [PHONE] })], { whatsappOpen: false, pushOn: false }, h.ways)).went).toEqual(['email']);
+    expect((await reachPeople([owner({ choice: 'browser', phones: [PHONE] })], { ...closed, pushOn: false }, h.ways)).went).toEqual(['email']);
     // A phone that refused: e-mail.
     const i = fakes({ browser: 'failed' });
     expect((await reachPeople([owner({ choice: 'browser', phones: [PHONE] })], closed, i.ways)).went).toEqual(['email']);
@@ -229,8 +298,17 @@ describe('0124 — the person\'s way, or NULL for the default', () => {
     expect(m).toContain("check (alert_channel is null or alert_channel in ('email', 'browser', 'whatsapp'))");
     expect(m).not.toMatch(/alert_channel text not null|default 'email'/);
   });
-  it('a colleague who had turned on phone alerts keeps them; the owner stays on the default', () => {
+  it('a colleague who had turned on phone alerts keeps them', () => {
     expect(m).toMatch(/update people p set alert_channel = 'browser'\n where not p\.is_owner and p\.archived_at is null and p\.alert_channel is null\n   and exists \(select 1 from push_subscriptions s where s\.person_id = p\.id and s\.archived_at is null\);/);
+  });
+  it('an owner who set an alert number keeps WhatsApp — the live owner row, as the code finds it; no row, nothing done', () => {
+    expect(m).toMatch(/update people p set alert_channel = 'whatsapp'\n  from businesses b\n where b\.id = p\.business_id and b\.owner_phone is not null\n   and p\.is_owner and p\.archived_at is null and p\.alert_channel is null;/);
+    // the code's own way to the owner's row (src/db/alertChannel.ts): the live row with is_owner
+    const store = readFileSync(new URL('../../src/db/alertChannel.ts', import.meta.url), 'utf8');
+    expect(store).toContain('where p.business_id = ${bid} and p.archived_at is null');
+    expect(store).toContain('sql`p.is_owner`');
+    // the header says so
+    expect(m.replace(/\n-- /g, ' ')).toContain('a business with no owner row is left as it is');
   });
   it('is version 124, and the app requires it', () => {
     expect(m).toMatch(/insert into _migrations \(version, name\) values \(124, 'alert_channel'\)\non conflict \(version\) do nothing;\s*$/);
@@ -242,12 +320,12 @@ describe('the Notifications page, in every language', () => {
   const view = (ways: AlertWaysView | null, over: Partial<PhoneAlertsView> = {}): PhoneAlertsView =>
     ({ publicKey: 'BKEY', phones: [], ways, ...over });
   const ownerWays = (over: Partial<AlertWaysView> = {}): AlertWaysView =>
-    ({ choice: null, isOwner: true, email: 'owner@example.test', whatsapp: 'review', ownerPhone: null, ...over });
+    ({ choice: null, isOwner: true, email: 'owner@example.test', whatsapp: 'number', ownerPhone: null, ...over });
   const radios = (html: string) => [...html.matchAll(/<input type="radio" name="channel" value="([a-z]+)"( checked)?( disabled)? \/>/g)]
     .map((r) => `${r[1]}${r[2] ? '*' : ''}${r[3] ? '-' : ''}`);
 
   for (const l of LOCALES) {
-    it(`${l} · named Notifications; the two things said plainly; three ways; WhatsApp shown, disabled, with one honest line`, () => {
+    it(`${l} · named Notifications; the two things said plainly; three ways; WhatsApp shown, disabled, saying what it needs`, () => {
       const html = withoutIsolates(renderPhoneAlerts(view(ownerWays()), l, null));
       expect(html).toContain(`<h1 class="page">${esc(t(l, 'alerts.title'))}</h1>`);
       expect(html).toMatch(/<\/h1>\s*<p class="lede">/);
@@ -257,7 +335,8 @@ describe('the Notifications page, in every language', () => {
       expect(html).toContain(esc(t(l, 'alerts.rest')));
       expect(html).toContain('<form method="post" action="/app/settings/alerts/channel" class="pform">');
       expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
-      expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.review')));
+      expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.number')));
+      expect(html).not.toContain(esc(t(l, 'alerts.way.whatsapp.early')));
       expect(html).toContain(esc(t(l, 'alerts.way.fallback')));
       // the phones are still here, under their own heading
       expect(html).toContain(`<h2 id="alerts-phones">${esc(t(l, 'alerts.phone.title'))}</h2>`);
@@ -273,10 +352,22 @@ describe('the Notifications page, in every language', () => {
     expect(html).toContain(esc(t('en', 'alerts.way.whatsapp.to', { phone: '+971500000000' })));
   });
 
-  it('approved, but no alert number on a live channel: WhatsApp says what it needs', () => {
-    const html = renderPhoneAlerts(view(ownerWays({ whatsapp: 'number' })), 'en', null);
-    expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
-    expect(html).toContain(esc(t('en', 'alerts.way.whatsapp.number')));
+  for (const l of LOCALES) {
+    it(`${l} · before approval, WhatsApp reachable: it may be chosen, with the one honest line; e-mail stays the default`, () => {
+      const html = withoutIsolates(renderPhoneAlerts(view(ownerWays({ whatsapp: 'early', ownerPhone: '+971500000000' })), l, null));
+      expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp']);
+      expect(html).toContain(esc(withoutIsolates(t(l, 'alerts.way.whatsapp.to', { phone: '+971500000000' }))));
+      expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.early')));
+      // chosen before approval, it is checked, and still says it
+      const chosen = withoutIsolates(renderPhoneAlerts(view(ownerWays({ whatsapp: 'early', ownerPhone: '+971500000000', choice: 'whatsapp' })), l, null));
+      expect(radios(chosen)).toEqual(['email', 'browser', 'whatsapp*']);
+      expect(chosen).not.toContain('class="fwarn">');
+    });
+  }
+
+  it('the honest line, in the owner\'s words, short: what may not arrive, and what carries it then', () => {
+    expect(t('en', 'alerts.way.whatsapp.early')).toBe('Until Meta approves Nomi, a notification sent over a day after your last WhatsApp to the business may not arrive; e-mail then carries it.');
+    for (const l of LOCALES) expect(t(l, 'alerts.way.whatsapp.early'), l).toContain('Meta');
   });
 
   it('Browser chosen with no phone on: the page says so, and that e-mail carries them until one is', () => {
@@ -322,12 +413,17 @@ describe('the Notifications page, in every language', () => {
     expect(alertWayNow(ways, { publicKey: 'K', phones: [] })).toBe('email');
     expect(alertWayNow(ways, { publicKey: 'K', phones: [PHONE] })).toBe('browser');
     expect(alertWayNow({ ...ways, isOwner: false, choice: null }, { publicKey: 'K', phones: [] })).toBeNull();
+    // WhatsApp chosen before approval, where reachable, is WhatsApp; the default before approval is e-mail
+    expect(alertWayNow(ownerWays({ whatsapp: 'early', choice: 'whatsapp' }), { publicKey: 'K', phones: [] })).toBe('whatsapp');
+    expect(alertWayNow(ownerWays({ whatsapp: 'early' }), { publicKey: 'K', phones: [] })).toBe('email');
+    expect(alertWayNow(ownerWays({ whatsapp: 'open' }), { publicKey: 'K', phones: [] })).toBe('whatsapp');
+    expect(alertWayNow(ownerWays({ whatsapp: 'number', choice: 'whatsapp' }), { publicKey: 'K', phones: [] })).toBe('email');
   });
 
   it('every new line is in five languages, none blank, none untranslated where it should be, none with a software word', () => {
     const keys = ['alerts.title', 'alerts.lede', 'alerts.two.order', 'alerts.two.handover', 'alerts.rest', 'alerts.way.title',
       'alerts.way.email', 'alerts.way.browser', 'alerts.way.email.to', 'alerts.way.email.none', 'alerts.way.browser.on',
-      'alerts.way.browser.none', 'alerts.way.whatsapp.to', 'alerts.way.whatsapp.review', 'alerts.way.whatsapp.number',
+      'alerts.way.browser.none', 'alerts.way.whatsapp.to', 'alerts.way.whatsapp.early', 'alerts.way.whatsapp.number',
       'staff.whatsappAlerts', 'alerts.way.instead', 'alerts.way.notYet', 'alerts.way.save', 'alerts.way.fallback',
       'alerts.flash.way', 'alerts.flash.wayBad', 'live.toast.order', 'live.toast.deletion', 'live.toast.person', 'live.toast.reply'] as const;
     for (const l of LOCALES) for (const k of keys) {
@@ -341,7 +437,7 @@ describe('the Notifications page, in every language', () => {
     }
     // The decision the owner gave, in their words: no plain draft, no "ready to buy" among the two.
     expect(t('en', 'alerts.two.order')).toBe('An order waiting for your tap');
-    expect(t('en', 'alerts.way.whatsapp.review')).toBe('Available once WhatsApp is approved.');
+    expect(t('en', 'alerts.way.whatsapp.number')).toBe('Needs your WhatsApp number for alerts (under Where customers reach you) and a connected channel.');
   });
 });
 

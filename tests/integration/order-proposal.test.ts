@@ -229,10 +229,13 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     const first = today.body.indexOf('<a class="crow ');
     expect(first).toBeGreaterThan(-1);
     expect(today.body.slice(first)).toMatch(new RegExp(`^<a class="crow is-needs[^"]*" href="/app/inbox/${confirmConv}#latest">[\\s\\S]*?Order waiting`));
-    expect(today.body).toMatch(/data-live-orders="[1-9][0-9]*"/);
+    // Phase 8 of the warmth run — the order waiting is one of the customers the rail counts; a page
+    // left open learns of it from the rail's question (the browser's own order notice is retired).
     const live = await get('/app/live/today?since=0.0.0.0.0.0');
     expect(live.statusCode).toBe(200);
-    expect((live.json() as { orders: number }).orders).toBeGreaterThanOrEqual(1);
+    expect((live.json() as { news: boolean }).news).toBe(true);
+    const since = /data-rail="\/app\/live\/rail\?since=(\d+)"/.exec(today.body)?.[1];
+    expect(Number(since)).toBeGreaterThanOrEqual(1);
   });
 
   it('the conversation page shows what they said yes to, and the two answers', async () => {

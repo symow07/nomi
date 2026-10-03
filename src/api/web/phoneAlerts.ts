@@ -9,7 +9,8 @@ import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard } from './rows.js';
 import * as show from './values.js';
 import {
-  ALERT_CHANNELS, alertChannelFor, defaultAlertChannel, ownerWhatsAppOpen, parseAlertChannel, storedAlertChoice, type AlertChannel,
+  ALERT_CHANNELS, alertChannelFor, defaultAlertChannel, ownerWhatsAppDefault, ownerWhatsAppReachable, parseAlertChannel, storedAlertChoice,
+  type AlertChannel,
 } from '../../core/owner/alertChannel.js';
 import { alertPerson, ownerAlertFacts, saveAlertChoice } from '../../db/alertChannel.js';
 
@@ -35,22 +36,29 @@ export type PhoneAlertsView = {
  * THE WARMTH RUN (2026-10-03), phase 8 — this person's way out of Nomi, as
  * Notifications draws it: what they chose (null: the default), who they are,
  * where an e-mail would go, and where WhatsApp stands for them:
- *   open      the owner's WhatsApp path is open (`ownerWhatsAppOpen`);
- *   review    Meta has not approved Nomi yet — the honest line says so;
- *   number    approved, but no alert number on a live channel;
+ *   open      reachable (an alert number on a live channel) and Meta approved
+ *             Nomi: WhatsApp may be chosen, and is the default;
+ *   early     reachable, not yet approved: it may be chosen (the pilot heard
+ *             of hand-overs this way before this page), with one honest line —
+ *             a message more than a day after the owner's last one to the
+ *             business may not arrive, and e-mail then carries it;
+ *   number    not reachable: no alert number, or no live channel;
  *   owner     a colleague: the alert number is the owner's.
  */
 export type AlertWaysView = {
   readonly choice: AlertChannel | null;
   readonly isOwner: boolean;
   readonly email: string | null;
-  readonly whatsapp: 'open' | 'review' | 'number' | 'owner';
+  readonly whatsapp: 'open' | 'early' | 'number' | 'owner';
   readonly ownerPhone: string | null;
 };
 
 /** What WhatsApp is for this person now. */
-const whatsappFor = (isOwner: boolean, approved: boolean, open: boolean): AlertWaysView['whatsapp'] =>
-  !isOwner ? 'owner' : open ? 'open' : approved ? 'number' : 'review';
+const whatsappFor = (isOwner: boolean, approved: boolean, reachable: boolean): AlertWaysView['whatsapp'] =>
+  !isOwner ? 'owner' : !reachable ? 'number' : approved ? 'open' : 'early';
+
+/** WhatsApp can carry it to this person now (chosen, or the default once approved). */
+const whatsappReachableFor = (w: AlertWaysView): boolean => w.whatsapp === 'open' || w.whatsapp === 'early';
 
 /** This person's way, and the facts it is drawn with. Null: no person row to keep a choice on. */
 export async function loadAlertWays(db: Db, businessIdRaw: string, sessionPersonId: string, approved: boolean): Promise<AlertWaysView | null> {
@@ -59,17 +67,18 @@ export async function loadAlertWays(db: Db, businessIdRaw: string, sessionPerson
   return withTenantTx(db, bid.value, async (tx) => {
     const [person, facts] = await Promise.all([alertPerson(tx, bid.value, sessionPersonId), ownerAlertFacts(tx, bid.value)]);
     if (!person || !facts) return null;
-    const open = ownerWhatsAppOpen({ approved, ownerPhone: facts.ownerPhone, channelLive: facts.channelLive });
+    const reachable = ownerWhatsAppReachable({ ownerPhone: facts.ownerPhone, channelLive: facts.channelLive });
     return { choice: person.choice, isOwner: person.isOwner, email: person.email,
-      whatsapp: whatsappFor(person.isOwner, approved, open), ownerPhone: open ? facts.ownerPhone : null };
+      whatsapp: whatsappFor(person.isOwner, approved, reachable), ownerPhone: reachable ? facts.ownerPhone : null };
   });
 }
 
 /**
- * Save the way chosen on Notifications. Refused (false, nothing written) when
+ * Save the way chosen on Notifications. Refused (null, nothing written) when
  * it is not a way, or not one this person can take now: WhatsApp only for the
- * owner with the path open; Browser only where this installation sends phone
- * alerts. The owner choosing the default stores "the default" (`storedAlertChoice`).
+ * owner, with an alert number on a live channel (approval or not); Browser only
+ * where this installation sends phone alerts. The owner choosing the default
+ * stores "the default" (`storedAlertChoice`).
  */
 export async function chooseAlertWay(
   db: Db, businessIdRaw: string, sessionPersonId: string, raw: unknown, o: { readonly approved: boolean; readonly pushOn: boolean },
@@ -80,9 +89,10 @@ export async function chooseAlertWay(
   return withTenantTx(db, bid.value, async (tx) => {
     const [person, facts] = await Promise.all([alertPerson(tx, bid.value, sessionPersonId), ownerAlertFacts(tx, bid.value)]);
     if (!person || !facts) return null;
-    const open = person.isOwner && ownerWhatsAppOpen({ approved: o.approved, ownerPhone: facts.ownerPhone, channelLive: facts.channelLive });
-    if ((chosen === 'whatsapp' && !open) || (chosen === 'browser' && !o.pushOn)) return null;
-    return await saveAlertChoice(tx, bid.value, person.id, storedAlertChoice(chosen, person.isOwner, open)) ? chosen : null;
+    const reachable = person.isOwner && ownerWhatsAppReachable({ ownerPhone: facts.ownerPhone, channelLive: facts.channelLive });
+    if ((chosen === 'whatsapp' && !reachable) || (chosen === 'browser' && !o.pushOn)) return null;
+    const whatsappDefault = ownerWhatsAppDefault({ approved: o.approved, ownerPhone: facts.ownerPhone, channelLive: facts.channelLive });
+    return await saveAlertChoice(tx, bid.value, person.id, storedAlertChoice(chosen, person.isOwner, whatsappDefault)) ? chosen : null;
   });
 }
 
@@ -126,9 +136,11 @@ export async function testPhones(db: Db, businessIdRaw: string, personId: string
  * THE WARMTH RUN (2026-10-03), phase 8 — the way out, as a choice of three
  * (the radio rows Billing's plans use), each saying where it goes or why it
  * cannot be chosen now, and that e-mail carries anything the way chosen
- * cannot. WhatsApp is shown while it waits for approval, disabled, with one
- * honest line. A colleague who has not chosen hears nothing outside Nomi yet,
- * and the page says so.
+ * cannot. WhatsApp may be chosen wherever the owner's alert number is on a live
+ * channel; before Meta's approval it says, in one honest line, what that means.
+ * Without a number on a live channel it is shown disabled, with what it needs.
+ * A colleague who has not chosen hears nothing outside Nomi yet, and the page
+ * says so.
  */
 /** A way's name: WhatsApp is the platform's own name, as everywhere a channel is named. */
 export const alertWayName = (locale: Locale, way: AlertChannel): string =>
@@ -140,7 +152,8 @@ const checkedWay = (w: AlertWaysView): AlertChannel | null => w.choice ?? (w.isO
 /** The way a notification would take to this person now (Setup's row says it); null: none reaches them. */
 export function alertWayNow(w: AlertWaysView, v: Pick<PhoneAlertsView, 'publicKey' | 'phones'>): AlertChannel | null {
   const checked = checkedWay(w);
-  return checked ? alertChannelFor(checked, { whatsapp: w.whatsapp === 'open', browser: v.publicKey !== null && v.phones.length > 0 }) : null;
+  return checked ? alertChannelFor(checked, {
+    whatsapp: whatsappReachableFor(w), browser: v.publicKey !== null && v.phones.length > 0, approved: w.whatsapp === 'open' }) : null;
 }
 
 function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale): string {
@@ -151,15 +164,17 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale): string 
     email: w.email ? t(locale, 'alerts.way.email.to', { email: w.email }) : t(locale, 'alerts.way.email.none'),
     browser: !pushOn ? t(locale, 'alerts.phone.off')
       : v.phones.length ? t(locale, 'alerts.way.browser.on') : t(locale, 'alerts.way.browser.none'),
-    whatsapp: w.whatsapp === 'open' ? t(locale, 'alerts.way.whatsapp.to', { phone: w.ownerPhone ?? '' })
+    whatsapp: whatsappReachableFor(w) ? t(locale, 'alerts.way.whatsapp.to', { phone: w.ownerPhone ?? '' })
       // A colleague's line is said ABOUT the owner: a `staff.*` line, as every such line is.
       : w.whatsapp === 'owner' ? t(locale, 'staff.whatsappAlerts')
-      : t(locale, `alerts.way.whatsapp.${w.whatsapp}` as 'alerts.way.whatsapp.review'),
+      : t(locale, 'alerts.way.whatsapp.number'),
   };
-  const can: Record<AlertChannel, boolean> = { email: true, browser: pushOn, whatsapp: w.whatsapp === 'open' };
+  // Before approval WhatsApp may still be chosen where it is reachable, with the one honest line.
+  const early = w.whatsapp === 'early' ? `<br><span class="muted">${esc(t(locale, 'alerts.way.whatsapp.early'))}</span>` : '';
+  const can: Record<AlertChannel, boolean> = { email: true, browser: pushOn, whatsapp: whatsappReachableFor(w) };
   const option = (c: AlertChannel) => `<label class="check"><input type="radio" name="channel" value="${c}"${
     checked === c ? ' checked' : ''}${can[c] ? '' : ' disabled'} />
-          <span><b>${esc(alertWayName(locale, c))}</b><br><span class="muted">${esc(note[c])}</span></span></label>`;
+          <span><b>${esc(alertWayName(locale, c))}</b><br><span class="muted">${esc(note[c])}</span>${c === 'whatsapp' ? early : ''}</span></label>`;
   // The way chosen cannot carry it now (Browser with no phone on): say what will.
   const instead = checked && now !== checked ? `<p class="fwarn">${esc(t(locale, 'alerts.way.instead'))}</p>` : '';
   return `<section class="block" aria-labelledby="alerts-way">

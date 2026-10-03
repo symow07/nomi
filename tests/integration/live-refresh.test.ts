@@ -63,9 +63,9 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
   /** The address a page's script asks, as the browser reads it out of the attribute. */
   const askOf = (html: string): string => {
-    // 0080 — the region also carries the orders waiting when it was drawn (liveScript.ts).
-    // Phase 8 of the warmth run — Today's region says it is drawn again in place (`data-live-redraw`).
-    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"(?: data-live-redraw="1")?(?: data-live-orders="\d+" data-live-notify="[^"]+" data-live-notify-door="[^"]+")?><\/div>/.exec(html);
+    // Phase 8 of the warmth run — Today's region says it is drawn again in place (`data-live-redraw`);
+    // 0080's count of orders waiting, for the browser's own notice, is retired with that notice.
+    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"(?: data-live-redraw="1")?><\/div>/.exec(html);
     expect(m, 'the page carries its live region').not.toBeNull();
     return m![1]!.replace(/&amp;/g, '&');
   };
@@ -76,9 +76,9 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   };
   const ask = async (url: string, cookie = owner) => {
     const r = await get(url, cookie, JSON_ACCEPT);
-    // 0080 — every answer also counts the orders waiting (a number, for the browser's notice).
-    const { orders, ...said } = r.json() as { news: boolean; what?: string; orders?: number };
-    if (r.statusCode === 200) expect(typeof orders, url).toBe('number');
+    // Phase 8 — the answer is what the page's script is told, and nothing else (0080's order count is retired).
+    const said = r.json() as { news: boolean; what?: string; orders?: number };
+    expect(said.orders, url).toBeUndefined();
     return { status: r.statusCode, said, headers: r.headers };
   };
   /** A buyer writes: the worker's own recorder, in the business's own transaction. */
