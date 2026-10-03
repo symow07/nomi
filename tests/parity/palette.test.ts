@@ -39,18 +39,21 @@ async function sources(dir: URL): Promise<{ f: string; src: string }[]> {
 }
 
 describe('the palette', () => {
-  it('is five warm neutrals, two magentas and the three states — nothing else', () => {
+  it('is five warm neutrals and one warm tone, two magentas and the three states — nothing else', () => {
     expect(Object.keys(C).sort()).toEqual([
       // The warmth run (2026-10-03): the wash under the assistant's own words.
       // The warmth pass (2026-10-04): waiting is the deep magenta, `needs`, with its own wash.
       'assistant', 'assistantWash', 'border', 'ink', 'inkSecondary', 'paper', 'surface',
       'needs', 'needsWash', 'ok', 'okLine', 'okWash', 'warn', 'warnLine', 'warnWash',
+      // …and the ONE warm supporting tone the owner allowed, for quiet surfaces (warmth-pass.test.ts).
+      'sand',
     ].sort());
     expect(C['ink']).toBe('#25201C');
     expect(C['inkSecondary']).toBe('#665D55');
     expect(C['border']).toBe('#E8E1D8');
     expect(C['paper']).toBe('#F7F3EE');
     expect(C['surface']).toBe('#FFFDFA');
+    expect(C['sand']).toBe('#F1E8DC');
     expect(C['needs']).toBe('#6E0C44');
     expect(C['assistant']).toBe('#BE2D6E');
     // two shades with two jobs: never one value again

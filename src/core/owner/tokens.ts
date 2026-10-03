@@ -149,16 +149,24 @@ export const DESIGN_TOKENS = {
    *   paper        A soft warm off-white: the page, the rail, a recess.
    *   surface      A white with warmth in it: cards, where the owner reads and
    *                decides. A step lighter than paper; the shadows do the rest.
+   *   sand         THE ONE WARM SUPPORTING TONE (the owner allowed one, if the
+   *                pass still read flat; it did, inside the cards: a recess in
+   *                paper on a warm white was all but invisible). Quiet surfaces
+   *                only — a recess that holds ink or stone words: the
+   *                customer's bubble, the quote box, the reasons list, the
+   *                profile card's figures, the lens and language tracks, a
+   *                neutral tag, pill or chip, an icon's round. Never under a
+   *                state's words, never a meaning, never magenta.
    *
    * And the three states: ok (it went, it is on), failed (`warn`: it did not
    * happen), and waiting — which is `needs`. A state is a shape and a WORD;
    * colour never carries it alone.
    *
-   * Retired with this pass: the single magenta #A82860 that did both jobs
-   * (`waiting` and `assistant` were one value), its line #EBC3D3 (drawn
-   * nowhere), and the cool neutrals (#1C1B1F, #5E5A66, #E2E0E6, #F5F4F6, pure
-   * white). Before them: jade, highlight, the three warm papers, the dark
-   * palette. `palette.test.ts` keeps all of them out of the product.
+   * Retired with this pass: the single faded magenta that did both jobs
+   * (`waiting` and `assistant` were one value), its wash and its line (drawn
+   * nowhere), and the cool graphite neutrals with pure white. Before them:
+   * jade, highlight, the three warm papers, the dark palette.
+   * `palette.test.ts` keeps all of their values out of the product.
    *
    * Washes and lines are TOKENS rather than `color-mix(… 12% …)` for a product
    * reason: the owner surface bans the `%` character outright, and that ban is
@@ -176,6 +184,7 @@ export const DESIGN_TOKENS = {
     inkSecondary: '#665D55',
     surface: '#FFFDFA',
     paper: '#F7F3EE',
+    sand: '#F1E8DC',
     border: '#E8E1D8',
     okWash: '#E2EFE8',
     okLine: '#B7D7C5',
@@ -229,13 +238,13 @@ export const DESIGN_TOKENS = {
    * failed red's (ΔE ≥ 25 from each); `warmth-pass.test.ts` computes all eight.
    */
   faceTint: [
-    { bg: '#2F6CA6', fg: '#FFFFFF' },
+    { bg: '#3366A8', fg: '#FFFFFF' },
     { bg: '#187A70', fg: '#FFFFFF' },
     { bg: '#6B7320', fg: '#FFFFFF' },
-    { bg: '#96650E', fg: '#FFFFFF' },
+    { bg: '#8C6B0A', fg: '#FFFFFF' },
     { bg: '#AD5C14', fg: '#FFFFFF' },
     { bg: '#6450B0', fg: '#FFFFFF' },
-    { bg: '#1F6E8C', fg: '#FFFFFF' },
+    { bg: '#0F7085', fg: '#FFFFFF' },
     { bg: '#8A5A3C', fg: '#FFFFFF' },
   ],
   /**
