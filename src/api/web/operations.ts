@@ -15,7 +15,7 @@ import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
 import { esc, deeper, signalMark } from './layout.js';
-import { renderNeedsLines, renderLastDay, renderComingUp, renderSending, toCalendar, type TodayData } from './today.js';
+import { waitingHead, renderWaitingPeople, renderHandled, renderSending, renderTally, type TodayData } from './today.js';
 import * as show from './values.js';
 
 
@@ -278,10 +278,13 @@ export async function loadOperationsSnapshot(
 }
 
 /** ── Today — the owner's daily surface ─────────────────────────────────────
- * Answers one question: "what needs me today?" — by time since the design
- * pass (2026-09-29): who needs you now, the last 24 hours, what is coming up
- * (`today.ts`). It consumes ONLY the read models passed in — it queries
- * nothing, derives no rate, and interprets nothing.
+ * THE WARMTH RUN, phase 2 (2026-10-03): three zones, top to bottom (`today.ts`)
+ * — who waits for you (a thin band in the waiting signal's magenta), what the
+ * assistant handled today (faces, a word each), and the day's three figures.
+ * Every line Today must still say lives inside them: sending stopped or
+ * paused, Setup unfinished, deletion requests, replies that never arrived. It
+ * consumes ONLY the read models passed in — it queries nothing, derives no
+ * rate, and interprets nothing.
  */
 
 const attentionCount = (s: OperationsSnapshot, k: AttentionKind): number =>
@@ -294,40 +297,51 @@ export const needsOwnerAttention = (s: OperationsSnapshot): boolean =>
 
 export function renderOperationsHome(
   s: OperationsSnapshot, locale: Locale, today: TodayData,
-  /** "Worth your attention" — the insight lines, bare, joined to the first block. */
+  /** "Worth your attention" — the insight lines, bare, joined to the first zone. */
   lead = '',
 ): string {
   const name = assistantName(locale);
   const live = s.channel.live ?? s.channel.provider !== 'disabled';
+  // 0070, 0071, G3 — while the assistant is stopped, silenced or out of its
+  // allowance, nothing it writes goes out: nothing may say it is answering.
+  const holding = Boolean(s.assistantStoppedAt || s.opsSilenced || (s.budget?.reached && s.budget.stops));
 
-  // 0070 — stopped on every channel. Said first, with the two ways forward
-  // (who is waiting; where Start is), and the calm line is not shown: it
-  // would be false.
+  // 0070 — stopped on every channel: said first in the band, with the two ways
+  // forward (who is waiting; where Start is).
   const stopped = s.assistantStoppedAt
-    ? `<section class="block">
-        <h2>${esc(t(locale, 'today.stopped.title', { name }))}</h2>
+    ? `<div class="tw-note">
+        <p class="tw-note-t">${esc(t(locale, 'today.stopped.title', { name }))}</p>
         <p class="muted">${esc(t(locale, 'today.stopped.body', { name }))}</p>
         <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/business', t(locale, 'today.stopped.start', { name }))}</div>
-      </section>`
+      </div>`
     : '';
   // 0071 — ops paused sending: the same honesty, in the words ops uses.
   const silenced = s.opsSilenced
-    ? `<section class="block">
-        <h2>${esc(t(locale, 'today.silenced.title', { name }))}</h2>
+    ? `<div class="tw-note">
+        <p class="tw-note-t">${esc(t(locale, 'today.silenced.title', { name }))}</p>
         <p class="muted">${esc(t(locale, 'today.silenced.body', { name }))}</p>
         <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}</div>
-      </section>`
+      </div>`
     : '';
+  // G19 — the ceiling she set, before it stops her rather than after. A
+  // notice, never attention. G3 — used up, and the cap holds: new messages
+  // wait for her, and when that ends.
+  const budget = !s.budget ? ''
+    : s.budget.reached && s.budget.stops
+      ? `<p class="tw-note muted">${esc(t(locale, 'today.budget.reached', { name, time: show.time(locale, s.budget.renewsAt) }))}</p>`
+      : `<p class="tw-note muted">${esc(t(locale, 'today.budget.near', { name, pct: s.budget.pctUsed }))} ${
+          esc(t(locale, s.budget.stops ? 'today.budget.thenStops' : 'today.budget.thenKeeps', { name }))}</p>`;
 
-  // 1 · WHO NEEDS YOU NOW — the Buyers list's own "Needs you", the first few
-  //     by name, each a door to the newest message; then what else needs a
-  //     look, each a sentence with its count. Nothing: the fact, stated.
+  // ── 1 · WHO WAITS FOR YOU — the Inbox's own "Needs you", the first few by
+  //     face and name; then what else waits for the owner, each a counted
+  //     sentence and a door. Nobody and nothing: the calm state.
   const blocked = s.attention.blockedMessages;
   const gaps = s.knowledge.openGaps;
   const asks = s.attention.deletionAsks ?? 0;
   const more = [
     today.needs.total > today.needs.rows.length
       ? deeper('/app/inbox?filter=pending', tn(locale, 'today.needs.all', today.needs.total)) : '',
+    // M22 — replies that never reached a customer.
     blocked > 0 ? deeper('/app/inbox?filter=blocked', tn(locale, 'today.blocked', blocked)) : '',
     // 0076 — a deletion request waits as its own thing, with its own list.
     asks > 0 ? deeper('/app/inbox?filter=deletion', tn(locale, 'today.deletion', asks)) : '',
@@ -341,18 +355,53 @@ export function renderOperationsHome(
   // M22 — one message that never reached a customer, or one deletion request
   // waiting, is enough to contradict "no one is waiting".
   const quietNow = today.needs.total === 0 && blocked === 0 && asks === 0;
-  const heading = quietNow ? t(locale, 'today.needs.none')
-    : today.needs.total > 0 ? tn(locale, 'nav.needsYou', today.needs.total) : t(locale, 'ops.attention.title');
-  const now = `<section class="block today-now" aria-labelledby="today-now">
-    <h2 id="today-now">${esc(heading)}</h2>
-    ${today.needs.rows.length ? `<ul class="crows">${renderNeedsLines(today, locale)}</ul>` : ''}
+  // M22 (F-01) — "all caught up" only where customers can reach the assistant:
+  // with messaging off nothing has been achieved, and the page says so plainly.
+  const head = quietNow
+    ? `<h2 id="today-now" class="tw-head">${esc(t(locale, live ? 'today.calm.title' : 'today.needs.none'))}</h2>${
+        live ? `<p class="tw-calm-line">${esc(t(locale, 'today.needs.none'))}</p>` : ''}${
+        live && !holding ? `<p class="tw-calm-line"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'today.calm.care', { name }))}</p>` : ''}`
+    : today.needs.total > 0 ? waitingHead(locale, today.needs.total)
+    : `<h2 id="today-now" class="tw-head"><span class="tw-need">${signalMark('waiting')} ${esc(t(locale, 'ops.attention.title'))}</span></h2>`;
+
+  // Rule 9 — Setup while it is unfinished: the guide's count, named as the
+  // guide is, the next step and the video that shows it together under it.
+  const setup = setupState();
+  const finishSetup = setup && setup.next !== null
+    ? `<div class="today-foot setup"><p>${signalMark('waiting')} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
+        <div class="today-next">${deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
+        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
+    : '';
+
+  const band = `<section class="block today-now tw${quietNow ? ' is-calm' : ''}" aria-labelledby="today-now">
+    ${head}
+    ${silenced}${stopped}${budget}
+    ${renderWaitingPeople(today, locale)}
     ${more ? `<div class="doors">${more}</div>` : ''}
     ${lead ? `<div class="today-worth">${lead}</div>` : ''}
-    ${quietNow && !s.assistantStoppedAt && !s.opsSilenced && !live
-      // M22 (F-01) — a quiet day with nobody able to reach her is not calm: nothing
-      // has been achieved, and the way forward is stated rather than implied.
-      ? `<p class="muted">${esc(t(locale, 'today.calm.notLive.title', { name }))}</p>${deeper('/app/business', t(locale, 'today.calm.notLive.go'))}`
-      : ''}
+    ${finishSetup}
+  </section>`;
+
+  // ── 2 · WHAT THE ASSISTANT HANDLED — the headline in its chosen name, the
+  //     faces with a word each. With messaging off, nobody can reach it: the
+  //     way forward instead of an empty row (M22, F-01). Sending, only where
+  //     messaging is live, closes the zone.
+  const reach = !live && (today.handled?.total ?? 0) === 0
+    ? `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper('/app/business', t(locale, 'today.calm.notLive.go'))}`
+    : renderHandled(today, locale, { ready: live && !holding });
+  // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
+  const notLive = !live ? `<p class="muted notlive">${signalMark('waiting')} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
+  const hero = `<section class="block today-done td" aria-labelledby="today-done">
+    ${reach}
+    ${live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}
+    ${notLive}
+  </section>`;
+
+  // ── 3 · THE DAY'S THREE FIGURES — and, CC-05, the door to Results whatever
+  //     the day held: the figures are today's, Results holds the history.
+  const tally = `<section class="block today-tally tt" aria-labelledby="today-tally">
+    ${renderTally(today, locale)}
+    ${deeper('/app/analytics', t(locale, 'today.results.link'))}
   </section>`;
 
   // 0080 — an order a customer said yes to waits for the owner's tap. The
@@ -363,54 +412,9 @@ export function renderOperationsHome(
     <p class="caption muted" data-notify-on hidden>${esc(t(locale, 'live.notify.on'))}</p>
   </div>`;
 
-  // 2 · THE LAST 24 HOURS — what the assistant did (its ✦) and what you did,
-  //     each a door to the list it counts. CC-05: the door to Results stays,
-  //     whatever the day held.
-  const lastDay = `<section class="block today-last" aria-labelledby="today-last">
-    <h2 id="today-last">${esc(t(locale, 'today.last.title'))}</h2>
-    ${renderLastDay(today, locale)}
-    ${deeper('/app/analytics', t(locale, 'today.results.link'))}
-  </section>`;
-
-  // 3 · COMING UP — the calendar's next dated things.
-  const coming = `<section class="block today-coming" aria-labelledby="today-coming">
-    <h2 id="today-coming">${esc(t(locale, 'today.coming.title'))}</h2>
-    ${renderComingUp(today, locale)}
-    ${toCalendar(locale)}
-  </section>`;
-
-  // G19 — the ceiling she set, before it stops her rather than after. A
-  // notice, never attention.
-  // G3 — used up, and the cap holds: new messages wait for her, and when that ends.
-  const budget = !s.budget ? ''
-    : s.budget.reached && s.budget.stops
-      ? `<section class="block"><p class="muted">${esc(t(locale, 'today.budget.reached', { name, time: show.time(locale, s.budget.renewsAt) }))}</p></section>`
-      : `<section class="block"><p class="muted">${esc(t(locale, 'today.budget.near', { name, pct: s.budget.pctUsed }))} ${
-          esc(t(locale, s.budget.stops ? 'today.budget.thenStops' : 'today.budget.thenKeeps', { name }))}</p></section>`;
-
-  // Sending (only where messaging is live: a channel connected to an
-  // installation that cannot send is not "on"), and Setup while it is
-  // unfinished — one line each, at the foot.
-  const setup = setupState();
-  // Phase 9 (V1-100, V1-102) — the count is the guide's, named as the guide is;
-  // the next step and the video that shows it sit together under it.
-  const finishSetup = setup && setup.next !== null
-    ? `<div class="today-foot setup"><p>${signalMark('waiting')} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
-        <div class="today-next">${deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
-        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
-    : '';
-  // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
-  const notLive = !live ? `<p class="block muted notlive">${signalMark('waiting')} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
-
   return `<h1 class="page">${esc(t(locale, 'ops.title'))} <span class="muted today-date">· ${esc(show.dayLong(locale, today.now))}</span></h1>
-  ${silenced}
-  ${stopped}
-  ${now}
-  ${lastDay}
-  ${coming}
-  ${budget}
-  ${live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}
-  ${finishSetup}
-  ${notLive}
+  ${band}
+  ${hero}
+  ${tally}
   ${tellMe}`;
 }

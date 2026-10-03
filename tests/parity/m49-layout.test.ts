@@ -295,6 +295,9 @@ describe('M49 · buttons and empty states', () => {
       ['layout.ts  .login .other', 'A1 — the one link under that card: to sign-up from the door, and back'],
       // V1 step four: the rehearsal verdict's rule moved into the shell with the rest of pilot.ts.
       ['layout.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],
+    // The warmth run (phase 2) — Today's face row: each tile is a face over its one word.
+    ['layout.ts  .td-face', 'a customer\'s face over the one word of what happened, in its tile'],
+    ['layout.ts  .td-more', 'the row\'s last tile, "+N more", drawn like a face over its word'],
     ]);
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {

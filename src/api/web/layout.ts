@@ -270,6 +270,10 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     dialog.ask[open] { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     .btn[aria-busy="true"]::after { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     dialog.ask[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
+    /* The warmth run — Today's band and hero rise into place as the page arrives, the hero a beat after; its face row scrolls smoothly. */
+    .tw, .td { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    .td { animation-delay:var(--motion-fast); }
+    .td-row { scroll-behavior:smooth; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
@@ -661,6 +665,66 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .today-foot p { margin:0; }
   /* Phase 9 (V1-102) — the next step and its video, side by side where they fit. */
   .today-next { display:flex; flex-wrap:wrap; column-gap:var(--space-24); }
+  /* THE WARMTH RUN, phase 2 — Today in three zones. 1 · who waits for you: a
+     thin band whose one colour is the waiting signal's, a face and a name and
+     one line of why per person, in a card of rows; nobody waiting is a calm,
+     warm line on white, never a dashed box. */
+  main h2.tw-head { margin:0 0 var(--space-12); }
+  .tw-need { color:var(--color-waiting); font-weight:600; }
+  .tw-calm-line { margin:var(--space-4) 0 0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .tw.is-calm { background:var(--color-surface); border-radius:var(--radius-panel); box-shadow:var(--shadow-lift1);
+    padding:var(--space-16) var(--space-24); margin-block-end:var(--space-24); }
+  main .tw.is-calm h2.tw-head { margin:0; }
+  .tw-note { margin:0 0 var(--space-12); }
+  .tw-note-t { margin:0; font-weight:600; }
+  .tw-note .muted { margin:var(--space-4) 0 0; }
+  .tw-list { list-style:none; margin:0; padding:0; background:var(--color-surface); border-radius:var(--radius-card);
+    box-shadow:var(--shadow-lift1); overflow:hidden; }
+  .tw-list > li + li { border-top:1px solid var(--color-border); }
+  .tw-item { display:flex; align-items:center; gap:var(--space-12); padding-inline-start:var(--space-12); }
+  .tw-go { display:flex; align-items:center; gap:var(--space-8); flex:1 1 auto; min-width:0; min-height:56px;
+    padding-block:var(--space-8); padding-inline-end:var(--space-12); color:var(--color-ink); }
+  .tw-go:hover .tw-name, .tw-go:focus-visible .tw-name { text-decoration:underline; text-underline-offset:3px; }
+  .tw-who { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
+  .tw-name, .tw-why { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
+  .tw-name { font-weight:600; font-size:var(--font-size-small); }
+  /* A Latin name on an Arabic page keeps the page's side, as the Inbox's row does. */
+  [dir="rtl"] .tw-name:dir(ltr) { text-align:end; }
+  .tw-why { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .tw-go .go { flex:none; }
+  /* 2 · what the assistant handled: the headline in its name, then the faces,
+     a word under each, in one row that scrolls sideways (from the right in
+     Arabic), snaps to a face, and fades at its end to say there is more. The
+     padding at the end leaves the last face clear of the fade. */
+  main h2.td-head { font-size:var(--font-size-display); font-weight:600; margin:0 0 var(--space-16); }
+  .td-ready { margin:0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .td-row { list-style:none; margin:0 0 var(--space-8); padding:var(--space-4) 0; padding-inline-end:var(--space-48);
+    display:flex; gap:var(--space-8); overflow-x:auto; overscroll-behavior-inline:contain;
+    scroll-snap-type:inline proximity; scrollbar-width:thin; scrollbar-color:var(--color-ink-secondary) transparent;
+    -webkit-mask-image:linear-gradient(to right, var(--color-ink) calc(100% - var(--space-48)), transparent);
+    mask-image:linear-gradient(to right, var(--color-ink) calc(100% - var(--space-48)), transparent); }
+  [dir="rtl"] .td-row {
+    -webkit-mask-image:linear-gradient(to left, var(--color-ink) calc(100% - var(--space-48)), transparent);
+    mask-image:linear-gradient(to left, var(--color-ink) calc(100% - var(--space-48)), transparent); }
+  .td-row > li { flex:none; scroll-snap-align:start; }
+  .td-face, .td-more { display:flex; flex-direction:column; align-items:center; gap:var(--space-4);
+    inline-size:calc(56px + var(--space-16)); padding-block:var(--space-4); color:var(--color-ink); text-align:center; }
+  .td-word { font-size:var(--font-size-caption); color:var(--color-ink-secondary); overflow-wrap:anywhere; }
+  .td-face:hover .td-word, .td-more:hover .td-word { color:var(--color-ink); }
+  .td-plus { display:grid; place-items:center; inline-size:56px; block-size:56px; border-radius:var(--radius-chip);
+    background:var(--color-surface); box-shadow:var(--shadow-lift1); font-size:var(--font-size-small); font-weight:600; }
+  .td-more:focus-visible { outline:none; }
+  .td-more:focus-visible .td-plus { outline:2px solid var(--color-ink); outline-offset:2px; }
+  /* 3 · the day's three figures: a figure over its word, in ink, side by side. */
+  main h2.tt-head { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .tt-row { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--space-12); }
+  .tt-row > li { display:flex; flex-direction:column; min-width:0; }
+  .tt-n { font-size:var(--font-size-title); font-weight:600; font-variant-numeric:tabular-nums; }
+  .tt-l { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  @media (max-width: 560px) {
+    main h2.td-head { font-size:var(--font-size-title); }
+    .tw.is-calm { padding:var(--space-16); }
+  }
   /* Phase 9 (V1-094) — on a phone a line's door goes under its sentence, so the sentence keeps the width. */
   @media (max-width: 560px) {
     .today-worth .row { flex-direction:column; align-items:flex-start; gap:0; }

@@ -353,7 +353,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // that is the one it lands on. Before the per-run tenant, this assertion
     // passed because leftover state from earlier runs kept work on the page.
     // The design pass: Today's first heading is who needs you — or that nobody does.
-    expect(home.body).toMatch(/<h2 id="today-now">(No one is waiting for you\.|\d+ customers? needs? you|Needs your attention)<\/h2>/);
+    // The warmth run — the band's heading: "N waiting for you" with the waiting ○, or the calm line.
+    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head">(No one is waiting for you\.|You're all caught up|<span class="tw-need"><span class="dot warn" aria-hidden="true">○<\/span> (\d+ waiting for you|Needs your attention)<\/span>)<\/h2>/);
     // M35.5 — on a tenant where NOTHING has happened, the activity section no
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known
@@ -1435,12 +1436,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      // The design pass: three blocks by time — who needs you now, the last 24
-      // hours, what is coming up — each under its own heading.
-      expect(res.body).toContain('<h2 id="today-now">');
-      expect(res.body).toContain(`<h2 id="today-last">${esc(t('en', 'today.last.title'))}</h2>`);
-      expect(res.body).toContain(`<h2 id="today-coming">${esc(t('en', 'today.coming.title'))}</h2>`);
-      expect(res.body).toContain('href="/app/calendar"');
+      // The warmth run (phase 2): three zones — who waits for you, what the
+      // assistant handled, the day's three figures — each under its own heading,
+      // in that order. ("The last 24 hours" and "Coming up" left Today.)
+      const zones = ['<h2 id="today-now"', '<h2 id="today-done"', `<h2 id="today-tally" class="tt-head">${esc(t('en', 'today.tally.title'))}</h2>`]
+        .map((h) => res.body.indexOf(h));
+      expect(zones.every((at) => at > 0)).toBe(true);
+      expect([...zones].sort((a, b) => a - b)).toEqual(zones);
+      expect(res.body).not.toContain('id="today-coming"');
       // Phase B: messaging state is ONE quiet line, not a status card
       expect(res.body).toContain(esc(t('en', 'ops.system.notLive')));
       expect(res.body).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);   // V1 step four: block + muted, same name
@@ -1462,15 +1465,17 @@ d('production deployment mode (requires DATABASE_URL)', () => {
                   values (${DEMO_BIZ}, ${c.conversationId}, 'quote', ${SECRET}, null, 'pending')`.execute(tx as never);
       });
       const snap = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'today', 'disabled');
-      const today = await loadToday(prod.db, DEMO_BIZ, undefined, new Date(), false);
+      const today = await loadToday(prod.db, DEMO_BIZ, undefined, new Date());
       const html = renderOperationsHome(snap, 'en', today);
       expect(snap.attention.handoffs).toBeGreaterThanOrEqual(1);
       expect(snap.attention.pendingApprovals).toBeGreaterThanOrEqual(1);
       // The design pass: the people themselves, the Buyers list's own "Needs you".
       expect(today.needs.total).toBeGreaterThanOrEqual(1);
-      expect(html).toContain(`<h2 id="today-now">${esc(tn('en', 'nav.needsYou', today.needs.total))}</h2>`);
-      // each one named, as Buyers' own row (phase 4), a door to the newest message
-      expect(html).toMatch(/<a class="crow is-needs[^"]*" href="\/app\/inbox\/[0-9a-f-]{36}#latest">/);
+      // The warmth run — the band's heading in the owner's words (was nav.needsYou).
+      expect(html).toContain(`<span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> ${esc(tn('en', 'today.waiting', today.needs.total))}</span></h2>`);
+      // each one by face and name, the name a door to the newest message (was Buyers' own row)
+      expect(html).toMatch(/<a class="tw-go" href="\/app\/inbox\/[0-9a-f-]{36}#latest">/);
+      expect(html).toMatch(/<a class="face-link tw-face" href="\/app\/customers\/[0-9a-f-]{36}" data-card aria-label="[^"]+">/);
       expect(html).not.toContain(SECRET);           // draft body is never rendered
       expect(html).not.toContain(BUYERTAG);         // buyer identifier is never rendered
     });
@@ -1496,7 +1501,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
       const { loadToday } = await import('../../src/api/web/today.js');
       const snap = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'today', 'disabled');
-      const html = renderOperationsHome(snap, 'en', await loadToday(prod.db, '00000000-0000-0000-0000-000000000000', undefined, new Date(), false));
+      const html = renderOperationsHome(snap, 'en', await loadToday(prod.db, '00000000-0000-0000-0000-000000000000', undefined, new Date()));
       // M22 (F-01): with messaging off she is looking after nobody, so this
       // says why it is quiet instead of congratulating the owner. It used to
       // read "You're all caught up · Lily is looking after your buyers" on a
@@ -1504,7 +1509,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
       expect(html).toContain('href="/app/business"');
-      expect(html).toContain(`<h2 id="today-now">${esc(t('en', 'today.needs.none'))}</h2>`);
+      // The warmth run — with messaging off, the plain fact, never "all caught up".
+      expect(html).toContain(`<h2 id="today-now" class="tw-head">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
     });
 

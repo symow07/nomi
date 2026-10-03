@@ -1981,14 +1981,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // and the pilot feedback loop. No new query, no new storage.
     // M34.10 — plus the insights, which are the only part of this page that
     // tells the owner what to DO rather than what happened.
-    // The design pass (§4) — plus the day by time: who needs you now (the
-    // Buyers list's own rows), the last 24 hours, what is coming up.
+    // The warmth run (phase 2) — plus the day in three zones: who waits for
+    // you (the Inbox's own rows), what the assistant handled, three figures.
     const [snapshot, insights, today] = await Promise.all([
       // A1 — HER business, from her session. This read the environment's one
       // business, which was the same thing until a second factory could sign in.
       loadOperationsSnapshot(deps.db, s.businessId, 'today', deps.provider, messagingEnabled),
       loadInsights(deps.db, s.businessId),
-      loadToday(deps.db, s.businessId, personOf(s).id, new Date(), outreachShown()),
+      loadToday(deps.db, s.businessId, personOf(s).id, new Date()),
     ]);
     return {
       bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
