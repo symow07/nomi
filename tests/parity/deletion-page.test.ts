@@ -64,16 +64,18 @@ const OLD: Record<Locale, string> = {
 };
 
 /**
- * What the page must state, per language: the contract the operator's tool
- * implements, named by the words that carry it.
+ * What the page must state, per language (0126): the business deletes, at
+ * once, for good; there is no form, and why; a closed workspace is erased;
+ * what goes and what stays — the contract `erase_customer` carries out, named
+ * by the words that carry it — and the owner's backup sentence, unchanged.
  */
 const MUST: Record<Locale, Record<string, RegExp>> = {
   en: {
-    thirtyDays: /within 30 days of the business recording the request/,
-    businessRecords: /The business records your request in Nomi/,
-    // Phase 9 (V1-074) — the typographic apostrophe; the same sentence.
-    operatorByHand: /Nomi’s operator[^.]*carries out the deletion by hand/,
-    doneSeenByBusiness: /the business sees it marked as done/,
+    businessDeletes: /The business sees your request in Nomi and deletes your data there/,
+    gone: /It is deleted at once: gone, not hidden/,
+    notWritten: /Nomi does not write to you about it/,
+    noForm: /There is no form on this page, on purpose/,
+    closedWorkspace: /If the business closes its Nomi workspace, everything in it is erased, your data included/,
     erasedIdentity: /Who you are on every channel/,
     // w4-public-02 — the photo 0123 keeps, which erase-buyer erases.
     erasedPhoto: /Your profile photo, as Instagram or Messenger showed it to the business/,
@@ -85,14 +87,18 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedConversations: /except what is needed to keep an order/,
     keptOrders: /Orders you placed[^.]*without your contact details or your messages/,
     keptDoNotContact: /never written to again/,
-    keptRecord: /A record that you asked, and when it was done/,
+    keptRecord: /A record that you asked, and when it was done\. It holds nothing that was deleted/,
+    // public-missed-21 — the owner's sentence, word for word; and a restore brings nobody back (0126).
+    keptBackups: /A backup is not changed to remove one person; your data leaves it when that backup is deleted/,
+    keptRestored: /restored from a backup, every deletion made since that backup is carried out again/,
     keptMeta: /copies Meta itself holds/,
   },
   zh: {
-    thirtyDays: /记录要求后的 30 天内/,
-    businessRecords: /商家在 Nomi 里记录你的要求/,
-    operatorByHand: /Nomi 的运营方[^。]*手动执行删除/,
-    doneSeenByBusiness: /商家会在 Nomi 里看到这条要求已完成/,
+    businessDeletes: /商家在 Nomi 里看到你的要求，并在那里删除你的数据/,
+    gone: /删除立即生效：数据被真正删掉，而不是隐藏起来/,
+    notWritten: /Nomi 不会就此另外联系你/,
+    noForm: /这一页上故意没有表单/,
+    closedWorkspace: /如果商家关闭自己的 Nomi 工作台，其中的一切都会被清除，包括你的数据/,
     erasedIdentity: /你在各个渠道上的身份/,
     erasedPhoto: /你在 Instagram 或 Messenger 上的头像/,
     erasedMessages: /往来的每一条消息/,
@@ -101,14 +107,17 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedConversations: /为保留你下过的订单所必需的部分除外/,
     keptOrders: /你下过的订单[^。]*不再关联你的联系方式和消息/,
     keptDoNotContact: /不会再向这个地址发送/,
-    keptRecord: /你提出过删除要求，以及何时完成/,
+    keptRecord: /你提出过删除要求，以及何时完成。其中不含任何被删除的内容/,
+    keptBackups: /备份不会为删除某一个人而修改；你的数据会随该备份被删除而消失/,
+    keptRestored: /该备份之后做过的每一次删除，都会在服务运行之前重新执行/,
     keptMeta: /Meta 自己保存的副本/,
   },
   ar: {
-    thirtyDays: /خلال 30 يومًا من تسجيل الشركة للطلب/,
-    businessRecords: /تسجّل الشركة الطلب في Nomi/,
-    operatorByHand: /ينفّذ مشغّل Nomi[^.]*يدويًا/,
-    doneSeenByBusiness: /يظهر الطلب في Nomi لدى الشركة على أنه منفَّذ/,
+    businessDeletes: /ترى الشركة الطلب في Nomi وتحذف بياناتك من هناك/,
+    gone: /تزول البيانات فعلًا، ولا تُخفى فحسب/,
+    notWritten: /لا يراسلك Nomi بهذا الشأن/,
+    noForm: /لا توجد استمارة في هذه الصفحة/,
+    closedWorkspace: /إن أغلقت الشركة مساحة عملها في Nomi، يُمحى كل ما فيها/,
     erasedIdentity: /هويتك على كل قناة/,
     erasedPhoto: /صورة ملفك الشخصي كما ظهرت للشركة/,
     erasedMessages: /كل رسالة متبادلة بينك وبين الشركة/,
@@ -117,14 +126,17 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedConversations: /إلا ما يلزم للاحتفاظ بطلب شراء/,
     keptOrders: /طلبات الشراء المقدَّمة منك[^.]*دون بيانات التواصل معك ودون رسائلك/,
     keptDoNotContact: /عدم المراسلة/,
-    keptRecord: /سجلّ بتقديم الطلب وتاريخ تنفيذه/,
+    keptRecord: /سجلّ بتقديم الطلب وتاريخ تنفيذه، لا يحوي شيئًا مما حُذف/,
+    keptBackups: /لا تُعدَّل النسخة الاحتياطية لإزالة شخص واحد؛ وتزول بياناتك منها بحذف تلك النسخة/,
+    keptRestored: /يُعاد تنفيذ كل حذف جرى بعد تلك النسخة/,
     keptMeta: /النسخ التي تحتفظ بها Meta نفسها/,
   },
   es: {
-    thirtyDays: /en un plazo de 30 días desde que el negocio registra la solicitud/,
-    businessRecords: /El negocio registra tu solicitud en Nomi/,
-    operatorByHand: /Quien opera Nomi[^.]*hace el borrado a mano/,
-    doneSeenByBusiness: /el negocio lo ve marcado como hecho/,
+    businessDeletes: /El negocio ve tu solicitud en Nomi y borra allí tus datos/,
+    gone: /se eliminan de verdad, no se ocultan/,
+    notWritten: /Nomi no te escribe por esto/,
+    noForm: /Esta página no tiene formulario, a propósito/,
+    closedWorkspace: /Si el negocio cierra su espacio de trabajo en Nomi, se borra todo lo que contiene, también tus datos/,
     erasedIdentity: /Quién eres en cada canal/,
     erasedPhoto: /Tu foto de perfil, tal como Instagram o Messenger/,
     erasedMessages: /Todos los mensajes entre tú y el negocio/,
@@ -133,14 +145,17 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedConversations: /salvo lo necesario para conservar un pedido/,
     keptOrders: /Los pedidos que hiciste[^.]*sin tus datos de contacto ni tus mensajes/,
     keptDoNotContact: /nunca se le vuelva a escribir/,
-    keptRecord: /Un registro de que lo pediste y de cuándo se hizo/,
+    keptRecord: /Un registro de que lo pediste y de cuándo se hizo, sin nada de lo borrado/,
+    keptBackups: /Una copia de seguridad no se cambia para quitar a una persona; tus datos desaparecen cuando se borra esa copia de seguridad/,
+    keptRestored: /cada borrado hecho después de esa copia se vuelve a hacer/,
     keptMeta: /copias que guarda la propia Meta/,
   },
   fr: {
-    thirtyDays: /dans les 30 jours suivant l’enregistrement de la demande par l’entreprise/,
-    businessRecords: /L’entreprise enregistre votre demande dans Nomi/,
-    operatorByHand: /L’exploitant de Nomi[^.]*effectue la suppression à la main/,
-    doneSeenByBusiness: /l’entreprise la voit marquée comme effectuée/,
+    businessDeletes: /L’entreprise voit votre demande dans Nomi et y supprime vos données/,
+    gone: /les données sont réellement effacées, pas seulement masquées/,
+    notWritten: /Nomi ne vous écrit pas à ce sujet/,
+    noForm: /Cette page n’a pas de formulaire, et c’est voulu/,
+    closedWorkspace: /Si l’entreprise ferme son espace Nomi, tout son contenu est effacé, vos données comprises/,
     erasedIdentity: /Qui vous êtes sur chaque canal/,
     erasedPhoto: /Votre photo de profil, telle qu’Instagram ou Messenger/,
     erasedMessages: /Tous les messages échangés entre vous et l’entreprise/,
@@ -149,22 +164,30 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedConversations: /sauf ce qui est nécessaire pour conserver une commande/,
     keptOrders: /Les commandes que vous avez passées[^.]*sans vos coordonnées ni vos messages/,
     keptDoNotContact: /plus rien n’y soit jamais envoyé/,
-    keptRecord: /Une trace de votre demande et de la date/,
+    keptRecord: /Une trace de votre demande et de la date[^.]*qui ne contient rien de ce qui a été supprimé/,
+    keptBackups: /Une sauvegarde n’est pas modifiée pour en retirer une seule personne ; vos données en disparaissent quand cette sauvegarde est supprimée/,
+    keptRestored: /chaque suppression faite depuis cette sauvegarde est refaite/,
     keptMeta: /copies que Meta conserve/,
   },
 };
 
-/** What the page must never say again: a confirmation sent to the buyer, "the same channel", anything instant or automatic. */
+/**
+ * What the page must never say again: a confirmation sent to the customer,
+ * "the same channel", anything automatic — and, since 0126, the operator
+ * working by hand within 30 days, which is no longer what happens. (Deleting
+ * IS at once now, when the business acts: the page says so, so "at once" is
+ * no longer on this list. Nothing is automatic: the business acts.)
+ */
 const NEVER: Record<Locale, readonly RegExp[]> = {
   en: [/same channel/i, /we will (tell|notify|confirm|let you know)/i, /you (are|will be|get) (told|notified)/i,
        /(receive|get|are sent) a confirmation/i, /confirm(ed|ation)? (to you|on the)/i, /automatic/i,
-       /immediately/i, /instantly/i, /right away/i],
-  zh: [/同一个渠道/, /同一渠道/, /会(通知|告诉)你/, /给你确认/, /自动/, /立即/, /立刻/, /马上/],
-  ar: [/القناة نفسها/, /نفس القناة/, /يصل إشعار/, /سنبلغك|سنخبرك|سنعلمك/, /تلقائي/, /فورًا|فورا|على الفور|فوري/],
+       /by hand/i, /within 30 days/i],
+  zh: [/同一个渠道/, /同一渠道/, /会(通知|告诉)你/, /给你确认/, /自动/, /手动/, /30 天内/],
+  ar: [/القناة نفسها/, /نفس القناة/, /يصل إشعار/, /سنبلغك|سنخبرك|سنعلمك/, /تلقائي/, /يدويًا|يدويا/, /خلال 30 يومًا/],
   es: [/mismo canal/i, /te (avisamos|avisaremos|confirmaremos|notificaremos|diremos)/i, /recibir[áa]s una confirmaci[óo]n/i,
-       /autom[áa]tic/i, /inmediatamente|al instante|de inmediato/i],
+       /autom[áa]tic/i, /a mano/i, /30 días/i],
   fr: [/même canal/i, /nous vous (informerons|confirmerons|préviendrons|prévenons|dirons)/i, /vous recevrez une confirmation/i,
-       /automatique/i, /immédiatement|instantanément|tout de suite/i],
+       /automatique/i, /à la main/i, /30 jours/i],
 };
 
 /** The one promise the old page made in every language: a confirmation on "the same channel". */
@@ -172,14 +195,14 @@ const SAME_CHANNEL: Record<Locale, RegExp> = { en: /same channel/i, zh: /同一�
 
 describe('CC-02a · /data-deletion states the contract, in every language', () => {
   for (const l of LOCALES) {
-    it(`${l}: the 30 days, the business records it, the operator carries it out by hand, what goes and what stays`, () => {
+    it(`${l}: the business deletes it, at once and for good; no form, and why; a closed workspace; what goes and what stays`, () => {
       const body = text(page(l));
       for (const [what, re] of Object.entries(MUST[l])) {
         expect(re.test(body), `${l} does not state ${what}`).toBe(true);
       }
     });
 
-    it(`${l}: no confirmation to the buyer, no "same channel", nothing instant or automatic — and the checks can fire`, () => {
+    it(`${l}: no confirmation to the customer, no "same channel", nothing automatic, no operator by hand — and the checks can fire`, () => {
       const body = text(page(l));
       for (const re of NEVER[l]) {
         expect(re.test(body), `${l} still says ${re}`).toBe(false);
@@ -191,22 +214,25 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
       expect(SAME_CHANNEL[l].test(OLD[l]), `${l}: the same-channel check does not fire on the old copy`).toBe(true);
       expect(NEVER[l].filter((re) => re.test(OLD[l])).length, `${l}: nothing fires on the old copy`).toBeGreaterThanOrEqual(1);
       // …and did NOT state what the new one must: the positives discriminate too.
-      for (const what of ['businessRecords', 'keptDoNotContact', 'keptRecord'] as const) {
+      for (const what of ['businessDeletes', 'keptDoNotContact', 'keptRecord', 'noForm'] as const) {
         expect(MUST[l][what]!.test(OLD[l]), `${l}: the old copy already satisfied ${what}`).toBe(false);
       }
     });
   }
 
-  it('the patterns for instant or automatic deletion fire on the sentences they exist for', () => {
+  it('the patterns for automatic deletion, a confirmation and the operator by hand fire on the sentences they exist for', () => {
     // Synthetic controls for the promises the old copy happened not to make.
-    expect(NEVER.en.some((re) => re.test('Your data is deleted immediately.'))).toBe(true);
     expect(NEVER.en.some((re) => re.test('You receive a confirmation when it is done.'))).toBe(true);
     expect(NEVER.en.some((re) => re.test('Removal is automatic.'))).toBe(true);
     expect(NEVER.en.some((re) => re.test('We will tell you when it is done.'))).toBe(true);
-    expect(NEVER.zh.some((re) => re.test('你的数据会立即删除。'))).toBe(true);
     expect(NEVER.zh.some((re) => re.test('完成后我们会通知你。'))).toBe(true);
-    expect(NEVER.ar.some((re) => re.test('تُحذف بياناتك فورًا.'))).toBe(true);
     expect(NEVER.ar.some((re) => re.test('يتم الحذف بشكل تلقائي.'))).toBe(true);
+    // 0126 — the page CC-02a wrote: an operator, by hand, within 30 days. Not what happens now.
+    expect(NEVER.en.some((re) => re.test('Nomi’s operator carries out the deletion by hand, within 30 days of the business recording the request.'))).toBe(true);
+    expect(NEVER.zh.some((re) => re.test('Nomi 的运营方在商家记录要求后的 30 天内，由人手动执行删除。'))).toBe(true);
+    expect(NEVER.ar.some((re) => re.test('ينفّذ مشغّل Nomi الحذفَ يدويًا خلال 30 يومًا من تسجيل الشركة للطلب.'))).toBe(true);
+    expect(NEVER.es.some((re) => re.test('Quien opera Nomi hace el borrado a mano, en un plazo de 30 días.'))).toBe(true);
+    expect(NEVER.fr.some((re) => re.test('L’exploitant de Nomi effectue la suppression à la main, dans les 30 jours.'))).toBe(true);
   });
 
   it('every step and every item is on the page, in order: how, what is deleted, what is kept', () => {
@@ -220,13 +246,15 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
       // Phase 9 (V1-071) — step 1 is one route; writing to us is its own sentence after the steps.
       const order = [
         h2('legal.deletion.how.title'), li('legal.deletion.step1'),
-        li('legal.deletion.step2'), li('legal.deletion.step3'), li('legal.deletion.step4'), `<p>${w('legal.deletion.viaUs')}</p>`,
+        li('legal.deletion.step2'), li('legal.deletion.step3'), `<p>${w('legal.deletion.viaUs')}</p>`,
+        // 0126 — why there is no form, and what closing a workspace does.
+        `<p>${w('legal.deletion.noForm')}</p>`, `<p>${w('legal.deletion.closed')}</p>`,
         h2('legal.deletion.erased.title'), li('legal.deletion.erased.identity'), li('legal.deletion.erased.photo'),
         li('legal.deletion.erased.messages'),
         li('legal.deletion.erased.prepared'), li('legal.deletion.erased.notes'), li('legal.deletion.erased.conversations'),
         h2('legal.deletion.kept.title'), li('legal.deletion.kept.orders'), li('legal.deletion.kept.doNotContact'),
         li('legal.deletion.kept.record'), li('legal.deletion.kept.meta'), li('legal.deletion.kept.elsewhere'),
-        li('legal.deletion.kept.backups'),
+        li('legal.deletion.kept.backups'), li('legal.deletion.kept.restored'),
       ];
       const positions = order.map((needle) => html.indexOf(needle));
       for (const [i, p] of positions.entries()) expect(p, `${l} is missing ${order[i]}`).toBeGreaterThan(-1);
@@ -252,10 +280,13 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
     }
   });
 
-  it('the privacy page no longer ties keeping to "as long as the business uses Nomi", and points to the deletion page', () => {
+  it('the privacy page says how long, as the owner decided (0126): while the business uses Nomi, until you ask or it closes — and points to the deletion page', () => {
     const facts = { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
-    expect(messages.en['legal.privacy.howLong.body']).not.toMatch(/as long as the business uses Nomi/i);
-    expect(messages.en['legal.privacy.howLong.body']).toMatch(/Until the business asks for its records to be deleted, or you ask for yours/);
+    // The retention model is not "delete after 90 days": kept while the workspace is active,
+    // deleted when the customer asks, or when the workspace closes.
+    expect(messages.en['legal.privacy.howLong.body']).toMatch(/^For as long as the business uses Nomi/);
+    expect(messages.en['legal.privacy.howLong.body']).toMatch(/deleted when you ask the business to delete yours, or when the business closes its workspace, which erases everything in it/);
+    for (const l of LOCALES) expect(messages[l]['legal.privacy.howLong.body'], l).not.toMatch(/90/);
     // Phase 9 (public-missed-15) — the deletion page by its own name, and a link wherever it is named.
     expect(messages.en['legal.privacy.choices.body']).toMatch(/as the page “\{deletion\}” describes/);
     for (const l of LOCALES) {
@@ -269,13 +300,14 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
   });
 });
 
-describe('CC-02a · one number, three places', () => {
-  it('the page, the code and the migration agree on 30 days and a 7-day warning', () => {
+describe('CC-02a · the operator\'s safety net: a request still open', () => {
+  it('the code and the migration agree on 30 days and a 7-day warning; no page promises a delay any more (0126)', () => {
     expect(DELETION_DAYS).toBe(30);
     for (const l of LOCALES) {
-      expect(messages[l]['legal.deletion.step3'], l).toContain(String(DELETION_DAYS));
-      expect(messages[l]['conv.deletion.lead'], l).toContain(String(DELETION_DAYS));
-      expect(messages[l]['data.buyers.lead'], l).toContain(String(DELETION_DAYS));
+      // The owner deletes at once: no public or owner sentence counts days to a deletion.
+      for (const k of ['legal.deletion.step2', 'legal.deletion.step3', 'conv.deletion.lead', 'data.buyers.lead'] as const) {
+        expect(messages[l][k], `${l} ${k}`).not.toContain(String(DELETION_DAYS));
+      }
       expect(messages[l]['notify.deletion_due'], l).toContain('7');
     }
     const m = read('migrations/0073_buyer_deletion_requests.sql');
@@ -362,33 +394,41 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
   };
   const STAFF = { isOwner: false };
 
-  it('never asked: the owner gets the form — what goes, what stays, a required note; staff get whose decision it is', () => {
+  // 0126 — the owner's one act: "Delete this customer's data now". It asks first (data-confirm), and with
+  // no script the form arrives with asked=0 and the route answers with a page that asks.
+  const ERASE = 'action="/app/conversations/c1/deletion/erase"';
+
+  it('never asked: the owner deletes — what goes, what stays, a required note, asked first; staff get whose decision it is', () => {
     for (const l of LOCALES) {
       const owner = withoutIsolates(renderCustomerFile(file, l, NOW, null, OWNER_VIEW));
-      expect(owner, l).toContain('action="/app/conversations/c1/deletion"');
+      expect(owner, l).toContain(ERASE);
+      expect(owner, l).toContain('<input type="hidden" name="asked" value="0" />');
+      expect(owner, l).toContain(`onclick="return confirm(this.dataset.confirm)"\n            data-confirm="${esc(t(l, 'conv.deletion.eraseConfirm'))}">${esc(t(l, 'conv.deletion.erase'))}</button>`);
       expect(owner, l).toContain(esc(t(l, 'conv.deletion.erased')));
       expect(owner, l).toContain(esc(t(l, 'conv.deletion.kept')));
       expect(owner, l).toContain(esc(t(l, 'conv.deletion.tell')));
       expect(owner, l).toMatch(new RegExp(`name="note" rows="2" required maxlength="${BUYER_NOTE_MAX}"`));
       const staff = withoutIsolates(renderCustomerFile(file, l, NOW, null, STAFF));
-      expect(staff, l).not.toContain('/deletion"');
+      expect(staff, l).not.toContain('/deletion/erase"');
       expect(staff, l).toContain(esc(t(l, 'staff.ownerDecides')));
       expect(staff, l).toContain(esc(t(l, 'conv.deletion.title')));
     }
   });
 
-  it('open: everyone sees when it was asked and the date it must be done by; no second form', () => {
+  it('open (recorded before deleting was one act): when it was asked, and the owner deletes it now — no note asked again', () => {
     const open = { ...file, deletion: { state: 'open' as const, askedAt: asked, closedAt: null, closedNote: null } };
     for (const l of LOCALES) {
-      const line = esc(t(l, 'conv.deletion.open', { asked: formatDate(l, asked, 'Asia/Shanghai'), due: formatDate(l, deletionDueBy(asked), 'Asia/Shanghai') }));
-      for (const viewer of [OWNER_VIEW, STAFF]) {
-        const html = withoutIsolates(renderCustomerFile(open, l, NOW, null, viewer));
-        expect(html, l).toContain(line);
-        expect(html, l).not.toContain('action="/app/conversations/c1/deletion"');
-      }
+      const line = esc(t(l, 'conv.deletion.open', { asked: formatDate(l, asked, 'Asia/Shanghai') }));
+      const owner = withoutIsolates(renderCustomerFile(open, l, NOW, null, OWNER_VIEW));
+      expect(owner, l).toContain(line);
+      expect(owner, l).toContain(ERASE);
+      expect(owner, l).not.toContain('name="note"');
       // The way back is the owner's, on Your data.
-      expect(withoutIsolates(renderCustomerFile(open, l, NOW, null, OWNER_VIEW))).toContain('href="/app/settings/data"');
-      expect(withoutIsolates(renderCustomerFile(open, l, NOW, null, STAFF))).not.toContain('href="/app/settings/data"');
+      expect(owner, l).toContain('href="/app/settings/data#buyers"');
+      const staff = withoutIsolates(renderCustomerFile(open, l, NOW, null, STAFF));
+      expect(staff, l).toContain(line);
+      expect(staff, l).not.toContain(ERASE);
+      expect(staff, l).not.toContain('href="/app/settings/data');
     }
   });
 
@@ -397,7 +437,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
     const f = { ...file, deletion: { state: 'done' as const, askedAt: asked, closedAt: done, closedNote: null } };
     const html = withoutIsolates(renderCustomerFile(f, 'en', NOW));
     expect(html).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done, 'Asia/Shanghai') })));
-    expect(html).not.toContain('<form method="post" action="/app/conversations/c1/deletion"');
+    expect(html).not.toContain(ERASE);
   });
 
   it('not carried out: says so with the operator\'s reason, and may be asked again', () => {
@@ -405,7 +445,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
     const html = withoutIsolates(renderCustomerFile(f, 'en', NOW));
     expect(html).toContain(esc(t('en', 'conv.deletion.refused', { date: formatDate('en', asked, 'Asia/Shanghai') })));
     expect(html).toContain('Could not be matched to anyone who wrote');
-    expect(html).toContain('action="/app/conversations/c1/deletion"');
+    expect(html).toContain(ERASE);
   });
 
   it('a note is required, collapsed and bounded — and never cut silently', () => {
@@ -415,7 +455,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
     expect(buyerDeletionNote('x'.repeat(BUYER_NOTE_MAX + 1))).toEqual({ ok: false, reason: 'long' });
   });
 
-  it('Your data lists each buyer\'s request: due date while open, a way back, the done date after', () => {
+  it('Your data lists each customer\'s request: open ones deleted from here or taken back; done ones say when, and what stayed', () => {
     const base = { scope: 'buyer' as const, askedBy: 'p1', askedAt: asked, closedNote: null, conversationId: 'c1' };
     const buyers: BuyerDeletionRequest[] = [
       { ...base, id: 'r-open', buyer: 'Ahmed <b>', subjectNote: 'On WhatsApp, 20 Sep', state: 'open', closedAt: null },
@@ -424,22 +464,28 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderDataRights({ businessName: 'Atlas', requests: [], buyers }, l, null, OWNER_VIEW, 'x'));
       expect(html, l).toContain(esc(t(l, 'data.buyers.title')));
-      expect(html, l).toContain(esc(t(l, 'data.buyers.due', { asked: formatDate(l, asked, 'Asia/Shanghai'), due: formatDate(l, deletionDueBy(asked), 'Asia/Shanghai') })));
+      expect(html, l).toContain(esc(t(l, 'data.buyers.open', { asked: formatDate(l, asked, 'Asia/Shanghai') })));
       expect(html, l).toContain(esc(t(l, 'data.buyers.done', { asked: formatDate(l, asked, 'Asia/Shanghai'), done: formatDate(l, NOW, 'Asia/Shanghai') })));
+      expect(html, l).toContain(esc(t(l, 'data.buyers.kept')));
       expect(html, l).toContain('name="id" value="r-open"');
+      // The one act, from here too, back to here after.
+      expect(html, l).toMatch(/action="\/app\/conversations\/c1\/deletion\/erase" class="inline">\s*<input type="hidden" name="asked" value="0" \/>\s*<input type="hidden" name="from" value="data" \/>/);
       expect(html, `${l}: a done request offered back`).not.toContain('name="id" value="r-done"');
       expect(html, l).toContain('Ahmed &lt;b&gt;');
       expect(html, l).toContain(esc(t(l, 'common.buyer')));
+      // Staff see the list, and nothing to press.
+      const staff = withoutIsolates(renderDataRights({ businessName: 'Atlas', requests: [], buyers }, l, null, { isOwner: false }, 'x'));
+      expect(staff, l).not.toContain('/deletion/erase');
     }
     const none = withoutIsolates(renderDataRights({ businessName: 'Atlas', requests: [], buyers: [] }, 'en', null, OWNER_VIEW, 'x'));
     expect(none).toContain(t('en', 'data.buyers.none'));
   });
 
-  it('the owner is told the buyer is not written to — the owner tells them', () => {
-    expect(messages.en['conv.deletion.tell']).toMatch(/Tell the customer then — Nomi does not write to them about it/);
+  it('the owner is told the customer is not written to — the owner tells them, if they wish', () => {
+    expect(messages.en['conv.deletion.tell']).toMatch(/Nomi does not write to the customer about it\. Tell them it is done, if you wish/);
     expect(messages.en['data.buyers.lead']).toMatch(/Nomi does not write to them about it/);
     for (const l of LOCALES) {
-      for (const k of ['conv.deletion.tell', 'data.buyers.lead', 'conv.deletion.lead', 'conv.deletion.flash.asked'] as const) {
+      for (const k of ['conv.deletion.tell', 'data.buyers.lead', 'conv.deletion.lead', 'data.flash.erased', 'data.flash.erasedRecord'] as const) {
         for (const re of NEVER[l]) expect(re.test(messages[l][k]), `${l}/${k} says ${re}`).toBe(false);
       }
     }

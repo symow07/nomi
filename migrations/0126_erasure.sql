@@ -778,6 +778,7 @@ declare
   v_req record;
   v_counts jsonb;
   v_ledger uuid;
+  v_line jsonb;
 begin
   if p_via not in ('owner', 'operator') then
     raise exception 'erasure: % is not a way to carry out a request', p_via using errcode = 'NE004';
@@ -801,14 +802,16 @@ begin
   update deletion_requests
      set state = 'done', closed_at = now(), closed_by = p_by, closed_note = erasure_note(v_counts, p_via)
    where id = p_request and state = 'open';
-  insert into erasure_ledger (kind, business_id, customer_id, request_id, via, by_who, counts)
+  insert into erasure_ledger as l (kind, business_id, customer_id, request_id, via, by_who, counts)
   values ('customer', p_business, v_req.client_id, p_request, p_via, btrim(p_by), v_counts)
-  returning id into v_ledger;
+  returning l.id, to_jsonb(l.*) into v_ledger, v_line;
   -- The business's own trail says it happened, and which request — never whose.
   insert into channel_audit (business_id, channel_id, action, actor, detail)
   values (p_business, null, 'customer_erased', btrim(p_by),
           jsonb_build_object('request', p_request, 'erasure', v_ledger));
-  return v_counts || jsonb_build_object('ledger', v_ledger, 'request', p_request, 'client', v_req.client_id);
+  -- `line` is the ledger's line itself (ids, who, when, counts): what the
+  -- operator is sent, and what tools/replay-erasures.mjs --ledger reads back.
+  return v_counts || jsonb_build_object('ledger', v_ledger, 'request', p_request, 'client', v_req.client_id, 'line', v_line);
 end $$;
 revoke all on function carry_out_customer_request(uuid, uuid, text, text) from public;
 
@@ -990,6 +993,7 @@ language plpgsql volatile security definer set search_path = public set row_secu
 declare
   v_counts jsonb;
   v_ledger uuid;
+  v_line jsonb;
 begin
   if length(btrim(coalesce(p_by, ''))) not between 1 and 120 then
     raise exception 'erasure: say who is carrying it out' using errcode = 'NE004';
@@ -999,10 +1003,10 @@ begin
     raise exception 'erasure: no open workspace deletion request % for this workspace', p_request using errcode = 'NE004';
   end if;
   v_counts := erase_workspace_rows(p_business, false);
-  insert into erasure_ledger (kind, business_id, request_id, via, by_who, counts)
+  insert into erasure_ledger as l (kind, business_id, request_id, via, by_who, counts)
   values ('workspace', p_business, p_request, 'operator', btrim(p_by), v_counts)
-  returning id into v_ledger;
-  return v_counts || jsonb_build_object('ledger', v_ledger);
+  returning l.id, to_jsonb(l.*) into v_ledger, v_line;
+  return v_counts || jsonb_build_object('ledger', v_ledger, 'line', v_line);
 end $$;
 revoke all on function carry_out_workspace_erasure(uuid, uuid, text) from public;
 
@@ -1018,6 +1022,7 @@ declare
   v_biz record;
   v_counts jsonb;
   v_ledger uuid;
+  v_line jsonb;
 begin
   if v_business is null then
     raise exception 'erasure: no workspace in this transaction' using errcode = 'NE003';
@@ -1040,10 +1045,10 @@ begin
     raise exception 'erasure: a paid plan is running; cancel it first' using errcode = 'NE008';
   end if;
   v_counts := erase_workspace_rows(v_business, false);
-  insert into erasure_ledger (kind, business_id, via, by_who, counts)
+  insert into erasure_ledger as l (kind, business_id, via, by_who, counts)
   values ('workspace', v_business, 'owner', btrim(p_by), v_counts)
-  returning id into v_ledger;
-  return v_counts || jsonb_build_object('ledger', v_ledger);
+  returning l.id, to_jsonb(l.*) into v_ledger, v_line;
+  return v_counts || jsonb_build_object('ledger', v_ledger, 'line', v_line);
 end $$;
 revoke all on function close_workspace(text, text) from public;
 grant execute on function close_workspace(text, text) to nomi_app;

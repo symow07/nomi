@@ -214,10 +214,9 @@ import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindPro
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
-import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
-import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
+import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
+import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
-import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
 import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
@@ -494,6 +493,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/hooks/email/inbound', why: 'C4.c — a buyer\'s reply to her e-mail, HMAC-verified; the tenant comes from the mail he quoted' },
   { method: 'GET', url: '/privacy', why: 'what is kept about the people who write in — Meta reads it before the app may go live; names no tenant' },
   { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
+  { method: 'GET', url: '/closed', why: '0126 — where an owner lands, signed out, after closing a workspace: says it was erased; reads nothing and names no tenant' },
   { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
   { method: 'GET', url: '/sw.js', why: 'G5b — the phone\'s own worker: shows an alert Nomi sent and opens the app when it is tapped. The same text for everyone; names no tenant' },
   { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
@@ -1179,6 +1179,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, siteOf(req))));
   app.get('/terms', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
+  // 0126 — after a workspace is closed: signed out, and told what happened. Reads nothing.
+  app.get('/closed', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderClosed(localeOf(req), siteOf(req))));
 
   // ── The stylesheets (V1 close-out) and the one script (CC-26) ───────────
   // Named by their content, so this build's own address is kept by a browser
@@ -1857,8 +1860,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings/setup',
     async (s, req, reply, locale) => renderDataRights(
-      { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null }, locale, takeFlash(req, reply),
-      personOf(s), t(locale, 'nav.setup'))));
+      { ...await loadDataRights(deps.db, s.businessId), contact: deps.legalContact ?? null,
+        // 0126 — the installation's own workspace (the one the access code opens) is never closed from inside it.
+        closable: s.businessId !== deps.businessId && personOf(s).id !== 'owner' },
+      locale, takeFlash(req, reply), personOf(s), t(locale, 'nav.setup'))));
 
   /**
    * One file, streamed as an attachment.
@@ -1899,45 +1904,105 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(csvFile(sheet.header, sheet.rows, show.csvDialectFor(localeOf(req))));
   });
 
+  /**
+   * The workspace that cannot close itself asks the Nomi team instead.
+   *
+   * 0126 — closing is the owner's own act (below), for every workspace but
+   * the installation's own (the one the access code opens): that one is never
+   * erased from inside it, so its owner records a request here and the
+   * operator carries it out with tools/erase-workspace.mjs — the same steps
+   * closing runs. Any other workspace posting here (a page left open from
+   * before closing was a button) is told where it went; nothing is recorded.
+   *
+   * THE NAME IS TYPED; pressing twice is ONE request (0064's index). A
+   * REQUEST NOBODY HEARS IS A ROW IN A TABLE: the operator is told the day it
+   * is asked, at LEGAL_CONTACT_EMAIL, after the row is written and never
+   * instead of it; the ids and the date, never the note.
+   */
   app.post('/app/settings/data/delete', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/data');
     if (!s) return reply;
+    if (!(s.businessId === deps.businessId || personOf(s).id === 'owner')) {
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.moved');
+    }
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const note = String(b['note'] ?? '').trim().slice(0, 500) || null;
     const r = await askWorkspaceDeletion(deps.db, s.businessId, String(b['name'] ?? ''), personOf(s).id, note);
-
-    /**
-     * A REQUEST NOBODY HEARS IS A ROW IN A TABLE. The page now promises the
-     * buyer's business that this is done within 30 days, and the thing that
-     * makes that keepable is somebody finding out the day it was asked — not
-     * whenever an operator next thinks to look at `deletion_requests`.
-     *
-     * It goes to LEGAL_CONTACT_EMAIL, which the boot refuses to start without
-     * (PR 2), and it leaves over HTTPS through the connected mailbox because
-     * Railway's Hobby plan blocks every outbound SMTP port.
-     *
-     * AFTER the row is written and never instead of it: the record is what the
-     * runbook works from, and a send that fails must not lose the request. A
-     * failure is logged and the owner is still told her request was made —
-     * telling her it failed would be telling her about our mail setup.
-     */
     if (r === 'asked' && deps.systemMail && deps.legalContact) {
       const when = new Date().toISOString().slice(0, 10);
       void deps.systemMail.send({
         to: deps.legalContact,
         subject: `Deletion requested · ${s.businessId}`,
-        // The id and the date, never the note: the note is the business's own
-        // words about why they are leaving, and it is in the row already.
-        text: `A workspace asked for everything to be deleted.\n\n`
+        text: `The installation's own workspace asked for everything to be deleted.\n\n`
           + `workspace: ${s.businessId}\nasked by: ${personOf(s).id}\nasked on: ${when}\n\n`
-          + `Due within 30 days, which /data-deletion now states.\n`
-          + `Follow docs/DATA-DELETION-RUNBOOK.md — offer the export first.\n`,
+          + `Follow docs/DATA-DELETION-RUNBOOK.md — offer the export first; tools/erase-workspace.mjs carries it out.\n`,
       }).then(
         (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'deletion request notice could not be sent'); },
         (e: unknown) => req.log.warn({ err: e }, 'deletion request notice could not be sent'),
       );
     }
-    return flashTo(reply, '/app/settings/data', `data.flash.${r}` as MessageKey);
+    return flashTo(reply, '/app/settings/data#close', `data.flash.${r}` as MessageKey);
+  });
+
+  /**
+   * 0126 — THE OWNER CLOSES THE WORKSPACE, AND IT IS ERASED AT ONCE (the
+   * owner's direction, 2026-10-04: "delete them … when the workspace closes";
+   * no grace — the typed name and the asking are the guard, and the copy of
+   * everything is one row above on the same page).
+   *
+   * Owner only, twice: the route (`data_rights`) and the database
+   * (`close_workspace` checks the person is this workspace's owner, and takes
+   * the workspace from the transaction). Never the installation's own
+   * workspace — the one the access code opens — nor a practice copy, nor while
+   * a paid plan runs. With no script the first post is answered with a page
+   * that asks; then the database erases everything, the session is ended and
+   * the owner lands, signed out, on a page that says what happened. Everyone
+   * else signed in to it is signed out at their next page (S1: their person is
+   * gone). The operator is sent the erasure's ledger line, ids only.
+   */
+  app.post('/app/settings/data/close', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/data');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const typed = String(b['name'] ?? '').slice(0, 200);
+    if (s.businessId === deps.businessId || personOf(s).id === 'owner') {
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.protected');
+    }
+    const bid = parseBusinessId(s.businessId);
+    const name = bid.ok ? await withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ name: string }>`
+      select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? '') : '';
+    if (typed.trim().toLocaleLowerCase() !== name.trim().toLocaleLowerCase() || name === '') {
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.name_wrong');
+    }
+    if (b['asked'] !== '1') {
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'data.title'), active: 'settings', bodyHtml: renderCloseAsk(locale, typed, name),
+      }));
+    }
+    const r = await closeWorkspace(deps.db, s.businessId, typed, personOf(s).id);
+    if (r.outcome === 'refused') {
+      req.log.error({ err: r.error }, 'closing a workspace was refused by the erasure');
+      if (deps.reportError) void deps.reportError(r.error, 'web', { route: 'POST /app/settings/data/close', businessId: s.businessId });
+      return flashTo(reply, '/app/settings/data#close', 'data.flash.eraseRefused');
+    }
+    if (r.outcome !== 'closed') {
+      return flashTo(reply, '/app/settings/data#close', ({
+        name_wrong: 'data.flash.name_wrong', protected: 'data.flash.protected', paid: 'data.flash.paid',
+        not_owner: 'staff.notAllowed', busy: 'data.flash.busy',
+      } as const)[r.outcome]);
+    }
+    facts.evict(s.businessId);
+    liveness.evictBusiness(s.businessId);
+    if (deps.systemMail && deps.legalContact) {
+      const mail = erasureNotice('workspace', r.line);
+      void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
+        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'workspace erasure notice could not be sent'); },
+        (e: unknown) => req.log.warn({ err: e }, 'workspace erasure notice could not be sent'),
+      );
+    }
+    setCookie(reply, '', 0);
+    return reply.redirect('/closed');
   });
 
   app.post('/app/settings/data/withdraw', async (req, reply) => {
@@ -3733,57 +3798,82 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
-   * CC-02a — a buyer asked for their data to be deleted, and the owner records
-   * it here, on that buyer's page. OWNER-ONLY (`data_rights`, the workspace
-   * request's own action): it is the business's word to Nomi's operator that
-   * this person asked, and once carried out nobody can undo it. A sales
-   * assistant is refused with the owner's sentence and nothing is written.
+   * 0126 — the old "Record the request" button. Deleting is now one act
+   * (below); a page left open from before posts here and is told so: nothing
+   * is recorded, nothing erased.
    */
   app.post('/app/conversations/:conversationId/deletion', async (req, reply) => {
     const conversationId = (req.params as { conversationId: string }).conversationId;
-    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const here = `/app/conversations/${encodeURIComponent(conversationId)}#deletion`;
     const s = await ownerOnly(req, reply, 'data_rights', here);
     if (!s) return reply;
-    // 0076 — the note says how and when they asked, so it is needed only when
-    // nothing was noted from their message; askBuyerDeletion decides which.
-    const raw = String((req.body as { note?: unknown } | undefined)?.note ?? '');
-    const note = raw.trim() === '' ? null : buyerDeletionNote(raw);
-    if (note && !note.ok) {
-      return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    return flashTo(reply, here, 'conv.deletion.flash.moved');
+  });
+
+  /**
+   * 0126 — "DELETE THIS CUSTOMER'S DATA NOW": the request (theirs from chat,
+   * one already open, or a new one with the owner's note of how they asked)
+   * and the database's erasure, in one transaction (`eraseCustomerNow`).
+   * OWNER-ONLY twice: the route (`data_rights`) and the database
+   * (`erase_customer` checks the person, and takes the workspace from the
+   * transaction — another business's customer cannot be reached). With no
+   * script, the first post is answered with a page that asks. After it, the
+   * owner lands on Your data, where the request shows as done, and the notice
+   * says what went and what stayed. Nothing is sent to the customer (rule 18).
+   * The operator is sent the erasure's ledger line, ids only — the copy that
+   * outlives a restore.
+   */
+  app.post('/app/conversations/:conversationId/deletion/erase', async (req, reply) => {
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const from = b['from'] === 'data' ? 'data' : 'conversation';
+    const here = from === 'data' ? '/app/settings/data#buyers' : `/app/conversations/${encodeURIComponent(conversationId)}#deletion`;
+    const s = await ownerOnly(req, reply, 'data_rights', here);
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const raw = String(b['note'] ?? '');
+    const checked = raw.trim() === '' ? null : buyerDeletionNote(raw);
+    if (checked && !checked.ok) return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    const note = checked?.ok ? checked.value : null;
+    if (b['asked'] !== '1') {
+      // With no script: the page that asks. It names who, and what goes and stays.
+      const bid = parseBusinessId(s.businessId);
+      const buyer = bid.ok && /^[0-9a-f-]{36}$/i.test(conversationId)
+        ? await withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ name: string | null }>`
+            select c.display_name as name from conversations v join clients c on c.id = v.client_id
+             where v.id = ${conversationId}::uuid`.execute(tx)).rows[0]) : undefined;
+      if (!buyer) return reply.redirect('/app/inbox');
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'erase.ask.title'), active: 'inbox',
+        bodyHtml: renderEraseAsk(locale, { conversationId, buyer: buyer.name, note, from }),
+      }));
     }
-    const r = await askBuyerDeletion(deps.db, s.businessId, conversationId, note?.ok ? note.value : null, personOf(s).id);
+    const r = await eraseCustomerNow(deps.db, s.businessId, conversationId, note, personOf(s).id);
     if (r.outcome === 'not_found') return reply.redirect('/app/inbox');
     if (r.outcome === 'note_missing') return flashTo(reply, here, 'conv.deletion.flash.note_missing');
-    /**
-     * The operator hears of it the day it is recorded, as a workspace request
-     * is heard of — the daily deadline check only speaks a week before the
-     * date. AFTER the row is written and never instead of it; a send that
-     * fails is logged and the owner is still told it was recorded. The ids
-     * and the dates only: never the note and never the buyer's name, which
-     * are the buyer's and are in the row already.
-     */
-    if (r.outcome === 'asked' && deps.systemMail && deps.legalContact) {
-      const day = (d: Date) => d.toISOString().slice(0, 10);
-      void deps.systemMail.send({
-        to: deps.legalContact,
-        subject: `Customer deletion requested · ${s.businessId}`,
-        text: `A business recorded a buyer's request to have their data deleted.\n\n`
-          + `workspace: ${s.businessId}\nrequest: ${r.requestId}\nrecorded by: ${personOf(s).id}\n`
-          + (r.fromChat ? `asked in a message on: ${day(r.askedAt)} (noted when it arrived)\n` : '')
-          + `recorded on: ${day(r.fromChat ? new Date() : r.askedAt)}\ndue by: ${day(deletionDueBy(r.askedAt))}\n\n`
-          + `Due within ${DELETION_DAYS} days of being recorded, which /data-deletion states.\n`
-          + `Follow docs/DATA-DELETION-RUNBOOK.md.\n`,
-      }).then(
-        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'buyer deletion notice could not be sent'); },
-        (e: unknown) => req.log.warn({ err: e }, 'buyer deletion notice could not be sent'),
+    if (r.outcome === 'note_long') return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    if (r.outcome === 'not_owner') return flashTo(reply, here, 'staff.notAllowed');
+    if (r.outcome === 'busy') return flashTo(reply, here, 'data.flash.busy');
+    if (r.outcome === 'refused') {
+      req.log.error({ err: r.error }, 'a customer erasure was refused');
+      if (deps.reportError) void deps.reportError(r.error, 'web', { route: 'POST /app/conversations/:conversationId/deletion/erase', businessId: s.businessId });
+      return flashTo(reply, here, 'data.flash.eraseRefused');
+    }
+    facts.evict(s.businessId);
+    if (deps.systemMail && deps.legalContact) {
+      const mail = erasureNotice('customer', r.line);
+      void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
+        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'customer erasure notice could not be sent'); },
+        (e: unknown) => req.log.warn({ err: e }, 'customer erasure notice could not be sent'),
       );
     }
-    if (r.outcome === 'asked' && r.fromChat) {
-      return flashTo(reply, here, 'conv.deletion.flash.recordedAsk',
-        { due: show.date(localeOf(req), deletionDueBy(r.askedAt)) });
-    }
-    return flashTo(reply, here, r.outcome === 'asked' ? 'conv.deletion.flash.asked'
-      : r.outcome === 'already_open' ? 'conv.deletion.flash.already_open' : 'data.flash.failed');
+    // What went, then each thing that stayed and why — in the owner's words.
+    return flashTo(reply, '/app/settings/data#buyers', [
+      { key: 'data.flash.erased' },
+      ...(r.ordersKept > 0 ? [{ key: 'data.flash.erasedOrders' as const, params: { n: show.count(locale, r.ordersKept) } }] : []),
+      ...(r.doNotContactKept > 0 ? [{ key: 'data.flash.erasedDoNotContact' as const }] : []),
+      { key: 'data.flash.erasedRecord' },
+    ]);
   });
 
   /**

@@ -35,7 +35,9 @@ describe('CC-02b · the erasure tool is an operator tool, never the app', () => 
       const rel = `${dir}/${f}`;
       return statSync(join(ROOT, rel)).isDirectory() ? walk(rel) : /\.(ts|mjs|js)$/.test(f) ? [rel] : [];
     });
-    const importers = walk('src').filter((f) => read(f).includes('erase-buyer'));
+    // An import or a spawn of the tool, never a comment naming it: since 0126 the app's own
+    // erasure (src/api/web/erasure.ts) says, in words, that it is the same contract.
+    const importers = walk('src').filter((f) => /(from|import\(|require\(|spawn\w*\()\s*[^;\n]*erase-buyer/.test(read(f)));
     expect(importers).toEqual([]);
   });
 

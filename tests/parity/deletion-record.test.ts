@@ -6,7 +6,6 @@ import { renderConversationDetail, renderInboxList, type ConversationDetail, typ
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
-import { deletionDueBy } from '../../src/core/ops/deletions.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
@@ -97,11 +96,11 @@ describe('0076 · the conversation page keeps the request after the hand-off is 
     }
   });
 
-  it('asked again after the owner recorded it: the card says it is recorded, and by when it is done', () => {
+  it('asked again after the owner recorded it: the card says it is recorded, and since when — the owner deletes it (0126)', () => {
     const html = withoutIsolates(renderConversationDetail(detail({
       handoffReasons: ['deletion_requested'], ownership: 'WAITING_HUMAN', deletionRecorded: { askedAt: ASKED },
     }), 'en', NOW, null, OWNER_VIEW));
-    expect(html).toContain(esc(t('en', k('deletionAsked.recorded'), { due: formatDate('en', deletionDueBy(ASKED), 'Asia/Shanghai') })));
+    expect(html).toContain(esc(t('en', k('deletionAsked.recorded'), { date: formatDate('en', ASKED, 'Asia/Shanghai') })));
   });
 
   it('nothing noted and nothing handed over: no card', () => {
@@ -120,15 +119,17 @@ const file = (over: Partial<CustomerFile> = {}): CustomerFile => ({
 const ask = { id: 'a1', askedAt: ASKED, asks: 1, conversationId: 'c1', words: 'Please delete my data', buyer: 'Ahmed' };
 
 describe('0076 · the buyer’s page asks only for the decision', () => {
-  it('a noted request: when, what they wrote, record it (no note) or not — never "create a request"', () => {
+  it('a noted request: when, what they wrote, delete it now (no note) or not — never "create a request"', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderCustomerFile(file({ deletionAsk: ask }), l, NOW, null, OWNER_VIEW));
       const section = html.slice(html.indexOf('id="deletion"'));
       expect(section, l).toContain(esc(t(l, k('conv.deletion.waiting'), { date: formatDate(l, ASKED, 'Asia/Shanghai') })));
       expect(section, l).toContain('<p class="voice"><bdi dir="auto">Please delete my data</bdi></p>');
-      expect(section, l).toContain('action="/app/conversations/c1/deletion"');
+      // 0126 — the one act is the deletion itself, asked first.
+      expect(section, l).toContain('action="/app/conversations/c1/deletion/erase"');
       expect(section, l).toContain('action="/app/conversations/c1/deletion/dismiss"');
-      expect(section, l).toContain(esc(t(l, k('conv.deletion.record'))));
+      expect(section, l).toContain(esc(t(l, k('conv.deletion.erase'))));
+      expect(section, l).toContain(`data-confirm="${esc(t(l, k('conv.deletion.eraseConfirm')))}"`);
       expect(section, l).toContain(esc(t(l, k('conv.deletion.dismiss'))));
       // What goes and what stays is still said before the decision.
       expect(section, l).toContain(esc(t(l, 'conv.deletion.erased')));
@@ -156,7 +157,7 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
     const html = withoutIsolates(renderCustomerFile(file({
       deletionAsk: null, deletion: { state: 'open', askedAt: ASKED, closedAt: null, closedNote: null },
     }), 'en', NOW, null, OWNER_VIEW));
-    expect(html).toContain(esc(t('en', 'conv.deletion.open', { asked: formatDate('en', ASKED, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(ASKED), 'Asia/Shanghai') })));
+    expect(html).toContain(esc(t('en', 'conv.deletion.open', { asked: formatDate('en', ASKED, 'Asia/Shanghai') })));
     expect(html).not.toContain('/deletion/dismiss');
   });
 });

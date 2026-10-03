@@ -241,7 +241,7 @@ describe('Your data · w4-settings-a-16, -17, -18', () => {
     // Chinese runs two sentences on after 。 — no stray space (three places)
     const zh = renderDataRights(view as never, 'zh', null, OWNER_VIEW, 'Setup');
     expect(zh).not.toMatch(/。 /);
-    expect(zh).toContain(`${t('zh', 'data.deletion.lead')}${t('zh', 'data.deletion.byHand')}`);
+    expect(zh).toContain(`${t('zh', 'data.deletion.lead')}${t('zh', 'data.deletion.now')}`);
   });
   it('the download cards span the column like the page\'s other cards', async () => {
     const { stylesheetAt, shell } = await import('../../src/api/web/layout.js');

@@ -51,6 +51,8 @@ export type LivenessCache = {
   get(key: string, now: number): Liveness | null;
   set(key: string, value: Liveness, now: number): void;
   evict(key: string): void;
+  /** 0126 — a closed workspace: every person of it asked again at their next page, and found gone. */
+  evictBusiness(businessId: string): void;
 };
 
 export function makeLivenessCache(ttlMs = 60_000, maxKeys = 5000): LivenessCache {
@@ -70,6 +72,9 @@ export function makeLivenessCache(ttlMs = 60_000, maxKeys = 5000): LivenessCache
       }
     },
     evict(key) { held.delete(key); },
+    evictBusiness(businessId) {
+      for (const key of [...held.keys()]) if (key.startsWith(`${businessId}:`)) held.delete(key);
+    },
   };
 }
 
