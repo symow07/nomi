@@ -147,6 +147,9 @@ describe('the conversation page', () => {
       const on = withAssistantName(NAME, () => renderConversationDetail(detail({ ownership: 'AI', providerRefusing: true }), l, NOW, null));
       expect(on).toContain('id="provider-billing"');
       expect(text(on)).toContain(text(say(l, 'conv.providerBilling', { name: NAME })).trim());
+      // The line under the heading does not say the heading again (seen on the page, 2026-10-04).
+      const head = say(l, 'today.providerBilling.title', { name: NAME });
+      expect(text(on).split(head).length - 1).toBe(1);
       const off = withAssistantName(NAME, () => renderConversationDetail(detail({ ownership: 'AI' }), l, NOW, null));
       expect(off).not.toContain('provider-billing');
     });

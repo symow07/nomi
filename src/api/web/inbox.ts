@@ -2544,7 +2544,7 @@ export function renderConversationDetail(
     : d.providerRefusing
       ? `<div class="card refused" id="provider-billing">
         ${stateHead('warn', t(locale, 'today.providerBilling.title', { name: assistantName(locale) }))}
-        <div class="rf"><div class="rf-y muted">${esc(t(locale, 'conv.providerBilling', { name: assistantName(locale) }))}</div></div>
+        <div class="rf"><div class="rf-y muted">${esc(t(locale, 'conv.providerBilling'))}</div></div>
       </div>`
       : '';
 
