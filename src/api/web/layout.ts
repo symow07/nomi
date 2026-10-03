@@ -3090,6 +3090,16 @@ export function signupPage(input: SignupPageInput): string {
  */
 export type SetPasswordProblem = 'short' | 'long' | 'mismatch' | 'is_email';
 
+/**
+ * PWR2 — a door sentence with an e-mail address in it: the address in its own
+ * `<bdi>` (every language); the sentence's figures are isolated by `t` itself
+ * where the page runs right to left (say.ts). Escaped.
+ */
+function withAddress(locale: Locale, key: MessageKey, email: string | null, params: Record<string, string | number> = {}): string {
+  const said = esc(t(locale, key, { ...params, ...(email === null ? {} : { email: '\u0000' }) }));
+  return email === null ? said : said.replace('\u0000', `<bdi>${esc(email)}</bdi>`);
+}
+
 export function setPasswordPage(input: {
   readonly locale: Locale; readonly path: string; readonly passwordMin: number; readonly passwordMax: number;
   /** Null: the link is not good (used, lapsed or unknown). */
@@ -3120,20 +3130,29 @@ export function setPasswordPage(input: {
   const problem = input.problem
     ? t(locale, `setpw.problem.${input.problem}` as MessageKey, { n: input.problem === 'long' ? input.passwordMax : input.passwordMin })
     : null;
+  // PWR2 — the page, not the browser, says what is wrong (`novalidate`): the
+  // browser's own bubble is in the browser's language, not the page's. The
+  // sentence sits under the field it is about, tied to it, and that field
+  // takes the cursor.
+  const onRepeat = input.problem === 'mismatch';
+  const tied = (id: string, on: boolean): string => (problem && on ? ` class="err-field" aria-invalid="true" aria-describedby="${id}-err"` : '');
+  const under = (id: string, on: boolean): string => (problem && on ? `<div class="fld-err" id="${id}-err" role="alert">${esc(problem)}</div>` : '');
+  // PWR2 — the address is isolated inside the sentence (not the sentence as a
+  // whole), so in Arabic it keeps its own order and the sentence its direction.
   const card = `
     <h1>${esc(t(locale, 'setpw.title'))}</h1>
-    <p class="lead"><bdi>${esc(t(locale, 'setpw.lead', { email: input.link.email }))}</bdi></p>
-    ${problem ? `<div class="err" role="alert">${esc(problem)}</div>` : ''}
-    <form method="post" action="/login/set-password">
+    <p class="lead">${withAddress(locale, 'setpw.lead', input.link.email)}</p>
+    <form method="post" action="/login/set-password" novalidate>
       <input type="hidden" name="t" value="${esc(input.link.token)}" />
       <input type="email" name="email" value="${esc(input.link.email)}" autocomplete="username" hidden readonly />
       <label for="setpw-password">${esc(t(locale, 'setpw.password'))}</label>
       <input id="setpw-password" type="password" name="password" required minlength="${input.passwordMin}"
-        maxlength="${input.passwordMax}" autocomplete="new-password" autofocus />
-      <div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>
+        maxlength="${input.passwordMax}" autocomplete="new-password"${onRepeat ? '' : ' autofocus'}${tied('setpw-password', !onRepeat)} />
+      ${under('setpw-password', !onRepeat) || `<div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>`}
       <label for="setpw-repeat">${esc(t(locale, 'setpw.repeat'))}</label>
       <input id="setpw-repeat" type="password" name="repeat" required minlength="${input.passwordMin}"
-        maxlength="${input.passwordMax}" autocomplete="new-password" />
+        maxlength="${input.passwordMax}" autocomplete="new-password"${onRepeat ? ' autofocus' : ''}${tied('setpw-repeat', onRepeat)} />
+      ${under('setpw-repeat', onRepeat)}
       <button type="submit">${esc(t(locale, 'setpw.submit'))}</button>
     </form>`;
   return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other);
@@ -3154,26 +3173,53 @@ export function forgotPasswordPage(input: {
   readonly email?: string; readonly problem?: ForgotProblem | null;
   /** The address it was asked for: the page now says a link is on its way — if it signs in here. */
   readonly sent?: string | null;
+  /**
+   * PWR2 — this installation sends no system mail, so no link can be mailed:
+   * the page says who sets a new password instead (Nomi's team, at `contact`
+   * when there is one) and asks for nothing.
+   */
+  readonly mailOff?: boolean;
+  readonly contact?: string | null;
 }): string {
   const { locale } = input;
   const other = `<p class="other"><a href="/login">${esc(t(locale, 'setpw.toLogin'))}</a></p>`;
-  if (input.sent) {
+  // PWR2 — an address or a figure inside a sentence is isolated: in Arabic it
+  // keeps its own order, and the sentence keeps its direction.
+  const said = (key: MessageKey, email?: string): string => withAddress(locale, key, email ?? null, { minutes: input.minutes });
+  // PWR2 — an access code is not a password and is never mailed: who gives a new one.
+  const codes = `<p class="caption muted">${esc(t(locale, 'forgot.codes'))}</p>`;
+  if (input.mailOff) {
+    const how = input.contact
+      ? esc(t(locale, 'forgot.off.write', { email: '\u0000' })).replace('\u0000', `<a href="mailto:${esc(input.contact)}"><bdi>${esc(input.contact)}</bdi></a>`)
+      : esc(t(locale, 'forgot.off.ask'));
     return doorFrame(locale, input.path, t(locale, 'forgot.title'),
       `<h1>${esc(t(locale, 'forgot.title'))}</h1>
-      <p class="lead" role="status"><bdi>${esc(t(locale, 'forgot.sent', { email: input.sent, minutes: input.minutes }))}</bdi></p>`, other);
+      <p class="lead">${how}</p>
+      ${codes}`, other);
   }
-  const problem = input.problem === 'email' ? t(locale, 'signup.problem.email_invalid')
-    : input.problem === 'slow' ? t(locale, 'login.slow') : null;
+  if (input.sent) {
+    // PWR2 — the page says what to do now (the heading), and how to ask again.
+    return doorFrame(locale, input.path, t(locale, 'forgot.sent.title'),
+      `<h1>${esc(t(locale, 'forgot.sent.title'))}</h1>
+      <p class="lead" role="status">${said('forgot.sent', input.sent)}</p>
+      <p><a href="/login/forgot">${esc(t(locale, 'forgot.again'))}</a></p>
+      ${codes}`, other);
+  }
+  // PWR2 — the page, not the browser, says an address is not one (`novalidate`),
+  // in the page's language, under the field and tied to it.
+  const bad = input.problem === 'email';
   const card = `
     <h1>${esc(t(locale, 'forgot.title'))}</h1>
-    <p class="lead">${esc(t(locale, 'forgot.lead', { minutes: input.minutes }))}</p>
-    ${problem ? `<div class="err" role="alert">${esc(problem)}</div>` : ''}
-    <form method="post" action="/login/forgot">
+    <p class="lead">${said('forgot.lead')}</p>
+    ${input.problem === 'slow' ? `<div class="err" role="alert">${esc(t(locale, 'login.slow'))}</div>` : ''}
+    <form method="post" action="/login/forgot" novalidate>
       <label for="forgot-email">${esc(t(locale, 'login.emailLabel'))}</label>
       <input id="forgot-email" type="email" name="email" value="${esc(input.email ?? '')}" required maxlength="254"
-        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus />
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus${bad ? ' class="err-field" aria-invalid="true" aria-describedby="forgot-email-err"' : ''} />
+      ${bad ? `<div class="fld-err" id="forgot-email-err" role="alert">${esc(t(locale, 'signup.problem.email_invalid'))}</div>` : ''}
       <button type="submit">${esc(t(locale, 'forgot.submit'))}</button>
-    </form>`;
+    </form>
+    ${codes}`;
   return doorFrame(locale, input.path, t(locale, 'forgot.title'), card, other);
 }
 

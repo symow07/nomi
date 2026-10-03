@@ -156,6 +156,16 @@ export async function spendSetupLink(db: Db, tokenHash: string, passwordHash: st
   return r?.email ?? null;
 }
 
+/**
+ * PWR2 (0129) — the login's address answered: a code mailed to it was typed
+ * back. Only then may "Forgot your password?" mail a link there. Sets the
+ * stamp once; never clears it.
+ */
+export async function markLoginEmailProven(db: Db, loginId: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(loginId)) return;
+  await sql`select login_email_proven(${loginId}::uuid)`.execute(db);
+}
+
 // ── Inside a tenant ─────────────────────────────────────────────────────────
 
 /** The signed-in person's own login, if she has one (the pilot's owner signs in by code and has none). */

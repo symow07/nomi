@@ -196,6 +196,9 @@ try {
       + (replaced.length ? `\n    Archived: ${replaced.map((l) => l.email).join(', ')} — it no longer signs in.` : '');
   }
 
+  // PWR2 (0129) — the operator wrote this address in by hand: it is vouched
+  // for, so "Forgot your password?" may send a link to it later.
+  await client.query('update logins set email_verified_at = coalesce(email_verified_at, now()) where id = $1', [loginId]);
   // The link. A newer one closes any older one still open for this login.
   const token = newToken();
   await client.query('update login_setups set used_at = now() where login_id = $1 and used_at is null', [loginId]);

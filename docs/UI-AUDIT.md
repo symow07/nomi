@@ -1273,7 +1273,7 @@ As before, problems that appear only because this is a local instance (no mail, 
   "Speech" draws the assistant's reply as the old white bubble, without the magenta wash and "✦ {name}". Introduced by this run (the gallery was not updated).
 
 #### settings-account
-- **S4** · NEW (missed) · w4-settings-a-22 · all locales · both — neither sign-in state says what to do if the code or the password is lost. Here it is "Password — None: you sign in with an access code." With an e-mail login, "Change password" needs the present one. There is no self-service recovery: a lost password is the operator's `add-login --reset`. The page does not say so.
+- **S4** · NEW (missed) · w4-settings-a-22 · all locales · both — neither sign-in state says what to do if the code or the password is lost. Here it is "Password — None: you sign in with an access code." With an e-mail login, "Change password" needs the present one. There is no self-service recovery: a lost password is the operator's `add-login --reset`. The page does not say so. *(Correction, 2026-10-04: self-service recovery exists — "Forgot your password?", PWR #133, held to the standard by PWR2 — wherever the installation sends system mail; the audited local instance sent none. The page now says both ways.)*
 
 #### settings-billing
 - **S4** · NEW · w4-settings-a-23 · all locales · both — "nothing is charged" is said twice in a few lines:
