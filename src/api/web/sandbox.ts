@@ -361,7 +361,7 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
   // Phase 9 (V1-286) — folded, and placed after the practice conversation: the
   // page opened with 41 case titles and the box to write in 3,000 px down.
   return `<details class="card pchecks">
-    <summary><h2>${esc(t(locale, 'practice.scripted.title'))} · <span class="pcount">${esc(t(locale, 'practice.scripted.count', { passed: report.passed, total: report.total }))}</span></h2></summary>
+    <summary><h2>${esc(t(locale, 'practice.scripted.title'))}&nbsp;· <span class="pcount">${esc(t(locale, 'practice.scripted.count', { passed: report.passed, total: report.total }))}</span></h2></summary>
     <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: assistantName(locale) }))}</p>
     <ul class="pcases">${rows}</ul>
     <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: assistantName(locale) }))}</p>

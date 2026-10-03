@@ -2304,7 +2304,7 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     asked,
     // The sum and its word never wrap apart (`.fig`): "$1,240.00" at a line's end and "spent" under it read as two facts.
     c.value.spent ? `<span class="fig">${around('catchup.spent', 'money', `<bdi>${esc(show.money(locale, c.value.spent))}</bdi>`)}</span>` : '',
-  ].filter(Boolean) : [asked, esc(t(locale, 'catchup.none'))].filter(Boolean);
+  ].filter(Boolean) : [asked, `<span class="fig">${esc(t(locale, 'catchup.none'))}</span>`].filter(Boolean);
   const regular = c?.value.regular ? ` <span class="cu-regular">${esc(t(locale, 'catchup.regular'))}</span>` : '';
 
   // Beside the face: who and where. Under both, the width of the column: what they bought, and where things stand.

@@ -171,7 +171,7 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       expect(bare, l).toContain(esc(t(l, 'catchup.none')));
       // nothing asked and nothing bought still says so
       expect(strip(page(detail({ product: { name: null, nameZh: null }, quantity: null }, { ...none, askedAbout: null }), l)), l)
-        .toContain(`<p class="cu-facts">${esc(t(l, 'catchup.none'))}</p>`);
+        .toContain(`<p class="cu-facts"><span class="fig">${esc(t(l, 'catchup.none'))}</span></p>`);
       for (const side of sides(l, 'catchup.bought', 'items')) expect(s, l).not.toContain(side);
       expect(s, l).not.toContain('cu-regular');
       expect(s, l).not.toContain(esc(t(l, 'catchup.regular')));
