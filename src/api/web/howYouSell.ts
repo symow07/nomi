@@ -142,7 +142,7 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null): stri
   const rows = v.order.map((q) => {
     const s = stateOf(q);
     return menuRow({ href: `${HS_BASE}/${q}`, label: title(locale, q, name),
-      value: t(locale, s === 'open' ? 'setup.state.notAnswered' : `hs.state.${s}` as MessageKey),
+      value: t(locale, `hs.state.${s}` as MessageKey),
       ...(s === 'answered' ? { tone: 'ok' as const } : {}) });
   });
   const position = (q: Question) => ({ i: v.order.indexOf(q) + 1, n: v.order.length });

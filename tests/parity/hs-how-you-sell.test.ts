@@ -208,7 +208,7 @@ describe('Phase 9 · B5 · How you sell', () => {
       expect(html, l).toContain(bare(t(l, 'hs.count', { done: '0', total: '9' })));
       // every question is a row with its door and its state — never the waiting colour for a setting
       expect(html.match(/<a class="srow sr-menu" href="\/app\/business\/selling\/[a-z_]+">/g), l).toHaveLength(9);
-      expect(html.split(`<span class="sr-value" dir="auto"><bdi>${t(l, 'setup.state.notAnswered')}</bdi></span>`).length - 1, l).toBe(9);
+      expect(html.split(`<span class="sr-value" dir="auto"><bdi>${t(l, 'hs.state.open')}</bdi></span>`).length - 1, l).toBe(9);
       expect(html, l).not.toContain('sr-value warn');
       const some = hub(l, { price: { state: 'answered', answer: { q: 'price', quantityFirst: true } } });
       expect(some, l).toContain(`<span class="sr-value ok" dir="auto"><bdi>${t(l, 'hs.state.answered')}</bdi></span>`);

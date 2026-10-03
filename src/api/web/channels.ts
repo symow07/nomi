@@ -871,7 +871,7 @@ function metaScreen(locale: Locale, viewer: Viewer, parts: ChannelScreenParts): 
       </ul>
       ${deeper('/app/help/meta', t(locale, 'meta.panel.help'))}
     </div>
-    <div class="block">
+    <div class="block reach">
       ${card('instagram')}${card('messenger')}
       <div class="instead"><span class="muted">${esc(t(locale, 'reach.instead.title'))}</span>
         <ul>${instead.map((i) => `<li>${esc(t(locale, `reach.instead.${i}` as MessageKey, { name }))}</li>`).join('')}</ul></div>
@@ -927,11 +927,12 @@ export function renderChannelScreen(
   const head = `${back(CHANNELS_HOME, t(locale, 'factory.reach.title'))}<h1 class="page">${esc(channelScreenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
   const reach = (c: OutreachChannel) => renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
     data.outreach, data.domain, viewer, data.outreachCaps, parts.inbound ?? new Map(), true, [c]);
+  const body = (html: string) => `${head}<div class="ch-screen">${html}</div>`;
   switch (screen) {
-    case 'whatsapp': return `${head}${whatsappCard(data, locale, viewer)}${reach('whatsapp')}`;
-    case 'email': return `${head}${parts.accountsHtml ?? ''}${reach('email')}`;
-    case 'meta': return `${head}${metaScreen(locale, viewer, parts)}`;
-    case 'alerts': return `${head}${alertsScreen(data, locale, viewer)}`;
+    case 'whatsapp': return body(`${whatsappCard(data, locale, viewer)}${reach('whatsapp')}`);
+    case 'email': return body(`${parts.accountsHtml ?? ''}${reach('email')}`);
+    case 'meta': return body(metaScreen(locale, viewer, parts));
+    case 'alerts': return body(alertsScreen(data, locale, viewer));
   }
 }
 

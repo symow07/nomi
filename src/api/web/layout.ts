@@ -1384,6 +1384,8 @@ const STYLE_PAGES = `
   .req-how { font-size:var(--font-size-caption); }
   /* One column on this page: the cards keep the measure the rows and the prose keep. */
   .card.ch, .card.reach { max-width:var(--measure-prose); }
+  /* The fix wave (w4-business-assistant-17) — a channel's screen is one column: its section rules and ledes stop where its cards do. */
+  .ch-screen { max-width:var(--measure-prose); }
   .reach .win { font-size:var(--font-size-small); margin-top:var(--space-8); }
   .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8); border-top:1px solid var(--color-border); }
   .reach .outreach { margin-top:var(--space-12); padding-top:var(--space-12); border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-12); }
