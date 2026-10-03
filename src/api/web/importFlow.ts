@@ -27,7 +27,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 import { esc, back } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
-import { catalogueForTx, importFlash, writeImportRows, unitLabel, unitOne, perUnit, type ImportResult } from './products.js';
+import { catalogueForTx, importFlash, writeImportRows, unitLabel, unitChoices, perUnit, type ImportResult } from './products.js';
 import { currencySymbol } from '../../core/types/money.js';
 import * as show from './values.js';
 
@@ -46,9 +46,6 @@ import * as show from './values.js';
  * → when she gave a discount, the floors (each new product's lowest price, a
  * tick each) → added. Every step is a form that works without a script.
  */
-
-/** RT — what a price can be per, as a unit code; the owner's own word is kept as she typed it. */
-export const IMPORT_UNITS = ['item', 'pcs', 'pair', 'set', 'pack', 'box', 'carton', 'dozen', 'bottle', 'kg', 'g', 'm', 'l', 'ml'] as const;
 
 /** At most this many photos in one import: a longer list comes from its spreadsheet or its store. */
 export const MAX_PHOTOS = 10;
@@ -500,9 +497,10 @@ export async function importPhoto(db: Db, businessIdRaw: string, id: string, n: 
   return withTenantTx(db, bid.value, (tx) => loadImportPhoto(tx, bid.value, id, n));
 }
 
+/** w4-products-knowledge-16 — no list is at this address (never "already added": it never was). */
 export const notFoundImport = (locale: Locale): string =>
   `<h1 class="page">${esc(t(locale, 'import.title'))}</h1>
-    <div class="block"><p>${esc(t(locale, 'import.gone'))}</p>${back('/app/products/add', t(locale, 'product.detail.back'))}</div>`;
+    <div class="block"><p>${esc(t(locale, 'import.notFound'))}</p>${back('/app/products/add', t(locale, 'product.teach'))}</div>`;
 
 /**
  * K6 — up to three products a confirmed import added, priced ones first: what
@@ -549,12 +547,13 @@ export function renderAskedQuestions(locale: Locale, importId: string, questions
 
 const base = (id: string): string => `/app/products/import/${encodeURIComponent(id)}`;
 
-/** Phase 9 (V1-345) — "Per" is followed by one unit: "ud.", never "uds.". */
-const unitOptions = (locale: Locale, current: string): string => {
-  const codes: string[] = [...IMPORT_UNITS];
-  if (!codes.includes(current)) codes.unshift(current);
-  return codes.map((u) => `<option value="${esc(u)}"${u === current ? ' selected' : ''}>${esc(unitOne(locale, u))}</option>`).join('');
-};
+/**
+ * The warmth run, phase 9 (w4-products-knowledge-07) — the same field as on a
+ * product's page: "What you count them in", the same words ("uds.", "pcs"), and
+ * one of "item" / "pcs", never both (`unitChoices`).
+ */
+const unitOptions = (locale: Locale, current: string, ownDefault: string): string =>
+  unitChoices(current, ownDefault).map((u) => `<option value="${esc(u)}"${u === current ? ' selected' : ''}>${esc(unitLabel(locale, u))}</option>`).join('');
 
 /**
  * Phase 9 (V1-345) — two sentences, or a label and its value, side by side: a
@@ -610,7 +609,7 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
       <details class="imp-edit"${open ? ' open' : ''}><summary>${esc(t(locale, 'import.row.change'))}</summary>
         <label>${esc(t(locale, 'import.row.name'))} <input type="text" name="name:${esc(r.key)}" value="${esc(v('name', r.name))}" dir="auto" maxlength="120" /></label>
         ${asking ? '' : `<label>${esc(t(locale, 'import.row.price', { currency: m.imp.currency }))} <input type="text" inputmode="decimal" name="price:${esc(r.key)}" value="${esc(v('price', r.price === null ? '' : String(r.price)))}" /></label>`}
-        <label>${esc(t(locale, 'import.row.unit'))} <select name="unit:${esc(r.key)}">${unitOptions(locale, r.unit)}</select></label>
+        <label>${esc(t(locale, 'product.edit.unit'))} <select name="unit:${esc(r.key)}">${unitOptions(locale, r.unit, m.ctx.defaultUnit)}</select></label>
         <label>${esc(t(locale, 'import.row.moq'))} <input type="text" inputmode="numeric" name="moq:${esc(r.key)}" placeholder="${esc(t(locale, 'product.noMinimum'))}" value="${esc(v('moq', r.moq === null ? '' : String(r.moq)))}" />
           <span class="muted small">${esc(t(locale, 'product.edit.moq.hint'))}</span></label>
         <label>${esc(t(locale, 'import.row.names'))} <textarea name="names:${esc(r.key)}" rows="2" dir="auto">${esc(v('names', r.names.join('\n')))}</textarea></label>

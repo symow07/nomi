@@ -68,7 +68,7 @@ import {
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
 } from './channels.js';
 import {
-  loadProductList, loadProductDetail, renderProductList, renderProductDetail, businessKind,
+  loadProductList, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
   renderAddForm, updateProduct, removeProductName, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
 import {
@@ -2957,8 +2957,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
-    return d ? renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s))
-      : missingPage(locale, t(locale, 'product.notFound'), { href: '/app/products', label: t(locale, 'product.detail.back') });
+    // The warmth run, phase 9 (w4-products-knowledge-16) — a product that is not here answers 404, as its knowledge page does.
+    if (!d) { reply.code(404); return renderProductMissing(locale); }
+    return renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s));
   }));
   /**
    * K1 — a pasted list becomes an import that is KEPT (0094): the owner lands on
@@ -3096,7 +3097,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** K1 — the review of one import, as she left it. */
   app.get('/app/products/import/:importId', ownerPage('price_rules', 'products', '/app/products', async (s, req, reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
-    if (!m) return notFoundImport(locale);
+    // w4-products-knowledge-16 — a list that is not here is not "already added": its own words, and 404.
+    if (!m) { reply.code(404); return notFoundImport(locale); }
     // K8 — a table whose columns are not mapped yet shows its columns first.
     const table = m.imp.kind === 'file' && m.imp.rows.length === 0 && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
     if (table) return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
@@ -3247,7 +3249,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     facts.evict(s.businessId);   // D — a first price is a setup step done
+    // The warmth run, phase 9 (V1-305) — the larger orders' prices, one box each ("tier:2000").
+    const tiers = Object.fromEntries(Object.entries(b).filter(([k]) => /^tier:\d+$/.test(k)).map(([k, v]) => [k.slice('tier:'.length), String(v ?? '')]));
     const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
+      tiers: Object.keys(tiers).length ? tiers : null,
       price: b['price'] ?? null,
       moq: b['moq'] ?? null,
       unit: b['unit'] ?? null,
@@ -3261,9 +3266,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     if (!r.ok) {
       const d = await loadProductDetail(deps.db, s.businessId, id);
+      // The warmth run, phase 9 (w4-products-knowledge-17) — the page sent back is the
+      // product's own page: its name is the tab's, as when it is opened (V1-320).
+      if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'product.notFound'), active: 'products', bodyHtml: renderProductMissing(locale),
+      }));
       return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'product.edit.title'), active: 'products',
-        bodyHtml: d ? renderProductDetail(d, locale, null, r.errors, b) : '',
+        title: productName(locale, d) ?? d.name, active: 'products',
+        bodyHtml: renderProductDetail(d, locale, null, r.errors, b, personOf(s)),
       }));
     }
     return flashTo(reply, `/app/products/${encodeURIComponent(id)}`,
@@ -5233,7 +5243,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const d = await loadProductKnowledge(deps.db, s.businessId, id);
     if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: missingPage(locale, t(locale, 'product.notFound'), { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
+      bodyHtml: renderProductMissing(locale, { href: '/app/knowledge', label: t(locale, 'knowledge.back') }),
     }));
     const usage = await loadUsageFacts(deps.db, s.businessId, id);
     const flash = takeFlash(req, reply);

@@ -62,7 +62,11 @@ describe('Phase 9 · an amount is written the reader\'s way in the workspace\'s 
     expect(range).not.toMatch(/\$\d/);
   });
   it('outside a workspace, or with no country on record, an amount is written as it always was; the send path\'s formatter never changes', () => {
-    for (const l of LOCALES) expect(inCountry(null, () => show.money(l, usd)), l).toBe(show.money(l, usd));
+    // The warmth run, phase 9 (w4-products-knowledge-08) — except Spanish and French with no country on record,
+    // which write their own way ("1,05 $"): "2,000" is two to a French reader.
+    for (const l of LOCALES) if (l !== 'es' && l !== 'fr') expect(inCountry(null, () => show.money(l, usd)), l).toBe(show.money(l, usd));
+    expect(inCountry(null, () => show.money('es', usd))).toBe(`1,05\u00a0$`);
+    expect(inCountry(null, () => show.money('fr', usd))).toBe(`1,05\u00a0$`);
     expect(show.money('es', usd)).toBe('$1.05');
     expect(inCountry('ES', () => formatMoney(usd))).toBe('$1.05');
   });

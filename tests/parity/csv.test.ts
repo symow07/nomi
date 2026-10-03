@@ -99,6 +99,8 @@ describe('Phase 9 (V1-383) · a file for a spreadsheet that writes a decimal com
     expect(withCountry('FR', () => csvDialectFor('fr'))).toEqual({ sep: ';', decimal: ',' });
     expect(withCountry('MX', () => csvDialectFor('es'))).toEqual({ sep: ',', decimal: '.' });
     expect(withCountry('ES', () => csvDialectFor('en'))).toEqual({ sep: ',', decimal: '.' });
-    expect(withCountry(null, () => csvDialectFor('es'))).toEqual({ sep: ',', decimal: '.' });
+    // w4-products-knowledge-08 — no country on record: the language's own decimal, as its pages write it.
+    expect(withCountry(null, () => csvDialectFor('es'))).toEqual({ sep: ';', decimal: ',' });
+    expect(csvDialectFor('es')).toEqual({ sep: ',', decimal: '.' });
   });
 });

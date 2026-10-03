@@ -1314,6 +1314,13 @@ const STYLE_PAGES = `
   .prod-add { margin:0 0 var(--space-16); }
   /* w4-products-knowledge-12 — "printed or handwritten?" is a question, at the size of the page's other labels. */
   .choices.hand legend { font-size:var(--font-size-small); color:var(--color-ink); }
+  /* The warmth run, phase 9 (V1-305) — the larger orders' prices: a group of the form's own fields, under their name. */
+  .tiers { border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-16); }
+  .tiers legend { padding:0; margin-bottom:var(--space-8); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); }
+  /* w4-products-knowledge-09 — taking a name off is a field of the page: the label and the box at the page's size and width, the button its own width. */
+  .alias-remove .btn { align-self:flex-start; }
+  /* w4-products-knowledge-10 — a recent quote's facts break between them, never inside one ("$1.05/个"). */
+  .q-fact { white-space:nowrap; }
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .info { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }

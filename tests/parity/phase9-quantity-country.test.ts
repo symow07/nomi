@@ -23,7 +23,14 @@ describe('Phase 9 · a quantity is written the reader\'s way in the workspace\'s
     expect(withCountry('ES', () => strip(show.quantity('en', 120000)))).toBe('120,000');
     expect(withCountry('ES', () => strip(show.quantity('zh', 12000)))).toBe('1.2万');
     expect(withCountry('ES', () => strip(show.quantityOf('ar', 5000, 'قطعة')))).toBe('5,000\u00a0قطعة');
-    expect(withCountry(null, () => strip(show.quantity('es', 5000)))).toBe('5,000');
+    // The warmth run, phase 9 (w4-products-knowledge-08) — a workspace with no country on record writes
+    // Spanish and French the language's own way; outside a workspace, as before.
+    expect(withCountry(null, () => strip(show.quantity('es', 5000)))).toBe('5000');
+    expect(withCountry(null, () => strip(show.quantity('es', 12000)))).toBe('12.000');
+    expect(withCountry(null, () => strip(show.quantity('fr', 2000)).replace(/\u202f/g, ' '))).toBe('2 000');
+    expect(withCountry(null, () => strip(show.money('fr', { amount: 1.05, currency: 'USD' })))).toBe('1,05\u00a0$');
+    expect(withCountry(null, () => strip(show.quantity('en', 5000)))).toBe('5,000');
+    expect(strip(show.quantity('es', 5000))).toBe('5,000');
   });
   it('the send path\'s own figures are not this rule', () => {
     expect(readFileSync(new URL('../../src/core/owner/i18n/format.ts', import.meta.url), 'utf8')).not.toContain('workspaceCountry');

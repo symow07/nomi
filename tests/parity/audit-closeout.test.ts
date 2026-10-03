@@ -214,7 +214,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     // Phase 9 (missed-02) — "2,000 and up" in words: a bare "2,000+" is drawn "+2,000" in Arabic.
     expect(page).toContain(`2,000${NBSP}قطعة فأكثر`);
     expect(page).not.toContain('2,000+');
-    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>\u200F0.92${NBSP}US$ لكل قطعة</bdi>`);   // recent quotes, each figure isolated
+    expect(page).toContain(`<bdi class="q-fact">5,000${NBSP}قطعة</bdi> · <bdi class="q-fact">\u200F0.92${NBSP}US$ لكل قطعة</bdi>`);   // recent quotes, each figure isolated (and whole on its line, w4-products-knowledge-10)
     expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000个起');
   });
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import {
   renderProductList, renderProductDetail, renderAddForm, renderPricesToMe, renderOpenImport, isUuid, loadProductDetail,
+  readTierEdits, unitChoices, renderProductMissing,
   type ProductListItem, type ProductDetail,
 } from '../../src/api/web/products.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
@@ -10,7 +11,7 @@ import { esc, shell } from '../../src/api/web/layout.js';
 import * as show from '../../src/api/web/values.js';
 import { linkedCss } from './linked-css.js';
 import { reviewModel } from './reviewPage.js';
-import { renderImportReview } from '../../src/api/web/importFlow.js';
+import { renderImportReview, notFoundImport } from '../../src/api/web/importFlow.js';
 import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
 import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
@@ -75,6 +76,19 @@ describe('Products — the list', () => {
     expect(t('en', 'product.teach')).toBe('Add your products');
   });
 
+  it('w4-products-knowledge-05 — the same order every visit: a tie broken the same way, the price limits in an order at all', () => {
+    const prod = readFileSync(new URL('../../src/api/web/products.ts', import.meta.url), 'utf8');
+    expect(prod).toContain('order by p.is_active desc, p.updated_at desc, p.name, p.id');
+    const rules = readFileSync(new URL('../../src/api/web/priceRules.ts', import.meta.url), 'utf8');
+    expect(rules).toContain('order by name nulls first, product_id');
+  });
+
+  it('w4-products-knowledge-11 — the rules under the list end where its rows end', () => {
+    const html = renderProductList([item({ status: 'needs_limits' })], 'en');
+    expect(html).toContain('<div class="block measure-prose"><div class="doors">');
+    expect(html).toContain('<div class="block measure-prose"><p class="fwarn">');
+  });
+
   it('V1-302 — each row that opens ends in the chevron', () => {
     const html = renderProductList([item(), item({ id: 'p2' })], 'en');
     expect(html.match(/<a class="prod" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true">›<\/span><\/a>/g)).toHaveLength(2);
@@ -106,18 +120,43 @@ describe('Products — one product', () => {
     expect(page('zh')).toContain('<h1 class="page"><bdi>帆布袋</bdi></h1>');
   });
 
-  it('V1-305 — the price box says which quantity it prices, and what happens to the others', () => {
+  it('V1-305 — the price box says which quantity it prices; each larger order\'s price has a box of its own', () => {
     const en = page('en');
     expect(en).toContain(`Price for one, from 500${NBSP}pcs (USD)`);
-    expect(en).toContain(`Your prices for larger orders (2,000+${NBSP}pcs and 10,000+${NBSP}pcs) stay as they are.`);
     expect(en).toContain('name="price" inputmode="decimal"\n               value="1.05"');
+    // The warmth run, phase 9 — the larger orders' prices are changed here, each box named by its quantity.
+    expect(en).toContain(`<legend>${esc(t('en', 'product.edit.tiers'))}</legend>`);
+    expect(en).toContain(`<span>Price for one, from 2,000${NBSP}pcs (USD)</span>\n          <input name="tier:2000" inputmode="decimal" value="0.92" />`);
+    expect(en).toContain('<input name="tier:10000" inputmode="decimal" value="0.85" />');
     for (const l of LOCALES) {
-      const caption = page(l).split('name="price"')[1]!.split('</label>')[0]!;
-      expect(caption, l).toMatch(/2,000|2000/);
-      expect(caption, l).toMatch(/10,000|1万/);
+      const html = page(l);
+      expect(html, l).toContain('name="tier:2000"');
+      expect(html, l).toContain(esc(t(l, 'product.edit.tiers.hint')));
     }
-    // A product priced from one keeps "Price for one".
-    expect(page('en', { tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2) }] })).toContain('Price for one (USD)');
+    // What was typed comes back with the page; a refusal is said under the group.
+    const sent = plain(renderProductDetail(detail(), 'en', null, { tiers: 'below_floor' }, { 'tier:2000': '0.10' }));
+    expect(sent).toContain('name="tier:2000" inputmode="decimal" value="0.10"');
+    expect(sent).toMatch(/name="tier:10000"[\s\S]*?<p class="perr" role="alert">[^<]*<\/p><span class="caption muted">/);
+    // A product priced from one keeps "Price for one", and has no group for larger orders.
+    const one = page('en', { tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2) }] });
+    expect(one).toContain('Price for one (USD)');
+    expect(one).not.toContain('name="tier:');
+  });
+
+  it('V1-305 — what the boxes change: a figure read the currency\'s way, never below the floor, an empty or stale box left alone', () => {
+    const current = [{ minQty: 2000, price: 0.92 }, { minQty: 10000, price: 0.85 }];
+    expect(readTierEdits(current, { '2000': '0.90', '10000': '0.85' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: 0.9 }] });
+    expect(readTierEdits(current, { '2000': '0,88' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: 0.88 }] });
+    expect(readTierEdits(current, { '2000': '', '500': '0.10' }, 'USD', null)).toEqual({ ok: true, set: [] });
+    expect(readTierEdits(current, { '10000': 'cheap' }, 'USD', null)).toEqual({ ok: false, error: 'not_a_number' });
+    expect(readTierEdits(current, { '10000': '0' }, 'USD', null)).toEqual({ ok: false, error: 'not_positive' });
+    expect(readTierEdits(current, { '10000': '0.70' }, 'USD', 0.72)).toEqual({ ok: false, error: 'below_floor' });
+    // The route reads the boxes, and the edit writes them through the one audited edit.
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/\/\^tier:\\d\+\$\/\.test\(k\)/);
+    const prod = readFileSync(new URL('../../src/api/web/products.ts', import.meta.url), 'utf8');
+    expect(prod).toContain('update price_tiers set unit_price_usd = ${x.price}');
+    expect(prod).not.toMatch(/delete from price_tiers/);   // the app role erases nothing (0005)
   });
 
   it('V1-314 / missed-02 — the prices are plain rows; "and up" in each language\'s own words', () => {
@@ -132,12 +171,63 @@ describe('Products — one product', () => {
     expect(page('fr')).toContain('et plus');
   });
 
+  it('w4-products-knowledge-10 — a quote from today or yesterday says so; each fact stays whole on its line', () => {
+    const NOW = new Date('2026-10-03T10:00:00Z');
+    const today = plain(renderProductDetail(detail({ recentQuotes: [{ quantity: 500, unitPrice: usd(1.05), total: usd(525), at: new Date('2026-10-03T08:00:00Z'), customer: 'Layla', conversationId: 'c-1' }] }), 'en', null, {}, {}, undefined, NOW));
+    expect(today).toContain('<bdi class="q-fact">Today</bdi> · <bdi class="q-fact">Layla</bdi>');
+    expect(today).not.toContain('Sat, Oct 3');
+    const zh = plain(renderProductDetail(detail(), 'zh', null, {}, {}, undefined, NOW));
+    expect(zh).toContain('<bdi class="q-fact">$1.05/个</bdi>');
+    const css = linkedCss(shell({ title: 'x', active: 'products', locale: 'zh', path: '/app/products/x', bodyHtml: zh }));
+    expect(css).toContain('.q-fact { white-space:nowrap; }');
+  });
+
+  it('w4-products-knowledge-09 — taking a name off is a labelled field like the rest, and its button is red, as throwing away is', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).toContain(`class="pform alias-remove">\n        <label class="pq"><span>${esc(t(l, 'product.alias.remove.label'))}</span>`);
+      expect(html, l).toMatch(/<button class="btn danger" type="submit" onclick="return confirm\(this\.dataset\.confirm\)"\s+data-confirm="[^"]*">/);
+    }
+  });
+
+  it('w4-products-knowledge-07 — one unit is never offered under two names; the page and the review use the same field and words', () => {
+    for (const cur of ['pcs', 'item', 'kg', 'jar']) {
+      const c = unitChoices(cur, 'pcs');
+      expect(c.includes('pcs') && c.includes('item'), cur).toBe(false);
+      expect(c, cur).toContain(cur);
+    }
+    expect(unitChoices('kg', 'item')).toContain('item');
+    for (const l of LOCALES) {
+      const product = page(l).split('<select name="unit">')[1]!.split('</select>')[0]!;
+      const review = plain(renderImportReview(reviewModel('Tote $18'), l)).split('<select name="unit:l1">')[1]!.split('</select>')[0]!;
+      expect(product.match(/<option/g)!.length, l).toBe(review.match(/<option/g)!.length);
+      expect(review, l).toContain(`<option value="pcs" selected>${esc(t(l, 'product.unit.pcs'))}</option>`);
+      expect(plain(renderImportReview(reviewModel('Tote $18'), l)), l).toContain(`<label>${esc(t(l, 'product.edit.unit'))} <select name="unit:l1">`);
+    }
+  });
+
+  it('w4-products-knowledge-16 / -17 — a product that is not here is said as that (never "removed"), answered 404; a refused edit keeps the product\'s name as its tab', () => {
+    for (const l of LOCALES) {
+      const html = renderProductMissing(l);
+      expect(html, l).toContain(esc(t(l, 'product.notFound.body')));
+      expect(html, l).not.toContain(esc(t(l, 'common.notFoundBody')));
+      expect(notFoundImport(l), l).toContain(esc(t(l, 'import.notFound')));
+      expect(notFoundImport(l), l).not.toContain(esc(t(l, 'import.gone')));
+    }
+    expect(t('en', 'product.notFound.body')).not.toMatch(/removed/);
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toContain("if (!d) { reply.code(404); return renderProductMissing(locale); }");
+    expect(src).toContain("if (!m) { reply.code(404); return notFoundImport(locale); }");
+    expect(src).toContain("title: productName(locale, d) ?? d.name, active: 'products',");
+    expect(src).not.toContain("title: t(locale, 'product.edit.title'), active: 'products'");
+  });
+
   it('V1-306 — a recent quote says when, for whom, and opens its conversation', () => {
     const en = page('en');
     expect(en).toContain('href="/app/inbox/c-1#latest"');
     expect(en).toContain('Omar');
     expect(en).toMatch(/Oct 1/);
-    expect(en).toContain(`<bdi>500${NBSP}pcs</bdi> · <bdi>$1.05/pc</bdi> · <bdi>total $525.00</bdi>`);
+    expect(en).toContain(`<bdi class="q-fact">500${NBSP}pcs</bdi> · <bdi class="q-fact">$1.05/pc</bdi> · <bdi class="q-fact">total $525.00</bdi>`);
   });
 
   it('V1-308 / V1-006 — no raw category, no "Customizable" nobody set', () => {
@@ -496,7 +586,8 @@ describe('The import review', () => {
     const en = review('en');
     expect(en).toContain('$18.00/pc · No minimum');
     expect(en).not.toContain('no price yet');
-    expect(review('es')).toContain('<option value="pcs" selected>ud.</option>');
+    // The warmth run, phase 9 (w4-products-knowledge-07) — the unit field is the product page's own: "What you count them in", "uds.".
+    expect(review('es')).toContain(`<option value="pcs" selected>${esc(t('es', 'product.unit.pcs'))}</option>`);
     expect(review('zh')).not.toMatch(/。<\/b> /);
     // The warmth run, phase 9 (V1-345) — no space after a Chinese full stop or colon anywhere on the page:
     // the count, what stands before adding, and "Read from:".

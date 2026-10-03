@@ -47,11 +47,23 @@ const UNIT_CODES = new Set(['item', 'pcs', 'pair', 'set', 'pack', 'box', 'carton
 export const unitLabel = (locale: Locale, unit: string): string =>
   UNIT_CODES.has(unit) ? t(locale, `product.unit.${unit}` as MessageKey) : unit;
 /**
+ * The warmth run, phase 9 (w4-products-knowledge-07) — the units a price can be
+ * per, as a choice: "item" and "pcs" are one unit under two codes (a shop's word
+ * and a factory's), so only one of them is offered — the one in use, else the
+ * business's own (`defaultUnitFor`). The owner's own word comes first when it is
+ * none of the codes. The product page and the import review offer the same list.
+ */
+export function unitChoices(current: string, ownDefault: string): readonly string[] {
+  const twin: Readonly<Record<string, string>> = { item: 'pcs', pcs: 'item' };
+  const drop = twin[current] ?? twin[ownDefault] ?? 'item';
+  return [...(UNIT_CODES.has(current) ? [] : [current]), ...[...UNIT_CODES].filter((c) => c !== drop)];
+}
+/**
  * Phase 9 (V1-317) — the unit ONE of something is counted in, for a price per
  * unit: "$1.05/pc", never "$1.05/pcs". Only `pcs` has a plural label; every
  * other code is already said in the singular.
  */
-export const unitOne = (locale: Locale, unit: string): string =>
+const unitOne = (locale: Locale, unit: string): string =>
   unit === 'pcs' ? t(locale, 'product.unit.pcs.one') : unitLabel(locale, unit);
 /**
  * Phase 9 (V1-299) — ONE way to write a product's price, on the list, the
@@ -61,6 +73,15 @@ export const unitOne = (locale: Locale, unit: string): string =>
  */
 export const perUnit = (locale: Locale, price: Money, unit: string): string =>
   t(locale, 'product.price.perUnit', { price: show.money(locale, price), unit: unitOne(locale, unit) });
+
+/**
+ * The warmth run, phase 9 (w4-products-knowledge-16) — no product of hers is at
+ * this address: said as that, never "it may have been removed" (a product is
+ * never erased; the page says so), with the way back to where it was looked for.
+ */
+export const renderProductMissing = (locale: Locale, to: { readonly href: string; readonly label: string } | null = null): string =>
+  `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="empty">${esc(t(locale, 'product.notFound.body'))}<div>${
+    deeper(to?.href ?? '/app/products', to?.label ?? t(locale, 'product.detail.back'))}</div></div>`;
 
 /** Phase 9 (missed-03) — an address cut short is a product that is not here, never a broken page. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -140,7 +161,9 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       from products p
       left join lateral (select min_qty, unit_price_usd from price_tiers pt
                           where pt.product_id = p.id order by min_qty asc limit 1) t on true
-     order by p.is_active desc, p.updated_at desc
+     -- The warmth run, phase 9 (w4-products-knowledge-05) — the newest change first,
+     -- and a tie (an import writes many products in one instant) broken the same way every visit.
+     order by p.is_active desc, p.updated_at desc, p.name, p.id
      limit 200
   `.execute(tx)).rows.map((r): ProductListItem => {
     const entryPrice = r.entry_price !== null ? Number(r.entry_price) : (r.price !== null ? Number(r.price) : null);
@@ -522,7 +545,7 @@ export function renderProductList(
   const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1></div>
     ${flashBanner(flash)}
     ${viewer.isOwner && items.length > 0 ? deeper('/app/products/add', t(locale, 'product.teach'), 'prod-add') : ''}
-    ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name }))}
+    ${waiting > 0 ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name }))}
       ${viewer.isOwner ? `<a class="blink" href="/app/business/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}`;
   if (items.length === 0) {
     // Phase 9 (missed-01) — the door names the page it opens.
@@ -554,7 +577,8 @@ export function renderProductList(
   // Phase 9 (V1-303, V1-379) — what belongs to the products, one door each:
   // their price limits, what the assistant knows about them, and a copy of
   // the list. The copy was only under Setup › Your data.
-  const doors = viewer.isOwner ? `<div class="block"><div class="doors">
+  // w4-products-knowledge-11 — the section's rule ends where the rows above it end.
+  const doors = viewer.isOwner ? `<div class="block measure-prose"><div class="doors">
       ${deeper('/app/business/prices', t(locale, 'prices.title'))}
       ${deeper('/app/knowledge', t(locale, 'nav.knowledge'))}
       ${deeper('/app/settings/data/products', t(locale, 'product.list.copy'), '', 'download')}
@@ -567,6 +591,7 @@ export function renderProductDetail(
   errors: Partial<Record<ProductEditField, ProductEditError>> = {},
   draft: Record<string, string | undefined> = {},
   viewer: Viewer = OWNER_VIEW,
+  now: Date = new Date(),
 ): string {
   const u = unitLabel(locale, d.unit);
   const title = displayName(locale, d.name, d.nameZh);
@@ -587,18 +612,23 @@ export function renderProductDetail(
     ? show.figureOf(locale, `${show.quantity(locale, tr.minQty)}–${show.quantity(locale, tr.maxQty)}`, u)
     : t(locale, 'product.detail.tierFrom', { n: show.quantity(locale, tr.minQty), unit: u });
   // Phase 9 (V1-305) — the box is the price of the FIRST quantity price, and
-  // says so; the others are named under it, kept as they are.
+  // says so. The warmth run, phase 9 (V1-305) — and each larger order's price
+  // has a box of its own, named by the quantity it starts at: changed there,
+  // or emptied to stop offering it. Nothing else wrote them but an import.
   const entry = d.tiers[0];
   const priceLabel = entry && entry.minQty > 1
     ? t(locale, 'product.edit.priceFrom', { qty: show.quantityOf(locale, entry.minQty, u), currency: d.currency })
     : t(locale, 'product.edit.price', { currency: d.currency });
   const others = d.tiers.slice(1);
-  const priceHint = others.length
-    ? `<span class="caption muted">${esc(t(locale, 'product.edit.price.others', { list: formatList(locale, others.map(tierLabel)) }))}</span>` : '';
+  const tierBoxes = others.length
+    ? `<fieldset class="tiers"><legend>${esc(t(locale, 'product.edit.tiers'))}</legend>
+        ${others.map((tr) => `<label class="pq"><span>${esc(t(locale, 'product.edit.priceFrom', { qty: show.quantityOf(locale, tr.minQty, u), currency: d.currency }))}</span>
+          <input name="tier:${tr.minQty}" inputmode="decimal" value="${val(`tier:${tr.minQty}`, String(tr.unitPrice.amount))}" /></label>`).join('')}
+        ${ferr('tiers')}<span class="caption muted">${esc(t(locale, 'product.edit.tiers.hint'))}</span></fieldset>` : '';
   // Phase 9 (V1-309) — the unit is chosen from the reader's own words ("个",
   // "قطعة", "uds."), the owner's own word kept when it is not one of them.
   const unitNow = draft['unit'] ?? d.unit;
-  const units = [...(UNIT_CODES.has(unitNow) ? [] : [unitNow]), ...UNIT_CODES];
+  const units = unitChoices(unitNow, defaultUnitFor(d.businessKind ?? null));
   const unitSelect = `<select name="unit">${units.map((c) =>
     `<option value="${esc(c)}"${c === unitNow ? ' selected' : ''}>${esc(unitLabel(locale, c))}</option>`).join('')}</select>`;
   // Phase 9 (V1-312) — a name in Chinese only where there is one, or the page is in Chinese.
@@ -621,7 +651,8 @@ export function renderProductDetail(
         <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
       <label class="pq"><span>${esc(priceLabel)}</span>
         <input name="price" inputmode="decimal"
-               value="${val('price', entry ? String(entry.unitPrice.amount) : '')}" />${ferr('price')}${priceHint}</label>
+               value="${val('price', entry ? String(entry.unitPrice.amount) : '')}" />${ferr('price')}</label>
+      ${tierBoxes}
       <label class="pq"><span>${esc(t(locale, 'product.list.moq'))}</span>
         <input name="moq" inputmode="numeric" placeholder="${esc(t(locale, 'product.noMinimum'))}"
                value="${val('moq', d.moq === null ? '' : String(d.moq))}" />${ferr('moq')}
@@ -650,10 +681,10 @@ export function renderProductDetail(
   const own = new Set([d.name, d.nameZh].filter((x): x is string => !!x).map((x) => x.toLocaleLowerCase()));
   const removable = d.aliases.filter((a) => !own.has(a.toLocaleLowerCase()));
   const removeName = viewer.isOwner && removable.length
-    ? `<form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/names/remove" class="inline alias-remove">
-        <label for="pa-remove">${esc(t(locale, 'product.alias.remove.label'))}</label>
-        <select id="pa-remove" name="alias" required dir="auto">${removable.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select>
-        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+    ? `<form method="post" action="/app/products/${esc(encodeURIComponent(d.id))}/names/remove" class="pform alias-remove">
+        <label class="pq"><span>${esc(t(locale, 'product.alias.remove.label'))}</span>
+        <select name="alias" required dir="auto">${removable.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select></label>
+        ${/* w4-products-knowledge-09 — it throws a name away, so it looks like it, and so does its question's go-ahead. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form>`
     : '';
   const aliases = d.aliases.length
@@ -671,11 +702,12 @@ export function renderProductDetail(
   const quotes = d.recentQuotes.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2><ul class="rows">${d.recentQuotes.map((q) => {
         const facts = [
-          ...(q.at ? [show.date(locale, q.at)] : []),
+          ...(q.at ? [show.day(locale, q.at, now)] : []),
           ...(q.customer ? [q.customer] : []),
           show.quantityOf(locale, q.quantity, u), perUnit(locale, q.unitPrice, d.unit),
           `${t(locale, 'product.detail.total')} ${show.money(locale, q.total)}`,
-        ].map(iso).join(' · ');
+        // w4-products-knowledge-10 — each fact whole on its line ("$1.05/个" never split at its slash); lines break between facts.
+        ].map((x) => `<bdi class="q-fact">${esc(x)}</bdi>`).join(' · ');
         return `<li class="row">${q.conversationId
           ? `<a class="deeper" href="${conversationUrl(q.conversationId)}"><span>${facts}</span><span class="go" aria-hidden="true">›</span></a>`
           : `<span class="muted">${facts}</span>`}</li>`;
@@ -856,9 +888,42 @@ export type ProductEdit = {
   readonly leadTime?: string | null;
   /** VAR — its options, one a line ("Size: S, M, L"); an empty box is none. Null leaves them as they are. */
   readonly options?: string | null;
+  /**
+   * The warmth run, phase 9 (V1-305) — the larger orders' prices, by the
+   * quantity each starts at ("2000" → "0.90"). The entry price is `price`.
+   * Absent, or an empty box, leaves a price as it is: the app role cannot erase
+   * a row (0005), so stopping one is not offered here (the fix wave's report proposes the migration).
+   */
+  readonly tiers?: Readonly<Record<string, string>> | null;
 };
 
-export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames' | 'leadTime' | 'options';
+export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames' | 'leadTime' | 'options' | 'tiers';
+
+/**
+ * The warmth run, phase 9 (V1-305) — what the boxes for larger orders change.
+ * Pure: `current` is every quantity price but the entry one, `typed` the boxes
+ * as posted. A box for a quantity the product has no price at is ignored (a
+ * page left open while an import changed them), and so is an empty one; the
+ * first figure that will not do refuses them all, like every other field.
+ */
+export function readTierEdits(
+  current: readonly { readonly minQty: number; readonly price: number }[],
+  typed: Readonly<Record<string, string>>, currency: Currency, floor: number | null,
+): { readonly ok: true; readonly set: readonly { minQty: number; price: number }[] }
+  | { readonly ok: false; readonly error: ProductEditError } {
+  const set: { minQty: number; price: number }[] = [];
+  for (const tr of current) {
+    const raw = typed[String(tr.minQty)];
+    if (raw === undefined || raw.trim() === '') continue;
+    const n = readTypedAmount(raw, currency) ?? NaN;
+    if (!Number.isFinite(n)) return { ok: false, error: 'not_a_number' };
+    if (!(n > 0)) return { ok: false, error: 'not_positive' };
+    if (floor !== null && n < floor) return { ok: false, error: 'below_floor' };
+    const price = Number(n.toFixed(4));
+    if (price !== tr.price) set.push({ minQty: tr.minQty, price });
+  }
+  return { ok: true, set };
+}
 export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far'
   | 'no_name' | 'no_values' | 'too_many_options' | 'too_many_values' | 'option_too_long';
 
@@ -965,6 +1030,12 @@ async function updateProductTx(
     if (!c.ok) errors.customerNames = c.error;
     else customerNames = c.names;
   }
+  // The warmth run, phase 9 (V1-305) — the larger orders' prices, each above the entry one.
+  const curTiers = (await sql<{ min_qty: number; price: string }>`
+    select min_qty, unit_price_usd as price from price_tiers where product_id = ${productId} order by min_qty asc`.execute(tx)).rows
+    .map((r) => ({ minQty: Number(r.min_qty), price: Number(r.price) }));
+  const tierEdit = edit.tiers ? readTierEdits(curTiers.slice(1), edit.tiers, currency, cur.floor === null ? null : Number(cur.floor)) : null;
+  if (tierEdit && !tierEdit.ok) errors.tiers = tierEdit.error;
   // VAR — its options, read whole; one bad line refuses them all.
   const curOptions = optionsOf(cur.options);
   let options = curOptions;
@@ -989,10 +1060,21 @@ async function updateProductTx(
   note('nameZh', cur.name_zh, nameZh);
   note('leadTime', cur.lead_time_days, leadTime);
   note('options', formatOptions(curOptions), formatOptions(options));
+  const tiersMove = tierEdit && tierEdit.ok && tierEdit.set.length > 0 ? tierEdit : null;
+  if (tiersMove) {
+    changed.push('tiers');
+    detail['tiers'] = { from: curTiers.slice(1).filter((x) => tiersMove.set.some((y) => y.minQty === x.minQty)), to: tiersMove.set };
+  }
 
   if (changed.length === 0 && customerNames.length === 0) return { ok: true, changed: [] };
 
-  if (changed.length > 0) {
+  if (tiersMove) {
+    for (const x of tiersMove.set) {
+      await sql`update price_tiers set unit_price_usd = ${x.price}, currency = ${currency}
+                 where product_id = ${productId} and min_qty = ${x.minQty}`.execute(tx);
+    }
+  }
+  if (changed.some((f) => f !== 'tiers')) {
     await sql`
       update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
                           is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, lead_time_days = ${leadTime},
