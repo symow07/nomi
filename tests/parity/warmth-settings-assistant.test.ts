@@ -210,7 +210,9 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
       expect(row('/app/knowledge'), l).toContain(esc(withAssistantName('Lily', () => t(l, 'nav.knowledge'))));
       expect(withoutIsolates(row('/app/knowledge')), l).toContain(withoutIsolates(esc(tn(l, 'knowledge.product.facts', 5))));
       expect(row('/app/business/promises'), l).toContain(esc(t(l, 'factory.promise.title')));
-      expect(row('/app/business/promises'), l).toContain(`${esc(t(l, 'claim.CE'))} · ${esc(t(l, 'claim.food_grade'))}`);
+      // The names on the line under the row's name, which wraps; never a long value a phone cuts short.
+      expect(row('/app/business/promises'), l).toContain(`<span class="sr-desc">${esc(t(l, 'claim.CE'))} · ${esc(t(l, 'claim.food_grade'))}</span>`);
+      expect(row('/app/business/promises'), l).not.toContain('sr-value');
       // The profile says where it stands, with its mark, as My business does — not the business's name again.
       expect(row('/app/settings/profile'), l).toContain(`<span class="sr-value warn"><bdi>${esc(t(l, 'setup.state.toDo'))}</bdi></span>`);
       expect(row('/app/settings/profile'), l).not.toContain('sr-desc');
@@ -219,6 +221,11 @@ describe('phase 7 · two doors, one data: what the assistant can talk about', ()
       expect(row('/app/business/how-you-sell'), l).toContain(`<span class="sr-label">${esc(t(l, 'factory.sellhow.title'))}</span>`);
       // The lede names all five, and never says "only My business".
       expect(t(l, 'her.talk.lede')).not.toMatch(/My business|我的生意|نشاطي التجاري|Mi negocio|Mon activité/);
+    });
+    it(`${l} · on a phone a value wraps in its column, never cut short`, () => {
+      const css = linkedCss(shell({ title: 'T', active: 'employee', locale: l, path: '/app/employee/talk', bodyHtml: '' }));
+      expect(css).toContain('@media (max-width: 560px) { .asst-menu.talk .sr-menu .sr-value { white-space:normal; overflow:visible; text-overflow:clip; } }');
+      expect(withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk }))).toContain('<ul class="scard asst-menu talk">');
     });
     it(`${l} · nothing taught and nothing claimed is said as that`, () => {
       const empty = withAssistantName('Lily', () => screen('talk', base, l, ctx, undefined, { talk: { ...talk, taught: 0, certs: [], profileDone: true } }));

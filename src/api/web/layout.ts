@@ -1243,6 +1243,8 @@ const STYLE_PAGES = `
   .level-control { margin-bottom:var(--space-24); }
   /* A short value ("24 products", "3 words") is said whole; the name beside it wraps instead. A long one still stops at half the row. */
   .asst-menu .sr-value { flex-shrink:0; }
+  /* The warmth run, phase 9 (w4-products-knowledge-03) — on "what it can talk about", a value on a phone wraps in its column rather than being cut ("3 de 9 respondidas"). */
+  @media (max-width: 560px) { .asst-menu.talk .sr-menu .sr-value { white-space:normal; overflow:visible; text-overflow:clip; } }
   .held-all { margin-bottom:var(--space-12); }
   .held-all p { margin:0 0 var(--space-4); }
   /* The name screen: the name itself, at the size of a name. */

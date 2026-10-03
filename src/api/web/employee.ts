@@ -649,12 +649,13 @@ export function renderEmployeeScreen(
           value: tn(locale, 'her.talk.products', k.products.total) },
         { href: '/app/knowledge', icon: 'book', label: t(locale, 'nav.knowledge'),
           value: k.taught > 0 ? tn(locale, 'knowledge.product.facts', k.taught) : t(locale, 'knowledge.product.none') },
+        // The certifications by name on the line under the row's name, which wraps; a value on a phone is one short line.
         { href: '/app/business/promises', icon: 'shield', label: t(locale, 'factory.promise.title'),
-          value: certs.length ? certs.join(' · ') : t(locale, 'business.value.noneConfirmed') },
+          ...(certs.length ? { desc: certs.join(' · ') } : { value: t(locale, 'business.value.noneConfirmed') }) },
       ];
       return `${head}
         <p class="lede">${esc(t(locale, 'her.talk.lede'))}</p>
-        <ul class="scard asst-menu">${rows.map(menuRow).join('')}</ul>`;
+        <ul class="scard asst-menu talk">${rows.map(menuRow).join('')}</ul>`;
     }
     // What still needs teaching, then what is known so far, with the door to
     // the whole of it (Knowledge, and each entry under it).
