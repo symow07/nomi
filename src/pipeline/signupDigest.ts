@@ -1,6 +1,5 @@
 import { signupForms, loadFunnel } from './funnel.js';
 import { mailSendsOn } from '../db/mailCaps.js';
-import { retentionDue as retentionDueCount } from './retention.js';
 import { sql } from 'kysely';
 import type { Db } from '../db/client.js';
 import type { NotifyJob } from '../queue/boss.js';
@@ -45,9 +44,7 @@ export async function signupDigestAlert(db: Db, operatorBusinessId: string, now:
   };
   // KS6 — asks to connect a first channel, waiting for the operator's decision.
   const approvals = (await sql<{ n: number }>`select connection_asks_waiting() as n`.execute(db)).rows[0]?.n ?? 0;
-  // RET — workspaces past their date, warned twice, waiting for the operator's command.
-  const retentionDue = await retentionDueCount(db);
-  if (rows.length === 0 && flags.length === 0 && forms.forms === 0 && mail.refused === 0 && approvals === 0 && retentionDue === 0) return null;
+  if (rows.length === 0 && flags.length === 0 && forms.forms === 0 && mail.refused === 0 && approvals === 0) return null;
   return {
     businessId: operatorBusinessId, kind: 'signup_digest', conversationId: null,
     signups: rows.map((r) => ({ business: r.name, kind: r.kind, country: r.country, at: r.signed_up_at.toISOString() })),
@@ -56,6 +53,5 @@ export async function signupDigestAlert(db: Db, operatorBusinessId: string, now:
     ...(cohort.workspaces ? { cohort } : {}),
     ...(mail.codes || mail.alerts || mail.refused ? { mail } : {}),
     ...(approvals ? { approvals } : {}),
-    ...(retentionDue ? { retentionDue } : {}),
   };
 }

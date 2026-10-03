@@ -60,7 +60,7 @@ import { liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount }
 import { withTenantTx, lockConversation, type Db, type Tx } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
-import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
+import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
@@ -78,7 +78,6 @@ import { signupDigestAlert } from './pipeline/signupDigest.js';
 import { allowanceAlerts, spendBreakerAlert } from './pipeline/allowanceWatch.js';
 import { demotionAlerts, spotCheckSweep } from './pipeline/supervision.js';
 import { connectionDecisionAlerts } from './pipeline/approvalWatch.js';
-import { retentionWarnings } from './pipeline/retention.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
@@ -1430,13 +1429,11 @@ export async function buildProduction(
     }
   });
 
-  // RET (0116) — once a day, while the operator's switch is on: the warnings
-  // before a workspace that never connected a channel is erased. Nothing is
-  // erased here: the operator runs tools/retention.mjs.
-  await boss.schedule(QUEUES.retention, '50 6 * * *', {});
-  await boss.work(QUEUES.retention, async () => {
-    for (const job of await retentionWarnings(db)) await boss.send(QUEUES.notify, job satisfies NotifyJob);
-  });
+  // RET (0116) is RETIRED (0126, the owner's direction of 2026-10-04): nothing
+  // is erased after 90 days, so nothing warns of it. Its daily job had a
+  // schedule in pg-boss's own table; 0126 removed it, and so does every boot,
+  // in case an older instance wrote it back before it stopped.
+  await unscheduleRetired(boss);
 
   // R5 — once a day: spot checks offered on work that went out alone.
   await boss.schedule(QUEUES.spotChecks, '20 5 * * *', {});

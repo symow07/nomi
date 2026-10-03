@@ -82,7 +82,7 @@ describe('KS6 · the owner hears, by e-mail always', () => {
   it('both decisions go by mail; the approval opens Channels', () => {
     expect(goesByMail('connection_approved')).toBe(true);
     expect(goesByMail('connection_refused')).toBe(true);
-    expect(src('src/pipeline/notify.ts')).toContain(": job.kind === 'connection_approved' || job.kind === 'retention_warning' ? CONNECTION_APPROVAL_PAGE");
+    expect(src('src/pipeline/notify.ts')).toContain(": job.kind === 'connection_approved' ? CONNECTION_APPROVAL_PAGE");
     expect(src('src/main.ts')).toContain('...await connectionDecisionAlerts(db),');
   });
   for (const l of LOCALES) {
