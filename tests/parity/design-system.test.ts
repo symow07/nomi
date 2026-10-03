@@ -222,7 +222,7 @@ describe('M30 · two voices — a person is serif, the product is sans', () => {
       .toMatch(/\.approve textarea \{[^}]*font-family:var\(--font-voice\)/);
     expect(html).toMatch(/class="msg inbound">\s*<div dir="auto" class="bubble"><bdi>BUYERWORDS-5000/);   // V1: a person's words keep their own direction
     // the actions around the speech are the product speaking: plain .btn, no voice class
-    expect(html).toMatch(/class="btn send"[^>]*>Send/);
+    expect(html).toMatch(/class="btn send needs"[^>]*>Send/);
     expect(html).not.toMatch(/class="[^"]*voice[^"]*"[^>]*>Send/);
   });
 

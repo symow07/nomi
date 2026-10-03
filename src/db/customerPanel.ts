@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
+import { faceVersions } from './faces.js';
 import { type Money, moneyFromRow } from '../core/types/money.js';
 
 /**
@@ -31,6 +32,8 @@ export type PanelActivity = {
 export type CustomerPanel = {
   readonly clientId: string;
   readonly name: string | null;
+  /** The warmth pass — their kept photo's version (`client_faces`), for the face at the panel's head; null draws the initial. */
+  readonly photo?: string | null;
   readonly country: string | null;
   /** The channel of this conversation, and the customer's address on it where it is one a person reads (a number, an e-mail). */
   readonly channel: string;
@@ -140,7 +143,7 @@ export async function loadCustomerPanel(tx: Tx, conversationId: string): Promise
   ].slice(0, ACTIVITY_SHOWN);
 
   return {
-    clientId: client, name: who.name, country: who.country, channel: who.channel, address: who.address,
+    clientId: client, name: who.name, photo: (await faceVersions(tx, [client])).get(client) ?? null, country: who.country, channel: who.channel, address: who.address,
     language, firstWrote: span?.first ?? null, conversations: span?.n ?? 0,
     askedAbout, prices, samples, promised, orders, activity,
   };

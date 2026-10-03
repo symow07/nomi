@@ -112,76 +112,75 @@ export const DESIGN_TOKENS = {
     weightFloor: { min: 400, cjkAtOrBelowPx: 15 },
   },
   /**
-   * THE PALETTE — six named values (the design pass, decided 2026-09-29;
-   * the plan's §6). The neutrals are graphite at two lighter steps plus one
-   * paper; there are no other greys.
+   * THE PALETTE — warm neutrals, two magentas, three states (the warmth pass,
+   * 2026-10-04; it follows the design pass of 2026-09-29 and the warmth run).
    *
-   *   ink          Graphite. Type, the primary action as a FILL, focus rings,
-   *                the border of the reply box.
-   *   inkSecondary Stone. Secondary text, times, past entries, the EDGE of an
-   *                outlined button or a field.
-   *   border       Rule. Lines between panes and around sheets only — never
-   *                the edge of a control (1.3:1 is not an edge you can find).
-   *   paper        The ground: the rail, the list, a recess. Leans toward
-   *                graphite's hue; not cream.
-   *   surface      White: where the owner reads and decides.
-   *   assistant    Magenta. The assistant's hand and nothing else: the ✦
-   *                beside what it wrote, sent, noted or handed over, and its
-   *                name where it is the author. Only ever a TEXT colour —
-   *                never a fill, a wash, a border, a link, a heading, the mark
-   *                or a button (2.6:1 on graphite, so never on it either).
-   *                Its hue stays above 325°, on the raspberry side of true
-   *                magenta: `palette.test.ts` holds both.
+   * The owner: "The app feels dry and black-and-white. Add life WITHOUT
+   * spending the magenta's meaning." So the life comes from the neutrals, the
+   * shadows, the rounded shapes and the customers' faces, and magenta keeps
+   * meaning only — in two shades with two jobs:
    *
-   * And the three states, kept at their values: ok (Sent — it went, it is
-   * on), waiting (it waits for you), warn (Failed — it did not happen, it
-   * did not reach them). A state is a dot and a WORD; colour never carries
-   * it alone.
+   *   needs        DEEP magenta. Something waits for the owner: the waiting ○,
+   *                the rail's count, Today's waiting band, a "waiting for you"
+   *                flag, and the FILL of the one act that answers it (`.btn.send
+   *                .needs`: Send on a reply waiting for review, Confirm on an
+   *                order waiting for the tap, Reply in a conversation handed to
+   *                you). Text on any ground, or that one fill under white words.
+   *   assistant    LIGHT magenta. Nomi did this: the ✦ and the name beside what
+   *                it wrote, its reply's wash and label; and soft accents
+   *                (today's date on the calendar). Only ever a TEXT colour; its
+   *                wash is only ever a ground.
    *
-   * Retired with this: jade (the accent that also meant "sent" — green now
-   * means one thing), highlight (a fourth state colour; its uses became
-   * weight), the three warm papers, and the dark palette (never reviewed;
-   * decision 3). `palette.test.ts` keeps their values out of the product.
+   * The eye learns: deep = needs you, light = Nomi did this. Deep reads at
+   * least 20 L* darker than light with the colour removed, and stays at least
+   * 10 L* lighter than the ink with a chroma the ink does not have, so a deep
+   * button is never mistaken for an ordinary graphite one. Neither is ever a
+   * border, an outline or a frame (`warmth-magenta.test.ts`); every pair is
+   * computed in `warmth-pass.test.ts`.
    *
-   * CC-20 (2026-09-28) — every state is read as TEXT on its own wash (a pill,
-   * a tag), so each pair must reach the 4.5:1 WCAG asks of text that size.
-   * `audit-closeout.test.ts` computes every pair.
+   * The neutrals lean warm (hue near 70–85 in CIELAB), never cream:
+   *   ink          A warm near-black. Type, the ordinary primary action as a
+   *                FILL, focus rings, the border of the reply box.
+   *   inkSecondary Warm stone. Secondary text, times, past entries, the EDGE of
+   *                an outlined button or a field. 4.5:1 or better on every
+   *                ground it sits on.
+   *   border       A warm rule. Lines between rows and panes — never the edge
+   *                of a control.
+   *   paper        A soft warm off-white: the page, the rail, a recess.
+   *   surface      A white with warmth in it: cards, where the owner reads and
+   *                decides. A step lighter than paper; the shadows do the rest.
+   *
+   * And the three states: ok (it went, it is on), failed (`warn`: it did not
+   * happen), and waiting — which is `needs`. A state is a shape and a WORD;
+   * colour never carries it alone.
+   *
+   * Retired with this pass: the single magenta #A82860 that did both jobs
+   * (`waiting` and `assistant` were one value), its line #EBC3D3 (drawn
+   * nowhere), and the cool neutrals (#1C1B1F, #5E5A66, #E2E0E6, #F5F4F6, pure
+   * white). Before them: jade, highlight, the three warm papers, the dark
+   * palette. `palette.test.ts` keeps all of them out of the product.
+   *
+   * Washes and lines are TOKENS rather than `color-mix(… 12% …)` for a product
+   * reason: the owner surface bans the `%` character outright, and that ban is
+   * enforced against rendered HTML — which a CSS percentage trips just as surely
+   * as a fake metric.
    */
   color: {
     ok: '#0F7B3E',
-    /**
-     * THE WARMTH RUN (2026-10-03) — "waiting for you" is magenta. The owner:
-     * magenta marks what the assistant did, plus the waiting-for-you signal
-     * and today's marker. The amber it had is retired; its shape (○) is what
-     * tells it from the assistant's ✦, in greyscale and to any eye.
-     */
-    waiting: '#A82860',
+    needs: '#6E0C44',
+    needsWash: '#F9E6EE',
     warn: '#B42318',
-    assistant: '#A82860',
-    ink: '#1C1B1F',
-    inkSecondary: '#5E5A66',
-    surface: '#FFFFFF',
-    paper: '#F5F4F6',
-    border: '#E2E0E6',
-    /**
-     * A wash and a line for each state. These exist as TOKENS rather
-     * than `color-mix(… 12% …)` in the stylesheet for a product reason: the
-     * owner surface bans the `%` character outright (no scores, no
-     * percentages-as-performance), and that ban is enforced against rendered
-     * HTML — which a CSS percentage trips just as surely as a fake metric.
-     */
+    assistant: '#BE2D6E',
+    assistantWash: '#FBEFF3',
+    ink: '#25201C',
+    inkSecondary: '#665D55',
+    surface: '#FFFDFA',
+    paper: '#F7F3EE',
+    border: '#E8E1D8',
     okWash: '#E2EFE8',
     okLine: '#B7D7C5',
     warnWash: '#F6E5E3',
     warnLine: '#E9BDBA',
-    waitingWash: '#FBEEF3',
-    waitingLine: '#EBC3D3',
-    /**
-     * THE WARMTH RUN — the wash under what the assistant wrote, so a reader
-     * new to a conversation tells at a glance what Nomi said from what a
-     * person said. A wash, never a frame: no border is drawn in magenta.
-     */
-    assistantWash: '#FBEEF3',
   },
   spacingPx: [4, 8, 12, 16, 24, 32, 48] as const,   // V1: 64 retired, it was used nowhere
   /**
@@ -208,7 +207,10 @@ export const DESIGN_TOKENS = {
    * THE WARMTH RUN (2026-10-03) — rounded for warmth. Every corner in the
    * product is one of these: a control (a field, a button), a card (a card, a
    * band, a grouped menu of rows, a panel of facts), a panel (the sheet that
-   * springs up, the calendar's grid), a chip, a face. The re-audit
+   * springs up, the calendar's grid), a chip, a face. The warmth pass
+   * (2026-10-04) named the rest: an input, a button and an image are controls;
+   * a menu, a toast and a notice are cards; a dialog and a sheet are panels;
+   * a pill, a tag and a face are chips. The re-audit
    * (w4-whole-17) held the app to it: a button beside a field shares its corner,
    * and a band above a list shares the list's.
    */
@@ -216,30 +218,41 @@ export const DESIGN_TOKENS = {
   /**
    * THE WARMTH RUN — customers' faces. A customer the channel gives no photo
    * of (e-mail, WhatsApp) is a coloured initial: one of these eight, chosen by
-   * their id so it never changes. None is magenta's (that colour has its
-   * jobs), green, amber or red's (the states'); each initial is ≥ 6:1 on its
-   * ground (`warmth-faces.test.ts` computes all eight).
+   * their id so it never changes.
+   *
+   * The warmth pass (2026-10-04) — "let the customer faces carry real colour
+   * across every page": the pale pastels became eight full, warm mid-tones
+   * with the letter in white — blue, teal, olive, ochre, orange, violet,
+   * petrol, cocoa — so a face is the most colourful thing on a page and never
+   * a signal. Each white letter is ≥ 4.5:1 on its ground; each hue sits at
+   * least 40° (CIELAB) from both magentas and is not the ok green's or the
+   * failed red's (ΔE ≥ 25 from each); `warmth-pass.test.ts` computes all eight.
    */
   faceTint: [
-    { bg: '#DCEBFA', fg: '#1D4E7E' },
-    { bg: '#D5EFEC', fg: '#155E57' },
-    { bg: '#E3EED6', fg: '#3D5A1C' },
-    { bg: '#F4EAD3', fg: '#6B4E12' },
-    { bg: '#F9E1D6', fg: '#8A3B17' },
-    { bg: '#E7E1F6', fg: '#4B3A84' },
-    { bg: '#E1E6EC', fg: '#34495E' },
-    { bg: '#DDE3FA', fg: '#2F3F8F' },
+    { bg: '#2F6CA6', fg: '#FFFFFF' },
+    { bg: '#187A70', fg: '#FFFFFF' },
+    { bg: '#6B7320', fg: '#FFFFFF' },
+    { bg: '#96650E', fg: '#FFFFFF' },
+    { bg: '#AD5C14', fg: '#FFFFFF' },
+    { bg: '#6450B0', fg: '#FFFFFF' },
+    { bg: '#1F6E8C', fg: '#FFFFFF' },
+    { bg: '#8A5A3C', fg: '#FFFFFF' },
   ],
   /**
    * One shadow is a box; three are a surface. Each lift is a contact shadow, a
    * diffuse body, and a hairline that does the work a 1px border used to —
    * which is why cards can drop their border without dissolving into the page.
+   *
+   * The warmth pass (2026-10-04) — the shadows are WARM (a brown, the ink's
+   * own hue, never grey or black) and a little deeper, so a rounded card, a
+   * menu, the profile card and the calendar's grid read as objects resting on
+   * the paper. Two lifts and no more: `lift1` for what rests on the page,
+   * `lift2` for what rises over it (a sheet, a dialog, a toast, a pressed
+   * primary act). `card` and `raised` were emitted and drawn nowhere; retired.
    */
   shadow: {
-    card: '0 1px 3px rgba(0,0,0,0.08)',
-    raised: '0 4px 12px rgba(0,0,0,0.10)',
-    lift1: '0 1px 1px rgba(26,26,26,0.04), 0 2px 6px rgba(26,26,26,0.05), 0 0 0 1px rgba(26,26,26,0.04)',
-    lift2: '0 2px 4px rgba(26,26,26,0.05), 0 10px 24px rgba(26,26,26,0.09), 0 0 0 1px rgba(26,26,26,0.05)',
+    lift1: '0 1px 2px rgba(74,48,30,0.07), 0 3px 10px rgba(74,48,30,0.07), 0 0 0 1px rgba(74,48,30,0.05)',
+    lift2: '0 2px 6px rgba(74,48,30,0.09), 0 12px 28px rgba(74,48,30,0.13), 0 0 0 1px rgba(74,48,30,0.05)',
   },
   // The warmth run's re-audit (w4-whole-21): the owner's range is 100–250 ms, so the longest is 250.
   motionMs: { fast: 120, normal: 200, max: 250 },  // skippable; nothing moves under reduced motion
@@ -263,10 +276,10 @@ export const DESIGN_TOKENS = {
    * as well as a colour, so it is still said in greyscale, to an eye that
    * does not tell the hues apart, and on a phone in the sun:
    *
-   *   ok         ✓  green    it went, it is on, it is done
-   *   waiting    ○  amber    it waits for you
-   *   failed     ✕  red      it did not happen, it did not reach them
-   *   assistant  ✦  magenta  the assistant did this
+   *   ok         ✓  green          it went, it is on, it is done
+   *   waiting    ○  deep magenta   it waits for you (`--color-needs`)
+   *   failed     ✕  red            it did not happen, it did not reach them
+   *   assistant  ✦  light magenta  the assistant did this (`--color-assistant`)
    *
    * The stylesheet draws the shape before a state's words (`::before`, read
    * from here); a renderer that draws a shape on its own takes it from
@@ -277,7 +290,7 @@ export const DESIGN_TOKENS = {
   /** Status chip: canonical five statuses (vocabulary.STATUS) → semantic color key. */
   statusChip: {
     已处理: 'ok',
-    等你审批: 'waiting',
+    等你审批: 'needs',     // the warmth pass: waiting for the owner is the deep magenta
     学习中: 'inkSecondary',
     已晋升: 'ok',
     夜班中: 'inkSecondary',   // highlight retired 2026-09-29: its uses became weight

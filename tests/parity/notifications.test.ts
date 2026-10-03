@@ -609,7 +609,7 @@ describe('the marker and the card, as the stylesheet draws them', () => {
 
   it('a small dot in the waiting signal\'s magenta on the Inbox entry — a dot, never a frame, and never a number of its own', () => {
     const dot = rule('nav.side a.navlink[data-fresh]::after');
-    expect(dot).toContain('background:var(--color-waiting)');
+    expect(dot).toContain('background:var(--color-needs)');
     expect(dot).toContain('content:""');
     expect(dot).not.toMatch(/border(?!-radius)/);
   });

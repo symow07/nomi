@@ -192,7 +192,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
       const src = (await readFile(new URL(f, dir), 'utf8')).replace(cssVariables(), '');
       for (const m of src.matchAll(/([^{};]+)\{([^}]*)\}/g)) {
         const [, selector, body] = m as unknown as [string, string, string];
-        if (!/var\(--color-(ok|warn|waiting)[a-z-]*\)/.test(body)) continue;
+        if (!/var\(--color-(ok|warn|needs)[a-z-]*\)/.test(body)) continue;
         if (!STATE_FRAGMENTS.some((frag) => selector.includes(frag))) {
           offences.push(`${f}: ${selector.trim().slice(0, 60)}`);
         }

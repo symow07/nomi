@@ -218,7 +218,7 @@ describe('V1-237 · the card keeps two answers in its row; "No reply needed" sta
       const c = card(renderConversationDetail(draft(), l, NOW, null));
       const row = c.slice(c.indexOf('<div class="acts">'), c.indexOf('</div>', c.indexOf('<div class="acts">')));
       expect(row.match(/<button/g), l).toHaveLength(2);
-      expect(c.match(/class="btn send"/g), l).toHaveLength(1);
+      expect(c.match(/class="btn send needs"/g), l).toHaveLength(1);   // the warmth pass: the one primary act, in the deep fill
       const more = c.slice(c.indexOf('<div class="acts-more">'));
       expect(more, l).toContain('name="command" value="不回"');
       expect(more, l).toContain(`data-confirm="${esc(t(l, 'card.noReply.confirm'))}"`);

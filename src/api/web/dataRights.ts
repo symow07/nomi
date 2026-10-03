@@ -13,6 +13,8 @@ import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
 import type { Viewer } from '../../core/conversation/people.js';
 import { waitingAsks, type WaitingAsk } from '../../db/deletionAsks.js';
+import { faceVersions } from '../../db/faces.js';
+import { face, faceLink } from './faces.js';
 import * as show from './values.js';
 
 /**
@@ -63,6 +65,9 @@ export type DeletionRequest = {
 export type BuyerDeletionRequest = DeletionRequest & {
   readonly buyer: string | null;
   readonly conversationId: string | null;
+  /** The warmth pass — whom it is about, for their face; null once they are erased. */
+  readonly clientId?: string | null;
+  readonly photo?: string | null;
 };
 
 export type DataRightsView = {
@@ -72,6 +77,8 @@ export type DataRightsView = {
   readonly buyers?: readonly BuyerDeletionRequest[];
   /** 0076 — requests noted from a buyer's message, waiting for the owner to decide. */
   readonly asks?: readonly WaitingAsk[];
+  /** The warmth pass — the kept photos' versions of the customers listed, by client id. */
+  readonly photos?: ReadonlyMap<string, string>;
   /** The name she must type to confirm — her own business's. */
   readonly businessName: string;
   /** Phase 9 (V1-496) — the address the legal pages name (`LEGAL_CONTACT_EMAIL`), for "write to us". Absent: no such sentence. */
@@ -99,9 +106,9 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
        order by asked_at desc limit 20`.execute(tx);
     // An open request is never pushed off the list by closed ones: those are
     // the ones with a date still to keep.
-    const b = await sql<RequestRow & { buyer: string | null; conversation_id: string | null }>`
+    const b = await sql<RequestRow & { buyer: string | null; conversation_id: string | null; client_id: string | null }>`
       select r.id::text as id, r.scope, r.subject_note, r.asked_by, r.asked_at, r.state,
-             r.closed_at, r.closed_note, c.display_name as buyer,
+             r.closed_at, r.closed_note, c.display_name as buyer, c.id::text as client_id,
              (select v.id::text from conversations v where v.client_id = r.client_id
                order by v.updated_at desc limit 1) as conversation_id
         from deletion_requests r
@@ -109,11 +116,15 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
        where r.business_id = ${bid.value} and r.scope = 'buyer'
        order by (r.state = 'open') desc, r.asked_at desc
        limit 100`.execute(tx);
+    const asks = await waitingAsks(tx, bid.value);
+    // The warmth pass — every customer named on this page is drawn with their face.
+    const photos = await faceVersions(tx, [...b.rows.map((x) => x.client_id), ...asks.map((a) => a.clientId)].filter((x): x is string => !!x));
     return {
       businessName: name,
       requests: r.rows.map(requestOf),
-      buyers: b.rows.map((x) => ({ ...requestOf(x), buyer: x.buyer, conversationId: x.conversation_id })),
-      asks: await waitingAsks(tx, bid.value),
+      buyers: b.rows.map((x) => ({ ...requestOf(x), buyer: x.buyer, conversationId: x.conversation_id, clientId: x.client_id, photo: x.client_id ? photos.get(x.client_id) ?? null : null })),
+      asks,
+      photos,
     };
   });
 }
@@ -384,7 +395,7 @@ export function renderDataRights(
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
     ${files}
-    ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both)}
+    ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both, v.photos)}
     <section class="block">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
       <p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.byHand')))}</p>
@@ -413,9 +424,14 @@ const STATE_TONE: Readonly<Record<DeletionRequest['state'], string>> = {
  */
 function buyerRequests(
   buyers: readonly BuyerDeletionRequest[], locale: Locale, viewer: Viewer, asks: readonly WaitingAsk[] = [],
-  both: (a: string, b: string) => string = (a, b) => `${a} ${b}`,
+  both: (a: string, b: string) => string = (a, b) => `${a} ${b}`, photos: ReadonlyMap<string, string> = new Map(),
 ): string {
-  const noted = asks.map((a) => `<li class="row">
+  // The warmth pass — each customer named here with their face (it opens their card); one erased has
+  // no card and no name left, so a quiet outline stands in their place.
+  const faceOf = (clientId: string | null | undefined, name: string | null, key: string, photo?: string | null): string => clientId
+    ? faceLink({ clientId, name, photo: photo ?? photos.get(clientId) ?? null }, { size: 's', label: name ?? t(locale, 'common.buyer') })
+    : face({ clientId: key, name: null }, 's');
+  const noted = asks.map((a) => `<li class="row has-face">${faceOf(a.clientId, a.buyer, a.id)}
       <div class="person"><a href="/app/conversations/${encodeURIComponent(a.conversationId)}#deletion"><b><bdi>${esc(a.buyer ?? t(locale, 'common.buyer'))}</bdi></b></a>
         <span class="muted">${esc(t(locale, 'data.buyers.waiting', { asked: show.date(locale, a.askedAt) }))}</span>
       </div>
@@ -439,7 +455,7 @@ function buyerRequests(
             data-confirm="${esc(t(locale, 'data.buyers.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
         </form>`
       : '';
-    return `<li class="row">
+    return `<li class="row has-face">${faceOf(r.clientId, r.buyer, r.id, r.photo)}
       <div class="person">${name}
         <span class="muted">${esc(when)}</span>
         ${r.subjectNote ? `<span class="muted"><bdi>${esc(r.subjectNote)}</bdi></span>` : ''}

@@ -26,7 +26,8 @@ const WEB = join(fileURLToPath(new URL('.', import.meta.url)), '../../src/api/we
 const appCss = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
 const doorCss = linkedCss(loginPage({ locale: 'en', path: '/login' }));
 
-const JOB_OF_VAR: Readonly<Record<string, Signal>> = { ok: 'ok', waiting: 'waiting', warn: 'failed', assistant: 'assistant' };
+// The warmth pass (2026-10-04) — waiting is the deep magenta, `--color-needs`.
+const JOB_OF_VAR: Readonly<Record<string, Signal>> = { ok: 'ok', needs: 'waiting', warn: 'failed', assistant: 'assistant' };
 
 /** Every rule as (selector, declarations), comments out, @media wrappers looked through. */
 const rules = (css: string): { sel: string; body: string }[] =>
@@ -36,7 +37,7 @@ const rules = (css: string): { sel: string; body: string }[] =>
 /** Each selector whose TEXT is painted a signal colour, with the job. */
 const textInSignalColour = (css: string): { sel: string; job: Signal }[] =>
   rules(css).flatMap((r) => {
-    const m = /(?:^|[;{\s])color:\s*var\(--color-(ok|waiting|warn|assistant)\)/.exec(r.body);
+    const m = /(?:^|[;{\s])color:\s*var\(--color-(ok|needs|warn|assistant)\)/.exec(r.body);
     return m ? r.sel.split(',').map((s) => ({ sel: s.trim(), job: JOB_OF_VAR[m[1]!]! })) : [];
   });
 
@@ -77,6 +78,8 @@ describe('phase 4 · the four signals', () => {
     expect(Object.keys(s).sort()).toEqual(['assistant', 'failed', 'ok', 'waiting']);
     expect(new Set(Object.values(s)).size).toBe(4);
     expect(s).toEqual({ ok: '✓', waiting: '○', failed: '✕', assistant: '✦' });
+    // the colour that paints each shape's words: two magentas, two jobs
+    expect(Object.keys(JOB_OF_VAR).sort()).toEqual(['assistant', 'needs', 'ok', 'warn']);
     for (const [k, v] of Object.entries(s)) expect(signalMark(k as Signal)).toContain(`aria-hidden="true">${v}</span>`);
   });
 

@@ -1,7 +1,7 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { esc, deeper, back, byAssistant } from './layout.js';
+import { esc, deeper, back, byAssistant, NEEDS_ACT } from './layout.js';
 import { face } from './faces.js';
 import { menuRow, menuGroup } from './settings.js';
 import { bubbleClass } from './inbox.js';
@@ -39,6 +39,7 @@ export function renderComponents(locale: Locale): string {
     const word = s(`state.${state}`);
     return `<div class="acts">
       <button type="button" class="btn send${extra}"${attr}>${word}</button>
+      <button type="button" class="${NEEDS_ACT}${extra}"${attr}>${word}</button>
       <button type="button" class="btn${extra}"${attr}>${word}</button>
       <button type="button" class="btn ghost${extra}"${attr}>${word}</button>
       <button type="button" class="btn danger${extra}"${attr}>${word}</button>

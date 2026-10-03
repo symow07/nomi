@@ -18,7 +18,7 @@ import { formatList, labelled, dayKey } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
-import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork } from './layout.js';
+import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork, NEEDS_ACT } from './layout.js';
 import { face, faceLink } from './faces.js';
 import { icon } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -1768,7 +1768,7 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       <div class="acts">
         <form method="post" action="${esc(to.confirm)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
-          <button class="btn send" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
+          <button class="${NEEDS_ACT}" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
         </form>
         <form method="post" action="${esc(to.stepIn)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
@@ -1850,10 +1850,10 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${last}
         ${takeFromColleague}
         ${handToForm}
-        <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
+        ${/* The warmth pass — the reply answers a customer waiting for the reader: the deep fill (NEEDS_ACT); held by a colleague, it is theirs, and ink. */ ''}<form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
           <textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
-          <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+          <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
@@ -2195,7 +2195,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
         ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
              CC-26 — and what is typed in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="reply" name="edit" rows="${replyRows(p.ownerEdit ?? p.draftText)}" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
         <div class="acts">
-          <button class="btn send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
+          <button class="${NEEDS_ACT}" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
           <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
         </div>
         ${/* Phase 9 (V1-237) — the owner's call (2026-10-03): "No reply needed" leaves the row of

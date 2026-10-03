@@ -206,7 +206,8 @@ describe('M49 · colour once or twice per screen', () => {
     for (const { f, src } of await renderers()) {
       const onLinks = new Set([...src.matchAll(/<a\b[^>]*?class="([^"$]+)"/g)].flatMap((m) => m[1]!.split(/\s+/)));
       for (const r of rules(src)) {
-        if (!/(?<![\w-])color\s*:\s*var\(--color-assistant/.test(r.body)) continue;
+        // The warmth pass — neither magenta: a link is ink (the deep one says "waiting", the light one "Nomi did this").
+        if (!/(?<![\w-])color\s*:\s*var\(--color-(assistant|needs)/.test(r.body)) continue;
         for (const sel of r.selectors) {
           if (/:hover|:focus/.test(sel)) continue;          // feedback on the pointer, not a resting colour
           const last = sel.split(/\s+/).pop() ?? '';
