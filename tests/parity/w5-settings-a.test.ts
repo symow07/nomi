@@ -169,3 +169,22 @@ describe('w4-settings-a-22 · Your sign-in says what to do when the code or the 
     }
   });
 });
+
+describe('w4-settings-a-11 · a refused business answer is sent back with all three kept, the wrong one marked', () => {
+  for (const [what, payload, field, keep] of [
+    ['a website that is not one', 'kind=manufacturer&country=CN&website=my%20shop', 'website', ['<option value="manufacturer" selected>', '<option value="CN" selected>', 'value="my shop"']],
+    ['no kind chosen', 'kind=&country=CN&website=example.com', 'kind', ['<option value="CN" selected>', 'value="example.com"']],
+    ['no country chosen', 'kind=retail&country=&website=', 'country', ['<option value="retail" selected>']],
+  ] as const) {
+    it(`${what}: 400, the field's own sentence under it, the cursor there, the rest as typed`, async () => {
+      const { t } = await import('../../src/core/owner/i18n/messages.js');
+      const a = appWith();
+      const r = await a.inject({ method: 'POST', url: '/app/settings/business', payload, headers: { ...HTML, ...FORM, cookie: cookieFor(PILOT) } });
+      expect(r.statusCode).toBe(400);
+      expect(r.body).toContain(`<span class="fielderr" role="alert" id="bk-${field}-err">${t('en', `business.kind.bad.${field}`)}</span>`);
+      expect(r.body).toMatch(new RegExp(`id="bk-${field}"[^>]*aria-invalid="true" aria-describedby="bk-${field}-err" autofocus`));
+      for (const k of keep) expect(r.body, k).toContain(k);
+      expect(r.body).toContain('data-rail="/app/live/rail?since=3"');
+    });
+  }
+});

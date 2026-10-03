@@ -171,8 +171,11 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect((await admin.query(`select kind, country, website from businesses where name = $1`, [B.factory])).rows[0])
       .toEqual({ kind: 'services', country: 'SA', website: 'https://www.bolt.example' });
 
+    // The warmth run, phase 9 (w4-settings-a-11) — refused, the form comes back with the wrong answer marked.
     const bad = await form('/app/settings/business', { kind: 'pyramid', country: 'SA', website: '' }, cookieB);
-    expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'business.kind.invalid'));
+    expect(bad.statusCode).toBe(400);
+    expect(bad.body).toContain(t('en', 'business.kind.bad.kind'));
+    expect(bad.body).toContain('<option value="SA" selected>');
     expect((await admin.query(`select kind from businesses where name = $1`, [B.factory])).rows[0].kind, 'a refused answer changes nothing').toBe('services');
 
     // The environment's business was made long before sign-up asked anything.

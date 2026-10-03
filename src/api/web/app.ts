@@ -207,7 +207,7 @@ import {
   OTP_TTL_SECONDS, PENDING_TTL_MS, DEVICE_TTL_MS, type OtpPurpose,
 } from '../../security/otp.js';
 import { renderAccount } from './account.js';
-import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
+import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindProblem } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, exportFileName, loadExport, recordExport } from './dataExport.js';
@@ -941,6 +941,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
     'closures.flash.label_missing': 'label', 'closures.flash.from_missing': 'from', 'closures.flash.not_a_date': 'from',
     'closures.flash.to_missing': 'to', 'closures.flash.ends_before_starts': 'to',
+    'business.kind.bad.kind': 'kind', 'business.kind.bad.country': 'country', 'business.kind.bad.website': 'website',
     'terms.flash.payment_missing': 'payment', 'terms.flash.payment_too_long': 'payment', 'terms.flash.incoterm_invalid': 'incoterm',
     'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.negative': 'price',
     // Phase 7 — the calendar's own date.
@@ -4099,8 +4100,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;
-    const r = await saveBusinessKind(deps.db, s.businessId,
-      { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') }, personOf(s).id);
+    const typed = { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') };
+    // Phase 9 (w4-settings-a-11) — a refused answer is sent back with the three kept and the wrong one marked.
+    const problem = businessKindProblem(typed);
+    const kept = problem ? keptFrom(localeOf(req), `business.kind.bad.${problem}`, typed) : null;
+    if (kept) {
+      return sentBack(req, reply, 'settings', renderBusinessKind({ kind: typed.kind, country: typed.country || null, website: typed.website },
+        localeOf(req), null, t(localeOf(req), 'nav.factory'), kept));
+    }
+    const r = await saveBusinessKind(deps.db, s.businessId, typed, personOf(s).id);
     facts.evict(s.businessId);   // Phase 9 (V1-009) — the country decides how an amount is written on every page
     return flashTo(reply, '/app/settings/business', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
   });
