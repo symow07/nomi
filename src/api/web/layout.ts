@@ -1417,98 +1417,110 @@ const STYLE_PAGES = `
      card under it, apart from it, its last line never one word alone. */
   .empty.notset { max-width:100%; margin-bottom:var(--space-16); text-wrap:pretty; }
 
-  /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
-  .cal-day { margin:var(--space-24) 0 0; }
-  .cal-when { flex:none; min-width:4.5em; color:var(--color-ink-secondary); font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; }
-  .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
-  .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-ink); }
-  .cal-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
-  .cal-kind { color:var(--color-ink); font-weight:500; }
-  /* The design pass: the week. Days are columns and hours rows; where a date
-     came from is its EDGE — solid, from a conversation; dashed, put there by
-     the owner — and colour is left for state. Past dates in Stone. */
+  /* ── calendar.ts — the warmth run, phase 6: the list first; every date a face and a sentence; the chrome folded away.
+     Where a date came from is its EDGE (solid: a conversation; dashed: the owner); colour is left for state. */
   .cal-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
   .cal-top h1.page { margin:0; }
-  .cal-views { margin:0; }
-  /* Phase 9 (V1-199) — the period's name, then how to move from it, in words, the same on every view. */
-  .cal-lede { margin:var(--space-8) 0 0; }
-  .cal-period .cal-span { margin:var(--space-12) 0 0; font-weight:600; color:var(--color-ink); font-size:var(--font-size-base); }
-  .cal-move { display:flex; align-items:center; gap:var(--space-4) var(--space-16); flex-wrap:wrap; margin:var(--space-4) 0 var(--space-8); }
+  .cal-views { margin:0; gap:var(--space-4); flex-wrap:wrap; }
+  .cal-views .tab { padding:var(--space-8) var(--space-12); }
+  /* Phase 9 (V1-199) — the period's name, then how to move from it, in words; the warmth run — one compact line where it fits. */
+  .cal-period { display:flex; align-items:center; justify-content:space-between; gap:0 var(--space-12); flex-wrap:wrap; margin:var(--space-8) 0 0; }
+  .cal-period .cal-span { margin:0; font-weight:600; color:var(--color-ink); font-size:var(--font-size-base); }
+  .cal-move { display:flex; align-items:center; gap:0 var(--space-12); flex-wrap:wrap; }
   .cal-today { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-12); font-weight:600; font-size:var(--font-size-small); }
+  .cal-chosen { margin:0; color:var(--color-ink-secondary); }
+  .cal-chosen a { display:inline-flex; align-items:center; min-height:44px; margin-inline-start:var(--space-8); color:var(--color-ink);
+    text-decoration:underline; text-underline-offset:3px; }
+  /* The page's one fold: choosing one kind or one customer, adding a date, what the marks mean. Closed until reached for. */
+  .cal-tools { margin:var(--space-4) 0 0; }
+  .cal-tools > summary { color:var(--color-ink-secondary); }
+  .cal-tools-in { display:grid; gap:var(--space-16); margin:var(--space-4) 0 var(--space-8); padding:var(--space-16); max-width:var(--measure-prose);
+    background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); }
+  .cal-sub { margin:0 0 var(--space-4); font-weight:600; font-size:var(--font-size-small); color:var(--color-ink); }
+  .cal-key { border-top:1px solid var(--color-border); padding-top:var(--space-12); }
+  .cal-lede { margin:0; }
   /* Phase 9 (V1-200) — the legend draws each mark it explains; an edge is a small square-cornered swatch, not a pill. */
-  .cal-legend { display:flex; align-items:center; gap:var(--space-4) var(--space-16); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0; }
+  .cal-legend { display:flex; align-items:center; gap:var(--space-4) var(--space-16); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0 0; }
   .cal-li { display:inline-flex; align-items:center; gap:var(--space-4); }
   .cal-sw { display:inline-block; inline-size:var(--space-16); block-size:var(--space-12); border:1px solid var(--color-ink-secondary); border-inline-start-width:3px; border-radius:2px; }
   .cal-sw.dashed { border-style:dashed; }
-  /* Phase 9 (V1-202) — what to show, and adding a date: two folds under the period, above the dates. */
-  .cal-filter, .cal-add { margin:var(--space-4) 0; }
-  .cal-filter summary { cursor:pointer; font-size:var(--font-size-small); min-height:44px; display:flex; align-items:center; gap:var(--space-8); }
-  /* Phase 9 (V1-204, inbox-calendar-new-10) — today said in a word, beside its date. */
-  .cal-now { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); margin-inline-start:var(--space-4); }
-  /* Phase 7 — a grid wider than the screen SAYS so: a shade at each edge that
-     has more beyond it (it goes when that edge is reached), and a thin bar. */
-  /* Phase 9 — positioned, so a screen reader's words inside a date ("Done:") scroll with it and never widen the page. */
+  .cal-times { display:flex; gap:var(--space-12); flex-wrap:wrap; }
+  .cal-rm { margin:var(--space-4) 0 0; }
+  .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
+  /* TODAY is marked in magenta, in a word as well — one of magenta's three jobs, and only ever as text. */
+  .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-assistant); margin-inline-start:var(--space-4); }
+  .cal-day .cal-now, .cal-span .cal-now { font-size:inherit; margin:0; }
+  /* A list, a day at a time: the day's heading, then its dates in a rounded card. */
+  .cal-dayblock { margin:var(--space-24) 0 0; }
+  .cal-day { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 var(--space-8); margin:0 0 var(--space-8); }
+  .empty.cal-none { margin:0; }
+  /* Phase 7 — the day as ONE list in time order; the warmth run — the hour, the face (its kind's icon on its corner), the sentence. */
+  .dl { list-style:none; margin:var(--space-12) 0 0; padding:0; max-width:var(--measure-prose);
+    background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); }
+  .cal-dayblock .dl { margin:0; }
+  .dl-row { display:flex; align-items:flex-start; gap:var(--space-12); padding:var(--space-12); border-top:1px solid var(--color-border); }
+  .dl-row:first-child { border-top:0; }
+  .dl-hour { flex:none; inline-size:4em; padding-top:var(--space-8); font-size:var(--font-size-caption); color:var(--color-ink-secondary);
+    font-variant-numeric:tabular-nums; overflow-wrap:break-word; }
+  .dl-who { position:relative; flex:none; display:inline-grid; place-items:center; inline-size:32px; block-size:32px; }
+  .dl-who .kind-icon { position:absolute; inset-block-end:-4px; inset-inline-end:-6px; inline-size:18px; block-size:18px; padding:2px;
+    background:var(--color-surface); border-radius:var(--radius-chip); color:var(--color-ink-secondary); pointer-events:none; }
+  /* A date that is nobody's — a closure, the owner's own — has its kind's icon in the face's place. */
+  .dl-who.dl-only { border-radius:var(--radius-chip); background:var(--color-paper); }
+  .dl-who.dl-only .kind-icon { position:static; inline-size:20px; block-size:20px; padding:0; background:transparent; }
+  .dl-go { flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:32px; color:inherit; text-decoration:none; }
+  .dl-body { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  /* A name is never cut: it wraps, a Latin name inside Arabic too (isolated by its bdi). */
+  .dl-say { color:var(--color-ink); overflow-wrap:break-word; text-wrap:pretty; }
+  .dl-say bdi { font-weight:600; }
+  .dl-row.dashed .dl-go { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  .dl-row.solid .dl-go { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  /* Done is greyed, never hidden: the words in Stone, the face without its colour. */
+  .dl-row.done, .dl-row.done .dl-say { color:var(--color-ink-secondary); }
+  .dl-row.done .dl-say bdi { font-weight:400; }
+  .dl-row.done .face, .mo-e.done .face { filter:grayscale(1); opacity:0.55; }
+  /* The list's days behind today, folded below; open by themselves when something in them is still owed. */
+  .cal-earlier { margin:var(--space-24) 0 0; }
+  .cal-earlier > summary { font-weight:600; color:var(--color-ink-secondary); }
+  .cal-owed { display:inline-flex; align-items:center; gap:var(--space-4); font-weight:400; font-size:var(--font-size-caption); }
+  /* An empty period: one warm panel, its one door — never a grey box under rows of scaffolding. */
+  .empty.cal-empty { display:grid; justify-items:start; gap:var(--space-8); margin:var(--space-16) 0 0; padding:var(--space-24);
+    border:0; border-radius:var(--radius-panel); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
+  .cal-empty-i { display:grid; place-items:center; inline-size:56px; block-size:56px; border-radius:var(--radius-chip);
+    background:var(--color-paper); color:var(--color-ink-secondary); }
+  .cal-empty-ic { inline-size:28px; block-size:28px; }
+  .cal-empty-t { margin:0; font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); text-wrap:balance; }
+  .cal-empty .muted { margin:0; font-size:var(--font-size-small); }
+  .cal-empty .cal-add { margin:0; }
+  .cal-empty .cal-add > summary { font-weight:600; }
+  /* Phase 7 — the month on a phone SAYS it is wider than the screen: a shade at each edge that has more beyond it (it goes when
+     that edge is reached), and a thin bar. The warmth run — its frame rounded. Positioned, so a screen reader's words scroll with it. */
   .wk-scroll { position:relative; overflow-x:auto; margin:var(--space-12) 0; scrollbar-width:thin; scrollbar-color:var(--color-ink-secondary) transparent;
+    border:1px solid var(--color-border); border-radius:var(--radius-panel);
     overscroll-behavior-x:contain; background-color:var(--color-surface);
-    background-image:linear-gradient(to right, var(--color-surface), transparent), linear-gradient(to left, var(--color-surface), transparent),
+    background-image:linear-gradient(to right, var(--color-surface) var(--space-12), transparent), linear-gradient(to left, var(--color-surface) var(--space-12), transparent),
       linear-gradient(to right, var(--color-ink-secondary), transparent), linear-gradient(to left, var(--color-ink-secondary), transparent);
     background-position:left center, right center, left center, right center;
     background-size:var(--space-32) auto, var(--space-32) auto, var(--space-8) auto, var(--space-8) auto;
     background-repeat:no-repeat; background-attachment:local, local, scroll, scroll; }
-  /* Phase 7 — columns wide enough for a whole surname (a name wraps between words, never inside one). */
-  .wk, .mo { width:100%; min-width:780px; border-collapse:collapse; table-layout:fixed; background:transparent; }
-  /* The hours stay in view while the days scroll past them. */
-  .wk tbody th, .wk .wk-corner { position:sticky; inset-inline-start:0; z-index:1; background:var(--color-surface); }
-  .wk th, .wk td, .mo th, .mo td { border:1px solid var(--color-border); vertical-align:top; padding:var(--space-4); }
-  .wk thead th, .mo thead th { font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:start; padding:var(--space-8); }
-  .wk thead th b { color:var(--color-ink); font-weight:600; }
-  .wk thead th.today { box-shadow:inset 0 -2px 0 var(--color-ink); }
-  .wk tbody th { width:3.5em; font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:end; font-variant-numeric:tabular-nums; }
-  .wk .wk-corner { width:3.5em; }
-  .wk td { height:2.75em; }
-  .wk-e { display:flex; flex-direction:column; gap:0; margin-bottom:var(--space-4); padding:var(--space-4) var(--space-8);
-    border:1px solid var(--color-ink-secondary); border-inline-start-width:3px; border-radius:6px;
-    background:var(--color-surface); color:var(--color-ink); font-size:var(--font-size-caption); line-height:1.35; }
-  .wk-e.solid { border-style:solid; }
-  .wk-e.dashed { border-style:dashed; }
-  .wk-e.past { color:var(--color-ink-secondary); border-color:var(--color-border); }
-  /* Phase 7 — a name is never cut: it wraps (a Latin name inside Arabic too, isolated by its bdi). */
-  .wk-e b { font-weight:600; overflow-wrap:break-word; text-wrap:balance; }
-  /* Phase 9 (inbox-calendar-new-08) — a kind that wraps breaks into even lines, never one word left alone. */
-  .wk-k, .wk-t { overflow-wrap:break-word; text-wrap:balance; }
-  .wk-t { font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
-  a.wk-e:hover, a.wk-e:focus-visible { background:var(--color-paper); }
-  .cal-rm { margin:var(--space-4) 0 0; }
-  .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
-  .row.dashed .grow { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
-  /* Phase 9 (inbox-calendar-new-14) — a date from a conversation has its solid edge in the lists too, as the legend says. */
-  .row.solid .grow { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
-  .row.done { color:var(--color-ink-secondary); }
-  .row.done .cal-head b { font-weight:400; }
-  .mo td { height:7em; }
+  /* Columns wide enough for a whole surname beside its face (a name wraps between words, never inside one). */
+  .mo { width:100%; min-width:840px; border-collapse:separate; border-spacing:0; table-layout:fixed; background:transparent; }
+  .mo th, .mo td { border:0; border-inline-end:1px solid var(--color-border); border-block-end:1px solid var(--color-border); vertical-align:top; padding:var(--space-4); }
+  .mo tr > :last-child { border-inline-end:0; }
+  .mo tbody tr:last-child td { border-block-end:0; }
+  .mo thead th { font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:start; padding:var(--space-8); }
+  /* Every week the same height: a crowded day says "+N more" rather than stretching its row. */
+  .mo td { height:7.5em; }
   .mo td.other { background:var(--color-paper); }
-  .mo td.today .mo-d { border:1.5px solid var(--color-ink); border-radius:var(--radius-chip); font-weight:600; }
   .mo-d { display:inline-flex; min-width:1.75em; min-height:1.75em; align-items:center; justify-content:center;
-    font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; margin-bottom:var(--space-4); }
-  .mo-more { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .cal-add { margin:var(--space-16) 0; }
-  .cal-add summary { cursor:pointer; font-weight:600; font-size:var(--font-size-small); min-height:44px; display:flex; align-items:center; gap:var(--space-8); }
-  .cal-times { display:flex; gap:var(--space-12); flex-wrap:wrap; }
-  /* Phase 7 — the day as ONE list in time order: the hour, the kind's icon, the name whole, what it is. */
-  .dl { list-style:none; margin:var(--space-12) 0; padding:0; background:var(--color-surface);
-    border:1px solid var(--color-border); border-radius:var(--radius-card); max-width:var(--measure-prose); }
-  .dl-row { display:flex; align-items:flex-start; gap:var(--space-12); padding:var(--space-12); border-top:1px solid var(--color-border); }
-  .dl-row:first-child { border-top:0; }
-  .dl-hour { flex:none; min-width:4.5em; font-size:var(--font-size-small); font-variant-numeric:tabular-nums; }
-  .dl-row .kind-icon { flex:none; margin-top:var(--space-4); color:var(--color-ink-secondary); }
-  .dl-go { flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); color:inherit; text-decoration:none; }
-  .dl-body { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
-  .dl-body b { font-weight:600; overflow-wrap:break-word; }
-  .dl-row.dashed .dl-go { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
-  .dl-row.solid .dl-go { border-inline-start:2px solid var(--color-ink-secondary); padding-inline-start:var(--space-8); }
-  /* Done is greyed, never hidden. */
-  .dl-row.done { color:var(--color-ink-secondary); }
-  .dl-row.done .dl-body b { font-weight:400; }
+    font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; color:var(--color-ink); }
+  .mo td.today .mo-d { color:var(--color-assistant); font-weight:700; }
+  .mo-e { display:flex; align-items:center; gap:var(--space-4); margin-top:var(--space-4); font-size:var(--font-size-caption); line-height:1.3; color:var(--color-ink); }
+  .mo-e .face-link { align-items:center; gap:var(--space-4); }
+  .mo-n { min-width:0; overflow-wrap:break-word; }
+  .mo-e .kind-icon { flex:none; inline-size:24px; block-size:24px; padding:3px; border-radius:var(--radius-chip); background:var(--color-paper); color:var(--color-ink-secondary); }
+  .mo-e.done { color:var(--color-ink-secondary); }
+  .mo-more { display:inline-flex; align-items:center; min-height:24px; margin-top:var(--space-4); font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
 
   /* ── inbox.ts — Buyers (one list since A) and the conversation page; moved in at the V1 close-out. */
   /* The search: the field takes the room, its button and the way back beside it. */

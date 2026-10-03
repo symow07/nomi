@@ -114,7 +114,8 @@ describe('Phase F · every empty surface says what happens next', () => {
     expect(emptyToday).toContain('href="/app/calendar"');    // nothing coming up: the calendar all the same
     expect(emptyBuyers('all')).toContain('href="/app/business"');
     expect(emptySearch).toContain('href="/app/inbox?filter=all"');   // every buyer, the search let go
-    expect(emptyCalendar).toContain('href="/app/inbox"');
+    // the warmth run — an empty calendar's one door is adding a date to it
+    expect(emptyCalendar).toContain('<details class="cal-add"><summary>Add a date</summary><form method="post" action="/app/calendar/entries"');
   });
 
   it('does not offer a door into another empty room', () => {
@@ -135,13 +136,13 @@ describe('Phase F · every empty surface says what happens next', () => {
 });
 
 describe('Phase 9 · the five empties phase 6 missed are panels too (cross-missed-01)', () => {
-  it('the week, the day, the month and the day list say "nothing" in a panel, never a grey line', () => {
+  it('the week, the day, the month and the day list say "nothing" in a panel, never a grey line (the warmth run: one warm panel)', () => {
     const base = { from: '2026-07-26', to: '2026-08-16', today: '2026-08-02', category: null, buyer: null, buyers: [], categories: [], entries: [] };
     for (const view of ['week', 'day', 'month', 'list'] as const) {
       const html = renderCalendar({ ...base }, 'en', { view });
       expect(html, view).not.toMatch(/<p class="muted">Nothing/);
     }
     const week = renderCalendar({ ...base }, 'en', { view: 'week' });
-    expect(week).toContain(`<div class="empty">${t('en', 'calendar.empty.week')}</div>`);
+    expect(week).toMatch(new RegExp(`<div class="empty cal-empty">[\\s\\S]*?<p class="cal-empty-t">${t('en', 'calendar.empty.week')}</p>`));
   });
 });

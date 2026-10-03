@@ -62,30 +62,32 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
   }, 60_000);
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
-  it('the page opens on the week; an empty week is said, not drawn as empty hours (V1-204)', async () => {
+  it('the page opens on the list (the warmth run); nothing is drawn as a grid of empty hours (V1-204)', async () => {
     const html = await page('/app/calendar');
-    expect(html).toContain('<a class="tab on" aria-current="page" href="/app/calendar?at=');
+    expect(html).toContain('<a class="tab on" aria-current="page" href="/app/calendar">');
     expect(html).not.toContain('<table class="wk">');
   });
 
-  it('a date put on the calendar is on the week, dashed, with its hours', async () => {
+  it('a date put on the calendar is on the list around its day and on its week, dashed, with its hours', async () => {
     const r = await post('/app/calendar/entries', { title: 'Photo shoot', day: '2031-03-05', from: '11:00', to: '13:00' });
     expect(flashSaid(r, SECRET)).toContain('Added to the calendar.');
     expect(r.headers['location']).toBe('/app/calendar?at=2031-03-05');
     const [row] = await rows();
     // who put it there, by person (G9b: an actor is an id, read as a name where shown)
     expect(row).toMatchObject({ title: 'Photo shoot', all_day: false, removed_at: null, created_by: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    // where adding it lands: the list around its day — the owner's own, dashed, with its hours and its title
     const html = await page('/app/calendar?at=2031-03-05');
-    // the week of a date: Monday first for a business in the UK
-    expect(html).toContain('<table class="wk">');
-    const firstDay = /<thead><tr><th scope="col" class="wk-corner">[\s\S]*?<\/th><th scope="col"[^>]*><a href="\/app\/calendar\?view=day&amp;at=(\d{4}-\d{2}-\d{2})"/.exec(html)?.[1];
+    expect(html).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
+    expect(html).toContain('<span class="dl-hour">11:00–13:00</span>');
+    expect(html).toContain('<span class="dl-say"><bdi>Photo shoot</bdi></span>');
+    // the week of a date: Monday first for a business in the UK (the add form offers the week's first day)
+    const week = await page('/app/calendar?view=week&at=2031-03-05');
+    expect(week).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
+    const firstDay = /<input type="date" name="day" required value="(\d{4}-\d{2}-\d{2})"/.exec(week)?.[1];
     expect(new Date(`${firstDay}T00:00:00Z`).getUTCDay()).toBe(1);
-    expect(html).toContain(`<div class="wk-e dashed" data-src="calendar_entries:${row!.id}"`);
-    expect(html).toContain('<b><bdi>Photo shoot</bdi></b><span class="wk-t">11:00–13:00</span>');
-    // and in the list, under "Your dates"
+    // and in the list paged to it
     const list = await page('/app/calendar?view=list&from=2031-03-01');
-    expect(list).toContain(`<li class="row dashed" data-src="calendar_entries:${row!.id}"`);
-    expect(list).toContain('Your dates');
+    expect(list).toContain(`<li class="dl-row dashed" data-src="calendar_entries:${row!.id}"`);
   });
 
   it('what cannot be kept honestly is not kept, and the owner is told why', async () => {
@@ -98,7 +100,8 @@ d('0082 · the owner\'s own dates (requires DATABASE_URL)', () => {
       // Phase 7 — the calendar again (400), the add form open, the reason under its field, what was typed kept.
       const r = await post('/app/calendar/entries', fields);
       expect(r.statusCode).toBe(400);
-      expect(r.body).toContain('<details class="cal-add" open>');
+      // the add form open: in the page's one fold, or in the empty period's panel
+      expect(r.body).toMatch(/<details class="cal-(?:tools|add)" open>/);
       expect(r.body).toContain(said);
       if (fields.title) expect(r.body).toContain(`value="${fields.title}"`);
     }

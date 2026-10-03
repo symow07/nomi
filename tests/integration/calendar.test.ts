@@ -59,7 +59,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
   });
   /** Every entry's provenance on a page: `table:id` → column. */
   const sources = (html: string): Map<string, string> =>
-    new Map([...html.matchAll(/<li class="row (?:solid|dashed)(?: done)?" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
+    new Map([...html.matchAll(/<li class="dl-row (?:solid|dashed)(?: done)?" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
   const area = (on: boolean) => as(BIZ, (t) => sql`update businesses set outreach_area = ${on} where id = ${BIZ}::uuid`.execute(t));
 
   beforeAll(async () => {
@@ -228,8 +228,9 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     expect(r.body).toContain(`Mid-Autumn ${RUN}`);
     // Handled, and the reply is owed tomorrow: neither is described as outstanding past its time.
     expect(r.body).not.toContain(t('en', 'calendar.line.sampleOpen'));
-    expect(r.body).toContain(t('en', 'calendar.line.replyDue'));
-    expect(r.body).not.toContain(t('en', 'calendar.line.replyOverdue'));
+    // the warmth run — the reply owed is said in its own sentence, and only a late one says it is late
+    expect(r.body).toContain(t('en', 'calendar.say.reply_due', { who: '' }).trim());
+    expect(r.body).not.toContain(t('en', 'calendar.detail.late'));
   });
 
   it('every entry is a real row, and its date really is in the window', async () => {
@@ -242,7 +243,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       quotes: ['created_at'], handoffs: ['sla_deadline_at'], factory_closures: ['starts_on'], conversations: ['closed_at'],
       sequence_enrollments: ['next_due_at'],
     };
-    const rows = [...r.body.matchAll(/<li class="row (?:solid|dashed)(?: done)?" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
+    const rows = [...r.body.matchAll(/<li class="dl-row (?:solid|dashed)(?: done)?" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
     expect(rows.length).toBeGreaterThan(0);
     for (const [, table, rowId, col] of rows) {
       expect(ALLOWED[table!], table).toContain(col);
@@ -301,7 +302,8 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     expect(on.body).toContain(`buyer-${RUN}@example.com`);
     expect(on.body).toContain('<option value="followups"');
     // No conversation yet: nothing to open, so no door on that row.
-    const row = new RegExp(`<li class="row" data-src="sequence_enrollments:${id['enrol']}"[\\s\\S]*?</li>`).exec(on.body)?.[0] ?? '';
+    const row = new RegExp(`<li class="dl-row dashed" data-src="sequence_enrollments:${id['enrol']}"[\\s\\S]*?</li>`).exec(on.body)?.[0] ?? '';
+    expect(row).not.toBe('');
     expect(row).not.toContain('href=');
     await area(false);
   });
@@ -316,7 +318,8 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       const want = [...all.keys()].filter((k) => CATEGORY_OF[k.split(':')[0]!] === cat).sort();
       expect(got, cat).toEqual(want);
       expect(got.length, `${cat} has something seeded`).toBeGreaterThan(0);
-      expect(r.body).toMatch(new RegExp(`<a class="tab on" aria-current="page" href="/app/calendar\\?view=list&amp;category=${cat}">`));
+      // the warmth run — the list is the page's own view, so its address carries no view
+      expect(r.body).toMatch(new RegExp(`<a class="tab on" aria-current="page" href="/app/calendar\\?category=${cat}">`));
     }
     await area(false);
   });
@@ -348,12 +351,12 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
   it('an empty window says so and leads somewhere; the doors page by three weeks', async () => {
     const r = await get('/app/calendar?view=list&from=2031-01-06');
     expect(r.statusCode).toBe(200);
-    expect(r.body).toContain('<div class="empty">');
+    expect(r.body).toContain('<div class="empty cal-empty">');
     expect(r.body).toContain(t('en', 'calendar.empty'));
-    expect(r.body).toContain('href="/app/inbox"');
-    expect(r.body).toContain('href="/app/calendar?view=list&amp;from=2030-12-16"');
-    expect(r.body).toContain('href="/app/calendar?view=list&amp;from=2031-01-27"');
-    expect(r.body).toContain('href="/app/calendar?view=list"');     // back to this week
+    expect(r.body).toContain('<details class="cal-add"><summary>');   // its one door: adding a date
+    expect(r.body).toContain('href="/app/calendar?from=2030-12-16"');
+    expect(r.body).toContain('href="/app/calendar?from=2031-01-27"');
+    expect(r.body).toContain('<a class="tab cal-today" href="/app/calendar">');     // back to now
   });
 
   it('reads in all three locales, right to left in Arabic, with Buyers lit', async () => {
