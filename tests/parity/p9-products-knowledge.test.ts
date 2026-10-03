@@ -15,7 +15,7 @@ import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
 import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
 import { renderFactory, renderBusinessScreen, type FactoryView } from '../../src/api/web/factory.js';
-import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
+import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, certRows, CERTS_HOME, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
 import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
 import { readFileSync } from 'node:fs';
@@ -678,7 +678,10 @@ describe('What your assistant knows', () => {
   it('V1-360 / V1-361 — each product row says what its number counts; Chinese shows and sorts Chinese names', () => {
     const en = page('en');
     expect(en).toContain('2 facts taught');
-    expect(en).toContain('Nothing taught yet<span class="go"');
+    // The warmth run, phase 9 (w4-products-knowledge-06) — the count is a line of its own under the name, never run into it.
+    expect(en).toContain('<span class="sr-desc">Nothing taught yet</span></span>');
+    expect(en).toMatch(/<a class="srow sr-menu sr-two" href="\/app\/knowledge\/p2">\s*<span class="sr-main"><span class="sr-label"><bdi>Canvas Tote Bag 38x40cm<\/bdi><\/span>/);
+    expect(en).not.toContain('class="krow"');
     const zh = page('zh');
     expect(zh).toContain('<bdi>竹砧板</bdi>');
     expect(zh).toContain('<bdi>帆布袋</bdi>');
@@ -728,29 +731,49 @@ describe('What your assistant knows', () => {
     expect(css).toMatch(/\.scope \{[^}]*text-wrap:pretty; \}/);
   });
 
-  it('new-17 — lists, cards and empty panels share one measure', () => {
+  it('new-17 — every section, list, panel, card and field ends where the section\'s rule ends: one measure, set once', () => {
     const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'en', path: '/app/knowledge', bodyHtml: page('en') }));
-    expect(css).toContain('.klist, .kitem, .gap { max-width:var(--measure-prose); }');
+    expect(css).toContain('.kpage .block { max-width:var(--measure-prose); }');
+    expect(css).toContain('.kpage .kitem, .kpage .gap, .kpage .empty, .kpage .pform, .kpage .scard { max-width:100%; }');
+    // Knowledge is drawn inside the one wrapper, and so is a product's page.
+    const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/'<div class="kpage">' \+ renderKnowledgeOps\(/);
+    expect(renderProductKnowledge(product(), 'en', null).trimStart()).toMatch(/^<div class="kpage">/);
   });
 
   it('V1-371 / V1-372 / new-18 / V1-374 — a certification in words, on or off in words, switched by a button that says so', () => {
+    // The warmth run, phase 9 (w4-products-knowledge-02) — drawn on What you promise customers.
+    const inSentence = (l: Locale, s: string) => (l === 'zh' || l === 'ar' ? s : s.charAt(0).toLocaleLowerCase(l) + s.slice(1));
     for (const l of LOCALES) {
-      const html = page(l);
+      const html = plain(certRows(l, index.certs ?? [], 12));
       expect(html, l).not.toMatch(/>food_grade<|>BPA_free<|for all 12[^<]*food_grade/);
       expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.food_grade'))}</bdi></b> <span class="pill">${esc(t(l, 'knowledge.cert.off'))}</span>`);
       expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.CE'))}</bdi></b> <span class="pill ok">${esc(t(l, 'knowledge.cert.on'))}</span>`);
       // The question names it in words, and the button — which the ask-first dialog repeats — says what it does.
-      expect(html, l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: t(l, 'claim.food_grade'), n: 12 })))}">${esc(t(l, 'knowledge.cert.turnOn'))}</button>`);
+      expect(html, l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: inSentence(l, t(l, 'claim.food_grade')), n: 12 })))}">${esc(t(l, 'knowledge.cert.turnOn'))}</button>`);
     }
     // A plain button: it takes the page's font (`.btn { font:inherit }`), not the browser's.
-    expect(page('en')).not.toMatch(/class="cert( on)? ?"/);
-    expect(page('en')).toMatch(/<button class="btn" type="submit" onclick="return confirm\(this.dataset.confirm\)" data-confirm="Turn on/);
+    const en = certRows('en', index.certs ?? [], 12);
+    expect(en).not.toMatch(/class="cert( on)? ?"/);
+    expect(en).toMatch(/<button class="btn" type="submit" onclick="return confirm\(this.dataset.confirm\)" data-confirm="Turn on/);
+  });
+
+  it('w4-products-knowledge-14 — the state agrees with no name, and the question no longer gives a pronoun of one gender', () => {
+    // Arabic, Spanish and French certifications are of either gender: the state is a yes or a no.
+    expect([t('ar', 'knowledge.cert.on'), t('ar', 'knowledge.cert.off')]).toEqual(['نعم', 'لا']);
+    expect([t('es', 'knowledge.cert.on'), t('fr', 'knowledge.cert.off')]).toEqual(['Sí', 'Non']);
+    expect(t('ar', 'knowledge.cert.confirmOn')).not.toMatch(/ذكره|ذكرها/);
+    expect(t('ar', 'knowledge.cert.confirmOff')).not.toMatch(/تأكيده|تأكيدها|لـ /);
+    // A long name wraps beside its button, never pushing it onto a line of its own; the period's choices keep their words together.
+    const css = linkedCss(shell({ title: 'x', active: 'knowledge', locale: 'fr', path: '/app/knowledge', bodyHtml: page('fr') }));
+    expect(css).toContain('.certlist .row { flex-wrap:nowrap; }');
+    expect(css).toContain('.kpage #period .tab { white-space:nowrap; }');
   });
 
   it('V1-373 / V1-376 — one product\'s page says which certifications are on and leads to where they are switched, and to the product', () => {
     const html = plain(renderProductKnowledge(product(), 'en', null));
     expect(html).not.toContain('action="/app/knowledge/cert"');
-    expect(html).toContain('href="/app/knowledge#certs"');
+    expect(html).toContain(`href="${CERTS_HOME}"`);
     expect(html).toContain('href="/app/products/de300000-0000-4000-8000-000000000101"');
     expect(plain(renderProductKnowledge({ ...product(), certs: [] }, 'en', null))).toContain(t('en', 'knowledge.cert.noneHere'));
   });
@@ -764,7 +787,7 @@ describe('What your assistant knows', () => {
   it('V1-377 / V1-378 — the back link names the page it opens, above the title', () => {
     for (const l of LOCALES) {
       const html = plain(renderProductKnowledge(product(), l, null));
-      expect(html, l).toMatch(new RegExp(`^\\s*<a class="back" href="/app/knowledge">[\\s\\S]*?${esc(t(l, 'nav.knowledge')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</a>\\s*<h1 class="page">`));
+      expect(html, l).toMatch(new RegExp(`^\\s*<div class="kpage">\\s*<a class="back" href="/app/knowledge">[\\s\\S]*?${esc(t(l, 'nav.knowledge')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</a>\\s*<h1 class="page">`));
     }
   });
 

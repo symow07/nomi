@@ -1435,10 +1435,14 @@ const STYLE_PAGES = `
   /* Phase 9 (missed-20) — a short line never leaves one character alone on the next. */
   .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-4) 0 var(--space-12); text-wrap:pretty; }
   /* Phase 9 (new-17) — lists, cards and empty panels share the one measure, so nothing on the page is narrower than its neighbours. */
-  .klist, .kitem, .gap { max-width:var(--measure-prose); }
-  .klist { display:flex; flex-direction:column; gap:var(--space-8); }
-  .krow { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:var(--radius-control); padding:12px 16px; }
-  .krow:hover { border-color:var(--color-border); }
+  .kitem, .gap { max-width:var(--measure-prose); }
+  /* The warmth run, phase 9 (new-17) — the measure is set once, on each section in the section's own type size,
+     and everything inside runs its full width: the products, the panels, the cards, the teach fields and the section's rule end together. */
+  .kpage .block { max-width:var(--measure-prose); }
+  .kpage .kitem, .kpage .gap, .kpage .empty, .kpage .pform, .kpage .scard { max-width:100%; }
+  /* The period's choices keep each label on one line, and wrap as whole choices (w4-products-knowledge-14). */
+  .kpage #period .tabs { flex-wrap:wrap; }
+  .kpage #period .tab { white-space:nowrap; }
   .kitem { border:1px solid var(--color-border); border-radius:var(--radius-card); padding:14px; margin-bottom:var(--space-12); }
   .kh { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .kh .src { margin-inline-start:auto; font-size:var(--font-size-caption); }
@@ -1450,6 +1454,10 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-372) — a certification is a row: its name, on or off in words, and the button that switches it. */
   .cert-name { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); }
   .cert-name .pill { margin:0; }
+  /* The warmth run, phase 9 (w4-products-knowledge-14) — a long name wraps beside its button, never under it: every button stays at the row's end. */
+  .certlist .row { flex-wrap:nowrap; }
+  .certlist .cert-name { flex:1 1 auto; min-width:0; }
+  .certlist form { flex:none; }
 
   /* ── knowledge-insights.ts — moved here whole in step four: page-specific names, defined once. */
   h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }

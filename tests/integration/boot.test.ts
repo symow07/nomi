@@ -1973,7 +1973,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app/employee/talk', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      for (const page of ['/app/settings/profile', '/app/products']) expect(res.body, page).toContain(`href="${page}"`);
+      // The warmth run, phase 9 (w4-products-knowledge-01) — and what was taught, and what may be claimed.
+      for (const page of ['/app/settings/profile', '/app/products', '/app/knowledge', '/app/business/promises']) expect(res.body, page).toContain(`href="${page}"`);
       const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
       expect(main).not.toContain('<form');
       expect(main).toContain('<a class="back" href="/app/employee">');

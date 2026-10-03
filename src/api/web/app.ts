@@ -3450,16 +3450,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * two pages cannot disagree.
    */
   const talkAbout = async (businessId: string, locale: Locale): Promise<TalkAbout> => {
-    const [profile, products, hub] = await Promise.all([
+    const [profile, products, hub, known] = await Promise.all([
       loadBusinessProfile(deps.db, businessId), loadProductList(deps.db, businessId), loadHub(deps.db, businessId),
+      loadKnowledgeIndex(deps.db, businessId),
     ]);
     const sold = products.filter((p) => p.isActive);
+    const filled = (v: string | null | undefined): boolean => Boolean(v?.trim());
     return {
-      business: profile.name,
-      given: [
-        ...(['description', 'location', 'workingHours', 'contactEmail', 'contactPhone'] as const).filter((k) => Boolean(profile[k]?.trim())),
-        ...(profile.languagesServed.length ? ['languages' as const] : []),
-      ],
+      // The rule My business's own profile row reads (factory.ts): a name, a description, a location and a way to be reached.
+      profileDone: filled(profile.name) && filled(profile.description) && filled(profile.location)
+        && (filled(profile.contactEmail) || filled(profile.contactPhone)),
+      taught: known.business.length + known.products.reduce((n, p) => n + p.count, 0),
+      certs: known.certs ?? [],
       selling: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
       products: {
         total: sold.length,
@@ -5173,11 +5175,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
     // Phase 9 (V1-358) — what to do first; the period's counts last.
-    return renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
+    // The warmth run, phase 9 (new-17) — one wrapper, so the page keeps one measure (`.kpage`).
+    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
         : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
-      + renderKnowledgePeriod(ops, locale, new Date());
+      + renderKnowledgePeriod(ops, locale, new Date()) + '</div>';
   };
   app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     return knowledgeBody(s, req, reply, locale);
@@ -5279,11 +5282,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? flashTo(reply, `/app/knowledge/${encodeURIComponent(r.productId)}`, 'knowledge.flash.restored')
       : flashTo(reply, '/app/knowledge', r.code === 'restored' ? 'knowledge.flash.restored' : 'knowledge.flash.notRestored');
   });
+  // The warmth run, phase 9 (w4-products-knowledge-02) — the certifications are
+  // switched in one place, My business › What you promise customers: the notice lands there.
   app.post('/app/knowledge/cert', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; key?: string; allowed?: string };
     const r = await setCertification(deps.db, s.businessId, String(b.key ?? ''), b.allowed === '1');
-    return kBack(reply, req, String(b.productId ?? ''), r.code);
+    return flashTo(reply, BUSINESS_SCREEN_PATH.promises, `knowledge.flash.${r.code}` as MessageKey);
   });
 
   // ── Practice (M12.2; per workspace since P3, docs/PRACTICE.md) ─────────────
