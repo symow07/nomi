@@ -276,3 +276,11 @@ describe('w4-settings-a-21 · V1-487 · the gallery (a developer\'s page now) sh
     }
   });
 });
+
+describe('Notifications · the phone button stays hidden until the script shows it (seen while fixing w4-settings-a-08)', () => {
+  it('a button\'s own display does not undo hidden', async () => {
+    const { stylesheetAt, shell } = await import('../../src/api/web/layout.js');
+    const sheet = /href="\/assets\/(app\.[0-9a-f]+\.css)"/.exec(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app', bodyHtml: '' }))![1]!;
+    expect(stylesheetAt(sheet)!.css).toContain('.btn[data-push-key][hidden] { display:none; }');
+  });
+});

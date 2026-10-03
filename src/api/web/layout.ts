@@ -1224,6 +1224,9 @@ const STYLE_PAGES = `
   .way-foot { margin:0; padding:var(--space-12) var(--space-16); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .ways-none { margin:0 0 var(--space-12); font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); max-width:var(--measure-prose); }
   .ways-sub { margin:0 0 var(--space-16); font-size:var(--font-size-small); color:var(--color-ink-secondary); max-width:var(--measure-prose); }
+  /* The button that turns a phone on is drawn hidden and shown by the page's script where the browser can: a
+     button's own display must not undo that (it showed beside "This browser cannot show notifications"). */
+  .btn[data-push-key][hidden] { display:none; }
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
   .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
