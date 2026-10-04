@@ -15,6 +15,20 @@ under "Decided" below.
 
 ## The identity run (started 2026-10-04) — read this first
 
+**State (2026-10-04): done.** All six parts are merged and deployed:
+- the product-code check (#224);
+- fonts, motion and the identity system (#225);
+- icons and the nav (#226).
+
+**#226 merged** 12:31 UTC as `e01a4a6`. Both checks reported success on its head through the gate. Deployed 12:32 UTC; `/health` ok. Production is at schema 129: no migration in this run.
+
+**Waiting on the owner from this run:**
+1. **The character mark.** It drops into `agentMark()` (`src/api/web/agentMark.ts`), one function and one file, with no layout change. Until then a neutral Phosphor user-circle holds the slot.
+2. **The rail's active colour.** It is deep, as asked. Deep also means "needs you", so on the Inbox page the filled deep tray sits above the deep count, kept apart by shape. If it reads as one block, set `colorRole.navActive` to `'brand'` in `tokens.ts` (one line).
+3. **A stranger's first public page is 317 KB of fonts,** cached afterwards. Most of it draws the language switch's العربية and 中文. Kept, because no silent fallback was asked. Letting those two names fall back to the device font is one line.
+4. **The order page's proforma** is a monospace `<pre>` drawn in Menlo, the one text on any page not in Noto. Setting that document in Noto is a typography call.
+5. **Native reads (not gates)** for the new zh/ar copy of this run, and the earlier runs' lists.
+
 **The owner's instruction (2026-10-04).** Six parts, run to completion, merging own green PRs through the result-checking merge script (`gated-merge.sh`: every check's CONCLUSION on the exact head, not just that it finished):
 1. **Motion:** retuned to about 200 ms, with travel that can be felt.
 2. **Fonts:** Noto everywhere, the public pages included; a real weight range and hierarchy; generous spacing.
@@ -1959,6 +1973,14 @@ once, in this order, and tick it here.
   - Gamma, higgsfield and Railway gave usage instructions.
 
   None was done. The billing builder read DeepSeek's and Anthropic's public documentation pages; none addressed instructions to an AI. No other web page or file did either.
+
+- 2026-10-04, the identity run (#224–#227): the same requests as before came back at each resume and in the five helpers' reports, and none was done:
+  - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+  - the Adobe server said to call `adobe_mandatory_init` first;
+  - the Supabase connector said to install its skill (`npx skills add`);
+  - the Claude Docs server said to open a document first.
+
+  The only packages installed were the two the owner named or allowed: `@fontsource-variable` (Noto, OFL) and `@phosphor-icons/core` (MIT). No web page addressed instructions to an AI.
 
 ## How to resume
 
