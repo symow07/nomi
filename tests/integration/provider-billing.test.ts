@@ -72,8 +72,13 @@ d('billing resilience, through production, against a provider that refuses for b
   let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
   let admin: import('../../src/db/client.js').Db;
   let server: Server;
-  let mode: Mode = 'refuse';
+  // The fake provider ANSWERS until a test makes it refuse. This file's worker also runs any turn an
+  // earlier file left queued (the queue is shared); one reaching a provider already refusing marked the
+  // installation refusing before the first test began (CI on #222, root-caused).
+  let mode: Mode = 'ok';
   let calls = 0;
+  /** Only this test's own analysis calls are counted: a stray turn is another file's, not a retry. */
+  let counting: string | null = null;
   let cookie = '';
   let balance: BalanceReading = { available: true, lines: [{ currency: 'CNY', total: 100, granted: 0, toppedUp: 100 }] };
   const replyWriter = new FakeReplyWriter();
@@ -129,7 +134,7 @@ d('billing resilience, through production, against a provider that refuses for b
       req.on('data', (c: Buffer) => { body += c.toString('utf8'); });
       req.on('end', () => {
         // The analysis, not the sweep's probe (a scheduled sweep may run meanwhile).
-        if (body.includes('"max_tokens":1200')) calls++;
+        if (body.includes('"max_tokens":1200') && counting !== null && body.includes(counting)) calls++;
         if (mode === 'refuse') { res.writeHead(402, { 'content-type': 'application/json' }); res.end(REFUSAL); return; }
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({
@@ -212,10 +217,11 @@ d('billing resilience, through production, against a provider that refuses for b
   let first = '';
 
   it('a customer writes while it refuses: handed to a person at once as provider_billing — nothing drafted or sent, one call, no retry', async () => {
+    expect((await health()).model).toBe('answering');
     mode = 'refuse';
     calls = 0;
-    expect((await health()).model).toBe('answering');
-    first = await send('Do you have this in blue?');
+    counting = 'Do you have this in blue?';
+    first = await send(counting);
     await until(async () => ((await state(first)).assigned !== null ? true : undefined), 'the hand-over');
     const s = await state(first);
     expect(s.assigned).toBe('unclaimed');
@@ -252,7 +258,8 @@ d('billing resilience, through production, against a provider that refuses for b
     expect((await state(second)).signals).toEqual(['provider_billing']);
     expect(await jobs('provider_refusing')).toHaveLength(1);
     const h = (await sql<{ refusals: number; words: string }>`select refusals, words from provider_health_now()`.execute(prod.db)).rows[0]!;
-    expect(h.refusals).toBe(2);
+    // At least this test's two: a stray turn reaching the refusing provider is refused too, and counted.
+    expect(h.refusals).toBeGreaterThanOrEqual(2);
     expect(h.words).toBe('Insufficient Balance');
   });
 
