@@ -21,3 +21,8 @@ docs/audit/shots-full/
 
 # tools/record-guide.mjs — the raw recordings before they are trimmed.
 /.guide-recording/
+
+# The font-and-icons trial: Switzer may not be redistributed from a public repository (ITF FFL v2.0, §02).
+# Each person fetches their own copy: node tools/fetch-switzer.mjs
+assets/trial/
+.trialtmp/

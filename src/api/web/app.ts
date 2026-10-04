@@ -1,4 +1,5 @@
 import { renderGuide, guideFileAt } from './guide.js';
+import { registerTrial } from './trial.js';
 import { setupProgress } from '../../db/setup.js';
 import { providerRefusing } from '../../db/providerState.js';
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
@@ -447,6 +448,8 @@ export type WebDeps = {
    * sets). Absent or false — every normal installation — it is no page.
    */
   readonly componentGallery?: boolean;
+  /** The font-and-icons trial (branch trial/font-and-icons only): /dev/trial and its pages (trial.ts). */
+  readonly trialRoutes?: boolean;
   /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
@@ -1228,6 +1231,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .type(found.type)
       .send(found.body);
   });
+  // THE FONT-AND-ICONS TRIAL (branch trial/font-and-icons, never merged) — no address at all unless the
+  // process started with TRIAL_ROUTES=on outside production (main.ts). Nothing links to it.
+  if (deps.trialRoutes === true) registerTrial(app, { signedIn: (req) => sessionOf(req) !== null });
 
   // ── Auth ────────────────────────────────────────────────────────────────
   // Phase 5 — on a site host, `/` is the site; everywhere else it is the door.
