@@ -12,6 +12,7 @@ import { labelled } from '../../core/owner/i18n/format.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant, NEEDS_ACT } from './layout.js';
+import { shape } from './marks.js';
 import { dayKey } from '../../core/owner/i18n/format.js';
 import { workspaceZone } from './zone.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -226,7 +227,7 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
   const allPass = trust.checks.every((c) => c.pass);
   const deliveryKey = trust.appliedMode === 'auto' ? 'sandbox.xray.deliveryAuto' : trust.appliedMode === 'draft' ? 'sandbox.xray.deliveryDraft' : 'sandbox.xray.deliveryNone';
   const rows = trust.checks.map((c) =>
-    `<li class="chk ${c.pass ? 'ok' : 'bad'}"><span class="mk">${c.pass ? '✓' : '✕'}</span>
+    `<li class="chk ${c.pass ? 'ok' : 'bad'}"><span class="mk">${shape(c.pass ? 'ok' : 'failed')}</span>
        <span class="lbl">${esc(invLabel(locale, c.invariant))}</span></li>`).join('');
   // Phase 9 (V1-287) — a check's internal detail ("guardViolations=0, deterministic=…")
   // is the engine's, in English; the owner reads the check's own words and its mark.
@@ -355,7 +356,7 @@ function practiceModeCard(settings: PracticeSettings, locale: Locale): string {
 export function renderPractice(report: PracticeReport, locale: Locale): string {
   const rows = report.cases.map((c) => `
     <li class="pcase ${c.passed ? 'ok' : 'bad'}">
-      <span class="pmark">${c.passed ? '✓' : '✕'}</span>
+      <span class="pmark">${shape(c.passed ? 'ok' : 'failed')}</span>
       <span class="ptitle">${esc(t(locale, `sandbox.case.${c.id}` as MessageKey))}</span>
     </li>`).join('');
   // Phase 9 (V1-286) — folded, and placed after the practice conversation: the
@@ -388,14 +389,14 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
   const rows = c.items.map((i) => {
     const gap = NOT_YET.has(i);
     const ok = !gap && c.seen.has(i);
-    return `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}"><span class="mk" aria-hidden="true">${ok ? '✓' : gap ? '—' : '○'}</span>
+    return `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}"><span class="mk" aria-hidden="true">${ok ? shape('ok') : gap ? '—' : shape('waiting')}</span>
       <span class="lbl">${esc(t(locale, `practice.check.${i}` as MessageKey, { name }))}</span>${
       gap ? `<span class="dt muted">${esc(t(locale, 'practice.check.notYet'))}</span>` : ''}</li>`;
   }).join('');
   const money = (n: number, currency: string | null) =>
     show.money(locale, { amount: n, currency: parseCurrency(currency ?? '') ?? c.currency ?? 'USD' });
   const totals = c.totals.map((x) => `<li class="chk ${x.agreed === true ? 'ok' : x.agreed === false ? 'bad' : ''}"><span class="mk" aria-hidden="true">${
-    x.agreed === true ? '✓' : x.agreed === false ? '✕' : '○'}</span><span class="lbl">${esc(
+    shape(x.agreed === true ? 'ok' : x.agreed === false ? 'failed' : 'waiting')}</span><span class="lbl">${esc(
       x.quoted === null
         ? t(locale, 'practice.total.waiting', { expected: money(x.expected, x.currency) })
         : t(locale, x.agreed ? 'practice.total.agreed' : 'practice.total.differs',

@@ -11,7 +11,8 @@ import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js
 import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
-import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, fontAt } from './type.js';
+import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
+import { shape, shapeUrl, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, type IconId } from './icons.js';
 
 /**
@@ -163,7 +164,7 @@ export const isOutreachRoute = (url: string): boolean => {
  * (Stripe confirming a card) does not.
  */
 export const atWork = (text: string, assistant = false): string =>
-  `<div class="block working" role="status">${assistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<span>${esc(text)}</span>`
+  `<div class="block working" role="status">${assistant ? `${shape('assistant', 'as')} ` : ''}<span>${esc(text)}</span>`
   + `<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
 
 /**
@@ -188,7 +189,7 @@ export const unescapeHtml = (s: string): string =>
  * name. `name` arrives escaped or is escaped here.
  */
 export const byAssistant = (name: string): string =>
-  `<span class="as"><span aria-hidden="true">✦</span> ${esc(name)}</span>`;
+  `<span class="as">${shape('assistant')} ${esc(name)}</span>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>
@@ -230,7 +231,7 @@ export function switcher(locale: Locale, path: string): string {
 export type Signal = keyof typeof DESIGN_TOKENS.signal;
 const SIGNAL_CLASS: Readonly<Record<Signal, string>> = { ok: 'ok', waiting: 'warn', failed: 'bad', assistant: 'as' };
 export const signalMark = (s: Signal): string =>
-  `<span class="dot ${SIGNAL_CLASS[s]}" aria-hidden="true">${DESIGN_TOKENS.signal[s]}</span>`;
+  `<span class="dot ${SIGNAL_CLASS[s]} shape s-${s}" aria-hidden="true"></span>`;
 /**
  * THE WARMTH RUN'S RE-AUDIT (w4-whole-06) — something left TO DO that is not a
  * customer waiting: a setup step, a hold, a check. The same open ○, in the
@@ -238,7 +239,7 @@ export const signalMark = (s: Signal): string =>
  * you — and a chore never reads as one.
  */
 export const todoMark = (): string =>
-  `<span class="dot todo" aria-hidden="true">${DESIGN_TOKENS.signal.waiting}</span>`;
+  `<span class="dot todo shape s-waiting" aria-hidden="true"></span>`;
 
 /**
  * THE WARMTH PASS (2026-10-04) — the one act that ANSWERS something waiting for
@@ -273,16 +274,17 @@ export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
   assistant: ['.pill.as'],
 };
-const markBefore = (s: Signal, selectors: readonly string[]): string => {
-  const shape = DESIGN_TOKENS.signal[s];
-  return `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:"${shape}"; content:"${shape}" / ""; margin-inline-end:var(--space-4); font-weight:600; }`;
-};
+/**
+ * The type pass (2026-10-04) — the shape is DRAWN (marks.ts), not a character: no face the product serves has
+ * ✓ ○ ✕ ✦, so they came from the device's own fonts. An empty `content` is all a screen reader is given.
+ */
+const markBefore = (s: Signal, selectors: readonly string[]): string =>
+  `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} --shape:${shapeUrl(s)}; margin-inline-end:var(--space-4); }`;
 /** Lines drawn with the to-do ○ before them, in their own (secondary) ink — never magenta's. */
 export const TODO_BEFORE: readonly string[] = ['.fwarn', '.imp-warn', '.sr-value.warn', '.prob:not(.bad)'];
 const SIGNAL_CSS = `  /* Phase 4 — the four signals: a colour and a shape. */
-  .dot { font-weight:600; }
-  .dot.todo { color:var(--color-ink-secondary); }
-  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:"${DESIGN_TOKENS.signal.waiting}"; content:"${DESIGN_TOKENS.signal.waiting}" / ""; margin-inline-end:var(--space-4); font-weight:600; }
+${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
+  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} --shape:${shapeUrl('waiting')}; margin-inline-end:var(--space-4); }
   .dot.ok { color:var(--color-ok); }
   .dot.warn { color:var(--color-needs); }
   .dot.bad { color:var(--color-warn); }
@@ -356,7 +358,7 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     padding:var(--space-24); background:var(--color-surface); border-radius:var(--radius-panel); box-shadow:var(--shadow-lift1); }
   .pc-top { display:flex; flex-direction:column; align-items:center; gap:var(--space-4); text-align:center; }
   .pc-top .face { margin-block-end:var(--space-8); }
-  .pc-name { margin:0; font-size:var(--font-size-display); line-height:1.2; overflow-wrap:anywhere; }
+  .pc-name { margin:0; font-size:var(--font-size-display); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); overflow-wrap:anywhere; }
   .pc-meta { margin:0; display:flex; flex-wrap:wrap; justify-content:center; gap:var(--space-4) var(--space-12);
     color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .pc-wait { margin:0; color:var(--color-needs); font-weight:600; font-size:var(--font-size-small); }
@@ -364,8 +366,8 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   .pc-facts { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-8); margin:0; }
   .pc-facts > div { padding:var(--space-12) var(--space-16); background:var(--color-sand); border-radius:var(--radius-card); }
   .pc-facts dt { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .pc-facts dd { margin:0; font-size:var(--font-size-title); font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-  .pc-h { margin:0 0 var(--space-4); font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); }
+  .pc-facts dd { margin:0; font-size:var(--font-size-display); font-weight:300; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .pc-h { margin:0 0 var(--space-4); font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); }
   .pc-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
   .pc-qty, .pc-none { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .pc-none { margin:0; }
@@ -494,10 +496,10 @@ ${FACE_CSS}
   /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
      in weight, its shape small, and nothing to press. */
   .navhead { display:flex; align-items:center; gap:var(--space-8); padding: var(--space-12) var(--space-12) var(--space-4);
-    font-size: var(--font-size-caption); font-weight:600; color: var(--color-ink-secondary); }
+    font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
   .navhead .ni { inline-size:16px; block-size:16px; }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
-    font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
+    font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
   /* Two cuts of one mark (brand.ts): the detail cut beside the word on a desktop,
      the small reversed cut alone in the phone nav — below 40px the pale disc
@@ -529,7 +531,7 @@ ${FACE_CSS}
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
   nav.side a.navlink { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) var(--space-12);
     min-height: 44px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
-    font-size: var(--font-size-small); margin-bottom: var(--space-4); }
+    font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-4); }
   nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
   nav.side .ni { flex:none; inline-size:22px; block-size:22px; }
   /* The fix wave (the guide's frames, 1024 px) — the word and its count wrap TOGETHER: the word keeps
@@ -560,21 +562,24 @@ ${LANGSW_CSS}
      1040px block hard left and left 700px of nothing to its right, which reads
      as a window that failed to fill rather than a sheet placed on a desk.
      Centred is a decision; the accidental middle was not. */
-  main { padding: var(--space-24); max-width: var(--measure-column); margin-inline: auto; width: 100%; }
+  main { padding: var(--space-32); max-width: var(--measure-column); margin-inline: auto; width: 100%; }
   /* Prose is allowed to be narrower INSIDE the column. It may not be a
      different number: these two classes are the only prose measures there are. */
   .measure-prose { max-width: var(--measure-prose); }
   .measure-form { max-width: var(--measure-form); }
   /* Phase 9 (settings-a-new-19, settings-a-missed-17) — a heading that wraps breaks into even lines, never one word alone. */
-  h1.page { font-size: var(--font-size-title); margin: 0 0 var(--space-16); text-wrap:balance; }
+  /* The type pass (2026-10-04) — the page title is the top of the hierarchy: the largest size, bold, closed up. */
+  h1.page { font-size:var(--font-size-hero); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight);
+    margin:0 0 var(--space-24); text-wrap:balance; }
+  @media (max-width: 560px) { h1.page { font-size:var(--font-size-display); } }
   /* The hairline in --shadow-lift1 does what a 1px border used to; two would
      read as a double rule at the same edge. */
   .card { background:var(--color-surface); border:0; border-radius:var(--radius-card);
-    box-shadow:var(--shadow-lift1); padding:var(--space-16); margin:var(--space-16) 0; }
+    box-shadow:var(--shadow-lift1); padding:var(--space-24); margin:var(--space-16) 0; }
   /* Phase F: section headings speak to the owner in her own sentence case.
      The 13px tracked-uppercase eyebrow was the one SaaS tell the product had. */
-  .card h2, .block h2, main h2 { font-size:var(--font-size-base); font-weight:600;
-    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; text-wrap:balance; }
+  .card h2, .block h2, main h2 { font-size:var(--font-size-title); font-weight:600; line-height:var(--line-height-tight);
+    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:var(--tracking-tight); text-wrap:balance; }
   /* Phase 9 (missed-19, missed-21) — a heading that wraps leaves no word alone on its last line; nor does a paragraph. */
   h1.page, main h2, main h3 { text-wrap:balance; }
   main p, main li { text-wrap:pretty; }
@@ -611,8 +616,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     padding:10px 18px; border-radius:var(--radius-control);
     border:1.5px solid var(--color-ink-secondary);
     background:var(--color-surface); color:var(--color-ink);
-    font:inherit; font-size:var(--font-size-small); font-weight:600; cursor:pointer; }
-  .btn.send { background:var(--color-ink); border-color:var(--color-ink); color:var(--color-surface); }
+    font:inherit; font-size:var(--font-size-small); font-weight:500; cursor:pointer; }
+  .btn.send { background:var(--color-ink); border-color:var(--color-ink); color:var(--color-surface); font-weight:600; }
   .btn.send:hover { box-shadow:var(--shadow-lift2); }
   .btn.send.needs { background:var(--color-needs); border-color:transparent; color:var(--color-surface); }
   .btn.danger { border-color:var(--color-warn); color:var(--color-warn); }
@@ -652,7 +657,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   input[type="radio"], input[type="checkbox"] { accent-color:var(--color-ink); }
   /* One figure, stated large: the rate she set, the sample price, the state an
      order is in. It is a READING, not a KPI tile. */
-  .stated-now { font-size:var(--font-size-display); margin:var(--space-12) 0; }
+  .stated-now { font-size:var(--font-size-display); font-weight:300; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:var(--space-12) 0; }
 
   /* One notice — in two tones, because one of them is a refusal.
      D5: every notice was painted in the jade of a success, so "Only the owner
@@ -682,7 +687,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .tab { display:inline-flex; align-items:center; min-height:44px; padding:8px 16px;
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
-    font-size:var(--font-size-small); }
+    font-size:var(--font-size-small); font-weight:500; }
   /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an ink edge and weight, not a paler grey than its neighbours. */
   .tab.on { background:var(--color-surface); border-color:var(--color-ink); box-shadow:inset 0 0 0 1px var(--color-ink); color:var(--color-ink); font-weight:600; }
 
@@ -715,8 +720,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Settings in labelled groups (phase 3 of the UI rebuild): one card of rows
      per group; a row names the setting, says it in one line, shows what it is
      set to now at the line's end, and opens it. */
-  .sgroup { margin:0 0 var(--space-24); }
-  .sgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-8); }
+  .sgroup { margin:0 0 var(--space-32); }
+  .sgroup-h { font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); margin:0 0 var(--space-8); }
   /* The warmth pass — a menu card rests on the page: a warm shadow, its own hairline inside it, no drawn border. */
   .scard { list-style:none; margin:0; padding:0; background:var(--color-surface); border:0;
     border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); overflow:hidden; }
@@ -726,7 +731,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (w4-whole-16) — the card clips its rows to its corners, so a row's focus ring is drawn inside the row, rounded like the card. */
   .scard .srow:focus-visible { outline-offset:-2px; border-radius:calc(var(--radius-card) - 1px); }
   .sr-main { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
-  .sr-label { font-weight:600; font-size:var(--font-size-small); }
+  .sr-label { font-weight:500; font-size:var(--font-size-small); }
   .sr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .sr-value { flex:0 1 auto; max-width:45%; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-align:end; overflow-wrap:anywhere; }
   /* A value that is a state says which, with its shape (the four signals); any other value stays quiet. */
@@ -764,7 +769,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .setrow { display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:var(--space-8) var(--space-16);
     align-items:start; padding:var(--space-12) var(--space-16); }
   .fr-l { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; padding-top:var(--space-8); }
-  .fr-name { font-weight:600; font-size:var(--font-size-small); }
+  .fr-name { font-weight:500; font-size:var(--font-size-small); }
   .fr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fr-c { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .fr-c > input:not([type="checkbox"]):not([type="radio"]), .fr-c > select, .fr-c > textarea { width:100%; }
@@ -858,7 +863,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   main h2.tt-head { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .tt-row { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--space-12); }
   .tt-row > li { display:flex; flex-direction:column; min-width:0; }
-  .tt-n { font-size:var(--font-size-title); font-weight:600; font-variant-numeric:tabular-nums; }
+  .tt-n { font-size:var(--font-size-display); font-weight:300; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-variant-numeric:tabular-nums; }
   .tt-l { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   @media (max-width: 560px) {
     main h2.td-head { font-size:var(--font-size-title); }
@@ -951,7 +956,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      business, one verdict. A page of prose and counts is sections, not boxes. */
   /* M49 — one gap between sections, from the scale. It was 22px here and
      anything from 40 to 180 once each page had added its own margins. */
-  .block { padding:var(--space-24) 0; border-top:1px solid var(--color-border); }
+  .block { padding:var(--space-32) 0; border-top:1px solid var(--color-border); }
   .block:first-of-type { border-top:0; padding-top:var(--space-4); }
   /* RTL needs NO override here: a grid's first track already sits on the
      inline-start edge, so the sidebar mirrors to the right on its own. The
@@ -1040,7 +1045,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .calm-page { padding:var(--space-32) 0 var(--space-48); }
   .calm-rule { height:2px; width:3.5rem; background:var(--color-ink); border-radius:2px; margin-bottom:var(--space-24); }
   .calm-page.off .calm-rule { background:var(--color-border); }
-  .calm-say { font-size:var(--font-size-title); line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
+  .calm-say { font-size:var(--font-size-title); font-weight:300; line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
   a.stat { color:inherit; }
   a.stat:hover .go, a.stat:focus-visible .go { color:var(--color-ink); }
   .stat.need .v { font-size:var(--font-size-title); }
@@ -1054,7 +1059,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
   details > summary::-webkit-details-marker { display:none; }
   details > summary::before { content:'›'; color:var(--color-ink-secondary); display:inline-block; }
-  details[open] > summary::before { content:'⌄'; }
+  /* The type pass — open, the same chevron turns down (⌄ is in no face the product serves). */
+  details[open] > summary::before { transform:rotate(90deg); }
   [dir="rtl"] details:not([open]) > summary::before { transform:scaleX(-1); }
   /* The twins of :hover and :focus-visible, so a page can SHOW a state without a
      pointer. Only the components page under Setup wears them. */
@@ -1114,6 +1120,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
       }
     }
     main { padding:var(--space-16); }
+    .card { padding:var(--space-16); }
     .msg { max-width:92%; }
     .stats { grid-template-columns: repeat(2,1fr); }
     .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
@@ -1877,7 +1884,7 @@ const STYLE_PAGES = `
     .lhead .search { margin-inline-start:auto; flex:0 1 26rem; }
   }
   .bgroup { margin-bottom:var(--space-12); }
-  .bgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-4); }
+  .bgroup-h { font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); margin:0 0 var(--space-4); }
   .crows { list-style:none; margin:0; padding:0; background:var(--color-surface); border:0;
     border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); overflow:hidden; }
   .crows > li + li { border-top:1px solid var(--color-border); }
@@ -2395,8 +2402,9 @@ ${cssVariables()}
          font: var(--font-size-base)/var(--line-height) var(--font-family);
          -webkit-text-size-adjust:100%; }
   main { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-48) var(--space-16); }
-  h1 { font-size:var(--font-size-display); line-height:1.25; margin:0 0 var(--space-16); font-weight:600; }
-  h2 { font-size:inherit; font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  h1 { font-size:var(--font-size-hero); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-24); font-weight:700; }
+  h2 { font-size:var(--font-size-title); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  @media (max-width: 560px) { h1 { font-size:var(--font-size-display); } }
   p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
   p, li { text-wrap:pretty; }
   h1, h2 { text-wrap:balance; }
@@ -2417,10 +2425,21 @@ ${cssVariables()}
  * V1 close-out — THE ONE PAGE FAMILY THAT KEEPS ITS RULES INSIDE ITSELF, on
  * purpose. A stranger opens these from an e-mail, a Page or a forwarded link,
  * often after a mail scanner or a platform's crawler has fetched the address
- * and nothing else; each must arrive complete, with nothing more to fetch —
- * no script, no stylesheet, no font (legal-pages.test.ts and
+ * and nothing else; each must arrive complete, with nothing more to fetch
+ * before it can be read — no script, no stylesheet (legal-pages.test.ts and
  * m40-unsubscribe.test.ts hold it). A cached file saves an owner who opens
  * sixty pages a day; it saves nothing for someone who opens one page once.
+ *
+ * THE TYPE PASS (2026-10-04) — and in the product's own type. These pages
+ * named Noto first and loaded none of it, so the first page a stranger saw was
+ * set in whatever the device had (SF Pro on a Mac, Roboto, Segoe UI), and one
+ * click on "Sign in" changed the font (TYPE-ICONS-TRUTH §1.2). The rules for
+ * exactly the faces this page's characters need are written into the page
+ * (`facesFor`). The files they name are an ENHANCEMENT, not a dependency: the
+ * page is complete and readable at once in the device's font (every stack
+ * ends there, and `font-display:swap` never hides the words), and the Noto
+ * files replace it as they arrive. A crawler that fetches the address alone
+ * still has the whole page.
  */
 export function publicDocument(input: {
   readonly locale: Locale; readonly title: string; readonly body: string;
@@ -2433,6 +2452,7 @@ export function publicDocument(input: {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
 ${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>${PUBLIC_STYLE}${input.extraCss ?? ''}
+${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, (input.extraCss ?? '').includes('--font-voice'))}
 </style>
 </head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
 }
@@ -2464,7 +2484,12 @@ const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
  * device's own fonts after Noto.
  */
 const TYPE_SHEETS = { base: sheet('type', TYPE_CSS), zh: sheet('typezh', TYPE_ZH_CSS) } as const;
-const typeLink = (locale: Locale): string => linkTo(TYPE_SHEETS[typeSetFor(locale)]);
+/**
+ * The type pass (2026-10-04) — the sheet is chosen by the page's own characters (`typeSetFor`), so it is linked
+ * last: the page is written with this mark where the link goes, and the mark replaced once every word is in.
+ */
+const TYPE_SLOT = '<!--type-->';
+const withType = (locale: Locale, html: string): string => html.replace(TYPE_SLOT, linkTo(TYPE_SHEETS[typeSetFor(locale, html)]));
 
 /**
  * CC-26 — the one script, linked by the shell on every owner page and by
@@ -2685,14 +2710,14 @@ export function shell(input: {
   const tabTitle = (ownHeading ? unescapeHtml(ownHeading.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '') || input.title;
   // CC-20 — the first stop for a keyboard or a screen reader: past the five
   // nav entries, straight to the page. Out of sight until it has focus.
-  return `<!doctype html>
+  return withType(locale, `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
 ${linkTo(APP_SHEET)}
-${typeLink(locale)}
+${TYPE_SLOT}
 ${scriptTo(LIVE_JS)}</head>
 <body><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
   <nav class="side">
@@ -2702,7 +2727,7 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`;
+</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }
 
 /**
@@ -2745,7 +2770,7 @@ const DOOR_STYLE = `
   /* Phase 9 (V1-040 and public-missed-10) — above: the site's mark and name, centred like
      the pill above them and the links below. */
   .login .brand small { margin-top:0; }
-  .login h1 { font-size:var(--font-size-title); margin:0 0 var(--space-8); }
+  .login h1 { font-size:var(--font-size-display); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-8); }
   /* w4-public-10 — a heading in even lines, so no word is left on its own (es, fr). */
   .login h1 { text-wrap:balance; }
   .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
@@ -2830,20 +2855,20 @@ export const gapAfter = (sentence: string): string => (/[\u3002\uFF1F\uFF01\uFF1
  */
 export const inviteMailto = (l: Locale, contact: string): string =>
   `mailto:${contact}?subject=${encodeURIComponent(t(l, 'site.invite.subject'))}&body=${encodeURIComponent(t(l, 'site.invite.mailBody'))}`;
-const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, o: DoorOptions = {}): string => `<!doctype html>
+const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, o: DoorOptions = {}): string => withType(locale, `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · Nomi</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${linkTo(DOOR_SHEET)}
-${typeLink(locale)}</head>
+${TYPE_SLOT}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
   <div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
   <div class="card">${card}</div>
   ${other}
   <nav class="foot" aria-label="Nomi"><a href="${esc(o.site ?? '/site')}">${esc(t(locale, 'door.site'))}</a><a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a><a href="/terms">${esc(t(locale, 'legal.termsLink'))}</a></nav>
-</div></body></html>`;
+</div></body></html>`);
 
 export type LoginProblem = 'code' | 'password' | 'locked' | 'slow' | 'email_missing' | 'password_missing';
 

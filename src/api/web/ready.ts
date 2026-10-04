@@ -12,6 +12,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { esc, deeper } from './layout.js';
+import { shape } from './marks.js';
 import { STEP_LINK } from './onboarding.js';
 import * as show from './values.js';
 
@@ -60,7 +61,7 @@ export function renderReady(v: ReadyView, locale: Locale): string {
   // (the warmth run's re-audit, w4-today-setup-06: a chore, never the waiting
   // signal's magenta), as on the checklist and Today; the marks share one
   // column, so a ✓ and a ○ start their words at the same edge.
-  const mark = (ok: boolean, gap = false) => `<span class="mk${ok || gap ? '' : ' dot todo'}" aria-hidden="true">${ok ? '✓' : gap ? '—' : '○'}</span>`;
+  const mark = (ok: boolean, gap = false) => `<span class="mk${ok || gap ? '' : ' dot todo'}" aria-hidden="true">${ok ? shape('ok') : gap ? '—' : shape('waiting')}</span>`;
   const row = (ok: boolean, label: string, gap = false) => `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}">${mark(ok, gap)}<span class="lbl">${esc(label)}</span></li>`;
   const checks = v.items.map((i) => row(v.seen.has(i) && !NOT_YET.has(i), t(locale, `practice.check.${i}` as MessageKey, { name }), NOT_YET.has(i))).join('');
   const done = readyComplete(v);

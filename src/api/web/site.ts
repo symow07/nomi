@@ -2,6 +2,7 @@ import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { markSmall } from '../../core/owner/brand.js';
 import { publicDocument, esc, switcher, LANGSW_CSS, FACE_CSS, gapAfter, inviteMailto } from './layout.js';
+import { shape, shapeUrl, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { face } from './faces.js';
 
 /**
@@ -123,7 +124,7 @@ export function renderSite(v: SiteInput): string {
 
   return publicDocument({
     locale: l, title: t(l, 'site.title'), description: t(l, 'site.description'),
-    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SITE_CSS,
+    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SHAPE_CSS + SITE_CSS,
     body: `<div class="site-root" data-surface="site">
   <header class="site-top">
     <a class="site-brand" href="${v.path}">${markSmall(28, null)}<span>Nomi</span></a>
@@ -147,7 +148,7 @@ export function renderSite(v: SiteInput): string {
       </div>
       <div class="site-said site-draft">
         ${/* V1-018, public-new-01 — the product's own draft card, in its own words: who drafted it and
-           that it waits; what happens next is said, not drawn as buttons that do nothing. */ ''}<span class="site-who"><span><span class="site-as" aria-hidden="true">✦</span> ${esc(t(l, 'card.drafted'))}</span><span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span></span>
+           that it waits; what happens next is said, not drawn as buttons that do nothing. */ ''}<span class="site-who"><span>${shape('assistant', 'site-as')} ${esc(t(l, 'card.drafted'))}</span><span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span></span>
         <p class="site-bubble" dir="auto">${k('site.example.draft')}</p>
         <p class="site-acts">${k('site.example.acts')}</p>
       </div>
@@ -215,9 +216,9 @@ export function renderSite(v: SiteInput): string {
 export const SITE_CSS = `
   main.site { max-width:var(--measure-column); padding:var(--space-24) var(--space-16) var(--space-48); }
   .site-root { display:flex; flex-direction:column; gap:var(--space-48); }
-  .site-root h2 { font-size:var(--font-size-display); line-height:1.25; font-weight:700; color:var(--color-ink);
+  .site-root h2 { font-size:var(--font-size-display); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:700; color:var(--color-ink);
     margin:0 0 var(--space-16); }
-  .site-root h3 { font-size:var(--font-size-title); line-height:1.3; font-weight:600; color:var(--color-ink);
+  .site-root h3 { font-size:var(--font-size-title); line-height:var(--line-height-tight); font-weight:600; color:var(--color-ink);
     margin:0 0 var(--space-8); }
   .site-root p { max-width:var(--measure-prose); }
   .site-root h3 { text-wrap:balance; }
@@ -234,9 +235,10 @@ export const SITE_CSS = `
 
   .site-hero { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-32); align-items:center;
     padding-block:var(--space-24); }
-  .site-hero h1 { font-size:var(--font-size-hero); line-height:1.2; margin:0 0 var(--space-24); font-weight:700;
-    color:var(--color-ink); letter-spacing:-0.01em; }
-  .site-lead { font-size:var(--font-size-title); color:var(--color-ink); }
+  .site-hero h1 { font-size:var(--font-size-hero); line-height:var(--line-height-tight); margin:0 0 var(--space-24); font-weight:700;
+    color:var(--color-ink); letter-spacing:var(--tracking-tight); }
+  /* The type pass (2026-10-04) — the lead is large and quiet: light, the one place a stranger meets the light weight first. */
+  .site-lead { font-size:var(--font-size-title); font-weight:300; color:var(--color-ink); }
   .site-cta { display:flex; align-items:center; gap:var(--space-16) var(--space-24); flex-wrap:wrap;
     margin:var(--space-32) 0 0; }
   .site-go { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-24);
@@ -266,7 +268,7 @@ export const SITE_CSS = `
   .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-needs-wash);
     color:var(--color-needs); border:1px solid var(--color-border); font-weight:600; }
   /* The product's waiting mark: a shape before the word, so the colour is not alone. */
-  .site-draft-tag::before { content:"○"; content:"○" / ""; margin-inline-end:var(--space-4); }
+  .site-draft-tag::before { content:""; ${SHAPE_BOX} --shape:${shapeUrl('waiting')}; margin-inline-end:var(--space-4); }
   .site-acts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary);
     text-align:end; text-wrap:balance; }
 

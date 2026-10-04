@@ -53,6 +53,9 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     // V1 — the Latin value in :root; Chinese and Arabic override it below,
     // keyed on the `lang` the shell writes on <html>.
     decl('line-height', font.lineHeight.en),
+    // The type pass — headings close up and track in, per script (zh and ar override below).
+    decl('line-height-tight', font.lineHeightTight.en),
+    decl('tracking-tight', font.trackingTight.en),
     ...colorVars(color),
     // Named by VALUE, not by index: `--space-24` stays correct when the scale
     // grows, where `--space-5` would silently shift under everything using it.
@@ -70,7 +73,8 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
 
   const perScript = (['zh', 'ar'] as const)
     .map((lang) => `html[lang="${lang}"] { --line-height: ${font.lineHeight[lang]}; `
-      + `--font-family: ${font.family[lang]}; --font-voice: ${font.voice[lang]}; }`)
+      + `--font-family: ${font.family[lang]}; --font-voice: ${font.voice[lang]}; `
+      + `--line-height-tight: ${font.lineHeightTight[lang]}; --tracking-tight: ${font.trackingTight[lang]}; }`)
     .join('\n');
   return `:root {
 ${lines.join('\n')}

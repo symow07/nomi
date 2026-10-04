@@ -2,6 +2,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { esc, deeper, back, byAssistant, NEEDS_ACT } from './layout.js';
+import { shape } from './marks.js';
 import { face } from './faces.js';
 import { menuRow, menuGroup } from './settings.js';
 import { bubbleClass } from './inbox.js';
@@ -30,7 +31,7 @@ export function renderComponents(locale: Locale): string {
   const chips = `
     <div class="card"><p><span class="pill ok">${label}</span><span class="pill warn">${label}</span>
        <span class="pill bad">${label}</span><span class="pill owner">${label}</span>
-       <span class="as">✦ ${esc(assistantName(locale))}</span></p></div>
+       <span class="as">${shape('assistant')} ${esc(assistantName(locale))}</span></p></div>
     <div class="chips"><span class="chip">${s('sample.option')}</span><span class="chip">${s('sample.option')}</span></div>`;
 
   const buttonRow = (state: 'rest' | 'hover' | 'focus' | 'disabled'): string => {
@@ -66,7 +67,7 @@ export function renderComponents(locale: Locale): string {
   // Phase 9 of the warmth run (V1-487) — the product's own words, not one placeholder in every role.
   const notices = flashBanner({ text: t(locale, 'closures.flash.removed'), bad: false })
     + flashBanner({ text: t(locale, 'business.kind.bad.country'), bad: true });
-  const empty = `<div class="empty">${esc(t(locale, 'data.buyers.none'))}</div><div class="ok-line">✓ ${esc(t(locale, 'alerts.flash.tested'))}</div>`;
+  const empty = `<div class="empty">${esc(t(locale, 'data.buyers.none'))}</div><div class="ok-line">${shape('ok')} ${esc(t(locale, 'alerts.flash.tested'))}</div>`;
   // Phase 9 (V1-488) — samples, not doors: they reloaded this page.
   const tabs = `<div class="tabs"><span class="tab on">${s('state.rest')}</span>
     <span class="tab">${s('sample.more')}</span></div>`;

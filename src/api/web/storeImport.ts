@@ -13,6 +13,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { esc, back, deeper } from './layout.js';
+import { shape } from './marks.js';
 
 /**
  * K8 — STORE IMPORT (the onboarding plan, decision 30).
@@ -243,7 +244,7 @@ export function currencyWords(locale: Locale, code: string): string {
  */
 export function filePick(locale: Locale, input: string, words: { readonly choose: MessageKey; readonly none: MessageKey; readonly some: MessageKey }): string {
   return `<label class="filepick">${input}<span class="btn" aria-hidden="true">${esc(t(locale, words.choose))}</span>
-      <span class="filepick-none muted">${esc(t(locale, words.none))}</span><span class="filepick-some">${esc(t(locale, words.some))}</span></label>`;
+      <span class="filepick-none muted">${esc(t(locale, words.none))}</span><span class="filepick-some">${shape('ok')} ${esc(t(locale, words.some))}</span></label>`;
 }
 
 export function renderStoreForms(locale: Locale, currency: string, refused: StoreFormRefusal | null = null): string {

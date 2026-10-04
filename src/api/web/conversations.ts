@@ -8,6 +8,7 @@ import { t, assistantName } from './say.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import { buyerWho, channelName, productName, perPiece } from './inbox.js';
 import { esc, deeper, back, conversationUrl, signalMark, type Signal } from './layout.js';
+import { shape } from './marks.js';
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
 import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
@@ -294,7 +295,7 @@ const TL_MARK: Record<MilestoneKind, Signal | 'you' | 'them'> = {
 };
 const tlMark = (k: MilestoneKind): string => {
   const m = TL_MARK[k];
-  return m === 'you' ? '<span aria-hidden="true">●</span>' : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
+  return m === 'you' ? shape('you') : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
 };
 const TL_CLASS: Record<MilestoneKind, string> = {
   buyer_text: 'buyer', buyer_image: 'buyer', reply: 'reply', quote: 'quote', order: 'order',

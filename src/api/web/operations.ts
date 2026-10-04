@@ -16,6 +16,7 @@ import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
 import { esc, deeper, signalMark, todoMark } from './layout.js';
+import { shape } from './marks.js';
 import { waitingHead, renderWaitingPeople, renderHandled, renderSending, renderTally, type TodayData } from './today.js';
 import * as show from './values.js';
 
@@ -402,7 +403,7 @@ export function renderOperationsHome(
   const calm = live && reachable;
   const head = quietNow
     ? `<h2 id="today-now" class="tw-head">${esc(t(locale, calm ? 'today.calm.title' : 'today.needs.none'))}</h2>${
-        calm && !holding ? `<p class="tw-calm-line"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'today.calm.care', { name }))}</p>` : ''}`
+        calm && !holding ? `<p class="tw-calm-line">${shape('assistant', 'as')} ${esc(t(locale, 'today.calm.care', { name }))}</p>` : ''}`
     : today.needs.total > 0 ? waitingHead(locale, today.needs.total)
     : `<h2 id="today-now" class="tw-head"><span class="tw-need">${signalMark('waiting')} ${esc(t(locale, 'ops.attention.title'))}</span></h2>`;
 

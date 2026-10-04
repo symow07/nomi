@@ -4,6 +4,7 @@ import { countryName, orderStatusName, type MessageKey } from '../../core/owner/
 import { dayStart, labelled } from '../../core/owner/i18n/format.js';
 import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl, signalMark } from './layout.js';
+import { shape } from './marks.js';
 import { buyersHref, reachedOn, channelName, productName, customerRow, inboxRow, waitingGroups, lensSwitch, type InboxList, type ConversationSummary, type InboxFilter, type ConversationDetail } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
@@ -158,14 +159,14 @@ export function renderCustomerPanel(
       `<a href="/app/orders/${encodeURIComponent(o.id)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.order', { reference: o.reference }))}</span></a>`)),
   ];
   const promises = p.promised.map((x) => li(
-    `${x.byAssistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
+    `${x.byAssistant ? `${shape('assistant', 'as')} ` : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
     `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))}${elsewhere(x.conversationId) ? ` <a class="pn-door" href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>` : ''}`));
   const dated = calendar.map((e) => li(`${esc(show.date(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
     e.conversationId && elsewhere(e.conversationId) ? `<a class="pn-door" href="${conversationUrl(e.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
   const act = p.activity.map((a) => {
     const mark = MARK[a.kind];
-    const glyph = mark === 'as' ? '<span class="as" aria-hidden="true">✦</span>'
-      : mark === 'you' ? '<span class="pn-you" aria-hidden="true">●</span>' : signalMark('waiting');
+    const glyph = mark === 'as' ? shape('assistant', 'as')
+      : mark === 'you' ? shape('you', 'pn-you') : signalMark('waiting');
     const said = a.kind === 'not_reached'
       ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} ${signalMark('failed')}`
       : esc(t(locale, `panel.act.${a.kind}` as MessageKey, { name }));

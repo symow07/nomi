@@ -85,11 +85,15 @@ export const DESIGN_TOKENS = {
      * language leads with its own Noto face (served by the product itself,
      * `src/api/web/type.ts`); a Chinese page leads with the Chinese face so
      * "，。" are drawn full-width by it. `type.test.ts` checks the first family.
+     *
+     * THE TYPE PASS (2026-10-04) — and every order names all three scripts, so
+     * no word falls to the device: the switch's العربية on a Chinese page was
+     * Geeza Pro, a customer's 陈莉 on an Arabic page PingFang.
      */
     family: {
       en: `"Noto Sans", "Noto Sans SC", "Noto Sans Arabic", system-ui, sans-serif`,
-      zh: `"Noto Sans SC", "Noto Sans", system-ui, sans-serif`,
-      ar: `"Noto Sans Arabic", "Noto Sans", system-ui, sans-serif`,
+      zh: `"Noto Sans SC", "Noto Sans", "Noto Sans Arabic", system-ui, sans-serif`,
+      ar: `"Noto Sans Arabic", "Noto Sans", "Noto Sans SC", system-ui, sans-serif`,
     },
     /**
      * The serif voice. Anything a PERSON says is set in this — the assistant's
@@ -99,17 +103,61 @@ export const DESIGN_TOKENS = {
      */
     voice: {
       en: `"Noto Serif", "Noto Serif SC", "Noto Naskh Arabic", Georgia, serif`,
-      zh: `"Noto Serif SC", "Noto Serif", serif`,
-      ar: `"Noto Naskh Arabic", "Noto Serif", serif`,
+      zh: `"Noto Serif SC", "Noto Serif", "Noto Naskh Arabic", serif`,
+      ar: `"Noto Naskh Arabic", "Noto Serif", "Noto Serif SC", serif`,
     },
-    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
-    /** Set from `html[lang]`; the shell writes the locale there on every page. */
-    lineHeight: { en: 1.5, zh: 1.7, ar: 1.75, es: 1.5, fr: 1.5 },
     /**
-     * CJK never below weight 400 at 15 px and under (decision 1). No weight
-     * below 400 exists anywhere today; a test holds that it stays so.
+     * THE TYPE PASS (2026-10-04) — the six sizes stay; what changed is which
+     * role wears which, so the hierarchy reads at a glance (it was flat: the
+     * page title 20 px, 1.18× the body, and Today's 26 px heading above it):
+     *
+     *   page title        hero 34, bold, tight, tracked in (display 26 on a phone)
+     *   a page's headline display 26 (Today's "handled" line, a customer's name on the card)
+     *   section heading   title 20, semibold, tight
+     *   a row's name      small 15, medium; a person's name semibold
+     *   body              small 15 / base 17, regular
+     *   caption, time     caption 13, regular, in the secondary ink
+     *   a large figure    display 26, light (Today's three, the card's two)
      */
-    weightFloor: { min: 400, cjkAtOrBelowPx: 15 },
+    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
+    /**
+     * Set from `html[lang]`; the shell writes the locale there on every page.
+     * The type pass opened them up (1.5 / 1.7 / 1.75 before): Latin 1.6, the
+     * measure many of the product's reading blocks already set for
+     * themselves; Chinese and Arabic a step more, for their taller marks.
+     */
+    lineHeight: { en: 1.6, zh: 1.75, ar: 1.8, es: 1.6, fr: 1.6 },
+    /**
+     * Headings (20 px and up) close up: a 26 px line in a 39 px box read as
+     * loose. Arabic keeps room for its ascenders and marks when a heading wraps.
+     */
+    lineHeightTight: { en: 1.2, zh: 1.35, ar: 1.45, es: 1.2, fr: 1.2 },
+    /**
+     * Letter-spacing for headings: Latin tracks in at large sizes; Chinese and
+     * Arabic never take tracking (it would open gaps inside Arabic's joined
+     * letters and between Chinese characters).
+     */
+    trackingTight: { en: '-0.02em', zh: '0', ar: '0', es: '-0.02em', fr: '-0.02em' },
+    /**
+     * THE WEIGHTS (the type pass) — five, all real: the Sans faces are variable
+     * files that draw 300 to 700 (`assets/fonts`, `tools/fonts.mjs`). Before,
+     * only 400 and 600 existed, so every 700 drew 600 and every 500 drew 400.
+     *
+     *   light 300     a large, quiet figure or sentence, 20 px and up only
+     *   regular 400   reading text, captions
+     *   medium 500    a row's name, a group's label, a quiet button, the rail
+     *   semibold 600  a section heading, a person's name, the primary act, a state
+     *   bold 700      a page title, the brand
+     *
+     * The voice (Serif) is 400 only, as before.
+     */
+    weight: { light: 300, regular: 400, medium: 500, semibold: 600, bold: 700 },
+    /**
+     * Nothing below 400 at 15 px and under, in any script — decision 1 said it
+     * of Chinese, and 45+ eyes read the other four the same way. Light is for
+     * 20 px and up. `type.test.ts` holds both against the stylesheet.
+     */
+    weightFloor: { min: 400, cjkAtOrBelowPx: 15, lightFromPx: 20 },
   },
   /**
    * THE PALETTE — warm neutrals, two magentas, three states (the warmth pass,
