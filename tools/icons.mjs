@@ -42,6 +42,8 @@ const LINES = [
   'user', 'paperclip', 'microphone', 'image',
   // a door, the way back, closing
   'caret-right', 'caret-left', 'x',
+  // a door that leaves Nomi for another site
+  'arrow-up-right',
 ];
 export const WANTED = {
   // the rail: an outline at rest, the fill where you are; the heading in bold at its small size

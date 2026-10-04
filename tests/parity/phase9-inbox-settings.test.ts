@@ -24,7 +24,7 @@ import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderClosures, renderForbidden, FLOOR_BY_LANGUAGE } from '../../src/api/web/settings.js';
 import { FORBIDDEN_FLOOR } from '../../src/core/safety/forbiddenWords.js';
 import type { Viewer } from '../../src/core/conversation/people.js';
-import { BACK, GO } from '../../src/api/web/icons.js';
+import { BACK, GO, icon } from '../../src/api/web/icons.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
 
 /**
@@ -481,7 +481,7 @@ describe('an order', () => {
       expect(h.replace(/<span class="doc-code">([^<]*)<\/span>/g, '$1'), l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
       expect(h, l).toContain('<span class="doc-code">(ZX-200)</span>');
       // w4-customers-12 — it says it saves a file, with a file's mark, not a door's chevron
-      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">↓</span></a>`);
+      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">${icon('download', 'gi', 'bold')}</span></a>`);
     }
     expect(proformaFileName({ ...ORDER_VIEW, reference: 'PI/2026 "x"' })).toBe('proforma-PI-2026-x-.txt');
     expect(proformaText({ ...ORDER_VIEW, paymentTerms: null })).toBeNull();

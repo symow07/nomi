@@ -19,6 +19,7 @@ import { flashBanner, type Flash } from './flash.js';
 import { faceLink } from './faces.js';
 import { faceVersions } from '../../db/faces.js';
 import * as show from './values.js';
+import { icon } from './icons.js';
 
 /**
  * M46 — one order, everything she knows about it, and the one thing she can do.
@@ -304,7 +305,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
     ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}${locale === 'en' ? '' : ` ${esc(t(locale, 'order.invoice.english'))}`}</p>
         ${/* Phase 9 (V1-188) — a way to take it: the same text, as a file. The warmth run's phase 9 (w4-customers-12) — it
-             says it saves a file, and carries a file's mark (↓), not a door's chevron. */ ''}<a class="deeper" href="/app/orders/${esc(encodeURIComponent(v.orderId))}/proforma.txt" download>${esc(t(locale, 'order.invoice.download'))}<span class="go" aria-hidden="true">↓</span></a>
+             says it saves a file, and carries a file's mark (Phosphor's download, the icons run), not a door's chevron. */ ''}<a class="deeper" href="/app/orders/${esc(encodeURIComponent(v.orderId))}/proforma.txt" download>${esc(t(locale, 'order.invoice.download'))}<span class="go" aria-hidden="true">${icon('download', 'gi', 'bold')}</span></a>
         ${/* Phase 9 (V1-185–187) — an English document reads left to right and wraps on a phone, never cut at either edge.
              The warmth run's phase 9 (w4-customers-09) — and an article number is never broken at its hyphen ("ZX-" / "200"). */ ''}<pre class="doc" dir="ltr">${docText(text, v.productSku)}</pre>
         ${v.sampleCredit?.kind === 'mismatch'

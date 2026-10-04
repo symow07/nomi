@@ -381,6 +381,59 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     expect(problems, `figures outside an isolate:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 180_000);
 
+  /**
+   * THE ICONS RUN (2026-10-04) — the owner: "Move the whole app to one crafted, consistent icon family … Remove
+   * the generic four-point 'sparkle' on the agent entirely … No icon may be drawn by a fallback ornament font
+   * anywhere." Every page there is — the owner's, the door's, the public ones — in English, Arabic and Chinese,
+   * on real rows: no four-point star, no emoji, no character standing in for an icon; every drawing an inline
+   * Phosphor one (or the brand's mark); the assistant marked only by its slot.
+   */
+  it('the icons run · every page in en, ar and zh: no star, no emoji, no glyph as an icon; every drawing Phosphor\'s', async () => {
+    const { PHOSPHOR } = await import('../../src/api/web/phosphor.js');
+    const agentDrawings = new Set<string>(Object.values(PHOSPHOR['user-circle']));
+    const ORNAMENT = /[✦✧✨★☆⭐]|\p{Extended_Pictographic}|\p{Regional_Indicator}|\u{FE0F}/u;
+    // what a customer or the owner wrote is theirs (an emoji in a message stays): only the page's own drawing is held
+    const chrome = (html: string) => html
+      .replace(/<(textarea|script|style|template|pre)\b[\s\S]*?<\/\1>/g, ' ')
+      .replace(/<div[^>]*class="[^"]*\b(bubble|proposed)\b[^"]*"[^>]*>[\s\S]*?<\/div>/g, ' ')
+      .replace(/<(span|bdi)[^>]*class="(cr-text|ir-text)"[^>]*>[\s\S]*?<\/\1>/g, ' ')
+      .replace(/<p class="voice">[\s\S]*?<\/p>/g, ' ')
+      .replace(/\s(value|placeholder|content)="[^"]*"/g, ' ');
+    const problems: string[] = [];
+    let pages = 0;
+    for (const locale of ['en', 'ar', 'zh'] as const) {
+      for (const url of [...new Set(routes)]) {
+        if (url.startsWith('/app/live') || url === '/p/:token' || url === '/u') continue;
+        let target = url; let skip = false;
+        for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
+          const v = real[m[1]!];
+          if (!v) { skip = true; break; }
+          target = target.replace(`:${m[1]}`, encodeURIComponent(v));
+        }
+        if (skip) continue;
+        const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=${locale}` } });
+        if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
+        pages++;
+        const at = `${locale} ${target}`;
+        const html = chrome(res.body);
+        const hit = ORNAMENT.exec(html.replace(/<[^>]+>/g, ' '));
+        if (hit) problems.push(`${at}: "${hit[0]}"`);
+        if (/s-assistant|M8 1\.2C8\.6 5\.5|M11 3\.5c\.7 4\.6/.test(html)) problems.push(`${at}: the four-point star`);
+        for (const m of html.matchAll(/aria-hidden="true">([^<]{1,2})<\/span>/g)) {
+          if (/[\p{S}\p{Po}]/u.test(m[1]!) && m[1] !== '•') problems.push(`${at}: "${m[1]}" drawn as an icon`);
+        }
+        for (const m of html.matchAll(/<svg\b[^>]*>(?:<path d="([^"]*)")?/g)) {
+          const tag = m[0];
+          if (/class="mark"/.test(tag)) continue;                       // the brand's mark (brand.ts), drawn on its own grid
+          if (!/viewBox="0 0 256 256"/.test(tag)) problems.push(`${at}: a drawing not from the family: ${tag.slice(0, 80)}`);
+          if (/data-mark="agent"/.test(tag) && !agentDrawings.has(m[1] ?? '')) problems.push(`${at}: the agent's slot drawn by something else`);
+        }
+      }
+    }
+    expect(pages, 'the walk drew too few pages').toBeGreaterThan(120);
+    expect(problems, problems.join('\n')).toEqual([]);
+  }, 240_000);
+
   it('and every surface returns 200, not merely "not 500"', async () => {
     const notOk: string[] = [];
     for (const url of [...new Set(routes)]) {

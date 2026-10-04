@@ -56,6 +56,8 @@ const ICON = {
   // what a customer sent that is not words (a file, a voice note, a photo), a door, the way back, closing.
   download: 'download-simple', regular: 'repeat', calendar: 'calendar-blank', person: 'user',
   file: 'paperclip', voice: 'microphone', photo: 'image', go: 'caret-right', back: 'caret-left', close: 'x',
+  // A door that opens another site, in a new tab.
+  external: 'arrow-up-right',
   // The calendar's kinds of date: a sample (the same gift as My business's samples), an order on its way, a
   // price, a reply owed, a follow-up, a closure, a conversation put away, the owner's own date, a promise.
   'date-sample': 'gift', 'date-order': 'truck', 'date-price': 'tag', 'date-reply': 'arrow-bend-up-left',
@@ -101,6 +103,8 @@ export const railIcon = (name: RailIcon, here: boolean): string => drawn(name, h
  */
 export const GO = `<span class="go" aria-hidden="true">${icon('go', 'gi', 'bold')}</span>`;
 export const BACK = `<span class="go" aria-hidden="true">${icon('back', 'gi', 'bold')}</span>`;
+/** A door to another site (it opens in a new tab): the arrow that leaves, where `↗` was a character. */
+export const AWAY = `<span class="go ext" aria-hidden="true">${icon('external', 'gi', 'bold')}</span>`;
 
 /**
  * An icon as a stylesheet image, for a mark the stylesheet draws itself (the

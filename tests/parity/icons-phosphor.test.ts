@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { shell, NEEDS_DOT } from '../../src/api/web/layout.js';
 import { withWorkspace } from '../../src/api/web/say.js';
 import { PHOSPHOR } from '../../src/api/web/phosphor.js';
@@ -212,5 +212,135 @@ describe('the assistant\'s slot: no sparkle, a neutral placeholder, one function
     }
     expect(pathOf(agentMark(24, 'rest'))).toBe(DRAWN['user-circle']!['regular']);
     expect(pathOf(agentMark(24, 'here'))).toBe(DRAWN['user-circle']!['fill']);
+  });
+});
+
+/**
+ * THE ICONS RUN, PART 2 — every screen. The owner: "Move the whole app to one crafted, consistent icon family …
+ * Remove the generic four-point 'sparkle' on the agent entirely … No icon may be drawn by a fallback ornament
+ * font anywhere." Each place's shape is Phosphor's (an inline drawing), the assistant is its one slot or its name
+ * tag, and nothing on a page is an emoji or a character standing in for an icon.
+ */
+const WEB_DIR = new URL('../../src/api/web/', import.meta.url);
+const SRC_DIR = new URL('../../src/', import.meta.url);
+const sources = (dir: URL): { f: string; src: string }[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+  e.isDirectory() ? sources(new URL(`${e.name}/`, dir)).map((x) => ({ ...x, f: `${e.name}/${x.f}` }))
+    : e.name.endsWith('.ts') ? [{ f: e.name, src: readFileSync(new URL(e.name, dir), 'utf8') }] : []);
+/** The code without its comments: a comment may tell the history (a ✦, an emoji); the code may not draw it. */
+const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+const STAR_PATHS = ['M8 1.2C8.6 5.5', 'M11 3.5c.7 4.6'];   // the four-point star (marks.ts) and the two-star sparkle (icons.ts)
+const ORNAMENT = /[✦✧✨★☆⭐]|\p{Extended_Pictographic}|\p{Regional_Indicator}|\u{FE0F}/u;
+
+describe('one family on every screen: Phosphor, the assistant\'s slot, no emoji', () => {
+  it('no renderer draws the four-point star, a sparkle, an emoji or a flag — only comments may name them', () => {
+    const found: string[] = [];
+    for (const { f, src } of sources(WEB_DIR)) {
+      const c = code(src);
+      for (const p of STAR_PATHS) if (c.includes(p)) found.push(`${f}: a star's drawing`);
+      if (/shape\(\s*'assistant'/.test(c) || c.includes('s-assistant')) found.push(`${f}: the assistant's star shape`);
+      const m = ORNAMENT.exec(c);
+      if (m) found.push(`${f}: ${m[0]}`);
+      if (/0x1F1E6|fromCodePoint/.test(c)) found.push(`${f}: an emoji built from code points`);
+      // a character standing in for an icon: a mark hidden from a screen reader that is one symbol (an arrow, a
+      // chevron, a cross, a tick). The timeline's • for the customer is typography, kept on purpose.
+      for (const m2 of c.matchAll(/aria-hidden="true">([^<]{1,2})<\/span>/g)) {
+        if (/[\p{S}\p{Po}]/u.test(m2[1]!) && m2[1] !== '•') found.push(`${f}: "${m2[1]}" drawn as an icon`);
+      }
+    }
+    expect(found).toEqual([]);
+    expect(JSON.stringify(DESIGN_TOKENS.signal)).not.toContain('✦');
+    expect(read('src/api/web/marks.ts')).not.toMatch(/\bassistant:\s*`/);
+  });
+
+  it('agentMark is the ONLY mark of the assistant: no other source draws it, and every place that marks the assistant calls it', async () => {
+    const userCircle = Object.values(DRAWN['user-circle']!);
+    for (const { f, src } of sources(SRC_DIR)) {
+      if (f.endsWith('agentMark.ts') || f.endsWith('phosphor.ts')) continue;
+      expect(src.includes('data-mark="agent"'), `${f} draws the agent's slot by hand`).toBe(false);
+      for (const d of userCircle) expect(src.includes(d), `${f} copies the slot's drawing`).toBe(false);
+    }
+    const { atWork, byAssistant } = await import('../../src/api/web/layout.js');
+    const { ROW_MARK } = await import('../../src/api/web/inbox.js');
+    expect(atWork('Writing a reply', true)).toContain(`${agentMark(16, 'rest', 'am as')} <span>Writing a reply</span>`);
+    expect(atWork('Stripe is confirming the card')).not.toContain('data-mark');
+    expect(ROW_MARK.hers).toBe(agentMark(16, 'rest', 'am'));
+    // where it labels words it is its name tag: the name, no mark
+    expect(byAssistant('Lily')).toBe('<span class="as">Lily</span>');
+    // every renderer that marks the assistant does it through the slot
+    const callers = sources(WEB_DIR).filter(({ src }) => /agentMark\(/.test(code(src))).map(({ f }) => f).sort();
+    expect(callers).toEqual(['calendar.ts', 'conversations.ts', 'inbox.ts', 'layout.ts', 'operations.ts', 'panes.ts', 'today.ts']);
+  });
+
+  it('the slot\'s weight follows the words beside it: bold at 18 px and under, regular above, filled where you are', () => {
+    expect(pathOf(agentMark(16))).toBe(DRAWN['user-circle']!['bold']);
+    expect(pathOf(agentMark(18))).toBe(DRAWN['user-circle']!['bold']);
+    expect(pathOf(agentMark(24))).toBe(DRAWN['user-circle']!['regular']);
+    expect(pathOf(agentMark(28, 'rest', 'am as', 'bold'))).toBe(DRAWN['user-circle']!['bold']);
+    expect(pathOf(agentMark(16, 'here'))).toBe(DRAWN['user-circle']!['fill']);
+    // drawn inline, a little larger than the line's capitals, in the colour its place gives it
+    expect(rules.find((r) => r.sel === '.am')?.body).toContain('inline-size:1.15em; block-size:1.15em;');
+  });
+
+  it('every icon a renderer draws is a Phosphor drawing, and the old hand-drawn lines are gone', () => {
+    const src = read('src/api/web/icons.ts');
+    expect(src).not.toMatch(/stroke-width="1\.8"/);
+    expect(src).not.toMatch(/viewBox="0 0 24 24"/);
+    for (const { f, src: s } of sources(WEB_DIR)) {
+      if (['brand.ts'].includes(f)) continue;
+      for (const m of code(s).matchAll(/<svg\b[^>]*>/g)) {
+        expect(m[0], `${f}: an svg that is not Phosphor's`).toMatch(/viewBox="0 0 256 256"|viewBox='0 0 256 256'|viewBox='0 0 16 16'/);
+      }
+    }
+    // the nameless face: Phosphor's person, bold
+    expect(read('src/api/web/faces.ts')).toContain("icon('person', 'fi', 'bold')");
+  });
+
+  it('a door\'s caret, the way back, the fold and closing are Phosphor\'s, mirrored on a right-to-left page — never a character', async () => {
+    const { GO, BACK, icon } = await import('../../src/api/web/icons.js');
+    const { deeper, back } = await import('../../src/api/web/layout.js');
+    expect(GO).toBe(`<span class="go" aria-hidden="true">${icon('go', 'gi', 'bold')}</span>`);
+    expect(BACK).toBe(`<span class="go" aria-hidden="true">${icon('back', 'gi', 'bold')}</span>`);
+    expect(deeper('/app', 'Today')).toBe(`<a class="deeper" href="/app">Today${GO}</a>`);
+    expect(back('/app', 'Today')).toBe(`<a class="back" href="/app">${BACK}Today</a>`);
+    expect(pathOf(GO)).toBe(DRAWN['caret-right']!['bold']);
+    expect(pathOf(BACK)).toBe(DRAWN['caret-left']!['bold']);
+    expect(rules.find((r) => r.sel === '[dir="rtl"] .go')?.body).toContain('transform:scaleX(-1)');
+    // the fold's caret: the stylesheet cuts a box in the brand to the same drawing; no character
+    const fold = rules.filter((r) => r.sel === 'details > summary::before').map((r) => r.body).join(';');
+    expect(fold).toContain('content:""');
+    expect(fold).toContain(DRAWN['caret-right']!['bold']);
+    expect(css).not.toMatch(/content:\s*'[›‹⌄×✦]'/);
+    // the card's close
+    const shellHtml = page('home', '/app');
+    expect(shellHtml).toContain(`class="sheet-x" aria-label="Close">${icon('close', 'xi', 'bold')}</button>`);
+  });
+
+  it('what a customer sent that is not words is Phosphor\'s paperclip, microphone or image — the same drawing on every device', async () => {
+    const { icon } = await import('../../src/api/web/icons.js');
+    const inbox = code(read('src/api/web/inbox.ts'));
+    expect(inbox).toContain(`\${icon('file', 'mi', 'bold')}`);
+    expect(inbox).toContain(`\${icon('voice', 'mi', 'bold')}`);
+    expect(code(read('src/api/web/sandbox.ts'))).toContain(`icon('photo', 'mi', 'bold')`);
+    expect(pathOf(icon('file', 'mi', 'bold'))).toBe(DRAWN['paperclip']!['bold']);
+    expect(pathOf(icon('voice', 'mi', 'bold'))).toBe(DRAWN['microphone']!['bold']);
+    expect(pathOf(icon('photo', 'mi', 'bold'))).toBe(DRAWN['image']!['bold']);
+  });
+
+  it('no page in any language draws an ornament, an emoji or a star — the shell, the door and the site', async () => {
+    const { loginPage } = await import('../../src/api/web/layout.js');
+    const { renderSite } = await import('../../src/api/web/site.js');
+    for (const l of LOCALES) {
+      const pages = {
+        shell: page('employee', '/app/employee', l),
+        door: loginPage({ locale: l, path: '/login' }),
+        site: renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false }),
+      };
+      for (const [what, html] of Object.entries(pages)) {
+        const visible = html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<script[\s\S]*?<\/script>/g, '');
+        expect(ORNAMENT.exec(visible)?.[0], `${l} ${what}`).toBeUndefined();
+        for (const p of STAR_PATHS) expect(visible, `${l} ${what}`).not.toContain(p);
+        expect(visible, `${l} ${what}`).not.toMatch(/aria-hidden="true">[›‹×✓○●✕]<\/span>/);
+      }
+    }
   });
 });

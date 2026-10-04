@@ -7,7 +7,7 @@ import { isMark, liveNews } from '../../src/api/web/live.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { readFileSync } from 'node:fs';
-import { BACK } from '../../src/api/web/icons.js';
+import { BACK, AWAY } from '../../src/api/web/icons.js';
 
 /**
  * CH1 + CH2 — the parts no database is needed for: how Meta's answers are
@@ -146,7 +146,7 @@ describe('Phase 9 · B5 · Connecting Messenger and Instagram', () => {
 
   it('V1-458 · a link to Meta looks like a link and says it leaves', () => {
     const html = renderMetaHelp('en');
-    expect(html).toContain('<span class="go ext" aria-hidden="true">↗</span><span class="sr">(opens Meta’s site)</span></a>');
+    expect(html).toContain(`${AWAY}<span class="sr">(opens Meta’s site)</span></a>`);
     expect(css).toMatch(/\.help-links a \{ color:var\(--color-ink\); text-decoration:underline;/);
   });
 
