@@ -420,7 +420,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         if (hit) problems.push(`${at}: "${hit[0]}"`);
         if (/s-assistant|M8 1\.2C8\.6 5\.5|M11 3\.5c\.7 4\.6/.test(html)) problems.push(`${at}: the four-point star`);
         for (const m of html.matchAll(/aria-hidden="true">([^<]{1,2})<\/span>/g)) {
-          if (/[\p{S}\p{Po}]/u.test(m[1]!) && m[1] !== '•') problems.push(`${at}: "${m[1]}" drawn as an icon`);
+          if (/[\p{S}\p{P}]/u.test(m[1]!) && m[1] !== '•') problems.push(`${at}: "${m[1]}" drawn as an icon`);
         }
         for (const m of html.matchAll(/<svg\b[^>]*>(?:<path d="([^"]*)")?/g)) {
           const tag = m[0];

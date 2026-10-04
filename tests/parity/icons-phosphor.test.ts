@@ -244,7 +244,7 @@ describe('one family on every screen: Phosphor, the assistant\'s slot, no emoji'
       // a character standing in for an icon: a mark hidden from a screen reader that is one symbol (an arrow, a
       // chevron, a cross, a tick). The timeline's • for the customer is typography, kept on purpose.
       for (const m2 of c.matchAll(/aria-hidden="true">([^<]{1,2})<\/span>/g)) {
-        if (/[\p{S}\p{Po}]/u.test(m2[1]!) && m2[1] !== '•') found.push(`${f}: "${m2[1]}" drawn as an icon`);
+        if (/[\p{S}\p{P}]/u.test(m2[1]!) && m2[1] !== '•') found.push(`${f}: "${m2[1]}" drawn as an icon`);
       }
     }
     expect(found).toEqual([]);
