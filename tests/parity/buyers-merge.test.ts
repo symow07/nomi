@@ -187,11 +187,11 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     for (const id of ['c-del', 'c-wait', 'c-review']) {
       const m = rowOf(h, id)!;
       expect(m[1], id).toBe('needs');
-      expect(m[4], id).toMatch(/<span class="ir-wait"><span class="dot warn" aria-hidden="true">○<\/span><bdi>[^<]+<\/bdi><\/span>/);
+      expect(m[4], id).toMatch(/<span class="ir-wait"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span><bdi>[^<]+<\/bdi><\/span>/);
     }
     expect(rowOf(h, 'c-yours')![1]).toBe('yours');
     expect(rowOf(h, 'c-hers')![1]).toBe('hers');
-    expect(rowOf(h, 'c-hers')![4]).toContain('<span class="as" aria-hidden="true">✦</span>');
+    expect(rowOf(h, 'c-hers')![4]).toContain('<span class="shape s-assistant as" aria-hidden="true"></span>');
     // and a screen reader hears the state in words
     expect(h).toContain(`<span class="sr">${esc(t('en', 'buyers.group.needsYou'))}</span>`);
   });

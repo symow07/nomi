@@ -244,7 +244,7 @@ describe('the state of play, drawn — one line, from the rows', () => {
       const quiet = stateLine(page(detail({}, { lastFromThemAt: ago(20 * DAY), lastMessage: { from: 'assistant', at: ago(19 * DAY) } }), l));
       expect(quiet, l).toContain(`${head('catchup.state.quiet')}&nbsp;· ${esc(t(l, 'catchup.state.quietSince', { date: plain(show.date(l, ago(20 * DAY))) }))}`);
       const talking = stateLine(page(detail({}, { lastMessage: { from: 'assistant', at: ago(5 * MIN) } }), l));
-      expect(talking, l).toContain(`${head('catchup.state.talking')}&nbsp;· <span class="fig"><span class="as"><span aria-hidden="true">✦</span> Mira</span></span>&nbsp;· <span class="fig">`);
+      expect(talking, l).toContain(`${head('catchup.state.talking')}&nbsp;· <span class="fig"><span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Mira</span></span>&nbsp;· <span class="fig">`);
       const last = stateLine(page(detail(), l));
       expect(last, l).toContain(`${head('catchup.state.last')}&nbsp;· <span class="fig"><bdi>Aisha Bello</bdi></span>`);
       const mine = stateLine(page(detail({}, { lastMessage: { from: 'person', at: ago(DAY) } }), l));
@@ -277,7 +277,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
       const html = page(thread(), l);
       for (const w of ['ASSISTANT-WORDS', 'FIRST-WORDS']) {
         expect(msg(html, w), `${l} ${w}`).toContain(`class="bubble by-as"><bdi>${w}`);
-        expect(msg(html, w), `${l} ${w}`).toContain('<span class="as"><span aria-hidden="true">✦</span> Mira</span>');
+        expect(msg(html, w), `${l} ${w}`).toContain('<span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Mira</span>');
       }
       expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble"><bdi>PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
@@ -291,7 +291,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
   it('before a name is chosen, the label is the assistant\'s fallback (rule 7)', () => {
     for (const l of LOCALES) {
       const html = page(thread(), l, null);
-      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain(`<span class="as"><span aria-hidden="true">✦</span> ${esc(assistantName(l))}</span>`);
+      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain(`<span class="as"><span class="shape s-assistant" aria-hidden="true"></span> ${esc(assistantName(l))}</span>`);
     }
   });
 
@@ -307,7 +307,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
     for (const l of LOCALES) {
       const html = plain(withAssistantName('Mira', () => renderSandbox(view, l, { flash: null, now: NOW })));
       expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('class="bubble by-as"><bdi>ASSISTANT-WORDS');
-      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('<span class="as"><span aria-hidden="true">✦</span> Mira</span>');
+      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('<span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Mira</span>');
       expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble"><bdi>PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
       expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble"><bdi>CUSTOMER-WORDS');
@@ -372,12 +372,14 @@ describe('the stylesheet — a wash and a label, never a magenta frame', () => {
   });
 
   it('the draft card rises in once, over the normal duration, and only for a reader who did not ask for less motion', () => {
-    const animated = rules.filter((r) => /#approve\b/.test(r.sel) && /animation/.test(r.body));
+    const animated = rules.filter((r) => /#approve\b/.test(r.sel) && /animation:/.test(r.body));
     expect(animated).toHaveLength(1);
     expect(animated[0]!.body).toContain('nomi-rise var(--motion-normal) var(--motion-ease)');
     const noPref = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n {2}\}/.exec(css)?.[1] ?? '';
     expect(noPref).toMatch(/#approve[^{]*\{ animation:nomi-rise var\(--motion-normal\) var\(--motion-ease\) both; \}/);
-    expect(css).toContain('@keyframes nomi-rise { from { opacity:0; transform:translateY(8px); } }');
+    // the motion pass: far enough to be seen (16 px), a beat after the page appears
+    expect(css).toContain('@keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }');
+    expect(css).toContain('#approve, .td { animation-delay:var(--motion-fast); }');
     // and the conversation's and Practice's draft are the one card
     const d = page(detail({ pendingDraft: conversationDetail().pendingDraft }), 'en');
     expect(d).toContain('<section class="card draft" id="approve"');

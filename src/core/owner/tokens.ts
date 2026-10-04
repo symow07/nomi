@@ -85,11 +85,15 @@ export const DESIGN_TOKENS = {
      * language leads with its own Noto face (served by the product itself,
      * `src/api/web/type.ts`); a Chinese page leads with the Chinese face so
      * "，。" are drawn full-width by it. `type.test.ts` checks the first family.
+     *
+     * THE TYPE PASS (2026-10-04) — and every order names all three scripts, so
+     * no word falls to the device: the switch's العربية on a Chinese page was
+     * Geeza Pro, a customer's 陈莉 on an Arabic page PingFang.
      */
     family: {
       en: `"Noto Sans", "Noto Sans SC", "Noto Sans Arabic", system-ui, sans-serif`,
-      zh: `"Noto Sans SC", "Noto Sans", system-ui, sans-serif`,
-      ar: `"Noto Sans Arabic", "Noto Sans", system-ui, sans-serif`,
+      zh: `"Noto Sans SC", "Noto Sans", "Noto Sans Arabic", system-ui, sans-serif`,
+      ar: `"Noto Sans Arabic", "Noto Sans", "Noto Sans SC", system-ui, sans-serif`,
     },
     /**
      * The serif voice. Anything a PERSON says is set in this — the assistant's
@@ -99,51 +103,109 @@ export const DESIGN_TOKENS = {
      */
     voice: {
       en: `"Noto Serif", "Noto Serif SC", "Noto Naskh Arabic", Georgia, serif`,
-      zh: `"Noto Serif SC", "Noto Serif", serif`,
-      ar: `"Noto Naskh Arabic", "Noto Serif", serif`,
+      zh: `"Noto Serif SC", "Noto Serif", "Noto Naskh Arabic", serif`,
+      ar: `"Noto Naskh Arabic", "Noto Serif", "Noto Serif SC", serif`,
     },
-    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
-    /** Set from `html[lang]`; the shell writes the locale there on every page. */
-    lineHeight: { en: 1.5, zh: 1.7, ar: 1.75, es: 1.5, fr: 1.5 },
     /**
-     * CJK never below weight 400 at 15 px and under (decision 1). No weight
-     * below 400 exists anywhere today; a test holds that it stays so.
+     * THE TYPE PASS (2026-10-04) — the six sizes stay; what changed is which
+     * role wears which, so the hierarchy reads at a glance (it was flat: the
+     * page title 20 px, 1.18× the body, and Today's 26 px heading above it):
+     *
+     *   page title        hero 34, bold, tight, tracked in (display 26 on a phone)
+     *   a page's headline display 26 (Today's "handled" line, a customer's name on the card)
+     *   section heading   title 20, semibold, tight
+     *   a row's name      small 15, medium; a person's name semibold
+     *   body              small 15 / base 17, regular
+     *   caption, time     caption 13, regular, in the secondary ink
+     *   a large figure    display 26, light (Today's three, the card's two)
      */
-    weightFloor: { min: 400, cjkAtOrBelowPx: 15 },
+    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
+    /**
+     * Set from `html[lang]`; the shell writes the locale there on every page.
+     * The type pass opened Latin up from 1.5 to 1.6 — the measure many of the
+     * product's reading blocks already set for themselves. Chinese (1.7) and
+     * Arabic (1.75) were already that open; a step more pushed the owner's
+     * decided row heights (64 px with a line under the name) to 65 and 66.
+     */
+    lineHeight: { en: 1.6, zh: 1.7, ar: 1.75, es: 1.6, fr: 1.6 },
+    /**
+     * Headings (20 px and up) close up: a 26 px line in a 39 px box read as
+     * loose. Arabic keeps room for its ascenders and marks when a heading wraps.
+     */
+    lineHeightTight: { en: 1.2, zh: 1.35, ar: 1.45, es: 1.2, fr: 1.2 },
+    /**
+     * Letter-spacing for headings: Latin tracks in at large sizes; Chinese and
+     * Arabic never take tracking (it would open gaps inside Arabic's joined
+     * letters and between Chinese characters).
+     */
+    trackingTight: { en: '-0.02em', zh: '0', ar: '0', es: '-0.02em', fr: '-0.02em' },
+    /**
+     * THE WEIGHTS (the type pass) — five, all real: the Sans faces are variable
+     * files that draw 300 to 700 (`assets/fonts`, `tools/fonts.mjs`). Before,
+     * only 400 and 600 existed, so every 700 drew 600 and every 500 drew 400.
+     *
+     *   light 300     a large, quiet figure or sentence, 20 px and up only
+     *   regular 400   reading text, captions
+     *   medium 500    a row's name, a group's label, a quiet button, the rail
+     *   semibold 600  a section heading, a person's name, the primary act, a state
+     *   bold 700      a page title, the brand
+     *
+     * The voice (Serif) is 400 only, as before.
+     */
+    weight: { light: 300, regular: 400, medium: 500, semibold: 600, bold: 700 },
+    /**
+     * Nothing below 400 at 15 px and under, in any script — decision 1 said it
+     * of Chinese, and 45+ eyes read the other four the same way. Light is for
+     * 20 px and up. `type.test.ts` holds both against the stylesheet.
+     */
+    weightFloor: { min: 400, cjkAtOrBelowPx: 15, lightFromPx: 20 },
   },
   /**
-   * THE PALETTE — warm neutrals, two magentas, three states (the warmth pass,
-   * 2026-10-04; it follows the design pass of 2026-09-29 and the warmth run).
+   * THE PALETTE — warm neutrals, ONE magenta family in three shades, three
+   * states (the identity system, the owner, 2026-10-04; it supersedes the
+   * warmth pass's "magenta for meaning only").
    *
-   * The owner: "The app feels dry and black-and-white. Add life WITHOUT
-   * spending the magenta's meaning." So the life comes from the neutrals, the
-   * shadows, the rounded shapes and the customers' faces, and magenta keeps
-   * meaning only — in two shades with two jobs:
+   * The owner: "Magenta becomes Nomi's SIGNATURE colour, used generously for
+   * brand identity the way Claude uses orange … Because colour can no longer
+   * also be the scarce meaning-marker, MEANING now moves to SHADE plus SHAPE,
+   * not hue alone." So magenta is three shades, a step of about 10 L* apart,
+   * and each meaning has a SHAPE that says it with the colour removed:
    *
-   *   needs        DEEP magenta. Something waits for the owner: the waiting ○,
-   *                the rail's count, Today's waiting band, a "waiting for you"
-   *                flag, and the FILL of the one act that answers it (`.btn.send
-   *                .needs`: Send on a reply waiting for review, Confirm on an
-   *                order waiting for the tap, Reply in a conversation handed to
-   *                you). Text on any ground, or that one fill under white words.
-   *   assistant    LIGHT magenta. Nomi did this: the ✦ and the name beside what
-   *                it wrote, its reply's wash and label; and soft accents
-   *                (today's date on the calendar). Only ever a TEXT colour; its
-   *                wash is only ever a ground.
+   *   brand        THE SIGNATURE (L* 34). Identity, everywhere you can press or
+   *                go: the ordinary primary act as a fill (Save, Add, Connect,
+   *                Next), a door's words and every chevron, an underline under a
+   *                link, the focus ring, the selection, a checked control, the
+   *                tab or row you are on, today's date, and the mark. Its shape
+   *                is the thing itself: a button, a door's ›, an underline.
+   *   needs        DEEP (L* 24). Something waits for the owner. Its shape is the
+   *                NEEDS DOT: a solid disc, drawn (never a font's glyph), before
+   *                the words of every waiting thing — the waiting signal, the
+   *                pills, Today's band, the card's flag — and, white, before
+   *                the word of the one act that answers it (`.btn.send.needs`:
+   *                Send on a reply waiting for review, Confirm on an order
+   *                waiting for the tap, Reply in a conversation handed to you),
+   *                which is the deep FILL; the rail's count is the same fill.
+   *                Solid = a customer waits; the OPEN ring ○ in stone is a
+   *                chore (`chore`). Never a border, a ring or an underline.
+   *   assistant    LIGHT (L* 44). Nomi did this. Its shape is the NAME TAG: its
+   *                wash as the ground, its light words, a chip — beside what it
+   *                wrote (`.as-tag`) — and its replies sit on the same wash with
+   *                no hairline (a person's keep theirs). Only ever words on its
+   *                wash or on a light ground; the wash is only ever a ground.
    *
-   * The eye learns: deep = needs you, light = Nomi did this. Deep reads at
-   * least 20 L* darker than light with the colour removed, and stays at least
-   * 10 L* lighter than the ink with a chroma the ink does not have, so a deep
-   * button is never mistaken for an ordinary graphite one. Neither is ever a
-   * border, an outline or a frame (`warmth-magenta.test.ts`); every pair is
-   * computed in `warmth-pass.test.ts`.
+   * In greyscale the three keep their order (deep darkest, light lightest) and
+   * their shapes: a dark disc or a dark fill with a white disc is "needs you";
+   * a pale tag is "the assistant"; a fill without a disc, an underline or a
+   * chevron is plain brand. `warmth-pass.test.ts` computes every pair;
+   * `warmth-magenta.test.ts` holds where each may draw an edge (only the brand,
+   * and only a focus ring, an underline or the edge of what you are on).
    *
    * The neutrals lean warm (hue near 70–85 in CIELAB), never cream:
-   *   ink          A warm near-black. Type, the ordinary primary action as a
-   *                FILL, focus rings, the border of the reply box.
+   *   ink          A warm near-black. Type and headings, the secondary
+   *                button's words, the reply box's border, a wordmark.
    *   inkSecondary Warm stone. Secondary text, times, past entries, the EDGE of
-   *                an outlined button or a field. 4.5:1 or better on every
-   *                ground it sits on.
+   *                an outlined button or a field, a chore's ring. 4.5:1 or
+   *                better on every ground it sits on.
    *   border       A warm rule. Lines between rows and panes — never the edge
    *                of a control.
    *   paper        A soft warm off-white: the page, the rail, a recess.
@@ -158,14 +220,18 @@ export const DESIGN_TOKENS = {
    *                neutral tag, pill or chip, an icon's round. Never under a
    *                state's words, never a meaning, never magenta.
    *
+   * What stays ink, on purpose (restraint is what reads as premium): headings,
+   * body text, the rail and its words, a secondary button, the wordmark "Nomi"
+   * beside the mark. There is no brand wash: a third pale pink would be the
+   * two meanings' washes by another name.
+   *
    * And the three states: ok (it went, it is on), failed (`warn`: it did not
    * happen), and waiting — which is `needs`. A state is a shape and a WORD;
    * colour never carries it alone.
    *
-   * Retired with this pass: the single faded magenta that did both jobs
-   * (`waiting` and `assistant` were one value), its wash and its line (drawn
-   * nowhere), and the cool graphite neutrals with pure white. Before them:
-   * jade, highlight, the three warm papers, the dark palette.
+   * Retired: the single faded magenta that did both jobs, its wash and line,
+   * the cool graphite neutrals with pure white (the warmth pass); jade,
+   * highlight, the three warm papers, the dark palette (before it).
    * `palette.test.ts` keeps all of their values out of the product.
    *
    * Washes and lines are TOKENS rather than `color-mix(… 12% …)` for a product
@@ -175,6 +241,7 @@ export const DESIGN_TOKENS = {
    */
   color: {
     ok: '#0F7B3E',
+    brand: '#9A0F5E',
     needs: '#6E0C44',
     needsWash: '#F9E6EE',
     warn: '#B42318',
@@ -263,39 +330,73 @@ export const DESIGN_TOKENS = {
     lift1: '0 1px 2px rgba(74,48,30,0.07), 0 3px 10px rgba(74,48,30,0.07), 0 0 0 1px rgba(74,48,30,0.05)',
     lift2: '0 2px 6px rgba(74,48,30,0.09), 0 12px 28px rgba(74,48,30,0.13), 0 0 0 1px rgba(74,48,30,0.05)',
   },
-  // The warmth run's re-audit (w4-whole-21): the owner's range is 100–250 ms, so the longest is 250.
-  motionMs: { fast: 120, normal: 200, max: 250 },  // skippable; nothing moves under reduced motion
   /**
-   * PHASE 5 OF THE UI REBUILD (2026-10-02) — THE ONE CURVE. Decelerating: a
-   * thing starts moving at once and settles into place, and nothing overshoots
-   * or bounces. One curve for everything that moves, so nothing in the product
-   * moves two ways. (The owner named the curve as mine to decide.)
+   * THE MOTION PASS (2026-10-04) — the owner: "Motion is wired but unfeelable:
+   * an 8 px rise that is 90% done within 100 ms." Everything that arrives now
+   * lands in about 220 ms, travels far enough to be seen, and settles; what
+   * leaves goes in about 160 ms. (docs/MOTION-TRUTH.md measured the before.)
+   *
+   *   fast    160 ms  a hover, a press and its release, anything leaving
+   *   normal  220 ms  anything arriving: a notice, the draft card, a dialog, a toast, a face
+   *   max     250 ms  the profile card and the page coming in; one breath of the dots
+   *   step     40 ms  the gap between one face (or one menu group) and the next
+   *
+   * The owner's band is 200–250 ms for what lands; nothing runs longer than 250.
    */
-  motionEase: 'cubic-bezier(0.2, 0, 0, 1)',
+  motionMs: { fast: 160, normal: 220, max: 250, step: 40 },  // nothing moves under reduced motion
+  /**
+   * THE ONE CURVE for what arrives: an ease-out with a gentle deceleration
+   * (the classic quadratic): 45 per cent of the way at a quarter of the time,
+   * three quarters at half, settling over the last third. The old curve
+   * (0.2, 0, 0, 1) did 60 per cent in the first quarter, so a 200 ms rise read
+   * as 70 ms. Nothing overshoots on it.
+   */
+  motionEase: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  /** What leaves accelerates away (its mirror), over `fast`. */
+  motionEaseIn: 'cubic-bezier(0.55, 0.085, 0.68, 0.53)',
   /**
    * THE WARMTH RUN (2026-10-03) — one exception to the one curve: the profile
-   * card and the bottom sheet spring up (a small overshoot, over
-   * `motionMs.normal`). Nothing else uses it; under reduced motion nothing moves.
+   * card springs up (a small overshoot, over `motionMs.max` since the motion
+   * pass). Nothing else uses it; under reduced motion nothing moves.
    */
   motionSpring: 'cubic-bezier(0.34, 1.3, 0.64, 1)',
   /**
-   * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Colour does
-   * these four jobs and no others, the same on every page; graphite does one
-   * more, the FILL of the page's one primary action. Each signal has a SHAPE
-   * as well as a colour, so it is still said in greyscale, to an eye that
-   * does not tell the hues apart, and on a phone in the sun:
+   * How far each thing travels (px), so it is seen: the old rise was 8 and a
+   * fold 4. `nudge` is a rail icon lifting under the pointer; `sheet` the
+   * profile card springing up (on a phone it comes from the screen's foot).
+   */
+  motionTravelPx: { nudge: 2, fold: 8, page: 12, rise: 16, toast: 24, sheet: 48 },
+  /** A pressed control settles to `press`; a dialog grows in from `enter`. */
+  motionScale: { press: 0.97, enter: 0.96 },
+  /**
+   * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Each signal
+   * has a SHAPE as well as a colour, so it is still said in greyscale, to an
+   * eye that does not tell the hues apart, and on a phone in the sun:
    *
    *   ok         ✓  green          it went, it is on, it is done
-   *   waiting    ○  deep magenta   it waits for you (`--color-needs`)
+   *   waiting    ●  deep magenta   it waits for you (`--color-needs`): the
+   *                                NEEDS DOT, a solid disc the stylesheet
+   *                                draws, the same size in every script
    *   failed     ✕  red            it did not happen, it did not reach them
    *   assistant  ✦  light magenta  the assistant did this (`--color-assistant`)
    *
+   * The identity system (2026-10-04): waiting was the open ring ○, which a
+   * chore also wore in stone — two rings told apart by colour alone. Now a
+   * customer waiting is the SOLID disc, and a chore keeps the open ring
+   * (`chore`), so the two are two shapes.
+   *
    * The stylesheet draws the shape before a state's words (`::before`, read
-   * from here); a renderer that draws a shape on its own takes it from
-   * `signalMark` (layout.ts). `phase4-colour.test.ts` holds every use of a
-   * signal colour in the stylesheet to one of these, with its shape.
+   * from here; the needs dot is drawn as a disc); a renderer that draws a
+   * shape on its own takes it from `signalMark` (layout.ts).
+   * `phase4-colour.test.ts` holds every use of a signal colour in the
+   * stylesheet to one of these, with its shape.
    */
-  signal: { ok: '✓', waiting: '○', failed: '✕', assistant: '✦' },
+  signal: { ok: '✓', waiting: '●', failed: '✕', assistant: '✦' },
+  /**
+   * Something left TO DO that is not a customer waiting — a setup step, a
+   * hold, a check: the OPEN ring, in the secondary ink (`todoMark`, layout.ts).
+   */
+  chore: '○',
   /** Status chip: canonical five statuses (vocabulary.STATUS) → semantic color key. */
   statusChip: {
     已处理: 'ok',
@@ -306,21 +407,14 @@ export const DESIGN_TOKENS = {
   },
 } as const;
 
-/**
- * M7 — Micro-interaction specs, as data the PWA executes. Every moment is
- * ≤ motionMs.max, skippable, and collapses to instant under reduced-motion.
- * The chat surface has no animation — these exist so the shell inherits the
- * interaction language instead of inventing one.
+/*
+ * M7's `MOTION_SPECS` (approveTap, quoteReveal, sendFlight, statusChange) and
+ * `REDUCED_MOTION_RULE` were RETIRED with the motion pass (2026-10-04): they
+ * described a PWA that never existed, nothing imported them, and two of their
+ * values (300 ms, linear) were outside the owner's range. The motion the
+ * product has is `motionMs`, `motionEase`, `motionTravelPx` and `motionScale`
+ * above, drawn by the shell's stylesheet (`MOTION_CSS`, layout.ts).
  */
-export const MOTION_SPECS = {
-  approveTap:    { durationMs: 200, easing: 'ease-out', skippable: true, description: '发送 button confirms with a settle, card slides away' },
-  quoteReveal:   { durationMs: 300, easing: 'ease-out', skippable: true, description: '报价卡 lines appear top-down — the calculator moment' },
-  sendFlight:    { durationMs: 250, easing: 'ease-in',  skippable: true, description: 'message lifts toward the thread' },
-  statusChange:  { durationMs: 150, easing: 'linear',   skippable: true, description: 'status chip crossfade (学习中→已晋升 etc.)' },
-} as const;
-
-/** Reduced-motion: every spec collapses to an instant state change. */
-export const REDUCED_MOTION_RULE = 'all MOTION_SPECS durations become 0ms; no element may rely on animation to convey state' as const;
 
 /** M7 desktop keyboard shortcuts — approval flow first, vim-adjacent. */
 export const KEYBOARD_SHORTCUTS = {

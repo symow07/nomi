@@ -243,13 +243,19 @@ describe('phase 8 · the card: who and why, a door to the conversation, gone aft
     expect(p.slot.children).toHaveLength(1);
   });
 
-  it('goes after six seconds', async () => {
+  // The motion pass (2026-10-04): after its six seconds it slides out (the stylesheet's "out"), and is gone a beat later.
+  it('goes after six seconds: it slides out, and is gone once it has', async () => {
     const p = page({ count: 0, respond: (u) => (u.endsWith('since=0') ? Promise.resolve(rail(1, ROSE)) : undefined) });
     p.run();
     await p.advance(20_000);
+    const card = p.slot.children[0]!;
     await p.advance(5_999);
     expect(p.slot.children).toHaveLength(1);
+    expect(card.className).toBe('toast');
     await p.advance(1);
+    expect(p.slot.children).toEqual([card]);
+    expect(card.className).toBe('toast out');
+    await p.advance(250);
     expect(p.slot.children).toEqual([]);
   });
 
@@ -272,7 +278,7 @@ describe('phase 8 · the card: who and why, a door to the conversation, gone aft
     expect(p.slot.children.map((c) => c.textContent)).toEqual(['Omar said yes to an order']);
     await p.advance(5_999);
     expect(p.slot.children).toHaveLength(1);
-    await p.advance(1);
+    await p.advance(251);
     expect(p.slot.children).toEqual([]);
   });
 
@@ -293,7 +299,7 @@ describe('phase 8 · the card: who and why, a door to the conversation, gone aft
     const card = p.slot.children[0]!;
     expect(card.getAttribute('style')).toBeNull();
     expect(card.className).toBe('toast');
-    await p.advance(6_000);
+    await p.advance(6_250);
     expect(p.slot.children).toEqual([]);
     // the card's rise is the stylesheet's, inside prefers-reduced-motion: no-preference (notifications.test.ts)
     for (const moving of ['.style', 'animate(', 'transition', 'requestAnimationFrame']) expect(LIVE_SCRIPT, moving).not.toContain(moving);
@@ -351,7 +357,8 @@ describe('the warmth run\'s re-audit (w4-whole-23) · the card is read at the re
     card.fire('mouseleave');
     await p.advance(5_999);
     expect(p.slot.children).toEqual([card]);
-    await p.advance(1);
+    expect(card.className).toBe('toast');
+    await p.advance(251);
     expect(p.slot.children).toEqual([]);
   });
 });

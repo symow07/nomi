@@ -393,7 +393,7 @@ describe('Phase 9 · Before going live', () => {
       expect(h, l).toContain(`<h1 class="page">${esc(t(l, 'runbook.practice.title'))}</h1>`);
       expect(bare(h), l).not.toContain('3/5');
       expect(h, l).not.toContain('<ol');
-      expect(h.match(/<div class="pr (done|todo)"><span class="mk[^"]*">[✓○]<\/span> <span class="lbl">/g), l).toHaveLength(5);
+      expect(h.match(/<div class="pr (done|todo)"><span class="mk[^"]*"><span class="shape s-(ok|waiting)" aria-hidden="true"><\/span><\/span> <span class="lbl">/g), l).toHaveLength(5);
     }
   });
   it('V1-125 · nothing sent yet is said as that, with no tick', () => {
@@ -401,7 +401,7 @@ describe('Phase 9 · Before going live', () => {
       const none = screens(l);
       expect(none, l).toContain(esc(inScope(() => t(l, 'ops.health.none'))));
       expect(none, l).not.toContain(esc(inScope(() => t(l, 'ops.health.ok'))));
-      expect(screens(l, { reliability: { stuckOutbound: 0, oldestQueuedAt: null, sent: 4 } }), l).toContain(`✓ ${esc(inScope(() => t(l, 'ops.health.ok')))}`);
+      expect(screens(l, { reliability: { stuckOutbound: 0, oldestQueuedAt: null, sent: 4 } }), l).toContain(`<span class="shape s-ok" aria-hidden="true"></span> ${esc(inScope(() => t(l, 'ops.health.ok')))}`);
     }
   });
   it('V1-126 · the two counts of corrections say what each counts', () => {
@@ -420,9 +420,9 @@ describe('Phase 9 · Before going live', () => {
   });
   it('V1-130, today-onboarding-missed-17 · where the page stands is a state line with its mark, not a box that looks pressable', () => {
     // The warmth run's re-audit (w4-whole-06): a page not ready yet is a chore, drawn with the to-do ○ — magenta's is a customer waiting.
-    expect(renderPilotReadiness(pr(), 'en', null)).toContain(`<p class="verdict"><span class="dot todo" aria-hidden="true">○</span> ${t('en', 'pilot.notReady')}</p>`);
+    expect(renderPilotReadiness(pr(), 'en', null)).toContain(`<p class="verdict"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${t('en', 'pilot.notReady')}</p>`);
     const meta: MetaReadiness = { credentials: [], allCredentialsOk: false, provider: 'disabled', channelStatus: 'not_connected', live: false, blockers: [] };
-    expect(inScope(() => renderPilotTechnical('en', { meta, templateState: 'none' }))).toContain(`<p class="verdict"><span class="dot todo" aria-hidden="true">○</span> ${esc(t('en', 'meta.notLive'))}</p>`);
+    expect(inScope(() => renderPilotTechnical('en', { meta, templateState: 'none' }))).toContain(`<p class="verdict"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${esc(t('en', 'meta.notLive'))}</p>`);
     const v = /\.verdict \{([^}]*)\}/.exec(css)![1]!;
     for (const boxy of ['border:', 'background', 'text-align:center', 'padding:']) expect(v, boxy).not.toContain(boxy);
   });
@@ -462,11 +462,11 @@ describe('Phase 9 · Before going live', () => {
   });
   it('today-onboarding-new-11, w4-today-setup-06 · an open mark is the to-do ○, one colour on every page — never the waiting signal\'s magenta', () => {
     const h = renderPilotReadiness(pr(), 'en', null);
-    expect(h).toContain('<span class="mk dot todo">○</span>');
+    expect(h).toContain('<span class="mk dot todo"><span class="shape s-waiting" aria-hidden="true"></span></span>');
     expect(h).not.toContain('<span class="mk dot warn">○</span>');
     expect(h).not.toContain('<span class="mk">○</span>');
     expect(css).toContain('.pr.todo .mk:not(.dot) { color:var(--color-ink-secondary); }');
-    expect(renderReady(readyView(false, false, false), 'en')).toContain('<span class="mk dot todo" aria-hidden="true">○</span>');
+    expect(renderReady(readyView(false, false, false), 'en')).toContain('<span class="mk dot todo" aria-hidden="true"><span class="shape s-waiting" aria-hidden="true"></span></span>');
     expect(renderReady(readyView(false, false, false), 'en')).not.toContain('dot warn');
   });
   it('today-onboarding-missed-12, missed-13, missed-14 · Spanish, English and Arabic words', () => {

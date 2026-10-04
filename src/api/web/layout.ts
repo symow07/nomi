@@ -11,7 +11,8 @@ import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js
 import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
-import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, fontAt } from './type.js';
+import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
+import { shape, shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, type IconId } from './icons.js';
 
 /**
@@ -163,7 +164,7 @@ export const isOutreachRoute = (url: string): boolean => {
  * (Stripe confirming a card) does not.
  */
 export const atWork = (text: string, assistant = false): string =>
-  `<div class="block working" role="status">${assistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<span>${esc(text)}</span>`
+  `<div class="block working" role="status">${assistant ? `${shape('assistant', 'as')} ` : ''}<span>${esc(text)}</span>`
   + `<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
 
 /**
@@ -188,7 +189,7 @@ export const unescapeHtml = (s: string): string =>
  * name. `name` arrives escaped or is escaped here.
  */
 export const byAssistant = (name: string): string =>
-  `<span class="as"><span aria-hidden="true">✦</span> ${esc(name)}</span>`;
+  `<span class="as">${shape('assistant')} ${esc(name)}</span>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>
@@ -230,7 +231,7 @@ export function switcher(locale: Locale, path: string): string {
 export type Signal = keyof typeof DESIGN_TOKENS.signal;
 const SIGNAL_CLASS: Readonly<Record<Signal, string>> = { ok: 'ok', waiting: 'warn', failed: 'bad', assistant: 'as' };
 export const signalMark = (s: Signal): string =>
-  `<span class="dot ${SIGNAL_CLASS[s]}" aria-hidden="true">${DESIGN_TOKENS.signal[s]}</span>`;
+  `<span class="dot ${SIGNAL_CLASS[s]} shape s-${s}" aria-hidden="true"></span>`;
 /**
  * THE WARMTH RUN'S RE-AUDIT (w4-whole-06) — something left TO DO that is not a
  * customer waiting: a setup step, a hold, a check. The same open ○, in the
@@ -238,7 +239,7 @@ export const signalMark = (s: Signal): string =>
  * you — and a chore never reads as one.
  */
 export const todoMark = (): string =>
-  `<span class="dot todo" aria-hidden="true">${DESIGN_TOKENS.signal.waiting}</span>`;
+  `<span class="dot todo shape s-chore" aria-hidden="true"></span>`;
 
 /**
  * THE WARMTH PASS (2026-10-04) — the one act that ANSWERS something waiting for
@@ -273,70 +274,146 @@ export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
   assistant: ['.pill.as'],
 };
+/**
+ * THE IDENTITY SYSTEM (2026-10-04) — THE NEEDS DOT. "Needs you" is said by a
+ * SHAPE, not by the deep shade alone: a solid disc before the words, drawn (no
+ * font draws it), in the words' own colour — deep on a light ground, white on
+ * the deep fill. It has no text, so a screen reader hears the words alone. In a
+ * forced-colours mode it keeps the system's text colour (`NEEDS_DOT_FORCED`).
+ * Every other state's shape is DRAWN the same way (marks.ts, the type pass): no
+ * face the product serves has ✓ ○ ✕, so a typed one came from the device's fonts.
+ */
+export const NEEDS_DOT = 'content:""; display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip); background:currentColor; vertical-align:baseline;';
 const markBefore = (s: Signal, selectors: readonly string[]): string => {
-  const shape = DESIGN_TOKENS.signal[s];
-  return `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:"${shape}"; content:"${shape}" / ""; margin-inline-end:var(--space-4); font-weight:600; }`;
+  const list = selectors.map((x) => `${x}::before`).join(', ');
+  if (s === 'waiting') return `  ${list} { ${NEEDS_DOT} margin-inline-end:0.4em; }`;
+  return `  ${list} { content:""; ${SHAPE_BOX} ${shapeMask(s)} margin-inline-end:var(--space-4); }`;
 };
-/** Lines drawn with the to-do ○ before them, in their own (secondary) ink — never magenta's. */
+/** Lines drawn with the chore's open ring before them, in their own (secondary) ink — never the needs dot. */
 export const TODO_BEFORE: readonly string[] = ['.fwarn', '.imp-warn', '.sr-value.warn', '.prob:not(.bad)'];
 const SIGNAL_CSS = `  /* Phase 4 — the four signals: a colour and a shape. */
-  .dot { font-weight:600; }
-  .dot.todo { color:var(--color-ink-secondary); }
-  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:"${DESIGN_TOKENS.signal.waiting}"; content:"${DESIGN_TOKENS.signal.waiting}" / ""; margin-inline-end:var(--space-4); font-weight:600; }
+${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
+  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} ${shapeMask('chore')} margin-inline-end:var(--space-4); }
   .dot.ok { color:var(--color-ok); }
-  .dot.warn { color:var(--color-needs); }
+  /* The needs dot as an element (signalMark): the disc is its own box, the glyph it carries for a page read
+     without the sheet is pushed out of it. */
+  .dot.warn { color:var(--color-needs); display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip);
+    background:currentColor; overflow:hidden; text-indent:1em; white-space:nowrap; vertical-align:baseline; }
   .dot.bad { color:var(--color-warn); }
   .dot.as { color:var(--color-assistant); }
-  .pill.as { background:transparent; color:var(--color-assistant); padding-inline:0; }
+  /* THE IDENTITY SYSTEM (2026-10-04) — THE ASSISTANT'S NAME TAG, its shape now that the four-point mark goes:
+     its wash as the ground, its light words, a chip, beside what it wrote. Draw it with .as-tag; the
+     selectors after it are where its label is drawn today. */
+  .as-tag, .msg-by .as, #approve .top > .as, .card > p > .as { display:inline-flex; align-items:center; gap:var(--space-4);
+    padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
+  .card > p > .as { font-size:var(--font-size-caption); }
+  .pill.as { background:var(--color-assistant-wash); color:var(--color-assistant); }
 ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFORE[s])).join('\n')}
+  @media (forced-colors: active) {
+    .dot.warn { inline-size:auto; block-size:auto; text-indent:0; background:none; }
+    ${[...SIGNAL_BEFORE.waiting, '.btn.send.needs'].map((x) => `${x}::before`).join(', ')} { forced-color-adjust:none; }
+  }
 `;
 
 /**
- * PHASE 5 OF THE UI REBUILD (2026-10-02) — MOTION. The three durations of the
- * tokens and the one curve (`--motion-ease`), and nothing else:
+ * PHASE 5 OF THE UI REBUILD (2026-10-02) — MOTION; RETUNED BY THE MOTION PASS
+ * (2026-10-04). The owner: "Motion is wired but unfeelable … retune the whole
+ * motion layer to land around 200 ms with enough travel to be felt and a
+ * natural settle." docs/MOTION-TRUTH.md measured why nothing read as motion:
+ * 8 px on a curve that did 90 per cent of it in 100 ms, played while the page
+ * was still appearing; nothing left, nothing moved between pages.
  *
- *   fast   (120 ms)  a press, a hover, a fold or a menu opening
- *   normal (200 ms)  a notice arriving, the draft appearing, Undo
- *   max    (300 ms)  the assistant at work: one breath of its three dots
+ * Now, from the tokens (`motionMs`, `motionEase`, `motionTravelPx`, `motionScale`):
+ *
+ *   arriving   220 ms, the gentle ease-out: a notice, the draft card (a beat
+ *              after the page), the assistant at work, Today's band and hero,
+ *              each face in turn, a menu group by group, a fold's content —
+ *              16 px (a fold 8 px), from transparent
+ *   dialogs    the question grows in from 0.96 and 16 px; the profile card
+ *              springs up 48 px over 250 ms (from the screen's foot on a
+ *              phone); both sink away in 160 ms when closed, with their dimming
+ *   the toast  slides in 24 px from its own edge, and back out the same way
+ *   pages      the page's content fades out (160 ms) and the next rises in
+ *              12 px (250 ms); the rail stays, and its raised tile slides to
+ *              the entry chosen — so do the Inbox lens and the chosen day
+ *   hand       a hover or a press settles both ways (160 ms): a control
+ *              presses to 0.97 and comes back; a rail icon lifts 2 px
  *
  * Every rule that moves anything sits inside `prefers-reduced-motion:
- * no-preference`, so a reader who asked for less gets none of it; the block
- * after it stops anything else that would move. `phase5-motion.test.ts` holds
- * both, and that no duration is written as a number.
+ * no-preference` — the page transitions too — so a reader who asked for less
+ * gets none of it; the block after it stops anything else that would move.
+ * `phase5-motion.test.ts` holds that, the durations by name, and that each
+ * rule's selector is one the pages really draw.
  */
+const STAGGER = [2, 3, 4, 5, 6, 7, 8].map((n) =>
+  `    .td-row > li:nth-child(${n}) { animation-delay:calc(var(--motion-fast) + ${n - 1} * var(--motion-step)); }`).join('\n');
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
-    .btn, .crow, .srow, a.navlink, .tab, .deeper, .chip, summary {
+    .btn, .srow, a.navlink, .tab, .deeper, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
-        box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
-    .btn:active { transform:scale(0.98); transition:transform var(--motion-fast) var(--motion-ease); }
-    details[open] > :not(summary) { animation:nomi-arrive var(--motion-fast) var(--motion-ease) both; }
-    .flash, #approve, .working { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+        box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease),
+        transform var(--motion-fast) var(--motion-ease); }
+    .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side a.navlink:active { transform:scale(var(--motion-scale-press)); }
+    nav.side a.navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
+    details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
+    details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
+    details:not([open])::details-content { opacity:0; }
+    details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
+    .flash, #approve, .working, .tw, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    #approve, .td { animation-delay:var(--motion-fast); }
+    .sgroup + .sgroup { animation-delay:var(--motion-step); }
+    .sgroup + .sgroup + .sgroup { animation-delay:calc(2 * var(--motion-step)); }
+    /* The warmth run — drawn again in place for a newcomer, Today does not rise in again (w4-whole-21). */
+    main[data-drawn-again] .tw, main[data-drawn-again] .td, main[data-drawn-again] .td-row > li { animation:none; }
+    .td-row > li { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
+${STAGGER}
+    .td-row { scroll-behavior:smooth; }
     .working .dots i { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     .working .dots i + i { animation-delay:var(--motion-fast); }
     .working .dots i + i + i { animation-delay:var(--motion-normal); }
-    dialog.ask[open] { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     .btn[aria-busy="true"]::after { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
-    dialog.ask[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
-    /* THE WARMTH RUN — the profile card springs up (its one curve of its own). */
-    dialog.sheet[open] { animation:nomi-spring var(--motion-normal) var(--motion-spring) both; }
     .face-link[aria-busy="true"] .face { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
-    dialog.sheet[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
-    /* The warmth run — Today's band and hero rise into place as the page arrives, the hero a beat after; its face row scrolls smoothly. */
-    .tw, .td { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-    /* w4-whole-21 — drawn again in place for a newcomer, Today does not rise in again. */
-    main[data-drawn-again] .tw, main[data-drawn-again] .td { animation:none; }
-    .td { animation-delay:var(--motion-fast); }
-    .td-row { scroll-behavior:smooth; }
+    dialog.ask, dialog.sheet, dialog.ask::backdrop, dialog.sheet::backdrop {
+      transition: opacity var(--motion-fast) var(--motion-ease-in), transform var(--motion-fast) var(--motion-ease-in),
+        overlay var(--motion-fast) allow-discrete, display var(--motion-fast) allow-discrete; }
+    dialog.ask:not([open]), dialog.sheet:not([open]) { opacity:0; transform:translateY(var(--travel-rise)) scale(var(--motion-scale-enter)); }
+    dialog.ask:not([open])::backdrop, dialog.sheet:not([open])::backdrop { opacity:0; }
+    dialog.ask[open] { transition-duration:var(--motion-normal); transition-timing-function:var(--motion-ease); }
+    dialog.sheet[open] { transition-duration:var(--motion-max); transition-timing-function:var(--motion-spring); }
+    dialog.ask[open]::backdrop, dialog.sheet[open]::backdrop { transition-duration:var(--motion-normal); transition-timing-function:var(--motion-ease); }
+    @starting-style {
+      dialog.ask[open] { opacity:0; transform:translateY(var(--travel-rise)) scale(var(--motion-scale-enter)); }
+      dialog.sheet[open] { opacity:0; transform:translateY(var(--travel-sheet)) scale(var(--motion-scale-enter)); }
+      dialog.ask[open]::backdrop, dialog.sheet[open]::backdrop { opacity:0; }
+    }
+    .toast { animation:nomi-toast-in var(--motion-normal) var(--motion-ease) both; }
+    [dir="rtl"] .toast { animation-name:nomi-toast-in-rtl; }
+    .toast.out { animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both; }
+    [dir="rtl"] .toast.out { animation-name:nomi-toast-out-rtl; }
+    @view-transition { navigation:auto; }
+    main { view-transition-name:page; }
+    nav.side a.navlink.active { view-transition-name:rail-on; }
+    .tabs.lens .tab.on { view-transition-name:lens-on; }
+    .mo td.sel .mo-d { view-transition-name:day-on; }
+    ::view-transition-group(*) { animation-duration:var(--motion-max); animation-timing-function:var(--motion-ease); }
+    ::view-transition-group(page) { animation:none; }
+    ::view-transition-old(page) { animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both; }
+    ::view-transition-new(page) { animation:nomi-page-in var(--motion-max) var(--motion-ease) both; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
       animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
   }
-  @keyframes nomi-arrive { from { opacity:0; transform:translateY(-4px); } }
-  @keyframes nomi-rise { from { opacity:0; transform:translateY(8px); } }
+  @keyframes nomi-arrive { from { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); } }
+  @keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
-  @keyframes nomi-fade { from { opacity:0; } }
-  @keyframes nomi-spring { from { opacity:0; transform:translateY(var(--space-48)) scale(0.97); } }
+  @keyframes nomi-toast-in { from { opacity:0; transform:translateX(var(--travel-toast)); } }
+  @keyframes nomi-toast-out { to { opacity:0; transform:translateX(var(--travel-toast)); } }
+  @keyframes nomi-toast-in-rtl { from { opacity:0; transform:translateX(calc(-1 * var(--travel-toast))); } }
+  @keyframes nomi-toast-out-rtl { to { opacity:0; transform:translateX(calc(-1 * var(--travel-toast))); } }
+  @keyframes nomi-toast-up { from { opacity:0; transform:translateY(var(--travel-toast)); } }
+  @keyframes nomi-toast-down { to { opacity:0; transform:translateY(var(--travel-toast)); } }
+  @keyframes nomi-page-in { from { opacity:0; transform:translateY(var(--travel-page)); } }
+  @keyframes nomi-fade-out { to { opacity:0; } }
   /* The assistant at work: its mark, what it is doing, three dots. One run of text, so the dots follow
      the last word when the words wrap (w4-conversation-25), not the far edge of the line. */
   .working { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -356,7 +433,7 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     padding:var(--space-24); background:var(--color-surface); border-radius:var(--radius-panel); box-shadow:var(--shadow-lift1); }
   .pc-top { display:flex; flex-direction:column; align-items:center; gap:var(--space-4); text-align:center; }
   .pc-top .face { margin-block-end:var(--space-8); }
-  .pc-name { margin:0; font-size:var(--font-size-display); line-height:1.2; overflow-wrap:anywhere; }
+  .pc-name { margin:0; font-size:var(--font-size-display); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); overflow-wrap:anywhere; }
   .pc-meta { margin:0; display:flex; flex-wrap:wrap; justify-content:center; gap:var(--space-4) var(--space-12);
     color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .pc-wait { margin:0; color:var(--color-needs); font-weight:600; font-size:var(--font-size-small); }
@@ -364,16 +441,16 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
   .pc-facts { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-8); margin:0; }
   .pc-facts > div { padding:var(--space-12) var(--space-16); background:var(--color-sand); border-radius:var(--radius-card); }
   .pc-facts dt { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .pc-facts dd { margin:0; font-size:var(--font-size-title); font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-  .pc-h { margin:0 0 var(--space-4); font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); }
+  .pc-facts dd { margin:0; font-size:var(--font-size-display); font-weight:300; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .pc-h { margin:0 0 var(--space-4); font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); }
   .pc-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
   .pc-qty, .pc-none { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .pc-none { margin:0; }
   .pc-top + .pc-facts, .pc-things + .pc-open { margin-block-start:var(--space-4); }
-  /* Phase 9 (w4-customers-26) — the card's one action is the primary one: graphite, its words inside their own padding
+  /* Phase 9 (w4-customers-26) — the card's one action is the primary one: the brand fill (the identity system), its words inside their own padding
      (scoped to the card, so it is not the plain door's colour and inset, which the shell draws later). */
   .pcard .pc-open { align-self:stretch; width:auto; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-16);
-    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface); font-weight:600; }
+    border-radius:var(--radius-control); background:var(--color-brand); color:var(--color-surface); font-weight:600; }
   .pcard .pc-open .go { color:var(--color-surface); }
   .pcard .pc-open:hover, .pcard .pc-open:focus-visible { box-shadow:var(--shadow-lift2); }
   dialog.sheet { border:0; padding:0; background:transparent; color:var(--color-ink); overflow:visible;
@@ -418,7 +495,7 @@ export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); 
   @media (min-width: 25rem) { .langsw a { padding:0 var(--space-12); } }
   /* The switcher is chrome. A solid jade fill made it the loudest object
      on a page whose subject was somebody's business. */
-  .langsw a.on { background:var(--color-surface); color:var(--color-ink); font-weight:600; }
+  .langsw a.on { background:var(--color-surface); color:var(--color-brand); font-weight:600; }
 `;
 
 /**
@@ -463,6 +540,8 @@ ${cssVariables()}
   body { margin: 0; background: var(--color-paper); color: var(--color-ink);
     font: var(--font-size-base)/var(--line-height) var(--font-family); }
   a { color: inherit; text-decoration: none; }
+  /* The identity system (2026-10-04) — what the owner selects is lifted out in the brand. */
+  ::selection { background:var(--color-brand); color:var(--color-surface); }
   /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
   .voice { font-family: var(--font-voice); }
   /* THE WARMTH RUN (2026-10-03) — a customer's face (faces.ts): their photo laid
@@ -471,7 +550,7 @@ ${cssVariables()}
 ${FACE_CSS}
   .face-link { display:inline-flex; align-items:center; gap:var(--space-8); color:inherit; min-width:0; }
   .face-link:focus-visible { outline:none; }
-  .face-link:focus-visible .face { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .face-link:focus-visible .face { outline:2px solid var(--color-brand); outline-offset:2px; }
   /* w4-whole-22 — a pressed face is opening its card: it dims until the card is there. */
   .face-link[aria-busy="true"] .face { opacity:0.6; }
   .layout { display: grid; grid-template-columns: 208px 1fr; min-height: 100vh; }
@@ -494,10 +573,10 @@ ${FACE_CSS}
   /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
      in weight, its shape small, and nothing to press. */
   .navhead { display:flex; align-items:center; gap:var(--space-8); padding: var(--space-12) var(--space-12) var(--space-4);
-    font-size: var(--font-size-caption); font-weight:600; color: var(--color-ink-secondary); }
+    font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
   .navhead .ni { inline-size:16px; block-size:16px; }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
-    font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
+    font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
   /* Two cuts of one mark (brand.ts): the detail cut beside the word on a desktop,
      the small reversed cut alone in the phone nav — below 40px the pale disc
@@ -529,7 +608,7 @@ ${FACE_CSS}
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
   nav.side a.navlink { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) var(--space-12);
     min-height: 44px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
-    font-size: var(--font-size-small); margin-bottom: var(--space-4); }
+    font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-4); }
   nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
   nav.side .ni { flex:none; inline-size:22px; block-size:22px; }
   /* The fix wave (the guide's frames, 1024 px) — the word and its count wrap TOGETHER: the word keeps
@@ -546,10 +625,11 @@ ${FACE_CSS}
     box-shadow: var(--shadow-lift1); }
   nav.side a.navlink.active .ni { stroke-width:2.3; }
   .nl-short { display:none; }
-  /* The rail's one number: customers waiting for the owner, in the waiting
-     signal's colour (the deep magenta), beside its word. */
-  nav.side .navcount { display:inline-flex; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-4);
-    font-size:var(--font-size-caption); font-weight:700; color:var(--color-needs); background:var(--color-needs-wash);
+  /* The rail's one number: customers waiting for the owner. The identity system: the needs FILL — the deep
+     magenta under white words and the white needs dot before them — is the badge's own shape and reads
+     with the colour removed. On a phone's tile the badge is the figure alone. */
+  nav.side .navcount { display:inline-flex; align-items:center; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-8);
+    font-size:var(--font-size-caption); font-weight:700; color:var(--color-surface); background:var(--color-needs);
     border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
      chrome; the language switch and log out are the first rows of Setup, and
@@ -560,21 +640,24 @@ ${LANGSW_CSS}
      1040px block hard left and left 700px of nothing to its right, which reads
      as a window that failed to fill rather than a sheet placed on a desk.
      Centred is a decision; the accidental middle was not. */
-  main { padding: var(--space-24); max-width: var(--measure-column); margin-inline: auto; width: 100%; }
+  main { padding: var(--space-32); max-width: var(--measure-column); margin-inline: auto; width: 100%; }
   /* Prose is allowed to be narrower INSIDE the column. It may not be a
      different number: these two classes are the only prose measures there are. */
   .measure-prose { max-width: var(--measure-prose); }
   .measure-form { max-width: var(--measure-form); }
   /* Phase 9 (settings-a-new-19, settings-a-missed-17) — a heading that wraps breaks into even lines, never one word alone. */
-  h1.page { font-size: var(--font-size-title); margin: 0 0 var(--space-16); text-wrap:balance; }
+  /* The type pass (2026-10-04) — the page title is the top of the hierarchy: the largest size, bold, closed up. */
+  h1.page { font-size:var(--font-size-hero); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight);
+    margin: 0 0 var(--space-24); text-wrap:balance; }
+  @media (max-width: 560px) { h1.page { font-size:var(--font-size-display); } }
   /* The hairline in --shadow-lift1 does what a 1px border used to; two would
      read as a double rule at the same edge. */
   .card { background:var(--color-surface); border:0; border-radius:var(--radius-card);
-    box-shadow:var(--shadow-lift1); padding:var(--space-16); margin:var(--space-16) 0; }
+    box-shadow:var(--shadow-lift1); padding:var(--space-24); margin:var(--space-16) 0; }
   /* Phase F: section headings speak to the owner in her own sentence case.
      The 13px tracked-uppercase eyebrow was the one SaaS tell the product had. */
-  .card h2, .block h2, main h2 { font-size:var(--font-size-base); font-weight:600;
-    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; text-wrap:balance; }
+  .card h2, .block h2, main h2 { font-size:var(--font-size-title); font-weight:600; line-height:var(--line-height-tight);
+    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:var(--tracking-tight); text-wrap:balance; }
   /* Phase 9 (missed-19, missed-21) — a heading that wraps leaves no word alone on its last line; nor does a paragraph. */
   h1.page, main h2, main h3 { text-wrap:balance; }
   main p, main li { text-wrap:pretty; }
@@ -598,26 +681,28 @@ ${LANGSW_CSS}
   .pill.owner { background:var(--color-sand); color:var(--color-ink); font-weight:600; }
 ${SIGNAL_CSS}${MOTION_CSS}
   /* One button (the design pass, 2026-09-29). The primary act is the one
-     ink FILL on a screen; every other button is outlined in Stone on
-     white; a quiet one is words; red takes something away.
-     The warmth pass (2026-10-04) — ONE exception, a variant and never a
-     colour of its own: the primary act that answers something WAITING for
-     the owner is filled in the deep magenta (.btn.send.needs, NEEDS_ACT):
-     Send on a reply waiting for review, Confirm on an order waiting for the
-     tap, Reply in a conversation handed to you. Save and Add stay ink. The
-     light magenta is never a button. Its edge is the fill itself (a
-     transparent border over the fill), so magenta never draws a frame. */
+     FILL on a screen; every other button is outlined in Stone on white, its
+     words ink; a quiet one is words; red takes something away.
+     The identity system (2026-10-04) — the ordinary primary act (Save, Add,
+     Connect, Next) is filled in the BRAND magenta. The act that answers
+     something WAITING for the owner (.btn.send.needs, NEEDS_ACT: Send on a
+     reply waiting for review, Confirm on an order waiting for the tap, Reply
+     in a conversation handed to you) is the DEEP fill, and its word is led
+     by the white needs dot — so it is told from Save by its shape, not by
+     its shade alone. The light magenta is never a button. A fill's edge is
+     the fill itself (a transparent border), so no magenta draws a frame. */
   .btn { display:inline-flex; align-items:center; justify-content:center; min-height:44px;
     padding:10px 18px; border-radius:var(--radius-control);
     border:1.5px solid var(--color-ink-secondary);
     background:var(--color-surface); color:var(--color-ink);
-    font:inherit; font-size:var(--font-size-small); font-weight:600; cursor:pointer; }
-  .btn.send { background:var(--color-ink); border-color:var(--color-ink); color:var(--color-surface); }
+    font:inherit; font-size:var(--font-size-small); font-weight:500; cursor:pointer; }
+  .btn.send { background:var(--color-brand); border-color:transparent; color:var(--color-surface); font-weight:600; }
   .btn.send:hover { box-shadow:var(--shadow-lift2); }
   .btn.send.needs { background:var(--color-needs); border-color:transparent; color:var(--color-surface); }
+  .btn.send.needs::before { ${NEEDS_DOT} margin-inline-end:0.5em; flex:none; }
   .btn.danger { border-color:var(--color-warn); color:var(--color-warn); }
   .btn.ghost { background:transparent; border-color:transparent; color:var(--color-ink-secondary); font-weight:400; }
-  .btn.ghost:hover { color:var(--color-ink); text-decoration:underline; }
+  .btn.ghost:hover { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); }
   .inline { display:inline; }
   .doors { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   /* M49 — a button in a column form stretched to the width of the input above
@@ -648,11 +733,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
             font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .chkbox input { min-height:0; }
-  /* Phase 9 (V1-416) — a chosen radio or tick in the ink of the page, not the browser's own blue. */
-  input[type="radio"], input[type="checkbox"] { accent-color:var(--color-ink); }
+  /* Phase 9 (V1-416) — a chosen radio or tick in the product's own colour (the brand, since the identity system), not the browser's blue. */
+  input[type="radio"], input[type="checkbox"] { accent-color:var(--color-brand); }
   /* One figure, stated large: the rate she set, the sample price, the state an
      order is in. It is a READING, not a KPI tile. */
-  .stated-now { font-size:var(--font-size-display); margin:var(--space-12) 0; }
+  .stated-now { font-size:var(--font-size-display); font-weight:300; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:var(--space-12) 0; }
 
   /* One notice — in two tones, because one of them is a refusal.
      D5: every notice was painted in the jade of a success, so "Only the owner
@@ -682,13 +767,15 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .tab { display:inline-flex; align-items:center; min-height:44px; padding:8px 16px;
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
-    font-size:var(--font-size-small); }
-  /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an ink edge and weight, not a paler grey than its neighbours. */
-  .tab.on { background:var(--color-surface); border-color:var(--color-ink); box-shadow:inset 0 0 0 1px var(--color-ink); color:var(--color-ink); font-weight:600; }
+    font-size:var(--font-size-small); font-weight:500; }
+  /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an edge twice as heavy and weight, not a paler grey than its
+     neighbours. The identity system — the edge and the words in the brand: the edge of what you are on is one of the three edges
+     the brand may draw (a focus ring and an underline are the others). */
+  .tab.on { background:var(--color-surface); border-color:var(--color-brand); box-shadow:inset 0 0 0 1px var(--color-brand); color:var(--color-brand); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
-    color:var(--color-ink); font-size:var(--font-size-small); }
+    color:var(--color-brand); font-size:var(--font-size-small); }
   pre { background:var(--color-paper); border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
@@ -700,23 +787,24 @@ ${SIGNAL_CSS}${MOTION_CSS}
      line on the settings page, where they read as one run-on sentence with
      chevrons in it rather than three separate doors. fit-content keeps the
      target the width of its words, not the width of the column. */
+  /* The identity system (2026-10-04) — a door is the brand: its words, its chevron, its underline. */
   .deeper { display:flex; width:fit-content; align-items:center; gap:var(--space-4); min-height:44px;
-    padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-ink); }
+    padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-brand); }
   .deeper:hover, .deeper:focus-visible { text-decoration:underline; text-underline-offset:3px; }
-  /* The chevron carries the affordance now that the label does not shout. */
-  .go { font-size:var(--font-size-base); color:var(--color-ink-secondary); }
+  /* The chevron carries the affordance now that the label does not shout — in the brand, on every door and row. */
+  .go { font-size:var(--font-size-base); color:var(--color-brand); }
   [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
   .tlines { list-style:none; margin:var(--space-8) 0 0; padding:0; display:flex; flex-direction:column; }
   .tline { display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:var(--space-8) 0;
     border-bottom:1px solid var(--color-paper); color:var(--color-ink); text-decoration:none; }
-  .tline:hover, .tline:focus-visible { text-decoration:underline; text-underline-offset:3px; }
+  .tline:hover, .tline:focus-visible { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .tline .go { margin-inline-start:auto; }
   .tl-who { font-weight:600; }
   /* Settings in labelled groups (phase 3 of the UI rebuild): one card of rows
      per group; a row names the setting, says it in one line, shows what it is
      set to now at the line's end, and opens it. */
-  .sgroup { margin:0 0 var(--space-24); }
-  .sgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-8); }
+  .sgroup { margin:0 0 var(--space-32); }
+  .sgroup-h { font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); margin:0 0 var(--space-8); }
   /* The warmth pass — a menu card rests on the page: a warm shadow, its own hairline inside it, no drawn border. */
   .scard { list-style:none; margin:0; padding:0; background:var(--color-surface); border:0;
     border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); overflow:hidden; }
@@ -726,7 +814,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   /* Phase 9 (w4-whole-16) — the card clips its rows to its corners, so a row's focus ring is drawn inside the row, rounded like the card. */
   .scard .srow:focus-visible { outline-offset:-2px; border-radius:calc(var(--radius-card) - 1px); }
   .sr-main { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
-  .sr-label { font-weight:600; font-size:var(--font-size-small); }
+  .sr-label { font-weight:500; font-size:var(--font-size-small); }
   .sr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .sr-value { flex:0 1 auto; max-width:45%; font-size:var(--font-size-small); color:var(--color-ink-secondary); text-align:end; overflow-wrap:anywhere; }
   /* A value that is a state says which, with its shape (the four signals); any other value stays quiet. */
@@ -764,7 +852,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .setrow { display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:var(--space-8) var(--space-16);
     align-items:start; padding:var(--space-12) var(--space-16); }
   .fr-l { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; padding-top:var(--space-8); }
-  .fr-name { font-weight:600; font-size:var(--font-size-small); }
+  .fr-name { font-weight:500; font-size:var(--font-size-small); }
   .fr-desc { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fr-c { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .fr-c > input:not([type="checkbox"]):not([type="radio"]), .fr-c > select, .fr-c > textarea { width:100%; }
@@ -819,7 +907,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .tw-item { display:flex; align-items:center; gap:var(--space-12); padding-inline-start:var(--space-12); }
   .tw-go { display:flex; align-items:center; gap:var(--space-8); flex:1 1 auto; min-width:0; min-height:56px;
     padding-block:var(--space-8); padding-inline-end:var(--space-12); color:var(--color-ink); }
-  .tw-go:hover .tw-name, .tw-go:focus-visible .tw-name { text-decoration:underline; text-underline-offset:3px; }
+  .tw-go:hover .tw-name, .tw-go:focus-visible .tw-name { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .tw-who { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
   .tw-name, .tw-why { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
   .tw-name { font-weight:600; font-size:var(--font-size-small); }
@@ -858,7 +946,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   main h2.tt-head { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .tt-row { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--space-12); }
   .tt-row > li { display:flex; flex-direction:column; min-width:0; }
-  .tt-n { font-size:var(--font-size-title); font-weight:600; font-variant-numeric:tabular-nums; }
+  .tt-n { font-size:var(--font-size-display); font-weight:300; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-variant-numeric:tabular-nums; }
   .tt-l { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   @media (max-width: 560px) {
     main h2.td-head { font-size:var(--font-size-title); }
@@ -877,7 +965,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      and flipping it would make Nomi a different mark for Arabic readers. Only
      directional glyphs mirror. Do not add .mark to this rule. */
   a:focus-visible, button:focus-visible, input:focus-visible,
-  textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
+  textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   .muted { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   /* M49 — one empty state, aligned like everything else. It was centred while
      the page around it was left-aligned, which is the single clearest way to
@@ -951,7 +1039,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      business, one verdict. A page of prose and counts is sections, not boxes. */
   /* M49 — one gap between sections, from the scale. It was 22px here and
      anything from 40 to 180 once each page had added its own margins. */
-  .block { padding:var(--space-24) 0; border-top:1px solid var(--color-border); }
+  .block { padding:var(--space-32) 0; border-top:1px solid var(--color-border); }
   .block:first-of-type { border-top:0; padding-top:var(--space-4); }
   /* RTL needs NO override here: a grid's first track already sits on the
      inline-start edge, so the sidebar mirrors to the right on its own. The
@@ -1040,9 +1128,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .calm-page { padding:var(--space-32) 0 var(--space-48); }
   .calm-rule { height:2px; width:3.5rem; background:var(--color-ink); border-radius:2px; margin-bottom:var(--space-24); }
   .calm-page.off .calm-rule { background:var(--color-border); }
-  .calm-say { font-size:var(--font-size-title); line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
+  .calm-say { font-size:var(--font-size-title); font-weight:300; line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
   a.stat { color:inherit; }
-  a.stat:hover .go, a.stat:focus-visible .go { color:var(--color-ink); }
   .stat.need .v { font-size:var(--font-size-title); }
   /* The controls the browser used to draw — the hand-to select, a details
      disclosure, a textarea outside a form — get the same recess as an input. */
@@ -1053,15 +1140,20 @@ ${SIGNAL_CSS}${MOTION_CSS}
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
   details > summary::-webkit-details-marker { display:none; }
-  details > summary::before { content:'›'; color:var(--color-ink-secondary); display:inline-block; }
-  details[open] > summary::before { content:'⌄'; }
+  details > summary::before { content:'›'; color:var(--color-brand); display:inline-block; }
+  /* The type pass — open, the same chevron turns down (⌄ is in no face the product serves). */
+  details[open] > summary::before { transform:rotate(90deg); }
   [dir="rtl"] details:not([open]) > summary::before { transform:scaleX(-1); }
   /* The twins of :hover and :focus-visible, so a page can SHOW a state without a
      pointer. Only the components page under Setup wears them. */
   .btn:hover:not(.send):not(.ghost), .btn.is-hover:not(.send):not(.ghost) { background:var(--color-paper); }
   .btn.send.is-hover { box-shadow:var(--shadow-lift2); }
-  .is-focus { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .is-focus { outline:2px solid var(--color-brand); outline-offset:2px; }
   .btn:disabled, .btn.is-disabled { background:var(--color-paper); border-color:var(--color-border);
+    color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
+  /* The identity system — the needs act goes quiet too when it cannot be pressed (its fill outranked the
+     rule above and stayed deep). It keeps its dot, in the quiet ink. */
+  .btn.send.needs:disabled, .btn.send.needs.is-disabled { background:var(--color-paper); border-color:var(--color-border);
     color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
 
   @media (max-width: 720px) {
@@ -1099,7 +1191,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .nl-body { display:contents; }
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
     /* The count rides the icon's corner on a phone: the word keeps its room. */
-    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; }
+    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4); }
+    nav.side .navcount::before { content:none; }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
     nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
     /* Phase 9 (V1-014) — the entries sit edge to edge (each keeps its own padding), so "Customers" can carry its count on the one line. */
@@ -1114,10 +1207,19 @@ ${SIGNAL_CSS}${MOTION_CSS}
       }
     }
     main { padding:var(--space-16); }
+    .card { padding:var(--space-16); }
     .msg { max-width:92%; }
     .stats { grid-template-columns: repeat(2,1fr); }
     .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
     .flabel { min-width:0; font-size:var(--font-size-caption); }
+    /* The motion pass — on a phone the toast comes up from the foot, and the profile card's sheet from the screen's edge, settling with no spring. */
+    @media (prefers-reduced-motion: no-preference) {
+      .toast, [dir="rtl"] .toast { animation-name:nomi-toast-up; }
+      .toast.out, [dir="rtl"] .toast.out { animation-name:nomi-toast-down; }
+      dialog.sheet[open] { transition-timing-function:var(--motion-ease); }
+      dialog.sheet:not([open]) { transform:translateY(100%); }
+      @starting-style { dialog.sheet[open] { transform:translateY(100%); } }
+    }
   }
   /* Phase 7 — the narrowest phones: the five entries before the small mark.
      Phase 9 (V1-014, cross-new-02) — up to 440 px, now that "Customers" carries
@@ -1189,7 +1291,7 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-492) — a file to take, one row of a card each: its name, and its own Download at the row's end. */
   .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
   .dl-get { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; color:var(--color-ink); font-size:var(--font-size-small); text-decoration:none; }
-  .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-underline-offset:3px; }
+  .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .dl-get > .ni { inline-size:18px; block-size:18px; flex:none; }
   .data-more { margin:0 0 var(--space-12); }
   .data-more > summary { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -1312,9 +1414,7 @@ const STYLE_PAGES = `
     nav.side a.navlink[data-fresh]::after { inset-block-start:var(--space-4); inset-inline-start:calc(50% - 16px); }
     .toasts { inset-inline:var(--space-16); inset-block-end:var(--space-16); inline-size:auto; align-items:stretch; }
   }
-  @media (prefers-reduced-motion: no-preference) {
-    .toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-  }
+  /* The toast slides in from its edge and back out (MOTION_CSS). */
   /* The Notifications page: the three ways as the rows of one card, each dot beside the way's name (its first
      line); a way that cannot be chosen yet reads as such; what reaches nobody is said first; the save in the card. */
   fieldset.ways { min-inline-size:0; }
@@ -1437,7 +1537,7 @@ const STYLE_PAGES = `
   .alform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
-  .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .blink { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   /* Phase 7 — the channels are rows of their own screen now (the menu row's value carries the state); the cards' rules went with them. */
   .fblock .deeper { margin-top:var(--space-8); }
   /* Doors in a column keep the column's own gap, as everywhere else. */
@@ -1485,7 +1585,7 @@ const STYLE_PAGES = `
      (focusable, named by its label) but is not drawn, and the line beside it says whether one was chosen. */
   .filepick { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin:var(--space-12) 0; }
   .filepick input[type=file] { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
-  .filepick:focus-within .btn { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .filepick:focus-within .btn { outline:2px solid var(--color-brand); outline-offset:2px; }
   .filepick input:invalid ~ .filepick-some, .filepick input:valid ~ .filepick-none { display:none; }
   .filepick-some { font-size:var(--font-size-small); color:var(--color-ink); }
   textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
@@ -1582,7 +1682,7 @@ const STYLE_PAGES = `
   .wa-steps li { margin-bottom:var(--space-8); }
   /* Phase 9 — the Meta help page: a step's title stands above its two lines; a link to Meta looks like a link and says it leaves. */
   .help-line { font-size:var(--font-size-small); margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
-  .help-links a { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .help-links a { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .help-links .ext { margin-inline-start:var(--space-4); font-size:var(--font-size-small); }
 
   /* ── knowledge.ts — moved here whole in step four: page-specific names, defined once. */
@@ -1694,7 +1794,7 @@ const STYLE_PAGES = `
   .cal-today { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-12); font-weight:600; font-size:var(--font-size-small); }
   .cal-chosen { margin:0; color:var(--color-ink-secondary); }
   .cal-chosen a { display:inline-flex; align-items:center; min-height:44px; margin-inline-start:var(--space-8); color:var(--color-ink);
-    text-decoration:underline; text-underline-offset:3px; }
+    text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   /* The page's one fold: choosing one kind or one customer, adding a date, what the marks mean. Closed until reached for. */
   .cal-tools { margin:var(--space-4) 0 0; }
   .cal-tools > summary { color:var(--color-ink-secondary); }
@@ -1712,7 +1812,7 @@ const STYLE_PAGES = `
   .cal-rm { margin:var(--space-4) 0 0; }
   .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
   /* TODAY is marked in the light magenta (a soft accent, the warmth pass), in a word as well, and only ever as text. */
-  .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-assistant); margin-inline-start:var(--space-4); }
+  .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-brand); margin-inline-start:var(--space-4); }
   .cal-day .cal-now, .cal-span .cal-now { font-size:inherit; margin:0; }
   /* THE SCREEN: the grid, then the list — on a phone and in a narrow window one under the other, the grid on top; from
      1200px side by side, the grid the wider. The grid then fits its column: names wrap between words beside their face.
@@ -1808,7 +1908,7 @@ const STYLE_PAGES = `
   .mo td.other { background:var(--color-paper); }
   .mo-d { display:inline-flex; min-width:1.75em; min-height:1.75em; align-items:center; justify-content:center;
     font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; color:var(--color-ink); text-decoration:none; }
-  .mo td.today .mo-d { color:var(--color-assistant); font-weight:700; }
+  .mo td.today .mo-d { color:var(--color-brand); font-weight:700; }
   /* Every day CHOOSES itself: its number's door covers the whole cell, under the faces (each opens its card) and "+N more".
      The chosen day wears a neutral ring, graphite like the primary action: magenta keeps its three jobs. */
   .mo td { position:relative; }
@@ -1863,9 +1963,9 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-171) — the button stands as tall as the field it sends, so their edges meet. */
   .search .btn { align-self:stretch; }
   /* Phase 9 (V1-181, inbox-calendar-missed-06) — the way back from a search is a link in what was found, never beside the field. */
-  .found .clear { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .found .clear { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   /* Phase 9 (V1-182) — the searched words, marked by weight and a line: no colour of their own. */
-  mark.hit { background:transparent; color:inherit; font-weight:700; text-decoration:underline; text-underline-offset:2px; }
+  mark.hit { background:transparent; color:inherit; font-weight:700; text-decoration:underline; text-decoration-color:var(--color-brand); text-decoration-thickness:2px; text-underline-offset:2px; }
   /* Grouped by who is speaking. Phase 1 (2026-10-02): the list takes the
      whole column, one ruled sheet of rows, so a laptop shows ten or more. */
   .lhead { display:flex; flex-direction:column; }
@@ -1877,7 +1977,7 @@ const STYLE_PAGES = `
     .lhead .search { margin-inline-start:auto; flex:0 1 26rem; }
   }
   .bgroup { margin-bottom:var(--space-12); }
-  .bgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-4); }
+  .bgroup-h { font-size:var(--font-size-caption); font-weight:500; color:var(--color-ink-secondary); margin:0 0 var(--space-4); }
   .crows { list-style:none; margin:0; padding:0; background:var(--color-surface); border:0;
     border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); overflow:hidden; }
   .crows > li + li { border-top:1px solid var(--color-border); }
@@ -1887,7 +1987,7 @@ const STYLE_PAGES = `
     align-items:baseline; min-height:56px; padding:6px var(--space-12); color:var(--color-ink);
     border-inline-start:3px solid transparent; }
   a.crow:hover, a.crow:focus-visible { background:var(--color-paper); }
-  a.crow.on { background:var(--color-paper); border-inline-start-color:var(--color-ink); }
+  a.crow.on { background:var(--color-paper); border-inline-start-color:var(--color-brand); }
   .cr-mark { grid-row:1; grid-column:1; justify-self:center; font-size:var(--font-size-caption); line-height:1; }
   .is-needs .cr-mark { color:var(--color-needs); }
   .is-yours .cr-mark { color:var(--color-ink); }
@@ -1926,11 +2026,11 @@ const STYLE_PAGES = `
   .irows > li + li { border-top:1px solid var(--color-border); }
   .irow { display:flex; align-items:stretch; min-height:64px; color:var(--color-ink); }
   .irow:hover, .irow:focus-within, .irow.on { background:var(--color-paper); }
-  @media (prefers-reduced-motion: no-preference) { .irow, .arow { transition:background-color var(--motion-fast) var(--motion-ease); } }
+  @media (prefers-reduced-motion: no-preference) { .irow { transition:background-color var(--motion-fast) var(--motion-ease); } }
   .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-12) 10px; }
   .ir-main { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:var(--space-8);
     align-content:center; align-items:baseline; padding-block:5px; padding-inline-end:var(--space-12); color:inherit; }
-  .ir-main:focus-visible { outline:2px solid var(--color-ink); outline-offset:-2px; }
+  .ir-main:focus-visible { outline:2px solid var(--color-brand); outline-offset:-2px; }
   .ir-l1 { grid-row:1; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; font-size:var(--font-size-small); }
   .ir-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
   .irow.unanswered .ir-name { font-weight:600; }
@@ -1970,11 +2070,11 @@ const STYLE_PAGES = `
   .tabs.lens { flex:1 1 100%; gap:var(--space-4); padding:3px; background:var(--color-sand);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); }
   .tabs.lens .tab { flex:1 1 0; justify-content:center; background:transparent; border-color:transparent; }
-  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; }
+  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; color:var(--color-brand); }
   @media (min-width: 721px) { .tabs.lens { flex:none; } .tabs.lens .tab { flex:none; } }
   .tabs.filters { flex-wrap:wrap; align-items:center; }
   .tabs.filters .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small);
-    color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+    color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .lens-says { margin:0 0 var(--space-12); }
   /* "Needs attention": relationships slipping, in a soft panel above the switch. A face, a name, one
      line that may wrap — nothing cut; five, then the rest folded. */
@@ -2075,7 +2175,7 @@ const STYLE_PAGES = `
   .listpane .irows { margin:var(--space-8) 0; background:none; border:0; border-radius:0; }
   .listpane .irow { border-inline-start:3px solid transparent; }
   .listpane .irow:hover, .listpane .irow:focus-within, .listpane .irow.on { background:var(--color-surface); }
-  .listpane .irow.on { border-inline-start-color:var(--color-ink); }
+  .listpane .irow.on { border-inline-start-color:var(--color-brand); }
   .listpane .irows > li.lp-group, .listpane .irows > li.lp-group + li { border-top:0; }
   .listpane .tabs.lens { margin:0 var(--space-16) var(--space-8); padding:3px; }
   .listpane .tabs.filters { margin:0 0 var(--space-8); }
@@ -2395,16 +2495,19 @@ ${cssVariables()}
          font: var(--font-size-base)/var(--line-height) var(--font-family);
          -webkit-text-size-adjust:100%; }
   main { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-48) var(--space-16); }
-  h1 { font-size:var(--font-size-display); line-height:1.25; margin:0 0 var(--space-16); font-weight:600; }
-  h2 { font-size:inherit; font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  h1 { font-size:var(--font-size-hero); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-24); font-weight:700; }
+  h2 { font-size:var(--font-size-title); line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  @media (max-width: 560px) { h1 { font-size:var(--font-size-display); } }
   p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
   p, li { text-wrap:pretty; }
   h1, h2 { text-wrap:balance; }
   ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
-  a { color:var(--color-ink); }
+  a { color:var(--color-ink); text-decoration-color:var(--color-brand); text-underline-offset:0.2em; }
+  a:focus-visible, button:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+  ::selection { background:var(--color-brand); color:var(--color-surface); }
   .updated { margin-top:var(--space-48); }
   button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
-           border-radius:var(--radius-card); background:var(--color-ink);
+           border-radius:var(--radius-card); background:var(--color-brand);
            color:var(--color-surface); cursor:pointer; }
 `;
 
@@ -2417,10 +2520,21 @@ ${cssVariables()}
  * V1 close-out — THE ONE PAGE FAMILY THAT KEEPS ITS RULES INSIDE ITSELF, on
  * purpose. A stranger opens these from an e-mail, a Page or a forwarded link,
  * often after a mail scanner or a platform's crawler has fetched the address
- * and nothing else; each must arrive complete, with nothing more to fetch —
- * no script, no stylesheet, no font (legal-pages.test.ts and
+ * and nothing else; each must arrive complete, with nothing more to fetch
+ * before it can be read — no script, no stylesheet (legal-pages.test.ts and
  * m40-unsubscribe.test.ts hold it). A cached file saves an owner who opens
  * sixty pages a day; it saves nothing for someone who opens one page once.
+ *
+ * THE TYPE PASS (2026-10-04) — and in the product's own type. These pages
+ * named Noto first and loaded none of it, so the first page a stranger saw was
+ * set in whatever the device had (SF Pro on a Mac, Roboto, Segoe UI), and one
+ * click on "Sign in" changed the font (TYPE-ICONS-TRUTH §1.2). The rules for
+ * exactly the faces this page's characters need are written into the page
+ * (`facesFor`). The files they name are an ENHANCEMENT, not a dependency: the
+ * page is complete and readable at once in the device's font (every stack
+ * ends there, and `font-display:swap` never hides the words), and the Noto
+ * files replace it as they arrive. A crawler that fetches the address alone
+ * still has the whole page.
  */
 export function publicDocument(input: {
   readonly locale: Locale; readonly title: string; readonly body: string;
@@ -2433,6 +2547,7 @@ export function publicDocument(input: {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
 ${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>${PUBLIC_STYLE}${input.extraCss ?? ''}
+${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, (input.extraCss ?? '').includes('--font-voice'), input.locale)}
 </style>
 </head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
 }
@@ -2464,7 +2579,12 @@ const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
  * device's own fonts after Noto.
  */
 const TYPE_SHEETS = { base: sheet('type', TYPE_CSS), zh: sheet('typezh', TYPE_ZH_CSS) } as const;
-const typeLink = (locale: Locale): string => linkTo(TYPE_SHEETS[typeSetFor(locale)]);
+/**
+ * The type pass (2026-10-04) — the sheet is chosen by the page's own characters (`typeSetFor`), so it is linked
+ * last: the page is written with this mark where the link goes, and the mark replaced once every word is in.
+ */
+const TYPE_SLOT = '<!--type-->';
+const withType = (locale: Locale, html: string): string => html.replace(TYPE_SLOT, linkTo(TYPE_SHEETS[typeSetFor(locale, html)]));
 
 /**
  * CC-26 — the one script, linked by the shell on every owner page and by
@@ -2685,14 +2805,14 @@ export function shell(input: {
   const tabTitle = (ownHeading ? unescapeHtml(ownHeading.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '') || input.title;
   // CC-20 — the first stop for a keyboard or a screen reader: past the five
   // nav entries, straight to the page. Out of sight until it has focus.
-  return `<!doctype html>
+  return withType(locale, `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(tabTitle)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${INSTALL_LINKS}
 ${linkTo(APP_SHEET)}
-${typeLink(locale)}
+${TYPE_SLOT}
 ${scriptTo(LIVE_JS)}</head>
 <body><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
   <nav class="side">
@@ -2702,7 +2822,7 @@ ${scriptTo(LIVE_JS)}</head>
   <div class="content">
     <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
-</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`;
+</div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }
 
 /**
@@ -2745,7 +2865,7 @@ const DOOR_STYLE = `
   /* Phase 9 (V1-040 and public-missed-10) — above: the site's mark and name, centred like
      the pill above them and the links below. */
   .login .brand small { margin-top:0; }
-  .login h1 { font-size:var(--font-size-title); margin:0 0 var(--space-8); }
+  .login h1 { font-size:var(--font-size-display); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:0 0 var(--space-8); }
   /* w4-public-10 — a heading in even lines, so no word is left on its own (es, fr). */
   .login h1 { text-wrap:balance; }
   .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
@@ -2757,14 +2877,14 @@ const DOOR_STYLE = `
   input, select, button, textarea { font-family:inherit; }
   /* V1-034, V1-050 — a link on the door looks like one. */
   .login .card a, .login .other a, .login .foot a { color:var(--color-ink); text-decoration:underline;
-    text-underline-offset:0.2em; }
+    text-decoration-color:var(--color-brand); text-underline-offset:0.2em; }
   /* w4-public-04 — a field, a list and a button are controls: a control's corner, as inside the app. */
   input { width:100%; padding:12px 14px; border-radius:var(--radius-control);
     border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   /* M49 — as wide as its word, like every other button in the product. */
   button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-control);
-    background:var(--color-ink); color:var(--color-surface); font-weight:600;
+    background:var(--color-brand); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
   button:hover { box-shadow:var(--shadow-lift2); }
   select { width:100%; min-height:44px; padding:10px 14px; border-radius:var(--radius-control);
@@ -2830,20 +2950,20 @@ export const gapAfter = (sentence: string): string => (/[\u3002\uFF1F\uFF01\uFF1
  */
 export const inviteMailto = (l: Locale, contact: string): string =>
   `mailto:${contact}?subject=${encodeURIComponent(t(l, 'site.invite.subject'))}&body=${encodeURIComponent(t(l, 'site.invite.mailBody'))}`;
-const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, o: DoorOptions = {}): string => `<!doctype html>
+const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, o: DoorOptions = {}): string => withType(locale, `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · Nomi</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${linkTo(DOOR_SHEET)}
-${typeLink(locale)}</head>
+${TYPE_SLOT}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
   <div class="brand">${markSmall(32, null)}<span>Nomi</span><small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
   <div class="card">${card}</div>
   ${other}
   <nav class="foot" aria-label="Nomi"><a href="${esc(o.site ?? '/site')}">${esc(t(locale, 'door.site'))}</a><a href="/privacy">${esc(t(locale, 'legal.privacyLink'))}</a><a href="/terms">${esc(t(locale, 'legal.termsLink'))}</a></nav>
-</div></body></html>`;
+</div></body></html>`);
 
 export type LoginProblem = 'code' | 'password' | 'locked' | 'slow' | 'email_missing' | 'password_missing';
 

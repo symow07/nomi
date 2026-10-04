@@ -94,7 +94,7 @@ describe('the card, drawn', () => {
   it('phase 2 · decision first: who drafted it and where it goes; the reply once; the acts; how it was read, last and closed', () => {
     const html = withoutIsolates(renderConversationDetail(base, 'en', NOW, null));
     const c = card(html);
-    expect(c).toContain('<div class="top"><span class="as"><span aria-hidden="true">✦</span> Your assistant drafted</span><span class="k">goes on Instagram, as written</span></div>');
+    expect(c).toContain('<div class="top"><span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Your assistant drafted</span><span class="k">goes on Instagram, as written</span></div>');
     // the customer's message is in the transcript directly above: the card does not repeat it, nor who asked and when
     expect(c).not.toContain('how much for 10 of the rose serum?');
     expect(html.split('how much for 10 of the rose serum?')).toHaveLength(2);
@@ -133,7 +133,7 @@ describe('the card, drawn', () => {
   it('what made it wait is the card\'s state line, drawn before the rest', () => {
     const held = withoutIsolates(renderConversationDetail({ ...base, pendingDraft: { ...base.pendingDraft!, heldBecause: 'discount_needs_owner' } }, 'en', NOW, null));
     const c = card(held);
-    expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">○<\/span> <b>Needs you<\/b> /);
+    expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> <b>Needs you<\/b> /);
     expect(c.indexOf('class="stateline"')).toBeLessThan(c.indexOf('<textarea'));
   });
 
@@ -176,7 +176,7 @@ describe('the card, drawn', () => {
       pendingDraft: { ...base.pendingDraft!, draftText: 'Our sturdy model ZX-300 ships within a week.' },
     }, 'en', NOW, null));
     const c = card(html);
-    expect(c).toContain(`<span class="mk" aria-hidden="true">✓</span><span><bdi>ZX-300</bdi></span><span>${t('en', 'card.source.code')}</span>`);
+    expect(c).toContain(`<span class="mk" aria-hidden="true"><span class="shape s-ok" aria-hidden="true"></span></span><span><bdi>ZX-300</bdi></span><span>${t('en', 'card.source.code')}</span>`);
     expect(c).not.toContain('<bdi>300</bdi>');
     expect(c).not.toContain('No source for');
     // an import's made-up number is not the owner's code (CC-31): its figure stays a figure
@@ -204,15 +204,15 @@ describe('the card, drawn', () => {
       ...base, unheardReason: 'transcription_failed',
       refusals: [{ outboundId: 'o-1', conversationId: 'c-1', buyer: 'Maya', reason: 'window_closed', at: NOW, origin: 'employee' }],
     }, 'en', NOW, null));
-    expect(html).toContain(`<p class="stateline rf-h"><span class="dot warn" aria-hidden="true">○</span> <b>${t('en', 'unheard.title')}</b></p>`);
-    expect(html).toContain(`<p class="stateline rf-h"><span class="dot bad" aria-hidden="true">✕</span> <b>${t('en', 'refused.title')}</b></p>`);
+    expect(html).toContain(`<p class="stateline rf-h"><span class="dot warn shape s-waiting" aria-hidden="true"></span> <b>${t('en', 'unheard.title')}</b></p>`);
+    expect(html).toContain(`<p class="stateline rf-h"><span class="dot bad shape s-failed" aria-hidden="true"></span> <b>${t('en', 'refused.title')}</b></p>`);
     expect(html).not.toContain('<h3 class="rf-h">');
   });
 
   it('CH5 · under two hours left in the window, the card says so first, with the time left in words', () => {
     const late = { ...base, messages: [{ ...base.messages[0]!, at: new Date(NOW.getTime() - (22 * 60 + 40) * 60_000) }] };
     const en = card(withoutIsolates(renderConversationDetail(late, 'en', NOW, null)));
-    expect(en).toContain('<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">○</span> <b>Closing soon</b> Instagram takes replies for 1 hour, 20 minutes more</p>');
+    expect(en).toContain('<p class="stateline" role="note"><span class="dot warn shape s-waiting" aria-hidden="true"></span> <b>Closing soon</b> Instagram takes replies for 1 hour, 20 minutes more</p>');
     expect(en.indexOf('Closing soon')).toBeLessThan(en.indexOf('<textarea'));
     expect(card(withoutIsolates(renderConversationDetail(late, 'zh', NOW, null)))).toContain('Instagram 还能回复 1小时20分钟');
     // with the day still ahead, nothing to say about it but the time it closes

@@ -41,6 +41,65 @@ under "Decided" below.
 - **Pre-pilot:** 12/12 on main (`31a3059`) before, 12/12 after.
 - **Not built:** recording which guard refused (the investigation's recommendation 5): outside "exactly this change".
 
+**#224 merged** 2026-10-04 09:40 UTC as `44bd799`. Both checks reported success on its head (`gated-merge.sh`). Deployed 09:41 UTC; `/health` ok.
+
+**2 · Fonts, and 1 · Motion (PR #225, with the identity system).**
+- **Fonts: Noto everywhere, 300 to 700.**
+  - The 600 cap came from the files: only static 400 and 600 were vendored. Now the three Sans families are variable files from `@fontsource-variable` 5.3.0. They are OFL-1.1: the licence was read in each package and copied to `assets/fonts/OFL.txt`. One file per slice draws every weight.
+  - Each slice claims only the characters its file contains (`tools/fonts.mjs` reads each file's character map). The Arabic symbols file that every English page downloaded for nothing is gone.
+  - **The public pages now load Noto.** The site, privacy, terms, data deletion, closed, dead links, unsubscribe and proof pages carry their own `@font-face`. There is still no link and no script, and the device font is the fallback while it loads (`swap`).
+  - **Measured, CDP, five languages:** 100 % of glyphs are Noto on the door, the public pages and the owner app. Before, the public pages were 0 %. The one exception is an emoji flag, left for the icons.
+  - **First-visit weight:** a stranger's English public page now downloads 317 KB, cached after the first visit. Most of it draws the language switch's العربية and 中文. That is kept, because the owner asked for no silent fallback.
+  - **Hierarchy:**
+    - title 34/700 (26 on a phone), −0.02em;
+    - section 20/600;
+    - row label 15/500;
+    - body 15–17/400;
+    - caption 13/400;
+    - large figures 26/300.
+
+    The title is 2.27× the body (it was 1.18×). Today's heading sits below its title. Light 300 is used only at 20 px and up.
+  - **Line height:** Latin 1.6, Chinese 1.7, Arabic 1.75; headings 1.2, 1.35 and 1.45.
+  - **Spacing:** main, sections and menu groups 32; cards 24 (16 on a phone).
+  - **Every mark is DRAWN** (`src/api/web/marks.ts`): ✓ ○ ✕ and the rest are shapes in the text's colour, so no ornament or system font draws a mark anywhere.
+- **Motion: about 220 ms, with travel.**
+  - **Curve:** `cubic-bezier(0.25, 0.46, 0.45, 0.94)`, ease-out; its mirror for leaving.
+  - **Timings:** 160, 220 and 250 ms, with a 40 ms stagger.
+  - **Distances:** a rise 16 px, a fold 8, a toast 24, a page 12, the card 48, a rail icon 2. Dialogs grow from 0.96; a press settles to 0.97.
+  - **Dialogs and the card now leave as well as arrive.** The toast slides out. Page changes are cross-document view transitions. Today's faces and the menu groups stagger in.
+  - **Measured frame by frame (1280 and 390 px):**
+    - the profile card: 250 ms, 60 px plus scale and fade;
+    - the dialog: 220 ms, 16 px plus scale;
+    - the draft card: 16 px over 234 ms;
+    - the toast: 24 px in and out;
+    - the faces: staggered by 40 ms;
+    - pages: 12 px over 250 ms;
+    - rail hover and press: about 150 ms.
+  - **Reduced motion:** nothing moved in 18 runs.
+  - The old `MOTION_SPECS` (never imported, 300 ms and linear) are retired.
+  - The motion test now checks every moving rule's selector against markup the real renderers draw. The old test only read the stylesheet's text, which is how two rebuilds believed motion was wired.
+  - Nine clips are in `docs/design/motion/`.
+
+**5 · The identity system (PR #225).**
+- **Magenta is the signature.** Brand `#9A0F5E` (L* 34) is used for:
+  - the ordinary primary act (Save, Add, Connect, Next, the door's button, the site's call to action);
+  - doors, chevrons and fold markers;
+  - the underline of inline links;
+  - every focus ring, the selection, and checked controls;
+  - the chosen tab and lens;
+  - today's calendar marker;
+  - the mark (detail cut, small cut, favicon, home-screen icons, manifest). The cuts' geometry is untouched.
+
+  **Restraint:** headings, body text, the rail's words and the wordmark stay ink. Brand text is 7.30 : 1 on paper, and white on brand is 8.06 : 1.
+- **Meaning is carried by shade AND shape:**
+  - **Needs you = deep `#6E0C44` (L* 23.7) plus the SOLID DISC.** The disc is drawn before the words on the waiting signal, the pills, the card's flag, Today's band, the Inbox row's reason and "Still owed". As a white disc on the deep fill it marks the three acts that answer what waits ("● Send") and the rail's count badge. In greyscale, "● Send" is told from "Save" by its disc. This fixes what the warmth pass reported.
+  - **The assistant did this = light `#BE2D6E` (L* 44.2) plus its NAME TAG** (`.as-tag`): its wash, its words, a chip.
+  - **A chore** (a setup step, a hold) keeps the OPEN ring in stone, so open means a chore and solid means a customer waits. The owner's own act in a timeline is a small square.
+  - The three magentas are one family, at least 10 L* apart.
+  - **The edge rule (tested):** the deep and light shades and their washes draw no border, ring, shadow or underline. The brand draws only a focus ring, an underline, and the edge of what you are on. Anything else fails as "a frame in the brand".
+- **Verified in Chromium's vision emulation** (greyscale, protanopia, deuteranopia, tritanopia), on 8 pages in en and ar at 390 and 1280 px: every meaning reads in every mode. 36 labelled sheets are in `docs/design/identity/`.
+- **Where the two builds met:** one mark system. Every mark is drawn, and the identity's meanings ride on the shapes: disc = needs you, ring = chore, square = you. The type pass's weights and the identity's colours are combined.
+
 ## The truth-and-trust run (started 2026-10-04) — read this first
 
 **State (2026-10-04): done.** The three investigations are merged (#220). The four builds and the calendar are merged and deployed (#221), and production is at schema 129. What waits on the owner is under "Waiting on the owner" (from the truth-and-trust run).

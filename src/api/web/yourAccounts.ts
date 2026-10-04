@@ -4,6 +4,7 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import type { MetaLiveCheck } from '../../channels/meta/health.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
+import { shape } from './marks.js';
 import * as show from './values.js';
 
 /**
@@ -30,7 +31,7 @@ export type YourAccounts = {
 };
 
 type Mark = 'done' | 'todo' | 'bad' | 'unknown';
-const MARK: Record<Mark, string> = { done: '✓', todo: '○', bad: '✕', unknown: '–' };
+const MARK: Record<Mark, string> = { done: shape('ok'), todo: shape('waiting'), bad: shape('failed'), unknown: '–' };
 
 const step = (locale: Locale, mark: Mark, label: MessageKey, said: string, help: string): string => `
     <div class="pr ${mark}"><span class="mk" aria-hidden="true">${MARK[mark]}</span>

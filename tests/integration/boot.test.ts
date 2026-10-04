@@ -383,7 +383,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // passed because leftover state from earlier runs kept work on the page.
     // The design pass: Today's first heading is who needs you — or that nobody does.
     // The warmth run — the band's heading: "N waiting for you" with the waiting ○, or the calm line.
-    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head">(No one is waiting for you\.|You're all caught up|<span class="tw-need"><span class="dot warn" aria-hidden="true">○<\/span> (\d+ waiting for you|Needs your attention)<\/span>)<\/h2>/);
+    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head">(No one is waiting for you\.|You're all caught up|<span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> (\d+ waiting for you|Needs your attention)<\/span>)<\/h2>/);
     // M35.5 — on a tenant where NOTHING has happened, the activity section no
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known
@@ -1556,7 +1556,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // The design pass: the people themselves, the Buyers list's own "Needs you".
       expect(today.needs.total).toBeGreaterThanOrEqual(1);
       // The warmth run — the band's heading in the owner's words (was nav.needsYou).
-      expect(html).toContain(`<span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> ${esc(tn('en', 'today.waiting', today.needs.total))}</span></h2>`);
+      expect(html).toContain(`<span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"></span> ${esc(tn('en', 'today.waiting', today.needs.total))}</span></h2>`);
       // each one by face and name, the name a door to the newest message (was Buyers' own row)
       expect(html).toMatch(/<a class="tw-go" href="\/app\/inbox\/[0-9a-f-]{36}#latest">/);
       expect(html).toMatch(/<a class="face-link tw-face" href="\/app\/customers\/[0-9a-f-]{36}" data-card aria-label="[^"]+">/);

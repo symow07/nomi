@@ -89,7 +89,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
       // the warmth run's phase 9 (w4-customers-03) — words that asked nothing are not owed a reply
       expect(rowOf(h, 'c-old'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // the mark, then who wrote it for a screen reader (the conversation batch), then the words
-      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
+      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><span class="shape s-assistant as" aria-hidden="true"><\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // a screen reader still hears who holds it
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="sr">${shown(l, 'buyers.group.hers')}</span>`);
@@ -101,7 +101,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('inbox-calendar-new-03 · the marks are explained under the rows — only the marks the page shows', () => {
     for (const l of LOCALES) {
       const key = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l))?.[1] ?? '';
-      expect(key, l).toContain(`<span class="ck-i"><span class="as" aria-hidden="true">✦</span> ${shown(l, 'buyers.key.wrote')}</span>`);
+      expect(key, l).toContain(`<span class="ck-i"><span class="shape s-assistant as" aria-hidden="true"></span> ${shown(l, 'buyers.key.wrote')}</span>`);
       expect(key, l).not.toContain('cr-mark');
       expect(key, l).not.toContain('ir-reg');   // nobody on this page is a regular
       const regular = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l, { conversations: [conv('c-r', { regular: true })] }))?.[1] ?? '';
@@ -212,7 +212,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   });
 
   it('V1-171 · the chosen tab stands out; the Find button is as tall as its field', () => {
-    expect(CSS).toMatch(/\.tab\.on \{ background:var\(--color-surface\); border-color:var\(--color-ink\); box-shadow:inset 0 0 0 1px var\(--color-ink\);/);
+    // The identity system (2026-10-04) — the edge of the tab you are on is the brand's.
+    expect(CSS).toMatch(/\.tab\.on \{ background:var\(--color-surface\); border-color:var\(--color-brand\); box-shadow:inset 0 0 0 1px var\(--color-brand\);/);
     expect(CSS).toMatch(/\.search \.btn \{ align-self:stretch; \}/);
   });
 
@@ -284,9 +285,9 @@ describe('the calendar', () => {
     for (const l of LOCALES) {
       // September holds a mark of each kind (phase 9 of the warmth run, w4-customers-14: the legend explains only the marks its list shows)
       const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'sept'))![1]!;
-      expect(legend, l).toContain(`<span class="as" aria-hidden="true">✦</span> ${shown(l, 'calendar.legend.assistant')}`);
-      expect(legend, l).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${shown(l, 'calendar.legend.owed')}`);
-      expect(legend, l).toContain(`<span class="dot ok" aria-hidden="true">✓</span> ${shown(l, 'calendar.legend.done')}`);
+      expect(legend, l).toContain(`<span class="shape s-assistant as" aria-hidden="true"></span> ${shown(l, 'calendar.legend.assistant')}`);
+      expect(legend, l).toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${shown(l, 'calendar.legend.owed')}`);
+      expect(legend, l).toContain(`<span class="dot ok shape s-ok" aria-hidden="true"></span> ${shown(l, 'calendar.legend.done')}`);
       expect(legend, l).toContain('<span class="cal-sw solid" aria-hidden="true"></span>');
       expect(legend, l).not.toContain('wk-e');
     }
@@ -299,13 +300,13 @@ describe('the calendar', () => {
   it('V1-201 · inbox-calendar-new-13 · done is a ✓ as well as grey, in the list and in the grid; in Arabic an order is not "a request"', () => {
     for (const l of LOCALES) {
       const day = drawCal(l, 'day');
-      expect(day, l).toMatch(/<li class="dl-row solid done"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span><span class="sr">/);
-      expect(drawCal(l, 'sept'), l).toMatch(/<li class="dl-row solid done" data-src="quotes:q1"[\s\S]*?<span class="dot ok" aria-hidden="true">✓<\/span>/);
+      expect(day, l).toMatch(/<li class="dl-row solid done"[\s\S]*?<span class="dot ok shape s-ok" aria-hidden="true"><\/span><span class="sr">/);
+      expect(drawCal(l, 'sept'), l).toMatch(/<li class="dl-row solid done" data-src="quotes:q1"[\s\S]*?<span class="dot ok shape s-ok" aria-hidden="true"><\/span>/);
       // a reply still owed is never greyed or ticked, whatever the hour
-      expect(drawCal(l, 'screen'), l).toMatch(/<li class="dl-row solid" data-src="handoffs:h1"[^>]*>[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
+      expect(drawCal(l, 'screen'), l).toMatch(/<li class="dl-row solid" data-src="handoffs:h1"[^>]*>[\s\S]*?<span class="dot warn shape s-waiting" aria-hidden="true"><\/span>/);
       // the grid, too: done greyed, owed marked
       expect(drawCal(l, 'screen'), l).toMatch(/<span class="mo-e solid done" data-src="quotes:q1"/);
-      expect(drawCal(l, 'screen'), l).toMatch(/<span class="mo-e solid" data-src="handoffs:h1"[\s\S]*?<span class="dot warn" aria-hidden="true">○<\/span>/);
+      expect(drawCal(l, 'screen'), l).toMatch(/<span class="mo-e solid" data-src="handoffs:h1"[\s\S]*?<span class="dot warn shape s-waiting" aria-hidden="true"><\/span>/);
     }
     expect(t('ar', 'calendar.kind.order_state')).toBe('طلب شراء');
     expect(t('ar', 'calendar.kind.order_state')).not.toBe(t('ar', 'calendar.kind.sample_asked').split(' ')[0]);
@@ -357,7 +358,7 @@ describe('the calendar', () => {
       expect(order.replace(/<[^>]+>/g, ''), l).toContain(t(l, 'calendar.say.order_state', { who: ANNA.name }));
       expect(order, l).toContain(`<span class="small"><bdi>${esc(t(l, 'order.status.confirmed' as MessageKey))}</bdi></span>`);
       const price = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(drawCal(l, 'sept'))![0];
-      expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok" aria-hidden="true">✓<\/span><span class="sr">[^<]*<\/span> )?<span class="as" aria-hidden="true">✦<\/span> /);
+      expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok shape s-ok" aria-hidden="true"><\/span><span class="sr">[^<]*<\/span> )?<span class="shape s-assistant as" aria-hidden="true"><\/span> /);
       expect(price, l).not.toContain(`>${esc(t(l, 'calendar.cat.negotiation'))} · `);
     }
   });
@@ -382,7 +383,8 @@ describe('the calendar', () => {
     expect(none).not.toContain('<h3 class="cal-day"');
     const month = drawCal('en', 'screen');
     expect(month).toMatch(/<td class="today" aria-current="date">\s*<a class="mo-d" [^>]*>2<\/a><span class="cal-now">Today<\/span>/);
-    expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ color:var\(--color-assistant\); font-weight:700; \}/);
+    // The identity system (2026-10-04) — today is the brand, an accent; the light shade is the assistant's alone.
+    expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ color:var\(--color-brand\); font-weight:700; \}/);
   });
 });
 
@@ -661,7 +663,7 @@ describe('the settings pages', () => {
     const h = draw('components', 'en');
     expect(h).toContain('<div class="tabs"><span class="tab on">');
     expect(t('en', 'components.lead')).toContain('pressing one does nothing');
-    expect(h).toMatch(/<div class="card"><p><span class="pill ok">[\s\S]*?<span class="pill owner">[\s\S]*?<span class="as">✦ /);
+    expect(h).toMatch(/<div class="card"><p><span class="pill ok">[\s\S]*?<span class="pill owner">[\s\S]*?<span class="as"><span class="shape s-assistant" aria-hidden="true"><\/span> /);
     expect(t('ar', 'components.chips')).not.toBe('الرقائق');
     expect(t('ar', 'components.doors')).not.toBe('الأبواب');
     for (const w of ['常态', '悬停', '聚焦']) expect([t('zh', 'components.state.rest'), t('zh', 'components.state.hover'), t('zh', 'components.state.focus')]).not.toContain(w);

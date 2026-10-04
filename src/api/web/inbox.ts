@@ -19,6 +19,7 @@ import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork, NEEDS_ACT } from './layout.js';
+import { shape } from './marks.js';
 import { face, faceLink } from './faces.js';
 import { icon } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -1229,8 +1230,8 @@ export const buyersHref = (o: {
  * and why it needs the owner. Decision 5's row (name, last message, time) is
  * kept; its four stacked lines and the whole message are not.
  *
- * The mark is a shape as well as a colour, so it reads in greyscale: ○ needs
- * you, ● a person here has it, ✦ the assistant has it. A customer still
+ * The mark is a shape as well as a colour, so it reads in greyscale: ● needs
+ * you (the needs dot), ▪ a person here has it, ✦ the assistant has it. A customer still
  * waiting for an answer is written in full ink and weight; an answered one in
  * grey. The message is the list's glimpse of it, drawn in the interface's face:
  * the speech face is for the transcript, where a message is read whole.
@@ -1245,7 +1246,7 @@ export type RowState = 'needs' | 'yours' | 'hers';
 export const rowState = (c: ConversationSummary): RowState =>
   c.orderWaiting === true || c.deletionWaiting === true || c.ownership === 'WAITING_HUMAN' || c.awaitingReview ? 'needs'
     : c.ownership === 'OWNER_CONTROLLED' ? 'yours' : 'hers';
-export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: '○', yours: '●', hers: '✦' };
+export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: shape('waiting'), yours: shape('you'), hers: shape('assistant') };
 
 export type RowOptions = {
   readonly now: Date;
@@ -1308,7 +1309,7 @@ export function customerRow(locale: Locale, c: ConversationSummary, o: RowOption
   // the assistant, by its mark. Phase 9 (V1-174) — on every row, the
   // assistant's own too: an answered row read like an unanswered one in grey.
   const speaker = c.lastFrom === 'person' ? `<bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ': '}`
-    : c.lastFrom === 'assistant' ? `<span class="as" aria-hidden="true">✦</span><span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
+    : c.lastFrom === 'assistant' ? `${shape('assistant', 'as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
   const when = [
     o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
     c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '',
@@ -1375,7 +1376,7 @@ export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions):
     : holder ? `<span class="ir-hold"><bdi>${esc(holder)}</bdi></span>` : '';
   // Who wrote the newest message when it was not the customer: you, in words; the assistant, by its mark.
   const speaker = c.lastFrom === 'person' ? `<span class="ir-by"><bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ':'}</span>`
-    : c.lastFrom === 'assistant' ? `<span class="ir-by"><span class="as" aria-hidden="true">✦</span><span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
+    : c.lastFrom === 'assistant' ? `<span class="ir-by">${shape('assistant', 'as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
   // A search that found them by what they asked about says so where the message would be.
   const prod = productName(locale, c.product);
   const byProduct = !!o.query && !!prod && markHit(prod, o.query) !== esc(prod) && markHit(who, o.query) === esc(who);
@@ -1568,7 +1569,7 @@ export function renderInboxList(
       ? `<div class="empty">${esc(t(locale, 'buyers.search.noneBody'))}</div>`
       // Phase 9 of the warmth run (w4-customers-07) — the way back is the one beside the narrowing's chip, once.
       : filter === 'pending'
-      ? `<div class="empty"><div class="ok-line">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
+      ? `<div class="empty"><div class="ok-line">${shape('ok')} ${esc(t(locale, 'buyers.empty.calm'))}</div>
           <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))}${filters ? '' : ` <a href="${all}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>`}</p></div>`
       // M22 — nothing was refused. Stated as the fact it is; not a ✓.
       : filter === 'deletion'
@@ -1624,7 +1625,7 @@ export function renderInboxList(
   // What the marks on the rows mean, under them — only the marks this page shows.
   const keys = [
     data.conversations.some((c) => c.lastFrom === 'assistant')
-      ? `<span class="ck-i"><span class="as" aria-hidden="true">✦</span> ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
+      ? `<span class="ck-i">${shape('assistant', 'as')} ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
     data.conversations.some((c) => c.regular === true)
       ? `<span class="ck-i ir-reg">${icon('regular')} ${esc(t(locale, 'buyers.key.regular', { n: show.quantity(locale, REGULAR_ORDERS) }))}</span>` : '',
   ].filter(Boolean);
@@ -2050,7 +2051,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
 
   // Who drafted it, and where Send sends it. Who asked and when is the
   // transcript's caption directly above the card; it is not said twice.
-  const top = `<div class="top"><span class="as"><span aria-hidden="true">✦</span> ${
+  const top = `<div class="top"><span class="as">${shape('assistant')} ${
     esc(t(locale, 'card.drafted', { name }))}</span>${channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>`;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
@@ -2118,7 +2119,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   // so in Arabic the figure stands beside its mark, not at the far edge of the row.
   // (w4-conversation-08) — a code in the pointer never breaks at its hyphen.
   const line = (ok: boolean, said: string, source: string, where = '') =>
-    `<li><span class="${ok ? 'mk' : 'mk check'}" aria-hidden="true">${ok ? '✓' : UNSURE[locale]}</span><span><bdi>${esc(said)}</bdi></span><span>${source}${
+    `<li><span class="${ok ? 'mk' : 'mk check'}" aria-hidden="true">${ok ? shape('ok') : UNSURE[locale]}</span><span><bdi>${esc(said)}</bdi></span><span>${source}${
       where ? ` <bdi class="muted">${esc(where).replace(/[^\s]*[\p{L}\p{N}]-[\p{L}\p{N}][^\s]*/gu, (w) => `<span class="fig">${w}</span>`)}</bdi>` : ''}</span></li>`;
   // Phase 9 (V1-242) — the product's name kept whole where the line has room:
   // «سعر LED String Lights / 10m في قائمة أسعارك» broke the name in two.

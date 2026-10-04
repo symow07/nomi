@@ -106,7 +106,7 @@ d('0083 · a sent reply\'s promises (requires DATABASE_URL)', () => {
     // Phase 7 — the day is one list: the row from the conversation (solid), a door to it, the sentence as sent.
     expect(html).toMatch(new RegExp(`<li class="dl-row solid" data-src="promised_dates:[0-9a-f-]{36}" data-col="due_on"[^>]*>[\\s\\S]*?<a class="dl-go" href="/app/inbox/${cid}#latest">`));
     expect(html).toContain("“I'll check the 100 ml and get back to you tomorrow.”");
-    expect(html).toContain('<span class="as" aria-hidden="true">✦</span> Follow-up promised');
+    expect(html).toContain('<span class="shape s-assistant as" aria-hidden="true"></span> Follow-up promised');
 
     const { loadCustomerPanel } = await import('../../src/db/customerPanel.js');
     const panel = await inTenant((tx) => loadCustomerPanel(tx, cid));

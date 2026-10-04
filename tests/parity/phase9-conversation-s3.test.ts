@@ -72,7 +72,7 @@ describe('V1-232, V1-271 · one state, one name: the tab\'s, wherever it is said
       const waiting = plain(renderConversationDetail(draft({ ownership: 'WAITING_HUMAN', pendingDraft: null, handoffReasons: ['human_requested'] }), l, NOW, null));
       expect(waiting.split(`<span class="pill warn">${word}</span>`).length - 1, l).toBe(2);
       // the customer panel's activity, and the buyer file's pill
-      expect(plain(renderCustomerPanel(panel(), [], l, NOW, 'conv-here')), l).toContain(`○</span> ${word}`);
+      expect(plain(renderCustomerPanel(panel(), [], l, NOW, 'conv-here')), l).toContain(`s-waiting" aria-hidden="true"></span> ${word}`);
       expect(plain(renderCustomerFile(file(), l, NOW)), l).toContain(`<span class="pill warn">${word}</span>`);
       // and the list's group says it the same way
       expect(t(l, 'buyers.group.needsYou'), l).toBe(t(l, 'inbox.filter.pending'));
@@ -366,9 +366,9 @@ describe('V1-249 · the ✦ before a row\'s last message says whose it is', () =
     for (const l of LOCALES) {
       const html = renderListPane(list, l, NOW, 'c-2');
       // phase 4 — the Inbox's own row: the mark and the name it stands for lead the message
-      expect(html, l).toMatch(/<span class="ir-by"><span class="as" aria-hidden="true">✦<\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
+      expect(html, l).toMatch(/<span class="ir-by"><span class="shape s-assistant as" aria-hidden="true"><\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       const page = renderConversationDetail(draft(), l, NOW, null);
-      expect(page, l).toContain(`<span aria-hidden="true">✦</span> ${esc(t(l, 'card.drafted'))}`);
+      expect(page, l).toContain(`<span class="shape s-assistant" aria-hidden="true"></span> ${esc(t(l, 'card.drafted'))}`);
     }
   });
 });

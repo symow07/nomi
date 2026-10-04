@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { cssVariables } from '../../src/core/owner/css.js';
-import { shell, loginPage, NEEDS_ACT } from '../../src/api/web/layout.js';
+import { shell, loginPage, NEEDS_ACT, NEEDS_DOT } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { renderSandbox, type SandboxView } from '../../src/api/web/sandbox.js';
@@ -57,21 +57,29 @@ const rules = (css: string) => [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll
   .map((m) => ({ sel: m[1]!.trim(), body: m[2]! }));
 const ruleOf = (sel: string, css = appCss) => rules(css).filter((r) => r.sel.split(',').map((s) => s.trim()).includes(sel)).map((r) => r.body).join(';');
 
-describe('two magentas with two jobs — the contrast, computed', () => {
+describe('three magentas with three jobs — the contrast, computed', () => {
   /**
    * THE TABLE (also in the report): every pair a page draws, with its floor.
    * The deep magenta carries the small Arabic and Chinese words of waiting
-   * (the rail's count, a pill, "○ 回复待审"), so it is held to 7:1 (AAA) on every
-   * ground it sits on. The light magenta carries "✦ name" and today's date: it
-   * is held to 4.5:1 (AA) and reaches about 5:1 — it cannot reach 7:1 and stay
-   * 20 L* lighter than the deep one, which itself must stay clear of the ink.
+   * (a pill, "● 回复待审"), so it is held to 7:1 (AAA) on every ground it sits
+   * on. The identity system (2026-10-04): the BRAND carries the doors' and the
+   * tabs' small Arabic and Chinese words on the paper and the white, so it is
+   * held to 7:1 there, and to 4.5:1 (AA) on the sand and the two washes, where
+   * it is never small text; white words on its fill reach 7:1 as well. The
+   * light magenta carries the assistant's name tag: held to 4.5:1 (AA), it
+   * reaches about 5:1 — it cannot reach 7:1 and stay a clear step lighter than
+   * the brand, which itself must stay a clear step lighter than the deep.
    */
   const TABLE: readonly (readonly [string, string, string, number])[] = [
     ['needs as text', C.needs, C.paper, 7], ['needs as text', C.needs, C.surface, 7], ['needs as text', C.needs, C.needsWash, 7],
+    ['needs as text', C.needs, C.sand, 7],
+    ['brand as text', C.brand, C.paper, 7], ['brand as text', C.brand, C.surface, 7], ['brand as text', C.brand, C.sand, 4.5],
+    ['brand as text', C.brand, C.needsWash, 4.5], ['brand as text', C.brand, C.assistantWash, 4.5],
     ['assistant as text', C.assistant, C.paper, 4.5], ['assistant as text', C.assistant, C.surface, 4.5], ['assistant as text', C.assistant, C.assistantWash, 4.5],
     ['ink on the needs wash', C.ink, C.needsWash, 7], ['ink on the assistant wash', C.ink, C.assistantWash, 7],
     ['white words on the deep fill', C.surface, C.needs, 4.5], ['white words on the deep fill', WHITE, C.needs, 4.5],
-    ['white words on the ink fill', C.surface, C.ink, 4.5],
+    ['white words on the brand fill', C.surface, C.brand, 7], ['white words on the brand fill', WHITE, C.brand, 7],
+    ['the brand focus ring against the page', C.brand, C.paper, 3], ['the brand focus ring against a card', C.brand, C.surface, 3],
   ];
 
   it.each(TABLE)('%s: %s on %s ≥ %d:1', (_what, fg, bg, floor) => {
@@ -86,6 +94,18 @@ describe('two magentas with two jobs — the contrast, computed', () => {
     expect(lab(C.assistant).L - lab(C.needs).L).toBeGreaterThanOrEqual(20);
     // and by luminance, the measure a screen's grey mode uses: more than twice as dark
     expect(luminance(C.assistant) / luminance(C.needs)).toBeGreaterThanOrEqual(1.8);
+  });
+
+  it('the three keep their order in greyscale, a clear step apart: deep, then brand, then light — at least 9 L* each', () => {
+    // THE LUMINANCE TABLE (also in the report): deep 23.7, brand 34.0, light 44.2 L*.
+    expect(lab(C.brand).L - lab(C.needs).L).toBeGreaterThanOrEqual(9);
+    expect(lab(C.assistant).L - lab(C.brand).L).toBeGreaterThanOrEqual(9);
+    // by luminance, each step at least half as bright again
+    expect(luminance(C.brand) / luminance(C.needs)).toBeGreaterThanOrEqual(1.5);
+    expect(luminance(C.assistant) / luminance(C.brand)).toBeGreaterThanOrEqual(1.5);
+    // and the brand sits between the two in hue too: one family
+    for (const m of [C.needs, C.assistant]) expect(hueGap(lab(C.brand).h, lab(m).h), m).toBeLessThanOrEqual(10);
+    expect(lab(C.brand).C).toBeGreaterThanOrEqual(50);             // a signature is a colour, not a tint
   });
 
   it('the deep one is not the ink: a hue the ink does not have, and lighter by at least 10 L*', () => {
@@ -107,7 +127,7 @@ describe('two magentas with two jobs — the contrast, computed', () => {
       expect(ratio(C.inkSecondary, bg), `stone on ${bg}`).toBeGreaterThanOrEqual(4.5);
     }
     for (const bg of [C.paper, C.surface]) {
-      for (const s of [C.ok, C.warn, C.needs, C.assistant]) expect(ratio(s, bg), `${s} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      for (const s of [C.ok, C.warn, C.needs, C.brand, C.assistant]) expect(ratio(s, bg), `${s} on ${bg}`).toBeGreaterThanOrEqual(4.5);
       expect(ratio(C.ink, bg), `ink on ${bg}`).toBeGreaterThanOrEqual(12);
     }
     expect(ratio(C.ok, C.okWash)).toBeGreaterThanOrEqual(4.5);
@@ -116,7 +136,7 @@ describe('two magentas with two jobs — the contrast, computed', () => {
 
   it('the stylesheets name the two jobs and nothing names the single magenta any more', () => {
     const vars = cssVariables();
-    for (const v of ['--color-needs:', '--color-needs-wash:', '--color-assistant:', '--color-assistant-wash:']) expect(vars).toContain(v);
+    for (const v of ['--color-brand:', '--color-needs:', '--color-needs-wash:', '--color-assistant:', '--color-assistant-wash:']) expect(vars).toContain(v);
     for (const css of [appCss, doorCss]) {
       expect(css).not.toContain('--color-waiting');
       // no hex outside the tokens' own block: every colour is a var(--…)
@@ -147,8 +167,11 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
     expect(body).toContain('background:var(--color-needs)');
     expect(body).toContain('color:var(--color-surface)');
     expect(body).toContain('border-color:transparent');           // its edge is its fill: magenta draws no frame
-    // the ordinary primary act stays the ink
-    expect(ruleOf('.btn.send')).toContain('background:var(--color-ink)');
+    // the identity system: its word is led by the white needs dot, the shape that tells it from Save in greyscale
+    expect(ruleOf('.btn.send.needs::before')).toContain(NEEDS_DOT);
+    // the ordinary primary act is the BRAND fill (it was the ink), with no dot
+    expect(ruleOf('.btn.send')).toContain('background:var(--color-brand)');
+    expect(ruleOf('.btn.send::before')).toBe('');
   });
 
   it('Send on a reply waiting for review, in every language', () => {
@@ -186,7 +209,7 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
     expect(needsButtons(renderSandbox(view({}), 'en', { flash: null }))).toEqual([]);
   });
 
-  it('Save and Add stay ink: the variant appears in no other renderer', () => {
+  it('Save and Add are the brand fill, without the dot: the variant appears in no other renderer', () => {
     expect(saveBar('Save')).toContain('class="btn send"');
     expect(saveBar('Save')).not.toContain('needs');
     const WEB = join(fileURLToPath(new URL('.', import.meta.url)), '../../src/api/web');

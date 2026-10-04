@@ -132,7 +132,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
 
     const passing = renderSandbox(view({ lastTurn: trust() }), 'en', { flash: null });
     expect(passing).toContain(t('en', 'sandbox.trust.allPass'));
-    expect(passing).toContain('✓');
+    expect(passing).toContain('shape s-ok');
     expect(passing).toContain(t('en', 'sandbox.inv.priceFloorRespected'));
     expect(passing).toContain(t('en', 'sandbox.xray.deliveryDraft'));   // held for approval
 
@@ -140,7 +140,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
       checks: [{ invariant: 'noUnsupportedClaim', pass: false, detail: 'LEAKED: CE certified' }],
     }) }), 'en', { flash: null });
     expect(failing).toContain(t('en', 'sandbox.trust.someFail'));
-    expect(failing).toContain('✕');
+    expect(failing).toContain('shape s-failed');
   });
 
   it('a scenario turn is badged with its owner-facing name', () => {
@@ -410,7 +410,7 @@ describe('Phase 9 · each Practice line is captioned by who wrote it', () => {
       expect(caps[0], l).not.toContain(t(l, 'sandbox.composer.send'));
       // the fix wave (w4-conversation-17) — the assistant's "✦ name" stands over its words, not in the caption
       expect(caps[1], l).not.toContain('✦');
-      expect(html, l).toMatch(/<div class="msg-by"><span class="as"><span aria-hidden="true">✦<\/span> [^<]+<\/span><\/div>\s*<div dir="auto" class="bubble by-as"><bdi>Yes — from 500 pieces\.<\/bdi>/);
+      expect(html, l).toMatch(/<div class="msg-by"><span class="as"><span class="shape s-assistant" aria-hidden="true"><\/span> [^<]+<\/span><\/div>\s*<div dir="auto" class="bubble by-as"><bdi>Yes — from 500 pieces\.<\/bdi>/);
       expect(caps[2], l).toBe(t(l, 'conv.by.you'));
     }
   });

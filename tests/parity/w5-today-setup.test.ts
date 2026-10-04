@@ -104,8 +104,8 @@ describe('w4-whole-11 · w4-today-setup-21 · today-onboarding-missed-01 · Toda
       const html = today(l, SNAP(false), day({ handled: handledFaces(['Carlos Mendes', 'Layla Mansour']) }));
       expect(html).not.toContain(esc(t(l, 'today.calm.notLive.title', { name: 'Lily' })));
       expect(html).toContain('class="face-link td-face"');
-      expect(html).toContain(`<p class="muted notlive"><span class="dot todo" aria-hidden="true">○</span> ${esc(t(l, 'ops.system.notLive'))}</p>`);
-      expect(html).not.toContain(`<span class="dot warn" aria-hidden="true">○</span> ${esc(t(l, 'ops.system.notLive'))}`);
+      expect(html).toContain(`<p class="muted notlive"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${esc(t(l, 'ops.system.notLive'))}</p>`);
+      expect(html).not.toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${esc(t(l, 'ops.system.notLive'))}`);
     });
     it(`${l} · nothing connected: said once, at a heading's size, with the setup step's own door`, () => {
       const html = today(l, SNAP(true), day({ sending: [] }));
@@ -181,8 +181,8 @@ describe('w4-today-setup-06 · -07 · -09 · -27 · setting up is a chore under 
       expect(band).toContain(esc(t(l, 'today.calm.title')));
       expect(band).not.toContain('today-foot setup');
       expect(band).not.toContain(esc(t(l, 'today.needs.none')));
-      expect(html).toContain(`<div class="today-foot setup"><p><span class="dot todo" aria-hidden="true">○</span>`);
-      expect(html).not.toContain(`<span class="dot warn" aria-hidden="true">○</span> <span class="muted">${esc(t(l, 'today.setup.line', { done: 3, total: 5 }))}`);
+      expect(html).toContain(`<div class="today-foot setup"><p><span class="dot todo shape s-chore" aria-hidden="true"></span>`);
+      expect(html).not.toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> <span class="muted">${esc(t(l, 'today.setup.line', { done: 3, total: 5 }))}`);
     });
     it(`${l} · Today's line and Setup's row phrase the count the same way`, () => {
       expect(t(l, 'today.setup.line', { done: 3, total: 5 })).toContain(t(l, 'nav.setup.progress', { done: 3, total: 5 }));
@@ -263,10 +263,10 @@ describe('V1-120 · w4-today-setup-17 · -18 · V1-124 · what to try in Practic
   for (const l of LOCALES) {
     it(`${l}`, () => {
       const html = inScope(() => renderPilotRunbook(RB, l, null, FB) + renderPilotScreen('practice', RB, l) + renderPilotScreen('activity', RB, l, FB));
-      const rows = [...html.matchAll(/<div class="pr (done|todo)"><span class="mk[^"]*">([✓○])<\/span> <span class="lbl">([^<]+)<\/span><\/div>/g)];
+      const rows = [...html.matchAll(/<div class="pr (done|todo)"><span class="mk[^"]*"><span class="shape s-(ok|waiting)" aria-hidden="true"><\/span><\/span> <span class="lbl">([^<]+)<\/span><\/div>/g)];
       const tasks = (['runbook.step.takeover', 'runbook.step.reply', 'runbook.step.resume', 'runbook.step.teach', 'pilot.validate'] as const).map((k) => esc(inScope(() => t(l, k))));
       expect(rows.map((m) => m[3]).filter((x) => tasks.includes(x!))).toEqual(tasks);
-      expect(rows.find((m) => m[3] === tasks[0])![2]).toBe('✓');
+      expect(rows.find((m) => m[3] === tasks[0])![2]).toBe('ok');
     });
   }
   it('the words that read as done while open, and the inside words, are gone from every catalogue', () => {

@@ -156,7 +156,7 @@ describe('M17.2 · rendered on the technical page (localized, value-free)', () =
   it('shows ✓ per configured credential and never prints the value', () => {
     const r = checkMetaReadiness({ values: GOOD, provider: 'disabled', channelStatus: 'not_connected' });
     const html = renderPilotTechnical('en', { meta: r });
-    expect(html).toContain('✓');
+    expect(html).toContain('shape s-ok');
     expect(html).toContain(t('en', 'meta.cred.accessToken'));
     expect(html).toContain(t('en', 'meta.state.ok'));
     expect(html).not.toContain(GOOD.accessToken);

@@ -81,7 +81,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
   /** The Getting ready row for the channel item, done or not. */
   const channelRow = (html: string, done: boolean) =>
     // Phase 9 of the warmth run (w4-today-setup-06) — the open mark is the to-do ○: a chore, never the waiting signal.
-    html.includes(`<div class="pr ${done ? 'done' : 'todo'}">${done ? '<span class="mk">✓</span>' : '<span class="mk dot todo">○</span>'} <span class="lbl">${esc(t('en', 'pilot.item.channel'))}</span>`);
+    html.includes(`<div class="pr ${done ? 'done' : 'todo'}">${done ? '<span class="mk"><span class="shape s-ok" aria-hidden="true"></span></span>' : '<span class="mk dot todo"><span class="shape s-waiting" aria-hidden="true"></span></span>'} <span class="lbl">${esc(t('en', 'pilot.item.channel'))}</span>`);
 
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');

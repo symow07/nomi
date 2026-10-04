@@ -28,6 +28,7 @@ import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 
 import { esc, deeper, back, signalMark, todoMark } from './layout.js';
+import { shape } from './marks.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import {
@@ -898,7 +899,7 @@ function allowlistScreen(f: FactoryView, locale: Locale, flash: Flash | null, vi
   const list = f.readiness.recipients.length === 0
     ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
     : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
-        <li class="done">✓ <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
+        <li class="done">${shape('ok')} <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
           ${viewer.isOwner ? `<form method="post" action="/app/business/allowlist/remove" class="inline rm">
             <input type="hidden" name="phone" value="${esc(r.phone)}" />
             <button class="btn ghost" type="submit"
@@ -950,7 +951,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
   const r = s.r;
   const recipientList = r.recipients.length
     ? `<ul class="fsteps">${r.recipients.slice(0, 8).map((x) =>
-        `<li class="done">✓ <bdi>${esc(x.label ?? x.phone)}</bdi>${x.label ? ` <span class="muted">${esc(x.phone)}</span>` : ''}</li>`).join('')}
+        `<li class="done">${shape('ok')} <bdi>${esc(x.label ?? x.phone)}</bdi>${x.label ? ` <span class="muted">${esc(x.phone)}</span>` : ''}</li>`).join('')}
        </ul>${r.recipients.length > 8 ? `<p class="fdesc">${esc(t(locale, 'activation.recipients.more', { n: r.recipients.length - 8 }))}</p>` : ''}`
     : '';
 
@@ -960,7 +961,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
     const wiredOnly = b === 'no_channel' && f.connection.connected?.whatsapp === true;
     const href = wiredOnly ? null : BLOCKER_FIX[b];
     const line = esc(wiredOnly ? t(locale, 'golive.waNoProvider') : t(locale, `activation.blocker.${b}` as MessageKey, { name }));
-    return `<li>○ ${href ? `<a class="blink" href="${href}">${line}</a>` : line}</li>`;
+    return `<li>${shape('waiting')} ${href ? `<a class="blink" href="${href}">${line}</a>` : line}</li>`;
   }).join('')}</ul>`;
 
   // M20.3 — the decision itself. Confirmed, because it is the moment a real
