@@ -100,6 +100,47 @@ under "Decided" below.
 - **Verified in Chromium's vision emulation** (greyscale, protanopia, deuteranopia, tritanopia), on 8 pages in en and ar at 390 and 1280 px: every meaning reads in every mode. 36 labelled sheets are in `docs/design/identity/`.
 - **Where the two builds met:** one mark system. Every mark is drawn, and the identity's meanings ride on the shapes: disc = needs you, ring = chore, square = you. The type pass's weights and the identity's colours are combined.
 
+**#225 merged** 2026-10-04 10:47 UTC as `7bcc568`.
+- The first run of the gate read the check results a moment before GitHub recorded them, saw "none", and refused to merge, as it should when unsure. The gate now waits until every check has a conclusion. Both then reported success, and it merged.
+- Deployed 10:49 UTC; `/health` ok. Production's `/site` and `/privacy` now carry Noto's `@font-face`.
+
+**3 · Icons, and 4 · Nav interactivity (PR #226).**
+- **The trial came first, and was shown before anything else changed.** Phosphor was put on the rail alone. Contact sheets of every entry active, in en/ar/zh at 1280, 1024 and 390 px, with before and after (`docs/design/icons/trial/`), were judged by eye before going app-wide.
+  - **Verdict: premium enough.** One geometry, and the line matches the words.
+  - **Weak points named:** the sun's short rays are the lightest drawing; the filled user-circle is the busiest.
+- **One family, app-wide.**
+  - `@phosphor-icons/core` 2.1.1 is pinned as a dev dependency. Its licence is MIT, read in the package's LICENSE ("Copyright (c) 2023 Phosphor Icons") and copied to `assets/icons/PHOSPHOR-LICENSE.txt`.
+  - Only the drawings used are inlined (`tools/icons.mjs` → `src/api/web/phosphor.ts`: 59 icons, regular and bold). There is no icon font and nothing is fetched. The hand-drawn set is deleted.
+  - Each meaning has its own drawing (Settings a gear, products a package, the regular customer "repeat", each channel its own shape).
+- **Strokes match the words.** Measured: the 15 px label at 500 has a 1.6 px stem.
+  - regular at 24 px draws a 1.5 px line (rail entries and menu rows: 22 → 24 px);
+  - bold at 16 px draws 1.5 px (the Customers heading, which drew at 22 by mistake; carets and small marks).
+  - Icons sit level with their word's first line: the Inbox entry's 10.5 px drop is now 0–0.25 px, and labels start at one x.
+- **The nav.**
+  - The active entry is the FILLED icon in deep magenta, on the raised tile, with its word at 600. Inactive entries are outlines in secondary ink.
+  - Deep also means "needs you", so the two are kept apart by shape: the active icon never carries the needs dot, and the new-customer dot is hidden on the entry you are on.
+  - The colour is one role, `colorRole.navActive = 'needs'` in `tokens.ts`. Setting it to `'brand'` is the one-line switch.
+  - Hover lifts the icon 2 px; a press settles the tile to 0.97; the page you arrive on settles its icon in. All of it uses the type pass's tokens, and nothing moves under reduced motion.
+- **The sparkle is gone, with no other sparkle or star.**
+  - `agentMark(size, state)` (`src/api/web/agentMark.ts`) is the reserved slot: a fixed box holding a neutral Phosphor user-circle until the owner's character arrives, which will replace this one function and file with no layout change.
+  - It stands wherever the assistant is a mark: the rail, Inbox rows and their key, Today's heading and lines, calendar dates and legend, the timeline, the panel.
+  - Where the star labelled words (the name over a reply, "drafted", the take-over pill, the gallery, the site's example), the identity system's name tag stands alone.
+  - The four-point figure is deleted from `marks.ts`.
+- **No emoji, no fallback glyphs.**
+  - 📎 🎤 🖼️ are now Phosphor's paperclip, microphone and image.
+  - The country flag is removed: the country is already named after the customer.
+  - `›` `‹`, the fold marker and the sheet's `×` are now Phosphor carets and X. `↗` and `↓` are icons too.
+  - **Found and fixed:** the old chevrons were mirrored twice in Arabic, so every door pointed backwards. Measured in a browser: Arabic doors now point left (onward) and back links right.
+- **The font audit:** CDP, 588 page loads (75 owner addresses, the door and public pages, and a conversation seeded with a country, a file and voice notes), in en/ar/zh at 1280 and 390 px.
+  - The door and public pages are 100 % Noto. The owner app is 99.7 %.
+  - The one exception is the order page's proforma, a monospace `<pre>` of text (Menlo). It is not an icon; whether that document is set in Noto is the owner's call.
+  - Every icon is a Phosphor drawing (2,847 at 1280, 573 of them `agentMark`), plus the brand mark.
+- **Tests:**
+  - `tests/parity/icons-phosphor.test.ts`: no star, sparkle, emoji, flag, or symbol drawn as an icon on any renderer; `agentMark` is the only assistant mark; every inline SVG is Phosphor's; carets mirror in RTL; strokes and sizes.
+  - The surface walk checks every page for the same, on real rows.
+  - Each was proven to fail on its revert.
+  - Screenshots are in `docs/design/icons/`.
+
 ## The truth-and-trust run (started 2026-10-04) — read this first
 
 **State (2026-10-04): done.** The three investigations are merged (#220). The four builds and the calendar are merged and deployed (#221), and production is at schema 129. What waits on the owner is under "Waiting on the owner" (from the truth-and-trust run).
