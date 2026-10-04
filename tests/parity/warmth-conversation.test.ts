@@ -137,7 +137,7 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
       expect(s, l).toMatch(/<span class="face face-l t\d" aria-hidden="true"><span class="face-i">A<\/span><\/span><\/a>/);
       expect(s, l).not.toContain('<img');
       // the name, as the header always drew it
-      expect(s, l).toContain('<h1 class="who">🇳🇬 <b><bdi>Aisha Bello</bdi></b>');
+      expect(s, l).toContain('<h1 class="who"><b><bdi>Aisha Bello</bdi></b>');
       // where they write: the channel's word and the number as it is dialled
       expect(s, l).toContain(`${esc(t(l, 'conv.channel.whatsapp'))} <bdi dir="ltr">+2348035550101</bdi>`);
       // what they bought: the products of their orders that stand, with how many
@@ -202,7 +202,7 @@ describe('the catch-up strip — above the messages, in the first screen', () =>
   it('with no customer rows (a fixture, no customer on record) it is the name and who holds it, as the header was', () => {
     const html = page(detail({ catchUp: null, ownership: 'OWNER_CONTROLLED' }), 'en');
     const s = strip(html);
-    expect(s).toContain('<h1 class="who">🇳🇬 <b><bdi>Aisha Bello</bdi></b>');
+    expect(s).toContain('<h1 class="who"><b><bdi>Aisha Bello</bdi></b>');
     expect(s).toContain('<header class="catchup bare">');
     expect(s).not.toContain('face-link');
     expect(s).not.toContain('cu-where');
@@ -244,7 +244,7 @@ describe('the state of play, drawn — one line, from the rows', () => {
       const quiet = stateLine(page(detail({}, { lastFromThemAt: ago(20 * DAY), lastMessage: { from: 'assistant', at: ago(19 * DAY) } }), l));
       expect(quiet, l).toContain(`${head('catchup.state.quiet')}&nbsp;· ${esc(t(l, 'catchup.state.quietSince', { date: plain(show.date(l, ago(20 * DAY))) }))}`);
       const talking = stateLine(page(detail({}, { lastMessage: { from: 'assistant', at: ago(5 * MIN) } }), l));
-      expect(talking, l).toContain(`${head('catchup.state.talking')}&nbsp;· <span class="fig"><span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Mira</span></span>&nbsp;· <span class="fig">`);
+      expect(talking, l).toContain(`${head('catchup.state.talking')}&nbsp;· <span class="fig"><span class="as">Mira</span></span>&nbsp;· <span class="fig">`);
       const last = stateLine(page(detail(), l));
       expect(last, l).toContain(`${head('catchup.state.last')}&nbsp;· <span class="fig"><bdi>Aisha Bello</bdi></span>`);
       const mine = stateLine(page(detail({}, { lastMessage: { from: 'person', at: ago(DAY) } }), l));
@@ -277,7 +277,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
       const html = page(thread(), l);
       for (const w of ['ASSISTANT-WORDS', 'FIRST-WORDS']) {
         expect(msg(html, w), `${l} ${w}`).toContain(`class="bubble by-as"><bdi>${w}`);
-        expect(msg(html, w), `${l} ${w}`).toContain('<span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Mira</span>');
+        expect(msg(html, w), `${l} ${w}`).toContain('<span class="as">Mira</span>');
       }
       expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble"><bdi>PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
@@ -291,7 +291,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
   it('before a name is chosen, the label is the assistant\'s fallback (rule 7)', () => {
     for (const l of LOCALES) {
       const html = page(thread(), l, null);
-      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain(`<span class="as"><span class="shape s-assistant" aria-hidden="true"></span> ${esc(assistantName(l))}</span>`);
+      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain(`<span class="as">${esc(assistantName(l))}</span>`);
     }
   });
 
@@ -307,7 +307,7 @@ describe('the assistant\'s words are marked as the assistant\'s; a person\'s are
     for (const l of LOCALES) {
       const html = plain(withAssistantName('Mira', () => renderSandbox(view, l, { flash: null, now: NOW })));
       expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('class="bubble by-as"><bdi>ASSISTANT-WORDS');
-      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('<span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Mira</span>');
+      expect(msg(html, 'ASSISTANT-WORDS'), l).toContain('<span class="as">Mira</span>');
       expect(msg(html, 'PERSON-WORDS'), l).toContain('class="bubble"><bdi>PERSON-WORDS');
       expect(msg(html, 'PERSON-WORDS'), l).toContain(esc(t(l, 'conv.by.you')));
       expect(msg(html, 'CUSTOMER-WORDS'), l).toContain('class="bubble"><bdi>CUSTOMER-WORDS');

@@ -368,7 +368,7 @@ describe('V1-534, V1-541 · Samples and Terms lead back to How you sell, where t
   it('in every locale', () => {
     for (const l of LOCALES) {
       for (const html of [samples(l), terms(l)]) {
-        expect(html.indexOf(`<a class="back" href="/app/business/how-you-sell"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'factory.sellhow.title'))}</a>`), l).toBe(0);
+        expect(html.indexOf(`<a class="back" href="/app/business/how-you-sell">${BACK}${esc(t(l, 'factory.sellhow.title'))}</a>`), l).toBe(0);
       }
     }
   });
@@ -529,7 +529,7 @@ describe('V1-548, V1-562, V1-563 · one name for the page, wherever it is named'
     const { renderProspects } = await import('../../src/api/web/prospects.js');
     const { renderSequenceList } = await import('../../src/api/web/sequences.js');
     for (const l of LOCALES) {
-      const back = `<a class="back" href="/app/contacts"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'contacts.title'))}</a>`;
+      const back = `<a class="back" href="/app/contacts">${BACK}${esc(t(l, 'contacts.title'))}</a>`;
       expect(renderProspects({ status: { kind: 'none' }, filter: null, outcome: null }, l, null), l).toContain(back);
       expect(renderSequenceList([], l, null), l).toContain(back);
       const doc = shell({ title: t(l, 'nav.sequences'), active: 'sequences', locale: l, path: '/app/sequences', bodyHtml: renderSequenceList([], l, null) });
@@ -598,7 +598,7 @@ describe('V1-557, V1-558, settings-b-outreach-new-12 · never again: what it cha
       const html = renderSuppressConfirm({ channel: 'whatsapp', identity: '212600000105', displayName: 'Fatima Zahra' }, l);
       expect(html, l).toContain(esc(t(l, 'contacts.suppress.hint')));
       const danger = html.indexOf(`<button class="btn danger" type="submit">${esc(t(l, 'contacts.suppress.confirm'))}</button>`);
-      const cancel = html.indexOf(`<a class="back" href="/app/contacts" autofocus><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'contacts.suppress.cancel'))}</a>`);
+      const cancel = html.indexOf(`<a class="back" href="/app/contacts" autofocus>${BACK}${esc(t(l, 'contacts.suppress.cancel'))}</a>`);
       expect(danger, l).toBeGreaterThan(-1);
       expect(cancel, l).toBeGreaterThan(danger);
     }
@@ -620,6 +620,7 @@ describe('settings-b-outreach-missed-02 · adding a customer is its own word too
 // ── Find customers, first e-mails ──────────────────────────────────────────
 import { renderProspects } from '../../src/api/web/prospects.js';
 import { renderSequenceList } from '../../src/api/web/sequences.js';
+import { BACK } from '../../src/api/web/icons.js';
 
 const storedKey = { kind: 'stored' as const, fingerprint: 'ab12cd34ef56', createdBy: 'Mei', createdAt: NOW, readable: true };
 const prospects = (l: (typeof LOCALES)[number], status: Parameters<typeof renderProspects>[0]['status'] = { kind: 'none' }) =>

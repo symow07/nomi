@@ -24,6 +24,8 @@ import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderClosures, renderForbidden, FLOOR_BY_LANGUAGE } from '../../src/api/web/settings.js';
 import { FORBIDDEN_FLOOR } from '../../src/core/safety/forbiddenWords.js';
 import type { Viewer } from '../../src/core/conversation/people.js';
+import { BACK, GO, icon } from '../../src/api/web/icons.js';
+import { agentMark } from '../../src/api/web/agentMark.js';
 
 /**
  * Phase 9, round two — the Customers list, an order, the calendar, Results and
@@ -89,7 +91,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
       // the warmth run's phase 9 (w4-customers-03) — words that asked nothing are not owed a reply
       expect(rowOf(h, 'c-old'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // the mark, then who wrote it for a screen reader (the conversation batch), then the words
-      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><span class="shape s-assistant as" aria-hidden="true"><\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
+      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // a screen reader still hears who holds it
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="sr">${shown(l, 'buyers.group.hers')}</span>`);
@@ -101,7 +103,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('inbox-calendar-new-03 · the marks are explained under the rows — only the marks the page shows', () => {
     for (const l of LOCALES) {
       const key = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l))?.[1] ?? '';
-      expect(key, l).toContain(`<span class="ck-i"><span class="shape s-assistant as" aria-hidden="true"></span> ${shown(l, 'buyers.key.wrote')}</span>`);
+      expect(key, l).toContain(`<span class="ck-i">${agentMark(16, 'rest', 'am as')} ${shown(l, 'buyers.key.wrote')}</span>`);
       expect(key, l).not.toContain('cr-mark');
       expect(key, l).not.toContain('ir-reg');   // nobody on this page is a regular
       const regular = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l, { conversations: [conv('c-r', { regular: true })] }))?.[1] ?? '';
@@ -269,8 +271,8 @@ describe('the calendar', () => {
     for (const l of LOCALES) for (const v of PLACES) {
       const h = drawCal(l, v);
       const move = /<nav class="cal-move"[^>]*>([\s\S]*?)<\/nav>/.exec(h)?.[1] ?? '';
-      expect(move, `${l}/${v}`).toContain(`<span class="go" aria-hidden="true">‹</span>${esc(t(l, 'calendar.prev.month'))}</a>`);
-      expect(move, `${l}/${v}`).toContain(`${esc(t(l, 'calendar.next.month'))}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(move, `${l}/${v}`).toContain(`${BACK}${esc(t(l, 'calendar.prev.month'))}</a>`);
+      expect(move, `${l}/${v}`).toContain(`${esc(t(l, 'calendar.next.month'))}${GO}</a>`);
       expect(move, `${l}/${v}`).toContain(`<a class="tab cal-today" href=`);
       expect(h.indexOf('<p class="cal-span">'), `${l}/${v}`).toBeLessThan(h.indexOf('<nav class="cal-move"'));
       expect(h.indexOf('<nav class="cal-move"'), `${l}/${v}: at the top`).toBeLessThan(h.indexOf('cal-legend'));
@@ -285,7 +287,7 @@ describe('the calendar', () => {
     for (const l of LOCALES) {
       // September holds a mark of each kind (phase 9 of the warmth run, w4-customers-14: the legend explains only the marks its list shows)
       const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'sept'))![1]!;
-      expect(legend, l).toContain(`<span class="shape s-assistant as" aria-hidden="true"></span> ${shown(l, 'calendar.legend.assistant')}`);
+      expect(legend, l).toContain(`${agentMark(16, 'rest', 'am as')} ${shown(l, 'calendar.legend.assistant')}`);
       expect(legend, l).toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${shown(l, 'calendar.legend.owed')}`);
       expect(legend, l).toContain(`<span class="dot ok shape s-ok" aria-hidden="true"></span> ${shown(l, 'calendar.legend.done')}`);
       expect(legend, l).toContain('<span class="cal-sw solid" aria-hidden="true"></span>');
@@ -358,7 +360,7 @@ describe('the calendar', () => {
       expect(order.replace(/<[^>]+>/g, ''), l).toContain(t(l, 'calendar.say.order_state', { who: ANNA.name }));
       expect(order, l).toContain(`<span class="small"><bdi>${esc(t(l, 'order.status.confirmed' as MessageKey))}</bdi></span>`);
       const price = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(drawCal(l, 'sept'))![0];
-      expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok shape s-ok" aria-hidden="true"><\/span><span class="sr">[^<]*<\/span> )?<span class="shape s-assistant as" aria-hidden="true"><\/span> /);
+      expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok shape s-ok" aria-hidden="true"><\/span><span class="sr">[^<]*<\/span> )?<svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg> /);
       expect(price, l).not.toContain(`>${esc(t(l, 'calendar.cat.negotiation'))} · `);
     }
   });
@@ -412,7 +414,7 @@ describe('Results', () => {
   it('V1-207 · Results is Today\'s page and says so; its period chip is not a second "Today"', () => {
     for (const l of LOCALES) {
       const h = results(l);
-      expect(h, l).toContain(`<a class="back" href="/app"><span class="go" aria-hidden="true">‹</span>${shown(l, 'nav.home')}</a>`);
+      expect(h, l).toContain(`<a class="back" href="/app">${BACK}${shown(l, 'nav.home')}</a>`);
       expect(t(l, 'analytics.range.today'), l).not.toBe(t(l, 'nav.home'));
     }
   });
@@ -479,7 +481,7 @@ describe('an order', () => {
       expect(h.replace(/<span class="doc-code">([^<]*)<\/span>/g, '$1'), l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
       expect(h, l).toContain('<span class="doc-code">(ZX-200)</span>');
       // w4-customers-12 — it says it saves a file, with a file's mark, not a door's chevron
-      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">↓</span></a>`);
+      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">${icon('download', 'gi', 'bold')}</span></a>`);
     }
     expect(proformaFileName({ ...ORDER_VIEW, reference: 'PI/2026 "x"' })).toBe('proforma-PI-2026-x-.txt');
     expect(proformaText({ ...ORDER_VIEW, paymentTerms: null })).toBeNull();
@@ -663,7 +665,7 @@ describe('the settings pages', () => {
     const h = draw('components', 'en');
     expect(h).toContain('<div class="tabs"><span class="tab on">');
     expect(t('en', 'components.lead')).toContain('pressing one does nothing');
-    expect(h).toMatch(/<div class="card"><p><span class="pill ok">[\s\S]*?<span class="pill owner">[\s\S]*?<span class="as"><span class="shape s-assistant" aria-hidden="true"><\/span> /);
+    expect(h).toMatch(/<div class="card"><p><span class="pill ok">[\s\S]*?<span class="pill owner">[\s\S]*?<span class="as">/);
     expect(t('ar', 'components.chips')).not.toBe('الرقائق');
     expect(t('ar', 'components.doors')).not.toBe('الأبواب');
     for (const w of ['常态', '悬停', '聚焦']) expect([t('zh', 'components.state.rest'), t('zh', 'components.state.hover'), t('zh', 'components.state.focus')]).not.toContain(w);

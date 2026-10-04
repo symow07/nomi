@@ -10,6 +10,7 @@ import { usd } from '../../src/core/types/money.js';
 import type { CalendarEntry, CalendarView, CalendarKind } from '../../src/db/calendar.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
+import { BACK } from '../../src/api/web/icons.js';
 
 /**
  * THE CALENDAR, ONE SCREEN (the owner's correction, 2026-10-04):
@@ -201,10 +202,10 @@ describe('selecting a day: a real link, and the list focuses on that day', () =>
       expect(rows.map((r) => r.done), l).toEqual([true, false, false, false]);
       expect(rows[0]!.html, l).toContain('<span class="dot ok shape s-ok" aria-hidden="true"></span>');
       expect(rows[1]!.html, l).toContain('<span class="dot warn shape s-waiting" aria-hidden="true"></span>');
-      for (const r of rows) expect(r.html, l).toMatch(/^\s*<span class="dl-hour">[^<]+<\/span><span class="dl-who[\s\S]*<svg class="kind-icon"/);
+      for (const r of rows) expect(r.html, l).toMatch(/^\s*<span class="dl-hour">[^<]+<\/span><span class="dl-who[\s\S]*<svg class="kind-icon/);
       // the day's name heads it, today in magenta; the way back is to the whole month, a door
       expect(list, l).toContain(`<h2 class="cal-day cal-lh" aria-current="date"><span class="cal-now">${t(l, 'calendar.this.day')}</span> `);
-      expect(withoutIsolates(list), l).toContain(`<a class="back" href="/app/calendar"><span class="go" aria-hidden="true">‹</span>${withoutIsolates(t(l, 'calendar.day.month', { month: withZone(ZONE, () => show.month(l, '2026-10-01')) }))}</a>`);
+      expect(withoutIsolates(list), l).toContain(`<a class="back" href="/app/calendar">${BACK}${withoutIsolates(t(l, 'calendar.day.month', { month: withZone(ZONE, () => show.month(l, '2026-10-01')) }))}</a>`);
       // nothing owed elsewhere is in a chosen day's list
       expect(list, l).not.toContain('handoffs:h0');
       expect(list, l).not.toContain('cal-earlier');
@@ -293,12 +294,12 @@ describe('every date carries a face and a sentence, never a bare dot', () => {
           expect(plain(sentence), `${l}/${x.kind}`).toContain(said);
           // the name isolated where the sentence puts it: a Latin name inside Arabic keeps its direction, whole
           expect(sentence, `${l}/${x.kind}`).toContain(`<bdi>${nameOf(x)}</bdi>`);
-          expect(r.html, `${l}/${x.kind}`).toContain('<svg class="kind-icon"');
+          expect(r.html, `${l}/${x.kind}`).toContain('<svg class="kind-icon');
           if (x.buyer) {
             expect(r.html, `${l}/${x.kind}`).toContain(`<a class="face-link" href="/app/customers/${x.buyer.id}" data-card aria-label="${x.buyer.name}"><span class="face face-s `);
           } else {
             // a closure, the owner's own: nobody's — no face, the kind's icon alone in its place
-            expect(r.html, `${l}/${x.kind}`).toMatch(/<span class="dl-who dl-only"><svg class="kind-icon"/);
+            expect(r.html, `${l}/${x.kind}`).toMatch(/<span class="dl-who dl-only"><svg class="kind-icon/);
             expect(r.html, `${l}/${x.kind}`).not.toContain('class="face');
           }
         }
@@ -313,7 +314,7 @@ describe('every date carries a face and a sentence, never a bare dot', () => {
         const x = DATES.find((d) => `${d.source.table}:${d.source.id}` === src)!;
         expect(body, `${l}/${x.kind}`).toContain(`<span class="mo-n"><bdi>${nameOf(x)}</bdi></span>`);
         if (x.buyer) expect(body, `${l}/${x.kind}`).toMatch(new RegExp(`^<a class="face-link" href="/app/customers/${x.buyer.id}" data-card aria-label="[^"]+"><span class="face face-xs `));
-        else expect(body, `${l}/${x.kind}`).toMatch(/^<svg class="kind-icon"/);
+        else expect(body, `${l}/${x.kind}`).toMatch(/^<svg class="kind-icon/);
       }
       // a drawn mark is an empty span by design (marks.ts); what is held is no empty dot or chip that is not one
       expect(html).not.toMatch(/class="(?![^"]*\bshape\b)[^"]*\b(?:dot|chip)\b[^"]*"[^>]*><\/span>/);
@@ -469,7 +470,7 @@ describe('today is magenta, and the month is rounded; it moves in words', () => 
     for (const l of LOCALES) {
       const html = draw(l, { month: '2026-10', day: TODAY, category: 'samples' }, { category: 'samples' });
       const move = /<nav class="cal-move"[^>]*>([\s\S]*?)<\/nav>/.exec(html)![1]!;
-      expect(move, l).toContain(`<a class="back" href="/app/calendar?month=2026-09&amp;category=samples"><span class="go" aria-hidden="true">‹</span>${t(l, 'calendar.prev.month')}</a>`);
+      expect(move, l).toContain(`<a class="back" href="/app/calendar?month=2026-09&amp;category=samples">${BACK}${t(l, 'calendar.prev.month')}</a>`);
       expect(move, l).toContain(`<a class="tab cal-today" href="/app/calendar?category=samples">${t(l, 'calendar.this.month')}</a>`);
       expect(move, l).toContain(`<a class="deeper" href="/app/calendar?month=2026-11&amp;category=samples">${t(l, 'calendar.next.month')}`);
       expect(html.indexOf('<p class="cal-span">'), l).toBeLessThan(html.indexOf('<nav class="cal-move"'));

@@ -729,7 +729,7 @@ export function renderFactory(
     value: t(locale, unfinished ? 'setup.state.toDo' : 'setup.state.done'), tone: unfinished ? undefined : 'ok' });
 
   // w4-whole-14 — the row is a short form of the page's own name ("What you do, your country and your website").
-  const kind = menuRow({ href: '/app/settings/business', icon: 'tag', label: t(locale, 'business.row.kind'),
+  const kind = menuRow({ href: '/app/settings/business', icon: 'kind', label: t(locale, 'business.row.kind'),
     value: m === null ? null : m.kind ? t(locale, `business.kind.${m.kind}` as MessageKey) : t(locale, 'setup.state.notAnswered') });
 
   // Where customers reach you: the channels answering, by name; a connection
@@ -739,7 +739,7 @@ export function renderFactory(
     .map((c, i) => ({ ...c, at: s.rank(c.channel, i) })).sort((a, b) => a.at - b.at);
   const answering = all.filter((c) => c.state === 'connected').map((c) => t(locale, `reach.channel.${c.channel}` as MessageKey));
   const needsHer = all.some((c) => c.state === 'attention');
-  const reach = menuRow({ href: BUSINESS_SCREEN_PATH.channels, icon: 'chat', label: t(locale, 'factory.reach.title'),
+  const reach = menuRow({ href: BUSINESS_SCREEN_PATH.channels, icon: 'reach', label: t(locale, 'factory.reach.title'),
     value: needsHer ? t(locale, 'connect.state.attention') : answering.length ? inLine(answering) : t(locale, 'setup.state.notConnected'),
     tone: needsHer ? 'warn' : answering.length ? 'ok' : undefined });
 
@@ -751,12 +751,12 @@ export function renderFactory(
     : !s.waRelevant ? ['setup.state.notConnected', undefined]
     : r.canActivate ? ['business.live.ready', 'ok']
     : ['business.live.notYet', undefined];
-  const live = menuRow({ href: BUSINESS_SCREEN_PATH.ready, icon: 'power', label: t(locale, 'business.row.live'),
+  const live = menuRow({ href: BUSINESS_SCREEN_PATH.ready, icon: 'live', label: t(locale, 'business.row.live'),
     value: t(locale, liveKey), tone: liveTone });
 
   // What you sell: a count the owner can verify, and whether each can be quoted.
   const n = f.products.total;
-  const products = menuRow({ href: BUSINESS_PRODUCTS_PATH, icon: 'box', label: t(locale, 'nav.products'),
+  const products = menuRow({ href: BUSINESS_PRODUCTS_PATH, icon: 'products', label: t(locale, 'nav.products'),
     desc: n === 0 ? t(locale, 'factory.sell.empty', { name })
       : f.products.needPrice > 0 ? t(locale, 'factory.sell.needPrice', { n: f.products.needPrice, name })
       : t(locale, 'factory.sell.allPriced', { name }),
@@ -767,19 +767,19 @@ export function renderFactory(
   // the owner's: a sales assistant reads where it stands, with no door to a refusal.
   const pr = f.prices;
   const noLimits = pr.businessDefault === null && pr.products.every((x) => x.own === null);
-  const prices = menuRow({ href: viewer.isOwner ? '/app/business/prices' : null, icon: 'coins', label: t(locale, 'factory.prices.title'),
+  const prices = menuRow({ href: viewer.isOwner ? '/app/business/prices' : null, icon: 'prices', label: t(locale, 'factory.prices.title'),
     desc: noLimits ? t(locale, 'factory.prices.none', { name }) : null,
     value: noLimits ? t(locale, 'setup.value.notSetUp') : pr.unanswered > 0 ? tn(locale, 'business.value.withoutLimit', pr.unanswered) : t(locale, 'business.value.allSet'),
     tone: noLimits || pr.unanswered > 0 ? undefined : 'ok' });
 
   // What she promises: the certificates and claims by their names.
   const certs = f.promises.certs.map((c) => claimName(locale, c));
-  const promises = menuRow({ href: BUSINESS_SCREEN_PATH.promises, icon: 'shield', label: t(locale, 'factory.promise.title'),
+  const promises = menuRow({ href: BUSINESS_SCREEN_PATH.promises, icon: 'promise', label: t(locale, 'factory.promise.title'),
     value: certs.length ? inLine(certs) : t(locale, 'business.value.noneConfirmed') });
 
   // How you sell: where the questions stand (the owner's — rule 11).
   const hs = m?.howYouSell ?? null;
-  const how = menuRow({ href: BUSINESS_SCREEN_PATH.how, icon: 'receipt', label: t(locale, 'factory.sellhow.title'),
+  const how = menuRow({ href: BUSINESS_SCREEN_PATH.how, icon: 'sell', label: t(locale, 'factory.sellhow.title'),
     value: hs ? t(locale, 'hs.progress', { done: hs.answered, total: hs.total }) : null,
     tone: hs && hs.answered >= hs.total ? 'ok' : undefined });
 
@@ -834,7 +834,7 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const waHint = wired ? t(locale, 'golive.waNoProvider')
     : s.lc === 'not_connected' && elsewhere ? t(locale, 'factory.reach.other.notConnected', { name })
     : t(locale, `channel.state.${s.lc}.hint` as MessageKey, { name });
-  const whatsapp = menuRow({ href: channelScreenHref('whatsapp'), icon: 'chat', label: channelScreenTitle(locale, 'whatsapp'),
+  const whatsapp = menuRow({ href: channelScreenHref('whatsapp'), icon: 'whatsapp', label: channelScreenTitle(locale, 'whatsapp'),
     descHtml: [s.waWired && c.displayId ? `<bdi>${esc(c.displayId)}</bdi>` : '', esc(waHint)].filter(Boolean).join(' · '),
     value: wired ? t(locale, 'connect.state.connected') : t(locale, `channel.state.${s.lc}` as MessageKey, { name }),
     // Phase 9 — the waiting signal is for a connection that stopped; a number
@@ -846,7 +846,7 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const metaOn = meta.filter((o) => o.state === 'connected');
   const metaAttention = meta.some((o) => o.state === 'attention');
   const metaAs = meta.find((o) => o.as)?.as ?? null;
-  const metaRow = menuRow({ href: channelScreenHref('meta'), icon: 'chat', label: channelScreenTitle(locale, 'meta'),
+  const metaRow = menuRow({ href: channelScreenHref('meta'), icon: 'meta', label: channelScreenTitle(locale, 'meta'),
     ...(metaAs ? { descHtml: `<bdi>${esc(metaAs)}</bdi>` } : {}),
     value: metaAttention ? t(locale, 'connect.state.attention')
       // both answering: Connected; one of them: its name
@@ -856,7 +856,7 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
     tone: metaAttention ? 'warn' : metaOn.length ? 'ok' : undefined });
 
   const mail = s.others.find((o) => o.channel === 'email');
-  const email = menuRow({ href: channelScreenHref('email'), icon: 'chat', label: channelScreenTitle(locale, 'email'),
+  const email = menuRow({ href: channelScreenHref('email'), icon: 'email', label: channelScreenTitle(locale, 'email'),
     ...(mail?.as ? { descHtml: `<bdi>${esc(mail.as)}</bdi>` } : {}),
     value: t(locale, !mail ? 'connect.state.notHere' : mail.state === 'connected' ? 'connect.state.connected'
       : mail.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'),
@@ -877,7 +877,7 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
 
   // The number her alerts use, as it stands (w4-business-assistant-06: where
   // each alert goes is Notifications', so nothing here says "you are alerted on").
-  const alerts = menuGroup('alerts', null, [menuRow({ href: channelScreenHref('alerts'), icon: 'bell', label: channelScreenTitle(locale, 'alerts'),
+  const alerts = menuGroup('alerts', null, [menuRow({ href: channelScreenHref('alerts'), icon: 'alerts', label: channelScreenTitle(locale, 'alerts'),
     value: f.connection.ownerPhone ?? t(locale, 'setup.value.notSetUp') })]);
 
   return `${head(locale, t(locale, 'factory.reach.title'), flash)}
@@ -1156,19 +1156,19 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
   const home = currencyOfCountry(f.connection.country);
   const samples = m?.samples ?? null;
   const rows = [
-    menuRow({ href: '/app/settings/terms', icon: 'receipt', label: t(locale, 'terms.title'),
+    menuRow({ href: '/app/settings/terms', icon: 'terms', label: t(locale, 'terms.title'),
       value: m === null ? null : m.terms ? inLine([...(m.terms.incoterm ? [m.terms.incoterm] : []), m.terms.payment]) : t(locale, 'setup.value.notSetUp') }),
-    menuRow({ href: '/app/settings/samples', icon: 'gift', label: t(locale, 'samples.title'),
+    menuRow({ href: '/app/settings/samples', icon: 'samples', label: t(locale, 'samples.title'),
       value: samples === null ? null : samples.waiting > 0 ? tn(locale, 'business.value.samplesWaiting', samples.waiting)
         : samples.price === null ? t(locale, 'setup.value.notSetUp')
         : samples.price.amount === 0 ? t(locale, 'business.value.free') : show.money(locale, samples.price),
       // A customer waiting for a sample is waiting for the owner; a price not stated is a setting.
       tone: samples !== null && samples.waiting > 0 ? 'warn' : undefined }),
-    menuRow({ href: '/app/settings/closures', icon: 'calendar', label: t(locale, 'closures.title'),
+    menuRow({ href: '/app/settings/closures', icon: 'closures', label: t(locale, 'closures.title'),
       value: m === null ? null : m.closure
         ? inLine([m.closure.label, t(locale, 'closures.range', { from: show.date(locale, m.closure.from), to: show.date(locale, m.closure.to) })])
         : t(locale, 'business.value.noClosures') }),
-    ...(home !== null && home !== f.prices.currency ? [menuRow({ href: '/app/settings/rate', icon: 'exchange', label: t(locale, 'business.row.rate'),
+    ...(home !== null && home !== f.prices.currency ? [menuRow({ href: '/app/settings/rate', icon: 'rate', label: t(locale, 'business.row.rate'),
       value: m === null ? null : m.rate ? t(locale, 'rate.current', { rate: m.rate.rate, from: m.rate.from, to: m.rate.to }) : t(locale, 'setup.value.notSetUp') })] : []),
   ];
   // Phase 9 — the first door is the questions; the rest change one of the

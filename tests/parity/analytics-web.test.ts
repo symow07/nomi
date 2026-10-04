@@ -81,7 +81,8 @@ describe('M9.8 · business review (localized)', () => {
     expect(renderAnalytics(empty, 'ar')).toContain('لا شيء لعرضه بعد');
     const en = renderAnalytics(empty, 'en');
     expect(en).not.toContain('Overview');   // no number cards
-    expect(en).not.toContain('<svg'); expect(en).not.toContain('<canvas');
+    // no chart: the only drawings are the doors' carets (the icons run)
+    expect(en.match(/<svg class="(?!gi")[^"]*"/g) ?? []).toEqual([]); expect(en).not.toContain('<canvas');
     expect(en).toContain('href="/app/analytics?range=week"');
   });
 

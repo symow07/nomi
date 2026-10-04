@@ -21,7 +21,7 @@ import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } fr
 import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT, signalMark, atWork, NEEDS_ACT } from './layout.js';
 import { shape } from './marks.js';
 import { face, faceLink } from './faces.js';
-import { icon } from './icons.js';
+import { icon, GO } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -39,10 +39,10 @@ import { customerValues, REGULAR_ORDERS } from '../../db/customerValue.js';
 import { faceVersions } from '../../db/faces.js';
 import { readAttention, type AttentionItem } from '../../db/inboxAttention.js';
 import * as show from './values.js';
-import { isCountryCode } from '../../core/owner/business.js';
 import { workspaceZone } from './zone.js';
 import { stateOfPlay, type Speaker } from '../../core/conversation/stateOfPlay.js';
 import type { CatchUp } from '../../db/catchUp.js';
+import { agentMark } from './agentMark.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -78,15 +78,6 @@ const receivedOf = (v: string | null | undefined): ReceivedKind | null =>
  * The draft-action button VALUES stay the wire commands (发送/改/不回/收回) that
  * parseOwnerReply expects — only the labels localize.
  */
-
-// Flags are emoji, not localizable — shared with conversations and the calendar.
-// Phase 9 (V1-265) — every country's, from its two letters: a list of ten gave
-// Aisha in Nigeria a flag and Carlos in Brazil none.
-export const flag = (c: string | null): string => {
-  const code = (c ?? '').trim().toUpperCase();
-  return /^[A-Z]{2}$/.test(code) && isCountryCode(code)
-    ? String.fromCodePoint(...[...code].map((ch) => 0x1F1E6 + ch.charCodeAt(0) - 65)) : '';
-};
 
 /** The catalogue name in the owner's own language. Shared — the factory page
  *  used to print the English name to a Chinese owner. */
@@ -385,7 +376,7 @@ export async function loadInboxList(
  */
 function receivedBubble(locale: Locale, m: TimelineMessage): string {
   return `<div dir="auto" class="bubble voiced">`
-    + `<div class="heard-label muted">📎 ${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
+    + `<div class="heard-label muted">${icon('file', 'mi', 'bold')}${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
     // CH7 — matched to a product of hers: the turn answered about it, and she sees which.
     + (m.about ? `<div class="muted small">${esc(t(locale, 'received.about', { name: m.about }))}</div>` : '')
     + (m.text.trim() ? `<div class="said"><bdi>${esc(m.text)}</bdi></div>` : '')
@@ -488,7 +479,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
     ? `<audio class="voiceplay" controls preload="none" src="/app/inbox/${encodeURIComponent(conversationId)}/voice/${encodeURIComponent(m.id)}"></audio>`
     : m.id ? `<div class="muted heard-label">${esc(t(locale, 'voice.noRecording'))}</div>` : '';
   const body = heardNothing
-    ? `<div class="unheard-line muted">🎤 ${esc(t(locale, 'voice.notHeard'))}</div>`
+    ? `<div class="unheard-line muted">${icon('voice', 'mi', 'bold')}${esc(t(locale, 'voice.notHeard'))}</div>`
     // The SPOKEN words keep pre-wrap — a buyer's line breaks are his. The
     // wrapper must not: `.bubble` is pre-wrap for exactly that reason, and a
     // multi-element bubble would render this file's own indentation as blank
@@ -499,7 +490,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
   const label = heardNothing ? null
     : m.heard === 'voice_corrected' ? t(locale, 'voice.corrected') : t(locale, 'voice.heardAs');
   return `<div dir="auto" class="bubble voiced">`
-    + (label ? `<div class="heard-label muted">🎤 ${esc(label)}</div>` : '')
+    + (label ? `<div class="heard-label muted">${icon('voice', 'mi', 'bold')}${esc(label)}</div>` : '')
     + player
     + body
     + (m.originalTranscript ? `<div class="orig muted"><bdi>${esc(m.originalTranscript)}</bdi></div>` : '')
@@ -1072,7 +1063,7 @@ export async function loadConversationDetail(
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
 
 /**
- * Phase 5 — the assistant at work, in place: its ✦, what it is doing, and three
+ * Phase 5 — the assistant at work, in place: its mark, what it is doing, and three
  * dots that breathe (still for a reader who asked for less motion). A polite
  * status, so a screen reader hears it once. Practice draws the same line.
  */
@@ -1086,16 +1077,20 @@ const statusPill = (locale: Locale, status: InboxStatus, needs: boolean): string
   `<span class="pill ${needs ? 'warn' : status === 'paused' ? 'muted' : 'ok'}">${esc(t(locale, `inbox.status.${status}` as MessageKey))}</span>`;
 
 /**
- * The buyer, in one inline run: flag, name, country. The name is isolated, so
- * a Latin name inside an Arabic line keeps its own order and the separator
- * stays between the two (the conversation page's header and the buyer's page
- * draw the same run).
+ * The buyer, in one inline run: name, country. The name is isolated, so a
+ * Latin name inside an Arabic line keeps its own order and the separator stays
+ * between the two (the conversation page's header and the buyer's page draw
+ * the same run).
+ *
+ * The icons run (2026-10-04) — no flag. It was an emoji, drawn by the device's
+ * colour-emoji font (two bare letters on Windows); the country's own name, in
+ * the owner's language, already follows the customer's, so the flag only said
+ * it a second time in a face the product does not control.
  */
 export const buyerWho = (locale: Locale, buyer: string | null, country: string | null): string => {
   const name = buyer ?? t(locale, 'common.buyer');
   const cn = countryName(locale, country);
-  const f = flag(country);
-  return `${f ? `${f} ` : ''}<b><bdi>${esc(name)}</bdi></b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}`;
+  return `<b><bdi>${esc(name)}</bdi></b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}`;
 };
 
 /**
@@ -1129,7 +1124,7 @@ export const speakerOf = (m: { readonly direction: 'inbound' | 'outbound'; reado
 
 /**
  * The bubble a typed line sits in. What the assistant said is on its wash
- * (`by-as`), with "✦ {name}" in magenta in the caption under it; a person's
+ * (`by-as`), with its name tag in the caption under it; a person's
  * reply and the customer's words keep the plain bubble. A wash, never a frame.
  */
 export const bubbleClass = (s: Speaker): string => (s === 'assistant' ? 'bubble by-as' : 'bubble');
@@ -1231,7 +1226,7 @@ export const buyersHref = (o: {
  * kept; its four stacked lines and the whole message are not.
  *
  * The mark is a shape as well as a colour, so it reads in greyscale: ● needs
- * you (the needs dot), ▪ a person here has it, ✦ the assistant has it. A customer still
+ * you (the needs dot), ▪ a person here has it, the assistant's mark (`agentMark`) the assistant has it. A customer still
  * waiting for an answer is written in full ink and weight; an answered one in
  * grey. The message is the list's glimpse of it, drawn in the interface's face:
  * the speech face is for the transcript, where a message is read whole.
@@ -1246,7 +1241,7 @@ export type RowState = 'needs' | 'yours' | 'hers';
 export const rowState = (c: ConversationSummary): RowState =>
   c.orderWaiting === true || c.deletionWaiting === true || c.ownership === 'WAITING_HUMAN' || c.awaitingReview ? 'needs'
     : c.ownership === 'OWNER_CONTROLLED' ? 'yours' : 'hers';
-export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: shape('waiting'), yours: shape('you'), hers: shape('assistant') };
+export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: shape('waiting'), yours: shape('you'), hers: agentMark(16, 'rest', 'am') };
 
 export type RowOptions = {
   readonly now: Date;
@@ -1309,7 +1304,7 @@ export function customerRow(locale: Locale, c: ConversationSummary, o: RowOption
   // the assistant, by its mark. Phase 9 (V1-174) — on every row, the
   // assistant's own too: an answered row read like an unanswered one in grey.
   const speaker = c.lastFrom === 'person' ? `<bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ': '}`
-    : c.lastFrom === 'assistant' ? `${shape('assistant', 'as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
+    : c.lastFrom === 'assistant' ? `${agentMark(16, 'rest', 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
   const when = [
     o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
     c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '',
@@ -1376,14 +1371,14 @@ export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions):
     : holder ? `<span class="ir-hold"><bdi>${esc(holder)}</bdi></span>` : '';
   // Who wrote the newest message when it was not the customer: you, in words; the assistant, by its mark.
   const speaker = c.lastFrom === 'person' ? `<span class="ir-by"><bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ':'}</span>`
-    : c.lastFrom === 'assistant' ? `<span class="ir-by">${shape('assistant', 'as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
+    : c.lastFrom === 'assistant' ? `<span class="ir-by">${agentMark(16, 'rest', 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
   // A search that found them by what they asked about says so where the message would be.
   const prod = productName(locale, c.product);
   const byProduct = !!o.query && !!prod && markHit(prod, o.query) !== esc(prod) && markHit(who, o.query) === esc(who);
   const glimpse = byProduct ? `<bdi class="ir-text">${markHit(prod!, o.query)}</bdi>`
     : c.latestMessage ? `${speaker}<span class="ir-text" dir="auto">${esc(preview(c.latestMessage))}</span>` : '';
   const regular = c.regular === true
-    ? `<span class="ir-reg">${icon('regular')}<span class="ir-reg-w">${esc(t(locale, 'buyers.row.regular'))}</span></span>` : '';
+    ? `<span class="ir-reg">${icon('regular', 'ni', 'bold')}<span class="ir-reg-w">${esc(t(locale, 'buyers.row.regular'))}</span></span>` : '';
   const amount = c.spent ? show.money(locale, c.spent) : '';
   // Phase 9 (w4-customers-04) — in "matters most", a customer who spent nothing shows the price they were given, quieter.
   const offered = !amount && c.quoted ? show.money(locale, c.quoted) : '';
@@ -1625,9 +1620,9 @@ export function renderInboxList(
   // What the marks on the rows mean, under them — only the marks this page shows.
   const keys = [
     data.conversations.some((c) => c.lastFrom === 'assistant')
-      ? `<span class="ck-i">${shape('assistant', 'as')} ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
+      ? `<span class="ck-i">${agentMark(16, 'rest', 'am as')} ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
     data.conversations.some((c) => c.regular === true)
-      ? `<span class="ck-i ir-reg">${icon('regular')} ${esc(t(locale, 'buyers.key.regular', { n: show.quantity(locale, REGULAR_ORDERS) }))}</span>` : '',
+      ? `<span class="ck-i ir-reg">${icon('regular', 'ni', 'bold')} ${esc(t(locale, 'buyers.key.regular', { n: show.quantity(locale, REGULAR_ORDERS) }))}</span>` : '',
   ].filter(Boolean);
   const key = keys.length ? `<p class="cr-key caption muted">${keys.join('')}</p>` : '';
 
@@ -2051,7 +2046,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
 
   // Who drafted it, and where Send sends it. Who asked and when is the
   // transcript's caption directly above the card; it is not said twice.
-  const top = `<div class="top"><span class="as">${shape('assistant')} ${
+  const top = `<div class="top"><span class="as">${
     esc(t(locale, 'card.drafted', { name }))}</span>${channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>`;
 
   // What made it wait: a dot, the state's word, then today's sentence for it.
@@ -2303,7 +2298,7 @@ function catchUpStrip(d: ConversationDetail, locale: Locale, now: Date, viewer: 
     : s === 'person' ? esc(t(locale, 'conv.by.you')) : byAssistant(assistantName(locale));
   const head = (key: MessageKey): string => `<b>${esc(t(locale, key))}</b>`;
   // The fix wave (w4-conversation-14) — a line breaks only after a separator, never
-  // before one, and never inside a time, a name or a reference: "Last message · ✦
+  // before one, and never inside a time, a name or a reference: "Last message ·
   // Your assistant" over "· 16:31", and "USAB-de300000-" over "0001", read as broken.
   const when = (at: Date): string => `<span class="fig">${esc(show.shortWhen(locale, at, now))}</span>`;
   const story = !c ? '' : ((): string => {
@@ -2368,7 +2363,7 @@ export function renderConversationDetail(
         iso(d.order.reference), iso(orderStatusName(locale, d.order.status)),
         ...(d.order.total !== null ? [iso(show.money(locale, d.order.total))] : []),
       ].join(' · ')}${d.order.total !== null ? inHerMoney(d.order.total, d.rate, locale) : ''}
-        <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}<span class="go" aria-hidden="true">›</span></a></div>` : ''}
+        <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}${GO}</a></div>` : ''}
       ${proofRow(d, locale)}
     </div>` : '';
 

@@ -12,9 +12,10 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { loadInboxList, needsWhy, rowState, channelName, type ConversationSummary } from './inbox.js';
 import { t, tn } from './say.js';
 import { esc, conversationUrl, signalMark } from './layout.js';
-import { shape } from './marks.js';
 import { face, faceLink, type FaceOf } from './faces.js';
 import * as show from './values.js';
+import { GO } from './icons.js';
+import { agentMark } from './agentMark.js';
 
 /**
  * THE WARMTH RUN, PHASE 2 (2026-10-03) — TODAY IN THREE ZONES. The owner's
@@ -231,7 +232,7 @@ function waitingItem(locale: Locale, c: ConversationSummary, who: FaceOf | undef
   return `<li class="tw-item">${theFace}<a class="tw-go" href="${conversationUrl(c.conversationId)}">`
     + `<span class="tw-who"><span class="tw-name" dir="auto"><bdi>${esc(name)}</bdi></span>`
     + `<span class="tw-why"><bdi>${esc(why)}</bdi></span></span>`
-    + `<span class="go" aria-hidden="true">›</span></a></li>`;
+    + `${GO}</a></li>`;
 }
 
 /** The band's heading: the waiting count in the waiting signal's colour, with its ○. */
@@ -272,7 +273,7 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
   const h = d.handled ?? { total: 0, people: [] };
   if (h.total === 0 || h.people.length === 0) {
     return `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.handled.none'))}</h2>${
-      o.ready ? `<p class="td-ready">${shape('assistant', 'as')} ${esc(t(locale, 'today.handled.ready'))}</p>` : ''}`;
+      o.ready ? `<p class="td-ready">${agentMark(16, 'rest', 'am as')} ${esc(t(locale, 'today.handled.ready'))}</p>` : ''}`;
   }
   const drawn = h.people.slice(0, TODAY_FACES);
   const faces = drawn.map((p) => {
@@ -290,7 +291,7 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
     ? `<li><span class="td-more"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
       + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></span></li>`
     : '';
-  return `<h2 id="today-done" class="td-head">${shape('assistant', 'as')} ${esc(tn(locale, 'today.handled.title', h.total))}</h2>
+  return `<h2 id="today-done" class="td-head">${agentMark(28, 'rest', 'am as', 'bold')} ${esc(tn(locale, 'today.handled.title', h.total))}</h2>
     <ul class="td-row">${faces}${more}</ul>`;
 }
 

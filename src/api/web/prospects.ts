@@ -10,6 +10,7 @@ import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
 import * as show from './values.js';
+import { AWAY } from './icons.js';
 
 /**
  * C5 · M41 — finding buyers, as a list she decides about.
@@ -98,7 +99,7 @@ function keyBlock(locale: Locale, status: KeyStatus, viewer: Viewer): string {
   if (status.kind === 'no_key_store') return `<section class="block"><h2>${esc(t(locale, 'prospects.key.title'))}</h2>
     <p class="muted">${esc(state)}</p></section>`;
   // Phase 9 (V1-559) — what Apollo is and where its key is made, with the way to it.
-  const apollo = `<a class="deeper" href="https://www.apollo.io/" rel="noopener noreferrer" target="_blank"><bdi>apollo.io</bdi><span class="go ext" aria-hidden="true">↗</span><span class="sr">${esc(t(locale, 'prospects.apollo.opens'))}</span></a>`;
+  const apollo = `<a class="deeper" href="https://www.apollo.io/" rel="noopener noreferrer" target="_blank"><bdi>apollo.io</bdi>${AWAY}<span class="sr">${esc(t(locale, 'prospects.apollo.opens'))}</span></a>`;
   // Phase 9 (V1-550 for this page, new-09) — a card of rows, the act at its end.
   const controls = !viewer.isOwner
     ? `<p class="muted">${esc(t(locale, 'staff.prospects.keyOwner'))}</p>`

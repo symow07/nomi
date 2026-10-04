@@ -4,6 +4,7 @@ import { t, assistantName } from './say.js';
 import { esc, back } from './layout.js';
 import { channelScreenHref, channelScreenTitle } from './channels.js';
 import * as show from './values.js';
+import { AWAY } from './icons.js';
 
 /**
  * CH2 (the one-month build order, 2026-09-30) — WHAT TO CHECK, AND WHY.
@@ -69,7 +70,7 @@ export function renderMetaHelp(locale: Locale, o: { readonly statusShown?: boole
       <p class="help-line"><b>${esc(t(locale, 'help.meta.checkLabel'))}</b> ${esc(t(locale, !shown && s.checkNoStatus ? s.checkNoStatus : s.check, { name, ...where }))}</p>
       <p class="help-line muted">${esc(t(locale, 'help.meta.whyLabel'))} ${esc(t(locale, s.why, { name }))}</p>
       ${s.meta.length ? `<ul class="help-links">${s.meta.map((m) =>
-        `<li><a href="${esc(m.href)}" rel="noopener noreferrer" target="_blank">${esc(t(locale, m.label))}<span class="go ext" aria-hidden="true">↗</span><span class="sr">${esc(t(locale, 'help.meta.opensMeta'))}</span></a></li>`).join('')}</ul>` : ''}
+        `<li><a href="${esc(m.href)}" rel="noopener noreferrer" target="_blank">${esc(t(locale, m.label))}${AWAY}<span class="sr">${esc(t(locale, 'help.meta.opensMeta'))}</span></a></li>`).join('')}</ul>` : ''}
     </section>`).join('');
   return `
     <div class="dhead">${back(`${channelScreenHref('meta')}${shown ? '#your-accounts' : ''}`, channelScreenTitle(locale, 'meta'))}</div>

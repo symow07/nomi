@@ -12,8 +12,9 @@ import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
-import { shape, shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
-import { icon, type IconId } from './icons.js';
+import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
+import { drawn, icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
+import { agentMark } from './agentMark.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -58,9 +59,14 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
  * the word. The comment above (V1) took the emoji away for good reasons that
  * still hold: these are drawn by the product, in the text's colour, the same
  * on every device and beside every script.
+ *
+ * THE ICONS RUN (2026-10-04) — drawn in Phosphor: Today a sun, Inbox a tray,
+ * Calendar a calendar, Settings a gear (whose filled drawing reads at a glance
+ * where the old sliders' did not). The assistant's entry is not here: it is
+ * the assistant's own slot (`agentMark`), which the owner's character fills.
  */
-export const NAV_ICON: Readonly<Record<string, IconId>> = {
-  home: 'today', inbox: 'inbox', calendar: 'calendar', employee: 'assistant', settings: 'settings',
+export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
+  home: 'sun', inbox: 'tray', calendar: 'calendar-blank', settings: 'gear-six',
 };
 
 /**
@@ -160,11 +166,11 @@ export const isOutreachRoute = (url: string): boolean => {
 /**
  * Phase 5 / 6 — something at work, said in place: what is happening and three
  * dots that breathe (still for a reader who asked for less motion); a polite
- * status, heard once. The assistant's work carries its ✦; anything else
- * (Stripe confirming a card) does not.
+ * status, heard once. The assistant's work carries its mark (`agentMark`);
+ * anything else (Stripe confirming a card) does not.
  */
 export const atWork = (text: string, assistant = false): string =>
-  `<div class="block working" role="status">${assistant ? `${shape('assistant', 'as')} ` : ''}<span>${esc(text)}</span>`
+  `<div class="block working" role="status">${assistant ? `${agentMark(16, 'rest', 'am as')} ` : ''}<span>${esc(text)}</span>`
   + `<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
 
 /**
@@ -175,7 +181,7 @@ export const missingPage = (locale: Locale, title: string, door: { readonly href
   `<h1 class="page">${esc(title)}</h1><div class="empty">${esc(t(locale, 'common.notFoundBody'))}<div>${deeper(door.href, door.label)}</div></div>`;
 
 export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
-  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
+  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}${GO}</a>`;
 
 /** The text an escaped fragment stands for: the inverse of `esc`, for the five it writes. */
 export const unescapeHtml = (s: string): string =>
@@ -183,17 +189,19 @@ export const unescapeHtml = (s: string): string =>
 
 /**
  * THE ASSISTANT'S HAND (the design pass, 2026-09-29): its name where it is
- * the author, after a ✦, in the LIGHT magenta (`--color-assistant`; the deep
- * one says "waiting for you", the warmth pass). Only ever text; never on a link, a button, a heading or the mark
- * (`palette.test.ts`). The ✦ is hidden from a screen reader, which hears the
- * name. `name` arrives escaped or is escaped here.
+ * the author, in the LIGHT magenta (`--color-assistant`; the deep one says
+ * "waiting for you", the warmth pass). Only ever text; never on a link, a
+ * button, a heading or the mark (`palette.test.ts`). The icons run
+ * (2026-10-04): its NAME TAG, the name alone, where a four-pointed star used
+ * to stand before it (over a reply it is the chip: its wash, its words).
+ * `name` arrives escaped or is escaped here.
  */
 export const byAssistant = (name: string): string =>
-  `<span class="as">${shape('assistant')} ${esc(name)}</span>`;
+  `<span class="as">${esc(name)}</span>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>
-  `<a class="back" href="${href}"><span class="go" aria-hidden="true">‹</span>${esc(label)}</a>`;
+  `<a class="back" href="${href}">${BACK}${esc(label)}</a>`;
 
 /** CC-25 — the address of a conversation: one definition, shared with the alerts (G5). */
 export { conversationUrl } from '../../core/owner/addresses.js';
@@ -219,7 +227,7 @@ export function switcher(locale: Locale, path: string): string {
 
 /**
  * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS (`signal` in
- * tokens.ts): ok ✓, waiting ○, failed ✕, the assistant ✦. Colour does those
+ * tokens.ts): ok ✓, waiting ●, failed ✕ (the assistant's star was retired by the icons run). Colour does those
  * jobs and no others, and never alone: each is a shape as well as a hue.
  *
  * `signalMark` draws the shape as its own element, for a line that a shape
@@ -229,7 +237,7 @@ export function switcher(locale: Locale, path: string): string {
  * one word does not mean two things in two places of the same file.
  */
 export type Signal = keyof typeof DESIGN_TOKENS.signal;
-const SIGNAL_CLASS: Readonly<Record<Signal, string>> = { ok: 'ok', waiting: 'warn', failed: 'bad', assistant: 'as' };
+const SIGNAL_CLASS: Readonly<Record<Signal, string>> = { ok: 'ok', waiting: 'warn', failed: 'bad' };
 export const signalMark = (s: Signal): string =>
   `<span class="dot ${SIGNAL_CLASS[s]} shape s-${s}" aria-hidden="true"></span>`;
 /**
@@ -272,7 +280,6 @@ export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
   // an order, a deletion asked. A chore or a check carries the same ○ in the secondary ink (TODO_BEFORE).
   waiting: ['.pill.warn', '.pill.reason', '.draft .held-why', '.chip.draft', '.pc-wait', 'nav.side .navcount'],
   failed: ['.pill.bad', '.flash.bad', '.perr', '.fielderr', '.ev-d', '.sbx-trust.fail .verdict', '.chip.warn', '.sr-value.bad', '.prob.bad'],
-  assistant: ['.pill.as'],
 };
 /**
  * THE IDENTITY SYSTEM (2026-10-04) — THE NEEDS DOT. "Needs you" is said by a
@@ -300,14 +307,18 @@ ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
   .dot.warn { color:var(--color-needs); display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip);
     background:currentColor; overflow:hidden; text-indent:1em; white-space:nowrap; vertical-align:baseline; }
   .dot.bad { color:var(--color-warn); }
-  .dot.as { color:var(--color-assistant); }
-  /* THE IDENTITY SYSTEM (2026-10-04) — THE ASSISTANT'S NAME TAG, its shape now that the four-point mark goes:
+  /* THE IDENTITY SYSTEM (2026-10-04) — THE ASSISTANT'S NAME TAG, its shape now that the four-point mark is gone:
      its wash as the ground, its light words, a chip, beside what it wrote. Draw it with .as-tag; the
-     selectors after it are where its label is drawn today. */
+     selectors after it are where its label is drawn today. The takeover pill is one: no mark before it. */
   .as-tag, .msg-by .as, #approve .top > .as, .card > p > .as { display:inline-flex; align-items:center; gap:var(--space-4);
     padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
   .card > p > .as { font-size:var(--font-size-caption); }
   .pill.as { background:var(--color-assistant-wash); color:var(--color-assistant); }
+  /* The icons run (2026-10-04) — the assistant's slot drawn inline, as a MARK beside words (agentMark.ts): a little
+     larger than the line's capitals and centred on them, in the colour its place gives it (the light shade, with .as). */
+  .am { display:inline-block; flex:none; inline-size:1.15em; block-size:1.15em; vertical-align:-0.22em; }
+  /* What a customer sent that is not words — a file, a voice note, a photo: Phosphor's, bold, before the words that say it. */
+  .mi { display:inline-block; flex:none; inline-size:1.15em; block-size:1.15em; vertical-align:-0.22em; margin-inline-end:var(--space-4); }
 ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFORE[s])).join('\n')}
   @media (forced-colors: active) {
     .dot.warn { inline-size:auto; block-size:auto; text-indent:0; background:none; }
@@ -337,7 +348,10 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  *              12 px (250 ms); the rail stays, and its raised tile slides to
  *              the entry chosen — so do the Inbox lens and the chosen day
  *   hand       a hover or a press settles both ways (160 ms): a control
- *              presses to 0.97 and comes back; a rail icon lifts 2 px
+ *              presses to 0.97 and comes back; a rail icon lifts 2 px, and
+ *              a press sets it back down
+ *   the rail   the icon of the page you arrive on settles into its place,
+ *              filled (2 px, 220 ms)
  *
  * Every rule that moves anything sits inside `prefers-reduced-motion:
  * no-preference` — the page transitions too — so a reader who asked for less
@@ -354,6 +368,8 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
         transform var(--motion-fast) var(--motion-ease); }
     .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side a.navlink:active { transform:scale(var(--motion-scale-press)); }
     nav.side a.navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
+    nav.side a.navlink:active .ni { transform:none; }
+    nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
     details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
     details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details:not([open])::details-content { opacity:0; }
@@ -404,6 +420,7 @@ ${STAGGER}
       animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
   }
   @keyframes nomi-arrive { from { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); } }
+  @keyframes nomi-settle { from { opacity:0.5; transform:translateY(calc(-1 * var(--travel-nudge))); } }
   @keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
   @keyframes nomi-toast-in { from { opacity:0; transform:translateX(var(--travel-toast)); } }
@@ -458,8 +475,9 @@ ${STAGGER}
   dialog.sheet::backdrop { background:var(--color-ink); opacity:0.35; }
   dialog.sheet .pcard { box-shadow:var(--shadow-lift2); max-block-size:calc(100vh - 2 * var(--space-48)); overflow-y:auto; }
   .sheet-bar { display:flex; justify-content:flex-end; margin:0 0 var(--space-8); }
-  .sheet-x { inline-size:44px; block-size:44px; border:0; border-radius:var(--radius-chip); background:var(--color-surface);
-    color:var(--color-ink); font:inherit; font-size:var(--font-size-title); line-height:1; cursor:pointer; box-shadow:var(--shadow-lift1); }
+  .sheet-x { display:inline-grid; place-items:center; inline-size:44px; block-size:44px; border:0; border-radius:var(--radius-chip); background:var(--color-surface);
+    color:var(--color-ink); cursor:pointer; box-shadow:var(--shadow-lift1); }
+  .sheet-x > .xi { inline-size:20px; block-size:20px; }
   @media (max-width: 720px) {
     dialog.sheet { inline-size:100%; max-width:100%; margin:auto 0 0; }
     dialog.sheet .pcard { border-end-start-radius:0; border-end-end-radius:0; max-block-size:calc(100vh - 2 * var(--space-48)); }
@@ -523,6 +541,8 @@ export const FACE_CSS = `  .face { position:relative; display:inline-grid; place
   .face-l { inline-size:56px; block-size:56px; font-size:var(--font-size-title); }
   .face-xl { inline-size:96px; block-size:96px; font-size:var(--font-size-hero); }
   .face-i { display:grid; place-items:center; inline-size:100%; block-size:100%; }
+  /* The icons run — the person drawn for a customer with no name yet is Phosphor's, bold: at 1.4em its line is the
+     stem of the initials beside it (600) at every face's size. */
   .face-i svg { inline-size:1.4em; block-size:1.4em; }
   .face-p { position:absolute; inset:0; inline-size:100%; block-size:100%; object-fit:cover; }
   .face.t1 { background:var(--face-1-bg); color:var(--face-1-fg); }
@@ -572,9 +592,13 @@ ${FACE_CSS}
      not a door (the two under it are). */
   /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
      in weight, its shape small, and nothing to press. */
-  .navhead { display:flex; align-items:center; gap:var(--space-8); padding: var(--space-12) var(--space-12) var(--space-4);
+  /* The icons run (2026-10-04) — its shape at 16, in Phosphor's bold: at that size bold's line is 1.5 px,
+     the stem of its 13 px words at 500 (1.3 to 1.4 px measured); the entries' regular would be a 1 px hairline.
+     It sits centred in the entries' 24 px icon column, so its word starts where theirs do. (The rule names
+     the rail: the rail's own size for its icons used to outrank it, and the heading drew at 22.) */
+  .navhead { display:flex; align-items:center; gap:var(--space-12); padding: var(--space-12) var(--space-12) var(--space-4);
     font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
-  .navhead .ni { inline-size:16px; block-size:16px; }
+  nav.side .navhead .ni { inline-size:16px; block-size:16px; margin-inline:var(--space-4); }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
@@ -606,24 +630,34 @@ ${FACE_CSS}
     font-size:var(--font-size-small); font-weight:600; }
   .skip:focus, .skip:focus-visible { top:var(--space-8); }
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
-  nav.side a.navlink { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) var(--space-12);
+  /* The icons run (2026-10-04) — the icon is level with the word's FIRST line, not with the word and its count
+     together: the row starts at the top, its padding centres one line in the 44 px target, and the icon
+     sits in that line (a 24 px icon in a 24 to 26 px line). It used to drop 10.5 px under "Inbox". */
+  nav.side a.navlink { display: flex; align-items: flex-start; gap: var(--space-12); padding: var(--space-8) var(--space-12);
+    padding-block: calc((44px - 1lh) / 2);
     min-height: 44px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-4); }
   nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
-  nav.side .ni { flex:none; inline-size:22px; block-size:22px; }
+  /* The icons run — Phosphor's regular at 24 px: a 1.5 px line beside 15 px words at 500, whose stems
+     measure 1.5 (Arabic), 1.6 (Chinese) and 1.6 px (Latin). Sized up from 22 so the shape balances its word. */
+  nav.side .ni { flex:none; inline-size:24px; block-size:24px; margin-block:calc((1lh - 24px) / 2); }
   /* The fix wave (the guide's frames, 1024 px) — the word and its count wrap TOGETHER: the word keeps
      itself whole (never a letter a line), and where the two do not fit side by side the count goes
      under the word, aligned with it. On a phone the pair dissolves into the tile (display:contents). */
   nav.side .nl-body { display:flex; flex:1 1 auto; flex-wrap:wrap; align-items:center; column-gap:var(--space-8); row-gap:0; min-width:0; }
   nav.side .nl-text { flex:0 1 auto; max-inline-size:100%; overflow-wrap:break-word; }
   html[lang="zh"] nav.side .nl-text { word-break:keep-all; }
-  [dir="rtl"] .ni.flips { transform:scaleX(-1); }
+  /* An icon that points (Log out's arrow, a reply's) is mirrored on a right-to-left page, wherever it is drawn. */
+  [dir="rtl"] svg.flips { transform:scaleX(-1); }
   nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
   /* The entry you are on is unmistakable without a colour: a raised white
-     tile on the rail's grey, its word in weight, its shape drawn heavier. */
+     tile on the rail's grey, its word in weight, its shape FILLED (the icons
+     run: the owner's "filled and in deep magenta", the colour one job's
+     variable). A filled shape means you are here; the needs dot means
+     something waits, and it never sits on the filled shape. */
   nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600;
     box-shadow: var(--shadow-lift1); }
-  nav.side a.navlink.active .ni { stroke-width:2.3; }
+  nav.side a.navlink.active .ni { color: var(--color-nav-active); }
   .nl-short { display:none; }
   /* The rail's one number: customers waiting for the owner. The identity system: the needs FILL — the deep
      magenta under white words and the white needs dot before them — is the badge's own shape and reads
@@ -792,8 +826,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
     padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-brand); }
   .deeper:hover, .deeper:focus-visible { text-decoration:underline; text-underline-offset:3px; }
   /* The chevron carries the affordance now that the label does not shout — in the brand, on every door and row. */
-  .go { font-size:var(--font-size-base); color:var(--color-brand); }
-  [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
+  /* The icons run (2026-10-04) — the caret is Phosphor's, bold at 16 px (a 1.5 px line, the stem of the door's 15 px
+     words); it was the font's character, a third of the row's icon. */
+  .go { display:inline-flex; align-items:center; flex:none; color:var(--color-brand); }
+  .go > .gi { inline-size:16px; block-size:16px; }
+  [dir="rtl"] .go { transform:scaleX(-1); }
   .tlines { list-style:none; margin:var(--space-8) 0 0; padding:0; display:flex; flex-direction:column; }
   .tline { display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:var(--space-8) 0;
     border-bottom:1px solid var(--color-paper); color:var(--color-ink); text-decoration:none; }
@@ -828,6 +865,12 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .srow.sr-menu { display:grid; grid-template-columns:min-content minmax(0, auto) minmax(0, max-content) min-content; column-gap:0; }
   .srow.sr-menu > .ni { grid-column:1; margin-inline-end:var(--space-12); }
   .srow.sr-menu > .sr-main { grid-column:2; }
+  /* The icons run (2026-10-04) — the icon is level with its row's NAME, not centred on the name and the line under it
+     (it fell 11.5 px under the name of a two-line row): the grid's row is centred in the row's height, the icon and
+     the name start at its top, and the icon sits in the name's first line (a 24 px icon in a 24 to 26 px line). */
+  .srow.sr-menu { align-content:center; }
+  .srow.sr-menu > .ni, .srow.sr-menu > .sr-main { align-self:start; }
+  .srow.sr-menu > .ni { font-size:var(--font-size-small); margin-block:calc((1lh - 24px) / 2); }
   .srow.sr-menu > .sr-value { grid-column:3; margin-inline-start:var(--space-12); max-width:100%; min-width:0; overflow-wrap:break-word; }
   .srow.sr-menu > .go { grid-column:4; margin-inline-start:var(--space-12); }
   .sr-ctl { flex:0 1 auto; min-width:0; }
@@ -836,10 +879,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
      and the door. The value stays beside the name on a phone, and wraps under
      itself rather than being cut. A row that does something (Log out) is a button drawn
      as a row, in its own card at the foot. */
-  .sr-menu > .ni { flex:none; inline-size:22px; block-size:22px; color:var(--color-ink-secondary); }
+  /* The icons run — Phosphor's regular at 24 px, as the rail's: a 1.5 px line beside the name's 15 px at 500. */
+  .sr-menu > .ni { flex:none; inline-size:24px; block-size:24px; color:var(--color-ink-secondary); }
   /* The owner's decision (2026-10-03): 56 for a row, 64 for a row that carries a line under its name. */
   a.srow.sr-menu:has(.sr-desc), div.srow.sr-menu:has(.sr-desc) { min-height:64px; }
-  [dir="rtl"] .sr-menu > .ni.flips { transform:scaleX(-1); }
   button.srow { inline-size:100%; border:0; background:none; font:inherit; color:var(--color-ink); text-align:start; cursor:pointer; }
   button.srow:hover, button.srow:focus-visible { background:var(--color-paper); }
   .sr-foot { margin-block-start:var(--space-24); }
@@ -1008,11 +1051,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
     background:var(--color-surface); border:1px solid var(--color-border);
     border-start-end-radius:4px; }
   /* THE WARMTH RUN, phase 5 — what the ASSISTANT said sits on its wash, and the caption under it
-     says "✦ name" in magenta; a person's reply keeps the plain bubble. A newcomer to the
+     says its name in magenta; a person's reply keeps the plain bubble. A newcomer to the
      conversation tells the two apart at a glance. A wash, never a frame: the hairline goes. */
   .msg.outbound .bubble.by-as { background:var(--color-assistant-wash); border-color:transparent; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  /* The fix wave (w4-conversation-17) — "✦ name" over the assistant's words, so the mark is read first. */
+  /* The fix wave (w4-conversation-17) — its name tag over the assistant's words, so it is read first. */
   .msg-by { font-size:var(--font-size-caption); margin-bottom:var(--space-4); }
   .as { color:var(--color-assistant); }
   /* CC-25 — a link into a transcript lands on its newest message: clear of the
@@ -1140,8 +1183,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
   details > summary::-webkit-details-marker { display:none; }
-  details > summary::before { content:'›'; color:var(--color-brand); display:inline-block; }
-  /* The type pass — open, the same chevron turns down (⌄ is in no face the product serves). */
+  /* The icons run (2026-10-04) — the fold's caret is the doors' (Phosphor, bold, 16 px), drawn by the stylesheet:
+     a box in the brand cut to the caret, so no face draws it. Open, it turns down. */
+  details > summary::before { content:""; display:inline-block; flex:none; inline-size:16px; block-size:16px;
+    color:var(--color-brand); background-color:currentColor; ${iconMask('go', 'bold')} forced-color-adjust:none; }
   details[open] > summary::before { transform:rotate(90deg); }
   [dir="rtl"] details:not([open]) > summary::before { transform:scaleX(-1); }
   /* The twins of :hover and :focus-visible, so a page can SHOW a state without a
@@ -1190,8 +1235,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
     nav.side .nl-body { display:contents; }
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
-    /* The count rides the icon's corner on a phone: the word keeps its room. */
-    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4); }
+    nav.side .ni { margin-block:0; }
+    /* The count rides the icon's corner on a phone: the word keeps its room. Cut out of the tile by a
+       ring of the tile's own white, so on the filled Inbox it stays a count, not part of the shape. */
+    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4);
+      box-shadow:0 0 0 2px var(--color-surface); }
     nav.side .navcount::before { content:none; }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
     nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
@@ -1292,7 +1340,8 @@ const STYLE_PAGES = `
   .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
   .dl-get { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; color:var(--color-ink); font-size:var(--font-size-small); text-decoration:none; }
   .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
-  .dl-get > .ni { inline-size:18px; block-size:18px; flex:none; }
+  /* The icons run — regular at 22 px: a 1.4 px line, the stem of "Download" at 15 px and 400. */
+  .dl-get > .ni { inline-size:22px; block-size:22px; flex:none; }
   .data-more { margin:0 0 var(--space-12); }
   .data-more > summary { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   /* Phase 9 (settings-a-new-10) — on a settings page an empty panel spans the column, as the cards above it do. */
@@ -1330,7 +1379,7 @@ const STYLE_PAGES = `
 
   /* ── pilot.ts — moved here whole in step four: page-specific names, defined once. */
   .rbsub { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
-  /* Phase 9 (V1-127, V1-128) — a count follows its label; a door ("Open ›") ends the row, as on every row of this page. */
+  /* Phase 9 (V1-127, V1-128) — a count follows its label; a door (Open, with its caret) ends the row, as on every row of this page. */
   .rbrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:4px 0; border-bottom:1px solid var(--color-paper); }
   .rbrow:last-child { border-bottom:0; }
   .rbrow .lbl { font-size:var(--font-size-small); text-wrap:pretty; }
@@ -1403,6 +1452,9 @@ const STYLE_PAGES = `
   nav.side a.navlink[data-fresh]::after { content:""; position:absolute; inset-block-start:var(--space-8);
     inset-inline-start:calc(var(--space-24) + 16px); inline-size:8px; block-size:8px;
     border-radius:var(--radius-chip); background:var(--color-needs); }
+  /* The icons run — the needs dot never sits on the filled icon of the page you are on: on the Inbox the
+     newcomer arrives in the list itself, with its card and the count. */
+  nav.side a.navlink.active[data-fresh]::after { content:none; }
   .toasts { position:fixed; z-index:6; inset-block-end:var(--space-24); inset-inline-end:var(--space-24);
     inline-size:min(var(--measure-form), calc(100vw - var(--space-48))); display:flex; flex-direction:column;
     align-items:flex-end; pointer-events:none; }
@@ -1854,7 +1906,8 @@ const STYLE_PAGES = `
     background:var(--color-surface); border-radius:var(--radius-chip); color:var(--color-ink-secondary); pointer-events:none; }
   /* A date that is nobody's — a closure, the owner's own — has its kind's icon in the face's place. */
   .dl-who.dl-only { border-radius:var(--radius-chip); background:var(--color-sand); }
-  .dl-who.dl-only .kind-icon { position:static; inline-size:20px; block-size:20px; padding:0; background:transparent; }
+  /* The icons run — the badge's kind is bold (14 px drawn, a 1.3 px line); in the face's place it is regular at 22. */
+  .dl-who.dl-only .kind-icon { position:static; inline-size:22px; block-size:22px; padding:0; background:transparent; }
   .dl-go { flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:32px; color:inherit; text-decoration:none; }
   .dl-body { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   /* A name is never cut: it wraps, a Latin name inside Arabic too (isolated by its bdi). */
@@ -1878,6 +1931,7 @@ const STYLE_PAGES = `
     border:0; border-radius:var(--radius-card); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
   .cal-empty-i { display:grid; place-items:center; inline-size:56px; block-size:56px; border-radius:var(--radius-chip);
     background:var(--color-sand); color:var(--color-ink-secondary); }
+  /* The icons run — bold at 28 px beside the 20 px title at 600. */
   .cal-empty-ic { inline-size:28px; block-size:28px; }
   .cal-empty-t { margin:0; font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); text-wrap:balance; }
   .cal-empty .muted { margin:0; font-size:var(--font-size-small); }
@@ -2036,7 +2090,7 @@ const STYLE_PAGES = `
   .irow.unanswered .ir-name { font-weight:600; }
   .ir-reg { flex:none; display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap;
     font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .ir-reg .ni { inline-size:1.1em; block-size:1.1em; flex:none; }
+  .ir-reg .ni { inline-size:1.15em; block-size:1.15em; flex:none; }
   .ir-spent { grid-row:1; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-base); font-weight:600;
     line-height:1.35; font-variant-numeric:tabular-nums; }
   /* Phase 9 (w4-customers-04) — in "matters most", the price a customer was given, in Stone: offered, not spent. */
@@ -2759,13 +2813,15 @@ export function shell(input: {
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
     const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
+    // The icons run — an outline at rest, FILLED where you are; the assistant's entry is its slot.
+    const mark = n.id === 'employee' ? agentMark(24, on ? 'here' : 'rest') : railIcon(NAV_ICON[n.id] ?? 'sun', on);
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
-       >${icon(NAV_ICON[n.id] ?? 'today')}${text}</a>`;
+       >${mark}${text}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
     <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
-      <span class="navhead" id="nav-customers">${icon('customers')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
+      <span class="navhead" id="nav-customers">${drawn('users', 'bold')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
       ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
     </div>
     <div class="navgroup">${entry(byId('employee'))}</div>
@@ -2847,7 +2903,7 @@ const askDialog = (locale: Locale): string =>
  */
 const cardSheet = (locale: Locale): string =>
   `<dialog class="sheet" aria-labelledby="pc-name" data-sheet><form method="dialog" class="sheet-bar">`
-  + `<button type="submit" class="sheet-x" aria-label="${esc(t(locale, 'pcard.close'))}">×</button></form><div data-sheet-body></div></dialog>`;
+  + `<button type="submit" class="sheet-x" aria-label="${esc(t(locale, 'pcard.close'))}">${icon('close', 'xi', 'bold')}</button></form><div data-sheet-body></div></dialog>`;
 
 /**
  * A1 — the two pages a stranger may see: the door, and how to get a key.

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { GO } from '../../src/api/web/icons.js';
 
 /**
  * CC-26 — a page open in the owner's browser learns of a new buyer message
@@ -146,7 +147,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     expect(r.statusCode).toBe(200);
     expect(r.body.match(/<script src="\/assets\/live\.[0-9a-f]{16}\.js" defer><\/script>/g)).toHaveLength(1);
     expect(askOf(r.body)).toMatch(new RegExp(`^/app/live/conversation/${conv}\\?since=1\\.0\\.[0-9a-f]{8}$`));
-    expect(r.body).toContain(`<a class="deeper live-door" href="/app/inbox/${conv}#latest">New message from the customer<span class="go" aria-hidden="true">›</span></a>`);
+    expect(r.body).toContain(`<a class="deeper live-door" href="/app/inbox/${conv}#latest">New message from the customer${GO}</a>`);
     expect(r.body).toContain('<template data-live-news="message">');
     // …and the script it names is served, as JavaScript
     const src = /<script src="([^"]+)"/.exec(r.body)![1]!;

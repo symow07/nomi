@@ -812,7 +812,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // CC-20 — main is the skip link's target now: <main id="main">.
     const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
     expect(main.length).toBeGreaterThan(0);
-    expect(main).not.toContain('<svg');
+    // The icons run — the only drawings in it are the doors' carets (Phosphor's), never a chart.
+    expect(main.match(/<svg class="(?!gi")[^"]*"/g) ?? []).toEqual([]);
     expect(res.body).not.toContain('<table');  // mobile: no wide tables
     // Visible content (styles + hrefs stripped) carries no rate/score vocabulary.
     // A percentage rate reads as <digit>% — URL-encoded %2F in the locale switcher

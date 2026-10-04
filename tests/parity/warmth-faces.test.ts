@@ -11,6 +11,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 import type { CustomerCard } from '../../src/db/customerCard.js';
 import { linkedCss } from './linked-css.js';
+import { icon } from '../../src/api/web/icons.js';
 
 /**
  * THE WARMTH RUN (2026-10-03) — customers' faces and the profile card.
@@ -190,7 +191,7 @@ describe('phase 3 · the profile card', () => {
   it('every page carries the closed sheet it springs up in; it springs only for a reader who did not ask for less motion', () => {
     for (const l of LOCALES) {
       const html = shell({ title: 'T', active: 'home', locale: l, path: '/app', bodyHtml: '' });
-      expect(html, l).toContain(`<dialog class="sheet" aria-labelledby="pc-name" data-sheet><form method="dialog" class="sheet-bar"><button type="submit" class="sheet-x" aria-label="${esc(t(l, 'pcard.close'))}">×</button></form><div data-sheet-body></div></dialog>`);
+      expect(html, l).toContain(`<dialog class="sheet" aria-labelledby="pc-name" data-sheet><form method="dialog" class="sheet-bar"><button type="submit" class="sheet-x" aria-label="${esc(t(l, 'pcard.close'))}">${icon('close', 'xi', 'bold')}</button></form><div data-sheet-body></div></dialog>`);
     }
     const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
     const calm = css.indexOf('@media (prefers-reduced-motion: no-preference)');

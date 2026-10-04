@@ -374,8 +374,8 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       for (const [what, html] of Object.entries(pages)) {
         expect(html.match(/<h1[\s>]/g), `${l} ${what}`).toHaveLength(1);
       }
-      expect(pages.conversation, l).toContain('<h1 class="who">🇳🇬 <b><bdi>Aisha Bello</bdi></b>');
-      expect(pages.buyer, l).toContain('<h1 class="who">🇦🇪 <b><bdi>Ahmed</bdi></b>');
+      expect(pages.conversation, l).toContain('<h1 class="who"><b><bdi>Aisha Bello</bdi></b>');
+      expect(pages.buyer, l).toContain('<h1 class="who"><b><bdi>Ahmed</bdi></b>');
       // Phase 9 (V1-310) — the product's name is the page's title, drawn like every page's.
       expect(pages.product, l).toMatch(/<h1 class="page"><bdi>(Canvas Tote Bag|帆布袋)<\/bdi><\/h1>/);
     }

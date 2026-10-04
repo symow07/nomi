@@ -30,6 +30,7 @@ import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { catalogueForTx, importFlash, writeImportRows, unitLabel, unitChoices, perUnit, type ImportResult } from './products.js';
 import { currencySymbol } from '../../core/types/money.js';
 import * as show from './values.js';
+import { GO } from './icons.js';
 
 /**
  * K1 — THE IMPORT REVIEW (the onboarding plan, Stage 2; 0094).
@@ -532,15 +533,15 @@ export function askAboutThree(locale: Locale, products: readonly { name: string;
 export function renderAskAboutThree(locale: Locale, importId: string, count: number): string {
   if (count === 0) return '';
   return `<div class="block"><p>${esc(t(locale, 'import.ask.intro', { name: assistantName(locale) }))}</p>
-    <a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}">${esc(t(locale, 'import.ask.door', { name: assistantName(locale) }))}<span class="go" aria-hidden="true">›</span></a>
-    <a class="deeper" href="/app/business/selling">${esc(t(locale, 'import.next.hs', { name: assistantName(locale) }))}<span class="go" aria-hidden="true">›</span></a></div>`;
+    <a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}">${esc(t(locale, 'import.ask.door', { name: assistantName(locale) }))}${GO}</a>
+    <a class="deeper" href="/app/business/selling">${esc(t(locale, 'import.next.hs', { name: assistantName(locale) }))}${GO}</a></div>`;
 }
 
 /** K6 — in Practice: the three questions, each a door that fills the box. */
 export function renderAskedQuestions(locale: Locale, importId: string, questions: readonly string[]): string {
   if (questions.length === 0) return '';
   return `<div class="block"><h2>${esc(t(locale, 'practice.ask.title'))}</h2>
-    ${questions.map((q) => `<a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}&amp;ask=${encodeURIComponent(q)}" dir="auto">${esc(q)}<span class="go" aria-hidden="true">›</span></a>`).join('')}</div>`;
+    ${questions.map((q) => `<a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}&amp;ask=${encodeURIComponent(q)}" dir="auto">${esc(q)}${GO}</a>`).join('')}</div>`;
 }
 
 /** ── Pages ────────────────────────────────────────────────────────────────── */

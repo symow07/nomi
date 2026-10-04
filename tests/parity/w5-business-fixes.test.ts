@@ -13,6 +13,7 @@ import { SET_UP, FIRST_DAY } from './business-view.js';
 import { withoutIsolates } from './isolates.js';
 import { CATALOGUE_QUESTIONS, type SellingState } from '../../src/core/owner/howYouSell.js';
 import { profileOf } from '../../src/core/owner/sellingStyle.js';
+import { BACK } from '../../src/api/web/icons.js';
 
 /**
  * THE WARMTH RUN, phase 9 — the fix wave, section 7 (My business, the
@@ -166,7 +167,7 @@ describe('w4-business-assistant-21, -22, -24, -25 · How you sell', () => {
   for (const l of LOCALES) {
     it(`${l} · the way back names "The questions"; the list is menu rows`, () => {
       const q = inScope(() => renderQuestion({ ...view, q: 'price', state: STATE }, l, null));
-      expect(q).toContain(`<span class="go" aria-hidden="true">‹</span>${say(l, 'hs.questions.title')}</a>`);
+      expect(q).toContain(`${BACK}${say(l, 'hs.questions.title')}</a>`);
       expect(inScope(() => renderHub(view, l, null))).toContain('<ul class="scard">');
       expect(screen('how', SET_UP, l)).not.toMatch(/<span class="sr-desc">/);
     });

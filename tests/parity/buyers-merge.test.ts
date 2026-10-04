@@ -14,6 +14,8 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { withoutIsolates } from './isolates.js';
+import { GO } from '../../src/api/web/icons.js';
+import { agentMark } from '../../src/api/web/agentMark.js';
 
 /**
  * A — Buyers and Customers are one list (2026-09-28, `docs/IA-PROPOSAL.md` §A),
@@ -191,7 +193,7 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     }
     expect(rowOf(h, 'c-yours')![1]).toBe('yours');
     expect(rowOf(h, 'c-hers')![1]).toBe('hers');
-    expect(rowOf(h, 'c-hers')![4]).toContain('<span class="shape s-assistant as" aria-hidden="true"></span>');
+    expect(rowOf(h, 'c-hers')![4]).toContain('' + agentMark(16, 'rest', 'am as') + '');
     // and a screen reader hears the state in words
     expect(h).toContain(`<span class="sr">${esc(t('en', 'buyers.group.needsYou'))}</span>`);
   });
@@ -398,7 +400,7 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     for (const l of LOCALES) {
       const h = withoutIsolates(renderConversationDetail(detail, l, NOW, null));
       // `file-door`: where the customer panel stands beside the conversation, it carries this door instead (the design pass)
-      expect(h, l).toContain(`<a class="deeper file-door" href="/app/conversations/c-1">${shown(l, 'conv.file.title')}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(h, l).toContain(`<a class="deeper file-door" href="/app/conversations/c-1">${shown(l, 'conv.file.title')}${GO}</a>`);
       expect(h, l).not.toContain('<style');
     }
   });

@@ -10,6 +10,7 @@ import { ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { setupFrom } from '../../src/db/setup.js';
 import { linkedCss } from './linked-css.js';
 import { unisolatedFigures } from './isolates.js';
+import { agentMark } from '../../src/api/web/agentMark.js';
 
 /**
  * THE WARMTH RUN, PHASE 2 (2026-10-03) — TODAY IN THREE ZONES. The owner's
@@ -148,7 +149,7 @@ describe('2 · what the assistant handled', () => {
   it('two: the headline, two faces — each a faceLink to the card, the word under it, the name and the word said to a screen reader', () => {
     for (const l of LOCALES) {
       const hero = zone(render(l, day(2)), 'today-done');
-      expect(hero, l).toContain(`<h2 id="today-done" class="td-head"><span class="shape s-assistant as" aria-hidden="true"></span> ${esc(tn(l, 'today.handled.title', 2, { name: 'Lily' }))}</h2>`);
+      expect(hero, l).toContain(`<h2 id="today-done" class="td-head">${agentMark(28, 'rest', 'am as', 'bold')} ${esc(tn(l, 'today.handled.title', 2, { name: 'Lily' }))}</h2>`);
       const faces = [...hero.matchAll(/<a class="face-link td-face" href="([^"]+)" data-card aria-label="([^"]+)">(.*?)<\/a>/g)];
       expect(faces, l).toHaveLength(2);
       faces.forEach((m, i) => {

@@ -14,6 +14,7 @@ import { t, messages } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withAssistantName } from '../../src/api/web/say.js';
 import { linkedCss } from './linked-css.js';
+import { agentMark } from '../../src/api/web/agentMark.js';
 
 /**
  * PHASE 6 OF THE UI REBUILD (2026-10-02) — STATES. Every page has a real empty
@@ -120,7 +121,7 @@ describe('phase 6 · nothing waits for something that never comes', () => {
   it('something at work says so in place; only the assistant\'s work carries its ✦', () => {
     expect(atWork('Stripe is confirming the card')).toBe('<div class="block working" role="status"><span>Stripe is confirming the card</span>'
       + '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>');
-    expect(atWork('x', true)).toContain('<span class="shape s-assistant as" aria-hidden="true"></span> ');
+    expect(atWork('x', true)).toContain('' + agentMark(16, 'rest', 'am as') + ' ');
   });
 
   it('the guide: a still of each step and how long it takes, before anything is fetched', () => {

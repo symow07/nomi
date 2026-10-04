@@ -94,7 +94,7 @@ describe('the card, drawn', () => {
   it('phase 2 · decision first: who drafted it and where it goes; the reply once; the acts; how it was read, last and closed', () => {
     const html = withoutIsolates(renderConversationDetail(base, 'en', NOW, null));
     const c = card(html);
-    expect(c).toContain('<div class="top"><span class="as"><span class="shape s-assistant" aria-hidden="true"></span> Your assistant drafted</span><span class="k">goes on Instagram, as written</span></div>');
+    expect(c).toContain('<div class="top"><span class="as">Your assistant drafted</span><span class="k">goes on Instagram, as written</span></div>');
     // the customer's message is in the transcript directly above: the card does not repeat it, nor who asked and when
     expect(c).not.toContain('how much for 10 of the rose serum?');
     expect(html.split('how much for 10 of the rose serum?')).toHaveLength(2);

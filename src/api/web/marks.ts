@@ -1,8 +1,8 @@
 /**
  * THE MARKS, DRAWN (the type pass, 2026-10-04).
  *
- * The signals' shapes — ✓ it went, ○ it waits, ✕ it did not happen, ✦ the
- * assistant did this, ● you — were typed as characters. No Noto face the
+ * The signals' shapes — ✓ it went, ○ it waits, ✕ it did not happen, ● you —
+ * were typed as characters. No Noto face the
  * product serves draws any of them, so the browser borrowed whatever the
  * device had: ○ and ✓ came out of SF Pro Bold on an English or Arabic page and
  * out of the Chinese face, larger and thinner, on a Chinese one; ✦ out of Zapf
@@ -18,13 +18,17 @@
  * text message says — and are never drawn as text on a page.
  */
 
-/** The five shapes: the four signals and "you" (the owner's own act, in a timeline). */
-export type Shape = 'ok' | 'waiting' | 'chore' | 'failed' | 'assistant' | 'you';
+/**
+ * The shapes: the signals, the chore, and "you" (the owner's own act, in a
+ * timeline). The icons run (2026-10-04) took the assistant's four-pointed
+ * star out: the assistant is its slot (`agentMark`) or its name tag, never a
+ * sparkle.
+ */
+export type Shape = 'ok' | 'waiting' | 'chore' | 'failed' | 'you';
 
 /**
  * Each figure on a 16-unit square, in one colour (the mask's alpha is all that
- * counts). Strokes are 2 units with round ends, like the line icons; the
- * assistant's four-pointed star and "you" are filled.
+ * counts). Strokes are 2 units with round ends; "you" is filled.
  */
 const FIGURE: Readonly<Record<Shape, string>> = {
   ok: `<path d='M3.2 8.6l3.1 3.1 6.5-7' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/>`,
@@ -33,7 +37,6 @@ const FIGURE: Readonly<Record<Shape, string>> = {
   waiting: `<circle cx='8' cy='8' r='6' fill='black'/>`,
   chore: `<circle cx='8' cy='8' r='5.4' fill='none' stroke='black' stroke-width='2'/>`,
   failed: `<path d='M4.3 4.3l7.4 7.4M11.7 4.3l-7.4 7.4' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/>`,
-  assistant: `<path d='M8 1.2C8.6 5.5 10.5 7.4 14.8 8 10.5 8.6 8.6 10.5 8 14.8 7.4 10.5 5.5 8.6 1.2 8 5.5 7.4 7.4 5.5 8 1.2Z' fill='black'/>`,
   you: `<rect x='4' y='4' width='8' height='8' rx='1' fill='black'/>`,
 };
 
@@ -59,9 +62,9 @@ export const SHAPE_BOX = 'display:inline-block; flex:none; align-self:center; in
 /** The figure a box is cut to (both spellings: the prefixed one for browsers before 2024). */
 export const shapeMask = (s: Shape): string => `-webkit-mask-image:${shapeUrl(s)}; mask-image:${shapeUrl(s)};`;
 
-const SHAPES: readonly Shape[] = ['ok', 'waiting', 'chore', 'failed', 'assistant', 'you'];
+const SHAPES: readonly Shape[] = ['ok', 'waiting', 'chore', 'failed', 'you'];
 
-/** The shell's rules for a shape drawn as an element: `.shape.s-ok` and its four siblings. */
+/** The shell's rules for a shape drawn as an element: `.shape.s-ok` and its siblings. */
 export const SHAPE_CSS = `  .shape { ${SHAPE_BOX} }
 ${SHAPES.map((s) => `  .s-${s} { ${shapeMask(s)} }`).join('\n')}
 `;

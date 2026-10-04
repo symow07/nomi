@@ -207,7 +207,7 @@ describe('w4-settings-b-outreach-13 · Contacts leads back to the Inbox it is re
   it('"‹ Inbox" before the heading, in every locale', () => {
     for (const l of LOCALES) {
       const html = renderContacts(view([wrote]), l, null);
-      const back = `<a class="back" href="/app/inbox"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'nav.inbox'))}</a>`;
+      const back = `<a class="back" href="/app/inbox">${BACK}${esc(t(l, 'nav.inbox'))}</a>`;
       expect(html, l).toContain(back);
       expect(html.indexOf(back), l).toBeLessThan(html.indexOf('<h1 class="page">'));
     }
@@ -322,6 +322,7 @@ describe('w4-settings-b-outreach-01 to -05 · Who works here', () => {
 // ── The rate, samples, terms: the currency in a sentence, and where a form's act goes ──
 import { renderRate, renderSamples } from '../../src/api/web/settings.js';
 import { currencyInLine } from '../../src/core/owner/currencies.js';
+import { BACK } from '../../src/api/web/icons.js';
 
 describe('w4-settings-b-outreach-11 · the currency said as a sentence says it', () => {
   it('"in US dollars (USD)", «en dólares estadounidenses (USD)», «en dollars des États-Unis (USD)»; Arabic says it as a label', () => {

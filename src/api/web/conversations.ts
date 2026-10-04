@@ -18,6 +18,7 @@ import * as show from './values.js';
 import { faceLink } from './faces.js';
 import { faceVersions } from '../../db/faces.js';
 import { customerValues, type CustomerValue } from '../../db/customerValue.js';
+import { agentMark } from './agentMark.js';
 
 /**
  * M9.7 + ADR-0008 — the buyer's own page (`/app/conversations/:id`): what the
@@ -285,18 +286,18 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
 
 /**
  * Phase 4 — the timeline's marks are the product's own, not pictures in their
- * own colours: ✦ the assistant did it, ▪ you did, ✓ it is done (an order),
+ * own colours: the assistant's mark (`agentMark`) it did, ▪ you did, ✓ it is done (an order),
  * ● it waits for you (a hand-off: the needs dot), and a plain • for what the
  * customer did.
  * The words of each line say it; the mark only lets the eye run down them.
  */
-const TL_MARK: Record<MilestoneKind, Signal | 'you' | 'them'> = {
+const TL_MARK: Record<MilestoneKind, Signal | 'assistant' | 'you' | 'them'> = {
   buyer_text: 'them', buyer_image: 'them', reply: 'assistant', quote: 'assistant', order: 'ok',
   owner_approved: 'you', owner_edited: 'you', owner_skipped: 'you', lead_hot: 'them', handoff: 'waiting',
 };
 const tlMark = (k: MilestoneKind): string => {
   const m = TL_MARK[k];
-  return m === 'you' ? shape('you') : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
+  return m === 'assistant' ? agentMark(16, 'rest', 'am as') : m === 'you' ? shape('you') : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
 };
 const TL_CLASS: Record<MilestoneKind, string> = {
   buyer_text: 'buyer', buyer_image: 'buyer', reply: 'reply', quote: 'quote', order: 'order',

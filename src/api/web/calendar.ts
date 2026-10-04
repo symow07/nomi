@@ -4,14 +4,14 @@ import { countryName, orderStatusName, type MessageKey } from '../../core/owner/
 import { addDays, dayKey, dayStart, formatWeekday } from '../../core/owner/i18n/format.js';
 import { t, assistantName, outreachShown } from './say.js';
 import { esc, deeper, back, conversationUrl, signalMark } from './layout.js';
-import { shape } from './marks.js';
 import {
   CALENDAR_CATEGORIES, edgeOf, type CalendarCategory, type CalendarEntry, type CalendarView, type CalendarBuyer,
 } from '../../db/calendar.js';
 import * as show from './values.js';
 import { keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 import { face, faceLink, type FaceOf } from './faces.js';
-import { icon, type DateIconId } from './icons.js';
+import { icon, type DateIconId, type Weight, GO } from './icons.js';
+import { agentMark } from './agentMark.js';
 
 /**
  * V2 — the calendar page. Pure: a `CalendarView` in, HTML out.
@@ -49,7 +49,7 @@ import { icon, type DateIconId } from './icons.js';
  *
  * Where a date came from is still its EDGE (solid: from a conversation;
  * dashed: put there by the owner), and its state its signal — ○ owed, ✕ owed
- * and late, ✓ done, ✦ the assistant's hand. The week starts on the business's
+ * and late, ✓ done, the assistant's mark for its hand. The week starts on the business's
  * country's first day.
  */
 
@@ -317,14 +317,14 @@ function isOwed(e: CalendarEntry, now: Date): boolean {
 /**
  * A date's STATE, as a shape and a colour (phase 4): ○ owed, ✕ owed and late,
  * ✓ done (phase 9, inbox-calendar-new-13 — done was grey text alone, the word
- * only for a screen reader). ✦ is the assistant's hand: a price it worked out,
- * a promise it made.
+ * only for a screen reader). The assistant's mark (`agentMark`, the icons run)
+ * is its hand: a price it worked out, a promise it made.
  */
 function marksOf(locale: Locale, e: CalendarEntry, now: Date): { readonly done: boolean; readonly marks: string } {
   const done = isDone(e, now);
   const state = isOwed(e, now) ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} `
     : done ? `${signalMark('ok')}<span class="sr">${esc(t(locale, 'calendar.done'))}</span> ` : '';
-  const hand = byHand(e) ? `${shape('assistant', 'as')} ` : '';
+  const hand = byHand(e) ? `${agentMark(16, 'rest', 'am as')} ` : '';
   return { done, marks: `${state}${hand}` };
 }
 
@@ -342,7 +342,8 @@ const DATE_ICON: Readonly<Record<CalendarEntry['kind'], DateIconId>> = {
   reply_due: 'date-reply', followup_due: 'date-followup', closure: 'date-closure', conversation_closed: 'date-closed',
   own: 'date-own', promise_follow_up: 'date-promise', promise_price_end: 'date-promise', promise_delivery: 'date-promise',
 };
-export const kindIcon = (e: CalendarEntry): string => icon(DATE_ICON[e.kind], 'kind-icon');
+/** The icons run — bold where it is small (the face's badge), regular where it stands for the face or sits beside a 13 px name. */
+export const kindIcon = (e: CalendarEntry, weight: Weight = 'regular'): string => icon(DATE_ICON[e.kind], 'kind-icon', weight);
 
 /**
  * Phase 7 — is this date DONE: handled, kept, closed, or simply past? A reply
@@ -372,10 +373,10 @@ const addressFace = (e: CalendarEntry): FaceOf => ({ clientId: `address:${e.iden
  * a closure, the owner's own — has the kind's icon alone, in the face's place.
  */
 function whoOf(locale: Locale, e: CalendarEntry): string {
-  const kind = kindIcon(e);
-  if (e.buyer) return `<span class="dl-who">${faceLink(faceOf(e.buyer), { size: 's', label: nameOf(locale, e) })}${kind}</span>`;
-  if (e.identity) return `<span class="dl-who">${face(addressFace(e), 's')}${kind}</span>`;
-  return `<span class="dl-who dl-only">${kind}</span>`;
+  const badge = kindIcon(e, 'bold');
+  if (e.buyer) return `<span class="dl-who">${faceLink(faceOf(e.buyer), { size: 's', label: nameOf(locale, e) })}${badge}</span>`;
+  if (e.identity) return `<span class="dl-who">${face(addressFace(e), 's')}${badge}</span>`;
+  return `<span class="dl-who dl-only">${kindIcon(e)}</span>`;
 }
 
 /**
@@ -397,7 +398,7 @@ function dateRow(locale: Locale, e: CalendarEntry, now: Date, today: string | nu
   const to = doorOf(e);
   return `<li class="dl-row ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}" data-cat="${esc(e.category)}">
         <span class="dl-hour">${on}${esc(hour)}</span>${whoOf(locale, e)}
-        ${to ? `<a class="dl-go" href="${to}">${body}<span class="go" aria-hidden="true">›</span></a>` : `<div class="dl-go">${body}${removeForm(locale, e)}</div>`}
+        ${to ? `<a class="dl-go" href="${to}">${body}${GO}</a>` : `<div class="dl-go">${body}${removeForm(locale, e)}</div>`}
       </li>`;
 }
 
@@ -551,7 +552,7 @@ function filterForm(locale: Locale, v: CalendarView, hidden: Record<string, stri
 
 /**
  * What the page's marks mean, drawn with the marks themselves: where a date
- * came from (its edge), the assistant's hand (✦), owed (○) and done (✓).
+ * came from (its edge), the assistant's hand (its mark), owed (●) and done (✓).
  * Phase 9 (V1-200, inbox-calendar-new-14, missed-16) — the edge drawn as a
  * small square-cornered swatch, not a pill that read as a switch. Phase 9 of
  * the warmth run (w4-customers-14) — under the dates it explains, and only the
@@ -563,7 +564,7 @@ function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): s
   const items = [
     entries.some((e) => edgeOf(e) === 'solid') ? item('<span class="cal-sw solid" aria-hidden="true"></span>', 'calendar.legend.solid') : '',
     entries.some((e) => edgeOf(e) === 'dashed') ? item('<span class="cal-sw dashed" aria-hidden="true"></span>', 'calendar.legend.dashed') : '',
-    entries.some(byHand) ? item(shape('assistant', 'as'), 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
+    entries.some(byHand) ? item(agentMark(16, 'rest', 'am as'), 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
     entries.some((e) => isOwed(e, now)) ? item(signalMark('waiting'), 'calendar.legend.owed') : '',
     entries.some((e) => isDone(e, now)) ? item(signalMark('ok'), 'calendar.legend.done') : '',
   ].filter(Boolean);
@@ -612,7 +613,7 @@ function periodMove(locale: Locale, span: string, prev: string, here: string, ne
 function emptyPanel(locale: Locale, v: CalendarView, title: MessageKey, clear: string, day: string, kept: Kept | null, how = true): string {
   const narrowed = v.category !== null || v.buyer !== null;
   return `<div class="empty cal-empty">
-      <span class="cal-empty-i">${icon('calendar', 'cal-empty-ic')}</span>
+      <span class="cal-empty-i">${icon('calendar', 'cal-empty-ic', 'bold')}</span>
       <p class="cal-empty-t">${esc(t(locale, narrowed ? 'calendar.empty.filtered' : title))}</p>
       ${narrowed ? deeper(esc(clear), t(locale, 'calendar.empty.clear'))
         : `${how ? `<p class="muted">${esc(t(locale, 'calendar.empty.how'))}</p>` : ''}

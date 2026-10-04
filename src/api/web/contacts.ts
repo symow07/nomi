@@ -28,6 +28,7 @@ import { companyLineHtml } from './prospects.js';
 import { companyDomainOf } from '../../core/outreach/companyDomain.js';
 import type { Enrichment } from '../../db/prospects.js';
 import * as show from './values.js';
+import { BACK } from './icons.js';
 
 /**
  * M38 — the page that answers "may I write to this person", for a human.
@@ -435,7 +436,7 @@ export function renderSuppressConfirm(
         <input type="hidden" name="channel" value="${esc(who.channel)}" />
         <input type="hidden" name="identity" value="${esc(who.identity)}" />
         <button class="btn danger" type="submit">${esc(t(locale, 'contacts.suppress.confirm'))}</button>
-        <a class="back" href="/app/contacts" autofocus><span class="go" aria-hidden="true">‹</span>${esc(t(locale, 'contacts.suppress.cancel'))}</a>
+        <a class="back" href="/app/contacts" autofocus>${BACK}${esc(t(locale, 'contacts.suppress.cancel'))}</a>
       </form>
     </section>`;
 }

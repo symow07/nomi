@@ -2,7 +2,6 @@ import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { markSmall } from '../../core/owner/brand.js';
 import { publicDocument, esc, switcher, LANGSW_CSS, FACE_CSS, NEEDS_DOT, gapAfter, inviteMailto } from './layout.js';
-import { shape, shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { face } from './faces.js';
 
 /**
@@ -124,7 +123,7 @@ export function renderSite(v: SiteInput): string {
 
   return publicDocument({
     locale: l, title: t(l, 'site.title'), description: t(l, 'site.description'),
-    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SHAPE_CSS + SITE_CSS,
+    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SITE_CSS,
     body: `<div class="site-root" data-surface="site">
   <header class="site-top">
     <a class="site-brand" href="${v.path}">${markSmall(28, null)}<span>Nomi</span></a>
@@ -148,7 +147,7 @@ export function renderSite(v: SiteInput): string {
       </div>
       <div class="site-said site-draft">
         ${/* V1-018, public-new-01 — the product's own draft card, in its own words: who drafted it and
-           that it waits; what happens next is said, not drawn as buttons that do nothing. */ ''}<span class="site-who"><span>${shape('assistant', 'site-as')} ${esc(t(l, 'card.drafted'))}</span><span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span></span>
+           that it waits; what happens next is said, not drawn as buttons that do nothing. */ ''}<span class="site-who"><span>${esc(t(l, 'card.drafted'))}</span><span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span></span>
         <p class="site-bubble" dir="auto">${k('site.example.draft')}</p>
         <p class="site-acts">${k('site.example.acts')}</p>
       </div>

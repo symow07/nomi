@@ -21,6 +21,7 @@ import { checklistFor } from '../../src/db/practiceChecklist.js';
 import { SETUP_STEPS } from '../../src/db/setup.js';
 import { readFileSync } from 'node:fs';
 import type { MetaReadiness } from '../../src/core/channel/metaReadiness.js';
+import { BACK, GO } from '../../src/api/web/icons.js';
 
 /**
  * PHASE 9 — the whole product, Today, Getting started, Before going live,
@@ -182,7 +183,7 @@ describe('Phase 9 · the shell', () => {
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
       const m = main(page(l, path, '<h1 class="page">x</h1>'));
-      expect(m, `${l} ${path}`).toContain(`<a class="back" href="${href}"><span class="go" aria-hidden="true">‹</span>${esc(inScope(() => t(l, key)))}</a><h1 class="page">`);
+      expect(m, `${l} ${path}`).toContain(`<a class="back" href="${href}">${BACK}${esc(inScope(() => t(l, key)))}</a><h1 class="page">`);
       expect(main(page(l, path, `<a class="back" href="/x">x</a><h1 class="page">x</h1>`)).match(/class="back"/g), path).toHaveLength(1);
     }
     expect(Object.keys(BACK_TO)).toHaveLength(cases.length);
@@ -192,7 +193,7 @@ describe('Phase 9 · the shell', () => {
   it('V1-012 · Today\'s lines end in the product\'s one chevron, not "→"', () => {
     // The warmth run — the last-24-hours lines are gone; the band's people and doors carry the chevron now.
     const h = todayHtml('en');
-    expect(h).toContain('<span class="go" aria-hidden="true">›</span>');
+    expect(h).toContain(GO);
     expect(h).not.toContain('→');
   });
   it('missed-19, missed-21 · a heading that wraps leaves no word alone; nor does a paragraph or a list line', () => {
@@ -214,7 +215,7 @@ describe('Phase 9 · the shell', () => {
       const h = page(l, '/app/nope', notFoundInside(l));
       expect(h, l).toContain('<nav class="side"');
       expect(h, l).toContain(`<title>${esc(t(l, 'error.notfound.title'))} · 义乌宏发日用品厂 (demo)</title>`);
-      expect(h, l).toContain(`<a class="deeper" href="/app">${esc(t(l, 'error.home'))}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(h, l).toContain(`<a class="deeper" href="/app">${esc(t(l, 'error.home'))}${GO}</a>`);
       expect(h, l).not.toContain(esc(t(l, 'login.brandTagline')));
       expect(h, l).not.toContain('<nav class="foot" aria-label="Nomi">');   // the door's foot (since the public batch, three doors)
       expect(h, l).not.toContain('class="langsw"');
@@ -410,7 +411,7 @@ describe('Phase 9 · Before going live', () => {
   });
   it('V1-127, V1-128 · a count follows its label; every door is "Open ›" at the row\'s end', () => {
     const h = screens('en');
-    expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><a class="deeper rbgo" href="[^"]+">Open<span class="go" aria-hidden="true">›<\/span><\/a>/);
+    expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><a class="deeper rbgo" href="[^"]+">Open<span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span><\/a>/);
     expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><\/div>/);
     expect(h).not.toContain('class="rblink"');
     expect(css).toContain('.rbrow .rbgo, .rbrow .rbwhen { margin-inline-start:auto; }');

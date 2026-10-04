@@ -23,6 +23,7 @@ import { esc, back, deeper, conversationUrl } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
+import { GO } from './icons.js';
 
 /** Phase 4 — prices and products are the owner's (CC-07). A sales assistant
  *  reads them; in place of each form that would only refuse, this line. */
@@ -572,7 +573,7 @@ export function renderProductList(
       <span class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</span>
       <span class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</span>
       ${p.imageMatchable ? '' : `<span class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</span>`}
-    </span><span class="go" aria-hidden="true">›</span></a>`;
+    </span>${GO}</a>`;
   }).join('');
   // Phase 9 (V1-303, V1-379) — what belongs to the products, one door each:
   // their price limits, what the assistant knows about them, and a copy of
@@ -709,7 +710,7 @@ export function renderProductDetail(
         // w4-products-knowledge-10 — each fact whole on its line ("$1.05/个" never split at its slash); lines break between facts.
         ].map((x) => `<bdi class="q-fact">${esc(x)}</bdi>`).join(' · ');
         return `<li class="row">${q.conversationId
-          ? `<a class="deeper" href="${conversationUrl(q.conversationId)}"><span>${facts}</span><span class="go" aria-hidden="true">›</span></a>`
+          ? `<a class="deeper" href="${conversationUrl(q.conversationId)}"><span>${facts}</span>${GO}</a>`
           : `<span class="muted">${facts}</span>`}</li>`;
       }).join('')}</ul></div>`
     : '';
@@ -853,7 +854,7 @@ export function renderOpenImport(locale: Locale, open: { id: string; createdAt: 
     : day(open.createdAt) === day(new Date(now.getTime() - 86_400_000)) ? t(locale, 'import.waiting.yesterday')
     : t(locale, 'import.waiting.on', { date: day(open.createdAt).replace(/ /g, '\u00a0') });
   return `<div class="block imp-open"><p>${esc(tn(locale, 'import.waiting', open.lines, { n: show.count(locale, open.lines), when }))}</p>
-    <a class="deeper" href="/app/products/import/${encodeURIComponent(open.id)}">${esc(t(locale, 'import.continue'))}<span class="go" aria-hidden="true">›</span></a></div>`;
+    <a class="deeper" href="/app/products/import/${encodeURIComponent(open.id)}">${esc(t(locale, 'import.continue'))}${GO}</a></div>`;
 }
 
 

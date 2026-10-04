@@ -230,7 +230,7 @@ export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks' | 'ordersWaiti
  *
  * The fix wave (w4-conversation-20) — NOR A MESSAGE SOMEBODY ALREADY ANSWERED.
  * A turn that failed leaves its line untaken; the owner took the conversation,
- * replied and handed it back, and the line read "✦ … is writing a reply" under
+ * replied and handed it back, and the line read "… is writing a reply" under
  * the owner's own answer for the rest of the fifteen minutes. A line counts
  * only while nothing has answered it since it came: no reply by a person after
  * it (queued or sent — one that failed or was cancelled reached nobody), none

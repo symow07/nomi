@@ -343,7 +343,7 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
     expect(html).toContain(shown('en', 'buyers.review.title'));
     const top = html.slice(html.indexOf('<div class="top">'), html.indexOf('</div>', html.indexOf('<div class="top">')));
     expect(top).not.toContain('<b><bdi>Ahmed</bdi></b>');
-    expect(top).toContain(`<span class="as"><span class="shape s-assistant" aria-hidden="true"></span> ${shown('en', 'card.drafted')}</span>`);
+    expect(top).toContain(`<span class="as">${shown('en', 'card.drafted')}</span>`);
     expect(html).toContain('For 5,000 pcs: $0.92/pc FOB Ningbo.');
     expect(html).not.toContain('Pending draft');
     expect(html).not.toContain('⚠️');                       // reviewing a colleague is not an alarm
