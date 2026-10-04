@@ -133,6 +133,19 @@ under "Decided" below.
   - The backup before it was `nomi-backup-20261003T030458Z` (20.8 h old, drill passed).
   - Deployed 23:53 UTC. `/health` returned `{"ok":true,"db":true,"worker":true,"provider":"active","model":"answering"}`.
   - **Production, read-only:** schema 129; the two RET functions are gone; `erase_customer` and `close_workspace` exist; all 3 live logins are marked verified; `/data-deletion`, `/login/forgot` and `/closed` answer 200.
+- **#222 (PROGRESS only) was merged on a FAILED integration check: my mistake.** My command chained the merge after the CI watcher, which reports when checks finish, not whether they passed. The rule is to merge only on green.
+  - **What failed:** `provider-billing.test.ts` (3 of 7). It passed on #221's own CI and locally.
+  - **Root cause:**
+    - The test's fake provider started in "refuse" mode.
+    - Each test file's worker also runs any turn an earlier file left queued.
+    - CI's log shows a 402 one second after the file started, before any test had sent a message: a stray turn hit the refusing stub, so the installation was marked refusing before the first test's "answering" check.
+  - **Reproduced locally** by queueing one stray inbound job: the old test fails with CI's exact three failures.
+  - **Fixed in the test** (#223):
+    - the stub answers until the test has seen "answering";
+    - only the test's own analysis calls are counted;
+    - the installation-wide refusal count is checked as "at least two".
+  - **Checked both ways:** with a stray job queued, the fixed test passes, and the stray conversation ran its turns against the answering stub.
+  - **No product code was wrong.** Production was deployed from #221's green run.
 - **Verification:**
   - the scripted pre-pilot ran 12/12 on main (`46a00d2`) before;
   - the scripted pre-pilot ran 12/12 on the integrated branch after;
