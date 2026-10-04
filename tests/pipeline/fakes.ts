@@ -136,6 +136,8 @@ export class FakeTenant implements Tenant {
   productOptionRows = new Map<string, readonly { readonly name: string; readonly values: readonly string[] }[]>();
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
+    // PC — her products' names and codes, as the turn reads them for the numeral guard.
+    productWords: async () => [...this.products.values()].map((p) => ({ names: [p.name], sku: p.sku })),
     priceTiers: async (id) => this.tiers.get(id) ?? [],
     productOptions: async (id) => this.productOptionRows.get(id) ?? [],
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),

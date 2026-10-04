@@ -278,6 +278,10 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
    * message, or a taught row of the IDENTIFIED product (decision 1). Re-runs the
    * REAL numeral guard with exactly that allow-set — a taught business-level
    * number is deliberately NOT allowed.
+   *
+   * PC (2026-10-04) — and with the same catalogue text the turn's guard was
+   * given, under the same rule (`catalogueWords`): a product's own name or
+   * code is set aside by text, here as there, so the two cannot disagree.
    */
   noUnsourcedSpecNumber(ctx) {
     const identified = ctx.result.decision.product?.productId ?? null;
@@ -292,6 +296,7 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
       state: ctx.result.newState,
       clientText: ctx.scenario?.buyer.text ?? '',
       allow: taught,
+      catalogue: ctx.result.catalogue,
     });
     return mk('noUnsourcedSpecNumber', g.ok,
       g.ok ? 'every number traces to the quote, a taught spec, or the buyer'

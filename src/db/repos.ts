@@ -270,6 +270,16 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       };
     },
 
+    // PC (2026-10-04) — her active products' names, in every column a name is
+    // written in, and their codes: one read per turn, for the numeral guard.
+    async productWords() {
+      const r = await sql<{ name: string; name_zh: string | null; sku: string }>`
+        select name, name_zh, sku from products
+         where business_id = ${businessId} and is_active
+         order by created_at, id`.execute(tx);
+      return r.rows.map((x) => ({ names: [x.name, x.name_zh], sku: x.sku }));
+    },
+
     // VAR (0111) — read through product_options(): a practice copy's are its live product's.
     async productOptions(productId) {
       return optionsOf((await sql<{ o: unknown }>`select product_options(${productId}::uuid) as o`.execute(tx)).rows[0]?.o);

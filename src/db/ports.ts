@@ -19,6 +19,7 @@ import type {
 } from '../core/types/commerce.js';
 import type { Signal } from '../core/scoring/signals.js';
 import type { AllowedClaim } from '../core/safety/claims.js';
+import type { ProductWords } from '../core/safety/numerals.js';
 import type { AutonomyGrant, Capability } from '../core/conversation/autonomy.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import type { KillSwitches } from '../core/ops/killSwitch.js';
@@ -272,6 +273,11 @@ export interface ConversationRepo {
 
 export interface CatalogRepo {
   product(id: string): Promise<Product | null>;
+  /**
+   * PC (2026-10-04) — every active product's names and code, for the numeral
+   * guard's exemption by text (`catalogueWords`, core/safety/numerals.ts).
+   */
+  productWords(): Promise<readonly ProductWords[]>;
   priceTiers(productId: string): Promise<PriceTier[]>;
   /** VAR (0111) — the product's options (a practice copy's from its live product); none when it has none. */
   productOptions(productId: string): Promise<readonly ProductOption[]>;

@@ -19,7 +19,7 @@ import { detectFastPath } from '../core/conversation/fastpath.js';
 import { analyserWasAvoidable, type AnswerPath } from '../core/conversation/answerPath.js';
 import { agreesOnEverything, compareWithModel, understand, type Agreement, type OwnUnderstanding } from '../core/conversation/understand.js';
 import { detectInjection } from '../core/safety/injection.js';
-import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
+import { guardNumerals, extractNumerals, catalogueWords } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
@@ -161,6 +161,13 @@ export type TurnResult = {
   knowledge: readonly KnowledgeSnippet[];
   /** M13: the knowledge row ids that SUPPORTED the reply (audit). */
   knowledgeUsed: readonly string[];
+  /**
+   * PC (2026-10-04) — this business's own product names and codes, exactly as
+   * the numeral guard was given them (`catalogueWords`), so the trust
+   * harness re-runs the guard on the same text. Empty when no guarded path
+   * wrote the reply.
+   */
+  catalogue: readonly string[];
   newState: ConversationState;
   signals: readonly Signal[];
   stateBefore: ConversationState;
@@ -472,6 +479,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let deletionPromiseWithheld: string | null = null;
   let knowledge: readonly KnowledgeSnippet[] = [];
   let knowledgeUsed: readonly string[] = [];
+  let catalogue: readonly string[] = [];
 
   switch (decision.action.kind) {
     case 'silent':
@@ -535,6 +543,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     case 'generate_reply': {
       const claimsPolicy = await tenant.catalog.claimsPolicy();
       const forbiddenTerms = await tenant.catalog.forbiddenTerms();
+      // PC (2026-10-04, the owner's decision) — her own products' names and
+      // her own codes, read once for the turn: their exact words are set aside
+      // by the numeral guard at every one of its four places below; their
+      // figures are never sourced values (core/safety/numerals.ts).
+      catalogue = catalogueWords(await tenant.catalog.productWords());
       const refusalCtx = quoteRefusal ? quoteRefusalContext(quoteRefusal) : null;
       const replyLanguage =
         analysis?.language.replyIn ?? state.preferredLanguage ?? 'en';
@@ -630,7 +643,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           });
           const clean = guardForbidden({ reply: said.reply, ownerTerms: forbiddenTerms });
           const guarded = clean.ok
-            ? guardNumerals({ reply: clean.value, quote, state: newState, clientText: req.text, allow: said.allow })
+            ? guardNumerals({ reply: clean.value, quote, state: newState, clientText: req.text, allow: said.allow, catalogue })
             : null;
           // G8 — her order, her rule: tagged, and not the employee's failure.
           if (!clean.ok && clean.error.kind === 'forbidden_word') {
@@ -661,7 +674,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         const wordSafe = claimed.ok
           ? guardForbidden({ reply: claimed.value, ownerTerms: forbiddenTerms }) : claimed;
         const guarded = wordSafe.ok
-          ? guardNumerals({ reply: wordSafe.value, quote, state: newState, clientText: req.text, allow: answerAllow })
+          ? guardNumerals({ reply: wordSafe.value, quote, state: newState, clientText: req.text, allow: answerAllow, catalogue })
           : null;
         // G8 — her taught answer uses a word she forbade: tagged, shown to her,
         // not counted against the employee (who did not write it).
@@ -714,6 +727,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           clientText: req.text,
           // M13: the identified product's taught numbers are sourced, like the quote's.
           allow: numeralAllow,
+          catalogue,
         });
         if (!guarded.ok) { guardViolations++; continue; }
         // The claims guard runs beside the numeral guard: numeral-free
@@ -763,7 +777,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         //    is what her forbidden-words page promises.
         guardsFailedTwice = true;
         const standIn = guardFallbackReply(quote, analysis?.intent.nextLogicalQuestion ?? null, sayIn);
-        const numeralsOk = guardNumerals({ reply: standIn, quote, state: newState, clientText: req.text, allow: numeralAllow });
+        const numeralsOk = guardNumerals({ reply: standIn, quote, state: newState, clientText: req.text, allow: numeralAllow, catalogue });
         const passes = numeralsOk.ok
           && guardClaims({ reply: standIn, policy: claimsPolicy }).ok
           && guardForbidden({ reply: standIn, ownerTerms: forbiddenTerms }).ok;
@@ -861,7 +875,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   timings.totalMs = Date.now() - t0;
   return {
     decision, analysis, retrieved, quote, quoteInputs, quoteRefusal,
-    reply, replyDeterministic, knowledge, knowledgeUsed, newState, signals,
+    reply, replyDeterministic, knowledge, knowledgeUsed, catalogue, newState, signals,
     answerPath,
     ownUnderstanding,
     analyserAvoidable: analyserWasAvoidable({

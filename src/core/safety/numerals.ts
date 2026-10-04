@@ -2,6 +2,7 @@ import { type Result, ok, err } from '../types/result.js';
 import type { Quote } from '../types/commerce.js';
 import { type Currency, DOT_THOUSANDS } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
+import { ownSku } from '../owner/sku.js';
 
 /**
  * THE ENFORCEMENT POINT FOR PRINCIPLE 2.
@@ -120,12 +121,14 @@ function zhNumber(s: string): number | null {
 const ZH_FIGURE = /[零〇一二两三四五六七八九十百千万]+(?=\s*(?:个|件|套|箱|双|只|条|张|台|米|厘米|天|周|个月|年|元|块|美元|欧元|%))/g;
 const ZH_MONEY = /^\s*(?:元|块|美元|欧元)/;
 
+/** Where a figure would stand in a commercial position: every COMMERCIAL_CONTEXT match. */
+function commercialSpansOf(text: string): Array<[number, number]> {
+  return [...text.matchAll(COMMERCIAL_CONTEXT)].map((m) => [m.index, m.index + m[0].length]);
+}
+
 export function extractNumerals(raw: string): ExtractedNumeral[] {
   const text = asciiDigits(raw);
-  const commercialSpans: Array<[number, number]> = [];
-  for (const m of text.matchAll(COMMERCIAL_CONTEXT)) {
-    commercialSpans.push([m.index, m.index + m[0].length]);
-  }
+  const commercialSpans = commercialSpansOf(text);
   const inCommercialSpan = (start: number, end: number): boolean =>
     commercialSpans.some(([s, e]) => start < e && end > s);
 
@@ -226,6 +229,168 @@ function dotFigures(text: string): { value: number; at: [number, number] }[] {
 export const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.005;
 
 /**
+ * PC (2026-10-04, the owner's decision; docs/PRODUCT-CODE-CHECK.md) — A
+ * PRODUCT'S OWN WORDS ARE NOT A FIGURE ANYBODY INVENTED.
+ *
+ * "The ZX-300 comes in blue" was held for its 300, and every product of the
+ * live workspace carried such a figure in its name or code. The exemption is by
+ * TEXT, never by VALUE: an exact occurrence of this business's own product name,
+ * or of a code the owner typed herself, is set aside before the figures are
+ * checked, and every figure outside it is checked exactly as before. The code's
+ * 300 is never added to the sourced values, so "The ZX-300 is $300 each" is
+ * still held for its $300, and "We can do 300 pieces" for its 300.
+ *
+ * A product as the exemption reads it: the names it is written under, in every
+ * language a column holds, and its code.
+ */
+export type ProductWords = {
+  readonly names: readonly (string | null)[];
+  readonly sku: string | null;
+};
+
+/**
+ * The catalogue text the guard may set aside: every name, and the owner's OWN
+ * codes. A code the import made up (CC-31, `ownSku`) is never shown to a
+ * customer, so a reply that carries one is still held for its figures.
+ */
+export function catalogueWords(products: readonly ProductWords[]): string[] {
+  const out = new Set<string>();
+  for (const p of products) {
+    for (const n of p.names) if (n && n.trim() !== '') out.add(n.trim());
+    const own = ownSku(p.sku);
+    if (own) out.add(own.trim());
+  }
+  return [...out];
+}
+
+/** A base character with its marks, folded as one: "é" and "é" are the same letter. */
+const CLUSTER = /\P{M}\p{M}*|\p{M}+/gu;
+
+/**
+ * The text as the exemption compares it: NFKC, lower case, every digit ASCII
+ * (Arabic-Indic and Persian as the guard reads them, full-width by NFKC),
+ * invisible format marks dropped, whitespace runs one space. `from[i]`/`to[i]`
+ * give, for the i-th folded code unit, the span of the original it came from.
+ */
+function fold(raw: string): { text: string; from: number[]; to: number[] } {
+  let text = '';
+  const from: number[] = [];
+  const to: number[] = [];
+  for (const m of raw.matchAll(CLUSTER)) {
+    const start = m.index, end = start + m[0].length;
+    let f = asciiDigits(m[0].normalize('NFKC').toLowerCase()).replace(/\p{Cf}/gu, '');
+    if (f === '') continue;
+    if (/^\s+$/u.test(f)) {
+      if (text.endsWith(' ')) { to[to.length - 1] = end; continue; }
+      f = ' ';
+    }
+    for (let k = 0; k < f.length; k++) { text += f[k]; from.push(start); to.push(end); }
+  }
+  return { text, from, to };
+}
+
+const charAt = (s: string, i: number): string | undefined => {
+  const c = s.codePointAt(i);
+  return c === undefined ? undefined : String.fromCodePoint(c);
+};
+const charBefore = (s: string, i: number): string | undefined => {
+  if (i <= 0) return undefined;
+  const lo = s.charCodeAt(i - 1);
+  return lo >= 0xdc00 && lo <= 0xdfff && i >= 2 ? s.slice(i - 2, i) : s[i - 1];
+};
+
+/** Scripts written without spaces between words: a name inside them needs none around it. */
+const UNSPACED = /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Thai}]/u;
+const WORDISH = /[\p{L}\p{N}\p{M}]/u;
+const SCRIPTS = [/\p{sc=Latin}/u, /\p{sc=Arabic}/u, /\p{sc=Cyrillic}/u, /\p{sc=Greek}/u, /\p{sc=Hebrew}/u, /\p{sc=Hangul}/u, /\p{sc=Devanagari}/u];
+const scriptOf = (c: string): number => SCRIPTS.findIndex((re) => re.test(c));
+
+/**
+ * Would a name ending between these two characters be part of a longer word?
+ * A letter or digit beside a letter or digit is one word — "ZX-300" is not in
+ * "ZX-3000", nor "12oz natural" in "12oz naturals" — except a letter beside a
+ * letter of another script (a Latin code inside Arabic), and Chinese, Japanese
+ * and Thai, which put no space between words.
+ */
+function glued(a: string | undefined, b: string | undefined): boolean {
+  if (a === undefined || b === undefined) return false;
+  if (!WORDISH.test(a) || !WORDISH.test(b)) return false;
+  if (UNSPACED.test(a) || UNSPACED.test(b)) return false;
+  if (/\p{L}/u.test(a) && /\p{L}/u.test(b)) return scriptOf(a) === scriptOf(b);
+  return true;
+}
+
+/**
+ * A name or code that could carry a price is never set aside: money (the
+ * guard's own marks, below), a percent, or the words for a price, a discount,
+ * a minimum, a deposit or a fee — en, zh, ar, es, fr and pt.
+ */
+const MONEY_IN_NAME: readonly RegExp[] = [
+  ...MARKS.map((m) => new RegExp(`${m.word ? '(?<![\\p{L}])' : ''}(?:${m.re})${m.word ? '(?![\\p{L}])' : ''}`, m.caps ? 'u' : 'iu')),
+  /[%٪]/u,
+  /(?<![\p{L}\p{N}])(?:prices?|priced|pricing|costs?|discount(?:s|ed)?|off|sale|minimum|min\.|moq|deposit|fees?|percent|precios?|descuentos?|rebajas?|m[ií]nim[oa]s?|dep[oó]sitos?|anticipo|oferta|prix|remises?|r[ée]ductions?|acompte|frais|soldes?|promo|pre[çc]os?|descontos?)(?![\p{L}])/iu,
+  /价|元|折扣|打折|优惠|起订|最低|定金|订金|运费/u,
+  /سعر|أسعار|اسعار|ثمن|خصم|تخفيض|أدنى|ادنى|عربون|رسوم/u,
+];
+
+/**
+ * May this catalogue text be set aside at all? Only a name with letters in it
+ * (a bare figure is a value, never a name), with a figure to set aside, and
+ * with nothing in it that could make one of its figures a price.
+ */
+function exemptable(entry: string): boolean {
+  const t = asciiDigits(entry.normalize('NFKC'));
+  if (!/\p{L}/u.test(t)) return false;
+  const figures = extractNumerals(t);
+  if (figures.length === 0) return false;
+  if (figures.some((n) => n.commercial || (n.at && currencyBeside(t, n.at) !== null))) return false;
+  return !MONEY_IN_NAME.some((re) => re.test(t));
+}
+
+/** Where `reply` holds, exactly and as a whole word, this business's own catalogue text. */
+function catalogueSpans(reply: string, catalogue: readonly string[]): Array<[number, number]> {
+  if (catalogue.length === 0) return [];
+  const r = fold(reply);
+  const spans: Array<[number, number]> = [];
+  for (const entry of catalogue) {
+    const name = fold(entry).text.trim();
+    if (name === '' || !r.text.includes(name) || !exemptable(entry)) continue;
+    for (let i = r.text.indexOf(name); i !== -1; i = r.text.indexOf(name, i + 1)) {
+      const j = i + name.length;
+      if (glued(charBefore(r.text, i), charAt(r.text, i)) || glued(charBefore(r.text, j), charAt(r.text, j))) continue;
+      spans.push([r.from[i]!, r.to[j - 1]!]);
+    }
+  }
+  return spans;
+}
+
+/**
+ * Which figures of the reply stand inside the business's own catalogue text,
+ * and may be set aside. Never one in a commercial position: not as the reply
+ * is written, and not with the name's own words taken away ("Minimum order:
+ * Tote 300" is a minimum of 300, whatever the product is called), and never
+ * one with money beside it.
+ */
+function catalogueFigures(reply: string, text: string, catalogue: readonly string[]): (n: ExtractedNumeral) => boolean {
+  const spans = catalogueSpans(reply, catalogue);
+  if (spans.length === 0) return () => false;
+  const figures = extractNumerals(text).flatMap((n) => (n.at ? [n.at] : []));
+  const inSpan = (k: number): boolean => spans.some(([s, e]) => k >= s && k < e);
+  const inFigure = (k: number): boolean => figures.some(([s, e]) => k >= s && k < e);
+  // The reply with each name's words blanked and its figures left where they stand.
+  let bare = '';
+  for (let k = 0; k < text.length; k++) bare += inSpan(k) && !inFigure(k) ? ' ' : text[k];
+  const commercialBare = commercialSpansOf(bare);
+  return (n) => {
+    if (!n.at || n.commercial) return false;
+    const [a, b] = n.at;
+    if (!spans.some(([s, e]) => a >= s && b <= e)) return false;
+    if (commercialBare.some(([s, e]) => a < e && b > s) || ZH_MONEY.test(bare.slice(b))) return false;
+    return currencyBeside(text, n.at) === null && currencyBeside(bare, n.at) === null;
+  };
+}
+
+/**
  * Every numeral in `reply` must trace to the quote, the conversation state, or
  * something the client themselves said. Anything else means the model invented
  * a commercial fact, and the reply must not be sent.
@@ -238,8 +403,14 @@ export function guardNumerals(input: {
   clientText: string;
   /** Extra values the caller knows are legitimate (e.g. an order reference). */
   allow?: readonly number[];
+  /**
+   * PC — this business's own catalogue text (`catalogueWords`): its product
+   * names and the owner's own codes. Their exact words are set aside; their
+   * figures are never sourced values.
+   */
+  catalogue?: readonly string[];
 }): Result<string, NumeralViolation> {
-  const { reply, quote, state, clientText, allow = [] } = input;
+  const { reply, quote, state, clientText, allow = [], catalogue = [] } = input;
 
   const sourced: number[] = [
     ...allow,
@@ -279,11 +450,14 @@ export function guardNumerals(input: {
     : [];
   const inCovered = (n: ExtractedNumeral): boolean =>
     !!n.at && covered.some((d) => n.at![0] >= d.at[0] && n.at![1] <= d.at[1]);
+  // PC — a figure that is part of her own product's name or code.
+  const ownWords = catalogueFigures(reply, text, catalogue);
 
   const unsourced = extractNumerals(reply)
     .filter((n) => {
       if (inCovered(n)) return false;
       if (foreign(n)) return true;
+      if (ownWords(n)) return false;
       // Commercial position ("12%", "$7", "5% off"): the small-integer
       // allowlist does NOT apply. Every such figure must be sourced.
       return !isSafeSmall(n) && !sourced.some((s) => near(s, n.value));
