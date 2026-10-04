@@ -1,0 +1,13 @@
+Solar by 480 Design
+https://www.figma.com/community/file/1166831539721848736
+
+Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+
+Nomi draws the icons of its navigation (src/api/web/solar.ts) from Solar's Linear set, copied from the
+npm package @iconify-json/solar 1.2.13 (https://icon-sets.iconify.design/solar/), whose metadata names
+the author and this licence: home-2-linear, inbox-linear, calendar-linear, settings-linear, users-group-rounded-linear, user-circle-linear.
+
+Changes: none to the drawings. Each is copied as the package ships it; the app's stylesheet sets its size
+(28 px; the heading's 20 px), its colour, and, at the heading's smaller size, a wider line so it reads as
+the same 1.75 px line as the others.

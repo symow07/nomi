@@ -102,7 +102,8 @@ describe('Phase F · the shell is usable with a thumb', () => {
   const style = linkedCss(page());
 
   it('every header and nav control clears a 44px target', () => {
-    expect(style).toMatch(/nav\.side a\.navlink \{[^}]*min-height: 44px/);
+    // the Solar nav (2026-10-05): the rail's entries are airier, 52 px — still a 44 px target and more
+    expect(style).toMatch(/nav\.side a\.navlink \{[^}]*min-height: 52px/);
     // V1 · option A: there is no header band; log out is a door on Setup.
     expect(style).toMatch(/\.langsw a \{[^}]*min-height:44px/);
     expect(style).toMatch(/\.deeper \{[^}]*min-height:44px/);
@@ -228,11 +229,12 @@ describe('Phase F · the shell is usable with a thumb', () => {
   });
 
   // The warmth run's re-audit (w4-whole-02): each tile is as wide as its word needs, and the row shares
-  // what is left — a fifth each cut "Aujourd'hui" and "Your assistant" short. Every tile is still ≥ 56 px tall.
+  // what is left — a fifth each cut "Aujourd'hui" and "Your assistant" short. Every tile is ≥ 56 px tall:
+  // 64 since the Solar nav (2026-10-05), for its 28 px icons and the air between icon and word.
   it('on a phone the destinations are one row of targets, each as wide as its word', () => {
     const phone = style.slice(style.indexOf('@media (max-width: 720px)'));
     expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*flex:1 1 auto/);
-    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*min-height:56px/);
+    expect(phone).toMatch(/nav\.side a\.navlink, nav\.side a\.navlink\.sub \{[^}]*min-height:64px/);
     // never three ragged rows: the ROW does not wrap. (V1 step three lets the
     // words INSIDE one entry wrap, so "Setup 2/5" can break under its word.)
     expect(phone).not.toMatch(/nav\.side \{[^}]*flex-wrap/);

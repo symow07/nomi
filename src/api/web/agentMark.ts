@@ -1,4 +1,5 @@
 import { PHOSPHOR } from './phosphor.js';
+import { SOLAR } from './solar.js';
 
 /**
  * THE ASSISTANT'S MARK — ONE SLOT (the icons run, 2026-10-04).
@@ -33,10 +34,19 @@ import { PHOSPHOR } from './phosphor.js';
  * line at 18 px and under is bold, so a mark at the size of a 13 or 15 px line
  * is not a hairline; larger, regular. A character that replaces the drawing
  * may ignore it.
+ *
+ * THE RAIL (the Solar nav, 2026-10-05) draws its icons in Solar's Linear set,
+ * and the slot there is `line`: Solar's user-circle, the same even line as the
+ * rail's other icons, and never filled — where you are, the rail's stylesheet
+ * colours it, as it does every entry. Still this function, still a fixed box.
  */
 export type AgentMarkState = 'rest' | 'here';
+export type AgentMarkWeight = 'regular' | 'bold' | 'line';
 
 export const agentMark = (size: number, state: AgentMarkState = 'rest', className = 'ni',
-  weight: 'regular' | 'bold' = size <= 18 ? 'bold' : 'regular'): string =>
-  `<svg class="${className}" data-mark="agent" viewBox="0 0 256 256" width="${size}" height="${size}" fill="currentColor" aria-hidden="true" focusable="false">`
-  + `<path d="${PHOSPHOR['user-circle'][state === 'here' ? 'fill' : weight]}"/></svg>`;
+  weight: AgentMarkWeight = size <= 18 ? 'bold' : 'regular'): string =>
+  weight === 'line'
+    ? `<svg class="${className}" data-mark="agent" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" aria-hidden="true" focusable="false">`
+      + `${SOLAR['user-circle']}</svg>`
+    : `<svg class="${className}" data-mark="agent" viewBox="0 0 256 256" width="${size}" height="${size}" fill="currentColor" aria-hidden="true" focusable="false">`
+      + `<path d="${PHOSPHOR['user-circle'][state === 'here' ? 'fill' : weight]}"/></svg>`;

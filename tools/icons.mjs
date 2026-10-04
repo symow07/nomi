@@ -11,8 +11,17 @@
  *
  * A drawing is copied as the package ships it — its path, unchanged — and a
  * file holding anything but one path is refused rather than guessed at.
- * `tests/parity/icons-phosphor.test.ts` reads the package again and holds
+ * `tests/parity/icons.test.ts` reads the package again and holds
  * every copied drawing to it, so nothing can be redrawn here by hand.
+ *
+ * THE RAIL'S ICONS ARE SOLAR'S (the Solar nav, 2026-10-05). The owner chose
+ * Solar's Linear set (`@iconify-json/solar`, by 480 Design, CC BY 4.0, a
+ * development dependency pinned to one version) for the nav, after two
+ * trials: an even, rounded line, never filled. The same tool copies the
+ * rail's drawings, unchanged, into `src/api/web/solar.ts`, and writes the
+ * attribution the licence asks for into `assets/icons/SOLAR-LICENSE.txt`
+ * (NOTICE, at the root, says it again). A drawing that is not the Linear
+ * set's shape — one group, a 1.5-unit line with round ends — is refused.
  *
  * Usage: node tools/icons.mjs   (after `npm ci`; it reads node_modules)
  */
@@ -46,13 +55,9 @@ const LINES = [
   'arrow-up-right',
 ];
 export const WANTED = {
-  // the rail: an outline at rest, the fill where you are; the heading in bold at its small size
-  sun: ['regular', 'fill'],
-  tray: ['regular', 'fill'],
-  'calendar-blank': ['regular', 'bold', 'fill'],
-  'gear-six': ['regular', 'fill'],
-  users: ['bold'],
-  // the assistant's slot (agentMark.ts): both lines and the fill
+  // an empty calendar (the calendar's page)
+  'calendar-blank': BOTH,
+  // the assistant's slot (agentMark.ts) away from the rail: both lines and the fill
   'user-circle': ['regular', 'bold', 'fill'],
   ...Object.fromEntries(LINES.map((n) => [n, BOTH])),
 };
@@ -68,6 +73,47 @@ export function drawingOf(svg, file) {
 }
 
 export const fileOf = (name, weight) => join(PKG, 'assets', weight, `${name}${weight === 'regular' ? '' : `-${weight}`}.svg`);
+
+/**
+ * The rail's icons, from Solar's Linear set: Today (a rounded house), Inbox, Calendar, Settings, the
+ * heading "Customers", and the assistant's slot where the rail draws it (agentMark.ts).
+ */
+export const SOLAR_WANTED = ['home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded', 'user-circle'];
+const SOLAR_PKG = join(ROOT, 'node_modules', '@iconify-json', 'solar');
+export const SOLAR_LICENCE_URL = 'https://creativecommons.org/licenses/by/4.0/';
+export const SOLAR_AUTHOR_URL = 'https://www.figma.com/community/file/1166831539721848736';
+
+/** One Linear drawing as the package ships it, or a refusal naming it. */
+export function solarDrawingOf(icons, name) {
+  const icon = icons.icons[`${name}-linear`];
+  if (!icon) throw new Error(`solar ${name}-linear: not in the package`);
+  if ((icon.width ?? icons.width) !== 24 || (icon.height ?? icons.height) !== 24) throw new Error(`solar ${name}-linear: not on the 24 grid`);
+  if (!/^<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1\.5">[^']*<\/g>$/.test(icon.body)) {
+    throw new Error(`solar ${name}-linear: not one group of a 1.5-unit round line; this tool copies, it does not redraw`);
+  }
+  return icon.body;
+}
+export const solarIcons = () => JSON.parse(readFileSync(join(SOLAR_PKG, 'icons.json'), 'utf8'));
+export const solarMeta = () => ({
+  ...JSON.parse(readFileSync(join(SOLAR_PKG, 'info.json'), 'utf8')),
+  version: JSON.parse(readFileSync(join(SOLAR_PKG, 'package.json'), 'utf8')).version,
+});
+
+/** The attribution CC BY 4.0 asks for: who made it, the licence, where it came from, and what was changed. */
+export const solarAttribution = (version) => `Solar by 480 Design
+${SOLAR_AUTHOR_URL}
+
+Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0):
+${SOLAR_LICENCE_URL}
+
+Nomi draws the icons of its navigation (src/api/web/solar.ts) from Solar's Linear set, copied from the
+npm package @iconify-json/solar ${version} (https://icon-sets.iconify.design/solar/), whose metadata names
+the author and this licence: ${SOLAR_WANTED.map((n) => `${n}-linear`).join(', ')}.
+
+Changes: none to the drawings. Each is copied as the package ships it; the app's stylesheet sets its size
+(28 px; the heading's 20 px), its colour, and, at the heading's smaller size, a wider line so it reads as
+the same 1.75 px line as the others.
+`;
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const meta = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8'));
@@ -93,8 +139,28 @@ export const PHOSPHOR = {
 ${lines.join('\n')}
 } as const;
 `);
+  const solar = solarMeta();
+  if (solar.license?.spdx !== 'CC-BY-4.0' || solar.author?.name !== '480 Design') {
+    console.error(`@iconify-json/solar: licence ${solar.license?.spdx} by ${solar.author?.name}, not CC-BY-4.0 by 480 Design`); process.exit(1);
+  }
+  const solarIconsJson = solarIcons();
+  const solarLines = SOLAR_WANTED.map((n) => `  '${n}': '${solarDrawingOf(solarIconsJson, n)}',`);
+  writeFileSync(join(ROOT, 'src', 'api', 'web', 'solar.ts'), `/**
+ * WRITTEN BY tools/icons.mjs from @iconify-json/solar ${solar.version}: Solar by 480 Design, under
+ * CC BY 4.0 (${SOLAR_LICENCE_URL}). The attribution is NOTICE and
+ * assets/icons/SOLAR-LICENSE.txt. Do not edit by hand: add the icon to the tool's list and run it again.
+ *
+ * The rail's icons: each one's Linear drawing as the package ships it — one group on a 24-unit square, a
+ * 1.5-unit line with round ends, in the colour of the words around it. Never a filled drawing.
+ */
+export const SOLAR = {
+${solarLines.join('\n')}
+} as const;
+`);
   mkdirSync(join(ROOT, 'assets', 'icons'), { recursive: true });
+  writeFileSync(join(ROOT, 'assets', 'icons', 'SOLAR-LICENSE.txt'), solarAttribution(solar.version));
   writeFileSync(join(ROOT, 'assets', 'icons', 'PHOSPHOR-LICENSE.txt'),
     `The icons drawn by Nomi (src/api/web/phosphor.ts) are Phosphor Icons,\nfrom @phosphor-icons/core ${meta.version} (https://phosphoricons.com), under this licence:\n\n${licence}`);
   console.log(`${Object.values(WANTED).flat().length} drawings of ${Object.keys(WANTED).length} icons from @phosphor-icons/core ${meta.version}`);
+  console.log(`${SOLAR_WANTED.length} Linear drawings from @iconify-json/solar ${solar.version} (CC BY 4.0, 480 Design)`);
 }
