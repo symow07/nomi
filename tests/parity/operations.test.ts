@@ -137,7 +137,7 @@ describe('Today, in three zones (render)', () => {
   it('who waits: counted in the band\'s heading with ○, then each person by face and name — the Inbox\'s own reason, a door to the newest message', () => {
     const html = renderOperationsHome(live(populated), 'en', busy);
     // The owner's words: "N waiting for you", in the waiting signal's colour with its shape (was nav.needsYou).
-    expect(html).toContain(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> ${tn('en', 'today.waiting', 7)}</span></h2>`);
+    expect(html).toContain(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"></span> ${tn('en', 'today.waiting', 7)}</span></h2>`);
     expect(html).toContain('href="/app/inbox/c-1#latest"');
     expect(html).toContain('<bdi>Maya Rahman</bdi>');
     expect(html).toContain(t('en', 'buyers.badge.reviewShort'));
@@ -197,9 +197,9 @@ describe('Today, in three zones (render)', () => {
 
   it('sending: the channels customers reach, on — or paused while stopped or silenced', () => {
     const on = renderOperationsHome(live(emptyFactory), 'en', busy);
-    expect(on).toContain(`${t('en', 'today.sending')}</span> Instagram <span class="dot ok" aria-hidden="true">✓</span> ${t('en', 'today.sending.on')}`);
+    expect(on).toContain(`${t('en', 'today.sending')}</span> Instagram <span class="dot ok shape s-ok" aria-hidden="true"></span> ${t('en', 'today.sending.on')}`);
     const stopped = renderOperationsHome({ ...live(emptyFactory), assistantStoppedAt: NOW }, 'en', busy);
-    expect(stopped).toContain(`<span class="dot warn" aria-hidden="true">○</span> ${t('en', 'today.sending.paused')}`);
+    expect(stopped).toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${t('en', 'today.sending.paused')}`);
     // Stopped: nothing may say the assistant is looking after anyone.
     expect(renderOperationsHome({ ...live(emptyFactory), assistantStoppedAt: NOW }, 'en', NOTHING_TODAY(NOW))).not.toContain(t('en', 'today.calm.care'));
     expect(renderOperationsHome(live(emptyFactory), 'en', { ...busy, sending: [] })).not.toContain(t('en', 'today.sending'));

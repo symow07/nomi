@@ -619,7 +619,8 @@ describe('the marker and the card, as the stylesheet draws them', () => {
     expect(box).toContain('position:fixed');
     expect(box).toContain('inset-block-end:var(--space-24)');
     expect(box).toContain('inset-inline-end:var(--space-24)');
-    const card = rule('.toast');
+    // the card's own box (the stylesheet also names .toast where it moves it)
+    const card = [...css.matchAll(/\n\s*\.toast \{([^}]*)\}/g)].map((m) => m[1]!).find((b) => b.includes('pointer-events')) ?? '';
     expect(card).toContain('border-radius:var(--radius-card)');
     expect(card).toContain('min-block-size:44px');
     for (const r of [box, card]) {
@@ -629,12 +630,14 @@ describe('the marker and the card, as the stylesheet draws them', () => {
     expect(css).toMatch(/@media \(max-width: 720px\) \{\n\s*nav\.side a\.navlink\[data-fresh\]::after \{[^}]*\}\n\s*\.toasts \{ inset-inline:var\(--space-16\); inset-block-end:var\(--space-16\);/);
   });
 
-  it('it rises in at normal speed, and only for a reader who has not asked for less motion', () => {
+  // The motion pass (2026-10-04): it slides in from its own edge and back out, and up from the foot on a phone.
+  it('it slides in at normal speed and out at fast, and only for a reader who has not asked for less motion', () => {
     const blocks = css.split('@media (prefers-reduced-motion: no-preference)');
     const moving = blocks.slice(1).map((b) => b.slice(0, b.indexOf('\n  }')));
-    expect(moving.some((b) => b.includes('.toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }'))).toBe(true);
+    expect(moving.some((b) => b.includes('.toast { animation:nomi-toast-in var(--motion-normal) var(--motion-ease) both; }'))).toBe(true);
+    expect(moving.some((b) => b.includes('.toast.out { animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both; }'))).toBe(true);
     // nowhere else is the card moved
-    const outside = css.replace(/\.toast \{ animation:nomi-rise var\(--motion-normal\) var\(--motion-ease\) both; \}/, '');
+    const outside = blocks[0]!;
     expect(outside).not.toMatch(/\.toasts? \{[^}]*(animation|transition)/);
   });
 });

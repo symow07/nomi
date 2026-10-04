@@ -105,11 +105,16 @@ describe('M40.2 · the link at the bottom of the message', () => {
     expect(html).toContain('dir="rtl"');
   });
 
-  it('it renders with no script, no stylesheet and no font to fetch', () => {
+  // The type pass (2026-10-04) changed this deliberately: the page names the product's own faces for its
+  // characters (their rules are inside it), so the stranger reads it in Noto — but nothing has to be fetched
+  // before it can be read: every font order ends in the device's fonts, and swap never hides the words.
+  it('it renders with no script and no stylesheet to fetch; its faces are an enhancement, named in the page itself', () => {
     const html = renderUnsubscribe(claim, 'tok') + renderUnsubscribed('en');
     expect(html).not.toContain('<script');
     expect(html).not.toContain('<link');
     expect(html).not.toContain('@import');
+    expect(html).toMatch(/<style>[\s\S]*@font-face \{ font-family:"Noto Sans"; [^}]*font-display:swap; src:url\(\/assets\/noto-sans-latin-wght-normal\.[0-9a-f]{16}\.woff2\)/);
+    expect(html).toMatch(/--font-family: "Noto Sans", [^;]*system-ui, sans-serif;/);
   });
 
   it('every string exists in all three locales', () => {

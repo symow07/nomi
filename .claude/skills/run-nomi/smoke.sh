@@ -158,7 +158,7 @@ get /app/onboarding/practice "$SK/app-practice.html" '<h1 class="page">Practice 
 # Phase 9 of the warmth run — what to try in Practice is its own screen under the
 # checklist, one list of tasks: the three acts just rehearsed must each be ticked.
 for act in "Take over the conversation" "Reply as yourself" "Hand it back to"; do
-  grep -q "class=\"pr done\"><span class=\"mk\">✓</span> <span class=\"lbl\">$act" "$SK/app-practice.html" \
+  grep -q "class=\"pr done\"><span class=\"mk\"><span class=\"shape s-ok\" aria-hidden=\"true\"></span></span> <span class=\"lbl\">$act" "$SK/app-practice.html" \
     || fail "rehearsal not observed by the checklist ($act not ticked)"
 done
 

@@ -135,7 +135,7 @@ describe('nothing chosen: the list is what is owed, then the month\'s other date
     for (const l of LOCALES) {
       const html = draw(l);
       const list = listOf(html);
-      const owedAt = list.indexOf(`<h2 class="cal-lh"><span class="dot warn" aria-hidden="true">○</span> ${t(l, 'calendar.legend.owed')}</h2>`);
+      const owedAt = list.indexOf(`<h2 class="cal-lh"><span class="dot warn shape s-waiting" aria-hidden="true"></span> ${t(l, 'calendar.legend.owed')}</h2>`);
       const otherAt = withoutIsolates(list).indexOf(`<h2 class="cal-lh">${withoutIsolates(t(l, 'calendar.list.other', { month: withZone(ZONE, () => show.month(l, '2026-10-01')) }))}</h2>`);
       expect(owedAt, l).toBeGreaterThan(-1);
       expect(otherAt, l).toBeGreaterThan(owedAt);
@@ -199,8 +199,8 @@ describe('selecting a day: a real link, and the list focuses on that day', () =>
       expect(rows.map((r) => r.src), l).toEqual(['sample_requests:s0', 'sample_requests:s1', 'quotes:q1', 'handoffs:h1']);
       // 08:00 dealt with: done. 09:12 asked, not dealt with: owed. 15:40 and 16:00 are still to come.
       expect(rows.map((r) => r.done), l).toEqual([true, false, false, false]);
-      expect(rows[0]!.html, l).toContain('<span class="dot ok" aria-hidden="true">✓</span>');
-      expect(rows[1]!.html, l).toContain('<span class="dot warn" aria-hidden="true">○</span>');
+      expect(rows[0]!.html, l).toContain('<span class="dot ok shape s-ok" aria-hidden="true"></span>');
+      expect(rows[1]!.html, l).toContain('<span class="dot warn shape s-waiting" aria-hidden="true"></span>');
       for (const r of rows) expect(r.html, l).toMatch(/^\s*<span class="dl-hour">[^<]+<\/span><span class="dl-who[\s\S]*<svg class="kind-icon"/);
       // the day's name heads it, today in magenta; the way back is to the whole month, a door
       expect(list, l).toContain(`<h2 class="cal-day cal-lh" aria-current="date"><span class="cal-now">${t(l, 'calendar.this.day')}</span> `);
@@ -315,7 +315,8 @@ describe('every date carries a face and a sentence, never a bare dot', () => {
         if (x.buyer) expect(body, `${l}/${x.kind}`).toMatch(new RegExp(`^<a class="face-link" href="/app/customers/${x.buyer.id}" data-card aria-label="[^"]+"><span class="face face-xs `));
         else expect(body, `${l}/${x.kind}`).toMatch(/^<svg class="kind-icon"/);
       }
-      expect(html).not.toMatch(/class="[^"]*\b(?:dot|chip)\b[^"]*"[^>]*><\/span>/);
+      // a drawn mark is an empty span by design (marks.ts); what is held is no empty dot or chip that is not one
+      expect(html).not.toMatch(/class="(?![^"]*\bshape\b)[^"]*\b(?:dot|chip)\b[^"]*"[^>]*><\/span>/);
     });
   }
 

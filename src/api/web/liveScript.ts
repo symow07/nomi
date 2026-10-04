@@ -359,25 +359,29 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   /* Phase 8: the rail's question, from every page. The number is redrawn in
      place; a rise also marks Inbox and says who and why in one small card. */
   var SHOWN = 6000;
+  var LEAVE = 250;
   var card = 0;
   var cardTimer = 0;
-  function drop(c) {
-    if (c.parentNode) c.parentNode.removeChild(c);
+  /* Gone at once when tapped; after its time it slides out first (the stylesheet's "out"). */
+  function drop(c, slow) {
     if (card === c) { card = 0; clearTimeout(cardTimer); }
+    if (!slow) { if (c.parentNode) c.parentNode.removeChild(c); return; }
+    c.className = 'toast out';
+    setTimeout(function () { drop(c); }, LEAVE);
   }
   function toast(slot, said) {
     var door = String(said.door || '');
     /* Only an address inside the app, as the answer gives it. */
     if (!/^\\/app\\/[A-Za-z0-9\\/_.#-]*$/.test(door)) return;
-    if (card) drop(card);
+    if (card) drop(card, 1);
     var c = doc.createElement('a');
     c.className = 'toast';
     c.href = door;
     c.textContent = String(said.say || '');
     c.addEventListener('click', function () { drop(c); });
     /* Read at the reader's pace: held while pointed at or focused, then its time again. */
-    function hold() { clearTimeout(cardTimer); }
-    function release() { clearTimeout(cardTimer); cardTimer = setTimeout(function () { drop(c); }, SHOWN); }
+    function hold() { if (card === c) clearTimeout(cardTimer); }
+    function release() { if (card !== c) return; clearTimeout(cardTimer); cardTimer = setTimeout(function () { drop(c, 1); }, SHOWN); }
     c.addEventListener('mouseenter', hold);
     c.addEventListener('focus', hold);
     c.addEventListener('mouseleave', release);
@@ -558,8 +562,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       }).catch(function () { location.href = a.href; });
     });
     sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
+    /* Closed, the card sinks away whole; the next face's card replaces it. */
     sheet.addEventListener('close', function () {
-      while (body.firstChild) body.removeChild(body.firstChild);
       if (from && from.focus) { try { from.focus({ preventScroll: true }); } catch (x) { from.focus(); } }
       from = 0;
     });

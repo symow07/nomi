@@ -268,7 +268,7 @@ describe('w4-settings-a-21 · V1-487 · the gallery (a developer\'s page now) sh
       for (const size of ['xs', 's', 'm', 'l', 'xl']) expect(h, `${l} ${size}`).toContain(`class="face face-${size} t`);
       expect(h, l).toContain('class="srow sr-menu sr-two"');
       expect(h, l).toContain('<a class="toast" href="/app/inbox">');
-      expect(h, l).toMatch(/class="bubble by-as"><bdi>[^<]+<\/bdi><\/div><div class="ts muted">[^<]+ · <span class="as"><span aria-hidden="true">✦<\/span>/);
+      expect(h, l).toMatch(/class="bubble by-as"><bdi>[^<]+<\/bdi><\/div><div class="ts muted">[^<]+ · <span class="as"><span class="shape s-assistant" aria-hidden="true"><\/span>/);
       // no placeholder in every role: the notices and the empty panel say the product's own words
       expect(h, l).not.toContain(`class="empty">${t(l, 'components.empty')}`);
       // the chat samples carry a time, not the word for a button's resting state

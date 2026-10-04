@@ -4,6 +4,7 @@ import { countryName, orderStatusName, type MessageKey } from '../../core/owner/
 import { addDays, dayKey, dayStart, formatWeekday } from '../../core/owner/i18n/format.js';
 import { t, assistantName, outreachShown } from './say.js';
 import { esc, deeper, back, conversationUrl, signalMark } from './layout.js';
+import { shape } from './marks.js';
 import {
   CALENDAR_CATEGORIES, edgeOf, type CalendarCategory, type CalendarEntry, type CalendarView, type CalendarBuyer,
 } from '../../db/calendar.js';
@@ -323,7 +324,7 @@ function marksOf(locale: Locale, e: CalendarEntry, now: Date): { readonly done: 
   const done = isDone(e, now);
   const state = isOwed(e, now) ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} `
     : done ? `${signalMark('ok')}<span class="sr">${esc(t(locale, 'calendar.done'))}</span> ` : '';
-  const hand = byHand(e) ? '<span class="as" aria-hidden="true">✦</span> ' : '';
+  const hand = byHand(e) ? `${shape('assistant', 'as')} ` : '';
   return { done, marks: `${state}${hand}` };
 }
 
@@ -562,7 +563,7 @@ function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): s
   const items = [
     entries.some((e) => edgeOf(e) === 'solid') ? item('<span class="cal-sw solid" aria-hidden="true"></span>', 'calendar.legend.solid') : '',
     entries.some((e) => edgeOf(e) === 'dashed') ? item('<span class="cal-sw dashed" aria-hidden="true"></span>', 'calendar.legend.dashed') : '',
-    entries.some(byHand) ? item('<span class="as" aria-hidden="true">✦</span>', 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
+    entries.some(byHand) ? item(shape('assistant', 'as'), 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
     entries.some((e) => isOwed(e, now)) ? item(signalMark('waiting'), 'calendar.legend.owed') : '',
     entries.some((e) => isDone(e, now)) ? item(signalMark('ok'), 'calendar.legend.done') : '',
   ].filter(Boolean);
