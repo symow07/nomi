@@ -15,6 +15,8 @@ under "Decided" below.
 
 ## The truth-and-trust run (started 2026-10-04) — read this first
 
+**State (2026-10-04): done.** The three investigations are merged (#220). The four builds and the calendar are merged and deployed (#221), and production is at schema 129. What waits on the owner is under "Waiting on the owner" (from the truth-and-trust run).
+
 **The owner's instruction (2026-10-04).** Three investigations first, looking only and fixing nothing, written to docs/ so that decisions are made from fact. Then four builds and a calendar correction. Merge own green PRs, update this file after each, and come back only when all is done or on a genuine undecidable.
 
 **The investigations (PR #220).**
@@ -126,6 +128,11 @@ under "Decided" below.
   - Your data's request list keeps the warmth pass's faces and gains the deletion act; a customer already deleted shows an outline.
   - The schema version is 129.
   - **The full suite caught one gap:** billing's three provider tables were unknown to the erasure test's snapshot. They are installation-wide, not any business's, and are now classified as such. A new table reaching a customer would instead stop every erasure, by name, as intended.
+- **#221 merged** 2026-10-03 23:51 UTC as `f8fb384`.
+  - CI reported on both jobs at `a09d1df`.
+  - The backup before it was `nomi-backup-20261003T030458Z` (20.8 h old, drill passed).
+  - Deployed 23:53 UTC. `/health` returned `{"ok":true,"db":true,"worker":true,"provider":"active","model":"answering"}`.
+  - **Production, read-only:** schema 129; the two RET functions are gone; `erase_customer` and `close_workspace` exist; all 3 live logins are marked verified; `/data-deletion`, `/login/forgot` and `/closed` answer 200.
 - **Verification:**
   - the scripted pre-pilot ran 12/12 on main (`46a00d2`) before;
   - the scripted pre-pilot ran 12/12 on the integrated branch after;
@@ -134,7 +141,7 @@ under "Decided" below.
 
 ## The warmth run (started 2026-10-03) — read this first
 
-**State (2026-10-04): done.** All nine phases are merged and deployed (#216, #217, #218, #219), and production is at schema 125.
+**State (2026-10-04): done.** All nine phases are merged and deployed (#216, #217, #218, #219). Production was then at schema 125; it is at 129 since the truth-and-trust run (#221).
 - Of the re-audit's 281 findings, 259 are fixed, 10 are kept with their reason, 1 was not a defect, and the 11 owner's decisions are untouched.
 - What waits on the owner from this run is under "Waiting on the owner" (from the warmth run).
 
