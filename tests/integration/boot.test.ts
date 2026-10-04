@@ -244,6 +244,14 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     const was = await whatsappLive(prod.db, new Date());
     try {
       const before = sim.sentIds.length;
+      // Another file's alerts may still be queued — on 2026-10-05 provider-billing's ten were, and this
+      // worker took them first, one about every 2 s, so this job ran 16 s late, after the cleanup below
+      // had taken the phone away ("nowhere to go"). Let the queue drain first (bounded), so the 5 s
+      // below measure this job alone. The leak itself is closed where it was made (provider-billing).
+      const queued = async () => (await sql<{ n: number }>`select count(*)::int as n from pgboss.job
+        where name = 'notify.team' and state in ('created', 'retry') and start_after <= now()`.execute(prod.db)).rows[0]!.n;
+      for (let i = 0; i < 300 && (await queued()) > 0; i++) await new Promise((r) => setTimeout(r, 100));
+      expect(await queued(), 'other alerts still queued after 30 s').toBe(0);
       // Enqueue a neutral alert; the consumer registered by buildProduction must
       // resolve the destination and deliver through the SAME adapter (sim records the send).
       await prod.boss.send('notify.team', { businessId: DEMO_BIZ, kind: 'handoff', conversationId: null });
@@ -259,7 +267,7 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
       await withTenantTx(prod.db, parsed.value, (tx) =>
         sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
     }
-  }, 15_000);
+  }, 45_000);
 
   it('shuts down cleanly and idempotently', async () => {
     await prod.close();

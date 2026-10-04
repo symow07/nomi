@@ -206,6 +206,11 @@ d('billing resilience, through production, against a provider that refuses for b
     await prod?.close();
     // Leave the installation answering, whatever happened above.
     if (admin) {
+      // The alerts this file made the app queue are read above, never run: its worker is closed now, so
+      // they would wait for the NEXT file's worker, ahead of that file's own jobs. On 2026-10-05 ten of them
+      // delayed boot.test's alert 16 s past its 5 s. They are this file's and go with it.
+      await sql`delete from pgboss.job where name = 'notify.team' and data->>'businessId' = ${BIZ}
+        and state in ('created', 'retry')`.execute(admin).catch(() => {});
       await sql`update provider_health set refusing_since = null, reason = null, alerts_sent = 0, recovery_owed = false`.execute(admin).catch(() => {});
       await sql`delete from provider_balance_alerts`.execute(admin).catch(() => {});
       await admin.destroy();
