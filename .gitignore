@@ -21,3 +21,6 @@ docs/audit/shots-full/
 
 # tools/record-guide.mjs — the raw recordings before they are trimmed.
 /.guide-recording/
+
+# The icon trial's local scripts.
+.trialtmp/

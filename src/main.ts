@@ -858,6 +858,8 @@ export async function buildProduction(
       metaReview: metaReviewFrom(process.env),
       // V1-006 — the component gallery, for a local instance only (the run-nomi smoke script sets it).
       componentGallery: process.env['COMPONENT_GALLERY'] === 'on',
+      // The second icon trial (branch trial/icons-v2 only) — a local instance's switch, never production's.
+      trialRoutes: process.env['TRIAL_ROUTES'] === 'on' && process.env['NODE_ENV'] !== 'production',
       kickAnswer: (businessId, conversationId, messageId, text) =>
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,
