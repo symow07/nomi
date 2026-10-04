@@ -1,3 +1,5 @@
+import { PHOSPHOR } from './phosphor.js';
+
 /**
  * THE WARMTH RUN (2026-10-03), phase 1 — the rail's icons, and the settings
  * menu's. The owner: "Give each rail item an icon so the eye catches shape,
@@ -100,3 +102,31 @@ export function icon(id: IconId, className = 'ni'): string {
   return `<svg class="${className}${FLIPS.has(id) ? ' flips' : ''}" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"`
     + ` stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${PATHS[id]}</svg>`;
 }
+
+/**
+ * THE ICONS RUN (2026-10-04) — the owner: "Move the whole app to one crafted,
+ * consistent icon family." The family is Phosphor (phosphor.ts, copied from
+ * the package by tools/icons.mjs; MIT, assets/icons/PHOSPHOR-LICENSE.txt). The
+ * rail is drawn in it first; the lines above stay for the other screens until
+ * they move too.
+ *
+ * A Phosphor drawing is a filled outline on a 256-unit square, so the weight
+ * is chosen, not stroked: each place takes the weight whose line, at the size
+ * it is drawn, matches the stem of the words beside it (layout.ts names the
+ * measurements). Painted in the text's own colour; silent to a screen reader.
+ */
+type Drawings = typeof PHOSPHOR;
+type PhosphorName = keyof Drawings;
+
+export function drawn<N extends PhosphorName>(name: N, weight: keyof Drawings[N], className = 'ni'): string {
+  const d = (PHOSPHOR[name] as Readonly<Record<string, string>>)[weight as string];
+  return `<svg class="${className}" viewBox="0 0 256 256" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`;
+}
+
+/**
+ * The rail's entries (not the assistant's: that slot is `agentMark`). An
+ * outline at rest; FILLED on the entry you are on — a filled icon means "you
+ * are here", and nothing else in the rail is filled.
+ */
+export type RailIcon = 'sun' | 'tray' | 'calendar-blank' | 'gear-six';
+export const railIcon = (name: RailIcon, here: boolean): string => drawn(name, here ? 'fill' : 'regular');

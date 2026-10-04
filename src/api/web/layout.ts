@@ -13,7 +13,8 @@ import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
 import { shape, shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
-import { icon, type IconId } from './icons.js';
+import { drawn, railIcon, type RailIcon } from './icons.js';
+import { agentMark } from './agentMark.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -58,9 +59,14 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
  * the word. The comment above (V1) took the emoji away for good reasons that
  * still hold: these are drawn by the product, in the text's colour, the same
  * on every device and beside every script.
+ *
+ * THE ICONS RUN (2026-10-04) — drawn in Phosphor: Today a sun, Inbox a tray,
+ * Calendar a calendar, Settings a gear (whose filled drawing reads at a glance
+ * where the old sliders' did not). The assistant's entry is not here: it is
+ * the assistant's own slot (`agentMark`), which the owner's character fills.
  */
-export const NAV_ICON: Readonly<Record<string, IconId>> = {
-  home: 'today', inbox: 'inbox', calendar: 'calendar', employee: 'assistant', settings: 'settings',
+export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
+  home: 'sun', inbox: 'tray', calendar: 'calendar-blank', settings: 'gear-six',
 };
 
 /**
@@ -337,7 +343,10 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
  *              12 px (250 ms); the rail stays, and its raised tile slides to
  *              the entry chosen — so do the Inbox lens and the chosen day
  *   hand       a hover or a press settles both ways (160 ms): a control
- *              presses to 0.97 and comes back; a rail icon lifts 2 px
+ *              presses to 0.97 and comes back; a rail icon lifts 2 px, and
+ *              a press sets it back down
+ *   the rail   the icon of the page you arrive on settles into its place,
+ *              filled (2 px, 220 ms)
  *
  * Every rule that moves anything sits inside `prefers-reduced-motion:
  * no-preference` — the page transitions too — so a reader who asked for less
@@ -354,6 +363,8 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
         transform var(--motion-fast) var(--motion-ease); }
     .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side a.navlink:active { transform:scale(var(--motion-scale-press)); }
     nav.side a.navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
+    nav.side a.navlink:active .ni { transform:none; }
+    nav.side a.navlink.active .ni { animation:nomi-settle var(--motion-normal) var(--motion-ease); }
     details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
     details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details:not([open])::details-content { opacity:0; }
@@ -404,6 +415,7 @@ ${STAGGER}
       animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
   }
   @keyframes nomi-arrive { from { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); } }
+  @keyframes nomi-settle { from { opacity:0.5; transform:translateY(calc(-1 * var(--travel-nudge))); } }
   @keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
   @keyframes nomi-toast-in { from { opacity:0; transform:translateX(var(--travel-toast)); } }
@@ -572,9 +584,13 @@ ${FACE_CSS}
      not a door (the two under it are). */
   /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
      in weight, its shape small, and nothing to press. */
-  .navhead { display:flex; align-items:center; gap:var(--space-8); padding: var(--space-12) var(--space-12) var(--space-4);
+  /* The icons run (2026-10-04) — its shape at 16, in Phosphor's bold: at that size bold's line is 1.5 px,
+     the stem of its 13 px words at 500 (1.3 to 1.4 px measured); the entries' regular would be a 1 px hairline.
+     It sits centred in the entries' 24 px icon column, so its word starts where theirs do. (The rule names
+     the rail: the rail's own size for its icons used to outrank it, and the heading drew at 22.) */
+  .navhead { display:flex; align-items:center; gap:var(--space-12); padding: var(--space-12) var(--space-12) var(--space-4);
     font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
-  .navhead .ni { inline-size:16px; block-size:16px; }
+  nav.side .navhead .ni { inline-size:16px; block-size:16px; margin-inline:var(--space-4); }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
@@ -606,11 +622,17 @@ ${FACE_CSS}
     font-size:var(--font-size-small); font-weight:600; }
   .skip:focus, .skip:focus-visible { top:var(--space-8); }
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
-  nav.side a.navlink { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) var(--space-12);
+  /* The icons run (2026-10-04) — the icon is level with the word's FIRST line, not with the word and its count
+     together: the row starts at the top, its padding centres one line in the 44 px target, and the icon
+     sits in that line (a 24 px icon in a 24 to 26 px line). It used to drop 10.5 px under "Inbox". */
+  nav.side a.navlink { display: flex; align-items: flex-start; gap: var(--space-12); padding: var(--space-8) var(--space-12);
+    padding-block: calc((44px - 1lh) / 2);
     min-height: 44px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-4); }
   nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
-  nav.side .ni { flex:none; inline-size:22px; block-size:22px; }
+  /* The icons run — Phosphor's regular at 24 px: a 1.5 px line beside 15 px words at 500, whose stems
+     measure 1.5 (Arabic), 1.6 (Chinese) and 1.6 px (Latin). Sized up from 22 so the shape balances its word. */
+  nav.side .ni { flex:none; inline-size:24px; block-size:24px; margin-block:calc((1lh - 24px) / 2); }
   /* The fix wave (the guide's frames, 1024 px) — the word and its count wrap TOGETHER: the word keeps
      itself whole (never a letter a line), and where the two do not fit side by side the count goes
      under the word, aligned with it. On a phone the pair dissolves into the tile (display:contents). */
@@ -620,10 +642,13 @@ ${FACE_CSS}
   [dir="rtl"] .ni.flips { transform:scaleX(-1); }
   nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
   /* The entry you are on is unmistakable without a colour: a raised white
-     tile on the rail's grey, its word in weight, its shape drawn heavier. */
+     tile on the rail's grey, its word in weight, its shape FILLED (the icons
+     run: the owner's "filled and in deep magenta", the colour one job's
+     variable). A filled shape means you are here; the needs dot means
+     something waits, and it never sits on the filled shape. */
   nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600;
     box-shadow: var(--shadow-lift1); }
-  nav.side a.navlink.active .ni { stroke-width:2.3; }
+  nav.side a.navlink.active .ni { color: var(--color-nav-active); }
   .nl-short { display:none; }
   /* The rail's one number: customers waiting for the owner. The identity system: the needs FILL — the deep
      magenta under white words and the white needs dot before them — is the badge's own shape and reads
@@ -1190,8 +1215,11 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
     nav.side .nl-body { display:contents; }
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
-    /* The count rides the icon's corner on a phone: the word keeps its room. */
-    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4); }
+    nav.side .ni { margin-block:0; }
+    /* The count rides the icon's corner on a phone: the word keeps its room. Cut out of the tile by a
+       ring of the tile's own white, so on the filled Inbox it stays a count, not part of the shape. */
+    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4);
+      box-shadow:0 0 0 2px var(--color-surface); }
     nav.side .navcount::before { content:none; }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
     nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
@@ -1403,6 +1431,9 @@ const STYLE_PAGES = `
   nav.side a.navlink[data-fresh]::after { content:""; position:absolute; inset-block-start:var(--space-8);
     inset-inline-start:calc(var(--space-24) + 16px); inline-size:8px; block-size:8px;
     border-radius:var(--radius-chip); background:var(--color-needs); }
+  /* The icons run — the needs dot never sits on the filled icon of the page you are on: on the Inbox the
+     newcomer arrives in the list itself, with its card and the count. */
+  nav.side a.navlink.active[data-fresh]::after { content:none; }
   .toasts { position:fixed; z-index:6; inset-block-end:var(--space-24); inset-inline-end:var(--space-24);
     inline-size:min(var(--measure-form), calc(100vw - var(--space-48))); display:flex; flex-direction:column;
     align-items:flex-end; pointer-events:none; }
@@ -2759,13 +2790,15 @@ export function shell(input: {
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
     const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
+    // The icons run — an outline at rest, FILLED where you are; the assistant's entry is its slot.
+    const mark = n.id === 'employee' ? agentMark(24, on ? 'here' : 'rest') : railIcon(NAV_ICON[n.id] ?? 'sun', on);
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
-       >${icon(NAV_ICON[n.id] ?? 'today')}${text}</a>`;
+       >${mark}${text}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
     <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
-      <span class="navhead" id="nav-customers">${icon('customers')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
+      <span class="navhead" id="nav-customers">${drawn('users', 'bold')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
       ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
     </div>
     <div class="navgroup">${entry(byId('employee'))}</div>

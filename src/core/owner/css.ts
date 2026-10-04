@@ -39,8 +39,10 @@ function colorVars(palette: Readonly<Record<string, string>>): readonly string[]
  * downstream references `var(--…)`; nothing downstream writes a literal.
  */
 export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
-  const { font, color, spacingPx, radiusPx, shadow, motionMs, motionEase, motionEaseIn, motionSpring, motionTravelPx, motionScale, measure, faceTint } = tokens;
+  const { font, color, colorRole, spacingPx, radiusPx, shadow, motionMs, motionEase, motionEaseIn, motionSpring, motionTravelPx, motionScale, measure, faceTint } = tokens;
 
+  // Typed, not cast: a job that names no colour of the palette does not compile.
+  const roles: Readonly<Record<string, keyof typeof color>> = colorRole;
   const lines: string[] = [
     // One scheme: form controls, scrollbars and the caret stay light even on
     // a device set to dark, so nothing is drawn against a palette we never made.
@@ -57,6 +59,8 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     decl('line-height-tight', font.lineHeightTight.en),
     decl('tracking-tight', font.trackingTight.en),
     ...colorVars(color),
+    // A colour by its job (`colorRole`): the palette's own variable, so a job never carries a value of its own.
+    ...Object.entries(roles).map(([k, v]) => decl(`color-${kebab(k)}`, `var(--color-${kebab(v)})`)),
     // Named by VALUE, not by index: `--space-24` stays correct when the scale
     // grows, where `--space-5` would silently shift under everything using it.
     ...spacingPx.map((v) => decl(`space-${v}`, `${v}px`)),

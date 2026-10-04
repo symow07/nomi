@@ -258,6 +258,20 @@ export const DESIGN_TOKENS = {
     warnWash: '#F6E5E3',
     warnLine: '#E9BDBA',
   },
+  /**
+   * A colour by the JOB it does, named after one of the palette's own (never a
+   * new value): `--color-<job>` is the palette's variable. One line here moves
+   * a job to another shade.
+   *
+   *   navActive  the rail's entry you are on: its icon, filled (the icons run,
+   *              2026-10-04). The owner asked for it "filled and in deep
+   *              magenta", so it is `needs`. Deep also says "needs you", and
+   *              the two stay apart by SHAPE: a filled icon is where you are;
+   *              the needs dot (a small solid disc) is what waits for you,
+   *              and it never sits on the filled icon. To draw it in the
+   *              brand shade instead, write 'brand'.
+   */
+  colorRole: { navActive: 'needs' } as const,
   spacingPx: [4, 8, 12, 16, 24, 32, 48] as const,   // V1: 64 retired, it was used nowhere
   /**
    * M49 — THE MEASURES. Three, and every width in the product is one of them.
