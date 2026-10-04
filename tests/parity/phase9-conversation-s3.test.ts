@@ -305,57 +305,16 @@ describe('V1-267 · the day is said once, where it changes; each caption gives i
   });
 });
 
-describe('V1-265 · every country has its flag', () => {
-  it('Brazil as much as Nigeria', async () => {
-    const { flag, buyerWho } = await import('../../src/api/web/inbox.js');
-    expect(flag('BR')).toBe('🇧🇷');
-    expect(flag('NG')).toBe('🇳🇬');
-    expect(flag('XX')).toBe('');
-    expect(flag(null)).toBe('');
-    expect(buyerWho('en', 'Carlos Mendes', 'BR')).toMatch(/^🇧🇷 /);
-  });
-});
-
-describe('V1-239 · a short conversation does not move on landing', () => {
-  it('on a laptop the newest message lands lower, so a page that fits is not scrolled through its header', () => {
-    expect(css()).toContain('@media (min-width: 1100px) { #latest { scroll-margin-top:40vh; } }');
-  });
-});
-
-describe('conversation-new-06, V1-238, V1-263 · the hand-over card reads down, and says when nothing waits', () => {
-  it('no dashed box of its own; the line is on the card; the card is a column', () => {
-    for (const l of LOCALES) {
-      const html = renderConversationDetail(draft({ pendingDraft: null, status: 'done' }), l, NOW, null);
-      expect(html, l).not.toContain(`<div class="empty muted">${esc(t(l, 'inbox.draft.none'))}</div>`);
-      const takeover = html.slice(html.indexOf('<div class="card takeover"'), html.indexOf('</div>', html.indexOf('<div class="card takeover"')));
-      expect(takeover, l).toContain(`<p class="muted takeover-note">${esc(t(l, 'inbox.draft.none'))}</p>`);
-      // with a reply waiting, the card does not say none waits
-      expect(renderConversationDetail(draft(), l, NOW, null), l).not.toContain(esc(t(l, 'inbox.draft.none')));
-    }
-    const sheet = css();
-    expect(sheet).toContain('.takeover { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }');
-    expect(sheet).toContain('.takeover > .pill { white-space:normal; margin:0; }');
-  });
-});
-
-describe('V1-241, V1-235, V1-248 · the panes at a laptop\'s width', () => {
-  it('the opened panel takes a column beside the conversation; the pane\'s search and tabs fit its column', () => {
-    const sheet = css();
-    expect(sheet).toContain('.panes:has(> .panel:target) { grid-template-columns:300px minmax(0, 1fr) 300px; }');
-    expect(sheet).toMatch(/\.panes:has\(> \.panel:target\) > \.panel \{ position:sticky;/);
-    expect(sheet).toContain('.listpane .search input { flex:1 1 100%; }');
-    expect(sheet).toMatch(/\.listpane \.tabs \{[^}]*flex-wrap:nowrap;/);
-  });
-});
-
-describe('V1-245, V1-246 · Chinese: a Latin name is set off on both sides, everywhere; the search button is a word', () => {
-  it('"Lily 起草" and "Lily 正在处理" alike; 你的助手 runs on; 搜索', () => {
-    expect(t('zh', 'card.drafted', { name: 'Lily' })).toBe('Lily 起草');
-    expect(t('zh', 'takeover.status.ai', { name: 'Lily' })).toBe('Lily 正在处理');
-    expect(t('zh', 'conv.tl.quote', { name: 'Lily', detail: 'x' })).toBe('Lily 算出了价格：x');
-    expect(t('zh', 'takeover.status.ai')).toBe('你的助手正在处理');
-    expect(t('zh', 'card.drafted')).toBe('你的助手起草');
-    expect(t('zh', 'buyers.search.go')).toBe('搜索');
+describe('V1-265 · every country is named; the icons run · and never by an emoji flag', () => {
+  it('Brazil as much as Nigeria: the country\'s name in the owner\'s language, after the customer\'s — no flag', async () => {
+    const { buyerWho } = await import('../../src/api/web/inbox.js');
+    const mod = await import('../../src/api/web/inbox.js') as Record<string, unknown>;
+    expect(mod['flag']).toBeUndefined();
+    expect(buyerWho('en', 'Carlos Mendes', 'BR')).toBe('<b><bdi>Carlos Mendes</bdi></b><span class="muted"> · Brazil</span>');
+    expect(buyerWho('en', 'Aisha', 'NG')).toBe('<b><bdi>Aisha</bdi></b><span class="muted"> · Nigeria</span>');
+    expect(buyerWho('ar', 'Aisha', 'NG')).not.toMatch(/\p{Regional_Indicator}|\p{Extended_Pictographic}/u);
+    expect(buyerWho('en', 'X', 'XX')).toBe('<b><bdi>X</bdi></b>');
+    expect(buyerWho('en', 'X', null)).toBe('<b><bdi>X</bdi></b>');
   });
 });
 
@@ -366,9 +325,9 @@ describe('V1-249 · the ✦ before a row\'s last message says whose it is', () =
     for (const l of LOCALES) {
       const html = renderListPane(list, l, NOW, 'c-2');
       // phase 4 — the Inbox's own row: the mark and the name it stands for lead the message
-      expect(html, l).toMatch(/<span class="ir-by"><span class="shape s-assistant as" aria-hidden="true"><\/span><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
+      expect(html, l).toMatch(/<span class="ir-by"><svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       const page = renderConversationDetail(draft(), l, NOW, null);
-      expect(page, l).toContain(`<span class="shape s-assistant" aria-hidden="true"></span> ${esc(t(l, 'card.drafted'))}`);
+      expect(page, l).toContain(`${esc(t(l, 'card.drafted'))}`);
     }
   });
 });

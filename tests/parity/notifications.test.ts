@@ -21,6 +21,7 @@ import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../src/db/schemaVersion.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
+import { BACK, GO } from '../../src/api/web/icons.js';
 
 /**
  * THE WARMTH RUN (2026-10-03), PHASE 8 — NOTIFICATIONS.
@@ -348,7 +349,7 @@ describe('the Notifications page, in every language', () => {
       expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
       expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.number')));
       // (w4-settings-a-03) …and the door to where the number and the channel are set.
-      expect(html).toContain(`<a class="way-door" href="/app/channels/alerts">${esc(t(l, 'channels.alerts.title'))}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(html).toContain(`<a class="way-door" href="/app/channels/alerts">${esc(t(l, 'channels.alerts.title'))}${GO}</a>`);
       expect(html).not.toContain(esc(t(l, 'alerts.way.whatsapp.early')));
       // (w4-settings-a-01) what the plan rests on: WhatsApp is the intended way, the default the day Meta approves.
       expect(html).toContain(esc(t(l, 'alerts.way.whatsapp.plan')));
@@ -461,7 +462,7 @@ describe('the Notifications page, in every language', () => {
     expect(ar).not.toContain('<span class="way-n">WhatsApp</span>');
     for (const l of LOCALES) {
       const fromChannels = renderPhoneAlerts(view(ownerWays()), l, null, 'channels');
-      expect(fromChannels).toContain(`<a class="back" href="/app/channels/alerts"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'channels.alerts.title'))}</a>`);
+      expect(fromChannels).toContain(`<a class="back" href="/app/channels/alerts">${BACK}${esc(t(l, 'channels.alerts.title'))}</a>`);
       expect(fromChannels).toContain('<input type="hidden" name="from" value="channels" />');
       expect(renderPhoneAlerts(view(ownerWays()), l, null)).toContain(`<a class="back" href="/app/settings/setup">`);
     }

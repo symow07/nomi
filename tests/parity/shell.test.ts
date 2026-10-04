@@ -5,6 +5,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { linkedCss, sheetLinks } from './linked-css.js';
+import { BACK, GO } from '../../src/api/web/icons.js';
 
 /**
  * Phase F — the shared shell, enforced. Every owner surface is drawn inside it,
@@ -248,7 +249,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
 describe('Phase F · one “go deeper” affordance for the whole product', () => {
   it('renders one shape, with a chevron that mirrors in RTL', () => {
     expect(deeper('/app/products', 'See your products'))
-      .toBe('<a class="deeper" href="/app/products">See your products<span class="go" aria-hidden="true">›</span></a>');
+      .toBe('<a class="deeper" href="/app/products">See your products' + GO + '</a>');
     const style = linkedCss(page());
     expect(style).toContain('[dir="rtl"] .go { transform:scaleX(-1)');
   });
@@ -323,7 +324,7 @@ describe('Phase F · direction is never baked into the copy', () => {
   it('the back link carries a mirrored arrow, not an arrow character', async () => {
     const { back } = await import('../../src/api/web/layout.js');
     expect(back('/app/inbox', 'Buyers'))
-      .toBe('<a class="back" href="/app/inbox"><span class="go" aria-hidden="true">‹</span>Buyers</a>');
+      .toBe('<a class="back" href="/app/inbox">' + BACK + 'Buyers</a>');
     const { messages } = await import('../../src/core/owner/i18n/messages.js');
     for (const locale of LOCALES)
       for (const [key, s] of Object.entries(messages[locale]))

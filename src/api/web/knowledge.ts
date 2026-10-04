@@ -10,6 +10,7 @@ import { renderUsageFact, type UsageFact } from './knowledge-insights.js';
 import { esc, back, deeper } from './layout.js';
 import * as show from './values.js';
 import { flashBanner, type Flash } from './flash.js';
+import { GO } from './icons.js';
 
 /**
  * M13 — the owner's teach/correct surface for factory knowledge.
@@ -271,7 +272,7 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
     ? `<ul class="scard kmenu">${sorted.map((p) => `<li><a class="srow sr-menu sr-two" href="/app/knowledge/${encodeURIComponent(p.id)}">
           <span class="sr-main"><span class="sr-label"><bdi>${esc(shownName(locale, p.name, p.nameZh))}</bdi></span>
           <span class="sr-desc">${esc(p.count > 0 ? tn(locale, 'knowledge.product.facts', p.count) : t(locale, 'knowledge.product.none'))}</span></span>
-          <span class="go" aria-hidden="true">›</span></a></li>`).join('')}</ul>`
+          ${GO}</a></li>`).join('')}</ul>`
     : `<div class="empty">${esc(t(locale, 'knowledge.empty'))}</div>`;
 
   const biz = data.business.map((i) => itemCard(i, locale, null)).join('');

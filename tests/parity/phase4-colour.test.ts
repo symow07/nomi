@@ -33,7 +33,9 @@ const appCss = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path:
 const doorCss = linkedCss(loginPage({ locale: 'en', path: '/login' }));
 
 // The warmth pass (2026-10-04) — waiting is the deep magenta, `--color-needs`.
-const JOB_OF_VAR: Readonly<Record<string, Signal>> = { ok: 'ok', needs: 'waiting', warn: 'failed', assistant: 'assistant' };
+// The icons run (2026-10-04) — the assistant's light shade is a job with no signal: its shape is its name tag or its mark.
+type Job = Signal | 'assistant';
+const JOB_OF_VAR: Readonly<Record<string, Job>> = { ok: 'ok', needs: 'waiting', warn: 'failed', assistant: 'assistant' };
 
 /** Every rule as (selector, declarations), comments out, @media wrappers looked through. */
 const rules = (css: string): { sel: string; body: string }[] =>
@@ -41,7 +43,7 @@ const rules = (css: string): { sel: string; body: string }[] =>
     .map((m) => ({ sel: m[1]!.trim(), body: m[2]! }));
 
 /** Each selector whose TEXT is painted a signal colour, with the job. */
-const textInSignalColour = (css: string): { sel: string; job: Signal }[] =>
+const textInSignalColour = (css: string): { sel: string; job: Job }[] =>
   rules(css).flatMap((r) => {
     const m = /(?:^|[;{\s])color:\s*var\(--color-(ok|needs|warn|assistant)\)/.exec(r.body);
     return m ? r.sel.split(',').map((s) => ({ sel: s.trim(), job: JOB_OF_VAR[m[1]!]! })) : [];
@@ -55,9 +57,9 @@ const textInSignalColour = (css: string): { sel: string; job: Signal }[] =>
  *   verb  a button: its word says what it does; red says it takes something away
  */
 const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb', string]>> = {
-  '.dot.ok': ['mark', 'signalMark'], '.dot.warn': ['mark', 'signalMark'], '.dot.bad': ['mark', 'signalMark'], '.dot.as': ['mark', 'signalMark'],
-  '.as': ['mark', 'the ✦ beside what the assistant wrote, and its name beside the ✦'],
-  '.is-needs .cr-mark': ['mark', 'ROW_MARK ●'], '.is-hers .cr-mark': ['mark', 'ROW_MARK ✦'],
+  '.dot.ok': ['mark', 'signalMark'], '.dot.warn': ['mark', 'signalMark'], '.dot.bad': ['mark', 'signalMark'],
+  '.as': ['mark', 'the assistant\'s name (its name tag), or its mark (agentMark) beside what it did'],
+  '.is-needs .cr-mark': ['mark', 'ROW_MARK ●'], '.is-hers .cr-mark': ['mark', 'ROW_MARK: the assistant\'s mark (agentMark)'],
   '.is-needs .cr-why': ['row', 'the row opens with ●'],
   // The identity system (2026-10-04) — the assistant's NAME TAG: the element is the shape (its wash, a chip, its name).
   '.as-tag': ['mark', 'the name tag'], '.msg-by .as': ['mark', 'the name tag'], '#approve .top > .as': ['mark', 'the name tag'],
@@ -78,23 +80,24 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '.btn.danger': ['verb', 'Remove, Disconnect, Revoke…'],
 };
 
-describe('phase 4 · the four signals', () => {
-  it('are four, each with its own shape', () => {
+describe('phase 4 · the signals', () => {
+  it('are three, each with its own shape — the assistant\'s four-pointed star is retired (the icons run)', () => {
     const s = DESIGN_TOKENS.signal;
-    expect(Object.keys(s).sort()).toEqual(['assistant', 'failed', 'ok', 'waiting']);
-    expect(new Set(Object.values(s)).size).toBe(4);
-    expect(s).toEqual({ ok: '✓', waiting: '●', failed: '✕', assistant: '✦' });
-    // a chore's open ring is none of the four: a customer waiting and a setup step are two shapes
+    expect(Object.keys(s).sort()).toEqual(['failed', 'ok', 'waiting']);
+    expect(new Set(Object.values(s)).size).toBe(3);
+    expect(s).toEqual({ ok: '✓', waiting: '●', failed: '✕' });
+    expect(JSON.stringify(DESIGN_TOKENS)).not.toContain('✦');
+    // a chore's open ring is none of them: a customer waiting and a setup step are two shapes
     expect(Object.values(s)).not.toContain(DESIGN_TOKENS.chore);
     expect(DESIGN_TOKENS.chore).toBe('○');
     // the colour that paints each shape's words: two magentas, two jobs
     expect(Object.keys(JOB_OF_VAR).sort()).toEqual(['assistant', 'needs', 'ok', 'warn']);
-    // The type pass (2026-10-04): each shape is DRAWN (marks.ts) — no face the product serves has ✓ ○ ✕ ✦, so as
+    // The type pass (2026-10-04): each shape is DRAWN (marks.ts) — no face the product serves has ✓ ○ ✕, so as
     // characters they came from the device's fonts (SF Pro, Zapf Dingbats). The characters stay the shapes' names.
     for (const [k, v] of Object.entries(s)) {
-      expect(signalMark(k as Signal)).toBe(`<span class="dot ${({ ok: 'ok', waiting: 'warn', failed: 'bad', assistant: 'as' } as Record<string, string>)[k]} shape s-${k}" aria-hidden="true"></span>`);
+      expect(signalMark(k as Signal)).toBe(`<span class="dot ${({ ok: 'ok', waiting: 'warn', failed: 'bad' } as Record<string, string>)[k]} shape s-${k}" aria-hidden="true"></span>`);
       expect(signalMark(k as Signal)).not.toContain(v);
-      expect(new Set(Object.keys(s).map((x) => shapeUrl(x as Signal))).size).toBe(4);
+      expect(new Set(Object.keys(s).map((x) => shapeUrl(x as Signal))).size).toBe(3);
     }
   });
 

@@ -21,18 +21,38 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Each icon the product draws, and the weights it is drawn in. The rail's
- * entries are `regular` at rest and `fill` where you are; the rail's
- * heading is `bold` at its smaller size (layout.ts says why: the stroke
- * matches its words). Add a name here and run the tool again.
+ * Each icon the product draws, and the weights it is drawn in. The weight is
+ * chosen where it is drawn, by the words beside it (icons.ts says how):
+ * regular at the size that balances a 15 px label at 500, bold beside bold
+ * words or 13 px ones, the FILL only where the rail says "you are here".
+ * Every icon of the menus and the pages has both line weights, so a place may
+ * take either. Add a name here and run the tool again.
  */
+const BOTH = ['regular', 'bold'];
+const LINES = [
+  // the menus: the assistant's, My business, Setup and Settings
+  'chat-text', 'book-open', 'question', 'prohibit', 'identification-badge', 'list-bullets', 'sliders-horizontal',
+  'check-circle', 'play-circle', 'calendar-dots', 'flag', 'clock-counter-clockwise', 'storefront', 'handshake',
+  'package', 'shield-check', 'briefcase', 'chats', 'power', 'coins', 'chat-circle', 'chat-teardrop',
+  'envelope-simple', 'bell', 'file-text', 'gift', 'calendar-x', 'arrows-left-right', 'monitor-play',
+  'list-checks', 'translate', 'users-three', 'key', 'credit-card', 'folder', 'sign-out',
+  // Your data's download, the regular customer, the calendar's kinds of date
+  'download-simple', 'repeat', 'truck', 'tag', 'arrow-bend-up-left', 'arrow-clockwise', 'archive', 'push-pin', 'quotes',
+  // a customer with no name yet; what a customer sent that is not words
+  'user', 'paperclip', 'microphone', 'image',
+  // a door, the way back, closing
+  'caret-right', 'caret-left', 'x',
+];
 export const WANTED = {
+  // the rail: an outline at rest, the fill where you are; the heading in bold at its small size
   sun: ['regular', 'fill'],
-  users: ['bold'],
   tray: ['regular', 'fill'],
-  'calendar-blank': ['regular', 'fill'],
-  'user-circle': ['regular', 'fill'],
+  'calendar-blank': ['regular', 'bold', 'fill'],
   'gear-six': ['regular', 'fill'],
+  users: ['bold'],
+  // the assistant's slot (agentMark.ts): both lines and the fill
+  'user-circle': ['regular', 'bold', 'fill'],
+  ...Object.fromEntries(LINES.map((n) => [n, BOTH])),
 };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');

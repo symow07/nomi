@@ -13,6 +13,7 @@ import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { esc } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
 import { usd } from '../../src/core/types/money.js';
+import { GO } from '../../src/api/web/icons.js';
 
 /**
  * CC-26 — "Nothing on the page updates by itself. A new buyer message appears
@@ -161,7 +162,7 @@ describe('CC-26 · the live region: empty, polite, and the line waiting in a tem
       for (const [, what, inner] of tpls) {
         // the sentence is the door's label; the chevron says where it leads (and mirrors in Arabic)
         expect(inner, `${l} ${what}`).toBe(`<div class="flash live-line"><a class="deeper live-door" href="${esc(W.door)}">${
-          esc(t(l, `live.${what}` as 'live.message'))}<span class="go" aria-hidden="true">›</span></a></div>`);
+          esc(t(l, `live.${what}` as 'live.message'))}${GO}</a></div>`);
         expect(inner, `${l} ${what}`).not.toContain('role=');   // the region announces; the line does not interrupt
       }
       // Nothing of it is drawn until the script puts it in: outside the templates, the region is all there is.

@@ -25,6 +25,7 @@ import { productsSheet, priceRulesSheet, plainMoney, downloadName, EXPORT_SUBJEC
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { csvRows } from '../../src/core/owner/csv.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
+import { GO } from '../../src/api/web/icons.js';
 
 /**
  * Phase 9, round two — Products, the product page, the add page and the
@@ -70,7 +71,7 @@ describe('Products — the list', () => {
       const html = renderProductList([item()], l);
       // The title stands alone in its row; the door follows it, before the list.
       expect(html, l).toContain(`<h1 class="page">${esc(t(l, 'nav.products'))}</h1></div>`);
-      expect(html, l).toContain(`<a class="deeper prod-add" href="/app/products/add">${esc(t(l, 'product.teach'))}<span class="go" aria-hidden="true">›</span></a>`);
+      expect(html, l).toContain(`<a class="deeper prod-add" href="/app/products/add">${esc(t(l, 'product.teach'))}${GO}</a>`);
       expect(html.indexOf('prod-add'), l).toBeLessThan(html.indexOf('class="rows"'));
     }
     expect(t('en', 'product.teach')).toBe('Add your products');
@@ -91,7 +92,7 @@ describe('Products — the list', () => {
 
   it('V1-302 — each row that opens ends in the chevron', () => {
     const html = renderProductList([item(), item({ id: 'p2' })], 'en');
-    expect(html.match(/<a class="prod" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true">›<\/span><\/a>/g)).toHaveLength(2);
+    expect(html.match(/<a class="prod" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span><\/a>/g)).toHaveLength(2);
   });
 
   it('V1-303 / V1-379 — the list leads to the price limits, to what the assistant knows, and to a copy', () => {
@@ -649,7 +650,7 @@ describe('Your price limits', () => {
     expect(en).toContain(`<h2>${t('en', 'prices.default.title')}</h2>`);
     expect(en).not.toContain('class="sub3">For everything');
     expect(en).toContain('<div class="pr-name"><b><bdi>Canvas Tote Bag</bdi></b>');
-    expect(en).toContain('href="/app/business/prices?product=a1#p-a1">Change these limits<span class="go" aria-hidden="true">›</span></a>');
+    expect(en).toContain('href="/app/business/prices?product=a1#p-a1">Change these limits' + GO + '</a>');
     expect(en).not.toContain('class="blink"');
   });
 

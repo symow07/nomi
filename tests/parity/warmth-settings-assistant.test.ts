@@ -14,6 +14,7 @@ import { disclosureAwaitingReview, disclosureReviewed } from '../../src/core/con
 import { withoutIsolates } from './isolates.js';
 import { linkedCss } from './linked-css.js';
 import { screen } from './employee-screens.js';
+import { BACK } from '../../src/api/web/icons.js';
 
 /**
  * THE WARMTH RUN (2026-10-03), phase 7 — THE SETTINGS MODEL, the assistant's
@@ -114,7 +115,7 @@ describe('phase 7 · the landing: the name, the control, the menu', () => {
       for (const r of all) {
         expect(r, `${l}: ${text(r)}`).toMatch(/^<a class="srow sr-menu(?: sr-two)?" href="\/app\/[^"]+"><svg class="ni[^"]*"[^>]*aria-hidden="true"/);
         expect(r).toContain('<span class="sr-label">');
-        expect(r).toMatch(/<span class="go" aria-hidden="true">›<\/span><\/a>$/);
+        expect(r).toMatch(/<span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span><\/a>$/);
         // every row says where it stands — a value, or (Practice) the line under its name
         expect(r.includes('<span class="sr-value') || r.includes('<span class="sr-desc">'), `${l}: ${text(r)}`).toBe(true);
       }
@@ -256,7 +257,7 @@ describe('phase 7 · every screen starts with its way back', () => {
     it(`${l}`, () => {
       for (const s of EMPLOYEE_SCREENS) {
         const html = withAssistantName('Lily', () => screen(s, { ...base, spotChecks: [check] }, l, ctx, undefined, { talk }));
-        expect(html.trimStart().startsWith('<a class="back" href="/app/employee"><span class="go" aria-hidden="true">‹</span>Lily</a><h1 class="page">'), `${l}/${s}`).toBe(true);
+        expect(html.trimStart().startsWith('<a class="back" href="/app/employee">' + BACK + 'Lily</a><h1 class="page">'), `${l}/${s}`).toBe(true);
         expect(html.match(/<h1 /g), `${l}/${s}: one heading`).toHaveLength(1);
       }
       // the pages that were always their own: the shell adds the way back where a page draws none

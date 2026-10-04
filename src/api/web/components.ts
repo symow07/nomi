@@ -31,7 +31,7 @@ export function renderComponents(locale: Locale): string {
   const chips = `
     <div class="card"><p><span class="pill ok">${label}</span><span class="pill warn">${label}</span>
        <span class="pill bad">${label}</span><span class="pill owner">${label}</span>
-       <span class="as">${shape('assistant')} ${esc(assistantName(locale))}</span></p></div>
+       <span class="as">${esc(assistantName(locale))}</span></p></div>
     <div class="chips"><span class="chip">${s('sample.option')}</span><span class="chip">${s('sample.option')}</span></div>`;
 
   const buttonRow = (state: 'rest' | 'hover' | 'focus' | 'disabled'): string => {
@@ -73,7 +73,7 @@ export function renderComponents(locale: Locale): string {
     <span class="tab">${s('sample.more')}</span></div>`;
 
   // The warmth run (w4-settings-a-21) — speech as a conversation draws it: the customer by name, the
-  // assistant's reply on its wash with "✦ {name}", a person's reply plain; each with its time.
+  // assistant's reply on its wash with its name tag, a person's reply plain; each with its time.
   const at = (m: number) => esc(show.time(locale, new Date(Date.UTC(2026, 9, 3, 9, m))));
   const speech = `
     <div class="timeline">
@@ -89,8 +89,8 @@ export function renderComponents(locale: Locale): string {
   const faces = `<div class="chips">${(['xs', 's', 'm', 'l', 'xl'] as const).map((size, i) =>
     face({ clientId: `c${i}`, name: people[i] ?? null, photo: null }, size)).join('')}</div>`;
   const menu = menuGroup('gallery', label, [
-    menuRow({ href: '/app/settings/components', icon: 'bell', label: t(locale, 'alerts.title'), value: t(locale, 'alerts.way.email') }),
-    menuRow({ href: '/app/settings/components', icon: 'folder', label: t(locale, 'data.title'), desc: t(locale, 'setup.alerts.nothing'), value: null }),
+    menuRow({ href: '/app/settings/components', icon: 'alerts', label: t(locale, 'alerts.title'), value: t(locale, 'alerts.way.email') }),
+    menuRow({ href: '/app/settings/components', icon: 'data', label: t(locale, 'data.title'), desc: t(locale, 'setup.alerts.nothing'), value: null }),
   ]);
   const toast = `<div><a class="toast" href="/app/inbox">${esc(t(locale, 'live.toast.reply', { who: 'Aisha Bello' }))}</a></div>`;
 

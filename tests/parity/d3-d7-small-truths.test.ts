@@ -51,10 +51,10 @@ describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
     const html = withAssistantName('Lily', () =>
       renderConversationDetail(base, 'en', new Date('2026-09-19T15:00:00Z'), null));
     // The three signature lines, in the order the three messages appear.
-    // Tags stripped: the assistant's name is drawn with its ✦ in a span (2026-09-29).
+    // Tags stripped: the assistant's name is its name tag, with no mark before it (the icons run, 2026-10-04).
     // The fix wave (w4-conversation-17) — the assistant's name stands over its words; the caption keeps the time.
     const signed = [...html.matchAll(/<div(?: id="latest")? class="msg [a-z]+">\s*(?:<div class="msg-by">(.*?)<\/div>)?[\s\S]*?<div class="ts muted">(.*?)<\/div>/g)]
-      .map((m) => `${m[1] ?? ''} ${m[2]!}`.replace(/<span class="shape s-assistant[^"]*" aria-hidden="true"><\/span>/g, '✦').replace(/<[^>]+>/g, '').trim());
+      .map((m) => `${m[1] ?? ''} ${m[2]!}`.replace(/<svg[\s\S]*?<\/svg>/g, '[mark]').replace(/<[^>]+>/g, '').trim());
     expect(signed).toHaveLength(3);
     // The design pass (UI-PASS 5): the customer by their name, never a role word.
     expect(signed[0], 'the buyer').toContain(base.buyer!);
@@ -62,7 +62,8 @@ describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
     expect(signed[1], 'what the owner typed').toContain('You');
     expect(signed[1], 'what the owner typed').not.toContain('Lily');
     expect(signed[2], 'what the assistant wrote').toContain('Lily');
-    expect(signed[2], 'what the assistant wrote').toContain('✦');
+    expect(signed[2], 'what the assistant wrote').not.toContain('✦');
+    expect(signed[2], 'its name tag, no mark').not.toContain('[mark]');
     expect(signed[1], 'what the owner typed').not.toContain('✦');
   });
 

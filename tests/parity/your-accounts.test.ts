@@ -7,6 +7,7 @@ import { isMark, liveNews } from '../../src/api/web/live.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { readFileSync } from 'node:fs';
+import { BACK } from '../../src/api/web/icons.js';
 
 /**
  * CH1 + CH2 — the parts no database is needed for: how Meta's answers are
@@ -137,7 +138,7 @@ describe('Phase 9 · B5 · Connecting Messenger and Instagram', () => {
     for (const l of LOCALES) {
       const html = renderMetaHelp(l);
       // Phase 9 (w4-business-assistant-07) — the steps are on Instagram and Messenger's own screen.
-      expect(html, l).toContain(`<span class="go" aria-hidden="true">‹</span>${t(l, 'meta.panel.title')}</a></div>\n    <h1 class="page">`);
+      expect(html, l).toContain(`${BACK}${t(l, 'meta.panel.title')}</a></div>\n    <h1 class="page">`);
     }
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("app.get('/app/help/meta', authed('settings',");   // it lights Setup, where Channels sits

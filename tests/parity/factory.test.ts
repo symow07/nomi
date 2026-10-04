@@ -10,6 +10,7 @@ import { t as say } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
 import { readFileSync } from 'node:fs';
 import { withoutIsolates } from './isolates.js';
+import { GO } from '../../src/api/web/icons.js';
 
 /** V1 step four — My business's rules, as they sit in the shell's stylesheet. */
 const factorySectionOfShell = (): string => {
@@ -291,7 +292,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   it('uses the shell’s one “go deeper” link and the menu’s one row, rather than page-local variants', () => {
     expect(screen('promises', complete)).toContain('<a class="deeper" href="/app/knowledge">');
     expect(menu(complete)).toContain('<a class="srow sr-menu" href="/app/settings/profile">');
-    expect(menu(complete)).toContain('<span class="go" aria-hidden="true">›</span>');
+    expect(menu(complete)).toContain(GO);
     expect(everything(complete)).not.toContain('class="fmore"');
   });
 

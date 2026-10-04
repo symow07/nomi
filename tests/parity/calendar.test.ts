@@ -101,7 +101,7 @@ describe('V2 · the calendar page, by structure', () => {
         if (x.buyer) expect(row).toContain(`<a class="face-link" href="/app/customers/${x.buyer.id}" data-card aria-label="${x.buyer.name}"><span class="face face-s`);
         else if (x.kind === 'closure') expect(row).toMatch(/<span class="dl-who dl-only"><svg class="kind-icon"/);
         else expect(row).toMatch(/<span class="dl-who"><span class="face face-s[^"]*" aria-hidden="true">/);
-        expect(row).toContain('<svg class="kind-icon"');
+        expect(row).toContain('<svg class="kind-icon');
         expect(row, 'never a pill: a pill is a state').not.toMatch(/class="(?:tag|chip|pill)\b/);
       }
       // A heading per day of the month's other dates (what is owed has its own); today named in words.

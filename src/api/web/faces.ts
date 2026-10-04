@@ -1,5 +1,6 @@
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { esc } from './layout.js';
+import { icon } from './icons.js';
 
 /**
  * THE WARMTH RUN (2026-10-03) — A CUSTOMER'S FACE, the one way it is drawn.
@@ -65,9 +66,12 @@ export function initialOf(name: string | null): string | null {
   return null;
 }
 
-/** A person's outline, for a customer with no name yet (a number on WhatsApp). */
-const OUTLINE = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/>'
-  + '<path d="M4.5 20c1.3-3.6 4.2-5.5 7.5-5.5s6.2 1.9 7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+/**
+ * A person's outline, for a customer with no name yet (a number on WhatsApp).
+ * The icons run (2026-10-04): Phosphor's person, bold, so its line is the
+ * stem of the initials the other faces carry (600, at 1.4em of the face's size).
+ */
+const OUTLINE = icon('person', 'fi', 'bold');
 
 /** Where a customer's photo is served from; `v` changes when the photo does. */
 export const faceSrc = (clientId: string, version: string): string =>

@@ -12,6 +12,7 @@ import { profileOf } from '../../src/core/owner/sellingStyle.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/api/web/say.js';
 import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { BACK } from '../../src/api/web/icons.js';
 
 /**
  * HS (0096) — "How you sell", pure: which questions a business is asked, how
@@ -132,7 +133,7 @@ describe('HS · the pages, in every language', () => {
       expect(hub, l).not.toMatch(/\bhs\.[a-zA-Z_.]+/);
       // Phase 7 — opened from My business › How you sell, a menu of the same name:
       // the page is named for what it holds, and leads back to that menu.
-      expect(hub, l).toContain(`<div class="dhead"><a class="back" href="/app/business/how-you-sell"><span class="go" aria-hidden="true">‹</span>${t(l, 'factory.sellhow.title')}</a></div>`);
+      expect(hub, l).toContain(`<div class="dhead"><a class="back" href="/app/business/how-you-sell">${BACK}${t(l, 'factory.sellhow.title')}</a></div>`);
       expect(hub, l).toContain(`<h1 class="page">${t(l, 'hs.questions.title')}</h1>`);
       for (const q of CATALOGUE_QUESTIONS) expect(hub, `${l} ${q}`).toContain(`href="/app/business/selling/${q}"`);
       for (const q of [...CATALOGUE_QUESTIONS, ...SERVICE_QUESTIONS]) {

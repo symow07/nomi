@@ -6,7 +6,7 @@ import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } fr
 import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
 import { datePartOrder, monthNames } from '../../core/owner/i18n/format.js';
 import { t, tn, assistantName, setupState, businessName } from './say.js';
-import { icon, type IconId } from './icons.js';
+import { icon, type IconId, GO } from './icons.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR, FLOOR_BY_LANGUAGE } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
@@ -243,7 +243,7 @@ export const menuRow = (r: MenuRow): string => {
     + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
   const cls = `srow sr-menu${line ? ' sr-two' : ''}`;
   return r.href
-    ? `<li><a class="${cls}" href="${r.href}">${inner}<span class="go" aria-hidden="true">›</span></a></li>`
+    ? `<li><a class="${cls}" href="${r.href}">${inner}${GO}</a></li>`
     : `<li><div class="${cls}">${inner}</div></li>`;
 };
 
@@ -310,22 +310,22 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       value: named === null ? null : t(locale, named ? 'setup.value.nameConfirmed' : 'setup.value.nameNotConfirmed'), tone: toneOf(named) }),
     // The warmth run, phase 8 — Notifications: the row says how they reach this reader now;
     // phase 9 (w4-settings-a-02) — and, when nothing does, says that, not a way that cannot reach them.
-    menuRow({ href: '/app/settings/alerts', icon: 'bell', label: t(locale, 'alerts.title'),
+    menuRow({ href: '/app/settings/alerts', icon: 'alerts', label: t(locale, 'alerts.title'),
       desc: v.alerts?.way === null ? t(locale, 'setup.alerts.nothing') : null,
       value: !v.alerts ? null : v.alerts.way !== undefined ? (v.alerts.way ? alertWayName(locale, v.alerts.way) : null)
         : !v.alerts.available ? t(locale, 'setup.value.unavailable')
         : v.alerts.phones === 0 ? t(locale, 'setup.value.off') : tn(locale, 'setup.value.phones', v.alerts.phones),
       tone: v.alerts?.way === null ? 'warn' : v.alerts?.way === undefined && v.alerts?.available && v.alerts.phones > 0 ? 'ok' : undefined }),
     // The switch, a tap down: the row says which language is in force, in its own name.
-    menuRow({ href: '/app/settings/language', icon: 'globe', label: t(locale, 'settings.language.title'), value: LOCALE_LABEL[locale] }),
+    menuRow({ href: '/app/settings/language', icon: 'language', label: t(locale, 'settings.language.title'), value: LOCALE_LABEL[locale] }),
   ];
   const account = [
-    menuRow({ href: owner ? '/app/settings/people' : null, icon: 'person', label: t(locale, 'people.title'), value: tn(locale, 'setup.state.people', v.people) }),
-    menuRow({ href: '/app/settings/account', icon: 'key', label: t(locale, 'account.title'),
+    menuRow({ href: owner ? '/app/settings/people' : null, icon: 'people', label: t(locale, 'people.title'), value: tn(locale, 'setup.state.people', v.people) }),
+    menuRow({ href: '/app/settings/account', icon: 'account', label: t(locale, 'account.title'),
       value: !v.signIn ? null : v.signIn.email ?? t(locale, 'setup.value.accessCode') }),
     ...(owner ? [
-      menuRow({ href: '/app/settings/billing', icon: 'card', label: t(locale, 'billing.title'), value: billing, tone: billingTone }),
-      menuRow({ href: '/app/settings/data', icon: 'folder', label: t(locale, 'data.title'),
+      menuRow({ href: '/app/settings/billing', icon: 'billing', label: t(locale, 'billing.title'), value: billing, tone: billingTone }),
+      menuRow({ href: '/app/settings/data', icon: 'data', label: t(locale, 'data.title'),
         value: v.dataWaiting === null || v.dataWaiting === undefined ? null
           : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
         tone: v.dataWaiting ? 'warn' : undefined }),
@@ -349,7 +349,7 @@ export function renderLanguage(locale: Locale): string {
       // The name keeps the page's side; its own letters' order is isolated (a `dir` on the cell would move it to the other side).
       + `<span class="sr-main"><span class="sr-label" lang="${l}"><bdi>${esc(LOCALE_LABEL[l])}</bdi></span></span>`
       + `${on ? `<span class="sr-value ok"><bdi>${esc(t(locale, 'settings.language.inUse'))}</bdi></span>` : ''}`
-      + `<span class="go" aria-hidden="true">›</span></a></li>`;
+      + `${GO}</a></li>`;
   }).join('');
   return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${esc(t(locale, 'settings.language.title'))}</h1>

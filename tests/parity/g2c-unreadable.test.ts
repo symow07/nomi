@@ -135,7 +135,10 @@ describe('G2c · the owner is told what arrived, in her language', () => {
     const html = renderConversationDetail(detail({
       messages: [{ direction: 'inbound', text: 'RFQ attached', at: null, received: 'document' }],
     }), 'en', NOW, null);
-    const bubble = html.slice(html.indexOf('📎'), html.indexOf('RFQ attached') + 40);
+    // the icons run — Phosphor's paperclip, never the 📎 emoji
+    expect(html).not.toMatch(/\p{Extended_Pictographic}/u);
+    const bubble = html.slice(html.indexOf('<svg class="mi"'), html.indexOf('RFQ attached') + 40);
+    expect(bubble).toMatch(/^<svg class="mi"[^>]*><path d="[^"]+"\/><\/svg>/);
     expect(bubble).toContain(t('en', 'received.document'));
     expect(bubble).toContain('class="said"');
   });

@@ -22,7 +22,7 @@ import { loadKillSwitches } from '../../db/opsFlags.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { aloneNow, type AloneHold } from '../../core/conversation/aloneNow.js';
 import { defaultAssistantName, NAME_MAX } from '../../core/owner/assistants.js';
-import { type IconId } from './icons.js';
+import { type IconId, GO } from './icons.js';
 import { menuRow as settingsRow } from './settings.js';
 import * as show from './values.js';
 
@@ -403,7 +403,7 @@ function teachBody(c: HerContext | undefined, locale: Locale): string {
       <a class="gap" href="/app/knowledge?teach=${encodeURIComponent(g.question)}">
         <span class="gq">${esc(g.question)}</span>
         <span class="gmeta muted">${esc(t(locale, 'her.teach.asked', { count: g.count }))}</span>
-        <span class="gact">${esc(t(locale, 'her.teach.go'))}<span class="go" aria-hidden="true">›</span></span>
+        <span class="gact">${esc(t(locale, 'her.teach.go'))}${GO}</span>
       </a>`).join('')}</div></div>`;
 }
 
@@ -663,7 +663,7 @@ export function renderEmployee(
   const says: MenuRow[] = [
     { href: screenHref('talk'), icon: 'talk', label: t(locale, 'her.talk.title'),
       ...(e.products === undefined ? {} : { value: tn(locale, 'her.talk.products', e.products) }) },
-    { href: '/app/knowledge', icon: 'book', label: t(locale, 'nav.knowledge'),
+    { href: '/app/knowledge', icon: 'knowledge', label: t(locale, 'nav.knowledge'),
       value: e.knows ? tn(locale, 'knowledge.product.facts', e.knows) : nothingYet },
     // V1-423 — what customers asked this month that needed something not taught: a count of questions.
     { href: screenHref('learning'), icon: 'question', label: t(locale, 'her.teach.title'),
@@ -673,12 +673,12 @@ export function renderEmployee(
       ...(e.words === undefined ? {} : { value: e.words ? tn(locale, 'forbidden.floor.count', e.words) : nothingYet }) },
   ];
   const works: MenuRow[] = [
-    { href: screenHref('name'), icon: 'assistant', label: t(locale, 'her.menu.name'),
+    { href: screenHref('name'), icon: 'name', label: t(locale, 'her.menu.name'),
       value: e.assistantNamed ? name : t(locale, 'her.menu.name.unconfirmed') },
     // What happens now is a sentence here, so it is the line under the name, never a value cut short.
-    { href: screenHref('replies'), icon: 'setup', label: t(locale, 'her.handles.title'), desc: st.nowLabel },
+    { href: screenHref('replies'), icon: 'kinds', label: t(locale, 'her.handles.title'), desc: st.nowLabel },
     // What stands here: a kind earned (the owner's to grant), else the kinds set to go alone.
-    { href: screenHref('one-kind'), icon: 'settings', label: t(locale, 'employee.actions.title'),
+    { href: screenHref('one-kind'), icon: 'sliders', label: t(locale, 'employee.actions.title'),
       ...(viewer.isOwner && st.grantable.length
         ? { desc: t(locale, st.hold ? 'employee.actions.eligibleHeld' : 'employee.actions.eligible', { cap: capList(st.grantable.map((c) => c.capability)) }) }
         : st.revocable.length ? { desc: t(locale, 'her.menu.oneKind.set', { list: capList(st.revocable.map((c) => c.capability)) }) }
@@ -688,12 +688,12 @@ export function renderEmployee(
     // check — an empty ritual is worse than none. Today's line lands on it.
     ...(e.spotChecks.length ? [{ href: screenHref('checks'), icon: 'check' as const, label: t(locale, 'spotcheck.title'),
       value: tn(locale, 'today.spotChecks', e.spotChecks.length), tone: 'warn' as const, id: 'spot-checks' }] : []),
-    { href: '/app/sandbox', icon: 'play', label: t(locale, 'nav.sandbox'), desc: t(locale, 'her.menu.practice') },
+    { href: '/app/sandbox', icon: 'practice', label: t(locale, 'nav.sandbox'), desc: t(locale, 'her.menu.practice') },
   ];
   const going: MenuRow[] = [
-    { href: screenHref('month'), icon: 'calendar', label: t(locale, 'her.recent.title'),
+    { href: screenHref('month'), icon: 'month', label: t(locale, 'her.recent.title'),
       ...(ctx ? { desc: tn(locale, 'her.count.handled', ctx.handled) } : {}) },
-    { href: screenHref('next'), icon: 'flag', label: t(locale, 'employee.promo.title'),
+    { href: screenHref('next'), icon: 'next', label: t(locale, 'employee.promo.title'),
       ...(e.conditions.length ? { value: t(locale, 'nav.setup.progress', { done: met, total: e.conditions.length }) }
         : { desc: st.alone.length ? t(locale, 'employee.promo.done')
           : labelled(locale, t(locale, 'employee.promo.next'), t(locale, 'employee.stage.partial')) }) },
@@ -738,17 +738,17 @@ export function renderEmployeeScreen(
           value: t(locale, k.finished ? 'setup.state.done' : 'setup.state.toDo'), ...(k.finished ? { tone: 'ok' as const } : {}) },
         ...(k.selling ? [{
           // How you sell's own menu, which staff may open too (its questions stay the owner's, rule 11).
-          href: '/app/business/how-you-sell', icon: 'receipt' as const, label: t(locale, 'factory.sellhow.title'),
+          href: '/app/business/how-you-sell', icon: 'sell' as const, label: t(locale, 'factory.sellhow.title'),
           desc: t(locale, 'setup.desc.selling'), value: t(locale, 'hs.progress', { done: k.selling.answered, total: k.selling.total }),
           ...(k.selling.answered >= k.selling.total ? { tone: 'ok' as const } : {}) }] : []),
-        { href: '/app/products', icon: 'box', label: t(locale, 'nav.products'),
+        { href: '/app/products', icon: 'products', label: t(locale, 'nav.products'),
           // A product's name carries its figures ("38x40cm", "500ml"): isolated, so Arabic does not reorder them.
           desc: k.products.names.length ? `${show.isolateFigures(locale, k.products.names.join(' · '))}${more ? ' …' : ''}` : t(locale, 'factory.sell.empty'),
           value: tn(locale, 'her.talk.products', k.products.total) },
-        { href: '/app/knowledge', icon: 'book', label: t(locale, 'nav.knowledge'),
+        { href: '/app/knowledge', icon: 'knowledge', label: t(locale, 'nav.knowledge'),
           value: k.taught > 0 ? tn(locale, 'knowledge.product.facts', k.taught) : t(locale, 'knowledge.product.none') },
         // The certifications by name on the line under the row's name, which wraps; a value on a phone is one short line.
-        { href: '/app/business/promises', icon: 'shield', label: t(locale, 'factory.promise.title'),
+        { href: '/app/business/promises', icon: 'promise', label: t(locale, 'factory.promise.title'),
           ...(certs.length ? { desc: certs.join(' · ') } : { value: t(locale, 'business.value.noneConfirmed') }) },
       ];
       return `${head}

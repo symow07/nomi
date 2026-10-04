@@ -383,7 +383,7 @@ export const DESIGN_TOKENS = {
   /** A pressed control settles to `press`; a dialog grows in from `enter`. */
   motionScale: { press: 0.97, enter: 0.96 },
   /**
-   * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Each signal
+   * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE SIGNALS. Each signal
    * has a SHAPE as well as a colour, so it is still said in greyscale, to an
    * eye that does not tell the hues apart, and on a phone in the sun:
    *
@@ -392,7 +392,10 @@ export const DESIGN_TOKENS = {
    *                                NEEDS DOT, a solid disc the stylesheet
    *                                draws, the same size in every script
    *   failed     ✕  red            it did not happen, it did not reach them
-   *   assistant  ✦  light magenta  the assistant did this (`--color-assistant`)
+   *
+   * The assistant was a fourth, a four-pointed star; the icons run (2026-10-04)
+   * took it out. "The assistant did this" is the light magenta with its NAME
+   * TAG where it labels words, and its slot (`agentMark`) where it is a mark.
    *
    * The identity system (2026-10-04): waiting was the open ring ○, which a
    * chore also wore in stone — two rings told apart by colour alone. Now a
@@ -405,7 +408,7 @@ export const DESIGN_TOKENS = {
    * `phase4-colour.test.ts` holds every use of a signal colour in the
    * stylesheet to one of these, with its shape.
    */
-  signal: { ok: '✓', waiting: '●', failed: '✕', assistant: '✦' },
+  signal: { ok: '✓', waiting: '●', failed: '✕' },
   /**
    * Something left TO DO that is not a customer waiting — a setup step, a
    * hold, a check: the OPEN ring, in the secondary ink (`todoMark`, layout.ts).

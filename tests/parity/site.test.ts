@@ -153,7 +153,7 @@ describe('Phase 9 · the site says one thing, the product\'s way', () => {
     for (const l of LOCALES) {
       const html = page(l);
       const card = html.slice(html.indexOf('<figure'), html.indexOf('</figure>'));
-      expect(card, l).toContain(`<span class="shape s-assistant site-as" aria-hidden="true"></span> ${esc(t(l, 'card.drafted'))}`);
+      expect(card, l).toContain(`<span class="site-who"><span>${esc(t(l, 'card.drafted'))}</span>`);   // its name tag, no mark (the icons run)
       expect(card, l).toContain(`<span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span>`);
       expect(card, l).not.toContain('site-fake');
       expect(card, l).not.toMatch(/<(button|a)\b/);

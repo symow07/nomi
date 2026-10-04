@@ -9,6 +9,7 @@ import { moneyFromRow } from '../../src/core/types/money.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { linkedCss } from './linked-css.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
+import { agentMark } from '../../src/api/web/agentMark.js';
 
 /**
  * THE SHELL (the design pass, 2026-09-29; the plan's §2 and §3): the rail in
@@ -107,7 +108,7 @@ describe('the list pane', () => {
     expect(html).not.toContain('class="tag');
     // the list page's own row: the assistant wrote c-2's last message, so the one magenta ✦ leads it
     expect(html).toMatch(/<div class="irow is-hers[^"]*">/);
-    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<span class="shape s-assistant as" aria-hidden="true"><\/span>[\s\S]*?<span class="ir-text" dir="auto">last from c-2/);
+    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg>[\s\S]*?<span class="ir-text" dir="auto">last from c-2/);
     const first = html.slice(html.indexOf('href="/app/inbox/c-1#latest"'));
     expect(first.slice(0, first.indexOf('</a>'))).not.toContain('✦');
     // no product line anywhere on the row
@@ -160,10 +161,10 @@ describe('the customer panel', () => {
     expect(html).toContain('Sample · asked ');
     // 0083 — what was promised them, in the words that reached them, with the assistant's mark
     expect(html).toContain('<h3>Promised</h3>');
-    expect(html).toContain('<span class="shape s-assistant as" aria-hidden="true"></span> <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
+    expect(html).toContain('' + agentMark(16, 'rest', 'am as') + ' <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
     expect(html).toContain('<bdi>Order W-1042</bdi>');
     expect(html).toContain('<span class="dot warn shape s-waiting" aria-hidden="true"></span> Needs you');
-    expect(html).toContain('<span class="shape s-assistant as" aria-hidden="true"></span> Lily replied');
+    expect(html).toContain('' + agentMark(16, 'rest', 'am as') + ' Lily replied');
     expect(html).toContain('<span class="shape s-you pn-you" aria-hidden="true"></span> You sent Lily’s draft');
     expect(html).toContain('Lily’s reply didn’t reach them <span class="dot bad shape s-failed" aria-hidden="true"></span>');
     expect(html).toContain('href="/app/conversations/c-1"');

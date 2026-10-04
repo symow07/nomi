@@ -12,6 +12,8 @@ import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
 import { face } from './faces.js';
 import type { Person } from '../../core/conversation/people.js';
 import * as show from './values.js';
+import { GO } from './icons.js';
+import { agentMark } from './agentMark.js';
 
 /**
  * THE THREE PANES (the design pass, 2026-09-29; the plan's §2 and §3): on a
@@ -151,21 +153,21 @@ export function renderCustomerPanel(
     // run together, a narrow panel broke "LED String Lights 10m · 17:20" at random.
     `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''}<br><span class="muted small">${esc(show.shortWhen(locale, q.at, now))}</span>`,
     // conversation-missed-05 — a door like every other, its chevron set off from its words.
-    elsewhere(q.conversationId) ? `<a class="pn-door" href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}<span class="go" aria-hidden="true">›</span></a>` : ''));
+    elsewhere(q.conversationId) ? `<a class="pn-door" href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}${GO}</a>` : ''));
   const record = [
     ...p.samples.map((s) => li(`${esc(t(locale, 'panel.sample'))} · ${esc(t(locale, 'panel.sampleAsked', { date: show.date(locale, s.askedAt) }))}${
       s.handledAt ? ` · ${esc(t(locale, 'panel.sampleHandled', { date: show.date(locale, s.handledAt) }))}` : ''}`)),
     ...p.orders.map((o) => li(`<bdi>${esc(t(locale, 'panel.order', { reference: o.reference }))}</bdi> · ${esc(orderStatusName(locale, o.status))}`,
-      `<a href="/app/orders/${encodeURIComponent(o.id)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.order', { reference: o.reference }))}</span></a>`)),
+      `<a href="/app/orders/${encodeURIComponent(o.id)}">${GO}<span class="sr">${esc(t(locale, 'panel.order', { reference: o.reference }))}</span></a>`)),
   ];
   const promises = p.promised.map((x) => li(
-    `${x.byAssistant ? `${shape('assistant', 'as')} ` : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
-    `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))}${elsewhere(x.conversationId) ? ` <a class="pn-door" href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>` : ''}`));
+    `${x.byAssistant ? `${agentMark(16, 'rest', 'am as')} ` : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
+    `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))}${elsewhere(x.conversationId) ? ` <a class="pn-door" href="${conversationUrl(x.conversationId)}">${GO}<span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>` : ''}`));
   const dated = calendar.map((e) => li(`${esc(show.date(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
-    e.conversationId && elsewhere(e.conversationId) ? `<a class="pn-door" href="${conversationUrl(e.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
+    e.conversationId && elsewhere(e.conversationId) ? `<a class="pn-door" href="${conversationUrl(e.conversationId)}">${GO}<span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
   const act = p.activity.map((a) => {
     const mark = MARK[a.kind];
-    const glyph = mark === 'as' ? shape('assistant', 'as')
+    const glyph = mark === 'as' ? agentMark(16, 'rest', 'am as')
       : mark === 'you' ? shape('you', 'pn-you') : signalMark('waiting');
     const said = a.kind === 'not_reached'
       ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} ${signalMark('failed')}`

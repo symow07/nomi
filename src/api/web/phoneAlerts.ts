@@ -13,6 +13,7 @@ import {
   type AlertChannel,
 } from '../../core/owner/alertChannel.js';
 import { alertPerson, ownerAlertFacts, saveAlertChoice } from '../../db/alertChannel.js';
+import { GO } from './icons.js';
 
 /**
  * G5b — "Alerts on your phone": the page a person turns them on from. Anyone
@@ -178,7 +179,7 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: Al
   const now = alertWayNow(w, v);
   const wanted = wantedWay(w);
   const can: Record<AlertChannel, boolean> = { email: w.email !== null, browser: pushOn, whatsapp: whatsappReachableFor(w) };
-  const reach = `<a class="way-door" href="/app/channels/alerts">${esc(t(locale, 'channels.alerts.title'))}<span class="go" aria-hidden="true">›</span></a>`;
+  const reach = `<a class="way-door" href="/app/channels/alerts">${esc(t(locale, 'channels.alerts.title'))}${GO}</a>`;
   const note: Record<AlertChannel, string> = {
     email: esc(w.email ? t(locale, 'alerts.way.email.to', { email: w.email }) : t(locale, 'alerts.way.email.none')),
     browser: esc(!pushOn ? t(locale, 'alerts.phone.off')

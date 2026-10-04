@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { renderAccounts, type AccountsView } from '../../src/api/web/connect.js';
 import { withWorkspace } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
+import { BACK } from '../../src/api/web/icons.js';
 
 const connected: ChannelsData = {
   whatsapp: {
@@ -291,7 +292,7 @@ describe('Phase 9 · B5 · Where customers reach you', () => {
     for (const l of LOCALES) {
       const guide = renderConnectGuide(l);
       // Phase 9 — the guide is reached from WhatsApp's own screen, and leads back to it.
-      expect(guide, l).toContain(`<a class="back" href="/app/channels/whatsapp"><span class="go" aria-hidden="true">‹</span>${esc(t(l, 'reach.channel.whatsapp'))}</a>`);
+      expect(guide, l).toContain(`<a class="back" href="/app/channels/whatsapp">${BACK}${esc(t(l, 'reach.channel.whatsapp'))}</a>`);
       expect(guide, l).toContain(esc(t(l, 'nav.channels')));
     }
     expect(app).toContain("title: t(locale, 'channel.connect.title'), bodyHtml: guide(s, locale, { flash: takeFlash(req, reply) })");

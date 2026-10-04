@@ -7,6 +7,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 import { dayKey, dayStart, addDays } from '../../src/core/owner/i18n/format.js';
 import { usd } from '../../src/core/types/money.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
+import { BACK, GO } from '../../src/api/web/icons.js';
 
 /** TZ — the fixtures' times are written in Shanghai time: the workspace's zone, stated. */
 const draw = (...a: Parameters<typeof renderCalendar>) => withZone('Asia/Shanghai', () => renderCalendar(...a));
@@ -104,7 +105,7 @@ describe('the week, a row of the month (the owner\'s correction, 2026-10-04: one
     for (const a of [ask(), chosen(TODAY)]) {
       const html = draw(week(), 'en', { ask: a, now: NOW });
       expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
-      expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><span class="shape s-assistant as" aria-hidden="true"><\/span> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
+      expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
     }
   });
 
@@ -120,14 +121,14 @@ describe('the week, a row of the month (the owner\'s correction, 2026-10-04: one
 
   it('‹ Last month · This month · Next month › move a month, in words (phase 9, V1-199); in Arabic the same doors, mirrored by the chevrons', () => {
     const html = draw(week(), 'en', { ask: chosen(TODAY), now: NOW });
-    expect(html).toContain('<a class="back" href="/app/calendar?month=2026-08"><span class="go" aria-hidden="true">‹</span>Last month</a>');
-    expect(html).toContain('<a class="deeper" href="/app/calendar?month=2026-10">Next month<span class="go" aria-hidden="true">›</span></a>');
+    expect(html).toContain('<a class="back" href="/app/calendar?month=2026-08">' + BACK + 'Last month</a>');
+    expect(html).toContain('<a class="deeper" href="/app/calendar?month=2026-10">Next month' + GO + '</a>');
     expect(html).toContain('<a class="tab cal-today" href="/app/calendar">This month</a>');
     // the month's name comes first, as the label of what the doors move
     expect(html.indexOf('<p class="cal-span">')).toBeLessThan(html.indexOf('<nav class="cal-move"'));
     const ar = draw(week(), 'ar', { ask: ask(), now: NOW });
     expect(ar).toContain(t('ar', 'calendar.this.month'));
-    expect(ar).toContain('<span class="go" aria-hidden="true">‹</span>');
+    expect(ar).toContain(BACK);
   });
 
   it('the month shows its days, two or three dates each, and "+N more" — choosing that day — instead of a taller row (phase 7)', () => {

@@ -864,7 +864,7 @@ export function renderPilotRunbook(
   const seen = tasks.filter((x) => x.done).length;
   return renderPilotReadiness(rb.readiness, locale, flash, viewer)
     + menuGroup('more', null, [
-      menuRow({ href: PILOT_SCREEN_PATH.practice, icon: 'play', label: t(locale, SCREEN_TITLE.practice),
+      menuRow({ href: PILOT_SCREEN_PATH.practice, icon: 'practice', label: t(locale, SCREEN_TITLE.practice),
         value: seen === tasks.length ? t(locale, 'setup.state.done') : t(locale, 'runbook.practice.count', { done: seen, total: tasks.length }),
         tone: seen === tasks.length ? 'ok' : 'warn' }),
       menuRow({ href: PILOT_SCREEN_PATH.activity, icon: 'history', label: t(locale, SCREEN_TITLE.activity) }),

@@ -17,6 +17,7 @@ import {
   type PriceRules, type PriceRuleError, type PriceRuleField,
 } from '../../core/commerce/priceRules.js';
 import * as show from './values.js';
+import { GO } from './icons.js';
 
 /**
  * M29 — reading and writing the owner's price rules.
@@ -504,7 +505,7 @@ export function renderPriceRules(
       ${open || (p.own === null && !isCovered(p))
         ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '', open, 'h3', close)
         // Phase 9 (V1-353) — a door, like every other page's, that lands on the product's own row.
-        : `<a class="deeper" href="/app/business/prices?product=${encodeURIComponent(p.productId)}#${esc(anchor)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}<span class="go" aria-hidden="true">›</span></a>`}
+        : `<a class="deeper" href="/app/business/prices?product=${encodeURIComponent(p.productId)}#${esc(anchor)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}${GO}</a>`}
     </li>`;
   };
 

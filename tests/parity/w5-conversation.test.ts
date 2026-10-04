@@ -204,7 +204,8 @@ describe('w4-whole-13, w4-conversation-16 · one customer, two things to open, e
       expect(html, l).toContain(`<a class="deeper file-door" href="/app/conversations/${detail().conversationId}">${about}<span class="go"`);
       expect(html, l).toContain(`<a class="deeper panel-open" href="#customer">${about}<span class="go"`);
       // side by side in the page, not one in the header row and one under the strip
-      expect(html.indexOf('panel-open') - html.indexOf('file-door'), l).toBeLessThan(400);
+      const plain = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
+      expect(plain.indexOf('panel-open') - plain.indexOf('file-door'), l).toBeLessThan(400);
       expect(html.slice(html.indexOf('<div class="dhead">'), html.indexOf('</div>', html.indexOf('<div class="dhead">'))), l).not.toContain('panel-open');
       expect(t(l, 'panel.open'), l).toBe(t(l, 'conv.file.title'));
       expect(t(l, 'panel.label'), l).toBe(t(l, 'conv.file.title'));
