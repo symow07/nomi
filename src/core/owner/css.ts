@@ -39,7 +39,7 @@ function colorVars(palette: Readonly<Record<string, string>>): readonly string[]
  * downstream references `var(--…)`; nothing downstream writes a literal.
  */
 export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
-  const { font, color, spacingPx, radiusPx, shadow, motionMs, motionEase, motionSpring, measure, faceTint } = tokens;
+  const { font, color, spacingPx, radiusPx, shadow, motionMs, motionEase, motionEaseIn, motionSpring, motionTravelPx, motionScale, measure, faceTint } = tokens;
 
   const lines: string[] = [
     // One scheme: form controls, scrollbars and the caret stay light even on
@@ -67,7 +67,11 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     ...Object.entries(shadow).map(([k, v]) => decl(`shadow-${kebab(k)}`, v)),
     ...Object.entries(motionMs).map(([k, v]) => decl(`motion-${kebab(k)}`, `${v}ms`)),
     decl('motion-ease', motionEase),
+    decl('motion-ease-in', motionEaseIn),
     decl('motion-spring', motionSpring),
+    // The motion pass — how far things travel, and how much they grow or settle.
+    ...Object.entries(motionTravelPx).map(([k, v]) => decl(`travel-${kebab(k)}`, `${v}px`)),
+    ...Object.entries(motionScale).map(([k, v]) => decl(`motion-scale-${kebab(k)}`, v)),
     ...faceTint.flatMap((f, i) => [decl(`face-${i + 1}-bg`, f.bg), decl(`face-${i + 1}-fg`, f.fg)]),
   ];
 

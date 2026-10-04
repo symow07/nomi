@@ -294,51 +294,106 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
 `;
 
 /**
- * PHASE 5 OF THE UI REBUILD (2026-10-02) — MOTION. The three durations of the
- * tokens and the one curve (`--motion-ease`), and nothing else:
+ * PHASE 5 OF THE UI REBUILD (2026-10-02) — MOTION; RETUNED BY THE MOTION PASS
+ * (2026-10-04). The owner: "Motion is wired but unfeelable … retune the whole
+ * motion layer to land around 200 ms with enough travel to be felt and a
+ * natural settle." docs/MOTION-TRUTH.md measured why nothing read as motion:
+ * 8 px on a curve that did 90 per cent of it in 100 ms, played while the page
+ * was still appearing; nothing left, nothing moved between pages.
  *
- *   fast   (120 ms)  a press, a hover, a fold or a menu opening
- *   normal (200 ms)  a notice arriving, the draft appearing, Undo
- *   max    (300 ms)  the assistant at work: one breath of its three dots
+ * Now, from the tokens (`motionMs`, `motionEase`, `motionTravelPx`, `motionScale`):
+ *
+ *   arriving   220 ms, the gentle ease-out: a notice, the draft card (a beat
+ *              after the page), the assistant at work, Today's band and hero,
+ *              each face in turn, a menu group by group, a fold's content —
+ *              16 px (a fold 8 px), from transparent
+ *   dialogs    the question grows in from 0.96 and 16 px; the profile card
+ *              springs up 48 px over 250 ms (from the screen's foot on a
+ *              phone); both sink away in 160 ms when closed, with their dimming
+ *   the toast  slides in 24 px from its own edge, and back out the same way
+ *   pages      the page's content fades out (160 ms) and the next rises in
+ *              12 px (250 ms); the rail stays, and its raised tile slides to
+ *              the entry chosen — so do the Inbox lens and the chosen day
+ *   hand       a hover or a press settles both ways (160 ms): a control
+ *              presses to 0.97 and comes back; a rail icon lifts 2 px
  *
  * Every rule that moves anything sits inside `prefers-reduced-motion:
- * no-preference`, so a reader who asked for less gets none of it; the block
- * after it stops anything else that would move. `phase5-motion.test.ts` holds
- * both, and that no duration is written as a number.
+ * no-preference` — the page transitions too — so a reader who asked for less
+ * gets none of it; the block after it stops anything else that would move.
+ * `phase5-motion.test.ts` holds that, the durations by name, and that each
+ * rule's selector is one the pages really draw.
  */
+const STAGGER = [2, 3, 4, 5, 6, 7, 8].map((n) =>
+  `    .td-row > li:nth-child(${n}) { animation-delay:calc(var(--motion-fast) + ${n - 1} * var(--motion-step)); }`).join('\n');
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
-    .btn, .crow, .srow, a.navlink, .tab, .deeper, .chip, summary {
+    :root { --toast-move:translateX(var(--travel-toast)); }
+    [dir="rtl"] { --toast-move:translateX(calc(-1 * var(--travel-toast))); }
+    .btn, .crow, .srow, a.navlink, .tab, .deeper, .chip, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
-        box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
-    .btn:active { transform:scale(0.98); transition:transform var(--motion-fast) var(--motion-ease); }
-    details[open] > :not(summary) { animation:nomi-arrive var(--motion-fast) var(--motion-ease) both; }
-    .flash, #approve, .working { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+        box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease),
+        transform var(--motion-fast) var(--motion-ease); }
+    .btn:active, a.srow:active, button.srow:active, .tab:active, nav.side a.navlink:active { transform:scale(var(--motion-scale-press)); }
+    nav.side a.navlink:hover .ni { transform:translateY(calc(-1 * var(--travel-nudge))); }
+    details[open] > :not(summary) { animation:nomi-arrive var(--motion-normal) var(--motion-ease) both; }
+    details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
+    details:not([open])::details-content { opacity:0; }
+    details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
+    .flash, #approve, .working, .tw, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    #approve, .td { animation-delay:var(--motion-fast); }
+    .sgroup + .sgroup { animation-delay:var(--motion-step); }
+    .sgroup + .sgroup + .sgroup { animation-delay:calc(2 * var(--motion-step)); }
+    /* The warmth run — drawn again in place for a newcomer, Today does not rise in again (w4-whole-21). */
+    main[data-drawn-again] .tw, main[data-drawn-again] .td, main[data-drawn-again] .td-row > li { animation:none; }
+    .td-row > li { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
+${STAGGER}
+    .td-row { scroll-behavior:smooth; }
     .working .dots i { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
     .working .dots i + i { animation-delay:var(--motion-fast); }
     .working .dots i + i + i { animation-delay:var(--motion-normal); }
-    dialog.ask[open] { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
     .btn[aria-busy="true"]::after { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
-    dialog.ask[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
-    /* THE WARMTH RUN — the profile card springs up (its one curve of its own). */
-    dialog.sheet[open] { animation:nomi-spring var(--motion-normal) var(--motion-spring) both; }
     .face-link[aria-busy="true"] .face { animation:nomi-breathe var(--motion-max) var(--motion-ease) infinite alternate; }
-    dialog.sheet[open]::backdrop { animation:nomi-fade var(--motion-fast) var(--motion-ease) both; }
-    /* The warmth run — Today's band and hero rise into place as the page arrives, the hero a beat after; its face row scrolls smoothly. */
-    .tw, .td { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-    /* w4-whole-21 — drawn again in place for a newcomer, Today does not rise in again. */
-    main[data-drawn-again] .tw, main[data-drawn-again] .td { animation:none; }
-    .td { animation-delay:var(--motion-fast); }
-    .td-row { scroll-behavior:smooth; }
+    dialog.ask, dialog.sheet, dialog.ask::backdrop, dialog.sheet::backdrop {
+      transition: opacity var(--motion-fast) var(--motion-ease-in), transform var(--motion-fast) var(--motion-ease-in),
+        overlay var(--motion-fast) allow-discrete, display var(--motion-fast) allow-discrete; }
+    dialog.ask:not([open]), dialog.sheet:not([open]) { opacity:0; transform:translateY(var(--travel-rise)) scale(var(--motion-scale-enter)); }
+    dialog.ask:not([open])::backdrop, dialog.sheet:not([open])::backdrop { opacity:0; }
+    dialog.ask[open] { transition-duration:var(--motion-normal); transition-timing-function:var(--motion-ease); }
+    dialog.sheet[open] { transition-duration:var(--motion-max); transition-timing-function:var(--motion-spring); }
+    dialog.ask[open]::backdrop, dialog.sheet[open]::backdrop { transition-duration:var(--motion-normal); transition-timing-function:var(--motion-ease); }
+    @starting-style {
+      dialog.ask[open] { opacity:0; transform:translateY(var(--travel-rise)) scale(var(--motion-scale-enter)); }
+      dialog.sheet[open] { opacity:0; transform:translateY(var(--travel-sheet)) scale(var(--motion-scale-enter)); }
+      dialog.ask[open]::backdrop, dialog.sheet[open]::backdrop { opacity:0; }
+    }
+    .toast { animation:nomi-toast-in var(--motion-normal) var(--motion-ease) both; }
+    .toast.out { animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both; }
+    @media (max-width: 720px) {
+      :root, [dir="rtl"] { --toast-move:translateY(var(--travel-toast)); }
+      dialog.sheet[open] { transition-timing-function:var(--motion-ease); }
+      dialog.sheet:not([open]) { transform:translateY(100%); }
+      @starting-style { dialog.sheet[open] { transform:translateY(100%); } }
+    }
+    @view-transition { navigation:auto; }
+    main { view-transition-name:page; }
+    nav.side a.navlink.active { view-transition-name:rail-on; }
+    .tabs.lens .tab.on { view-transition-name:lens-on; }
+    .mo td.sel .mo-d { view-transition-name:day-on; }
+    ::view-transition-group(*) { animation-duration:var(--motion-max); animation-timing-function:var(--motion-ease); }
+    ::view-transition-group(page) { animation-duration:0s; }
+    ::view-transition-old(page) { animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both; }
+    ::view-transition-new(page) { animation:nomi-page-in var(--motion-max) var(--motion-ease) both; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important;
       animation-delay:0s !important; transition-duration:1ms !important; scroll-behavior:auto !important; }
   }
-  @keyframes nomi-arrive { from { opacity:0; transform:translateY(-4px); } }
-  @keyframes nomi-rise { from { opacity:0; transform:translateY(8px); } }
+  @keyframes nomi-arrive { from { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); } }
+  @keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
-  @keyframes nomi-fade { from { opacity:0; } }
-  @keyframes nomi-spring { from { opacity:0; transform:translateY(var(--space-48)) scale(0.97); } }
+  @keyframes nomi-toast-in { from { opacity:0; transform:var(--toast-move); } }
+  @keyframes nomi-toast-out { to { opacity:0; transform:var(--toast-move); } }
+  @keyframes nomi-page-in { from { opacity:0; transform:translateY(var(--travel-page)); } }
+  @keyframes nomi-fade-out { to { opacity:0; } }
   /* The assistant at work: its mark, what it is doing, three dots. One run of text, so the dots follow
      the last word when the words wrap (w4-conversation-25), not the far edge of the line. */
   .working { display:block; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -1319,9 +1374,7 @@ const STYLE_PAGES = `
     nav.side a.navlink[data-fresh]::after { inset-block-start:var(--space-4); inset-inline-start:calc(50% - 16px); }
     .toasts { inset-inline:var(--space-16); inset-block-end:var(--space-16); inline-size:auto; align-items:stretch; }
   }
-  @media (prefers-reduced-motion: no-preference) {
-    .toast { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-  }
+  /* The toast slides in from its edge and back out (MOTION_CSS). */
   /* The Notifications page: the three ways as the rows of one card, each dot beside the way's name (its first
      line); a way that cannot be chosen yet reads as such; what reaches nobody is said first; the save in the card. */
   fieldset.ways { min-inline-size:0; }

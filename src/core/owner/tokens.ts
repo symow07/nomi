@@ -311,21 +311,44 @@ export const DESIGN_TOKENS = {
     lift1: '0 1px 2px rgba(74,48,30,0.07), 0 3px 10px rgba(74,48,30,0.07), 0 0 0 1px rgba(74,48,30,0.05)',
     lift2: '0 2px 6px rgba(74,48,30,0.09), 0 12px 28px rgba(74,48,30,0.13), 0 0 0 1px rgba(74,48,30,0.05)',
   },
-  // The warmth run's re-audit (w4-whole-21): the owner's range is 100–250 ms, so the longest is 250.
-  motionMs: { fast: 120, normal: 200, max: 250 },  // skippable; nothing moves under reduced motion
   /**
-   * PHASE 5 OF THE UI REBUILD (2026-10-02) — THE ONE CURVE. Decelerating: a
-   * thing starts moving at once and settles into place, and nothing overshoots
-   * or bounces. One curve for everything that moves, so nothing in the product
-   * moves two ways. (The owner named the curve as mine to decide.)
+   * THE MOTION PASS (2026-10-04) — the owner: "Motion is wired but unfeelable:
+   * an 8 px rise that is 90% done within 100 ms." Everything that arrives now
+   * lands in about 220 ms, travels far enough to be seen, and settles; what
+   * leaves goes in about 160 ms. (docs/MOTION-TRUTH.md measured the before.)
+   *
+   *   fast    160 ms  a hover, a press and its release, anything leaving
+   *   normal  220 ms  anything arriving: a notice, the draft card, a dialog, a toast, a face
+   *   max     250 ms  the profile card and the page coming in; one breath of the dots
+   *   step     40 ms  the gap between one face (or one menu group) and the next
+   *
+   * The owner's band is 200–250 ms for what lands; nothing runs longer than 250.
    */
-  motionEase: 'cubic-bezier(0.2, 0, 0, 1)',
+  motionMs: { fast: 160, normal: 220, max: 250, step: 40 },  // nothing moves under reduced motion
+  /**
+   * THE ONE CURVE for what arrives: an ease-out with a gentle deceleration
+   * (the classic quadratic): 45 per cent of the way at a quarter of the time,
+   * three quarters at half, settling over the last third. The old curve
+   * (0.2, 0, 0, 1) did 60 per cent in the first quarter, so a 200 ms rise read
+   * as 70 ms. Nothing overshoots on it.
+   */
+  motionEase: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  /** What leaves accelerates away (its mirror), over `fast`. */
+  motionEaseIn: 'cubic-bezier(0.55, 0.085, 0.68, 0.53)',
   /**
    * THE WARMTH RUN (2026-10-03) — one exception to the one curve: the profile
-   * card and the bottom sheet spring up (a small overshoot, over
-   * `motionMs.normal`). Nothing else uses it; under reduced motion nothing moves.
+   * card springs up (a small overshoot, over `motionMs.max` since the motion
+   * pass). Nothing else uses it; under reduced motion nothing moves.
    */
   motionSpring: 'cubic-bezier(0.34, 1.3, 0.64, 1)',
+  /**
+   * How far each thing travels (px), so it is seen: the old rise was 8 and a
+   * fold 4. `nudge` is a rail icon lifting under the pointer; `sheet` the
+   * profile card springing up (on a phone it comes from the screen's foot).
+   */
+  motionTravelPx: { nudge: 2, fold: 8, page: 12, rise: 16, toast: 24, sheet: 48 },
+  /** A pressed control settles to `press`; a dialog grows in from `enter`. */
+  motionScale: { press: 0.97, enter: 0.96 },
   /**
    * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Colour does
    * these four jobs and no others, the same on every page; graphite does one
@@ -354,21 +377,14 @@ export const DESIGN_TOKENS = {
   },
 } as const;
 
-/**
- * M7 — Micro-interaction specs, as data the PWA executes. Every moment is
- * ≤ motionMs.max, skippable, and collapses to instant under reduced-motion.
- * The chat surface has no animation — these exist so the shell inherits the
- * interaction language instead of inventing one.
+/*
+ * M7's `MOTION_SPECS` (approveTap, quoteReveal, sendFlight, statusChange) and
+ * `REDUCED_MOTION_RULE` were RETIRED with the motion pass (2026-10-04): they
+ * described a PWA that never existed, nothing imported them, and two of their
+ * values (300 ms, linear) were outside the owner's range. The motion the
+ * product has is `motionMs`, `motionEase`, `motionTravelPx` and `motionScale`
+ * above, drawn by the shell's stylesheet (`MOTION_CSS`, layout.ts).
  */
-export const MOTION_SPECS = {
-  approveTap:    { durationMs: 200, easing: 'ease-out', skippable: true, description: '发送 button confirms with a settle, card slides away' },
-  quoteReveal:   { durationMs: 300, easing: 'ease-out', skippable: true, description: '报价卡 lines appear top-down — the calculator moment' },
-  sendFlight:    { durationMs: 250, easing: 'ease-in',  skippable: true, description: 'message lifts toward the thread' },
-  statusChange:  { durationMs: 150, easing: 'linear',   skippable: true, description: 'status chip crossfade (学习中→已晋升 etc.)' },
-} as const;
-
-/** Reduced-motion: every spec collapses to an instant state change. */
-export const REDUCED_MOTION_RULE = 'all MOTION_SPECS durations become 0ms; no element may rely on animation to convey state' as const;
 
 /** M7 desktop keyboard shortcuts — approval flow first, vim-adjacent. */
 export const KEYBOARD_SHORTCUTS = {
