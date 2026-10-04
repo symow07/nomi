@@ -32,7 +32,7 @@ import { TRIAL2_ICONS, type IconEntry, type IconFamily } from './trial2Icons.js'
  * switch in its package: its regular weight already ends every line round and rounds every joint and
  * box corner as drawn, so that is what is shown, unchanged.
  *
- * COLOUR AND STATE. Every icon is ink (#25201C, the wordmark's near-black), the words keep the rail's
+ * COLOUR AND STATE. Every icon is ink (the token, the wordmark's near-black), the words keep the rail's
  * colours. The entry you are on keeps the app's white pill and its word in weight, and its icon turns
  * deep magenta (`--color-nav-active`) — as a LINE: nothing is filled to say "you are here".
  *
@@ -40,7 +40,7 @@ import { TRIAL2_ICONS, type IconEntry, type IconFamily } from './trial2Icons.js'
  * identity run), and a disc in the rail would say it too.
  *
  * AIR. Each entry is 52 px tall instead of 44, with 16 px between icon and word instead of 12 and 8 px
- * between entries; a phone's tile is 64 px tall with 6 px between icon and word.
+ * between entries; a phone's tile is 64 px tall with 8 px between icon and word.
  */
 
 type Today = 'today1' | 'today2' | 'today3';
@@ -80,11 +80,11 @@ nav.side .navhead .ni.t2-solar { stroke-width:2.33px; }
 @media (max-width: 720px) {
   nav.side .ni.t2 { margin-block:0; }
   .t2-page { padding:var(--space-16); }
-  .t2-close { grid-template-columns:max-content repeat(3, max-content); gap:var(--space-12) var(--space-16); }
-  .t2-close .t2-cell { zoom:1.5; }
+  .t2-close { grid-template-columns:max-content repeat(3, minmax(0, 1fr)); gap:var(--space-12); }
+  .t2-close .t2-cell { zoom:1.2; min-inline-size:0; }
   .t2-row { grid-template-columns:minmax(0, 1fr); gap:var(--space-16); }
   .t2-col nav.side { min-block-size:0; animation:none; }
-  :is(.t2-col, .t2-close) nav.side a.navlink { animation:none; min-height:64px; padding-block:var(--space-8); gap:6px; margin-bottom:0; }
+  :is(.t2-col, .t2-close) nav.side a.navlink { animation:none; min-height:64px; padding-block:var(--space-8); gap:var(--space-8); margin-bottom:0; }
 }
 `;
 
