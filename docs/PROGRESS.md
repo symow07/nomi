@@ -13,6 +13,34 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The identity run (started 2026-10-04) — read this first
+
+**The owner's instruction (2026-10-04).** Six parts, run to completion, merging own green PRs through the result-checking merge script (`gated-merge.sh`: every check's CONCLUSION on the exact head, not just that it finished):
+1. **Motion:** retuned to about 200 ms, with travel that can be felt.
+2. **Fonts:** Noto everywhere, the public pages included; a real weight range and hierarchy; generous spacing.
+3. **Icons:** one crafted family. Phosphor is trialled on the nav first. The assistant's sparkle is removed, and a neutral placeholder holds the owner's coming character mark.
+4. **Nav interactivity:** the active icon filled in deep magenta; hover and tap settle.
+5. **The identity system:** magenta becomes Nomi's signature colour, used generously. Meaning moves to SHADE plus SHAPE: deep = needs you, light = the assistant did this, brand = identity. Meaning must survive greyscale and colour blindness.
+6. **The product-code check,** per `docs/PRODUCT-CODE-CHECK.md`.
+
+**6 · The product-code check (PR #224).**
+- **The guard now sets aside the business's own catalogue text, by its exact words, never by value.** Every `name` and `name_zh` of its active products, and a code only where `ownSku` says it is the owner's own; an import's made-up code (CC-31) is never exempt. Everything outside the matched words is checked exactly as before.
+  - **Matching:** folded the same way on both sides (NFKC, case, ASCII digits, invisible marks dropped, whitespace collapsed), with whole-word boundaries, so "ZX-300" never matches inside "ZX-3000".
+  - **Still checked inside a name:** a figure in a commercial position, as the reply is written or once the name's words are taken away ("Minimum order: Tote 300" is held), and a figure with money beside it.
+  - **Refused outright:** a name carrying a price, a percent, a minimum or a fee is never exempted.
+- **One rule everywhere:**
+  - it applies at all four call sites (order status, taught answer, the writer's attempts, the stand-in);
+  - the catalogue is read once per turn;
+  - the trust harness's `noUnsourcedSpecNumber` reruns the same guard on the same text.
+- **Correction to the investigation.** The investigation said all 5 of Westlake's products carry a figure above 12, but it counted their import-made codes (`NEW-mu7040…`), which are never shown to customers and stay checked. By name, only "Cotton drawstring bag 20x25cm" tripped the check: "12oz" and "A5" are within the free 0–12. All five now pass by name (tested), and an invented figure beside any of them is still held.
+- **Tests:**
+  - `tests/parity/product-code-exemption.test.ts` (23): each Westlake name in en, zh, ar, es and fr; the owner's own ZX-300; invented figures held; a code beside an invented number has the number caught; boundaries; names carrying money refused.
+  - `tests/pipeline/product-code-turn.test.ts` (9).
+  - `tests/integration/product-code-exemption.test.ts` (6): real turns through the production worker. Each of the five names passes with no refusal; "20x25cm, 450 pieces" is held; a ZX-300 the business does not sell is held.
+  - **Load-bearing both ways:** with the exemption off, every pass-case fails; with the value guard off, every held-case passes.
+- **Pre-pilot:** 12/12 on main (`31a3059`) before, 12/12 after.
+- **Not built:** recording which guard refused (the investigation's recommendation 5): outside "exactly this change".
+
 ## The truth-and-trust run (started 2026-10-04) — read this first
 
 **State (2026-10-04): done.** The three investigations are merged (#220). The four builds and the calendar are merged and deployed (#221), and production is at schema 129. What waits on the owner is under "Waiting on the owner" (from the truth-and-trust run).
