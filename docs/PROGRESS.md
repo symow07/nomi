@@ -13,6 +13,73 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The Solar nav (2026-10-05) — read this first
+
+**State (2026-10-05): done.**
+- **#228 merged** 20:29 UTC as `c30b3df`. Both checks reported success on its head `63d1ede` through the gate (`gated-merge.sh`).
+- **Deployed** 20:31 UTC; `/health` ok.
+- **Production schema is 129**, equal to `REQUIRED_SCHEMA_VERSION`; no migration.
+- **Production serves the new rail stylesheet** (`/assets/app.a5edd5944d39720c.css`, current).
+
+**The owner's instruction (2026-10-05):** "Adopt Solar Linear as the app's nav icon set, app-wide … 28px, 1.75px line, ink #25201C, airy spacing. Keep the active state as the white pill with a deep-magenta icon — never a filled icon. Today icon = Solar's house … Update the guards … Add the CC BY 4.0 attribution … Leave the two trial branches and trial routes alone." The font stays Noto.
+
+**What shipped (#228):**
+- **Every nav (the desktop rail and the phone row, all five languages) draws Solar's Linear set.**
+  - 28 px, with a 1.75 px line (1.5 of 24 units).
+  - Ink (`--color-ink`) at rest, whatever the colour of its word.
+  - The entry you are on keeps the white pill and its word at 600; its icon turns deep magenta (`--color-nav-active`) as the same line, never filled.
+- **The drawings:**
+  - Today is `home-2`, the rounded house. It was checked at nav size before committing: its ink is centred to the pixel, it differs from its mirror by 0.25 %, and it fills the same box as its neighbours.
+  - Inbox is `inbox`, Calendar `calendar`, Settings `settings`, and the "Customers" heading `users-group-rounded` (at 20 px, held to the same 1.75 px line).
+  - The assistant's entry is still its one slot: `agentMark(28, 'rest', 'ni', 'line')`, Solar's user-circle.
+- **Airy:**
+  - desktop entries are 52 px tall (were 44), with 16 px from icon to word (12) and 8 px between entries (4);
+  - phone tiles are 64 px (56), with 8 px from icon to word;
+  - the new-message dot moved to the 28 px icon's corner.
+- **Every other icon in the product stays Phosphor.** Phosphor dropped the 16 drawings only the rail used, and `drawn()` is gone.
+- **The copy and the attribution:**
+  - `src/api/web/solar.ts` is written by `tools/icons.mjs` from `@iconify-json/solar` 1.2.13 (pinned exactly), with the drawings unchanged. The tool refuses another licence or another shape.
+  - Attribution: `NOTICE` (new, at the root), `assets/icons/SOLAR-LICENSE.txt`, and a README line. Each gives "Solar by 480 Design", the licence and its address, the source, and the changes ("none to the drawings").
+- **Guards:**
+  - `tests/parity/icons.test.ts` (was `icons-phosphor.test.ts`) asserts both families, each in its place, and the attribution.
+  - `tests/integration/surface-walk.test.ts`: inside the nav, every icon is one of Solar's six; everywhere else, Phosphor.
+  - Ten regressions were tried one at a time, and each one fails the guard file.
+- **Measured** (local, Chromium; en/ar/zh at 1280 and 390 px):
+  - every rail icon is 28 px with a 1.75 px line, `#25201C` at rest and `#6E0C44` on the current page;
+  - each icon sits within 0.7 px of its word's capitals;
+  - the phone row fits at 360, 390 and 430 px in all five languages;
+  - the phone header is 86–88 px at rest (was 78–80).
+  - Screenshots: `docs/design/solar-nav/`.
+- **Verification:**
+  - `check`: 7,083 passed, none failed.
+  - Trust: 41/41 scenarios.
+  - The build passed.
+  - Integration: 1,290 of 1,290, none skipped.
+
+**Found on the way and fixed (a flake, not this change):**
+- **The failure:** the boot test's "P3 runtime path" failed once.
+- **The cause:** `provider-billing.test.ts` let the app queue its alerts and closed its worker without running them. The next file's worker took them first, at about one every 2 s, so the boot test's own alert ran 16 s late.
+- **The fix:**
+  - provider-billing removes its own still-queued alerts in `afterAll`;
+  - the boot test lets the queue drain first, bounded at 30 s.
+- **Proven both ways:** the boot test fails with a backlog and passes with the drain. Provider-billing leaves 3 alerts without the clean-up and 0 with it.
+
+**How it was chosen (two trials, both unmerged by the owner's order):**
+- **`trial/font-and-icons` (`cceaeeb`):**
+  - Switzer on Today and the nav, plus the nav in Iconoir, Lucide and Phosphor bold, at `/dev/trial`.
+  - The font is PARKED: Noto stays.
+  - Switzer's licence (ITF FFL v2.0) forbids its files in a public repository, so a rollout would have to fetch them at build time.
+- **`trial/icons-v2` (`c8921c6`):**
+  - Phosphor regular against Solar Linear, each with three Today candidates, at `/dev/trial2`.
+  - The owner chose Solar Linear with the house.
+- **Their routes exist only on those branches.**
+
+**Waiting on the owner from this run:**
+1. **The phone header grew 8 px** (86–88 px at rest), for the 64 px tiles the airy spacing asked for. If it reads too tall, the tile height is one number in `layout.ts` (`min-height:64px` in the phone block).
+2. **Solar is the nav's family only.** The menus, doors and pages keep Phosphor, as the instruction scoped it ("nav icon set"). Moving the rest to Solar would be its own change: about 55 more icons, with a Solar equivalent chosen for each meaning.
+3. **The identity run's item 2 (the rail's active colour) still stands, slightly changed.** The current page's icon is now a deep line, not a deep fill, so the "deep tray above the deep count" on Inbox is lighter than it was. `colorRole.navActive` is still the one-line switch.
+4. Carried over: the character mark (`agentMark`), and the native reads.
+
 ## The identity run (started 2026-10-04) — read this first
 
 **State (2026-10-04): done.** All six parts are merged and deployed:
