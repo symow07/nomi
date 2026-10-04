@@ -307,6 +307,7 @@ const SIGNAL_CSS = `  /* Phase 4 — the four signals: a colour and a shape. */
      selectors after it are where its label is drawn today. */
   .as-tag, .msg-by .as, #approve .top > .as, .card > p > .as { display:inline-flex; align-items:center; gap:var(--space-4);
     padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
+  .card > p > .as { font-size:var(--font-size-caption); }
   .pill.as { background:var(--color-assistant-wash); color:var(--color-assistant); }
 ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFORE[s])).join('\n')}
   @media (forced-colors: active) {
@@ -1093,6 +1094,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .btn.send.is-hover { box-shadow:var(--shadow-lift2); }
   .is-focus { outline:2px solid var(--color-brand); outline-offset:2px; }
   .btn:disabled, .btn.is-disabled { background:var(--color-paper); border-color:var(--color-border);
+    color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
+  /* The identity system — the needs act goes quiet too when it cannot be pressed (its fill outranked the
+     rule above and stayed deep). It keeps its dot, in the quiet ink. */
+  .btn.send.needs:disabled, .btn.send.needs.is-disabled { background:var(--color-paper); border-color:var(--color-border);
     color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
 
   @media (max-width: 720px) {

@@ -121,6 +121,12 @@ describe('"needs you" reads without the hue: the needs dot', () => {
     expect(count).toContain('color:var(--color-surface)');
   });
 
+  it('a needs act that cannot be pressed goes quiet like every other button — its fill no longer outranks the quiet rule', () => {
+    const quiet = bodyOf('.btn.send.needs:disabled');
+    expect(quiet).toContain('background:var(--color-paper)');
+    expect(quiet).toContain('color:var(--color-ink-secondary)');
+  });
+
   it('in greyscale the needs act is told from the brand act by its SHAPE: only the needs act carries the dot', () => {
     expect(bodyOf('.btn.send')).toContain('background:var(--color-brand)');
     const discs = rules.filter((r) => r.body.includes(NEEDS_DOT)).flatMap((r) => r.sel.split(',').map((x) => x.trim()));
