@@ -420,9 +420,9 @@ describe('Phase 9 · Before going live', () => {
   });
   it('V1-130, today-onboarding-missed-17 · where the page stands is a state line with its mark, not a box that looks pressable', () => {
     // The warmth run's re-audit (w4-whole-06): a page not ready yet is a chore, drawn with the to-do ○ — magenta's is a customer waiting.
-    expect(renderPilotReadiness(pr(), 'en', null)).toContain(`<p class="verdict"><span class="dot todo shape s-waiting" aria-hidden="true"></span> ${t('en', 'pilot.notReady')}</p>`);
+    expect(renderPilotReadiness(pr(), 'en', null)).toContain(`<p class="verdict"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${t('en', 'pilot.notReady')}</p>`);
     const meta: MetaReadiness = { credentials: [], allCredentialsOk: false, provider: 'disabled', channelStatus: 'not_connected', live: false, blockers: [] };
-    expect(inScope(() => renderPilotTechnical('en', { meta, templateState: 'none' }))).toContain(`<p class="verdict"><span class="dot todo shape s-waiting" aria-hidden="true"></span> ${esc(t('en', 'meta.notLive'))}</p>`);
+    expect(inScope(() => renderPilotTechnical('en', { meta, templateState: 'none' }))).toContain(`<p class="verdict"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${esc(t('en', 'meta.notLive'))}</p>`);
     const v = /\.verdict \{([^}]*)\}/.exec(css)![1]!;
     for (const boxy of ['border:', 'background', 'text-align:center', 'padding:']) expect(v, boxy).not.toContain(boxy);
   });

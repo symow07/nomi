@@ -1230,8 +1230,8 @@ export const buyersHref = (o: {
  * and why it needs the owner. Decision 5's row (name, last message, time) is
  * kept; its four stacked lines and the whole message are not.
  *
- * The mark is a shape as well as a colour, so it reads in greyscale: ○ needs
- * you, ● a person here has it, ✦ the assistant has it. A customer still
+ * The mark is a shape as well as a colour, so it reads in greyscale: ● needs
+ * you (the needs dot), ▪ a person here has it, ✦ the assistant has it. A customer still
  * waiting for an answer is written in full ink and weight; an answered one in
  * grey. The message is the list's glimpse of it, drawn in the interface's face:
  * the speech face is for the transcript, where a message is read whole.

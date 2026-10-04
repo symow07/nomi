@@ -19,7 +19,7 @@
  */
 
 /** The five shapes: the four signals and "you" (the owner's own act, in a timeline). */
-export type Shape = 'ok' | 'waiting' | 'failed' | 'assistant' | 'you';
+export type Shape = 'ok' | 'waiting' | 'chore' | 'failed' | 'assistant' | 'you';
 
 /**
  * Each figure on a 16-unit square, in one colour (the mask's alpha is all that
@@ -28,10 +28,13 @@ export type Shape = 'ok' | 'waiting' | 'failed' | 'assistant' | 'you';
  */
 const FIGURE: Readonly<Record<Shape, string>> = {
   ok: `<path d='M3.2 8.6l3.1 3.1 6.5-7' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/>`,
-  waiting: `<circle cx='8' cy='8' r='5.4' fill='none' stroke='black' stroke-width='2'/>`,
+  // The identity system (2026-10-04): a customer waiting for you is the SOLID disc (the needs dot);
+  // a chore keeps the open ring; the owner's own act is a small square, so the disc means one thing.
+  waiting: `<circle cx='8' cy='8' r='6' fill='black'/>`,
+  chore: `<circle cx='8' cy='8' r='5.4' fill='none' stroke='black' stroke-width='2'/>`,
   failed: `<path d='M4.3 4.3l7.4 7.4M11.7 4.3l-7.4 7.4' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/>`,
   assistant: `<path d='M8 1.2C8.6 5.5 10.5 7.4 14.8 8 10.5 8.6 8.6 10.5 8 14.8 7.4 10.5 5.5 8.6 1.2 8 5.5 7.4 7.4 5.5 8 1.2Z' fill='black'/>`,
-  you: `<circle cx='8' cy='8' r='4.4' fill='black'/>`,
+  you: `<rect x='4' y='4' width='8' height='8' rx='1' fill='black'/>`,
 };
 
 /**
@@ -56,7 +59,7 @@ export const SHAPE_BOX = 'display:inline-block; flex:none; align-self:center; in
 /** The figure a box is cut to (both spellings: the prefixed one for browsers before 2024). */
 export const shapeMask = (s: Shape): string => `-webkit-mask-image:${shapeUrl(s)}; mask-image:${shapeUrl(s)};`;
 
-const SHAPES: readonly Shape[] = ['ok', 'waiting', 'failed', 'assistant', 'you'];
+const SHAPES: readonly Shape[] = ['ok', 'waiting', 'chore', 'failed', 'assistant', 'you'];
 
 /** The shell's rules for a shape drawn as an element: `.shape.s-ok` and its four siblings. */
 export const SHAPE_CSS = `  .shape { ${SHAPE_BOX} }

@@ -240,8 +240,8 @@ describe('Phase F · the shell is usable with a thumb', () => {
   it('keyboard focus is visible on every interactive element, app-wide', () => {
     expect(style).toContain('a:focus-visible');
     expect(style).toContain('button:focus-visible');
-    // the colour comes from the token, not from a hex typed into this test
-    expect(style).toContain('outline:2px solid var(--color-ink)');
+    // the colour comes from the token, not from a hex typed into this test — the brand's (the identity system)
+    expect(style).toContain('outline:2px solid var(--color-brand)');
   });
 });
 

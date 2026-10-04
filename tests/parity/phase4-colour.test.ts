@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shell, loginPage, signalMark, SIGNAL_BEFORE, TODO_BEFORE, type Signal } from '../../src/api/web/layout.js';
+import { shell, loginPage, signalMark, SIGNAL_BEFORE, TODO_BEFORE, NEEDS_DOT, type Signal } from '../../src/api/web/layout.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { withWorkspace, type RequestScope } from '../../src/api/web/say.js';
 import { renderSetup } from '../../src/api/web/settings.js';
@@ -14,7 +14,12 @@ import { shapeUrl } from '../../src/api/web/marks.js';
  * PHASE 4 OF THE UI REBUILD (2026-10-02) — colour does four jobs, the same on
  * every page, and never alone (tokens.ts `signal`):
  *
- *   ok ✓ green · waiting ○ amber · failed ✕ red · the assistant ✦ magenta
+ *   ok ✓ green · waiting ● deep magenta · failed ✕ red · the assistant ✦ light magenta
+ *
+ * The identity system (2026-10-04): the BRAND magenta is not a signal — it is
+ * identity, read by the thing it is on (a button, a door, an underline); this
+ * test holds the four signal colours only. Waiting is the needs dot now, a
+ * drawn disc; a chore keeps the open ring (`chore`).
  *
  * Every rule in the stylesheets that paints TEXT in one of those four colours
  * must say how the same thing is said without the colour: the stylesheet draws
@@ -52,14 +57,17 @@ const textInSignalColour = (css: string): { sel: string; job: Signal }[] =>
 const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb', string]>> = {
   '.dot.ok': ['mark', 'signalMark'], '.dot.warn': ['mark', 'signalMark'], '.dot.bad': ['mark', 'signalMark'], '.dot.as': ['mark', 'signalMark'],
   '.as': ['mark', 'the ✦ beside what the assistant wrote, and its name beside the ✦'],
-  '.is-needs .cr-mark': ['mark', 'ROW_MARK ○'], '.is-hers .cr-mark': ['mark', 'ROW_MARK ✦'],
-  '.is-needs .cr-why': ['row', 'the row opens with ○'],
+  '.is-needs .cr-mark': ['mark', 'ROW_MARK ●'], '.is-hers .cr-mark': ['mark', 'ROW_MARK ✦'],
+  '.is-needs .cr-why': ['row', 'the row opens with ●'],
+  // The identity system (2026-10-04) — the assistant's NAME TAG: the element is the shape (its wash, a chip, its name).
+  '.as-tag': ['mark', 'the name tag'], '.msg-by .as': ['mark', 'the name tag'], '#approve .top > .as': ['mark', 'the name tag'],
+  '.card > p > .as': ['mark', 'the name tag, in the gallery'], '.pill.as': ['mark', 'the name tag, as the hand-over card\'s pill'],
   // The warmth run, phase 4 — the Inbox row's waiting words open with signalMark's ○.
-  '.ir-wait': ['text', 'signalMark ○ before the words'],
+  '.ir-wait': ['text', 'signalMark ● before the words'],
   '#approve summary .c.warn': ['text', '○ Not every figure has a source'],
   '.reasons .mk.warn': ['mark', '○ beside the figure with no source'],
   '.ok-line': ['text', '✓ before the calm sentence'],
-  '.tw-need': ['text', 'Today\'s waiting count: signalMark ○ before the words (today.ts waitingHead)'],
+  '.tw-need': ['text', 'Today\'s waiting count: signalMark ● before the words (today.ts waitingHead)'],
   '.pr.done .mk': ['mark', '✓'], '.chk.ok .mk': ['mark', '✓'], '.chk.bad .mk': ['mark', '✕'],
   '.pcase.ok .pmark': ['mark', '✓'], '.pcase.bad .pmark': ['mark', '✕'],
   '.ditem.ok': ['text', '✓ before each thing the assistant does alone'], '.ditem.warn': ['text', '○ before each it does not yet'],
@@ -68,9 +76,6 @@ const DRAWN: Readonly<Record<string, readonly ['mark' | 'text' | 'row' | 'verb',
   '.verdict.ok': ['text', '✓ All ready'],
   '.cert.on': ['text', '✓ before a certification that is on'],
   '.btn.danger': ['verb', 'Remove, Disconnect, Revoke…'],
-  // The warmth run (2026-10-03): today's marker is magenta's third job (the owner's words), said by its word.
-  '.cal-now': ['text', 'the word "Today" itself'],
-  '.mo td.today .mo-d': ['text', "today's date, the cell's own number, in weight as well as colour"],
 };
 
 describe('phase 4 · the four signals', () => {
@@ -78,7 +83,10 @@ describe('phase 4 · the four signals', () => {
     const s = DESIGN_TOKENS.signal;
     expect(Object.keys(s).sort()).toEqual(['assistant', 'failed', 'ok', 'waiting']);
     expect(new Set(Object.values(s)).size).toBe(4);
-    expect(s).toEqual({ ok: '✓', waiting: '○', failed: '✕', assistant: '✦' });
+    expect(s).toEqual({ ok: '✓', waiting: '●', failed: '✕', assistant: '✦' });
+    // a chore's open ring is none of the four: a customer waiting and a setup step are two shapes
+    expect(Object.values(s)).not.toContain(DESIGN_TOKENS.chore);
+    expect(DESIGN_TOKENS.chore).toBe('○');
     // the colour that paints each shape's words: two magentas, two jobs
     expect(Object.keys(JOB_OF_VAR).sort()).toEqual(['assistant', 'needs', 'ok', 'warn']);
     // The type pass (2026-10-04): each shape is DRAWN (marks.ts) — no face the product serves has ✓ ○ ✕ ✦, so as
@@ -114,6 +122,8 @@ describe('phase 4 · the four signals', () => {
     const body = (sel: string, css = appCss) => rules(css).find((r) => r.sel.split(',').map((s) => s.trim()).includes(`${sel}::before`))?.body ?? '';
     for (const [job, sels] of Object.entries(SIGNAL_BEFORE) as [Signal, readonly string[]][]) {
       for (const sel of sels) {
+        // The identity system — waiting is the needs dot, a drawn disc with no text at all.
+        if (job === 'waiting') { expect(body(sel), sel).toContain(NEEDS_DOT); continue; }
         expect(body(sel), sel).toContain('content:""');
         expect(body(sel), sel).toContain(`mask-image:${shapeUrl(job)}`);
         expect(body(sel), sel).toContain('background-color:currentColor');
@@ -128,15 +138,21 @@ describe('phase 4 · the four signals', () => {
     let seen = 0;
     for (const css of [appCss, doorCss]) {
       for (const r of rules(css)) {
+        const sels = r.sel.split(',').map((s) => s.trim());
+        // The warmth run's re-audit (w4-whole-06), and the identity system: a chore is the OPEN ring, in the
+        // secondary ink — drawn before the chores' words, never a customer waiting.
+        if (r.body.includes(`mask-image:${shapeUrl('chore')}`)) {
+          seen += 1;
+          for (const sel of sels) if (sel !== '.s-chore') expect(TODO_BEFORE, `${sel} draws the chore's ring`).toContain(sel.replace(/::before$/, ''));
+          continue;
+        }
         const job = (Object.keys(DESIGN_TOKENS.signal) as Signal[]).find((x) => r.body.includes(`mask-image:${shapeUrl(x)}`));
         if (!job) continue;
         seen += 1;
-        for (const sel of r.sel.split(',').map((s) => s.trim())) {
+        for (const sel of sels) {
           if (sel === `.s-${job}`) continue;            // the drawn element's own class (signalMark, shape())
           const host = sel.replace(/::before$/, '');
-          // The warmth run's re-audit (w4-whole-06): a chore's ○ is the to-do mark, in the secondary ink — never magenta.
-          const todo = job === 'waiting' && TODO_BEFORE.includes(host);
-          expect(SIGNAL_BEFORE[job].includes(host) || todo || ['.err', '.fld-err'].includes(host), `${sel} draws ${job}`).toBe(true);
+          expect(SIGNAL_BEFORE[job].includes(host) || ['.err', '.fld-err'].includes(host), `${sel} draws ${job}`).toBe(true);
         }
       }
     }

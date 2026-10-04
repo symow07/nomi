@@ -448,9 +448,11 @@ describe('a month with nothing: the empty grid, and one warm panel in the list\'
 });
 
 describe('today is magenta, and the month is rounded; it moves in words', () => {
-  it('today\'s marker — its word, its number in the grid — is the magenta token, as text', () => {
-    expect(rule('.cal-now')).toContain('color:var(--color-assistant)');
-    expect(rule('.mo td.today .mo-d')).toContain('color:var(--color-assistant)');
+  // The identity system (2026-10-04) — today's marker is the BRAND magenta (an accent, not a meaning): the
+  // light shade now says only "the assistant did this".
+  it('today\'s marker — its word, its number in the grid — is the brand magenta, as text', () => {
+    expect(rule('.cal-now')).toContain('color:var(--color-brand)');
+    expect(rule('.mo td.today .mo-d')).toContain('color:var(--color-brand)');
     for (const l of LOCALES) {
       expect(withoutIsolates(cellOf(draw(l), TODAY)), l).toMatch(new RegExp(`^<td class="today" aria-current="date">\\s*<a class="mo-d" [^>]*>3</a><span class="cal-now">${t(l, 'calendar.this.day')}</span>`));
     }

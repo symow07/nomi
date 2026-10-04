@@ -52,7 +52,7 @@ d('Guide · the guided path (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () 
     expect(r.body).toContain(esc(t('en', 'guide.title')));
     expect(r.body).toMatch(/class="guide-step next" id="profile"/);
     // (w4-today-setup-06) a step to do is a chore: the to-do ○ in the secondary ink, never the waiting signal
-    expect(r.body.match(/<span class="pill"><span class="dot todo shape s-waiting" aria-hidden="true"><\/span> /g)?.length).toBeGreaterThanOrEqual(5);
+    expect(r.body.match(/<span class="pill"><span class="dot todo shape s-chore" aria-hidden="true"><\/span> /g)?.length).toBeGreaterThanOrEqual(5);
     expect(r.body).not.toContain('class="pill warn"');
     for (const href of ['/app/settings/profile', '/app/products', '/app/onboarding#name', '/app/business/channels', '/app/inbox']) expect(r.body).toContain(`href="${href}"`);
   });

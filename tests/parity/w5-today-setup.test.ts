@@ -104,7 +104,7 @@ describe('w4-whole-11 · w4-today-setup-21 · today-onboarding-missed-01 · Toda
       const html = today(l, SNAP(false), day({ handled: handledFaces(['Carlos Mendes', 'Layla Mansour']) }));
       expect(html).not.toContain(esc(t(l, 'today.calm.notLive.title', { name: 'Lily' })));
       expect(html).toContain('class="face-link td-face"');
-      expect(html).toContain(`<p class="muted notlive"><span class="dot todo shape s-waiting" aria-hidden="true"></span> ${esc(t(l, 'ops.system.notLive'))}</p>`);
+      expect(html).toContain(`<p class="muted notlive"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${esc(t(l, 'ops.system.notLive'))}</p>`);
       expect(html).not.toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${esc(t(l, 'ops.system.notLive'))}`);
     });
     it(`${l} · nothing connected: said once, at a heading's size, with the setup step's own door`, () => {
@@ -181,7 +181,7 @@ describe('w4-today-setup-06 · -07 · -09 · -27 · setting up is a chore under 
       expect(band).toContain(esc(t(l, 'today.calm.title')));
       expect(band).not.toContain('today-foot setup');
       expect(band).not.toContain(esc(t(l, 'today.needs.none')));
-      expect(html).toContain(`<div class="today-foot setup"><p><span class="dot todo shape s-waiting" aria-hidden="true"></span>`);
+      expect(html).toContain(`<div class="today-foot setup"><p><span class="dot todo shape s-chore" aria-hidden="true"></span>`);
       expect(html).not.toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> <span class="muted">${esc(t(l, 'today.setup.line', { done: 3, total: 5 }))}`);
     });
     it(`${l} · Today's line and Setup's row phrase the count the same way`, () => {

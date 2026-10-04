@@ -239,7 +239,7 @@ export const signalMark = (s: Signal): string =>
  * you — and a chore never reads as one.
  */
 export const todoMark = (): string =>
-  `<span class="dot todo shape s-waiting" aria-hidden="true"></span>`;
+  `<span class="dot todo shape s-chore" aria-hidden="true"></span>`;
 
 /**
  * THE WARMTH PASS (2026-10-04) — the one act that ANSWERS something waiting for
@@ -275,22 +275,44 @@ export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
   assistant: ['.pill.as'],
 };
 /**
- * The type pass (2026-10-04) — the shape is DRAWN (marks.ts), not a character: no face the product serves has
- * ✓ ○ ✕ ✦, so they came from the device's own fonts. An empty `content` is all a screen reader is given.
+ * THE IDENTITY SYSTEM (2026-10-04) — THE NEEDS DOT. "Needs you" is said by a
+ * SHAPE, not by the deep shade alone: a solid disc before the words, drawn (no
+ * font draws it), in the words' own colour — deep on a light ground, white on
+ * the deep fill. It has no text, so a screen reader hears the words alone. In a
+ * forced-colours mode it keeps the system's text colour (`NEEDS_DOT_FORCED`).
+ * Every other state's shape is DRAWN the same way (marks.ts, the type pass): no
+ * face the product serves has ✓ ○ ✕, so a typed one came from the device's fonts.
  */
-const markBefore = (s: Signal, selectors: readonly string[]): string =>
-  `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} ${shapeMask(s)} margin-inline-end:var(--space-4); }`;
-/** Lines drawn with the to-do ○ before them, in their own (secondary) ink — never magenta's. */
+export const NEEDS_DOT = 'content:""; display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip); background:currentColor; vertical-align:baseline;';
+const markBefore = (s: Signal, selectors: readonly string[]): string => {
+  const list = selectors.map((x) => `${x}::before`).join(', ');
+  if (s === 'waiting') return `  ${list} { ${NEEDS_DOT} margin-inline-end:0.4em; }`;
+  return `  ${list} { content:""; ${SHAPE_BOX} ${shapeMask(s)} margin-inline-end:var(--space-4); }`;
+};
+/** Lines drawn with the chore's open ring before them, in their own (secondary) ink — never the needs dot. */
 export const TODO_BEFORE: readonly string[] = ['.fwarn', '.imp-warn', '.sr-value.warn', '.prob:not(.bad)'];
 const SIGNAL_CSS = `  /* Phase 4 — the four signals: a colour and a shape. */
 ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
-  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} ${shapeMask('waiting')} margin-inline-end:var(--space-4); }
+  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} ${shapeMask('chore')} margin-inline-end:var(--space-4); }
   .dot.ok { color:var(--color-ok); }
-  .dot.warn { color:var(--color-needs); }
+  /* The needs dot as an element (signalMark): the disc is its own box, the glyph it carries for a page read
+     without the sheet is pushed out of it. */
+  .dot.warn { color:var(--color-needs); display:inline-block; inline-size:0.55em; block-size:0.55em; border-radius:var(--radius-chip);
+    background:currentColor; overflow:hidden; text-indent:1em; white-space:nowrap; vertical-align:baseline; }
   .dot.bad { color:var(--color-warn); }
   .dot.as { color:var(--color-assistant); }
-  .pill.as { background:transparent; color:var(--color-assistant); padding-inline:0; }
+  /* THE IDENTITY SYSTEM (2026-10-04) — THE ASSISTANT'S NAME TAG, its shape now that the four-point mark goes:
+     its wash as the ground, its light words, a chip, beside what it wrote. Draw it with .as-tag; the
+     selectors after it are where its label is drawn today. */
+  .as-tag, .msg-by .as, #approve .top > .as, .card > p > .as { display:inline-flex; align-items:center; gap:var(--space-4);
+    padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
+  .card > p > .as { font-size:var(--font-size-caption); }
+  .pill.as { background:var(--color-assistant-wash); color:var(--color-assistant); }
 ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFORE[s])).join('\n')}
+  @media (forced-colors: active) {
+    .dot.warn { inline-size:auto; block-size:auto; text-indent:0; background:none; }
+    ${[...SIGNAL_BEFORE.waiting, '.btn.send.needs'].map((x) => `${x}::before`).join(', ')} { forced-color-adjust:none; }
+  }
 `;
 
 /**
@@ -425,10 +447,10 @@ ${STAGGER}
   .pc-qty, .pc-none { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .pc-none { margin:0; }
   .pc-top + .pc-facts, .pc-things + .pc-open { margin-block-start:var(--space-4); }
-  /* Phase 9 (w4-customers-26) — the card's one action is the primary one: graphite, its words inside their own padding
+  /* Phase 9 (w4-customers-26) — the card's one action is the primary one: the brand fill (the identity system), its words inside their own padding
      (scoped to the card, so it is not the plain door's colour and inset, which the shell draws later). */
   .pcard .pc-open { align-self:stretch; width:auto; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-16);
-    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface); font-weight:600; }
+    border-radius:var(--radius-control); background:var(--color-brand); color:var(--color-surface); font-weight:600; }
   .pcard .pc-open .go { color:var(--color-surface); }
   .pcard .pc-open:hover, .pcard .pc-open:focus-visible { box-shadow:var(--shadow-lift2); }
   dialog.sheet { border:0; padding:0; background:transparent; color:var(--color-ink); overflow:visible;
@@ -473,7 +495,7 @@ export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); 
   @media (min-width: 25rem) { .langsw a { padding:0 var(--space-12); } }
   /* The switcher is chrome. A solid jade fill made it the loudest object
      on a page whose subject was somebody's business. */
-  .langsw a.on { background:var(--color-surface); color:var(--color-ink); font-weight:600; }
+  .langsw a.on { background:var(--color-surface); color:var(--color-brand); font-weight:600; }
 `;
 
 /**
@@ -518,6 +540,8 @@ ${cssVariables()}
   body { margin: 0; background: var(--color-paper); color: var(--color-ink);
     font: var(--font-size-base)/var(--line-height) var(--font-family); }
   a { color: inherit; text-decoration: none; }
+  /* The identity system (2026-10-04) — what the owner selects is lifted out in the brand. */
+  ::selection { background:var(--color-brand); color:var(--color-surface); }
   /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
   .voice { font-family: var(--font-voice); }
   /* THE WARMTH RUN (2026-10-03) — a customer's face (faces.ts): their photo laid
@@ -526,7 +550,7 @@ ${cssVariables()}
 ${FACE_CSS}
   .face-link { display:inline-flex; align-items:center; gap:var(--space-8); color:inherit; min-width:0; }
   .face-link:focus-visible { outline:none; }
-  .face-link:focus-visible .face { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .face-link:focus-visible .face { outline:2px solid var(--color-brand); outline-offset:2px; }
   /* w4-whole-22 — a pressed face is opening its card: it dims until the card is there. */
   .face-link[aria-busy="true"] .face { opacity:0.6; }
   .layout { display: grid; grid-template-columns: 208px 1fr; min-height: 100vh; }
@@ -601,10 +625,11 @@ ${FACE_CSS}
     box-shadow: var(--shadow-lift1); }
   nav.side a.navlink.active .ni { stroke-width:2.3; }
   .nl-short { display:none; }
-  /* The rail's one number: customers waiting for the owner, in the waiting
-     signal's colour (the deep magenta), beside its word. */
-  nav.side .navcount { display:inline-flex; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-4);
-    font-size:var(--font-size-caption); font-weight:700; color:var(--color-needs); background:var(--color-needs-wash);
+  /* The rail's one number: customers waiting for the owner. The identity system: the needs FILL — the deep
+     magenta under white words and the white needs dot before them — is the badge's own shape and reads
+     with the colour removed. On a phone's tile the badge is the figure alone. */
+  nav.side .navcount { display:inline-flex; align-items:center; justify-content:center; flex:none; white-space:nowrap; min-inline-size:1.6em; padding:0 var(--space-8);
+    font-size:var(--font-size-caption); font-weight:700; color:var(--color-surface); background:var(--color-needs);
     border-radius:var(--radius-chip); font-variant-numeric:tabular-nums; line-height:1.6; }
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
      chrome; the language switch and log out are the first rows of Setup, and
@@ -656,26 +681,28 @@ ${LANGSW_CSS}
   .pill.owner { background:var(--color-sand); color:var(--color-ink); font-weight:600; }
 ${SIGNAL_CSS}${MOTION_CSS}
   /* One button (the design pass, 2026-09-29). The primary act is the one
-     ink FILL on a screen; every other button is outlined in Stone on
-     white; a quiet one is words; red takes something away.
-     The warmth pass (2026-10-04) — ONE exception, a variant and never a
-     colour of its own: the primary act that answers something WAITING for
-     the owner is filled in the deep magenta (.btn.send.needs, NEEDS_ACT):
-     Send on a reply waiting for review, Confirm on an order waiting for the
-     tap, Reply in a conversation handed to you. Save and Add stay ink. The
-     light magenta is never a button. Its edge is the fill itself (a
-     transparent border over the fill), so magenta never draws a frame. */
+     FILL on a screen; every other button is outlined in Stone on white, its
+     words ink; a quiet one is words; red takes something away.
+     The identity system (2026-10-04) — the ordinary primary act (Save, Add,
+     Connect, Next) is filled in the BRAND magenta. The act that answers
+     something WAITING for the owner (.btn.send.needs, NEEDS_ACT: Send on a
+     reply waiting for review, Confirm on an order waiting for the tap, Reply
+     in a conversation handed to you) is the DEEP fill, and its word is led
+     by the white needs dot — so it is told from Save by its shape, not by
+     its shade alone. The light magenta is never a button. A fill's edge is
+     the fill itself (a transparent border), so no magenta draws a frame. */
   .btn { display:inline-flex; align-items:center; justify-content:center; min-height:44px;
     padding:10px 18px; border-radius:var(--radius-control);
     border:1.5px solid var(--color-ink-secondary);
     background:var(--color-surface); color:var(--color-ink);
     font:inherit; font-size:var(--font-size-small); font-weight:500; cursor:pointer; }
-  .btn.send { background:var(--color-ink); border-color:var(--color-ink); color:var(--color-surface); font-weight:600; }
+  .btn.send { background:var(--color-brand); border-color:transparent; color:var(--color-surface); font-weight:600; }
   .btn.send:hover { box-shadow:var(--shadow-lift2); }
   .btn.send.needs { background:var(--color-needs); border-color:transparent; color:var(--color-surface); }
+  .btn.send.needs::before { ${NEEDS_DOT} margin-inline-end:0.5em; flex:none; }
   .btn.danger { border-color:var(--color-warn); color:var(--color-warn); }
   .btn.ghost { background:transparent; border-color:transparent; color:var(--color-ink-secondary); font-weight:400; }
-  .btn.ghost:hover { color:var(--color-ink); text-decoration:underline; }
+  .btn.ghost:hover { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); }
   .inline { display:inline; }
   .doors { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   /* M49 — a button in a column form stretched to the width of the input above
@@ -706,8 +733,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
             font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .chkbox input { min-height:0; }
-  /* Phase 9 (V1-416) — a chosen radio or tick in the ink of the page, not the browser's own blue. */
-  input[type="radio"], input[type="checkbox"] { accent-color:var(--color-ink); }
+  /* Phase 9 (V1-416) — a chosen radio or tick in the product's own colour (the brand, since the identity system), not the browser's blue. */
+  input[type="radio"], input[type="checkbox"] { accent-color:var(--color-brand); }
   /* One figure, stated large: the rate she set, the sample price, the state an
      order is in. It is a READING, not a KPI tile. */
   .stated-now { font-size:var(--font-size-display); font-weight:300; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight); margin:var(--space-12) 0; }
@@ -741,12 +768,14 @@ ${SIGNAL_CSS}${MOTION_CSS}
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
     font-size:var(--font-size-small); font-weight:500; }
-  /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an ink edge and weight, not a paler grey than its neighbours. */
-  .tab.on { background:var(--color-surface); border-color:var(--color-ink); box-shadow:inset 0 0 0 1px var(--color-ink); color:var(--color-ink); font-weight:600; }
+  /* Phase 9 (V1-171) — the chosen tab is the one that stands out: an edge twice as heavy and weight, not a paler grey than its
+     neighbours. The identity system — the edge and the words in the brand: the edge of what you are on is one of the three edges
+     the brand may draw (a focus ring and an underline are the others). */
+  .tab.on { background:var(--color-surface); border-color:var(--color-brand); box-shadow:inset 0 0 0 1px var(--color-brand); color:var(--color-brand); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
-    color:var(--color-ink); font-size:var(--font-size-small); }
+    color:var(--color-brand); font-size:var(--font-size-small); }
   pre { background:var(--color-paper); border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
@@ -758,16 +787,17 @@ ${SIGNAL_CSS}${MOTION_CSS}
      line on the settings page, where they read as one run-on sentence with
      chevrons in it rather than three separate doors. fit-content keeps the
      target the width of its words, not the width of the column. */
+  /* The identity system (2026-10-04) — a door is the brand: its words, its chevron, its underline. */
   .deeper { display:flex; width:fit-content; align-items:center; gap:var(--space-4); min-height:44px;
-    padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-ink); }
+    padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-brand); }
   .deeper:hover, .deeper:focus-visible { text-decoration:underline; text-underline-offset:3px; }
-  /* The chevron carries the affordance now that the label does not shout. */
-  .go { font-size:var(--font-size-base); color:var(--color-ink-secondary); }
+  /* The chevron carries the affordance now that the label does not shout — in the brand, on every door and row. */
+  .go { font-size:var(--font-size-base); color:var(--color-brand); }
   [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
   .tlines { list-style:none; margin:var(--space-8) 0 0; padding:0; display:flex; flex-direction:column; }
   .tline { display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:var(--space-8) 0;
     border-bottom:1px solid var(--color-paper); color:var(--color-ink); text-decoration:none; }
-  .tline:hover, .tline:focus-visible { text-decoration:underline; text-underline-offset:3px; }
+  .tline:hover, .tline:focus-visible { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .tline .go { margin-inline-start:auto; }
   .tl-who { font-weight:600; }
   /* Settings in labelled groups (phase 3 of the UI rebuild): one card of rows
@@ -877,7 +907,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .tw-item { display:flex; align-items:center; gap:var(--space-12); padding-inline-start:var(--space-12); }
   .tw-go { display:flex; align-items:center; gap:var(--space-8); flex:1 1 auto; min-width:0; min-height:56px;
     padding-block:var(--space-8); padding-inline-end:var(--space-12); color:var(--color-ink); }
-  .tw-go:hover .tw-name, .tw-go:focus-visible .tw-name { text-decoration:underline; text-underline-offset:3px; }
+  .tw-go:hover .tw-name, .tw-go:focus-visible .tw-name { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .tw-who { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
   .tw-name, .tw-why { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
   .tw-name { font-weight:600; font-size:var(--font-size-small); }
@@ -935,7 +965,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
      and flipping it would make Nomi a different mark for Arabic readers. Only
      directional glyphs mirror. Do not add .mark to this rule. */
   a:focus-visible, button:focus-visible, input:focus-visible,
-  textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
+  textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   .muted { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   /* M49 — one empty state, aligned like everything else. It was centred while
      the page around it was left-aligned, which is the single clearest way to
@@ -1100,7 +1130,6 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .calm-page.off .calm-rule { background:var(--color-border); }
   .calm-say { font-size:var(--font-size-title); font-weight:300; line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
   a.stat { color:inherit; }
-  a.stat:hover .go, a.stat:focus-visible .go { color:var(--color-ink); }
   .stat.need .v { font-size:var(--font-size-title); }
   /* The controls the browser used to draw — the hand-to select, a details
      disclosure, a textarea outside a form — get the same recess as an input. */
@@ -1111,7 +1140,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
   details > summary::-webkit-details-marker { display:none; }
-  details > summary::before { content:'›'; color:var(--color-ink-secondary); display:inline-block; }
+  details > summary::before { content:'›'; color:var(--color-brand); display:inline-block; }
   /* The type pass — open, the same chevron turns down (⌄ is in no face the product serves). */
   details[open] > summary::before { transform:rotate(90deg); }
   [dir="rtl"] details:not([open]) > summary::before { transform:scaleX(-1); }
@@ -1119,8 +1148,12 @@ ${SIGNAL_CSS}${MOTION_CSS}
      pointer. Only the components page under Setup wears them. */
   .btn:hover:not(.send):not(.ghost), .btn.is-hover:not(.send):not(.ghost) { background:var(--color-paper); }
   .btn.send.is-hover { box-shadow:var(--shadow-lift2); }
-  .is-focus { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .is-focus { outline:2px solid var(--color-brand); outline-offset:2px; }
   .btn:disabled, .btn.is-disabled { background:var(--color-paper); border-color:var(--color-border);
+    color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
+  /* The identity system — the needs act goes quiet too when it cannot be pressed (its fill outranked the
+     rule above and stayed deep). It keeps its dot, in the quiet ink. */
+  .btn.send.needs:disabled, .btn.send.needs.is-disabled { background:var(--color-paper); border-color:var(--color-border);
     color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
 
   @media (max-width: 720px) {
@@ -1158,7 +1191,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .nl-body { display:contents; }
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
     /* The count rides the icon's corner on a phone: the word keeps its room. */
-    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; }
+    nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4); }
+    nav.side .navcount::before { content:none; }
     /* Phase 7 — one line: the shorter phone label where there is one, and a sideways scroll as the last resort. */
     nav.side { overflow-x:auto; scrollbar-width:none; padding-inline:var(--space-8); }
     /* Phase 9 (V1-014) — the entries sit edge to edge (each keeps its own padding), so "Customers" can carry its count on the one line. */
@@ -1257,7 +1291,7 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-492) — a file to take, one row of a card each: its name, and its own Download at the row's end. */
   .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
   .dl-get { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; color:var(--color-ink); font-size:var(--font-size-small); text-decoration:none; }
-  .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-underline-offset:3px; }
+  .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .dl-get > .ni { inline-size:18px; block-size:18px; flex:none; }
   .data-more { margin:0 0 var(--space-12); }
   .data-more > summary { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -1503,7 +1537,7 @@ const STYLE_PAGES = `
   .alform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
-  .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .blink { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   /* Phase 7 — the channels are rows of their own screen now (the menu row's value carries the state); the cards' rules went with them. */
   .fblock .deeper { margin-top:var(--space-8); }
   /* Doors in a column keep the column's own gap, as everywhere else. */
@@ -1551,7 +1585,7 @@ const STYLE_PAGES = `
      (focusable, named by its label) but is not drawn, and the line beside it says whether one was chosen. */
   .filepick { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8) var(--space-12); margin:var(--space-12) 0; }
   .filepick input[type=file] { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
-  .filepick:focus-within .btn { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .filepick:focus-within .btn { outline:2px solid var(--color-brand); outline-offset:2px; }
   .filepick input:invalid ~ .filepick-some, .filepick input:valid ~ .filepick-none { display:none; }
   .filepick-some { font-size:var(--font-size-small); color:var(--color-ink); }
   textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
@@ -1648,7 +1682,7 @@ const STYLE_PAGES = `
   .wa-steps li { margin-bottom:var(--space-8); }
   /* Phase 9 — the Meta help page: a step's title stands above its two lines; a link to Meta looks like a link and says it leaves. */
   .help-line { font-size:var(--font-size-small); margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
-  .help-links a { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .help-links a { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .help-links .ext { margin-inline-start:var(--space-4); font-size:var(--font-size-small); }
 
   /* ── knowledge.ts — moved here whole in step four: page-specific names, defined once. */
@@ -1760,7 +1794,7 @@ const STYLE_PAGES = `
   .cal-today { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-12); font-weight:600; font-size:var(--font-size-small); }
   .cal-chosen { margin:0; color:var(--color-ink-secondary); }
   .cal-chosen a { display:inline-flex; align-items:center; min-height:44px; margin-inline-start:var(--space-8); color:var(--color-ink);
-    text-decoration:underline; text-underline-offset:3px; }
+    text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   /* The page's one fold: choosing one kind or one customer, adding a date, what the marks mean. Closed until reached for. */
   .cal-tools { margin:var(--space-4) 0 0; }
   .cal-tools > summary { color:var(--color-ink-secondary); }
@@ -1778,7 +1812,7 @@ const STYLE_PAGES = `
   .cal-rm { margin:var(--space-4) 0 0; }
   .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
   /* TODAY is marked in the light magenta (a soft accent, the warmth pass), in a word as well, and only ever as text. */
-  .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-assistant); margin-inline-start:var(--space-4); }
+  .cal-now { font-size:var(--font-size-caption); font-weight:700; color:var(--color-brand); margin-inline-start:var(--space-4); }
   .cal-day .cal-now, .cal-span .cal-now { font-size:inherit; margin:0; }
   /* THE SCREEN: the grid, then the list — on a phone and in a narrow window one under the other, the grid on top; from
      1200px side by side, the grid the wider. The grid then fits its column: names wrap between words beside their face.
@@ -1874,7 +1908,7 @@ const STYLE_PAGES = `
   .mo td.other { background:var(--color-paper); }
   .mo-d { display:inline-flex; min-width:1.75em; min-height:1.75em; align-items:center; justify-content:center;
     font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; color:var(--color-ink); text-decoration:none; }
-  .mo td.today .mo-d { color:var(--color-assistant); font-weight:700; }
+  .mo td.today .mo-d { color:var(--color-brand); font-weight:700; }
   /* Every day CHOOSES itself: its number's door covers the whole cell, under the faces (each opens its card) and "+N more".
      The chosen day wears a neutral ring, graphite like the primary action: magenta keeps its three jobs. */
   .mo td { position:relative; }
@@ -1929,9 +1963,9 @@ const STYLE_PAGES = `
   /* Phase 9 (V1-171) — the button stands as tall as the field it sends, so their edges meet. */
   .search .btn { align-self:stretch; }
   /* Phase 9 (V1-181, inbox-calendar-missed-06) — the way back from a search is a link in what was found, never beside the field. */
-  .found .clear { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .found .clear { display:inline-flex; align-items:center; min-height:44px; color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   /* Phase 9 (V1-182) — the searched words, marked by weight and a line: no colour of their own. */
-  mark.hit { background:transparent; color:inherit; font-weight:700; text-decoration:underline; text-underline-offset:2px; }
+  mark.hit { background:transparent; color:inherit; font-weight:700; text-decoration:underline; text-decoration-color:var(--color-brand); text-decoration-thickness:2px; text-underline-offset:2px; }
   /* Grouped by who is speaking. Phase 1 (2026-10-02): the list takes the
      whole column, one ruled sheet of rows, so a laptop shows ten or more. */
   .lhead { display:flex; flex-direction:column; }
@@ -1953,7 +1987,7 @@ const STYLE_PAGES = `
     align-items:baseline; min-height:56px; padding:6px var(--space-12); color:var(--color-ink);
     border-inline-start:3px solid transparent; }
   a.crow:hover, a.crow:focus-visible { background:var(--color-paper); }
-  a.crow.on { background:var(--color-paper); border-inline-start-color:var(--color-ink); }
+  a.crow.on { background:var(--color-paper); border-inline-start-color:var(--color-brand); }
   .cr-mark { grid-row:1; grid-column:1; justify-self:center; font-size:var(--font-size-caption); line-height:1; }
   .is-needs .cr-mark { color:var(--color-needs); }
   .is-yours .cr-mark { color:var(--color-ink); }
@@ -1996,7 +2030,7 @@ const STYLE_PAGES = `
   .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-12) 10px; }
   .ir-main { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:var(--space-8);
     align-content:center; align-items:baseline; padding-block:5px; padding-inline-end:var(--space-12); color:inherit; }
-  .ir-main:focus-visible { outline:2px solid var(--color-ink); outline-offset:-2px; }
+  .ir-main:focus-visible { outline:2px solid var(--color-brand); outline-offset:-2px; }
   .ir-l1 { grid-row:1; grid-column:1; display:flex; align-items:baseline; gap:var(--space-8); min-width:0; font-size:var(--font-size-small); }
   .ir-name { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:match-parent; }
   .irow.unanswered .ir-name { font-weight:600; }
@@ -2036,11 +2070,11 @@ const STYLE_PAGES = `
   .tabs.lens { flex:1 1 100%; gap:var(--space-4); padding:3px; background:var(--color-sand);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); }
   .tabs.lens .tab { flex:1 1 0; justify-content:center; background:transparent; border-color:transparent; }
-  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; }
+  .tabs.lens .tab.on { background:var(--color-surface); border-color:var(--color-border); box-shadow:none; color:var(--color-brand); }
   @media (min-width: 721px) { .tabs.lens { flex:none; } .tabs.lens .tab { flex:none; } }
   .tabs.filters { flex-wrap:wrap; align-items:center; }
   .tabs.filters .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small);
-    color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+    color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
   .lens-says { margin:0 0 var(--space-12); }
   /* "Needs attention": relationships slipping, in a soft panel above the switch. A face, a name, one
      line that may wrap — nothing cut; five, then the rest folded. */
@@ -2141,7 +2175,7 @@ const STYLE_PAGES = `
   .listpane .irows { margin:var(--space-8) 0; background:none; border:0; border-radius:0; }
   .listpane .irow { border-inline-start:3px solid transparent; }
   .listpane .irow:hover, .listpane .irow:focus-within, .listpane .irow.on { background:var(--color-surface); }
-  .listpane .irow.on { border-inline-start-color:var(--color-ink); }
+  .listpane .irow.on { border-inline-start-color:var(--color-brand); }
   .listpane .irows > li.lp-group, .listpane .irows > li.lp-group + li { border-top:0; }
   .listpane .tabs.lens { margin:0 var(--space-16) var(--space-8); padding:3px; }
   .listpane .tabs.filters { margin:0 0 var(--space-8); }
@@ -2468,10 +2502,12 @@ ${cssVariables()}
   p, li { text-wrap:pretty; }
   h1, h2 { text-wrap:balance; }
   ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
-  a { color:var(--color-ink); }
+  a { color:var(--color-ink); text-decoration-color:var(--color-brand); text-underline-offset:0.2em; }
+  a:focus-visible, button:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
+  ::selection { background:var(--color-brand); color:var(--color-surface); }
   .updated { margin-top:var(--space-48); }
   button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
-           border-radius:var(--radius-card); background:var(--color-ink);
+           border-radius:var(--radius-card); background:var(--color-brand);
            color:var(--color-surface); cursor:pointer; }
 `;
 
@@ -2841,14 +2877,14 @@ const DOOR_STYLE = `
   input, select, button, textarea { font-family:inherit; }
   /* V1-034, V1-050 — a link on the door looks like one. */
   .login .card a, .login .other a, .login .foot a { color:var(--color-ink); text-decoration:underline;
-    text-underline-offset:0.2em; }
+    text-decoration-color:var(--color-brand); text-underline-offset:0.2em; }
   /* w4-public-04 — a field, a list and a button are controls: a control's corner, as inside the app. */
   input { width:100%; padding:12px 14px; border-radius:var(--radius-control);
     border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   /* M49 — as wide as its word, like every other button in the product. */
   button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-control);
-    background:var(--color-ink); color:var(--color-surface); font-weight:600;
+    background:var(--color-brand); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
   button:hover { box-shadow:var(--shadow-lift2); }
   select { width:100%; min-height:44px; padding:10px 14px; border-radius:var(--radius-control);

@@ -5,16 +5,19 @@ import { cssVariables } from '../../src/core/owner/css.js';
 
 /**
  * THE PALETTE (the design pass, decided 2026-09-29; the plan's §6; the warmth
- * pass, 2026-10-04).
+ * pass and the identity system, 2026-10-04).
  *
- * Five warm neutrals — ink, stone, rule, paper, a warm white — two magentas
- * with two jobs, and the three states. The DEEP magenta (`needs`) says
- * something waits for the owner: a text colour, and the fill of the one act
- * that answers it (`.btn.send.needs`). The LIGHT magenta (`assistant`) says
- * Nomi did this: a TEXT colour beside what it wrote, never a fill, a border,
- * a link, a button or the mark; its wash is a ground. Retired: the single
- * magenta that did both jobs, the cool neutrals, jade, highlight, the old warm
- * papers, the dark palette. Each is held here, so none can come back by accident.
+ * Five warm neutrals — ink, stone, rule, paper, a warm white — one warm tone,
+ * ONE magenta family in three shades, and the three states. The BRAND magenta
+ * is Nomi's signature: the primary fill, doors, underlines, focus, selection,
+ * the chosen tab, today, the mark. The DEEP magenta (`needs`) says something
+ * waits for the owner: a text colour with the needs dot, and the fill of the
+ * one act that answers it (`.btn.send.needs`) and of the rail's count. The
+ * LIGHT magenta (`assistant`) says Nomi did this: words on its wash beside
+ * what it wrote, never a fill, a border, a link, a button or the mark.
+ * Retired: the single magenta that did both jobs, the cool neutrals, jade,
+ * highlight, the old warm papers, the dark palette. Each is held here, so none
+ * can come back by accident.
  */
 
 const C = DESIGN_TOKENS.color as Readonly<Record<string, string>>;
@@ -39,7 +42,7 @@ async function sources(dir: URL): Promise<{ f: string; src: string }[]> {
 }
 
 describe('the palette', () => {
-  it('is five warm neutrals and one warm tone, two magentas and the three states — nothing else', () => {
+  it('is five warm neutrals and one warm tone, three magentas and the three states — nothing else', () => {
     expect(Object.keys(C).sort()).toEqual([
       // The warmth run (2026-10-03): the wash under the assistant's own words.
       // The warmth pass (2026-10-04): waiting is the deep magenta, `needs`, with its own wash.
@@ -47,6 +50,8 @@ describe('the palette', () => {
       'needs', 'needsWash', 'ok', 'okLine', 'okWash', 'warn', 'warnLine', 'warnWash',
       // …and the ONE warm supporting tone the owner allowed, for quiet surfaces (warmth-pass.test.ts).
       'sand',
+      // The identity system (2026-10-04): the signature, between the two meaning shades.
+      'brand',
     ].sort());
     expect(C['ink']).toBe('#25201C');
     expect(C['inkSecondary']).toBe('#665D55');
@@ -56,8 +61,9 @@ describe('the palette', () => {
     expect(C['sand']).toBe('#F1E8DC');
     expect(C['needs']).toBe('#6E0C44');
     expect(C['assistant']).toBe('#BE2D6E');
-    // two shades with two jobs: never one value again
-    expect(C['needs']).not.toBe(C['assistant']);
+    expect(C['brand']).toBe('#9A0F5E');
+    // three shades with three jobs: never one value again
+    expect(new Set([C['needs'], C['brand'], C['assistant']]).size).toBe(3);
     expect(C['needsWash']).not.toBe(C['assistantWash']);
   });
 
@@ -67,8 +73,8 @@ describe('the palette', () => {
     expect(cssVariables()).toContain('color-scheme: light;');
   });
 
-  it('keeps both magentas on the raspberry side of true magenta — never violet, never red', () => {
-    for (const k of ['needs', 'assistant']) {
+  it('keeps all three magentas on the raspberry side of true magenta — never violet, never red', () => {
+    for (const k of ['needs', 'brand', 'assistant']) {
       const h = hue(C[k]!);
       expect(h, k).toBeGreaterThan(325);
       expect(h, k).toBeLessThan(350);
@@ -87,7 +93,8 @@ describe('the palette', () => {
     const wrong: string[] = [];
     let uses = 0;
     for (const { f, src } of await sources(WEB)) {
-      for (const m of src.matchAll(/([^{}<>`;]+)\{([^{}]*)\}/g)) {
+      // A comment is not a selector: the scan reads the rules with the comments taken out.
+      for (const m of src.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}<>`;]+)\{([^{}]*)\}/g)) {
         const [, selector, body] = m as unknown as [string, string, string];
         for (const d of body.matchAll(/([a-z-]+)\s*:\s*[^;]*var\(--color-assistant\)/g)) {
           uses++;
@@ -103,15 +110,17 @@ describe('the palette', () => {
     expect(uses, 'the assistant\'s mark is drawn somewhere').toBeGreaterThan(0);
   });
 
-  // The warmth pass — the deep magenta is a text colour, and a FILL in exactly two places: the act that
-  // answers what waits (`.btn.send.needs`) and the rail's dot when a customer newly waits. Never a link,
-  // a heading, a border or a shadow.
-  it('the deep magenta is text, the fill of the act that answers what waits, and the rail\'s dot — nothing else', async () => {
-    const FILLS = ['.btn.send.needs', 'nav.side a.navlink[data-fresh]::after'];
+  // The warmth pass — the deep magenta is a text colour, and a FILL in exactly three places: the act that
+  // answers what waits (`.btn.send.needs`), the rail's count (the identity system: the needs fill, so it
+  // reads with the colour removed) and the rail's dot when a customer newly waits. Never a link, a
+  // heading, a border or a shadow.
+  it('the deep magenta is text, the fill of the act that answers what waits, the rail\'s count and dot — nothing else', async () => {
+    const FILLS = ['.btn.send.needs', 'nav.side .navcount', 'nav.side a.navlink[data-fresh]::after'];
     const wrong: string[] = [];
     const filled = new Set<string>();
     for (const { f, src } of await sources(WEB)) {
-      for (const m of src.matchAll(/([^{}<>`;]+)\{([^{}]*)\}/g)) {
+      // A comment is not a selector: the scan reads the rules with the comments taken out.
+      for (const m of src.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}<>`;]+)\{([^{}]*)\}/g)) {
         const [, selector, body] = m as unknown as [string, string, string];
         for (const d of body.matchAll(/([a-z-]+)\s*:\s*[^;]*var\(--color-needs\)/g)) {
           const sels = selector.split(',').map((s) => s.trim());
@@ -128,10 +137,12 @@ describe('the palette', () => {
     expect([...filled].sort()).toEqual([...FILLS].sort());
   });
 
-  it('the mark is graphite — never the assistant\'s colour', async () => {
+  // The identity system (2026-10-04) — the mark is the signature: the brand, never a meaning's shade.
+  it('the mark is the brand magenta — never the deep or the light shade', async () => {
     const brand = await readFile(new URL('core/owner/brand.ts', SRC), 'utf8');
     expect(brand).not.toContain('--color-assistant');
     expect(brand).not.toContain('--color-needs');
-    expect(brand).toContain("'var(--color-ink)'");
+    expect(brand).not.toContain("'var(--color-ink)'");
+    expect(brand).toContain("'var(--color-brand)'");
   });
 });

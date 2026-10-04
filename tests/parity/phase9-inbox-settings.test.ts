@@ -212,7 +212,8 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   });
 
   it('V1-171 · the chosen tab stands out; the Find button is as tall as its field', () => {
-    expect(CSS).toMatch(/\.tab\.on \{ background:var\(--color-surface\); border-color:var\(--color-ink\); box-shadow:inset 0 0 0 1px var\(--color-ink\);/);
+    // The identity system (2026-10-04) — the edge of the tab you are on is the brand's.
+    expect(CSS).toMatch(/\.tab\.on \{ background:var\(--color-surface\); border-color:var\(--color-brand\); box-shadow:inset 0 0 0 1px var\(--color-brand\);/);
     expect(CSS).toMatch(/\.search \.btn \{ align-self:stretch; \}/);
   });
 
@@ -382,7 +383,8 @@ describe('the calendar', () => {
     expect(none).not.toContain('<h3 class="cal-day"');
     const month = drawCal('en', 'screen');
     expect(month).toMatch(/<td class="today" aria-current="date">\s*<a class="mo-d" [^>]*>2<\/a><span class="cal-now">Today<\/span>/);
-    expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ color:var\(--color-assistant\); font-weight:700; \}/);
+    // The identity system (2026-10-04) — today is the brand, an accent; the light shade is the assistant's alone.
+    expect(CSS).toMatch(/\.mo td\.today \.mo-d \{ color:var\(--color-brand\); font-weight:700; \}/);
   });
 });
 

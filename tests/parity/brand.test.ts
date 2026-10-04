@@ -36,12 +36,15 @@ describe('M30 · the inline mark cannot drift from assets/brand/', () => {
     const small = markSmall(30);
     // same geometry…
     expect(figureOf(detail)).toBe(figureOf(small));
-    // …opposite ground: a paper disc for the large cut, SOLID graphite for
-    // the small. Graphite, never magenta: that colour is the assistant's hand.
+    // …opposite ground: a paper disc for the large cut, a SOLID disc for the
+    // small. The identity system (2026-10-04): the mark is the BRAND magenta —
+    // never the deep or the light shade, which are meanings. Only the colour
+    // moved; the cuts are the owner's (V1-106).
     expect(detail).toContain('r="50" fill="var(--color-paper)"');
-    expect(small).toContain('r="50" fill="var(--color-ink)"');
-    expect(detail).toContain('<g fill="var(--color-ink)">');
+    expect(small).toContain('r="50" fill="var(--color-brand)"');
+    expect(detail).toContain('<g fill="var(--color-brand)">');
     expect(small).toContain('<g fill="var(--color-surface)">');
+    for (const svg of [detail, small]) expect(svg).not.toMatch(/--color-(needs|assistant|ink)\b/);
   });
 
   it('carries no literal colour — it inherits the tokens, night included', () => {
@@ -95,7 +98,7 @@ describe('M30 · the favicon', () => {
   it('carries the SMALL cut — reversed, because a favicon is 16px', () => {
     const svg = decoded();
     expect(figureOf(svg)).toBe(MARK_FIGURE);
-    expect(svg).toContain(`r="50" fill="${DESIGN_TOKENS.color.ink}"`);       // solid disc
+    expect(svg).toContain(`r="50" fill="${DESIGN_TOKENS.color.brand}"`);     // solid disc, the brand
     expect(svg).toContain(`<g fill="${DESIGN_TOKENS.color.surface}">`);      // knocked out
   });
 
