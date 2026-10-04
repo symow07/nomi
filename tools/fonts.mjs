@@ -27,7 +27,9 @@
  * EVERY FACE PROMISES ONLY WHAT ITS FILE DRAWS. A package's `unicode-range`
  * is cut to the characters the file's own map holds (`tools/lib/woff2.mjs`):
  * the Arabic face's symbols slice claimed ○ ✓ ✦ without drawing them, so every
- * page fetched it for nothing. A slice left with no character is dropped.
+ * page fetched it for nothing. The invisible characters a browser needs no
+ * glyph for (direction marks, isolates) stay where the package named them. A
+ * slice left with no character is dropped.
  *
  * Usage:
  *   (cd <somewhere outside> && npm install @fontsource-variable/noto-sans@5.3.0 \

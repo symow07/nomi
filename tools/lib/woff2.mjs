@@ -130,9 +130,22 @@ export function formatUnicodeRange(points) {
   return parts.join(',');
 }
 
-/** The characters a range promises that the file also draws. */
+/**
+ * Characters with no ink that a browser lays out with no glyph at all —
+ * Unicode's Default_Ignorable_Code_Point: the direction marks and isolates the
+ * product wraps figures and names in (U+200F, U+2066–2069), joiners, the
+ * soft hyphen, variation selectors. A font need not map them. A face whose
+ * range named them keeps them, so a run holding an isolate is not sent to the
+ * device's fonts for an invisible character (TYPE-ICONS-TRUTH §1.3's crawl
+ * counted them as SF Pro's once the ranges were first cut without them).
+ */
+export const IGNORABLE = [[0x00ad, 0x00ad], [0x034f, 0x034f], [0x061c, 0x061c], [0x115f, 0x1160], [0x17b4, 0x17b5], [0x180b, 0x180f],
+  [0x200b, 0x200f], [0x202a, 0x202e], [0x2060, 0x206f], [0x3164, 0x3164], [0xfe00, 0xfe0f], [0xfeff, 0xfeff], [0xffa0, 0xffa0], [0xfff0, 0xfff8]];
+export const isIgnorable = (c) => IGNORABLE.some(([a, b]) => c >= a && c <= b);
+
+/** The characters a range promises that the file also draws (or that need no glyph). */
 export function drawnWithin(range, drawn) {
   const out = [];
-  for (const [first, last] of parseUnicodeRange(range)) for (let c = first; c <= last; c++) if (drawn.has(c)) out.push(c);
+  for (const [first, last] of parseUnicodeRange(range)) for (let c = first; c <= last; c++) if (drawn.has(c) || isIgnorable(c)) out.push(c);
   return out;
 }

@@ -12,7 +12,7 @@ import { registerWebApp } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { sheetLinks } from './linked-css.js';
 // @ts-expect-error — a tool's own module, plain JavaScript
-import { woff2Characters, parseUnicodeRange } from '../../tools/lib/woff2.mjs';
+import { woff2Characters, parseUnicodeRange, isIgnorable } from '../../tools/lib/woff2.mjs';
 
 /**
  * THE TYPE (the design pass, decided 2026-09-29; the plan's §7; the type pass,
@@ -119,16 +119,21 @@ describe('the faces are the product\'s own', () => {
       '@fontsource/noto-serif ', '@fontsource/noto-naskh-arabic ', '@fontsource/noto-serif-sc ']) expect(ofl, pkg).toContain(`── ${pkg}`);
   });
 
-  it('every face promises only the characters its file draws (the symbols slice claimed ○ ✓ ✦ and drew none)', async () => {
+  it('every face promises only the characters its file draws (the symbols slice claimed ○ ✓ ✦ and drew none) — or ones that need no glyph', async () => {
     const { faces } = await manifest();
     const promisedNotDrawn: string[] = [];
     for (const f of faces) {
       const drawn: Set<number> = woff2Characters(readFileSync(new URL(f.file, FONTS)));
       for (const [a, b] of parseUnicodeRange(f.unicodeRange) as [number, number][]) {
-        for (let c = a; c <= b; c++) if (!drawn.has(c)) { promisedNotDrawn.push(`${f.file} U+${c.toString(16)}`); break; }
+        for (let c = a; c <= b; c++) if (!drawn.has(c) && !isIgnorable(c)) { promisedNotDrawn.push(`${f.file} U+${c.toString(16)}`); break; }
       }
     }
     expect(promisedNotDrawn).toEqual([]);
+    // the direction marks and isolates every Arabic figure is wrapped in stay with the faces that named them
+    const arabicLatin = faces.find((f) => f.file.startsWith('noto-sans-arabic-latin-wght-'))!;
+    for (const c of [0x200f, 0x2066, 0x2068, 0x2069]) {
+      expect((parseUnicodeRange(arabicLatin.unicodeRange) as [number, number][]).some(([a, b]) => c >= a && c <= b), `U+${c.toString(16)}`).toBe(true);
+    }
     for (const mark of [0x25cb, 0x2713, 0x2715, 0x2726]) {
       expect(faces.filter((f) => (parseUnicodeRange(f.unicodeRange) as [number, number][]).some(([a, b]) => mark >= a && mark <= b))
         .map((f) => f.family), `U+${mark.toString(16)}`).toEqual(mark === 0x25cb || mark === 0x2713 ? ['Noto Sans SC', 'Noto Serif SC'] : []);

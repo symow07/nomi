@@ -327,7 +327,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const omar = /<div class="irow is-\w+">(?:(?!<div class="irow)[\s\S])*?<a class="ir-main" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a><\/div>/.exec((await get('/app/inbox?q=Omar')).body)?.[1] ?? '';
     expect(omar).toContain(`<span class="ir-when"><span class="ir-chan">WhatsApp · </span>${await lastContact(dubai)}</span>`);
     // the assistant wrote last: its mark is on the row (as the holder's mark, or before the message)
-    expect(omar).toContain('✦');
+    expect(omar).toContain('shape s-assistant');
   });
 
   it('in Arabic the list is right to left, and says where the page sits in its own words', async () => {
