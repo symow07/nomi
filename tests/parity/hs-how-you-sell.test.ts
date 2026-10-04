@@ -284,8 +284,9 @@ describe('Phase 9 · B5 · How you sell', () => {
     }
   });
 
-  it('V1-416 · a chosen radio is in the page’s ink', () => {
-    expect(css).toMatch(/input\[type="radio"\], input\[type="checkbox"\] \{ accent-color:var\(--color-ink\); \}/);
+  // The identity system (2026-10-04) — a checked control is the brand, the product's own colour, never the browser's blue.
+  it('V1-416 · a chosen radio is in the product’s own colour', () => {
+    expect(css).toMatch(/input\[type="radio"\], input\[type="checkbox"\] \{ accent-color:var\(--color-brand\); \}/);
   });
 
   it('missed-07 · no dash leads the usual choice; lines are balanced so no character is left alone', () => {

@@ -165,7 +165,8 @@ export function renderCustomerPanel(
   const act = p.activity.map((a) => {
     const mark = MARK[a.kind];
     const glyph = mark === 'as' ? '<span class="as" aria-hidden="true">✦</span>'
-      : mark === 'you' ? '<span class="pn-you" aria-hidden="true">●</span>' : signalMark('waiting');
+      // The identity system (2026-10-04) — the solid disc is the needs dot now; a person here is the small square.
+      : mark === 'you' ? '<span class="pn-you" aria-hidden="true">▪</span>' : signalMark('waiting');
     const said = a.kind === 'not_reached'
       ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} ${signalMark('failed')}`
       : esc(t(locale, `panel.act.${a.kind}` as MessageKey, { name }));

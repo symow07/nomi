@@ -191,9 +191,9 @@ describe('M49 · colour once or twice per screen', () => {
     expect(css).not.toMatch(/nav\.side a\.navlink\.active \{[^}]*background: ?var\(--color-ink\)/);
     // The language switcher is chrome, not a state worth a saturated fill.
     expect(css).not.toMatch(/\.langsw a\.on \{[^}]*background:var\(--color-ink\)/);
-    // Ordinary links are ink; the chevron carries the affordance.
-    expect(css).toMatch(/\.deeper \{[^}]*color:var\(--color-ink\)/);
-    expect(css).toMatch(/\.back \{[^}]*color:var\(--color-ink\)/);
+    // The identity system (2026-10-04) — a door is the brand: its words and its chevron.
+    expect(css).toMatch(/\.deeper \{[^}]*color:var\(--color-brand\)/);
+    expect(css).toMatch(/\.back \{[^}]*color:var\(--color-brand\)/);
   });
 
   it('NO LINK in any renderer is magenta — a link is ink; magenta is the assistant\'s hand', async () => {
@@ -219,9 +219,10 @@ describe('M49 · colour once or twice per screen', () => {
     expect(rogue, `a link spends the assistant's colour:\n  ${rogue.join('\n  ')}`).toEqual([]);
   });
 
-  it('the SEND button is the graphite fill; every other button is outlined', async () => {
+  // The identity system (2026-10-04) — the primary act's fill is the brand magenta.
+  it('the SEND button is the brand fill; every other button is outlined', async () => {
     const css = await shellCss();
-    expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-ink\)/);
+    expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-brand\)/);
     expect(css).toMatch(/\.btn \{[^}]*border:1\.5px solid var\(--color-ink-secondary\)[^}]*background:var\(--color-surface\)/);
   });
 });

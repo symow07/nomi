@@ -1,7 +1,7 @@
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { markSmall } from '../../core/owner/brand.js';
-import { publicDocument, esc, switcher, LANGSW_CSS, FACE_CSS, gapAfter, inviteMailto } from './layout.js';
+import { publicDocument, esc, switcher, LANGSW_CSS, FACE_CSS, NEEDS_DOT, gapAfter, inviteMailto } from './layout.js';
 import { face } from './faces.js';
 
 /**
@@ -240,7 +240,7 @@ export const SITE_CSS = `
   .site-cta { display:flex; align-items:center; gap:var(--space-16) var(--space-24); flex-wrap:wrap;
     margin:var(--space-32) 0 0; }
   .site-go { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:var(--space-12) var(--space-24);
-    border-radius:var(--radius-control); background:var(--color-ink); color:var(--color-surface);
+    border-radius:var(--radius-control); background:var(--color-brand); color:var(--color-surface);
     font-weight:600; text-decoration:none; text-align:center; text-wrap:balance; }
   /* Above: w4-public-04 — a button is a control, with a control's corner; w4-public-07 — a label
      that wraps is centred in its button, in even lines. */
@@ -258,6 +258,10 @@ export const SITE_CSS = `
     font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .site-draft .site-who { justify-content:flex-end; }
   .site-as { color:var(--color-assistant); }
+  /* The identity system (2026-10-04) — as in the product: the assistant's label is its name tag (its wash, its
+     light words, a chip), and what waits for the reader carries the needs dot. */
+  .site-draft .site-who > span:not(.site-draft-tag) { display:inline-flex; align-items:center; gap:var(--space-4);
+    padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
   .site-bubble { margin:0; padding:var(--space-12) var(--space-16); border-radius:var(--radius-card);
     background:var(--color-paper); color:var(--color-ink);
     font-size:var(--font-size-small); max-width:var(--measure-form); }
@@ -266,7 +270,7 @@ export const SITE_CSS = `
   .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-needs-wash);
     color:var(--color-needs); border:1px solid var(--color-border); font-weight:600; }
   /* The product's waiting mark: a shape before the word, so the colour is not alone. */
-  .site-draft-tag::before { content:"○"; content:"○" / ""; margin-inline-end:var(--space-4); }
+  .site-draft-tag::before { ${NEEDS_DOT} margin-inline-end:0.4em; }
   .site-acts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary);
     text-align:end; text-wrap:balance; }
 

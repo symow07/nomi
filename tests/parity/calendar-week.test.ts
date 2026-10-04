@@ -103,7 +103,7 @@ describe('the week, a row of the month (the owner\'s correction, 2026-10-04: one
   it('colour is left for state and the assistant: ○ on a reply that is due, ✦ on a price it worked out', () => {
     for (const a of [ask(), chosen(TODAY)]) {
       const html = draw(week(), 'en', { ask: a, now: NOW });
-      expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn" aria-hidden="true">○<\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
+      expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn" aria-hidden="true">●<\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
       expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><span class="as" aria-hidden="true">✦<\/span> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
     }
   });

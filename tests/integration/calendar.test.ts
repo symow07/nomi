@@ -260,7 +260,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     const r = await get('/app/calendar');
     const list = r.body.slice(r.body.indexOf('<div class="cal-list"'));
     expect(r.body.indexOf('<table class="mo">')).toBeLessThan(r.body.indexOf('<div class="cal-list"'));
-    const owed = list.indexOf(`<span class="dot warn" aria-hidden="true">○</span> ${t('en', 'calendar.legend.owed')}</h2>`);
+    const owed = list.indexOf(`<span class="dot warn" aria-hidden="true">●</span> ${t('en', 'calendar.legend.owed')}</h2>`);
     expect(owed).toBeGreaterThan(-1);
     expect([...sources(list).keys()][0]).toBe(`handoffs:${id['handoff']}`);
     expect(list.indexOf(`data-src="handoffs:${id['handoff']}"`)).toBeGreaterThan(owed);

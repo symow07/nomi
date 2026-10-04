@@ -88,12 +88,12 @@ describe('M9.6 · employee profile (localized)', () => {
     expect(zh).toContain(t('zh', 'employee.promo.title')); expect(zh).toContain('当前：每条回复都先等你');
     expect(zh).toContain('下一步：部分回复不等你就发出');
     expect(zh).toContain('<span class="dot ok" aria-hidden="true">✓</span> 你检查你的助手的一条回复，没问题');
-    expect(zh).toContain('<span class="dot warn" aria-hidden="true">○</span> 你改过你的助手的一条回复');
+    expect(zh).toContain('<span class="dot warn" aria-hidden="true">●</span> 你改过你的助手的一条回复');
     const en = everyScreen(probation, 'en', null);
     expect(en).toContain('What comes next'); expect(en).toContain('Now: Every reply waits for you');
     expect(en).toContain(`Next: ${t('en', 'employee.stage.partial')}`);
     expect(en).toContain('✓</span> You check one of your assistant’s replies and it is right');
-    expect(en).toContain('○</span> You correct one of your assistant’s replies');
+    expect(en).toContain('●</span> You correct one of your assistant’s replies');
   });
 
   it('actions: revoke on granted, promote only where eligible, confirm_order note', () => {

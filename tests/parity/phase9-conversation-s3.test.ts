@@ -72,7 +72,7 @@ describe('V1-232, V1-271 · one state, one name: the tab\'s, wherever it is said
       const waiting = plain(renderConversationDetail(draft({ ownership: 'WAITING_HUMAN', pendingDraft: null, handoffReasons: ['human_requested'] }), l, NOW, null));
       expect(waiting.split(`<span class="pill warn">${word}</span>`).length - 1, l).toBe(2);
       // the customer panel's activity, and the buyer file's pill
-      expect(plain(renderCustomerPanel(panel(), [], l, NOW, 'conv-here')), l).toContain(`○</span> ${word}`);
+      expect(plain(renderCustomerPanel(panel(), [], l, NOW, 'conv-here')), l).toContain(`●</span> ${word}`);
       expect(plain(renderCustomerFile(file(), l, NOW)), l).toContain(`<span class="pill warn">${word}</span>`);
       // and the list's group says it the same way
       expect(t(l, 'buyers.group.needsYou'), l).toBe(t(l, 'inbox.filter.pending'));

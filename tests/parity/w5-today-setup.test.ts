@@ -105,7 +105,7 @@ describe('w4-whole-11 · w4-today-setup-21 · today-onboarding-missed-01 · Toda
       expect(html).not.toContain(esc(t(l, 'today.calm.notLive.title', { name: 'Lily' })));
       expect(html).toContain('class="face-link td-face"');
       expect(html).toContain(`<p class="muted notlive"><span class="dot todo" aria-hidden="true">○</span> ${esc(t(l, 'ops.system.notLive'))}</p>`);
-      expect(html).not.toContain(`<span class="dot warn" aria-hidden="true">○</span> ${esc(t(l, 'ops.system.notLive'))}`);
+      expect(html).not.toContain(`<span class="dot warn" aria-hidden="true">●</span> ${esc(t(l, 'ops.system.notLive'))}`);
     });
     it(`${l} · nothing connected: said once, at a heading's size, with the setup step's own door`, () => {
       const html = today(l, SNAP(true), day({ sending: [] }));
@@ -182,7 +182,7 @@ describe('w4-today-setup-06 · -07 · -09 · -27 · setting up is a chore under 
       expect(band).not.toContain('today-foot setup');
       expect(band).not.toContain(esc(t(l, 'today.needs.none')));
       expect(html).toContain(`<div class="today-foot setup"><p><span class="dot todo" aria-hidden="true">○</span>`);
-      expect(html).not.toContain(`<span class="dot warn" aria-hidden="true">○</span> <span class="muted">${esc(t(l, 'today.setup.line', { done: 3, total: 5 }))}`);
+      expect(html).not.toContain(`<span class="dot warn" aria-hidden="true">●</span> <span class="muted">${esc(t(l, 'today.setup.line', { done: 3, total: 5 }))}`);
     });
     it(`${l} · Today's line and Setup's row phrase the count the same way`, () => {
       expect(t(l, 'today.setup.line', { done: 3, total: 5 })).toContain(t(l, 'nav.setup.progress', { done: 3, total: 5 }));

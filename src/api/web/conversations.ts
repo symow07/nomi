@@ -284,8 +284,9 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
 
 /**
  * Phase 4 — the timeline's marks are the product's own, not pictures in their
- * own colours: ✦ the assistant did it, ● you did, ✓ it is done (an order),
- * ○ it waits for you (a hand-off), and a plain • for what the customer did.
+ * own colours: ✦ the assistant did it, ▪ you did, ✓ it is done (an order),
+ * ● it waits for you (a hand-off: the needs dot), and a plain • for what the
+ * customer did.
  * The words of each line say it; the mark only lets the eye run down them.
  */
 const TL_MARK: Record<MilestoneKind, Signal | 'you' | 'them'> = {
@@ -294,7 +295,7 @@ const TL_MARK: Record<MilestoneKind, Signal | 'you' | 'them'> = {
 };
 const tlMark = (k: MilestoneKind): string => {
   const m = TL_MARK[k];
-  return m === 'you' ? '<span aria-hidden="true">●</span>' : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
+  return m === 'you' ? '<span aria-hidden="true">▪</span>' : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
 };
 const TL_CLASS: Record<MilestoneKind, string> = {
   buyer_text: 'buyer', buyer_image: 'buyer', reply: 'reply', quote: 'quote', order: 'order',

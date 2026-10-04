@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
-import { esc } from '../../src/api/web/layout.js';
+import { esc, NEEDS_DOT } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import {
@@ -162,7 +162,8 @@ describe('Phase 9 · the site says one thing, the product\'s way', () => {
       expect(html.match(/class="site-go"/g)?.length, l).toBe(1);
       expect(html.match(/class="site-go site-go-2"/g)?.length, l).toBe(1);
     }
-    expect(SITE_CSS).toContain('.site-draft-tag::before { content:"○"; content:"○" / "";');
+    // The identity system (2026-10-04) — the product's needs dot, a drawn disc, before the waiting word.
+    expect(SITE_CSS).toContain(`.site-draft-tag::before { ${NEEDS_DOT}`);
   });
 
   it('the header keeps Sign in beside the name; the pill has its own row on a phone (V1-019)', () => {

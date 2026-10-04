@@ -94,7 +94,7 @@ describe('1 · who waits for you', () => {
   it('several: the count in the owner\'s words, magenta with ○; five faces that open the card; the name and why a door to the newest message', () => {
     for (const l of LOCALES) {
       const band = zone(render(l, day(2, SEVERAL)), 'today-now');
-      expect(band, l).toContain(`<span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> ${esc(tn(l, 'today.waiting', 7))}</span>`);
+      expect(band, l).toContain(`<span class="tw-need"><span class="dot warn" aria-hidden="true">●</span> ${esc(tn(l, 'today.waiting', 7))}</span>`);
       const faces = [...band.matchAll(/<a class="face-link tw-face" href="([^"]+)" data-card aria-label="([^"]+)">/g)];
       expect(faces.map((m) => m[1]), l).toEqual([1, 2, 3, 4, 5].map((i) => cardHref(uuid(4000 + i))));
       expect(faces.map((m) => m[2]), l).toEqual([1, 2, 3, 4, 5].map((i) => `Customer ${i}`));

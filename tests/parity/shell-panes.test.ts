@@ -162,9 +162,9 @@ describe('the customer panel', () => {
     expect(html).toContain('<h3>Promised</h3>');
     expect(html).toContain('<span class="as" aria-hidden="true">✦</span> <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
     expect(html).toContain('<bdi>Order W-1042</bdi>');
-    expect(html).toContain('<span class="dot warn" aria-hidden="true">○</span> Needs you');
+    expect(html).toContain('<span class="dot warn" aria-hidden="true">●</span> Needs you');
     expect(html).toContain('<span class="as" aria-hidden="true">✦</span> Lily replied');
-    expect(html).toContain('<span class="pn-you" aria-hidden="true">●</span> You sent Lily’s draft');
+    expect(html).toContain('<span class="pn-you" aria-hidden="true">▪</span> You sent Lily’s draft');
     expect(html).toContain('Lily’s reply didn’t reach them <span class="dot bad" aria-hidden="true">✕</span>');
     expect(html).toContain('href="/app/conversations/c-1"');
   });

@@ -114,9 +114,9 @@ describe('w4-customers-25 · w4-conversation-12 · the card: what they asked abo
     expect(app).toContain("from ? back(conversationUrl(from), t(locale, 'pcard.back'))");
   });
 
-  it('w4-customers-26 · its one action is the graphite primary one, its words inside their padding', () => {
+  it('w4-customers-26 · its one action is the primary one (the brand fill), its words inside their padding', () => {
     const r = /\n\s*\.pcard \.pc-open \{([^}]*)\}/.exec(CSS)![1]!;
-    expect(r).toContain('background:var(--color-ink)');
+    expect(r).toContain('background:var(--color-brand)');
     expect(r).toContain('color:var(--color-surface)');
     expect(r).toMatch(/padding:var\(--space-12\) var\(--space-16\)/);
     expect(CSS).toContain('.pcard .pc-open .go { color:var(--color-surface); }');
@@ -180,7 +180,7 @@ describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rul
       const h = withAssistantName('Lily', () => draw(l, [price('q1', 'review', 'Aisha Bello'), price('q2', 'unsent', 'Layla Mansour'), price('q3', 'given', 'Carlos Mendes')]));
       const review = rowOf(h, 'q1');
       expect(review, l).not.toContain(' done"');
-      expect(review, l).toContain('<span class="dot warn" aria-hidden="true">○</span>');
+      expect(review, l).toContain('<span class="dot warn" aria-hidden="true">●</span>');
       expect(words(review), l).toContain(withoutIsolates(shown(l, 'calendar.say.price_review', { who: 'Aisha Bello' })));
       const unsent = rowOf(h, 'q2');
       expect(unsent, l).not.toContain(' done"');

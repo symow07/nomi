@@ -135,7 +135,7 @@ describe('nothing chosen: the list is what is owed, then the month\'s other date
     for (const l of LOCALES) {
       const html = draw(l);
       const list = listOf(html);
-      const owedAt = list.indexOf(`<h2 class="cal-lh"><span class="dot warn" aria-hidden="true">○</span> ${t(l, 'calendar.legend.owed')}</h2>`);
+      const owedAt = list.indexOf(`<h2 class="cal-lh"><span class="dot warn" aria-hidden="true">●</span> ${t(l, 'calendar.legend.owed')}</h2>`);
       const otherAt = withoutIsolates(list).indexOf(`<h2 class="cal-lh">${withoutIsolates(t(l, 'calendar.list.other', { month: withZone(ZONE, () => show.month(l, '2026-10-01')) }))}</h2>`);
       expect(owedAt, l).toBeGreaterThan(-1);
       expect(otherAt, l).toBeGreaterThan(owedAt);
@@ -200,7 +200,7 @@ describe('selecting a day: a real link, and the list focuses on that day', () =>
       // 08:00 dealt with: done. 09:12 asked, not dealt with: owed. 15:40 and 16:00 are still to come.
       expect(rows.map((r) => r.done), l).toEqual([true, false, false, false]);
       expect(rows[0]!.html, l).toContain('<span class="dot ok" aria-hidden="true">✓</span>');
-      expect(rows[1]!.html, l).toContain('<span class="dot warn" aria-hidden="true">○</span>');
+      expect(rows[1]!.html, l).toContain('<span class="dot warn" aria-hidden="true">●</span>');
       for (const r of rows) expect(r.html, l).toMatch(/^\s*<span class="dl-hour">[^<]+<\/span><span class="dl-who[\s\S]*<svg class="kind-icon"/);
       // the day's name heads it, today in magenta; the way back is to the whole month, a door
       expect(list, l).toContain(`<h2 class="cal-day cal-lh" aria-current="date"><span class="cal-now">${t(l, 'calendar.this.day')}</span> `);
@@ -447,9 +447,11 @@ describe('a month with nothing: the empty grid, and one warm panel in the list\'
 });
 
 describe('today is magenta, and the month is rounded; it moves in words', () => {
-  it('today\'s marker — its word, its number in the grid — is the magenta token, as text', () => {
-    expect(rule('.cal-now')).toContain('color:var(--color-assistant)');
-    expect(rule('.mo td.today .mo-d')).toContain('color:var(--color-assistant)');
+  // The identity system (2026-10-04) — today's marker is the BRAND magenta (an accent, not a meaning): the
+  // light shade now says only "the assistant did this".
+  it('today\'s marker — its word, its number in the grid — is the brand magenta, as text', () => {
+    expect(rule('.cal-now')).toContain('color:var(--color-brand)');
+    expect(rule('.mo td.today .mo-d')).toContain('color:var(--color-brand)');
     for (const l of LOCALES) {
       expect(withoutIsolates(cellOf(draw(l), TODAY)), l).toMatch(new RegExp(`^<td class="today" aria-current="date">\\s*<a class="mo-d" [^>]*>3</a><span class="cal-now">${t(l, 'calendar.this.day')}</span>`));
     }

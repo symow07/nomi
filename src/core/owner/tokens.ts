@@ -112,38 +112,51 @@ export const DESIGN_TOKENS = {
     weightFloor: { min: 400, cjkAtOrBelowPx: 15 },
   },
   /**
-   * THE PALETTE — warm neutrals, two magentas, three states (the warmth pass,
-   * 2026-10-04; it follows the design pass of 2026-09-29 and the warmth run).
+   * THE PALETTE — warm neutrals, ONE magenta family in three shades, three
+   * states (the identity system, the owner, 2026-10-04; it supersedes the
+   * warmth pass's "magenta for meaning only").
    *
-   * The owner: "The app feels dry and black-and-white. Add life WITHOUT
-   * spending the magenta's meaning." So the life comes from the neutrals, the
-   * shadows, the rounded shapes and the customers' faces, and magenta keeps
-   * meaning only — in two shades with two jobs:
+   * The owner: "Magenta becomes Nomi's SIGNATURE colour, used generously for
+   * brand identity the way Claude uses orange … Because colour can no longer
+   * also be the scarce meaning-marker, MEANING now moves to SHADE plus SHAPE,
+   * not hue alone." So magenta is three shades, a step of about 10 L* apart,
+   * and each meaning has a SHAPE that says it with the colour removed:
    *
-   *   needs        DEEP magenta. Something waits for the owner: the waiting ○,
-   *                the rail's count, Today's waiting band, a "waiting for you"
-   *                flag, and the FILL of the one act that answers it (`.btn.send
-   *                .needs`: Send on a reply waiting for review, Confirm on an
-   *                order waiting for the tap, Reply in a conversation handed to
-   *                you). Text on any ground, or that one fill under white words.
-   *   assistant    LIGHT magenta. Nomi did this: the ✦ and the name beside what
-   *                it wrote, its reply's wash and label; and soft accents
-   *                (today's date on the calendar). Only ever a TEXT colour; its
-   *                wash is only ever a ground.
+   *   brand        THE SIGNATURE (L* 34). Identity, everywhere you can press or
+   *                go: the ordinary primary act as a fill (Save, Add, Connect,
+   *                Next), a door's words and every chevron, an underline under a
+   *                link, the focus ring, the selection, a checked control, the
+   *                tab or row you are on, today's date, and the mark. Its shape
+   *                is the thing itself: a button, a door's ›, an underline.
+   *   needs        DEEP (L* 24). Something waits for the owner. Its shape is the
+   *                NEEDS DOT: a solid disc, drawn (never a font's glyph), before
+   *                the words of every waiting thing — the waiting signal, the
+   *                pills, Today's band, the card's flag — and, white, before
+   *                the word of the one act that answers it (`.btn.send.needs`:
+   *                Send on a reply waiting for review, Confirm on an order
+   *                waiting for the tap, Reply in a conversation handed to you),
+   *                which is the deep FILL; the rail's count is the same fill.
+   *                Solid = a customer waits; the OPEN ring ○ in stone is a
+   *                chore (`chore`). Never a border, a ring or an underline.
+   *   assistant    LIGHT (L* 44). Nomi did this. Its shape is the NAME TAG: its
+   *                wash as the ground, its light words, a chip — beside what it
+   *                wrote (`.as-tag`) — and its replies sit on the same wash with
+   *                no hairline (a person's keep theirs). Only ever words on its
+   *                wash or on a light ground; the wash is only ever a ground.
    *
-   * The eye learns: deep = needs you, light = Nomi did this. Deep reads at
-   * least 20 L* darker than light with the colour removed, and stays at least
-   * 10 L* lighter than the ink with a chroma the ink does not have, so a deep
-   * button is never mistaken for an ordinary graphite one. Neither is ever a
-   * border, an outline or a frame (`warmth-magenta.test.ts`); every pair is
-   * computed in `warmth-pass.test.ts`.
+   * In greyscale the three keep their order (deep darkest, light lightest) and
+   * their shapes: a dark disc or a dark fill with a white disc is "needs you";
+   * a pale tag is "the assistant"; a fill without a disc, an underline or a
+   * chevron is plain brand. `warmth-pass.test.ts` computes every pair;
+   * `warmth-magenta.test.ts` holds where each may draw an edge (only the brand,
+   * and only a focus ring, an underline or the edge of what you are on).
    *
    * The neutrals lean warm (hue near 70–85 in CIELAB), never cream:
-   *   ink          A warm near-black. Type, the ordinary primary action as a
-   *                FILL, focus rings, the border of the reply box.
+   *   ink          A warm near-black. Type and headings, the secondary
+   *                button's words, the reply box's border, a wordmark.
    *   inkSecondary Warm stone. Secondary text, times, past entries, the EDGE of
-   *                an outlined button or a field. 4.5:1 or better on every
-   *                ground it sits on.
+   *                an outlined button or a field, a chore's ring. 4.5:1 or
+   *                better on every ground it sits on.
    *   border       A warm rule. Lines between rows and panes — never the edge
    *                of a control.
    *   paper        A soft warm off-white: the page, the rail, a recess.
@@ -158,14 +171,18 @@ export const DESIGN_TOKENS = {
    *                neutral tag, pill or chip, an icon's round. Never under a
    *                state's words, never a meaning, never magenta.
    *
+   * What stays ink, on purpose (restraint is what reads as premium): headings,
+   * body text, the rail and its words, a secondary button, the wordmark "Nomi"
+   * beside the mark. There is no brand wash: a third pale pink would be the
+   * two meanings' washes by another name.
+   *
    * And the three states: ok (it went, it is on), failed (`warn`: it did not
    * happen), and waiting — which is `needs`. A state is a shape and a WORD;
    * colour never carries it alone.
    *
-   * Retired with this pass: the single faded magenta that did both jobs
-   * (`waiting` and `assistant` were one value), its wash and its line (drawn
-   * nowhere), and the cool graphite neutrals with pure white. Before them:
-   * jade, highlight, the three warm papers, the dark palette.
+   * Retired: the single faded magenta that did both jobs, its wash and line,
+   * the cool graphite neutrals with pure white (the warmth pass); jade,
+   * highlight, the three warm papers, the dark palette (before it).
    * `palette.test.ts` keeps all of their values out of the product.
    *
    * Washes and lines are TOKENS rather than `color-mix(… 12% …)` for a product
@@ -175,6 +192,7 @@ export const DESIGN_TOKENS = {
    */
   color: {
     ok: '#0F7B3E',
+    brand: '#9A0F5E',
     needs: '#6E0C44',
     needsWash: '#F9E6EE',
     warn: '#B42318',
@@ -279,23 +297,34 @@ export const DESIGN_TOKENS = {
    */
   motionSpring: 'cubic-bezier(0.34, 1.3, 0.64, 1)',
   /**
-   * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Colour does
-   * these four jobs and no others, the same on every page; graphite does one
-   * more, the FILL of the page's one primary action. Each signal has a SHAPE
-   * as well as a colour, so it is still said in greyscale, to an eye that
-   * does not tell the hues apart, and on a phone in the sun:
+   * PHASE 4 OF THE UI REBUILD (2026-10-02) — THE FOUR SIGNALS. Each signal
+   * has a SHAPE as well as a colour, so it is still said in greyscale, to an
+   * eye that does not tell the hues apart, and on a phone in the sun:
    *
    *   ok         ✓  green          it went, it is on, it is done
-   *   waiting    ○  deep magenta   it waits for you (`--color-needs`)
+   *   waiting    ●  deep magenta   it waits for you (`--color-needs`): the
+   *                                NEEDS DOT, a solid disc the stylesheet
+   *                                draws, the same size in every script
    *   failed     ✕  red            it did not happen, it did not reach them
    *   assistant  ✦  light magenta  the assistant did this (`--color-assistant`)
    *
+   * The identity system (2026-10-04): waiting was the open ring ○, which a
+   * chore also wore in stone — two rings told apart by colour alone. Now a
+   * customer waiting is the SOLID disc, and a chore keeps the open ring
+   * (`chore`), so the two are two shapes.
+   *
    * The stylesheet draws the shape before a state's words (`::before`, read
-   * from here); a renderer that draws a shape on its own takes it from
-   * `signalMark` (layout.ts). `phase4-colour.test.ts` holds every use of a
-   * signal colour in the stylesheet to one of these, with its shape.
+   * from here; the needs dot is drawn as a disc); a renderer that draws a
+   * shape on its own takes it from `signalMark` (layout.ts).
+   * `phase4-colour.test.ts` holds every use of a signal colour in the
+   * stylesheet to one of these, with its shape.
    */
-  signal: { ok: '✓', waiting: '○', failed: '✕', assistant: '✦' },
+  signal: { ok: '✓', waiting: '●', failed: '✕', assistant: '✦' },
+  /**
+   * Something left TO DO that is not a customer waiting — a setup step, a
+   * hold, a check: the OPEN ring, in the secondary ink (`todoMark`, layout.ts).
+   */
+  chore: '○',
   /** Status chip: canonical five statuses (vocabulary.STATUS) → semantic color key. */
   statusChip: {
     已处理: 'ok',

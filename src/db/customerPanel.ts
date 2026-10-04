@@ -14,8 +14,8 @@ import { type Money, moneyFromRow } from '../core/types/money.js';
  *                     linked to the message that carried it, so the panel says
  *                     what the row proves: the price was worked out.)
  *   On record       — their samples and orders;
- *   Activity        — who acted, newest first: the assistant (✦), a person (●),
- *                     nobody yet (○). Read from the sent rows' own origin and the
+ *   Activity        — who acted, newest first: the assistant (✦), a person (▪),
+ *                     nobody yet (●, the needs dot). Read from the sent rows' own origin and the
  *                     drafts the owner decided.
  *
  * "On the calendar" is the calendar's own loader, filtered to this customer
