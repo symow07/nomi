@@ -122,11 +122,12 @@ export const DESIGN_TOKENS = {
     sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
     /**
      * Set from `html[lang]`; the shell writes the locale there on every page.
-     * The type pass opened them up (1.5 / 1.7 / 1.75 before): Latin 1.6, the
-     * measure many of the product's reading blocks already set for
-     * themselves; Chinese and Arabic a step more, for their taller marks.
+     * The type pass opened Latin up from 1.5 to 1.6 — the measure many of the
+     * product's reading blocks already set for themselves. Chinese (1.7) and
+     * Arabic (1.75) were already that open; a step more pushed the owner's
+     * decided row heights (64 px with a line under the name) to 65 and 66.
      */
-    lineHeight: { en: 1.6, zh: 1.75, ar: 1.8, es: 1.6, fr: 1.6 },
+    lineHeight: { en: 1.6, zh: 1.7, ar: 1.75, es: 1.6, fr: 1.6 },
     /**
      * Headings (20 px and up) close up: a 26 px line in a 39 px box read as
      * loose. Arabic keeps room for its ascenders and marks when a heading wraps.

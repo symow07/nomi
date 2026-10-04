@@ -32,17 +32,17 @@ describe('V1 · type — decision 1', () => {
     expect(DESIGN_TOKENS.font.sizePx.base).toBe(17);
   });
 
-  // The type pass (2026-10-04) opened them up: 1.6 Latin, 1.75 Chinese, 1.8 Arabic (they were 1.5 / 1.7 / 1.75).
-  it('a line-height per script: 1.6 Latin, 1.75 Chinese, 1.8 Arabic, one for every locale', () => {
-    expect(DESIGN_TOKENS.font.lineHeight).toEqual({ en: 1.6, zh: 1.75, ar: 1.8, es: 1.6, fr: 1.6 });
+  // The type pass (2026-10-04) opened Latin up from 1.5 to 1.6; Chinese and Arabic were already that open.
+  it('a line-height per script: 1.6 Latin, 1.7 Chinese, 1.75 Arabic, one for every locale', () => {
+    expect(DESIGN_TOKENS.font.lineHeight).toEqual({ en: 1.6, zh: 1.7, ar: 1.75, es: 1.6, fr: 1.6 });
     for (const l of LOCALES) expect(DESIGN_TOKENS.font.lineHeight[l], l).toBeGreaterThan(1);
   });
 
   it('the emitter keys the override on the lang the shell writes on <html>', () => {
     const css = cssVariables();
     expect(css).toContain('--line-height: 1.6;');
-    expect(css).toContain('html[lang="zh"] { --line-height: 1.75; ');
-    expect(css).toContain('html[lang="ar"] { --line-height: 1.8; ');
+    expect(css).toContain('html[lang="zh"] { --line-height: 1.7; ');
+    expect(css).toContain('html[lang="ar"] { --line-height: 1.75; ');
     for (const locale of LOCALES) {
       const page = withSheets(shell({ title: 'T', active: 'home', locale, path: '/app', avatar: '', bodyHtml: '<p>x</p>' }));
       expect(page, locale).toContain(`<html lang="${locale}"`);
