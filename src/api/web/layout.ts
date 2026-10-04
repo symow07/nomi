@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
 import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
-import { drawn, icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
+import { icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
 import { agentMark } from './agentMark.js';
 
 /**
@@ -60,13 +60,15 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
  * still hold: these are drawn by the product, in the text's colour, the same
  * on every device and beside every script.
  *
- * THE ICONS RUN (2026-10-04) — drawn in Phosphor: Today a sun, Inbox a tray,
- * Calendar a calendar, Settings a gear (whose filled drawing reads at a glance
- * where the old sliders' did not). The assistant's entry is not here: it is
- * the assistant's own slot (`agentMark`), which the owner's character fills.
+ * THE SOLAR NAV (2026-10-05) — drawn in Solar's Linear set (icons.ts, solar.ts),
+ * the owner's choice after two trials: Today a rounded house, Inbox a tray,
+ * Calendar a calendar with its days, Settings a gear. (The Icons run's
+ * Phosphor drawings — a sun, a tray, a blank calendar, a gear — were these
+ * entries' until then.) The assistant's entry is not here: it is the
+ * assistant's own slot (`agentMark`), which the owner's character fills.
  */
 export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
-  home: 'sun', inbox: 'tray', calendar: 'calendar-blank', settings: 'gear-six',
+  home: 'home-2', inbox: 'inbox', calendar: 'calendar', settings: 'settings',
 };
 
 /**
@@ -592,13 +594,14 @@ ${FACE_CSS}
      not a door (the two under it are). */
   /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
      in weight, its shape small, and nothing to press. */
-  /* The icons run (2026-10-04) — its shape at 16, in Phosphor's bold: at that size bold's line is 1.5 px,
-     the stem of its 13 px words at 500 (1.3 to 1.4 px measured); the entries' regular would be a 1 px hairline.
-     It sits centred in the entries' 24 px icon column, so its word starts where theirs do. (The rule names
-     the rail: the rail's own size for its icons used to outrank it, and the heading drew at 22.) */
-  .navhead { display:flex; align-items:center; gap:var(--space-12); padding: var(--space-12) var(--space-12) var(--space-4);
+  /* The Solar nav (2026-10-05) — its shape at 20 px, centred in the entries' 28 px icon column (4 + 20 + 4)
+     with the entries' 16 px before its word, so its word starts where theirs do. The drawing's line is 1.5 of
+     24 units, 1.25 px at 20: the rule widens it to 2.1 units, the same 1.75 px line as the entries' at 28.
+     (The rule names the rail: the rail's own size for its icons would outrank it.) */
+  .navhead { display:flex; align-items:center; gap:var(--space-16); padding: var(--space-12) var(--space-12) var(--space-4);
     font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
-  nav.side .navhead .ni { inline-size:16px; block-size:16px; margin-inline:var(--space-4); }
+  nav.side .navhead .ni { inline-size:20px; block-size:20px; margin-inline:var(--space-4); }
+  nav.side .navhead .ni > g { stroke-width:2.1px; }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
@@ -631,16 +634,20 @@ ${FACE_CSS}
   .skip:focus, .skip:focus-visible { top:var(--space-8); }
   /* THE WARMTH RUN, phase 1 — each entry is its shape and its word. */
   /* The icons run (2026-10-04) — the icon is level with the word's FIRST line, not with the word and its count
-     together: the row starts at the top, its padding centres one line in the 44 px target, and the icon
-     sits in that line (a 24 px icon in a 24 to 26 px line). It used to drop 10.5 px under "Inbox". */
-  nav.side a.navlink { display: flex; align-items: flex-start; gap: var(--space-12); padding: var(--space-8) var(--space-12);
-    padding-block: calc((44px - 1lh) / 2);
-    min-height: 44px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
-    font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-4); }
+     together: the row starts at the top, its padding centres one line in the row's height, and the icon
+     sits in that line (the Solar nav: a 28 px icon in a 24 to 26 px line). It used to drop 10.5 px under "Inbox". */
+  /* The Solar nav (2026-10-05) — airier, as the owner asked: each entry 52 px tall (it was 44), 16 px between
+     the icon and its word (12), and 8 px between entries (4). */
+  nav.side a.navlink { display: flex; align-items: flex-start; gap: var(--space-16); padding: var(--space-8) var(--space-12);
+    padding-block: calc((52px - 1lh) / 2);
+    min-height: 52px; border-radius: var(--radius-control); color: var(--color-ink-secondary);
+    font-size: var(--font-size-small); font-weight:500; margin-bottom: var(--space-8); }
   nav.side a.navlink.sub { padding-inline-start: var(--space-24); }
-  /* The icons run — Phosphor's regular at 24 px: a 1.5 px line beside 15 px words at 500, whose stems
-     measure 1.5 (Arabic), 1.6 (Chinese) and 1.6 px (Latin). Sized up from 22 so the shape balances its word. */
-  nav.side .ni { flex:none; inline-size:24px; block-size:24px; margin-block:calc((1lh - 24px) / 2); }
+  /* The Solar nav (2026-10-05) — Solar's Linear drawings at 28 px (the Icons run's 24, sized up 15 per cent):
+     a 1.5-unit line on a 24-unit square, so 1.75 px, between the stems of the 15 px words beside it at 500
+     (1.5 to 1.6 px) and at 600 (1.9). Every icon in the ink, the wordmark's near-black, whatever the
+     colour of its word. */
+  nav.side .ni { flex:none; inline-size:28px; block-size:28px; margin-block:calc((1lh - 28px) / 2); color: var(--color-ink); }
   /* The fix wave (the guide's frames, 1024 px) — the word and its count wrap TOGETHER: the word keeps
      itself whole (never a letter a line), and where the two do not fit side by side the count goes
      under the word, aligned with it. On a phone the pair dissolves into the tile (display:contents). */
@@ -651,10 +658,11 @@ ${FACE_CSS}
   [dir="rtl"] svg.flips { transform:scaleX(-1); }
   nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
   /* The entry you are on is unmistakable without a colour: a raised white
-     tile on the rail's grey, its word in weight, its shape FILLED (the icons
-     run: the owner's "filled and in deep magenta", the colour one job's
-     variable). A filled shape means you are here; the needs dot means
-     something waits, and it never sits on the filled shape. */
+     tile on the rail's grey, its word in weight, its icon in the deep magenta
+     (the colour one job's variable). The Solar nav: the same line drawing as
+     at rest — never a filled icon; the owner's "white pill with a deep-magenta
+     icon". The needs dot means something waits, and it never sits on the icon
+     of the entry you are on. */
   nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600;
     box-shadow: var(--shadow-lift1); }
   nav.side a.navlink.active .ni { color: var(--color-nav-active); }
@@ -1230,7 +1238,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .brand .brandname { display:none; }
     .business-name { display:block; }
     nav.side a.navlink, nav.side a.navlink.sub { position:relative; flex:1 1 auto; flex-direction:column; flex-wrap:nowrap; white-space:nowrap;
-      gap:var(--space-4); margin:0; padding:var(--space-4) 2px; min-height:56px; min-width:0; align-items:center; justify-content:center;
+      gap:var(--space-8); margin:0; padding:var(--space-4) 2px; min-height:64px; min-width:0; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; box-shadow:none; }
     nav.side a.navlink.active { background: var(--color-surface); box-shadow: var(--shadow-lift1); }
     nav.side .nl-body { display:contents; }
@@ -1450,7 +1458,7 @@ const STYLE_PAGES = `
      in the tab's title, nothing that is not a customer waiting. */
   nav.side a.navlink[data-fresh] { position:relative; }
   nav.side a.navlink[data-fresh]::after { content:""; position:absolute; inset-block-start:var(--space-8);
-    inset-inline-start:calc(var(--space-24) + 16px); inline-size:8px; block-size:8px;
+    inset-inline-start:calc(var(--space-24) + 20px); inline-size:8px; block-size:8px;
     border-radius:var(--radius-chip); background:var(--color-needs); }
   /* The icons run — the needs dot never sits on the filled icon of the page you are on: on the Inbox the
      newcomer arrives in the list itself, with its card and the count. */
@@ -1463,7 +1471,7 @@ const STYLE_PAGES = `
     color:var(--color-ink); box-shadow:var(--shadow-lift2); font-size:var(--font-size-small); text-decoration:none;
     overflow-wrap:anywhere; }
   @media (max-width: 720px) {
-    nav.side a.navlink[data-fresh]::after { inset-block-start:var(--space-4); inset-inline-start:calc(50% - 16px); }
+    nav.side a.navlink[data-fresh]::after { inset-block-start:var(--space-4); inset-inline-start:calc(50% - 18px); }
     .toasts { inset-inline:var(--space-16); inset-block-end:var(--space-16); inline-size:auto; align-items:stretch; }
   }
   /* The toast slides in from its edge and back out (MOTION_CSS). */
@@ -2785,7 +2793,7 @@ export function shell(input: {
    * Inbox and Calendar under it; the assistant; Settings at the foot. Daily
    * work at the top, management at the bottom. Each entry is its icon and its
    * word; the one you are on is a raised white tile with its word in weight
-   * and its icon drawn heavier — unmistakable without a colour.
+   * and its icon in the deep magenta, never filled (the Solar nav) — unmistakable without a colour.
    *
    * ONE number in the rail: on Inbox, how many customers wait for the owner
    * now, in the waiting signal's magenta. Nothing else counts anything here —
@@ -2813,15 +2821,16 @@ export function shell(input: {
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
     const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
-    // The icons run — an outline at rest, FILLED where you are; the assistant's entry is its slot.
-    const mark = n.id === 'employee' ? agentMark(24, on ? 'here' : 'rest') : railIcon(NAV_ICON[n.id] ?? 'sun', on);
+    // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it); the assistant's
+    // entry is its slot, in the rail's line.
+    const mark = n.id === 'employee' ? agentMark(28, 'rest', 'ni', 'line') : railIcon(NAV_ICON[n.id] ?? 'home-2');
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
        >${mark}${text}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
     <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
-      <span class="navhead" id="nav-customers">${drawn('users', 'bold')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
+      <span class="navhead" id="nav-customers">${railIcon('users-group-rounded')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
       ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
     </div>
     <div class="navgroup">${entry(byId('employee'))}</div>

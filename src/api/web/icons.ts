@@ -1,4 +1,5 @@
 import { PHOSPHOR } from './phosphor.js';
+import { SOLAR } from './solar.js';
 
 /**
  * THE ICONS (the icons run, 2026-10-04). The owner: "Move the whole app to one
@@ -83,18 +84,24 @@ export function icon(id: IconId, className = 'ni', weight: Weight = 'regular'): 
   return svg(`${className}${FLIPS.has(id) ? ' flips' : ''}`, d);
 }
 
-/** A drawing by Phosphor's own name and weight, where a place needs one no meaning above names (the rail). */
-export function drawn<N extends PhosphorName>(name: N, weight: keyof Drawings[N], className = 'ni'): string {
-  return svg(className, (PHOSPHOR[name] as Readonly<Record<string, string>>)[weight as string]!);
-}
-
 /**
- * The rail's entries (not the assistant's: that slot is `agentMark`). An
- * outline at rest; FILLED on the entry you are on — a filled icon means "you
- * are here", and nothing else in the rail is filled.
+ * THE RAIL'S ICONS ARE SOLAR'S (the Solar nav, 2026-10-05). The owner: "Adopt Solar Linear as the app's
+ * nav icon set, app-wide … at the trial's sizing: 28px, 1.75px line, ink …, airy spacing. Keep the active
+ * state as the white pill with a deep-magenta icon — never a filled icon." (The ink is the token, the
+ * wordmark's near-black.) After two trials, the
+ * nav takes Solar's Linear set (solar.ts; Solar by 480 Design, CC BY 4.0, credited in NOTICE): an even
+ * line with round ends and soft corners. Every other icon in the product stays Phosphor's.
+ *
+ * One drawing per entry, the same at rest and where you are: the stylesheet draws it in ink, and in the
+ * deep magenta on the entry you are on (with the white pill and the word in weight). Nothing in the rail
+ * is filled. The assistant's entry is not here: that slot is `agentMark` (its `line` weight).
+ *
+ * The drawing is on a 24-unit square with a 1.5-unit line; the rail draws it at 28 px, so the line is
+ * 1.75 px — between the stems of its 15 px words at 500 (1.6) and at 600 (1.9).
  */
-export type RailIcon = 'sun' | 'tray' | 'calendar-blank' | 'gear-six';
-export const railIcon = (name: RailIcon, here: boolean): string => drawn(name, here ? 'fill' : 'regular');
+export type RailIcon = keyof typeof SOLAR;
+export const railIcon = (name: RailIcon): string =>
+  `<svg class="ni" viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden="true" focusable="false">${SOLAR[name]}</svg>`;
 
 /**
  * A door's caret and the way back's, in the brand like the door's words, bold
