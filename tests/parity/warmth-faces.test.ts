@@ -194,8 +194,10 @@ describe('phase 3 · the profile card', () => {
     }
     const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
     const calm = css.indexOf('@media (prefers-reduced-motion: no-preference)');
-    const spring = css.indexOf('dialog.sheet[open] { animation:nomi-spring var(--motion-normal) var(--motion-spring) both; }');
+    // the motion pass: it springs up over the longest duration, and sinks away when closed
+    const spring = css.indexOf('dialog.sheet[open] { transition-duration:var(--motion-max); transition-timing-function:var(--motion-spring); }');
     expect(spring).toBeGreaterThan(calm);
+    expect(css).toContain('dialog.ask:not([open]), dialog.sheet:not([open]) { opacity:0;');
     expect(css).toMatch(/\.pcard \{[^}]*border-radius:var\(--radius-panel\)/);
     // a bottom sheet on a phone: full width, at the foot, its lower corners square
     const phone = css.slice(css.indexOf('dialog.sheet { inline-size:100%'));
@@ -247,7 +249,7 @@ describe('phase 3 · the script lifts the card into the sheet, and a photo that 
     return { sheet, body, asked, location, click, handlers, cardNode, doorListeners, flush: () => new Promise<void>((r) => setImmediate(r)) };
   }
 
-  it('a press on a face fetches the card\'s own page and opens it in the sheet; closing empties it', async () => {
+  it('a press on a face fetches the card\'s own page and opens it in the sheet; closed, it keeps the card while it sinks away', async () => {
     const p = page();
     const a = { href: `https://nomi.test${cardHref(ID)}`, focus: () => undefined };
     expect(p.click(a)).toBe(true);
@@ -256,7 +258,9 @@ describe('phase 3 · the script lifts the card into the sheet, and a photo that 
     expect(p.sheet.open).toBe(true);
     expect(p.body.children).toEqual([p.cardNode]);
     p.sheet.close();
-    expect(p.body.children).toEqual([]);
+    // the motion pass: the card sinks away whole (it is not emptied under the reader's eyes); the next press replaces it
+    expect(p.body.children).toEqual([p.cardNode]);
+    expect(p.sheet.open).toBe(false);
   });
 
   it('w4-whole-22 · the pressed face says it is opening until the card is there', async () => {

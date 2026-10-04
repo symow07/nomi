@@ -169,7 +169,7 @@ describe('phase 4 · the row: spend is the headline, no order count, the regular
   it('a customer waiting for the owner keeps the waiting signal — magenta ○ and its words; a deletion request its own', () => {
     for (const l of LOCALES) {
       const h = html(l);
-      const wait = /<span class="ir-wait"><span class="dot warn" aria-hidden="true">○<\/span><bdi>([^<]+)<\/bdi><\/span>/;
+      const wait = /<span class="ir-wait"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span><bdi>([^<]+)<\/bdi><\/span>/;
       expect(wait.exec(rowOf(h, 2))?.[1], l).toBe(shown(l, 'takeover.reason.human_requested'));
       expect(wait.exec(rowOf(h, 1))?.[1], l).toBe(shown(l, 'buyers.badge.deletion'));
       for (const n of [3, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain('ir-wait');

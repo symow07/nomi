@@ -94,7 +94,7 @@ describe('1 · who waits for you', () => {
   it('several: the count in the owner\'s words, magenta with ○; five faces that open the card; the name and why a door to the newest message', () => {
     for (const l of LOCALES) {
       const band = zone(render(l, day(2, SEVERAL)), 'today-now');
-      expect(band, l).toContain(`<span class="tw-need"><span class="dot warn" aria-hidden="true">○</span> ${esc(tn(l, 'today.waiting', 7))}</span>`);
+      expect(band, l).toContain(`<span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"></span> ${esc(tn(l, 'today.waiting', 7))}</span>`);
       const faces = [...band.matchAll(/<a class="face-link tw-face" href="([^"]+)" data-card aria-label="([^"]+)">/g)];
       expect(faces.map((m) => m[1]), l).toEqual([1, 2, 3, 4, 5].map((i) => cardHref(uuid(4000 + i))));
       expect(faces.map((m) => m[2]), l).toEqual([1, 2, 3, 4, 5].map((i) => `Customer ${i}`));
@@ -148,7 +148,7 @@ describe('2 · what the assistant handled', () => {
   it('two: the headline, two faces — each a faceLink to the card, the word under it, the name and the word said to a screen reader', () => {
     for (const l of LOCALES) {
       const hero = zone(render(l, day(2)), 'today-done');
-      expect(hero, l).toContain(`<h2 id="today-done" class="td-head"><span class="as" aria-hidden="true">✦</span> ${esc(tn(l, 'today.handled.title', 2, { name: 'Lily' }))}</h2>`);
+      expect(hero, l).toContain(`<h2 id="today-done" class="td-head"><span class="shape s-assistant as" aria-hidden="true"></span> ${esc(tn(l, 'today.handled.title', 2, { name: 'Lily' }))}</h2>`);
       const faces = [...hero.matchAll(/<a class="face-link td-face" href="([^"]+)" data-card aria-label="([^"]+)">(.*?)<\/a>/g)];
       expect(faces, l).toHaveLength(2);
       faces.forEach((m, i) => {
@@ -257,10 +257,12 @@ describe('the zones\' own rules', () => {
       for (; j < css.length; j++) { if (css[j] === '{') depth++; else if (css[j] === '}' && --depth === 0) break; }
       blocks.push(css.slice(at, j));
     }
-    expect(blocks.some((b) => b.includes('.tw, .td { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }'))).toBe(true);
-    expect(blocks.some((b) => b.includes('.td { animation-delay:var(--motion-fast); }'))).toBe(true);
+    expect(blocks.some((b) => b.includes('.flash, #approve, .working, .tw, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }'))).toBe(true);
+    expect(blocks.some((b) => b.includes('#approve, .td { animation-delay:var(--motion-fast); }'))).toBe(true);
+    // the motion pass: the faces come in one after another
+    expect(blocks.some((b) => b.includes('.td-row > li:nth-child(2) { animation-delay:calc(var(--motion-fast) + 1 * var(--motion-step)); }'))).toBe(true);
     // and nowhere else: one rule moves them
-    expect(css.match(/\.tw, \.td \{ animation/g)).toHaveLength(1);
+    expect(css.match(/\.tw, \.td, \.sgroup \{ animation/g)).toHaveLength(1);
   });
 
   it('no rendered Today carries a colour of its own', () => {

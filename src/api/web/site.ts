@@ -2,7 +2,7 @@ import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { markSmall } from '../../core/owner/brand.js';
 import { publicDocument, esc, switcher, LANGSW_CSS, FACE_CSS, gapAfter, inviteMailto } from './layout.js';
-import { shape, shapeUrl, SHAPE_BOX, SHAPE_CSS } from './marks.js';
+import { shape, shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { face } from './faces.js';
 
 /**
@@ -268,7 +268,7 @@ export const SITE_CSS = `
   .site-draft-tag { padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-needs-wash);
     color:var(--color-needs); border:1px solid var(--color-border); font-weight:600; }
   /* The product's waiting mark: a shape before the word, so the colour is not alone. */
-  .site-draft-tag::before { content:""; ${SHAPE_BOX} --shape:${shapeUrl('waiting')}; margin-inline-end:var(--space-4); }
+  .site-draft-tag::before { content:""; ${SHAPE_BOX} ${shapeMask('waiting')} margin-inline-end:var(--space-4); }
   .site-acts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary);
     text-align:end; text-wrap:balance; }
 

@@ -12,7 +12,7 @@ import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
-import { shape, shapeUrl, SHAPE_BOX, SHAPE_CSS } from './marks.js';
+import { shape, shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, type IconId } from './icons.js';
 
 /**
@@ -279,12 +279,12 @@ export const SIGNAL_BEFORE: Readonly<Record<Signal, readonly string[]>> = {
  * ✓ ○ ✕ ✦, so they came from the device's own fonts. An empty `content` is all a screen reader is given.
  */
 const markBefore = (s: Signal, selectors: readonly string[]): string =>
-  `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} --shape:${shapeUrl(s)}; margin-inline-end:var(--space-4); }`;
+  `  ${selectors.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} ${shapeMask(s)} margin-inline-end:var(--space-4); }`;
 /** Lines drawn with the to-do ○ before them, in their own (secondary) ink — never magenta's. */
 export const TODO_BEFORE: readonly string[] = ['.fwarn', '.imp-warn', '.sr-value.warn', '.prob:not(.bad)'];
 const SIGNAL_CSS = `  /* Phase 4 — the four signals: a colour and a shape. */
 ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
-  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} --shape:${shapeUrl('waiting')}; margin-inline-end:var(--space-4); }
+  ${TODO_BEFORE.map((x) => `${x}::before`).join(', ')} { content:""; ${SHAPE_BOX} ${shapeMask('waiting')} margin-inline-end:var(--space-4); }
   .dot.ok { color:var(--color-ok); }
   .dot.warn { color:var(--color-needs); }
   .dot.bad { color:var(--color-warn); }
@@ -326,9 +326,7 @@ ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFOR
 const STAGGER = [2, 3, 4, 5, 6, 7, 8].map((n) =>
   `    .td-row > li:nth-child(${n}) { animation-delay:calc(var(--motion-fast) + ${n - 1} * var(--motion-step)); }`).join('\n');
 const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
-    :root { --toast-move:translateX(var(--travel-toast)); }
-    [dir="rtl"] { --toast-move:translateX(calc(-1 * var(--travel-toast))); }
-    .btn, .crow, .srow, a.navlink, .tab, .deeper, .chip, summary, nav.side .ni {
+    .btn, .srow, a.navlink, .tab, .deeper, summary, nav.side .ni {
       transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease),
         box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease),
         transform var(--motion-fast) var(--motion-ease); }
@@ -366,20 +364,16 @@ ${STAGGER}
       dialog.ask[open]::backdrop, dialog.sheet[open]::backdrop { opacity:0; }
     }
     .toast { animation:nomi-toast-in var(--motion-normal) var(--motion-ease) both; }
+    [dir="rtl"] .toast { animation-name:nomi-toast-in-rtl; }
     .toast.out { animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both; }
-    @media (max-width: 720px) {
-      :root, [dir="rtl"] { --toast-move:translateY(var(--travel-toast)); }
-      dialog.sheet[open] { transition-timing-function:var(--motion-ease); }
-      dialog.sheet:not([open]) { transform:translateY(100%); }
-      @starting-style { dialog.sheet[open] { transform:translateY(100%); } }
-    }
+    [dir="rtl"] .toast.out { animation-name:nomi-toast-out-rtl; }
     @view-transition { navigation:auto; }
     main { view-transition-name:page; }
     nav.side a.navlink.active { view-transition-name:rail-on; }
     .tabs.lens .tab.on { view-transition-name:lens-on; }
     .mo td.sel .mo-d { view-transition-name:day-on; }
     ::view-transition-group(*) { animation-duration:var(--motion-max); animation-timing-function:var(--motion-ease); }
-    ::view-transition-group(page) { animation-duration:0s; }
+    ::view-transition-group(page) { animation:none; }
     ::view-transition-old(page) { animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both; }
     ::view-transition-new(page) { animation:nomi-page-in var(--motion-max) var(--motion-ease) both; }
   }
@@ -390,8 +384,12 @@ ${STAGGER}
   @keyframes nomi-arrive { from { opacity:0; transform:translateY(calc(-1 * var(--travel-fold))); } }
   @keyframes nomi-rise { from { opacity:0; transform:translateY(var(--travel-rise)); } }
   @keyframes nomi-breathe { from { opacity:0.25; } to { opacity:1; } }
-  @keyframes nomi-toast-in { from { opacity:0; transform:var(--toast-move); } }
-  @keyframes nomi-toast-out { to { opacity:0; transform:var(--toast-move); } }
+  @keyframes nomi-toast-in { from { opacity:0; transform:translateX(var(--travel-toast)); } }
+  @keyframes nomi-toast-out { to { opacity:0; transform:translateX(var(--travel-toast)); } }
+  @keyframes nomi-toast-in-rtl { from { opacity:0; transform:translateX(calc(-1 * var(--travel-toast))); } }
+  @keyframes nomi-toast-out-rtl { to { opacity:0; transform:translateX(calc(-1 * var(--travel-toast))); } }
+  @keyframes nomi-toast-up { from { opacity:0; transform:translateY(var(--travel-toast)); } }
+  @keyframes nomi-toast-down { to { opacity:0; transform:translateY(var(--travel-toast)); } }
   @keyframes nomi-page-in { from { opacity:0; transform:translateY(var(--travel-page)); } }
   @keyframes nomi-fade-out { to { opacity:0; } }
   /* The assistant at work: its mark, what it is doing, three dots. One run of text, so the dots follow
@@ -625,7 +623,7 @@ ${LANGSW_CSS}
   /* Phase 9 (settings-a-new-19, settings-a-missed-17) — a heading that wraps breaks into even lines, never one word alone. */
   /* The type pass (2026-10-04) — the page title is the top of the hierarchy: the largest size, bold, closed up. */
   h1.page { font-size:var(--font-size-hero); font-weight:700; line-height:var(--line-height-tight); letter-spacing:var(--tracking-tight);
-    margin:0 0 var(--space-24); text-wrap:balance; }
+    margin: 0 0 var(--space-24); text-wrap:balance; }
   @media (max-width: 560px) { h1.page { font-size:var(--font-size-display); } }
   /* The hairline in --shadow-lift1 does what a 1px border used to; two would
      read as a double rule at the same edge. */
@@ -1180,6 +1178,14 @@ ${SIGNAL_CSS}${MOTION_CSS}
     .stats { grid-template-columns: repeat(2,1fr); }
     .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
     .flabel { min-width:0; font-size:var(--font-size-caption); }
+    /* The motion pass — on a phone the toast comes up from the foot, and the profile card's sheet from the screen's edge, settling with no spring. */
+    @media (prefers-reduced-motion: no-preference) {
+      .toast, [dir="rtl"] .toast { animation-name:nomi-toast-up; }
+      .toast.out, [dir="rtl"] .toast.out { animation-name:nomi-toast-down; }
+      dialog.sheet[open] { transition-timing-function:var(--motion-ease); }
+      dialog.sheet:not([open]) { transform:translateY(100%); }
+      @starting-style { dialog.sheet[open] { transform:translateY(100%); } }
+    }
   }
   /* Phase 7 — the narrowest phones: the five entries before the small mark.
      Phase 9 (V1-014, cross-new-02) — up to 440 px, now that "Customers" carries
@@ -1986,7 +1992,7 @@ const STYLE_PAGES = `
   .irows > li + li { border-top:1px solid var(--color-border); }
   .irow { display:flex; align-items:stretch; min-height:64px; color:var(--color-ink); }
   .irow:hover, .irow:focus-within, .irow.on { background:var(--color-paper); }
-  @media (prefers-reduced-motion: no-preference) { .irow, .arow { transition:background-color var(--motion-fast) var(--motion-ease); } }
+  @media (prefers-reduced-motion: no-preference) { .irow { transition:background-color var(--motion-fast) var(--motion-ease); } }
   .irow > .ir-face { flex:none; display:inline-flex; align-items:center; padding-inline:var(--space-12) 10px; }
   .ir-main { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:var(--space-8);
     align-content:center; align-items:baseline; padding-block:5px; padding-inline-end:var(--space-12); color:inherit; }
@@ -2505,7 +2511,7 @@ export function publicDocument(input: {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
 ${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>${PUBLIC_STYLE}${input.extraCss ?? ''}
-${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, (input.extraCss ?? '').includes('--font-voice'))}
+${facesFor(`${input.title}${input.body}${input.extraCss ?? ''}`, (input.extraCss ?? '').includes('--font-voice'), input.locale)}
 </style>
 </head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
 }

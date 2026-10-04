@@ -54,7 +54,7 @@ describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
     // Tags stripped: the assistant's name is drawn with its ✦ in a span (2026-09-29).
     // The fix wave (w4-conversation-17) — the assistant's name stands over its words; the caption keeps the time.
     const signed = [...html.matchAll(/<div(?: id="latest")? class="msg [a-z]+">\s*(?:<div class="msg-by">(.*?)<\/div>)?[\s\S]*?<div class="ts muted">(.*?)<\/div>/g)]
-      .map((m) => `${m[1] ?? ''} ${m[2]!}`.replace(/<[^>]+>/g, '').trim());
+      .map((m) => `${m[1] ?? ''} ${m[2]!}`.replace(/<span class="shape s-assistant[^"]*" aria-hidden="true"><\/span>/g, '✦').replace(/<[^>]+>/g, '').trim());
     expect(signed).toHaveLength(3);
     // The design pass (UI-PASS 5): the customer by their name, never a role word.
     expect(signed[0], 'the buyer').toContain(base.buyer!);

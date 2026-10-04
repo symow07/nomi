@@ -1,22 +1,49 @@
 import { describe, it, expect } from 'vitest';
 import vm from 'node:vm';
-import { shell } from '../../src/api/web/layout.js';
+import { shell, atWork } from '../../src/api/web/layout.js';
+import * as TOKENS from '../../src/core/owner/tokens.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { mintFlash, readFlash, flashBanner, liveRegion, UNDO_ACTION } from '../../src/api/web/flash.js';
 import { conversationWatch, practiceWatch } from '../../src/api/web/live.js';
-import { workingLine } from '../../src/api/web/inbox.js';
+import { workingLine, renderConversationDetail, renderInboxList, type ConversationDetail, type ConversationSummary, type InboxList } from '../../src/api/web/inbox.js';
+import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
+import { NOTHING_TODAY, type TodayData } from '../../src/api/web/today.js';
+import { renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
+import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import { renderCalendar, parseCalendarQuery } from '../../src/api/web/calendar.js';
+import { withWorkspace, type RequestScope } from '../../src/api/web/say.js';
+import { withZone } from '../../src/api/web/zone.js';
+import { setupFrom } from '../../src/db/setup.js';
+import { dayKey } from '../../src/core/owner/i18n/format.js';
+import { moneyFromRow } from '../../src/core/types/money.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { linkedCss } from './linked-css.js';
+import { parse, select, type El } from './dom-lite.js';
 
 /**
- * PHASE 5 OF THE UI REBUILD (2026-10-02) — MOTION.
+ * PHASE 5 OF THE UI REBUILD (2026-10-02) — MOTION; THE MOTION PASS (2026-10-04).
  *
- * The three durations the tokens defined and nothing used, and one curve; all
- * of it only for a reader who has not asked for less motion. Undo where taking
- * something away only sets it aside. The assistant at work, shown where its
- * reply will be, and the reply drawn into the page without a reload.
+ * The owner: "Motion is wired but unfeelable … the test is whether a person
+ * can see it, not whether it exists in the code." This file used to pass when
+ * the stylesheet's TEXT held the rules (docs/MOTION-TRUTH.md: it "never
+ * renders a page"). Now it holds three things:
+ *
+ *   1. every rule that moves something names an element the product really
+ *      draws — read from real pages (Today with its faces, a conversation with
+ *      its draft, Setup's menu, the Inbox's lenses, the calendar's month, the
+ *      shell's dialogs) or made by the one script (the toast, a busy button);
+ *   2. the timings and distances are ones a person can see: about 220 ms on a
+ *      curve that is not front-loaded, at least 10 px of travel;
+ *   3. all of it, the page transitions too, only for a reader who has not
+ *      asked for less motion.
+ *
+ * The frames themselves were looked at, by eye, in recordings of each motion
+ * firing (docs/design/motion/).
+ * Undo where taking something away only sets it aside. The assistant at work,
+ * shown where its reply will be, and the reply drawn into the page without a
+ * reload.
  */
 
 const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }))
@@ -41,33 +68,265 @@ const mediaBlocks = (text: string, cond: string): string[] => {
 };
 const without = (text: string, blocks: readonly string[]): string => blocks.reduce((s, b) => s.replace(b, ''), text);
 
-describe('phase 5 · three durations, one curve, and nothing moves for a reader who asked for less', () => {
-  const calm = mediaBlocks(css, 'prefers-reduced-motion: no-preference');
-  const still = mediaBlocks(css, 'prefers-reduced-motion: reduce');
+/** Every rule inside a block, looked through @media, @supports and @starting-style; @keyframes and @view-transition left out. */
+const rulesIn = (text: string): { sel: string; body: string }[] => {
+  const out: { sel: string; body: string }[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const open = text.indexOf('{', i);
+    if (open < 0) break;
+    const head = text.slice(i, open).trim();
+    let depth = 0; let j = open;
+    for (; j < text.length; j++) { if (text[j] === '{') depth++; else if (text[j] === '}' && --depth === 0) break; }
+    const inner = text.slice(open + 1, j);
+    if (/^@(media|supports|starting-style)/.test(head)) out.push(...rulesIn(inner));
+    else if (!/^@(keyframes|view-transition)/.test(head)) out.push({ sel: head, body: inner });
+    i = j + 1;
+  }
+  return out;
+};
 
-  it('the tokens: 120, 200 and 300 ms, and one decelerating curve that never overshoots', () => {
-    // The warmth run's re-audit (w4-whole-21): within the owner's 100–250 ms.
-    expect(DESIGN_TOKENS.motionMs).toEqual({ fast: 120, normal: 200, max: 250 });
-    const m = /^cubic-bezier\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)$/.exec(DESIGN_TOKENS.motionEase);
-    expect(m).not.toBeNull();
-    const [x1, y1, x2, y2] = m!.slice(1).map(Number) as [number, number, number, number];
-    expect(y1).toBeLessThanOrEqual(1); expect(y2).toBeLessThanOrEqual(1);   // no overshoot
-    expect(x1).toBeLessThan(x2 === 0 ? 1 : x2 + 1);                          // a curve, not a jump
-    expect(css).toContain(`--motion-ease: ${DESIGN_TOKENS.motionEase};`);
+/* ── The product's real pages, drawn by their own renderers ─────────────── */
+
+const NOW = new Date('2026-10-03T04:00:00Z');
+const uuid = (i: number): string => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+const scope = (o: Partial<RequestScope> = {}): RequestScope => ({
+  name: 'Lily', several: false, outreach: false, needsYou: 2, needsYouAt: 1, zone: 'Asia/Shanghai',
+  setup: setupFrom({ profile: false, products: true, name: false, channels: true, first_success: false }), ...o,
+});
+const inShell = (path: string, body: string, locale: 'en' | 'ar' = 'en'): string =>
+  withWorkspace(scope(), () => shell({ title: 'T', active: 'home', locale, path, bodyHtml: body }));
+
+const live: OperationsSnapshot = {
+  range: 'today',
+  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0, deletionAsks: 0, ordersWaiting: 0 },
+  activity: { handled: 0, draftsCreated: 0, corrections: 0 },
+  knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
+  channel: { status: 'connected', provider: 'meta', live: true }, budget: null, hasAttention: false,
+};
+const today: TodayData = {
+  ...NOTHING_TODAY(NOW), tally: { orders: 3, quotes: 5, afterHours: 4 }, sending: ['instagram'],
+  handled: { total: 12, people: Array.from({ length: 12 }, (_, i) => ({ conversationId: uuid(2000 + i), clientId: uuid(3000 + i), name: `Buyer ${i}`, photo: null, word: 'answered' as const })) },
+};
+const usd = (n: number) => moneyFromRow(n, 'USD')!;
+const conversation: ConversationDetail = {
+  conversationId: 'c-1', buyer: 'Maya Rahman', country: 'GB', status: 'awaiting',
+  product: { name: 'Rose Face Serum', nameZh: null }, quantity: 10,
+  quote: { unitPrice: usd(34.9), total: usd(349), quantity: 10 }, order: null,
+  messages: [{ direction: 'inbound', text: 'how much for 10?', at: new Date('2026-10-03T03:58:00Z') }],
+  pendingDraft: { draftId: 'd-1', draftText: 'The Rose Face Serum is $34.90 each, $349 for 10.', capability: 'quote' },
+  ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
+  knowledgeUsed: ['Ships from Leeds'], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
+  channel: 'instagram',
+  reading: { intent: 'price_request', quantity: { value: 10, unit: 'bottles' }, language: 'en', differsOn: [], quote: { unitPrice: 34.9, total: 349, quantity: 10, discountPct: 0, leadTimeDays: 5, moq: null } },
+};
+const row = (id: string, o: Partial<ConversationSummary> = {}): ConversationSummary => ({
+  conversationId: id, buyer: `Buyer ${id}`, country: 'AE', status: 'handled', needsAction: false,
+  ownership: 'AI', heldBy: null, awaitingReview: false, handoffReason: null, deletionWaiting: false,
+  latestMessage: 'last words', latestAt: new Date('2026-10-03T03:00:00Z'),
+  product: { name: 'Vacuum cup', nameZh: null }, quantity: 500, unitPrice: usd(2.4),
+  channel: 'whatsapp', unanswered: false, lastFrom: 'assistant', ...o,
+});
+const inbox: InboxList = {
+  filter: 'all', waitingCount: 1, blockedCount: 0, mineCount: 0, deletionCount: 0, channels: 2,
+  conversations: [row('c-wait', { ownership: 'WAITING_HUMAN', heldBy: 'unclaimed', handoffReason: 'complaint', lastFrom: 'buyer', unanswered: true }), row('c-hers')],
+  query: '', page: { from: 1, to: 2, total: 2, next: null, prev: null },
+};
+const TODAY = dayKey(NOW, 'Asia/Shanghai');
+const month = withZone('Asia/Shanghai', () => {
+  const ask = parseCalendarQuery({ day: TODAY }, NOW);
+  return renderCalendar({ from: ask.from, to: ask.to, today: TODAY, category: null, buyer: null, buyers: [], categories: [], entries: [] }, 'en', { ask, now: NOW });
+});
+const assistant: EmployeeProfile = {
+  knows: 14, assistantNamed: true, spotChecks: [], hireDate: new Date('2026-07-09T00:00:00Z'), stage: 'partial',
+  canDo: ['greet'], needConfirm: ['quote'], capabilities: [{ capability: 'greet', mode: 'auto', promotable: false }, { capability: 'quote', mode: 'draft', promotable: true }],
+  growth: [], promoted: true, conditions: [],
+};
+const SECRET = 's'.repeat(32);
+const notice = flashBanner(readFlash(SECRET, mintFlash(SECRET, [{ key: 'forbidden.flash.removed' }], NOW.getTime()), 'en', NOW.getTime()));
+
+const PAGES: Readonly<Record<string, string>> = {
+  today: inShell('/app', withWorkspace(scope(), () => renderOperationsHome(live, 'en', today))),
+  conversation: inShell('/app/inbox/c-1', `${notice}${atWork('Lily is writing a reply', true)}${withZone('Asia/Shanghai', () => renderConversationDetail(conversation, 'en', NOW, null))}`),
+  setup: inShell('/app/settings/setup', withWorkspace(scope(), () => renderSetup({
+    people: 2, alerts: { available: true, phones: 1 }, signIn: { email: 'owner@example.test' },
+    billing: { configured: true, exempt: false, status: 'active' }, dataWaiting: 0,
+  }, 'en', null))),
+  settings: inShell('/app/settings', renderSettingsHome('en', null)),
+  assistant: inShell('/app/employee', withWorkspace(scope(), () => renderEmployee(assistant, 'en', null))),
+  inbox: inShell('/app/inbox', withZone('Asia/Shanghai', () => renderInboxList(inbox, 'en', NOW))),
+  month: inShell('/app/calendar', month),
+  arabic: inShell('/app', '<p>x</p>', 'ar'),
+};
+const TREES: readonly El[] = Object.values(PAGES).map(parse);
+
+/**
+ * What the one script makes, so no page drawn by the server holds it: the
+ * toast and its way out, a button or a face marked busy, a page drawn again
+ * in place. Each must really be made by the script.
+ */
+const SCRIPT_MADE: readonly [RegExp, RegExp][] = [
+  [/\.toast(?![\w-])/g, /c\.className = 'toast';/],
+  [/\.out(?![\w-])/g, /c\.className = 'toast out';/],
+  [/\[aria-busy="true"\]/g, /setAttribute\('aria-busy', 'true'\)/],
+  [/\[data-drawn-again\]/g, /setAttribute\('data-drawn-again', '1'\)/],
+];
+/** States a reader or the script brings to an element the page already holds. */
+const STATE = /::?(before|after|backdrop|details-content)\b|:(hover|active|focus-visible|focus-within|focus)\b|:not\(\[open\]\)|\[open\]/g;
+
+/** Every rule that moves anything: those in the no-preference blocks. */
+const calm = mediaBlocks(css, 'prefers-reduced-motion: no-preference');
+const still = mediaBlocks(css, 'prefers-reduced-motion: reduce');
+const MOVING = calm.flatMap(rulesIn);
+
+/** The share of the way a cubic-bezier curve has gone at time `t` (0–1). */
+const along = (curve: string, time: number): number => {
+  const [x1, y1, x2, y2] = /cubic-bezier\(([^)]+)\)/.exec(curve)![1]!.split(',').map(Number) as [number, number, number, number];
+  const at = (a: number, b: number, s: number) => 3 * (1 - s) ** 2 * s * a + 3 * (1 - s) * s ** 2 * b + s ** 3;
+  let lo = 0; let hi = 1;
+  for (let k = 0; k < 60; k++) { const s = (lo + hi) / 2; if (at(x1, x2, s) < time) lo = s; else hi = s; }
+  return at(y1, y2, (lo + hi) / 2);
+};
+
+describe('the motion pass · every rule that moves names something the product really draws', () => {
+  it('the pages it is read against are real: Today\'s faces, the draft, a menu, the lenses, the month, the dialogs', () => {
+    const one = (sel: string) => TREES.flatMap((tr) => select(tr, sel)).length;
+    expect(one('.td-row > li')).toBeGreaterThanOrEqual(8);
+    expect(one('#approve')).toBe(1);
+    expect(one('.sgroup + .sgroup + .sgroup')).toBeGreaterThanOrEqual(1);
+    expect(one('button.srow')).toBe(1);
+    expect(one('.tabs.lens .tab.on')).toBe(1);
+    expect(one('.mo td.sel .mo-d')).toBe(1);
+    expect(one('dialog.ask')).toBe(PAGES_COUNT());
+    expect(one('dialog.sheet')).toBe(PAGES_COUNT());
+    expect(one('nav.side a.navlink.active')).toBe(PAGES_COUNT());
+    expect(one('details > summary')).toBeGreaterThan(0);
+    expect(MOVING.length).toBeGreaterThan(30);
   });
 
-  it('each of the three is used, by name', () => {
-    const moving = calm.join('\n');
-    for (const d of ['fast', 'normal', 'max']) expect(moving, d).toContain(`var(--motion-${d})`);
-    expect(moving).toContain('var(--motion-ease)');
+  it('each selector of each moving rule matches an element on those pages, or one the script makes', () => {
+    const unmatched: string[] = [];
+    for (const { sel } of MOVING) {
+      for (const one of sel.split(',').map((s) => s.trim())) {
+        if (one.startsWith('::view-transition')) continue;          // the browser's own, held below
+        let left = one.replace(STATE, '');
+        for (const [made, by] of SCRIPT_MADE) {
+          if (made.test(left)) { expect(LIVE_SCRIPT, `${one}: the script makes it`).toMatch(by); left = left.replace(made, ''); }
+          made.lastIndex = 0;
+        }
+        left = left.replace(/\s+/g, ' ').replace(/[>+~]\s*$/, '').trim();
+        if (!left) continue;
+        if (TREES.every((tr) => select(tr, left).length === 0)) unmatched.push(`${one} (as ${left})`);
+      }
+    }
+    expect(unmatched, 'a moving rule whose element no page draws: it moves nothing').toEqual([]);
   });
 
-  it('every rule that moves something sits inside prefers-reduced-motion: no-preference', () => {
+  it('every animation it names is defined, and the dialogs it opens are opened by the script', () => {
+    const named = new Set(MOVING.flatMap((r) => [...r.body.matchAll(/animation(?:-name)?:\s*([a-z][\w-]*)/g)].map((m) => m[1]!)).filter((n) => n !== 'none'));
+    const defined = new Set([...css.matchAll(/@keyframes ([\w-]+)/g)].map((m) => m[1]!));
+    expect([...named].filter((n) => !defined.has(n))).toEqual([]);
+    expect(named.size).toBeGreaterThanOrEqual(8);
+    expect(LIVE_SCRIPT).toMatch(/box\.showModal\(\)/);
+    expect(LIVE_SCRIPT).toMatch(/sheet\.showModal\(\)/);
+  });
+});
+
+describe('the motion pass · timings and distances a person can see', () => {
+  const { motionMs, motionEase, motionEaseIn, motionSpring, motionTravelPx, motionScale } = DESIGN_TOKENS;
+
+  it('what arrives lands in 200–250 ms; what leaves is quicker; nothing is longer than 250', () => {
+    expect(motionMs).toEqual({ fast: 160, normal: 220, max: 250, step: 40 });
+    expect(motionMs.normal).toBeGreaterThanOrEqual(200);
+    expect(motionMs.max).toBeLessThanOrEqual(250);
+    expect(motionMs.fast).toBeLessThan(motionMs.normal);
+    for (const k of ['fast', 'normal', 'max', 'step'] as const) expect(css).toContain(`--motion-${k}: ${motionMs[k]}ms;`);
+  });
+
+  it('the curve settles gently: under half the way at a quarter of the time, never over the mark — the old one did 60 per cent', () => {
+    expect(along(motionEase, 0.25)).toBeGreaterThan(0.35);
+    expect(along(motionEase, 0.25)).toBeLessThan(0.5);
+    expect(along(motionEase, 0.5)).toBeLessThan(0.8);
+    expect(along('cubic-bezier(0.2, 0, 0, 1)', 0.25)).toBeGreaterThan(0.6);   // the curve it replaced, measured the same way
+    const [, y1, , y2] = /cubic-bezier\(([^)]+)\)/.exec(motionEase)![1]!.split(',').map(Number);
+    expect(Math.max(y1!, y2!)).toBeLessThanOrEqual(1);
+    // what leaves accelerates away: slow at first
+    expect(along(motionEaseIn, 0.25)).toBeLessThan(0.15);
+    for (const [k, v] of [['ease', motionEase], ['ease-in', motionEaseIn], ['spring', motionSpring]] as const) expect(css).toContain(`--motion-${k}: ${v};`);
+  });
+
+  it('far enough to be seen: 10 px or more for every rise, slide and spring; a fold 8 px with its fade; a dialog grows from 0.96', () => {
+    for (const k of ['page', 'rise', 'toast', 'sheet'] as const) expect(motionTravelPx[k], k).toBeGreaterThanOrEqual(10);
+    expect(motionTravelPx.fold).toBe(8);
+    expect(motionScale).toEqual({ press: 0.97, enter: 0.96 });
+    for (const [k, v] of Object.entries(motionTravelPx)) expect(css).toContain(`--travel-${k}: ${v}px;`);
+    expect(css).toMatch(/@keyframes nomi-rise \{ from \{ opacity:0; transform:translateY\(var\(--travel-rise\)\); \} \}/);
+    expect(css).toMatch(/@keyframes nomi-toast-in \{ from \{ opacity:0; transform:translateX\(var\(--travel-toast\)\); \} \}/);
+  });
+
+  it('only the profile card springs; the old specs nobody executed are retired', () => {
+    const springs = MOVING.filter((r) => r.body.includes('var(--motion-spring)')).map((r) => r.sel);
+    expect(springs).toEqual(['dialog.sheet[open]']);
+    expect('MOTION_SPECS' in TOKENS).toBe(false);
+  });
+});
+
+describe('the motion pass · each moment, as the stylesheet draws it', () => {
+  const ruleOf = (sel: string) => MOVING.find((r) => r.sel.split(',').map((s) => s.trim()).includes(sel))?.body ?? '';
+
+  it('arriving: the notice, the draft (a beat after the page), the at-work line, Today, a menu group by group, each face in turn', () => {
+    expect(ruleOf('#approve')).toContain('animation:nomi-rise var(--motion-normal) var(--motion-ease) both');
+    expect(MOVING.find((r) => r.sel === '#approve, .td')?.body).toContain('animation-delay:var(--motion-fast)');
+    expect(ruleOf('.sgroup + .sgroup')).toContain('animation-delay:var(--motion-step)');
+    expect(ruleOf('.td-row > li')).toContain('animation:nomi-rise');
+    expect(ruleOf('.td-row > li:nth-child(4)')).toContain('animation-delay:calc(var(--motion-fast) + 3 * var(--motion-step))');
+    expect(ruleOf('details[open] > :not(summary)')).toContain('animation:nomi-arrive var(--motion-normal) var(--motion-ease) both');
+    expect(ruleOf('details:not([open])::details-content')).toContain('opacity:0');
+  });
+
+  it('dialogs come and go: they grow in from 0.96 and sink away, with their dimming; the card springs', () => {
+    expect(ruleOf('dialog.ask:not([open])')).toContain('transform:translateY(var(--travel-rise)) scale(var(--motion-scale-enter))');
+    expect(ruleOf('dialog.ask')).toMatch(/overlay var\(--motion-fast\) allow-discrete, display var\(--motion-fast\) allow-discrete/);
+    expect(ruleOf('dialog.sheet[open]')).toContain('transition-timing-function:var(--motion-spring)');
+    expect(css).toContain('dialog.sheet[open] { opacity:0; transform:translateY(var(--travel-sheet)) scale(var(--motion-scale-enter)); }');
+  });
+
+  it('the toast slides in from its own edge and out again; on a phone, up from the foot', () => {
+    expect(ruleOf('.toast')).toContain('animation:nomi-toast-in var(--motion-normal) var(--motion-ease) both');
+    expect(ruleOf('.toast.out')).toContain('animation:nomi-toast-out var(--motion-fast) var(--motion-ease-in) both');
+    expect(ruleOf('[dir="rtl"] .toast')).toContain('animation-name:nomi-toast-in-rtl');
+    expect(MOVING.some((r) => r.sel === '.toast, [dir="rtl"] .toast' && r.body.includes('nomi-toast-up'))).toBe(true);
+  });
+
+  it('pages: the content fades out and rises in, and the rail\'s tile, the lens and the chosen day slide to their place', () => {
+    const vt = calm.join('\n');
+    expect(vt).toContain('@view-transition { navigation:auto; }');
+    expect(ruleOf('main')).toContain('view-transition-name:page');
+    expect(ruleOf('nav.side a.navlink.active')).toContain('view-transition-name:rail-on');
+    expect(ruleOf('.tabs.lens .tab.on')).toContain('view-transition-name:lens-on');
+    expect(ruleOf('.mo td.sel .mo-d')).toContain('view-transition-name:day-on');
+    expect(ruleOf('::view-transition-new(page)')).toContain('animation:nomi-page-in var(--motion-max) var(--motion-ease) both');
+    expect(ruleOf('::view-transition-old(page)')).toContain('animation:nomi-fade-out var(--motion-fast) var(--motion-ease-in) both');
+  });
+
+  it('the hand: a press settles to 0.97 and comes back; a rail icon lifts under the pointer; colour is left to the rail\'s own rules', () => {
+    expect(ruleOf('.btn:active')).toContain('transform:scale(var(--motion-scale-press))');
+    expect(ruleOf('nav.side a.navlink:active')).toContain('transform:scale(var(--motion-scale-press))');
+    expect(ruleOf('.btn')).toContain('transform var(--motion-fast) var(--motion-ease)');   // the release animates too
+    expect(ruleOf('nav.side a.navlink:hover .ni')).toBe(' transform:translateY(calc(-1 * var(--travel-nudge))); ');
+  });
+});
+
+describe('the motion pass · nothing moves for a reader who asked for less', () => {
+  it('every rule that moves something sits inside prefers-reduced-motion: no-preference — the page transitions too', () => {
     const rest = without(without(css, calm), still);
     // Outside those blocks: no transition and no animation (keyframes are only names).
     const loose = [...rest.matchAll(/(?:^|[;{\s])(transition|animation)(?:-[a-z-]+)?\s*:[^;}]*/g)]
       .map((m) => m[0].trim()).filter((d) => !/^@keyframes/.test(d));
     expect(loose).toEqual([]);
+    expect(rest).not.toContain('@view-transition');
+    expect(rest).not.toContain('view-transition-name');
+    expect(rest).not.toContain('@starting-style');
   });
 
   it('no duration is written as a number: the moving rules name a token, and only the reduce block may say 1ms', () => {
@@ -76,14 +335,9 @@ describe('phase 5 · three durations, one curve, and nothing moves for a reader 
     expect(still).toHaveLength(1);
     expect(still[0]).toMatch(/\*,\s*\*::before,\s*\*::after\s*\{[^}]*animation-duration:1ms !important;[^}]*transition-duration:1ms !important;/);
   });
-
-  it('a menu or a fold arrives fast; a notice, the draft and the at-work line rise at normal speed; the dots breathe at max', () => {
-    const moving = calm.join('\n');
-    expect(moving).toMatch(/details\[open\] > :not\(summary\) \{ animation:nomi-arrive var\(--motion-fast\)/);
-    expect(moving).toMatch(/\.flash, #approve, \.working \{ animation:nomi-rise var\(--motion-normal\)/);
-    expect(moving).toMatch(/\.working \.dots i \{ animation:nomi-breathe var\(--motion-max\)/);
-  });
 });
+
+function PAGES_COUNT(): number { return Object.keys(PAGES).length; }
 
 describe('phase 5 · undo over confirm', () => {
   const SECRET = 's'.repeat(32);
@@ -123,7 +377,7 @@ describe('phase 5 · the assistant at work, in place', () => {
   it('the line: its ✦, what it is doing in each language, three dots, said once to a screen reader', () => {
     for (const l of LOCALES) {
       const line = workingLine(l);
-      expect(line, l).toMatch(/^<div class="block working" role="status"><span class="as" aria-hidden="true">✦<\/span> /);
+      expect(line, l).toMatch(/^<div class="block working" role="status"><span class="shape s-assistant as" aria-hidden="true"><\/span> /);
       expect(line, l).toContain('<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>');
     }
     expect(t('en', 'conv.working', { name: 'Lily' })).toBe('Lily is writing a reply');

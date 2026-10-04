@@ -41,6 +41,8 @@ describe('Legal pages · what a stranger may read', () => {
         expect(h).toContain(esc(t(l, TITLE[name])));
         expect(h).not.toContain('<script');
         expect(h).not.toContain('<link');
+        // The type pass (2026-10-04): set in the product's own face — its rules in the page, the file an enhancement
+        expect(h, `${name} ${l}`).toMatch(new RegExp(`@font-face \\{ font-family:"${l === 'zh' ? 'Noto Sans SC' : l === 'ar' ? 'Noto Sans Arabic' : 'Noto Sans'}"; [^}]*font-display:swap;`));
         // Indexable, unlike the proof and unsubscribe pages: a policy nobody
         // can find is not one.
         expect(h).not.toContain('noindex');
@@ -85,7 +87,7 @@ describe('Legal pages · what a stranger may read', () => {
     }
     expect(renderPrivacy('en', null, FACTS, '/')).toContain('<a class="pub-brand" href="/">');
     // The title reads as one: a size above the section heads (public-missed-16).
-    expect(renderPrivacy('en', null, FACTS)).toMatch(/h1 \{ font-size:var\(--font-size-display\)/);
+    expect(renderPrivacy('en', null, FACTS)).toMatch(/h1 \{ font-size:var\(--font-size-hero\)/);
   });
 
   it('each page links to the others, and each says when it was last changed', () => {

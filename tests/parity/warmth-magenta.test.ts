@@ -45,8 +45,8 @@ describe('magenta for meaning', () => {
   });
 
   it('a chore is the to-do ○ in the secondary ink; magenta\'s ○ is a customer waiting', () => {
-    expect(todoMark()).toBe('<span class="dot todo" aria-hidden="true">○</span>');
-    expect(signalMark('waiting')).toBe('<span class="dot warn" aria-hidden="true">○</span>');
+    expect(todoMark()).toBe('<span class="dot todo shape s-waiting" aria-hidden="true"></span>');
+    expect(signalMark('waiting')).toBe('<span class="dot warn shape s-waiting" aria-hidden="true"></span>');
     expect(css).toContain('.dot.todo { color:var(--color-ink-secondary); }');
     for (const sel of TODO_BEFORE) {
       const own = rules.filter((r) => r.sel === sel.replace(':not(.bad)', '') && /(^|;)\s*color:/.test(r.body));

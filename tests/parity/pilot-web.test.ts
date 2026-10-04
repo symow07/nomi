@@ -146,8 +146,8 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
   it('rehearsal progress: ✓ for practiced, ○ for not, under their own heading — no second n/total beside the nav\'s — and the sandbox link', () => {
     const html = all(rb(), 'en');
     // Phase 9 (w4-today-setup-17) — each item is a task, ✓ once Practice has seen it.
-    expect(html).toContain(`<div class="pr done"><span class="mk">✓</span> <span class="lbl">${t('en', 'runbook.step.takeover')}</span>`);
-    expect(html).toContain(`<div class="pr todo"><span class="mk dot todo">○</span> <span class="lbl">${t('en', 'runbook.step.reply')}</span>`);
+    expect(html).toContain(`<div class="pr done"><span class="mk"><span class="shape s-ok" aria-hidden="true"></span></span> <span class="lbl">${t('en', 'runbook.step.takeover')}</span>`);
+    expect(html).toContain(`<div class="pr todo"><span class="mk dot todo"><span class="shape s-waiting" aria-hidden="true"></span></span> <span class="lbl">${t('en', 'runbook.step.reply')}</span>`);
     // Phase 9 (V1-124) — no "2/5" that means something else than the nav's count.
     expect(html).not.toContain('2/5');
     // P5 — every workspace practises on its own copy: the door is always there

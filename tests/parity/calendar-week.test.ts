@@ -103,8 +103,8 @@ describe('the week, a row of the month (the owner\'s correction, 2026-10-04: one
   it('colour is left for state and the assistant: ○ on a reply that is due, ✦ on a price it worked out', () => {
     for (const a of [ask(), chosen(TODAY)]) {
       const html = draw(week(), 'en', { ask: a, now: NOW });
-      expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn" aria-hidden="true">○<\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
-      expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><span class="as" aria-hidden="true">✦<\/span> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
+      expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
+      expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><span class="shape s-assistant as" aria-hidden="true"><\/span> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
     }
   });
 
@@ -202,7 +202,7 @@ describe('phase 7 · a chosen day as one list in time order', () => {
     expect(cls('sent')).toBe('dl-row solid done');
     expect(cls('later')).toBe('dl-row solid');
     expect(cls('owed')).toBe('dl-row solid');                     // four hours late, and still owed
-    expect(html).toMatch(/data-src="handoffs:owed"[\s\S]*?<span class="dot bad" aria-hidden="true">✕<\/span>/);
+    expect(html).toMatch(/data-src="handoffs:owed"[\s\S]*?<span class="dot bad shape s-failed" aria-hidden="true"><\/span>/);
     expect(html).toMatch(/data-src="quotes:past"[\s\S]*?<span class="sr">Done:<\/span>/);
   });
 });

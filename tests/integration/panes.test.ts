@@ -134,7 +134,7 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
     for (const i of order) expect(i).toBeGreaterThan(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));   // newest first
     expect(activity).toContain('<span class="pn-you" aria-hidden="true">●</span> You sent');
-    expect(activity).toContain('<span class="as" aria-hidden="true">✦</span> Your assistant replied');
+    expect(activity).toContain('<span class="shape s-assistant as" aria-hidden="true"></span> Your assistant replied');
     expect(panel).toContain(`href="/app/conversations/${maya}"`);
   });
 });

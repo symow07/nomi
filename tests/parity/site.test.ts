@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { SHAPE_BOX, shapeMask } from '../../src/api/web/marks.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import {
@@ -153,7 +154,7 @@ describe('Phase 9 · the site says one thing, the product\'s way', () => {
     for (const l of LOCALES) {
       const html = page(l);
       const card = html.slice(html.indexOf('<figure'), html.indexOf('</figure>'));
-      expect(card, l).toContain(`<span class="site-as" aria-hidden="true">✦</span> ${esc(t(l, 'card.drafted'))}`);
+      expect(card, l).toContain(`<span class="shape s-assistant site-as" aria-hidden="true"></span> ${esc(t(l, 'card.drafted'))}`);
       expect(card, l).toContain(`<span class="site-draft-tag">${esc(t(l, 'card.waiting'))}</span>`);
       expect(card, l).not.toContain('site-fake');
       expect(card, l).not.toMatch(/<(button|a)\b/);
@@ -162,7 +163,8 @@ describe('Phase 9 · the site says one thing, the product\'s way', () => {
       expect(html.match(/class="site-go"/g)?.length, l).toBe(1);
       expect(html.match(/class="site-go site-go-2"/g)?.length, l).toBe(1);
     }
-    expect(SITE_CSS).toContain('.site-draft-tag::before { content:"○"; content:"○" / "";');
+    // the type pass: the waiting mark is drawn (marks.ts), never a character a device's font draws
+    expect(SITE_CSS).toContain(`.site-draft-tag::before { content:""; ${SHAPE_BOX} ${shapeMask('waiting')}`);
   });
 
   it('the header keeps Sign in beside the name; the pill has its own row on a phone (V1-019)', () => {

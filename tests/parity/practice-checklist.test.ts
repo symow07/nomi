@@ -43,7 +43,7 @@ describe('P4 · the checklist, per kind of business', () => {
     expect(NOT_YET.size).toBe(0);
     const seen = draw(checklistFor('retail'), ['retail_price', 'quoted']);
     const row = seen.match(/<li class="chk ok">[\s\S]*?<\/li>/g)?.find((r) => r.includes(esc(t('en', 'practice.check.retail_price')))) ?? '';
-    expect(row).toContain('✓');
+    expect(row).toContain('shape s-ok');
     const unseen = draw(checklistFor('retail'), ['quoted']);
     expect(unseen).not.toMatch(/<li class="chk gap">/);
   });
@@ -52,7 +52,7 @@ describe('P4 · the checklist, per kind of business', () => {
     const html = draw(checklistFor('catalogue'), ['quoted', 'stop_handoff', 'price_handed']);   // price_handed is not on this list
     // Phase 9 (V1-290) — the count says what it counts.
     expect(html).toContain(t('en', 'practice.checklist.count', { done: 2, total: 8 }));
-    expect(html).toMatch(/<li class="chk ok"><span class="mk" aria-hidden="true">✓<\/span>\s*<span class="lbl">One of your products quoted/);
+    expect(html).toMatch(/<li class="chk ok"><span class="mk" aria-hidden="true"><span class="shape s-ok" aria-hidden="true"><\/span><\/span>\s*<span class="lbl">One of your products quoted/);
   });
 
   it('your total first: the box only where there is a price list; a total is read as a number or not at all', () => {

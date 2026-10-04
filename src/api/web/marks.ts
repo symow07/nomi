@@ -44,19 +44,23 @@ export const shapeUrl = (s: Shape): string =>
 
 /**
  * How a shape is drawn, element or `::before`: a box three quarters of the
- * text's size, sitting on the baseline (so it centres on the capitals; in a flex row, centred), filled
- * with the text's own colour through the figure. `forced-color-adjust` keeps
- * it in the text's colour when the system forces its own.
+ * text's size, sitting on the baseline (so it centres on the capitals; in a
+ * flex row, centred), filled with the text's own colour through the figure.
+ * `forced-color-adjust` keeps it in the text's colour when the system forces
+ * its own. The figure itself is `shapeMask`.
  */
 export const SHAPE_BOX = 'display:inline-block; flex:none; align-self:center; inline-size:0.75em; block-size:0.75em; vertical-align:-0.04em; '
-  + 'background-color:currentColor; -webkit-mask:var(--shape) center / contain no-repeat; mask:var(--shape) center / contain no-repeat; '
-  + 'forced-color-adjust:none;';
+  + 'background-color:currentColor; -webkit-mask-position:center; mask-position:center; -webkit-mask-size:contain; mask-size:contain; '
+  + '-webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; forced-color-adjust:none;';
+
+/** The figure a box is cut to (both spellings: the prefixed one for browsers before 2024). */
+export const shapeMask = (s: Shape): string => `-webkit-mask-image:${shapeUrl(s)}; mask-image:${shapeUrl(s)};`;
 
 const SHAPES: readonly Shape[] = ['ok', 'waiting', 'failed', 'assistant', 'you'];
 
 /** The shell's rules for a shape drawn as an element: `.shape.s-ok` and its four siblings. */
 export const SHAPE_CSS = `  .shape { ${SHAPE_BOX} }
-${SHAPES.map((s) => `  .s-${s} { --shape:${shapeUrl(s)}; }`).join('\n')}
+${SHAPES.map((s) => `  .s-${s} { ${shapeMask(s)} }`).join('\n')}
 `;
 
 /** A shape where a character used to be: in the colour of the text around it, silent to a screen reader. */

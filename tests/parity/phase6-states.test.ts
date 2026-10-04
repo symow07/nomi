@@ -120,7 +120,7 @@ describe('phase 6 · nothing waits for something that never comes', () => {
   it('something at work says so in place; only the assistant\'s work carries its ✦', () => {
     expect(atWork('Stripe is confirming the card')).toBe('<div class="block working" role="status"><span>Stripe is confirming the card</span>'
       + '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>');
-    expect(atWork('x', true)).toContain('<span class="as" aria-hidden="true">✦</span> ');
+    expect(atWork('x', true)).toContain('<span class="shape s-assistant as" aria-hidden="true"></span> ');
   });
 
   it('the guide: a still of each step and how long it takes, before anything is fetched', () => {

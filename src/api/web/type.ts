@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
+import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 
 /**
  * THE TYPE, SERVED BY THE PRODUCT ITSELF (the design pass, 2026-09-29).
@@ -97,18 +98,36 @@ export const typeSetFor = (locale: Locale, html = ''): 'base' | 'zh' => {
 };
 
 /**
- * A public page's own faces: the rules for exactly the faces its characters
- * need (the Sans; the Serif too when the page sets anything in the voice). The
- * page stays complete without them — every stack ends in the device's fonts,
+ * A public page's own faces: for each of its characters, the face the browser
+ * will draw it with — the first family in the page's order (`DESIGN_TOKENS.font`)
+ * that has it — and the voice's too when the page sets anything in it. The
+ * page stays complete without them — every order ends in the device's fonts,
  * and `swap` draws the words at once — so they are an enhancement, never a
  * thing to wait for.
  */
-export function facesFor(text: string, voice: boolean): string {
+export function facesFor(text: string, voice: boolean, locale: Locale): string {
   const index = drawnBy();
+  const orders = [familiesOf(DESIGN_TOKENS.font.family[locale === 'zh' || locale === 'ar' ? locale : 'en'])];
+  if (voice) orders.push(familiesOf(DESIGN_TOKENS.font.voice[locale === 'zh' || locale === 'ar' ? locale : 'en']));
   const used = new Set<Face>();
-  for (const ch of text) for (const f of index.get(ch.codePointAt(0)!) ?? []) used.add(f);
-  return FACES.filter((f) => used.has(f) && (voice || !/Serif|Naskh/.test(f.family))).map(face).join('\n');
+  const seen = new Set<number>();
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    if (seen.has(cp)) continue;
+    seen.add(cp);
+    const drawing = index.get(cp) ?? [];
+    for (const order of orders) {
+      for (const family of order) {
+        const f = drawing.find((x) => x.family === family);
+        if (f) { used.add(f); break; }
+      }
+    }
+  }
+  return FACES.filter((f) => used.has(f)).map(face).join('\n');
 }
+
+/** `"Noto Sans", "Noto Sans SC", system-ui` → the quoted families, in order. */
+const familiesOf = (stack: string): string[] => [...stack.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
 
 /** Code point → the faces that draw it; made once, on the first public page. */
 let INDEX: Map<number, Face[]> | null = null;

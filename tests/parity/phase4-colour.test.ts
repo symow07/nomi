@@ -8,6 +8,7 @@ import { withWorkspace, type RequestScope } from '../../src/api/web/say.js';
 import { renderSetup } from '../../src/api/web/settings.js';
 import { setupFrom } from '../../src/db/setup.js';
 import { linkedCss } from './linked-css.js';
+import { shapeUrl } from '../../src/api/web/marks.js';
 
 /**
  * PHASE 4 OF THE UI REBUILD (2026-10-02) — colour does four jobs, the same on
@@ -80,7 +81,13 @@ describe('phase 4 · the four signals', () => {
     expect(s).toEqual({ ok: '✓', waiting: '○', failed: '✕', assistant: '✦' });
     // the colour that paints each shape's words: two magentas, two jobs
     expect(Object.keys(JOB_OF_VAR).sort()).toEqual(['assistant', 'needs', 'ok', 'warn']);
-    for (const [k, v] of Object.entries(s)) expect(signalMark(k as Signal)).toContain(`aria-hidden="true">${v}</span>`);
+    // The type pass (2026-10-04): each shape is DRAWN (marks.ts) — no face the product serves has ✓ ○ ✕ ✦, so as
+    // characters they came from the device's fonts (SF Pro, Zapf Dingbats). The characters stay the shapes' names.
+    for (const [k, v] of Object.entries(s)) {
+      expect(signalMark(k as Signal)).toBe(`<span class="dot ${({ ok: 'ok', waiting: 'warn', failed: 'bad', assistant: 'as' } as Record<string, string>)[k]} shape s-${k}" aria-hidden="true"></span>`);
+      expect(signalMark(k as Signal)).not.toContain(v);
+      expect(new Set(Object.keys(s).map((x) => shapeUrl(x as Signal))).size).toBe(4);
+    }
   });
 
   it('every text painted in a signal colour carries its shape — drawn before it, or named here with how', () => {
@@ -103,32 +110,37 @@ describe('phase 4 · the four signals', () => {
     expect(unexplained, 'colour with no shape: add the selector to SIGNAL_BEFORE (layout.ts) or say here how its shape is drawn').toEqual([]);
   });
 
-  it('the stylesheet really draws each shape before the words, with an empty alternative for a screen reader', () => {
+  it('the stylesheet really draws each shape before the words, and gives a screen reader nothing to say for it', () => {
     const body = (sel: string, css = appCss) => rules(css).find((r) => r.sel.split(',').map((s) => s.trim()).includes(`${sel}::before`))?.body ?? '';
     for (const [job, sels] of Object.entries(SIGNAL_BEFORE) as [Signal, readonly string[]][]) {
-      const shape = DESIGN_TOKENS.signal[job];
       for (const sel of sels) {
-        expect(body(sel), sel).toContain(`content:"${shape}"`);
-        expect(body(sel), sel).toContain(`content:"${shape}" / ""`);
+        expect(body(sel), sel).toContain('content:""');
+        expect(body(sel), sel).toContain(`mask-image:${shapeUrl(job)}`);
+        expect(body(sel), sel).toContain('background-color:currentColor');
       }
     }
-    expect(body('.err', doorCss)).toContain(`content:"${DESIGN_TOKENS.signal.failed}"`);
+    expect(body('.err', doorCss)).toContain(`mask-image:${shapeUrl('failed')}`);
+    // no signal's character is ever drawn as text by a stylesheet
+    for (const css of [appCss, doorCss]) for (const ch of Object.values(DESIGN_TOKENS.signal)) expect(css).not.toContain(`content:"${ch}"`);
   });
 
   it('a shape means one job: no stylesheet draws a signal\'s shape for another', () => {
+    let seen = 0;
     for (const css of [appCss, doorCss]) {
       for (const r of rules(css)) {
-        const drawn = /content:"([^"]+)"/.exec(r.body)?.[1];
-        if (!drawn) continue;
-        const job = (Object.entries(DESIGN_TOKENS.signal).find(([, v]) => v === drawn) ?? [])[0];
+        const job = (Object.keys(DESIGN_TOKENS.signal) as Signal[]).find((x) => r.body.includes(`mask-image:${shapeUrl(x)}`));
         if (!job) continue;
-        for (const sel of r.sel.split(',').map((s) => s.trim().replace(/::before$/, ''))) {
+        seen += 1;
+        for (const sel of r.sel.split(',').map((s) => s.trim())) {
+          if (sel === `.s-${job}`) continue;            // the drawn element's own class (signalMark, shape())
+          const host = sel.replace(/::before$/, '');
           // The warmth run's re-audit (w4-whole-06): a chore's ○ is the to-do mark, in the secondary ink — never magenta.
-          const todo = drawn === DESIGN_TOKENS.signal.waiting && TODO_BEFORE.includes(sel);
-          expect(SIGNAL_BEFORE[job as Signal].includes(sel) || todo || ['.err', '.fld-err'].includes(sel), `${sel} draws ${drawn}`).toBe(true);
+          const todo = job === 'waiting' && TODO_BEFORE.includes(host);
+          expect(SIGNAL_BEFORE[job].includes(host) || todo || ['.err', '.fld-err'].includes(host), `${sel} draws ${job}`).toBe(true);
         }
       }
     }
+    expect(seen).toBeGreaterThanOrEqual(8);
   });
 
   // THE WARMTH RUN (2026-10-03) — the assistant's words sit on its own WASH
