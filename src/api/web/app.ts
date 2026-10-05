@@ -2319,6 +2319,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Asked three times a minute by every open tab: its request lines would bury
   // the log. A fault is still written (an error is above `warn`).
   const quiet = { logLevel: 'warn' } as const;
+  // The home run — Home's own address; the old one still answers, for a tab drawn before the rename.
+  app.get('/app/live/home', quiet, liveAsk('today'));
   app.get('/app/live/today', quiet, liveAsk('today'));
   app.get('/app/live/buyers', quiet, liveAsk('buyers'));
   app.get('/app/live/conversation/:conversationId', quiet, liveAsk('conversation'));

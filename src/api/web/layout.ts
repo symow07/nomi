@@ -388,12 +388,12 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details:not([open])::details-content { opacity:0; }
     details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
-    .flash, #approve, .working, .tw, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-    #approve, .td { animation-delay:var(--motion-fast); }
+    .flash, #approve, .working, .home-card, .home-schedule, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    #approve, .home-schedule, .td { animation-delay:var(--motion-fast); }
     .sgroup + .sgroup { animation-delay:var(--motion-step); }
     .sgroup + .sgroup + .sgroup { animation-delay:calc(2 * var(--motion-step)); }
     /* The warmth run — drawn again in place for a newcomer, Today does not rise in again (w4-whole-21). */
-    main[data-drawn-again] .tw, main[data-drawn-again] .td, main[data-drawn-again] .td-row > li { animation:none; }
+    main[data-drawn-again] .home-card, main[data-drawn-again] .home-schedule, main[data-drawn-again] .td, main[data-drawn-again] .td-row > li { animation:none; }
     .td-row > li { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
 ${STAGGER}
     .td-row { scroll-behavior:smooth; }
@@ -956,9 +956,29 @@ ${SIGNAL_CSS}${MOTION_CSS}
   main h2.tw-head { margin:0 0 var(--space-12); }
   .tw-need { color:var(--color-needs); font-weight:600; }
   .tw-calm-line { margin:var(--space-4) 0 0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .tw.is-calm { background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1);
-    padding:var(--space-16) var(--space-24); margin-block-end:var(--space-24); }
-  main .tw.is-calm h2.tw-head { margin:0; }
+  /* THE HOME RUN (2026-10-05) — Home, composed from the shell's own parts and nothing new: the greeting
+     open on the page in the page title's size; the rule between it and the card is the section's own
+     hairline (.block); what needs you is the caught-up box's card (the surface, lift1, the card's radius),
+     compact when it is one calm line; the schedule and the wins are LIGHTER — the same warm white and
+     radius resting flat on the rule's hairline instead of a lift. Two up on a wide screen, stacked on a
+     phone; the wins' headline at the section size, the greeting being the page's title. */
+  .home-hello h1.page { margin:0; }
+  .home-date { margin:var(--space-4) 0 0; color:var(--color-ink-secondary); }
+  .home-ready { margin:var(--space-12) 0 0; color:var(--color-ink-secondary); }
+  .home-card { background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); padding:var(--space-24); }
+  .home-card.is-calm { padding:var(--space-16) var(--space-24); }
+  .home-card .tw-list { background:transparent; box-shadow:none; border-radius:0; }
+  main h2.home-calm { margin:0; font-size:var(--font-size-base); font-weight:600; }
+  .home-care { font-weight:400; color:var(--color-ink-secondary); }
+  .home-now .today-foot.setup { margin:var(--space-16) 0 0; }
+  .home-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-24); align-items:start; }
+  .home-tile { min-width:0; background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-24); }
+  main .home-tile h2.td-head { font-size:var(--font-size-title); }
+  .home-quiet { margin:0; }
+  .home-how { margin:var(--space-4) 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .home-schedule .dl.home-dates { margin:0 0 var(--space-8); max-width:none; background:transparent; box-shadow:none; border-radius:0; }
+  .home-schedule .home-dates .dl-row { padding-inline:0; }
+  .home-wins .tt { margin-top:var(--space-16); }
   .tw-note { margin:0 0 var(--space-12); }
   .tw-note-t { margin:0; font-weight:600; }
   .tw-note .muted { margin:var(--space-4) 0 0; }
@@ -1011,7 +1031,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .tt-l { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   @media (max-width: 560px) {
     main h2.td-head { font-size:var(--font-size-title); }
-    .tw.is-calm { padding:var(--space-16); }
+    .home-card, .home-card.is-calm, .home-tile { padding:var(--space-16); }
+  }
+  @media (max-width: 720px) {
+    .home-grid { grid-template-columns:minmax(0, 1fr); gap:var(--space-16); }
   }
   /* Phase 9 (V1-094) — on a phone a line's door goes under its sentence, so the sentence keeps the width. */
   @media (max-width: 560px) {
@@ -2866,7 +2889,8 @@ export function shell(input: {
   // Phase 9 (V1-003) — the tab names the PAGE: its own heading when it has one
   // (an account page, a closure list, an order, a product), the area's name
   // only where the page has none. Every Setup page was "Setup · …".
-  const ownHeading = /<h1 class="page"[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
+  // The home run — a greeting is a page's first words, not its name: Home's tab says "Home".
+  const ownHeading = /<h1 class="page"(?![^>]*\bdata-greeting\b)[^>]*>([\s\S]*?)<\/h1>/.exec(input.bodyHtml)?.[1];
   /**
    * THE WARMTH RUN (2026-10-03), phase 8 — every page in a workspace asks the
    * rail's question (`railAnswer`, live.ts) from the number it was drawn with,
