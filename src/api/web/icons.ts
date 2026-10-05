@@ -1,4 +1,3 @@
-import { PHOSPHOR } from './phosphor.js';
 import { SOLAR } from './solar.js';
 
 /**
@@ -22,9 +21,9 @@ import { SOLAR } from './solar.js';
  * ONE MEANING, ONE SHAPE. Each id here is one meaning; two ids share a drawing only when they mean the
  * same thing (a sample is the gift in My business and on the calendar).
  *
- * HELD — the meanings Solar has no good drawing for keep Phosphor's (phosphor.ts) until the owner picks
- * among Solar's candidates (tools/icons.mjs, HELD; docs/PROGRESS.md lists them with their candidates).
- * Nothing loosely related stands in for them. The list does not grow.
+ * THE SEVEN GAPS — meanings Solar had no clean drawing for were held in Phosphor's until the owner chose
+ * among Solar's candidates (2026-10-05); nothing loosely related stood in meanwhile. The owner's choices
+ * are below, and Phosphor is gone: no drawing in the product comes from any other family.
  *
  * `FLIPS` — an icon that points (Log out's arrow, a reply's) is mirrored on a right-to-left page, as the
  * doors' carets are.
@@ -33,43 +32,35 @@ type SolarName = keyof typeof SOLAR;
 
 const ICON = {
   // The assistant's menu: what it can talk about, what it was taught, what it still needs, the words it never
-  // uses, its name, one kind at a time, checking its work, Practice, what comes next, what changed.
+  // uses, its name, each kind of reply, one kind at a time, checking its work, Practice, this month, what
+  // comes next, what changed.
   talk: 'chat-square-line', knowledge: 'notebook-minimalistic', question: 'question-circle', nope: 'forbidden-circle',
-  name: 'user-id', sliders: 'tuning-2', check: 'check-circle', practice: 'play-circle', next: 'flag', history: 'history',
-  // My business: the business, its products, what it promises, what it does, where customers reach it (and
-  // each way: WhatsApp, Instagram and Messenger, e-mail), going live, the alerts, its terms, samples, the
-  // exchange rate.
-  business: 'shop', products: 'box', promise: 'shield-check', kind: 'case', reach: 'dialog', whatsapp: 'chat-round',
-  meta: 'chat-square', email: 'letter', live: 'power', alerts: 'bell', terms: 'file-text', samples: 'gift',
-  rate: 'transfer-horizontal',
-  // Setup and Settings: getting started (the guide's videos), the checklist, the people, the sign-in,
-  // billing, your data, logging out.
-  guide: 'video-frame-play-horizontal', setup: 'checklist', people: 'users-group-two-rounded', account: 'key',
-  billing: 'card', data: 'folder', logout: 'logout',
+  name: 'user-id', kinds: 'list', sliders: 'tuning-2', check: 'check-circle', practice: 'play-circle', month: 'chart-2',
+  next: 'flag', history: 'history',
+  // My business: the business, how it sells, its products, what it promises, what it does, where customers
+  // reach it (and each way: WhatsApp, Instagram and Messenger, e-mail), going live, its price limits, the
+  // alerts, its terms, samples, closed days, the exchange rate.
+  business: 'shop', sell: 'hand-money', products: 'box', promise: 'shield-check', kind: 'case', reach: 'dialog',
+  whatsapp: 'chat-round', meta: 'chat-square', email: 'letter', live: 'power', prices: 'banknote', alerts: 'bell',
+  terms: 'file-text', samples: 'gift', closures: 'calendar-mark', rate: 'transfer-horizontal',
+  // Setup and Settings: getting started (the guide's videos), the checklist, the language, the people, the
+  // sign-in, billing, your data, logging out.
+  guide: 'video-frame-play-horizontal', setup: 'checklist', language: 'global', people: 'users-group-two-rounded',
+  account: 'key', billing: 'card', data: 'folder', logout: 'logout',
   // The pages: a file saved, a customer who keeps coming back, an empty calendar, a customer with no name yet,
   // what a customer sent that is not words (a file, a voice note, a photo), a door, the way back, closing.
   download: 'download-minimalistic', regular: 'repeat', calendar: 'calendar-minimalistic', person: 'user',
   file: 'paperclip', voice: 'microphone', photo: 'gallery', go: 'alt-arrow-right', back: 'alt-arrow-left', close: 'close',
   // A door that opens another site, in a new tab.
   external: 'arrow-right-up',
-  // The calendar's kinds of date: a sample (the same gift as My business's samples), a price, a reply owed, a
-  // follow-up, a conversation put away, the owner's own date, a promise.
-  'date-sample': 'gift', 'date-price': 'tag', 'date-reply': 'reply', 'date-followup': 'restart', 'date-closed': 'archive',
-  'date-own': 'pin', 'date-promise': 'quote',
+  // The calendar's kinds of date: a sample (the same gift as My business's samples), an order on its way, a
+  // price, a reply owed, a follow-up, a closure (the same closed day as My business's), a conversation put
+  // away, the owner's own date, a promise.
+  'date-sample': 'gift', 'date-order': 'delivery', 'date-price': 'tag', 'date-reply': 'reply', 'date-followup': 'restart',
+  'date-closure': 'calendar-mark', 'date-closed': 'archive', 'date-own': 'pin', 'date-promise': 'quote',
 } as const satisfies Readonly<Record<string, SolarName>>;
 
-/**
- * HELD for the owner (2026-10-05): each kind of reply (a bulleted list), how it sells (a handshake), the
- * language (a translation mark), its price limits (coins), closed days and a closure on the calendar (a
- * calendar crossed out), this month (a month's grid — Solar's is the nav's Calendar), an order on its way
- * (a truck). Phosphor's drawing, as before, until the owner chooses.
- */
-const HELD = {
-  kinds: 'list-bullets', sell: 'handshake', language: 'translate', prices: 'coins', closures: 'calendar-x',
-  month: 'calendar-dots', 'date-order': 'truck', 'date-closure': 'calendar-x',
-} as const satisfies Readonly<Record<string, keyof typeof PHOSPHOR>>;
-
-export type IconId = keyof typeof ICON | keyof typeof HELD;
+export type IconId = keyof typeof ICON;
 export type DateIconId = Extract<IconId, `date-${string}`>;
 
 const FLIPS: ReadonlySet<IconId> = new Set<IconId>(['logout', 'date-reply']);
@@ -83,12 +74,7 @@ export const solarSvg = (className: string, name: SolarName, size = 24): string 
  * the place's stylesheet gives the size and, through it, the line.
  */
 export function icon(id: IconId, className = 'ni'): string {
-  const cls = `${className}${FLIPS.has(id) ? ' flips' : ''}`;
-  if (id in HELD) {
-    const d = PHOSPHOR[HELD[id as keyof typeof HELD]][className === 'kind-icon' ? 'bold' : 'regular'];
-    return `<svg class="${cls} held" viewBox="0 0 256 256" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`;
-  }
-  return solarSvg(cls, ICON[id as keyof typeof ICON]);
+  return solarSvg(`${className}${FLIPS.has(id) ? ' flips' : ''}`, ICON[id]);
 }
 
 /**
@@ -115,7 +101,7 @@ export const AWAY = `<span class="go ext" aria-hidden="true">${icon('external', 
  * own units for the box it fills: `line` px at `size` px. Written out, not percent-encoded (the owner
  * surface bans the percent sign), as marks.ts writes its shapes.
  */
-export const iconMask = (id: keyof typeof ICON, size: number, line: number): string => {
+export const iconMask = (id: IconId, size: number, line: number): string => {
   const units = Number((line * 24 / size).toFixed(3));
   const body = SOLAR[ICON[id]].replace(/"/g, "'").replace(/stroke='currentColor'/g, "stroke='black'")
     .replace("stroke-width='1.5'", `stroke-width='${units}'`);

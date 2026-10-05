@@ -15,9 +15,8 @@
  * with round ends, nothing filled — is refused rather than guessed at. `tests/parity/icons.test.ts` reads
  * the package again and holds every copied drawing to it, so nothing can be redrawn here by hand.
  *
- * HELD: the meanings Solar has no good drawing for keep Phosphor's (`@phosphor-icons/core`, MIT) until the
- * owner chooses among Solar's candidates (HELD below, and docs/PROGRESS.md). When the list is empty, the
- * Phosphor half of this tool, phosphor.ts, its licence file and the dependency go.
+ * The seven meanings the owner was asked to choose for (the Solar run's gaps) were chosen on 2026-10-05;
+ * with them the last Phosphor drawings, their licence file and the dependency went. Solar is the one family.
  *
  * Usage: node tools/icons.mjs   (after `npm ci`; it reads node_modules)
  */
@@ -43,28 +42,16 @@ export const SOLAR_WANTED = [
   'alt-arrow-right', 'alt-arrow-left', 'close', 'arrow-right-up',
   // the calendar's kinds of date
   'tag', 'reply', 'restart', 'archive', 'pin', 'quote',
+  // the owner's choices for the seven gaps (2026-10-05): each kind of reply, how it sells, the language, its
+  // price limits, closed days and a closure, this month, an order on its way
+  'list', 'hand-money', 'global', 'banknote', 'calendar-mark', 'chart-2', 'delivery',
 ];
 
-/**
- * HELD for the owner (2026-10-05): the Phosphor drawings of the meanings Solar has no good equivalent for,
- * each in both line weights, kept until the owner picks a Solar candidate. Not to grow.
- */
-export const HELD = ['list-bullets', 'handshake', 'translate', 'coins', 'calendar-x', 'calendar-dots', 'truck'];
-const BOTH = ['regular', 'bold'];
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PKG = join(ROOT, 'node_modules', '@phosphor-icons', 'core');
 const SOLAR_PKG = join(ROOT, 'node_modules', '@iconify-json', 'solar');
 export const SOLAR_LICENCE_URL = 'https://creativecommons.org/licenses/by/4.0/';
 export const SOLAR_AUTHOR_URL = 'https://www.figma.com/community/file/1166831539721848736';
-
-/** The one path a Phosphor file draws, or a refusal naming the file. */
-export function drawingOf(svg, file) {
-  const m = /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 256 256" fill="currentColor"><path d="([^"]+)"\/><\/svg>\s*$/.exec(svg);
-  if (!m) throw new Error(`${file}: not one path on the 256 grid; this tool copies, it does not redraw`);
-  return m[1];
-}
-export const fileOf = (name, weight) => join(PKG, 'assets', weight, `${name}${weight === 'regular' ? '' : `-${weight}`}.svg`);
 
 /** The Linear set's shape: one group, or one path, drawn in a 1.5-unit round line, nothing filled. */
 export const LINEAR_SHAPE = /^<(g|path) fill="none" stroke="currentColor" stroke-linecap="round"( stroke-linejoin="round")? stroke-width="1\.5"[^>]*>/;
@@ -124,25 +111,5 @@ ${solarLines.join('\n')}
   mkdirSync(join(ROOT, 'assets', 'icons'), { recursive: true });
   writeFileSync(join(ROOT, 'assets', 'icons', 'SOLAR-LICENSE.txt'), solarAttribution(solar.version));
 
-  const meta = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8'));
-  if (meta.license !== 'MIT') { console.error(`@phosphor-icons/core: licence ${meta.license}, not MIT`); process.exit(1); }
-  const licence = readFileSync(join(PKG, 'LICENSE'), 'utf8');
-  if (!/^MIT License/.test(licence)) { console.error('@phosphor-icons/core: its LICENSE file is not the MIT licence'); process.exit(1); }
-  const lines = HELD.map((name) => `  '${name}': {\n${BOTH.map((w) => `    ${w}: '${drawingOf(readFileSync(fileOf(name, w), 'utf8'), `${name} ${w}`)}',`).join('\n')}\n  },`);
-  writeFileSync(join(ROOT, 'src', 'api', 'web', 'phosphor.ts'), `/**
- * WRITTEN BY tools/icons.mjs from @phosphor-icons/core ${meta.version} (MIT;
- * the licence is assets/icons/PHOSPHOR-LICENSE.txt). Do not edit by hand.
- *
- * HELD (the Solar run, 2026-10-05): only the meanings Solar has no good drawing for, kept until the owner
- * picks a Solar candidate for each (tools/icons.mjs, HELD). Each drawing as the package ships it, one path
- * on a 256-unit square, in its regular (a 16-unit line) and bold (24) weights.
- */
-export const PHOSPHOR = {
-${lines.join('\n')}
-} as const;
-`);
-  writeFileSync(join(ROOT, 'assets', 'icons', 'PHOSPHOR-LICENSE.txt'),
-    `The icons Nomi still draws from Phosphor (src/api/web/phosphor.ts; held until the owner picks a Solar\ndrawing for each) are Phosphor Icons, from @phosphor-icons/core ${meta.version} (https://phosphoricons.com),\nunder this licence:\n\n${licence}`);
   console.log(`${SOLAR_WANTED.length} Linear drawings from @iconify-json/solar ${solar.version} (CC BY 4.0, 480 Design)`);
-  console.log(`${HELD.length * BOTH.length} drawings of ${HELD.length} held icons from @phosphor-icons/core ${meta.version}`);
 }
