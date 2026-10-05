@@ -13,6 +13,57 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The Solar run (2026-10-05) — read this first
+
+**State: shipped, except 7 meanings held for the owner's choice (below).**
+- **#230 merged** 2026-10-05 05:14 UTC as `1281551`. Both checks reported success on its head `1777281` through the gate.
+- **Deployed** 05:17 UTC; `/health` ok.
+- **Production schema is 129**; no migration.
+
+**The owner's instruction (2026-10-05):** "Move EVERY remaining icon in the app from Phosphor to Solar Linear … same family, same weight, same roundness as the nav … the LINE WEIGHT must look visually equal to the nav's at whatever size it's drawn … where Solar has no good equivalent … do NOT substitute something loosely related … STOP at the end with a list … Ship everything that mapped cleanly; hold the gaps for me." The owner agreed that Phosphor stays for the held meanings only, and goes in a follow-up once they are chosen.
+
+**What shipped (#230):**
+- **47 of 55 meanings draw Solar's Linear set** (`icons.ts` → `solar.ts`, 53 drawings copied unchanged by `tools/icons.mjs`). The assistant's slot is Solar's user-circle at every size, never filled. The mapping was matched by eye: `docs/design/solar-all/all-icons.png`.
+- **The line:**
+  - every Solar icon (`svg.sl`) draws its line at a fixed screen width (non-scaling);
+  - 1.75 px from 23 px up, 1.65 at 20–22, 1.6 at 18–19.5, 1.5 at 17 and under;
+  - the widths were chosen beside the nav's 28 px.
+  - Each place's rule is in `layout.ts` ("THE SOLAR RUN"). The guard holds every place's size against its line.
+- **Colour:** neutral places draw their icons in the ink (they were grey). Meaning colours stay: doors brand, the assistant light, the current page deep.
+- **Guards:**
+  - `tests/parity/icons.test.ts` pins every meaning's drawing in its own table and reads the maps from `icons.ts`'s source (no test-only exports: the unused-export ceiling stays 22). The surface walk accepts only Solar or held drawings.
+  - Fourteen deliberate breakages each fail it.
+- **The walk:** 75 owner pages × 5 languages × 1280/390 px, about 8,700 visible icons. None is missing or wrongly weighted, and the Arabic mirroring is right. Screenshots: `docs/design/solar-all/`.
+- **Attribution:** `NOTICE`, `assets/icons/SOLAR-LICENSE.txt` (generated; it names every drawing) and the README line. `PHOSPHOR-LICENSE.txt` covers only the held icons.
+- **Verification:**
+  - `check`: 7,083 passed.
+  - Trust: 41/41 scenarios.
+  - The build passed.
+  - Integration: 1,290 of 1,290, none skipped.
+
+**Waiting on the owner — the held meanings.** Each keeps Phosphor's drawing until the owner picks a Solar candidate. The sheet is `docs/design/solar-all/held-candidates.png`.
+
+| Meaning (where) | Phosphor | Solar candidates |
+|---|---|---|
+| Each kind of reply (the assistant's menu) | list-bullets | 1 `list` · 2 `list-ordered` · 3 `list-down-minimalistic` |
+| How you sell (My business) | handshake | 1 `hand-money` · 2 `hand-heart` · 3 `user-hands` |
+| The language (Settings) | translate | 1 `global` · 2 `text-square` · 3 `chat-round-line` |
+| Your price limits (My business) | coins | 1 `banknote` · 2 `wallet-money` · 3 `dollar-minimalistic` |
+| Closed days (My business) and a closure (the calendar) | calendar-x | 1 `calendar-mark` · 2 `sleeping` · 3 `lock` |
+| This month (the assistant's menu) | calendar-dots | 1 `calendar-date` · 2 `chart-2` · 3 `graph-up` |
+| An order on its way (the calendar) | truck | 1 `delivery` · 2 `routing` · 3 `map-arrow-right` |
+
+**To finish once the owner picks**, about 30 minutes:
+1. Move each meaning from `HELD` to `ICON` in `icons.ts`, and add the drawing's name to `SOLAR_WANTED` in `tools/icons.mjs`.
+2. Empty `HELD`, then remove the Phosphor half of `tools/icons.mjs`, `phosphor.ts`, `PHOSPHOR-LICENSE.txt`, NOTICE's Phosphor section and the `@phosphor-icons/core` dev dependency.
+3. Update the guard's two tables (`SOLAR_OF`, `HELD_OF`); the held test then asserts that nothing is held.
+
+**Also noted:**
+- The calendar's held kinds (a closure, an order on its way) did not appear on the seeded pages the walk reached. They are covered by the guards, not by the walk.
+- Two choices made under the brief:
+  - "ink" was read as the neutral icon colour; meaning colours stay.
+  - The phone heading's 23 px assistant mark takes the nav's 1.75 px line.
+
 ## The Solar nav (2026-10-05) — read this first
 
 **State (2026-10-05): done.**
