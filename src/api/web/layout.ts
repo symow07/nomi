@@ -318,14 +318,16 @@ ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
   .pill.as { background:var(--color-assistant-wash); color:var(--color-assistant); }
   /* THE SOLAR RUN (2026-10-05) — every icon is Solar's Linear drawing (icons.ts). Its line is drawn at a fixed
      width on screen whatever the icon's size, and a little lighter as the icon gets smaller, so every icon
-     reads at the nav's weight (measured side by side with the nav's 28 px): 1.75 px from 24 px up, 1.65 at 20
-     to 22, 1.6 at 18, 1.5 at 17 and under. Each place below names its own. */
+     reads at the nav's weight (measured side by side with the nav's 28 px): 1.75 px from 23 px up, 1.65 at 20
+     to 22, 1.6 at 18 to 19.5, 1.5 at 17 and under. Each place below names its own; the assistant's mark grows
+     with its words, so the larger words it stands in name theirs. */
   svg.sl * { vector-effect:non-scaling-stroke; }
   svg.sl > * { stroke-width:1.75px; }
   nav.side .navhead .ni.sl > *, .sheet-x > .xi.sl > *, .dl-get > .ni.sl > *, .dl-who.dl-only .kind-icon.sl > *,
   .face-s .face-i svg.sl > * { stroke-width:1.65px; }
-  .mo-e .kind-icon.sl > *, .face-xs .face-i svg.sl > * { stroke-width:1.6px; }
+  .mo-e .kind-icon.sl > *, .face-xs .face-i svg.sl > *, .dl-say .am.sl > * { stroke-width:1.6px; }
   .am.sl > *, .mi.sl > *, .go > .gi.sl > *, .ir-reg .ni.sl > *, .dl-who .kind-icon.sl > * { stroke-width:1.5px; }
+  .td-head .am.sl > * { stroke-width:1.75px; }
   /* The icons run (2026-10-04) — the assistant's slot drawn inline, as a MARK beside words (agentMark.ts): a little
      larger than the line's capitals and centred on them, in the colour its place gives it (the light shade, with .as). */
   .am { display:inline-block; flex:none; inline-size:1.15em; block-size:1.15em; vertical-align:-0.22em; }

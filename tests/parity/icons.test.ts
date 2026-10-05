@@ -4,7 +4,7 @@ import { shell, NEEDS_DOT } from '../../src/api/web/layout.js';
 import { withWorkspace } from '../../src/api/web/say.js';
 import { PHOSPHOR } from '../../src/api/web/phosphor.js';
 import { SOLAR } from '../../src/api/web/solar.js';
-import { icon, railIcon, SOLAR_OF, HELD_OF, HELD_IDS, GO, BACK, AWAY, type IconId } from '../../src/api/web/icons.js';
+import { icon, railIcon, GO, BACK, AWAY, type IconId } from '../../src/api/web/icons.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
@@ -33,8 +33,33 @@ const SOLAR_PKG = 'node_modules/@iconify-json/solar';
 type Drawn = Readonly<Record<string, Readonly<Record<string, string>>>>;
 const DRAWN = PHOSPHOR as unknown as Drawn;
 const PHOSPHOR_PATHS = Object.values(DRAWN).flatMap((w) => Object.values(w));
-/** The held meanings, as the owner was told on 2026-10-05. The list may shrink as the owner chooses; it never grows. */
-const HELD_MEANINGS = ['closures', 'date-closure', 'date-order', 'kinds', 'language', 'month', 'prices', 'sell'];
+/**
+ * EVERY MEANING AND ITS DRAWING, pinned here on purpose: a meaning that changes its drawing changes this
+ * table in the same commit. The held ones, as the owner was told on 2026-10-05, with Phosphor's drawing;
+ * that list may shrink as the owner chooses, and never grows.
+ */
+const SOLAR_OF: Readonly<Record<string, keyof typeof SOLAR>> = {
+  talk: 'chat-square-line', knowledge: 'notebook-minimalistic', question: 'question-circle', nope: 'forbidden-circle',
+  name: 'user-id', sliders: 'tuning-2', check: 'check-circle', practice: 'play-circle', next: 'flag', history: 'history',
+  business: 'shop', products: 'box', promise: 'shield-check', kind: 'case', reach: 'dialog', whatsapp: 'chat-round',
+  meta: 'chat-square', email: 'letter', live: 'power', alerts: 'bell', terms: 'file-text', samples: 'gift',
+  rate: 'transfer-horizontal', guide: 'video-frame-play-horizontal', setup: 'checklist', people: 'users-group-two-rounded',
+  account: 'key', billing: 'card', data: 'folder', logout: 'logout', download: 'download-minimalistic', regular: 'repeat',
+  calendar: 'calendar-minimalistic', person: 'user', file: 'paperclip', voice: 'microphone', photo: 'gallery',
+  go: 'alt-arrow-right', back: 'alt-arrow-left', close: 'close', external: 'arrow-right-up', 'date-sample': 'gift',
+  'date-price': 'tag', 'date-reply': 'reply', 'date-followup': 'restart', 'date-closed': 'archive', 'date-own': 'pin',
+  'date-promise': 'quote',
+};
+const HELD_OF: Readonly<Record<string, string>> = {
+  kinds: 'list-bullets', sell: 'handshake', language: 'translate', prices: 'coins', closures: 'calendar-x',
+  month: 'calendar-dots', 'date-order': 'truck', 'date-closure': 'calendar-x',
+};
+/** The keys of one of icons.ts's two maps, read from its source. */
+const keysOf = (map: 'ICON' | 'HELD') => {
+  const src = read('src/api/web/icons.ts');
+  const body = src.slice(src.indexOf(`const ${map} = {`), src.indexOf('} as const', src.indexOf(`const ${map} = {`)));
+  return [...code(body).matchAll(/(?:^|[\s,{])('?[a-z-]+'?):\s*'/g)].map((m) => m[1]!.replace(/'/g, '')).sort();
+};
 
 const SCOPE = { name: 'Lily', several: false, outreach: false, setup: null, business: 'Hana Skincare', needsYou: 3, zone: 'Asia/Shanghai' };
 const LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
@@ -62,9 +87,10 @@ const isSolar = (svg: string) => /^<svg class="[^"]*\bsl\b[^"]*"(?: data-mark="a
 
 /**
  * THE LINE FOR A SIZE — the Solar run's rule, measured side by side with the nav's 28 px icons: 1.75 px from
- * 24 px up (the nav's), 1.65 at 20 to 22, 1.6 at 18, 1.5 at 17 and under.
+ * 23 px up (the nav's), 1.65 at 20 to 22, 1.6 at 18 to 19.5, 1.5 at 17 and under. The walk of every page in
+ * five languages at both widths found the sizes below and no other.
  */
-const lineFor = (px: number) => px >= 24 ? 1.75 : px >= 20 ? 1.65 : px >= 18 ? 1.6 : 1.5;
+const lineFor = (px: number) => px >= 23 ? 1.75 : px >= 20 ? 1.65 : px >= 18 ? 1.6 : 1.5;
 /** Each place an icon is drawn: its size on screen (padding taken off; 1.15em at the 13 to 15 px it sits in), and the selector that draws its line. */
 const PLACES: readonly { place: string; px: number; line: string | null }[] = [
   { place: 'the nav', px: 28, line: null },
@@ -75,7 +101,9 @@ const PLACES: readonly { place: string; px: number; line: string | null }[] = [
   { place: 'a download', px: 22, line: '.dl-get > .ni.sl > *' },
   { place: 'a date with no face', px: 22, line: '.dl-who.dl-only .kind-icon.sl > *' },
   { place: 'a small face', px: 21, line: '.face-s .face-i svg.sl > *' },
+  { place: 'Today\'s heading: the assistant beside its 20 to 26 px words', px: 23, line: '.td-head .am.sl > *' },
   { place: 'a month\'s date', px: 18, line: '.mo-e .kind-icon.sl > *' },
+  { place: 'a date\'s line: the assistant beside its 17 px words', px: 19.5, line: '.dl-say .am.sl > *' },
   { place: 'the smallest face', px: 18, line: '.face-xs .face-i svg.sl > *' },
   { place: 'the assistant beside words', px: 16, line: '.am.sl > *' },
   { place: 'what a customer sent', px: 16, line: '.mi.sl > *' },
@@ -149,17 +177,21 @@ describe('Solar, the one family: copied as the package ships it, credited as CC 
 
 describe('Phosphor: held for the owner\'s choice, and nowhere else', () => {
   it('only the held meanings draw it — the list is the one the owner was given, and it does not grow', () => {
-    expect([...HELD_IDS].sort()).toEqual(HELD_MEANINGS);
+    expect(keysOf('HELD')).toEqual(Object.keys(HELD_OF).sort());
     expect(Object.keys(PHOSPHOR).sort()).toEqual([...HELD].sort());
     expect([...new Set(Object.values(HELD_OF))].sort()).toEqual([...HELD].sort());
-    for (const id of HELD_IDS) expect(icon(id), id).toContain(' held"');
+    for (const [id, name] of Object.entries(HELD_OF)) {
+      expect(icon(id as IconId), id).toContain(' held"');
+      expect(icon(id as IconId), id).toContain(DRAWN[name]!['regular']!);
+    }
   });
 
-  it('every other meaning draws Solar\'s drawing, and no meaning draws both', () => {
+  it('every other meaning draws its Solar drawing, as the table says, and no meaning draws both', () => {
+    expect(keysOf('ICON')).toEqual(Object.keys(SOLAR_OF).sort());
     const ids = Object.keys(SOLAR_OF) as IconId[];
     expect(ids.length).toBeGreaterThanOrEqual(45);
     for (const id of ids) {
-      expect(HELD_IDS.has(id), id).toBe(false);
+      expect(id in HELD_OF, id).toBe(false);
       const svg = icon(id);
       expect(isSolar(svg), id).toBe(true);
       expect(svg, id).toContain(SOLAR[SOLAR_OF[id]!]!);

@@ -9,5 +9,5 @@ Nomi draws its icons (src/api/web/solar.ts) from Solar's Linear set, copied from
 this licence: home-2-linear, inbox-linear, calendar-linear, settings-linear, users-group-rounded-linear, user-circle-linear, chat-square-line-linear, notebook-minimalistic-linear, question-circle-linear, forbidden-circle-linear, user-id-linear, tuning-2-linear, check-circle-linear, play-circle-linear, flag-linear, history-linear, shop-linear, box-linear, shield-check-linear, case-linear, dialog-linear, chat-round-linear, chat-square-linear, letter-linear, power-linear, bell-linear, file-text-linear, gift-linear, transfer-horizontal-linear, video-frame-play-horizontal-linear, checklist-linear, users-group-two-rounded-linear, key-linear, card-linear, folder-linear, logout-linear, download-minimalistic-linear, repeat-linear, calendar-minimalistic-linear, user-linear, paperclip-linear, microphone-linear, gallery-linear, alt-arrow-right-linear, alt-arrow-left-linear, close-linear, arrow-right-up-linear, tag-linear, reply-linear, restart-linear, archive-linear, pin-linear, quote-linear.
 
 Changes: none to the drawings. Each is copied as the package ships it; the app's stylesheet sets its size,
-its colour, and the width its line is drawn at on screen (1.75 px at 24 px and up, a little less on
-smaller icons, so every icon reads at the same weight).
+its colour, and the width its line is drawn at on screen (the nav's 1.75 px on the larger icons, a little
+less on smaller ones, so every icon reads at the same weight).

@@ -16,8 +16,8 @@ import { SOLAR } from './solar.js';
  *
  * THE LINE. Every Solar icon carries the class `sl`; the stylesheet draws its line at a fixed width on
  * screen whatever the icon's size (`vector-effect: non-scaling-stroke`), lighter as the icon gets smaller
- * so it reads at the nav's weight: 1.75 px from 24 px up (the nav's), 1.65 at 20 to 22, 1.6 at 18, 1.5
- * at 17 and under — measured side by side with the nav's 28 px icons. Each place's size is its own rule.
+ * so it reads at the nav's weight: 1.75 px from 23 px up (the nav's), 1.65 at 20 to 22, 1.6 at 18 to 19.5,
+ * 1.5 at 17 and under — measured side by side with the nav's 28 px icons. Each place's size is its own rule.
  *
  * ONE MEANING, ONE SHAPE. Each id here is one meaning; two ids share a drawing only when they mean the
  * same thing (a sample is the gift in My business and on the calendar).
@@ -71,11 +71,6 @@ const HELD = {
 
 export type IconId = keyof typeof ICON | keyof typeof HELD;
 export type DateIconId = Extract<IconId, `date-${string}`>;
-/** Each meaning's Solar drawing, and the held meanings' Phosphor drawing (for the guards, read-only). */
-export const SOLAR_OF: Readonly<Record<string, SolarName>> = ICON;
-export const HELD_OF: Readonly<Record<string, keyof typeof PHOSPHOR>> = HELD;
-/** The meanings still drawn by Phosphor, waiting for the owner's choice. */
-export const HELD_IDS: ReadonlySet<IconId> = new Set(Object.keys(HELD) as IconId[]);
 
 const FLIPS: ReadonlySet<IconId> = new Set<IconId>(['logout', 'date-reply']);
 

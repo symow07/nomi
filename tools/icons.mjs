@@ -97,8 +97,8 @@ Nomi draws its icons (src/api/web/solar.ts) from Solar's Linear set, copied from
 this licence: ${SOLAR_WANTED.map((n) => `${n}-linear`).join(', ')}.
 
 Changes: none to the drawings. Each is copied as the package ships it; the app's stylesheet sets its size,
-its colour, and the width its line is drawn at on screen (1.75 px at 24 px and up, a little less on
-smaller icons, so every icon reads at the same weight).
+its colour, and the width its line is drawn at on screen (the nav's 1.75 px on the larger icons, a little
+less on smaller ones, so every icon reads at the same weight).
 `;
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
