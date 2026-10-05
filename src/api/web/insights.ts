@@ -314,7 +314,9 @@ export function renderInsights(d: InsightsData, locale: Locale, o: {
   // review, so the line that counts them would say it twice.
   const shown = o.bare ? d.insights.filter((i) => i.key !== 'insight.draftsWaiting') : d.insights;
   const rows = `${shown.map(row).join('')}${d.monthChange ? row(d.monthChange) : ''}`;
-  if (o.bare) return `<div class="insights">${rows}</div>`;
+  // The quiet-day run — a bare list with nothing to show is nothing (Home's card reads an empty string as
+  // "no line worth the owner's attention"; it was `<div class="insights"></div>`).
+  if (o.bare) return rows ? `<div class="insights">${rows}</div>` : '';
   return `<div class="block insights"><h2>${esc(t(locale, 'insight.title'))}</h2>
     ${rows}
   </div>`;

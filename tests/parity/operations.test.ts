@@ -161,7 +161,9 @@ describe('Home, in its zones (render)', () => {
     expect(html).toContain(`<span class="td-word">${t('en', 'today.word.confirmed')}</span>`);
     expect(html).toContain('href="/app/customers/44444444-4444-4444-8444-444444444444" data-card');
     const quiet = renderOperationsHome(live(populated), 'en', { ...busy, handled: { total: 0, people: [] } });
-    expect(quiet).toContain(t('en', 'today.handled.none'));
+    // The quiet-day run — never one handled: the tile's name and what will appear, never an absence.
+    expect(quiet).toContain(t('en', 'home.wins.title'));
+    expect(quiet).toContain(t('en', 'home.wins.ahead'));
     expect(quiet).not.toContain('class="td-row"');
     // CC-05 — the way into Results stays, whatever the day held.
     expect(quiet).toContain('href="/app/analytics"');
@@ -187,7 +189,8 @@ describe('Home, in its zones (render)', () => {
 
   it('M22 (F-01) · a quiet day with messaging OFF says nobody can reach the assistant, with the way forward — and never "all caught up"', () => {
     const html = renderOperationsHome(emptyFactory, 'en', NOTHING_TODAY(NOW));
-    expect(html).toContain(t('en', 'today.calm.notLive.title'));
+    // The quiet-day run — said as the way there, never as "no customer can reach".
+    expect(html).toContain(t('en', 'home.wins.connect'));
     // Phase 9 (w4-today-setup-16) — the way forward is the setup step's own door.
     expect(html).toContain('href="/app/business/channels"');
     expect(html).toContain(t('en', 'ops.system.notLive'));
@@ -267,11 +270,12 @@ describe('Phase 9 · Today claims nothing it cannot know (V1-088)', () => {
   // are gone with the block. What V1-088 protected still holds: a customer who
   // wrote and waits is the band's, and the hero's quiet line speaks only of the
   // assistant's replies — never "nothing happened".
-  it('a customer waiting is named in the band while the hero says only that the assistant has not replied yet, in every locale', () => {
+  it('a customer waiting is named in the card while the wins tile says what will appear there — never "nothing happened", in every locale', () => {
     for (const l of LOCALES) {
       const html = renderOperationsHome(live(populated), l, { ...busy, handled: { total: 0, people: [] } });
       expect(html, l).toContain('<bdi>Maya Rahman</bdi>');
-      expect(html, l).toContain(esc(t(l, 'today.handled.none')));
+      expect(html, l).toContain(esc(t(l, 'home.wins.title')));
+      expect(html, l).toContain(esc(t(l, 'home.wins.ahead')));
     }
   });
   it('"not live" says only what is true — nothing is sent — never that nothing is received', () => {
