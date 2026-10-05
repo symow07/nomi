@@ -2,25 +2,26 @@ Nomi
 Third-party material in this repository, and the licence each one comes under.
 
 --------------------------------------------------------------------------------
-Solar — the navigation's icons
+Solar — the product's icons
 --------------------------------------------------------------------------------
 Solar by 480 Design
   https://www.figma.com/community/file/1166831539721848736
 Licence: Creative Commons Attribution 4.0 International (CC BY 4.0)
   https://creativecommons.org/licenses/by/4.0/
 Source: the npm package @iconify-json/solar 1.2.13 (https://icon-sets.iconify.design/solar/)
-Used: the Linear drawings home-2, inbox, calendar, settings, users-group-rounded and user-circle,
-  in src/api/web/solar.ts, written by tools/icons.mjs.
+Used: every icon the product draws, from the Linear set, in src/api/web/solar.ts, written by
+  tools/icons.mjs. The drawings are listed by name in assets/icons/SOLAR-LICENSE.txt.
 Changes: none to the drawings. Each is copied as the package ships it; the app's stylesheet sets its
-  size, its colour and, at the "Customers" heading's smaller size, a wider line.
+  size, its colour and the width its line is drawn at on screen.
 Attribution file: assets/icons/SOLAR-LICENSE.txt
 
 --------------------------------------------------------------------------------
-Phosphor — every other icon
+Phosphor — a few icons held for the owner's choice
 --------------------------------------------------------------------------------
 Phosphor Icons (https://phosphoricons.com), from @phosphor-icons/core 2.1.1
 Licence: MIT. The notice: assets/icons/PHOSPHOR-LICENSE.txt
-Used: src/api/web/phosphor.ts, written by tools/icons.mjs. The drawings are unchanged.
+Used: only the meanings Solar has no good drawing for yet, until the owner picks one (src/api/web/phosphor.ts,
+  written by tools/icons.mjs). The drawings are unchanged.
 
 --------------------------------------------------------------------------------
 Noto — the fonts

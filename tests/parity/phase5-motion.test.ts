@@ -377,7 +377,7 @@ describe('phase 5 · the assistant at work, in place', () => {
   it('the line: its ✦, what it is doing in each language, three dots, said once to a screen reader', () => {
     for (const l of LOCALES) {
       const line = workingLine(l);
-      expect(line, l).toMatch(/^<div class="block working" role="status"><svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg> /);
+      expect(line, l).toMatch(/^<div class="block working" role="status"><svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg> /);
       expect(line, l).toContain('<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>');
     }
     expect(t('en', 'conv.working', { name: 'Lily' })).toBe('Lily is writing a reply');

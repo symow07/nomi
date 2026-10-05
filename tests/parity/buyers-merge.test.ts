@@ -193,7 +193,7 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     }
     expect(rowOf(h, 'c-yours')![1]).toBe('yours');
     expect(rowOf(h, 'c-hers')![1]).toBe('hers');
-    expect(rowOf(h, 'c-hers')![4]).toContain('' + agentMark(16, 'rest', 'am as') + '');
+    expect(rowOf(h, 'c-hers')![4]).toContain('' + agentMark(16, 'am as') + '');
     // and a screen reader hears the state in words
     expect(h).toContain(`<span class="sr">${esc(t('en', 'buyers.group.needsYou'))}</span>`);
   });

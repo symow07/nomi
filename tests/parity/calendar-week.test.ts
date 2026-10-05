@@ -90,7 +90,7 @@ describe('the week, a row of the month (the owner\'s correction, 2026-10-04: one
     expect(html).toMatch(new RegExp(`<li class="dl-row solid done" data-src="sample_requests:s1"[\\s\\S]*?<a class="dl-go" href="/app/inbox/${CONV}#latest">`));
     const own = draw(week(), 'en', { ask: chosen(addDays(TODAY, 1)), now: NOW });
     expect(own).toMatch(/<li class="dl-row dashed" data-src="calendar_entries:55555555-5555-4555-8555-555555555555"/);
-    expect(own).toMatch(/<span class="dl-hour">11:00–13:00<\/span><span class="dl-who dl-only"><svg class="kind-icon"[\s\S]*?<span class="dl-say"><bdi>Photo shoot<\/bdi><\/span>/);
+    expect(own).toMatch(/<span class="dl-hour">11:00–13:00<\/span><span class="dl-who dl-only"><svg class="kind-icon[ "][\s\S]*?<span class="dl-say"><bdi>Photo shoot<\/bdi><\/span>/);
     // the closure is drawn on each day it covers, in the grid and in each of its days' lists
     const grid = (h: string) => h.slice(h.indexOf('<table class="mo">'), h.indexOf('</table>'));
     expect(grid(draw(week(), 'en', { ask: ask(), now: NOW })).match(/data-src="factory_closures:c1"/g)).toHaveLength(2);
@@ -105,7 +105,7 @@ describe('the week, a row of the month (the owner\'s correction, 2026-10-04: one
     for (const a of [ask(), chosen(TODAY)]) {
       const html = draw(week(), 'en', { ask: a, now: NOW });
       expect(html).toMatch(/data-src="handoffs:h1"[\s\S]*?<span class="dl-say"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> Reply owed to <bdi>Maya Rahman<\/bdi><\/span>/);
-      expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
+      expect(html).toMatch(/data-src="quotes:q1"[\s\S]*?<span class="dl-say"><svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg> Quote sent to <bdi>Maya Rahman<\/bdi><\/span>/);
     }
   });
 
@@ -182,7 +182,7 @@ describe('phase 7 · a chosen day as one list in time order', () => {
     // the grid stays above the list: the day is chosen in it
     const rows = [...html.matchAll(/<li class="dl-row[^"]*" data-src="([^"]+)"/g)].map((m) => m[1]);
     expect(rows).toEqual(['quotes:q1', 'handoffs:h1', 'quotes:q2']);      // 12:40, 16:00, 18:05
-    expect(html).toContain('<svg class="kind-icon"');
+    expect(html).toContain('<svg class="kind-icon');
     expect(html).toContain('<bdi>Maya Rahman</bdi>');
   });
 

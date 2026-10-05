@@ -155,7 +155,7 @@ describe('phase 4 · the row: spend is the headline, no order count, the regular
     for (const l of LOCALES) {
       const h = html(l);
       const regular = rowOf(h, 3);
-      expect(regular, l).toMatch(new RegExp(`<span class="ir-reg"><svg class="ni"[^>]*aria-hidden="true"[^>]*>[\\s\\S]*?</svg><span class="ir-reg-w">${shown(l, 'buyers.row.regular')}</span></span>`));
+      expect(regular, l).toMatch(new RegExp(`<span class="ir-reg"><svg class="ni sl"[^>]*aria-hidden="true"[^>]*>[\\s\\S]*?</svg><span class="ir-reg-w">${shown(l, 'buyers.row.regular')}</span></span>`));
       for (const n of [1, 2, 4, 5]) expect(rowOf(h, n), `${l} ${n}`).not.toContain('ir-reg');
       // and the mark is explained under the rows, with the rule Nomi follows
       expect(h, l).toContain(shown(l, 'buyers.key.regular', { n: show.quantity(l, REGULAR_ORDERS) }));

@@ -1,5 +1,4 @@
-import { PHOSPHOR } from './phosphor.js';
-import { SOLAR } from './solar.js';
+import { solarSvg } from './icons.js';
 
 /**
  * THE ASSISTANT'S MARK — ONE SLOT (the icons run, 2026-10-04).
@@ -15,12 +14,11 @@ import { SOLAR } from './solar.js';
  * replaces the drawing below — this file, this function — and nothing that
  * calls it moves.
  *
- * Until then the slot holds Phosphor's user-circle: a person, because the
- * assistant works for the business as a person on its staff would; in a
- * circle, because a character's face will sit in a round of about this
- * footprint. Not a sparkle, a star, a robot or a wand: nothing that says
- * "machine". At rest it is the outline; on the page you are on, the filled
- * drawing, like every other entry in the rail.
+ * Until then the slot holds a user-circle (Solar's since the Solar run; it was
+ * Phosphor's): a person, because the assistant works for the business as a
+ * person on its staff would; in a circle, because a character's face will sit
+ * in a round of about this footprint. Not a sparkle, a star, a robot or a wand:
+ * nothing that says "machine". Always the outline.
  *
  * WHERE IT IS DRAWN (the icons run, PART 2): wherever the assistant is shown
  * as a MARK — its entry in the rail, the Inbox row it answered and the row's
@@ -30,23 +28,10 @@ import { SOLAR } from './solar.js';
  * it wrote, the draft card's "Lily drafted", the takeover pill) it is the name
  * tag instead (`.as-tag`, `.as`): its name on its wash, no mark.
  *
- * `weight` follows the words beside it, as every icon's does (icons.ts): the
- * line at 18 px and under is bold, so a mark at the size of a 13 or 15 px line
- * is not a hairline; larger, regular. A character that replaces the drawing
- * may ignore it.
- *
- * THE RAIL (the Solar nav, 2026-10-05) draws its icons in Solar's Linear set,
- * and the slot there is `line`: Solar's user-circle, the same even line as the
- * rail's other icons, and never filled — where you are, the rail's stylesheet
- * colours it, as it does every entry. Still this function, still a fixed box.
+ * THE SOLAR RUN (2026-10-05) — the slot is drawn in the product's one family: Solar's user-circle, a
+ * line, at every size and never filled (the nav's state is the stylesheet's colour, as on every entry).
+ * Its line follows the size it is drawn at, as every icon's does (icons.ts). Still this function, still a
+ * fixed `size` box: a character that replaces the drawing drops in here.
  */
-export type AgentMarkState = 'rest' | 'here';
-export type AgentMarkWeight = 'regular' | 'bold' | 'line';
-
-export const agentMark = (size: number, state: AgentMarkState = 'rest', className = 'ni',
-  weight: AgentMarkWeight = size <= 18 ? 'bold' : 'regular'): string =>
-  weight === 'line'
-    ? `<svg class="${className}" data-mark="agent" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" aria-hidden="true" focusable="false">`
-      + `${SOLAR['user-circle']}</svg>`
-    : `<svg class="${className}" data-mark="agent" viewBox="0 0 256 256" width="${size}" height="${size}" fill="currentColor" aria-hidden="true" focusable="false">`
-      + `<path d="${PHOSPHOR['user-circle'][state === 'here' ? 'fill' : weight]}"/></svg>`;
+export const agentMark = (size: number, className = 'ni'): string =>
+  solarSvg(className, 'user-circle', size).replace(' viewBox=', ' data-mark="agent" viewBox=');

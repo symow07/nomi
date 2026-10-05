@@ -172,7 +172,7 @@ export const isOutreachRoute = (url: string): boolean => {
  * anything else (Stripe confirming a card) does not.
  */
 export const atWork = (text: string, assistant = false): string =>
-  `<div class="block working" role="status">${assistant ? `${agentMark(16, 'rest', 'am as')} ` : ''}<span>${esc(text)}</span>`
+  `<div class="block working" role="status">${assistant ? `${agentMark(16, 'am as')} ` : ''}<span>${esc(text)}</span>`
   + `<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
 
 /**
@@ -316,11 +316,23 @@ ${SHAPE_CSS}  .dot.todo { color:var(--color-ink-secondary); }
     padding:2px var(--space-8); border-radius:var(--radius-chip); background:var(--color-assistant-wash); color:var(--color-assistant); font-weight:600; }
   .card > p > .as { font-size:var(--font-size-caption); }
   .pill.as { background:var(--color-assistant-wash); color:var(--color-assistant); }
+  /* THE SOLAR RUN (2026-10-05) — every icon is Solar's Linear drawing (icons.ts). Its line is drawn at a fixed
+     width on screen whatever the icon's size, and a little lighter as the icon gets smaller, so every icon
+     reads at the nav's weight (measured side by side with the nav's 28 px): 1.75 px from 23 px up, 1.65 at 20
+     to 22, 1.6 at 18 to 19.5, 1.5 at 17 and under. Each place below names its own; the assistant's mark grows
+     with its words, so the larger words it stands in name theirs. */
+  svg.sl * { vector-effect:non-scaling-stroke; }
+  svg.sl > * { stroke-width:1.75px; }
+  nav.side .navhead .ni.sl > *, .sheet-x > .xi.sl > *, .dl-get > .ni.sl > *, .dl-who.dl-only .kind-icon.sl > *,
+  .face-s .face-i svg.sl > * { stroke-width:1.65px; }
+  .mo-e .kind-icon.sl > *, .face-xs .face-i svg.sl > *, .dl-say .am.sl > * { stroke-width:1.6px; }
+  .am.sl > *, .mi.sl > *, .go > .gi.sl > *, .ir-reg .ni.sl > *, .dl-who .kind-icon.sl > * { stroke-width:1.5px; }
+  .td-head .am.sl > * { stroke-width:1.75px; }
   /* The icons run (2026-10-04) — the assistant's slot drawn inline, as a MARK beside words (agentMark.ts): a little
      larger than the line's capitals and centred on them, in the colour its place gives it (the light shade, with .as). */
   .am { display:inline-block; flex:none; inline-size:1.15em; block-size:1.15em; vertical-align:-0.22em; }
-  /* What a customer sent that is not words — a file, a voice note, a photo: Phosphor's, bold, before the words that say it. */
-  .mi { display:inline-block; flex:none; inline-size:1.15em; block-size:1.15em; vertical-align:-0.22em; margin-inline-end:var(--space-4); }
+  /* What a customer sent that is not words — a file, a voice note, a photo — before the words that say it, in the ink. */
+  .mi { display:inline-block; flex:none; inline-size:1.15em; block-size:1.15em; vertical-align:-0.22em; margin-inline-end:var(--space-4); color:var(--color-ink); }
 ${(Object.keys(SIGNAL_BEFORE) as Signal[]).map((s) => markBefore(s, SIGNAL_BEFORE[s])).join('\n')}
   @media (forced-colors: active) {
     .dot.warn { inline-size:auto; block-size:auto; text-indent:0; background:none; }
@@ -543,8 +555,8 @@ export const FACE_CSS = `  .face { position:relative; display:inline-grid; place
   .face-l { inline-size:56px; block-size:56px; font-size:var(--font-size-title); }
   .face-xl { inline-size:96px; block-size:96px; font-size:var(--font-size-hero); }
   .face-i { display:grid; place-items:center; inline-size:100%; block-size:100%; }
-  /* The icons run — the person drawn for a customer with no name yet is Phosphor's, bold: at 1.4em its line is the
-     stem of the initials beside it (600) at every face's size. */
+  /* The Solar run — the person drawn for a customer with no name yet is Solar's, at 1.4em of the face's size; its
+     line is the one for the size it is drawn at (18 px on the smallest face, 24 on the usual one). */
   .face-i svg { inline-size:1.4em; block-size:1.4em; }
   .face-p { position:absolute; inset:0; inline-size:100%; block-size:100%; object-fit:cover; }
   .face.t1 { background:var(--face-1-bg); color:var(--face-1-fg); }
@@ -595,13 +607,11 @@ ${FACE_CSS}
   /* The warmth run's re-audit (w4-whole-18) — a heading, not an entry: smaller,
      in weight, its shape small, and nothing to press. */
   /* The Solar nav (2026-10-05) — its shape at 20 px, centred in the entries' 28 px icon column (4 + 20 + 4)
-     with the entries' 16 px before its word, so its word starts where theirs do. The drawing's line is 1.5 of
-     24 units, 1.25 px at 20: the rule widens it to 2.1 units, the same 1.75 px line as the entries' at 28.
-     (The rule names the rail: the rail's own size for its icons would outrank it.) */
+     with the entries' 16 px before its word, so its word starts where theirs do; its line is the 20 px one
+     (the Solar run's rule above). (The rule names the rail: the rail's own size for its icons would outrank it.) */
   .navhead { display:flex; align-items:center; gap:var(--space-16); padding: var(--space-12) var(--space-12) var(--space-4);
     font-size: var(--font-size-caption); font-weight:500; color: var(--color-ink-secondary); }
   nav.side .navhead .ni { inline-size:20px; block-size:20px; margin-inline:var(--space-4); }
-  nav.side .navhead .ni > g { stroke-width:2.1px; }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: var(--tracking-tight); }
   .brand .mark { flex:none; }
@@ -834,8 +844,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
     padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-brand); }
   .deeper:hover, .deeper:focus-visible { text-decoration:underline; text-underline-offset:3px; }
   /* The chevron carries the affordance now that the label does not shout — in the brand, on every door and row. */
-  /* The icons run (2026-10-04) — the caret is Phosphor's, bold at 16 px (a 1.5 px line, the stem of the door's 15 px
-     words); it was the font's character, a third of the row's icon. */
+  /* The caret is Solar's chevron at 16 px (the Solar run; Phosphor's before), in the brand like the door's words;
+     it was the font's character once, a third of the row's icon. */
   .go { display:inline-flex; align-items:center; flex:none; color:var(--color-brand); }
   .go > .gi { inline-size:16px; block-size:16px; }
   [dir="rtl"] .go { transform:scaleX(-1); }
@@ -887,8 +897,8 @@ ${SIGNAL_CSS}${MOTION_CSS}
      and the door. The value stays beside the name on a phone, and wraps under
      itself rather than being cut. A row that does something (Log out) is a button drawn
      as a row, in its own card at the foot. */
-  /* The icons run — Phosphor's regular at 24 px, as the rail's: a 1.5 px line beside the name's 15 px at 500. */
-  .sr-menu > .ni { flex:none; inline-size:24px; block-size:24px; color:var(--color-ink-secondary); }
+  /* The Solar run — Solar's drawing at 24 px in the ink, the nav's 1.75 px line, beside the name's 15 px. */
+  .sr-menu > .ni { flex:none; inline-size:24px; block-size:24px; color:var(--color-ink); }
   /* The owner's decision (2026-10-03): 56 for a row, 64 for a row that carries a line under its name. */
   a.srow.sr-menu:has(.sr-desc), div.srow.sr-menu:has(.sr-desc) { min-height:64px; }
   button.srow { inline-size:100%; border:0; background:none; font:inherit; color:var(--color-ink); text-align:start; cursor:pointer; }
@@ -1191,10 +1201,10 @@ ${SIGNAL_CSS}${MOTION_CSS}
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
     color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
   details > summary::-webkit-details-marker { display:none; }
-  /* The icons run (2026-10-04) — the fold's caret is the doors' (Phosphor, bold, 16 px), drawn by the stylesheet:
+  /* The fold's caret is the doors' (Solar's chevron at 16 px, its 1.5 px line; the Solar run), drawn by the stylesheet:
      a box in the brand cut to the caret, so no face draws it. Open, it turns down. */
   details > summary::before { content:""; display:inline-block; flex:none; inline-size:16px; block-size:16px;
-    color:var(--color-brand); background-color:currentColor; ${iconMask('go', 'bold')} forced-color-adjust:none; }
+    color:var(--color-brand); background-color:currentColor; ${iconMask('go', 16, 1.5)} forced-color-adjust:none; }
   details[open] > summary::before { transform:rotate(90deg); }
   [dir="rtl"] details:not([open]) > summary::before { transform:scaleX(-1); }
   /* The twins of :hover and :focus-visible, so a page can SHOW a state without a
@@ -1348,7 +1358,7 @@ const STYLE_PAGES = `
   .dl-files .row { padding:var(--space-4) var(--space-16); border-bottom:0; }
   .dl-get { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px; color:var(--color-ink); font-size:var(--font-size-small); text-decoration:none; }
   .dl-get:hover, .dl-get:focus-visible { text-decoration:underline; text-decoration-color:var(--color-brand); text-underline-offset:3px; }
-  /* The icons run — regular at 22 px: a 1.4 px line, the stem of "Download" at 15 px and 400. */
+  /* The Solar run — the download at 22 px, its line the 22 px one. */
   .dl-get > .ni { inline-size:22px; block-size:22px; flex:none; }
   .data-more { margin:0 0 var(--space-12); }
   .data-more > summary { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -1911,7 +1921,7 @@ const STYLE_PAGES = `
   .dl-on .cal-now { margin:0; font-size:inherit; }
   .dl-who { position:relative; flex:none; display:inline-grid; place-items:center; inline-size:32px; block-size:32px; }
   .dl-who .kind-icon { position:absolute; inset-block-end:-4px; inset-inline-end:-6px; inline-size:18px; block-size:18px; padding:2px;
-    background:var(--color-surface); border-radius:var(--radius-chip); color:var(--color-ink-secondary); pointer-events:none; }
+    background:var(--color-surface); border-radius:var(--radius-chip); color:var(--color-ink); pointer-events:none; }
   /* A date that is nobody's — a closure, the owner's own — has its kind's icon in the face's place. */
   .dl-who.dl-only { border-radius:var(--radius-chip); background:var(--color-sand); }
   /* The icons run — the badge's kind is bold (14 px drawn, a 1.3 px line); in the face's place it is regular at 22. */
@@ -1938,8 +1948,8 @@ const STYLE_PAGES = `
   .empty.cal-empty { display:grid; justify-items:start; gap:var(--space-8); margin:var(--space-16) 0 0; padding:var(--space-24);
     border:0; border-radius:var(--radius-card); background:var(--color-surface); box-shadow:var(--shadow-lift1); }
   .cal-empty-i { display:grid; place-items:center; inline-size:56px; block-size:56px; border-radius:var(--radius-chip);
-    background:var(--color-sand); color:var(--color-ink-secondary); }
-  /* The icons run — bold at 28 px beside the 20 px title at 600. */
+    background:var(--color-sand); color:var(--color-ink); }
+  /* The Solar run — 28 px beside the 20 px title, the nav's line. */
   .cal-empty-ic { inline-size:28px; block-size:28px; }
   .cal-empty-t { margin:0; font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); text-wrap:balance; }
   .cal-empty .muted { margin:0; font-size:var(--font-size-small); }
@@ -1985,7 +1995,7 @@ const STYLE_PAGES = `
   .mo-e { display:flex; align-items:center; gap:var(--space-4); margin-top:var(--space-4); font-size:var(--font-size-caption); line-height:1.3; color:var(--color-ink); }
   .mo-e .face-link { align-items:center; gap:var(--space-4); }
   .mo-n { min-width:0; overflow-wrap:break-word; }
-  .mo-e .kind-icon { flex:none; inline-size:24px; block-size:24px; padding:3px; border-radius:var(--radius-chip); background:var(--color-sand); color:var(--color-ink-secondary); }
+  .mo-e .kind-icon { flex:none; inline-size:24px; block-size:24px; padding:3px; border-radius:var(--radius-chip); background:var(--color-sand); color:var(--color-ink); }
   .mo-e.done { color:var(--color-ink-secondary); }
   .mo-more { display:inline-flex; align-items:center; min-height:24px; margin-top:var(--space-4); font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink); }
   /* Phase 9 (w4-customers-17) — "+4 more" inside the cell's own inset, where its day's number and names start, never against the border. */
@@ -2098,7 +2108,7 @@ const STYLE_PAGES = `
   .irow.unanswered .ir-name { font-weight:600; }
   .ir-reg { flex:none; display:inline-flex; align-items:center; gap:var(--space-4); white-space:nowrap;
     font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .ir-reg .ni { inline-size:1.15em; block-size:1.15em; flex:none; }
+  .ir-reg .ni { inline-size:1.15em; block-size:1.15em; flex:none; color:var(--color-ink); }
   .ir-spent { grid-row:1; grid-column:2; justify-self:end; white-space:nowrap; font-size:var(--font-size-base); font-weight:600;
     line-height:1.35; font-variant-numeric:tabular-nums; }
   /* Phase 9 (w4-customers-04) — in "matters most", the price a customer was given, in Stone: offered, not spent. */
@@ -2823,7 +2833,7 @@ export function shell(input: {
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
     // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it); the assistant's
     // entry is its slot, in the rail's line.
-    const mark = n.id === 'employee' ? agentMark(28, 'rest', 'ni', 'line') : railIcon(NAV_ICON[n.id] ?? 'home-2');
+    const mark = n.id === 'employee' ? agentMark(28, 'ni') : railIcon(NAV_ICON[n.id] ?? 'home-2');
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
        >${mark}${text}</a>`;
   };
@@ -2912,7 +2922,7 @@ const askDialog = (locale: Locale): string =>
  */
 const cardSheet = (locale: Locale): string =>
   `<dialog class="sheet" aria-labelledby="pc-name" data-sheet><form method="dialog" class="sheet-bar">`
-  + `<button type="submit" class="sheet-x" aria-label="${esc(t(locale, 'pcard.close'))}">${icon('close', 'xi', 'bold')}</button></form><div data-sheet-body></div></dialog>`;
+  + `<button type="submit" class="sheet-x" aria-label="${esc(t(locale, 'pcard.close'))}">${icon('close', 'xi')}</button></form><div data-sheet-body></div></dialog>`;
 
 /**
  * A1 — the two pages a stranger may see: the door, and how to get a key.

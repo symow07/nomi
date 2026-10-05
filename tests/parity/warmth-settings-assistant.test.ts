@@ -115,7 +115,7 @@ describe('phase 7 · the landing: the name, the control, the menu', () => {
       for (const r of all) {
         expect(r, `${l}: ${text(r)}`).toMatch(/^<a class="srow sr-menu(?: sr-two)?" href="\/app\/[^"]+"><svg class="ni[^"]*"[^>]*aria-hidden="true"/);
         expect(r).toContain('<span class="sr-label">');
-        expect(r).toMatch(/<span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span><\/a>$/);
+        expect(r).toMatch(/<span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span><\/a>$/);
         // every row says where it stands — a value, or (Practice) the line under its name
         expect(r.includes('<span class="sr-value') || r.includes('<span class="sr-desc">'), `${l}: ${text(r)}`).toBe(true);
       }

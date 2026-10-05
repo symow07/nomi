@@ -137,8 +137,8 @@ describe('G2c · the owner is told what arrived, in her language', () => {
     }), 'en', NOW, null);
     // the icons run — Phosphor's paperclip, never the 📎 emoji
     expect(html).not.toMatch(/\p{Extended_Pictographic}/u);
-    const bubble = html.slice(html.indexOf('<svg class="mi"'), html.indexOf('RFQ attached') + 40);
-    expect(bubble).toMatch(/^<svg class="mi"[^>]*><path d="[^"]+"\/><\/svg>/);
+    const bubble = html.slice(html.indexOf('<svg class="mi sl"'), html.indexOf('RFQ attached') + 40);
+    expect(bubble).toMatch(/^<svg class="mi sl"[^>]*>[\s\S]*?<\/svg>/);
     expect(bubble).toContain(t('en', 'received.document'));
     expect(bubble).toContain('class="said"');
   });

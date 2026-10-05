@@ -442,7 +442,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: {
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           ${/* w4-conversation-17 — the assistant's mark before its words, as on a conversation. */ ''}${
             m.direction === 'outbound' && m.by !== 'owner' ? `<div class="msg-by">${byAssistant(name)}</div>` : ''}
-          <div dir="auto" class="${bubbleClass(speakerOf(m))}">${m.isImage ? icon('photo', 'mi', 'bold') : ''}<bdi>${esc(m.text)}</bdi></div>
+          <div dir="auto" class="${bubbleClass(speakerOf(m))}">${m.isImage ? icon('photo', 'mi') : ''}<bdi>${esc(m.text)}</bdi></div>
           <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
             m.direction === 'inbound' ? esc(t(locale, 'sandbox.by.customer'))
             : m.by === 'owner' ? esc(t(locale, 'conv.by.you')) : ''].filter(Boolean).join(' · ')}</div>

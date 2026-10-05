@@ -376,7 +376,7 @@ export async function loadInboxList(
  */
 function receivedBubble(locale: Locale, m: TimelineMessage): string {
   return `<div dir="auto" class="bubble voiced">`
-    + `<div class="heard-label muted">${icon('file', 'mi', 'bold')}${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
+    + `<div class="heard-label muted">${icon('file', 'mi')}${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
     // CH7 — matched to a product of hers: the turn answered about it, and she sees which.
     + (m.about ? `<div class="muted small">${esc(t(locale, 'received.about', { name: m.about }))}</div>` : '')
     + (m.text.trim() ? `<div class="said"><bdi>${esc(m.text)}</bdi></div>` : '')
@@ -479,7 +479,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
     ? `<audio class="voiceplay" controls preload="none" src="/app/inbox/${encodeURIComponent(conversationId)}/voice/${encodeURIComponent(m.id)}"></audio>`
     : m.id ? `<div class="muted heard-label">${esc(t(locale, 'voice.noRecording'))}</div>` : '';
   const body = heardNothing
-    ? `<div class="unheard-line muted">${icon('voice', 'mi', 'bold')}${esc(t(locale, 'voice.notHeard'))}</div>`
+    ? `<div class="unheard-line muted">${icon('voice', 'mi')}${esc(t(locale, 'voice.notHeard'))}</div>`
     // The SPOKEN words keep pre-wrap — a buyer's line breaks are his. The
     // wrapper must not: `.bubble` is pre-wrap for exactly that reason, and a
     // multi-element bubble would render this file's own indentation as blank
@@ -490,7 +490,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
   const label = heardNothing ? null
     : m.heard === 'voice_corrected' ? t(locale, 'voice.corrected') : t(locale, 'voice.heardAs');
   return `<div dir="auto" class="bubble voiced">`
-    + (label ? `<div class="heard-label muted">${icon('voice', 'mi', 'bold')}${esc(label)}</div>` : '')
+    + (label ? `<div class="heard-label muted">${icon('voice', 'mi')}${esc(label)}</div>` : '')
     + player
     + body
     + (m.originalTranscript ? `<div class="orig muted"><bdi>${esc(m.originalTranscript)}</bdi></div>` : '')
@@ -1241,7 +1241,7 @@ export type RowState = 'needs' | 'yours' | 'hers';
 export const rowState = (c: ConversationSummary): RowState =>
   c.orderWaiting === true || c.deletionWaiting === true || c.ownership === 'WAITING_HUMAN' || c.awaitingReview ? 'needs'
     : c.ownership === 'OWNER_CONTROLLED' ? 'yours' : 'hers';
-export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: shape('waiting'), yours: shape('you'), hers: agentMark(16, 'rest', 'am') };
+export const ROW_MARK: Readonly<Record<RowState, string>> = { needs: shape('waiting'), yours: shape('you'), hers: agentMark(16, 'am') };
 
 export type RowOptions = {
   readonly now: Date;
@@ -1304,7 +1304,7 @@ export function customerRow(locale: Locale, c: ConversationSummary, o: RowOption
   // the assistant, by its mark. Phase 9 (V1-174) — on every row, the
   // assistant's own too: an answered row read like an unanswered one in grey.
   const speaker = c.lastFrom === 'person' ? `<bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ': '}`
-    : c.lastFrom === 'assistant' ? `${agentMark(16, 'rest', 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
+    : c.lastFrom === 'assistant' ? `${agentMark(16, 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span> ` : '';
   const when = [
     o.showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
     c.latestAt ? esc(show.shortWhen(locale, c.latestAt, o.now)) : '',
@@ -1371,14 +1371,14 @@ export function inboxRow(locale: Locale, c: ConversationSummary, o: RowOptions):
     : holder ? `<span class="ir-hold"><bdi>${esc(holder)}</bdi></span>` : '';
   // Who wrote the newest message when it was not the customer: you, in words; the assistant, by its mark.
   const speaker = c.lastFrom === 'person' ? `<span class="ir-by"><bdi>${esc(t(locale, 'conv.by.you'))}</bdi>${locale === 'zh' ? '：' : ':'}</span>`
-    : c.lastFrom === 'assistant' ? `<span class="ir-by">${agentMark(16, 'rest', 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
+    : c.lastFrom === 'assistant' ? `<span class="ir-by">${agentMark(16, 'am as')}<span class="sr">${esc(name)}${locale === 'zh' ? '：' : ': '}</span></span>` : '';
   // A search that found them by what they asked about says so where the message would be.
   const prod = productName(locale, c.product);
   const byProduct = !!o.query && !!prod && markHit(prod, o.query) !== esc(prod) && markHit(who, o.query) === esc(who);
   const glimpse = byProduct ? `<bdi class="ir-text">${markHit(prod!, o.query)}</bdi>`
     : c.latestMessage ? `${speaker}<span class="ir-text" dir="auto">${esc(preview(c.latestMessage))}</span>` : '';
   const regular = c.regular === true
-    ? `<span class="ir-reg">${icon('regular', 'ni', 'bold')}<span class="ir-reg-w">${esc(t(locale, 'buyers.row.regular'))}</span></span>` : '';
+    ? `<span class="ir-reg">${icon('regular', 'ni')}<span class="ir-reg-w">${esc(t(locale, 'buyers.row.regular'))}</span></span>` : '';
   const amount = c.spent ? show.money(locale, c.spent) : '';
   // Phase 9 (w4-customers-04) — in "matters most", a customer who spent nothing shows the price they were given, quieter.
   const offered = !amount && c.quoted ? show.money(locale, c.quoted) : '';
@@ -1620,9 +1620,9 @@ export function renderInboxList(
   // What the marks on the rows mean, under them — only the marks this page shows.
   const keys = [
     data.conversations.some((c) => c.lastFrom === 'assistant')
-      ? `<span class="ck-i">${agentMark(16, 'rest', 'am as')} ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
+      ? `<span class="ck-i">${agentMark(16, 'am as')} ${esc(t(locale, 'buyers.key.wrote', { name }))}</span>` : '',
     data.conversations.some((c) => c.regular === true)
-      ? `<span class="ck-i ir-reg">${icon('regular', 'ni', 'bold')} ${esc(t(locale, 'buyers.key.regular', { n: show.quantity(locale, REGULAR_ORDERS) }))}</span>` : '',
+      ? `<span class="ck-i ir-reg">${icon('regular', 'ni')} ${esc(t(locale, 'buyers.key.regular', { n: show.quantity(locale, REGULAR_ORDERS) }))}</span>` : '',
   ].filter(Boolean);
   const key = keys.length ? `<p class="cr-key caption muted">${keys.join('')}</p>` : '';
 

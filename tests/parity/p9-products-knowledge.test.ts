@@ -92,7 +92,7 @@ describe('Products — the list', () => {
 
   it('V1-302 — each row that opens ends in the chevron', () => {
     const html = renderProductList([item(), item({ id: 'p2' })], 'en');
-    expect(html.match(/<a class="prod" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span><\/a>/g)).toHaveLength(2);
+    expect(html.match(/<a class="prod" href="\/app\/products\/p\d">[\s\S]*?<span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span><\/a>/g)).toHaveLength(2);
   });
 
   it('V1-303 / V1-379 — the list leads to the price limits, to what the assistant knows, and to a copy', () => {
