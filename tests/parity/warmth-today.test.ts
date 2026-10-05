@@ -419,6 +419,23 @@ describe('the quiet-day run · a tile\'s headline states what IS, never an absen
     for (const l of LOCALES) for (const o of OLD[l]) expect(NEGATIVE[l].test(o), `${l}: ${o}`).toBe(true);
   });
 
+  it('the check reads every negative word on its own (one control per word, so none can be dropped unseen)', () => {
+    const ONE: Readonly<Record<Locale, readonly string[]>> = {
+      en: ['Lily has not replied', 'Nothing today', 'No replies', 'None so far', 'Never answered', 'Nobody wrote',
+        'Is it done yet', 'A day without replies', 'Lily hasn’t replied'],
+      zh: ['没有对话', '不在线', '无安排', '未处理', '尚在等'],
+      ar: ['لا ردود', 'لم يصل', 'لن يصل', 'ليس هنا', 'ليست هنا', 'الردود بعد', 'يوم بلا ردود', 'دون ردود', 'أي رد', 'أيّ رد'],
+      es: ['no hay', 'nada hoy', 'nunca respondió', 'ningún mensaje', 'ninguna conversación', 'ninguno hoy', 'nadie escribió',
+        'todavía hoy', 'aún hoy', 'sin respuestas'],
+      fr: ['ne répond', 'pas de réponse', 'rien aujourd’hui', 'jamais répondu', 'aucun message', 'aucune conversation',
+        'personne ici', 'encore là', 'sans réponse', 'n’a répondu'],
+    };
+    for (const l of LOCALES) for (const o of ONE[l]) expect(NEGATIVE[l].test(o), `${l}: ${o}`).toBe(true);
+    // and the headlines Home draws now read as what they are
+    expect(NEGATIVE.en.test('What Lily handles for you')).toBe(false);
+    expect(NEGATIVE.fr.test('Ce que Lily règle pour vous')).toBe(false);
+  });
+
   it('no string Home draws as a tile headline is a negative construction, in any language', () => {
     for (const l of LOCALES) {
       for (const k of TILE_HEADLINES) {
