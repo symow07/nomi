@@ -389,13 +389,11 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
    * Phosphor one (or the brand's mark); the assistant marked only by its slot.
    *
    * THE SOLAR NAV (#228) and THE SOLAR RUN (2026-10-05) — every icon is Solar's Linear drawing, copied unchanged
-   * (solar.ts), a line, never filled, the assistant's slot its user-circle. The one exception is a HELD meaning
-   * (icons.ts), still Phosphor's until the owner picks its Solar drawing — never inside the nav.
+   * (solar.ts), a line, never filled, the assistant's slot its user-circle. (The seven meanings held in
+   * Phosphor's until the owner chose their Solar drawings, 2026-10-05, are Solar's now: no other family.)
    */
-  it('the icons run · every page in en, ar and zh: no star, no emoji, no glyph as an icon; every drawing Solar\'s but a held few', async () => {
-    const { PHOSPHOR } = await import('../../src/api/web/phosphor.js');
+  it('the icons run · every page in en, ar and zh: no star, no emoji, no glyph as an icon; every drawing Solar\'s', async () => {
     const { SOLAR } = await import('../../src/api/web/solar.js');
-    const heldPaths = new Set<string>(Object.values(PHOSPHOR).flatMap((w) => Object.values(w) as string[]));
     const solarDrawings = new Set<string>(Object.values(SOLAR));
     const ORNAMENT = /[✦✧✨★☆⭐]|\p{Extended_Pictographic}|\p{Regional_Indicator}|\u{FE0F}/u;
     // what a customer or the owner wrote is theirs (an emoji in a message stays): only the page's own drawing is held
@@ -443,8 +441,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           const [whole, attrs, body] = [m[0], m[1]!, m[2]!];
           if (/class="mark"/.test(attrs)) continue;                     // the brand's mark (brand.ts), drawn on its own grid
           const solar = /\bsl\b/.test(/class="([^"]*)"/.exec(attrs)?.[1] ?? '') && /viewBox="0 0 24 24"/.test(attrs) && / fill="none"/.test(attrs) && solarDrawings.has(body);
-          const held = / held"/.test(attrs) && heldPaths.has(/^<path d="([^"]*)"\/>$/.exec(body)?.[1] ?? '');
-          if (!solar && !held) problems.push(`${at}: a drawing that is neither Solar's nor a held one: ${whole.slice(0, 80)}`);
+          if (!solar) problems.push(`${at}: a drawing that is not Solar's: ${whole.slice(0, 80)}`);
           if (/data-mark="agent"/.test(attrs) && body !== SOLAR['user-circle']) problems.push(`${at}: the agent's slot drawn by something else`);
         }
       }

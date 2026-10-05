@@ -16,14 +16,6 @@ Changes: none to the drawings. Each is copied as the package ships it; the app's
 Attribution file: assets/icons/SOLAR-LICENSE.txt
 
 --------------------------------------------------------------------------------
-Phosphor — a few icons held for the owner's choice
---------------------------------------------------------------------------------
-Phosphor Icons (https://phosphoricons.com), from @phosphor-icons/core 2.1.1
-Licence: MIT. The notice: assets/icons/PHOSPHOR-LICENSE.txt
-Used: only the meanings Solar has no good drawing for yet, until the owner picks one (src/api/web/phosphor.ts,
-  written by tools/icons.mjs). The drawings are unchanged.
-
---------------------------------------------------------------------------------
 Noto — the fonts
 --------------------------------------------------------------------------------
 Noto Sans, Noto Sans Arabic, Noto Sans SC, Noto Serif, Noto Naskh Arabic and Noto Serif SC

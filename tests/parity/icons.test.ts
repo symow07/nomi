@@ -2,14 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { shell, NEEDS_DOT } from '../../src/api/web/layout.js';
 import { withWorkspace } from '../../src/api/web/say.js';
-import { PHOSPHOR } from '../../src/api/web/phosphor.js';
 import { SOLAR } from '../../src/api/web/solar.js';
 import { icon, railIcon, GO, BACK, AWAY, type IconId } from '../../src/api/web/icons.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 // @ts-expect-error — the icon tool, plain JS on purpose (tools/ is not type-checked).
-import { SOLAR_WANTED, HELD, LINEAR_SHAPE, solarDrawingOf, solarIcons, solarMeta, solarAttribution, SOLAR_LICENCE_URL } from '../../tools/icons.mjs';
+import { SOLAR_WANTED, LINEAR_SHAPE, solarDrawingOf, solarIcons, solarMeta, solarAttribution, SOLAR_LICENCE_URL } from '../../tools/icons.mjs';
 import { linkedCss } from './linked-css.js';
 
 /**
@@ -22,21 +21,18 @@ import { linkedCss } from './linked-css.js';
  * no good equivalent … do NOT substitute something loosely related … hold the gaps for me … Update the
  * guards so they assert Solar everywhere and fail if a Phosphor icon reappears."
  *
- * So: every icon is Solar's Linear drawing, copied unchanged and credited, its line drawn for its size;
- * Phosphor draws only the HELD meanings, a list that may only shrink; nothing is an emoji, a typed
- * character or an ornament.
+ * The seven meanings Solar had no clean drawing for were held in Phosphor's until the owner chose (2026-10-05:
+ * "kinds 1, sell 1, language 1, prices 1, closed 1, month 2, order 1"); with them Phosphor went.
+ *
+ * So: every icon is Solar's Linear drawing, copied unchanged and credited, its line drawn for its size; no
+ * drawing comes from any other family, and nothing is an emoji, a typed character or an ornament.
  */
 
 const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
-const PKG = 'node_modules/@phosphor-icons/core';
 const SOLAR_PKG = 'node_modules/@iconify-json/solar';
-type Drawn = Readonly<Record<string, Readonly<Record<string, string>>>>;
-const DRAWN = PHOSPHOR as unknown as Drawn;
-const PHOSPHOR_PATHS = Object.values(DRAWN).flatMap((w) => Object.values(w));
 /**
  * EVERY MEANING AND ITS DRAWING, pinned here on purpose: a meaning that changes its drawing changes this
- * table in the same commit. The held ones, as the owner was told on 2026-10-05, with Phosphor's drawing;
- * that list may shrink as the owner chooses, and never grows.
+ * table in the same commit. The last seven are the owner's choices for the gaps (2026-10-05).
  */
 const SOLAR_OF: Readonly<Record<string, keyof typeof SOLAR>> = {
   talk: 'chat-square-line', knowledge: 'notebook-minimalistic', question: 'question-circle', nope: 'forbidden-circle',
@@ -49,13 +45,11 @@ const SOLAR_OF: Readonly<Record<string, keyof typeof SOLAR>> = {
   go: 'alt-arrow-right', back: 'alt-arrow-left', close: 'close', external: 'arrow-right-up', 'date-sample': 'gift',
   'date-price': 'tag', 'date-reply': 'reply', 'date-followup': 'restart', 'date-closed': 'archive', 'date-own': 'pin',
   'date-promise': 'quote',
+  kinds: 'list', sell: 'hand-money', language: 'global', prices: 'banknote', closures: 'calendar-mark',
+  month: 'chart-2', 'date-order': 'delivery', 'date-closure': 'calendar-mark',
 };
-const HELD_OF: Readonly<Record<string, string>> = {
-  kinds: 'list-bullets', sell: 'handshake', language: 'translate', prices: 'coins', closures: 'calendar-x',
-  month: 'calendar-dots', 'date-order': 'truck', 'date-closure': 'calendar-x',
-};
-/** The keys of one of icons.ts's two maps, read from its source. */
-const keysOf = (map: 'ICON' | 'HELD') => {
+/** The keys of icons.ts's map, read from its source. */
+const keysOf = (map: 'ICON') => {
   const src = read('src/api/web/icons.ts');
   const body = src.slice(src.indexOf(`const ${map} = {`), src.indexOf('} as const', src.indexOf(`const ${map} = {`)));
   return [...code(body).matchAll(/(?:^|[\s,{])('?[a-z-]+'?):\s*'/g)].map((m) => m[1]!.replace(/'/g, '')).sort();
@@ -175,41 +169,46 @@ describe('Solar, the one family: copied as the package ships it, credited as CC 
   });
 });
 
-describe('Phosphor: held for the owner\'s choice, and nowhere else', () => {
-  it('only the held meanings draw it — the list is the one the owner was given, and it does not grow', () => {
-    expect(keysOf('HELD')).toEqual(Object.keys(HELD_OF).sort());
-    expect(Object.keys(PHOSPHOR).sort()).toEqual([...HELD].sort());
-    expect([...new Set(Object.values(HELD_OF))].sort()).toEqual([...HELD].sort());
-    for (const [id, name] of Object.entries(HELD_OF)) {
-      expect(icon(id as IconId), id).toContain(' held"');
-      expect(icon(id as IconId), id).toContain(DRAWN[name]!['regular']!);
+describe('Phosphor is gone, and cannot come back', () => {
+  it('no Phosphor drawing, module, licence file or dependency is left, and nothing names it but history', () => {
+    const pkg = JSON.parse(read('package.json'));
+    expect({ ...pkg.dependencies, ...pkg.devDependencies }['@phosphor-icons/core']).toBeUndefined();
+    expect(read('package-lock.json')).not.toContain('@phosphor-icons');
+    expect(() => read('src/api/web/phosphor.ts')).toThrow();
+    expect(() => read('assets/icons/PHOSPHOR-LICENSE.txt')).toThrow();
+    expect(read('NOTICE')).not.toMatch(/phosphor/i);
+    expect(read('README.md')).not.toMatch(/phosphor/i);
+    expect(code(read('tools/icons.mjs'))).not.toMatch(/phosphor|HELD/i);
+    for (const { f, src } of sources(SRC_DIR)) {
+      expect(src, f).not.toMatch(/from '\.\/phosphor\.js'|@phosphor-icons/);
+      expect(code(src), f).not.toContain('viewBox="0 0 256 256"');   // Phosphor's square: no drawing is on it
     }
+    expect(code(read('src/api/web/icons.ts'))).not.toMatch(/\bHELD\b|\bheld\b/);
   });
 
-  it('every other meaning draws its Solar drawing, as the table says, and no meaning draws both', () => {
+  it('every meaning draws its Solar drawing, as the table says — the gaps the owner chose included', () => {
     expect(keysOf('ICON')).toEqual(Object.keys(SOLAR_OF).sort());
     const ids = Object.keys(SOLAR_OF) as IconId[];
-    expect(ids.length).toBeGreaterThanOrEqual(45);
+    expect(ids.length).toBeGreaterThanOrEqual(55);
     for (const id of ids) {
-      expect(id in HELD_OF, id).toBe(false);
       const svg = icon(id);
       expect(isSolar(svg), id).toBe(true);
       expect(svg, id).toContain(SOLAR[SOLAR_OF[id]!]!);
-      expect(PHOSPHOR_PATHS.some((d) => svg.includes(d)), id).toBe(false);
+    }
+    // the owner's choices for the seven gaps
+    for (const [id, name] of [['kinds', 'list'], ['sell', 'hand-money'], ['language', 'global'], ['prices', 'banknote'],
+      ['closures', 'calendar-mark'], ['date-closure', 'calendar-mark'], ['month', 'chart-2'], ['date-order', 'delivery']] as const) {
+      expect(icon(id), id).toContain(SOLAR[name]);
     }
   });
 
-  it('what is held is the package\'s own path, unchanged, under its MIT notice; only icons.ts reads it', () => {
-    for (const [name, weights] of Object.entries(DRAWN)) {
-      for (const [weight, d] of Object.entries(weights)) {
-        const file = `${PKG}/assets/${weight}/${name}${weight === 'regular' ? '' : `-${weight}`}.svg`;
-        expect(/<path d="([^"]+)"\/>/.exec(read(file))?.[1], file).toBe(d);
-      }
-    }
-    expect(read(`${PKG}/LICENSE`)).toMatch(/^MIT License/);
-    expect(read('assets/icons/PHOSPHOR-LICENSE.txt').endsWith(read(`${PKG}/LICENSE`))).toBe(true);
-    const users = sources(SRC_DIR).filter(({ src }) => /from '\.\/phosphor\.js'/.test(src)).map(({ f }) => f).sort();
-    expect(users).toEqual(['api/web/icons.ts']);
+  it('one meaning, one shape: two meanings share a drawing only when they mean the same thing', () => {
+    const byDrawing = new Map<string, string[]>();
+    for (const [id, name] of Object.entries(SOLAR_OF)) byDrawing.set(name, [...(byDrawing.get(name) ?? []), id]);
+    const shared = [...byDrawing.entries()].filter(([, ids]) => ids.length > 1).map(([n, ids]) => `${n}: ${ids.sort().join(', ')}`).sort();
+    expect(shared).toEqual(['calendar-mark: closures, date-closure', 'gift: date-sample, samples']);
+    // and none is the nav's: the rail's drawings mean the rail's places
+    for (const n of ['home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded']) expect(byDrawing.has(n), n).toBe(false);
   });
 });
 
@@ -287,11 +286,11 @@ describe('the rail, in Solar\'s Linear set', () => {
     }
   });
 
-  it('never a filled icon: nothing in the rail is filled but with "none", and no Phosphor drawing', () => {
+  it('never a filled icon: nothing in the rail is filled but with "none"', () => {
     for (const [here, path] of ENTRIES) {
       const nav = navOf(page(here, path));
       const icons = (nav.match(/<svg class="ni[\s\S]*?<\/svg>/g) ?? []).join('');
-      expect(PHOSPHOR_PATHS.filter((d) => icons.includes(d)), here).toEqual([]);
+      expect(icons).not.toContain('viewBox="0 0 256 256"');
       expect(icons.match(/fill="(?!none")[^"]*"/g), here).toBeNull();
     }
     expect(navOf(page('settings', '/app/settings/people'))).toMatch(/class="navlink active" data-nav="settings"/);
@@ -400,14 +399,14 @@ describe('the assistant\'s slot: no sparkle, a neutral placeholder, one function
 });
 
 /**
- * Every screen. Each place's shape is a Solar drawing inlined (or, for a held meaning, its Phosphor one),
+ * Every screen. Each place's shape is a Solar drawing inlined,
  * the assistant is its one slot or its name tag, and nothing on a page is an emoji or a character
  * standing in for an icon.
  */
 const STAR_PATHS = ['M8 1.2C8.6 5.5', 'M11 3.5c.7 4.6'];
 const ORNAMENT = /[✦✧✨★☆⭐]|\p{Extended_Pictographic}|\p{Regional_Indicator}|\u{FE0F}/u;
 
-describe('one family on every screen: Solar, a held few, no emoji', () => {
+describe('one family on every screen: Solar, no emoji', () => {
   it('no renderer draws the four-point star, a sparkle, an emoji or a flag — only comments may name them', () => {
     const found: string[] = [];
     for (const { f, src } of sources(WEB_DIR)) {
@@ -426,13 +425,13 @@ describe('one family on every screen: Solar, a held few, no emoji', () => {
     expect(read('src/api/web/marks.ts')).not.toMatch(/\bassistant:\s*`/);
   });
 
-  it('every svg a renderer writes is Solar\'s (icons.ts) — or a held Phosphor one, a mark\'s shape or the brand\'s', () => {
+  it('every svg a renderer writes is Solar\'s (icons.ts) — or a mark\'s shape or the brand\'s', () => {
     const found: string[] = [];
     for (const { f, src } of sources(WEB_DIR)) {
       if (['brand.ts'].includes(f)) continue;
       for (const m of code(src).matchAll(/<svg\b[^>]*>/g)) {
         const t = m[0];
-        if (f === 'icons.ts' && (/viewBox="0 0 24 24"/.test(t) || /viewBox="0 0 256 256"[^>]*/.test(t))) continue;   // solarSvg, and the held branch
+        if (f === 'icons.ts' && /viewBox="0 0 24 24"/.test(t)) continue;   // solarSvg
         if (/viewBox='0 0 16 16'|viewBox='0 0 24 24'/.test(t)) continue;   // a mark's shape (marks.ts) and the fold's mask, drawn as images
         found.push(`${f}: ${t.slice(0, 70)}`);
       }
@@ -441,12 +440,12 @@ describe('one family on every screen: Solar, a held few, no emoji', () => {
     expect(read('src/api/web/icons.ts')).not.toMatch(/stroke-width="1\.8"/);   // the old hand-drawn lines
   });
 
-  it('on a page, every icon is Solar\'s, and no Phosphor drawing appears but a held one', () => {
+  it('on a page, every icon is Solar\'s', () => {
     for (const l of LOCALES) {
       const html = page('employee', '/app/employee', l);
       const svgs = (html.match(/<svg\b[^>]*>[\s\S]*?<\/svg>/g) ?? []).filter((s) => !/class="mark/.test(s));
       expect(svgs.length, l).toBeGreaterThan(5);
-      for (const s of svgs) expect(isSolar(s) || / held"/.test(s), `${l}: ${s.slice(0, 80)}`).toBe(true);
+      for (const s of svgs) expect(isSolar(s), `${l}: ${s.slice(0, 80)}`).toBe(true);
     }
   });
 
