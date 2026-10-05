@@ -3,6 +3,7 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/connectedChannels.js';
 import { zoneOf } from '../../db/zone.js';
+import { workspaceZone } from './zone.js';
 import { faceVersions } from '../../db/faces.js';
 import { SPEND_STATUSES } from '../../db/customerValue.js';
 import { PRICE_GIVEN } from '../../db/quotesGiven.js';
@@ -416,9 +417,9 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
     <ul class="td-row">${faces}${more}</ul>`;
 }
 
-/** The 'since' rung's date, in the workspace's zone, for the headline and the figures. */
+/** The 'since' rung's date — its day and month ("Sep 20"), in the workspace's zone — for the headline and the figures. */
 const sinceOf = (d: TodayData, locale: Locale): Record<string, string> =>
-  d.winsScope === 'since' && d.winsSince ? { date: show.date(locale, d.winsSince) } : {};
+  d.winsScope === 'since' && d.winsSince ? { date: show.dayMonth(locale, dayKey(d.winsSince, workspaceZone())) } : {};
 
 /** Which channels send, or that sending is paused — one line, the channels named. */
 export function renderSending(d: TodayData, locale: Locale, paused: boolean): string {

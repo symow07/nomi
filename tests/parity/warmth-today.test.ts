@@ -330,7 +330,7 @@ describe('4 · the wins — what the assistant handled, then the figures', () =>
     const SINCE = new Date('2026-09-20T00:00:00+04:00');
     for (const l of LOCALES) {
       const html = render(l, day(4, undefined, { winsScope: 'since', winsSince: SINCE }));
-      const date = withZone(ZONE, () => show.date(l, SINCE));
+      const date = show.dayMonth(l, dayKey(SINCE, ZONE));
       expect(bare(zone(html, 'today-done')), l).toContain(bare(esc(tn(l, 'home.wins.since', 4, { name: 'Lily', date }))));
       expect(bare(figures(html)), l).toContain(bare(esc(t(l, 'home.tally.since', { date }))));
       expect(zone(html, 'today-done').match(/<a class="face-link td-face"/g), l).toHaveLength(4);
