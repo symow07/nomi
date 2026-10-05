@@ -317,6 +317,16 @@ export async function loadOperationsSnapshot(
 const attentionCount = (s: OperationsSnapshot, k: AttentionKind): number =>
   k === 'openGaps' ? s.knowledge.openGaps : s.attention[k] ?? 0;
 
+/**
+ * THE QUIET-DAY RUN — everything Home's card asks of the owner, counted once: the customers who wait
+ * (the Inbox's "Needs you"), the replies that never arrived, the deletion requests, the questions the
+ * assistant could not answer, the replies sent alone that wait to be checked, and the capabilities it
+ * stepped back from. "All caught up" only at zero.
+ */
+const ownerWaiting = (s: OperationsSnapshot, today: TodayData): number =>
+  today.needs.total + s.attention.blockedMessages + (s.attention.deletionAsks ?? 0) + s.knowledge.openGaps
+  + (s.supervision?.spotChecks ?? 0) + (s.supervision?.demoted.length ?? 0);
+
 /** True only when nothing anywhere needs the owner — including her own threads. */
 export const needsOwnerAttention = (s: OperationsSnapshot): boolean =>
   ATTENTION_PRIORITY.some((k) => attentionCount(s, k) > 0);
@@ -401,9 +411,15 @@ export function renderOperationsHome(
     })) : '',
     s.supervision?.spotChecks ? deeper('/app/employee#spot-checks', tn(locale, 'today.spotChecks', s.supervision.spotChecks)) : '',
   ].filter(Boolean).join('');
-  // M22 — one message that never reached a customer, or one deletion request
-  // waiting, is enough to contradict "no one is waiting".
-  const quietNow = today.needs.total === 0 && blocked === 0 && asks === 0;
+  // THE QUIET-DAY RUN (2026-10-05) — the card never says "caught up" over its own contents. Production
+  // said "You're all caught up" and, under it, "1 reply to check": the calm test counted who waits, the
+  // replies that never arrived and the deletion requests, but not the rest the card lists. Now ONE count
+  // of everything the card asks of the owner (`ownerWaiting`); the calm line only when it is zero and no
+  // line "worth your attention" follows. Otherwise the heading says what IS: who waits; or that something
+  // needs the owner (the waiting signal, since it does); or, only suggestions, that they are worth it.
+  const waitingHere = ownerWaiting(s, today);
+  const worth = lead !== '';
+  const quietNow = waitingHere === 0 && !worth;
   // M22 (F-01) — "all caught up" only where customers can reach the assistant:
   // with messaging off nothing has been achieved, and the page says so plainly.
   // Phase 9 (w4-today-setup-09) — said once: the title, then what the assistant does.
@@ -413,7 +429,8 @@ export function renderOperationsHome(
     ? `<h2 id="today-now" class="tw-head home-calm">${esc(t(locale, calm ? 'today.calm.title' : 'today.needs.none'))}${
         calm && !holding ? ` <span class="home-care">${agentMark(16, 'am as')} ${esc(t(locale, 'today.calm.care', { name }))}</span>` : ''}</h2>`
     : today.needs.total > 0 ? waitingHead(locale, today.needs.total)
-    : `<h2 id="today-now" class="tw-head"><span class="tw-need">${signalMark('waiting')} ${esc(t(locale, 'ops.attention.title'))}</span></h2>`;
+    : waitingHere > 0 ? `<h2 id="today-now" class="tw-head"><span class="tw-need">${signalMark('waiting')} ${esc(t(locale, 'ops.attention.title'))}</span></h2>`
+    : `<h2 id="today-now" class="tw-head">${esc(t(locale, 'insight.title'))}</h2>`;
 
   // Rule 9 — Setup while it is unfinished: the guide's count, named as the
   // guide is, the next step and the video that shows it together under it.
@@ -449,8 +466,10 @@ export function renderOperationsHome(
   //     forward instead of an empty row (M22, F-01), its door the setup step's own (phase 9,
   //     w4-today-setup-16). The figures follow when there is anything to count, then Results (CC-05);
   //     sending, only where messaging is live, closes the zone.
+  //     The quiet-day run: never a negative headline — with nobody able to write yet, the tile's name and
+  //     the way there (`renderHandled`, reachable false).
   const reach = !reachable && (today.handled?.total ?? 0) === 0
-    ? `<h2 id="today-done" class="td-head is-plain">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name }))}`
+    ? `${renderHandled(today, locale, { ready: false, reachable: false })}${deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name }))}`
     : renderHandled(today, locale, { ready: calm && !holding });
   // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
   const notLive = !live ? `<p class="muted notlive">${todoMark()} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';

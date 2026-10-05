@@ -1601,7 +1601,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // says why it is quiet instead of congratulating the owner. It used to
       // read "You're all caught up · Lily is looking after your buyers" on a
       // factory where nothing could reach her at all.
-      expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
+      // The quiet-day run — the way there, never "no customer can reach" as a headline.
+      expect(html).toContain(esc(t('en', 'home.wins.connect')));
       expect(html).not.toContain("You're all caught up");
       // Phase 9 of the warmth run (w4-today-setup-16) — the way forward is the setup step's own door.
       expect(html).toContain('href="/app/business/channels"');

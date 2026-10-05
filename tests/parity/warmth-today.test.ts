@@ -15,6 +15,8 @@ import { setupFrom } from '../../src/db/setup.js';
 import { linkedCss } from './linked-css.js';
 import { unisolatedFigures } from './isolates.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
+import { renderInsights, type InsightsData } from '../../src/api/web/insights.js';
+import * as show from '../../src/api/web/values.js';
 
 /**
  * THE HOME RUN (2026-10-05) — Today became HOME. The owner: "Rename 'Today' to 'Home' … Home is the RESUME
@@ -237,7 +239,7 @@ describe('2 · what needs you — the raised card', () => {
     expect(html.indexOf('class="today-foot setup"')).toBeGreaterThan(html.indexOf('</section>', html.indexOf('aria-labelledby="today-now"')));
     expect(card).not.toContain(esc(t('en', 'today.calm.title')));
     expect(html).not.toContain(esc(t('en', 'today.calm.care', { name: 'Lily' })));
-    expect(html).not.toContain(esc(t('en', 'today.handled.ready')));
+    expect(zone(html, 'today-done')).not.toContain(`${agentMark(16, 'am as')} ${esc(t('en', 'home.wins.ahead', { name: 'Lily' }))}`);
     expect(html).not.toContain(esc(t('en', 'home.ready', { name: 'Lily' })));
   });
 });
@@ -259,15 +261,16 @@ describe('3 · the day\'s schedule — the calendar\'s own rows, every one a doo
     }
   });
 
-  it('nothing dated: the fact and how dates come, calmly — and the door to the calendar', () => {
+  it('nothing dated ahead: the tile\'s name, ONE small line of what will appear here — never "nothing" — and the door', () => {
     for (const l of LOCALES) {
       const tile = zone(render(l, day(2, undefined, { schedule: { today: TODAY, entries: [] } })), 'home-schedule');
-      expect(tile, l).toContain(`<p class="home-quiet">${esc(t(l, 'home.schedule.none'))}</p>`);
+      expect(tile, l).toContain(`<h2 id="home-schedule" class="home-h">${esc(t(l, 'home.schedule.title'))}</h2>`);
       expect(tile, l).toContain(`<p class="home-how">${esc(t(l, 'home.schedule.how'))}</p>`);
+      expect(tile.match(/<p /g), l).toHaveLength(1);
       expect(tile, l).toContain(`href="/app/calendar">`);
     }
     // Chinese calls the calendar 日程, here as on the rail and the page
-    expect(MESSAGES.zh['home.schedule.none']).not.toContain('日历');
+    expect(MESSAGES.zh['home.schedule.title']).not.toContain('日历');
   });
 });
 
@@ -307,15 +310,30 @@ describe('4 · the wins — what the assistant handled, then the figures', () =>
     }
   });
 
-  it('none: an honest sentence, warm while the assistant can answer — and no hollow row, no row of zeros', () => {
+  it('never one handled: the tile\'s name, and what will appear here (with the assistant\'s mark while it can answer) — no hollow row, no row of zeros', () => {
+    const zeros = { orders: 0, quotes: 0, afterHours: 0 };
     for (const l of LOCALES) {
-      const html = render(l, { ...day(0), tally: { orders: 0, quotes: 0, afterHours: 0 } });
+      const html = render(l, { ...day(0), tally: zeros });
       const wins = zone(html, 'today-done');
-      expect(wins, l).toContain(`<h2 id="today-done" class="td-head">${esc(t(l, 'today.handled.none', { name: 'Lily' }))}</h2>`);
-      expect(wins, l).toContain(esc(t(l, 'today.handled.ready')));
+      expect(bare(wins), l).toContain(bare(`<h2 id="today-done" class="td-head is-plain">${esc(t(l, 'home.wins.title', { name: 'Lily' }))}</h2><p class="td-ready">${agentMark(16, 'am as')} ${esc(t(l, 'home.wins.ahead', { name: 'Lily' }))}</p>`));
       expect(wins, l).not.toContain('td-row');
       expect(figures(html), l).toBe('');
       expect(wins, l).toContain('href="/app/analytics"');
+      // nobody able to write yet: the way there, and the setup step's door
+      const off = zone(render(l, { ...day(0), tally: zeros, sending: [] }), 'today-done');
+      expect(bare(off), l).toContain(bare(`<p class="td-ready">${esc(t(l, 'home.wins.connect', { name: 'Lily' }))}</p>`));
+      expect(off, l).toContain('href="/app/business/channels"');
+    }
+  });
+
+  it('older than the week: everything since the last day one was handled, said with its date — the figures too', () => {
+    const SINCE = new Date('2026-09-20T00:00:00+04:00');
+    for (const l of LOCALES) {
+      const html = render(l, day(4, undefined, { winsScope: 'since', winsSince: SINCE }));
+      const date = show.dayMonth(l, dayKey(SINCE, ZONE));
+      expect(bare(zone(html, 'today-done')), l).toContain(bare(esc(tn(l, 'home.wins.since', 4, { name: 'Lily', date }))));
+      expect(bare(figures(html)), l).toContain(bare(esc(t(l, 'home.tally.since', { date }))));
+      expect(zone(html, 'today-done').match(/<a class="face-link td-face"/g), l).toHaveLength(4);
     }
   });
 
@@ -359,7 +377,159 @@ describe('the home run · never empty: a brand-new workspace still has a page', 
         expect(zone(html, id).replace(/<[^>]+>/g, '').trim().length, `${l} ${id}`).toBeGreaterThan(10);
       }
       expect(zone(html, 'home-schedule'), l).toContain('href="/app/calendar"');
-      expect(zone(html, 'today-done'), l).toContain(esc(t(l, 'today.calm.notLive.title', { name: ASSISTANT_FALLBACK[l].replace(/^./, (c) => c.toLocaleUpperCase()) })).slice(0, 8));
+      expect(zone(html, 'today-done'), l).toContain('<p class="td-ready">');
+      expect(zone(html, 'today-done'), l).toContain('href="/app/business/channels"');
+    }
+  });
+});
+
+/**
+ * THE QUIET-DAY RUN (2026-10-05) — the owner: "A tile's HEADLINE must never be a negative sentence. Never
+ * 'X has not happened', 'Nothing yet', 'No conversations'. A headline states what IS." And: "if anything is
+ * waiting, it is NOT caught up. 'All caught up' appears only when the count is genuinely zero."
+ */
+const NEGATIVE: Readonly<Record<Locale, RegExp>> = {
+  en: /(?<!\p{L})(no|not|nothing|none|never|nobody|yet|without)(?!\p{L})|n['’]t(?!\p{L})/iu,
+  zh: /[没不无未尚]/u,
+  ar: /(?<!\p{L})(لا|لم|لن|ليس|ليست|بعد|بلا|دون|أي|أيّ)(?!\p{L})/u,
+  es: /(?<!\p{L})(no|nada|nunca|ningún|ninguna|ninguno|nadie|todavía|aún|sin)(?!\p{L})/iu,
+  fr: /(?<!\p{L})(ne|pas|rien|jamais|aucun|aucune|personne|encore|sans)(?!\p{L})|(?<!\p{L})n['’](?=\p{L})/iu,
+};
+const FORMS = ['zero', 'one', 'two', 'few', 'many', 'other'] as const;
+/** Every string Home draws as a tile's headline: the schedule's, the wins', and the figures'. */
+const TILE_HEADLINES = [
+  'home.schedule.today', 'home.schedule.next', 'home.schedule.title', 'home.wins.title',
+  'today.tally.title', 'home.tally.week', 'home.tally.since',
+  ...['today.handled.title', 'home.wins.week', 'home.wins.since'].flatMap((b) => FORMS.map((f) => `${b}.${f}`)),
+] as const;
+/** Every headline inside Home's two tiles, as read. */
+const tileHeadlines = (html: string): string[] =>
+  [...html.matchAll(/<section class="home-tile[\s\S]*?<\/section>/g)]
+    .flatMap((m) => [...m[0].matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/g)].map((h) => bare(h[1]!.replace(/<[^>]+>/g, '')).trim()));
+
+describe('the quiet-day run · a tile\'s headline states what IS, never an absence', () => {
+  it('the check catches the headlines it replaced, in every language (the known bad ones)', () => {
+    const OLD: Readonly<Record<Locale, readonly string[]>> = {
+      en: ['Today Lily has not handled a conversation yet.', 'Nothing on the calendar yet.', 'No customer can reach Lily yet'],
+      zh: ['今天Lily还没有处理过对话。', '日程上还没有安排。', '客户现在还找不到Lily'],
+      ar: ['لا ردود من Lily اليوم بعد.', 'لا شيء في التقويم بعد.', 'لا يستطيع أي عميل الوصول إلى Lily بعد'],
+      es: ['Hoy Lily todavía no ha atendido ninguna conversación.', 'Todavía no hay nada en el calendario.', 'Todavía nadie puede escribir a Lily'],
+      fr: ['Aujourd’hui, Lily n’a encore pris en charge aucune conversation.', 'Rien dans le calendrier pour l’instant.', 'Aucun client ne peut encore écrire à Lily'],
+    };
+    for (const l of LOCALES) for (const o of OLD[l]) expect(NEGATIVE[l].test(o), `${l}: ${o}`).toBe(true);
+  });
+
+  it('the check reads every negative word on its own (one control per word, so none can be dropped unseen)', () => {
+    const ONE: Readonly<Record<Locale, readonly string[]>> = {
+      en: ['Lily has not replied', 'Nothing today', 'No replies', 'None so far', 'Never answered', 'Nobody wrote',
+        'Is it done yet', 'A day without replies', 'Lily hasn’t replied'],
+      zh: ['没有对话', '不在线', '无安排', '未处理', '尚在等'],
+      ar: ['لا ردود', 'لم يصل', 'لن يصل', 'ليس هنا', 'ليست هنا', 'الردود بعد', 'يوم بلا ردود', 'دون ردود', 'أي رد', 'أيّ رد'],
+      es: ['no hay', 'nada hoy', 'nunca respondió', 'ningún mensaje', 'ninguna conversación', 'ninguno hoy', 'nadie escribió',
+        'todavía hoy', 'aún hoy', 'sin respuestas'],
+      fr: ['ne répond', 'pas de réponse', 'rien aujourd’hui', 'jamais répondu', 'aucun message', 'aucune conversation',
+        'personne ici', 'encore là', 'sans réponse', 'n’a répondu'],
+    };
+    for (const l of LOCALES) for (const o of ONE[l]) expect(NEGATIVE[l].test(o), `${l}: ${o}`).toBe(true);
+    // and the headlines Home draws now read as what they are
+    expect(NEGATIVE.en.test('What Lily handles for you')).toBe(false);
+    expect(NEGATIVE.fr.test('Ce que Lily règle pour vous')).toBe(false);
+  });
+
+  it('no string Home draws as a tile headline is a negative construction, in any language', () => {
+    for (const l of LOCALES) {
+      for (const k of TILE_HEADLINES) {
+        const v = (MESSAGES[l] as Record<string, string>)[k];
+        expect(v, `${l} ${k}`).toBeDefined();
+        expect(NEGATIVE[l].test(v!), `${l} ${k}: ${v}`).toBe(false);
+      }
+    }
+  });
+
+  const zeros = { orders: 0, quotes: 0, afterHours: 0 };
+  const STATES: ReadonlyArray<readonly [string, TodayData, OperationsSnapshot?]> = [
+    ['busy', day(2, SEVERAL)],
+    ['the week\'s wins', day(3, undefined, { winsScope: 'week' })],
+    ['older wins, with their date', day(1, undefined, { winsScope: 'since', winsSince: new Date('2026-09-20T00:00:00+04:00') })],
+    ['never one, answering', { ...day(0), tally: zeros }],
+    ['never one, held', { ...day(0), tally: zeros }, { ...live, assistantStoppedAt: NOW }],
+    ['never one, nobody can write', { ...day(0), tally: zeros, sending: [] }, notLive],
+    ['a later date only', day(2, undefined, { schedule: { today: TODAY, entries: [OWN_LATER] } })],
+    ['nothing dated', day(2, undefined, { schedule: { today: TODAY, entries: [] } })],
+    ['brand new', { ...NOTHING_TODAY(NOW), hour: 9, schedule: { today: TODAY, entries: [] }, sending: [] }, notLive],
+  ];
+  for (const l of LOCALES) {
+    for (const [what, d, s] of STATES) {
+      it(`${l} · ${what}: every tile headline drawn states what is`, () => {
+        for (const name of ['Lily', null]) {
+          const heads = tileHeadlines(render(l, d, name, s ?? live));
+          expect(heads.length, `${l} ${what}`).toBeGreaterThanOrEqual(2);
+          for (const h of heads) expect(NEGATIVE[l].test(h), `${l} ${what}: "${h}"`).toBe(false);
+        }
+      });
+    }
+  }
+});
+
+describe('the quiet-day run · the card never says "caught up" over its own contents', () => {
+  const FOLLOW_UP: InsightsData = { insights: [{
+    key: 'insight.quotedNoReply', params: { buyer: 'Nadia' }, action: { kind: 'follow_up', href: '/app/inbox/x#latest', buyer: 'Nadia' },
+  }], monthChange: null };
+  const ONLY_DRAFTS: InsightsData = { insights: [{
+    key: 'insight.draftsWaiting', params: { count: 2 }, action: { kind: 'review_drafts', href: '/app/inbox' },
+  }], monthChange: null };
+  const LEAD = renderInsights(FOLLOW_UP, 'en', { bare: true });
+  type Case = readonly [string, (s: OperationsSnapshot, d: TodayData) => readonly [OperationsSnapshot, TodayData, string], 'work' | 'worth'];
+  const ITEMS: readonly Case[] = [
+    ['a customer waiting', (s, d) => [s, { ...d, needs: SEVERAL }, ''], 'work'],
+    ['a reply that never arrived', (s, d) => [{ ...s, attention: { ...s.attention, blockedMessages: 1 } }, d, ''], 'work'],
+    ['a deletion request', (s, d) => [{ ...s, attention: { ...s.attention, deletionAsks: 1 } }, d, ''], 'work'],
+    ['a question the assistant could not answer', (s, d) => [{ ...s, knowledge: { ...s.knowledge, openGaps: 1 } }, d, ''], 'work'],
+    ['a reply sent alone, to check', (s, d) => [{ ...s, supervision: { spotChecks: 1, demoted: [] } }, d, ''], 'work'],
+    ['a capability it stepped back from', (s, d) => [{ ...s, supervision: { spotChecks: 0, demoted: ['quote'] } }, d, ''], 'work'],
+    ['a line worth the owner\'s attention', (s, d) => [s, d, LEAD], 'worth'],
+  ];
+  const head = (html: string): string => /<h2 id="today-now"[\s\S]*?<\/h2>/.exec(html)?.[0] ?? '';
+  const quiet = day(0);
+  const CALM = (l: Locale): readonly string[] => [esc(t(l, 'today.calm.title')), esc(t(l, 'today.needs.none'))];
+  const draw = (l: Locale, s: OperationsSnapshot, d: TodayData, lead: string): string =>
+    withZone(ZONE, () => withWorkspace(scope('Lily'), () => renderOperationsHome(s, l, d, lead)));
+
+  it('the lead the cases use is a real line (the control): a bare list with nothing in it is nothing', () => {
+    expect(LEAD).toContain('class="row');
+    // Home's card names everyone whose reply waits for a review, so this line is left out — and nothing is left.
+    expect(renderInsights(ONLY_DRAFTS, 'en', { bare: true })).toBe('');
+  });
+
+  for (const l of LOCALES) {
+    for (const [base, s0] of [['answering', live], ['messaging off', notLive]] as const) {
+      it(`${l} · ${base} · nothing at all: the calm line — and only then`, () => {
+        const card = zone(draw(l, s0, quiet, ''), 'today-now');
+        expect(card, l).toContain('home-card is-calm');
+        expect(CALM(l).some((c) => head(card).includes(c)), l).toBe(true);
+      });
+      for (const [what, put, kind] of ITEMS) {
+        it(`${l} · ${base} · ${what}: never "caught up", never "no one is waiting" — the heading says what is`, () => {
+          const [s, d, lead] = put(s0, quiet);
+          const card = zone(draw(l, s, d, lead), 'today-now');
+          for (const c of CALM(l)) expect(head(card), `${l} ${what}`).not.toContain(c);
+          expect(card, l).not.toContain('is-calm');
+          if (kind === 'work') expect(head(card), l).toContain('<span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"></span>');
+          else expect(head(card), l).toBe(`<h2 id="today-now" class="tw-head">${esc(t(l, 'insight.title'))}</h2>`);
+        });
+      }
+    }
+  }
+
+  it('production on 2026-10-05: one reply to check, nothing dated, nothing handled for two weeks — the card says it needs you, and the tiles say what is', () => {
+    for (const l of LOCALES) {
+      const s: OperationsSnapshot = { ...live, supervision: { spotChecks: 1, demoted: [] } };
+      const d: TodayData = { ...day(2, undefined, { winsScope: 'since', winsSince: new Date('2026-09-20T00:00:00+04:00') }), schedule: { today: TODAY, entries: [] } };
+      const html = draw(l, s, d, '');
+      const card = zone(html, 'today-now');
+      expect(head(card), l).toBe(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"></span> ${esc(t(l, 'ops.attention.title'))}</span></h2>`);
+      expect(card, l).toContain(`href="/app/employee#spot-checks">${esc(tn(l, 'today.spotChecks', 1))}`);
+      for (const h of tileHeadlines(html)) expect(NEGATIVE[l].test(h), `${l}: "${h}"`).toBe(false);
     }
   });
 });

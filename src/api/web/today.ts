@@ -3,6 +3,7 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/connectedChannels.js';
 import { zoneOf } from '../../db/zone.js';
+import { workspaceZone } from './zone.js';
 import { faceVersions } from '../../db/faces.js';
 import { SPEND_STATUSES } from '../../db/customerValue.js';
 import { PRICE_GIVEN } from '../../db/quotesGiven.js';
@@ -49,8 +50,10 @@ import { agentMark } from './agentMark.js';
 
 /** How many dates the schedule shows before it points at the calendar. */
 export const HOME_DATES = 4;
-/** How far ahead the schedule looks for the next dates: the calendar's own "next 14 days". */
+/** How far ahead the schedule looks for the next dates: the calendar's own "next 14 days" — */
 const HOME_AHEAD = 15;
+/** — and, with nothing in those, up to three months on: the next dates are "Coming up" however far off. */
+const HOME_FAR = 90;
 
 /** How many people the band names before it points at the Inbox. */
 export const TODAY_PEOPLE = 5;
@@ -94,8 +97,14 @@ export type TodayData = {
   readonly hour?: number;
   /** The next dates on the calendar, today's first (at most HOME_DATES), and the workspace's today. Absent: none. */
   readonly schedule?: { readonly today: string; readonly entries: readonly CalendarEntry[] };
-  /** Whose wins `handled` and `tally` are: today's, or — nothing handled today — the last seven days'. Absent: today's. */
-  readonly winsScope?: 'today' | 'week';
+  /**
+   * Whose wins `handled` and `tally` are — the first rung with any (the quiet-day run): today's; the last
+   * seven days'; or, older than that, everything since the start of the last day the assistant handled one
+   * (`winsSince`). Absent: today's. None on any rung: the workspace has never had one.
+   */
+  readonly winsScope?: 'today' | 'week' | 'since';
+  /** With `winsScope` 'since': midnight, in the workspace's zone, of the last day a reply of the assistant's went out. */
+  readonly winsSince?: Date;
 };
 
 export const NOTHING_TODAY = (now: Date): TodayData => ({
@@ -109,6 +118,18 @@ async function dayStart(tx: Tx, zone: string, now: Date): Promise<{ readonly sta
            ((date_trunc('day', ${now}::timestamptz at time zone ${zone}) - interval '6 days') at time zone ${zone}) as w,
            extract(hour from ${now}::timestamptz at time zone ${zone})::int as h`.execute(tx)).rows[0]!;
   return { start: r.s, week: r.w, hour: r.h };
+}
+
+/**
+ * The quiet-day run — the start of the workspace's day on which a reply the assistant wrote last went out
+ * (the hero's own reading of "handled"), or null: it never has.
+ */
+async function lastWinDay(tx: Tx, B: BusinessId, zone: string): Promise<Date | null> {
+  const r = (await sql<{ d: Date | null }>`
+    select (date_trunc('day', max(o.sent_at) at time zone ${zone}) at time zone ${zone}) as d
+      from outbound_messages o
+     where o.business_id = ${B} and o.origin = 'employee' and o.status in ('sent', 'delivered', 'read')`.execute(tx)).rows[0];
+  return r?.d ?? null;
 }
 
 /**
@@ -220,15 +241,26 @@ export async function loadToday(db: Db, businessId: string, viewerId: string | u
     withTenantTx(db, B, async (tx) => {
       const zone = await zoneOf(tx, B);
       const { start, week, hour } = await dayStart(tx, zone, now);
-      const today = await readHandled(tx, B, start);
-      // The home run — nothing handled today: the last seven days' wins, said as the week's.
-      const weekly = today.total === 0 ? await readHandled(tx, B, week) : null;
-      const scope: 'today' | 'week' = weekly && weekly.total > 0 ? 'week' : 'today';
+      // The wins' ladder (the quiet-day run): the first rung with any wins — today's; the last seven
+      // days', said as the week's; or, older, everything since the last day one was handled, said with
+      // its date. Production, 2026-10-05: the live workspace's last reply was fifteen days old, past the
+      // week, and Home said "has not handled a conversation yet".
+      let scope: 'today' | 'week' | 'since' = 'today';
+      let since = start;
+      let handled = await readHandled(tx, B, start);
+      if (handled.total === 0) {
+        const weekly = await readHandled(tx, B, week);
+        if (weekly.total > 0) { scope = 'week'; since = week; handled = weekly; } else {
+          const last = await lastWinDay(tx, B, zone);
+          const older = last ? await readHandled(tx, B, last) : null;
+          if (last && older && older.total > 0) { scope = 'since'; since = last; handled = older; }
+        }
+      }
       return {
-        zone, hour, scope,
+        zone, hour, scope, since,
         channels: await connectedChannels(tx, B),
-        handled: scope === 'week' ? weekly! : today,
-        tally: await readTally(tx, B, zone, scope === 'week' ? week : start),
+        handled,
+        tally: await readTally(tx, B, zone, since),
       };
     }),
   ]);
@@ -236,13 +268,15 @@ export async function loadToday(db: Db, businessId: string, viewerId: string | u
   const faces = rows.length === 0 ? {} : await withTenantTx(db, B, (tx) => facesOf(tx, rows.map((r) => r.conversationId)));
   // The home run — the next dates, from the calendar's own loader: what is still to come or still owed, in time order.
   const todayKey = dayKey(now, day.zone);
-  const calendar = await loadCalendar(db, businessId, {
-    from: todayKey, to: addDays(todayKey, HOME_AHEAD), category: null, buyer: null, outreach: outreachShown(),
-  }, now);
-  const next = calendar.entries
+  const ahead = async (days: number): Promise<CalendarEntry[]> => (await loadCalendar(db, businessId, {
+    from: todayKey, to: addDays(todayKey, days), category: null, buyer: null, outreach: outreachShown(),
+  }, now)).entries
     .filter((e) => !isDone(e, now))
     .slice().sort((a, b) => a.day.localeCompare(b.day) || (a.allDay === b.allDay ? a.at.getTime() - b.at.getTime() : a.allDay ? -1 : 1))
     .slice(0, HOME_DATES);
+  // The quiet-day run — nothing in the calendar's two weeks: the next dates further on, still "Coming up".
+  const soon = await ahead(HOME_AHEAD);
+  const next = soon.length > 0 ? soon : await ahead(HOME_FAR);
   return {
     now,
     needs: { total: needs.waitingCount, rows, faces },
@@ -252,6 +286,7 @@ export async function loadToday(db: Db, businessId: string, viewerId: string | u
     hour: day.hour,
     schedule: { today: todayKey, entries: next },
     winsScope: day.scope,
+    ...(day.scope === 'since' ? { winsSince: day.since } : {}),
   };
 }
 
@@ -281,15 +316,15 @@ export function renderGreeting(d: TodayData, locale: Locale, o: { readonly state
 /**
  * THE HOME RUN — the headline from the calendar: the next dates (today's first), each drawn as the
  * calendar draws it — the hour or the day, the face, the sentence, a door — under "Today's schedule"
- * when the first is today's, "Coming up" when it is later. Nothing dated: the fact and how dates come,
- * calmly, and the door to the calendar either way.
+ * when the first is today's, "Coming up" when it is later (however far: `HOME_FAR`). Nothing dated
+ * ahead at all: the quiet-day run's rule — a headline states what IS, never an absence — so "Your
+ * schedule" and the one small line of what will appear here; the door to the calendar either way.
  */
 export function renderSchedule(d: TodayData, locale: Locale): string {
   const sc = d.schedule ?? { today: '', entries: [] };
   const door = deeper('/app/calendar', t(locale, 'nav.calendar'));
   if (sc.entries.length === 0) {
-    return `<h2 id="home-schedule" class="home-h">${esc(t(locale, 'home.schedule.today'))}</h2>
-      <p class="home-quiet">${esc(t(locale, 'home.schedule.none'))}</p>
+    return `<h2 id="home-schedule" class="home-h">${esc(t(locale, 'home.schedule.title'))}</h2>
       <p class="home-how">${esc(t(locale, 'home.schedule.how'))}</p>${door}`;
   }
   const head = sc.entries[0]!.day === sc.today ? 'home.schedule.today' : 'home.schedule.next';
@@ -351,11 +386,14 @@ export const shortName = (name: string): string => name.trim().split(/\s+/u)[0] 
  * nothing, because no list singles out the others (phase 9,
  * w4-today-setup-04). Nothing handled: the fact, in a sentence; no empty row.
  */
-export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready: boolean }): string {
+export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready: boolean; readonly reachable?: boolean }): string {
   const h = d.handled ?? { total: 0, people: [] };
   if (h.total === 0 || h.people.length === 0) {
-    return `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.handled.none'))}</h2>${
-      o.ready ? `<p class="td-ready">${agentMark(16, 'am as')} ${esc(t(locale, 'today.handled.ready'))}</p>` : ''}`;
+    // The quiet-day run — never one on any rung: the headline names what this tile is, and one small
+    // line says what will appear here (or, nobody able to write yet, the way there). Never an absence.
+    return `<h2 id="today-done" class="td-head is-plain">${esc(t(locale, 'home.wins.title'))}</h2>${
+      o.reachable === false ? `<p class="td-ready">${esc(t(locale, 'home.wins.connect'))}</p>`
+      : `<p class="td-ready">${o.ready ? `${agentMark(16, 'am as')} ` : ''}${esc(t(locale, 'home.wins.ahead'))}</p>`}`;
   }
   const drawn = h.people.slice(0, TODAY_FACES);
   const faces = drawn.map((p) => {
@@ -373,11 +411,15 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
     ? `<li><span class="td-more"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
       + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></span></li>`
     : '';
-  // The home run — the week's, when nothing was handled today.
-  const title = d.winsScope === 'week' ? 'home.wins.week' : 'today.handled.title';
-  return `<h2 id="today-done" class="td-head">${agentMark(28, 'am as')} ${esc(tn(locale, title, h.total))}</h2>
+  // The home run — the week's, when nothing was handled today; the quiet-day run — older, since its day.
+  const title = d.winsScope === 'week' ? 'home.wins.week' : d.winsScope === 'since' ? 'home.wins.since' : 'today.handled.title';
+  return `<h2 id="today-done" class="td-head">${agentMark(28, 'am as')} ${esc(tn(locale, title, h.total, sinceOf(d, locale)))}</h2>
     <ul class="td-row">${faces}${more}</ul>`;
 }
+
+/** The 'since' rung's date — its day and month ("Sep 20"), in the workspace's zone — for the headline and the figures. */
+const sinceOf = (d: TodayData, locale: Locale): Record<string, string> =>
+  d.winsScope === 'since' && d.winsSince ? { date: show.dayMonth(locale, dayKey(d.winsSince, workspaceZone())) } : {};
 
 /** Which channels send, or that sending is paused — one line, the channels named. */
 export function renderSending(d: TodayData, locale: Locale, paused: boolean): string {
@@ -394,6 +436,7 @@ export function renderTally(d: TodayData, locale: Locale): string {
   const n = d.tally ?? { orders: 0, quotes: 0, afterHours: 0 };
   const one = (v: number, key: string): string =>
     `<li><span class="tt-n">${show.count(locale, v)}</span><span class="tt-l">${esc(tn(locale, key, v))}</span></li>`;
-  return `<h2 id="today-tally" class="tt-head">${esc(t(locale, d.winsScope === 'week' ? 'home.tally.week' : 'today.tally.title'))}</h2>
+  const head = d.winsScope === 'week' ? 'home.tally.week' : d.winsScope === 'since' ? 'home.tally.since' : 'today.tally.title';
+  return `<h2 id="today-tally" class="tt-head">${esc(t(locale, head, sinceOf(d, locale)))}</h2>
     <ul class="tt-row">${one(n.orders, 'today.tally.orders')}${one(n.quotes, 'today.tally.quotes')}${one(n.afterHours, 'today.tally.late')}</ul>`;
 }

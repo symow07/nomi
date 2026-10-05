@@ -15758,7 +15758,24 @@ The owner chose the page's name in each language: 首页, «الرئيسية», 
 - **"Ready for the day" without a gender** (`home.ready`, `home.notYet.*`):
   - The assistant is never the subject of an adjective. Spanish says «Todo listo con {name} para hoy», French «Tout est prêt avec {name} pour la journée», Arabic «كل شيء جاهز لدى {name} لهذا اليوم».
   - The "not yet" lines put the replies first: «Las respuestas de {name} empiezan…», «تبدأ الردود من {name}…».
-- **The schedule:** zh calls the calendar 日程, as the nav does (`home.schedule.none`: 日程上还没有安排。). «القادم» (`home.schedule.next`) stands alone as a heading. Check it reads as "coming up".
+- **The schedule:** zh calls the calendar 日程, as the nav does (`home.schedule.title`: 你的日程, since the quiet-day run below). «القادم» (`home.schedule.next`) stands alone as a heading. Check it reads as "coming up".
 - **The week's wins** (`home.wins.week.*`): the Arabic plural forms (محادثة واحدة، محادثتين، {n} محادثات) mirror `today.handled.title`.
+
+Reviewer: ______  Date: ______
+
+## 2026-10-05 — the quiet-day run: Home's headlines state what is
+
+The owner's rule: a tile's headline is never a negative sentence. Four lines were retired: `today.handled.none`, `today.handled.ready`, `today.calm.notLive.title` and `home.schedule.none`. Read the new ones.
+
+- **When nothing is dated** (`home.schedule.title`): 你的日程 / جدولك / Tu agenda / Votre programme. Check it reads as the tile's name, not as a claim that something is there.
+- **When the assistant has never handled a conversation** (`home.wins.title`):
+  - zh {name}为你处理的对话;
+  - ar «ما يُنجَز لك مع {name}»: a passive, so nothing agrees with the assistant (the gender guard rejected «إنجازات {name}» by its form);
+  - es «Lo que {name} resuelve por ti»;
+  - fr «Ce que {name} règle pour vous».
+- **What will appear there** (`home.wins.ahead`, `home.wins.connect`): the conversation is the subject, never the assistant. Arabic says «تظهر هنا كل محادثة تصلها ردود {name}», and French «chaque conversation prise en charge par {name}».
+- **Older wins, with their date** (`home.wins.since.*`, `home.tally.since`): {date} is the day and month («20 sept», 9月20日, 20 سبتمبر).
+  - Spanish «Desde el 20 sept», French «Depuis le 20 sept.».
+  - The Arabic plural forms mirror `home.wins.week.*`.
 
 Reviewer: ______  Date: ______

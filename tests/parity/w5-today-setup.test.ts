@@ -102,14 +102,15 @@ describe('w4-whole-11 · w4-today-setup-21 · today-onboarding-missed-01 · Toda
   for (const l of LOCALES) {
     it(`${l} · a channel connected where this installation sends nothing: never "nobody can reach", the day's faces, the installation's line quiet`, () => {
       const html = today(l, SNAP(false), day({ handled: handledFaces(['Carlos Mendes', 'Layla Mansour']) }));
-      expect(html).not.toContain(esc(t(l, 'today.calm.notLive.title', { name: 'Lily' })));
+      expect(html).not.toContain(esc(t(l, 'home.wins.connect', { name: 'Lily' })));
       expect(html).toContain('class="face-link td-face"');
       expect(html).toContain(`<p class="muted notlive"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${esc(t(l, 'ops.system.notLive'))}</p>`);
       expect(html).not.toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${esc(t(l, 'ops.system.notLive'))}`);
     });
-    it(`${l} · nothing connected: said once, at a heading's size, with the setup step's own door`, () => {
+    it(`${l} · nothing connected: the tile's name, the way there in one small line, and the setup step's own door`, () => {
       const html = today(l, SNAP(true), day({ sending: [] }));
-      expect(html).toContain(`<h2 id="today-done" class="td-head is-plain">${esc(t(l, 'today.calm.notLive.title', { name: 'Lily' }))}</h2>`);
+      // The quiet-day run — a headline states what IS (was "No customer can reach Lily yet").
+      expect(html).toContain(`<h2 id="today-done" class="td-head is-plain">${esc(t(l, 'home.wins.title', { name: 'Lily' }))}</h2><p class="td-ready">${esc(t(l, 'home.wins.connect', { name: 'Lily' }))}</p>`);
       expect(html).toContain(`href="${STEP_LINK.channels}"`);
       expect(html).not.toContain('href="/app/business/ready"');
       // and it is never "all caught up"

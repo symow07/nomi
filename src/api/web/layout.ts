@@ -974,7 +974,6 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .home-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-24); align-items:start; }
   .home-tile { min-width:0; background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-24); }
   main .home-tile h2.td-head { font-size:var(--font-size-title); }
-  .home-quiet { margin:0; }
   .home-how { margin:var(--space-4) 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .home-schedule .dl.home-dates { margin:0 0 var(--space-8); background:transparent; box-shadow:none; }
   .home-schedule .home-dates .dl-row { padding-inline:0; }
