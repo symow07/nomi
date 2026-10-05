@@ -70,7 +70,7 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
   // count of who wrote; a customer who wrote and waits is the band's (the
   // Inbox's own "Needs you"). What this proves now is the hero and the three
   // figures, read from the rows themselves in the workspace's own day.
-  it('the warmth run · Today\'s hero and figures count today\'s rows in the workspace\'s day, and nothing from before it', async () => {
+  it('the warmth run · Home\'s wins and figures count today\'s rows in the workspace\'s day — yesterday\'s only as the week\'s', async () => {
     const { loadToday } = await import('../../src/api/web/today.js');
     const PID = randomUUID();
     const zone = (await tx((t) => sql<{ z: string }>`select coalesce(timezone, 'UTC') as z from businesses where id = ${BIZ}`.execute(t))).rows[0]!.z;
@@ -82,9 +82,12 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
                 values (${BIZ}, ${CONV}, 901, 'Yesterday', 'employee', 'sent',
                         (date_trunc('day', now() at time zone ${zone}) at time zone ${zone}) - interval '1 minute')`.execute(t);
     });
+    // THE HOME RUN — nothing of today's: the reply one minute before midnight is not today's (the scope
+    // turns to the week, which it does only when today counts none), and it shows as the week's.
     const quiet = await loadToday(db, BIZ, undefined, new Date());
-    expect(quiet.handled?.total).toBe(0);
-    expect(quiet.tally).toEqual({ orders: 0, quotes: 0, afterHours: 0 });
+    expect(quiet.winsScope).toBe('week');
+    expect(quiet.handled?.total).toBe(1);
+    expect(quiet.tally).toEqual({ orders: 0, quotes: 0, afterHours: 1 });   // 23:59 is after hours
 
     await tx(async (t) => {
       // Today: a price worked out, the assistant's reply that carried it, and an order confirmed.
@@ -109,6 +112,7 @@ d('Phase 9 · the name on a conversation, only once chosen (requires DATABASE_UR
         from outbound_messages where conversation_id = ${CONV} and seq = 902`.execute(t))).rows[0]!;
     const hour = sent.h;
     const after = await loadToday(db, BIZ, undefined, sent.at);
+    expect(after.winsScope).toBe('today');
     expect(after.handled?.total).toBe(1);
     expect(after.handled?.people).toEqual([{ conversationId: CONV, clientId: CLIENT, name: 'Maya', photo: null, word: 'confirmed' }]);
     // After hours is 20:00–08:00 in the workspace's zone (today.ts, OPEN_HOUR / CLOSE_HOUR).

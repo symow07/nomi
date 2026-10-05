@@ -193,7 +193,23 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     expect(cookie).not.toBe('');
   }, 60_000);
-  afterAll(async () => { await prod?.close(); });
+  afterAll(async () => {
+    // The confirmation the owner's tap queues waits up to 90 s for the previous message's receipt
+    // (the sequencer, main.ts), and nobody here sends one. Left queued, it re-queued itself into the
+    // NEXT files' workers and went out through whichever adapter was live 90 s later: on 2026-10-05
+    // wa-self's "never the installation's number" counted it. This file's sends go with it: the row
+    // canceled first, so a job already running finds nothing to wait for, then its jobs removed.
+    if (prod) {
+      await q((tx) => sql`update outbound_messages set status = 'canceled', last_error = 'canceled: test ended'
+        where business_id = ${BIZ}::uuid and status = 'queued'`.execute(tx));
+      await sql`delete from pgboss.job where name = 'message.outbound' and data->>'businessId' = ${BIZ}
+        and state in ('created', 'retry')`.execute(prod.db);
+      const left = await sql<{ n: number }>`select count(*)::int as n from pgboss.job
+        where data->>'businessId' = ${BIZ} and state in ('created', 'retry', 'active')`.execute(prod.db);
+      expect(left.rows[0]!.n, 'jobs this file leaves for the next one').toBe(0);
+    }
+    await prod?.close();
+  });
 
   let confirmConv = '';
 

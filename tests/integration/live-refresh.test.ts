@@ -271,7 +271,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     const r = await get('/app');
     const url = askOf(r.body);
     // Six counts: 0080 added the orders waiting for the owner's tap.
-    expect(url).toMatch(/^\/app\/live\/today\?since=[0-9]+(\.[0-9]+){5}$/);
+    expect(url).toMatch(/^\/app\/live\/home\?since=[0-9]+(\.[0-9]+){5}$/);   // THE HOME RUN
     expect(r.body).toContain('<a class="deeper live-door" href="/app">');
     expect((await ask(url)).said).toEqual({ news: false });
     await replyWaits(BIZ, second, 'A reply for Omar.');
