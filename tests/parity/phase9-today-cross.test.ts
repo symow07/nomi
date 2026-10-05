@@ -411,7 +411,7 @@ describe('Phase 9 · Before going live', () => {
   });
   it('V1-127, V1-128 · a count follows its label; every door is "Open ›" at the row\'s end', () => {
     const h = screens('en');
-    expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><a class="deeper rbgo" href="[^"]+">Open<span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span><\/a>/);
+    expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><a class="deeper rbgo" href="[^"]+">Open<span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span><\/a>/);
     expect(h).toMatch(/<span class="lbl">[^<]+<\/span><b class="n">\d+<\/b><\/div>/);
     expect(h).not.toContain('class="rblink"');
     expect(css).toContain('.rbrow .rbgo, .rbrow .rbwhen { margin-inline-start:auto; }');

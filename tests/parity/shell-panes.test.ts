@@ -38,7 +38,7 @@ describe('the rail', () => {
     expect(nav).not.toContain('href="/app/business"');
     // five entries — the phone's one row — each with its shape
     expect(nav.match(/class="navlink[ "]/g)).toHaveLength(5);
-    expect(nav.match(/<a [^>]*class="navlink[\s\S]*?<\/a>/g)?.every((a) => a.includes('<svg class="ni"'))).toBe(true);
+    expect(nav.match(/<a [^>]*class="navlink[\s\S]*?<\/a>/g)?.every((a) => a.includes('<svg class="ni sl"'))).toBe(true);
   });
 
   it('"Customers" heads its two pages; the customer list carries the one number (phase 9: one name for the area, V1-002), and is lit here', () => {
@@ -108,7 +108,7 @@ describe('the list pane', () => {
     expect(html).not.toContain('class="tag');
     // the list page's own row: the assistant wrote c-2's last message, so the one magenta ✦ leads it
     expect(html).toMatch(/<div class="irow is-hers[^"]*">/);
-    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg>[\s\S]*?<span class="ir-text" dir="auto">last from c-2/);
+    expect(html).toMatch(/href="\/app\/inbox\/c-2#latest">[\s\S]*?<svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg>[\s\S]*?<span class="ir-text" dir="auto">last from c-2/);
     const first = html.slice(html.indexOf('href="/app/inbox/c-1#latest"'));
     expect(first.slice(0, first.indexOf('</a>'))).not.toContain('✦');
     // no product line anywhere on the row
@@ -161,10 +161,10 @@ describe('the customer panel', () => {
     expect(html).toContain('Sample · asked ');
     // 0083 — what was promised them, in the words that reached them, with the assistant's mark
     expect(html).toContain('<h3>Promised</h3>');
-    expect(html).toContain('' + agentMark(16, 'rest', 'am as') + ' <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
+    expect(html).toContain('' + agentMark(16, 'am as') + ' <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
     expect(html).toContain('<bdi>Order W-1042</bdi>');
     expect(html).toContain('<span class="dot warn shape s-waiting" aria-hidden="true"></span> Needs you');
-    expect(html).toContain('' + agentMark(16, 'rest', 'am as') + ' Lily replied');
+    expect(html).toContain('' + agentMark(16, 'am as') + ' Lily replied');
     expect(html).toContain('<span class="shape s-you pn-you" aria-hidden="true"></span> You sent Lily’s draft');
     expect(html).toContain('Lily’s reply didn’t reach them <span class="dot bad shape s-failed" aria-hidden="true"></span>');
     expect(html).toContain('href="/app/conversations/c-1"');

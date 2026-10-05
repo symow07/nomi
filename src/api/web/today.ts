@@ -273,7 +273,7 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
   const h = d.handled ?? { total: 0, people: [] };
   if (h.total === 0 || h.people.length === 0) {
     return `<h2 id="today-done" class="td-head">${esc(t(locale, 'today.handled.none'))}</h2>${
-      o.ready ? `<p class="td-ready">${agentMark(16, 'rest', 'am as')} ${esc(t(locale, 'today.handled.ready'))}</p>` : ''}`;
+      o.ready ? `<p class="td-ready">${agentMark(16, 'am as')} ${esc(t(locale, 'today.handled.ready'))}</p>` : ''}`;
   }
   const drawn = h.people.slice(0, TODAY_FACES);
   const faces = drawn.map((p) => {
@@ -291,7 +291,7 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
     ? `<li><span class="td-more"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
       + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></span></li>`
     : '';
-  return `<h2 id="today-done" class="td-head">${agentMark(28, 'rest', 'am as', 'bold')} ${esc(tn(locale, 'today.handled.title', h.total))}</h2>
+  return `<h2 id="today-done" class="td-head">${agentMark(28, 'am as')} ${esc(tn(locale, 'today.handled.title', h.total))}</h2>
     <ul class="td-row">${faces}${more}</ul>`;
 }
 

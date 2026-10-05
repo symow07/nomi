@@ -91,7 +91,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
       // the warmth run's phase 9 (w4-customers-03) — words that asked nothing are not owed a reply
       expect(rowOf(h, 'c-old'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // the mark, then who wrote it for a screen reader (the conversation batch), then the words
-      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
+      expect(rowOf(h, 'c-answered'), l).toMatch(/<span class="ir-by"><svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       expect(rowOf(h, 'c-answered'), l).not.toContain(shown(l, 'buyers.row.noReply'));
       // a screen reader still hears who holds it
       expect(rowOf(h, 'c-new'), l).toContain(`<span class="sr">${shown(l, 'buyers.group.hers')}</span>`);
@@ -103,7 +103,7 @@ describe('the Customers list (V1-165–V1-183, inbox-calendar-new-02/03/05, miss
   it('inbox-calendar-new-03 · the marks are explained under the rows — only the marks the page shows', () => {
     for (const l of LOCALES) {
       const key = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l))?.[1] ?? '';
-      expect(key, l).toContain(`<span class="ck-i">${agentMark(16, 'rest', 'am as')} ${shown(l, 'buyers.key.wrote')}</span>`);
+      expect(key, l).toContain(`<span class="ck-i">${agentMark(16, 'am as')} ${shown(l, 'buyers.key.wrote')}</span>`);
       expect(key, l).not.toContain('cr-mark');
       expect(key, l).not.toContain('ir-reg');   // nobody on this page is a regular
       const regular = /<p class="cr-key caption muted">([\s\S]*?)<\/p>/.exec(list(l, { conversations: [conv('c-r', { regular: true })] }))?.[1] ?? '';
@@ -287,7 +287,7 @@ describe('the calendar', () => {
     for (const l of LOCALES) {
       // September holds a mark of each kind (phase 9 of the warmth run, w4-customers-14: the legend explains only the marks its list shows)
       const legend = /<p class="cal-legend small">([\s\S]*?)<\/p>/.exec(drawCal(l, 'sept'))![1]!;
-      expect(legend, l).toContain(`${agentMark(16, 'rest', 'am as')} ${shown(l, 'calendar.legend.assistant')}`);
+      expect(legend, l).toContain(`${agentMark(16, 'am as')} ${shown(l, 'calendar.legend.assistant')}`);
       expect(legend, l).toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> ${shown(l, 'calendar.legend.owed')}`);
       expect(legend, l).toContain(`<span class="dot ok shape s-ok" aria-hidden="true"></span> ${shown(l, 'calendar.legend.done')}`);
       expect(legend, l).toContain('<span class="cal-sw solid" aria-hidden="true"></span>');
@@ -360,7 +360,7 @@ describe('the calendar', () => {
       expect(order.replace(/<[^>]+>/g, ''), l).toContain(t(l, 'calendar.say.order_state', { who: ANNA.name }));
       expect(order, l).toContain(`<span class="small"><bdi>${esc(t(l, 'order.status.confirmed' as MessageKey))}</bdi></span>`);
       const price = /<li class="dl-row[^"]*" data-src="quotes:q1"[\s\S]*?<\/li>/.exec(drawCal(l, 'sept'))![0];
-      expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok shape s-ok" aria-hidden="true"><\/span><span class="sr">[^<]*<\/span> )?<svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg> /);
+      expect(price, l).toMatch(/<span class="dl-say">(?:<span class="dot ok shape s-ok" aria-hidden="true"><\/span><span class="sr">[^<]*<\/span> )?<svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg> /);
       expect(price, l).not.toContain(`>${esc(t(l, 'calendar.cat.negotiation'))} · `);
     }
   });
@@ -481,7 +481,7 @@ describe('an order', () => {
       expect(h.replace(/<span class="doc-code">([^<]*)<\/span>/g, '$1'), l).toContain(`<pre class="doc" dir="ltr">${esc(proformaText(ORDER_VIEW)!)}</pre>`);
       expect(h, l).toContain('<span class="doc-code">(ZX-200)</span>');
       // w4-customers-12 — it says it saves a file, with a file's mark, not a door's chevron
-      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">${icon('download', 'gi', 'bold')}</span></a>`);
+      expect(h, l).toContain(`${shown(l, 'order.invoice.download')}<span class="go" aria-hidden="true">${icon('download', 'gi')}</span></a>`);
     }
     expect(proformaFileName({ ...ORDER_VIEW, reference: 'PI/2026 "x"' })).toBe('proforma-PI-2026-x-.txt');
     expect(proformaText({ ...ORDER_VIEW, paymentTerms: null })).toBeNull();
@@ -677,7 +677,7 @@ describe('the settings pages', () => {
       const h = draw('data', l);
       expect(h, l).not.toContain('<ul class="chips">');
       // the warmth run, phase 9 (w4-settings-a-18) — Download saves a file: its own mark, not a door's chevron
-      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="dl-get" href="\/app\/settings\/data\/[a-z-]+\.csv" download><svg class="ni"/g)];
+      const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="dl-get" href="\/app\/settings\/data\/[a-z-]+\.csv" download><svg class="ni sl"/g)];
       expect(files, l).toHaveLength(9);
       // "What you set up" opens its own section, with the space sections have (it touched the rows above)
       expect(h, l).toMatch(new RegExp(`</section>\\s*<section class="block">\\s*<h2>${esc(t(l, 'data.export.configTitle'))}</h2>`));

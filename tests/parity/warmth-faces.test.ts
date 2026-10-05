@@ -191,7 +191,7 @@ describe('phase 3 · the profile card', () => {
   it('every page carries the closed sheet it springs up in; it springs only for a reader who did not ask for less motion', () => {
     for (const l of LOCALES) {
       const html = shell({ title: 'T', active: 'home', locale: l, path: '/app', bodyHtml: '' });
-      expect(html, l).toContain(`<dialog class="sheet" aria-labelledby="pc-name" data-sheet><form method="dialog" class="sheet-bar"><button type="submit" class="sheet-x" aria-label="${esc(t(l, 'pcard.close'))}">${icon('close', 'xi', 'bold')}</button></form><div data-sheet-body></div></dialog>`);
+      expect(html, l).toContain(`<dialog class="sheet" aria-labelledby="pc-name" data-sheet><form method="dialog" class="sheet-bar"><button type="submit" class="sheet-x" aria-label="${esc(t(l, 'pcard.close'))}">${icon('close', 'xi')}</button></form><div data-sheet-body></div></dialog>`);
     }
     const css = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
     const calm = css.indexOf('@media (prefers-reduced-motion: no-preference)');

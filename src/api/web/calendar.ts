@@ -10,7 +10,7 @@ import {
 import * as show from './values.js';
 import { keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 import { face, faceLink, type FaceOf } from './faces.js';
-import { icon, type DateIconId, type Weight, GO } from './icons.js';
+import { icon, type DateIconId, GO } from './icons.js';
 import { agentMark } from './agentMark.js';
 
 /**
@@ -324,7 +324,7 @@ function marksOf(locale: Locale, e: CalendarEntry, now: Date): { readonly done: 
   const done = isDone(e, now);
   const state = isOwed(e, now) ? `${signalMark(e.detail.overdue ? 'failed' : 'waiting')} `
     : done ? `${signalMark('ok')}<span class="sr">${esc(t(locale, 'calendar.done'))}</span> ` : '';
-  const hand = byHand(e) ? `${agentMark(16, 'rest', 'am as')} ` : '';
+  const hand = byHand(e) ? `${agentMark(16, 'am as')} ` : '';
   return { done, marks: `${state}${hand}` };
 }
 
@@ -343,7 +343,7 @@ const DATE_ICON: Readonly<Record<CalendarEntry['kind'], DateIconId>> = {
   own: 'date-own', promise_follow_up: 'date-promise', promise_price_end: 'date-promise', promise_delivery: 'date-promise',
 };
 /** The icons run — bold where it is small (the face's badge), regular where it stands for the face or sits beside a 13 px name. */
-export const kindIcon = (e: CalendarEntry, weight: Weight = 'regular'): string => icon(DATE_ICON[e.kind], 'kind-icon', weight);
+export const kindIcon = (e: CalendarEntry): string => icon(DATE_ICON[e.kind], 'kind-icon');
 
 /**
  * Phase 7 — is this date DONE: handled, kept, closed, or simply past? A reply
@@ -373,7 +373,7 @@ const addressFace = (e: CalendarEntry): FaceOf => ({ clientId: `address:${e.iden
  * a closure, the owner's own — has the kind's icon alone, in the face's place.
  */
 function whoOf(locale: Locale, e: CalendarEntry): string {
-  const badge = kindIcon(e, 'bold');
+  const badge = kindIcon(e);
   if (e.buyer) return `<span class="dl-who">${faceLink(faceOf(e.buyer), { size: 's', label: nameOf(locale, e) })}${badge}</span>`;
   if (e.identity) return `<span class="dl-who">${face(addressFace(e), 's')}${badge}</span>`;
   return `<span class="dl-who dl-only">${kindIcon(e)}</span>`;
@@ -564,7 +564,7 @@ function legend(locale: Locale, entries: readonly CalendarEntry[], now: Date): s
   const items = [
     entries.some((e) => edgeOf(e) === 'solid') ? item('<span class="cal-sw solid" aria-hidden="true"></span>', 'calendar.legend.solid') : '',
     entries.some((e) => edgeOf(e) === 'dashed') ? item('<span class="cal-sw dashed" aria-hidden="true"></span>', 'calendar.legend.dashed') : '',
-    entries.some(byHand) ? item(agentMark(16, 'rest', 'am as'), 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
+    entries.some(byHand) ? item(agentMark(16, 'am as'), 'calendar.legend.assistant', { name: assistantName(locale) }) : '',
     entries.some((e) => isOwed(e, now)) ? item(signalMark('waiting'), 'calendar.legend.owed') : '',
     entries.some((e) => isDone(e, now)) ? item(signalMark('ok'), 'calendar.legend.done') : '',
   ].filter(Boolean);
@@ -613,7 +613,7 @@ function periodMove(locale: Locale, span: string, prev: string, here: string, ne
 function emptyPanel(locale: Locale, v: CalendarView, title: MessageKey, clear: string, day: string, kept: Kept | null, how = true): string {
   const narrowed = v.category !== null || v.buyer !== null;
   return `<div class="empty cal-empty">
-      <span class="cal-empty-i">${icon('calendar', 'cal-empty-ic', 'bold')}</span>
+      <span class="cal-empty-i">${icon('calendar', 'cal-empty-ic')}</span>
       <p class="cal-empty-t">${esc(t(locale, narrowed ? 'calendar.empty.filtered' : title))}</p>
       ${narrowed ? deeper(esc(clear), t(locale, 'calendar.empty.clear'))
         : `${how ? `<p class="muted">${esc(t(locale, 'calendar.empty.how'))}</p>` : ''}

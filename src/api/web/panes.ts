@@ -161,13 +161,13 @@ export function renderCustomerPanel(
       `<a href="/app/orders/${encodeURIComponent(o.id)}">${GO}<span class="sr">${esc(t(locale, 'panel.order', { reference: o.reference }))}</span></a>`)),
   ];
   const promises = p.promised.map((x) => li(
-    `${x.byAssistant ? `${agentMark(16, 'rest', 'am as')} ` : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
+    `${x.byAssistant ? `${agentMark(16, 'am as')} ` : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
     `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))}${elsewhere(x.conversationId) ? ` <a class="pn-door" href="${conversationUrl(x.conversationId)}">${GO}<span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>` : ''}`));
   const dated = calendar.map((e) => li(`${esc(show.date(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
     e.conversationId && elsewhere(e.conversationId) ? `<a class="pn-door" href="${conversationUrl(e.conversationId)}">${GO}<span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
   const act = p.activity.map((a) => {
     const mark = MARK[a.kind];
-    const glyph = mark === 'as' ? agentMark(16, 'rest', 'am as')
+    const glyph = mark === 'as' ? agentMark(16, 'am as')
       : mark === 'you' ? shape('you', 'pn-you') : signalMark('waiting');
     const said = a.kind === 'not_reached'
       ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} ${signalMark('failed')}`

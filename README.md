@@ -247,7 +247,7 @@ roles file restores with RLS enabled and zero policies. See
 | [docs/MONITORING.md](docs/MONITORING.md) | How you hear that it broke: error alerts, and the uptime heartbeat |
 | [docs/SECRET-ROTATION.md](docs/SECRET-ROTATION.md) | Rotating credentials |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is next |
-| [NOTICE](NOTICE) | Third-party material and its licences: the nav's icons are Solar by 480 Design (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; the drawings unchanged), every other icon Phosphor (MIT), the fonts Noto (OFL 1.1) |
+| [NOTICE](NOTICE) | Third-party material and its licences: the icons are Solar by 480 Design (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; the drawings unchanged), a few held ones Phosphor (MIT), the fonts Noto (OFL 1.1) |
 
 ---
 

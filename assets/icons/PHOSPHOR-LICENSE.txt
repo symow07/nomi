@@ -1,5 +1,6 @@
-The icons drawn by Nomi (src/api/web/phosphor.ts) are Phosphor Icons,
-from @phosphor-icons/core 2.1.1 (https://phosphoricons.com), under this licence:
+The icons Nomi still draws from Phosphor (src/api/web/phosphor.ts; held until the owner picks a Solar
+drawing for each) are Phosphor Icons, from @phosphor-icons/core 2.1.1 (https://phosphoricons.com),
+under this licence:
 
 MIT License
 

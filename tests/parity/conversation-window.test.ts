@@ -163,8 +163,8 @@ describe('CC-25 · the conversation page', () => {
       expect(newest, l).toContain(t(l, 'inbox.log.earlier'));
       expect(older, l).toContain(t(l, 'inbox.log.latest'));
       // doors, never buttons: a link that changes the page is a door
-      expect(newest, l).toMatch(/<a class="back" href="\/app\/inbox\/[^"]+\?before=[^"]+#latest"><span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span>/);
-      expect(older, l).toMatch(/<a class="deeper" href="\/app\/inbox\/[^"]+#latest">[^<]+<span class="go" aria-hidden="true"><svg class="gi"[^>]*><path d="[^"]+"\/><\/svg><\/span><\/a>/);
+      expect(newest, l).toMatch(/<a class="back" href="\/app\/inbox\/[^"]+\?before=[^"]+#latest"><span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span>/);
+      expect(older, l).toMatch(/<a class="deeper" href="\/app\/inbox\/[^"]+#latest">[^<]+<span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span><\/a>/);
     }
     expect(t('ar', 'inbox.log.earlier')).not.toBe(t('en', 'inbox.log.earlier'));
     expect(t('ar', 'inbox.log.latest')).not.toBe(t('en', 'inbox.log.latest'));

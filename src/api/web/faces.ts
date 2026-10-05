@@ -68,10 +68,10 @@ export function initialOf(name: string | null): string | null {
 
 /**
  * A person's outline, for a customer with no name yet (a number on WhatsApp).
- * The icons run (2026-10-04): Phosphor's person, bold, so its line is the
- * stem of the initials the other faces carry (600, at 1.4em of the face's size).
+ * The Solar run (2026-10-05): Solar's person, at 1.4em of the face's size, its
+ * line the one for the size it is drawn at (layout.ts); Phosphor's, bold, before.
  */
-const OUTLINE = icon('person', 'fi', 'bold');
+const OUTLINE = icon('person', 'fi');
 
 /** Where a customer's photo is served from; `v` changes when the photo does. */
 export const faceSrc = (clientId: string, version: string): string =>

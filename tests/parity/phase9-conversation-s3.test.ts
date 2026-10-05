@@ -368,7 +368,7 @@ describe('V1-249 · the ✦ before a row\'s last message says whose it is', () =
     for (const l of LOCALES) {
       const html = renderListPane(list, l, NOW, 'c-2');
       // phase 4 — the Inbox's own row: the mark and the name it stands for lead the message
-      expect(html, l).toMatch(/<span class="ir-by"><svg class="am as" data-mark="agent"[^>]*><path d="[^"]+"\/><\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
+      expect(html, l).toMatch(/<span class="ir-by"><svg class="am as sl" data-mark="agent"[^>]*>[\s\S]*?<\/svg><span class="sr">[^<]+<\/span><\/span><span class="ir-text"/);
       const page = renderConversationDetail(draft(), l, NOW, null);
       expect(page, l).toContain(`${esc(t(l, 'card.drafted'))}`);
     }

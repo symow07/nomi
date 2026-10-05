@@ -297,7 +297,7 @@ const TL_MARK: Record<MilestoneKind, Signal | 'assistant' | 'you' | 'them'> = {
 };
 const tlMark = (k: MilestoneKind): string => {
   const m = TL_MARK[k];
-  return m === 'assistant' ? agentMark(16, 'rest', 'am as') : m === 'you' ? shape('you') : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
+  return m === 'assistant' ? agentMark(16, 'am as') : m === 'you' ? shape('you') : m === 'them' ? '<span aria-hidden="true">•</span>' : signalMark(m);
 };
 const TL_CLASS: Record<MilestoneKind, string> = {
   buyer_text: 'buyer', buyer_image: 'buyer', reply: 'reply', quote: 'quote', order: 'order',

@@ -388,14 +388,14 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
    * on real rows: no four-point star, no emoji, no character standing in for an icon; every drawing an inline
    * Phosphor one (or the brand's mark); the assistant marked only by its slot.
    *
-   * THE SOLAR NAV (2026-10-05) — the nav is the one place drawn in another family: Solar's Linear set, copied
-   * unchanged (solar.ts), never filled. Inside `<nav class="side">` every icon is one of those drawings and the
-   * assistant's slot is Solar's user-circle; everywhere else, Phosphor as before.
+   * THE SOLAR NAV (#228) and THE SOLAR RUN (2026-10-05) — every icon is Solar's Linear drawing, copied unchanged
+   * (solar.ts), a line, never filled, the assistant's slot its user-circle. The one exception is a HELD meaning
+   * (icons.ts), still Phosphor's until the owner picks its Solar drawing — never inside the nav.
    */
-  it('the icons run · every page in en, ar and zh: no star, no emoji, no glyph as an icon; the nav Solar\'s, every other drawing Phosphor\'s', async () => {
+  it('the icons run · every page in en, ar and zh: no star, no emoji, no glyph as an icon; every drawing Solar\'s but a held few', async () => {
     const { PHOSPHOR } = await import('../../src/api/web/phosphor.js');
     const { SOLAR } = await import('../../src/api/web/solar.js');
-    const agentDrawings = new Set<string>(Object.values(PHOSPHOR['user-circle']));
+    const heldPaths = new Set<string>(Object.values(PHOSPHOR).flatMap((w) => Object.values(w) as string[]));
     const solarDrawings = new Set<string>(Object.values(SOLAR));
     const ORNAMENT = /[✦✧✨★☆⭐]|\p{Extended_Pictographic}|\p{Regional_Indicator}|\u{FE0F}/u;
     // what a customer or the owner wrote is theirs (an emoji in a message stays): only the page's own drawing is held
@@ -439,11 +439,13 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           if (/data-mark="agent"/.test(m[1]!) && m[2] !== SOLAR['user-circle']) problems.push(`${at}: the agent's slot in the nav drawn by something else`);
         }
         if (nav && navIcons < 6) problems.push(`${at}: the nav drew ${navIcons} icons`);
-        for (const m of html.replace(nav, ' ').matchAll(/<svg\b[^>]*>(?:<path d="([^"]*)")?/g)) {
-          const tag = m[0];
-          if (/class="mark"/.test(tag)) continue;                       // the brand's mark (brand.ts), drawn on its own grid
-          if (!/viewBox="0 0 256 256"/.test(tag)) problems.push(`${at}: a drawing not from the family: ${tag.slice(0, 80)}`);
-          if (/data-mark="agent"/.test(tag) && !agentDrawings.has(m[1] ?? '')) problems.push(`${at}: the agent's slot drawn by something else`);
+        for (const m of html.replace(nav, ' ').matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/g)) {
+          const [whole, attrs, body] = [m[0], m[1]!, m[2]!];
+          if (/class="mark"/.test(attrs)) continue;                     // the brand's mark (brand.ts), drawn on its own grid
+          const solar = /\bsl\b/.test(/class="([^"]*)"/.exec(attrs)?.[1] ?? '') && /viewBox="0 0 24 24"/.test(attrs) && / fill="none"/.test(attrs) && solarDrawings.has(body);
+          const held = / held"/.test(attrs) && heldPaths.has(/^<path d="([^"]*)"\/>$/.exec(body)?.[1] ?? '');
+          if (!solar && !held) problems.push(`${at}: a drawing that is neither Solar's nor a held one: ${whole.slice(0, 80)}`);
+          if (/data-mark="agent"/.test(attrs) && body !== SOLAR['user-circle']) problems.push(`${at}: the agent's slot drawn by something else`);
         }
       }
     }
