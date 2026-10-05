@@ -15,15 +15,16 @@ under "Decided" below.
 
 ## The Solar run (2026-10-05) — read this first
 
-**State: shipped, except 7 meanings held for the owner's choice (below).**
-- **#230 merged** 2026-10-05 05:14 UTC as `1281551`. Both checks reported success on its head `1777281` through the gate.
-- **Deployed** 05:17 UTC; `/health` ok.
+**State (2026-10-05): done. Every icon in the product is Solar Linear, and Phosphor is gone.**
+- **#230** (48 of 56 meanings, 8 held) merged 05:14 UTC as `1281551`; deployed 05:17 UTC.
+- **#232** (the owner's choices for the seven gaps, and Phosphor removed) merged 09:28 UTC as `3205bbe`; deployed 09:30 UTC.
+- For both, both checks reported success on the exact head through the gate (`gated-merge.sh`), and `/health` was ok afterwards.
 - **Production schema is 129**; no migration.
 
 **The owner's instruction (2026-10-05):** "Move EVERY remaining icon in the app from Phosphor to Solar Linear … same family, same weight, same roundness as the nav … the LINE WEIGHT must look visually equal to the nav's at whatever size it's drawn … where Solar has no good equivalent … do NOT substitute something loosely related … STOP at the end with a list … Ship everything that mapped cleanly; hold the gaps for me." The owner agreed that Phosphor stays for the held meanings only, and goes in a follow-up once they are chosen.
 
 **What shipped (#230):**
-- **47 of 55 meanings draw Solar's Linear set** (`icons.ts` → `solar.ts`, 53 drawings copied unchanged by `tools/icons.mjs`). The assistant's slot is Solar's user-circle at every size, never filled. The mapping was matched by eye: `docs/design/solar-all/all-icons.png`.
+- **48 of 56 meanings draw Solar's Linear set** (corrected: #230's description and this entry first said 47 of 55, from a contact-sheet script that skipped `sliders`; the code and the guards were right) (`icons.ts` → `solar.ts`, 53 drawings copied unchanged by `tools/icons.mjs`). The assistant's slot is Solar's user-circle at every size, never filled. The mapping was matched by eye: `docs/design/solar-all/all-icons.png`.
 - **The line:**
   - every Solar icon (`svg.sl`) draws its line at a fixed screen width (non-scaling);
   - 1.75 px from 23 px up, 1.65 at 20–22, 1.6 at 18–19.5, 1.5 at 17 and under;
@@ -41,25 +42,33 @@ under "Decided" below.
   - The build passed.
   - Integration: 1,290 of 1,290, none skipped.
 
-**Waiting on the owner — the held meanings.** Each keeps Phosphor's drawing until the owner picks a Solar candidate. The sheet is `docs/design/solar-all/held-candidates.png`.
+**The seven gaps, chosen by the owner (2026-10-05: "kinds 1, sell 1, language 1, prices 1, closed 1, month 2, order 1"), shipped in #232:**
 
-| Meaning (where) | Phosphor | Solar candidates |
+| Meaning (where) | Was (Phosphor, held) | Now (Solar Linear) |
 |---|---|---|
-| Each kind of reply (the assistant's menu) | list-bullets | 1 `list` · 2 `list-ordered` · 3 `list-down-minimalistic` |
-| How you sell (My business) | handshake | 1 `hand-money` · 2 `hand-heart` · 3 `user-hands` |
-| The language (Settings) | translate | 1 `global` · 2 `text-square` · 3 `chat-round-line` |
-| Your price limits (My business) | coins | 1 `banknote` · 2 `wallet-money` · 3 `dollar-minimalistic` |
-| Closed days (My business) and a closure (the calendar) | calendar-x | 1 `calendar-mark` · 2 `sleeping` · 3 `lock` |
-| This month (the assistant's menu) | calendar-dots | 1 `calendar-date` · 2 `chart-2` · 3 `graph-up` |
-| An order on its way (the calendar) | truck | 1 `delivery` · 2 `routing` · 3 `map-arrow-right` |
+| Each kind of reply (the assistant's menu) | list-bullets | `list` |
+| How you sell (My business) | handshake | `hand-money` |
+| The language (Settings) | translate | `global` |
+| Your price limits (My business) | coins | `banknote` |
+| Closed days (My business) and a closure (the calendar) | calendar-x | `calendar-mark` |
+| This month (the assistant's menu) | calendar-dots | `chart-2` |
+| An order on its way (the calendar) | truck | `delivery` |
 
-**To finish once the owner picks**, about 30 minutes:
-1. Move each meaning from `HELD` to `ICON` in `icons.ts`, and add the drawing's name to `SOLAR_WANTED` in `tools/icons.mjs`.
-2. Empty `HELD`, then remove the Phosphor half of `tools/icons.mjs`, `phosphor.ts`, `PHOSPHOR-LICENSE.txt`, NOTICE's Phosphor section and the `@phosphor-icons/core` dev dependency.
-3. Update the guard's two tables (`SOLAR_OF`, `HELD_OF`); the held test then asserts that nothing is held.
+The candidates the owner chose from are in `docs/design/solar-all/held-candidates.png`.
+
+**Phosphor removed (#232):**
+- Gone: `phosphor.ts`, `PHOSPHOR-LICENSE.txt`, the generator's Phosphor half, NOTICE's section, the README's mention and the `@phosphor-icons/core` dev dependency.
+- `icons.ts` has one map: 56 meanings, 60 drawings with the nav's.
+- The guard asserts Phosphor cannot come back (module, file, dependency, notice, or any drawing on its 256-unit square), and one meaning per shape. Fourteen deliberate breakages each fail it.
+- Verification:
+  - `check`: 7,083 passed.
+  - Trust: 41/41 scenarios.
+  - The build passed.
+  - Integration: 1,290 of 1,290.
+- The walk (75 pages × 5 languages × 1280/390 px) found 0 problems. Six of the seven new drawings were seen in place; `delivery` has no dated order in the seed data and is covered by the guards.
 
 **Also noted:**
-- The calendar's held kinds (a closure, an order on its way) did not appear on the seeded pages the walk reached. They are covered by the guards, not by the walk.
+- Twelve of the 60 drawings never appeared on the seeded pages the walk reached; the seed has no such records. They are the card's close, a nameless face, the voice and file marks, the exchange-rate and checking rows, and the calendar kinds with no dated record (`delivery` among them). Each is held to the package by the guards.
 - Two choices made under the brief:
   - "ink" was read as the neutral icon colour; meaning colours stay.
   - The phone heading's 23 px assistant mark takes the nav's 1.75 px line.
