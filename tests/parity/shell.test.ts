@@ -19,15 +19,15 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   // split out of the drawer that also held what you sell.
   // THE WARMTH RUN (2026-10-03), phase 1 — the owner's rail: Today; Customers
   // (Inbox, Calendar); the assistant; Settings.
-  it('the nav is exactly Today, Inbox, Calendar, the assistant, Settings', () => {
+  it('the nav is exactly Home, Inbox, Calendar, the assistant, Settings', () => {
     expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/employee', '/app/settings']);
   });
 
   it('names them in the owner’s language, in every locale', () => {
-    expect(page('en')).toContain('Today'); expect(page('en')).toContain('Customers');
-    expect(page('zh')).toContain('今天'); expect(page('zh')).toContain('客户');
+    expect(page('en')).toContain('>Home<'); expect(page('en')).toContain('Customers');   // THE HOME RUN
+    expect(page('zh')).toContain('首页'); expect(page('zh')).toContain('客户');
     expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
-    expect(page('ar')).toContain('اليوم'); expect(page('ar')).toContain('العملاء');
+    expect(page('ar')).toContain('الرئيسية'); expect(page('ar')).toContain('العملاء');
     // The warmth run: "Inbox (rename from 'Customer list')", under the Customers heading.
     expect(page('en')).toContain('>Inbox<');
     expect(page('zh')).toContain('收件箱');

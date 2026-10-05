@@ -4760,7 +4760,7 @@ const ZH: Record<MessageKey, string> = {
   'home.notYet.channel': '一接上渠道，{name}就开始回复。',
   'home.schedule.today': '今天的安排',
   'home.schedule.next': '接下来',
-  'home.schedule.none': '日历上还没有安排。',
+  'home.schedule.none': '日程上还没有安排。',
   'home.schedule.how': '客户要样品、下单或等你回复时，日期会出现在这里。',
   'home.tally.week': '本周',
   'home.wins.week.zero': '这周{name}帮你处理了 {n} 个对话',

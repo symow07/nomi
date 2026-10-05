@@ -145,7 +145,7 @@ describe('CC-26 · the live region: empty, polite, and the line waiting in a tem
     expect(b.door).toBe('/app/inbox?lens=value&q=Haddad');
     expect(b.says.map((s) => s.what)).toEqual(['list']);
     const d = todayWatch('1.2.0.0.1');
-    expect(d.ask).toBe('/app/live/today?since=1.2.0.0.1');
+    expect(d.ask).toBe('/app/live/home?since=1.2.0.0.1');   // THE HOME RUN; /app/live/today still answers
     expect(d.door).toBe('/app');
     expect(d.says.map((s) => s.what)).toEqual(['today']);
     for (const w of [W, b, d]) expect(w.ask).not.toContain('%');

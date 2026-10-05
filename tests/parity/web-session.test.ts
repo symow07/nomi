@@ -167,12 +167,12 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     const zh = shell({ title: 'x', active: 'home', locale: 'zh', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(zh).toContain('<html lang="zh" dir="ltr">');
     expect(zh).toContain(t('zh', 'app.tagline'));
-    expect(zh).toContain('今天'); expect(zh).toContain('客户');   // M16.4c: nav matches the page it opens
+    expect(zh).toContain('首页'); expect(zh).toContain('客户');   // M16.4c: nav matches the page it opens
 
     const ar = shell({ title: 'x', active: 'home', locale: 'ar', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(ar).toContain('<html lang="ar" dir="rtl">');   // RTL
     expect(ar).toContain(t('ar', 'app.tagline'));
-    expect(ar).toContain('اليوم');                        // Phase A: "today"
+    expect(ar).toContain('الرئيسية');                     // THE HOME RUN: "home", the home base
   });
 
   it('nav uses owner language — no technical/AI vocabulary in any locale', () => {

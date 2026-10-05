@@ -598,8 +598,8 @@ describe('the rail\'s answer: the count every page shows, and who arrived when i
     expect(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })).not.toContain('data-rail');
   });
 
-  it('Today is drawn again in place when what needs attention changes; a conversation still shows its line', () => {
-    expect(liveRegion('en', todayWatch('1.0.0.0.0.0'))).toMatch(/^<div class="live" role="status" aria-live="polite" data-live="\/app\/live\/today\?since=1\.0\.0\.0\.0\.0" data-live-redraw="1"><\/div>/);
+  it('Home is drawn again in place when what needs attention changes; a conversation still shows its line', () => {
+    expect(liveRegion('en', todayWatch('1.0.0.0.0.0'))).toMatch(/^<div class="live" role="status" aria-live="polite" data-live="\/app\/live\/home\?since=1\.0\.0\.0\.0\.0" data-live-redraw="1"><\/div>/);
     expect(liveRegion('en', conversationWatch(CONV, '1.0.0123abcd'))).not.toContain('data-live-redraw');
   });
 });

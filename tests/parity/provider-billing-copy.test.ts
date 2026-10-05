@@ -117,13 +117,13 @@ describe('Today says it while it lasts, and not after', () => {
     });
   }
 
-  it('while refusing, Today never says the assistant is taking care of things', () => {
+  it('while refusing, Home never says the assistant is taking care of things', () => {
     const calm = { ...today(), needs: { total: 0, rows: [] } };
     const quiet = { ...snapshot(false), hasAttention: false, attention: { ...snapshot(false).attention, handoffs: 0 } };
     // The control: the same calm day, answering, says the assistant is taking care of things…
-    expect(renderOperationsHome(quiet, 'en', calm)).toContain('tw-calm-line');
+    expect(renderOperationsHome(quiet, 'en', calm)).toContain('home-care');
     // …and refusing, it does not.
-    expect(renderOperationsHome({ ...quiet, providerRefusing: true }, 'en', calm)).not.toContain('tw-calm-line');
+    expect(renderOperationsHome({ ...quiet, providerRefusing: true }, 'en', calm)).not.toContain('home-care');
   });
 });
 

@@ -231,9 +231,11 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     expect(today.body.slice(first)).toMatch(new RegExp(`^<li class="tw-item">[\\s\\S]*?<a class="tw-go" href="/app/inbox/${confirmConv}#latest">[\\s\\S]*?Order waiting`));
     // Phase 8 of the warmth run — the order waiting is one of the customers the rail counts; a page
     // left open learns of it from the rail's question (the browser's own order notice is retired).
-    const live = await get('/app/live/today?since=0.0.0.0.0.0');
+    const live = await get('/app/live/home?since=0.0.0.0.0.0');
     expect(live.statusCode).toBe(200);
     expect((live.json() as { news: boolean }).news).toBe(true);
+    // THE HOME RUN — a tab opened before the rename still asks at the old address, and is answered the same.
+    expect((await get('/app/live/today?since=0.0.0.0.0.0')).json()).toEqual(live.json());
     const since = /data-rail="\/app\/live\/rail\?since=([0-9.]+)"/.exec(today.body)?.[1];
     expect(Number(since?.split('.')[0])).toBeGreaterThanOrEqual(1);
   });

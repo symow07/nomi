@@ -388,8 +388,9 @@ const MOTION_CSS = `  @media (prefers-reduced-motion: no-preference) {
     details::details-content { transition:opacity var(--motion-fast) var(--motion-ease-in), content-visibility var(--motion-fast) allow-discrete; }
     details:not([open])::details-content { opacity:0; }
     details > summary::before { transition:transform var(--motion-fast) var(--motion-ease); }
-    .flash, #approve, .working, .home-card, .home-schedule, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
-    #approve, .home-schedule, .td { animation-delay:var(--motion-fast); }
+    .flash, #approve, .working, .home-card, .td, .sgroup { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; }
+    #approve, .td { animation-delay:var(--motion-fast); }
+    .home-schedule { animation:nomi-rise var(--motion-normal) var(--motion-ease) both; animation-delay:var(--motion-fast); }
     .sgroup + .sgroup { animation-delay:var(--motion-step); }
     .sgroup + .sgroup + .sgroup { animation-delay:calc(2 * var(--motion-step)); }
     /* The warmth run — drawn again in place for a newcomer, Today does not rise in again (w4-whole-21). */
@@ -967,16 +968,15 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .home-ready { margin:var(--space-12) 0 0; color:var(--color-ink-secondary); }
   .home-card { background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1); padding:var(--space-24); }
   .home-card.is-calm { padding:var(--space-16) var(--space-24); }
-  .home-card .tw-list { background:transparent; box-shadow:none; border-radius:0; }
+  .home-card .tw-list { background:transparent; box-shadow:none; }
   main h2.home-calm { margin:0; font-size:var(--font-size-base); font-weight:600; }
   .home-care { font-weight:400; color:var(--color-ink-secondary); }
-  .home-now .today-foot.setup { margin:var(--space-16) 0 0; }
   .home-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-24); align-items:start; }
   .home-tile { min-width:0; background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-24); }
   main .home-tile h2.td-head { font-size:var(--font-size-title); }
   .home-quiet { margin:0; }
   .home-how { margin:var(--space-4) 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .home-schedule .dl.home-dates { margin:0 0 var(--space-8); max-width:none; background:transparent; box-shadow:none; border-radius:0; }
+  .home-schedule .dl.home-dates { margin:0 0 var(--space-8); background:transparent; box-shadow:none; }
   .home-schedule .home-dates .dl-row { padding-inline:0; }
   .home-wins .tt { margin-top:var(--space-16); }
   .tw-note { margin:0 0 var(--space-12); }

@@ -441,8 +441,8 @@ export function renderOperationsHome(
       ${more ? `<div class="doors">${more}</div>` : ''}
       ${lead ? `<div class="today-worth">${lead}</div>` : ''}
     </div>
-    ${finishSetup}
-  </section>`;
+  </section>
+  ${finishSetup}`;
 
   // ── WHAT THE ASSISTANT HANDLED — the headline in its chosen name, the faces with a name and a word
   //     each (the week's, when today has none). With nothing connected, nobody can reach it: the way
