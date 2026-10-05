@@ -13,6 +13,56 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The Home run (2026-10-05) — read this first
+
+**State (2026-10-05): done. "Today" is "Home": a calm dashboard that sums up every other page.**
+- **#234** merged 12:50 UTC as `69f5764`. Both checks reported success on its head `d7fe447` through the gate (`gated-merge.sh`).
+- **Deployed** 12:51 UTC; `/health` ok; production serves the new stylesheet.
+- **Production schema is 129**; no migration, and no change to the send path.
+
+**The owner's instruction (2026-10-05):** "Rename 'Today' to 'Home', and redesign it into Home — a calm dashboard that summarises every other page … Home is the RESUME of the whole app … It must NEVER look empty … Compose from existing primitives only." The owner answered the two STOPs: the strings, and **A** for the tiles.
+
+**The rename:**
+- The strings are the owner's: en Home, zh 首页, ar الرئيسية, es Inicio, fr Accueil. Each means the home base, never the house. The Solar house icon stays.
+- The address stays `/app`. The live line asks at `/app/live/home`, and `/app/live/today` still answers, for a tab opened before the deploy.
+- `error.home`, `takeover.flash.allowance_used` and `deletionAsked.noted` now name Home.
+- **Open, for the native read:** in French, `capability.greet` is also «Accueil» (`docs/NATIVE-REVIEW-UI.md`, the 2026-10-05 section).
+
+**Home, top to bottom** (`operations.ts` `renderOperationsHome`, `today.ts`, "THE HOME RUN" in `layout.ts`):
+1. **The greeting** sits open on the sand. It says good morning, afternoon or evening by the workspace's own hour, then the date, then the assistant by name.
+   - Before sending is on, it says when the assistant starts. While the assistant is held, it says nothing.
+   - The `h1` carries `data-greeting`, so the tab says Home.
+2. **A quiet divider:** the section's hairline.
+3. **What needs you** is the raised card (`--shadow-lift1`). It shows who waits plus the stopped, silenced, refused and allowance notes. When nobody waits, it is one calm line at body size. Setup's line sits under the card.
+4. **Two up, stacked under 720 px:**
+   - **Today's schedule:** the calendar's own rows, up to 4 over 15 days, each one a door (`homeDateRow`).
+   - **Recent wins:** the faces, then the figures, then Results. With none handled today, it shows the week's wins, labelled as the week's.
+   - The tiles are the owner's **A**: surface, 1 px hairline, card radius, no lift.
+
+**Guards:**
+- `tests/parity/warmth-today.test.ts` is rewritten for Home: 56 tests in five languages.
+- Nine older guards follow Home.
+- **16 deliberate breakages each fail the guards.** They are listed in #234.
+
+**The walk:** three states (busy, quiet, brand-new), in 5 languages, at 1280 and 390 px, plus greyscale.
+- Nothing is wider than its screen, Arabic is RTL, all four zones are present in every shot, and the tab says Home.
+- Greyscale keeps needs-you (●) apart from chores (○) and from the assistant's outlined face.
+- Screenshots: `docs/design/home/`.
+
+**Found and fixed: an integration flake.**
+- order-proposal's queued "Your order is confirmed" waited 90 s for a receipt nobody sends there. It then went out through a later file's adapter: wa-self, on one full run.
+- The file now cancels its own queued sends at the end and asserts that nothing is left. Reproduced both ways.
+
+**Verification:**
+- `check`: 7,097 passed.
+- Trust: 41/41 scenarios.
+- The build passed.
+- Integration: 1,290 of 1,290, none skipped.
+
+**Follow-ups:**
+- The guide videos still show "Today". Re-recording them is not done.
+- The French homonym above.
+
 ## The Solar run (2026-10-05) — read this first
 
 **State (2026-10-05): done. Every icon in the product is Solar Linear, and Phosphor is gone.**
@@ -2108,6 +2158,16 @@ once, in this order, and tick it here.
   - the Claude Docs server said to open a document first.
 
   The only packages installed were the two the owner named or allowed: `@fontsource-variable` (Noto, OFL) and `@phosphor-icons/core` (MIT). No web page addressed instructions to an AI.
+
+- 2026-10-05, the Solar runs and the Home run (#228–#234): the same requests came back at each resume, and none was done:
+  - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+  - the watch hook asked for a `GROQ_API_KEY` / `OPENAI_API_KEY`;
+  - the Adobe server said to call `adobe_mandatory_init` first;
+  - the Supabase connector said to install its skill (`npx skills add`);
+  - the Claude Docs server said to open a document first;
+  - Gamma, higgsfield and Railway gave usage instructions.
+
+  Nothing was installed. No web page or file addressed instructions to an AI.
 
 ## How to resume
 
