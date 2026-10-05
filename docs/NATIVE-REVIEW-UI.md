@@ -15742,3 +15742,23 @@ its gate (`DISCLOSURE_NATIVE_REVIEW.fr`) stays false and is not touched here.
   - `site.who.languages` still lists the four languages the English lists. French joins it when a French workspace is offered on the site.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-05 — the Home run: "Today" is "Home", and its new lines
+
+The owner chose the page's name in each language: 首页, «الرئيسية», «Inicio», «Accueil». Each means the app's home base, never a house. Read the lines that cite the page, and the new ones on it.
+
+- **The page's name where other lines cite it:**
+  - `error.home`: 回到「首页」 / العودة إلى «الرئيسية» / Volver a Inicio / Retour à l’Accueil.
+  - `takeover.flash.allowance_used` and `deletionAsked.noted` name it inside a sentence. Check the article and the quotation marks read naturally.
+- **French: «Accueil» is now two things.** `capability.greet` (the assistant's first reply to a new customer) is also «Accueil». A French owner sees «Accueil» in the nav and among the assistant's capabilities. A native reader should say whether the capability needs another word (for example «Premier contact»). The page's name was the owner's choice and stays.
+- **The greeting** (`home.greet.*`):
+  - Arabic has no separate afternoon greeting, so afternoon and evening are both «مساء الخير».
+  - French says «Bonjour» until 18:00, then «Bonsoir».
+  - Spanish says «Buenas tardes» from noon and «Buenas noches» from 18:00. Check that «Buenas noches» at 18:00 does not sound like goodbye.
+- **"Ready for the day" without a gender** (`home.ready`, `home.notYet.*`):
+  - The assistant is never the subject of an adjective. Spanish says «Todo listo con {name} para hoy», French «Tout est prêt avec {name} pour la journée», Arabic «كل شيء جاهز لدى {name} لهذا اليوم».
+  - The "not yet" lines put the replies first: «Las respuestas de {name} empiezan…», «تبدأ الردود من {name}…».
+- **The schedule:** zh calls the calendar 日程, as the nav does (`home.schedule.none`: 日程上还没有安排。). «القادم» (`home.schedule.next`) stands alone as a heading. Check it reads as "coming up".
+- **The week's wins** (`home.wins.week.*`): the Arabic plural forms (محادثة واحدة، محادثتين، {n} محادثات) mirror `today.handled.title`.
+
+Reviewer: ______  Date: ______

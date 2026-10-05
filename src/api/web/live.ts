@@ -333,7 +333,8 @@ export const buyersWatch = (mark: string, door: string): LiveWatch => ({
  * showing the line; the line is what is shown if the page cannot be had.
  */
 export const todayWatch = (mark: string): LiveWatch => ({
-  ask: `/app/live/today?since=${mark}`,
+  // The home run — Home's address; /app/live/today still answers, for a tab drawn before the rename.
+  ask: `/app/live/home?since=${mark}`,
   door: '/app',
   says: [{ what: 'today', key: 'live.today' }],
   redraw: true,

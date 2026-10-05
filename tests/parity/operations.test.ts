@@ -133,7 +133,7 @@ const live = (s: OperationsSnapshot): OperationsSnapshot => ({ ...s, channel: { 
  * in five languages and at 0, 2 and 200 customers, is `warmth-today.test.ts`;
  * what stays here is what this page has always had to say.
  */
-describe('Today, in three zones (render)', () => {
+describe('Home, in its zones (render)', () => {
   it('who waits: counted in the band\'s heading with ○, then each person by face and name — the Inbox\'s own reason, a door to the newest message', () => {
     const html = renderOperationsHome(live(populated), 'en', busy);
     // The owner's words: "N waiting for you", in the waiting signal's colour with its shape (was nav.needsYou).
@@ -177,7 +177,8 @@ describe('Today, in three zones (render)', () => {
     // Phase 9 (w4-whole-11) — "caught up" where customers can reach the assistant: a channel is connected.
     const html = renderOperationsHome(live(emptyFactory), 'en', { ...NOTHING_TODAY(NOW), sending: ['whatsapp'] });
     // The owner's words: "you're all caught up", warm (was: "No one is waiting for you." as the heading).
-    expect(html).toContain(`<h2 id="today-now" class="tw-head">${t('en', 'today.calm.title')}</h2>`);
+    // THE HOME RUN — one calm line at the body's size, the assistant's care beside the fact.
+    expect(html).toContain(`<h2 id="today-now" class="tw-head home-calm">${t('en', 'today.calm.title')} <span class="home-care">`);
     // Phase 9 (w4-today-setup-09) — said once: no second line that says it again.
     expect(html).not.toContain(t('en', 'today.needs.none'));
     expect(html).toContain(t('en', 'today.calm.care'));
@@ -191,7 +192,7 @@ describe('Today, in three zones (render)', () => {
     expect(html).toContain('href="/app/business/channels"');
     expect(html).toContain(t('en', 'ops.system.notLive'));
     expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
-    expect(html).toContain(`<h2 id="today-now" class="tw-head">${t('en', 'today.needs.none')}</h2>`);
+    expect(html).toContain(`<h2 id="today-now" class="tw-head home-calm">${t('en', 'today.needs.none')}</h2>`);
     expect(html).not.toContain(t('en', 'today.calm.title'));
   });
 
@@ -210,8 +211,8 @@ describe('Today, in three zones (render)', () => {
     expect(off).toContain(t('en', 'ops.system.notLive'));
   });
 
-  it('the date is today\'s, in the business\'s timezone, beside the title', () => {
-    expect(renderOperationsHome(live(emptyFactory), 'en', busy)).toContain('Today <span class="muted today-date">· Tuesday, September 29</span>');
+  it('the date is today\'s, in the business\'s timezone, under the greeting', () => {
+    expect(renderOperationsHome(live(emptyFactory), 'en', busy)).toMatch(/<h1 class="page" id="home-hi" data-greeting>Good (morning|afternoon|evening)<\/h1>\s*<p class="home-date">Tuesday, September 29<\/p>/);
   });
 
   it('zh + ar render in their own language; the arrows are the shell\'s, mirrored', () => {

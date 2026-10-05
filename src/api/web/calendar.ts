@@ -386,7 +386,7 @@ function whoOf(locale: Locale, e: CalendarEntry): string {
  * whose rows come from many days, the hour stands under its day ("Oct 2",
  * or "Today" in magenta).
  */
-function dateRow(locale: Locale, e: CalendarEntry, now: Date, today: string | null = null): string {
+function dateRow(locale: Locale, e: CalendarEntry, now: Date, today: string | null = null, onHome = false): string {
   const { done, marks } = marksOf(locale, e, now);
   const hour = e.allDay ? t(locale, 'calendar.allDay')
     : `${show.time(locale, e.at)}${e.detail.endsAt ? `–${show.time(locale, e.detail.endsAt)}` : ''}`;
@@ -395,12 +395,21 @@ function dateRow(locale: Locale, e: CalendarEntry, now: Date, today: string | nu
   const more = detailOf(locale, e);
   const body = `<span class="dl-body"><span class="dl-say">${marks}${sentence(locale, e)}</span>${
     more ? `<span class="small"><bdi>${esc(more)}</bdi></span>` : ''}</span>`;
-  const to = doorOf(e);
+  // Home (the home run) opens; it never removes: a date with no conversation or order behind it opens its day here.
+  const to = doorOf(e) ?? (onHome ? href({ month: e.day, day: e.day }) : null);
   return `<li class="dl-row ${edgeOf(e)}${done ? ' done' : ''}" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}" data-cat="${esc(e.category)}">
         <span class="dl-hour">${on}${esc(hour)}</span>${whoOf(locale, e)}
         ${to ? `<a class="dl-go" href="${to}">${body}${GO}</a>` : `<div class="dl-go">${body}${removeForm(locale, e)}</div>`}
       </li>`;
 }
+
+/**
+ * THE HOME RUN (2026-10-05) — Home's schedule draws the next dates as this page does: the same row, its
+ * day said ("Today", or the date) as the owed list says it, and a door every time — to the conversation,
+ * the order, or the day here.
+ */
+export const homeDateRow = (locale: Locale, e: CalendarEntry, now: Date, today: string): string =>
+  dateRow(locale, e, now, today, true);
 
 /** A day's dates in time order: the all-day ones first. */
 const inOrder = (xs: readonly CalendarEntry[]): CalendarEntry[] =>

@@ -187,14 +187,14 @@ const today: OperationsSnapshot = {
 
 const QUIET = NOTHING_TODAY(new Date('2026-09-29T08:00:00Z'));
 
-describe('0076 · Today shows it as its own line', () => {
+describe('0076 · Home shows it as its own line', () => {
   it('under the message that never arrived, above every ordinary hand-off, to its own list', () => {
     expect(ATTENTION_PRIORITY.indexOf('deletionAsks')).toBe(ATTENTION_PRIORITY.indexOf('blockedMessages') + 1);
     expect(ATTENTION_PRIORITY.indexOf('deletionAsks')).toBeLessThan(ATTENTION_PRIORITY.indexOf('handoffs'));
     for (const l of LOCALES) {
       const html = withoutIsolates(renderOperationsHome(today, l, QUIET));
-      // The warmth run — the band is the first zone; its class carries more after "today-now" now.
-      const first = html.slice(html.indexOf('class="block today-now'), html.indexOf('</section>', html.indexOf('class="block today-now')));
+      // THE HOME RUN — what needs you is the card under the greeting.
+      const first = html.slice(html.indexOf('aria-labelledby="today-now"'), html.indexOf('</section>', html.indexOf('aria-labelledby="today-now"')));
       const hrefs = [...first.matchAll(/class="deeper" href="([^"]+)"/g)].map((m) => m[1]);
       expect(hrefs, l).toEqual(['/app/inbox?filter=blocked', '/app/inbox?filter=deletion']);
       expect(first, l).toContain(esc(tn(l, 'today.deletion', 2)));

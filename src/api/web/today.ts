@@ -10,8 +10,11 @@ import { ownershipOf } from '../../core/conversation/ownership.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { loadInboxList, needsWhy, rowState, channelName, type ConversationSummary } from './inbox.js';
-import { t, tn } from './say.js';
-import { esc, conversationUrl, signalMark } from './layout.js';
+import { t, tn, outreachShown } from './say.js';
+import { esc, conversationUrl, signalMark, deeper } from './layout.js';
+import { loadCalendar, type CalendarEntry } from '../../db/calendar.js';
+import { isDone, homeDateRow } from './calendar.js';
+import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { face, faceLink, type FaceOf } from './faces.js';
 import * as show from './values.js';
 import { GO } from './icons.js';
@@ -36,7 +39,18 @@ import { agentMark } from './agentMark.js';
  * Everything here is read from rows the product already keeps; nothing is
  * scored, ranked by a formula or summarised. "Today" is the workspace's own
  * day, in its own time zone (`zoneOf`), from local midnight.
+ *
+ * THE HOME RUN (2026-10-05) — the page is HOME now, the résumé of the whole app (operations.ts draws it):
+ * a greeting, what needs you, then the day's schedule and the wins two up. This module adds what those
+ * need: the workspace's own hour (the greeting), the next dates from the calendar's own loader (the
+ * schedule), and — when nothing was handled today — the last seven days' wins, so a quiet day is never
+ * an empty one.
  */
+
+/** How many dates the schedule shows before it points at the calendar. */
+export const HOME_DATES = 4;
+/** How far ahead the schedule looks for the next dates: the calendar's own "next 14 days". */
+const HOME_AHEAD = 15;
 
 /** How many people the band names before it points at the Inbox. */
 export const TODAY_PEOPLE = 5;
@@ -76,16 +90,25 @@ export type TodayData = {
   readonly tally?: { readonly orders: number; readonly quotes: number; readonly afterHours: number };
   /** The channels customers can reach this workspace on. */
   readonly sending: readonly BuyerChannel[];
+  /** The workspace's own hour now, 0 to 23 — the greeting's. Absent: the morning's. */
+  readonly hour?: number;
+  /** The next dates on the calendar, today's first (at most HOME_DATES), and the workspace's today. Absent: none. */
+  readonly schedule?: { readonly today: string; readonly entries: readonly CalendarEntry[] };
+  /** Whose wins `handled` and `tally` are: today's, or — nothing handled today — the last seven days'. Absent: today's. */
+  readonly winsScope?: 'today' | 'week';
 };
 
 export const NOTHING_TODAY = (now: Date): TodayData => ({
   now, needs: { total: 0, rows: [] }, handled: { total: 0, people: [] }, tally: { orders: 0, quotes: 0, afterHours: 0 }, sending: [],
 });
 
-/** Midnight today in the workspace's zone, as an instant. */
-async function dayStart(tx: Tx, zone: string, now: Date): Promise<Date> {
-  return (await sql<{ s: Date }>`
-    select (date_trunc('day', ${now}::timestamptz at time zone ${zone}) at time zone ${zone}) as s`.execute(tx)).rows[0]!.s;
+/** Midnight today in the workspace's zone, as an instant; midnight six days before (the week's wins); and the hour now there. */
+async function dayStart(tx: Tx, zone: string, now: Date): Promise<{ readonly start: Date; readonly week: Date; readonly hour: number }> {
+  const r = (await sql<{ s: Date; w: Date; h: number }>`
+    select (date_trunc('day', ${now}::timestamptz at time zone ${zone}) at time zone ${zone}) as s,
+           ((date_trunc('day', ${now}::timestamptz at time zone ${zone}) - interval '6 days') at time zone ${zone}) as w,
+           extract(hour from ${now}::timestamptz at time zone ${zone})::int as h`.execute(tx)).rows[0]!;
+  return { start: r.s, week: r.w, hour: r.h };
 }
 
 /**
@@ -196,23 +219,82 @@ export async function loadToday(db: Db, businessId: string, viewerId: string | u
     loadInboxList(db, businessId, 'pending', viewerId),
     withTenantTx(db, B, async (tx) => {
       const zone = await zoneOf(tx, B);
-      const start = await dayStart(tx, zone, now);
+      const { start, week, hour } = await dayStart(tx, zone, now);
+      const today = await readHandled(tx, B, start);
+      // The home run — nothing handled today: the last seven days' wins, said as the week's.
+      const weekly = today.total === 0 ? await readHandled(tx, B, week) : null;
+      const scope: 'today' | 'week' = weekly && weekly.total > 0 ? 'week' : 'today';
       return {
+        zone, hour, scope,
         channels: await connectedChannels(tx, B),
-        handled: await readHandled(tx, B, start),
-        tally: await readTally(tx, B, zone, start),
+        handled: scope === 'week' ? weekly! : today,
+        tally: await readTally(tx, B, zone, scope === 'week' ? week : start),
       };
     }),
   ]);
   const rows = needs.conversations.slice(0, TODAY_PEOPLE);
   const faces = rows.length === 0 ? {} : await withTenantTx(db, B, (tx) => facesOf(tx, rows.map((r) => r.conversationId)));
+  // The home run — the next dates, from the calendar's own loader: what is still to come or still owed, in time order.
+  const todayKey = dayKey(now, day.zone);
+  const calendar = await loadCalendar(db, businessId, {
+    from: todayKey, to: addDays(todayKey, HOME_AHEAD), category: null, buyer: null, outreach: outreachShown(),
+  }, now);
+  const next = calendar.entries
+    .filter((e) => !isDone(e, now))
+    .slice().sort((a, b) => a.day.localeCompare(b.day) || (a.allDay === b.allDay ? a.at.getTime() - b.at.getTime() : a.allDay ? -1 : 1))
+    .slice(0, HOME_DATES);
   return {
     now,
     needs: { total: needs.waitingCount, rows, faces },
     handled: day.handled,
     tally: day.tally,
     sending: BUYER_CHANNELS.filter((c) => day.channels[c]),
+    hour: day.hour,
+    schedule: { today: todayKey, entries: next },
+    winsScope: day.scope,
   };
+}
+
+// ── Home · the greeting ──────────────────────────────────────────────────────
+
+/** Morning from 05:00, afternoon from 12:00, evening from 18:00, in the workspace's own time. */
+export const greetingFor = (hour: number): 'morning' | 'afternoon' | 'evening' =>
+  hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+
+/**
+ * THE HOME RUN — the greeting, open on the page: good morning (the workspace's hour), the date, and the
+ * assistant by name: ready for the day only when it is (`state` 'ready': customers can reach it and
+ * nothing holds it). Before then, when it starts — once sending is switched on, or a channel connected.
+ * While it is stopped, silenced or out of its allowance the card under the greeting says so first, so the
+ * greeting says nothing of it.
+ */
+export function renderGreeting(d: TodayData, locale: Locale, o: { readonly state: 'ready' | 'notLive' | 'noChannel' | 'held' }): string {
+  const when = greetingFor(d.hour ?? 9);
+  const line = o.state === 'ready' ? 'home.ready' : o.state === 'notLive' ? 'home.notYet.live' : o.state === 'noChannel' ? 'home.notYet.channel' : null;
+  return `<h1 class="page" id="home-hi" data-greeting>${esc(t(locale, `home.greet.${when}` as MessageKey))}</h1>
+    <p class="home-date">${esc(show.dayLong(locale, d.now))}</p>${
+    line ? `<p class="home-ready">${agentMark(16, 'am as')} ${esc(t(locale, line))}</p>` : ''}`;
+}
+
+// ── Home · the day's schedule ────────────────────────────────────────────────
+
+/**
+ * THE HOME RUN — the headline from the calendar: the next dates (today's first), each drawn as the
+ * calendar draws it — the hour or the day, the face, the sentence, a door — under "Today's schedule"
+ * when the first is today's, "Coming up" when it is later. Nothing dated: the fact and how dates come,
+ * calmly, and the door to the calendar either way.
+ */
+export function renderSchedule(d: TodayData, locale: Locale): string {
+  const sc = d.schedule ?? { today: '', entries: [] };
+  const door = deeper('/app/calendar', t(locale, 'nav.calendar'));
+  if (sc.entries.length === 0) {
+    return `<h2 id="home-schedule" class="home-h">${esc(t(locale, 'home.schedule.today'))}</h2>
+      <p class="home-quiet">${esc(t(locale, 'home.schedule.none'))}</p>
+      <p class="home-how">${esc(t(locale, 'home.schedule.how'))}</p>${door}`;
+  }
+  const head = sc.entries[0]!.day === sc.today ? 'home.schedule.today' : 'home.schedule.next';
+  return `<h2 id="home-schedule" class="home-h">${esc(t(locale, head))}</h2>
+    <ol class="dl home-dates">${sc.entries.map((e) => homeDateRow(locale, e, d.now, sc.today)).join('')}</ol>${door}`;
 }
 
 // ── 1 · who waits for you ────────────────────────────────────────────────────
@@ -291,7 +373,9 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
     ? `<li><span class="td-more"><span class="td-plus"><bdi>+${esc(show.count(locale, rest))}</bdi></span>`
       + `<span class="td-word">${esc(t(locale, 'today.handled.more'))}</span></span></li>`
     : '';
-  return `<h2 id="today-done" class="td-head">${agentMark(28, 'am as')} ${esc(tn(locale, 'today.handled.title', h.total))}</h2>
+  // The home run — the week's, when nothing was handled today.
+  const title = d.winsScope === 'week' ? 'home.wins.week' : 'today.handled.title';
+  return `<h2 id="today-done" class="td-head">${agentMark(28, 'am as')} ${esc(tn(locale, title, h.total))}</h2>
     <ul class="td-row">${faces}${more}</ul>`;
 }
 
@@ -310,6 +394,6 @@ export function renderTally(d: TodayData, locale: Locale): string {
   const n = d.tally ?? { orders: 0, quotes: 0, afterHours: 0 };
   const one = (v: number, key: string): string =>
     `<li><span class="tt-n">${show.count(locale, v)}</span><span class="tt-l">${esc(tn(locale, key, v))}</span></li>`;
-  return `<h2 id="today-tally" class="tt-head">${esc(t(locale, 'today.tally.title'))}</h2>
+  return `<h2 id="today-tally" class="tt-head">${esc(t(locale, d.winsScope === 'week' ? 'home.tally.week' : 'today.tally.title'))}</h2>
     <ul class="tt-row">${one(n.orders, 'today.tally.orders')}${one(n.quotes, 'today.tally.quotes')}${one(n.afterHours, 'today.tally.late')}</ul>`;
 }

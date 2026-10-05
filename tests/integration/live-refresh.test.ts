@@ -227,7 +227,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     expect((await ask(`/app/live/conversation/${randomUUID()}?since=0.0.d41d8cd9`)).status).toBe(404);
     expect((await ask('/app/live/conversation/not-a-conversation?since=0.0.d41d8cd9')).status).toBe(404);
     for (const bad of [`/app/live/conversation/${conv}`, `/app/live/conversation/${conv}?since=x`, `/app/live/conversation/${conv}?since=1.0`,
-      '/app/live/buyers?since=1.0', '/app/live/today?since=1.2.3']) {
+      '/app/live/buyers?since=1.0', '/app/live/home?since=1.2.3', '/app/live/today?since=1.2.3']) {
       const a = await ask(bad);
       expect(a.status, bad).toBe(400);
       expect(a.said, bad).toEqual({ news: false });
@@ -236,7 +236,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
 
   it('signed out: the script is told so and stops; a person is sent to sign in', async () => {
     const url = await pageAsk(`/app/inbox/${conv}`);
-    for (const u of [url, '/app/live/buyers?since=1.0123456789abcdef', '/app/live/today?since=0.0.0.0.0.0']) {
+    for (const u of [url, '/app/live/buyers?since=1.0123456789abcdef', '/app/live/home?since=0.0.0.0.0.0', '/app/live/today?since=0.0.0.0.0.0']) {
       const machine = await get(u, '', JSON_ACCEPT);
       expect(machine.statusCode, u).toBe(401);
       expect(machine.json(), u).toEqual({ news: false });
@@ -271,7 +271,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     const r = await get('/app');
     const url = askOf(r.body);
     // Six counts: 0080 added the orders waiting for the owner's tap.
-    expect(url).toMatch(/^\/app\/live\/today\?since=[0-9]+(\.[0-9]+){5}$/);
+    expect(url).toMatch(/^\/app\/live\/home\?since=[0-9]+(\.[0-9]+){5}$/);   // THE HOME RUN
     expect(r.body).toContain('<a class="deeper live-door" href="/app">');
     expect((await ask(url)).said).toEqual({ news: false });
     await replyWaits(BIZ, second, 'A reply for Omar.');

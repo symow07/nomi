@@ -52,6 +52,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
    * they answer.
    */
   const STALE_MARK: Record<string, string> = {
+    '/app/live/home': '0.0.0.0.0.0',
     '/app/live/today': '0.0.0.0.0.0',
     '/app/live/buyers': '0.0000000000000000',
     '/app/live/channels': '0.0000000000000000',

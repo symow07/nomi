@@ -16,7 +16,7 @@ import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
 import { esc, deeper, signalMark, todoMark } from './layout.js';
-import { waitingHead, renderWaitingPeople, renderHandled, renderSending, renderTally, type TodayData } from './today.js';
+import { waitingHead, renderWaitingPeople, renderHandled, renderSending, renderTally, renderGreeting, renderSchedule, type TodayData } from './today.js';
 import * as show from './values.js';
 import { agentMark } from './agentMark.js';
 
@@ -297,7 +297,14 @@ export async function loadOperationsSnapshot(
   };
 }
 
-/** ── Today — the owner's daily surface ─────────────────────────────────────
+/** ── Home — the owner's daily surface (Today until the home run) ─────────────
+ * THE HOME RUN (2026-10-05) — the owner: "Home is the RESUME of the whole app: one glance tells the owner
+ * where everything stands, and every zone taps through to its full page. Calm by default, work in one
+ * tap. It must NEVER look empty." Top to bottom: the greeting, open on the page; a quiet rule; what needs
+ * you, the raised card (the Inbox's live thing, or one calm line); then the day's schedule and the wins,
+ * two up on a wide screen and stacked on a phone, lighter than the card above them. The zones are the
+ * warmth run's, rearranged: everything Today said, Home still says.
+ *
  * THE WARMTH RUN, phase 2 (2026-10-03): three zones, top to bottom (`today.ts`)
  * — who waits for you (a thin band in the waiting signal's magenta), what the
  * assistant handled today (faces, a word each), and the day's three figures.
@@ -401,9 +408,10 @@ export function renderOperationsHome(
   // with messaging off nothing has been achieved, and the page says so plainly.
   // Phase 9 (w4-today-setup-09) — said once: the title, then what the assistant does.
   const calm = live && reachable;
+  // The home run — nothing waiting: one calm line, never a headline, so the schedule and the wins take the eye.
   const head = quietNow
-    ? `<h2 id="today-now" class="tw-head">${esc(t(locale, calm ? 'today.calm.title' : 'today.needs.none'))}</h2>${
-        calm && !holding ? `<p class="tw-calm-line">${agentMark(16, 'am as')} ${esc(t(locale, 'today.calm.care', { name }))}</p>` : ''}`
+    ? `<h2 id="today-now" class="tw-head home-calm">${esc(t(locale, calm ? 'today.calm.title' : 'today.needs.none'))}${
+        calm && !holding ? ` <span class="home-care">${agentMark(16, 'am as')} ${esc(t(locale, 'today.calm.care', { name }))}</span>` : ''}</h2>`
     : today.needs.total > 0 ? waitingHead(locale, today.needs.total)
     : `<h2 id="today-now" class="tw-head"><span class="tw-need">${signalMark('waiting')} ${esc(t(locale, 'ops.attention.title'))}</span></h2>`;
 
@@ -419,37 +427,43 @@ export function renderOperationsHome(
         deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
     : '';
 
-  const band = `<section class="block today-now tw${quietNow ? ' is-calm' : ''}" aria-labelledby="today-now">
-    ${head}
-    ${refusing}${silenced}${stopped}${budget}
-    ${renderWaitingPeople(today, locale)}
-    ${more ? `<div class="doors">${more}</div>` : ''}
-    ${lead ? `<div class="today-worth">${lead}</div>` : ''}
+  // ── HOME, top to bottom (the home run). The greeting: the assistant is "ready for the day" only when it is.
+  const greeting = `<section class="block home-hello" aria-labelledby="home-hi">
+    ${renderGreeting(today, locale, { state: holding ? 'held' : !live ? 'notLive' : !reachable ? 'noChannel' : 'ready' })}
+  </section>`;
+
+  // What needs you — the raised card (the caught-up box's own lift), its rule above it the page's own.
+  const needsYou = `<section class="block home-now" aria-labelledby="today-now">
+    <div class="home-card${quietNow ? ' is-calm' : ''}">
+      ${head}
+      ${refusing}${silenced}${stopped}${budget}
+      ${renderWaitingPeople(today, locale)}
+      ${more ? `<div class="doors">${more}</div>` : ''}
+      ${lead ? `<div class="today-worth">${lead}</div>` : ''}
+    </div>
   </section>
   ${finishSetup}`;
 
-  // ── 2 · WHAT THE ASSISTANT HANDLED — the headline in its chosen name, the
-  //     faces with a name and a word each. With nothing connected, nobody can
-  //     reach it: the way forward instead of an empty row (M22, F-01), its
-  //     door the setup step's own (phase 9, w4-today-setup-16), at the size
-  //     of a heading, not of the day's news. Sending, only where messaging is
-  //     live, closes the zone.
+  // ── WHAT THE ASSISTANT HANDLED — the headline in its chosen name, the faces with a name and a word
+  //     each (the week's, when today has none). With nothing connected, nobody can reach it: the way
+  //     forward instead of an empty row (M22, F-01), its door the setup step's own (phase 9,
+  //     w4-today-setup-16). The figures follow when there is anything to count, then Results (CC-05);
+  //     sending, only where messaging is live, closes the zone.
   const reach = !reachable && (today.handled?.total ?? 0) === 0
     ? `<h2 id="today-done" class="td-head is-plain">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>${deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name }))}`
     : renderHandled(today, locale, { ready: calm && !holding });
   // Phase 4 — nothing reaches anyone until a channel is connected: that waits for the owner, so it carries ○.
   const notLive = !live ? `<p class="muted notlive">${todoMark()} ${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
-  const hero = `<section class="block today-done td" aria-labelledby="today-done">
+  const counted = (today.handled?.total ?? 0) > 0 || Object.values(today.tally ?? {}).some((n) => n > 0);
+  const wins = `<section class="home-tile home-wins td" aria-labelledby="today-done">
     ${reach}
+    ${counted ? `<div class="today-tally tt">${renderTally(today, locale)}</div>` : ''}
+    ${deeper('/app/analytics', t(locale, 'today.results.link'))}
     ${live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}
     ${notLive}
   </section>`;
-
-  // ── 3 · THE DAY'S THREE FIGURES — and, CC-05, the door to Results whatever
-  //     the day held: the figures are today's, Results holds the history.
-  const tally = `<section class="block today-tally tt" aria-labelledby="today-tally">
-    ${renderTally(today, locale)}
-    ${deeper('/app/analytics', t(locale, 'today.results.link'))}
+  const schedule = `<section class="home-tile home-schedule" aria-labelledby="home-schedule">
+    ${renderSchedule(today, locale)}
   </section>`;
 
   // 0080 — an order a customer said yes to waits for the owner's tap. The warmth
@@ -457,9 +471,11 @@ export function renderOperationsHome(
   // Notifications, and inside it the rail's card says it; this page no longer
   // offers its own browser notice.
 
-  return `<h1 class="page">${esc(t(locale, 'ops.title'))} <span class="muted today-date">· ${esc(show.dayLong(locale, today.now))}</span></h1>
-  ${band}
-  ${hero}
-  ${tally}
+  return `<div class="home">
+  ${greeting}
+  ${needsYou}
+  <div class="home-grid">${schedule}${wins}</div>
+</div>
 `;
 }
+

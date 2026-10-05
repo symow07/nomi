@@ -391,7 +391,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // passed because leftover state from earlier runs kept work on the page.
     // The design pass: Today's first heading is who needs you — or that nobody does.
     // The warmth run — the band's heading: "N waiting for you" with the waiting ○, or the calm line.
-    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head">(No one is waiting for you\.|You're all caught up|<span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> (\d+ waiting for you|Needs your attention)<\/span>)<\/h2>/);
+    // THE HOME RUN — the calm line is the card's one line, at the body's size, the care beside it.
+    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head home-calm">(No one is waiting for you\.|You're all caught up)(<\/h2>| <span class="home-care">)|<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> (\d+ waiting for you|Needs your attention)<\/span><\/h2>/);
     // M35.5 — on a tenant where NOTHING has happened, the activity section no
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known
@@ -1529,11 +1530,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      // The warmth run (phase 2): three zones — who waits for you, what the
-      // assistant handled, the day's three figures — each under its own heading,
-      // in that order. ("The last 24 hours" and "Coming up" left Today.)
-      const zones = ['<h2 id="today-now"', '<h2 id="today-done"', `<h2 id="today-tally" class="tt-head">${esc(t('en', 'today.tally.title'))}</h2>`]
+      // THE HOME RUN: the greeting, what needs you, the schedule, the wins — each
+      // under its own heading, in that order; the tab says Home, not the greeting.
+      // (The figures join the wins once there is anything to count.)
+      const zones = ['<h1 class="page" id="home-hi" data-greeting>', '<h2 id="today-now"', '<h2 id="home-schedule"', '<h2 id="today-done"']
         .map((h) => res.body.indexOf(h));
+      expect(res.body).toContain(`<title>${esc(t('en', 'nav.home'))} · `);
       expect(zones.every((at) => at > 0)).toBe(true);
       expect([...zones].sort((a, b) => a - b)).toEqual(zones);
       expect(res.body).not.toContain('id="today-coming"');
@@ -1604,7 +1606,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // Phase 9 of the warmth run (w4-today-setup-16) — the way forward is the setup step's own door.
       expect(html).toContain('href="/app/business/channels"');
       // The warmth run — with messaging off, the plain fact, never "all caught up".
-      expect(html).toContain(`<h2 id="today-now" class="tw-head">${esc(t('en', 'today.needs.none'))}</h2>`);
+      expect(html).toContain(`<h2 id="today-now" class="tw-head home-calm">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
     });
 

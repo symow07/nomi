@@ -91,13 +91,12 @@ describe('B · every page knows which hub it belongs to', () => {
 describe('C · Results has a door', () => {
   it('the link is OUTSIDE any quiet branch', () => {
     const src = read('src/api/web/operations.ts');
-    // The warmth run (phase 2): the door sits under the day's three figures
-    // (it sat in "the last 24 hours", which left Today), a zone drawn on every
-    // day, whatever it held — never inside a branch that can hide it.
-    const block = /const tally = `[\s\S]*?`;/.exec(src)?.[0] ?? '';
-    expect(block).toContain("deeper('/app/analytics'");
-    expect(block).not.toMatch(/\?\s*`|:\s*''/);   // no condition inside it
-    expect(src).toMatch(/\n  \$\{tally\}\n/);
+    // THE HOME RUN: the door closes the wins' tile, drawn on every day,
+    // whatever it held — never inside a branch that can hide it.
+    const at = src.indexOf('const wins = `');
+    const block = src.slice(at, src.indexOf('</section>`;', at));
+    expect(block).toMatch(/\n    \$\{deeper\('\/app\/analytics', t\(locale, 'today\.results\.link'\)\)\}\n/);
+    expect(src).toContain('<div class="home-grid">${schedule}${wins}</div>');
   });
 });
 
