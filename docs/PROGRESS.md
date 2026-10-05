@@ -13,6 +13,48 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The quiet-day run (2026-10-05) — read this first
+
+**State (2026-10-05): done. On a quiet day, Home shows something true instead of an absence.**
+- **#236** merged 14:28 UTC as `fd5416c`. Both checks reported success on its head `b3c5445` through the gate (`gated-merge.sh`).
+- **Deployed** 14:30 UTC; `/health` ok.
+- **Production schema is 129**; no migration, and no change to the send path.
+
+**The owner's instruction (2026-10-05):** "A tile's HEADLINE must never be a negative sentence … A headline states what IS. Absence, when it must be said at all, is a small calm line in the body." Three defects were seen in production; no layout, colour, font or icon changes were allowed.
+
+**What was wrong, and why:**
+1. **"Today nomi-socials has not handled a conversation yet."** The week fallback ran and found nothing: the live workspace's last assistant reply went out on 2026-09-20 (read-only query). Its ladder stopped at seven days.
+2. **"Nothing on the calendar yet"** was the schedule tile's loudest line.
+3. **"You're all caught up" over "1 reply to check".** The calm check counted who waits, unsent replies and deletion requests. It missed replies to check, knowledge gaps, step-backs and the "worth your attention" lines.
+
+**What shipped (#236):**
+- **Wins ladder** (`loadToday`, `today.ts`):
+  1. today's;
+  2. the week's;
+  3. **since the last day one was handled** ("Since Sep 20, …", with figures headed the same way; `winsScope: 'since'`, `winsSince`);
+  4. none ever: "What {name} handles for you", with one small line of what will appear, or of how to connect.
+- **Schedule:** today's, then the next dates as "Coming up", looking past two weeks up to three months (`HOME_FAR`). With nothing ahead: "Your schedule" plus the small "how dates arrive" line.
+- **The card** (`ownerWaiting`, `operations.ts`): one count of everything it lists. The calm line appears only at zero with no suggestion lines. Otherwise the heading is who waits, "Needs your attention" (with the dot), or "Worth your attention".
+- **Strings retired:** `today.handled.none`, `today.handled.ready`, `today.calm.notLive.title`, `home.schedule.none`. The new ones are in `docs/NATIVE-REVIEW-UI.md`.
+
+**Guards:**
+- `tests/parity/warmth-today.test.ts`:
+  - no tile-headline string, and no headline drawn in any of 9 states, is a negative construction, in 5 languages;
+  - controls: the old headlines, plus one per negative word;
+  - the card's calm line is checked against each of 7 kinds of content, plus production's exact state.
+- `tests/integration/home-quiet.test.ts` covers both ladders on a real database.
+- **17 deliberate breakages each fail a test.** The first run missed one: dropping "not" from the check. The per-word controls close that gap.
+
+**The walk:** busy, quiet, brand-new and production's state, in 5 languages, at 1280 and 390 px, 40 shots in all, each checked by script. Screenshots: `docs/design/home-quiet/`.
+
+**Verification:**
+- `check`: 7,228 passed.
+- Trust: 41/41 scenarios.
+- The build passed.
+- Integration: 1,295 of 1,295, none skipped.
+
+**Left as it was, on purpose:** the card's own calm line, «No one is waiting for you.», when messaging is off. It is the small body-size line the rule allows for an absence, and it shows only when the card is empty.
+
 ## The Home run (2026-10-05) — read this first
 
 **State (2026-10-05): done. "Today" is "Home": a calm dashboard that sums up every other page.**
@@ -2159,7 +2201,7 @@ once, in this order, and tick it here.
 
   The only packages installed were the two the owner named or allowed: `@fontsource-variable` (Noto, OFL) and `@phosphor-icons/core` (MIT). No web page addressed instructions to an AI.
 
-- 2026-10-05, the Solar runs and the Home run (#228–#234): the same requests came back at each resume, and none was done:
+- 2026-10-05, the Solar runs, the Home run and the quiet-day run (#228–#236): the same requests came back at each resume, and none was done:
   - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
   - the watch hook asked for a `GROQ_API_KEY` / `OPENAI_API_KEY`;
   - the Adobe server said to call `adobe_mandatory_init` first;
