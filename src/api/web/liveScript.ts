@@ -65,15 +65,18 @@
  *      is retired: how anyone hears outside Nomi is their choice on
  *      Notifications, and the card says it inside.)
  *
- *   9. THE ADVISOR'S THINKING ORB (2026-10-07) — on the advisor's page only (its form names the orb,
- *      `data-orb`), and only while a question is on its way: the question goes up as asked and, under
- *      it, the orb and its calm line (the page's `template[data-orb-pending]`). The orb is drawn by the
- *      vendored drawing core of thinking-orbs (assets/vendor/thinking-orbs/), imported when the question
- *      box is first focused or the question is sent, never before — it plays no part in drawing the
- *      page. It moves until the answer's page replaces this one, and never otherwise; a reader who asked
- *      for less motion gets one still frame; the ink is the page's own (`--color-ink`). If the orb cannot
- *      be had the line stays alone, and coming back to the page from history takes both away.
- *      tests/parity/advisor-orb.test.ts.
+ *   9. THE ADVISOR'S ORB (2026-10-07) — on the advisor's page only (its form names it, `data-orb`), in
+ *      two states and no other. RESTING: while nothing has been asked (the page draws `[data-orb-rest]`
+ *      only then), a large orb at the head of the page, gently moving — the page's "ask me". THINKING:
+ *      once a question is on its way, the resting orb gives way; the question goes up as asked and,
+ *      under it, the small orb and its calm line (`template[data-orb-pending]`), until the answer's page
+ *      replaces this one. The geometry is the vendored drawing core of thinking-orbs
+ *      (assets/vendor/thinking-orbs/), imported once the page is drawn; the colour is ours — the
+ *      magenta the form names (`data-orb-ink`, a palette variable) fading toward the page's paper, in
+ *      our own painter. It moves only while the page is seen (paused while the tab is hidden, resumed
+ *      when shown); a reader who asked for less motion gets one still frame of each. If the orb cannot
+ *      be had, the resting space closes and the thinking line stays alone; back from history, the page is
+ *      as it was. tests/parity/advisor-orb.test.ts.
  *
  * Progressive: every page works exactly as before with scripting off — read,
  * reply, approve, send. Nothing here is needed for any of it.
@@ -581,52 +584,91 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
-  /* The advisor thinking (item 9): only on its page, only while its question is on its way. */
+  /* The advisor's orb (item 9): on its page only, resting while nothing is asked, thinking while a question is on its way. */
   function still() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
-  function inkOf() {
-    var v = window.getComputedStyle ? String(window.getComputedStyle(doc.documentElement).getPropertyValue('--color-ink')).trim() : '';
+  function rgbOf(name) {
+    var v = window.getComputedStyle ? String(window.getComputedStyle(doc.documentElement).getPropertyValue(name)).trim() : '';
     var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(v);
     return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : 0;
   }
-  function thinking() {
+  /* Our own painter over the engine's geometry: the magenta, fading toward the page's paper with depth. */
+  function shade(tint, paper, w, a) {
+    w = Math.min(1, Math.max(0, w));
+    return 'rgba(' + Math.round(tint.r + (paper.r - tint.r) * w) + ',' + Math.round(tint.g + (paper.g - tint.g) * w) + ','
+      + Math.round(tint.b + (paper.b - tint.b) * w) + ',' + (typeof a === 'number' ? a : 1) + ')';
+  }
+  function paintOrb(ctx, f, tint, paper) {
+    var i, d;
+    for (i = 0; i < f.lines.length; i++) {
+      d = f.lines[i];
+      ctx.strokeStyle = shade(tint, paper, d.white, d.a);
+      ctx.lineWidth = d.w;
+      ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
+    }
+    for (i = 0; i < f.dots.length; i++) {
+      d = f.dots[i];
+      ctx.fillStyle = shade(tint, paper, d.white, d.a);
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  function orbs() {
     var form = doc.querySelector('form[data-orb]');
     if (!form) return;
     var tpl = doc.querySelector('template[data-orb-pending]');
     var line = doc.querySelector('.timeline');
-    if (!tpl || !tpl.content || !line) return;
+    var rest = doc.querySelector('[data-orb-rest]');
     var src = form.getAttribute('data-orb');
     var state = form.getAttribute('data-orb-state');
+    var tint = rgbOf('--color-' + form.getAttribute('data-orb-ink'));
+    var paper = rgbOf('--color-paper');
     var core = 0;
     var shown = [];
     function load() { if (!core) core = import(src); return core; }
-    var box = form.querySelector('textarea');
-    if (box) box.addEventListener('focus', function () { load().catch(function () { core = 0; }); });
-    function draw(canvas) {
-      var ink = inkOf();
-      var ctx = ink && canvas.getContext ? canvas.getContext('2d') : 0;
-      if (!ctx) { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); return; }
-      load().then(function (orb) {
+    /* Draws the state on a canvas at the size the page gives it, at a pace of the engine's speed; moving only while seen. */
+    function draw(canvas, pace) {
+      var ctx = tint && paper && canvas.getContext ? canvas.getContext('2d') : 0;
+      if (!ctx) return Promise.reject(new Error('no orb here'));
+      return load().then(function (orb) {
         var pre = orb.r(state, 64);
         var shape = pre && orb.M[pre.mode];
         if (!shape) throw new Error('no such orb');
-        var size = 64;
+        var size = canvas.getBoundingClientRect().width || 64;
         var dpr = Math.min(2, window.devicePixelRatio || 1);
+        /* Larger than its tuned 64, the orb is drawn at its own size with more dots, not stretched. */
+        var opts = size > 80 ? orb.s(pre.opts, size / 80) : pre.opts;
         canvas.width = Math.round(size * dpr);
         canvas.height = Math.round(size * dpr);
         function paint(t) {
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.clearRect(0, 0, size, size);
-          orb.p(ctx, shape(size, t, pre.opts), false, ink);
+          paintOrb(ctx, shape(size, t, opts), tint, paper);
         }
-        if (still() || !window.requestAnimationFrame) { paint(0.6); return; }
+        paint(0.6);
+        var running = false;
+        function seen() { return canvas.isConnected && doc.visibilityState !== 'hidden' && !still() && !!window.requestAnimationFrame; }
         function frame(now) {
-          if (!canvas.isConnected) return;
-          paint(now / 1000 * pre.speed);
-          if (!still()) window.requestAnimationFrame(frame);
+          if (!seen()) { running = false; return; }
+          paint(now / 1000 * pre.speed * pace);
+          window.requestAnimationFrame(frame);
         }
-        window.requestAnimationFrame(frame);
-      }).catch(function () { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); });
+        function go() { if (!running && seen()) { running = true; window.requestAnimationFrame(frame); } }
+        doc.addEventListener('visibilitychange', go);
+        go();
+      });
     }
+    /* Resting: the page's face while nothing has been asked. Shown only when this script can draw it. */
+    var restWrap = rest && rest.parentNode;
+    var restAt = restWrap && restWrap.parentNode;
+    var restBefore = restWrap && restWrap.nextSibling;
+    function wake() { draw(rest, Number(rest.getAttribute('data-orb-pace')) || 1).catch(function () { rest.hidden = true; }); }
+    if (rest && tint && paper) {
+      rest.hidden = false;
+      if (doc.readyState === 'complete') wake(); else window.addEventListener('load', wake);
+    }
+    var box = form.querySelector('textarea');
+    if (box) box.addEventListener('focus', function () { load().catch(function () { core = 0; }); });
+    if (!tpl || !tpl.content || !line) return;
+    /* Thinking: once the question is on its way, the resting orb gives way. */
     doc.addEventListener('submit', function (e) {
       if (e.target !== form || e.defaultPrevented || shown.length) return;
       var asked = box ? String(box.value).trim() : '';
@@ -637,15 +679,18 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var canvas = piece.querySelector('canvas');
       if (!said || !wait) return;
       said.textContent = asked;
+      if (restWrap && restWrap.parentNode) restWrap.parentNode.removeChild(restWrap);
       shown = [].slice.call(piece.childNodes);
       line.appendChild(piece);
       if (wait.scrollIntoView) wait.scrollIntoView({ block: 'nearest' });
-      if (canvas) draw(canvas);
+      if (canvas) draw(canvas, 1).catch(function () { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); });
     });
+    /* Back from history: the question never went, so the page is as it was, resting orb and all. */
     window.addEventListener('pageshow', function (e) {
-      if (!e.persisted) return;
+      if (!e.persisted || !shown.length) return;
       for (var i = 0; i < shown.length; i++) if (shown[i].parentNode) shown[i].parentNode.removeChild(shown[i]);
       shown = [];
+      if (restWrap && restAt && !restWrap.parentNode) { restAt.insertBefore(restWrap, restBefore); wake(); }
     });
   }
 
@@ -662,7 +707,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   phone();
   asking();
   sending();
-  thinking();
+  orbs();
   cards();
   faces();
   begin();

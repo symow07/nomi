@@ -29,11 +29,22 @@ import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 export const ADVISOR_MAX = 1000;
 
 /**
- * THE THINKING ORB (2026-10-07) — which of the engine's states the advisor thinks in. The owner picks it
- * (docs/design/advisor-orb/): `listening` (a waveform rolling through the latitude rings) or `composing` (an
- * undulating multi-band sash).
+ * THE ADVISOR'S ORB (2026-10-07; docs/design/advisor-orb/). Its motion is the engine's `listening` (a
+ * waveform rolling through the latitude rings) — the owner's pick; resting, the same orb, larger and
+ * slower. Its colour is a palette magenta the owner picks (the advisor is Nomi, talking to the owner): never
+ * the ink, never black, and never the deep "needs you" magenta.
  */
 const ORB_STATE = 'listening';
+const ORB_INK = 'assistant';
+/** Resting, the orb moves at this fraction of its thinking pace: alive, and calm. */
+const ORB_REST_PACE = 0.5;
+
+/**
+ * Resting: drawn only while nothing has been asked — the page's "ask me". Hidden until the one script can
+ * draw it (with scripting off it takes no room); the script draws it, moving only while the page is seen.
+ */
+const resting = (): string =>
+  `<div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="320" height="320" aria-hidden="true" hidden></canvas></div>`;
 
 /**
  * While the question is on its way, and only then (the one script, `thinking`): the question goes up as
@@ -99,13 +110,14 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
   const door = exchange && 'door' in exchange.answer && exchange.answer.door
     ? `<div class="doors">${deeper(exchange.answer.door.href, t(locale, exchange.answer.door.label))}</div>` : '';
   return `<h1 class="page">${esc(name)}</h1>
+    ${exchange === null ? resting() : ''}
     <div class="timeline">
       ${bubble('advisor', `<p>${words(t(locale, 'advisor.hello'))}</p>${list(EXAMPLES.slice(0, 3).map((k) => t(locale, k)))}`, name, exchange === null)}
       ${exchange === null ? '' : `${bubble('owner', words(exchange.asked), t(locale, 'advisor.you'))}${bubble('advisor', answerHtml(locale, exchange.answer), name, true, door)}`}
     </div>
     ${pending(locale)}
     <div class="card sbx-compose" id="ask">
-      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}">
+      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-ink="${ORB_INK}">
         <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
         <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button></div>

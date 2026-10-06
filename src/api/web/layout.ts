@@ -2382,7 +2382,10 @@ const STYLE_PAGES = `
   .adv-facts { margin:0; padding-inline-start:1.2em; }
   .adv-facts li + li { margin-top:var(--space-4); }
   .adv-label { font-family:var(--font-family); font-size:var(--font-size-caption); font-weight:600; }
-  /* The advisor thinking: on the page's paper, where the answer will be, the orb and its line, while the question is on its way. */
+  /* The advisor's orb. Resting: centred at the head of the empty page. Thinking: on the paper where the answer will be, with its line. */
+  .orb-rest-row { display:flex; justify-content:center; margin:var(--space-8) 0 var(--space-24); }
+  canvas.orb-rest { inline-size:160px; block-size:160px; display:block; }
+  canvas.orb-rest[hidden] { display:none; }
   .orb-row { display:flex; align-items:center; gap:var(--space-12); }
   canvas.orb { inline-size:64px; block-size:64px; display:block; flex:none; }
   .orb-line { margin:0; font-size:var(--font-size-small); }

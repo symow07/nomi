@@ -1,38 +1,46 @@
-# The advisor's thinking orb — listening or composing
+# The advisor's orb, round two: which magenta, and how big at rest
 
-Taken 2026-10-07 on a local instance: the demo workspace (synthetic data), Chromium. The advisor was scripted to take 20 s to answer, so the waiting state could be seen. No model was asked.
+Taken 2026-10-07 on a local instance: the demo workspace (synthetic data), Chromium. The advisor was scripted to take 20 s to answer, so thinking could be seen. No model was asked.
 
-**Pick one.** The two candidates differ only in the motion. Size, place, ink and line are the same.
+The motion is `listening`, your pick from round one (`round-1-monochrome/`). The orb now has two states, both on the advisor's page only:
 
-- `listening`: a waveform rolling through the latitude rings of a dotted sphere.
-- `composing`: an undulating multi-band sash.
+- **Resting.** While nothing has been asked, a large orb sits centred at the head of the page, moving gently, at half the thinking pace.
+- **Thinking.** Once a question is sent, the resting orb gives way. The question goes up, and under it sit the 64 px orb and «Looking through your records…» until the answer arrives.
+
+## Pick two things
+
+1. **The magenta.** It is the same for both states.
+   - Assistant `#BE2D6E`.
+   - Brand `#9A0F5E`.
+2. **The resting size**, by optical balance against the page:
+   - desktop: 144, 192 or 240 px;
+   - phone: 112, 144 or 176 px.
+
+   My eye says **192 on desktop and 144 on phone**. At those sizes the orb is about the height of the opening line plus its three examples. It leads the page without pushing the question box below the first screen on a phone.
 
 ## What to look at
 
-1. `compare-frames.png`: both states side by side at the real size, one frame every 0.3 s. The dashed frame is what a reader who asked for less motion sees, held still.
-2. `{state}-desktop-en.mp4` and `{state}-phone-en.mp4`: 3.4 s of a real question being sent, recorded while the answer was still on its way.
-3. `{state}-{desktop|phone}-{en|zh|ar|es|fr}.png`: the waiting state in each language and width, as it appears at 1280 and 390 px (device scale 2).
-4. `{state}-{desktop|phone}-en-reduced-motion.png`: the same with the browser set to reduce motion.
+1. `palette.png`: the two magentas side by side on our paper. Each shows the resting orb (192 px) and six thinking frames (64 px). The reserved "needs you" deep magenta is shown underneath for comparison.
+2. `resting-to-thinking-{assistant|brand}-{desktop|phone}.mp4`: 5.4 s each. About 2.5 s of the resting orb, then a real question sent and thinking while its answer is on its way.
+3. `resting-{assistant|brand}-{desktop|phone}-{size}.png`: every resting candidate in place.
+4. `thinking-{assistant|brand}-{desktop|phone}.png`: thinking in each magenta.
 
-## How it behaves (the same for either state)
+## How the colour is made
 
-- **When it moves.** Only on the advisor's page, and only once a question is sent. The question goes up as asked. Under it, on the page's paper where the answer will land, appear the orb and a calm line: «Looking through your records…» / 正在查看你的记录…… / «جارٍ البحث في سجلاتك…» / «Buscando en tus registros…» / «Recherche dans vos données…». The answer's page replaces both. Nothing moves before the question is sent, or while the owner reads or types.
-- **Size and colour.** 64 px, the library's own chat size. At 32 and 20 px the waves turned to mush. The ink is the page's own `#25201C`, read from the page's variable, fading toward the paper. Measured on the paper `#F7F3EE`:
-  - no pixel is lighter than the paper;
-  - the darkest is the ink itself (allowing for edge smoothing);
-  - no magenta and no `#000`;
-  - light mode pinned, never auto.
-- **Reduced motion.** One still frame, and no animation frame asked for. This was measured in the page: two captures 0.9 s apart are identical, and 0 frame requests followed the question, at both widths for both states. In a real recording the orb's pixels changed by at most 2 grey levels (video noise) against 139–210 when moving.
-- **First paint.** The orb is not fetched while the page is drawn: no request on load (first paint 28 ms, load 37 ms locally). It is fetched once the question box is focused (565 ms, 26,541 bytes, then cached for good). If it cannot be had, the line stays alone, and with scripting off the page works as before.
-- **Every shot was checked by script:**
-  - exactly one canvas on the page, 64 px, on screen;
-  - the requested state drawn;
-  - nothing wider than its screen;
-  - Arabic right to left;
-  - moving in the normal shots and still in the reduced ones.
+The geometry is the vendored core's. The colour is ours: our own painter takes each dot's depth and blends the magenta toward the page's paper `#F7F3EE`, never toward white. The library's grey ink is not used, nor its painter. The near dots carry the full magenta and the far ones fade into the paper. No ink, no `#000`, and never the deep "needs you" `#6E0C44`.
 
-**How the stills were taken.** Playwright cannot take a screenshot while a page's navigation is pending. So for the stills, the harness held the question in the page right after the product's script had drawn the waiting state. The videos are the real thing: a question really sent, with its answer on its way.
+Larger than its tuned 64 px, the orb is drawn at its own size with more dots (the core's own density scaler, size ÷ 80). It is not stretched: a stretched 64 px orb looked coarse at 160 px. The thinking orb stays exactly the library's tuned 64 px design.
 
-## The library
+## Checked by script, every shot
 
-[`thinking-orbs`](https://www.npmjs.com/package/thinking-orbs) 0.3.2, MIT (Jakub Antalik). Only its drawing core is used: no React, and no build step. It is vendored byte for byte in `assets/vendor/thinking-orbs/0.3.2/`, whose README gives its provenance, digests and size (7,059 bytes gzipped).
+- the candidate magenta drawn;
+- the resting orb at the requested size and moving;
+- once a question is sent, the resting orb gone and one 64 px thinking orb moving;
+- nothing wider than the screen;
+- no script error.
+
+Still to come, after your pick:
+- the five languages;
+- reduced motion, verified in the page and in a recording;
+- the pause while the tab is hidden;
+- the guards, and the deliberate breakages that prove them.
