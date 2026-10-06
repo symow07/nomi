@@ -1,59 +1,87 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Locale } from '../../core/owner/i18n/locale.js';
+import type { MessageKey } from '../../core/owner/i18n/messages.js';
+import type { Db } from '../../db/client.js';
+import type { AdvisorModel } from '../../llm/ports.js';
 import { t } from './say.js';
-import { esc } from './layout.js';
+import { esc, deeper } from './layout.js';
+import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 
 /**
- * THE ADVISOR RUN (2026-10-06) — the advisor's page, in the rail's freed slot. The owner: "a chat page for the
- * advisor. For now it is a SHELL: the chat UI only … with a placeholder reply saying it's coming soon. It must
- * NOT answer real questions yet, NOT read customer data yet." What it may read and how it must answer is
- * docs/ADVISOR-GROUNDING.md, which waits for the owner's approval before anything here answers.
+ * THE ADVISOR (the advisor batch, 2026-10-06; docs/ADVISOR-GROUNDING.md, approved). The owner asks; the
+ * answer's facts come only from src/advisor/reads.ts — read-only queries, in the asker's own workspace —
+ * and the model only words them, checked (src/advisor/check.ts). Missing data is said in a fixed sentence,
+ * never a figure. Advice is labelled as advice.
  *
- * THE WALL, built in now, at the code level rather than the page's:
- *   · Signed in only. The page is for whoever holds the account's login; a customer has no session, so a
- *     customer never reaches it (`signedIn`, from the session app.ts reads for every /app page).
- *   · Read-only by construction. This module imports nothing that reads the database, sends, prices, queues,
- *     calls a model or saves a setting — and it is handed nothing that can: app.ts gives it exactly three
- *     functions (`AdvisorIO`): whether the request is signed in, its language, and the shell to draw in.
- *     There is no tool, button, form or path from here to a send, a price or a setting.
- *     `tests/parity/advisor-run.test.ts` reads this file's whole import graph, the routes it registers and
- *     what app.ts hands it, and fails if any of that changes.
- *   · Nothing is kept. A question asked is drawn back once, with the placeholder reply, and forgotten: no
- *     table holds it, no log line carries it (the routes are registered quiet).
+ * THE WALL, at the code level:
+ *   · Signed in only: anyone the session does not know — any customer — is sent to sign in.
+ *   · Read-only by construction. This module and what it reaches import no sender, queue, pipeline or
+ *     setting; the database is reached only through src/advisor/reads.ts, whose imports are read functions
+ *     only, on a pool that is read-only at the server (`createReadOnlyDb`), each read in its own
+ *     transaction opened `read only`. app.ts hands it five things: who is asking, their language, the
+ *     shell, that pool, and the model. There is no tool, button or path from here to a send, a price or a
+ *     setting. tests/parity/advisor-build.test.ts holds the import graph; tests/integration/advisor-build
+ *     .test.ts proves a write through its pool is refused, and that asking writes nothing.
+ *   · Nothing is kept. A question and its answer are drawn once and forgotten; the routes log quietly.
  */
 
 /** The longest question the box takes. */
 export const ADVISOR_MAX = 1000;
 
+export type AdvisorViewer = { readonly businessId: string; readonly viewerId: string };
+
 /** Everything the advisor's routes are given. Nothing else reaches them. */
 export type AdvisorIO = {
-  /** Whether this request carries a signed-in session (the account's people), never a customer. */
-  readonly signedIn: (req: FastifyRequest) => boolean;
+  /** Who is asking: a signed-in person of the account, or null (never a customer). */
+  readonly viewer: (req: FastifyRequest) => AdvisorViewer | null;
   readonly locale: (req: FastifyRequest) => Locale;
   /** The shell, drawn around the page (read-only: the rail, the business's name, the needs-you count). */
   readonly page: (req: FastifyRequest, o: { readonly title: string; readonly active: string; readonly bodyHtml: string }) => string;
+  /** The advisor's pool, read-only at the server; null: this installation cannot answer yet. */
+  readonly db: Db | null;
+  /** The model that words the facts; null: this installation cannot answer yet. */
+  readonly model: AdvisorModel | null;
 };
 
-/** One line of the exchange: the owner's own words, or the advisor's. */
-const line = (who: 'owner' | 'advisor', text: string, label: string, latest = false): string =>
+/** One line of the exchange, in the conversation page's own pieces: the owner's words, or the advisor's. */
+const bubble = (who: 'owner' | 'advisor', inner: string, label: string, latest = false, after = ''): string =>
   `<div${latest ? ' id="latest"' : ''} class="msg ${who === 'owner' ? 'outbound' : 'inbound'}">
-      <div dir="auto" class="bubble"><bdi>${esc(text)}</bdi></div>
-      <div class="ts muted">${esc(label)}</div>
+      <div dir="auto" class="bubble${who === 'advisor' ? ' adv' : ''}">${inner}</div>
+      <div class="ts muted">${esc(label)}</div>${after}
     </div>`;
+const words = (s: string): string => `<bdi>${esc(s)}</bdi>`;
+const list = (lines: readonly string[]): string => `<ul class="adv-facts">${lines.map((l) => `<li><bdi>${esc(l)}</bdi></li>`).join('')}</ul>`;
+
+const EXAMPLES: readonly MessageKey[] = ['advisor.example.1', 'advisor.example.2', 'advisor.example.3', 'advisor.example.4', 'advisor.example.5'];
+
+/** The answer, as the advisor says it. */
+function answerHtml(locale: Locale, a: AdvisorAnswer): string {
+  switch (a.kind) {
+    case 'fact':
+      return a.phrased ? `<p>${words(a.text)}</p>` : `<p>${words(t(locale, 'advisor.fallback.head'))}</p>${list(a.lines)}`;
+    case 'opinion':
+      return `<p class="adv-label">${esc(t(locale, 'advisor.opinion.label'))}</p>${a.phrased || a.lines.length === 0
+        ? `<p>${words(a.text)}</p>` : `<p>${words(t(locale, 'advisor.opinion.unchecked'))}</p>${list(a.lines)}`}${a.based.length
+        ? `<p class="small muted">${words(t(locale, 'advisor.opinion.based', { list: a.based.join(' · ') }))}</p>` : ''}`;
+    case 'unknown':
+      return `<p>${words(a.text)}</p>${list(EXAMPLES.map((k) => t(locale, k)))}`;
+    default:
+      return `<p>${words(a.text)}</p>`;
+  }
+}
 
 /**
- * The page: the advisor's opening line (what is coming, and that nothing is looked up yet); the question just
- * asked, if one was, and the same placeholder in reply; then the box. The conversation page's own pieces — the
- * timeline, the bubbles, the send box — in their plain voice: the light magenta is the assistant's ("the
- * assistant did this"), and the advisor is not the assistant.
+ * The page: the advisor's opening line and what can be asked; the question just asked, if one was, with its
+ * answer and the door to the page that shows the same thing; then the box.
  */
-export function renderAdvisor(locale: Locale, asked: string | null = null): string {
+export function renderAdvisor(locale: Locale, exchange: { readonly asked: string; readonly answer: AdvisorAnswer } | null = null): string {
   const name = t(locale, 'nav.advisor');
-  const soon = t(locale, 'advisor.soon');
+  const door = exchange && 'door' in exchange.answer && exchange.answer.door
+    ? `<div class="doors">${deeper(exchange.answer.door.href, t(locale, exchange.answer.door.label))}</div>` : '';
   return `<h1 class="page">${esc(name)}</h1>
     <div class="timeline">
-      ${line('advisor', soon, name, asked === null)}
-      ${asked === null ? '' : `${line('owner', asked, t(locale, 'advisor.you'))}${line('advisor', soon, name, true)}`}
+      ${bubble('advisor', `<p>${words(t(locale, 'advisor.hello'))}</p>${list(EXAMPLES.slice(0, 3).map((k) => t(locale, k)))}`, name, exchange === null)}
+      ${exchange === null ? '' : `${bubble('owner', words(exchange.asked), t(locale, 'advisor.you'))}${bubble('advisor', answerHtml(locale, exchange.answer), name, true, door)}`}
     </div>
     <div class="card sbx-compose" id="ask">
       <form method="post" action="/app/advisor" class="msgbar">
@@ -65,21 +93,31 @@ export function renderAdvisor(locale: Locale, asked: string | null = null): stri
 }
 
 /**
- * The advisor's two routes, and nothing else: the page, and a question asked on it. Both refuse anyone not
- * signed in. Neither reads or writes anything: the question comes back once, cut to the box's length.
+ * The advisor's two routes, and nothing else: the page, and a question asked on it. Both send anyone not
+ * signed in to sign in. The question is cut to the box's length and answered from read-only reads.
  */
 export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
-  const draw = (req: FastifyRequest, reply: FastifyReply, asked: string | null) => {
-    if (!io.signedIn(req)) return reply.redirect('/login');
+  const draw = (req: FastifyRequest, reply: FastifyReply, exchange: Parameters<typeof renderAdvisor>[1]) => {
     const locale = io.locale(req);
     return reply.type('text/html; charset=utf-8').send(io.page(req, {
-      title: t(locale, 'nav.advisor'), active: 'advisor', bodyHtml: renderAdvisor(locale, asked),
+      title: t(locale, 'nav.advisor'), active: 'advisor', bodyHtml: renderAdvisor(locale, exchange),
     }));
   };
   // Quiet: the question is the owner's own words, and the request log would keep them.
-  app.get('/app/advisor', { logLevel: 'warn' }, async (req, reply) => draw(req, reply, null));
+  app.get('/app/advisor', { logLevel: 'warn' }, async (req, reply) => {
+    if (!io.viewer(req)) return reply.redirect('/login');
+    return draw(req, reply, null);
+  });
   app.post('/app/advisor', { logLevel: 'warn' }, async (req, reply) => {
+    const viewer = io.viewer(req);
+    if (!viewer) return reply.redirect('/login');
     const q = String((req.body as { q?: unknown } | undefined)?.q ?? '').trim().slice(0, ADVISOR_MAX);
-    return draw(req, reply, q === '' ? null : q);
+    if (q === '') return draw(req, reply, null);
+    const locale = io.locale(req);
+    const answer: AdvisorAnswer = io.db && io.model
+      ? await answerQuestion({ db: io.db, model: io.model, businessId: viewer.businessId, viewerId: viewer.viewerId, locale, now: new Date() }, q)
+        .catch((): AdvisorAnswer => ({ kind: 'failed', text: t(locale, 'advisor.failed') }))
+      : { kind: 'failed', text: t(locale, 'advisor.unavailable') };
+    return draw(req, reply, { asked: q, answer });
   });
 }

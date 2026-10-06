@@ -39,6 +39,25 @@ export function createDb(connectionString: string): Db {
 }
 
 /**
+ * THE ADVISOR BATCH (2026-10-06) — the advisor's own pool: the same role (row security as ever), every
+ * transaction read-only by the server's default (`default_transaction_read_only`), and small. The advisor
+ * is handed this and nothing else, so a write it could ever attempt is refused by Postgres itself, not by
+ * a convention (src/advisor/reads.ts also opens each read `read only`).
+ */
+export function createReadOnlyDb(connectionString: string): Db {
+  return new Kysely<Database>({
+    dialect: new PostgresDialect({
+      pool: new pg.Pool({
+        connectionString,
+        max: intEnv('ADVISOR_POOL_MAX', 2),
+        connectionTimeoutMillis: intEnv('DATABASE_CONNECT_TIMEOUT_MS', 10_000),
+        options: `-c statement_timeout=${intEnv('DATABASE_QUERY_TIMEOUT_MS', 30_000)} -c default_transaction_read_only=on`,
+      }),
+    }),
+  });
+}
+
+/**
  * The ONLY entry point for tenant-scoped work. Application code never touches
  * the raw pool: a query that forgets its WHERE clause returns zero rows, not
  * another customer's order book — the database refuses, not the developer.

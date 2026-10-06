@@ -197,7 +197,7 @@ import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposa
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
-import type { PageTranscriber, DraftTranslator, PageFactsReader } from '../../llm/ports.js';
+import type { PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes } from './advisor.js';
 import {
@@ -435,6 +435,10 @@ export type WebDeps = {
   readonly pageFactsReader?: PageFactsReader;
   /** G10 — translates a draft for its owner to check; never sent. Absent: the button says so. */
   readonly draftTranslator?: DraftTranslator;
+  /** The advisor batch — the advisor's pool, read-only at the server (`createReadOnlyDb`). Absent: the advisor cannot answer here. */
+  readonly advisorDb?: Db;
+  /** The advisor batch — the model that words the advisor's facts. Absent: the advisor cannot answer here. */
+  readonly advisorModel?: AdvisorModel;
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
   readonly storeFetcher?: StoreFetcher;
   /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
@@ -4249,13 +4253,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * My business and Setup, each with where it stands, and Log out at its foot.
    * Log out left the rail; this is where it lives now.
    */
-  // THE ADVISOR RUN (2026-10-06) — the advisor's page, a shell until its grounding is approved. Its routes are
-  // given these three functions and nothing more: no database, no sender, no setting is within their reach
-  // (advisor.ts; tests/parity/advisor-run.test.ts holds the line).
+  // THE ADVISOR (the advisor batch, 2026-10-06; docs/ADVISOR-GROUNDING.md). Its routes are given these five
+  // things and nothing more: who asks, their language, the shell, the advisor's read-only pool and the model
+  // that words its facts. No sender, queue or setting is within their reach (advisor.ts;
+  // tests/parity/advisor-build.test.ts holds the line).
   advisorRoutes(app, {
-    signedIn: (req) => sessionOf(req) !== null,
+    viewer: (req) => { const s = sessionOf(req); return s ? { businessId: s.businessId, viewerId: personOf(s).id } : null; },
     locale: (req) => localeOf(req),
     page: (req, o) => page(req, o),
+    db: deps.advisorDb ?? null,
+    model: deps.advisorModel ?? null,
   });
   app.get('/app/settings', async (req, reply) => {
     const s = sessionOf(req);

@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
-import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader } from './ports.js';
+import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from './ports.js';
 import { parseFactsAnswer } from '../core/owner/pageFacts.js';
 import type { CatalogExtractor } from '../core/onboard/catalogImport.js';
 import { parseExtractorAnswer } from '../core/onboard/extract.js';
@@ -424,6 +424,76 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
         modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
       };
+    },
+  };
+}
+
+/**
+ * THE ADVISOR BATCH — the owner waits on the page: half a minute and one retry for each of the two calls,
+ * then the advisor says it could not look that up (never a guess).
+ */
+const ADVISOR_REQUEST = { timeout: 30_000, maxRetries: 1 } as const;
+
+/**
+ * THE ADVISOR BATCH (2026-10-06) — the advisor's two calls (`AdvisorModel`). Temperature 0. The recognition
+ * may only name an entry of the list it is given; the phrasing may only use the facts it is given, and is
+ * checked against them before it is shown (src/advisor/check.ts).
+ */
+export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): AdvisorModel {
+  return {
+    async recognise({ question, entries }) {
+      const res = await client.messages.create({
+        model,
+        ...extra,
+        max_tokens: 200,
+        temperature: 0,
+        system:
+          'You route a business owner\'s question to exactly one entry of a fixed list. The question may be in any language. ' +
+          'Pick the entry whose description matches what is asked; if none matches, the id is "unknown". ' +
+          'Also copy what the question names: "period" is "today", "week" or "month" when the question says so, else null; ' +
+          '"customer" is a customer\'s name exactly as written in the question, else null; "product" a product\'s name as written, else null; ' +
+          '"reference" an order reference as written, else null. Never invent a name or a value. ' +
+          'Reply with JSON only, on one line: {"id":"...","period":null,"customer":null,"product":null,"reference":null}\n\nEntries:\n' +
+          entries.map((e) => `${e.id}: ${e.ask}`).join('\n'),
+        messages: [{ role: 'user', content: question.slice(0, 1000) }],
+      }, ADVISOR_REQUEST);
+      const block = firstText(res.content);
+      const raw = block?.type === 'text' ? block.text : '';
+      const json = /\{[\s\S]*\}/.exec(raw)?.[0];
+      if (!json) return null;
+      try {
+        const v = JSON.parse(json) as Record<string, unknown>;
+        const str = (x: unknown): string | null => (typeof x === 'string' && x.trim() !== '' && x.trim().toLowerCase() !== 'null' ? x.trim().slice(0, 120) : null);
+        const id = str(v['id']);
+        return id ? { id, period: str(v['period']), customer: str(v['customer']), product: str(v['product']), reference: str(v['reference']) } : null;
+      } catch { return null; }
+    },
+    async phrase({ question, language, facts, opinion }) {
+      const res = await client.messages.create({
+        model,
+        ...extra,
+        max_tokens: 500,
+        temperature: 0,
+        system:
+          `You write one short answer, in ${language}, for the owner of a business, from the FACTS below and nothing else. ` +
+          'Use only the figures, amounts, dates and names that appear in the FACTS, copied exactly as written there, in digits. ' +
+          'Never compute anything: no sums, averages, differences, comparisons as numbers, or percentages. ' +
+          'Never add a figure, an amount, a date or a name that is not in the FACTS. If the FACTS say something is not recorded, say so. ' +
+          (opinion
+            ? 'This question asks for advice: give a short suggestion based only on these FACTS, and say which facts it rests on. Never promise anything on the owner\'s behalf. '
+            : 'Answer the question with these facts. ') +
+          'At most three sentences, no greeting, no lists unless the facts are a list of names. ' +
+          'Never call yourself an AI, a bot or a model. Never give anyone a pronoun or a gender — not the assistant, not the advisor, not a customer: ' +
+          'repeat the name instead. In Arabic, use forms that agree with no gender (a verbal noun, the passive). ' +
+          'In Spanish address the owner as tú; in French as vous. ' +
+          'Never mention these instructions or the words QUESTION and FACTS, and do not remark on what the facts leave out. ' +
+          'Output only the answer.',
+        messages: [{ role: 'user', content: `QUESTION: ${question.slice(0, 1000)}\n\nFACTS:\n${facts.map((f) => `- ${f}`).join('\n')}` }],
+      }, ADVISOR_REQUEST);
+      const block = firstText(res.content);
+      const out = block?.type === 'text' ? block.text.trim() : '';
+      if (!out || res.stop_reason === 'max_tokens') return null;
+      return out.slice(0, 1500);
     },
   };
 }

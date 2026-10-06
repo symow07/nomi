@@ -137,6 +137,7 @@ media setting to keep in step with it.
 | `LEGAL_CONTACT_EMAIL` | **REQUIRED — the boot refuses without it.** A plain address (`privacy@example.com`): no display name, no `mailto:`. `/privacy` and `/data-deletion` are public and tell a buyer to write in; unset, the contact block rendered nothing, so the pages promised a door that did not exist. | Named on the public `/privacy` and `/data-deletion` pages as where a person writes to ask what is kept or to have it removed.  Whoever reads that mailbox passes a buyer's deletion request on to the business they wrote to — the page promises the deletion within 30 days of the business recording it — and receives the notice each time a business records one (see `docs/LEGAL.md`). |
 | `ENGINE_VERSION` | `dev` | Stamped into quote audit rows (`db/repos.ts`). |
 | `DATABASE_POOL_MAX` | `10` | Connections in the pool (`db/client.ts`). |
+| `ADVISOR_POOL_MAX` | `2` | Connections in the advisor's own pool (`createReadOnlyDb`, `db/client.ts`): every transaction on it is read-only at the server. |
 | `DATABASE_CONNECT_TIMEOUT_MS` | `10000` | How long a connection attempt waits. |
 | `DATABASE_QUERY_TIMEOUT_MS` | `30000` | Server-side `statement_timeout`: a hung query returns an error instead of holding a pool slot for ever. |
 | `MIGRATE_DATABASE_URL` | — | **Not read by the app.** Used by `tools/migrate.mjs` and `tools/provision-factory.mjs`; an admin role that can run DDL. Runtime and migration credentials should differ. |

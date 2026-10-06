@@ -15779,3 +15779,19 @@ The owner's rule: a tile's headline is never a negative sentence. Four lines wer
   - The Arabic plural forms mirror `home.wins.week.*`.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-06 — the advisor: its fixed sentences, its fact lines, and its privacy line
+
+The advisor answers the owner's questions from the records. Its fixed sentences and its fact lines (`advisor.*`, about 210 keys) were written in zh, ar, es and fr in one pass, and none has had a native read.
+
+- **What to read first:**
+  - the opening line `advisor.hello` and the five examples (`advisor.example.*`);
+  - the advice label `advisor.opinion.label` («这是建议，不是你记录里的事实：», «اقتراحي، وليس حقيقة من سجلاتك:», «Mi sugerencia, no un dato de tus registros:», «Ma suggestion, pas un fait tiré de vos données :»);
+  - the nine "not recorded" sentences (`advisor.notStored.*`).
+- **Arabic never makes Nomi the subject of a verb.** It uses the passive instead («… لا تُسجَّل في Nomi», «هذا لا يُحسَب في Nomi»), as the rest of the copy does with «فريق Nomi». Check the passives read naturally.
+- **The reply-time lines** (`advisor.k.replyMedian`, `advisor.k.replyMeasured`, `advisor.k.replyUnanswered`) state three figures that always go together. Check that «الوقت الوسيط للرد» and «mediana» read as "median", not "average".
+- **«لـ {name}»** in the calendar lines (`advisor.k.cal.*`, `advisor.k.delivery`, `advisor.none.delivery`) is a customer's name. It joins an Arabic name and stays apart from a Latin one, as elsewhere.
+- **The privacy line** `legal.privacy.who.advisor` (shipped in #241) says the advisor's questions and the records that answer them go to the same provider. It is a legal sentence, so read it with the lines around it on /privacy.
+- **The model's own sentences** are not in the catalogue. The model is told to gender nobody: in Arabic it should use the verbal noun or the passive. The check throws away a sentence that has he/she (他/她, él/ella, elle, or a standalone هو/هي where a customer is named); the owner then reads the facts instead. Arabic verb agreement cannot be checked by pattern (e.g. «توقف Amira Haddad»). A native reader should look at a few live answers, which `tools/check-advisor-model.mjs` prints.
+
+Reviewer: ______  Date: ______
