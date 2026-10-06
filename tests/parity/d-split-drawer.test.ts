@@ -39,9 +39,10 @@ describe('D · five entries', () => {
   // THE WARMTH RUN (2026-10-03), phase 1 — the owner's rail is exactly Today;
   // Customers (Inbox, Calendar); the assistant; Settings. My business and
   // Setup are Settings' two rows (its screen, `renderSettingsHome`).
-  it('Today, Inbox, Calendar, the assistant, Settings — in that order, and no conditional sixth', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/employee', '/app/settings']);
-    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'calendar', 'employee', 'settings']);
+  // THE ADVISOR RUN (2026-10-06) — the assistant's slot is the advisor's; the assistant is Settings' first row.
+  it('Home, Inbox, Calendar, the advisor, Settings — in that order, and no conditional sixth', () => {
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/advisor', '/app/settings']);
+    expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'calendar', 'advisor', 'settings']);
   });
 
   it('Settings and Setup are named in every language, in owner words', () => {
@@ -67,8 +68,8 @@ describe('D · five entries', () => {
     ]));
     // Phase 9 (w4-business-assistant-05) — a screen per channel, under the one home.
     expect(under('/app/business/channels')).toEqual(['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts']);
-    expect(under('/app/employee')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
-    expect(under('/app/settings')).toEqual(['/app/business', '/app/settings/setup']);
+    expect(under('/app/settings/assistant')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
+    expect(under('/app/settings')).toEqual(['/app/settings/assistant', '/app/business', '/app/settings/setup']);
     expect(under('/app/settings/setup')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/settings/people', '/app/settings/language']));
     expect(under('/app/settings/setup')).not.toContain('/app/channels');
     // and Settings itself is a nav entry now, not somebody's contextual route
@@ -83,9 +84,13 @@ describe('D · five entries', () => {
     expect(hubFor('/app/products/abc', 'x')).toBe('settings');
     expect(hubFor('/app/settings/setup', 'x')).toBe('settings');
     expect(hubFor('/app/calendar', 'x')).toBe('calendar');
-    expect(hubFor('/app/knowledge', 'x')).toBe('employee');
-    expect(hubFor('/app/settings/forbidden', 'x')).toBe('employee');
-    expect(hubFor('/app/sandbox', 'x')).toBe('employee');
+    // The advisor run — the assistant's settings, and the pages reached from them, sit under Settings.
+    expect(hubFor('/app/settings/assistant', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/assistant/one-kind', 'x')).toBe('settings');
+    expect(hubFor('/app/knowledge', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/forbidden', 'x')).toBe('settings');
+    expect(hubFor('/app/sandbox', 'x')).toBe('settings');
+    expect(hubFor('/app/advisor', 'x')).toBe('advisor');
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/settings/people', 'x')).toBe('settings');
     expect(hubFor('/app/settings/data', 'x')).toBe('settings');

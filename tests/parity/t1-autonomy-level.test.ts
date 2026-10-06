@@ -57,8 +57,9 @@ describe('T1 · the three levels', () => {
 describe('T1 · what the choice does not loosen', () => {
   it('it is the owner\'s alone, through the same gate as a single grant', () => {
     const app = read('src/api/web/app.ts');
-    const route = app.slice(app.indexOf("app.post('/app/employee/autonomy'"));
-    expect(route.slice(0, 300)).toContain("ownerOnly(req, reply, 'capability_grant', '/app/employee')");
+    // The advisor run — one level into Settings (`ASSISTANT_HOME`); the gate did not move.
+    const route = app.slice(app.indexOf("app.post(`${ASSISTANT_HOME}/autonomy`"));
+    expect(route.slice(0, 300)).toContain("ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME)");
   });
 
   it('applying it never touches confirm_order, writes only what changed, and says who decided', () => {

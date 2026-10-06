@@ -666,23 +666,23 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
   it('M9.6 employee: profile renders real trust data (duties, growth, promotion)', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);  // Phase C: the page IS the assistant
     // THE WARMTH RUN, phase 7 — the landing is a menu; each section is its row's screen.
-    expect(res.body).toContain(`href="/app/employee/replies"><svg`);
+    expect(res.body).toContain(`href="/app/settings/assistant/replies"><svg`);
     expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C — the row
     // Phase 9 (V1-422) — the history and the next step, in plain words: rows here, screens one tap down.
     expect(res.body).toContain(esc(t('en', 'employee.growth.title')));
     expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
     expect(res.body).not.toContain('置信度');       // no invented score
-    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: `/app/employee/${s}`, headers: { cookie } }));
+    const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: `/app/settings/assistant/${s}`, headers: { cookie } }));
     const replies = await screen('replies');
     expect(replies.statusCode).toBe(200);
     expect(replies.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
     // demo: greet is promoted (auto) → appears under Can do now as Greeting
     expect(replies.body).toContain('Greeting');
-    expect(replies.body).toContain('<a class="back" href="/app/employee">');
+    expect(replies.body).toContain('<a class="back" href="/app/settings/assistant">');
     for (const s of ['history', 'next']) {
       const r = await screen(s);
       expect(r.statusCode, s).toBe(200);
@@ -706,10 +706,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       sql<{ n: number }>`select count(*)::int as n from capability_events where capability='greet' and reasons @> array['owner_revoked']`.execute(tx).then((r) => r.rows[0]!.n));
 
     const before = await evCount();
-    const res = await prod.app.inject({ method: 'POST', url: '/app/employee/capability/greet/revoke',
+    const res = await prod.app.inject({ method: 'POST', url: '/app/settings/assistant/capability/greet/revoke',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/app/employee');
+    expect(res.headers['location']).toContain('/app/settings/assistant');
     expect(flashSaid(res, WEB_SECRET)).not.toBe('');
     expect(await modeOf()).toBe('draft');                  // authority pulled back
     expect(await evCount()).toBe(before + 1);              // recorded in capability_events
@@ -718,13 +718,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   });
 
   it('M9.6 capability action requires auth; confirm_order can never be promoted', async () => {
-    const noAuth = await prod.app.inject({ method: 'POST', url: '/app/employee/capability/greet/revoke',
+    const noAuth = await prod.app.inject({ method: 'POST', url: '/app/settings/assistant/capability/greet/revoke',
       headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(noAuth.statusCode).toBe(302);
     expect(noAuth.headers['location']).toBe('/login');
 
     const cookie = await login();
-    const confirm = await prod.app.inject({ method: 'POST', url: '/app/employee/capability/confirm_order/promote',
+    const confirm = await prod.app.inject({ method: 'POST', url: '/app/settings/assistant/capability/confirm_order/promote',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(confirm.statusCode).toBe(302);
     // confirm_order stays draft — the flash says so, and autonomy is unchanged
@@ -2004,7 +2004,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('the page renders the assistant’s name and the four questions, authenticated', async () => {
       const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
+      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);
       expect(res.body).toContain(esc(t('en', 'her.knows.title')));
@@ -2015,17 +2015,17 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('THE WARMTH RUN, phase 7 — what the assistant can talk about is My business\'s, opened there, edited nowhere else', async () => {
       const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/employee/talk', headers: { cookie } });
+      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant/talk', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       // The warmth run, phase 9 (w4-products-knowledge-01) — and what was taught, and what may be claimed.
       for (const page of ['/app/settings/profile', '/app/products', '/app/knowledge', '/app/business/promises']) expect(res.body, page).toContain(`href="${page}"`);
       const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
       expect(main).not.toContain('<form');
-      expect(main).toContain('<a class="back" href="/app/employee">');
+      expect(main).toContain('<a class="back" href="/app/settings/assistant">');
     });
 
-    it('SECURITY: unauthenticated /app/employee redirects', async () => {
-      const res = await prod.app.inject({ method: 'GET', url: '/app/employee' });
+    it('SECURITY: unauthenticated /app/settings/assistant redirects', async () => {
+      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant' });
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toBe('/login');
     });

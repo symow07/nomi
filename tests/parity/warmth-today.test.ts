@@ -528,7 +528,7 @@ describe('the quiet-day run · the card never says "caught up" over its own cont
       const html = draw(l, s, d, '');
       const card = zone(html, 'today-now');
       expect(head(card), l).toBe(`<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"></span> ${esc(t(l, 'ops.attention.title'))}</span></h2>`);
-      expect(card, l).toContain(`href="/app/employee#spot-checks">${esc(tn(l, 'today.spotChecks', 1))}`);
+      expect(card, l).toContain(`href="/app/settings/assistant#spot-checks">${esc(tn(l, 'today.spotChecks', 1))}`);
       for (const h of tileHeadlines(html)) expect(NEGATIVE[l].test(h), `${l}: "${h}"`).toBe(false);
     }
   });

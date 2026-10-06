@@ -3793,12 +3793,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
 
   // THE ADVISOR RUN — the assistant's page moved into Settings. Its old address still arrives: a bookmark,
-  // an alert's link, a tab left open. A page is sent on for good (301; the browser keeps the #part); a form
-  // posted from a page drawn before the move goes on as itself, method and fields kept (308), to the one
-  // handler above — so nothing posted to the old address is lost, and nothing is handled twice.
-  app.get('/app/employee', async (_req, reply) => reply.redirect(ASSISTANT_HOME, 301));
+  // an alert's link, a tab left open. A page is sent on (302, as /app/conversations is; the browser keeps the
+  // #part); a form posted from a page drawn before the move goes on as itself, method and fields kept (308),
+  // to the one handler above — so nothing posted to the old address is lost, and nothing is handled twice.
+  app.get('/app/employee', async (_req, reply) => reply.redirect(ASSISTANT_HOME, 302));
   app.get('/app/employee/*', async (req, reply) =>
-    reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 301));
+    reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 302));
   app.post('/app/employee/*', async (req, reply) =>
     reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 308));
 

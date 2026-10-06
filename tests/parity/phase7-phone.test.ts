@@ -36,17 +36,18 @@ describe('phase 7 · the phone nav is one line', () => {
   // The warmth run's re-audit (cross-new-02, w4-whole-02): ONE name per entry at every width, in every
   // language — the list is Inbox / 收件箱 / الرسائل / Mensajes / Messages, and an assistant not yet named
   // is Assistant / 助手 / المساعد / Asistente in the rail; only the waiting count has a phone form (its figure).
-  it('one name per entry at every width, in every language; a named assistant is its name', () => {
+  it('one name per entry at every width, in every language; the advisor is its word, and the assistant is not in the rail', () => {
     for (const l of ['en', 'zh', 'ar', 'es', 'fr'] as const) {
       const html = nav(page(l));
       expect(html.match(/nl-short">(?!\d)/g) ?? [], l).toEqual([]);
       expect(html.match(/nl-long">/g) ?? [], l).toEqual([]);
       expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.inbox')}</span>`);
-      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.short.employee')}</span>`);
+      expect(html, l).toContain(`<span class="nl-text">${t(l, 'nav.advisor')}</span>`);
       expect(t(l, 'nav.short.inbox'), l).toBe(t(l, 'nav.inbox'));
     }
+    // The advisor run — the assistant is Settings' first row, never an entry of the rail.
     const named = withAssistantName('Lily', () => nav(page('fr')));
-    expect(named).toContain('<span class="nl-text">Lily</span>');
+    expect(named).not.toContain('<span class="nl-text">Lily</span>');
     expect(named).not.toContain('>Assistant<');
   });
 

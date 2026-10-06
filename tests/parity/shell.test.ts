@@ -19,8 +19,9 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   // split out of the drawer that also held what you sell.
   // THE WARMTH RUN (2026-10-03), phase 1 — the owner's rail: Today; Customers
   // (Inbox, Calendar); the assistant; Settings.
-  it('the nav is exactly Home, Inbox, Calendar, the assistant, Settings', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/employee', '/app/settings']);
+  // THE ADVISOR RUN (2026-10-06) — the assistant's slot is the advisor's.
+  it('the nav is exactly Home, Inbox, Calendar, the advisor, Settings', () => {
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/calendar', '/app/advisor', '/app/settings']);
   });
 
   it('names them in the owner’s language, in every locale', () => {

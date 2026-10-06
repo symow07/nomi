@@ -158,7 +158,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
     const html = all(rb(), 'en');
     expect(html).toContain(t('en', 'runbook.after.promotion'));
     expect(html).toContain(t('en', 'runbook.after.gaps'));
-    expect(html).toContain('href="/app/employee"');
+    expect(html).toContain('href="/app/settings/assistant"');
     // the after section adds only anchors — no <form> of its own
     const afterIdx = html.indexOf(t('en', 'runbook.after.title'));
     expect(html.slice(afterIdx)).not.toContain('<form');

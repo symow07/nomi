@@ -25,14 +25,15 @@ const page = (path: string, locale: 'en' | 'zh' | 'ar' | 'es' | 'fr' = 'en') =>
 
 describe('the rail', () => {
   // THE WARMTH RUN (2026-10-03), phase 1 — daily work at the top, management at the foot.
-  it('in groups: Today; the customers (Inbox, Calendar); the assistant; Settings at the foot — and no Log out', () => {
+  it('in groups: Today; the customers (Inbox, Calendar); the advisor; Settings at the foot — and no Log out', () => {
     const html = page('/app/inbox/c-1');
     const nav = html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
     const at = (s: string) => nav.indexOf(s);
     expect(at('href="/app"')).toBeLessThan(at('id="nav-customers"'));
     expect(at('id="nav-customers"')).toBeLessThan(at('href="/app/inbox"'));
     expect(at('href="/app/inbox"')).toBeLessThan(at('href="/app/calendar"'));
-    expect(at('href="/app/calendar"')).toBeLessThan(at('href="/app/employee"'));
+    expect(at('href="/app/calendar"')).toBeLessThan(at('href="/app/advisor"'));
+    expect(at('href="/app/advisor"')).toBeLessThan(at('<div class="navfoot">'));
     expect(at('<div class="navfoot">')).toBeLessThan(at('href="/app/settings"'));
     expect(nav).not.toContain('/logout');
     expect(nav).not.toContain('href="/app/business"');

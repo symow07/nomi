@@ -62,7 +62,7 @@ describe('B · every page knows which hub it belongs to', () => {
 
   it('longest match wins — /app is a prefix of everything', () => {
     // A plain startsWith would light Today on every page in the product.
-    expect(hubFor('/app/knowledge', 'nonsense')).toBe('employee');   // D — what it knows sits under the assistant
+    expect(hubFor('/app/knowledge', 'nonsense')).toBe('settings');   // D — what it knows sits under the assistant, a row of Settings since the advisor run
     expect(hubFor('/app/analytics', 'nonsense')).toBe('home');
   });
 
@@ -100,28 +100,29 @@ describe('C · Results has a door', () => {
   });
 });
 
-describe('C · the nav entry for the assistants', () => {
-  it('is her NAME while there is one of her', () => {
-    const html = withAssistantName('Sara', () => page('/app'), false);
-    expect(html).toContain('>Sara</span></span></a>');
-    expect(html).not.toContain('>Team</span></span></a>');
-  });
+describe('the advisor run · the rail\'s slot is the advisor\'s; the assistant is a row of Settings', () => {
+  /** The rail's entries (the brand block above them names the workspace, not an entry). */
+  const rail = (html: string): string => [...html.matchAll(/<a href="[^"]*" class="navlink[\s\S]*?<\/a>/g)].map((m) => m[0]).join('\n');
+  for (const several of [false, true]) {
+    it(`${several ? 'several assistants' : 'one assistant'}: the rail names the advisor, never the assistant`, () => {
+      const html = withAssistantName('Sara', () => page('/app'), several);
+      expect(rail(html).match(/class="navlink/g)).toHaveLength(5);
+      expect(rail(html)).toContain('href="/app/advisor"');
+      expect(rail(html)).toContain(`<span class="nl-text">${plainT('en', 'nav.advisor')}</span>`);
+      expect(rail(html)).not.toContain('Sara');
+      expect(rail(html)).not.toContain('data-mark="agent"');
+      expect(rail(html)).not.toContain('/app/employee');
+    });
+  }
 
-  it('…and "Team" once there are several', () => {
-    const html = withAssistantName('Sara', () => page('/app'), true);
-    expect(html).toContain('>Team</span></span></a>');
-    // Her name still appears in the header — that is the main assistant, and
-    // the page is still hers. Only the MENU stops claiming to be one person.
-    expect(html).toContain('Sara');
-  });
-
-  it('the word exists in all three languages and is not the name', () => {
+  it('the owner\'s words for the advisor, in all five languages — the service, never a gendered person', () => {
+    const CHOSEN = { en: 'Advisor', zh: '顾问', ar: 'المستشار', es: 'Asesoría', fr: 'Conseil' } as const;
     for (const locale of LOCALES) {
-      expect(messages[locale]['nav.team'], `${locale} has no nav.team`).toBeTruthy();
-      expect(plainT(locale, 'nav.team')).not.toContain('{name}');
+      expect(messages[locale]['nav.advisor'], locale).toBe(CHOSEN[locale]);
+      expect(plainT(locale, 'nav.advisor')).not.toContain('{name}');
     }
-    expect(messages.zh['nav.team']).toBe('团队');
-    expect(messages.ar['nav.team']).toBe('الفريق');
+    expect(messages.es['nav.advisor']).not.toMatch(/^Asesor(a)?$/);
+    expect(messages.fr['nav.advisor']).not.toMatch(/^Conseill(er|ère)$/);
   });
 });
 
