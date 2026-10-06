@@ -109,7 +109,8 @@ describe('the advisor batch · the privacy page says where the advisor\'s answer
       expect(items[ai], l).toContain(esc(t(l, 'legal.privacy.who.ai', { processor: '@@' })).split('@@')[1]!.slice(0, 10));
       expect(items[advisor], l).toContain(({ en: 'advisor', zh: '顾问', ar: 'مستشار', es: 'Asesoría', fr: 'Conseil' } as const)[l]);
       expect(html, l).toContain(esc(t(l, 'legal.updated.privacy')));
-      expect(t(l, 'legal.updated.privacy'), l).toMatch(/6/);
+      // the day the page changed, whole (a bare 6 would be found in 2026)
+      expect(t(l, 'legal.updated.privacy').replace(/[\u2066-\u2069]/g, ''), l).toContain(({ en: '6 October 2026', zh: '2026 年 10 月 6 日', ar: '6 أكتوبر 2026', es: '6 de octubre de 2026', fr: '6 octobre 2026' } as const)[l]);
     });
   }
 
