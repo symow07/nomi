@@ -1,6 +1,6 @@
 # The advisor's grounding: design for approval
 
-**Status: a proposal. Nothing here is built.** The advisor's page (`/app/advisor`) is a shell. It answers every question with "coming soon", reads no data and writes nothing (the advisor run, 2026-10-06). This document says what the advisor may answer, where each answer comes from, and what it says when the data is not there. **It waits for the owner's approval before any of it is built.**
+**Status: approved by the owner on 2026-10-06, with the decisions in section 8.** The advisor is built from it (the advisor build, 2026-10-06). The advisor's page (`/app/advisor`) is a shell. It answers every question with "coming soon", reads no data and writes nothing (the advisor run, 2026-10-06). This document says what the advisor may answer, where each answer comes from, and what it says when the data is not there.
 
 Contents:
 1. The hard rule
@@ -234,16 +234,25 @@ Every **new query**, and the small "ever" checks behind "no data" (section 3), i
 - The privacy page must say so before this is built, and name the provider (the same one the assistant uses).
 - Questions and answers are not stored, and the route logs nothing at `info`.
 
-## 8. Decisions for the owner
+## 8. Decisions (the owner, 2026-10-06)
 
-1. **New metrics.** Should the advisor compute what the app deliberately does not show?
-   - Conversion or win rate (D6).
-   - Reply times (B8).
-   - Revenue converted at your stated rate (D8).
-   - Until you decide, each answers "Nomi doesn't calculate that".
-2. **Who may ask.** Any signed-in person, staff included, as proposed: the advisor answers only what that person's pages already show (Results is open to staff today). Or the owner only?
-3. **"Handled" means one thing.** Home counts conversations where its reply went out; Results counts drafts approved or edited. The proposal is that the advisor uses Home's, and Results moves to it in a later change.
-4. **Practice left out.** The proposal: conversations of the practice copy and `owner_testing` ones count for nothing in the advisor's answers. Home and Results include them today.
-5. **The model phrases facts, or templates do.** Proposed: the model phrases, under the check in rule 4. The alternative is that facts are templated only and the model is used just for opinion questions. That is safer, but answers read stiffer.
+1. **New metrics.**
+   - **Reply times (B8): yes.** "It's our core promise made visible."
+     - The time from a customer's message to our next reply that went out, from the assistant or the owner.
+     - The answer gives the median and the number of replies it was measured on, never a percentage.
+     - It **also always states how many of the period's customer messages are still unanswered**, because a median over only the replies that went out would flatter the number. The answer gives both figures together, or none.
+   - **Revenue converted (D8): yes,** only at the owner's own stated rate, with the rate's date in the answer. Never silently converted.
+   - **Conversion or win rate (D6): no.** Nomi does not store why deals are lost, so a win rate would be computed from half the picture. It stays "Nomi doesn't calculate that." Not built.
+2. **Who may ask:** any signed-in person, staff included. Each is answered only from what their own pages already show, as proposed.
+3. **"Handled":** the advisor uses Home's meaning (`readHandled`), and **Results is fixed to the same definition in the same batch**. Home and Results disagreeing in production is a bug: one definition, both pages.
+4. **Practice:** left out of every advisor answer, **and Home and Results are fixed to leave out practice and `owner_testing` conversations in the same batch.** The advisor should not be the only honest page.
+5. **Phrasing:** the model phrases the facts, under rule 4's check. Not templates.
 
-**To approve:** say "approved" (with any changes to the decisions). Nothing is built until then.
+**Built (the advisor build):**
+- the 37 grounded-now questions, plus the grounded halves of the 3 split ones;
+- the 8 new queries, plus A4's "when did we last write";
+- the 2 approved metrics (B8, D8);
+- every "not stored" gap with its fixed sentence (no data entry is added for any of them);
+- the 7 opinion questions, under "My suggestion, not a fact from your records:", citing only the grounded entries named in section 4.
+
+Before the advisor goes live, the privacy page says that the question and its query result (customer names, amounts, dates) go to the same model provider the assistant uses, to phrase the answer.
