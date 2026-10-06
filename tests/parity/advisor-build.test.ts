@@ -330,7 +330,8 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
       expect(html).toContain(`<bdi>${esc(t(l, 'advisor.hello'))}</bdi>`);
       for (const k of ['advisor.example.1', 'advisor.example.2', 'advisor.example.3'] as const) expect(html).toContain(`<li><bdi>${esc(t(l, k))}</bdi></li>`);
       expect(html.match(/<form\b/g)).toHaveLength(1);
-      expect(html).toContain('<form method="post" action="/app/advisor" class="msgbar">');
+      // the form names the thinking orb (tests/parity/advisor-orb.test.ts holds the rest)
+      expect(html).toMatch(/<form method="post" action="\/app\/advisor" class="msgbar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="(listening|composing)">/);
       expect(html.match(/<textarea\b/g)).toHaveLength(1);
       expect(html.match(/<button\b/g)).toHaveLength(1);
       expect(html.match(/<input\b/g) ?? []).toEqual([]);

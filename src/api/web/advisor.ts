@@ -4,7 +4,7 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import type { Db } from '../../db/client.js';
 import type { AdvisorModel } from '../../llm/ports.js';
 import { t } from './say.js';
-import { esc, deeper } from './layout.js';
+import { esc, deeper, ORB_JS } from './layout.js';
 import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 
 /**
@@ -27,6 +27,26 @@ import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 
 /** The longest question the box takes. */
 export const ADVISOR_MAX = 1000;
+
+/**
+ * THE THINKING ORB (2026-10-07) — which of the engine's states the advisor thinks in. The owner picks it
+ * (docs/design/advisor-orb/): `listening` (a waveform rolling through the latitude rings) or `composing` (an
+ * undulating multi-band sash).
+ */
+const ORB_STATE = 'listening';
+
+/**
+ * While the question is on its way, and only then (the one script, `thinking`): the question goes up as
+ * asked, and under it — on the page's paper, where the answer will be — the orb and a calm line that says
+ * the same in words (and is what a screen reader hears). Inert until then: a template draws nothing. With
+ * the script off, or the orb not to be had, the page works as before; a reader who asked for less motion
+ * gets one still frame.
+ */
+const pending = (locale: Locale): string =>
+  `<template data-orb-pending>${bubble('owner', '<bdi data-orb-asked></bdi>', t(locale, 'advisor.you'))}<div class="msg inbound orb-wait" data-orb-wait role="status">
+      <div class="orb-row"><canvas class="orb" width="128" height="128" aria-hidden="true"></canvas><p class="orb-line muted">${esc(t(locale, 'advisor.thinking'))}</p></div>
+      <div class="ts muted">${esc(t(locale, 'nav.advisor'))}</div>
+    </div></template>`;
 
 export type AdvisorViewer = { readonly businessId: string; readonly viewerId: string };
 
@@ -83,8 +103,9 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
       ${bubble('advisor', `<p>${words(t(locale, 'advisor.hello'))}</p>${list(EXAMPLES.slice(0, 3).map((k) => t(locale, k)))}`, name, exchange === null)}
       ${exchange === null ? '' : `${bubble('owner', words(exchange.asked), t(locale, 'advisor.you'))}${bubble('advisor', answerHtml(locale, exchange.answer), name, true, door)}`}
     </div>
+    ${pending(locale)}
     <div class="card sbx-compose" id="ask">
-      <form method="post" action="/app/advisor" class="msgbar">
+      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}">
         <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
         <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button></div>

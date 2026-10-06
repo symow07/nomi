@@ -65,6 +65,16 @@
  *      is retired: how anyone hears outside Nomi is their choice on
  *      Notifications, and the card says it inside.)
  *
+ *   9. THE ADVISOR'S THINKING ORB (2026-10-07) — on the advisor's page only (its form names the orb,
+ *      `data-orb`), and only while a question is on its way: the question goes up as asked and, under
+ *      it, the orb and its calm line (the page's `template[data-orb-pending]`). The orb is drawn by the
+ *      vendored drawing core of thinking-orbs (assets/vendor/thinking-orbs/), imported when the question
+ *      box is first focused or the question is sent, never before — it plays no part in drawing the
+ *      page. It moves until the answer's page replaces this one, and never otherwise; a reader who asked
+ *      for less motion gets one still frame; the ink is the page's own (`--color-ink`). If the orb cannot
+ *      be had the line stays alone, and coming back to the page from history takes both away.
+ *      tests/parity/advisor-orb.test.ts.
+ *
  * Progressive: every page works exactly as before with scripting off — read,
  * reply, approve, send. Nothing here is needed for any of it.
  *
@@ -515,6 +525,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       form.setAttribute('data-sending', '1');
       var b = e.submitter || (form.querySelector ? form.querySelector('button') : 0);
       if (b && b.setAttribute) b.setAttribute('aria-busy', 'true');
+      /* The advisor's question is held until its answer's page arrives: the orb says it is still on its way. */
+      if (form.hasAttribute && form.hasAttribute('data-orb')) return;
       setTimeout(function () {
         form.removeAttribute('data-sending');
         if (b && b.removeAttribute) b.removeAttribute('aria-busy');
@@ -569,6 +581,74 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* The advisor thinking (item 9): only on its page, only while its question is on its way. */
+  function still() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function inkOf() {
+    var v = window.getComputedStyle ? String(window.getComputedStyle(doc.documentElement).getPropertyValue('--color-ink')).trim() : '';
+    var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(v);
+    return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : 0;
+  }
+  function thinking() {
+    var form = doc.querySelector('form[data-orb]');
+    if (!form) return;
+    var tpl = doc.querySelector('template[data-orb-pending]');
+    var line = doc.querySelector('.timeline');
+    if (!tpl || !tpl.content || !line) return;
+    var src = form.getAttribute('data-orb');
+    var state = form.getAttribute('data-orb-state');
+    var core = 0;
+    var shown = [];
+    function load() { if (!core) core = import(src); return core; }
+    var box = form.querySelector('textarea');
+    if (box) box.addEventListener('focus', function () { load().catch(function () { core = 0; }); });
+    function draw(canvas) {
+      var ink = inkOf();
+      var ctx = ink && canvas.getContext ? canvas.getContext('2d') : 0;
+      if (!ctx) { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); return; }
+      load().then(function (orb) {
+        var pre = orb.r(state, 64);
+        var shape = pre && orb.M[pre.mode];
+        if (!shape) throw new Error('no such orb');
+        var size = 64;
+        var dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.width = Math.round(size * dpr);
+        canvas.height = Math.round(size * dpr);
+        function paint(t) {
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, size, size);
+          orb.p(ctx, shape(size, t, pre.opts), false, ink);
+        }
+        if (still() || !window.requestAnimationFrame) { paint(0.6); return; }
+        function frame(now) {
+          if (!canvas.isConnected) return;
+          paint(now / 1000 * pre.speed);
+          if (!still()) window.requestAnimationFrame(frame);
+        }
+        window.requestAnimationFrame(frame);
+      }).catch(function () { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); });
+    }
+    doc.addEventListener('submit', function (e) {
+      if (e.target !== form || e.defaultPrevented || shown.length) return;
+      var asked = box ? String(box.value).trim() : '';
+      if (!asked) return;
+      var piece = tpl.content.cloneNode(true);
+      var said = piece.querySelector('[data-orb-asked]');
+      var wait = piece.querySelector('[data-orb-wait]');
+      var canvas = piece.querySelector('canvas');
+      if (!said || !wait) return;
+      said.textContent = asked;
+      shown = [].slice.call(piece.childNodes);
+      line.appendChild(piece);
+      if (wait.scrollIntoView) wait.scrollIntoView({ block: 'nearest' });
+      if (canvas) draw(canvas);
+    });
+    window.addEventListener('pageshow', function (e) {
+      if (!e.persisted) return;
+      for (var i = 0; i < shown.length; i++) if (shown[i].parentNode) shown[i].parentNode.removeChild(shown[i]);
+      shown = [];
+    });
+  }
+
   /* A customer's photo that does not arrive leaves their initial, never a hole. */
   function faces() {
     doc.addEventListener('error', function (e) {
@@ -582,6 +662,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   phone();
   asking();
   sending();
+  thinking();
   cards();
   faces();
   begin();
