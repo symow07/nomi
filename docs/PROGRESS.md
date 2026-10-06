@@ -13,13 +13,82 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The advisor build (2026-10-06) — read this first
+
+**State: done.**
+- **#241** (the fixes) merged as `c6a4295`, deployed 14:05 UTC.
+- **#242** (the advisor) merged as `26a5589`, deployed 15:13 UTC.
+- `/health` ok after each. Production schema is still **129**: no migration, and no change to the send path.
+- Both merged through the result-checked gate (`gated-merge.sh`).
+
+**The owner's decisions on section 8 of `docs/ADVISOR-GROUNDING.md` (2026-10-06):**
+1. **New metrics.**
+   - Reply times (B8): built.
+   - Revenue at the owner's own stated rate (D8): built, with the rate and the date it was set in the answer.
+   - Conversion / win rate (D6): **not built**. It stays "Nomi doesn't calculate that."
+2. **Who may ask:** anyone signed in, staff included. Each reads what their own pages show.
+3. **"Handled"** means Home's meaning on Home, Results and the advisor alike (#241).
+4. **Practice and the owner's test conversations** are in no figure, on Home, Results or the advisor (#241).
+5. **The model phrases the facts**, under the rule-4 check; no templates.
+- **The owner's amendment to B8:** every answer also says how many customer messages in the period are still unanswered. "Both figures together, or the answer is misleading."
+
+**#241 — the fixes:**
+- `src/db/handled.ts` is the one "handled", used by Home, Results and the assistant's month.
+- `notOwnerTesting` is applied to every figure on Results, the month and the knowledge insights. Home's lists stay identical to the Inbox and Calendar.
+- The privacy page's new line, in five languages: the advisor's questions and the records that answer them go to the same provider. Production `/privacy` names DeepSeek twice.
+
+**#242 — the advisor (`src/advisor/`):**
+- **The catalogue**, 66 entries:
+  - 40 grounded, 8 new queries, and 2 metrics (B8 and D8);
+  - 9 not stored, each a fixed sentence;
+  - 7 opinions, each standing only on the entries it names.
+- **`reads.ts`, 50 reads.** Each runs in a tenant transaction opened `read only`, on its own pool, `createReadOnlyDb` (`default_transaction_read_only=on`, `ADVISOR_POOL_MAX`=2).
+- **`check.ts`, rule 4.** A sentence is thrown away for a figure, number word, numeral, percentage, month, currency or name the facts do not carry. It is also thrown away for:
+  - a missing must-figure (B8's three);
+  - a gendered pronoun (rule 6);
+  - the prompt's own words.
+
+  The facts themselves are then the answer.
+- **`answer.ts`.** Not-stored entries, and reads that find nothing, ask the model nothing.
+- **The page** is `src/api/web/advisor.ts`: the answer, its door, and the advice label.
+- **The model:** `anthropicAdvisorModel` (recognise, then phrase), injected through `AdvisorIO`. The advisor never imports `src/llm`.
+
+**Guards:**
+- `tests/parity/advisor-build.test.ts` (52): the import graph; `reads.ts`'s exact 33 imports; no write SQL; the pool; the five keys app.ts hands over; the catalogue's shape; fixed sentences carry no figure; the check; the page; the routes.
+- `tests/integration/advisor-build.test.ts` (10): the read-only pool refuses an insert; all 50 reads run on it; asking hands out no transaction id; the figures are the database's, with the owner's test out; B8's three figures; D8's rate and date; the fixed sentences; advice; the app end to end.
+- **14 deliberate breakages** each fail a test.
+- `tests/parity/advisor-run.test.ts` keeps Ship 1's checks only.
+
+**Live (`tools/check-advisor-model.mjs`, deepseek-flash, synthetic facts only):**
+- Third run: 75 of 75 questions routed correctly in five languages; 25 of 25 sentences passed the check; median 1.25 s per call.
+- The first runs found Arabic advice that gendered a customer («هي …», «فهو …») and one sentence that quoted the prompt's word "FACTS". The check now throws such sentences away, and the prompt asks for neither.
+- Run the tool again whenever `LLM_MODEL` or `LLM_BASE_URL` changes, or the advisor's prompts do. Never run it while integration runs.
+
+**Screenshots:** `docs/design/advisor/`, 40 shots, checked by script. The answers were worded by the production model from the local demo workspace's synthetic records. The host kept only the three `LLM_*` variables (memory `real-model-local-screenshots`).
+
+**My calls (in the PR):**
+- Home's Needs-you and schedule lists keep test conversations, like the Inbox and Calendar they mirror. Only figures leave them out.
+- The check also throws away gendered pronouns and the prompt's words. In Arabic, where a customer is named, any standalone هو/هي throws the sentence away. A false alarm costs a plainer answer, never a wrong one.
+- In Arabic, Nomi is never the subject of a verb: the fixed sentences use passives («… لا تُسجَّل في Nomi»).
+- The rate is shown exactly as the rate page shows it, never rounded by a formatter.
+- Lists are capped at 15 to 30 lines, then "…and N more".
+
+**Waiting on the owner:** a native read of about 210 `advisor.*` lines in zh, ar, es and fr (`docs/NATIVE-REVIEW-UI.md`, not a gate). Arabic verb agreement in the model's own sentences cannot be checked by pattern; `tools/check-advisor-model.mjs` prints live answers to read.
+
+**Verification (#242):**
+- `check`: 7,311 passed.
+- Trust: 44 of 44.
+- The build passed.
+- Integration: 1,312 of 1,312, none skipped.
+- CI: both jobs passed on the head.
+
 ## The advisor run (2026-10-06) — read this first
 
-**State (2026-10-06): the two ships are done; the grounding design waits for the owner.**
+**State (2026-10-06): the two ships are done. The grounding design was approved with the owner's decisions and built: see "The advisor build" above.**
 - **#238** merged 08:45 UTC as `a38e814`. Both checks reported success on its head `34bafe6` through the gate (`gated-merge.sh`).
 - **Deployed** 08:46 UTC; `/health` ok.
 - **Production schema is 129**; no migration, and no change to the send path.
-- **#239 is OPEN and must not be merged until the owner approves it:** `docs/ADVISOR-GROUNDING.md`. Reading copy: https://claude.ai/artifact/Bd3X1bnm1N7P2f2rnixmHC (private to the owner).
+- **#239** (`docs/ADVISOR-GROUNDING.md`) was merged once the owner approved it, with the decisions on section 8. Reading copy: https://claude.ai/artifact/Bd3X1bnm1N7P2f2rnixmHC (private to the owner).
 
 **The owner's instruction (2026-10-06):** "Lay the foundation for an inside advisor, and produce a design doc I must approve before the advisor itself is built … SHIP 1 — MOVE THE PARAMETERS INTO SETTINGS … SHIP 2 — STAND UP THE ADVISOR PAGE (EMPTY SHELL) … REVIEW 3 — THE GROUNDING DESIGN DOC … STOP after." The owner confirmed the advisor's words (Advisor / 顾问 / المستشار / Asesoría / Conseil) and its icon (Solar `chat-round-dots`).
 
@@ -2249,6 +2318,16 @@ once, in this order, and tick it here.
   - the watch hook asked for a `GROQ_API_KEY` / `OPENAI_API_KEY`;
   - the Adobe server said to call `adobe_mandatory_init` first;
   - the Supabase connector said to install its skill (`npx skills add`);
+  - the Claude Docs server said to open a document first;
+  - Gamma, higgsfield and Railway gave usage instructions.
+
+  Nothing was installed. No web page or file addressed instructions to an AI.
+
+- 2026-10-06, the advisor build (#241, #242): the same requests came back at each resume, and none was done:
+  - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+  - the watch hook asked for a `GROQ_API_KEY` / `OPENAI_API_KEY`;
+  - the Adobe server said to call `adobe_mandatory_init` first;
+  - the Supabase connector said to install its skill;
   - the Claude Docs server said to open a document first;
   - Gamma, higgsfield and Railway gave usage instructions.
 
