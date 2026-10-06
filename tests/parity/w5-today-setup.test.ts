@@ -206,7 +206,10 @@ describe('V1-011 · V1-109 · "customers answered" and the fifth step count repl
   const read = (f: string) => readFileSync(new URL(`../../src/${f}`, import.meta.url), 'utf8');
   it('the assistant\'s "customers answered" reads the sent rows Today\'s hero reads, not processed turns', () => {
     const ops = read('api/web/operations.ts');
-    const handled = ops.slice(ops.indexOf('select count(distinct o.conversation_id)::int from outbound_messages o'), ops.indexOf('as handled,'));
+    // The advisor batch — the one definition, src/db/handled.ts, read by Home, Results and this.
+    expect(ops).toContain('handled: await handledCount(tx, B, cutoff)');
+    const shared = read('db/handled.ts');
+    const handled = shared.slice(shared.indexOf('export async function handledCount'), shared.indexOf('export async function readTally'));
     expect(handled).toMatch(/o\.origin = 'employee'/);
     expect(handled).toMatch(/o\.status in \('sent', 'delivered', 'read'\)/);
     expect(ops).not.toMatch(/from turns where business_id = \$\{B\} and created_at >= \$\{cutoff\}/);

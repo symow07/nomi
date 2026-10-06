@@ -5,9 +5,7 @@ import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/c
 import { zoneOf } from '../../db/zone.js';
 import { workspaceZone } from './zone.js';
 import { faceVersions } from '../../db/faces.js';
-import { SPEND_STATUSES } from '../../db/customerValue.js';
-import { PRICE_GIVEN } from '../../db/quotesGiven.js';
-import { ownershipOf } from '../../core/conversation/ownership.js';
+import { dayStart, lastWinDay, readHandled, readTally, HANDLED_FACES, type HandledWord, type HandledFace, type Handled, type Tally } from '../../db/handled.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { loadInboxList, needsWhy, rowState, channelName, type ConversationSummary } from './inbox.js';
@@ -57,26 +55,8 @@ const HOME_FAR = 90;
 
 /** How many people the band names before it points at the Inbox. */
 export const TODAY_PEOPLE = 5;
-/**
- * How many faces the hero row draws. Past this the row ends in one tile, "+N
- * more", to the Inbox: a day of 200 customers draws 60 faces, never 200.
- */
-const TODAY_FACES = 60;
-
-/**
- * "After hours", in the workspace's own time. The product keeps the business's
- * working hours as free text only (`businesses.working_hours`, "Mon–Sat 9–18",
- * 周一至周六), which nothing can read reliably; the autonomy windows
- * (`autonomy_policy.time_window`) say when the assistant may send alone, not
- * when the business is open. So, decided for this page: a reply the assistant
- * sent before 08:00 or from 20:00 on, local time, was sent after hours.
- */
-const OPEN_HOUR = 8;
-const CLOSE_HOUR = 20;
-
-/** The one word under a face: the strongest thing that happened in that conversation today. */
-export type HandledWord = 'confirmed' | 'quoted' | 'handed' | 'answered';
-export type HandledFace = FaceOf & { readonly conversationId: string; readonly word: HandledWord };
+// The advisor batch — what was handled, and the figures, are one definition for every page (src/db/handled.ts).
+export type { HandledWord, HandledFace };
 
 export type TodayData = {
   readonly now: Date;
@@ -88,9 +68,9 @@ export type TodayData = {
     readonly faces?: Readonly<Record<string, FaceOf>>;
   };
   /** Conversations a reply the assistant wrote went out in today: how many, and the faces drawn (at most 60). Absent: none. */
-  readonly handled?: { readonly total: number; readonly people: readonly HandledFace[] };
+  readonly handled?: Handled;
   /** Today's three figures. Absent: all three zero. */
-  readonly tally?: { readonly orders: number; readonly quotes: number; readonly afterHours: number };
+  readonly tally?: Tally;
   /** The channels customers can reach this workspace on. */
   readonly sending: readonly BuyerChannel[];
   /** The workspace's own hour now, 0 to 23 — the greeting's. Absent: the morning's. */
@@ -110,116 +90,6 @@ export type TodayData = {
 export const NOTHING_TODAY = (now: Date): TodayData => ({
   now, needs: { total: 0, rows: [] }, handled: { total: 0, people: [] }, tally: { orders: 0, quotes: 0, afterHours: 0 }, sending: [],
 });
-
-/** Midnight today in the workspace's zone, as an instant; midnight six days before (the week's wins); and the hour now there. */
-async function dayStart(tx: Tx, zone: string, now: Date): Promise<{ readonly start: Date; readonly week: Date; readonly hour: number }> {
-  const r = (await sql<{ s: Date; w: Date; h: number }>`
-    select (date_trunc('day', ${now}::timestamptz at time zone ${zone}) at time zone ${zone}) as s,
-           ((date_trunc('day', ${now}::timestamptz at time zone ${zone}) - interval '6 days') at time zone ${zone}) as w,
-           extract(hour from ${now}::timestamptz at time zone ${zone})::int as h`.execute(tx)).rows[0]!;
-  return { start: r.s, week: r.w, hour: r.h };
-}
-
-/**
- * The quiet-day run — the start of the workspace's day on which a reply the assistant wrote last went out
- * (the hero's own reading of "handled"), or null: it never has.
- */
-async function lastWinDay(tx: Tx, B: BusinessId, zone: string): Promise<Date | null> {
-  const r = (await sql<{ d: Date | null }>`
-    select (date_trunc('day', max(o.sent_at) at time zone ${zone}) at time zone ${zone}) as d
-      from outbound_messages o
-     where o.business_id = ${B} and o.origin = 'employee' and o.status in ('sent', 'delivered', 'read')`.execute(tx)).rows[0];
-  return r?.d ?? null;
-}
-
-/**
- * The hero's people. "Handled" is a conversation in which a reply the
- * assistant wrote went out today: sent alone, or approved or edited by the
- * owner (`outbound_messages.origin = 'employee'`, a sent status — the Results
- * page's and the customer panel's own reading of the sent rows). Its word, the
- * strongest first:
- *
- *   confirmed  an order of this conversation that stands (`SPEND_STATUSES`,
- *              the customer-value definition) was confirmed today;
- *   quoted     a price was worked out today before the assistant's last reply
- *              went out, so a reply carried it;
- *   handed     it was handed over today and a person has it now (the ONE
- *              ownership model reads `assigned_to`);
- *   answered   otherwise.
- *
- * Ordered by that strength, then the newest first, so the 60 drawn of a busy
- * day are the orders and the quotes.
- */
-async function readHandled(tx: Tx, B: BusinessId, start: Date): Promise<NonNullable<TodayData['handled']>> {
-  const rows = (await sql<{
-    conversation_id: string; client_id: string | null; name: string | null; assigned_to: string | null;
-    confirmed: boolean; quoted: boolean; handed: boolean; total: number;
-  }>`
-    with sent as (
-      select o.conversation_id, max(o.sent_at) as last_at
-        from outbound_messages o
-       where o.business_id = ${B} and o.origin = 'employee'
-         and o.status in ('sent', 'delivered', 'read') and o.sent_at >= ${start}
-       group by o.conversation_id
-    ), handled as (
-      select s.conversation_id, s.last_at, c.client_id, c.assigned_to, cl.display_name as name,
-             exists (select 1 from orders r where r.conversation_id = s.conversation_id
-                      and r.status = any(${[...SPEND_STATUSES]}::text[])
-                      and coalesce(r.confirmed_at, r.created_at) >= ${start}) as confirmed,
-             exists (select 1 from quotes q where q.conversation_id = s.conversation_id
-                      and q.created_at >= ${start} and q.created_at <= s.last_at) as quoted,
-             exists (select 1 from conversation_events e where e.conversation_id = s.conversation_id
-                      and e.type = 'handoff' and e.created_at >= ${start}) as handed
-        from sent s
-        join conversations c on c.id = s.conversation_id
-        left join clients cl on cl.id = c.client_id
-    )
-    select conversation_id::text as conversation_id, client_id::text as client_id, name, assigned_to,
-           confirmed, quoted, handed, (count(*) over ())::int as total
-      from handled
-     order by (case when confirmed then 0 when quoted then 1 else 2 end), last_at desc, conversation_id desc
-     limit ${TODAY_FACES}`.execute(tx)).rows;
-  const photos = await faceVersions(tx, rows.flatMap((r) => (r.client_id ? [r.client_id] : [])));
-  return {
-    total: rows[0]?.total ?? 0,
-    people: rows.map((r): HandledFace => ({
-      conversationId: r.conversation_id,
-      // A conversation with no customer row is drawn by its own id, and opens no card.
-      clientId: r.client_id ?? r.conversation_id,
-      name: r.name,
-      photo: r.client_id ? photos.get(r.client_id) ?? null : null,
-      word: r.confirmed ? 'confirmed' : r.quoted ? 'quoted'
-        : r.handed && ownershipOf(r.assigned_to) !== 'AI' ? 'handed' : 'answered',
-    })),
-  };
-}
-
-/**
- * Today's three figures, in the workspace's day.
- *   orders      orders that stand (`SPEND_STATUSES`) confirmed today;
- *   quotes      prices worked out today that were GIVEN (`PRICE_GIVEN`,
- *               `quotesGiven.ts` — not held back, and a line left after it):
- *               a price nobody sent is not "sent". Results and the calendar
- *               count by the same rule (phase 9, w4-customers-20);
- *   afterHours  conversations the assistant answered outside 08:00–20:00 local
- *               time (`OPEN_HOUR`, `CLOSE_HOUR`).
- */
-async function readTally(tx: Tx, B: BusinessId, zone: string, start: Date): Promise<NonNullable<TodayData['tally']>> {
-  const r = (await sql<{ orders: number; quotes: number; after_hours: number }>`
-    select
-      (select count(*)::int from orders r
-        where r.business_id = ${B} and r.status = any(${[...SPEND_STATUSES]}::text[])
-          and coalesce(r.confirmed_at, r.created_at) >= ${start}) as orders,
-      (select count(*)::int from quotes q
-        where q.business_id = ${B} and q.created_at >= ${start} and ${PRICE_GIVEN}) as quotes,
-      (select count(distinct o.conversation_id)::int from outbound_messages o
-        where o.business_id = ${B} and o.origin = 'employee'
-          and o.status in ('sent', 'delivered', 'read') and o.sent_at >= ${start}
-          and (extract(hour from (o.sent_at at time zone ${zone})) < ${OPEN_HOUR}::int
-            or extract(hour from (o.sent_at at time zone ${zone})) >= ${CLOSE_HOUR}::int)) as after_hours`
-    .execute(tx)).rows[0]!;
-  return { orders: r.orders, quotes: r.quotes, afterHours: r.after_hours };
-}
 
 /** The band's faces: each row's customer and their photo's version, by conversation. */
 async function facesOf(tx: Tx, conversationIds: readonly string[]): Promise<Record<string, FaceOf>> {
@@ -395,7 +265,7 @@ export function renderHandled(d: TodayData, locale: Locale, o: { readonly ready:
       o.reachable === false ? `<p class="td-ready">${esc(t(locale, 'home.wins.connect'))}</p>`
       : `<p class="td-ready">${o.ready ? `${agentMark(16, 'am as')} ` : ''}${esc(t(locale, 'home.wins.ahead'))}</p>`}`;
   }
-  const drawn = h.people.slice(0, TODAY_FACES);
+  const drawn = h.people.slice(0, HANDLED_FACES);
   const faces = drawn.map((p) => {
     const word = t(locale, WORD[p.word]);
     const name = p.name ?? t(locale, 'common.buyer');

@@ -99,6 +99,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <ul>
       <li>${esc(t(l, 'legal.privacy.who.meta'))}</li>
       <li>${esc(t(l, 'legal.privacy.who.ai', { processor: processorLabel(facts.processor, l) }))}</li>
+      ${/* The advisor batch (2026-10-06) — the advisor's answers are phrased by the same provider: said before it goes live. */ ''}<li>${esc(t(l, 'legal.privacy.who.advisor', { processor: processorLabel(facts.processor, l) }))}</li>
       <li>${esc(t(l, 'legal.privacy.who.hosting', { hosting: processorLabel(facts.hosting, l) }))}</li>
       <li>${esc(t(l, 'legal.privacy.who.mail'))}</li>
     </ul>
