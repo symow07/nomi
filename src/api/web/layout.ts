@@ -2374,6 +2374,13 @@ const STYLE_PAGES = `
      a voiced one holds several elements, so it opts out and the words opt in. */
   .bubble.voiced { white-space:normal; }
   .bubble.voiced .said { white-space:pre-wrap; }
+  /* The advisor's answer: a sentence, or the facts as a short list, and advice under its own label. */
+  .bubble.adv { white-space:normal; }
+  .bubble.adv p { margin:0; white-space:pre-wrap; }
+  .bubble.adv > * + * { margin-top:var(--space-8); }
+  .adv-facts { margin:0; padding-inline-start:1.2em; }
+  .adv-facts li + li { margin-top:var(--space-4); }
+  .adv-label { font-family:var(--font-family); font-size:var(--font-size-caption); font-weight:600; }
   .heard-label { font-family:var(--font-family); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
   .unheard-line { font-family:var(--font-family); font-size:var(--font-size-small); }
   .orig { font-size:var(--font-size-caption); margin-top:var(--space-8);

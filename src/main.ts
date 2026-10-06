@@ -9,7 +9,7 @@ import { metaPostCaption } from './channels/meta/posts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
-import { anthropicPageTranscriber, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader } from './llm/anthropic.js';
+import { anthropicPageTranscriber, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
@@ -58,7 +58,7 @@ import type { FetchLike } from './channels/whatsapp/client.js';
 import { waLoginFrom } from './channels/whatsapp/embeddedSignup.js';
 import { whatsAppAccountToken } from './channels/whatsapp/connect.js';
 import { liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount } from './db/whatsappAccounts.js';
-import { withTenantTx, lockConversation, type Db, type Tx } from './db/client.js';
+import { withTenantTx, lockConversation, createReadOnlyDb, type Db, type Tx } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
@@ -496,6 +496,8 @@ export async function buildProduction(
     pushFetch?: PushFetch;
     /** G10 — tests only: the translator, instead of the model. */
     draftTranslator?: import('./llm/ports.js').DraftTranslator;
+    /** The advisor batch — tests only: the advisor's model, instead of the provider. */
+    advisorModel?: import('./llm/ports.js').AdvisorModel;
     /**
      * The pre-pilot walkthrough only: as if the AI disclosure had passed native
      * review. Production never passes it — there is no environment variable
@@ -808,6 +810,10 @@ export async function buildProduction(
   const pageFactsReader = anthropicPageFactsReader(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   // G10 — a draft in a language its owner may not read, translated on request (never sent).
   const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
+  // THE ADVISOR BATCH — the owner's advisor: the same provider the assistant uses (the privacy page says so),
+  // and its own small pool, read-only at the server, the only database it is given.
+  const advisorModel = overrides?.advisorModel ?? anthropicAdvisorModel(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
+  const advisorDb = createReadOnlyDb(cfg.DATABASE_URL);
   // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
   // and the way out to a push service. Unset: no phone alerts, and the page says so.
   const vapid = vapidFrom(process.env);
@@ -826,6 +832,8 @@ export async function buildProduction(
       catalogExtractor,
       pageFactsReader,
       draftTranslator,
+      advisorDb,
+      advisorModel,
       sessionSecret: webSessionSecret,
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
@@ -955,6 +963,7 @@ export async function buildProduction(
       await a.close();                         // 1. stop accepting requests
       await boss.stop().catch(() => {});       // 2–3. stop workers + pg-boss
       await db.destroy().catch(() => {});      // 5. release the pool
+      await advisorDb.destroy().catch(() => {});   // …and the advisor's
     },
   });
 

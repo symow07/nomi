@@ -1,6 +1,7 @@
 import { zoneOf } from '../../db/zone.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
+import { notOwnerTesting } from '../../db/handled.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { detectClaims } from '../../core/safety/claims.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
@@ -100,8 +101,9 @@ export async function loadKnowledgeOps(db: Db, businessIdRaw: string, range: Ran
 
     const commonRequests = (await sql<{ question: string; n: number }>`
       select (array_agg(input->>'text' order by created_at desc))[1] as question, count(*)::int as n
-        from turns
+        from turns tr
        where business_id=${B} and created_at>=${cutoff} and coalesce(input->>'text','') <> ''
+         and ${notOwnerTesting('tr.conversation_id')}   -- the advisor batch: the owner's own tests are not customers' questions
        group by lower(regexp_replace(trim(input->>'text'), '\\s+', ' ', 'g'))
        order by n desc, max(created_at) desc
        limit 5
@@ -131,6 +133,7 @@ export async function loadKnowledgeOps(db: Db, businessIdRaw: string, range: Ran
              t.created_at
         from turns t
        where t.business_id=${B} and t.created_at>=${cutoff}
+         and ${notOwnerTesting('t.conversation_id')}
          and t.decision->'action'->>'kind' = 'generate_reply'
          and coalesce(t.input->>'text','') <> ''
          and t.message_id not in (

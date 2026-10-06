@@ -150,6 +150,23 @@ export interface PageTranscriber {
 }
 
 /**
+ * THE ADVISOR BATCH (2026-10-06) — the owner's advisor (docs/ADVISOR-GROUNDING.md). The model does two things
+ * and nothing more: it says which question of the fixed catalogue was asked, and it phrases an answer from the
+ * facts a read-only query produced. It never sees the database, and what it writes is checked against those
+ * facts before anyone reads it (src/advisor/check.ts, rule 4): a figure, a date or a name that is not in them
+ * throws the sentence away.
+ */
+export interface AdvisorModel {
+  /** The catalogue entry the question asks, with what it names. Null: none fits, or nothing usable came back. */
+  recognise(input: {
+    question: string;
+    entries: readonly { readonly id: string; readonly ask: string }[];
+  }): Promise<{ id: string; period: string | null; customer: string | null; product: string | null; reference: string | null } | null>;
+  /** One short answer in `language`, from `facts` alone. Null: nothing usable came back. */
+  phrase(input: { question: string; language: string; facts: readonly string[]; opinion: boolean }): Promise<string | null>;
+}
+
+/**
  * G10 (decision 38) — a reply the business is about to send, translated so its
  * owner can check what it says. For the owner's eyes only: never sent, never
  * offered as the reply. Absent is a legitimate state: the card says so.
