@@ -3796,11 +3796,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // an alert's link, a tab left open. A page is sent on (302, as /app/conversations is; the browser keeps the
   // #part); a form posted from a page drawn before the move goes on as itself, method and fields kept (308),
   // to the one handler above — so nothing posted to the old address is lost, and nothing is handled twice.
-  app.get('/app/employee', async (_req, reply) => reply.redirect(ASSISTANT_HOME, 302));
-  app.get('/app/employee/*', async (req, reply) =>
-    reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 302));
-  app.post('/app/employee/*', async (req, reply) =>
-    reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 308));
+  // Signed out, they say nothing of where anything moved: the sign-in first, like every other /app route (M35).
+  app.get('/app/employee', async (req, reply) => sessionOf(req) ? reply.redirect(ASSISTANT_HOME, 302) : reply.redirect('/login'));
+  app.get('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')
+    : reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 302));
+  app.post('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')
+    : reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 308));
 
   // ── M34.7 抽查: the owner answers a spot check ────────────────────────────
   // The buttons post the wire words parseSpotCheckReply already understands
@@ -4250,7 +4251,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   // THE ADVISOR RUN (2026-10-06) — the advisor's page, a shell until its grounding is approved. Its routes are
   // given these three functions and nothing more: no database, no sender, no setting is within their reach
-  // (advisor.ts; tests/parity/advisor-wall.test.ts holds the line).
+  // (advisor.ts; tests/parity/advisor-run.test.ts holds the line).
   advisorRoutes(app, {
     signedIn: (req) => sessionOf(req) !== null,
     locale: (req) => localeOf(req),

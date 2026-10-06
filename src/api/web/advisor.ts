@@ -16,7 +16,7 @@ import { esc } from './layout.js';
  *     calls a model or saves a setting — and it is handed nothing that can: app.ts gives it exactly three
  *     functions (`AdvisorIO`): whether the request is signed in, its language, and the shell to draw in.
  *     There is no tool, button, form or path from here to a send, a price or a setting.
- *     `tests/parity/advisor-wall.test.ts` reads this file's whole import graph, the routes it registers and
+ *     `tests/parity/advisor-run.test.ts` reads this file's whole import graph, the routes it registers and
  *     what app.ts hands it, and fails if any of that changes.
  *   · Nothing is kept. A question asked is drawn back once, with the placeholder reply, and forgotten: no
  *     table holds it, no log line carries it (the routes are registered quiet).

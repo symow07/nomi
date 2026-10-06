@@ -98,9 +98,9 @@ describe('ship 1 · the assistant\'s page is Settings\' first row, whole, one le
     };
     walk(join(ROOT, 'src'));
     expect(found.map((x) => x.replace(/:\d+:/, ':'))).toEqual([
-      "src/api/web/app.ts: app.get('/app/employee', async (_req, reply) => reply.redirect(ASSISTANT_HOME, 302));",
-      "src/api/web/app.ts: app.get('/app/employee/*', async (req, reply) =>",
-      "src/api/web/app.ts: app.post('/app/employee/*', async (req, reply) =>",
+      "src/api/web/app.ts: app.get('/app/employee', async (req, reply) => sessionOf(req) ? reply.redirect(ASSISTANT_HOME, 302) : reply.redirect('/login'));",
+      "src/api/web/app.ts: app.get('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')",
+      "src/api/web/app.ts: app.post('/app/employee/*', async (req, reply) => !sessionOf(req) ? reply.redirect('/login')",
     ]);
     // a page is sent on, the rest of its address kept; a form goes on as itself, its method and fields kept
     const app = read('src/api/web/app.ts');
