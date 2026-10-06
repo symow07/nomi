@@ -29,8 +29,9 @@ import { fileURLToPath } from 'node:url';
  * Add a name here and run the tool again.
  */
 export const SOLAR_WANTED = [
-  // the nav: Today, Inbox, Calendar, Settings, the heading "Customers", and the assistant's slot everywhere
-  'home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded', 'user-circle',
+  // the nav: Today, Inbox, Calendar, Settings, the heading "Customers", the advisor (2026-10-06), and the assistant's
+  // slot everywhere
+  'home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded', 'chat-round-dots', 'user-circle',
   // the menus: the assistant's, My business, Setup and Settings
   'chat-square-line', 'notebook-minimalistic', 'question-circle', 'forbidden-circle', 'user-id', 'tuning-2',
   'check-circle', 'play-circle', 'flag', 'history', 'shop', 'box', 'shield-check', 'case', 'dialog', 'chat-round',

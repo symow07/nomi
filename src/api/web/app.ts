@@ -146,7 +146,7 @@ import {
   updateStepFrom,
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
-import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, type HerContext, type TalkAbout } from './employee.js';
+import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery, legacyCalendarAddress } from './calendar.js';
@@ -199,8 +199,9 @@ import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
+import { advisorRoutes } from './advisor.js';
 import {
-  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside,
+  shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -3119,7 +3120,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // that have no switch of their own.
   app.post('/app/business/stop-assistant', async (req, reply) => {
     // Phase 9 (rule 13) — pressed on the assistant's own page, the notice lands there.
-    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? '/app/employee#on-her-own' : READY;
+    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? `${ASSISTANT_HOME}#on-her-own` : READY;
     const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
@@ -3683,15 +3684,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     };
   };
   // THE WARMTH RUN, phase 7 — the landing: the name, how much the assistant
-  // does alone (the control, whole), and the menu.
-  app.get('/app/employee', async (req, reply) => {
+  // does alone (the control, whole), and the menu. THE ADVISOR RUN (2026-10-06) —
+  // one level into Settings (`ASSISTANT_HOME`), its first row; the rail's slot is the advisor's.
+  app.get(ASSISTANT_HOME, async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
     const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.employee'), active: 'employee',
+      title: t(locale, 'nav.employee'), active: 'settings',
       bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s)),
     }));
   });
@@ -3709,7 +3711,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         screen === 'talk' ? talkAbout(s.businessId, locale) : Promise.resolve(undefined),
       ]);
       return reply.type('text/html; charset=utf-8').send(page(req, {
-        title: screenTitle(locale, screen), active: 'employee',
+        title: screenTitle(locale, screen), active: 'settings',
         bodyHtml: renderEmployeeScreen(screen, e, locale, flash, ctx, personOf(s), talk ? { talk } : {}),
       }));
     });
@@ -3734,10 +3736,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return withTenantTx(deps.db, b.value, (tx) => earnedRung(tx)).catch(() => 0 as const);
   };
   const capAction = (verb: string, run: (biz: string, cap: string, actor: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
-    app.post(`/app/employee/capability/:capability/${verb}`, async (req, reply) => {
+    app.post(`${ASSISTANT_HOME}/capability/:capability/${verb}`, async (req, reply) => {
       // OWNER ONLY: deciding what Nomi may do unsupervised is the trust ladder
       // itself, and it is her judgement about her own business risk.
-      const s = await ownerOnly(req, reply, 'capability_grant', '/app/employee');
+      const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME);
       if (!s) return reply;
       const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
@@ -3758,51 +3760,61 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
   // T1 — how much she does on her own is the owner's choice, from day one. The
   // same gate as a single grant: it is the same decision, made for several at once.
-  app.post('/app/employee/autonomy', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'capability_grant', '/app/employee');
+  app.post(`${ASSISTANT_HOME}/autonomy`, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME);
     if (!s) return reply;
     const locale = localeOf(req);
     const level = String((req.body as { level?: string } | undefined)?.level ?? '');
-    if (!isAutonomyLevel(level)) return flashTo(reply, '/app/employee#on-her-own', 'people.flash.failed');
+    if (!isAutonomyLevel(level)) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'people.flash.failed');
     // The native-review gate, enforced where the choice is SAVED rather than
     // only where it is shown. A page that hides a control is a suggestion; a
     // route that refuses it is the rule. `waits` is always allowed: it is the
     // setting that sends nothing without her, so nothing unreviewed can reach
     // a buyer through it — and it is how she takes back what she gave.
     if (level !== 'waits' && !(deps.autonomyReleased ?? autonomyReleased)()) {
-      return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
+      return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'autonomy.flash.notReleased');
     }
     // G4 (0102) — in a workspace that signed itself up, sending alone is earned,
     // not chosen: refused where it is SAVED. `waits` is never refused.
     if (rungOfLevel(level) > await rungFor(s.businessId)) {
-      return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notEarned');
+      return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'autonomy.flash.notEarned');
     }
     const r = await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id)
       .catch(() => ({ ok: false, changed: 0 }));
-    if (!r.ok) return flashTo(reply, `/app/employee#on-her-own`, 'people.flash.failed');
+    if (!r.ok) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'people.flash.failed');
     // V1-417 — the notice says what happens now, by the page's own answer (`aloneNow`).
     const held = level !== 'waits' && await loadEmployee(deps.db, s.businessId)
       .then((e) => aloneNow({ capabilities: e.capabilities, released: (deps.autonomyReleased ?? autonomyReleased)(), named: e.assistantNamed,
         ...(e.earned === undefined ? {} : { earned: e.earned }), stopped: e.stopped === true, silenced: e.silenced === true }).hold !== null)
       .catch(() => false);
-    return flashTo(reply, `/app/employee#on-her-own`, held ? 'autonomy.flash.savedHeld' : 'autonomy.flash.saved');
+    return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, held ? 'autonomy.flash.savedHeld' : 'autonomy.flash.saved');
   });
   capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));
   capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
+
+  // THE ADVISOR RUN — the assistant's page moved into Settings. Its old address still arrives: a bookmark,
+  // an alert's link, a tab left open. A page is sent on for good (301; the browser keeps the #part); a form
+  // posted from a page drawn before the move goes on as itself, method and fields kept (308), to the one
+  // handler above — so nothing posted to the old address is lost, and nothing is handled twice.
+  app.get('/app/employee', async (_req, reply) => reply.redirect(ASSISTANT_HOME, 301));
+  app.get('/app/employee/*', async (req, reply) =>
+    reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 301));
+  app.post('/app/employee/*', async (req, reply) =>
+    reply.redirect(`${ASSISTANT_HOME}/${(req.params as { '*': string })['*']}`, 308));
 
   // ── M34.7 抽查: the owner answers a spot check ────────────────────────────
   // The buttons post the wire words parseSpotCheckReply already understands
   // (好 / 有问题) and the correction box posts whatever she typed — the same
   // shape as the inbox's draft actions, and the reason that parser needed no
   // change to become reachable.
-  app.post('/app/employee/spot-check/:id', async (req, reply) => {
+  app.post(`${ASSISTANT_HOME}/spot-check/:id`, async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
     const answer = String((req.body as { answer?: string } | undefined)?.answer ?? '');
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/employee');
+    if (!bid.ok) return reply.redirect(ASSISTANT_HOME);
     const r = await withTenantTx(deps.db, bid.value, (tx) => answerSpotCheck(tx, bid.value, id, answer));
     const key = !r.answered ? 'spotcheck.flash.gone'
       : r.verdict === 'correct' ? 'spotcheck.flash.ok'
@@ -4236,13 +4248,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * My business and Setup, each with where it stands, and Log out at its foot.
    * Log out left the rail; this is where it lives now.
    */
+  // THE ADVISOR RUN (2026-10-06) — the advisor's page, a shell until its grounding is approved. Its routes are
+  // given these three functions and nothing more: no database, no sender, no setting is within their reach
+  // (advisor.ts; tests/parity/advisor-wall.test.ts holds the line).
+  advisorRoutes(app, {
+    signedIn: (req) => sessionOf(req) !== null,
+    locale: (req) => localeOf(req),
+    page: (req, o) => page(req, o),
+  });
   app.get('/app/settings', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
+    // The advisor run — the assistant's row says how much it does alone as it stands (the control's own reading).
+    const e = await loadEmployee(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.settings'), active: 'settings',
-      bodyHtml: renderSettingsHome(locale, takeFlash(req, reply)),
+      bodyHtml: renderSettingsHome(locale, takeFlash(req, reply), { alone: aloneInForce(e, locale) }),
     }));
   });
   app.get('/app/settings/setup', async (req, reply) => {
@@ -5633,7 +5655,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         // Phase 9 (V1-286) — the conversation first; the safety checks folded under it.
         // Phase 7 — a row of the assistant's menu: its way back leads (the transcript's own "earlier" link is not one).
-        bodyHtml: `${back('/app/employee', t(locale, 'nav.employee'))}<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
+        bodyHtml: `${back(ASSISTANT_HOME, t(locale, 'nav.employee'))}<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '')
           + (deps.enqueueInbound
             ? renderSandbox(view, locale, { flash, prefill, now, working, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`)

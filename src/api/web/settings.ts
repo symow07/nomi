@@ -23,7 +23,8 @@ import { type Currency, parseCurrency } from '../../core/types/money.js';
 import { currencyLabel, currencyInLine, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 
-import { switcher, deeper, back, esc, conversationUrl } from './layout.js';
+import { switcher, deeper, back, esc, conversationUrl, ASSISTANT_HOME } from './layout.js';
+import { agentMark } from './agentMark.js';
 import { fieldRow, rowsCard, saveBar, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -228,6 +229,8 @@ export type MenuRow = {
   readonly value?: string | null;
   /** A value that is a STATE carries its signal (phase 4); one that only names something carries none. */
   readonly tone?: 'ok' | 'warn' | 'bad' | undefined;
+  /** The advisor run — the row IS the assistant: its own slot (`agentMark`) stands where a row's shape does. */
+  readonly agent?: true;
 };
 
 export const menuRow = (r: MenuRow): string => {
@@ -239,7 +242,7 @@ export const menuRow = (r: MenuRow): string => {
   // keeps its own order. (`dir="auto"` on the cell skipped the text inside the
   // `<bdi>` and resolved every Arabic value left to right.) Nothing is cut
   // (w4-today-setup-23): a value that does not fit wraps under itself.
-  const inner = `${r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}</span>`
+  const inner = `${r.agent ? agentMark(24, 'ni') : r.icon ? icon(r.icon) : ''}<span class="sr-main"><span class="sr-label">${esc(r.label)}</span>${line ? `<span class="sr-desc">${line}</span>` : ''}</span>`
     + `${r.value ? `<span class="sr-value${r.tone ? ` ${r.tone}` : ''}"><bdi>${esc(r.value)}</bdi></span>` : ''}`;
   const cls = `srow sr-menu${line ? ' sr-two' : ''}`;
   return r.href
@@ -362,8 +365,12 @@ export function renderLanguage(locale: Locale): string {
  * business (the business's name) and Setup (its steps, while any is left) —
  * and Log out at the foot, apart from them: it is the one row that does
  * something rather than opening something.
+ *
+ * THE ADVISOR RUN (2026-10-06) — the assistant's page moved here, whole: the first row is the assistant (its
+ * name, its own slot), and the line under it says how much it does alone as it stands, so that control keeps
+ * its prominence one level in. Absent (`assistant` not given): the two rows as before.
  */
-export function renderSettingsHome(locale: Locale, flash: Flash | null): string {
+export function renderSettingsHome(locale: Locale, flash: Flash | null, assistant?: { readonly alone: string }): string {
   const setup = setupState();
   const progress = setup ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total })) : '';
   // One row as every menu draws it (`menuRow`). A step still to do carries the to-do ○ in the
@@ -374,6 +381,7 @@ export function renderSettingsHome(locale: Locale, flash: Flash | null): string 
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
     <ul class="scard">
+      ${assistant ? menuRow({ href: ASSISTANT_HOME, agent: true, label: assistantName(locale), desc: assistant.alone }) : ''}
       ${row('/app/business', 'business', t(locale, 'nav.factory'), '')}
       ${row('/app/settings/setup', 'setup', t(locale, 'nav.setup'), progress, setup ? (setup.next === null ? 'ok' : 'warn') : undefined)}
     </ul>
@@ -682,7 +690,7 @@ const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '�
 export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
   const name = assistantName(locale);
   // Phase 9 (V1-506) — the way back to the page it is reached from: the assistant's.
-  return `${back('/app/employee', t(locale, 'nav.employee'))}
+  return `${back(ASSISTANT_HOME, t(locale, 'nav.employee'))}
     <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>

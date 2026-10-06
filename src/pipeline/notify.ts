@@ -95,8 +95,8 @@ export const CONNECTION_APPROVAL_PAGE = '/app/channels';
 /** R5 — the reasons a self-demotion can give (`DemotionReason`), each with its words in `notify.self_demoted.why.*`. */
 export const SELF_DEMOTION_REASONS = ['policy_violation', 'hallucination', 'serious_spot_check', 'failed_spot_check',
   'repeated_corrections', 'channel_unstable', 'wrong_price'] as const;
-/** Where the self-demotion alert opens: the level on the assistant's page. */
-export const SELF_DEMOTION_PAGE = '/app/employee#on-her-own';
+/** Where the self-demotion alert opens: the level on the assistant's page — one level into Settings since the advisor run (2026-10-06; `ASSISTANT_HOME` in layout.ts; the old address redirects, so an alert already sent still arrives). */
+export const SELF_DEMOTION_PAGE = '/app/settings/assistant#on-her-own';
 
 /**
  * G3 — the day's allowance, at the soft-warn line and at 100%, each once a UTC

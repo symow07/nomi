@@ -2,8 +2,8 @@ import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../..
 import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey, ASSISTANT_FALLBACK } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, assistantsAreSeveral, businessName, needsYouCount, needsYouSince, tn } from './say.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName, businessName, needsYouCount, needsYouSince, tn } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate } from './values.js';
@@ -50,9 +50,20 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
   // business gave it; Settings. My business and Setup are rows of Settings, and
   // Log out is the foot of Settings, not of the rail.
   { href: '/app/calendar',  id: 'calendar' },
-  { href: '/app/employee',  id: 'employee' },
+  // THE ADVISOR RUN (2026-10-06) — the owner: "The current assistant page is really configuration … Move ALL
+  // of it into Settings … In the freed nav slot, put a chat page for the advisor." The assistant's page is a
+  // row of Settings now (`ASSISTANT_HOME`); this slot is the advisor's (advisor.ts), a shell until its
+  // grounding is approved (docs/ADVISOR-GROUNDING.md).
+  { href: '/app/advisor',   id: 'advisor' },
   { href: '/app/settings',  id: 'settings' },
 ];
+
+/**
+ * THE ADVISOR RUN — the assistant's settings: how much it does alone (first, whole), then its menu, one level
+ * into Settings. Each screen sits under it (`employee.ts` `screenHref`). `/app/employee` and everything under it
+ * redirect here, so a bookmark, an alert's link or a tab left open still arrives.
+ */
+export const ASSISTANT_HOME = '/app/settings/assistant';
 
 /**
  * THE WARMTH RUN — each entry's shape (icons.ts), so the eye finds it before
@@ -69,6 +80,8 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
  */
 export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
   home: 'home-2', inbox: 'inbox', calendar: 'calendar', settings: 'settings',
+  // The advisor run — the owner's choice: Solar's round chat bubble with its three dots.
+  advisor: 'chat-round-dots',
 };
 
 /**
@@ -105,16 +118,16 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/business/channels', routes: ['/app/channels/whatsapp', '/app/channels/meta', '/app/channels/email', '/app/channels/alerts'] },
   // THE WARMTH RUN, phase 7 — the assistant's page is a menu: each row opens
   // a screen of its own (employee.ts `EMPLOYEE_SCREENS`; "check its work" is a
-  // row only while a check waits, so it is not walked from here).
-  { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox',
-    '/app/employee/alone', '/app/employee/talk', '/app/employee/learning', '/app/employee/name', '/app/employee/replies',
-    '/app/employee/one-kind', '/app/employee/month', '/app/employee/next', '/app/employee/history'] },
+  // row only while a check waits, so it is not walked from here). The advisor
+  // run — one level into Settings (`ASSISTANT_HOME`).
+  { hub: ASSISTANT_HOME, routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox',
+    ...['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'month', 'next', 'history'].map((s) => `${ASSISTANT_HOME}/${s}`)] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
   { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
   // THE WARMTH RUN — My business is a row of Settings now, and the pages
   // reached from it follow it there (the map chains).
-  { hub: '/app/settings', routes: ['/app/business', '/app/settings/setup'] },
+  { hub: '/app/settings', routes: [ASSISTANT_HOME, '/app/business', '/app/settings/setup'] },
   // Phase 7 — Setup is how the app is wired for the owner: getting started,
   // what is checked before going live, alerts, the language; the account.
   { hub: '/app/settings/setup', routes: [
@@ -2770,9 +2783,11 @@ export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly 
   '/app/settings/terms': { href: '/app/business/how-you-sell', label: 'factory.sellhow.title' },
   // Phase 7 — the products and the channels are rows of My business now.
   '/app/products': { href: '/app/business', label: 'nav.factory' },
-  '/app/settings/forbidden': { href: '/app/employee', label: 'nav.employee' },
+  '/app/settings/forbidden': { href: ASSISTANT_HOME, label: 'nav.employee' },
   // THE WARMTH RUN, phase 7 — a row of the assistant's menu.
-  '/app/knowledge': { href: '/app/employee', label: 'nav.employee' },
+  '/app/knowledge': { href: ASSISTANT_HOME, label: 'nav.employee' },
+  // The advisor run — the assistant's settings are a row of Settings.
+  [ASSISTANT_HOME]: { href: '/app/settings', label: 'nav.settings' },
   '/app/settings/people': { href: '/app/settings/setup', label: 'nav.setup' },
   '/app/guide': { href: '/app/settings/setup', label: 'nav.setup' },
   '/app/onboarding': { href: '/app/settings/setup', label: 'nav.setup' },
@@ -2834,17 +2849,9 @@ export function shell(input: {
    */
   const entry = (n: typeof NAV[number], sub = false) => {
     const on = n.id === here;
-    // A5 — the entry for the assistants is the assistant's NAME while there is
-    // one, and "Team" once there are several.
-    const named = n.id === 'employee' && assistantsAreSeveral()
-      ? t(locale, 'nav.team')
-      : t(locale, `nav.${n.id}` as MessageKey);
-    // The warmth run's re-audit (cross-new-02, w4-whole-02) — ONE name per entry
-    // at every width: the assistant not yet named is "Assistant" (助手 · المساعد ·
-    // Asistente) in the rail, a word a phone's tile holds; a chosen name is itself.
-    const label = n.id === 'employee' && !assistantsAreSeveral()
-      && named.toLocaleLowerCase() === ASSISTANT_FALLBACK[locale].toLocaleLowerCase()
-      ? t(locale, 'nav.short.employee') : named;
+    // The advisor run — the assistant's entry (its name, or "Team") left the rail for Settings; every entry
+    // is its own word now, one name at every width.
+    const label = t(locale, `nav.${n.id}` as MessageKey);
     const waiting = n.id === 'inbox' ? needsYouCount() : null;
     // Phase 9 (V1-172) — the number says what it counts ("3 waiting") where
     // there is room; on a phone's tile it is the figure alone, on the icon's corner.
@@ -2853,9 +2860,8 @@ export function shell(input: {
     const aria = waiting ? ` aria-label="${esc(label)}, ${esc(tn(locale, 'nav.needsYou', waiting))}"` : '';
     const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
-    // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it); the assistant's
-    // entry is its slot, in the rail's line.
-    const mark = n.id === 'employee' ? agentMark(28, 'ni') : railIcon(NAV_ICON[n.id] ?? 'home-2');
+    // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it).
+    const mark = railIcon(NAV_ICON[n.id] ?? 'home-2');
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
        >${mark}${text}</a>`;
   };
@@ -2865,7 +2871,7 @@ export function shell(input: {
       <span class="navhead" id="nav-customers">${railIcon('users-group-rounded')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
       ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
     </div>
-    <div class="navgroup">${entry(byId('employee'))}</div>
+    <div class="navgroup">${entry(byId('advisor'))}</div>
     <div class="navfoot">${entry(byId('settings'))}</div>`;
   /**
    * CC-14 — whose workspace this is, in the owner's own words. It read
