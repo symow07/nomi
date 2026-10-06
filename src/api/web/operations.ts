@@ -15,7 +15,7 @@ import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
-import { esc, deeper, signalMark, todoMark } from './layout.js';
+import { esc, deeper, signalMark, todoMark, ASSISTANT_HOME } from './layout.js';
 import { waitingHead, renderWaitingPeople, renderHandled, renderSending, renderTally, renderGreeting, renderSchedule, type TodayData } from './today.js';
 import * as show from './values.js';
 import { agentMark } from './agentMark.js';
@@ -406,10 +406,10 @@ export function renderOperationsHome(
     asks > 0 ? deeper('/app/inbox?filter=deletion', tn(locale, 'today.deletion', asks)) : '',
     gaps > 0 ? deeper('/app/knowledge', tn(locale, 'today.gaps', gaps, { name })) : '',
     // R5 — the assistant stepped back on its own, and work sent alone waits to be checked.
-    s.supervision?.demoted.length ? deeper('/app/employee#on-her-own', t(locale, 'today.demoted', {
+    s.supervision?.demoted.length ? deeper(`${ASSISTANT_HOME}#on-her-own`, t(locale, 'today.demoted', {
       caps: formatList(locale, s.supervision.demoted.map((c) => capabilityName(locale, c))),
     })) : '',
-    s.supervision?.spotChecks ? deeper('/app/employee#spot-checks', tn(locale, 'today.spotChecks', s.supervision.spotChecks)) : '',
+    s.supervision?.spotChecks ? deeper(`${ASSISTANT_HOME}#spot-checks`, tn(locale, 'today.spotChecks', s.supervision.spotChecks)) : '',
   ].filter(Boolean).join('');
   // THE QUIET-DAY RUN (2026-10-05) — the card never says "caught up" over its own contents. Production
   // said "You're all caught up" and, under it, "1 reply to check": the calm test counted who waits, the

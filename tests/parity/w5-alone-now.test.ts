@@ -138,7 +138,7 @@ describe('w4-business-assistant-26 · the levels come first after the name; the 
         expect(html, `${l}/${k}`).not.toContain(esc(withAssistantName('Lily', () => t(l, k))));
         expect(withAssistantName('Lily', () => renderEmployeeScreen('alone', set, l, null)), `${l}/${k}`).toContain(esc(withAssistantName('Lily', () => t(l, k))));
       }
-      expect(html).toContain(`href="/app/employee/alone">${esc(withAssistantName('Lily', () => t(l, 'her.alone.title')))}`);
+      expect(html).toContain(`href="/app/settings/assistant/alone">${esc(withAssistantName('Lily', () => t(l, 'her.alone.title')))}`);
       // With the name not confirmed: one line, then the levels.
       const unnamed = withAssistantName('Lily', () => renderEmployee({ ...set, assistantNamed: false }, l, null));
       const before = unnamed.slice(unnamed.indexOf('level-control'), unnamed.indexOf('name="level"'));

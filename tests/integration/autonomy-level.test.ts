@@ -67,14 +67,14 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
   it('her page offers the choice, and a new workspace starts with everything waiting', async () => {
-    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: ownerCookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie: ownerCookie } });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('id="on-her-own"');
     expect(page.body).toMatch(/name="level" value="waits" checked/);
   });
 
   it('THE PRODUCTION CALLER: she chooses "talks" — four kinds of reply go out alone, prices and orders still wait', async () => {
-    const res = await post(ownerCookie, '/app/employee/autonomy', 'level=talks');
+    const res = await post(ownerCookie, '/app/settings/assistant/autonomy', 'level=talks');
     expect(res.statusCode).toBe(302);
     // V1-417 (the fix wave) — the choice is saved, and the notice says what happens NOW: this workspace never
     // confirmed its assistant's name (rule 2), so every reply still waits, and it says so rather than "works this way".
@@ -85,12 +85,12 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     const e = await events();
     expect(e.map((x) => x.capability).sort()).toEqual(['follow_up', 'greet', 'qualify', 'recommend']);
     expect(e.every((x) => x.reasons.includes('owner_chose_talks') && x.to_mode === 'auto' && x.actor !== '')).toBe(true);
-    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: ownerCookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie: ownerCookie } });
     expect(page.body).toMatch(/name="level" value="talks" checked/);
   });
 
   it('"sells" adds quoting and negotiating, writes ONLY those two, and never an order', async () => {
-    await post(ownerCookie, '/app/employee/autonomy', 'level=sells');
+    await post(ownerCookie, '/app/settings/assistant/autonomy', 'level=sells');
     const m = await modes();
     expect(m['quote']).toBe('auto'); expect(m['negotiate']).toBe('auto');
     expect(m['confirm_order'] ?? 'draft').toBe('draft');
@@ -99,7 +99,7 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
   });
 
   it('she can take it all back in one press, and the record keeps every step', async () => {
-    await post(ownerCookie, '/app/employee/autonomy', 'level=waits');
+    await post(ownerCookie, '/app/settings/assistant/autonomy', 'level=waits');
     expect(Object.values(await modes()).every((v) => v === 'draft')).toBe(true);
     const back = (await events()).filter((x) => x.reasons.includes('owner_chose_waits'));
     expect(back).toHaveLength(6);
@@ -108,7 +108,7 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
 
   it('a level nobody defined changes nothing', async () => {
     const before = await events();
-    const res = await post(ownerCookie, '/app/employee/autonomy', 'level=everything');
+    const res = await post(ownerCookie, '/app/settings/assistant/autonomy', 'level=everything');
     expect(flashSaid(res, SECRET)).toContain('did not save');
     expect(await events()).toEqual(before);
   });
@@ -120,12 +120,12 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     const staff = await login(/class="code"><bdi>([^<]+)</.exec(people.body)?.[1] ?? '');
     expect(staff).not.toBe('');
     const before = await modes();
-    await post(staff, '/app/employee/autonomy', 'level=sells');
+    await post(staff, '/app/settings/assistant/autonomy', 'level=sells');
     expect(await modes()).toEqual(before);
-    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: staff } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie: staff } });
     expect(page.body).not.toContain('id="on-her-own"');
     // THE WARMTH RUN, phase 7 — staff read where it stands, and who decides; never the form.
-    expect(page.body).not.toContain('action="/app/employee/autonomy"');
+    expect(page.body).not.toContain('action="/app/settings/assistant/autonomy"');
     expect(page.body).toContain('The owner decides this.');
   });
 });
@@ -183,7 +183,7 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     for (const level of ['talks', 'sells']) {
-      const res = await app.inject({ method: 'POST', url: '/app/employee/autonomy', payload: `level=${level}`, headers: { cookie, ...FORM } });
+      const res = await app.inject({ method: 'POST', url: '/app/settings/assistant/autonomy', payload: `level=${level}`, headers: { cookie, ...FORM } });
       expect(flashSaid(res, SECRET), level).toContain('still being checked');
     }
     const { withTenantTx } = await import('../../src/db/client.js');
@@ -198,7 +198,7 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
   it('"waits" is always allowed — it sends nothing without her', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
-    const res = await app.inject({ method: 'POST', url: '/app/employee/autonomy', payload: 'level=waits', headers: { cookie, ...FORM } });
+    const res = await app.inject({ method: 'POST', url: '/app/settings/assistant/autonomy', payload: 'level=waits', headers: { cookie, ...FORM } });
     expect(flashSaid(res, SECRET)).not.toContain('still being checked');
   });
 
@@ -212,7 +212,7 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     const gate = parseBusinessId(GATE_BIZ); if (!gate.ok) throw new Error('fixture');
     await withTenantTx(db, gate.value, (t) => sql`insert into onboarding_state (business_id, assistant_named_at) values (${GATE_BIZ}, now())
       on conflict (business_id) do update set assistant_named_at = now()`.execute(t));
-    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('English, Chinese, and Arabic');
     expect(page.body).toContain('Spanish, French, and Portuguese, or in any other language, wait for you');

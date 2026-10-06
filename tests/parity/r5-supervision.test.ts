@@ -87,7 +87,7 @@ describe('R5 · the owner is told', () => {
     // Deliberately changed from "by e-mail always": the owner (2026-10-03): "Only two things may interrupt the owner outside the app: an order waiting for their tap, and a conversation the assistant handed over because it could not handle it. Everything else waits quietly in-app."
     expect(goesByMail('self_demoted')).toBe(false);
     expect(waitsInApp('self_demoted')).toBe(true);
-    expect(SELF_DEMOTION_PAGE).toBe('/app/employee#on-her-own');
+    expect(SELF_DEMOTION_PAGE).toBe('/app/settings/assistant#on-her-own');
   });
   it('the claim marks each demotion told as it returns it; every older one counts as told', () => {
     const m = src('migrations/0109_supervision.sql');
@@ -108,15 +108,15 @@ describe('R5 · Today and the level page', () => {
   for (const l of LOCALES) {
     it(`${l} · Today: what stepped back, and the work to check — each a door`, () => {
       const html = withoutIsolates(renderOperationsHome(snapshot({ spotChecks: 2, demoted: ['quote'] }), l, NOTHING_TODAY(new Date('2026-10-02T09:00:00Z'))));
-      expect(html).toContain('href="/app/employee#on-her-own"');
+      expect(html).toContain('href="/app/settings/assistant#on-her-own"');
       expect(html).toContain(esc(t(l, 'today.demoted', { caps: capabilityName(l, 'quote') })));
-      expect(html).toContain('href="/app/employee#spot-checks"');
+      expect(html).toContain('href="/app/settings/assistant#spot-checks"');
     });
   }
   it('nothing to say, nothing said', () => {
     const html = renderOperationsHome(snapshot({ spotChecks: 0, demoted: [] }), 'en', NOTHING_TODAY(new Date('2026-10-02T09:00:00Z')));
     expect(html).not.toContain('#spot-checks');
-    expect(html).not.toContain('href="/app/employee#on-her-own"');
+    expect(html).not.toContain('href="/app/settings/assistant#on-her-own"');
   });
 
   const base: EmployeeProfile = {

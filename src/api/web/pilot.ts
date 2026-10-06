@@ -17,7 +17,7 @@ import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './o
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
-import { esc, deeper, back, todoMark } from './layout.js';
+import { esc, deeper, back, todoMark, ASSISTANT_HOME } from './layout.js';
 import { shape } from './marks.js';
 import { menuRow, menuGroup } from './settings.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
@@ -674,8 +674,8 @@ function afterSection(locale: Locale): string {
   return `<div class="block">
     <h2>${esc(t(locale, 'runbook.after.title'))}</h2>
     <p class="muted">${esc(t(locale, 'runbook.after.intro'))}</p>
-    ${link('runbook.after.promotion', '/app/employee')}
-    ${link('runbook.after.autonomy', '/app/employee')}
+    ${link('runbook.after.promotion', ASSISTANT_HOME)}
+    ${link('runbook.after.autonomy', ASSISTANT_HOME)}
     ${link('runbook.after.gaps', '/app/knowledge')}
   </div>`;
 }

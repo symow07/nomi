@@ -14,7 +14,7 @@ import { capabilityName, claimName, type MessageKey } from '../../core/owner/i18
 import { t, tn, assistantName } from './say.js';
 import { languageName } from './inbox.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
-import { esc, deeper, back, signalMark, type Signal } from './layout.js';
+import { esc, deeper, back, signalMark, ASSISTANT_HOME, type Signal } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { assistantStopped } from '../../db/assistantStop.js';
@@ -249,7 +249,10 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
  *                 three groups, each with its shape, its name, where it stands
  *                 now, and the door.
  *   a screen      one former section, its words and its controls unchanged,
- *                 under a way back to the menu (`/app/employee/<screen>`).
+ *                 under a way back to the menu (`<ASSISTANT_HOME>/<screen>`).
+ *
+ * THE ADVISOR RUN (2026-10-06) — all of it one level into Settings: Settings' first row opens the landing
+ * (`ASSISTANT_HOME`, `/app/settings/assistant`), the control still first and whole; `/app/employee` redirects.
  *
  * Nothing here moved where it is edited: the business's facts and products
  * stay My business's ("two doors, one data" — the "can talk about" screen
@@ -260,7 +263,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 /** Phase 7 — the screens one row each opens, in the menu's order. */
 export const EMPLOYEE_SCREENS = ['alone', 'talk', 'learning', 'name', 'replies', 'one-kind', 'checks', 'month', 'next', 'history'] as const;
 export type EmployeeScreen = typeof EMPLOYEE_SCREENS[number];
-export const screenHref = (s: EmployeeScreen): string => `/app/employee/${s}`;
+export const screenHref = (s: EmployeeScreen): string => `${ASSISTANT_HOME}/${s}`;
 
 /** Each screen's heading — the row's own words, so the row, the tab and the heading say one thing. */
 const SCREEN_TITLE: Readonly<Record<EmployeeScreen, MessageKey>> = {
@@ -475,6 +478,16 @@ function standing(e: EmployeeProfile, locale: Locale) {
 }
 
 /**
+ * THE ADVISOR RUN — Settings' first row: how much the assistant does alone, as it stands — the level in force
+ * (its own sentence), or, where none of the three applies, what goes out without the owner now. The same
+ * reading the control beside the levels makes (`standing`).
+ */
+export const aloneInForce = (e: EmployeeProfile, locale: Locale): string => {
+  const st = standing(e, locale);
+  return st.effective ? t(locale, `autonomy.level.${st.effective}` as MessageKey) : st.nowLabel;
+};
+
+/**
  * R5 — WHAT THE OWNER CHOSE, AND WHAT IS IN FORCE. The level chosen on this
  * page and when; and, where something holds it (V1-417: the Stop, the pause,
  * the native read, the name, the ramp) or the system's own demotions (a guard
@@ -570,7 +583,7 @@ function stopHere(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
  * Phase 9 (w4-business-assistant-26) — the levels come first after the name.
  * What preceded them (what every level keeps the same, what a customer is
  * told, the ramp, the choice and what is in force) is one level down, on
- * `/app/employee/alone`; what holds the levels stays beside them, one line.
+ * `<ASSISTANT_HOME>/alone`; what holds the levels stays beside them, one line.
  */
 function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): string {
   const st = standing(e, locale);
@@ -602,8 +615,8 @@ function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): strin
       ${holdLine(e, locale, st.hold)}
       ${e.earned === false ? `<p class="fwarn">${esc(t(locale, 'autonomy.notEarned.title'))}</p>
       <p class="muted">${esc(t(locale, 'autonomy.notEarned.body', { name: assistantName(locale) }))}</p>
-      ${level !== 'waits' ? `<form method="post" action="/app/employee/autonomy"><input type="hidden" name="level" value="waits" />
-        <button class="btn" type="submit">${esc(t(locale, 'autonomy.notEarned.stepDown'))}</button></form>` : ''}` : `<form method="post" action="/app/employee/autonomy" class="levels">
+      ${level !== 'waits' ? `<form method="post" action="${ASSISTANT_HOME}/autonomy"><input type="hidden" name="level" value="waits" />
+        <button class="btn" type="submit">${esc(t(locale, 'autonomy.notEarned.stepDown'))}</button></form>` : ''}` : `<form method="post" action="${ASSISTANT_HOME}/autonomy" class="levels">
         ${AUTONOMY_LEVELS.filter((l) => !e.ramp || rungOfLevel(l) <= e.ramp.rung).map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
           <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
@@ -721,7 +734,7 @@ export function renderEmployeeScreen(
   const name = assistantName(locale);
   const st = standing(e, locale);
   const capName = (c: string) => capabilityName(locale, c);
-  const head = `${back('/app/employee', name)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
+  const head = `${back(ASSISTANT_HOME, name)}<h1 class="page">${esc(screenTitle(locale, screen))}</h1>${flashBanner(flash)}`;
 
   switch (screen) {
     // Two doors, one data: what the assistant answers from, each line opening
@@ -764,7 +777,7 @@ export function renderEmployeeScreen(
     // languages wait, how sending alone is earned, and the choice beside what
     // is in force.
     case 'alone': {
-      const back2 = `${back('/app/employee', name)}<h1 class="page">${esc(t(locale, 'her.alone.title', { name }))}</h1>${flashBanner(flash)}`;
+      const back2 = `${back(ASSISTANT_HOME, name)}<h1 class="page">${esc(t(locale, 'her.alone.title', { name }))}</h1>${flashBanner(flash)}`;
       return `${back2}<div class="block">
         <p>${esc(t(locale, 'autonomy.intro'))}</p>
         ${st.hold ? `<p>${esc(st.heldWhy)}</p>` : ''}
@@ -772,7 +785,7 @@ export function renderEmployeeScreen(
         <p class="muted small disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
         ${chosenBlock(e, locale)}
         ${e.ramp ? rampBlock(e.ramp, locale) : ''}
-        ${deeper('/app/employee#on-her-own', t(locale, 'autonomy.title'))}
+        ${deeper(`${ASSISTANT_HOME}#on-her-own`, t(locale, 'autonomy.title'))}
       </div>`;
     }
     // Phase 9 — the h1 of the landing names the assistant; this says what it
@@ -826,11 +839,11 @@ export function renderEmployeeScreen(
         : (st.grantable.length || st.revocable.length)
         ? `<div class="block">
             ${/* V1-417 — what holds every reply, first: a kind set to go alone says it still waits. */ ''}${st.hold || st.setButHeld.length ? `<p>${esc(st.heldWhy)}</p>` : ''}
-            ${/* CC-29 — each asks first, in this block's own words: grant, revoke. Phase 9 — making a kind wait again is an ordinary choice the owner can undo: not red. */ ''}${st.revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
+            ${/* CC-29 — each asks first, in this block's own words: grant, revoke. Phase 9 — making a kind wait again is an ordinary choice the owner can undo: not red. */ ''}${st.revocable.map((c) => `<form method="post" action="${ASSISTANT_HOME}/capability/${esc(c.capability)}/revoke" class="actrow">
                 <span>${esc(t(locale, st.alone.includes(c.capability) ? 'employee.actions.granted' : 'employee.actions.grantedHeld', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
                   onclick="return confirm(this.dataset.confirm)"
                   data-confirm="${esc(t(locale, 'employee.actions.revokeConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
-            ${st.grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
+            ${st.grantable.map((c) => `<form method="post" action="${ASSISTANT_HOME}/capability/${esc(c.capability)}/promote" class="actrow">
                 <span>${esc(t(locale, st.hold ? 'employee.actions.eligibleHeld' : 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn" type="submit"
                   onclick="return confirm(this.dataset.confirm)"
                   data-confirm="${esc(t(locale, 'employee.actions.grantConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
@@ -844,7 +857,7 @@ export function renderEmployeeScreen(
         ? `<div class="block">
             <p class="muted review-intro">${esc(t(locale, 'spotcheck.intro', { name }))}</p>
             ${e.spotChecks.map((s) => {
-              const act = `/app/employee/spot-check/${encodeURIComponent(s.id)}`;
+              const act = `${ASSISTANT_HOME}/spot-check/${encodeURIComponent(s.id)}`;
               return `<div class="scheck">
                 <div class="muted sclabel">${esc(t(locale, 'spotcheck.buyerSaid'))}</div>
                 <div class="scsaid"><bdi>${esc(s.buyerMessage)}</bdi></div>

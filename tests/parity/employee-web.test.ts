@@ -98,8 +98,8 @@ describe('M9.6 · employee profile (localized)', () => {
 
   it('actions: revoke on granted, promote only where eligible, confirm_order note', () => {
     const en = everyScreen(base, 'en', null);
-    expect(en).toContain('action="/app/employee/capability/greet/revoke"');
-    expect(en).toContain('action="/app/employee/capability/quote/promote"');
+    expect(en).toContain('action="/app/settings/assistant/capability/greet/revoke"');
+    expect(en).toContain('action="/app/settings/assistant/capability/quote/promote"');
     expect(en).not.toContain('capability/negotiate/promote');
     expect(en).toContain('Confirming orders always waits for you');
     expect(everyScreen(base, 'zh', null)).toContain('确认订单永远等你');
@@ -216,10 +216,10 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(learning).not.toContain(t('en', 'her.teach.unasked'));
     const landing = renderEmployee(base, 'en', null);
     const row = (href: string) => landing.slice(landing.indexOf(`href="${href}"`), landing.indexOf('</a>', landing.indexOf(`href="${href}"`)));
-    expect(row('/app/employee/month')).not.toMatch(/sr-value|sr-desc/);
+    expect(row('/app/settings/assistant/month')).not.toMatch(/sr-value|sr-desc/);
     expect(renderEmployee(base, 'en', null, { taughtRecently: 0, corrected: 0, handled: 12, draftsPrepared: 0, neededYou: 0, gaps: [] }))
       .toContain(`<span class="sr-desc">${t('en', 'her.count.handled.other', { n: '12' })}</span>`);
-    expect(row('/app/employee/learning')).not.toContain('sr-value');
+    expect(row('/app/settings/assistant/learning')).not.toContain('sr-value');
   });
 
   it('renders in zh + ar, with the RTL chevron handled', () => {
@@ -291,7 +291,7 @@ describe('M34.8 · a spot check shows the owner the work itself', () => {
   it('offers a way to answer in every locale, and posts to the one action', () => {
     for (const l of LOCALES) {
       const html = everyScreen(withCheck, l, null);
-      expect(html).toContain('/app/employee/spot-check/s1');
+      expect(html).toContain('/app/settings/assistant/spot-check/s1');
       expect(html).toContain('value="好"');       // the wire word parseSpotCheckReply reads
       expect(html).toContain('value="有问题"');
     }
@@ -299,7 +299,7 @@ describe('M34.8 · a spot check shows the owner the work itself', () => {
 
   it('renders nothing at all when there is nothing to check', () => {
     const html = everyScreen(base, 'en', null);
-    expect(html).not.toContain('/app/employee/spot-check/');
+    expect(html).not.toContain('/app/settings/assistant/spot-check/');
   });
 });
 
@@ -369,8 +369,8 @@ describe('Phase 9 · B5 · Your assistant: what is in force, what holds it, in p
       expect(hold, l).toBeGreaterThan(-1);
       expect(hold, l).toBeLessThan(html.indexOf('name="level"'));
       // Phase 9 (V1-420) — the door opens the Name screen, where the name is confirmed.
-      expect(html, l).toContain(`href="/app/employee/name">${t(l, 'autonomy.confirmName')}`);
-      expect(html.split('href="/app/employee/name"').length - 1, `${l}: the door, and the Name row`).toBe(2);
+      expect(html, l).toContain(`href="/app/settings/assistant/name">${t(l, 'autonomy.confirmName')}`);
+      expect(html.split('href="/app/settings/assistant/name"').length - 1, `${l}: the door, and the Name row`).toBe(2);
       expect(html, l).not.toContain('href="/app/onboarding"');
       expect(html, l).not.toContain(`>${t(l, 'pilot.open')}</a>`);           // the bare "Open"
       expect(visible(html), `${l}: no page called by a name the nav does not use`).not.toContain(t(l, 'pilot.title'));

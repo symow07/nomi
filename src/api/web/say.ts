@@ -114,8 +114,6 @@ export const assistantName = (locale: Locale): string => {
   return scope.getStore()?.name ?? fallback.charAt(0).toLocaleUpperCase() + fallback.slice(1);
 };
 
-/** Does this business have more than one assistant? Outside a scope: no. */
-export const assistantsAreSeveral = (): boolean => scope.getStore()?.several ?? false;
 
 /**
  * The design pass §9 — a figure inside a sentence is a value like any other:

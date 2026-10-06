@@ -171,14 +171,16 @@ describe('Phase 9 · the shell', () => {
       ['/app/settings/samples', '/app/business/how-you-sell', 'factory.sellhow.title'], ['/app/settings/terms', '/app/business/how-you-sell', 'factory.sellhow.title'],
       // Phase 9 (w4-business-assistant-05) — /app/channels answers with its home; each channel's screen draws its own way back.
       ['/app/products', '/app/business', 'nav.factory'],
-      ['/app/settings/forbidden', '/app/employee', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
+      ['/app/settings/forbidden', '/app/settings/assistant', 'nav.employee'], ['/app/settings/people', '/app/settings/setup', 'nav.setup'],
       ['/app/guide', '/app/settings/setup', 'nav.setup'], ['/app/onboarding', '/app/settings/setup', 'nav.setup'], ['/app/ready', '/app/onboarding', 'nav.onboarding'],
       // The warmth run, phase 9 — the checklist's two screens and the machine room lead back to the checklist.
       ['/app/onboarding/practice', '/app/onboarding', 'nav.onboarding'], ['/app/onboarding/activity', '/app/onboarding', 'nav.onboarding'],
       ['/app/onboarding/technical', '/app/onboarding', 'nav.onboarding'],
       ['/app/settings/setup', '/app/settings', 'nav.settings'], ['/app/business', '/app/settings', 'nav.settings'],
       // Phase 7b: knowledge is a row of the assistant's menu, and leads back to it.
-      ['/app/knowledge', '/app/employee', 'nav.employee'],
+      ['/app/knowledge', '/app/settings/assistant', 'nav.employee'],
+      // The advisor run — the assistant's settings are a row of Settings, and lead back to it.
+      ['/app/settings/assistant', '/app/settings', 'nav.settings'],
     ];
     for (const l of LOCALES) for (const [path, href, key] of cases) {
       const main = (h: string) => h.slice(h.indexOf('<main'), h.indexOf('</main>'));
@@ -516,7 +518,7 @@ describe('Phase 9 · Ready for customers', () => {
     const h = renderReady(readyView(false, false, false), 'en');
     expect(h).toContain(`<a class="deeper" href="${STEP_LINK.name}">${esc(t('en', 'factory.next.name'))}`);
     expect(h).toContain(`<a class="deeper" href="${STEP_LINK.channels}">${esc(t('en', 'factory.next.channels'))}`);
-    expect(h).toContain(`<a class="deeper" href="/app/employee">${esc(t('en', 'ready.alone.go'))}`);
+    expect(h).toContain(`<a class="deeper" href="/app/settings/assistant">${esc(t('en', 'ready.alone.go'))}`);
     expect(h).toContain('href="/app/sandbox"');
     expect(renderReady(readyView(true, true, true), 'en')).not.toContain(`href="${STEP_LINK.name}"`);
   });

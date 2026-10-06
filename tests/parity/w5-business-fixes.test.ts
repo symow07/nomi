@@ -223,8 +223,8 @@ describe('w4-business-assistant-29 · each row says its own thing', () => {
         const row = new RegExp(`href="${href}">[\\s\\S]*?</a>`).exec(html)?.[0] ?? '';
         return /<span class="sr-(?:desc|value)[^>]*>([\s\S]*?)<\/span>/.exec(row.replace(/<span class="sr-label">[^<]*<\/span>/, ''))?.[1] ?? '';
       };
-      expect(line('/app/employee/replies')).not.toBe(line('/app/employee/next'));
-      expect(line('/app/employee/one-kind')).not.toBe('');
+      expect(line('/app/settings/assistant/replies')).not.toBe(line('/app/settings/assistant/next'));
+      expect(line('/app/settings/assistant/one-kind')).not.toBe('');
     });
   }
 });

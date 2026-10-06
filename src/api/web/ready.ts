@@ -11,7 +11,7 @@ import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { esc, deeper } from './layout.js';
+import { esc, deeper, ASSISTANT_HOME } from './layout.js';
 import { shape } from './marks.js';
 import { STEP_LINK } from './onboarding.js';
 import * as show from './values.js';
@@ -96,7 +96,7 @@ export function renderReady(v: ReadyView, locale: Locale): string {
         deeper(STEP_LINK.channels, t(locale, 'factory.next.channels', { name })))}
       ${/* Phase 9 (V1-145) — sending alone needs both: earned AND the name confirmed (commitTurn's gates). */ ''}${fact(alone, t(locale, 'ready.alone.label', { name }),
         t(locale, aloneSaid, { name }),
-        v.earned ? '' : deeper('/app/employee', t(locale, 'ready.alone.go', { name })))}
+        v.earned ? '' : deeper(ASSISTANT_HOME, t(locale, 'ready.alone.go', { name })))}
     </ul>
   </section>`;
 }

@@ -153,7 +153,7 @@ const PAGES: Readonly<Record<string, string>> = {
     billing: { configured: true, exempt: false, status: 'active' }, dataWaiting: 0,
   }, 'en', null))),
   settings: inShell('/app/settings', renderSettingsHome('en', null)),
-  assistant: inShell('/app/employee', withWorkspace(scope(), () => renderEmployee(assistant, 'en', null))),
+  assistant: inShell('/app/settings/assistant', withWorkspace(scope(), () => renderEmployee(assistant, 'en', null))),
   inbox: inShell('/app/inbox', withZone('Asia/Shanghai', () => renderInboxList(inbox, 'en', NOW))),
   month: inShell('/app/calendar', month),
   arabic: inShell('/app', '<p>x</p>', 'ar'),

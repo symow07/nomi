@@ -316,7 +316,7 @@ describe("CC-14 · the shell leads with the business's own name; the product's i
       const nav = today.slice(today.indexOf('<nav class="side">'), today.indexOf('</nav>'));
       expect(nav, l).not.toContain('business-name');
       // Phase 9 (V1-105) — Setup, Getting started, Before going live and the rest named no workspace on a phone.
-      for (const other of ['/app/inbox', '/app/settings', '/app/employee', '/app/business', '/app/inbox/c1'])
+      for (const other of ['/app/inbox', '/app/settings', '/app/settings/assistant', '/app/advisor', '/app/business', '/app/inbox/c1'])
         expect(page(l, other), `${l} ${other}`).toContain('<p class="business-name"><bdi>Westlake Canvas Co.</bdi></p>');
     }
     expect(page('en', '/app', null)).not.toContain('class="business-name"');

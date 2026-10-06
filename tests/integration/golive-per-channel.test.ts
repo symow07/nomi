@@ -97,7 +97,7 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
     expect(html).not.toContain('action="/app/business/activate"');
     expect(html).toContain(esc(t('en', 'golive.other.live', { channels: 'Instagram', name: 'your assistant' })));
     // the two ways those replies are stopped, each a real door
-    expect(html).toMatch(/href="\/app\/employee"[^>]*>[\s\S]*?Make every reply wait for you/);
+    expect(html).toMatch(/href="\/app\/settings\/assistant"[^>]*>[\s\S]*?Make every reply wait for you/);
     // (the fix wave) channels' one home, where each channel's screen is
     expect(html).toMatch(/href="\/app\/business\/channels"[^>]*>[\s\S]*?Disconnect the channel/);
   });

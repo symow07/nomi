@@ -27,7 +27,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 
-import { esc, deeper, back, signalMark, todoMark } from './layout.js';
+import { esc, deeper, back, signalMark, todoMark, ASSISTANT_HOME } from './layout.js';
 import { shape } from './marks.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
@@ -1016,7 +1016,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
   const elsewhereBody = s.liveElsewhere.length === 0 || s.held ? '' : `
        <p class="fok">${esc(t(locale, 'golive.other.live', { channels: elsewhereNames, name }))}</p>
        <p class="fdesc fdesc-lead">${esc(t(locale, 'golive.other.stopHow'))}</p>
-       <div class="doors">${deeper('/app/employee', t(locale, 'golive.other.stopDrafts'))}${deeper(CHANNELS_HOME, t(locale, 'golive.other.stopDisconnect'))}</div>`;
+       <div class="doors">${deeper(ASSISTANT_HOME, t(locale, 'golive.other.stopDrafts'))}${deeper(CHANNELS_HOME, t(locale, 'golive.other.stopDisconnect'))}</div>`;
   // 0070 — the owner's Stop, on EVERY channel, first: it is the one switch
   // that binds all of them, WhatsApp included, and it is never further away
   // than the channels it stops. Shown wherever something could be sent.

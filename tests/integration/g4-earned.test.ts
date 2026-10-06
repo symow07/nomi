@@ -128,16 +128,16 @@ d('G4 · sending alone is earned (requires DATABASE_URL + MIGRATE_DATABASE_URL)'
 
   it('BOTH GRANT ROUTES refuse; "waits" is never refused; the page says replies wait for now', async () => {
     const before = await modes();
-    const talks = await post('/app/employee/autonomy', 'level=sells');
+    const talks = await post('/app/settings/assistant/autonomy', 'level=sells');
     expect(flashSaid(talks, WEB_SECRET)).toBe(t('en', 'autonomy.flash.notEarned'));
-    const one = await post('/app/employee/capability/greet/promote', '');
+    const one = await post('/app/settings/assistant/capability/greet/promote', '');
     expect(flashSaid(one, WEB_SECRET)).toBe(t('en', 'autonomy.flash.notEarned'));
     expect(await modes()).toEqual(before);
-    const page = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
+    const page = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
     expect(page.body).toContain(t('en', 'autonomy.notEarned.title'));
     expect(page.body).toContain(t('en', 'autonomy.notEarned.stepDown'));
     expect(page.body).not.toContain('name="level" value="sells"');
-    const waits = await post('/app/employee/autonomy', 'level=waits');
+    const waits = await post('/app/settings/assistant/autonomy', 'level=waits');
     expect(flashSaid(waits, WEB_SECRET)).toBe(t('en', 'autonomy.flash.saved'));
     expect(Object.values(await modes()).every((m) => m === 'draft')).toBe(true);
   }, 60_000);
@@ -154,7 +154,7 @@ d('G4 · sending alone is earned (requires DATABASE_URL + MIGRATE_DATABASE_URL)'
     const { sendingAloneEarned } = await import('../../src/db/earned.js');
     await admin.query(`update businesses set auto_earned_at = now() where id = $1`, [BIZ]);
     expect(await q((tx) => sendingAloneEarned(tx), COPY)).toBe(true);
-    const talks = await post('/app/employee/autonomy', 'level=talks');
+    const talks = await post('/app/settings/assistant/autonomy', 'level=talks');
     expect(flashSaid(talks, WEB_SECRET)).toBe(t('en', 'autonomy.flash.saved'));
     replyWriter.replies = ['Yes, the cedar candle comes in a tin.'];
     const r = await writes(`9715${runDigits(RUN, 6)}2`, 'Does the cedar candle come in a tin?');

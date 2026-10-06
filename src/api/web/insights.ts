@@ -8,7 +8,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, tn } from './say.js';
 import { biggestChange, MONTH_DRIVERS, MONTH_CHANGE_MIN_DAYS, type MonthDriver } from '../../core/insights/changed.js';
-import { esc, conversationUrl, deeper } from './layout.js';
+import { esc, conversationUrl, deeper, ASSISTANT_HOME } from './layout.js';
 import { quietAfterPrice } from '../../db/inboxAttention.js';
 import { faceLink, type FaceOf } from './faces.js';
 
@@ -46,7 +46,7 @@ export const MAX_INSIGHTS = 3;
 export type InsightAction =
   | { readonly kind: 'review_drafts'; readonly href: '/app/inbox' }
   | { readonly kind: 'follow_up'; readonly href: string; readonly buyer: string }
-  | { readonly kind: 'consider_promotion'; readonly href: '/app/employee'; readonly capability: string }
+  | { readonly kind: 'consider_promotion'; readonly href: typeof ASSISTANT_HOME; readonly capability: string }
   | { readonly kind: 'fix_catalog'; readonly href: '/app/products' }
   /** 0052 — a send nobody can account for; only she can close it. */
   | { readonly kind: 'settle_uncertain'; readonly href: string; readonly buyer: string }
@@ -185,7 +185,7 @@ export async function loadInsights(db: Db, businessIdRaw: string, viewerId?: str
       out.push({
         key: 'insight.promotionReady',
         params: { cap: c.capability },
-        action: { kind: 'consider_promotion', href: '/app/employee', capability: c.capability },
+        action: { kind: 'consider_promotion', href: ASSISTANT_HOME, capability: c.capability },
       });
       break;   // one at a time; a list of promotions is a chore, not an insight
     }

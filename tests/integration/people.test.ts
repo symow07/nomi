@@ -154,8 +154,8 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     // G9a — this walk replaces the source tests that read 900 characters after
     // each route name: they could not tell a gate from a comment mentioning one.
     for (const [url, payload] of [
-      ['/app/employee/capability/quote/promote', undefined],
-      ['/app/employee/capability/quote/revoke', undefined],
+      ['/app/settings/assistant/capability/quote/promote', undefined],
+      ['/app/settings/assistant/capability/quote/revoke', undefined],
       ['/app/business/activate', 'confirm=yes'],
       ['/app/business/deactivate', 'confirm=yes'],
       ['/app/business/prices', 'floor=0.30&maxDiscountPct=10&askAbovePct=7'],
@@ -201,7 +201,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     const owner = { factory: await get(ownerCookie, '/app/business'), channels: await both(ownerCookie) };
     const staff = {
       factory: (await get(staffCookie, '/app/business')) + (await get(staffCookie, '/app/business/ready')),
-      employee: await get(staffCookie, '/app/employee'),
+      employee: await get(staffCookie, '/app/settings/assistant'),
       channels: await both(staffCookie),
     };
     // The owner's pages carry them, so their absence below is the viewer, not the data.
@@ -211,7 +211,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
 
     expect(staff.factory).not.toContain('href="/app/business/prices"');
     expect(staff.factory).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
-    expect(staff.employee).not.toContain('/app/employee/capability/');
+    expect(staff.employee).not.toContain('/app/settings/assistant/capability/');
     expect(staff.channels).not.toContain('action="/app/channels/outreach"');
     expect(staff.channels).not.toContain('action="/app/channels/domain"');
     expect(staff.channels).not.toContain('action="/app/channels/whatsapp/connect"');

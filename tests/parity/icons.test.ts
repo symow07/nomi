@@ -5,6 +5,7 @@ import { withWorkspace } from '../../src/api/web/say.js';
 import { SOLAR } from '../../src/api/web/solar.js';
 import { icon, railIcon, GO, BACK, AWAY, type IconId } from '../../src/api/web/icons.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
+import { renderSettingsHome } from '../../src/api/web/settings.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 // @ts-expect-error — the icon tool, plain JS on purpose (tools/ is not type-checked).
@@ -57,10 +58,12 @@ const keysOf = (map: 'ICON') => {
 
 const SCOPE = { name: 'Lily', several: false, outreach: false, setup: null, business: 'Hana Skincare', needsYou: 3, zone: 'Asia/Shanghai' };
 const LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
-const ENTRIES = [['home', '/app'], ['inbox', '/app/inbox'], ['calendar', '/app/calendar'], ['employee', '/app/employee'], ['settings', '/app/settings']] as const;
-const RAIL_ICON = { home: 'home-2', inbox: 'inbox', calendar: 'calendar', settings: 'settings' } as const;
-/** What the rail draws for each entry: Solar's drawing, or — for the assistant — its slot. */
-const railMarkOf = (id: string) => id === 'employee' ? agentMark(28, 'ni') : railIcon(RAIL_ICON[id as keyof typeof RAIL_ICON]);
+// THE ADVISOR RUN (2026-10-06) — the assistant's slot left the rail for Settings' first row; the advisor holds it,
+// drawn in Solar's round chat bubble with its three dots (the owner's choice).
+const ENTRIES = [['home', '/app'], ['inbox', '/app/inbox'], ['calendar', '/app/calendar'], ['advisor', '/app/advisor'], ['settings', '/app/settings']] as const;
+const RAIL_ICON = { home: 'home-2', inbox: 'inbox', calendar: 'calendar', advisor: 'chat-round-dots', settings: 'settings' } as const;
+/** What the rail draws for each entry: Solar's drawing. */
+const railMarkOf = (id: string) => railIcon(RAIL_ICON[id as keyof typeof RAIL_ICON]);
 const navOf = (html: string) => html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
 const page = (active: string, path: string, locale: typeof LOCALES[number] = 'en', needsYou = 3) =>
   withWorkspace({ ...SCOPE, needsYou }, () => shell({ title: 'T', active, locale, path, bodyHtml: '<p>x</p>' }));
@@ -352,12 +355,11 @@ describe('the assistant\'s slot: no sparkle, a neutral placeholder, one function
   const STAR_LINE = '<path d="M11 3.5c.7 4.6 2.9 6.8 7.5 7.5';   // the old two-star sparkle (icons.ts)
   const STAR_FILLED = "M8 1.2C8.6 5.5 10.5 7.4 14.8 8";          // the four-point star (marks.ts)
 
-  it('drawn by `agentMark`: Solar\'s user-circle, a line, at every size — the rail\'s entry and every mark beside words', () => {
+  it('drawn by `agentMark`: Solar\'s user-circle, a line, at every size — Settings\' first row and every mark beside words; never the rail (the advisor run)', () => {
     for (const l of LOCALES) {
-      const away = new RegExp('<a [^>]*data-nav="employee"[^>]*>([\\s\\S]*?)</a>').exec(navOf(page('home', '/app', l)))?.[1] ?? '';
-      const here = new RegExp('<a [^>]*data-nav="employee"[^>]*>([\\s\\S]*?)</a>').exec(navOf(page('employee', '/app/employee', l)))?.[1] ?? '';
-      expect(away.startsWith(agentMark(28, 'ni')), l).toBe(true);
-      expect(here.startsWith(agentMark(28, 'ni')), l).toBe(true);
+      const row = withWorkspace(SCOPE, () => renderSettingsHome(l, null, { alone: 'x' }));
+      expect(row, l).toContain(`<a class="srow sr-menu sr-two" href="/app/settings/assistant">${agentMark(24, 'ni')}<span class="sr-main"><span class="sr-label">Lily</span>`);
+      for (const [here, path] of ENTRIES) expect(navOf(page(here, path, l)), `${l} ${here}`).not.toContain('data-mark="agent"');
     }
     for (const size of [16, 24, 28, 40]) {
       const m = agentMark(size, 'am as');
@@ -394,7 +396,7 @@ describe('the assistant\'s slot: no sparkle, a neutral placeholder, one function
     expect(ROW_MARK.hers).toBe(agentMark(16, 'am'));
     expect(byAssistant('Lily')).toBe('<span class="as">Lily</span>');
     const callers = sources(WEB_DIR).filter(({ src }) => /agentMark\(/.test(code(src))).map(({ f }) => f).sort();
-    expect(callers).toEqual(['calendar.ts', 'conversations.ts', 'inbox.ts', 'layout.ts', 'operations.ts', 'panes.ts', 'today.ts']);
+    expect(callers).toEqual(['calendar.ts', 'conversations.ts', 'inbox.ts', 'layout.ts', 'operations.ts', 'panes.ts', 'settings.ts', 'today.ts']);
   });
 });
 
@@ -442,7 +444,7 @@ describe('one family on every screen: Solar, no emoji', () => {
 
   it('on a page, every icon is Solar\'s', () => {
     for (const l of LOCALES) {
-      const html = page('employee', '/app/employee', l);
+      const html = page('advisor', '/app/advisor', l);
       const svgs = (html.match(/<svg\b[^>]*>[\s\S]*?<\/svg>/g) ?? []).filter((s) => !/class="mark/.test(s));
       expect(svgs.length, l).toBeGreaterThan(5);
       for (const s of svgs) expect(isSolar(s), `${l}: ${s.slice(0, 80)}`).toBe(true);
@@ -485,7 +487,7 @@ describe('one family on every screen: Solar, no emoji', () => {
     const { renderSite } = await import('../../src/api/web/site.js');
     for (const l of LOCALES) {
       const pages = {
-        shell: page('employee', '/app/employee', l),
+        shell: page('advisor', '/app/advisor', l),
         door: loginPage({ locale: l, path: '/login' }),
         site: renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false }),
       };

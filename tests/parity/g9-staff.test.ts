@@ -61,10 +61,10 @@ describe('G9a · a staff member is not shown the controls that only refuse', () 
   it('Your employee: the owner gets the grant and revoke buttons; staff get the reason', () => {
     // Phase 7 — the buttons are on "One kind at a time", a row of the menu; read end to end.
     const owner = everyScreen(profile, 'en', null, undefined, OWNER_VIEW);
-    expect(owner).toContain('/app/employee/capability/quote/promote');
-    expect(owner).toContain('/app/employee/capability/qualify/revoke');
+    expect(owner).toContain('/app/settings/assistant/capability/quote/promote');
+    expect(owner).toContain('/app/settings/assistant/capability/qualify/revoke');
     const staff = everyScreen(profile, 'en', null, undefined, { isOwner: false });
-    expect(staff).not.toContain('/app/employee/capability/');
+    expect(staff).not.toContain('/app/settings/assistant/capability/');
     expect(staff).toContain(t('en', 'staff.ownerDecides'));
   });
 });

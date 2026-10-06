@@ -33,7 +33,7 @@ const ALL: InsightsData = {
     insight({ key: 'insight.quotedNoReply', params: { buyer: 'Ahmed' },
       action: { kind: 'follow_up', href: '/app/inbox/c1', buyer: 'Ahmed' } }),
     insight({ key: 'insight.promotionReady', params: { cap: 'quote' },
-      action: { kind: 'consider_promotion', href: '/app/employee', capability: 'quote' } }),
+      action: { kind: 'consider_promotion', href: '/app/settings/assistant', capability: 'quote' } }),
   ],
 };
 
