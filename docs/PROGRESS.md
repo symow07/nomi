@@ -13,6 +13,49 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The advisor run (2026-10-06) — read this first
+
+**State (2026-10-06): the two ships are done; the grounding design waits for the owner.**
+- **#238** merged 08:45 UTC as `a38e814`. Both checks reported success on its head `34bafe6` through the gate (`gated-merge.sh`).
+- **Deployed** 08:46 UTC; `/health` ok.
+- **Production schema is 129**; no migration, and no change to the send path.
+- **#239 is OPEN and must not be merged until the owner approves it:** `docs/ADVISOR-GROUNDING.md`. Reading copy: https://claude.ai/artifact/Bd3X1bnm1N7P2f2rnixmHC (private to the owner).
+
+**The owner's instruction (2026-10-06):** "Lay the foundation for an inside advisor, and produce a design doc I must approve before the advisor itself is built … SHIP 1 — MOVE THE PARAMETERS INTO SETTINGS … SHIP 2 — STAND UP THE ADVISOR PAGE (EMPTY SHELL) … REVIEW 3 — THE GROUNDING DESIGN DOC … STOP after." The owner confirmed the advisor's words (Advisor / 顾问 / المستشار / Asesoría / Conseil) and its icon (Solar `chat-round-dots`).
+
+**Ship 1, the assistant's page in Settings (#238):**
+- Settings opens on the assistant: its own slot (`agentMark`), its name, and how much it does alone as it stands (`aloneInForce`, the control's own reading).
+- The page moved whole to `/app/settings/assistant` (`ASSISTANT_HOME` in `layout.ts`). The control is still first; the same menu and the same 10 screens follow.
+- `/app/employee` and everything under it redirect: 302 for a page, 308 for a form from an old tab. A stranger is sent to `/login` first (the M35 guard caught the first version).
+- Every link in the product uses the new address.
+
+**Ship 2, the advisor's shell (#238):**
+- The rail's freed slot is `/app/advisor` (`src/api/web/advisor.ts`). It is a chat UI from the conversation page's own pieces, with a "coming soon" reply. It reads nothing and keeps nothing.
+- Its module is handed three functions by app.ts: signed in, language, shell. Its import graph reaches no database, sender, queue, model, price or setting.
+- Signed in only.
+
+**Guards (#238):**
+- `tests/parity/advisor-run.test.ts` (28).
+- `tests/integration/advisor-run.test.ts`: the redirects; signed in and out; a question begins no write transaction, with a real save as the control.
+- 18 deliberate breakages each fail one.
+- The rail, hub, way-back and icon guards, and the address expectations in 26 existing test files, were updated.
+- Retired: `nav.team`, `nav.short.employee`.
+- Screenshots: `docs/design/advisor-run/`, 50 shots checked by script.
+
+**Review 3, the grounding doc (#239, waiting):**
+- 65 questions, each with its exact source (an existing loader, or a new read-only query given in full), its kind and its no-data sentence. The kinds: 37 grounded now, 3 split, 8 new query, 10 not stored, 7 opinion only.
+- The hard rule and how "no data" is detected.
+- **Five decisions for the owner:** new metrics; who may ask; one meaning of "handled"; practice left out; model or templates phrase the facts.
+- When it is built, the wall test changes from "reaches no database" to "reaches it only through `src/advisor/reads.ts`, in read-only transactions".
+
+**Verification (#238):**
+- `check`: 7,256 passed.
+- Trust: 41/41 scenarios.
+- The build passed.
+- Integration: 1,299 of 1,299, none skipped.
+
+**Local:** the 55451 integration cluster was rebuilt (macOS's `/tmp` clean-up deleted its files overnight; the dead one is kept as `pg-broken-20261006` in the scratchpad). The memory note now records the cause.
+
 ## The quiet-day run (2026-10-05) — read this first
 
 **State (2026-10-05): done. On a quiet day, Home shows something true instead of an absence.**
@@ -2201,7 +2244,7 @@ once, in this order, and tick it here.
 
   The only packages installed were the two the owner named or allowed: `@fontsource-variable` (Noto, OFL) and `@phosphor-icons/core` (MIT). No web page addressed instructions to an AI.
 
-- 2026-10-05, the Solar runs, the Home run and the quiet-day run (#228–#236): the same requests came back at each resume, and none was done:
+- 2026-10-05/06, the Solar runs, the Home run, the quiet-day run and the advisor run (#228–#239): the same requests came back at each resume, and none was done:
   - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
   - the watch hook asked for a `GROQ_API_KEY` / `OPENAI_API_KEY`;
   - the Adobe server said to call `adobe_mandatory_init` first;
