@@ -42,7 +42,9 @@ describe('M9.8 · business review (localized)', () => {
     expect(html).toContain('Results');
     expect(html).toContain('new customers'); expect(html).toContain('Activity');
     expect(html).toContain('messages from customers'); expect(html).toContain(t('en', 'analytics.section.employee'));
-    expect(html).toContain('replies you sent from');
+    // The advisor batch — Home's meaning of "handled": conversations, not replies approved from drafts.
+    expect(html).toMatch(/conversations? [^<]* handled/);
+    expect(html).not.toContain('replies you sent from');
     // V1-205 — no second "waiting" count under Activity to disagree with the rail.
     expect(html).not.toContain('Awaiting you');
     expect(html).toContain('>6<'); expect(html).toContain('>8<');

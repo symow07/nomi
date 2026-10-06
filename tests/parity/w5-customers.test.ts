@@ -153,10 +153,11 @@ describe('w4-customers-02 · who went quiet after a price: one definition, Today
 
 describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rule, one name', () => {
   it('every page that counts or marks a price reads PRICE_GIVEN', () => {
-    for (const f of ['src/api/web/today.ts', 'src/api/web/analytics.ts', 'src/db/inboxAttention.ts', 'src/db/calendar.ts', 'src/db/buyersList.ts']) {
+    // The advisor batch — Home's figures are src/db/handled.ts's, shared with Results and the advisor.
+    for (const f of ['src/db/handled.ts', 'src/api/web/analytics.ts', 'src/db/inboxAttention.ts', 'src/db/calendar.ts', 'src/db/buyersList.ts']) {
       expect(read(f), f).toContain('PRICE_GIVEN');
     }
-    expect(read('src/api/web/today.ts')).not.toContain("o.status in ('sent', 'delivered', 'read') and o.sent_at >= q.created_at");
+    expect(read('src/db/handled.ts')).not.toContain("o.status in ('sent', 'delivered', 'read') and o.sent_at >= q.created_at");
   });
 
   const ZONE = 'Asia/Shanghai';
@@ -261,7 +262,7 @@ describe('Results (w4-customers-19 · -20 · -21 · -22 · -23 · -24)', () => {
     const src = read('src/api/web/analytics.ts');
     expect(src).toContain('select distinct cv.client_id from messages m join conversations cv');
     expect(src).toContain('(select count(*)::int from talked t join clients cl on cl.id = t.client_id where cl.created_at >= ${cutoff}) as new_clients');
-    expect(src).toContain('coalesce(o.confirmed_at, o.created_at) >= ${cutoff}) as orders');
+    expect(src).toContain("coalesce(o.confirmed_at, o.created_at) >= ${cutoff} and ${testing('o.conversation_id')}) as orders");
   });
   it('says where the period starts, Sales is a section, and no picture stands in for a chart', () => {
     for (const l of LOCALES) {
@@ -276,7 +277,7 @@ describe('Results (w4-customers-19 · -20 · -21 · -22 · -23 · -24)', () => {
   it('w4-customers-23 · Chinese: one 你 and one 的 clause', () => {
     const s = t('zh', 'analytics.n.handled.other', { name: '你的助手' });
     expect(s.match(/你/g)).toHaveLength(1);
-    expect(s).toBe('条你的助手起草、经确认后发出的回复');
+    expect(s).toBe('个你的助手处理过的对话');   // the advisor batch: Home's meaning, conversations
   });
 });
 

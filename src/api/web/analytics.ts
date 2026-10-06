@@ -6,6 +6,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { PRICE_GIVEN } from '../../db/quotesGiven.js';
 import { SPEND_STATUSES } from '../../db/customerValue.js';
+import { handledCount, notOwnerTesting } from '../../db/handled.js';
 
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -86,25 +87,31 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
     //     period (`SPEND_STATUSES`). One tap apart, the two pages said
     //     "0 quotes sent" and "3 prices worked out" of the same day.
     const spend = [...SPEND_STATUSES];
+    // THE ADVISOR BATCH (2026-10-06) — the owner: "Home and Results disagreeing in production is a bug, not a
+    // later change. One definition, both pages." "Handled" is Home's (`handledCount`, src/db/handled.ts): the
+    // conversations in which a reply the assistant wrote went out. It was drafts approved or edited here.
+    // And nothing that is not business counts: the owner's own test conversations are left out of every
+    // figure below (`notOwnerTesting`); a practice copy is another business row, kept out by row security.
+    const testing = notOwnerTesting;
+    const handled = await handledCount(tx, bid.value, cutoff);
     const c = (await sql<{
       new_clients: number; active_convos: number; quotes: number; orders: number;
-      inbound: number; replied: number; waiting: number; handled: number; edits: number;
+      inbound: number; replied: number; waiting: number; edits: number;
     }>`
       with talked as (
         select distinct cv.client_id from messages m join conversations cv on cv.id = m.conversation_id
-         where m.sent_at >= ${cutoff} and cv.client_id is not null
+         where m.sent_at >= ${cutoff} and cv.client_id is not null and not cv.owner_testing
       )
       select
         (select count(*)::int from talked t join clients cl on cl.id = t.client_id where cl.created_at >= ${cutoff}) as new_clients,
         (select count(*)::int from talked) as active_convos,
-        (select count(*)::int from quotes q where q.created_at >= ${cutoff} and ${PRICE_GIVEN}) as quotes,
+        (select count(*)::int from quotes q where q.created_at >= ${cutoff} and ${PRICE_GIVEN} and ${testing('q.conversation_id')}) as quotes,
         (select count(*)::int from orders o where o.status = any(${spend}::text[])
-            and coalesce(o.confirmed_at, o.created_at) >= ${cutoff}) as orders,
-        (select count(*)::int from messages where direction = 'inbound'  and sent_at >= ${cutoff}) as inbound,
-        (select count(*)::int from messages where direction = 'outbound' and sent_at >= ${cutoff}) as replied,
-        (select count(*)::int from drafts where status = 'pending') as waiting,
-        (select count(*)::int from drafts where status in ('approved','edited') and decided_at >= ${cutoff}) as handled,
-        (select count(*)::int from drafts where status = 'edited' and decided_at >= ${cutoff}) as edits
+            and coalesce(o.confirmed_at, o.created_at) >= ${cutoff} and ${testing('o.conversation_id')}) as orders,
+        (select count(*)::int from messages m where m.direction = 'inbound'  and m.sent_at >= ${cutoff} and ${testing('m.conversation_id')}) as inbound,
+        (select count(*)::int from messages m where m.direction = 'outbound' and m.sent_at >= ${cutoff} and ${testing('m.conversation_id')}) as replied,
+        (select count(*)::int from drafts d where d.status = 'pending' and ${testing('d.conversation_id')}) as waiting,
+        (select count(*)::int from drafts d where d.status = 'edited' and d.decided_at >= ${cutoff} and ${testing('d.conversation_id')}) as edits
     `.execute(tx)).rows[0]!;
 
     // Deals — only when real orders exist; value is a genuine SUM, never invented.
@@ -112,6 +119,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
       ? (await sql<{ status: string; n: number }>`
           select status, count(*)::int as n
             from orders o where o.status = any(${spend}::text[]) and coalesce(o.confirmed_at, o.created_at) >= ${cutoff}
+              and ${testing('o.conversation_id')}
            group by status order by status`.execute(tx)).rows
       : [];
     const deals = dealsRows.map((r) => ({ status: r.status, n: r.n }));
@@ -119,6 +127,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
       ? (await sql<{ currency: string; val: string }>`
           select currency, coalesce(sum(total_value_usd), 0)::numeric as val
             from orders o where o.status = any(${spend}::text[]) and coalesce(o.confirmed_at, o.created_at) >= ${cutoff}
+              and ${testing('o.conversation_id')}
            group by currency order by 2 desc`.execute(tx)).rows
       : [];
     // A row in a currency this build does not know is dropped, not defaulted:
@@ -128,12 +137,13 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
       .filter((m): m is Money => m !== null && m.amount > 0);
 
     const hasActivity =
-      c.new_clients + c.active_convos + c.quotes + c.orders + c.inbound + c.replied + c.handled > 0;
+      c.new_clients + c.active_convos + c.quotes + c.orders + c.inbound + c.replied + handled > 0;
 
     // N1 — the same sum the operator's report uses, so the two cannot disagree.
     const measured = (await sql<{ path: AnswerPath; n: number }>`
-      select answer_path as path, count(*)::int as n from turns
-       where created_at >= ${cutoff} and answer_path is not null group by answer_path`.execute(tx)).rows;
+      select answer_path as path, count(*)::int as n from turns t
+       where t.created_at >= ${cutoff} and t.answer_path is not null and ${testing('t.conversation_id')}
+       group by answer_path`.execute(tx)).rows;
     const paths = summarizePaths(measured.flatMap((m) => Array.from({ length: m.n }, () => ({
       path: m.path, modelId: null, llmCalls: 0, inputTokens: 0, outputTokens: 0, analyserAvoidable: false,
     }))));
@@ -144,7 +154,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
       activity: { inbound: c.inbound, replied: c.replied, waiting: c.waiting },
       commerce: { quotes: c.quotes, orders: c.orders, deals, totals },
       employee: {
-        handled: c.handled, waiting: c.waiting, edits: c.edits,
+        handled, waiting: c.waiting, edits: c.edits,
         ...(paths.replies > 0 ? { answered: { replies: paths.replies, hers: paths.repliesWordedByHer } } : {}),
       },
     };

@@ -1,4 +1,5 @@
 import { zoneOf } from '../../db/zone.js';
+import { handledCount, notOwnerTesting } from '../../db/handled.js';
 import { loadAssistantStop } from '../../db/assistantStop.js';
 import { loadKillSwitches } from '../../db/opsFlags.js';
 import { providerRefusing } from '../../db/providerState.js';
@@ -246,14 +247,14 @@ export async function loadOperationsSnapshot(
     const cutoff = (await sql<{ c: Date }>`
         select (date_trunc(${unit}, now() at time zone ${zone}) at time zone ${zone}) as c
       `.execute(tx)).rows[0]!.c;
-      return (await sql<{ handled: number; drafts: number; corrections: number }>`
+      // The advisor batch — "handled" is the one definition (src/db/handled.ts), and the owner's own test
+      // conversations count for nothing, here as on Home and Results.
+      const counts = (await sql<{ drafts: number; corrections: number }>`
         select
-          (select count(distinct o.conversation_id)::int from outbound_messages o
-            where o.business_id = ${B} and o.origin = 'employee'
-              and o.status in ('sent', 'delivered', 'read') and o.sent_at >= ${cutoff}) as handled,
-          (select count(*)::int from drafts where business_id = ${B} and created_at >= ${cutoff}) as drafts,
-          (select count(*)::int from drafts where business_id = ${B} and status = 'edited' and decided_at >= ${cutoff}) as corrections
+          (select count(*)::int from drafts d where d.business_id = ${B} and d.created_at >= ${cutoff} and ${notOwnerTesting('d.conversation_id')}) as drafts,
+          (select count(*)::int from drafts d where d.business_id = ${B} and d.status = 'edited' and d.decided_at >= ${cutoff} and ${notOwnerTesting('d.conversation_id')}) as corrections
       `.execute(tx)).rows[0]!;
+      return { handled: await handledCount(tx, B, cutoff), ...counts };
     }),
     // G19 / G3 — the same numbers the send gate and the hold read, judged by
     // the same function. Absence of a budget row is "no ceiling", never "stop".
