@@ -13,6 +13,52 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The advisor's orb, and the memory plan (2026-10-07) — read this first
+
+**State:**
+- **#244** (the orb) merged as `be56446`, deployed 18:56 UTC. `/health` ok; production schema is still **129** (no migration, no change to the send path).
+  - Production serves the orb file (`/assets/orb.11b7f25249e3e0fd.js`, licence notice on top, cached for good) and the new page script.
+- **#245 is OPEN and must not be merged until the owner approves it:** `docs/ADVISOR-MEMORY.md`, the plan for storing advisor conversations. Nothing of it is built.
+
+**The orb (the owner's briefs of 2026-10-07; picks made over two rounds):**
+- **Motion:** the `listening` wave. **Colour:** the assistant's magenta `#BE2D6E` ("the advisor IS Nomi"). **Resting size:** 192 px on desktop, 144 px on phone.
+- **The library is vendored, not a dependency.** `thinking-orbs` 0.3.2 (MIT): only its drawing core, byte for byte, in `assets/vendor/thinking-orbs/0.3.2/` (digests checked against npm's published checksum).
+  - The npm package names React as a dependency, and the owner ruled out React and any build step, so no React reaches the app.
+  - The core is served as `/assets/orb.<hash>.js` with the licence on top. No page links it; the one script imports it on the advisor page only, after the page has loaded.
+- **The drawing is the library's own; only the colour is ours.**
+  - The script carries the library's `paintFrame`/`paintLines`/`paint` line for line, with one change: the depth ramp ends at the paper `#F7F3EE` instead of white.
+  - With the paper set to white it matches the library exactly: 0 of 524,288 pixel channel values differ, and the test checks it call for call.
+  - The resting orb is the same 64 px orb drawn larger (3×, or 2.25× on phone), at half speed.
+- **Behaviour:**
+  - **Resting:** centred, only while nothing has been asked.
+  - **Thinking:** the resting orb gives way, the question goes up, and the 64 px orb and «Looking through your records…» sit under it until the answer page arrives.
+  - **Hidden tab:** paused, then resumed.
+  - **Reduced motion:** still frames, and no animation frame is ever requested.
+  - **Scripts off:** no space is reserved (`@media (scripting: none)`).
+  - **Orb file fails to load:** the space stays empty and nothing shifts.
+- **Guards:**
+  - `tests/parity/advisor-orb.test.ts` (20 tests) runs the real script against a stand-in page that imports the real served file. 10 deliberate breakages each fail a test.
+  - `notifications-live`'s "the script moves nothing itself" now holds everywhere outside the orb's section.
+  - `boot.test.ts` now accepts Home's third heading ("Worth your attention"). It had passed only while the local seed was less than three days old.
+- **Screenshots and clips:** `docs/design/advisor-orb/` holds the final set, plus `round-1-monochrome/` and `round-2-candidates/` as the record of each pick.
+- **Verification:** `check` 7,331; trust 44/44; build; integration 1,312 of 1,312. CI both jobs pass on the head.
+
+**The memory plan (#245, waiting).** The owner's settled decision is that the advisor stores history. The plan covers:
+- the three promises (consent, deletion, no snooping) and how each is kept;
+- the four tables, with content encrypted under a new `ADVISOR_KEY`;
+- grounding: a follow-up always re-runs a fresh read, and history is never a source of facts;
+- every deletion path, through the existing erasure system, ledger and replay;
+- what deletion cannot reach, which is a provider's own copy. Retention was checked 2026-10-07: DeepSeek's API terms state none; OpenAI keeps up to 30 days;
+- several providers, and the owner's own account;
+- "no snooping" as a policy with technical controls, not a guarantee;
+- cookies: all are strictly necessary today; a gate is proposed, and no banner;
+- every copy change in all 5 languages;
+- decisions D1 to D9.
+
+**Local:**
+- The scratchpad's `verify.sh` and `deploy-wait.sh` were deleted by the system's temp clean-up and rewritten from their earlier text.
+- The local integration database (port 55451) and the demo database (port 55477) survived.
+
 ## The advisor build (2026-10-06) — read this first
 
 **State: done.**
@@ -2332,6 +2378,18 @@ once, in this order, and tick it here.
   - Gamma, higgsfield and Railway gave usage instructions.
 
   Nothing was installed. No web page or file addressed instructions to an AI.
+
+- 2026-10-07, the orb and the memory plan (#244, #245): the same requests came back at each resume, and none was done:
+  - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+  - the watch hook asked for a `GROQ_API_KEY` / `OPENAI_API_KEY`;
+  - the Adobe server said to call `adobe_mandatory_init` first;
+  - the Supabase connector said to install its skill;
+  - the Claude Docs server said to open a document first;
+  - Gamma, higgsfield and Railway gave usage instructions.
+
+  The one download was `thinking-orbs` 0.3.2, which the owner approved (`npm pack`, which runs no install scripts). Nothing was installed into the app.
+
+  The web pages read were OpenAI's API data page and DeepSeek's privacy policy and Open Platform terms. None of them addressed instructions to an AI. The fetch tool's own summary of the OpenAI page quoted an agent instruction, which the tool itself said came from its own query and not the page; it was not acted on.
 
 ## How to resume
 
