@@ -2384,8 +2384,9 @@ const STYLE_PAGES = `
   .adv-label { font-family:var(--font-family); font-size:var(--font-size-caption); font-weight:600; }
   /* The advisor's orb. Resting: centred at the head of the empty page. Thinking: on the paper where the answer will be, with its line. */
   .orb-rest-row { display:flex; justify-content:center; margin:var(--space-8) 0 var(--space-24); }
-  canvas.orb-rest { inline-size:160px; block-size:160px; display:block; }
-  canvas.orb-rest[hidden] { display:none; }
+  canvas.orb-rest { inline-size:192px; block-size:192px; display:block; }
+  @media (max-width: 720px) { canvas.orb-rest { inline-size:144px; block-size:144px; } }
+  @media (scripting: none) { .orb-rest-row { display:none; } }
   .orb-row { display:flex; align-items:center; gap:var(--space-12); }
   canvas.orb { inline-size:64px; block-size:64px; display:block; flex:none; }
   .orb-line { margin:0; font-size:var(--font-size-small); }
@@ -2717,14 +2718,17 @@ const withType = (locale: Locale, html: string): string => html.replace(TYPE_SLO
 const LIVE_JS = asset('live', 'js', LIVE_SCRIPT);
 
 /**
- * THE ADVISOR'S THINKING ORB (2026-10-07) — the drawing core of `thinking-orbs` 0.3.2 (MIT, Jakub Antalik),
- * vendored byte for byte in assets/vendor/thinking-orbs/0.3.2/ (its README: where it came from, its digests,
- * and why the package itself is not a dependency — its React wrapper, and React, never reach the app). Plain
- * canvas geometry and one painter; it imports nothing. Served like the script, at an address named by its
- * content, and linked by NO page: the one script imports it on the advisor's page only, once its question box
- * is focused or a question is on its way (advisor.ts names it on the form). tests/parity/advisor-orb.test.ts.
+ * THE ADVISOR'S ORB (2026-10-07) — the drawing core of `thinking-orbs` 0.3.2 (MIT, Jakub Antalik), vendored
+ * byte for byte in assets/vendor/thinking-orbs/0.3.2/ (its README: where it came from, its digests, and why
+ * the package itself is not a dependency — its React wrapper, and React, never reach the app). Plain canvas
+ * geometry; it imports nothing. Served like the script, at an address named by its content, and linked by NO
+ * page: the one script imports it on the advisor's page only (advisor.ts names it on the form), once that page
+ * has loaded. tests/parity/advisor-orb.test.ts.
  */
-export const ORB_JS = asset('orb', 'js', readFileSync(new URL('../../../assets/vendor/thinking-orbs/0.3.2/index-B8WsUNf5.js', import.meta.url), 'utf8'));
+const ORB_DIR = new URL('../../../assets/vendor/thinking-orbs/0.3.2/', import.meta.url);
+/** Every copy carries the library's notice (its MIT licence asks it): the licence, then the core, unchanged. */
+export const ORB_JS = asset('orb', 'js', `/*! thinking-orbs 0.3.2 — its drawing core, unchanged below this note.\n${
+  readFileSync(new URL('LICENSE', ORB_DIR), 'utf8')}*/\n${readFileSync(new URL('index-B8WsUNf5.js', ORB_DIR), 'utf8')}`);
 const scriptTo = (href: string): string => `<script src="${href}" defer></script>`;
 
 /**

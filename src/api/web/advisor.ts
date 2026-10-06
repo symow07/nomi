@@ -29,10 +29,11 @@ import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 export const ADVISOR_MAX = 1000;
 
 /**
- * THE ADVISOR'S ORB (2026-10-07; docs/design/advisor-orb/). Its motion is the engine's `listening` (a
- * waveform rolling through the latitude rings) — the owner's pick; resting, the same orb, larger and
- * slower. Its colour is a palette magenta the owner picks (the advisor is Nomi, talking to the owner): never
- * the ink, never black, and never the deep "needs you" magenta.
+ * THE ADVISOR'S ORB (2026-10-07; docs/design/advisor-orb/; the owner's picks). The library's own orb, its
+ * geometry, dots and timing unchanged: thinking, its tuned 64 px `listening` (a waveform rolling through the
+ * latitude rings); resting, the same orb shown larger (192 px, 144 on a phone — the stylesheet's) at half
+ * the pace. One thing is ours, the colour: the assistant's magenta (the advisor IS Nomi, talking to the
+ * owner), fading toward the page's paper — never the ink, never black, never the deep "needs you" magenta.
  */
 const ORB_STATE = 'listening';
 const ORB_INK = 'assistant';
@@ -40,11 +41,12 @@ const ORB_INK = 'assistant';
 const ORB_REST_PACE = 0.5;
 
 /**
- * Resting: drawn only while nothing has been asked — the page's "ask me". Hidden until the one script can
- * draw it (with scripting off it takes no room); the script draws it, moving only while the page is seen.
+ * Resting: drawn only while nothing has been asked — the page's "ask me". Its space is kept from the first
+ * paint where the page can script (`@media (scripting: none)` gives it none), so nothing moves when the orb is
+ * drawn or if it cannot be; the one script draws it, moving only while the page is seen.
  */
 const resting = (): string =>
-  `<div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="320" height="320" aria-hidden="true" hidden></canvas></div>`;
+  `<div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="384" height="384" aria-hidden="true"></canvas></div>`;
 
 /**
  * While the question is on its way, and only then (the one script, `thinking`): the question goes up as

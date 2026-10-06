@@ -591,25 +591,41 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(v);
     return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : 0;
   }
-  /* Our own painter over the engine's geometry: the magenta, fading toward the page's paper with depth. */
-  function shade(tint, paper, w, a) {
-    w = Math.min(1, Math.max(0, w));
-    return 'rgba(' + Math.round(tint.r + (paper.r - tint.r) * w) + ',' + Math.round(tint.g + (paper.g - tint.g) * w) + ','
-      + Math.round(tint.b + (paper.b - tint.b) * w) + ',' + (typeof a === 'number' ? a : 1) + ')';
+  /* The library's own painter (thinking-orbs 0.3.2: paintFrame, paintLines, paint; MIT, Jakub Antalik,
+     assets/vendor/thinking-orbs/0.3.2/LICENSE), line for line, with ONE change: its light-paper ramp ends at
+     the page's paper instead of white (c + (paper - c) * w, where the library has c + (255 - c) * w). With the
+     paper at white the two draw the very same calls; tests/parity/advisor-orb.test.ts holds that. */
+  function inkColor(w, alpha, tint, paper) {
+    var ramp = function (c, p) { return Math.round(c + (p - c) * w); };
+    return 'rgba(' + ramp(tint.r, paper.r) + ',' + ramp(tint.g, paper.g) + ',' + ramp(tint.b, paper.b) + ',' + alpha + ')';
   }
-  function paintOrb(ctx, f, tint, paper) {
-    var i, d;
-    for (i = 0; i < f.lines.length; i++) {
-      d = f.lines[i];
-      ctx.strokeStyle = shade(tint, paper, d.white, d.a);
-      ctx.lineWidth = d.w;
-      ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); ctx.stroke();
+  function paintDots(ctx, dots, tint, paper) {
+    for (var i = 0; i < dots.length; i++) {
+      var d = dots[i];
+      var alpha = typeof d.a === 'number' ? d.a : 1;
+      var w = Math.min(1, Math.max(0, d.white));
+      ctx.fillStyle = inkColor(w, alpha, tint, paper);
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
     }
-    for (i = 0; i < f.dots.length; i++) {
-      d = f.dots[i];
-      ctx.fillStyle = shade(tint, paper, d.white, d.a);
-      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+  }
+  function paintLines(ctx, lines, tint, paper) {
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      var alpha = typeof l.a === 'number' ? l.a : 1;
+      var w = Math.min(1, Math.max(0, l.white));
+      ctx.strokeStyle = inkColor(w, alpha, tint, paper);
+      ctx.lineWidth = l.w;
+      ctx.beginPath();
+      ctx.moveTo(l.x1, l.y1);
+      ctx.lineTo(l.x2, l.y2);
+      ctx.stroke();
     }
+  }
+  function paintFrame(ctx, frame, tint, paper) {
+    if (frame.lines.length) paintLines(ctx, frame.lines, tint, paper);
+    paintDots(ctx, frame.dots, tint, paper);
   }
   function orbs() {
     var form = doc.querySelector('form[data-orb]');
@@ -632,16 +648,16 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         var pre = orb.r(state, 64);
         var shape = pre && orb.M[pre.mode];
         if (!shape) throw new Error('no such orb');
+        /* The library's tuned 64 px orb, unchanged; larger only by the canvas's scale (the resting orb). */
         var size = canvas.getBoundingClientRect().width || 64;
         var dpr = Math.min(2, window.devicePixelRatio || 1);
-        /* Larger than its tuned 64, the orb is drawn at its own size with more dots, not stretched. */
-        var opts = size > 80 ? orb.s(pre.opts, size / 80) : pre.opts;
+        var k = size / 64;
         canvas.width = Math.round(size * dpr);
         canvas.height = Math.round(size * dpr);
         function paint(t) {
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          ctx.clearRect(0, 0, size, size);
-          paintOrb(ctx, shape(size, t, opts), tint, paper);
+          ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
+          ctx.clearRect(0, 0, 64, 64);
+          paintFrame(ctx, shape(64, t, pre.opts), tint, paper);
         }
         paint(0.6);
         var running = false;
@@ -660,9 +676,10 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var restWrap = rest && rest.parentNode;
     var restAt = restWrap && restWrap.parentNode;
     var restBefore = restWrap && restWrap.nextSibling;
-    function wake() { draw(rest, Number(rest.getAttribute('data-orb-pace')) || 1).catch(function () { rest.hidden = true; }); }
-    if (rest && tint && paper) {
-      rest.hidden = false;
+    /* Its space is the page's from the first paint (the stylesheet gives it none with scripting off), so
+       nothing moves when it is drawn, or if it cannot be. It is drawn once the page has loaded. */
+    function wake() { draw(rest, Number(rest.getAttribute('data-orb-pace')) || 1).catch(function () { /* the space stays, empty */ }); }
+    if (rest) {
       if (doc.readyState === 'complete') wake(); else window.addEventListener('load', wake);
     }
     var box = form.querySelector('textarea');
@@ -683,7 +700,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       shown = [].slice.call(piece.childNodes);
       line.appendChild(piece);
       if (wait.scrollIntoView) wait.scrollIntoView({ block: 'nearest' });
-      if (canvas) draw(canvas, 1).catch(function () { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); });
+      if (canvas) draw(canvas, 1).catch(function () { /* the line stays, beside an empty space */ });
     });
     /* Back from history: the question never went, so the page is as it was, resting orb and all. */
     window.addEventListener('pageshow', function (e) {
