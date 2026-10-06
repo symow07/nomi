@@ -15795,3 +15795,9 @@ The advisor answers the owner's questions from the records. Its fixed sentences 
 - **The model's own sentences** are not in the catalogue. The model is told to gender nobody: in Arabic it should use the verbal noun or the passive. The check throws away a sentence that has he/she (他/她, él/ella, elle, or a standalone هو/هي where a customer is named); the owner then reads the facts instead. Arabic verb agreement cannot be checked by pattern (e.g. «توقف Amira Haddad»). A native reader should look at a few live answers, which `tools/check-advisor-model.mjs` prints.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-07 — the advisor's orb: the line while a question is on its way
+
+`advisor.thinking` appears beside the small thinking orb while the advisor looks something up: 正在查看你的记录…… / «جارٍ البحث في سجلاتك…» / «Buscando en tus registros…» / «Recherche dans vos données…». The Arabic uses a verbal noun, so it agrees with no one. Check that each reads as calm work in progress, not as a status message.
+
+Reviewer: ______  Date: ______

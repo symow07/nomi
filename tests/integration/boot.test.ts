@@ -392,7 +392,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // The design pass: Today's first heading is who needs you — or that nobody does.
     // The warmth run — the band's heading: "N waiting for you" with the waiting ○, or the calm line.
     // THE HOME RUN — the calm line is the card's one line, at the body's size, the care beside it.
-    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head home-calm">(No one is waiting for you\.|You're all caught up)(<\/h2>| <span class="home-care">)|<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> (\d+ waiting for you|Needs your attention)<\/span><\/h2>/);
+    // And the third state operations.ts draws (2026-10-07, found when the local seed passed three days old): no one
+    // waiting, but something worth a look — "Worth your attention". This assertion admitted only two, so it passed
+    // only while the seeded conversations were younger than the attention band (readAttention, 3 to 30 days).
+    expect(home.body).toMatch(/<h2 id="today-now" class="tw-head home-calm">(No one is waiting for you\.|You're all caught up)(<\/h2>| <span class="home-care">)|<h2 id="today-now" class="tw-head"><span class="tw-need"><span class="dot warn shape s-waiting" aria-hidden="true"><\/span> (\d+ waiting for you|Needs your attention)<\/span><\/h2>|<h2 id="today-now" class="tw-head">Worth your attention<\/h2>/);
     // M35.5 — on a tenant where NOTHING has happened, the activity section no
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known

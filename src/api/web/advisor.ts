@@ -4,7 +4,7 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import type { Db } from '../../db/client.js';
 import type { AdvisorModel } from '../../llm/ports.js';
 import { t } from './say.js';
-import { esc, deeper } from './layout.js';
+import { esc, deeper, ORB_JS } from './layout.js';
 import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 
 /**
@@ -27,6 +27,39 @@ import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 
 /** The longest question the box takes. */
 export const ADVISOR_MAX = 1000;
+
+/**
+ * THE ADVISOR'S ORB (2026-10-07; docs/design/advisor-orb/; the owner's picks). The library's own orb, its
+ * geometry, dots and timing unchanged: thinking, its tuned 64 px `listening` (a waveform rolling through the
+ * latitude rings); resting, the same orb shown larger (192 px, 144 on a phone — the stylesheet's) at half
+ * the pace. One thing is ours, the colour: the assistant's magenta (the advisor IS Nomi, talking to the
+ * owner), fading toward the page's paper — never the ink, never black, never the deep "needs you" magenta.
+ */
+const ORB_STATE = 'listening';
+const ORB_INK = 'assistant';
+/** Resting, the orb moves at this fraction of its thinking pace: alive, and calm. */
+const ORB_REST_PACE = 0.5;
+
+/**
+ * Resting: drawn only while nothing has been asked — the page's "ask me". Its space is kept from the first
+ * paint where the page can script (`@media (scripting: none)` gives it none), so nothing moves when the orb is
+ * drawn or if it cannot be; the one script draws it, moving only while the page is seen.
+ */
+const resting = (): string =>
+  `<div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="384" height="384" aria-hidden="true"></canvas></div>`;
+
+/**
+ * While the question is on its way, and only then (the one script, `thinking`): the question goes up as
+ * asked, and under it — on the page's paper, where the answer will be — the orb and a calm line that says
+ * the same in words (and is what a screen reader hears). Inert until then: a template draws nothing. With
+ * the script off, or the orb not to be had, the page works as before; a reader who asked for less motion
+ * gets one still frame.
+ */
+const pending = (locale: Locale): string =>
+  `<template data-orb-pending>${bubble('owner', '<bdi data-orb-asked></bdi>', t(locale, 'advisor.you'))}<div class="msg inbound orb-wait" data-orb-wait role="status">
+      <div class="orb-row"><canvas class="orb" width="128" height="128" aria-hidden="true"></canvas><p class="orb-line muted">${esc(t(locale, 'advisor.thinking'))}</p></div>
+      <div class="ts muted">${esc(t(locale, 'nav.advisor'))}</div>
+    </div></template>`;
 
 export type AdvisorViewer = { readonly businessId: string; readonly viewerId: string };
 
@@ -79,12 +112,14 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
   const door = exchange && 'door' in exchange.answer && exchange.answer.door
     ? `<div class="doors">${deeper(exchange.answer.door.href, t(locale, exchange.answer.door.label))}</div>` : '';
   return `<h1 class="page">${esc(name)}</h1>
+    ${exchange === null ? resting() : ''}
     <div class="timeline">
       ${bubble('advisor', `<p>${words(t(locale, 'advisor.hello'))}</p>${list(EXAMPLES.slice(0, 3).map((k) => t(locale, k)))}`, name, exchange === null)}
       ${exchange === null ? '' : `${bubble('owner', words(exchange.asked), t(locale, 'advisor.you'))}${bubble('advisor', answerHtml(locale, exchange.answer), name, true, door)}`}
     </div>
+    ${pending(locale)}
     <div class="card sbx-compose" id="ask">
-      <form method="post" action="/app/advisor" class="msgbar">
+      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-ink="${ORB_INK}">
         <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
         <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button></div>

@@ -302,7 +302,15 @@ describe('phase 8 · the card: who and why, a door to the conversation, gone aft
     await p.advance(6_250);
     expect(p.slot.children).toEqual([]);
     // the card's rise is the stylesheet's, inside prefers-reduced-motion: no-preference (notifications.test.ts)
-    for (const moving of ['.style', 'animate(', 'transition', 'requestAnimationFrame']) expect(LIVE_SCRIPT, moving).not.toContain(moving);
+    // The one thing the script moves itself is the advisor's orb, on its own canvas, on its own page, and never
+    // for a reader who asked for less motion (2026-10-07; tests/parity/advisor-orb.test.ts). Everything else, nothing.
+    const orbAt = LIVE_SCRIPT.indexOf("  /* The advisor's orb (item 9)");
+    const orbEnd = LIVE_SCRIPT.indexOf("  /* A customer's photo that does not arrive");
+    expect(orbAt).toBeGreaterThan(0);
+    expect(orbEnd).toBeGreaterThan(orbAt);
+    const outsideOrb = LIVE_SCRIPT.slice(0, orbAt) + LIVE_SCRIPT.slice(orbEnd);
+    for (const moving of ['.style', 'animate(', 'transition', 'requestAnimationFrame']) expect(outsideOrb, moving).not.toContain(moving);
+    expect(LIVE_SCRIPT.slice(orbAt, orbEnd).match(/requestAnimationFrame/g)).toHaveLength(3);
   });
 
   it('no sound, no counter in the tab\'s title, no browser notice', () => {
