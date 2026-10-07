@@ -125,6 +125,19 @@ d('0130 · the advisor\'s memory: kept only with consent, each person\'s own, an
     await consent(OTHER_STAFF, 'granted');
   });
 
+  it('the practice copy keeps nothing: the owner\'s yes in the workspace does not reach it, and its switch, set by hand, changes nothing', async () => {
+    // A practice copy has no people of its own (0086 refuses them), so nobody can say yes there.
+    const copy = (await admin.query(`insert into businesses (name, practice_of, advisor_history_at) values ($1, $2, now()) returning id::text as id`,
+      [`Memory Practice ${RUN}`, SHOP])).rows[0].id as string;
+    const t = seal('practised');
+    await expect(admin.query(`insert into advisor_threads (business_id, person_id, title_ciphertext, sealed_with) values ($1, $2, $3, $4)`,
+      [copy, OWNER, t.ciphertext, t.sealedWith])).rejects.toMatchObject({ code: 'NE020' });
+    expect((await admin.query('select advisor_may_keep($1, $2) as ok', [copy, OWNER])).rows[0].ok).toBe(false);
+    expect((await admin.query('select advisor_may_keep($1, $2) as ok', [SHOP, OWNER])).rows[0].ok).toBe(true);   // the control: the workspace keeps
+    await expect(as(OWNER, (q) => q('select advisor_history_set(true)'), copy)).rejects.toMatchObject({ code: 'NE022' });
+  });
+
+
   it('the app can never delete, nor rewrite a consent: the database refuses', async () => {
     await expect(as(STAFF, (q) => q('delete from advisor_threads where person_id = $1', [STAFF]))).rejects.toMatchObject({ code: '42501' });
     await expect(as(STAFF, (q) => q("update advisor_consents set event = 'granted' where person_id = $1", [STAFF]))).rejects.toMatchObject({ code: '42501' });

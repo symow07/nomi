@@ -124,7 +124,8 @@ grant select, insert on advisor_turn_subjects to nomi_app;
 -- ── The gate: nothing kept without the switch and a granted consent ────────
 create or replace function advisor_may_keep(p_business uuid, p_person uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from businesses b where b.id = p_business and b.advisor_history_at is not null)
+  -- The practice copy keeps nothing, whatever is set on it (docs/ADVISOR-MEMORY.md §2).
+  select exists (select 1 from businesses b where b.id = p_business and b.advisor_history_at is not null and b.practice_of is null)
      and exists (select 1 from people p where p.id = p_person and p.business_id = p_business and p.archived_at is null)
      and coalesce((select c.event = 'granted' from advisor_consents c
                      where c.business_id = p_business and c.person_id = p_person
@@ -227,8 +228,9 @@ declare
   v_counts jsonb := jsonb_build_object('erased', '{}'::jsonb);
 begin
   if v_business is null or v_caller is null
-     or not exists (select 1 from people where id = v_caller and business_id = v_business and is_owner and archived_at is null) then
-    raise exception 'advisor history: only the owner turns it on or off for the workspace' using errcode = 'NE022';
+     or not exists (select 1 from people where id = v_caller and business_id = v_business and is_owner and archived_at is null)
+     or exists (select 1 from businesses where id = v_business and practice_of is not null) then
+    raise exception 'advisor history: only the owner turns it on or off for the workspace, and never in practice' using errcode = 'NE022';
   end if;
   if p_on then
     update businesses set advisor_history_at = coalesce(advisor_history_at, now()), advisor_history_by = v_caller::text where id = v_business;
@@ -491,3 +493,6 @@ language sql stable security definer set search_path = public set row_security =
    where l.kind = 'advisor' and exists (select 1 from advisor_threads t where t.id = any(l.thread_ids))
 $$;
 revoke all on function erasure_ledger_unkept() from public;
+
+insert into _migrations (version, name) values (130, 'advisor_memory')
+on conflict (version) do nothing;
