@@ -2385,11 +2385,11 @@ const STYLE_PAGES = `
   /* The advisor's orb. Resting: centred at the head of the empty page. Thinking: on the paper where the answer will be, with its line. */
   .orb-rest-row { display:flex; justify-content:center; margin:var(--space-8) 0 var(--space-24); }
   /* Each canvas is half as large again as its orb; the margin it draws in (the halo, the shadow) takes no room. */
-  canvas.orb-rest { inline-size:288px; block-size:288px; margin:-48px; display:block; }
-  @media (max-width: 720px) { canvas.orb-rest { inline-size:216px; block-size:216px; margin:-36px; } }
+  canvas.orb-rest { inline-size:288px; block-size:288px; margin:calc(-1 * var(--space-48)); display:block; }
+  @media (max-width: 720px) { canvas.orb-rest { inline-size:216px; block-size:216px; margin:calc(-1 * (var(--space-24) + var(--space-12))); } }
   @media (scripting: none) { .orb-rest-row { display:none; } }
   .orb-row { display:flex; align-items:center; gap:var(--space-12); }
-  canvas.orb { inline-size:96px; block-size:96px; margin:-16px; display:block; flex:none; }
+  canvas.orb { inline-size:96px; block-size:96px; margin:calc(-1 * var(--space-16)); display:block; flex:none; }
   .orb-line { margin:0; font-size:var(--font-size-small); }
   .heard-label { font-family:var(--font-family); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
   .unheard-line { font-family:var(--font-family); font-size:var(--font-size-small); }

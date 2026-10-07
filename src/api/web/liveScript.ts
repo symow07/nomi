@@ -632,12 +632,9 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   }
   /* The ground under the orb — ours, not the library's, drawn first and never over its dots: a halo of the
      glow bleeding into the paper, a body light in the middle and deepening to its rim, its base falling into
-     shadow, and a soft shadow on the paper beneath. [halo, its reach, body, rim, base, shadow]. */
-  var GROUNDS = {
-    soft: [0.55, 1.32, 0.72, 0.3, 0.22, 0.16],
-    medium: [0.75, 1.42, 0.88, 0.48, 0.36, 0.24],
-    deep: [0.92, 1.55, 1, 0.66, 0.5, 0.32]
-  };
+     shadow, and a soft shadow on the paper beneath. The owner's pick, "medium":
+     [halo, its reach, body, rim, base, shadow]. */
+  var GROUND = [0.75, 1.42, 0.88, 0.48, 0.36, 0.24];
   function tone(c, a) { return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
   function toward(a, b, w) { return { r: Math.round(a.r + (b.r - a.r) * w), g: Math.round(a.g + (b.g - a.g) * w), b: Math.round(a.b + (b.b - a.b) * w) }; }
   function ground(ctx, size, glow, light, dark, o) {
@@ -679,11 +676,12 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var rest = doc.querySelector('[data-orb-rest]');
     var src = form.getAttribute('data-orb');
     var state = form.getAttribute('data-orb-state');
+    /* The glow is a palette colour, named: the page cannot hand the orb a colour of its own. */
     var glowSaid = String(form.getAttribute('data-orb-glow') || '');
-    var glow = glowSaid.charAt(0) === '#' ? rgbFrom(glowSaid) : rgbOf('--color-' + glowSaid);
+    var glow = /^[a-z-]+$/.test(glowSaid) ? rgbOf('--color-' + glowSaid) : 0;
     var light = rgbOf('--color-surface');
     var dark = rgbOf('--color-ink');
-    var plan = GROUNDS[form.getAttribute('data-orb-ground')];
+    var plan = GROUND;
     var core = 0;
     var shown = [];
     function load() { if (!core) core = import(src); return core; }

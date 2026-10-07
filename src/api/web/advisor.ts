@@ -29,15 +29,15 @@ import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
 export const ADVISOR_MAX = 1000;
 
 /**
- * THE ADVISOR'S ORB (2026-10-07; docs/design/advisor-orb/). The library's own orb, its geometry, dots and
- * timing unchanged: its `composing` state (a multi-band sash round a sphere, read as stripes), thinking at its
- * tuned 64 px, resting the same orb shown larger (192 px, 144 on a phone — the stylesheet's) at half the pace.
- * Ours: its two ends (the light end, and the glow it recedes into) and the ground under it — a deep magenta
- * halo, a body shaded to its rim and base, a shadow on the paper. The glow is never the "needs you" magenta.
+ * THE ADVISOR'S ORB (2026-10-07; the owner's pick, docs/design/advisor-orb/). The library's own orb, drawn as
+ * it ships — geometry, dots, count and timing unchanged: its `composing` state (a sash of dotted lanes round a
+ * sphere, read as columns), thinking at its tuned 64 px, resting the same orb shown larger (192 px, 144 on a
+ * phone — the stylesheet's) at half the pace. Ours: its two ends (the light end, and the glow it recedes into)
+ * and the ground under it — a magenta halo, a body shaded to its rim and base, a soft shadow on the paper.
+ * The glow is the palette's `orbGlow`, which is decorative and the orb's alone; never "needs you".
  */
 const ORB_STATE = 'composing';
-const ORB_GLOW = 'brand';
-const ORB_GROUND = 'medium';
+const ORB_GLOW = 'orb-glow';
 /** Resting, the orb moves at this fraction of its thinking pace: alive, and calm. */
 const ORB_REST_PACE = 0.5;
 
@@ -120,7 +120,7 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
     </div>
     ${pending(locale)}
     <div class="card sbx-compose" id="ask">
-      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-glow="${ORB_GLOW}" data-orb-ground="${ORB_GROUND}">
+      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-glow="${ORB_GLOW}">
         <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
         <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button></div>

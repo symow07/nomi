@@ -12,12 +12,13 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 
 /**
- * THE ADVISOR'S ORB (2026-10-07; the owner's brief and picks, docs/design/advisor-orb/):
- *   "Use the LIBRARY'S OWN drawing — its real dot geometry, placement, count, sizes and motion, UNCHANGED.
- *   Change ONE thing only: the colour. Map its existing light-to-dark ink ramp onto a magenta-to-paper ramp
- *   (#BE2D6E toward paper #F7F3EE), same depth logic … The resting orb is the SAME component shown larger."
- *   "Advisor page ONLY … RESTING … THINKING … Pauses when the tab is hidden; resumes on return. Reduce motion:
- *   NEITHER state animates … Scripts off / fetch fails: page works, no orb, no layout shift."
+ * THE ADVISOR'S ORB (2026-10-07; the owner's briefs and picks, docs/design/advisor-orb/):
+ *   "Switch to the library's 'composing' state, using the library's own drawing unchanged: same geometry,
+ *   count, placement and timing." — drawn exactly as it ships (the owner's option 1: its dotted columns).
+ *   "Only ours: a magenta glow behind the sphere and a soft shadow under it. Glow colour: new deep magenta
+ *   #A1127A, MEDIUM strength. Both states (192px resting, 64px thinking)." "Keep #6E0C44 out of the orb."
+ *   "Advisor page ONLY … Pauses when the tab is hidden … Reduce motion: NEITHER state animates … Scripts off /
+ *   the orb file fails: no orb moving, no gap, no layout shift."
  * The one script runs here against a small stand-in for the page, importing the very file the app serves.
  */
 
@@ -71,9 +72,15 @@ describe('the library, vendored: exactly what was published, MIT, and nothing th
 // ── A small stand-in for the page ────────────────────────────────────────────
 
 type Call = [string, ...unknown[]];
+/** A gradient, as the canvas hands one back: its stops recorded on the context that made it. */
+class Grad {
+  constructor(private ctx: Ctx, public kind: string) {}
+  addColorStop(at: number, colour: string) { this.ctx.calls.push(['addColorStop', this.kind, at, colour]); }
+  toJSON() { return `gradient:${this.kind}`; }
+}
 class Ctx {
   calls: Call[] = [];
-  set fillStyle(v: string) { this.calls.push(['fillStyle', v]); }
+  set fillStyle(v: string | Grad) { this.calls.push(['fillStyle', v]); }
   set strokeStyle(v: string) { this.calls.push(['strokeStyle', v]); }
   set lineWidth(v: number) { this.calls.push(['lineWidth', v]); }
   setTransform(...a: number[]) { this.calls.push(['setTransform', ...a]); }
@@ -84,6 +91,12 @@ class Ctx {
   moveTo(...a: number[]) { this.calls.push(['moveTo', ...a]); }
   lineTo(...a: number[]) { this.calls.push(['lineTo', ...a]); }
   stroke() { this.calls.push(['stroke']); }
+  save() { this.calls.push(['save']); }
+  restore() { this.calls.push(['restore']); }
+  translate(...a: number[]) { this.calls.push(['translate', ...a]); }
+  scale(...a: number[]) { this.calls.push(['scale', ...a]); }
+  createRadialGradient(...a: number[]) { this.calls.push(['createRadialGradient', ...a]); return new Grad(this, 'radial'); }
+  createLinearGradient(...a: number[]) { this.calls.push(['createLinearGradient', ...a]); return new Grad(this, 'linear'); }
 }
 class El {
   attrs: Record<string, string>;
@@ -129,7 +142,7 @@ const matches = (sel: string) => (e: El): boolean => {
 };
 
 /** The advisor's page (or any other), as the stand-in draws it. */
-function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; paper?: string; ink?: string; width?: number; orbUrl?: string; restOnOtherPage?: boolean } = {}) {
+function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; light?: string; glow?: string; dark?: string; width?: number; orbUrl?: string; restOnOtherPage?: boolean; glowSaid?: string } = {}) {
   const body = new El('BODY');
   const main = body.appendChild(new El('MAIN'));
   let rest: El | null = null;
@@ -137,7 +150,7 @@ function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; paper
     const row = main.appendChild(new El('DIV', { class: 'orb-rest-row' }));
     rest = row.appendChild(new El('CANVAS', { class: 'orb-rest', 'data-orb-rest': '', 'data-orb-pace': '0.5',
       // a page that smuggled the orb's whole description onto a canvas — still nothing without the advisor's form
-      ...(o.restOnOtherPage ? { 'data-orb': o.orbUrl ?? ORB_URL, 'data-orb-state': 'listening', 'data-orb-ink': 'assistant' } : {}) }, o.width ?? 192));
+      ...(o.restOnOtherPage ? { 'data-orb': o.orbUrl ?? ORB_URL, 'data-orb-state': 'composing', 'data-orb-glow': 'orb-glow' } : {}) }, o.width ?? 288));
   }
   const timeline = main.appendChild(new El('DIV', { class: 'timeline' }));
   let form: El | null = null; let box: El | null = null; let tpl: El | null = null;
@@ -147,18 +160,19 @@ function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; paper
       const frag = new El('#fragment');
       const asked = new El('DIV', { class: 'msg outbound' }); asked.appendChild(new El('BDI', { 'data-orb-asked': '' }));
       const wait = new El('DIV', { class: 'msg inbound orb-wait', 'data-orb-wait': '' });
-      wait.appendChild(new El('CANVAS', { class: 'orb' }, 64));
+      wait.appendChild(new El('CANVAS', { class: 'orb' }, 96));
       frag.appendChild(asked); frag.appendChild(wait);
       return frag;
     } };
-    form = main.appendChild(new El('FORM', { 'data-orb': o.orbUrl ?? ORB_URL, 'data-orb-state': 'listening', 'data-orb-ink': 'assistant' }));
+    form = main.appendChild(new El('FORM', { 'data-orb': o.orbUrl ?? ORB_URL, 'data-orb-state': 'composing', 'data-orb-glow': o.glowSaid ?? 'orb-glow' }));
     box = form.appendChild(new El('TEXTAREA'));
     form.appendChild(new El('BUTTON'));
   }
   const docListeners: Record<string, ((e: unknown) => void)[]> = {};
   const winListeners: Record<string, ((e: unknown) => void)[]> = {};
   const frames: ((now: number) => void)[] = [];
-  const vars: Record<string, string> = { '--color-assistant': o.ink ?? TOKENS.assistant, '--color-paper': o.paper ?? TOKENS.paper, '--color-ink': TOKENS.ink };
+  const vars: Record<string, string> = { '--color-orb-glow': o.glow ?? TOKENS.orbGlow, '--color-surface': o.light ?? TOKENS.surface,
+    '--color-ink': o.dark ?? TOKENS.ink, '--color-needs': TOKENS.needs, '--color-brand': TOKENS.brand };
   const doc = {
     readyState: 'loading', visibilityState: 'visible', documentElement: {},
     querySelector: (sel: string) => body.querySelector(sel),
@@ -196,72 +210,116 @@ function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; paper
     canvases: () => body.all().filter((e) => e.tagName === 'CANVAS'),
   };
 }
-/** The calls a canvas received, past its sizing and clearing — what was drawn. */
+/** The calls a canvas received, past its sizing and clearing — what was drawn (the ground and the orb). */
 const drawn = (c: El) => c.ctx.calls.filter(([k]) => k !== 'setTransform' && k !== 'clearRect');
+/** The orb alone: what was painted after the last transform, the library's frame (the ground comes before it). */
+const orbOf = (c: El) => { const i = c.ctx.calls.map(([k]) => k).lastIndexOf('setTransform'); return c.ctx.calls.slice(i + 1); };
+/** The ground of the last paint: between its two transforms (under the orb, before the frame's own). */
+const groundOf = (c: El) => {
+  const at = c.ctx.calls.map(([k], i) => (k === 'setTransform' ? i : -1)).filter((i) => i >= 0);
+  return c.ctx.calls.slice(at[at.length - 2]! + 1, at[at.length - 1]);
+};
+/** Transforms asked for, in order. */
+const transforms = (c: El) => c.ctx.calls.filter(([k]) => k === 'setTransform').map(([, ...a]) => a);
 const isColour = (k: string) => k === 'fillStyle' || k === 'strokeStyle';
+const rgba = (v: unknown) => /^rgba\((\d+),(\d+),(\d+),([\d.]+)\)$/.exec(String(v))!.slice(1).map(Number) as [number, number, number, number];
 
-/** The library's own painter, as its React component calls it, on the same frame. */
-async function libraryDraws(t: number, tint: { r: number; g: number; b: number }) {
+/** The library's own painter, in its dark-paper mode (white near, black far), on the same frame. */
+async function libraryDraws(t: number) {
   const core = await import(pathToFileURL(join(VENDOR, 'index-B8WsUNf5.js')).href) as Record<string, any>;
-  const pre = core['r']('listening', 64);
+  const pre = core['r']('composing', 64);
   const ctx = new Ctx();
-  core['p'](ctx, core['M'][pre.mode](64, t, pre.opts), false, tint);
+  core['p'](ctx, core['M'][pre.mode](64, t, pre.opts), true);
   return ctx.calls;
 }
 
-describe('the orb is the library\'s own: only the colour is ours', () => {
-  it('with the paper at white, the script draws exactly the calls the library\'s own painter draws — resting and thinking', async () => {
-    const p = page({ reduce: true, paper: '#FFFFFF' });
+describe('the orb is the library\'s own composing state, drawn as it ships; the glow and the shadow are ours', () => {
+  it('with white and black for its two ends, the script draws exactly the calls the library\'s own painter draws — resting and thinking', async () => {
+    const p = page({ reduce: true, light: '#FFFFFF', glow: '#000000' });
     p.run(); await p.load();
-    const lib = await libraryDraws(0.6, hex(TOKENS.assistant));
-    expect(lib.length).toBeGreaterThan(200);
-    expect(drawn(p.rest!)).toEqual(lib);
+    const lib = await libraryDraws(0.6);
+    expect(lib.length).toBeGreaterThan(2000);                          // 566 dots: its count, unchanged
+    expect(lib.filter(([k]) => k === 'arc')).toHaveLength(566);
+    expect(lib.some(([k]) => k === 'stroke')).toBe(false);             // composing draws no line: dotted columns, as it ships
+    expect(orbOf(p.rest!)).toEqual(lib);
     await p.ask();
     const thinking = p.canvases().find((c) => c.attrs['class'] === 'orb')!;
-    expect(drawn(thinking)).toEqual(lib);
+    expect(orbOf(thinking)).toEqual(lib);
   });
 
-  it('on the page\'s paper: the same dots, sizes, order and strokes; each colour on the line from the assistant\'s magenta to the paper', async () => {
+  it('with the palette\'s ends: the same dots, sizes and order; each colour on the line from the light end to the glow', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
-    const ours = drawn(p.rest!);
-    const lib = await libraryDraws(0.6, hex(TOKENS.assistant));
+    const ours = orbOf(p.rest!);
+    const lib = await libraryDraws(0.6);
     expect(ours.filter(([k]) => !isColour(k))).toEqual(lib.filter(([k]) => !isColour(k)));
-    const tint = hex(TOKENS.assistant); const paper = hex(TOKENS.paper);
+    const light = hex(TOKENS.surface); const glow = hex(TOKENS.orbGlow);
     for (const [k, v] of ours.filter(([k]) => isColour(k))) {
-      const [r, g, b, a] = /^rgba\((\d+),(\d+),(\d+),([\d.]+)\)$/.exec(String(v))!.slice(1).map(Number) as [number, number, number, number];
-      // the depth, read off the widest channel (green: 0x2D to 0xF3), and the others on the same line, to rounding
-      const w = (g - tint.g) / (paper.g - tint.g);
+      const [r, g, b, a] = rgba(v);
+      // the depth, read off the widest channel (green: 0x12 to 0xFD), and the others on the same line, to rounding
+      const w = (g - glow.g) / (light.g - glow.g);
       expect(w, `${k} ${v}`).toBeGreaterThanOrEqual(-0.003);
       expect(w, `${k} ${v}`).toBeLessThanOrEqual(1.003);
-      expect(Math.abs(r - (tint.r + (paper.r - tint.r) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(b - (tint.b + (paper.b - tint.b) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(r - (glow.r + (light.r - glow.r) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(b - (glow.b + (light.b - glow.b) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
       expect(a).toBeLessThanOrEqual(1);
     }
-    // never the ink, never black, never the deep "needs you"
-    const colours = ours.filter(([k]) => isColour(k)).map(([, v]) => String(v));
-    for (const never of [hex(TOKENS.ink), { r: 0, g: 0, b: 0 }, hex(TOKENS.needs)]) {
-      expect(colours.some((c) => c.startsWith(`rgba(${never.r},${never.g},${never.b},`))).toBe(false);
+  });
+
+  it('the ground is ours and under the orb: a halo of the glow, the body shaded to its rim and base, a shadow beneath — drawn first, every frame', async () => {
+    const p = page({ reduce: true });
+    p.run(); await p.load();
+    const ground = groundOf(p.rest!);
+    expect(ground.filter(([k]) => k === 'createRadialGradient')).toHaveLength(3);   // the shadow, the halo, the body
+    expect(ground.filter(([k]) => k === 'createLinearGradient')).toHaveLength(1);   // the base falling into shadow
+    expect(ground.filter(([k]) => k === 'arc')).toHaveLength(4);
+    const all = p.rest!.ctx.calls;
+    expect(all.indexOf(ground[0]!)).toBeLessThan(all.indexOf(orbOf(p.rest!)[0]!));   // never over a dot
+  });
+
+  it('the ground\'s colours are the glow, the paper\'s light end and the ink — never the "needs you" magenta, at any stop', async () => {
+    const p = page({ reduce: true });
+    p.run(); await p.load();
+    const glow = hex(TOKENS.orbGlow); const light = hex(TOKENS.surface); const dark = hex(TOKENS.ink);
+    const toward = (a: typeof glow, b: typeof glow, w: number) => ({ r: Math.round(a.r + (b.r - a.r) * w), g: Math.round(a.g + (b.g - a.g) * w), b: Math.round(a.b + (b.b - a.b) * w) });
+    const allowed = [glow, dark, toward(glow, light, 0.18), toward(glow, dark, 0.48)].map((c) => `${c.r},${c.g},${c.b}`);
+    const stops = groundOf(p.rest!).filter(([k]) => k === 'addColorStop').map(([, , , c]) => rgba(c));
+    expect(stops.length).toBeGreaterThanOrEqual(9);
+    for (const [r, g, b] of stops) expect(allowed, `${r},${g},${b}`).toContain(`${r},${g},${b}`);
+    const needs = hex(TOKENS.needs);
+    const every = [...stops, ...orbOf(p.rest!).filter(([k]) => isColour(k)).map(([, v]) => rgba(v))];
+    expect(every.some(([r, g, b]) => r === needs.r && g === needs.g && b === needs.b)).toBe(false);
+    expect(LIVE_SCRIPT.slice(LIVE_SCRIPT.indexOf('The advisor\'s orb (item 9)'))).not.toMatch(/--color-needs|6E0C44/i);
+  });
+
+  it('the glow is a palette colour, named: a page that hands the orb a colour of its own gets no orb at all', async () => {
+    for (const said of ['#6E0C44', 'rgb(110,12,68)', 'needs; x', '']) {
+      const p = page({ reduce: true, glowSaid: said });
+      p.run(); await p.load();
+      expect(p.rest!.ctx.calls, said).toEqual([]);
+      expect(p.rest!.isConnected).toBe(true);
     }
   });
 
-  it('the resting orb is the same 64 px orb shown larger: only the canvas\'s scale differs', async () => {
-    const p = page({ reduce: true, width: 192 });
+  it('the resting orb is the same 64 px orb shown larger: only the canvas\'s scale differs; its margin holds the glow', async () => {
+    const p = page({ reduce: true, width: 288 });
     p.run(); await p.load();
-    expect(p.rest!.width).toBe(384);                                // 192 css px at a device ratio of 2
-    expect(p.rest!.ctx.calls[0]).toEqual(['setTransform', 6, 0, 0, 6, 0, 0]);
-    expect(p.rest!.ctx.calls[1]).toEqual(['clearRect', 0, 0, 64, 64]);
-    const phone = page({ reduce: true, width: 144 });
+    expect(p.rest!.width).toBe(576);                                     // 288 css px at a device ratio of 2
+    expect(transforms(p.rest!).slice(-1)).toEqual([[6, 0, 0, 6, 96, 96]]);  // 64 → 192, inset by the 48 px margin
+    const phone = page({ reduce: true, width: 216 });
     phone.run(); await phone.load();
-    expect(phone.rest!.ctx.calls[0]).toEqual(['setTransform', 4.5, 0, 0, 4.5, 0, 0]);
-    expect(drawn(phone.rest!)).toEqual(drawn(p.rest!));
+    expect(transforms(phone.rest!).slice(-1)).toEqual([[4.5, 0, 0, 4.5, 72, 72]]);
+    expect(orbOf(phone.rest!)).toEqual(orbOf(p.rest!));
+    await p.ask();
+    const thinking = p.canvases().find((c) => c.attrs['class'] === 'orb')!;
+    expect(transforms(thinking).slice(-1)).toEqual([[2, 0, 0, 2, 32, 32]]);  // its own 64 px, inset by 16
   });
 
-  it('the page names the owner\'s picks: the listening wave, the assistant\'s magenta; the stylesheet, 192 px and 144 on a phone', () => {
-    expect(renderAdvisor('en')).toContain('data-orb-state="listening" data-orb-ink="assistant"');
-    expect(APP_CSS).toContain('canvas.orb-rest { inline-size:192px; block-size:192px; display:block; }');
-    expect(APP_CSS).toContain('@media (max-width: 720px) { canvas.orb-rest { inline-size:144px; block-size:144px; } }');
-    expect(APP_CSS).toContain('canvas.orb { inline-size:64px; block-size:64px;');
+  it('the page names the owner\'s picks: composing, the orb\'s glow; the stylesheet, 192 px and 144 on a phone, 64 thinking, no room taken by the margin', () => {
+    expect(renderAdvisor('en')).toContain('data-orb-state="composing" data-orb-glow="orb-glow">');
+    expect(APP_CSS).toContain('canvas.orb-rest { inline-size:288px; block-size:288px; margin:calc(-1 * var(--space-48)); display:block; }');
+    expect(APP_CSS).toContain('@media (max-width: 720px) { canvas.orb-rest { inline-size:216px; block-size:216px; margin:calc(-1 * (var(--space-24) + var(--space-12))); } }');
+    expect(APP_CSS).toContain('canvas.orb { inline-size:96px; block-size:96px; margin:calc(-1 * var(--space-16)); display:block; flex:none; }');
   });
 });
 
@@ -273,13 +331,15 @@ describe('the guard: on the advisor\'s page only, resting or thinking, and only 
     expect(p.frames).toEqual([]);
   });
 
-  it('resting: drawn once the page has loaded, never before; moving frame after frame while seen', async () => {
+  it('resting: the ground at once; the orb once the page has loaded, never before; moving frame after frame while seen', async () => {
     const p = page();
     p.run();
     for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 30));   // time enough for the file, were it asked for
-    expect(p.rest!.ctx.calls).toEqual([]);
+    expect(transforms(p.rest!)).toHaveLength(2);                                // the ground's two, and no frame's
+    expect(drawn(p.rest!).some(([k]) => k === 'createRadialGradient')).toBe(true);
+    expect(p.frames).toEqual([]);
     await p.load();
-    expect(p.rest!.ctx.calls.length).toBeGreaterThan(0);
+    expect(transforms(p.rest!).length).toBeGreaterThan(2);
     expect(p.tick(1000)).toBe(1);
     const a = JSON.stringify(drawn(p.rest!).slice(-400));
     expect(p.tick(1500)).toBe(1);
@@ -354,15 +414,16 @@ describe('the guard: on the advisor\'s page only, resting or thinking, and only 
     expect(p.frames).toEqual([]);
   });
 
-  it('the orb\'s file cannot be had: nothing is drawn, nothing is removed (no shift), and the page goes on', async () => {
+  it('the orb\'s file cannot be had: the still ground stays, no dot is drawn, nothing moves, nothing is removed (no shift)', async () => {
     const p = page({ orbUrl: 'data:text/javascript;base64,dGhyb3cgbmV3IEVycm9yKCdubycpOw==' });
     p.run(); await p.load();
-    expect(p.rest!.ctx.calls).toEqual([]);
+    expect(transforms(p.rest!)).toHaveLength(2);                         // the ground, once; never the frame's
+    expect(drawn(p.rest!).filter(([k]) => k === 'arc')).toHaveLength(4);  // the ground's four shapes, no dot
     expect(p.rest!.isConnected).toBe(true);
     await p.ask();
     const thinking = p.canvases().find((c) => c.attrs['class'] === 'orb')!;
     expect(thinking.isConnected).toBe(true);
-    expect(thinking.ctx.calls).toEqual([]);
+    expect(transforms(thinking)).toHaveLength(2);
     expect(p.frames).toEqual([]);
   });
 });

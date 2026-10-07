@@ -234,6 +234,14 @@ export const DESIGN_TOKENS = {
    * highlight, the three warm papers, the dark palette (before it).
    * `palette.test.ts` keeps all of their values out of the product.
    *
+   * And one DECORATIVE magenta, which is not a meaning (the owner, 2026-10-07):
+   *   orbGlow      #A1127A, the glow behind the advisor's orb, and nothing else.
+   *                Never a button, a chip, a pill, a state, a text colour, a
+   *                border or a fill of anything but that orb. Its own value: a
+   *                touch toward violet, held clear of `needs` (ΔE00 12.5) and of
+   *                `assistant` (10.3). Four magentas is the CEILING — brand,
+   *                needs, assistant, orbGlow — and `palette.test.ts` holds both.
+   *
    * Washes and lines are TOKENS rather than `color-mix(… 12% …)` for a product
    * reason: the owner surface bans the `%` character outright, and that ban is
    * enforced against rendered HTML — which a CSS percentage trips just as surely
@@ -257,6 +265,8 @@ export const DESIGN_TOKENS = {
     okLine: '#B7D7C5',
     warnWash: '#F6E5E3',
     warnLine: '#E9BDBA',
+    /** DECORATIVE: the advisor orb's glow only (above). Never a button, chip, state or text. */
+    orbGlow: '#A1127A',
   },
   /**
    * A colour by the JOB it does, named after one of the palette's own (never a
