@@ -50,3 +50,18 @@ export const SEALED = [
   { table: 'whatsapp_accounts', column: 'token_ciphertext' },
   { table: 'whatsapp_accounts', column: 'pin_ciphertext' },
 ];
+
+/**
+ * THE ADVISOR'S HISTORY (0130) is sealed with a key of its own, ADVISOR_KEY, and NO TOOL OPENS IT — not this
+ * one, not any (tests/parity/advisor-memory.test.ts). A rotation re-seals it in the app, each conversation
+ * as it is opened, with ADVISOR_KEY_PREVIOUS still opening the old seal; a conversation not opened for 12
+ * months is deleted anyway. Listed here so a `*_ciphertext` column is never unaccounted for, and so
+ * tools/rekey.mjs can say why it leaves them alone.
+ */
+export const APP_SEALED = [
+  { table: 'advisor_threads', column: 'title_ciphertext' },
+  { table: 'advisor_turns', column: 'question_ciphertext' },
+  { table: 'advisor_turns', column: 'params_ciphertext' },
+  { table: 'advisor_turns', column: 'answer_ciphertext' },
+  { table: 'advisor_turns', column: 'facts_ciphertext' },
+];

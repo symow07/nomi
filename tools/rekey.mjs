@@ -65,6 +65,8 @@ const run = async () => {
       }
     }
 
+    console.log('\n  The advisor\'s history (ADVISOR_KEY) is not this tool\'s: the app seals it again as each conversation is opened,'
+      + '\n  and no tool opens it. Keep ADVISOR_KEY_PREVIOUS set until the app\'s boot line no longer counts any row behind.');
     console.log(previous
       ? `\n  Sealed tokens: ${alreadyCurrent} already under the current key · ${plan.length} under the previous key · ${unreadable.length} neither key opens.`
       : `\n  No rotation in progress (CREDENTIAL_KEY_PREVIOUS is not set). Sealed tokens: ${alreadyCurrent} open with the current key · ${unreadable.length} do not.`);
