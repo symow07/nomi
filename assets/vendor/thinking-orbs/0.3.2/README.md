@@ -13,9 +13,9 @@ The advisor's orb, resting and thinking, is drawn from the drawing core of [`thi
 
 - `LICENSE` is the package's `LICENSE`, verbatim.
 
-**The painter is the library's, with one change.** The script carries a line-for-line port of the core's `paintFrame`, `paintLines` and `paint`, which is MIT and noted at the port. Its one change is the end of the depth ramp: the library fades a dot from its tint toward white (`c + (255 - c) * w`); ours fades it toward the page's paper (`c + (paper - c) * w`).
+**The painter is the library's, with one change.** The script carries a line-for-line port of the core's `paintFrame`, `paintLines` and `paint`, which is MIT and noted at the port. It paints in the library's dark-paper mode, where a near dot is light and a far one dark (`(1 - w)`). Its one change is the two ends of that ramp: the library goes from white to black; ours goes from the paper's light end to the orb's glow (`far + (light - far) * (1 - w)`).
 
-Nothing else changes: not the geometry, the dot count, the dot sizes, the draw order or the timing. With the paper set to white, the port makes exactly the calls the library's own `paintFrame` makes. `tests/parity/advisor-orb.test.ts` holds that.
+Nothing else changes: not the geometry, the dot count, the dot sizes, the draw order or the timing. With white and black for its ends, the port makes exactly the calls the library's own `paintFrame(ctx, frame, true)` makes. `tests/parity/advisor-orb.test.ts` holds that. The glow and the shadow under the orb are drawn by the script before the library's dots, never over them (`docs/design/advisor-orb/README.md`).
 
 | | SHA-256 |
 |---|---|

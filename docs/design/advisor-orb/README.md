@@ -1,44 +1,86 @@
-# The advisor's orb, as shipped
+# The advisor's orb: composing, on its glow
 
-Taken 2026-10-07 on a local instance: the demo workspace (synthetic data), Chromium at device scale 2, 1280 and 390 px. The advisor was scripted to take 20 s to answer, so thinking could be seen. No model was asked.
+**The owner's pick (2026-10-07):**
+- the library's `composing` state, drawn exactly as it ships;
+- a magenta glow behind the sphere, `#A1127A`, at medium strength;
+- a soft shadow under it.
 
-**The owner's picks:**
-- the `listening` wave (round one, `round-1-monochrome/`);
-- the assistant's magenta `#BE2D6E`, resting at 192 px on desktop and 144 px on phone (round two, `round-2-candidates/`).
+These were rendered in a real browser (Brave, which is Chromium; device scale 2), from the app's own page on a local instance with the demo workspace. The advisor was scripted to take 20 s to answer, so the thinking state could be seen. No model was asked.
 
-The advisor is Nomi talking to the owner, so it wears the assistant's colour.
+## What is the library's, and what is ours
 
-## The library's own orb; only the colour is ours
+**The library's, unchanged.** This is `thinking-orbs` 0.3.2, the newest release, in its `composing` state at its tuned 64 px preset:
+- 12 lanes of 44 dots in a sash round a sphere, plus 38 faint dots for the sphere behind: 566 dots, and no lines;
+- read together, they look like dotted columns, even at the library's own 64 px;
+- its geometry, count, placement and timing are the library's own.
 
-`matches-the-library.png` puts three versions side by side:
-1. the library drawn by its own painter, in stock grey;
-2. the library drawn by its own painter with its own tint option;
-3. ours as shipped.
+With white and black as its two ends, the script makes exactly the calls the library's own painter makes. `tests/parity/advisor-orb.test.ts` holds that.
 
-The geometry, dot count, dot sizes, draw order and timing are the library's, unchanged. The script carries the library's painter line for line, with one change: its depth ramp ends at the page's paper `#F7F3EE` instead of white.
+**Ours:**
+1. **The two ends of the depth ramp.** A near dot is the paper's light end, `#FFFDFA`; a far one recedes into the glow.
+2. **The ground**, drawn first and never over a dot:
+   - a halo of the glow bleeding into the paper;
+   - a body light in the middle, shaded to its rim and base;
+   - a soft shadow on the paper beneath.
 
-The proof: with the paper set to white, ours and the library's painter put down identical pixels. 0 of 524,288 channel values differ across 8 frames, and `tests/parity/advisor-orb.test.ts` asserts the same call for call.
+The canvas is half as large again as the orb, so the halo and shadow have room. That margin takes no space in the page: the resting orb still occupies 192 px (144 on a phone), and thinking 64 px.
 
-The resting orb is the same 64 px orb drawn at 3× (2.25× on a phone). It is shown larger, not redrawn.
+## The colour
 
-## The two states, both on the advisor's page only
+`#A1127A` is the palette's `orbGlow`. It is **decorative and the advisor orb's alone**: never a button, chip, pill, state, text or border. `tests/parity/palette.test.ts` holds that:
+- it is named only by the orb's form;
+- no stylesheet rule paints with it;
+- it is never a colour role;
+- four magentas is the ceiling: brand, needs, assistant and `orbGlow`.
 
-- **Resting:** `resting-{desktop|phone}-{en|zh|ar|es|fr}.png`. While nothing has been asked, the orb sits centred at the head of the page and moves at half the thinking pace. It is centred within 2 px of the page's column.
-- **Thinking:** `thinking-{desktop|phone}-{lang}.png`. Once a question is sent, the resting orb gives way. The question goes up, and under it sit the 64 px orb and «Looking through your records…» (in the owner's language) until the answer arrives.
-- **Real flow:** `resting-to-thinking-{desktop|phone}-en.mp4`, 5.4 s. A question is really sent while its answer is on its way. Measured on the frames, as the average change in grey level between frames:
-  - resting moves at 12.6–14.9;
-  - thinking moves at 7.3–8.0 on desktop and 10.9–11.3 on phone.
+**"Needs you" `#6E0C44` is never used by the orb**, in any colour stop or any dot. The glow is ΔE₀₀ 12.5 from it.
 
-## Every behaviour, checked
+**The darkest pixels come closest to it, at ΔE₀₀ 4.3–4.5.** Those are at the rim and base, where the medium shading deepens the glow toward the ink (`#6E2154` on desktop). The difference is visible side by side, but the shades are related. Lighter shading would move them away, at the cost of some depth.
 
-- **Colour.** Every pixel of either orb lies on the line from `#BE2D6E` to the paper. None is the ink, black, or the deep "needs you" `#6E0C44`. This was checked in the page, in all 20 shots.
-- **Reduced motion:** `*-en-reduced-motion.png` and `resting-to-thinking-desktop-en-reduced-motion.mp4`. Neither state moves.
-  - In the page: one still frame each, and 0 animation frames requested, on both widths.
-  - In the recording: resting changes by 0.06–0.09 and thinking by 0–0.05, which is video noise.
-- **Hidden tab.** When the page reports itself hidden (the browser's own visibility event), no frame is requested and the orb holds still. Shown again, it moves.
-- **First paint.** The page is painted (first paint at 40 ms locally) before the orb's file is requested (47.5 ms). The script asks for it once the page has loaded.
-- **Scripts off:** `resting-desktop-en-scripts-off.png`. The resting space is given up (`@media (scripting: none)`). No orb, no gap, and nothing moves later.
-- **The orb's file cannot be had:** `resting-desktop-en-orb-not-fetched.png`. The space stays, empty. Nothing is drawn, nothing shifts and there is no error.
-- **On every shot:** nothing wider than its screen, Arabic right to left, no script error.
+## Files
 
-The stills were taken with the question held in the page after the script drew the thinking state. Playwright cannot photograph a page whose navigation is pending; the clips are the real thing.
+**At rest:** `resting-{desktop|phone}-{en|zh|ar|es|fr}.png`.
+
+**Thinking:** `thinking-{desktop|phone}-{en|zh|ar|es|fr}.png`. For these stills, the question was held in the page right after the script drew the thinking state.
+
+**Reduced motion:** `resting-{desktop|phone}-en-reduced-motion.png` and `thinking-…-reduced-motion.png`.
+
+**With the script off, or the orb's file blocked:** `resting-desktop-en-scripts-off.png` and `resting-desktop-en-orb-not-fetched.png`.
+
+**Clips.** Each records the real flow: resting for about 2.5 s, then a question really sent, then thinking while its answer is on its way. They were recorded through the browser's own screencast.
+- `resting-to-thinking-desktop-en.mp4`;
+- `resting-to-thinking-phone-en.mp4`;
+- `resting-to-thinking-desktop-en-reduced-motion.mp4`. Here the browser sent only 5 frames in 2.6 s, because nothing moved.
+
+## Checked by script, in the browser
+
+| Check | Result |
+|---|---|
+| 5 languages × desktop and phone | resting 192 px (144 on phone) and moving; thinking 64 px and moving; resting gone once asked; centred; Arabic right to left; nothing wider than the screen; no script errors |
+| Reduced motion | both states drawn and still; no animation frame ever asked for |
+| Hidden tab | moving before; no frame while hidden; resumed when shown |
+| First paint | the orb's file is asked for only after the page's load |
+| Scripts off | no orb row, no space kept, nothing moves later |
+| The orb's file blocked | the still ground stays in its kept space; no dot, nothing moves, nothing shifts |
+| Other pages (Home, Inbox, Settings) | no canvas, and the orb's file never asked for |
+
+**Every guard was broken on purpose, and each failure failed a test (14 of 14):**
+- frames while hidden;
+- reduced motion ignored;
+- the ground drawn over the dots;
+- a raw colour accepted for the glow;
+- shading toward "needs you";
+- the library's geometry changed;
+- the file asked for before load;
+- a failed canvas removed;
+- scripts off keeping the space;
+- the glow set to "needs you";
+- the glow painting a button;
+- a fifth magenta;
+- the page script animating outside the orb;
+- another page carrying the orb.
+
+## Earlier rounds
+
+- `round-1-monochrome/`, `round-2-candidates/` and `round-3-options/` record each pick.
+- `round-2-shipped-listening/` is the listening wave that shipped in #244 before this.
