@@ -13,6 +13,25 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The orb is shipped (2026-10-07, evening) — read this first
+
+**State:**
+- **#248, the orb**, merged as `ba49550` on the owner's confirm ("Confirm it — ship it") and deployed 13:00 UTC.
+  - `/health` ok; production schema is still **130**.
+  - Production serves the medium ground (`GROUND` in the page script) and `--color-orb-glow: #A1127A`.
+- **The orb as shipped:**
+  - the library's `composing` state, drawn exactly as thinking-orbs 0.3.2 ships it: 566 dots, no lines;
+  - ours: a magenta glow `#A1127A` (palette `orbGlow`, decorative and the orb's alone) at medium strength, the body shaded to its rim and base, and a soft shadow;
+  - resting 192 px (144 on a phone) at half speed, thinking 64 px.
+- **Renders and guards:** `docs/design/advisor-orb/`, checked in Brave (5 languages, both views, reduced motion, hidden tab, scripts off, the file blocked). 14 guards were broken on purpose.
+- **Still the owner's:** paste `ADVISOR_KEY` into the nomi service in Railway (`openssl rand -hex 32 | pbcopy`). Until then nothing is kept (D8).
+
+**Next, from `docs/ADVISOR-MEMORY.md` §10:** the later batch, which is the provider list with fallbacks and the owner's own API key (D9).
+
+**Two small follow-ups, not done:**
+- The data-deletion page does not yet say that a customer's erasure also removes the advisor turns that name them.
+- Outbound sends still pass stored product-photo addresses to Meta. This is server-side, not a browser request.
+
 ## The advisor's memory is live; the orb waits for the owner's confirm (2026-10-07, evening) — read this first
 
 **State:**
