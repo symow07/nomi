@@ -112,7 +112,9 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // on the advisor's page only — 29,926 measured; 23,500 became 31,000, deliberately.
     // The orb's composing round (2026-10-07): the ground under it, ours (the glow, the shading, the shadow,
     // drawn before the file arrives) — 32,877 measured; 31,000 became 33,500, deliberately.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(33_500);
+    // The advisor's redesign (2026-10-08): the lit field and its pool (dithered, pixel by pixel), the glide
+    // beside the bar, and the typed placeholder — 41,893 measured; 33,500 became 43,000, deliberately.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(43_000);
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while
     // read, a pressed face's busy state, the same-page door, the form checked before asking — 22,451 measured, raised deliberately.
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();

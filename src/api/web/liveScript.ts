@@ -668,12 +668,78 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
   }
+  /* The lit field (the redesign, 2026-10-08): the orb's glow at its centre falling to nothing at the edges,
+     drawn pixel by pixel with half a step of noise in each channel, so the fall shows no bands; a pixel the
+     fall does not reach is left clear, and the paper shows. r: how far it reaches up, down, back and on. */
+  function smoother(x) { x = x <= 0 ? 0 : x >= 1 ? 1 : x; return x * x * x * (x * (x * 6 - 15) + 10); }
+  function wash(canvas, cx, cy, r, depth, paper, glow) {
+    var ctx = canvas.getContext ? canvas.getContext('2d') : 0;
+    if (!ctx || !ctx.createImageData) return;
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var box = canvas.getBoundingClientRect();
+    var W = Math.max(1, Math.round(box.width * dpr));
+    var H = Math.max(1, Math.round(box.height * dpr));
+    canvas.width = W; canvas.height = H;
+    var img = ctx.createImageData(W, H);
+    var d = img.data;
+    var seed = 2463534242;
+    function noise() { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
+    for (var y = 0; y < H; y++) {
+      var dy = (y + 0.5) / dpr - cy;
+      var ny = dy / (dy < 0 ? r.up : r.down);
+      ny *= ny;
+      if (ny >= 1) continue;
+      for (var x = 0; x < W; x++) {
+        var dx = (x + 0.5) / dpr - cx;
+        var nx = dx / (dx < 0 ? r.back : r.on);
+        var q = nx * nx + ny;
+        if (q >= 1) continue;
+        var f = 1 - smoother(Math.sqrt(q));
+        var t = f * f * depth;
+        var at = (y * W + x) * 4;
+        d[at] = paper.r + (glow.r - paper.r) * t + noise() + noise() - 1;
+        d[at + 1] = paper.g + (glow.g - paper.g) * t + noise() + noise() - 1;
+        d[at + 2] = paper.b + (glow.b - paper.b) * t + noise() + noise() - 1;
+        d[at + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  /* The empty bar types out three questions, one at a time, calmly, and loops; never the box's own text, never
+     sent. It stops and clears the moment the box is touched or typed in, and starts again only when it is left
+     empty. Less motion: the first question stands still, as the page drew it. */
+  function typer(box, lines) {
+    if (!box || !lines.length || still()) return;
+    var k = 0; var n = 0; var timer = 0;
+    function idle() { return box.isConnected && doc.activeElement !== box && box.value === '' && doc.visibilityState !== 'hidden'; }
+    function stop() { if (timer) clearTimeout(timer); timer = 0; }
+    function step() {
+      timer = 0;
+      if (!idle()) return;
+      if (k >= lines.length) k = 0;
+      var line = lines[k];
+      if (n < line.length) { n += 1; box.setAttribute('placeholder', line.slice(0, n)); timer = setTimeout(step, n === line.length ? 2600 : 55); return; }
+      box.setAttribute('placeholder', ''); n = 0; k += 1; timer = setTimeout(step, 700);
+    }
+    function start(wait) { stop(); if (idle()) timer = setTimeout(step, wait); }
+    function hush() { stop(); box.setAttribute('placeholder', ''); }
+    box.addEventListener('focus', hush);
+    box.addEventListener('input', hush);
+    box.addEventListener('blur', function () { if (box.value === '') { n = 0; k += 1; start(1200); } });
+    doc.addEventListener('visibilitychange', function () { if (doc.visibilityState === 'hidden') stop(); else if (!timer) start(700); });
+    box.setAttribute('placeholder', '');
+    start(400);
+  }
   function orbs() {
     var form = doc.querySelector('form[data-orb]');
     if (!form) return;
+    var page = doc.querySelector('.adv-page');
     var tpl = doc.querySelector('template[data-orb-pending]');
     var line = doc.querySelector('.timeline');
     var rest = doc.querySelector('[data-orb-rest]');
+    var here = form.querySelector('[data-orb-here]');
+    var field = doc.querySelector('[data-adv-field]');
+    var pool = form.querySelector('[data-adv-pool]');
     var src = form.getAttribute('data-orb');
     var state = form.getAttribute('data-orb-state');
     /* The glow is a palette colour, named: the page cannot hand the orb a colour of its own. */
@@ -681,18 +747,22 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var glow = /^[a-z-]+$/.test(glowSaid) ? rgbOf('--color-' + glowSaid) : 0;
     var light = rgbOf('--color-surface');
     var dark = rgbOf('--color-ink');
+    var paper = rgbOf('--color-paper');
     var plan = GROUND;
     var core = 0;
+    var failed = false;
     var shown = [];
     function load() { if (!core) core = import(src); return core; }
     /* The orb's file is asked for only once the page has loaded: it plays no part in its first paint. */
     var loaded = new Promise(function (ok) { if (doc.readyState === 'complete') ok(); else window.addEventListener('load', function () { ok(); }); });
     /* Draws on a canvas half as large again as the orb (its margin holds the halo and the shadow): the ground
        at once, with no file to wait for; then the library's orb on it, at a pace of its own speed, moving only
-       while seen. If the orb cannot be had, the ground stays: no gap, and nothing moves. */
+       while seen. If the orb cannot be had, the ground stays: no gap, and nothing moves. The pace can change
+       (resting, then thinking) without the orb jumping. */
     function draw(canvas, pace) {
+      var ctl = { pace: pace, base: 0, since: 0 };
       var ctx = glow && light && dark && plan && canvas.getContext ? canvas.getContext('2d') : 0;
-      if (!ctx) return Promise.reject(new Error('no orb here'));
+      if (!ctx) { failed = true; return { ctl: ctl, done: Promise.reject(new Error('no orb here')) }; }
       var box = canvas.getBoundingClientRect().width || 96;
       var size = box / 1.5;
       var pad = size / 4;
@@ -706,7 +776,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         ground(ctx, size, glow, light, dark, plan);
       }
       under();
-      return loaded.then(load).then(function (orb) {
+      var done = loaded.then(load).then(function (orb) {
         var pre = orb.r(state, 64);
         var shape = pre && orb.M[pre.mode];
         if (!shape) throw new Error('no such orb');
@@ -722,28 +792,114 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         function seen() { return canvas.isConnected && doc.visibilityState !== 'hidden' && !still() && !!window.requestAnimationFrame; }
         function frame(now) {
           if (!seen()) { running = false; return; }
-          paint(now / 1000 * pre.speed * pace);
+          paint(ctl.base + (now - ctl.since) / 1000 * pre.speed * ctl.pace);
+          ctl.last = now;
           window.requestAnimationFrame(frame);
         }
+        ctl.speed = pre.speed;
         function go() { if (!running && seen()) { running = true; window.requestAnimationFrame(frame); } }
         doc.addEventListener('visibilitychange', go);
         go();
       });
+      done.catch(function () { failed = true; });
+      return { ctl: ctl, done: done };
     }
+    /* A new pace from now on, the orb taking up where it is. */
+    function quicken(d, pace) {
+      var c = d.ctl;
+      if (typeof c.last === 'number' && typeof c.speed === 'number') { c.base += (c.last - c.since) / 1000 * c.speed * c.pace; c.since = c.last; }
+      c.pace = pace;
+    }
+    /* The light, wherever the orb is: the broad field round the resting orb, fading before the bar; or, once a
+       question is asked, a small pool round the orb beside the bar, fading before the bar's edge. */
+    function litField() {
+      if (!field || !rest || !paper || !glow) return;
+      var a = field.getBoundingClientRect();
+      var o = rest.getBoundingClientRect();
+      var b = form.getBoundingClientRect();
+      var cx = o.left + o.width / 2 - a.left;
+      var cy = o.top + o.height / 2 - a.top;
+      var down = b.top - a.top - cy - 24;
+      if (down < 48) return;
+      wash(field, cx, cy, { up: Math.max(48, cy - 8), down: down, back: Math.max(48, cx - 8), on: Math.max(48, a.width - cx - 8) }, 1, paper, glow);
+    }
+    function litPool() {
+      if (!pool || !here || !paper || !glow) return;
+      var p = pool.getBoundingClientRect();
+      var slot = here.parentNode.getBoundingClientRect();
+      var boxEl = form.querySelector('.adv-box');
+      var bx = boxEl ? boxEl.getBoundingClientRect() : slot;
+      var c = slot.left + slot.width / 2;
+      var edge = Math.min(Math.abs(bx.left - c), Math.abs(bx.right - c)) - 4;
+      var reach = Math.max(16, Math.min(p.width / 2, edge));
+      wash(pool, p.width / 2, p.height / 2, { up: reach, down: reach, back: reach, on: reach }, 0.6, paper, glow);
+    }
+    var restDraw = 0;
+    var hereDraw = 0;
     /* Resting: the page's face while nothing has been asked. Shown only when this script can draw it. */
     var restWrap = rest && rest.parentNode;
-    var restAt = restWrap && restWrap.parentNode;
     var restBefore = restWrap && restWrap.nextSibling;
-    /* Its space is the page's from the first paint (the stylesheet gives it none with scripting off). Its
-       ground is drawn at once; the orb's file is asked for once the page has loaded. */
     function wake() {
-      draw(rest, Number(rest.getAttribute('data-orb-pace')) || 1).catch(function () { /* the ground stays */ });
+      restDraw = draw(rest, Number(rest.getAttribute('data-orb-pace')) || 1);
+      restDraw.done.catch(function () { /* the ground stays */ });
+      litField();
+      if (field && field.animate && !still()) field.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 600, easing: 'ease-out' });
     }
     if (rest) wake();
+    /* Talking: the orb beside the bar, small and calm, with its pool of light. */
+    function settle(pace) {
+      if (!here) return;
+      if (!hereDraw) { hereDraw = draw(here, pace); hereDraw.done.catch(function () { /* the ground stays */ }); }
+      else quicken(hereDraw, pace);
+      litPool();
+    }
+    if (!rest && page && page.getAttribute('data-adv') === 'chat') settle(Number((rest || here || form).getAttribute('data-orb-pace')) || 0.5);
+    var widthWas = window.innerWidth;
+    window.addEventListener('resize', function () {
+      if (window.innerWidth === widthWas) return;
+      widthWas = window.innerWidth;
+      if (page && page.getAttribute('data-adv') === 'rest') litField(); else litPool();
+    });
     var box = form.querySelector('textarea');
     if (box) box.addEventListener('focus', function () { load().catch(function () { core = 0; }); });
+    /* The three questions, one to a line of the form's attribute. */
+    var lines = String(form.getAttribute('data-adv-suggest') || '').split('\\n');
+    if (rest) typer(box, lines.filter(function (l) { return l !== ''; }));
     if (!tpl || !tpl.content || !line) return;
-    /* Thinking: once the question is on its way, the resting orb gives way. */
+    /* The orb goes down beside the bar, small, and the light goes with it. Less motion, or no orb to move: it is
+       simply there. */
+    function glide() {
+      var from = rest.getBoundingClientRect();
+      var lit = field ? field.getBoundingClientRect() : from;
+      var lift = doc.createElement('div');
+      lift.className = 'orb-lift';
+      lift.style.position = 'fixed';
+      lift.style.left = from.left + 'px';
+      lift.style.top = from.top + 'px';
+      lift.style.zIndex = '3';
+      lift.style.pointerEvents = 'none';
+      lift.style.transformOrigin = '0 0';
+      doc.body.appendChild(lift);
+      lift.appendChild(rest);
+      page.setAttribute('data-adv', 'chat');
+      settle(1);
+      var to = here.getBoundingClientRect();
+      var k = to.width / (from.width || 1);
+      var dx = to.left - from.left;
+      var dy = to.top - from.top;
+      here.style.visibility = 'hidden';
+      var ease = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      var fly = lift.animate([{ transform: 'translate(0, 0) scale(1)' }, { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + k + ')' }], { duration: 560, easing: ease });
+      /* The field gathers into the orb as it goes — smaller with it, and fainter — so it never lies behind the bar. */
+      if (field) {
+        field.style.transformOrigin = (from.left + from.width / 2 - lit.left) + 'px ' + (from.top + from.height / 2 - lit.top) + 'px';
+        field.animate([{ opacity: 1, transform: 'translate(0, 0) scale(1)' }, { opacity: 0.3, offset: 0.45 },
+          { opacity: 0, transform: 'translate(' + (dx + (to.width - from.width) / 2) + 'px, ' + (dy + (to.height - from.height) / 2) + 'px) scale(' + k + ')' }], { duration: 560, easing: ease, fill: 'forwards' });
+      }
+      if (pool) pool.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, delay: 360, easing: ease, fill: 'backwards' });
+      fly.onfinish = function () { here.style.visibility = ''; if (lift.parentNode) lift.parentNode.removeChild(lift); };
+    }
+    /* Thinking: once the question is on its way. */
     doc.addEventListener('submit', function (e) {
       if (e.target !== form || e.defaultPrevented || shown.length) return;
       var asked = box ? String(box.value).trim() : '';
@@ -751,21 +907,33 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var piece = tpl.content.cloneNode(true);
       var said = piece.querySelector('[data-orb-asked]');
       var wait = piece.querySelector('[data-orb-wait]');
-      var canvas = piece.querySelector('canvas');
       if (!said || !wait) return;
       said.textContent = asked;
-      if (restWrap && restWrap.parentNode) restWrap.parentNode.removeChild(restWrap);
       shown = [].slice.call(piece.childNodes);
       line.appendChild(piece);
+      if (rest && page && page.getAttribute('data-adv') === 'rest') {
+        if (still() || failed || !rest.animate || !here) {
+          if (rest.parentNode) rest.parentNode.removeChild(rest);
+          if (page) page.setAttribute('data-adv', 'chat');
+          if (field) field.style.opacity = '0';
+          settle(1);
+        } else glide();
+      } else settle(1);
       if (wait.scrollIntoView) wait.scrollIntoView({ block: 'nearest' });
-      if (canvas) draw(canvas, 1).catch(function () { /* the ground stays, beside the line */ });
     });
     /* Back from history: the question never went, so the page is as it was, resting orb and all. */
     window.addEventListener('pageshow', function (e) {
       if (!e.persisted || !shown.length) return;
       for (var i = 0; i < shown.length; i++) if (shown[i].parentNode) shown[i].parentNode.removeChild(shown[i]);
       shown = [];
-      if (restWrap && restAt && !restWrap.parentNode) { restAt.insertBefore(restWrap, restBefore); wake(); }
+      if (rest && restWrap) {
+        var lift = doc.querySelector('.orb-lift');
+        if (lift && lift.parentNode) lift.parentNode.removeChild(lift);
+        if (restBefore && restBefore.parentNode === restWrap) restWrap.insertBefore(rest, restBefore); else restWrap.appendChild(rest);
+        if (page) page.setAttribute('data-adv', 'rest');
+        if (field) { field.style.opacity = ''; if (field.getAnimations) field.getAnimations().forEach(function (a) { a.cancel(); }); }
+        wake();
+      }
     });
   }
 

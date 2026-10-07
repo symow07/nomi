@@ -2385,15 +2385,51 @@ const STYLE_PAGES = `
   .adv-facts { margin:0; padding-inline-start:1.2em; }
   .adv-facts li + li { margin-top:var(--space-4); }
   .adv-label { font-family:var(--font-family); font-size:var(--font-size-caption); font-weight:600; }
-  /* The advisor's orb. Resting: centred at the head of the empty page. Thinking: on the paper where the answer will be, with its line. */
-  .orb-rest-row { display:flex; justify-content:center; margin:var(--space-8) 0 var(--space-24); }
-  /* Each canvas is half as large again as its orb; the margin it draws in (the halo, the shadow) takes no room. */
+  /* The advisor's page (the redesign, 2026-10-08): a lit field, the orb in it, a greeting, and a bar at the
+     foot. The field is a canvas behind everything the page holds; the one script draws it, and the orb. */
+  .adv-page { position:relative; isolation:isolate; display:flex; flex-direction:column; min-block-size:calc(100svh - 2 * var(--space-32)); }
+  .adv-page > :not(.adv-field):not(.adv-bar) { position:relative; z-index:1; }
+  .adv-field { position:absolute; inset:0; inline-size:100%; block-size:100%; z-index:0; pointer-events:none; }
+  .adv-top { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:var(--space-16); min-block-size:var(--space-24); }
+  .adv-link { font-size:var(--font-size-small); color:var(--color-ink-secondary); text-decoration:none; }
+  .adv-link:hover, .adv-link:focus-visible { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); }
+  .adv-hero { flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--space-32); padding-block:var(--space-24); }
+  .adv-hello { margin:0; font-size:var(--font-size-display); font-weight:600; text-align:center; text-wrap:balance; }
+  .adv-page[data-adv="rest"] .adv-line { display:none; }
+  .adv-page[data-adv="chat"] .adv-hero { display:none; }
+  .adv-line { flex:1 1 auto; padding-block-end:var(--space-24); }
+  /* The bar: pinned at the foot, on clean paper; the orb's place beside it is empty, and takes no room, at rest. */
+  .adv-bar { position:sticky; z-index:2; bottom:0; display:flex; align-items:center; gap:var(--space-24); margin-block-start:auto;
+    padding-block:var(--space-16) var(--space-24); background:linear-gradient(to bottom, transparent, var(--color-paper) var(--space-16)); }
+  .adv-box { flex:1 1 auto; min-width:0; display:flex; align-items:flex-end; gap:var(--space-8); padding:var(--space-8); padding-inline-start:var(--space-16);
+    background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-panel); box-shadow:var(--shadow-lift1); }
+  .adv-box:focus-within { outline:2px solid var(--color-brand); outline-offset:2px; }
+  .adv-box textarea { flex:1 1 auto; min-width:0; border:0; background:transparent; resize:none; padding:var(--space-8) 0; margin:0;
+    font-size:var(--font-size-base); field-sizing:content; min-block-size:1lh; max-block-size:8lh; box-shadow:none; }
+  .adv-box textarea:focus, .adv-box textarea:focus-visible { outline:none; }
+  .adv-box .btn.send { flex:none; border-radius:var(--radius-chip); }
+  .adv-slot { position:relative; flex:none; inline-size:64px; block-size:64px; }
+  .adv-page[data-adv="rest"] .adv-slot { inline-size:0; margin-inline-end:calc(-1 * var(--space-24)); }
+  .adv-page[data-adv="rest"] .adv-slot canvas { visibility:hidden; }
+  /* Each orb canvas is half as large again as its orb; the margin it draws in (the halo, the shadow) takes no room. */
+  .adv-slot canvas.orb { position:absolute; inset-inline-start:calc(-1 * var(--space-16)); inset-block-start:calc(-1 * var(--space-16)); inline-size:96px; block-size:96px; }
+  .adv-pool { position:absolute; inset-inline-start:calc(-1 * var(--space-32)); inset-block-start:calc(-1 * var(--space-32)); inline-size:128px; block-size:128px; pointer-events:none; }
+  .orb-rest-row { display:flex; justify-content:center; }
   canvas.orb-rest { inline-size:288px; block-size:288px; margin:calc(-1 * var(--space-48)); display:block; }
-  @media (max-width: 720px) { canvas.orb-rest { inline-size:216px; block-size:216px; margin:calc(-1 * (var(--space-24) + var(--space-12))); } }
-  @media (scripting: none) { .orb-rest-row { display:none; } }
-  .orb-row { display:flex; align-items:center; gap:var(--space-12); }
-  canvas.orb { inline-size:96px; block-size:96px; margin:calc(-1 * var(--space-16)); display:block; flex:none; }
+  @media (max-width: 720px) {
+    canvas.orb-rest { inline-size:216px; block-size:216px; margin:calc(-1 * (var(--space-24) + var(--space-12))); }
+    .adv-page { min-block-size:calc(100svh - 2 * var(--space-16) - 5.5rem); }
+    .adv-hello { font-size:var(--font-size-title); }
+    .adv-bar { gap:var(--space-16); padding-block:var(--space-12) var(--space-16); padding-block-end:calc(var(--space-16) + env(safe-area-inset-bottom)); }
+    .adv-page[data-adv="rest"] .adv-slot { margin-inline-end:calc(-1 * var(--space-16)); }
+  }
+  @media (scripting: none) { .orb-rest-row, .adv-field, .adv-slot { display:none; } }
   .orb-line { margin:0; font-size:var(--font-size-small); }
+  /* D6 — the card that asks to keep history: quietly in the conversation, after the first answer. */
+  .adv-consent { margin-block:var(--space-16); padding:var(--space-16); max-width:var(--measure-prose);
+    background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-card); }
+  .adv-consent h2 { margin:0 0 var(--space-8); font-size:var(--font-size-base); }
+  .adv-consent p { margin:0 0 var(--space-8); }
   .heard-label { font-family:var(--font-family); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
   .unheard-line { font-family:var(--font-family); font-size:var(--font-size-small); }
   .orig { font-size:var(--font-size-caption); margin-top:var(--space-8);

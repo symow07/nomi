@@ -5,7 +5,7 @@ import type { Db } from '../../db/client.js';
 import type { AdvisorModel } from '../../llm/ports.js';
 import { messages } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { esc, deeper, ORB_JS } from './layout.js';
+import { esc, deeper, back, ORB_JS } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 import { answerFollowUp, type AdvisorAnswer } from '../../advisor/answer.js';
@@ -51,27 +51,35 @@ const ORB_GLOW = 'orb-glow';
 const ORB_REST_PACE = 0.5;
 
 /**
- * Resting: drawn only while nothing has been asked — the page's "ask me". Its space is kept from the first
- * paint where the page can script (`@media (scripting: none)` gives it none), so nothing moves when the orb is
- * drawn or if it cannot be; the one script draws it, moving only while the page is seen.
+ * THE PAGE (the redesign, the owner's brief of 2026-10-08): calm and minimal. A lit field — a soft magenta
+ * wash, deepest where the orb is, the paper showing at the edges — the orb in it, "Hello, {name}" under it,
+ * and a rounded bar pinned at the foot with Ask inside; nothing else at rest. After a question the orb goes
+ * down beside the bar, small, and stays there like a chat; the light pools wherever the orb is, and fades
+ * before the bar's edge, so the bar sits on clean paper. The one script draws the field, the orb and the
+ * glide; with it off the page is plain paper, the greeting and the bar, and nothing waits empty.
  */
-const resting = (): string =>
-  `<div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="576" height="576" aria-hidden="true"></canvas></div>`;
+const resting = (greeting: string): string =>
+  `<div class="adv-hero">
+      <div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="576" height="576" aria-hidden="true"></canvas></div>
+      <p class="adv-hello" dir="auto">${esc(greeting)}</p>
+    </div>`;
 
 /**
- * While the question is on its way, and only then (the one script, `thinking`): the question goes up as
- * asked, and under it — on the page's paper, where the answer will be — the orb and a calm line that says
- * the same in words (and is what a screen reader hears). Inert until then: a template draws nothing. With
- * the script off, or the orb not to be had, the page works as before; a reader who asked for less motion
- * gets one still frame.
+ * While the question is on its way, and only then (the one script): the question goes up as asked, and under
+ * it a calm line that says the orb is looking (what a screen reader hears). Inert until then: a template
+ * draws nothing. The orb itself thinks beside the bar.
  */
 const pending = (locale: Locale): string =>
   `<template data-orb-pending>${bubble('owner', '<bdi data-orb-asked></bdi>', t(locale, 'advisor.you'))}<div class="msg inbound orb-wait" data-orb-wait role="status">
-      <div class="orb-row"><canvas class="orb" width="192" height="192" aria-hidden="true"></canvas><p class="orb-line muted">${esc(t(locale, 'advisor.thinking'))}</p></div>
-      <div class="ts muted">${esc(t(locale, 'nav.advisor'))}</div>
+      <p class="orb-line muted">${esc(t(locale, 'advisor.thinking'))}</p>
     </div></template>`;
 
-export type AdvisorViewer = { readonly businessId: string; readonly viewerId: string };
+export type AdvisorViewer = {
+  readonly businessId: string;
+  readonly viewerId: string;
+  /** The signed-in person's own name, for "Hello, {name}"; null: none on record (the access code's session). */
+  readonly name?: string | null;
+};
 
 /** Everything the advisor's routes are given. Nothing else reaches them. */
 export type AdvisorIO = {
@@ -159,7 +167,7 @@ const exchangeHtml = (locale: Locale, asked: string, answer: AdvisorAnswer, late
 
 /** D6 — the card, after an answer: two buttons of equal weight, and where to read what is kept. */
 const consentCard = (locale: Locale, processor: string): string =>
-  `<section class="card adv-consent" aria-labelledby="adv-consent-h">
+  `<section class="adv-consent" aria-labelledby="adv-consent-h">
       <h2 id="adv-consent-h">${esc(t(locale, 'advisor.memory.title'))}</h2>
       <p>${esc(t(locale, 'advisor.memory.ask'))}</p>
       <p class="small muted">${esc(t(locale, 'advisor.memory.what', { processor }))} ${esc(t(locale, 'advisor.memory.off'))}</p>
@@ -170,53 +178,67 @@ const consentCard = (locale: Locale, processor: string): string =>
       <div class="doors">${deeper('/privacy#advisor', t(locale, 'advisor.memory.more'))}</div>
     </section>`;
 
-/** Their other conversations: each opened, or deleted (asked once); newest first. */
-const earlierHtml = (locale: Locale, rows: readonly ThreadRow[], here: string | null): string => {
-  const shown = rows.filter((r) => r.id !== here);
-  if (shown.length === 0) return '';
-  return `<section class="block adv-earlier" aria-labelledby="adv-earlier-h">
-      <h2 id="adv-earlier-h">${esc(t(locale, 'advisor.thread.earlier'))}</h2>
-      <ul class="rows">${shown.map((r) => `<li class="row lines">
+/** Their other conversations, on a page of their own: each opened, or deleted (asked once); newest first. */
+export function renderEarlier(locale: Locale, rows: readonly ThreadRow[], flash: Flash | null = null): string {
+  return `${back('/app/advisor', t(locale, 'nav.advisor'))}
+    <h1 class="page">${esc(t(locale, 'advisor.thread.earlier'))}</h1>
+    ${flashBanner(flash)}
+    ${rows.length === 0 ? `<p class="muted">${esc(t(locale, 'advisor.thread.none'))}</p>` : `<ul class="rows adv-earlier">${rows.map((r) => `<li class="row lines">
         <a href="/app/advisor/c/${esc(r.id)}#latest"><bdi>${esc(r.title ?? t(locale, 'advisor.thread.unreadable'))}</bdi></a>
         <span class="caption muted">${esc(show.date(locale, r.lastTurnAt))}</span>
         <form method="post" action="/app/advisor/c/${esc(r.id)}/delete" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'advisor.thread.deleteConfirm'))}">${esc(t(locale, 'advisor.thread.delete'))}</button></form>
-      </li>`).join('')}</ul>
-    </section>`;
-};
+      </li>`).join('')}</ul>`}`;
+}
+
+/** The three questions the empty bar types out, one at a time (the owner's brief: never submitted). */
+const SUGGEST: readonly MessageKey[] = ['advisor.example.1', 'advisor.example.2', 'advisor.example.3'];
 
 /**
- * The page: the advisor's opening line and what can be asked; the conversation kept so far, if history is
- * kept; the question just asked, if one was, with its answer and the door to the page that shows the same
- * thing; the card that asks to keep history, after an answer (D6); then the box; then earlier conversations.
+ * The page. At rest: the lit field, the orb, "Hello, {name}", the bar. Talking: the conversation kept so far
+ * (if history is kept), the question just asked with its answer and the door to the page that shows the same
+ * thing, the card that asks to keep history after an answer (D6), the bar with the orb beside it. "New
+ * conversation" and "Earlier conversations" are two small links at the top.
  */
-export function renderAdvisor(locale: Locale, exchange: { readonly asked: string; readonly answer: AdvisorAnswer } | null = null, history: HistoryView = {}): string {
+export function renderAdvisor(locale: Locale, exchange: { readonly asked: string; readonly answer: AdvisorAnswer } | null = null, history: HistoryView = {},
+  who: { readonly name?: string | null } = {}): string {
   const name = t(locale, 'nav.advisor');
   const turns = history.turns ?? [];
   const atRest = exchange === null && turns.length === 0 && !history.unreadable;
   const thread = history.threadId ?? null;
-  return `<h1 class="page">${esc(name)}</h1>
+  const person = (who.name ?? '').trim();
+  const greeting = person ? t(locale, 'advisor.greeting', { name: person }) : t(locale, 'advisor.greeting.plain');
+  const suggest = SUGGEST.map((k) => t(locale, k));
+  const links = [
+    ...(!atRest ? [`<a class="adv-link" href="/app/advisor?new=1">${esc(t(locale, 'advisor.thread.new'))}</a>`] : []),
+    ...((history.earlier ?? []).some((r) => r.id !== thread) ? [`<a class="adv-link" href="/app/advisor/earlier">${esc(t(locale, 'advisor.thread.earlier'))}</a>`] : []),
+  ];
+  return `<div class="adv-page" data-adv="${atRest ? 'rest' : 'chat'}">
+    <canvas class="adv-field" data-adv-field aria-hidden="true"></canvas>
+    <div class="adv-top">${links.join('')}</div>
+    <h1 class="sr">${esc(name)}</h1>
     ${flashBanner(history.flash ?? null)}
-    ${atRest ? resting() : ''}
-    <div class="timeline">
-      ${bubble('advisor', `<p>${words(t(locale, 'advisor.hello'))}</p>${list(EXAMPLES.slice(0, 3).map((k) => t(locale, k)))}`, name, atRest)}
+    ${atRest ? resting(greeting) : ''}
+    <div class="timeline adv-line">
       ${history.unreadable ? bubble('advisor', `<p>${words(t(locale, 'advisor.thread.unreadable'))}</p>`, name, exchange === null) : ''}
       ${turns.map((k, i) => exchangeHtml(locale, k.question, asAnswer(k), exchange === null && i === turns.length - 1)).join('')}
       ${exchange === null ? '' : exchangeHtml(locale, exchange.asked, exchange.answer, true)}
+      ${history.card && exchange !== null ? consentCard(locale, history.card.processor) : ''}
     </div>
-    ${history.card && exchange !== null ? consentCard(locale, history.card.processor) : ''}
     ${pending(locale)}
-    <div class="card sbx-compose" id="ask">
-      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-glow="${ORB_GLOW}">
-        <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
-        <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
+    <form method="post" action="/app/advisor" class="adv-bar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-glow="${ORB_GLOW}"
+      ${atRest ? `data-adv-suggest="${esc(suggest.join('\n'))}"` : ''}>
+      <span class="adv-slot" aria-hidden="true"><canvas class="adv-pool" data-adv-pool></canvas><canvas class="orb" data-orb-here width="192" height="192"></canvas></span>
+      <span class="adv-box">
+        <label class="sr" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
+        <textarea id="advisor-q" name="q" rows="1" dir="auto" maxlength="${ADVISOR_MAX}" required
+          placeholder="${esc(atRest ? suggest[0]! : t(locale, 'advisor.label'))}"></textarea>
         ${thread ? `<input type="hidden" name="thread" value="${esc(thread)}">` : ''}
-        <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button></div>
-      </form>
-    </div>
-    ${turns.length ? `<div class="doors">${deeper('/app/advisor?new=1', t(locale, 'advisor.thread.new'))}</div>` : ''}
-    ${earlierHtml(locale, history.earlier ?? [], thread)}`;
+        <button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button>
+      </span>
+    </form>
+  </div>`;
 }
 
 /**
@@ -226,8 +248,10 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
 export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
   const draw = (req: FastifyRequest, reply: FastifyReply, exchange: Parameters<typeof renderAdvisor>[1], history: HistoryView = {}) => {
     const locale = io.locale(req);
+    const who = io.viewer(req);
     return reply.type('text/html; charset=utf-8').send(io.page(req, {
-      title: t(locale, 'nav.advisor'), active: 'advisor', bodyHtml: renderAdvisor(locale, exchange, { ...history, flash: io.takeFlash(req, reply) }),
+      title: t(locale, 'nav.advisor'), active: 'advisor',
+      bodyHtml: renderAdvisor(locale, exchange, { ...history, flash: io.takeFlash(req, reply) }, { name: who?.name ?? null }),
     }));
   };
   const OFF: MemoryState = { workspaceOn: false, consent: null, since: null, keep: false, ask: false, keyProblem: null, person: false };
@@ -253,6 +277,17 @@ export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
     const viewer = io.viewer(req);
     if (!viewer) return reply.redirect('/login');
     return atRest(req, reply, viewer, (req.query as { new?: unknown } | undefined)?.new !== undefined);
+  });
+
+  // Their earlier conversations, on a page of their own (the redesign): opened, or deleted, from here.
+  app.get('/app/advisor/earlier', { logLevel: 'warn' }, async (req, reply) => {
+    const viewer = io.viewer(req);
+    if (!viewer) return reply.redirect('/login');
+    const locale = io.locale(req);
+    const rows = await earlierOf(viewer, await stateOf(viewer, new Date()));
+    return reply.type('text/html; charset=utf-8').send(io.page(req, {
+      title: t(locale, 'advisor.thread.earlier'), active: 'advisor', bodyHtml: renderEarlier(locale, rows, io.takeFlash(req, reply)),
+    }));
   });
 
   // One of their own conversations, opened; asking here continues it. Anyone else's is not found (D2).
@@ -328,6 +363,6 @@ export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
     if (!io.memory) return reply.redirect('/app/advisor');
     const id = (req.params as { id: string }).id;
     const r = await io.memory.forget(viewer.businessId, viewer.viewerId, viewer.viewerId, id);
-    return io.flashTo(reply, '/app/advisor', r === 'ok' ? 'advisor.flash.threadDeleted' : 'advisor.flash.failed');
+    return io.flashTo(reply, '/app/advisor/earlier', r === 'ok' ? 'advisor.flash.threadDeleted' : 'advisor.flash.failed');
   });
 }

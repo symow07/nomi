@@ -4273,7 +4273,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // that words its facts. No sender, queue or setting is within their reach (advisor.ts;
   // tests/parity/advisor-build.test.ts holds the line).
   advisorRoutes(app, {
-    viewer: (req) => { const s = sessionOf(req); return s ? { businessId: s.businessId, viewerId: personOf(s).id } : null; },
+    viewer: (req) => { const s = sessionOf(req); return s ? { businessId: s.businessId, viewerId: personOf(s).id, name: s.person?.name ?? null } : null; },
     locale: (req) => localeOf(req),
     page: (req, o) => page(req, o),
     db: deps.advisorDb ?? null,

@@ -189,7 +189,8 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     advisorRoutes(fake as unknown as FastifyInstance, { viewer: () => null, locale: () => 'en', page: (_r, o) => o.bodyHtml, db: null, model: null,
       memory: null, processor: () => 'DeepSeek', provider: null, flashTo: (reply) => reply, takeFlash: () => null });
     // 0130 — a kept conversation opened; the card's answer; one conversation deleted.
-    expect(routes).toEqual(['GET /app/advisor', 'GET /app/advisor/c/:id', 'POST /app/advisor', 'POST /app/advisor/consent', 'POST /app/advisor/c/:id/delete']);
+    // the redesign — earlier conversations on a page of their own.
+    expect(routes).toEqual(['GET /app/advisor', 'GET /app/advisor/earlier', 'GET /app/advisor/c/:id', 'POST /app/advisor', 'POST /app/advisor/consent', 'POST /app/advisor/c/:id/delete']);
     const app = read('src/api/web/app.ts');
     const at = app.indexOf('advisorRoutes(app, {');
     const call = app.slice(at, app.indexOf('\n  });', at) + 5);
@@ -342,14 +343,21 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
     ({ kind: 'fact', text: 'You have 12 customers.', lines: ['Customers: 12'], phrased: true, door: { href: '/app/inbox', label: 'nav.inbox' }, ...o });
 
   for (const l of LOCALES) {
-    it(`${l} · at rest: the opening line and what can be asked, one box, one button — no door, link or form to anywhere else`, () => {
+    it(`${l} · at rest (the redesign): the greeting, one box, one button — no intro, no list, no door, link or form to anywhere else`, () => {
       const html = renderAdvisor(l);
-      expect(html).toContain(`<h1 class="page">${esc(t(l, 'nav.advisor'))}</h1>`);
-      expect(html).toContain(`<bdi>${esc(t(l, 'advisor.hello'))}</bdi>`);
-      for (const k of ['advisor.example.1', 'advisor.example.2', 'advisor.example.3'] as const) expect(html).toContain(`<li><bdi>${esc(t(l, k))}</bdi></li>`);
+      // the page's name is for a screen reader; the eye sees the orb and the greeting
+      expect(html).toContain(`<h1 class="sr">${esc(t(l, 'nav.advisor'))}</h1>`);
+      expect(html).toContain(`<p class="adv-hello" dir="auto">${esc(t(l, 'advisor.greeting.plain'))}</p>`);
+      expect(renderAdvisor(l, null, {}, { name: 'Lena Park' })).toContain(`<p class="adv-hello" dir="auto">${esc(t(l, 'advisor.greeting', { name: 'Lena Park' }))}</p>`);
+      expect(html).not.toContain(esc(t(l, 'advisor.hello')));
+      expect(html).not.toMatch(/<li\b|<ul\b/);
+      // the three questions are the empty box's placeholder, typed out one at a time — never its text
+      expect(html).toContain(`placeholder="${esc(t(l, 'advisor.example.1'))}"`);
+      expect(html).toContain(`data-adv-suggest="${esc(['advisor.example.1', 'advisor.example.2', 'advisor.example.3'].map((k) => t(l, k as MessageKey)).join('\n'))}"`);
+      expect(html).toContain(`<label class="sr" for="advisor-q">${esc(t(l, 'advisor.label'))}</label>`);
       expect(html.match(/<form\b/g)).toHaveLength(1);
-      // the form names the thinking orb (tests/parity/advisor-orb.test.ts holds the rest)
-      expect(html).toMatch(/<form method="post" action="\/app\/advisor" class="msgbar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="composing" data-orb-glow="orb-glow">/);
+      // the form names the orb (tests/parity/advisor-orb.test.ts holds the rest)
+      expect(html).toMatch(/<form method="post" action="\/app\/advisor" class="adv-bar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="composing" data-orb-glow="orb-glow"\s+data-adv-suggest=/);
       expect(html.match(/<textarea\b/g)).toHaveLength(1);
       expect(html.match(/<button\b/g)).toHaveLength(1);
       expect(html.match(/<input\b/g) ?? []).toEqual([]);
@@ -363,8 +371,14 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
       const said = renderAdvisor(l, { asked: 'how many customers', answer: fact() });
       expect(said).toContain('<p><bdi>You have 12 customers.</bdi></p>');
       expect(said).not.toContain('adv-facts"><li><bdi>Customers: 12');
-      expect(said.match(/<a\s/g)).toHaveLength(1);
+      // its one door, and the redesign's small link at the top: a new conversation
+      expect(said.match(/<a class="deeper"/g)).toHaveLength(1);
       expect(said).toContain(`<a class="deeper" href="/app/inbox">${esc(t(l, 'nav.inbox'))}`);
+      expect(said.match(/<a\s/g)).toHaveLength(2);
+      expect(said).toContain(`<a class="adv-link" href="/app/advisor?new=1">${esc(t(l, 'advisor.thread.new'))}</a>`);
+      // talking, the box asks plainly; the typed questions are the empty page's alone
+      expect(said).toContain(`placeholder="${esc(t(l, 'advisor.label'))}"`);
+      expect(said).not.toContain('data-adv-suggest');
       const plain = renderAdvisor(l, { asked: 'how many customers', answer: fact({ phrased: false, text: '' }) });
       expect(plain).toContain(`<p><bdi>${esc(t(l, 'advisor.fallback.head'))}</bdi></p><ul class="adv-facts"><li><bdi>Customers: 12</bdi></li></ul>`);
       expect(plain).not.toContain('You have 12 customers.');
