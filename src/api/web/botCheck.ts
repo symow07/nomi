@@ -24,14 +24,22 @@ export const BOT_CHECK_PROVIDERS = ['turnstile', 'hcaptcha'] as const;
 export type BotCheckProvider = (typeof BOT_CHECK_PROVIDERS)[number];
 export type BotCheckConfig = { readonly provider: BotCheckProvider; readonly siteKey: string; readonly secret: string };
 
-/** What the page needs to draw the widget, and the field its token arrives in. */
-export const BOT_CHECK_WIDGET: Record<BotCheckProvider, { readonly script: string; readonly className: string; readonly field: string; readonly verifyUrl: string }> = {
+/**
+ * What the page needs to draw the widget, and the field its token arrives in.
+ * `name` is the check as the privacy page names it (D7: the "who" list and the
+ * cookie section say which check runs on the sign-up page, when one does). The
+ * hosts the script and its frames load from are on the third-party allow-list
+ * (thirdParty.ts), for the sign-up page alone.
+ */
+export const BOT_CHECK_WIDGET: Record<BotCheckProvider, { readonly name: string; readonly script: string; readonly className: string; readonly field: string; readonly verifyUrl: string }> = {
   turnstile: {
+    name: 'Cloudflare Turnstile',
     script: 'https://challenges.cloudflare.com/turnstile/v0/api.js',
     className: 'cf-turnstile', field: 'cf-turnstile-response',
     verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
   },
   hcaptcha: {
+    name: 'hCaptcha',
     script: 'https://js.hcaptcha.com/1/api.js',
     className: 'h-captcha', field: 'h-captcha-response',
     verifyUrl: 'https://api.hcaptcha.com/siteverify',
