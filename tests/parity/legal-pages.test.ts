@@ -95,14 +95,16 @@ describe('Legal pages · what a stranger may read', () => {
     expect(renderPrivacy('zh', null, FACTS)).toContain('href="/terms"');
     expect(renderDataDeletion('zh', null)).toContain('href="/privacy"');
     expect(renderLegalTerms('zh', null)).toContain('href="/privacy"');
-    // The terms keep their own date; privacy and deletion changed together
-    // (CC-02a) and carry theirs — a date that moved with no change to the
-    // terms would read as a change to them.
-    // G1 — the terms changed (acceptable use) on their own date.
+    // Each page keeps its own date — a date that moved with no change to a
+    // page would read as a change to it. G1 — the terms changed (acceptable
+    // use) on their own date. Privacy and deletion changed together (CC-02a)
+    // until the advisor's history (2026-10-07) changed privacy and the terms
+    // and left the deletion page as it was.
     expect(renderLegalTerms('en', null)).toContain(esc(t('en', 'legal.updated.terms')));
-    for (const h of [renderPrivacy('en', null, FACTS), renderDataDeletion('en', null)]) {
-      expect(h).toContain(esc(t('en', 'legal.updated.privacy')));
-    }
+    expect(renderPrivacy('en', null, FACTS)).toContain(esc(t('en', 'legal.updated.privacy')));
+    expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.updated.deletion')));
+    expect(renderDataDeletion('en', null)).not.toContain(esc(t('en', 'legal.updated.privacy')));
+    expect(t('en', 'legal.updated.deletion')).toBe('Last updated 6 October 2026.');
   });
 
   it('the terms are the business\'s, and say the people who write in are not bound by them', () => {

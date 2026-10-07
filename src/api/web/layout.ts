@@ -16,6 +16,7 @@ import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
 import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
 import { icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
 import { agentMark } from './agentMark.js';
+import { mayLoad } from './thirdParty.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -134,6 +135,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/settings/setup', routes: [
     '/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
     '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data',
+    // 0130 — the advisor's history (everyone's own; the owner's workspace and team), a door of Your data too.
+    '/app/settings/advisor-history',
   ] },
   // Phase 3 of the UI rebuild — the component gallery (`/app/settings/components`)
   // is no longer a door on Setup: it is a page for whoever builds the product
@@ -3317,7 +3320,9 @@ export function signupPage(input: SignupPageInput): string {
       <label class="check terms"><input id="su-terms" type="checkbox" name="terms" required${v.terms ? ' checked' : ''}${at('terms')} />
         <span>${esc(t(locale, 'signup.terms', { terms: '\u0000' })).replace('\u0000', `<a href="/terms" target="_blank" rel="noopener">${esc(t(locale, 'signup.termsLink'))}</a>`)}</span></label>
       ${fieldErr('terms')}
-      ${input.botCheck ? `<div class="${esc(input.botCheck.className)}" data-sitekey="${esc(input.botCheck.siteKey)}"></div>
+      ${/* D7 — the one script from another host any page draws, and only where the allow-list (thirdParty.ts) names its
+           host for this page. A provider off the list draws nothing, so sign-up refuses as with no answer (fails closed). */
+        input.botCheck && mayLoad(input.botCheck.script, '/signup') ? `<div class="${esc(input.botCheck.className)}" data-sitekey="${esc(input.botCheck.siteKey)}"></div>
       <noscript><div class="hint">${esc(t(locale, 'signup.botcheck.noscript'))}</div></noscript>
       <script src="${esc(input.botCheck.script)}" async defer></script>` : ''}
       <button type="submit">${esc(t(locale, 'signup.submit'))}</button>

@@ -15801,3 +15801,21 @@ Reviewer: ______  Date: ______
 `advisor.thinking` appears beside the small thinking orb while the advisor looks something up: 正在查看你的记录…… / «جارٍ البحث في سجلاتك…» / «Buscando en tus registros…» / «Recherche dans vos données…». The Arabic uses a verbal noun, so it agrees with no one. Check that each reads as calm work in progress, not as a status message.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-07 — the privacy page: the advisor's history, the cookies, two more services; the terms' new sentence
+
+New legal lines, written in zh, ar, es and fr in one pass from `docs/ADVISOR-MEMORY.md` §9.3–9.5; none has had a native read. Read them on /privacy and /terms, with the lines around them.
+
+- **The keys:** `legal.privacy.advisor.*` (title, what, basis, providers, nobody, customers); `legal.privacy.provider.deepseek` and `.openai` (what each provider keeps, after the colon of `advisor.providers`); `legal.privacy.who.advisorKept`, `.transcriber`, `.botCheck`; `legal.privacy.cookies.*` (title, body, botCheck, the table's three headings, the eight `for.*` purposes); `legal.terms.service.advisor`; the dates `legal.updated.privacy`, `.terms` (7 October) and the new `legal.updated.deletion` (6 October, unchanged).
+- **Where the words differ from the plan, and why** (the catalogue's rules, held by tests):
+  - "Nomi's database" became "Nomi" (从 Nomi 中删除 / من Nomi / de Nomi): "database" and its translations are banned owner-facing words.
+  - "never used to train any model" became "never used for training" (绝不会用于训练 / للتدريب / con fines de entrenamiento / à des fins d'entraînement): "model" is banned.
+  - "API terms" became "Open Platform terms", the name of DeepSeek's own document; "API content" became "what is sent to its service".
+  - The company is a placeholder in each provider line: no legal line may write a company's name.
+  - Chinese drops 它 (它的回答 → 顾问的回答; 它们 → 对话); French drops every elle/il that is not impersonal ("pour elle-même" → "fait son propre choix"); Spanish drops "ellas" and "tú mismo".
+  - Arabic: no pronoun for Nomi or the advisor (passives: «تُحفظ في Nomi», «لا تُستخدم في Nomi إلا…»; «إجاباته» → «الإجابات عنها»); none agrees with a customer («كل ما يذكر هذا العميل», «الاسم الوارد… العثور عليه»); «تستطيع» and «تحتاج», which read as addressing a man, became «لا يمكن فتحها» and «لا بد لها».
+  - `cookies.botCheck` says "the check that a person, not a script, is signing up" rather than "a check against automated sign-ups" ("automated" is a word the catalogue keeps out); zh says 人机验证 (自动 is a word the deletion page's guard keeps out); ar keeps «فحص التسجيل الآلي».
+  - The table's first heading is the cookie's name: 名称 / الاسم / Nombre / Nom («Cookie» would read as untranslated); es and fr keep «Cookies» as the section's title, listed as the same word in `catalog-language.test.ts`.
+- **Check:** that «جهةَ معالجة» (ar), «encargado del tratamiento» (es), «sous-traitant» (fr) and 数据处理者 (zh) read as the GDPR "processor" in the terms' sentence; that the cookie purposes read as short statements in the table; that es and fr read naturally after the colon that introduces the provider's line.
+
+Reviewer: ______  Date: ______

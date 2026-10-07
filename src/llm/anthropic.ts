@@ -441,7 +441,7 @@ const ADVISOR_REQUEST = { timeout: 30_000, maxRetries: 1 } as const;
  */
 export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): AdvisorModel {
   return {
-    async recognise({ question, entries }) {
+    async recognise({ question, entries, earlier }) {
       const res = await client.messages.create({
         model,
         ...extra,
@@ -454,7 +454,16 @@ export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, 
           '"customer" is a customer\'s name exactly as written in the question, else null; "product" a product\'s name as written, else null; ' +
           '"reference" an order reference as written, else null. Never invent a name or a value. ' +
           'Reply with JSON only, on one line: {"id":"...","period":null,"customer":null,"product":null,"reference":null}\n\nEntries:\n' +
-          entries.map((e) => `${e.id}: ${e.ask}`).join('\n'),
+          entries.map((e) => `${e.id}: ${e.ask}`).join('\n') +
+          // 0130 — a follow-up: the earlier questions of this conversation, the entry each was routed to and what
+          // it named. Never an answer. Only to resolve a word that points back ("her", "that order", "last month").
+          (earlier && earlier.length
+            ? '\n\nEarlier questions in this conversation, oldest first, with the entry each was routed to and what it named. ' +
+              'Use them ONLY when the new question clearly points back to one of them — a pronoun ("she", "her", "they"), ' +
+              '"this customer", "that customer", "that order", "the same product", or a bare "and this week?": ' +
+              'then copy the name or value from there. Never take a name or value from them otherwise.\n' +
+              earlier.slice(-3).map((e, i) => `${i + 1}. "${e.question.slice(0, 300)}" -> ${e.entry} ${JSON.stringify(e.params)}`).join('\n')
+            : ''),
         messages: [{ role: 'user', content: question.slice(0, 1000) }],
       }, ADVISOR_REQUEST);
       const block = firstText(res.content);

@@ -192,6 +192,20 @@ export function formatSeconds(locale: Locale, s: number): string {
   return new Intl.NumberFormat(INTL_TAG[locale], { style: 'unit', unit: 'second', unitDisplay: 'long' }).format(Math.round(s));
 }
 
+/**
+ * D7 — how long something lasts, in the largest whole unit that says it
+ * exactly: "7 days", "1 year", "30 minutes"; "7天", "1年"; "7 أيام", "سنة". A
+ * year is 365 days, as a cookie's Max-Age counts it. Western digits in every
+ * locale, as the legal pages write theirs. Not Intl.DurationFormat: Node 22
+ * (production, CI) does not have it.
+ */
+export function formatLifetime(locale: Locale, seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const units = [['year', 365 * 86_400], ['day', 86_400], ['hour', 3_600], ['minute', 60], ['second', 1]] as const;
+  const [unit, size] = units.find(([, n]) => s >= n && s % n === 0) ?? units[units.length - 1]!;
+  return new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : INTL_TAG[locale], { style: 'unit', unit, unitDisplay: 'long' }).format(s / size);
+}
+
 /** "September 2026", "2026年9月", "سبتمبر ٢٠٢٦" — the month a calendar page shows. */
 export function formatMonth(locale: Locale, ymd: string): string {
   const first = `${ymd.slice(0, 7)}-01T00:00:00Z`;

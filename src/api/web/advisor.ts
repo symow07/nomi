@@ -3,9 +3,13 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import type { Db } from '../../db/client.js';
 import type { AdvisorModel } from '../../llm/ports.js';
+import { messages } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { esc, deeper, ORB_JS } from './layout.js';
-import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
+import { flashBanner, type Flash } from './flash.js';
+import * as show from './values.js';
+import { answerFollowUp, type AdvisorAnswer } from '../../advisor/answer.js';
+import type { AdvisorMemory, KeptTurn, ThreadRow, MemoryState } from '../../advisor/memory.js';
 
 /**
  * THE ADVISOR (the advisor batch, 2026-10-06; docs/ADVISOR-GROUNDING.md, approved). The owner asks; the
@@ -22,7 +26,12 @@ import { answerQuestion, type AdvisorAnswer } from '../../advisor/answer.js';
  *     shell, that pool, and the model. There is no tool, button or path from here to a send, a price or a
  *     setting. tests/parity/advisor-build.test.ts holds the import graph; tests/integration/advisor-build
  *     .test.ts proves a write through its pool is refused, and that asking writes nothing.
- *   · Nothing is kept. A question and its answer are drawn once and forgotten; the routes log quietly.
+ *   · Kept only with consent (0130; docs/ADVISOR-MEMORY.md). The owner switches history on for the workspace
+ *     (D1), each person says yes or "Not now" on a card after an answer, and only then is a question and its
+ *     answer kept — sealed, in that person's own history, which nobody else can read (D2). Without it, a
+ *     question and its answer are drawn once and forgotten. The routes are handed a narrow port for it
+ *     (`AdvisorMemory`), never a writable pool. History only helps understand a follow-up; it is NEVER a
+ *     source of facts (src/advisor/answer.ts). The routes log quietly: a question is the owner's own words.
  */
 
 /** The longest question the box takes. */
@@ -75,6 +84,30 @@ export type AdvisorIO = {
   readonly db: Db | null;
   /** The model that words the facts; null: this installation cannot answer yet. */
   readonly model: AdvisorModel | null;
+  /** 0130 — each person's own history (src/advisor/memory.ts); null: this installation keeps none. */
+  readonly memory: AdvisorMemory | null;
+  /** The provider that words the answers, as the privacy page names it, in the reader's language. */
+  readonly processor: (locale: Locale) => string;
+  /** Who words the answers, recorded on each kept turn. */
+  readonly provider: { readonly name: string; readonly model: string } | null;
+  /** The shell's notice: set for the next page, then the redirect; and read on the page it lands on. */
+  readonly flashTo: (reply: FastifyReply, path: string, key: MessageKey, params?: Record<string, string>) => FastifyReply;
+  readonly takeFlash: (req: FastifyRequest, reply: FastifyReply) => Flash | null;
+};
+
+/** What the page shows of a person's history, when they keep it. */
+export type HistoryView = {
+  /** The conversation this page continues: its turns, oldest first. */
+  readonly turns?: readonly (KeptTurn & { readonly askedAt: Date })[];
+  /** The conversation a question posted here continues; absent: a new one. */
+  readonly threadId?: string | null;
+  /** Their other conversations, newest first. */
+  readonly earlier?: readonly ThreadRow[];
+  /** The opt-in card, after an answer (D6): the provider it names. */
+  readonly card?: { readonly processor: string } | null;
+  /** A conversation the key cannot open (D8). */
+  readonly unreadable?: boolean;
+  readonly flash?: Flash | null;
 };
 
 /** One line of the exchange, in the conversation page's own pieces: the owner's words, or the advisor's. */
@@ -104,28 +137,86 @@ function answerHtml(locale: Locale, a: AdvisorAnswer): string {
   }
 }
 
+/** A door's label as kept: a catalogue key of this build, or nothing (a key a later build retired). */
+const isKey = (k: string): k is MessageKey => Object.prototype.hasOwnProperty.call(messages.en, k);
+
+/** A kept turn, as the answer it was. */
+const asAnswer = (k: KeptTurn): AdvisorAnswer => {
+  const door = k.door && isKey(k.door.label) ? { href: k.door.href, label: k.door.label } : undefined;
+  switch (k.kind) {
+    case 'fact': return { kind: 'fact', text: k.text, lines: k.lines, phrased: k.phrased, ...(door ? { door } : {}) };
+    case 'opinion': return { kind: 'opinion', text: k.text, lines: k.lines, phrased: k.phrased, based: k.based };
+    case 'none': return { kind: 'none', text: k.text, ...(door ? { door } : {}) };
+    default: return { kind: k.kind, text: k.text };
+  }
+};
+
+/** One exchange: the owner's words, the advisor's answer, and the door that shows the same thing. */
+const exchangeHtml = (locale: Locale, asked: string, answer: AdvisorAnswer, latest: boolean): string => {
+  const door = 'door' in answer && answer.door ? `<div class="doors">${deeper(answer.door.href, t(locale, answer.door.label))}</div>` : '';
+  return `${bubble('owner', words(asked), t(locale, 'advisor.you'))}${bubble('advisor', answerHtml(locale, answer), t(locale, 'nav.advisor'), latest, door)}`;
+};
+
+/** D6 — the card, after an answer: two buttons of equal weight, and where to read what is kept. */
+const consentCard = (locale: Locale, processor: string): string =>
+  `<section class="card adv-consent" aria-labelledby="adv-consent-h">
+      <h2 id="adv-consent-h">${esc(t(locale, 'advisor.memory.title'))}</h2>
+      <p>${esc(t(locale, 'advisor.memory.ask'))}</p>
+      <p class="small muted">${esc(t(locale, 'advisor.memory.what', { processor }))} ${esc(t(locale, 'advisor.memory.off'))}</p>
+      <form method="post" action="/app/advisor/consent" class="choices">
+        <button class="btn" type="submit" name="choice" value="allow">${esc(t(locale, 'advisor.memory.allow'))}</button>
+        <button class="btn" type="submit" name="choice" value="notnow">${esc(t(locale, 'advisor.memory.notNow'))}</button>
+      </form>
+      <div class="doors">${deeper('/privacy#advisor', t(locale, 'advisor.memory.more'))}</div>
+    </section>`;
+
+/** Their other conversations: each opened, or deleted (asked once); newest first. */
+const earlierHtml = (locale: Locale, rows: readonly ThreadRow[], here: string | null): string => {
+  const shown = rows.filter((r) => r.id !== here);
+  if (shown.length === 0) return '';
+  return `<section class="block adv-earlier" aria-labelledby="adv-earlier-h">
+      <h2 id="adv-earlier-h">${esc(t(locale, 'advisor.thread.earlier'))}</h2>
+      <ul class="rows">${shown.map((r) => `<li class="row lines">
+        <a href="/app/advisor/c/${esc(r.id)}#latest"><bdi>${esc(r.title ?? t(locale, 'advisor.thread.unreadable'))}</bdi></a>
+        <span class="caption muted">${esc(show.date(locale, r.lastTurnAt))}</span>
+        <form method="post" action="/app/advisor/c/${esc(r.id)}/delete" class="inline">
+          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'advisor.thread.deleteConfirm'))}">${esc(t(locale, 'advisor.thread.delete'))}</button></form>
+      </li>`).join('')}</ul>
+    </section>`;
+};
+
 /**
- * The page: the advisor's opening line and what can be asked; the question just asked, if one was, with its
- * answer and the door to the page that shows the same thing; then the box.
+ * The page: the advisor's opening line and what can be asked; the conversation kept so far, if history is
+ * kept; the question just asked, if one was, with its answer and the door to the page that shows the same
+ * thing; the card that asks to keep history, after an answer (D6); then the box; then earlier conversations.
  */
-export function renderAdvisor(locale: Locale, exchange: { readonly asked: string; readonly answer: AdvisorAnswer } | null = null): string {
+export function renderAdvisor(locale: Locale, exchange: { readonly asked: string; readonly answer: AdvisorAnswer } | null = null, history: HistoryView = {}): string {
   const name = t(locale, 'nav.advisor');
-  const door = exchange && 'door' in exchange.answer && exchange.answer.door
-    ? `<div class="doors">${deeper(exchange.answer.door.href, t(locale, exchange.answer.door.label))}</div>` : '';
+  const turns = history.turns ?? [];
+  const atRest = exchange === null && turns.length === 0 && !history.unreadable;
+  const thread = history.threadId ?? null;
   return `<h1 class="page">${esc(name)}</h1>
-    ${exchange === null ? resting() : ''}
+    ${flashBanner(history.flash ?? null)}
+    ${atRest ? resting() : ''}
     <div class="timeline">
-      ${bubble('advisor', `<p>${words(t(locale, 'advisor.hello'))}</p>${list(EXAMPLES.slice(0, 3).map((k) => t(locale, k)))}`, name, exchange === null)}
-      ${exchange === null ? '' : `${bubble('owner', words(exchange.asked), t(locale, 'advisor.you'))}${bubble('advisor', answerHtml(locale, exchange.answer), name, true, door)}`}
+      ${bubble('advisor', `<p>${words(t(locale, 'advisor.hello'))}</p>${list(EXAMPLES.slice(0, 3).map((k) => t(locale, k)))}`, name, atRest)}
+      ${history.unreadable ? bubble('advisor', `<p>${words(t(locale, 'advisor.thread.unreadable'))}</p>`, name, exchange === null) : ''}
+      ${turns.map((k, i) => exchangeHtml(locale, k.question, asAnswer(k), exchange === null && i === turns.length - 1)).join('')}
+      ${exchange === null ? '' : exchangeHtml(locale, exchange.asked, exchange.answer, true)}
     </div>
+    ${history.card && exchange !== null ? consentCard(locale, history.card.processor) : ''}
     ${pending(locale)}
     <div class="card sbx-compose" id="ask">
       <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-glow="${ORB_GLOW}">
         <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
+        ${thread ? `<input type="hidden" name="thread" value="${esc(thread)}">` : ''}
         <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button></div>
       </form>
-    </div>`;
+    </div>
+    ${turns.length ? `<div class="doors">${deeper('/app/advisor?new=1', t(locale, 'advisor.thread.new'))}</div>` : ''}
+    ${earlierHtml(locale, history.earlier ?? [], thread)}`;
 }
 
 /**
@@ -133,27 +224,110 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
  * signed in to sign in. The question is cut to the box's length and answered from read-only reads.
  */
 export function advisorRoutes(app: FastifyInstance, io: AdvisorIO): void {
-  const draw = (req: FastifyRequest, reply: FastifyReply, exchange: Parameters<typeof renderAdvisor>[1]) => {
+  const draw = (req: FastifyRequest, reply: FastifyReply, exchange: Parameters<typeof renderAdvisor>[1], history: HistoryView = {}) => {
     const locale = io.locale(req);
     return reply.type('text/html; charset=utf-8').send(io.page(req, {
-      title: t(locale, 'nav.advisor'), active: 'advisor', bodyHtml: renderAdvisor(locale, exchange),
+      title: t(locale, 'nav.advisor'), active: 'advisor', bodyHtml: renderAdvisor(locale, exchange, { ...history, flash: io.takeFlash(req, reply) }),
     }));
   };
+  const OFF: MemoryState = { workspaceOn: false, consent: null, since: null, keep: false, ask: false, keyProblem: null, person: false };
+  const stateOf = async (v: AdvisorViewer, now: Date): Promise<MemoryState> =>
+    io.memory ? io.memory.state(v.businessId, v.viewerId, now).catch(() => OFF) : OFF;
+  const earlierOf = async (v: AdvisorViewer, s: MemoryState): Promise<readonly ThreadRow[]> =>
+    io.memory && s.person ? io.memory.threads(v.businessId, v.viewerId).catch(() => []) : [];
+
+  /** The page before a question: the conversation still going on, if one is kept (D3), else the page at rest. */
+  const atRest = async (req: FastifyRequest, reply: FastifyReply, viewer: AdvisorViewer, fresh: boolean) => {
+    const now = new Date();
+    const state = await stateOf(viewer, now);
+    const earlier = await earlierOf(viewer, state);
+    // D3: the conversation goes on until four hours of quiet, or "New conversation".
+    const current = io.memory && state.keep && !fresh ? await io.memory.current(viewer.businessId, viewer.viewerId, now).catch(() => null) : null;
+    const opened = current && io.memory ? await io.memory.open(viewer.businessId, viewer.viewerId, current) : null;
+    if (opened && opened !== 'unreadable') return draw(req, reply, null, { turns: opened.turns, threadId: opened.id, earlier });
+    return draw(req, reply, null, { earlier, ...(opened === 'unreadable' ? { unreadable: true } : {}) });
+  };
+
   // Quiet: the question is the owner's own words, and the request log would keep them.
   app.get('/app/advisor', { logLevel: 'warn' }, async (req, reply) => {
-    if (!io.viewer(req)) return reply.redirect('/login');
-    return draw(req, reply, null);
+    const viewer = io.viewer(req);
+    if (!viewer) return reply.redirect('/login');
+    return atRest(req, reply, viewer, (req.query as { new?: unknown } | undefined)?.new !== undefined);
   });
+
+  // One of their own conversations, opened; asking here continues it. Anyone else's is not found (D2).
+  app.get('/app/advisor/c/:id', { logLevel: 'warn' }, async (req, reply) => {
+    const viewer = io.viewer(req);
+    if (!viewer) return reply.redirect('/login');
+    if (!io.memory) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    const opened = await io.memory.open(viewer.businessId, viewer.viewerId, id);
+    if (opened === null) return reply.callNotFound();
+    const state = await stateOf(viewer, new Date());
+    const earlier = await earlierOf(viewer, state);
+    if (opened === 'unreadable') return draw(req, reply, null, { unreadable: true, earlier, threadId: null });
+    return draw(req, reply, null, { turns: opened.turns, threadId: state.keep ? opened.id : null, earlier });
+  });
+
   app.post('/app/advisor', { logLevel: 'warn' }, async (req, reply) => {
     const viewer = io.viewer(req);
     if (!viewer) return reply.redirect('/login');
-    const q = String((req.body as { q?: unknown } | undefined)?.q ?? '').trim().slice(0, ADVISOR_MAX);
-    if (q === '') return draw(req, reply, null);
+    const body = (req.body ?? {}) as { q?: unknown; thread?: unknown };
+    const q = String(body.q ?? '').trim().slice(0, ADVISOR_MAX);
+    const now = new Date();
+    if (q === '') return atRest(req, reply, viewer, false);
     const locale = io.locale(req);
-    const answer: AdvisorAnswer = io.db && io.model
-      ? await answerQuestion({ db: io.db, model: io.model, businessId: viewer.businessId, viewerId: viewer.viewerId, locale, now: new Date() }, q)
-        .catch((): AdvisorAnswer => ({ kind: 'failed', text: t(locale, 'advisor.failed') }))
-      : { kind: 'failed', text: t(locale, 'advisor.unavailable') };
-    return draw(req, reply, { asked: q, answer });
+    const state = await stateOf(viewer, now);
+    const memory = io.memory && state.keep ? io.memory : null;
+    // The conversation it continues: the one the form names (theirs, or row security finds none), else none.
+    const said = typeof body.thread === 'string' ? body.thread : '';
+    const earlierTurns = memory && said ? await memory.context(viewer.businessId, viewer.viewerId, said).catch(() => []) : [];
+    const answered = io.db && io.model
+      ? await answerFollowUp({ db: io.db, model: io.model, businessId: viewer.businessId, viewerId: viewer.viewerId, locale, now }, q, earlierTurns)
+        .catch(() => null)
+      : null;
+    const answer: AdvisorAnswer = answered?.answer
+      ?? { kind: 'failed', text: t(locale, io.db && io.model ? 'advisor.failed' : 'advisor.unavailable') };
+    if (memory && answered) {
+      const a = answered.answer;
+      const thread = await memory.keep(viewer.businessId, viewer.viewerId, said || null, {
+        question: q, entry: answered.entry, params: answered.params, kind: a.kind, text: a.text,
+        lines: 'lines' in a ? a.lines : [], based: a.kind === 'opinion' ? a.based : [],
+        phrased: 'phrased' in a ? a.phrased : false,
+        door: 'door' in a && a.door ? { href: a.door.href, label: a.door.label } : null,
+        subjects: answered.subjects, provider: io.provider?.name ?? null, model: io.provider?.model ?? null,
+      }, now);
+      const opened = thread ? await memory.open(viewer.businessId, viewer.viewerId, thread) : null;
+      if (opened && opened !== 'unreadable') {
+        return draw(req, reply, null, { turns: opened.turns, threadId: opened.id, earlier: await earlierOf(viewer, state) });
+      }
+    }
+    return draw(req, reply, { asked: q, answer }, {
+      earlier: await earlierOf(viewer, state),
+      card: state.ask ? { processor: io.processor(locale) } : null,
+    });
+  });
+
+  // D6 — the card's two answers. "Allow" keeps what is asked from now on; nothing before it is kept.
+  app.post('/app/advisor/consent', { logLevel: 'warn' }, async (req, reply) => {
+    const viewer = io.viewer(req);
+    if (!viewer) return reply.redirect('/login');
+    if (!io.memory) return reply.redirect('/app/advisor');
+    const choice = String((req.body as { choice?: unknown } | undefined)?.choice ?? '');
+    if (choice !== 'allow' && choice !== 'notnow') return reply.redirect('/app/advisor');
+    const state = await stateOf(viewer, new Date());
+    if (!state.workspaceOn || !state.person || state.keyProblem) return io.flashTo(reply, '/app/advisor', 'advisor.flash.failed');
+    const r = await io.memory.consent(viewer.businessId, viewer.viewerId, choice === 'allow' ? 'granted' : 'refused', io.locale(req));
+    return io.flashTo(reply, '/app/advisor', r === 'ok' ? (choice === 'allow' ? 'advisor.flash.on' : 'advisor.flash.notNow') : 'advisor.flash.failed');
+  });
+
+  // One conversation of their own, deleted from Nomi's database (asked once, in the page).
+  app.post('/app/advisor/c/:id/delete', { logLevel: 'warn' }, async (req, reply) => {
+    const viewer = io.viewer(req);
+    if (!viewer) return reply.redirect('/login');
+    if (!io.memory) return reply.redirect('/app/advisor');
+    const id = (req.params as { id: string }).id;
+    const r = await io.memory.forget(viewer.businessId, viewer.viewerId, viewer.viewerId, id);
+    return io.flashTo(reply, '/app/advisor', r === 'ok' ? 'advisor.flash.threadDeleted' : 'advisor.flash.failed');
   });
 }

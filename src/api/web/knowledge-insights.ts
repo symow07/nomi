@@ -41,6 +41,13 @@ export type Gap = {
   readonly productId: string | null;
   readonly count: number;
   readonly lastAt: Date;
+  /**
+   * The customers who asked it, by id: everyone whose question is in the group. The question is said in the
+   * newest one's words, and they are each of theirs (the same words, but for case and punctuation) — so the
+   * advisor links a kept turn quoting it to each of them (0130). Always set here; optional only so a gap
+   * drawn by hand for a page need not invent one.
+   */
+  readonly askers?: readonly string[];
 };
 
 export type ActivityItem = {
@@ -126,11 +133,12 @@ export async function loadKnowledgeOps(db: Db, businessIdRaw: string, range: Ran
       select claim_key from claims_policy where business_id=${B} and kind in ('certification','compliance') and allowed
     `.execute(tx)).rows.map((x) => x.claim_key));
 
-    const gapRows = (await sql<{ question: string; product_id: string | null; confirmed: boolean | null; created_at: Date }>`
+    const gapRows = (await sql<{ question: string; product_id: string | null; confirmed: boolean | null; created_at: Date; client_id: string | null }>`
       select t.input->>'text' as question,
              t.decision->'product'->>'productId' as product_id,
              (t.decision->'product'->>'confirmedByClient')::boolean as confirmed,
-             t.created_at
+             t.created_at,
+             (select c.client_id::text from conversations c where c.id = t.conversation_id) as client_id
         from turns t
        where t.business_id=${B} and t.created_at>=${cutoff}
          and ${notOwnerTesting('t.conversation_id')}
@@ -144,9 +152,11 @@ export async function loadKnowledgeOps(db: Db, businessIdRaw: string, range: Ran
     `.execute(tx)).rows;
 
     const groups = new Map<string, Gap & { question: string }>();
+    const askers = new Map<string, Set<string>>();
     for (const row of gapRows) {
       const reason = classify(row.question, row.product_id, row.confirmed, authorized);
       const key = norm(row.question);
+      if (row.client_id) askers.set(key, (askers.get(key) ?? new Set<string>()).add(row.client_id));
       const g = groups.get(key);
       if (!g) {
         groups.set(key, { question: row.question, reason, productId: row.product_id, count: 1, lastAt: row.created_at });
@@ -155,7 +165,7 @@ export async function loadKnowledgeOps(db: Db, businessIdRaw: string, range: Ran
         if (row.created_at > g.lastAt) Object.assign(g, { question: row.question, reason, productId: row.product_id, lastAt: row.created_at });
       }
     }
-    const gaps = [...groups.values()]
+    const gaps = [...groups.entries()].map(([key, g]): Gap => ({ ...g, askers: [...(askers.get(key) ?? [])] }))
       .sort((a, b) => b.count - a.count || b.lastAt.getTime() - a.lastAt.getTime())
       .slice(0, 12);
 

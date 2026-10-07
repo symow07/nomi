@@ -47,7 +47,8 @@ import {
 import type { InboundLink } from './channels.js';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms, TERMS_VERSION, type LegalFacts } from './legal.js';
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
-import { DEFAULT_PROCESSOR, HOSTING } from '../../core/legal/processors.js';
+import { DEFAULT_PROCESSOR, HOSTING, processorLabel, transcriberProcessor } from '../../core/legal/processors.js';
+import type { AdvisorMemory } from '../../advisor/memory.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
@@ -200,6 +201,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes } from './advisor.js';
+import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
   shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
@@ -439,6 +441,10 @@ export type WebDeps = {
   readonly advisorDb?: Db;
   /** The advisor batch — the model that words the advisor's facts. Absent: the advisor cannot answer here. */
   readonly advisorModel?: AdvisorModel;
+  /** 0130 — each person's own advisor history (src/advisor/memory.ts). Absent: nothing is kept here. */
+  readonly advisorMemory?: AdvisorMemory;
+  /** 0130 — who words the advisor's answers, recorded on each kept turn. */
+  readonly advisorProvider?: { readonly name: string; readonly model: string };
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
   readonly storeFetcher?: StoreFetcher;
   /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
@@ -1178,7 +1184,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // here for a stranger to probe.
   // Absent (a test that builds the app by hand), the default processor is
   // Anthropic's own API — which is what an installation with no override calls.
-  const legalFacts: LegalFacts = deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
+  // The advisor's history (§9.3) — the "who" list also names the transcriber and
+  // the sign-up bot check, each only when this installation runs one: the bot
+  // check from the very check the sign-up route uses, the transcriber from the
+  // two variables the media ports are built from (worker/mediaPorts.ts), unless
+  // the composition says otherwise.
+  const legalFacts: LegalFacts = {
+    transcriber: transcriberProcessor(process.env),
+    ...(deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING }),
+    botCheck: deps.botCheck ? { name: BOT_CHECK_WIDGET[deps.botCheck.provider].name, country: null } : null,
+  };
   app.get('/privacy', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
   app.get('/data-deletion', async (req, reply) =>
@@ -4263,6 +4278,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     page: (req, o) => page(req, o),
     db: deps.advisorDb ?? null,
     model: deps.advisorModel ?? null,
+    // 0130 — the advisor's memory: a narrow port (keep, open, forget), never a writable pool.
+    memory: deps.advisorMemory ?? null,
+    processor: (locale) => processorLabel(legalFacts.processor, locale),
+    provider: deps.advisorProvider ?? null,
+    flashTo: (reply, path, key, params) => flashTo(reply, path, key, params),
+    takeFlash: (req, reply) => takeFlash(req, reply),
+  });
+  // 0130 — Settings → Your data → the advisor's history: each person's own switch and download; the owner's
+  // workspace switch and delete-without-reading (src/api/web/advisorHistory.ts). The same narrow port.
+  advisorHistoryRoutes(app, {
+    viewer: (req) => { const s = sessionOf(req); if (!s) return null; const p = personOf(s); return { businessId: s.businessId, personId: p.id, isOwner: p.isOwner }; },
+    locale: (req) => localeOf(req),
+    page: (req, o) => page(req, o),
+    memory: deps.advisorMemory ?? null,
+    processor: (locale) => processorLabel(legalFacts.processor, locale),
+    flashTo: (reply, path, key, params) => flashTo(reply, path, key, params),
+    takeFlash: (req, reply) => takeFlash(req, reply),
+    dialect: (locale) => show.csvDialectFor(locale),
   });
   app.get('/app/settings', async (req, reply) => {
     const s = sessionOf(req);
@@ -4283,7 +4316,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const owner = personOf(s).isOwner;
     const bid = parseBusinessId(s.businessId);
     // Phase 3 — what each row is set to now: read here, so the page says it without opening anything.
-    const [people, phones, ways, login, billing, data] = await Promise.all([
+    const [people, phones, ways, login, billing, data, advisorKept] = await Promise.all([
       loadPeople(deps.db, s.businessId),
       loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null).catch(() => null),
       // The warmth run, phase 8 — the row says how notifications reach this reader.
@@ -4291,6 +4324,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bid.ok ? loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : Promise.resolve(null),
       owner && bid.ok ? withTenantTx(deps.db, bid.value, (tx) => billingState(tx)).catch(() => null) : Promise.resolve(null),
       owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
+      // 0130 — the advisor's history row says whether this person's is kept now.
+      deps.advisorMemory ? deps.advisorMemory.state(s.businessId, personOf(s).id, new Date()).then((m) => m.keep).catch(() => false) : Promise.resolve(false),
     ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.setup'), active: 'settings',
@@ -4303,6 +4338,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         signIn: { email: login?.email ?? null },
         billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
         dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
+        advisorKept,
       }, locale, flash),
     }));
   });

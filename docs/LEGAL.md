@@ -1,8 +1,8 @@
 # The legal pages, and what they oblige the operator to do
 
 Three public pages live at `/privacy`, `/data-deletion` and `/terms`
-(`src/api/web/legal.ts`, strings under `legal.*` in the catalogue, three
-locales). The terms are the BUSINESS's — what it accepts by using the product,
+(`src/api/web/legal.ts`, strings under `legal.*` in the catalogue, five
+locales: en, zh, ar, es, fr). The terms are the BUSINESS's — what it accepts by using the product,
 which is who Meta's "Terms of Service URL" is about — and say in their first
 paragraph that the people who write in are covered by the privacy page instead. They exist because Meta reads both before an app may leave
 development mode — and Instagram messages are delivered only to a published
@@ -21,8 +21,36 @@ runs the product. The draft terms for the business itself are in
   an Instagram or Messenger customer, their profile photo as the platform
   shows it (0123 `client_faces`, looked at again every 30 days), so the
   business sees their face.
-- Who sees it: the business; Meta (carriage); Anthropic (drafting); Railway
-  (hosting); Google or Microsoft when a mailbox is connected. Nobody else.
+- Who sees it: the business; Meta (carriage); the configured model provider
+  (drafting, and phrasing the advisor's answers), named from `LLM_BASE_URL` by
+  `aiProcessor` (DeepSeek in production); Railway (hosting); Google or
+  Microsoft when a mailbox is connected; the transcriber (OpenAI by default)
+  only when `TRANSCRIBE_API_KEY` is set (`transcriberProcessor`); the sign-up
+  bot check (Cloudflare Turnstile or hCaptcha) only when `BOT_CHECK_*` is set.
+  Nobody else.
+- The advisor's history (2026-10-07, `docs/ADVISOR-MEMORY.md` §9.3): kept only
+  for a person who allows it; consent the basis; withdrawing or deleting
+  deletes it from Nomi at once; encrypted backups keep it at most 180 days; 12
+  months unopened and it is deleted; each question still goes to the provider,
+  whose own line says what it keeps (`providerLineKey`: DeepSeek, OpenAI; no
+  line for any other, Anthropic included, until its terms are checked); nobody
+  at Nomi reads it, a commitment backed by safeguards, not a technical
+  impossibility; a customer's deletion reaches the conversations that name
+  them. `advisorHistory: false` in the legal facts (no working `ADVISOR_KEY`)
+  draws none of it; absent, the page describes it.
+- Cookies (D7, §9.4): every cookie is first-party and strictly necessary, so
+  there is no banner. The table is drawn from the registry the code is checked
+  against (`COOKIES` in `src/api/web/thirdParty.ts`); the bot check's own
+  cookie, on the sign-up page only, is said when one runs. The browser loads
+  nothing from another host except the bot check's script and frames on
+  `/signup` (`THIRD_PARTY_HOSTS`, each entry with its reason);
+  `tests/parity/third-party-gate.test.ts` and the D7 walk in
+  `tests/integration/surface-walk.test.ts` fail on anything off that list. An
+  optional cookie or request needs a consent banner first.
+- The terms (§9.5): if the business turns on the advisor's history, Nomi, as
+  its processor, keeps the advisor conversations of the people who allow it
+  (`legal.terms.service.advisor`, part of `TERMS_KEYS`, so `TERMS_VERSION`
+  moved with it).
 - How long (0126, the owner's direction of 2026-10-04): for as long as the
   business uses Nomi; deleted when the person asks the business, or when the
   business closes its workspace, which erases everything in it. Never "after

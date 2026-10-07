@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 import { seedRunTenant, RUN_BIZ, RUN_NS } from './tenant.js';
 import { buttonsAndDoors } from '../parity/buttons-and-doors.js';
 import { unisolatedFigures } from '../parity/isolates.js';
+import { thirdPartyIn, pageRequests, cssRequests, scriptRequests, offList } from '../parity/third-party.js';
 
 /**
  * M36.0 — EVERY SURFACE, AGAINST A TENANT THAT HAS ROWS IN IT.
@@ -449,6 +450,74 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     }
     expect(pages, 'the walk drew too few pages').toBeGreaterThan(120);
     expect(problems, problems.join('\n')).toEqual([]);
+  }, 240_000);
+
+  /**
+   * D7 (the owner's decision, 2026-10-07) — every page there is, signed in and not, in English
+   * and Arabic, on real rows: nothing the browser would fetch from a host off the allow-list
+   * (src/api/web/thirdParty.ts), in the page or in any stylesheet or script it links; and every
+   * cookie any response sets is in the cookie registry the privacy page is drawn from. The walked
+   * product first gets a photo on another host — the hole this gate found (products.ts) is on the
+   * path. Links and form actions are the person's choice, not requests (tests/parity/third-party.ts).
+   */
+  it('D7 · every page, signed in and not: nothing fetched from a host off the list; every cookie set is in the registry', async () => {
+    const { COOKIES } = await import('../../src/api/web/thirdParty.js');
+    const MIGRATE_URL = process.env['MIGRATE_DATABASE_URL'];
+    if (MIGRATE_URL) {
+      const { createDb } = await import('../../src/db/client.js');
+      const admin = createDb(MIGRATE_URL);
+      try {
+        await sql`insert into product_images (product_id, url, is_primary, sort_order)
+                  values (${real['productId']}::uuid, 'https://elsewhere.example/walk.jpg', true, 0)`.execute(admin);
+      } finally { await admin.destroy(); }
+    }
+    const problems: string[] = [];
+    const assets = new Set<string>();
+    const cookiesSet = new Set<string>();
+    const noteCookies = (h: string | string[] | number | undefined) => {
+      for (const c of (Array.isArray(h) ? h : h === undefined ? [] : [String(h)])) cookiesSet.add(c.split('=')[0]!.trim());
+    };
+    const login = await app.inject({
+      method: 'POST', url: '/login', payload: `code=${encodeURIComponent(CODE)}`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    noteCookies(login.headers['set-cookie']);
+    let pages = 0;
+    let product = '';
+    for (const locale of ['en', 'ar'] as const) {
+      for (const signedIn of [true, false]) {
+        for (const url of [...new Set(routes)]) {
+          // `:id` is a taught fact's id everywhere else in this walk; the product page is given its product.
+          const given: Record<string, string | undefined> = url === '/app/products/:id' ? { ...real, id: real['productId'] } : real;
+          let target = url; let skip = false;
+          for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
+            const v = given[m[1]!];
+            if (!v) { skip = true; break; }
+            target = target.replace(`:${m[1]}`, encodeURIComponent(v));
+          }
+          if (skip) continue;
+          const res = await app.inject({ method: 'GET', url: asked(url, target), headers: { cookie: `${signedIn ? `${cookie}; ` : ''}yf_locale=${locale}` } });
+          noteCookies(res.headers['set-cookie']);
+          if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
+          pages++;
+          if (url === '/app/products/:id' && signedIn) product = res.body;
+          for (const p of thirdPartyIn(res.body, url)) problems.push(`${locale} ${target}: ${p}`);
+          for (const r of pageRequests(res.body)) if (/^\/assets\/[a-z]+\.[0-9a-f]{16}\.(css|js)$/.test(r.url)) assets.add(r.url);
+        }
+      }
+    }
+    for (const a of assets) {
+      const res = await app.inject({ method: 'GET', url: a });
+      const found = a.endsWith('.css') ? cssRequests(res.body) : scriptRequests(res.body);
+      for (const r of offList(found, a)) problems.push(`${a}: ${r.kind} ${r.url}`);
+    }
+    expect(pages, 'the walk drew too few pages').toBeGreaterThan(80);
+    expect(problems, problems.join('\n')).toEqual([]);
+    expect(product, 'the product page was not walked').toContain('<h1 class="page">');
+    if (MIGRATE_URL) expect(product).not.toContain('elsewhere.example');
+    const listed = new Set(COOKIES.map((c) => c.name));
+    expect(cookiesSet.size, 'no response set a cookie: the walk proves nothing about them').toBeGreaterThan(0);
+    expect([...cookiesSet].filter((n) => !listed.has(n)), 'a cookie set but not in the registry').toEqual([]);
   }, 240_000);
 
   it('and every surface returns 200, not merely "not 500"', async () => {

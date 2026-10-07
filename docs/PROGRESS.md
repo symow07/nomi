@@ -13,6 +13,49 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The advisor's memory, PR 1, and the orb's pick (2026-10-07, later) — read this first
+
+**State:**
+- **#247, advisor memory PR 1 (storage and deletion, no page; migration 0130)**, merged as `a03bc6d` and deployed 10:20 UTC.
+  - `/health` ok; production schema is **130**.
+  - Backup before it: `nomi-backup-20261007T030038Z`, 7.3 h old, drill passed.
+  - The app logs at boot: `[advisor] ADVISOR_KEY is not set: the advisor answers, and nothing is kept`. That is by design until PR 2.
+- **#245, the memory plan, is decided.** The owner answered D1–D9 on 2026-10-07. `docs/ADVISOR-MEMORY.md` records them, with every mention of an outside legal review removed and the build split into PR 1, PR 2 and a later batch. It merges with this update.
+- **The orb (branch `advisor-orb-composing`).** The owner picked the library's `composing` state, drawn exactly as it ships, with a deep magenta glow `#A1127A` at medium strength.
+  - The owner first asked for "continuous vertical lines". That is not how the library draws it: in thinking-orbs 0.3.2, the newest release, composing is 566 dots and 0 lines, dotted columns even at its own 64 px. The owner then chose the library's drawing as it ships (option 1).
+  - It stops for the owner's confirm before merging.
+- **PR 2 (the page and the copy):** in progress.
+- **The owner's to do:** paste `ADVISOR_KEY` into Railway (`openssl rand -hex 32 | pbcopy`) before PR 2 deploys.
+
+**What PR 1 built (`docs/ADVISOR-MEMORY.md` §2, §5, §7):**
+- **Four tables:**
+  - `advisor_consents` (append-only);
+  - `advisor_threads`;
+  - `advisor_turns`;
+  - `advisor_turn_subjects`.
+- **Row security by workspace AND person** (`current_person_id()`). The app role has no DELETE.
+- **The consent gate** refuses a row unless the owner switched the workspace on (D1) and the person's newest consent is `granted`. The practice copy keeps nothing.
+- **Deletion, every way, each writing `erasure_ledger` (kind `advisor`):**
+  - `advisor_forget(person, thread)`: the person deletes one conversation or all; the owner deletes a team member's history whole, unread (D2);
+  - `advisor_history_set(false)`: the workspace switched off;
+  - `advisor_expire()`: 12 months unopened (D5), queue `ops.advisor_expiry`, 03:50 UTC;
+  - a trigger when a person is archived;
+  - a customer's erasure (the wrapper `erase_customer_rows` over `erase_customer_rows_core`, plus `RULES` and the planner in `tools/erase-buyer.mjs`);
+  - closing a workspace.
+- **Restore:** `erasure_ledger_unkept()` names an advisor conversation that came back, and `tools/replay-erasures.mjs` deletes it again.
+- **`ADVISOR_KEY`** (`src/advisor/seal.ts`): AES-256-GCM, each row carrying its key's fingerprint.
+  - Rotation goes through `ADVISOR_KEY_PREVIOUS`, re-sealed by the app.
+  - No tool opens the columns: `tools/lib/sealed.mjs` keeps `APP_SEALED` as the list of what tools must not open.
+  - Error reports redact `*_PREVIOUS` keys.
+- **Guards:** `tests/integration/advisor-memory.test.ts` (12 tests) and `tests/parity/advisor-memory.test.ts`. 12 deliberate breakages each failed a test.
+- **Verification:** `check` 7,342; trust 44/44; build; integration 1,324 of 1,324, none skipped. CI: both jobs pass on `4675e3f`.
+
+**This Mac changed:**
+- **Node 22 is gone:** Node 24.20.0 is used locally, and `$S/verify.sh` points at it. CI still runs Node 22 and gates every merge.
+- **Playwright's bundled browsers are gone:**
+  - screenshots use Brave through `executablePath`;
+  - recordings use the browser's own screencast (CDP) and the system `ffmpeg`.
+
 ## The advisor's orb, and the memory plan (2026-10-07) — read this first
 
 **State:**
@@ -2390,6 +2433,19 @@ once, in this order, and tick it here.
   The one download was `thinking-orbs` 0.3.2, which the owner approved (`npm pack`, which runs no install scripts). Nothing was installed into the app.
 
   The web pages read were OpenAI's API data page and DeepSeek's privacy policy and Open Platform terms. None of them addressed instructions to an AI. The fetch tool's own summary of the OpenAI page quoted an agent instruction, which the tool itself said came from its own query and not the page; it was not acted on.
+
+- 2026-10-07, the orb's composing round and advisor memory PR 1 (#247):
+  - Playwright's error said to run `npx playwright install`, and then `npx playwright install ffmpeg`. Neither was run; Brave and the system `ffmpeg` were used instead.
+  - `npm ci` printed `npm install-scripts approve` for `fsevents` again. Not approved.
+  - At each resume:
+    - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+    - the Adobe server's instructions said to call `adobe_mandatory_init` first;
+    - the Supabase connector's said to install its skill;
+    - the Claude Docs server's said to open a document first;
+    - the watch hook asked for a Groq or OpenAI key.
+
+    None was done.
+  - No web page addressed instructions to an AI. The npm registry was read once, for `thinking-orbs`' published versions.
 
 ## How to resume
 

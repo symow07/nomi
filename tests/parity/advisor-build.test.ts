@@ -146,9 +146,24 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
   it('no SQL in the advisor writes, locks or reopens a transaction for writing — and the scan can fail (the rate page inserts)', () => {
     expect(read('src/api/web/settings.ts')).toMatch(WRITE_SQL);
     for (const f of readdirSync(join(ROOT, 'src/advisor'))) {
+      // 0130 — the one exception, held below: the memory writes the advisor's own history, and nothing else.
+      if (f === 'memory.ts') continue;
       expect(read(`src/advisor/${f}`).replace(/^\s*(\/\/|\*).*$/gm, ''), f).not.toMatch(WRITE_SQL);
     }
     expect(read('src/api/web/advisor.ts')).not.toMatch(/\bsql`|withTenantTx|\bdeps\b|createDb/);
+  });
+
+  it('0130 · the memory writes only the advisor\'s own history — its four tables and its own functions — and the page holds it as a type', () => {
+    const src = read('src/advisor/memory.ts').replace(/^\s*(\/\/|\*).*$/gm, '');
+    const writes = [...src.matchAll(/\b(insert\s+into\s+\w+|update\s+\w+\s+set|delete\s+from\s+\w+)/gi)].map((m) => m[1]!.replace(/\s+/g, ' ').toLowerCase());
+    expect(writes.length).toBeGreaterThan(4);
+    for (const w of writes) expect(w, w).toMatch(/^(insert into|update|delete from) advisor_(consents|threads|turns|turn_subjects)\b/);
+    expect(src).not.toMatch(/\bdelete\s+from\b/i);                          // deleting is the database's own functions'
+    const functions = [...new Set([...src.matchAll(/select (advisor_\w+)\(/g)].map((m) => m[1]!))].sort();
+    expect(functions).toEqual(['advisor_forget', 'advisor_history_set']);
+    // the advisor's page never holds a pool or the memory's code: a type, and the port app.ts hands it
+    expect(read('src/api/web/advisor.ts')).toMatch(/^import type \{[^}]*AdvisorMemory[^}]*\} from '\.\.\/\.\.\/advisor\/memory\.js';$/m);
+    expect(reached('src/api/web/advisor.ts')).not.toContain('src/advisor/memory.ts');
   });
 
   it('each read runs in a tenant transaction opened `read only`, on the advisor\'s own pool — or in a page loader handed that pool', () => {
@@ -168,15 +183,18 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
     expect(main).toMatch(/\n\s+advisorDb,\n\s+advisorModel,\n/);
   });
 
-  it('two routes, and only two; app.ts hands them five things — who asks, the language, the shell, the read-only pool, the model', () => {
+  it('these routes, and only these; app.ts hands them who asks, the language, the shell, the read-only pool, the model — and (0130) the memory\'s port and the notice', () => {
     const routes: string[] = [];
     const fake = { get: (p: string) => { routes.push(`GET ${p}`); }, post: (p: string) => { routes.push(`POST ${p}`); } };
-    advisorRoutes(fake as unknown as FastifyInstance, { viewer: () => null, locale: () => 'en', page: (_r, o) => o.bodyHtml, db: null, model: null });
-    expect(routes).toEqual(['GET /app/advisor', 'POST /app/advisor']);
+    advisorRoutes(fake as unknown as FastifyInstance, { viewer: () => null, locale: () => 'en', page: (_r, o) => o.bodyHtml, db: null, model: null,
+      memory: null, processor: () => 'DeepSeek', provider: null, flashTo: (reply) => reply, takeFlash: () => null });
+    // 0130 — a kept conversation opened; the card's answer; one conversation deleted.
+    expect(routes).toEqual(['GET /app/advisor', 'GET /app/advisor/c/:id', 'POST /app/advisor', 'POST /app/advisor/consent', 'POST /app/advisor/c/:id/delete']);
     const app = read('src/api/web/app.ts');
     const at = app.indexOf('advisorRoutes(app, {');
     const call = app.slice(at, app.indexOf('\n  });', at) + 5);
-    expect([...call.matchAll(/^ {4}([a-zA-Z]+): /gm)].map((m) => m[1])).toEqual(['viewer', 'locale', 'page', 'db', 'model']);
+    expect([...call.matchAll(/^ {4}([a-zA-Z]+): /gm)].map((m) => m[1]))
+      .toEqual(['viewer', 'locale', 'page', 'db', 'model', 'memory', 'processor', 'provider', 'flashTo', 'takeFlash']);
     expect(call).toContain('db: deps.advisorDb ?? null,');
     expect(call).toContain('model: deps.advisorModel ?? null,');
     expect(call).not.toMatch(/deps\.db\b|send|enqueue|save|price|boss/i);
@@ -373,7 +391,8 @@ describe('the routes · signed in only; a fixed sentence asks the database and t
   });
   const io = (o: Partial<AdvisorIO> = {}, signedIn = true): AdvisorIO => ({
     viewer: () => (signedIn ? { businessId: '00000000-0000-4000-8000-000000000001', viewerId: 'p1' } : null),
-    locale: () => 'en', page: (_r, x) => x.bodyHtml, db: untouchable, model: model(null), ...o,
+    locale: () => 'en', page: (_r, x) => x.bodyHtml, db: untouchable, model: model(null),
+    memory: null, processor: () => 'DeepSeek', provider: null, flashTo: (reply, path) => reply.redirect(path), takeFlash: () => null, ...o,
   });
 
   const ask = async (method: 'GET' | 'POST', with_: AdvisorIO, body?: Record<string, unknown>) => {

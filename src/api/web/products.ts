@@ -12,6 +12,7 @@ import { rowsFromParsed, asExtracted, liveRows, type ImportRow } from '../../cor
 import { defaultUnitFor, sellsByQuantity } from '../../core/owner/sellingStyle.js';
 import { renderStoreForms, filePick, type StoreFormRefusal } from './storeImport.js';
 import { savePriceRulesTx } from './priceRules.js';
+import { mayLoad } from './thirdParty.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
@@ -695,8 +696,17 @@ export function renderProductDetail(
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>
         <p class="fwarn">${esc(t(locale, 'product.detail.notFindable'))}</p></div>`;
 
-  const images = d.images.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${d.images.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
+  // D7 (2026-10-07) — only a photo Nomi serves is drawn: an address from the root
+  // (`/…`, never `//host`). `product_images.url` is drawn as stored, and an address on
+  // another host would make the owner's browser fetch from that host — telling it who
+  // is looking at which product, when — which the third-party gate forbids
+  // (thirdParty.ts `mayLoad`). Such a photo is left out, quietly, rather than shown as
+  // a broken box or a link: nothing in this app writes a photo's address today (the
+  // rows that exist came from the system before it), and the block goes when none is
+  // left to show.
+  const shown = d.images.filter((url) => mayLoad(url, '/app/products/:id'));
+  const images = shown.length
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${shown.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
     : '';
 
   // Phase 9 (V1-306) — each quote says when, for whom, and opens the conversation it was worked out in.
