@@ -207,14 +207,17 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     for (let i = 0; i < 3; i++) await ask(owner, `How many customers now (${i})?`, thread);
     const old = await ask(owner, 'And what about her?', thread);
     expect(latest(old.body)).toContain(en('advisor.none.whichCustomer'));
-    // "New conversation": nothing of the last one goes with it
+    // "New conversation": nothing of the last one goes with it — even when the last one ended on her
+    await get(owner, '/app/advisor?new=1');
+    const named = await ask(owner, 'Tell me about Amira');
+    expect(latest(named.body)).toContain(AMIRA);
     const fresh = await get(owner, '/app/advisor?new=1');
     expect(threadIn(fresh.body)).toBeNull();
     routed.length = 0;
     const other = await ask(owner, 'And what about her?');
     expect(routed[0]!.earlier).toBeUndefined();
     expect(latest(other.body)).toContain(en('advisor.none.whichCustomer'));
-    expect(await threadsOf(OWNER)).toBe(2);
+    expect(await threadsOf(OWNER)).toBe(3);
   });
 
   it('history is never a source of facts: a record that changed shows its new value, and a figure repeated from before is thrown away', async () => {
