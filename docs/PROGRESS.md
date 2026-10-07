@@ -28,9 +28,9 @@ under "Decided" below.
 
 **Next, from `docs/ADVISOR-MEMORY.md` §10:** the later batch, which is the provider list with fallbacks and the owner's own API key (D9).
 
-**Two small follow-ups, not done:**
-- The data-deletion page does not yet say that a customer's erasure also removes the advisor turns that name them.
-- Outbound sends still pass stored product-photo addresses to Meta. This is server-side, not a browser request.
+**Follow-ups:**
+- **Done (branch `deletion-page-advisor`):** the data-deletion page now says that a customer's erasure also removes the advisor's kept turns that name them. It also says the limit: a mention only in the business's own words, with no record, may not be found. The page is dated 7 October 2026. The lines are listed in `docs/NATIVE-REVIEW-UI.md`, together with PR 2's owner-facing advisor copy, which was missing from that list.
+- **Not done:** outbound sends still pass stored product-photo addresses to Meta. This is server-side, not a browser request.
 
 ## The advisor's memory is live; the orb waits for the owner's confirm (2026-10-07, evening) — read this first
 
