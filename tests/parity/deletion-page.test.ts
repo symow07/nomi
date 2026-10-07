@@ -275,7 +275,14 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
       expect(Object.keys(messages[l])).not.toContain('legal.deletion.revoked');
       for (const [k, v] of Object.entries(messages[l])) {
         if (!k.startsWith('legal.deletion.') && !k.startsWith('legal.privacy.')) continue;
-        for (const re of NEVER[l]) expect(re.test(v), `${l}/${k} says ${re}`).toBe(false);
+        // The advisor's history (2026-10-07) — a provider's own retention, as its terms state it
+        // (`legal.privacy.provider.openai`: "…for up to 30 days to monitor abuse"), is not a promise
+        // about when a deletion happens: the bare "30 days" patterns pass it by, every other one holds.
+        const providerLine = k.startsWith('legal.privacy.provider.');
+        for (const re of NEVER[l]) {
+          if (providerLine && re.source.includes('30')) continue;
+          expect(re.test(v), `${l}/${k} says ${re}`).toBe(false);
+        }
       }
     }
   });

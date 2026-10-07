@@ -47,7 +47,7 @@ import {
 import type { InboundLink } from './channels.js';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms, TERMS_VERSION, type LegalFacts } from './legal.js';
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
-import { DEFAULT_PROCESSOR, HOSTING, processorLabel } from '../../core/legal/processors.js';
+import { DEFAULT_PROCESSOR, HOSTING, processorLabel, transcriberProcessor } from '../../core/legal/processors.js';
 import type { AdvisorMemory } from '../../advisor/memory.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
@@ -1184,7 +1184,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // here for a stranger to probe.
   // Absent (a test that builds the app by hand), the default processor is
   // Anthropic's own API — which is what an installation with no override calls.
-  const legalFacts: LegalFacts = deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
+  // The advisor's history (§9.3) — the "who" list also names the transcriber and
+  // the sign-up bot check, each only when this installation runs one: the bot
+  // check from the very check the sign-up route uses, the transcriber from the
+  // two variables the media ports are built from (worker/mediaPorts.ts), unless
+  // the composition says otherwise.
+  const legalFacts: LegalFacts = {
+    transcriber: transcriberProcessor(process.env),
+    ...(deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING }),
+    botCheck: deps.botCheck ? { name: BOT_CHECK_WIDGET[deps.botCheck.provider].name, country: null } : null,
+  };
   app.get('/privacy', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
   app.get('/data-deletion', async (req, reply) =>
