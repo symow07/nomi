@@ -48,7 +48,8 @@ export function secretValuesIn(env: Readonly<Record<string, string | undefined>>
   const out = new Set<string>();
   for (const [name, value] of Object.entries(env)) {
     if (!value || value.length < 8) continue;
-    if (/(KEY|TOKEN|SECRET|PASSWORD|ACCESS_CODE)$/.test(name) || /(DATABASE|PING)_URL$/.test(name)) out.add(value);
+    // A key being rotated out (CREDENTIAL_KEY_PREVIOUS, ADVISOR_KEY_PREVIOUS) is as secret as the one in force.
+    if (/(KEY|TOKEN|SECRET|PASSWORD|ACCESS_CODE)(_PREVIOUS)?$/.test(name) || /(DATABASE|PING)_URL$/.test(name)) out.add(value);
     if (/DATABASE_URL$/.test(name)) {
       try {
         const password = decodeURIComponent(new URL(value).password);

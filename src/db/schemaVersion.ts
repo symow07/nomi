@@ -327,7 +327,9 @@ import type { Db } from './client.js';
 // 129 = a reset link only to an address that answered (0129): `logins.email_verified_at`,
 //       `login_email_proven()`. A code typed back on /verify writes it; against a 128
 //       database that write fails and no reset link is ever mailed.
-export const REQUIRED_SCHEMA_VERSION = 129;
+// 130 = the advisor's memory, storage and deletion (0130): its four tables, the consent gate, `advisor_forget`,
+//       the ledger's `advisor` kind, and a customer's erasure reaching the turns that name them.
+export const REQUIRED_SCHEMA_VERSION = 130;
 
 export type SchemaState = {
   readonly required: number;

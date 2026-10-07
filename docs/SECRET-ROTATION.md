@@ -25,6 +25,7 @@ planned, no-surprise procedure and, critically, the blast radius of each key.
 | `WEBHOOK_SECRET` | 360dialog HMAC (provider=360dialog) | Inbound HMAC fails until updated. | Rotate in 360dialog → set env → redeploy. |
 | `OWNER_ACCESS_CODE` | Command Center login | Old code stops working; existing cookies stay valid to TTL. | Set a new value → redeploy. Always set it explicitly (else it is generated and logged once at boot). |
 | **`CREDENTIAL_KEY`** | **(a)** web-session HMAC **and (b)** AES-256-GCM of every stored token: Page tokens (`meta_accounts`), mailbox refresh tokens (`mail_accounts`), connector keys (`connector_credentials`), channel secrets (`channel_credentials`) | **(a)** all owner sessions invalidated → re-login. **(b)** every sealed token stops opening unless re-sealed. | See below: with `CREDENTIAL_KEY_PREVIOUS` and `tools/rekey.mjs` — never blind. |
+| **`ADVISOR_KEY`** (0130) | AES-256-GCM of the advisor's stored conversations (`advisor_threads`, `advisor_turns`) — and nothing else | Missing or wrong: nothing new is kept; stored conversations show "could not be opened". Never a crash. | Below: with `ADVISOR_KEY_PREVIOUS`; the app re-seals as conversations are opened — no tool opens them. |
 
 ## Rotating `CREDENTIAL_KEY` (REKEY, 2026-09-30)
 
@@ -77,6 +78,23 @@ app opens tokens with it but never seals with it (`acceptRetiredKeys`,
 The order matters: never remove the old key before step 4 says nothing is
 left, and never re-seal before the app holds the new key — a token re-sealed
 with a key the running app does not have cannot be opened until it does.
+
+## `ADVISOR_KEY` — the advisor's history (0130, 2026-10-07)
+
+**What it is.** The advisor's stored conversations (`advisor_threads`, `advisor_turns`) are sealed with AES-256-GCM under `ADVISOR_KEY`, a key of their own, beside `CREDENTIAL_KEY` and never the same. Each sealed value carries the key's fingerprint (`sealed_with`), never the key.
+
+**Making it.**
+1. Run `openssl rand -hex 32 | pbcopy` on your own machine.
+2. Paste the result into the `nomi` service as `ADVISOR_KEY`. It never appears in a chat, a command line or a log.
+3. Keep it the way you keep `CREDENTIAL_KEY`: a lost key leaves every stored conversation unopenable.
+
+**Missing or wrong** (D8): the advisor keeps answering. Nothing new is kept. A stored conversation the key cannot open says "this conversation could not be opened". The page and the ask never fail because of it. The app says which at boot (`[advisor] ADVISOR_KEY is …`).
+
+**Rotating it.** No tool opens this history, `tools/rekey.mjs` included. The app re-seals it:
+1. Set the new key as `ADVISOR_KEY`, and the old one as `ADVISOR_KEY_PREVIOUS`. Deploy.
+2. Each conversation is sealed again with the new key the first time it is opened.
+3. At every boot the app counts the rows still under an earlier key (`advisor_seal_census()`, counts only).
+4. When that count reaches 0, remove `ADVISOR_KEY_PREVIOUS`. A conversation never opened again is deleted after 12 months unopened anyway (D5). Removing the old key sooner leaves those rows unopenable, which is safe: they are shown as "could not be opened".
 
 ## Immediate rotation owed (from build history)
 The temporary `ANTHROPIC_API_KEY` and the Railway admin `DATABASE_URL` were pasted

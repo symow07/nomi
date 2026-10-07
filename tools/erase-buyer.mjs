@@ -109,6 +109,8 @@ import { toolClient } from './lib/db.mjs';
 // digits. `says` is what the dry run prints beside a table that is not simply
 // erased.
 // ─────────────────────────────────────────────────────────────────────────────
+const ADVISOR_ORDER = Object.freeze({ advisor_turns: 1, advisor_threads: 2 });
+
 export const RULES = Object.freeze({
   // ── The buyer ─────────────────────────────────────────────────────────────
   clients: {
@@ -200,6 +202,12 @@ export const RULES = Object.freeze({
   promised_dates: { do: 'erase' },
   // 0123 — their photo, as their channel showed it.
   client_faces: { do: 'erase' },
+  // 0130 — the advisor's history (docs/ADVISOR-MEMORY.md). A turn that names them goes WHOLE — with its links
+  // to any other customer it named — and a conversation it leaves with no turn goes too: the planner's step
+  // 3b below, and erase_customer_rows in SQL, count the same rows.
+  advisor_turn_subjects: { do: 'erase', says: 'every advisor turn that named them goes whole, and a conversation it leaves empty' },
+  advisor_turns: { do: 'erase' },
+  advisor_threads: { do: 'erase' },
 
   // ── Records that can quote them with no key at all (see textLinks) ────────
   channel_events: {
@@ -723,6 +731,24 @@ export async function planErasure(client, subject, options = {}) {
     }
   }
 
+  // 3b · The advisor's turns that name them (0130), reached above by their link: each goes whole — every
+  // link it holds, theirs and any other customer's — and a conversation left with no turn goes too.
+  const named = erase.get('advisor_turn_subjects') ?? [];
+  if (named.length) {
+    const turns = distinct(named.map((r) => r.turn_id));
+    erase.set('advisor_turn_subjects', (await client.query(
+      `select ${sel('advisor_turn_subjects')} from advisor_turn_subjects where turn_id = any($1::uuid[])`, [turns])).rows);
+    const turnRows = (await client.query(
+      `select ${sel('advisor_turns')}, thread_id::text as thread_id from advisor_turns where id = any($1::uuid[])`, [turns])).rows;
+    erase.set('advisor_turns', turnRows);
+    const emptied = (await client.query(
+      `select ${sel('advisor_threads')} from advisor_threads t
+        where t.id = any($1::uuid[])
+          and not exists (select 1 from advisor_turns u where u.thread_id = t.id and not (u.id = any($2::uuid[])))`,
+      [distinct(turnRows.map((r) => r.thread_id)), turns])).rows;
+    if (emptied.length) erase.set('advisor_threads', emptied);
+  }
+
   // 4 · The links that are not keys, written out.
   const conversationIds = distinct([...(scoped.get('conversations') ?? new Map()).values()].map((r) => r.id));
   const text = await textLinks(client, { businessId, clientId, requestId, identities, identityValues, conversationIds, scoped });
@@ -734,7 +760,9 @@ export async function planErasure(client, subject, options = {}) {
   const deleteOrder = [
     ...[...erase.keys()].filter((t) => cov.reach.has(t))
       .sort((a, b) => (cov.depth.get(b) ?? 0) - (cov.depth.get(a) ?? 0) || a.localeCompare(b)),
-    ...[...erase.keys()].filter((t) => !cov.reach.has(t)).sort(),
+    // The advisor's turns before the conversations that hold them (0130).
+    ...[...erase.keys()].filter((t) => !cov.reach.has(t))
+      .sort((a, b) => (ADVISOR_ORDER[a] ?? 0) - (ADVISOR_ORDER[b] ?? 0) || a.localeCompare(b)),
   ];
 
   const matchPk = (t, rows, from = 1) => {

@@ -77,6 +77,11 @@ export const QUEUES = {
    */
   practiceExpiry: 'ops.practice_expiry',
   /**
+   * THE ADVISOR'S MEMORY (0130; D5) — once a day: every advisor conversation not opened for twelve months is
+   * deleted (`advisor_expire`), with its ledger line.
+   */
+  advisorExpiry: 'ops.advisor_expiry',
+  /**
    * CH3 — a message the business's own account sent, come back from Meta. Held
    * a little before it is read (`ECHO_SETTLE_SECONDS`), so Nomi's own send has
    * recorded the id Meta gave it and is recognised as ours (src/pipeline/echo.ts).
