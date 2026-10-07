@@ -153,7 +153,8 @@ d('0126 · tools/replay-erasures.mjs carries the ledger out again on a restored 
     expect(mine).toHaveLength(3);
     for (const l of mine) {
       expect(parseLedgerLine(JSON.stringify(l)).ok).toBe(true);
-      expect(Object.keys(l).sort()).toEqual(['at', 'business_id', 'by_who', 'counts', 'customer_id', 'id', 'kind', 'request_id', 'via']);
+      // 0130 — two more ids, for the advisor's lines: whose history, and which conversations. Still ids only.
+      expect(Object.keys(l).sort()).toEqual(['at', 'business_id', 'by_who', 'counts', 'customer_id', 'id', 'kind', 'person_id', 'request_id', 'thread_ids', 'via']);
     }
   });
 });

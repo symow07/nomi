@@ -74,7 +74,8 @@ describe('REKEY · the tool seals and opens exactly as the app does (its copy ru
     const declared = new Set(readdirSync(dir).filter((f) => f.endsWith('.sql'))
       .flatMap((f) => [...readFileSync(join(dir, f), 'utf8').matchAll(/\b([a-z_]+_ciphertext)\s+text\b/g)].map((m) => m[1]!)));
     expect(declared.size).toBeGreaterThan(0);
-    const known = new Set((tool.SEALED as { column: string }[]).map((s) => s.column));
+    // The advisor's history (0130) is sealed with ADVISOR_KEY and re-sealed by the app, never by a tool: APP_SEALED.
+    const known = new Set([...(tool.SEALED as { column: string }[]), ...(tool.APP_SEALED as { column: string }[])].map((s) => s.column));
     for (const col of declared) expect(known.has(col), `${col} is sealed but tools/lib/sealed.mjs SEALED does not name it`).toBe(true);
   });
 

@@ -6,7 +6,7 @@ import pg from 'pg';
 import { encryptSecret, decryptSecret, deriveKey, credentialFingerprint } from '../../src/security/credentials.js';
 import { runDigits } from './tenant.js';
 // @ts-expect-error — a tool helper, plain JS on purpose (the integration job runs tools without a build).
-import { SEALED } from '../../tools/lib/sealed.mjs';
+import { SEALED, APP_SEALED } from '../../tools/lib/sealed.mjs';
 
 /**
  * REKEY — tools/rekey.mjs against Postgres: every sealed column, a rotation
@@ -74,12 +74,13 @@ d('REKEY · a CREDENTIAL_KEY rotation finished without a token lost (requires DA
 
   const env = (extra: Record<string, string | undefined>) => ({ ADMIN_DATABASE_URL: MIGRATE_URL, ...extra });
 
-  it('every sealed column in the schema is one the tool re-seals', async () => {
+  it('every sealed column in the schema is one the tool re-seals — or the advisor\'s, which the app re-seals and no tool opens (0130)', async () => {
     const cols = (await admin.query(
       `select table_name || '.' || column_name as c from information_schema.columns
         where table_schema = 'public' and column_name like '%\\_ciphertext' order by 1`)).rows.map((r) => r.c);
     expect(cols.length).toBeGreaterThan(0);
-    expect(cols).toEqual((SEALED as { table: string; column: string }[]).map((s) => `${s.table}.${s.column}`).sort());
+    expect(cols).toEqual([...(SEALED as { table: string; column: string }[]), ...(APP_SEALED as { table: string; column: string }[])]
+      .map((s) => `${s.table}.${s.column}`).sort());
   });
 
   it('without the previous key it only counts; --yes is refused', () => {

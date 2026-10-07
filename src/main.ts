@@ -59,6 +59,7 @@ import { waLoginFrom } from './channels/whatsapp/embeddedSignup.js';
 import { whatsAppAccountToken } from './channels/whatsapp/connect.js';
 import { liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount } from './db/whatsappAccounts.js';
 import { withTenantTx, lockConversation, createReadOnlyDb, type Db, type Tx } from './db/client.js';
+import { advisorKeysFrom, sealAdvisor, openAdvisor } from './advisor/seal.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
@@ -814,6 +815,22 @@ export async function buildProduction(
   // and its own small pool, read-only at the server, the only database it is given.
   const advisorModel = overrides?.advisorModel ?? anthropicAdvisorModel(llmClient(llm, { observe: watch.observe }), llm.model, requestExtrasFor(llm));
   const advisorDb = createReadOnlyDb(cfg.DATABASE_URL);
+  // THE ADVISOR'S MEMORY (0130; D8) — the key its history is sealed with. Missing or wrong, the advisor answers
+  // as ever and nothing is kept: said once here, never a reason not to start. Proven by a round trip, and the
+  // rows a rotation has not yet reached are counted (never opened).
+  const advisorKeys = advisorKeysFrom(process.env);
+  {
+    const probe = sealAdvisor(advisorKeys, 'advisor-key-check');
+    const works = !!probe && openAdvisor(advisorKeys, probe.ciphertext, probe.sealedWith)?.plain === 'advisor-key-check';
+    if (!works) {
+      console.warn(`[advisor] ADVISOR_KEY is ${advisorKeys.problem === 'shape' ? 'not a 64-hex key' : 'not set'}: the advisor answers, and nothing is kept`);
+    } else {
+      const census = await sql<{ sealed_with: string; rows: string }>`select sealed_with, rows::text as rows from advisor_seal_census()`
+        .execute(db).then((r) => r.rows).catch(() => []);
+      const behind = census.filter((c) => c.sealed_with !== advisorKeys.current?.id).reduce((n, c) => n + Number(c.rows), 0);
+      if (behind > 0) console.log(`[advisor] ${behind} stored row(s) still sealed with an earlier key: each is sealed again when it is opened; keep ADVISOR_KEY_PREVIOUS set until none are left`);
+    }
+  }
   // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
   // and the way out to a push service. Unset: no phone alerts, and the page says so.
   const vapid = vapidFrom(process.env);
@@ -1035,6 +1052,13 @@ export async function buildProduction(
     await boss.work<PracticeExpiryJob>(QUEUES.practiceExpiry, async () => {
       const n = await expirePractice(db);
       if (n > 0) console.log(`[practice] ${n} practice conversation(s) quiet for thirty days erased`);
+    });
+    // THE ADVISOR'S MEMORY (0130; D5) — a conversation not opened for twelve months is deleted, once a day,
+    // through the same deletion and ledger as every other (`advisor_expire`). Counts only, never words.
+    await boss.schedule(QUEUES.advisorExpiry, '50 3 * * *', {});
+    await boss.work(QUEUES.advisorExpiry, async () => {
+      const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
+      if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
     });
   };
 
