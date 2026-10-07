@@ -459,7 +459,8 @@ export function anthropicAdvisorModel(client: Anthropic, model: string = MODEL, 
           // it named. Never an answer. Only to resolve a word that points back ("her", "that order", "last month").
           (earlier && earlier.length
             ? '\n\nEarlier questions in this conversation, oldest first, with the entry each was routed to and what it named. ' +
-              'Use them ONLY when the new question clearly points back to one of them (for example "her", "that order", "and last month?"): ' +
+              'Use them ONLY when the new question clearly points back to one of them — a pronoun ("she", "her", "they"), ' +
+              '"this customer", "that customer", "that order", "the same product", or a bare "and this week?": ' +
               'then copy the name or value from there. Never take a name or value from them otherwise.\n' +
               earlier.slice(-3).map((e, i) => `${i + 1}. "${e.question.slice(0, 300)}" -> ${e.entry} ${JSON.stringify(e.params)}`).join('\n')
             : ''),

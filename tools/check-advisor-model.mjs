@@ -11,6 +11,9 @@
  *   1. ROUTING: questions in en / zh / ar / es / fr for fourteen entries (and one nobody can answer), each
  *      against the whole catalogue (src/advisor/catalogue.ts). Each must come back as the expected entry,
  *      with the period, the customer or the order reference the question names.
+ *   1b. FOLLOW-UPS (0130): a question that points back, given the earlier turns of its conversation as the
+ *      product gives them — question, entry, what it named; never an answer — must resolve to the same
+ *      customer or the new period; and a question that does NOT point back must take nothing from them.
  *   2. WORDING: five answers per language from facts built the way src/advisor/reads.ts builds them (the
  *      catalogue's own sentences, the product's own number, money and date formats), each put through the
  *      product's check. A sentence that fails is safe — the owner then reads the facts themselves — but
@@ -80,6 +83,36 @@ for (const [want, carry, questions] of ROUTES) {
   }
 }
 
+/**
+ * 0130 — follow-ups: [expected entry, what it must carry, what it must NOT carry, the earlier turn, the new
+ * question in en, zh, ar, es, fr]. The earlier turn is what the advisor's memory gives the model (never an answer).
+ */
+const AMIRA_BEFORE = { question: 'Tell me about Amira Haddad.', entry: 'A3', params: { period: null, customer: 'Amira Haddad', product: null, reference: null } };
+const SALES_BEFORE = { question: 'How much did we sell this month?', entry: 'D1', params: { period: 'month', customer: null, product: null, reference: null } };
+const FOLLOWUPS = [
+  ['A4', { customer: 'Amira' }, {}, AMIRA_BEFORE,
+    ['When did she last write to us?', '她最后一次给我们发消息是什么时候？', 'متى كانت آخر رسالة من هذا العميل؟', '¿Cuándo nos escribió por última vez?', 'Quand nous a-t-elle écrit pour la dernière fois ?']],
+  ['D1', { period: 'week' }, {}, SALES_BEFORE,
+    ['And this week?', '那这周呢？', 'وماذا عن هذا الأسبوع؟', '¿Y esta semana?', 'Et cette semaine ?']],
+  ['A1', {}, { customer: 'Amira' }, AMIRA_BEFORE,
+    ['How many customers do I have?', '我有多少客户？', 'كم عدد عملائي؟', '¿Cuántos clientes tengo?', 'Combien de clients ai-je ?']],
+];
+let followMisrouted = 0;
+console.log('\n— follow-ups (0130) —');
+for (const [want, carry, never, before, questions] of FOLLOWUPS) {
+  for (const [i, q] of questions.entries()) {
+    const l = ['en', 'zh', 'ar', 'es', 'fr'][i];
+    let got;
+    try { got = await timed(() => model.recognise({ question: q, entries, earlier: [before] })); } catch (e) { console.log(`  ✗ ${l} ${q}  → error ${e.message}`); unreadable++; continue; }
+    if (!got) { unreadable++; console.log(`  ✗ ${l} ${q}  → unreadable`); continue; }
+    const carried = Object.entries(carry).every(([k, v]) => (got[k] ?? '').toLowerCase().includes(v.toLowerCase()));
+    const leaked = Object.entries(never).some(([k, v]) => (got[k] ?? '').toLowerCase().includes(v.toLowerCase()));
+    const ok = got.id === want && carried && !leaked;
+    if (!ok) followMisrouted++;
+    console.log(`  ${ok ? '✓' : '✗'} ${l} ${q}  → ${got.id}${got.period ? ` period=${got.period}` : ''}${got.customer ? ` customer=${got.customer}` : ''}${ok ? '' : `   (expected ${want} ${JSON.stringify(carry)}${Object.keys(never).length ? `, never ${JSON.stringify(never)}` : ''})`}`);
+  }
+}
+
 /** The facts as the reads would write them, in the owner's language. */
 const FACTS = (l) => {
   const L = (k, p = {}) => t(l, k, p);
@@ -116,5 +149,5 @@ for (const [i, l] of ['en', 'zh', 'ar', 'es', 'fr'].entries()) {
 }
 
 const sorted = [...times].sort((a, b) => a - b);
-console.log(`\nrouted: ${ROUTES.length * 5 - misrouted}/${ROUTES.length * 5} · unreadable: ${unreadable} · sentences that passed the check: ${passed}/${worded} · median ${sorted[Math.floor(sorted.length / 2)]} ms`);
-process.exit(misrouted === 0 && unreadable === 0 && passed * 2 >= worded ? 0 : 1);
+console.log(`\nrouted: ${ROUTES.length * 5 - misrouted}/${ROUTES.length * 5} · follow-ups: ${FOLLOWUPS.length * 5 - followMisrouted}/${FOLLOWUPS.length * 5} · unreadable: ${unreadable} · sentences that passed the check: ${passed}/${worded} · median ${sorted[Math.floor(sorted.length / 2)]} ms`);
+process.exit(misrouted === 0 && followMisrouted === 0 && unreadable === 0 && passed * 2 >= worded ? 0 : 1);
