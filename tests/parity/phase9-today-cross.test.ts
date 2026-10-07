@@ -559,12 +559,12 @@ describe('Phase 9 · Setup', () => {
     expect(t('en', 'setup.value.unavailable')).toBe('Not switched on yet');
     for (const l of LOCALES) expect(t(l, 'setup.value.unavailable'), l).not.toMatch(/\bhere\b|这里|هنا|aquí|ici/);
   });
-  it('today-onboarding-new-25 · phase 7 · Setup is eight rows in two cards: read, not searched', () => {
+  it('today-onboarding-new-25 · phase 7 · Setup is nine rows in two cards (0130: the advisor\'s history): read, not searched', () => {
     // The search was for six groups and a dozen rows; it went with the length.
     for (const l of LOCALES) {
       const h = setupHtml(l);
       expect(h, l).not.toContain('role="search"');
-      expect(h.match(/<a class="srow sr-menu/g), l).toHaveLength(8);
+      expect(h.match(/<a class="srow sr-menu/g), l).toHaveLength(9);
       expect(h.match(/<ul class="scard">/g), l).toHaveLength(2);
     }
   });

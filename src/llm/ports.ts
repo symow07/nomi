@@ -161,6 +161,11 @@ export interface AdvisorModel {
   recognise(input: {
     question: string;
     entries: readonly { readonly id: string; readonly ask: string }[];
+    /**
+     * 0130 — a follow-up's context: at most the last three turns of this one conversation, as the question,
+     * the entry it resolved to and what it named — never an answer or a figure (docs/ADVISOR-MEMORY.md §4).
+     */
+    earlier?: readonly { readonly question: string; readonly entry: string; readonly params: Readonly<Record<string, string | null>> }[];
   }): Promise<{ id: string; period: string | null; customer: string | null; product: string | null; reference: string | null } | null>;
   /** One short answer in `language`, from `facts` alone. Null: nothing usable came back. */
   phrase(input: { question: string; language: string; facts: readonly string[]; opinion: boolean }): Promise<string | null>;

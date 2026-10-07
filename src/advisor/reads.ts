@@ -74,6 +74,12 @@ export type Sheet = {
   readonly noneParams?: Readonly<Record<string, string>>;
   /** The customers' and products' names these lines carry — the only names an answer may use. */
   readonly names: readonly string[];
+  /**
+   * The customers these lines name, by id (0130, docs/ADVISOR-MEMORY.md §2): a kept turn is linked to each
+   * (`advisor_turn_subjects`), so a customer's erasure finds every turn that names them. Every customer a
+   * line names is here; tests/integration/advisor-subjects.test.ts holds it for every entry that names any.
+   */
+  readonly subjects: readonly string[];
   /** Figures every answer must carry, or it is not shown (B8: the median, the replies measured, the unanswered). */
   readonly must?: readonly string[];
   /** The page that shows the same thing. */
@@ -93,13 +99,23 @@ const nameOf = (ctx: ReadCtx, n: string | null): string => n ?? t(ctx.locale, 'c
 const when = (ctx: ReadCtx, d: Date): string => show.date(ctx.locale, d);
 const count = (ctx: ReadCtx, n: number): string => show.count(ctx.locale, n);
 const money = (ctx: ReadCtx, m: Money): string => show.money(ctx.locale, m);
-const sheet = (lines: readonly string[], names: readonly string[], door?: Door, more: Partial<Sheet> = {}): Sheet =>
-  ({ lines, empty: false, names: names.filter((x) => x.trim().length >= 2), ...(door ? { door } : {}), ...more });
-const nothing = (none: MessageKey, noneParams?: Record<string, string>, door?: Door): Sheet =>
-  ({ lines: [], empty: true, none, ...(noneParams ? { noneParams } : {}), names: [], ...(door ? { door } : {}) });
+/** The customers a sheet names, by id: each once, and none for a row that has no customer. */
+const subjectsOf = (ids: readonly (string | null | undefined)[]): string[] => [...new Set(ids.filter((x): x is string => !!x))];
+/** A sheet; the customers its lines name come in `more.subjects` (a row with no customer adds none). */
+type More = Partial<Omit<Sheet, 'subjects'>> & { readonly subjects?: readonly (string | null | undefined)[] };
+const sheet = (lines: readonly string[], names: readonly string[], door?: Door, more: More = {}): Sheet =>
+  ({ lines, empty: false, names: names.filter((x) => x.trim().length >= 2), ...(door ? { door } : {}), ...more, subjects: subjectsOf(more.subjects ?? []) });
+/** Nothing to say; a fixed sentence that names a customer (in `noneParams`) has them as its subjects, as a line would. */
+const nothing = (none: MessageKey, noneParams?: Record<string, string>, door?: Door, subjects: readonly (string | null)[] = []): Sheet =>
+  ({ lines: [], empty: true, none, ...(noneParams ? { noneParams } : {}), names: [], subjects: subjectsOf(subjects), ...(door ? { door } : {}) });
 /** At most `n` lines of a list, then how many more there are. */
 const cap = (ctx: ReadCtx, lines: readonly string[], n = 15): string[] =>
   lines.length > n ? [...lines.slice(0, n), L(ctx, 'advisor.k.more', { n: count(ctx, lines.length - n) })] : [...lines];
+/**
+ * The rows `cap` gives a line to: the first `n`. A customer counted only in "…and N more" is not named by the
+ * sheet, so they are not one of its subjects; every customer whose line is shown is.
+ */
+const shown = <T>(rows: readonly T[], n = 15): readonly T[] => rows.slice(0, n);
 
 /** The period asked about, else the entry's own; and where it starts, in the workspace's zone. */
 const rangeOf = (ctx: ReadCtx, fallback: Range): Range => ctx.params.period ?? fallback;
@@ -139,7 +155,7 @@ async function oneCustomer(ctx: ReadCtx, tx: Tx): Promise<{ readonly id: string;
   const exact = found.filter((f) => f.exact);
   if (exact.length === 1 || found.length === 1) return exact[0] ?? found[0]!;
   const names = found.map((f) => nameOf(ctx, f.name));
-  return sheet([L(ctx, 'advisor.k.matches', { name: said, list: names.join(', ') })], names);
+  return sheet([L(ctx, 'advisor.k.matches', { name: said, list: names.join(', ') })], names, undefined, { subjects: found.map((f) => f.id) });
 }
 const isSheet = (x: unknown): x is Sheet => typeof x === 'object' && x !== null && 'lines' in x;
 
@@ -164,15 +180,16 @@ async function customersCount(ctx: ReadCtx): Promise<Sheet> {
 
 /** A2 — the customers, newest contact first. */
 async function customersList(ctx: ReadCtx): Promise<Sheet> {
-  const rows = await ro(ctx, async (tx) => (await sql<{ name: string | null; at: Date | null; total: number }>`
-    select cl.display_name as name, max(m.sent_at) as at, (count(*) over ())::int as total
+  const rows = await ro(ctx, async (tx) => (await sql<{ id: string; name: string | null; at: Date | null; total: number }>`
+    select cl.id::text as id, cl.display_name as name, max(m.sent_at) as at, (count(*) over ())::int as total
       from clients cl join conversations c on c.client_id = cl.id and not c.owner_testing
       left join messages m on m.conversation_id = c.id
      group by cl.id, cl.display_name
      order by max(m.sent_at) desc nulls last limit 30`.execute(tx)).rows);
   if (rows.length === 0) return nothing('advisor.none.customers', undefined, INBOX);
   const lines = rows.map((r) => r.at ? L(ctx, 'advisor.k.customerLast', { name: nameOf(ctx, r.name), when: when(ctx, r.at) }) : nameOf(ctx, r.name));
-  return sheet([L(ctx, 'advisor.k.customers', { n: count(ctx, rows[0]!.total) }), ...cap(ctx, lines, 20)], rows.map((r) => r.name ?? ''), { href: '/app/inbox?filter=all', label: 'nav.inbox' });
+  return sheet([L(ctx, 'advisor.k.customers', { n: count(ctx, rows[0]!.total) }), ...cap(ctx, lines, 20)], rows.map((r) => r.name ?? ''), { href: '/app/inbox?filter=all', label: 'nav.inbox' },
+    { subjects: shown(rows, 20).map((r) => r.id) });
 }
 
 /** A3 — one customer's card: the Inbox's own reading of who they are. */
@@ -195,7 +212,7 @@ async function customerAbout(ctx: ReadCtx): Promise<Sheet> {
       ...(card.askedAbout.length ? [L(ctx, 'advisor.k.card.asked', { list: card.askedAbout.map(product).filter(Boolean).join(', ') })] : []),
       ...(card.waiting ? [L(ctx, 'advisor.k.card.waiting')] : []),
     ];
-    return sheet(lines, [card.name ?? '', ...card.bought.map(product), ...card.askedAbout.map(product)], cardDoor(card.clientId));
+    return sheet(lines, [card.name ?? '', ...card.bought.map(product), ...card.askedAbout.map(product)], cardDoor(card.clientId), { subjects: [card.clientId] });
   });
 }
 
@@ -209,24 +226,25 @@ async function lastContact(ctx: ReadCtx): Promise<Sheet> {
         from messages m join conversations c on c.id = m.conversation_id
        where c.client_id = ${who.id}::uuid and not c.owner_testing`.execute(tx)).rows[0]!;
     const name = nameOf(ctx, who.name);
-    if (!r.them && !r.us) return nothing('advisor.none.neverWrote', { name });
+    if (!r.them && !r.us) return nothing('advisor.none.neverWrote', { name }, undefined, [who.id]);
     return sheet([
       ...(r.them ? [L(ctx, 'advisor.k.theyWrote', { name, when: when(ctx, r.them) })] : []),
       ...(r.us ? [L(ctx, 'advisor.k.weWrote', { name, when: when(ctx, r.us) })] : []),
-    ], [who.name ?? ''], cardDoor(who.id));
+    ], [who.name ?? ''], cardDoor(who.id), { subjects: [who.id] });
   });
 }
 
 /** A5 — who wrote most recently (new): each customer's newest message to us. */
 async function recentContacts(ctx: ReadCtx): Promise<Sheet> {
-  const rows = await ro(ctx, async (tx) => (await sql<{ name: string | null; at: Date }>`
-    select cl.display_name as name, max(m.sent_at) as at
+  const rows = await ro(ctx, async (tx) => (await sql<{ id: string; name: string | null; at: Date }>`
+    select cl.id::text as id, cl.display_name as name, max(m.sent_at) as at
       from messages m join conversations c on c.id = m.conversation_id and not c.owner_testing
       join clients cl on cl.id = c.client_id
      where m.direction = 'inbound'
      group by cl.id, cl.display_name order by 2 desc limit 10`.execute(tx)).rows);
   if (rows.length === 0) return nothing('advisor.none.customers', undefined, INBOX);
-  return sheet(rows.map((r) => L(ctx, 'advisor.k.wrote', { name: nameOf(ctx, r.name), when: when(ctx, r.at) })), rows.map((r) => r.name ?? ''), INBOX);
+  return sheet(rows.map((r) => L(ctx, 'advisor.k.wrote', { name: nameOf(ctx, r.name), when: when(ctx, r.at) })), rows.map((r) => r.name ?? ''), INBOX,
+    { subjects: rows.map((r) => r.id) });
 }
 
 /** A6 · B5 · D1 · D2 · D4 · G4 — Results' own figures (loadAnalytics), for the period. */
@@ -254,7 +272,7 @@ async function bestCustomers(ctx: ReadCtx): Promise<Sheet> {
     const names = await namesOf(tx, ids);
     const top = [...values.values()].filter((v) => v.spent).sort((a, b) => (b.spent!.amount - a.spent!.amount)).slice(0, 10);
     return sheet(top.map((v) => L(ctx, 'advisor.k.spent', { name: nameOf(ctx, names.get(v.clientId) ?? null), amount: money(ctx, v.spent!) })),
-      top.map((v) => names.get(v.clientId) ?? ''), { href: '/app/inbox?lens=value', label: 'nav.inbox' });
+      top.map((v) => names.get(v.clientId) ?? ''), { href: '/app/inbox?lens=value', label: 'nav.inbox' }, { subjects: top.map((v) => v.clientId) });
   });
 }
 async function namesOf(tx: Tx, ids: readonly string[]): Promise<Map<string, string | null>> {
@@ -273,7 +291,8 @@ async function regulars(ctx: ReadCtx): Promise<Sheet> {
     if (values.length === 0) return nothing('advisor.none.regulars', undefined, INBOX);
     const names = await namesOf(tx, values.map((v) => v.clientId));
     const list = values.map((v) => nameOf(ctx, names.get(v.clientId) ?? null));
-    return sheet([L(ctx, 'advisor.k.regulars', { n: count(ctx, values.length), list: list.slice(0, 20).join(', ') })], [...names.values()].map((n) => n ?? ''), INBOX);
+    return sheet([L(ctx, 'advisor.k.regulars', { n: count(ctx, values.length), list: list.slice(0, 20).join(', ') })], [...names.values()].map((n) => n ?? ''), INBOX,
+      { subjects: values.slice(0, 20).map((v) => v.clientId) });
   });
 }
 
@@ -291,8 +310,8 @@ async function channels(ctx: ReadCtx): Promise<Sheet> {
 
 /** B1 — the Inbox's "Needs you", as this reader sees it (`needsOwnerFor`), by customer. */
 async function waiting(ctx: ReadCtx): Promise<Sheet> {
-  const rows = await ro(ctx, async (tx) => (await sql<{ name: string | null; review: boolean; order: boolean; deletion: boolean; reason: string | null }>`
-    select distinct on (c.client_id) cl.display_name as name,
+  const rows = await ro(ctx, async (tx) => (await sql<{ client_id: string; name: string | null; review: boolean; order: boolean; deletion: boolean; reason: string | null }>`
+    select distinct on (c.client_id) c.client_id::text as client_id, cl.display_name as name,
            exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending') as review,
            exists (select 1 from order_proposals op where op.conversation_id = c.id and op.state = 'pending') as order,
            ${DELETION_WAITING} as deletion,
@@ -305,7 +324,8 @@ async function waiting(ctx: ReadCtx): Promise<Sheet> {
     : r.review ? t(ctx.locale, 'advisor.k.why.review')
     : (r.reason && (messages[ctx.locale] as Record<string, string>)[`takeover.reason.${r.reason}`]) || t(ctx.locale, 'advisor.k.why.person');
   return sheet([L(ctx, 'advisor.k.waitingCount', { n: count(ctx, rows.length) }),
-    ...cap(ctx, rows.map((r) => L(ctx, 'advisor.k.row', { name: nameOf(ctx, r.name), detail: why(r) })))], rows.map((r) => r.name ?? ''), WAITING);
+    ...cap(ctx, rows.map((r) => L(ctx, 'advisor.k.row', { name: nameOf(ctx, r.name), detail: why(r) })))], rows.map((r) => r.name ?? ''), WAITING,
+    { subjects: shown(rows).map((r) => r.client_id) });
 }
 
 /** B2 · B3 · B4 · B9 — a count by one of the Inbox's own definitions. */
@@ -335,18 +355,19 @@ async function conversations(ctx: ReadCtx): Promise<Sheet> {
 
 /** B7 — customers whose newest message, on any conversation, is theirs: the Inbox's "unanswered". */
 async function unanswered(ctx: ReadCtx): Promise<Sheet> {
-  const rows = await ro(ctx, async (tx) => (await sql<{ name: string | null; at: Date }>`
+  const rows = await ro(ctx, async (tx) => (await sql<{ client_id: string; name: string | null; at: Date }>`
     with last as (
       select distinct on (c.client_id) c.client_id, m.direction, m.sent_at
         from messages m join conversations c on c.id = m.conversation_id and not c.owner_testing
        where c.client_id is not null
        order by c.client_id, m.sent_at desc, m.id desc
     )
-    select cl.display_name as name, l.sent_at as at from last l join clients cl on cl.id = l.client_id
+    select l.client_id::text as client_id, cl.display_name as name, l.sent_at as at from last l join clients cl on cl.id = l.client_id
      where l.direction = 'inbound' order by l.sent_at desc limit 30`.execute(tx)).rows);
   if (rows.length === 0) return nothing('advisor.none.unanswered', undefined, INBOX);
   return sheet([L(ctx, 'advisor.k.unansweredCount', { n: count(ctx, rows.length) }),
-    ...cap(ctx, rows.map((r) => L(ctx, 'advisor.k.wrote', { name: nameOf(ctx, r.name), when: when(ctx, r.at) })))], rows.map((r) => r.name ?? ''), INBOX);
+    ...cap(ctx, rows.map((r) => L(ctx, 'advisor.k.wrote', { name: nameOf(ctx, r.name), when: when(ctx, r.at) })))], rows.map((r) => r.name ?? ''), INBOX,
+    { subjects: shown(rows).map((r) => r.client_id) });
 }
 
 /**
@@ -400,7 +421,7 @@ async function attention(ctx: ReadCtx, only: AttentionItem['kind'] | null, none:
   });
   if (items.length === 0) return nothing(none, undefined, INBOX);
   return sheet(cap(ctx, items.map((i) => L(ctx, `advisor.k.quiet.${i.kind}`, { name: nameOf(ctx, i.name), when: when(ctx, i.since) }))),
-    items.map((i) => i.name ?? ''), INBOX);
+    items.map((i) => i.name ?? ''), INBOX, { subjects: shown(items).map((i) => i.clientId) });
 }
 
 /** C4 · E1 · E2 · E3 · E4 · E6 — the calendar's own rows (`loadCalendar`), minus what is done (`isDone`). */
@@ -422,9 +443,16 @@ const entryLine = (ctx: ReadCtx, e: CalendarEntry): string => {
   });
   return L(ctx, e.detail.overdue ? 'advisor.k.datedOverdue' : 'advisor.k.dated', { when: e.allDay ? show.dayMonth(ctx.locale, e.day) : when(ctx, e.at), what });
 };
+/**
+ * Whether an entry's line names its customer: its kind's sentence has a `{name}`. An order's says only its
+ * reference, a closure and the owner's own date name nobody.
+ */
+const namesBuyer = (ctx: ReadCtx, e: CalendarEntry): boolean =>
+  ((messages[ctx.locale] as Record<string, string>)[`advisor.k.cal.${e.kind}`] ?? '').includes('{name}');
 const datedSheet = (ctx: ReadCtx, entries: readonly CalendarEntry[], none: MessageKey, door: Door = CALENDAR, n = 12): Sheet =>
   entries.length === 0 ? nothing(none, undefined, door)
-    : sheet(cap(ctx, entries.map((e) => entryLine(ctx, e)), n), entries.map((e) => e.buyer?.name ?? ''), door);
+    : sheet(cap(ctx, entries.map((e) => entryLine(ctx, e)), n), entries.map((e) => e.buyer?.name ?? ''), door,
+      { subjects: shown(entries, n).filter((e) => namesBuyer(ctx, e)).map((e) => e.buyer?.id) });
 
 // ── D · Sales and orders ─────────────────────────────────────────────────────
 
@@ -460,8 +488,8 @@ async function ordersByState(ctx: ReadCtx): Promise<Sheet> {
 
 /** D3 — a customer's yes waiting for the owner's tap (`ORDER_WAITING`). */
 async function ordersWaiting(ctx: ReadCtx): Promise<Sheet> {
-  const rows = await ro(ctx, async (tx) => (await sql<{ name: string | null; total: string | null; currency: string | null }>`
-    select cl.display_name as name, op.total::text as total, op.currency
+  const rows = await ro(ctx, async (tx) => (await sql<{ client_id: string | null; name: string | null; total: string | null; currency: string | null }>`
+    select cl.id::text as client_id, cl.display_name as name, op.total::text as total, op.currency
       from order_proposals op join conversations c on c.id = op.conversation_id and not c.owner_testing
       left join clients cl on cl.id = c.client_id
      where op.state = 'pending' order by op.created_at`.execute(tx)).rows);
@@ -469,7 +497,7 @@ async function ordersWaiting(ctx: ReadCtx): Promise<Sheet> {
   return sheet(rows.map((r) => {
     const m = r.total !== null && r.currency ? moneyFromRow(Number(r.total), r.currency) : null;
     return m ? L(ctx, 'advisor.k.orderWaiting', { name: nameOf(ctx, r.name), amount: money(ctx, m) }) : L(ctx, 'advisor.k.orderWaitingBare', { name: nameOf(ctx, r.name) });
-  }), rows.map((r) => r.name ?? ''), WAITING);
+  }), rows.map((r) => r.name ?? ''), WAITING, { subjects: rows.map((r) => r.client_id) });
 }
 
 async function pricesSent(ctx: ReadCtx): Promise<Sheet> {
@@ -584,7 +612,7 @@ async function orderByReference(ctx: ReadCtx): Promise<Sheet> {
       ...(total ? [L(ctx, 'advisor.k.orderTotal', { amount: total })] : []),
       ...steps.map((s) => L(ctx, 'advisor.k.orderStep', { state: orderStatusName(ctx.locale, s.state), when: when(ctx, s.at) })),
       ...(o.tracking ? [L(ctx, 'advisor.k.tracking', { ref: o.tracking })] : []),
-    ], [o.name ?? '', o.product ?? ''], { href: `/app/orders/${o.id}`, label: 'advisor.door.order' });
+    ], [o.name ?? '', o.product ?? ''], { href: `/app/orders/${o.id}`, label: 'advisor.door.order' }, { subjects: [o.client] });
   });
 }
 
@@ -612,8 +640,8 @@ async function deliveryPromised(ctx: ReadCtx): Promise<Sheet> {
       select pd.due_on::text as due from promised_dates pd join conversations c on c.id = pd.conversation_id and not c.owner_testing
        where c.client_id = ${who.id}::uuid and pd.kind = 'delivery' and pd.kept_at is null order by pd.due_on`.execute(tx)).rows;
     const name = nameOf(ctx, who.name);
-    if (rows.length === 0) return nothing('advisor.none.delivery', { name }, cardDoor(who.id));
-    return sheet(rows.map((r) => L(ctx, 'advisor.k.delivery', { name, when: show.dayMonth(ctx.locale, r.due) })), [who.name ?? ''], cardDoor(who.id));
+    if (rows.length === 0) return nothing('advisor.none.delivery', { name }, cardDoor(who.id), [who.id]);
+    return sheet(rows.map((r) => L(ctx, 'advisor.k.delivery', { name, when: show.dayMonth(ctx.locale, r.due) })), [who.name ?? ''], cardDoor(who.id), { subjects: [who.id] });
   });
 }
 
@@ -736,13 +764,18 @@ async function edits(ctx: ReadCtx): Promise<Sheet> {
   return sheet([periodSince(ctx, range, r.since), L(ctx, 'advisor.k.edits', { n: count(ctx, r.employee.edits) })], [], resultsDoor(range));
 }
 
-/** G5 — the questions without taught knowledge (`loadKnowledgeOps`). */
+/**
+ * G5 — the questions without taught knowledge (`loadKnowledgeOps`). It names nobody, but it quotes customers'
+ * own words: everyone who asked a question shown is one of its subjects (`askers`), so a customer's erasure
+ * finds a kept turn that quotes them.
+ */
 async function gaps(ctx: ReadCtx): Promise<Sheet> {
   const range = rangeOf(ctx, 'month');
   // The owner's own test questions are left out at the source (loadKnowledgeOps, the advisor batch).
   const k = await loadKnowledgeOps(ctx.db, String(ctx.businessId), range);
   if (k.gaps.length === 0) return nothing('advisor.none.gaps', { period: L(ctx, `advisor.when.${range}`) }, KNOWLEDGE);
-  return sheet(cap(ctx, k.gaps.map((g) => L(ctx, 'advisor.k.gap', { question: g.question.slice(0, 160), n: count(ctx, g.count) })), 10), [], KNOWLEDGE);
+  return sheet(cap(ctx, k.gaps.map((g) => L(ctx, 'advisor.k.gap', { question: g.question.slice(0, 160), n: count(ctx, g.count) })), 10), [], KNOWLEDGE,
+    { subjects: shown(k.gaps, 10).flatMap((g) => g.askers ?? []) });
 }
 
 /** G6 — why customers needed a person: the problem signals of the period, counted by reason. */

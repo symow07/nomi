@@ -19,7 +19,7 @@
  * be given one. Pure — no I/O, no environment reading of its own.
  */
 
-import { countryName } from '../owner/i18n/messages.js';
+import { countryName, type MessageKey } from '../owner/i18n/messages.js';
 import type { Locale } from '../owner/i18n/locale.js';
 
 export type Processor = {
@@ -64,6 +64,35 @@ export function aiProcessor(baseURL: string | null): Processor {
   try { host = new URL(baseURL).host.toLowerCase(); } catch { return { name: baseURL, country: null }; }
   return KNOWN[host] ?? { name: host, country: null };
 }
+
+/**
+ * The company that turns a voice message into text, when there is one: the
+ * transcriber is built only when `TRANSCRIBE_API_KEY` is set (worker/mediaPorts.ts),
+ * and it calls OpenAI's own API unless `TRANSCRIBE_BASE_URL` points elsewhere
+ * (llm/transcribe.ts). The same two variables decide it here, so the page names
+ * the transcriber exactly when one runs, and nobody when none does.
+ */
+export function transcriberProcessor(env: Readonly<Record<string, string | undefined>>): Processor | null {
+  if (!env['TRANSCRIBE_API_KEY']?.trim()) return null;
+  return aiProcessor(env['TRANSCRIBE_BASE_URL']?.trim() || 'https://api.openai.com/v1');
+}
+
+/**
+ * THE ADVISOR'S HISTORY (§9.3 of docs/ADVISOR-MEMORY.md) — what a provider
+ * itself keeps of a question it was sent, in one line, for the providers this
+ * build can describe: checked on 2026-10-07 against DeepSeek's Open Platform
+ * terms (effective 2026-04-29) and privacy policy (2026-02-10), and OpenAI's
+ * "Your data" page for its API. Any other provider has no line — Anthropic
+ * among them, until its current terms are checked — and the page then names
+ * the provider and says nothing about what it keeps rather than guess.
+ */
+const PROVIDER_LINES: Readonly<Record<string, MessageKey>> = {
+  DeepSeek: 'legal.privacy.provider.deepseek',
+  OpenAI: 'legal.privacy.provider.openai',
+};
+
+/** The line that says what this provider keeps; null when this build cannot say. */
+export const providerLineKey = (p: Processor): MessageKey | null => PROVIDER_LINES[p.name] ?? null;
 
 /**
  * "DeepSeek（中国）" in Chinese, "DeepSeek (China)" in English and Arabic, and

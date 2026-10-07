@@ -314,6 +314,16 @@ export function renderDataRights(
   const CONFIG: readonly ExportSubject[] = ['price-rules', 'selling-terms', 'teaching'];
   const record = EXPORT_SUBJECTS.filter((s) => !CONFIG.includes(s));
 
+  // 0130 — the advisor's history: the owner's own conversations only (D4; never anyone else's, D2), and the
+  // page with the switches and the team.
+  const advisor = `<section class="block" id="advisor-history">
+    <h2>${esc(t(locale, 'advisor.history.title'))}</h2>
+    <ul class="scard dl-files"><li class="row">
+      <span>${esc(t(locale, 'advisor.history.mine'))}</span>
+      <a class="dl-get" href="/app/settings/advisor-history/history.csv" download>${icon('download')}<span>${esc(t(locale, 'data.export.download'))}</span></a>
+    </li></ul>
+    <div class="doors">${deeper('/app/settings/advisor-history', t(locale, 'advisor.history.title'))}</div>
+  </section>`;
   const files = `<section class="block">
     <h2>${esc(t(locale, 'data.export.title'))}</h2>
     <p class="lede">${esc(t(locale, 'data.export.lead'))}</p>
@@ -392,6 +402,7 @@ export function renderDataRights(
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
     ${files}
+    ${advisor}
     ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both, v.photos)}
     <section class="block" id="close">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>

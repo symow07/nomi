@@ -87,7 +87,7 @@ describe('phase 7 · each landing screen is a menu, not an essay', () => {
     it(`${l} · Setup: two cards of rows, values and no lines under them; no search, no switch, no log out`, () => {
       const html = setup(l);
       const rows = rowsOf(html);
-      expect(rows).toHaveLength(8);
+      expect(rows).toHaveLength(9);                // 0130: the advisor's history joined Yours
       expect(html.match(/<ul class="scard">/g), l).toHaveLength(2);
       for (const r of rows) {
         expect(r.icon, `${l} ${r.label}`).toBe(true);

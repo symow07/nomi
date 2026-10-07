@@ -60,6 +60,7 @@ import { whatsAppAccountToken } from './channels/whatsapp/connect.js';
 import { liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount } from './db/whatsappAccounts.js';
 import { withTenantTx, lockConversation, createReadOnlyDb, type Db, type Tx } from './db/client.js';
 import { advisorKeysFrom, sealAdvisor, openAdvisor } from './advisor/seal.js';
+import { advisorMemory } from './advisor/memory.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
@@ -831,6 +832,9 @@ export async function buildProduction(
       if (behind > 0) console.log(`[advisor] ${behind} stored row(s) still sealed with an earlier key: each is sealed again when it is opened; keep ADVISOR_KEY_PREVIOUS set until none are left`);
     }
   }
+  // 0130 — each person's own advisor history, on the app's pool (row security by workspace and person), the
+  // only thing that writes or opens it. Handed to the advisor's routes as a port, never as a pool.
+  const advisorHistory = advisorMemory(db, advisorKeys);
   // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
   // and the way out to a push service. Unset: no phone alerts, and the page says so.
   const vapid = vapidFrom(process.env);
@@ -851,6 +855,8 @@ export async function buildProduction(
       draftTranslator,
       advisorDb,
       advisorModel,
+      advisorMemory: advisorHistory,
+      advisorProvider: { name: legalFacts.processor.name, model: llm.model },
       sessionSecret: webSessionSecret,
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,

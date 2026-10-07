@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { t } from './say.js';
 import { TERMS_KEYS } from '../../core/legal/terms.js';
-import { processorLabel, type Processor } from '../../core/legal/processors.js';
+import { processorLabel, providerLineKey, type Processor } from '../../core/legal/processors.js';
+import { formatLifetime } from '../../core/owner/i18n/format.js';
+import { COOKIES } from './thirdParty.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { publicDocument, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
@@ -35,8 +37,8 @@ export const TERMS_VERSION: string = createHash('sha256')
  * and the name, leading to the site (`home`), and the language switch, which
  * returns to the same page (`path`).
  */
-const SHELL = (locale: Locale, title: string, body: string, home: string, path: string): string =>
-  publicDocument({ locale, title: `${title} · Nomi`, body: `${publicTop(locale, home, path)}${body}`, extraCss: PUBLIC_TOP_CSS });
+const SHELL = (locale: Locale, title: string, body: string, home: string, path: string, css: string = PUBLIC_TOP_CSS): string =>
+  publicDocument({ locale, title: `${title} · Nomi`, body: `${publicTop(locale, home, path)}${body}`, extraCss: css });
 
 /** A sentence from the catalogue with one placeholder made a link — the rest escaped. */
 const withLink = (l: Locale, key: string, param: string, href: string, label: string): string =>
@@ -59,21 +61,93 @@ const contact = (l: Locale, email: string | null, business: boolean): string => 
 };
 
 /**
- * When the page last changed. The terms keep their own date: a date that moved
- * with no change to the terms would read as a change to them. The privacy and
- * deletion pages changed together (CC-02a) and share theirs.
+ * When the page last changed. Each page keeps its own date: a date that moved
+ * with no change to a page would read as a change to it. The privacy and
+ * deletion pages changed together until the advisor's history (2026-10-07),
+ * which changed the privacy page and the terms and left the deletion page as
+ * it was.
  */
-const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' | 'legal.updated.terms' = 'legal.updated'): string =>
+const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' | 'legal.updated.terms' | 'legal.updated.deletion' = 'legal.updated'): string =>
   `<p class="updated">${esc(t(l, key))}</p>`;
 
 /**
  * Everything the legal pages must state about where a buyer's words go. Passed
  * in, never written down here: the privacy page named a processor this
  * installation had stopped using, and said "Nobody else" underneath it.
+ *
+ * The advisor's history (2026-10-07, docs/ADVISOR-MEMORY.md §9) adds three,
+ * each optional so a composition that does not know them yet says the safe thing:
+ *   transcriber     the speech-to-text service, named in the "who" list only
+ *                   when one is configured (`transcriberProcessor`); absent or
+ *                   null, none is named, because none runs;
+ *   botCheck        the sign-up bot check (BOT_CHECK_WIDGET's name), named in
+ *                   the "who" list and the cookie section only when configured;
+ *   advisorHistory  whether this installation can keep advisor conversations.
+ *                   ABSENT MEANS YES: the page then describes the history. A
+ *                   page that describes a keeping that may not happen is a
+ *                   smaller wrong than keeping something the page does not
+ *                   describe, and nothing may be kept before the page says so.
+ *                   `false` (no working ADVISOR_KEY: nothing is kept) leaves the
+ *                   advisor's line as it was and draws no history section.
  */
-export type LegalFacts = { readonly processor: Processor; readonly hosting: Processor };
+export type LegalFacts = {
+  readonly processor: Processor;
+  readonly hosting: Processor;
+  readonly transcriber?: Processor | null;
+  readonly botCheck?: Processor | null;
+  readonly advisorHistory?: boolean;
+};
+
+/**
+ * §9.3 — the sentence that names where an advisor question goes, with the line
+ * that says what that provider keeps. This batch has ONE provider (`LLM_*`), so
+ * `{processors}` is that one, named as the "who" list names it.
+ *
+ * A provider this build has no line for (Anthropic until its terms are checked,
+ * or a host it cannot name) gets none: the sentence is said up to its own end
+ * and stops there, with the language's full stop where the colon was, so it
+ * neither ends on a dangling colon nor claims anything about what that provider
+ * keeps. Every locale's sentence ends in a colon and `{providerLines}`, which
+ * privacy-advisor-cookies.test.ts holds, so the cut is always the same cut.
+ */
+function advisorProviders(l: Locale, p: Processor): string {
+  const processors = processorLabel(p, l);
+  const line = providerLineKey(p);
+  if (line) return t(l, 'legal.privacy.advisor.providers', { processors, providerLines: t(l, line, { provider: p.name }) });
+  const said = t(l, 'legal.privacy.advisor.providers', { processors, providerLines: '\u0000' });
+  return said.replace(/\s*[:：]\s*\u0000$/u, l === 'zh' ? '。' : '.').replace('\u0000', '');
+}
+
+/**
+ * §9.4 — the cookies, drawn from the registry the code is checked against
+ * (thirdParty.ts `COOKIES`), so the page cannot list a cookie the code does not
+ * set or miss one it does. Cookies with the same purpose and lifetime share a
+ * row, as the three connection cookies do. Each name is its own left-to-right
+ * island, so an Arabic row keeps "yf_oauth، yf_meta" in order.
+ */
+function cookieTable(l: Locale): string {
+  const rows: { names: string[]; purpose: (typeof COOKIES)[number]['purpose']; life: number }[] = [];
+  for (const c of COOKIES) {
+    const same = rows.find((r) => r.purpose === c.purpose && r.life === c.lifetimeSec);
+    if (same) same.names.push(c.name); else rows.push({ names: [c.name], purpose: c.purpose, life: c.lifetimeSec });
+  }
+  const comma = l === 'zh' ? '、' : l === 'ar' ? '، ' : ', ';
+  return `<table class="cookies"><thead><tr><th scope="col">${esc(t(l, 'legal.privacy.cookies.name'))}</th><th scope="col">${esc(t(l, 'legal.privacy.cookies.purpose'))}</th><th scope="col">${esc(t(l, 'legal.privacy.cookies.lifetime'))}</th></tr></thead><tbody>${
+    rows.map((r) => `<tr><td>${r.names.map((n) => `<code dir="ltr">${esc(n)}</code>`).join(comma)}</td><td>${esc(t(l, r.purpose))}</td><td>${esc(formatLifetime(l, r.life))}</td></tr>`).join('')
+  }</tbody></table>`;
+}
+
+/** The cookie table's rules: the page's tokens, a rule under each row, nothing wider than the page. */
+const PRIVACY_CSS = `${PUBLIC_TOP_CSS}
+  table.cookies { border-collapse:collapse; margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
+  table.cookies th, table.cookies td { text-align:start; vertical-align:top; padding-block:var(--space-8); padding-inline:0 var(--space-12);
+    border-bottom:1px solid var(--color-border); overflow-wrap:anywhere; }
+  table.cookies th { color:var(--color-ink); font-weight:600; }
+  table.cookies code { font-size:var(--font-size-small); }
+`;
 
 export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts, home = '/site'): string {
+  const history = facts.advisorHistory !== false;
   const section = (title: string, body: string): string =>
     `<h2>${esc(t(l, title as Parameters<typeof t>[1]))}</h2><p>${esc(t(l, body as Parameters<typeof t>[1]))}</p>`;
   // public-missed-15 — the deletion page by its own name, and a link wherever it is named.
@@ -99,16 +173,34 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <ul>
       <li>${esc(t(l, 'legal.privacy.who.meta'))}</li>
       <li>${esc(t(l, 'legal.privacy.who.ai', { processor: processorLabel(facts.processor, l) }))}</li>
-      ${/* The advisor batch (2026-10-06) — the advisor's answers are phrased by the same provider: said before it goes live. */ ''}<li>${esc(t(l, 'legal.privacy.who.advisor', { processor: processorLabel(facts.processor, l) }))}</li>
+      ${/* The advisor batch (2026-10-06) — the advisor's answers are phrased by the same provider: said before it goes live.
+           The advisor's history (2026-10-07) — and Nomi keeps those conversations for whoever allows it: said here, told below. */ ''}<li>${esc(t(l, 'legal.privacy.who.advisor', { processor: processorLabel(facts.processor, l) }))}${
+        history ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.advisorKept'))}` : ''}</li>
+      ${/* §9.3 — the transcriber, only when one is configured: a voice message's sound goes there. */
+        facts.transcriber ? `<li>${esc(t(l, 'legal.privacy.who.transcriber', { transcriber: processorLabel(facts.transcriber, l) }))}</li>` : ''}
       <li>${esc(t(l, 'legal.privacy.who.hosting', { hosting: processorLabel(facts.hosting, l) }))}</li>
       <li>${esc(t(l, 'legal.privacy.who.mail'))}</li>
+      ${/* §9.3 — the sign-up bot check, only when one is configured: it sees the sign-up page, never a message. */
+        facts.botCheck ? `<li>${esc(t(l, 'legal.privacy.who.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}</li>` : ''}
     </ul>
     <p>${esc(t(l, 'legal.privacy.who.nobody'))}</p>
     ${toDeletion('legal.privacy.howLong.title', 'legal.privacy.howLong.body')}
     ${toDeletion('legal.privacy.choices.title', 'legal.privacy.choices.body')}
+    ${/* §9.3 — THE ADVISOR'S HISTORY, before anything is kept: what, on what basis, where the question goes
+         and what that provider keeps, who reads it (nobody), and what a customer's deletion reaches. */
+      history ? `<h2 id="advisor">${esc(t(l, 'legal.privacy.advisor.title'))}</h2>
+    <p>${esc(t(l, 'legal.privacy.advisor.what'))}</p>
+    <p>${esc(t(l, 'legal.privacy.advisor.basis'))}</p>
+    <p>${esc(advisorProviders(l, facts.processor))}</p>
+    <p>${esc(t(l, 'legal.privacy.advisor.nobody'))}</p>
+    <p>${esc(t(l, 'legal.privacy.advisor.customers'))}</p>` : ''}
+    ${/* §9.4 — D7: every cookie is strictly necessary, so there is no banner; the list is the code's own. */ ''}<h2 id="cookies">${esc(t(l, 'legal.privacy.cookies.title'))}</h2>
+    <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
+    ${cookieTable(l)}
+    ${facts.botCheck ? `<p>${esc(t(l, 'legal.privacy.cookies.botCheck', { provider: processorLabel(facts.botCheck, l) }))}</p>` : ''}
     <p><a href="/data-deletion">${esc(t(l, 'legal.deletion.title'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${contact(l, email, true)}
-    ${updated(l, 'legal.updated.privacy')}`, home, '/privacy');
+    ${updated(l, 'legal.updated.privacy')}`, home, '/privacy', PRIVACY_CSS);
 }
 
 /**
@@ -123,6 +215,7 @@ export function renderLegalTerms(l: Locale, email: string | null, home = '/site'
     <h1>${k('legal.terms.title')}</h1>
     <p>${k('legal.terms.intro')}</p>
     <h2>${k('legal.terms.service.title')}</h2><p>${k('legal.terms.service.body')}</p>
+    ${/* §9.5 — the advisor's history: what the business instructs Nomi, its processor, to keep. */ ''}<p>${k('legal.terms.service.advisor')}</p>
     <h2>${k('legal.terms.yours.title')}</h2>
     ${list(['legal.terms.yours.you1', 'legal.terms.yours.you2', 'legal.terms.yours.you3'])}
     <h2>${k('legal.terms.use.title')}</h2>
@@ -193,5 +286,5 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
     ])}</ul>
     ${contact(l, email, !email)}
     <p><a href="/privacy">${k('legal.privacyLink')}</a> · <a href="/terms">${k('legal.termsLink')}</a></p>
-    ${updated(l, 'legal.updated.privacy')}`, home, '/data-deletion');
+    ${updated(l, 'legal.updated.deletion')}`, home, '/data-deletion');
 }

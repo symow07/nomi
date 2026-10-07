@@ -1,9 +1,28 @@
 # The advisor's memory: the plan, as decided
 
-**Status: decided, and being built.** The owner answered D1–D9 on 2026-10-07 (section 11).
-- **PR 1, storage and deletion, no page:** built. Branch `advisor-memory-storage`, migration 0130.
-- **PR 2, the page and the copy:** next. It ships the privacy page's advisor and cookie sections with it, because nothing may be stored before the privacy page describes it.
+**Status: decided and built.** The owner answered D1–D9 on 2026-10-07 (section 11).
+- **PR 1, storage and deletion, no page:** live. #247, migration 0130.
+- **PR 2, the page and the copy:** built. Its privacy page sections (the advisor's history, cookies), the provider line, the sub-processors and the terms sentence ship with it, so nothing can be stored before the privacy page describes it. "As built", below, says where it differs from this plan.
+- **Nothing is kept until `ADVISOR_KEY` is in Railway** (D8). Until then the advisor answers, the card never asks, and Settings says history cannot be kept right now.
 - **A later batch:** the provider list with fallbacks, and the owner's own API key (section 10).
+
+**As built (PR 2), where it differs from the plan:**
+- **The words "database" and "model" are banned in owner-facing copy** (`owner-language.test.ts`).
+  - "Nomi's database" became "Nomi" in every language: "kept by Nomi", "deleted from Nomi".
+  - "never used to train any model" became "never used for training".
+- **Pronouns.** Some lines of section 9 were reworded to hold the pronoun rules (rule 6), each listed in `docs/NATIVE-REVIEW-UI.md` for a native read:
+  - Chinese 它们 and 它的;
+  - French elle and elles;
+  - Spanish ellas;
+  - Arabic «هو» and verbs that agree with a gender.
+- **Where the switches live.** Settings → Setup has a row, "The advisor's history", for everyone. It holds:
+  - each person's own switch and download;
+  - for the owner, also the workspace's switch and the team.
+
+  Settings → Your data gets a section with the owner's own history as a file, and a door to that page. A page under `/app/settings/data/` may not be a door (downloads are not doors), so the page is at `/app/settings/advisor-history`.
+- **The owner's own export (D4).** The owner's own history is one more file on Your data, holding only the owner's rows. The business's nine files never held advisor rows. The test that holds this was written with the export, not before it. It was then seen to fail with row security opened to the whole workspace.
+- **Follow-ups.** The routing prompt names the pointers back it may follow ("she", "this customer", "that order", "and this week?"). `tools/check-advisor-model.mjs` asks follow-ups too: 15/15 on deepseek-flash, 2026-10-07.
+- **Subjects.** Every read names the customers it names, and G5 also carries the customers whose questions it quotes.
 
 It replaces the advisor's "nothing is kept" stance, which the owner settled on 2026-10-07: the advisor stores conversation history, so it can help the owner analyse and grow the business over time.
 
