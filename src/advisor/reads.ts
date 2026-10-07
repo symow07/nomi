@@ -764,13 +764,18 @@ async function edits(ctx: ReadCtx): Promise<Sheet> {
   return sheet([periodSince(ctx, range, r.since), L(ctx, 'advisor.k.edits', { n: count(ctx, r.employee.edits) })], [], resultsDoor(range));
 }
 
-/** G5 — the questions without taught knowledge (`loadKnowledgeOps`). */
+/**
+ * G5 — the questions without taught knowledge (`loadKnowledgeOps`). It names nobody, but it quotes customers'
+ * own words: everyone who asked a question shown is one of its subjects (`askers`), so a customer's erasure
+ * finds a kept turn that quotes them.
+ */
 async function gaps(ctx: ReadCtx): Promise<Sheet> {
   const range = rangeOf(ctx, 'month');
   // The owner's own test questions are left out at the source (loadKnowledgeOps, the advisor batch).
   const k = await loadKnowledgeOps(ctx.db, String(ctx.businessId), range);
   if (k.gaps.length === 0) return nothing('advisor.none.gaps', { period: L(ctx, `advisor.when.${range}`) }, KNOWLEDGE);
-  return sheet(cap(ctx, k.gaps.map((g) => L(ctx, 'advisor.k.gap', { question: g.question.slice(0, 160), n: count(ctx, g.count) })), 10), [], KNOWLEDGE);
+  return sheet(cap(ctx, k.gaps.map((g) => L(ctx, 'advisor.k.gap', { question: g.question.slice(0, 160), n: count(ctx, g.count) })), 10), [], KNOWLEDGE,
+    { subjects: shown(k.gaps, 10).flatMap((g) => g.askers ?? []) });
 }
 
 /** G6 — why customers needed a person: the problem signals of the period, counted by reason. */
