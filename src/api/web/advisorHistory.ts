@@ -10,7 +10,7 @@ import { flashBanner, type Flash } from './flash.js';
 import * as show from './values.js';
 
 /**
- * SETTINGS → YOUR DATA → THE ADVISOR'S HISTORY (0130; docs/ADVISOR-MEMORY.md §3, §5, D1, D2, D4, D6).
+ * SETTINGS → THE ADVISOR'S HISTORY, a door of Your data too (0130; docs/ADVISOR-MEMORY.md §3, §5, D1, D2, D4, D6).
  *
  *   · Everyone: their own switch (the opt-in sentence, word for word), what it is now, and their own
  *     download (D4). Turning it off asks once, with what it means, then deletes at once (§5a). After a
@@ -37,8 +37,8 @@ export type AdvisorHistoryIO = {
   readonly dialect: (locale: Locale) => Parameters<typeof csvFile>[2];
 };
 
-export const HISTORY_PAGE = '/app/settings/data/advisor';
-export const HISTORY_FILE = '/app/settings/data/advisor/history.csv';
+export const HISTORY_PAGE = '/app/settings/advisor-history';
+export const HISTORY_FILE = '/app/settings/advisor-history/history.csv';
 
 export type HistoryPage = {
   readonly state: MemoryState;
@@ -57,7 +57,7 @@ export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flas
 
   const why = s.keyProblem ? `<p class="muted">${say('advisor.history.keyMissing')}</p>`
     : !s.person ? `<p class="muted">${say('advisor.history.noPerson')}</p>`
-    : !s.workspaceOn && !v.isOwner ? `<p class="muted">${say('advisor.history.workspaceWaits')}</p>` : '';
+    : !s.workspaceOn && !v.isOwner ? `<p class="muted">${say('advisor.history.workspaceWaits')} ${say('staff.ownerDecides')}</p>` : '';
   const mineState = s.keep && s.since ? say('advisor.memory.on', { date: show.date(locale, s.since) }) : say('advisor.memory.offState');
   const mineAct = s.keep
     ? button(`${HISTORY_PAGE}/me`, 'on', 'off', t(locale, 'advisor.history.turnOff'), t(locale, 'advisor.memory.confirm', { processor: v.processor }))

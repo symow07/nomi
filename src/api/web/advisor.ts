@@ -211,10 +211,10 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
         <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
         ${thread ? `<input type="hidden" name="thread" value="${esc(thread)}">` : ''}
-        <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button>${turns.length || (exchange && thread)
-          ? `<a class="btn" href="/app/advisor?new=1">${esc(t(locale, 'advisor.thread.new'))}</a>` : ''}</div>
+        <div class="msgacts"><button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button></div>
       </form>
     </div>
+    ${turns.length ? `<div class="doors">${deeper('/app/advisor?new=1', t(locale, 'advisor.thread.new'))}</div>` : ''}
     ${earlierHtml(locale, history.earlier ?? [], thread)}`;
 }
 

@@ -4307,7 +4307,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const owner = personOf(s).isOwner;
     const bid = parseBusinessId(s.businessId);
     // Phase 3 — what each row is set to now: read here, so the page says it without opening anything.
-    const [people, phones, ways, login, billing, data] = await Promise.all([
+    const [people, phones, ways, login, billing, data, advisorKept] = await Promise.all([
       loadPeople(deps.db, s.businessId),
       loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null).catch(() => null),
       // The warmth run, phase 8 — the row says how notifications reach this reader.
@@ -4315,6 +4315,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bid.ok ? loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : Promise.resolve(null),
       owner && bid.ok ? withTenantTx(deps.db, bid.value, (tx) => billingState(tx)).catch(() => null) : Promise.resolve(null),
       owner ? loadDataRights(deps.db, s.businessId).catch(() => null) : Promise.resolve(null),
+      // 0130 — the advisor's history row says whether this person's is kept now.
+      deps.advisorMemory ? deps.advisorMemory.state(s.businessId, personOf(s).id, new Date()).then((m) => m.keep).catch(() => false) : Promise.resolve(false),
     ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.setup'), active: 'settings',
@@ -4327,6 +4329,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         signIn: { email: login?.email ?? null },
         billing: billing ? { configured: Boolean(deps.stripe), exempt: billing.exempt, status: billing.status } : null,
         dataWaiting: data ? (data.buyers ?? []).filter((b) => b.state === 'open').length + (data.asks ?? []).length : null,
+        advisorKept,
       }, locale, flash),
     }));
   });

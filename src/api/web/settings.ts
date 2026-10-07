@@ -287,6 +287,8 @@ export type SetupView = {
   readonly dataWaiting?: number | null;
   /** Phase 7 — who is looking. Who works here, billing and your data are the owner's pages (rule 11). Absent: the owner. */
   readonly viewer?: Viewer;
+  /** 0130 — this person's advisor history is kept now. Absent: it is not. */
+  readonly advisorKept?: boolean;
 };
 
 export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): string {
@@ -332,10 +334,10 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
         value: v.dataWaiting === null || v.dataWaiting === undefined ? null
           : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
         tone: v.dataWaiting ? 'warn' : undefined }),
-    ] : [
-      // 0130 — staff have data of their own here: their advisor history (Settings → Your data, D4).
-      menuRow({ href: '/app/settings/data/advisor', icon: 'data', label: t(locale, 'data.title'), value: null }),
-    ]),
+    ] : []),
+    // 0130 — each person's own advisor history: their switch and their download (D4); the owner's workspace and team.
+    menuRow({ href: '/app/settings/advisor-history', icon: 'data', label: t(locale, 'advisor.history.title'),
+      value: t(locale, v.advisorKept ? 'advisor.history.valueOn' : 'advisor.history.valueOff') }),
   ];
   return `<h1 class="page">${esc(t(locale, 'nav.setup'))}</h1>
     ${flashBanner(flash)}

@@ -320,9 +320,9 @@ export function renderDataRights(
     <h2>${esc(t(locale, 'advisor.history.title'))}</h2>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'advisor.history.mine'))}</span>
-      <a class="dl-get" href="/app/settings/data/advisor/history.csv" download>${icon('download')}<span>${esc(t(locale, 'data.export.download'))}</span></a>
+      <a class="dl-get" href="/app/settings/advisor-history/history.csv" download>${icon('download')}<span>${esc(t(locale, 'data.export.download'))}</span></a>
     </li></ul>
-    <div class="doors">${deeper('/app/settings/data/advisor', t(locale, 'advisor.history.title'))}</div>
+    <div class="doors">${deeper('/app/settings/advisor-history', t(locale, 'advisor.history.title'))}</div>
   </section>`;
   const files = `<section class="block">
     <h2>${esc(t(locale, 'data.export.title'))}</h2>

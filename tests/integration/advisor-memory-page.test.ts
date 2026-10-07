@@ -143,9 +143,9 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     expect(r.body).not.toContain(en('advisor.memory.ask'));
     expect(await threadsOf(OWNER)).toBe(0);
     // staff cannot switch the workspace on: the page refuses, and the database would too (NE022)
-    await post(staff, '/app/settings/data/advisor/workspace', { on: 'on' });
+    await post(staff, '/app/settings/advisor-history/workspace', { on: 'on' });
     expect((await admin.query('select advisor_history_at from businesses where id = $1', [BIZ])).rows[0].advisor_history_at).toBeNull();
-    const on = await post(owner, '/app/settings/data/advisor/workspace', { on: 'on' });
+    const on = await post(owner, '/app/settings/advisor-history/workspace', { on: 'on' });
     expect(on.statusCode).toBe(302);
     expect((await admin.query('select advisor_history_at from businesses where id = $1', [BIZ])).rows[0].advisor_history_at).not.toBeNull();
   });
@@ -164,9 +164,9 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     expect((await ask(owner, 'How many customers do I have?')).body).not.toContain(en('advisor.memory.ask'));
     expect(await threadsOf(OWNER)).toBe(0);
     // Settings is then the only way in
-    const s = await get(owner, '/app/settings/data/advisor');
+    const s = await get(owner, '/app/settings/advisor-history');
     expect(s.body).toContain(en('advisor.memory.ask'));
-    expect((await post(owner, '/app/settings/data/advisor/me', { on: 'on' })).statusCode).toBe(302);
+    expect((await post(owner, '/app/settings/advisor-history/me', { on: 'on' })).statusCode).toBe(302);
   });
 
   it('kept from the yes on: sealed, in a conversation that goes on; the page shows it', async () => {
@@ -194,7 +194,8 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     expect(JSON.stringify(input.earlier)).toContain(AMIRA);                    // what it named
     // never an answer or a fact line: none of what the advisor said is in what the model was given
     const said = told.body.slice(told.body.lastIndexOf('class="bubble adv"'));
-    const words = [...said.matchAll(/<bdi>([^<]{6,})<\/bdi>/g)].map((m) => m[1]!).filter((w) => !w.includes(AMIRA));
+    // every line of the answer, whole (a bare name is what it named, and may be there: that is a param)
+    const words = [...said.matchAll(/<bdi>([^<]{6,})<\/bdi>/g)].map((m) => m[1]!).filter((w) => w.trim() !== AMIRA);
     expect(words.length).toBeGreaterThan(0);
     for (const w of words) expect(JSON.stringify(input), w).not.toContain(w);
     expect(Object.keys((input.earlier as Record<string, unknown>[])[0]!).sort()).toEqual(['entry', 'params', 'question']);
@@ -244,12 +245,12 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
   });
 
   it('D2 · the owner opens none of a team member\'s conversations, and sees nothing of them anywhere', async () => {
-    await post(staff, '/app/settings/data/advisor/me', { on: 'on' });
+    await post(staff, '/app/settings/advisor-history/me', { on: 'on' });
     const mine = await ask(staff, `How many customers do I have? ${STAFF_MARK}`);
     const staffThread = threadIn(mine.body)!;
     expect(await threadsOf(STAFF)).toBe(1);
     expect((await get(owner, `/app/advisor/c/${staffThread}`)).statusCode).toBe(404);
-    for (const url of ['/app/advisor', '/app/settings/data/advisor', '/app/settings/data']) {
+    for (const url of ['/app/advisor', '/app/settings/advisor-history', '/app/settings/data']) {
       expect((await get(owner, url)).body, url).not.toContain(STAFF_MARK);
     }
     // and the staff member opens their own
@@ -257,12 +258,12 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
   });
 
   it('D4 · each download holds that person\'s own rows and no one else\'s — the owner\'s included', async () => {
-    const ownerCsv = await get(owner, '/app/settings/data/advisor/history.csv');
+    const ownerCsv = await get(owner, '/app/settings/advisor-history/history.csv');
     expect(ownerCsv.statusCode).toBe(200);
     expect(ownerCsv.headers['content-type']).toContain('text/csv');
     expect(ownerCsv.body).toContain(MARKER);
     expect(ownerCsv.body).not.toContain(STAFF_MARK);
-    const staffCsv = await get(staff, '/app/settings/data/advisor/history.csv');
+    const staffCsv = await get(staff, '/app/settings/advisor-history/history.csv');
     expect(staffCsv.body).toContain(STAFF_MARK);
     expect(staffCsv.body).not.toContain(MARKER);
     // the business's own nine files carry no advisor words at all
@@ -274,16 +275,16 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
   });
 
   it('D2 · the owner deletes a team member\'s history whole, unread; the notice reads the same whether anything was kept or not', async () => {
-    const del = await post(owner, `/app/settings/data/advisor/team/${STAFF}/delete`, { go: '1' });
+    const del = await post(owner, `/app/settings/advisor-history/team/${STAFF}/delete`, { go: '1' });
     expect(del.statusCode).toBe(302);
     expect(await threadsOf(STAFF)).toBe(0);
     expect(await n(`select count(*) as n from erasure_ledger where kind = 'advisor' and person_id = $1 and via = 'owner'`, [STAFF])).toBe(1);
     const notice = String(del.headers['set-cookie'] ?? '');
-    const again = await post(owner, `/app/settings/data/advisor/team/${STAFF}/delete`, { go: '1' });
+    const again = await post(owner, `/app/settings/advisor-history/team/${STAFF}/delete`, { go: '1' });
     expect(again.statusCode).toBe(302);
     expect(String(again.headers['set-cookie'] ?? '').replace(/yf_flash=[^;]+/, 'x')).toBe(notice.replace(/yf_flash=[^;]+/, 'x'));
     // staff cannot do it to anyone
-    await post(staff, `/app/settings/data/advisor/team/${OWNER}/delete`, { go: '1' });
+    await post(staff, `/app/settings/advisor-history/team/${OWNER}/delete`, { go: '1' });
     expect(await threadsOf(OWNER)).toBeGreaterThan(0);
   });
 
@@ -317,12 +318,12 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     expect(latest(r.body)).not.toContain(en('advisor.failed'));
     expect(r.body).not.toContain(en('advisor.memory.ask'));
     expect(await n('select count(*) as n from advisor_turns where person_id = $1', [OWNER])).toBe(before);
-    expect((await get(owner, '/app/settings/data/advisor', noKey)).body).toContain(en('advisor.history.keyMissing'));
+    expect((await get(owner, '/app/settings/advisor-history', noKey)).body).toContain(en('advisor.history.keyMissing'));
   });
 
   it('taking it back deletes at once, with its ledger line; nothing is kept after', async () => {
     expect(await threadsOf(OWNER)).toBeGreaterThan(0);
-    const off = await post(owner, '/app/settings/data/advisor/me', { on: 'off' });
+    const off = await post(owner, '/app/settings/advisor-history/me', { on: 'off' });
     expect(off.statusCode).toBe(302);
     expect(await threadsOf(OWNER)).toBe(0);
     expect(await n(`select count(*) as n from erasure_ledger where kind = 'advisor' and person_id = $1 and via = 'person'`, [OWNER])).toBeGreaterThan(0);
@@ -331,10 +332,10 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
   });
 
   it('the owner switching the workspace off deletes everyone\'s, then keeps nothing', async () => {
-    await post(staff, '/app/settings/data/advisor/me', { on: 'on' });
+    await post(staff, '/app/settings/advisor-history/me', { on: 'on' });
     await ask(staff, 'How many customers do I have?');
     expect(await threadsOf(STAFF)).toBe(1);
-    await post(owner, '/app/settings/data/advisor/workspace', { on: 'off' });
+    await post(owner, '/app/settings/advisor-history/workspace', { on: 'off' });
     expect(await threadsOf(STAFF)).toBe(0);
     await ask(staff, 'How many customers do I have?');
     expect(await threadsOf(STAFF)).toBe(0);
