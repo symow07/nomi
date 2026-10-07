@@ -87,8 +87,8 @@ export function renderAdvisorHistory(locale: Locale, v: HistoryPage, flash: Flas
   const team = `<section class="block" id="team">
       <h2>${say('advisor.history.team')}</h2>
       <p class="muted">${say('advisor.history.teamHelp')}</p>
-      ${v.team.length === 0 ? `<p class="muted">${say('advisor.history.noTeam')}</p>` : `<ul class="rows">${v.team.map((p) => `<li class="row">
-        <span class="grow"><bdi>${esc(p.name)}</bdi></span>
+      ${v.team.length === 0 ? `<p class="muted">${say('advisor.history.noTeam')}</p>` : `<ul class="rows">${v.team.map((p) => `<li class="row lines">
+        <bdi>${esc(p.name)}</bdi>
         ${button(`${HISTORY_PAGE}/team/${esc(p.id)}/delete`, 'go', '1', t(locale, 'advisor.memory.ownerDelete', { name: p.name }),
           t(locale, 'advisor.memory.ownerDeleteConfirm', { name: p.name }))}
       </li>`).join('')}</ul>`}

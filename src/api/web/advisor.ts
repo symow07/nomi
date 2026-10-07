@@ -175,9 +175,9 @@ const earlierHtml = (locale: Locale, rows: readonly ThreadRow[], here: string | 
   if (shown.length === 0) return '';
   return `<section class="block adv-earlier" aria-labelledby="adv-earlier-h">
       <h2 id="adv-earlier-h">${esc(t(locale, 'advisor.thread.earlier'))}</h2>
-      <ul class="rows">${shown.map((r) => `<li class="row">
-        <span class="grow"><a href="/app/advisor/c/${esc(r.id)}#latest"><bdi>${esc(r.title ?? t(locale, 'advisor.thread.unreadable'))}</bdi></a>
-          <span class="caption muted">${esc(show.date(locale, r.lastTurnAt))}</span></span>
+      <ul class="rows">${shown.map((r) => `<li class="row lines">
+        <a href="/app/advisor/c/${esc(r.id)}#latest"><bdi>${esc(r.title ?? t(locale, 'advisor.thread.unreadable'))}</bdi></a>
+        <span class="caption muted">${esc(show.date(locale, r.lastTurnAt))}</span>
         <form method="post" action="/app/advisor/c/${esc(r.id)}/delete" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'advisor.thread.deleteConfirm'))}">${esc(t(locale, 'advisor.thread.delete'))}</button></form>
