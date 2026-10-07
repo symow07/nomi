@@ -1,6 +1,11 @@
-# The advisor's memory: a plan for approval
+# The advisor's memory: the plan, as decided
 
-**Status: plan only. Nothing here is built.** Written 2026-10-07 for the owner's approval. It replaces the advisor's "nothing is kept" stance, which the owner settled on 2026-10-07: the advisor stores conversation history, so it can help the owner analyse and grow the business over time.
+**Status: decided, and being built.** The owner answered D1–D9 on 2026-10-07 (section 11).
+- **PR 1, storage and deletion, no page:** built. Branch `advisor-memory-storage`, migration 0130.
+- **PR 2, the page and the copy:** next. It ships the privacy page's advisor and cookie sections with it, because nothing may be stored before the privacy page describes it.
+- **A later batch:** the provider list with fallbacks, and the owner's own API key (section 10).
+
+It replaces the advisor's "nothing is kept" stance, which the owner settled on 2026-10-07: the advisor stores conversation history, so it can help the owner analyse and grow the business over time.
 
 What exists today, so the plan starts from the truth:
 - The advisor stores nothing. Its routes log nothing above `warn` (`src/api/web/advisor.ts`).
@@ -27,12 +32,14 @@ What exists today, so the plan starts from the truth:
 
 ## 2. What is stored, where, and tied to whom
 
-Everything is in Nomi's own Postgres. Every row carries the `business_id`, under row security as today, and the `person_id` of the one who asked. A person's history is theirs alone: **not even the owner can read a staff member's advisor conversations** (decision D2).
+Everything is in Nomi's own Postgres. Every row carries the `business_id` and the `person_id` of the one who asked. Row security checks both: the workspace, as today, and the person (`current_person_id()`, set per transaction like the workspace). A person's history is theirs alone: **not even the owner can read a staff member's advisor conversations** (decision D2). The owner can only delete it whole, unread (section 5i).
 
 **`advisor_threads`**: one conversation.
 - `id`, `business_id`, `person_id`;
 - `started_at`, `last_turn_at`;
-- `title`: the first question, cut to 80 characters, encrypted.
+- `opened_at`: the last time it was opened. The 12-month deletion counts from it (D5);
+- `title`: the first question, cut to 80 characters, encrypted;
+- `sealed_with`: the fingerprint of the key that sealed it (section 7).
 
 **`advisor_turns`**: one question and its answer.
 
@@ -78,15 +85,17 @@ The current state is the newest event. Nothing in the other three tables is ever
 - staff decide for themselves;
 - the owner cannot opt in on their behalf;
 - the owner cannot see who said yes;
-- the owner can never read a staff member's history;
+- the owner can never read a staff member's history. The owner can delete it whole, unread (section 5i);
 - saying no changes nothing about how the advisor answers them.
 
 **The card.** It appears on the advisor's page above the question box, after the first answer the person gets. It is never a pop-up before the first question, so the advisor can be tried first. It stays until answered.
 - Two buttons of equal weight, "Allow" and "Not now", plus a link to the privacy page's section.
-- "Not now" is recorded as `refused`. The card does not come back for 90 days (decision D6). Settings can change it at any time.
+- "Not now" is recorded as `refused`. The card comes back once, 90 days later. After a second "Not now" it never asks again, and the switch in Settings is then the only way to turn it on (decision D6).
 - There is no pre-ticked box, and no "by continuing you agree".
 
-**Withdrawal.** The same sentence is a switch on the advisor's page, for everyone, and in Settings → Your data, which is the owner's page. Turning it off asks once, with the consequence spelled out, then deletes at once (section 5a).
+**Withdrawal.** The same sentence is a switch in Settings → Your data. Every person sees their own switch and their own download there (D4); the owner also sees the workspace switch (D1) and the team list for section 5i. Turning a switch off asks once, with the consequence spelled out, then deletes at once (section 5a).
+
+**The workspace switch (D1).** Only the owner turns it on (`advisor_history_set`). Until then the card is never shown and nothing is kept for anyone. Turning it off deletes everyone's history in the workspace, with its ledger line.
 
 ---
 
@@ -120,8 +129,9 @@ Tests, written before the code:
 The advisor's history joins the erasure system that exists. It does not get a second one.
 
 **a. Withdrawing consent** (the switch).
-- Calls a new security-definer function, `advisor_forget(p_person, p_scope)`, built like `erase_customer`: the app role still holds no `DELETE`, and the function checks the caller is that person.
-- In one transaction, it deletes the person's threads, turns and subjects, appends `withdrawn` to `advisor_consents`, and writes `erasure_ledger` (counts and ids only).
+- Calls the security-definer function `advisor_forget(p_person, p_thread)`, built like `erase_customer`. The app role still holds no `DELETE`. A null `p_thread` means all of that person's conversations.
+- The function lets only these callers through: the person themselves, for one conversation or all; and the owner, for all of a team member's, never one (section 5i).
+- In one transaction, the app appends `withdrawn` to `advisor_consents`. The function deletes the person's threads, turns and subjects, and writes `erasure_ledger`: kind `advisor`, the person's id, the conversations' ids, and counts. Never the words.
 - The answer page says "deleted from Nomi's database", and nothing more.
 
 **b. Deleting one conversation.** The same function, scoped to one thread. Ledger as above.
@@ -133,7 +143,7 @@ The advisor's history joins the erasure system that exists. It does not get a se
 
 **d. Closing the workspace.** Automatic: every new table carries `business_id`, and `workspace_erasure_steps()` takes every such table by itself.
 
-**e. A person removed.** Today a removed staff member is archived and never erased. Archiving a person will also call `advisor_forget(person, 'all')`. Their advisor history goes; their login stays archived as today.
+**e. A person removed.** Today a removed staff member is archived and never erased. A trigger on archiving now deletes their advisor history, with its ledger line (`by_who: team-removal`). Their login stays archived as today.
 
 **f. Practice.** The practice copy is a separate business row and has no advisor history (section 2).
 
@@ -142,7 +152,15 @@ The advisor's history joins the erasure system that exists. It does not get a se
 - `tools/replay-erasures.mjs` already re-applies the ledger after a restore. It learns the new ledger kind, so a restore never brings a deleted conversation back.
 - The privacy page says "at most 180 days".
 
-**h. Retention cap (decision D5).** A conversation not opened for 12 months is deleted by a daily job, through the same function and ledger.
+**h. Retention cap (decision D5).** A conversation not opened for 12 months is deleted by a daily job (`advisor_expire()`, 03:50 UTC), with a ledger line (`via: retention`).
+
+**i. The owner deletes a team member's history, unread (decision D2).**
+- Where: Settings → Your data, while that person is on the team. One control per team member.
+- What: `advisor_forget(person, null)` as the owner. It deletes all of that person's conversations and reads none of them. The ledger line says `via: owner`.
+- What the owner sees: nothing of the history. The control is there for every team member, whether or not they kept anything, and the result reads the same either way. So it does not tell the owner who said yes.
+- The owner cannot delete one conversation of someone else's. The database refuses it (`NE022`).
+
+**j. The workspace switched off (D1).** `advisor_history_set(false)` deletes everyone's history in the workspace, with a ledger line. From then on, nothing is kept until the owner turns it on again.
 
 **What deletion does not reach, said plainly:** a copy a model provider kept of a question and its records, when it phrased an answer (section 6). Nomi cannot erase that.
 
@@ -150,7 +168,11 @@ The advisor's history joins the erasure system that exists. It does not get a se
 
 ## 6. Providers: several, and the owner's own
 
-**Today:** one provider per installation. **Planned:**
+**This batch (PR 2):** one provider per installation, as today. Each turn records which provider and model phrased it. The privacy page names that one provider, with its line (section 9.3).
+
+**A later batch:** items 1 and 4 below, the list with fallbacks and the owner's own key.
+
+**Planned:**
 
 1. **A list, not one.** `LLM_PROVIDERS` names an ordered list; the first is used and each next one is a fallback when the one before fails. Each entry has the same three settings as today.
 2. **Each turn records** which provider and model phrased it (`advisor_turns.provider/model`). The owner can then see where a given question went. When deletion cannot reach a provider's copy, the record says which provider holds it.
@@ -163,9 +185,7 @@ The advisor's history joins the erasure system that exists. It does not get a se
    | Anthropic | **To be checked against its current API terms before it is named.** It is not in production use. |
 
    DeepSeek's API terms also require the app (Nomi) to tell end users how their data is processed and to get their consent. The opt-in card and the privacy section do exactly that.
-4. **The owner's own provider account.** Two forms. The first is the common one today; the second exists only where a provider offers it, and is not promised.
-   - The owner pastes their own API key. It is stored sealed, like channel tokens (`CREDENTIAL_KEY`, AES-256-GCM, `src/security/credentials.ts`).
-   - A provider sign-in (OAuth) that lets an app call the API on the owner's own account.
+4. **The owner's own provider account (D9).** The owner pastes their own API key. It is stored sealed, like channel tokens (`CREDENTIAL_KEY`, AES-256-GCM, `src/security/credentials.ts`). A provider sign-in (OAuth) is not planned now.
 
    **What changes when the owner uses their own provider:**
    - The owner's questions go through the owner's account. The owner, not Nomi, is that provider's customer. The provider's terms with the owner govern its copy: its retention, its training, its region.
@@ -181,11 +201,15 @@ The advisor's history joins the erasure system that exists. It does not get a se
 **The policy.** No one at Nomi reads stored advisor conversations: no support, no "improving the product", no training any model on them. The privacy page and the terms say so.
 
 **The controls that make the policy hold:**
-1. **Encrypted at rest with their own key.** `question`, `params`, `answer`, `facts` and `title` are sealed with AES-256-GCM under a new `ADVISOR_KEY`, separate from `CREDENTIAL_KEY` and from the database credentials. It uses the same sealing code as credentials, and a key version so it can be rotated (`tools/rekey.mjs` learns these columns). A database console, a dump, a backup or a stolen disk shows only ciphertext.
+1. **Encrypted at rest with their own key (D8).** `question`, `params`, `answer`, `facts` and `title` are sealed with AES-256-GCM under `ADVISOR_KEY`, separate from `CREDENTIAL_KEY` and from the database credentials (`src/advisor/seal.ts`). Each row records the fingerprint of the key that sealed it. A database console, a dump, a backup or a stolen disk shows only ciphertext.
+   - **Rotation.** Set `ADVISOR_KEY_PREVIOUS` to the old key and `ADVISOR_KEY` to the new one. The app opens with either and seals again with the new one whenever a conversation is opened. The boot log counts the rows still under the old key. `tools/rekey.mjs` does not open these columns; it says so. Twelve months unopened (D5) bounds how long an old key is needed. Runbook: `docs/SECRET-ROTATION.md`, beside `CREDENTIAL_KEY`.
+   - **Missing or wrong key.** The advisor keeps answering, exactly as without history. Nothing new is kept. A stored conversation it cannot open shows "This conversation could not be opened" (`advisor.thread.unreadable`). It never crashes. The boot log says which: not set, or not a 64-hex key.
 2. **Opened in one place only.** Only the advisor's routes open them, for the signed-in person who owns the row (row security by business *and* person). The decrypt function lives in `src/advisor/`, and the import-graph guard allows it nowhere else.
 3. **No operator tool can open them.** A test fails if anything under `tools/` reads those columns or imports the decrypt function. The erasure function deletes rows without decrypting them.
 4. **Never in logs or error reports.** The routes stay at `warn`. Errors are turned into a "failed" answer and no report holds request bodies, as `app_errors` already promises. A test sends a question containing a marker and checks no log line and no `app_errors` row contains it.
 5. **Never sent anywhere else.** No export to a third party. The person's own download (decision D4) is the only way out, apart from the model provider.
+   - Each person downloads their own history from Settings → Your data, opened for them.
+   - **The hole to close first:** the owner's business export (today's, owner-only) must hold advisor rows whose `person_id` is the owner's own, and no others. The test comes first and must be seen red before the fix.
 
 **Why it is not a technical guarantee, said plainly.** The advisor's server has to read the history: to show it, and to resolve a follow-up. That server runs with `ADVISOR_KEY` in its environment, and Nomi's operator runs that server. Someone with production access could therefore change the code, or read the key, and decrypt. The controls stop the easy ways and make any other way a deliberate act. They do not make it impossible.
 
@@ -204,13 +228,18 @@ The advisor's history joins the erasure system that exists. It does not get a se
 - **What the page shows:** the current conversation, newest at the bottom, as today's exchange is shown. Above it is an "Earlier conversations" list (title and date), each one openable, deletable, and continued by asking. A person who has not opted in sees today's page: one exchange, nothing kept.
 - **Context for follow-ups stays inside one conversation** (section 4: at most the last 3 turns). Earlier conversations are for reading, not for answering.
 
-**Guards, written before the code:**
-- **No consent, nothing stored.** A deferred constraint trigger refuses an insert into `advisor_turns` when the person's newest consent event is not `granted`. A test switches it off and sees it bite.
-- **Subjects complete.** Every read returns `subjects`, the client ids behind every customer name in its lines. A test fails if a line names a customer of the fixture without that id. Every customer-naming read is run against a fixture with known names.
-- **The "a table nobody classified stops it" test** must be red until the new tables are classified.
-- **The privacy page's provider list** must equal the configured list.
-- **Erasure reach:** customer erasure removes the turns naming that customer, and only those. Workspace closure removes everything. Withdrawal removes the person's history and writes the ledger. Replay after a restore deletes them again.
-- **The no-snooping guards** in section 7.
+**Guards.** Each one is broken on purpose once, and a test must fail.
+- **Nothing stored without consent.** A trigger refuses a row when the workspace switch is off or the person's newest consent is not `granted`. Switching the trigger off lets the row in, and the test fails.
+- **No tool opens the content.** Nothing under `tools/` names the encrypted columns, except the list that says no tool opens them, and nothing imports the decrypt function.
+- **No question in the logs.** A question carrying a marker appears in no log line and no `app_errors` row.
+- **History is never a source of facts.** A scripted model that repeats an earlier figure is thrown away. A record changed between turns shows the new value.
+- **No guessing.** A follow-up whose referent is outside the last 3 turns, or in another conversation, gets the fixed "which customer" sentence.
+- **The recogniser's input** contains no answer text.
+- **Subjects complete.** Every read returns `subjects`, the client ids behind every customer it names. The fixture covers every customer-naming catalogue entry, and a new entry without a fixture fails the test.
+- **Erasure reach.** Customer erasure removes only the turns naming that customer. Workspace closure removes everything. Withdrawal removes the history and writes the ledger. Replay after a restore deletes it again.
+- **D4.** The owner's export contains no other person's rows.
+- **D7.** No third-party browser request outside the allow-list (section 9.4).
+- **The "a table nobody classified stops it" test** stays red until the new tables are classified.
 
 ---
 
@@ -230,7 +259,7 @@ Arabic follows rule 6: no gendered address and no pronoun for Nomi or the adviso
 | `advisor.memory.notNow` | Not now | 暂不 | ليس الآن | Ahora no | Pas maintenant |
 | `advisor.memory.more` | What is kept, and for how long | 保存什么，保存多久 | ما يُحفظ ولأي مدة | Qué se guarda y durante cuánto tiempo | Ce qui est conservé, et combien de temps |
 
-### 9.2 The switch, withdrawal and deletion (the advisor page for everyone; Settings → Your data for the owner)
+### 9.2 The switch, withdrawal and deletion (Settings → Your data: each person their own; the owner also the workspace and the team)
 
 | Key | en | zh | ar | es | fr |
 |---|---|---|---|---|---|
@@ -246,6 +275,13 @@ Arabic follows rule 6: no gendered address and no pronoun for Nomi or the adviso
 | `advisor.thread.delete` | Delete this conversation | 删除此对话 | حذف هذه المحادثة | Borrar esta conversación | Supprimer cette conversation |
 | `advisor.thread.deleteConfirm` | Delete this conversation from Nomi's database? | 从 Nomi 的数据库中删除此对话吗？ | حذف هذه المحادثة من قاعدة بيانات Nomi؟ | ¿Borrar esta conversación de la base de datos de Nomi? | Supprimer cette conversation de la base de données de Nomi ? |
 | `advisor.thread.deleted` | The conversation was deleted from Nomi's database. | 此对话已从 Nomi 的数据库中删除。 | حُذفت المحادثة من قاعدة بيانات Nomi. | La conversación se borró de la base de datos de Nomi. | La conversation a été supprimée de la base de données de Nomi. |
+| `advisor.thread.unreadable` | This conversation could not be opened. | 无法打开此对话。 | تعذّر فتح هذه المحادثة. | No se pudo abrir esta conversación. | Impossible d'ouvrir cette conversation. |
+| `advisor.memory.download` | Download your advisor history | 下载你的顾问记录 | تنزيل سجل المستشار | Descargar tu historial de la Asesoría | Télécharger votre historique du Conseil |
+| `advisor.memory.ownerDelete` | Delete {name}'s advisor history | 删除{name}的顾问记录 | حذف سجل المستشار الخاص بـ {name} | Borrar el historial de la Asesoría de {name} | Supprimer l'historique du Conseil de {name} |
+| `advisor.memory.ownerDeleteConfirm` | Delete everything {name} kept with the advisor? You will not see it; it is deleted from Nomi's database. | 删除{name}保存的全部顾问对话吗？你不会看到其中内容，它们将从 Nomi 的数据库中删除。 | حذف كل ما حُفظ من محادثات {name} مع المستشار؟ لن يُعرض شيء منها، وتُحذف من قاعدة بيانات Nomi. | ¿Borrar todo lo que {name} guardó con la Asesoría? No lo verás; se borra de la base de datos de Nomi. | Supprimer tout ce que {name} a conservé avec le Conseil ? Vous ne le verrez pas ; c'est supprimé de la base de données de Nomi. |
+| `advisor.memory.ownerDeleted` | Nothing of {name}'s advisor history is kept now. | {name}的顾问记录现已不再保存任何内容。 | لم يعد يُحفظ شيء من سجل {name} مع المستشار. | Ya no se guarda nada del historial de la Asesoría de {name}. | Plus rien de l'historique du Conseil de {name} n'est conservé. |
+
+`advisor.memory.ownerDeleted` reads the same whether or not anything was kept (section 5i).
 
 ### 9.3 The privacy page: a new section, "The advisor's history" (`legal.privacy.advisor.*`)
 
@@ -256,7 +292,7 @@ Arabic follows rule 6: no gendered address and no pronoun for Nomi or the adviso
 | `basis` | This rests on your consent, given or refused on the advisor's page and withdrawn at any time in Settings. Withdrawing it, or deleting a conversation, deletes it from Nomi's database at once. Encrypted backups keep it until they expire, at most 180 days, and are used for nothing but restoring the service. A conversation not opened for 12 months is deleted. |
 | `providers` | To word each answer, the question and its records are sent to {processors}. What a provider keeps is governed by its own terms, and Nomi cannot delete a provider's copy: {providerLines} |
 | `nobody` | No one at Nomi reads stored advisor conversations, and they are never used to train any model. They are stored encrypted, and the tools Nomi's operator uses cannot open them. This is a commitment backed by those safeguards, not a technical impossibility: the service that answers you has to read your history to use it. |
-| `own` | If you connect your own {processor} account, your questions go through that account, and {processor}'s terms with you govern its copy. |
+| `own` | *(later batch, with the owner's own key)* If you connect your own {processor} account, your questions go through that account, and {processor}'s terms with you govern its copy. |
 | `customers` | A customer who asks for their data to be deleted is also deleted from advisor conversations that name them. A customer named only in your own words, with no record behind them, may not be found; you can delete that conversation yourself. |
 
 The same keys in the other four languages:
@@ -297,7 +333,7 @@ The same keys in the other four languages:
 - `own`: Si vous connectez votre propre compte {processor}, vos questions passent par ce compte, et les conditions de {processor} avec vous régissent sa copie.
 - `customers`: Lorsqu'un client demande la suppression de ses données, il est aussi supprimé des conversations avec le Conseil qui le nomment. Un client nommé seulement dans vos propres mots, sans fiche correspondante, peut ne pas être retrouvé ; vous pouvez supprimer cette conversation vous-même.
 
-**Provider lines (`legal.privacy.provider.*`).** One line per configured provider. The same wording rules apply in each language.
+**Provider lines (`legal.privacy.provider.*`).** One line per configured provider. The same wording rules apply in each language. PR 2 ships the line for the one provider configured; the others come with the provider list.
 
 | Provider | en | zh | ar | es | fr |
 |---|---|---|---|---|---|
@@ -327,11 +363,17 @@ The same keys in the other four languages:
 
 Every one is first-party and needed for the app to work. Strictly necessary cookies need no consent under the ePrivacy rules. There is no analytics, no advertising and no tracker.
 
-**What changes:**
+**What changes (decision D7):**
 1. **The privacy page gets a "Cookies" section** listing them (the strings are below).
-2. **A gate for anything non-essential.** Every cookie name the app sets is listed in one place, as necessary or optional. A test fails on any unlisted cookie. An optional cookie, or a third-party script that sets one, can only be written after a recorded "yes" from a consent banner.
-3. **No banner today.** There is nothing optional to ask about, so a banner would only be noise (decision D7). The banner and its blocking come with the first optional cookie, and the gate makes sure they come first.
-4. **The sign-up bot check** may set its own cookie, on the sign-up page only. It is named in the cookie section, classed as security (strictly necessary for sign-up), and loaded nowhere else.
+2. **No banner** while every cookie is strictly necessary.
+3. **The gate covers every third-party request the browser makes**, not only cookies: fonts, scripts, stylesheets, images, frames and beacons from any host Nomi does not serve.
+   - One allow-list, in code, with a reason for each entry.
+   - A test renders the pages and fails on any such request, or any cookie, that is not on the list.
+   - An optional cookie or request can only come after a recorded "yes" from a consent banner. The banner comes with the first one, and the gate makes sure it comes first.
+4. **What ships today** (checked 2026-10-07):
+   - **Fonts:** already served by Nomi (`assets/fonts/`, `src/api/web/type.ts`). Nothing to fix.
+   - **The sign-up bot check** (Cloudflare Turnstile or hCaptcha), when configured: its script, and the frame it opens, on the sign-up page only. On the list, reason: security for sign-up. It may set its own cookie there; the cookie section names it.
+   - **Product photos: a hole.** The product page draws `product_images.url` exactly as stored. An address on another host makes the owner's browser fetch from that host. PR 2 writes the test first, sees it red, and then draws only images Nomi serves.
 
 | Key | en | zh | ar | es | fr |
 |---|---|---|---|---|---|
@@ -342,57 +384,48 @@ Every one is first-party and needed for the app to work. Strictly necessary cook
 ### 9.5 The terms and Nomi's documents
 
 - **The terms.** One sentence: if the business turns on advisor history, Nomi, as the business's processor, keeps the advisor conversations of the people who allow it, as the privacy page describes.
-- **`docs/LEGAL.md`** already lags: it still says three languages. It gets the new sections. Counsel reviews the privacy and cookie copy before it ships, especially the DeepSeek transfer to China for EU data, which already applies to the assistant.
+- **`docs/LEGAL.md`** already lags: it still says three languages. It gets the new sections.
 - **`docs/NATIVE-REVIEW-UI.md`.** Every string above, for a native read.
 
 ---
 
-## 10. Building it, once approved (about 3 PRs)
+## 10. Building it: two PRs now, one batch later
 
-**1. Storage and deletion, with no UI.**
-- A migration for the four tables; the consent trigger; `advisor_forget`; the ledger kind.
+**PR 1: storage and deletion, no page.** Built: branch `advisor-memory-storage`, migration 0130.
+- The four tables, the consent trigger, `advisor_forget`, the ledger kind `advisor`.
 - The classification in `RULES` and `customer_erasure_contract()`.
-- Replay after restore; `ADVISOR_KEY` sealing; rekey.
-- Guards: no tool opens the content; nothing stored without consent; erasure reach; replay.
-- Backup the day before, as for any migration.
+- Replay after a restore (`tools/replay-erasures.mjs`).
+- `ADVISOR_KEY` sealing and its rotation (section 7).
+- Back up the day before, as for any migration.
 
-**2. The page.**
-- The opt-in card, the switch in Settings → Your data, the conversations list, "New conversation", per-conversation delete.
-- Follow-ups with the last 3 turns, and the grounding tests (section 4).
+**PR 2: the page and the copy.**
+- The opt-in card; the switches in Settings → Your data; the conversations list; "New conversation"; deleting one conversation.
+- The owner's delete-without-reading (D2) and each person's own download (D4).
+- Follow-ups carry at most the last 3 turns, as (question, resolved entry, resolved params). Never an answer or a figure (section 4).
 - Subjects on every read.
+- The privacy page's advisor section, the cookie section, the provider line for the one configured provider, the sub-processor additions and the terms sentence. They ship here because nothing may be stored before the privacy page describes it.
+- The third-party request gate and its allow-list (D7).
 - 5 languages; phone and desktop screenshots.
+- `ADVISOR_KEY` must be in Railway before PR 2 deploys.
 
-**3. Providers and the privacy page.**
-- The provider list with fallbacks; provider per turn.
-- The privacy and cookie sections and provider lines; the cookie gate.
-- The owner's own API key (sealed). OAuth only where a provider offers it, as its own later step.
-- The terms sentence.
-- Counsel's read before deploy.
+**A later batch.**
+- The provider list with fallbacks.
+- The owner's own API key, sealed like channel tokens (D9), with the privacy page's `own` sentence.
+- The provider lines for every provider on the list.
 
 ---
 
-## 11. Decisions for the owner
+## 11. The owner's decisions (2026-10-07)
 
-- **D1. Who switches it on for the business?**
-  - **Proposed:** the owner first, for the workspace, and then each person for themselves. This gives the business's instruction, as controller, before any copy of customers' data is kept.
-  - **Alternative:** each person alone.
-- **D2. Can the owner read staff members' advisor history?**
-  - **Proposed: no.** Each person's history is theirs alone. This keeps staff consent freely given.
-- **D3. When does a new conversation begin?**
-  - **Proposed:** after 4 hours of quiet, or on "New conversation".
-- **D4. Can each person download their own history?**
-  - **Proposed: yes,** from Your data. Today's export is owner-only and covers the business's records.
-- **D5. When is unopened history deleted?**
-  - **Proposed:** after 12 months unopened. Other options: never, 6 months or 24 months.
-- **D6. When does the card come back after "Not now"?**
-  - **Proposed:** after 90 days, and never more often.
-- **D7. Cookie banner today?**
-  - **Proposed: no banner** while every cookie is strictly necessary. The cookie section and the gate are built now, and the banner comes with the first optional cookie.
-  - **Alternative:** an informational notice now.
-- **D8. Encryption with a separate `ADVISOR_KEY`?**
-  - **Proposed: yes.** It is one more Railway variable you paste, like `CREDENTIAL_KEY`.
-- **D9. Your own provider: which form first?**
-  - **Proposed:** your own API key first. A provider sign-in only once a provider offers one that fits.
+- **D1. Yes.** The owner switches it on for the workspace first; only then may each person opt in.
+- **D2. No: the owner can never read a staff member's history.** The owner can delete it whole, without reading it, from Settings → Your data, while that person is on the team. It goes through `advisor_forget` and writes the ledger (section 5i).
+- **D3. Yes.** A new conversation begins after 4 hours of quiet, or on "New conversation".
+- **D4. Yes.** Each person downloads their own history. The owner's business export must hold advisor rows whose `person_id` is the owner's own and no others; that test is written first and seen red.
+- **D5. Yes.** A conversation not opened for 12 months is deleted.
+- **D6. Yes, with a stop.** The card comes back 90 days after "Not now". After a second "Not now" it stops asking; Settings is then the only way.
+- **D7. No banner** while every cookie is strictly necessary. The gate widens to every third-party request the browser makes, with one allow-list and a reason for each entry; anything already shipping that is off the list is fixed (section 9.4).
+- **D8. Yes: a separate `ADVISOR_KEY`.** Missing or wrong, the advisor keeps working, a stored conversation shows "This conversation could not be opened", and nothing crashes. Documented beside `CREDENTIAL_KEY` in `docs/SECRET-ROTATION.md` and `.env.example`.
+- **D9. The owner's own API key first,** sealed like channel tokens. No OAuth now.
 
 Sources checked 2026-10-07:
 - [OpenAI API: your data](https://developers.openai.com/api/docs/guides/your-data)
