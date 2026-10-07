@@ -74,6 +74,12 @@ export type Sheet = {
   readonly noneParams?: Readonly<Record<string, string>>;
   /** The customers' and products' names these lines carry — the only names an answer may use. */
   readonly names: readonly string[];
+  /**
+   * The customers these lines name, by id (0130, docs/ADVISOR-MEMORY.md §2): a kept turn is linked to each
+   * (`advisor_turn_subjects`), so a customer's erasure finds every turn that names them. Every customer a
+   * line names is here; tests/integration/advisor-subjects.test.ts holds it for every entry that names any.
+   */
+  readonly subjects: readonly string[];
   /** Figures every answer must carry, or it is not shown (B8: the median, the replies measured, the unanswered). */
   readonly must?: readonly string[];
   /** The page that shows the same thing. */
@@ -94,9 +100,9 @@ const when = (ctx: ReadCtx, d: Date): string => show.date(ctx.locale, d);
 const count = (ctx: ReadCtx, n: number): string => show.count(ctx.locale, n);
 const money = (ctx: ReadCtx, m: Money): string => show.money(ctx.locale, m);
 const sheet = (lines: readonly string[], names: readonly string[], door?: Door, more: Partial<Sheet> = {}): Sheet =>
-  ({ lines, empty: false, names: names.filter((x) => x.trim().length >= 2), ...(door ? { door } : {}), ...more });
+  ({ lines, empty: false, names: names.filter((x) => x.trim().length >= 2), subjects: [], ...(door ? { door } : {}), ...more });
 const nothing = (none: MessageKey, noneParams?: Record<string, string>, door?: Door): Sheet =>
-  ({ lines: [], empty: true, none, ...(noneParams ? { noneParams } : {}), names: [], ...(door ? { door } : {}) });
+  ({ lines: [], empty: true, none, ...(noneParams ? { noneParams } : {}), names: [], subjects: [], ...(door ? { door } : {}) });
 /** At most `n` lines of a list, then how many more there are. */
 const cap = (ctx: ReadCtx, lines: readonly string[], n = 15): string[] =>
   lines.length > n ? [...lines.slice(0, n), L(ctx, 'advisor.k.more', { n: count(ctx, lines.length - n) })] : [...lines];
