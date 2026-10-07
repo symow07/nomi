@@ -42,6 +42,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'data.flash.name_wrong', 'data.flash.not_open',
   // 0126 — nothing was deleted or closed: the old form, the installation's own workspace, a paid plan, a reply in hand, a refusal.
   'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.busy', 'data.flash.eraseRefused',
+  // 0130 — an advisor history switch or deletion that did not go through: nothing changed.
+  'advisor.flash.failed',
   'conv.deletion.flash.moved',
   // CC-02a — a customer's deletion that was not carried out: how they asked is missing, or too long.
   'conv.deletion.flash.note_missing', 'conv.deletion.flash.note_long',
@@ -146,6 +148,9 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // WA-S — asked of Meta, Meta's answers read, a reply reopening the window.
   'channel.wa.template.flash.submitted', 'channel.wa.template.flash.checked', 'inbox.flash.reopening',
   'data.flash.asked', 'data.flash.withdrawn',
+  // 0130 — the advisor's history: kept from now, not kept, allowed or switched off for the workspace, deleted.
+  'advisor.flash.on', 'advisor.flash.notNow', 'advisor.flash.workspaceOn', 'advisor.flash.workspaceOff',
+  'advisor.flash.deleted', 'advisor.flash.threadDeleted', 'advisor.flash.ownerDeleted',
   // 0126 — deleted, and what stayed.
   'data.flash.erased', 'data.flash.erasedOrders', 'data.flash.erasedDoNotContact', 'data.flash.erasedRecord',
   // 0076 — a noted request recorded, or set aside as not one: both happened.

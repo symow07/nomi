@@ -332,7 +332,10 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
         value: v.dataWaiting === null || v.dataWaiting === undefined ? null
           : v.dataWaiting === 0 ? t(locale, 'setup.value.nothingWaiting') : tn(locale, 'setup.value.requests', v.dataWaiting),
         tone: v.dataWaiting ? 'warn' : undefined }),
-    ] : []),
+    ] : [
+      // 0130 — staff have data of their own here: their advisor history (Settings → Your data, D4).
+      menuRow({ href: '/app/settings/data/advisor', icon: 'data', label: t(locale, 'data.title'), value: null }),
+    ]),
   ];
   return `<h1 class="page">${esc(t(locale, 'nav.setup'))}</h1>
     ${flashBanner(flash)}

@@ -134,6 +134,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/settings/setup', routes: [
     '/app/guide', '/app/onboarding', '/app/settings/alerts', '/app/settings/language',
     '/app/settings/people', '/app/settings/account', '/app/settings/billing', '/app/settings/data',
+    // 0130 — the advisor's history, a page of Your data (everyone's own; the owner's workspace and team).
+    '/app/settings/data/advisor',
   ] },
   // Phase 3 of the UI rebuild — the component gallery (`/app/settings/components`)
   // is no longer a door on Setup: it is a page for whoever builds the product

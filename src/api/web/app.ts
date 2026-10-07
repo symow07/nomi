@@ -47,7 +47,8 @@ import {
 import type { InboundLink } from './channels.js';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms, TERMS_VERSION, type LegalFacts } from './legal.js';
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
-import { DEFAULT_PROCESSOR, HOSTING } from '../../core/legal/processors.js';
+import { DEFAULT_PROCESSOR, HOSTING, processorLabel } from '../../core/legal/processors.js';
+import type { AdvisorMemory } from '../../advisor/memory.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
@@ -200,6 +201,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
 import { advisorRoutes } from './advisor.js';
+import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
   shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
 } from './layout.js';
@@ -439,6 +441,10 @@ export type WebDeps = {
   readonly advisorDb?: Db;
   /** The advisor batch — the model that words the advisor's facts. Absent: the advisor cannot answer here. */
   readonly advisorModel?: AdvisorModel;
+  /** 0130 — each person's own advisor history (src/advisor/memory.ts). Absent: nothing is kept here. */
+  readonly advisorMemory?: AdvisorMemory;
+  /** 0130 — who words the advisor's answers, recorded on each kept turn. */
+  readonly advisorProvider?: { readonly name: string; readonly model: string };
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
   readonly storeFetcher?: StoreFetcher;
   /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
@@ -4263,6 +4269,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     page: (req, o) => page(req, o),
     db: deps.advisorDb ?? null,
     model: deps.advisorModel ?? null,
+    // 0130 — the advisor's memory: a narrow port (keep, open, forget), never a writable pool.
+    memory: deps.advisorMemory ?? null,
+    processor: (locale) => processorLabel(legalFacts.processor, locale),
+    provider: deps.advisorProvider ?? null,
+    flashTo: (reply, path, key, params) => flashTo(reply, path, key, params),
+    takeFlash: (req, reply) => takeFlash(req, reply),
+  });
+  // 0130 — Settings → Your data → the advisor's history: each person's own switch and download; the owner's
+  // workspace switch and delete-without-reading (src/api/web/advisorHistory.ts). The same narrow port.
+  advisorHistoryRoutes(app, {
+    viewer: (req) => { const s = sessionOf(req); if (!s) return null; const p = personOf(s); return { businessId: s.businessId, personId: p.id, isOwner: p.isOwner }; },
+    locale: (req) => localeOf(req),
+    page: (req, o) => page(req, o),
+    memory: deps.advisorMemory ?? null,
+    processor: (locale) => processorLabel(legalFacts.processor, locale),
+    flashTo: (reply, path, key, params) => flashTo(reply, path, key, params),
+    takeFlash: (req, reply) => takeFlash(req, reply),
+    dialect: (locale) => show.csvDialectFor(locale),
   });
   app.get('/app/settings', async (req, reply) => {
     const s = sessionOf(req);
