@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { renderAdvisor, advisorRoutes, ADVISOR_MAX, type AdvisorIO } from '../../src/api/web/advisor.js';
+import { renderAdvisor, advisorRoutes, ownName, ADVISOR_MAX, type AdvisorIO } from '../../src/api/web/advisor.js';
 import type { AdvisorAnswer } from '../../src/advisor/answer.js';
 import { CATALOGUE, entryOf } from '../../src/advisor/catalogue.js';
 import { READS } from '../../src/advisor/reads.js';
@@ -341,6 +341,18 @@ describe('rule 4 · the model\'s sentence is checked against the facts it was gi
 describe('the page · a fact, a fixed sentence, advice under its label, and the page that shows the same thing', () => {
   const fact = (o: Partial<Extract<AdvisorAnswer, { kind: 'fact' }>> = {}): AdvisorAnswer =>
     ({ kind: 'fact', text: 'You have 12 customers.', lines: ['Customers: 12'], phrased: true, door: { href: '/app/inbox', label: 'nav.inbox' }, ...o });
+
+  it('the greeting names the person, never the business: the access code\'s stand-in, or a row born with the business\'s name, gets "Hello"', () => {
+    expect(ownName({ id: 'p1', name: ' Lena Park ' }, 'Westlake Canvas Co.')).toBe('Lena Park');
+    expect(ownName({ id: 'p1', name: 'Lena Park' }, null)).toBe('Lena Park');
+    expect(ownName({ id: 'p1', name: 'Westlake Canvas Co.' }, 'Westlake Canvas Co.')).toBeNull();
+    expect(ownName({ id: 'p1', name: 'westlake  canvas co.' }, ' Westlake Canvas Co. ')).toBeNull();
+    expect(ownName({ id: 'owner', name: 'Owner' }, 'Westlake Canvas Co.')).toBeNull();
+    expect(ownName({ id: 'p1', name: '  ' }, null)).toBeNull();
+    expect(ownName(null, 'Westlake Canvas Co.')).toBeNull();
+    // the app hands the page the person's own name, read against the business's
+    expect(readFileSync(join(ROOT, 'src/api/web/app.ts'), 'utf8')).toMatch(/viewerId: personOf\(s\)\.id, name: ownName\(s\.person, businessName\(\)\) \}/);
+  });
 
   for (const l of LOCALES) {
     it(`${l} · at rest (the redesign): the greeting, one box, one button — no intro, no list, no door, link or form to anywhere else`, () => {

@@ -81,6 +81,17 @@ export type AdvisorViewer = {
   readonly name?: string | null;
 };
 
+/**
+ * A name that is the person's own, or null. The access code's owner is a stand-in ('owner') or a row born with
+ * the business's name (people.ts, ownerPerson): neither is a person's name, and the page then says only "Hello".
+ */
+export function ownName(person: { readonly id: string; readonly name: string } | null | undefined, business: string | null): string | null {
+  const name = (person?.name ?? '').trim();
+  if (!person || person.id === 'owner' || name === '') return null;
+  const same = (x: string) => x.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+  return business !== null && same(name) === same(business) ? null : name;
+}
+
 /** Everything the advisor's routes are given. Nothing else reaches them. */
 export type AdvisorIO = {
   /** Who is asking: a signed-in person of the account, or null (never a customer). */

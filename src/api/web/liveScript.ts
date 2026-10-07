@@ -727,6 +727,24 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     box.addEventListener('input', hush);
     box.addEventListener('blur', function () { if (box.value === '') { n = 0; k += 1; start(1200); } });
     doc.addEventListener('visibilitychange', function () { if (doc.visibilityState === 'hidden') stop(); else if (!timer) start(700); });
+    /* The box keeps the height of the longest question at this width, so nothing moves while one is typed. */
+    var measured = -1;
+    function room() {
+      if (window.innerWidth === measured || box.value !== '') return;
+      measured = window.innerWidth;
+      var said = box.getAttribute('placeholder') || '';
+      var most = 0;
+      box.style.minBlockSize = '';
+      for (var i = 0; i < lines.length; i++) { box.setAttribute('placeholder', lines[i]); most = Math.max(most, box.offsetHeight || 0); }
+      box.setAttribute('placeholder', said);
+      if (most > 0) box.style.minBlockSize = most + 'px';
+    }
+    room();
+    window.addEventListener('resize', room);
+    /* The page's own type arrives after the first measure, and a question that fitted may then take two lines. */
+    function again() { measured = -1; room(); }
+    if (doc.fonts && doc.fonts.addEventListener) doc.fonts.addEventListener('loadingdone', again);
+    if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(again);
     box.setAttribute('placeholder', '');
     start(400);
   }
@@ -819,9 +837,11 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var b = form.getBoundingClientRect();
       var cx = o.left + o.width / 2 - a.left;
       var cy = o.top + o.height / 2 - a.top;
-      var down = b.top - a.top - cy - 24;
+      var side = Math.min(cx, a.width - cx) - 8;
+      var down = Math.min(b.top - a.top - cy - 24, side * 1.25);
       if (down < 48) return;
-      wash(field, cx, cy, { up: Math.max(48, cy - 8), down: down, back: Math.max(48, cx - 8), on: Math.max(48, a.width - cx - 8) }, 1, paper, glow);
+      /* A pool, wider than it is tall: never a column of light on a narrow screen. */
+      wash(field, cx, cy, { up: Math.max(48, Math.min(cy - 8, side * 1.25)), down: down, back: Math.max(48, cx - 8), on: Math.max(48, a.width - cx - 8) }, 1, paper, glow);
     }
     function litPool() {
       if (!pool || !here || !paper || !glow) return;
@@ -882,6 +902,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       doc.body.appendChild(lift);
       lift.appendChild(rest);
       page.setAttribute('data-adv', 'chat');
+      page.setAttribute('data-gliding', '');
       settle(1);
       var to = here.getBoundingClientRect();
       var k = to.width / (from.width || 1);
@@ -889,6 +910,12 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var dy = to.top - from.top;
       here.style.visibility = 'hidden';
       var ease = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      /* The bar makes room for the orb as it comes, never at a jump. */
+      var slot = here.parentNode;
+      var gap = window.getComputedStyle ? String(window.getComputedStyle(form).columnGap || '') : '';
+      if (slot && slot.animate && /px$/.test(gap)) {
+        slot.animate([{ inlineSize: '0px', marginInlineEnd: '-' + gap }, { inlineSize: slot.getBoundingClientRect().width + 'px', marginInlineEnd: '0px' }], { duration: 560, easing: ease });
+      }
       var fly = lift.animate([{ transform: 'translate(0, 0) scale(1)' }, { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + k + ')' }], { duration: 560, easing: ease });
       /* The field gathers into the orb as it goes — smaller with it, and fainter — so it never lies behind the bar. */
       if (field) {
@@ -897,7 +924,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
           { opacity: 0, transform: 'translate(' + (dx + (to.width - from.width) / 2) + 'px, ' + (dy + (to.height - from.height) / 2) + 'px) scale(' + k + ')' }], { duration: 560, easing: ease, fill: 'forwards' });
       }
       if (pool) pool.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, delay: 360, easing: ease, fill: 'backwards' });
-      fly.onfinish = function () { here.style.visibility = ''; if (lift.parentNode) lift.parentNode.removeChild(lift); };
+      fly.onfinish = function () { here.style.visibility = ''; page.removeAttribute('data-gliding'); if (lift.parentNode) lift.parentNode.removeChild(lift); };
     }
     /* Thinking: once the question is on its way. */
     doc.addEventListener('submit', function (e) {

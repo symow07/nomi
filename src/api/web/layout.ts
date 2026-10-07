@@ -2389,7 +2389,9 @@ const STYLE_PAGES = `
      foot. The field is a canvas behind everything the page holds; the one script draws it, and the orb. */
   .adv-page { position:relative; isolation:isolate; display:flex; flex-direction:column; min-block-size:calc(100svh - 2 * var(--space-32)); }
   .adv-page > :not(.adv-field):not(.adv-bar) { position:relative; z-index:1; }
-  .adv-field { position:absolute; inset:0; inline-size:100%; block-size:100%; z-index:0; pointer-events:none; }
+  /* The field reaches past the page's own margin to the screen's: the light never stops at a column's edge. */
+  .adv-field { position:absolute; inset-block-start:0; inset-inline-start:calc(-1 * var(--space-32)); inline-size:calc(100% + 2 * var(--space-32)); block-size:100%;
+    z-index:0; pointer-events:none; }
   .adv-top { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:var(--space-16); min-block-size:var(--space-24); }
   .adv-link { font-size:var(--font-size-small); color:var(--color-ink-secondary); text-decoration:none; }
   .adv-link:hover, .adv-link:focus-visible { color:var(--color-ink); text-decoration:underline; text-decoration-color:var(--color-brand); }
@@ -2401,6 +2403,7 @@ const STYLE_PAGES = `
   /* The bar: pinned at the foot, on clean paper; the orb's place beside it is empty, and takes no room, at rest. */
   .adv-bar { position:sticky; z-index:2; bottom:0; display:flex; align-items:center; gap:var(--space-24); margin-block-start:auto;
     padding-block:var(--space-16) var(--space-24); background:linear-gradient(to bottom, transparent, var(--color-paper) var(--space-16)); }
+  .adv-page[data-gliding] .adv-bar { background:none; }
   .adv-box { flex:1 1 auto; min-width:0; display:flex; align-items:flex-end; gap:var(--space-8); padding:var(--space-8); padding-inline-start:var(--space-16);
     background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-panel); box-shadow:var(--shadow-lift1); }
   .adv-box:focus-within { outline:2px solid var(--color-brand); outline-offset:2px; }
@@ -2419,6 +2422,7 @@ const STYLE_PAGES = `
   @media (max-width: 720px) {
     canvas.orb-rest { inline-size:216px; block-size:216px; margin:calc(-1 * (var(--space-24) + var(--space-12))); }
     .adv-page { min-block-size:calc(100svh - 2 * var(--space-16) - 5.5rem); }
+    .adv-field { inset-inline-start:calc(-1 * var(--space-16)); inline-size:calc(100% + 2 * var(--space-16)); }
     .adv-hello { font-size:var(--font-size-title); }
     .adv-bar { gap:var(--space-16); padding-block:var(--space-12) var(--space-16); padding-block-end:calc(var(--space-16) + env(safe-area-inset-bottom)); }
     .adv-page[data-adv="rest"] .adv-slot { margin-inline-end:calc(-1 * var(--space-16)); }

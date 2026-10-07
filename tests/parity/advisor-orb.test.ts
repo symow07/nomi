@@ -520,6 +520,19 @@ describe('the typed placeholder (the redesign): three questions, one at a time, 
     expect(box.value).toBe('');                                          // never the box's own text
   });
 
+  it('the box keeps the height of the longest question, so the bar never moves while one is typed', async () => {
+    const p = page();
+    const box = p.box!;
+    // the stand-in box is a line tall for every 24 letters it shows; the second question takes two
+    Object.defineProperty(box, 'offsetHeight', { get: () => 24 * Math.max(1, Math.ceil(String(box.getAttribute('placeholder') ?? '').length / 24)) });
+    p.run(); await p.load();
+    expect(box.style['minBlockSize']).toBe('48px');
+    expect(box.getAttribute('placeholder')).toBe('');                    // measured, then cleared to type
+    p.advance(400 + 55 * 7);                                             // the first letter at 400 ms, then one every 55
+    expect(box.getAttribute('placeholder')).toBe(LINES[0]!.slice(0, 8));
+    expect(box.value).toBe('');
+  });
+
   it('touched or typed in, it stops and clears at once; left empty, it starts again; left with words, it never does', async () => {
     const p = page();
     p.run(); await p.load();
@@ -556,8 +569,12 @@ describe('the typed placeholder (the redesign): three questions, one at a time, 
   it('less motion: no typing at all — the first question stands still, as the page drew it', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
-    p.advance(30000);
-    expect(p.box!.getAttribute('placeholder')).toBe(LINES[0]);
+    // looked at through a whole round of the three, never once at a moment a typer would show the first one whole
+    for (const ms of [450, 1000, 3000, 2000, 1500, 1500, 2000, 1000, 2000]) {
+      p.advance(ms);
+      expect(p.box!.getAttribute('placeholder')).toBe(LINES[0]);
+    }
+    expect(p.box!.style['minBlockSize'] ?? '').toBe('');                 // the line the page drew sets the box's height
   });
 
   it('talking (not the empty page), the box types nothing', async () => {
