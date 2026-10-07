@@ -13,6 +13,49 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The advisor's memory is live; the orb waits for the owner's confirm (2026-10-07, evening) — read this first
+
+**State:**
+- **#249, advisor memory PR 2 (the page and the copy; no migration)**, merged as `2202de0` and deployed 11:51 UTC.
+  - `/health` ok; production schema is **130**.
+  - The live privacy page has "The advisor's history" (`#advisor`), "Cookies" (`#cookies`) and DeepSeek's line.
+- **Nothing is kept in production yet: `ADVISOR_KEY` is not in Railway** (checked by name).
+  - Until it is, the advisor answers as before, the card never asks, and Settings says history cannot be kept right now (D8).
+  - The owner makes it: `openssl rand -hex 32 | pbcopy`, then paste it into the nomi service as `ADVISOR_KEY`. Railway then redeploys and history works.
+- **#248, the orb, is green and waits only for the owner's confirm of the renders** (`docs/design/advisor-orb/`).
+  - It shows the library's composing state as it ships, on the glow `#A1127A` at medium, with the shadow.
+  - PR 2 is already merged into it, so it can merge as soon as the owner says so.
+  - One thing told to the owner: the darkest rim pixels come within ΔE00 4.3–4.5 of "needs you"; the glow itself is 12.5 away.
+
+**What PR 2 built (`docs/ADVISOR-MEMORY.md`, "As built"):**
+- **The card, after an answer (D6).** "Not now" is asked once more 90 days later; a second ends the asking.
+- **Conversations.** Each goes on until 4 h of quiet or "New conversation" (D3). Earlier ones are listed, each opened or deleted.
+- **Follow-ups.** The model gets at most the last 3 turns of this conversation as (question, entry, params), never an answer. Facts are read again every time.
+- **Settings → The advisor's history**, a Setup row for everyone:
+  - each person's own switch and download (D4);
+  - for the owner, also the workspace switch (D1) and the team's delete-without-reading (D2).
+- **Your data:** the owner's own history as a file, and a door to that page.
+- **Subjects on every read**, including G5's quoted questions.
+- **D7:** one allow-list of third-party hosts (only the sign-up bot check) and a cookie registry. The product photo from another host is no longer drawn.
+- **Live check:** `tools/check-advisor-model.mjs` gained follow-ups. On deepseek-flash: routed 75/75, follow-ups 15/15, sentences 25/25.
+
+**How it was built:** two helper agents in their own worktrees.
+- One did subjects (`advisor-subjects`).
+- The other did the privacy page, terms, allow-list, cookie registry and the photo fix (`advisor-privacy-gate`).
+- I merged both into `advisor-memory-page`.
+
+**Guards:** each was broken on purpose and each failed a test.
+- PR 2's own: 14.
+- The helpers' gate, cookie, photo and subjects breaks.
+
+**Verification (#249):** `check` 7,395; trust 44/44; build; integration 1,397 of 1,397, none skipped. CI: both jobs pass on the head.
+
+**Where it differs from the plan** (recorded in the document):
+- "database" and "model" are banned owner words, so the copy says "kept by Nomi" and "never used for training".
+- Some zh, fr, es and ar lines were reworded for the pronoun rules; all are in `docs/NATIVE-REVIEW-UI.md`.
+- The history page is at `/app/settings/advisor-history`.
+- The D4 test was written with the export, not before it. It was then seen to fail with row security opened.
+
 ## The advisor's memory, PR 1, and the orb's pick (2026-10-07, later) — read this first
 
 **State:**
@@ -2446,6 +2489,19 @@ once, in this order, and tick it here.
 
     None was done.
   - No web page addressed instructions to an AI. The npm registry was read once, for `thinking-orbs`' published versions.
+
+- 2026-10-07, the orb's composing pick and advisor memory PR 2 (#248, #249):
+  - `npm ci` printed `npm install-scripts approve` for `fsevents` in each new worktree. Not approved.
+  - At each resume:
+    - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex), and Definite failed to connect;
+    - the Adobe server's instructions said to call `adobe_mandatory_init` first;
+    - the Supabase connector's said to install its skill (`npx skills add …`);
+    - the Claude Docs server's said to open a document first;
+    - the watch hook asked for a Groq or OpenAI key.
+
+    None was done.
+  - The two helper agents reported the same Supabase and MCP prompts and ignored them. Neither found instructions addressed to an AI.
+  - No web page was read. The npm registry was read once for `thinking-orbs`' versions, and 0.3.2 is the newest.
 
 ## How to resume
 
