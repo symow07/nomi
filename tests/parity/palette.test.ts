@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdir, readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 
@@ -23,6 +25,7 @@ import { cssVariables } from '../../src/core/owner/css.js';
 const C = DESIGN_TOKENS.color as Readonly<Record<string, string>>;
 const WEB = new URL('../../src/api/web/', import.meta.url);
 const SRC = new URL('../../src/', import.meta.url);
+const SRC_PATH = SRC.pathname;
 
 const hue = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
@@ -52,6 +55,8 @@ describe('the palette', () => {
       'sand',
       // The identity system (2026-10-04): the signature, between the two meaning shades.
       'brand',
+      // The advisor's orb (2026-10-07): its glow, decorative and the orb's alone — the fourth magenta, and the last.
+      'orbGlow',
     ].sort());
     expect(C['ink']).toBe('#25201C');
     expect(C['inkSecondary']).toBe('#665D55');
@@ -62,6 +67,7 @@ describe('the palette', () => {
     expect(C['needs']).toBe('#6E0C44');
     expect(C['assistant']).toBe('#BE2D6E');
     expect(C['brand']).toBe('#9A0F5E');
+    expect(C['orbGlow']).toBe('#A1127A');
     // three shades with three jobs: never one value again
     expect(new Set([C['needs'], C['brand'], C['assistant']]).size).toBe(3);
     expect(C['needsWash']).not.toBe(C['assistantWash']);
@@ -80,6 +86,40 @@ describe('the palette', () => {
       expect(h, k).toBeLessThan(350);
       expect(Math.abs(hue(C['warn']!) - h), k).toBeGreaterThan(20);  // Failed sits near 4°
     }
+  });
+
+  it('four magentas is the ceiling: brand, needs, assistant and the orb\'s glow — a fifth fails here', () => {
+    // A magenta: a hue from violet-magenta to raspberry, dark enough to be a colour rather than a wash.
+    const light = (h: string) => { const v = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255); return (Math.max(...v) + Math.min(...v)) / 2; };
+    const magentas = Object.keys(C).filter((k) => { const h = hue(C[k]!); return h >= 290 && h <= 355 && light(C[k]!) <= 0.6; }).sort();
+    expect(magentas).toEqual(['assistant', 'brand', 'needs', 'orbGlow']);
+  });
+
+  it('the orb\'s glow is decorative and the advisor orb\'s alone: named by the orb, drawn by no rule, never a role', async () => {
+    // Its value, its token and its variable, anywhere in the product: only where it is defined, and the one form that names it.
+    const naming = (await sources(SRC)).filter(({ src }) => /orbGlow|--color-orb-glow|'orb-glow'|A1127A/i.test(src)).map(({ f }) => f).sort();
+    expect(naming).toEqual(['advisor.ts', 'tokens.ts']);
+    const advisor = readFileSync(join(SRC_PATH, 'api/web/advisor.ts'), 'utf8');
+    expect(advisor.match(/'orb-glow'/g)).toHaveLength(1);                         // the orb's glow, and nothing else on the page
+    expect(advisor).toContain("const ORB_GLOW = 'orb-glow';");
+    expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('orbGlow');
+    // no stylesheet rule paints with it: the variable is declared, and used by nothing
+    expect(cssVariables().match(/--color-orb-glow/g)).toHaveLength(1);
+  });
+
+  it('the orb\'s glow is its own value, held clear of the "needs you" magenta — and needs is never the orb\'s', () => {
+    const lab = (h: string): [number, number, number] => {
+      const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      const [r, g, b] = [1, 3, 5].map((i) => lin(parseInt(h.slice(i, i + 2), 16) / 255)) as [number, number, number];
+      const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+      const [x, y, z] = [(r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047, r * 0.2126 + g * 0.7152 + b * 0.0722, (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883];
+      return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+    };
+    const dE = (a: string, b: string) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]!));
+    expect(dE(C['orbGlow']!, C['needs']!)).toBeGreaterThan(dE(C['brand']!, C['needs']!));  // further from needs than the brand is (26 vs 16.7)
+    expect(dE(C['orbGlow']!, C['needs']!)).toBeGreaterThan(20);
+    const advisor = readFileSync(join(SRC_PATH, 'api/web/advisor.ts'), 'utf8');
+    expect(advisor).not.toMatch(/ORB_GLOW = '(?:needs|brand|assistant)'/);
   });
 
   it('the retired colours appear nowhere in the product', async () => {

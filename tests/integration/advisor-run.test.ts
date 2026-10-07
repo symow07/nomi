@@ -94,7 +94,7 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
     const page = await get('/app/advisor');
     expect(page.statusCode).toBe(200);
     expect(page.body).toMatch(/<a href="\/app\/advisor" class="navlink active" data-nav="advisor" aria-current="page"/);
-    expect(page.body).toMatch(/<form method="post" action="\/app\/advisor" class="msgbar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="listening" data-orb-ink="assistant">/);
+    expect(page.body).toMatch(/<form method="post" action="\/app\/advisor" class="msgbar" data-orb="\/assets\/orb\.[0-9a-f]{16}\.js" data-orb-state="composing" data-orb-glow="orb-glow">/);
 
     // the control: a real save moves the counter
     const c0 = await horizon();

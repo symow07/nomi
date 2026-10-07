@@ -38,14 +38,15 @@ import type { AdvisorMemory, KeptTurn, ThreadRow, MemoryState } from '../../advi
 export const ADVISOR_MAX = 1000;
 
 /**
- * THE ADVISOR'S ORB (2026-10-07; docs/design/advisor-orb/; the owner's picks). The library's own orb, its
- * geometry, dots and timing unchanged: thinking, its tuned 64 px `listening` (a waveform rolling through the
- * latitude rings); resting, the same orb shown larger (192 px, 144 on a phone — the stylesheet's) at half
- * the pace. One thing is ours, the colour: the assistant's magenta (the advisor IS Nomi, talking to the
- * owner), fading toward the page's paper — never the ink, never black, never the deep "needs you" magenta.
+ * THE ADVISOR'S ORB (2026-10-07; the owner's pick, docs/design/advisor-orb/). The library's own orb, drawn as
+ * it ships — geometry, dots, count and timing unchanged: its `composing` state (a sash of dotted lanes round a
+ * sphere, read as columns), thinking at its tuned 64 px, resting the same orb shown larger (192 px, 144 on a
+ * phone — the stylesheet's) at half the pace. Ours: its two ends (the light end, and the glow it recedes into)
+ * and the ground under it — a magenta halo, a body shaded to its rim and base, a soft shadow on the paper.
+ * The glow is the palette's `orbGlow`, which is decorative and the orb's alone; never "needs you".
  */
-const ORB_STATE = 'listening';
-const ORB_INK = 'assistant';
+const ORB_STATE = 'composing';
+const ORB_GLOW = 'orb-glow';
 /** Resting, the orb moves at this fraction of its thinking pace: alive, and calm. */
 const ORB_REST_PACE = 0.5;
 
@@ -55,7 +56,7 @@ const ORB_REST_PACE = 0.5;
  * drawn or if it cannot be; the one script draws it, moving only while the page is seen.
  */
 const resting = (): string =>
-  `<div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="384" height="384" aria-hidden="true"></canvas></div>`;
+  `<div class="orb-rest-row"><canvas class="orb-rest" data-orb-rest data-orb-pace="${ORB_REST_PACE}" width="576" height="576" aria-hidden="true"></canvas></div>`;
 
 /**
  * While the question is on its way, and only then (the one script, `thinking`): the question goes up as
@@ -66,7 +67,7 @@ const resting = (): string =>
  */
 const pending = (locale: Locale): string =>
   `<template data-orb-pending>${bubble('owner', '<bdi data-orb-asked></bdi>', t(locale, 'advisor.you'))}<div class="msg inbound orb-wait" data-orb-wait role="status">
-      <div class="orb-row"><canvas class="orb" width="128" height="128" aria-hidden="true"></canvas><p class="orb-line muted">${esc(t(locale, 'advisor.thinking'))}</p></div>
+      <div class="orb-row"><canvas class="orb" width="192" height="192" aria-hidden="true"></canvas><p class="orb-line muted">${esc(t(locale, 'advisor.thinking'))}</p></div>
       <div class="ts muted">${esc(t(locale, 'nav.advisor'))}</div>
     </div></template>`;
 
@@ -207,7 +208,7 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
     ${history.card && exchange !== null ? consentCard(locale, history.card.processor) : ''}
     ${pending(locale)}
     <div class="card sbx-compose" id="ask">
-      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-ink="${ORB_INK}">
+      <form method="post" action="/app/advisor" class="msgbar" data-orb="${ORB_JS}" data-orb-state="${ORB_STATE}" data-orb-glow="${ORB_GLOW}">
         <label class="muted" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="2" dir="auto" maxlength="${ADVISOR_MAX}" required></textarea>
         ${thread ? `<input type="hidden" name="thread" value="${esc(thread)}">` : ''}

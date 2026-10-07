@@ -70,13 +70,13 @@
  *      only then), a large orb at the head of the page, gently moving — the page's "ask me". THINKING:
  *      once a question is on its way, the resting orb gives way; the question goes up as asked and,
  *      under it, the small orb and its calm line (`template[data-orb-pending]`), until the answer's page
- *      replaces this one. The geometry is the vendored drawing core of thinking-orbs
- *      (assets/vendor/thinking-orbs/), imported once the page is drawn; the colour is ours — the
- *      magenta the form names (`data-orb-ink`, a palette variable) fading toward the page's paper, in
- *      our own painter. It moves only while the page is seen (paused while the tab is hidden, resumed
- *      when shown); a reader who asked for less motion gets one still frame of each. If the orb cannot
- *      be had, the resting space closes and the thinking line stays alone; back from history, the page is
- *      as it was. tests/parity/advisor-orb.test.ts.
+ *      replaces this one. The orb is the library's own (thinking-orbs, vendored in assets/vendor/; its
+ *      `composing` state, its painter in its dark-paper mode), only its two ends ours; under it, a ground
+ *      that is ours — a deep magenta halo, a body shaded to its rim and base, a shadow on the paper. The
+ *      ground is drawn at once; the orb's file is imported once the page has loaded. It moves only while
+ *      the page is seen (paused while the tab is hidden, resumed when shown); a reader who asked for less
+ *      motion gets one still frame of each. If the orb cannot be had, its ground stays — no gap, nothing
+ *      moves; back from history, the page is as it was. tests/parity/advisor-orb.test.ts.
  *
  * Progressive: every page works exactly as before with scripting off — read,
  * reply, approve, send. Nothing here is needed for any of it.
@@ -587,35 +587,38 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   /* The advisor's orb (item 9): on its page only, resting while nothing is asked, thinking while a question is on its way. */
   function still() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
   function rgbOf(name) {
-    var v = window.getComputedStyle ? String(window.getComputedStyle(doc.documentElement).getPropertyValue(name)).trim() : '';
-    var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(v);
+    return rgbFrom(window.getComputedStyle ? window.getComputedStyle(doc.documentElement).getPropertyValue(name) : '');
+  }
+  function rgbFrom(v) {
+    var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(v || '').trim());
     return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : 0;
   }
   /* The library's own painter (thinking-orbs 0.3.2: paintFrame, paintLines, paint; MIT, Jakub Antalik,
-     assets/vendor/thinking-orbs/0.3.2/LICENSE), line for line, with ONE change: its light-paper ramp ends at
-     the page's paper instead of white (c + (paper - c) * w, where the library has c + (255 - c) * w). With the
-     paper at white the two draw the very same calls; tests/parity/advisor-orb.test.ts holds that. */
-  function inkColor(w, alpha, tint, paper) {
-    var ramp = function (c, p) { return Math.round(c + (p - c) * w); };
-    return 'rgba(' + ramp(tint.r, paper.r) + ',' + ramp(tint.g, paper.g) + ',' + ramp(tint.b, paper.b) + ',' + alpha + ')';
+     assets/vendor/thinking-orbs/0.3.2/LICENSE), line for line, in its dark-paper mode: a near dot light, a far
+     one dark, by the same depth (1 - w). ONE change: the two ends are ours — the light end and the glow it
+     recedes into — where the library has white and black. With white and black the two draw the very same
+     calls; tests/parity/advisor-orb.test.ts holds that. */
+  function inkColor(w, alpha, light, far) {
+    var ramp = function (l, f) { return Math.round(f + (l - f) * (1 - w)); };
+    return 'rgba(' + ramp(light.r, far.r) + ',' + ramp(light.g, far.g) + ',' + ramp(light.b, far.b) + ',' + alpha + ')';
   }
-  function paintDots(ctx, dots, tint, paper) {
+  function paintDots(ctx, dots, light, far) {
     for (var i = 0; i < dots.length; i++) {
       var d = dots[i];
       var alpha = typeof d.a === 'number' ? d.a : 1;
       var w = Math.min(1, Math.max(0, d.white));
-      ctx.fillStyle = inkColor(w, alpha, tint, paper);
+      ctx.fillStyle = inkColor(w, alpha, light, far);
       ctx.beginPath();
       ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
       ctx.fill();
     }
   }
-  function paintLines(ctx, lines, tint, paper) {
+  function paintLines(ctx, lines, light, far) {
     for (var i = 0; i < lines.length; i++) {
       var l = lines[i];
       var alpha = typeof l.a === 'number' ? l.a : 1;
       var w = Math.min(1, Math.max(0, l.white));
-      ctx.strokeStyle = inkColor(w, alpha, tint, paper);
+      ctx.strokeStyle = inkColor(w, alpha, light, far);
       ctx.lineWidth = l.w;
       ctx.beginPath();
       ctx.moveTo(l.x1, l.y1);
@@ -623,9 +626,47 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       ctx.stroke();
     }
   }
-  function paintFrame(ctx, frame, tint, paper) {
-    if (frame.lines.length) paintLines(ctx, frame.lines, tint, paper);
-    paintDots(ctx, frame.dots, tint, paper);
+  function paintFrame(ctx, frame, light, far) {
+    if (frame.lines.length) paintLines(ctx, frame.lines, light, far);
+    paintDots(ctx, frame.dots, light, far);
+  }
+  /* The ground under the orb — ours, not the library's, drawn first and never over its dots: a halo of the
+     glow bleeding into the paper, a body light in the middle and deepening to its rim, its base falling into
+     shadow, and a soft shadow on the paper beneath. The owner's pick, "medium":
+     [halo, its reach, body, rim, base, shadow]. */
+  var GROUND = [0.75, 1.42, 0.88, 0.48, 0.36, 0.24];
+  function tone(c, a) { return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
+  function toward(a, b, w) { return { r: Math.round(a.r + (b.r - a.r) * w), g: Math.round(a.g + (b.g - a.g) * w), b: Math.round(a.b + (b.b - a.b) * w) }; }
+  function ground(ctx, size, glow, light, dark, o) {
+    var c = size / 2;
+    var R = size / 2 * 0.78;
+    var g;
+    ctx.save();
+    ctx.translate(c, c + R * 1.02);
+    ctx.scale(1, 0.22);
+    g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.9);
+    g.addColorStop(0, tone(dark, o[5]));
+    g.addColorStop(1, tone(dark, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    g = ctx.createRadialGradient(c, c, R * 0.55, c, c, R * o[1]);
+    g.addColorStop(0, tone(glow, o[0]));
+    g.addColorStop(0.55, tone(glow, o[0] * 0.35));
+    g.addColorStop(1, tone(glow, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(c, c, R * o[1], 0, Math.PI * 2); ctx.fill();
+    g = ctx.createRadialGradient(c - R * 0.18, c - R * 0.28, R * 0.05, c, c, R);
+    g.addColorStop(0, tone(toward(glow, light, 0.18), o[2]));
+    g.addColorStop(0.6, tone(glow, o[2]));
+    g.addColorStop(1, tone(toward(glow, dark, o[3]), o[2]));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
+    g = ctx.createLinearGradient(0, c - R * 0.1, 0, c + R);
+    g.addColorStop(0, tone(dark, 0));
+    g.addColorStop(1, tone(dark, o[4]));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
   }
   function orbs() {
     var form = doc.querySelector('form[data-orb]');
@@ -635,29 +676,46 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var rest = doc.querySelector('[data-orb-rest]');
     var src = form.getAttribute('data-orb');
     var state = form.getAttribute('data-orb-state');
-    var tint = rgbOf('--color-' + form.getAttribute('data-orb-ink'));
-    var paper = rgbOf('--color-paper');
+    /* The glow is a palette colour, named: the page cannot hand the orb a colour of its own. */
+    var glowSaid = String(form.getAttribute('data-orb-glow') || '');
+    var glow = /^[a-z-]+$/.test(glowSaid) ? rgbOf('--color-' + glowSaid) : 0;
+    var light = rgbOf('--color-surface');
+    var dark = rgbOf('--color-ink');
+    var plan = GROUND;
     var core = 0;
     var shown = [];
     function load() { if (!core) core = import(src); return core; }
-    /* Draws the state on a canvas at the size the page gives it, at a pace of the engine's speed; moving only while seen. */
+    /* The orb's file is asked for only once the page has loaded: it plays no part in its first paint. */
+    var loaded = new Promise(function (ok) { if (doc.readyState === 'complete') ok(); else window.addEventListener('load', function () { ok(); }); });
+    /* Draws on a canvas half as large again as the orb (its margin holds the halo and the shadow): the ground
+       at once, with no file to wait for; then the library's orb on it, at a pace of its own speed, moving only
+       while seen. If the orb cannot be had, the ground stays: no gap, and nothing moves. */
     function draw(canvas, pace) {
-      var ctx = tint && paper && canvas.getContext ? canvas.getContext('2d') : 0;
+      var ctx = glow && light && dark && plan && canvas.getContext ? canvas.getContext('2d') : 0;
       if (!ctx) return Promise.reject(new Error('no orb here'));
-      return load().then(function (orb) {
+      var box = canvas.getBoundingClientRect().width || 96;
+      var size = box / 1.5;
+      var pad = size / 4;
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.round(box * dpr);
+      canvas.height = Math.round(box * dpr);
+      function under() {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, box, box);
+        ctx.setTransform(dpr, 0, 0, dpr, dpr * pad, dpr * pad);
+        ground(ctx, size, glow, light, dark, plan);
+      }
+      under();
+      return loaded.then(load).then(function (orb) {
         var pre = orb.r(state, 64);
         var shape = pre && orb.M[pre.mode];
         if (!shape) throw new Error('no such orb');
         /* The library's tuned 64 px orb, unchanged; larger only by the canvas's scale (the resting orb). */
-        var size = canvas.getBoundingClientRect().width || 64;
-        var dpr = Math.min(2, window.devicePixelRatio || 1);
         var k = size / 64;
-        canvas.width = Math.round(size * dpr);
-        canvas.height = Math.round(size * dpr);
         function paint(t) {
-          ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
-          ctx.clearRect(0, 0, 64, 64);
-          paintFrame(ctx, shape(64, t, pre.opts), tint, paper);
+          under();
+          ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * pad, dpr * pad);
+          paintFrame(ctx, shape(64, t, pre.opts), light, glow);
         }
         paint(0.6);
         var running = false;
@@ -676,12 +734,12 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var restWrap = rest && rest.parentNode;
     var restAt = restWrap && restWrap.parentNode;
     var restBefore = restWrap && restWrap.nextSibling;
-    /* Its space is the page's from the first paint (the stylesheet gives it none with scripting off), so
-       nothing moves when it is drawn, or if it cannot be. It is drawn once the page has loaded. */
-    function wake() { draw(rest, Number(rest.getAttribute('data-orb-pace')) || 1).catch(function () { /* the space stays, empty */ }); }
-    if (rest) {
-      if (doc.readyState === 'complete') wake(); else window.addEventListener('load', wake);
+    /* Its space is the page's from the first paint (the stylesheet gives it none with scripting off). Its
+       ground is drawn at once; the orb's file is asked for once the page has loaded. */
+    function wake() {
+      draw(rest, Number(rest.getAttribute('data-orb-pace')) || 1).catch(function () { /* the ground stays */ });
     }
+    if (rest) wake();
     var box = form.querySelector('textarea');
     if (box) box.addEventListener('focus', function () { load().catch(function () { core = 0; }); });
     if (!tpl || !tpl.content || !line) return;
@@ -700,7 +758,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       shown = [].slice.call(piece.childNodes);
       line.appendChild(piece);
       if (wait.scrollIntoView) wait.scrollIntoView({ block: 'nearest' });
-      if (canvas) draw(canvas, 1).catch(function () { /* the line stays, beside an empty space */ });
+      if (canvas) draw(canvas, 1).catch(function () { /* the ground stays, beside the line */ });
     });
     /* Back from history: the question never went, so the page is as it was, resting orb and all. */
     window.addEventListener('pageshow', function (e) {
