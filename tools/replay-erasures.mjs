@@ -34,6 +34,9 @@
  *   · a customer: if they are in the copy, they are erased by the same
  *     contract (`erase_customer_rows`), their request closed as done (written
  *     back as done if the copy predates it);
+ *   · an advisor deletion (0130): the conversations it named, whole, if they are in
+ *     the copy (`advisor_replay_erasure`) — withdrawn consent, a conversation
+ *     deleted, a person removed, twelve months unopened, the workspace switched off;
  *   · the line is then written into the copy's ledger, so the copy's ledger is
  *     whole again.
  * A job a worker left 'active' when the backup was taken is not a worker busy
@@ -78,6 +81,8 @@ export function ledgerLine(row) {
     id: String(row.id), kind: String(row.kind), business_id: String(row.business_id),
     customer_id: row.customer_id ? String(row.customer_id) : null,
     request_id: row.request_id ? String(row.request_id) : null,
+    person_id: row.person_id ? String(row.person_id) : null,
+    thread_ids: Array.isArray(row.thread_ids) ? row.thread_ids.map(String) : null,
     via: String(row.via), by_who: String(row.by_who),
     at: new Date(row.at).toISOString(), counts: row.counts ?? {},
   };
@@ -89,18 +94,23 @@ export function parseLedgerLine(text) {
   try { x = JSON.parse(text); } catch { return { ok: false, why: 'not JSON' }; }
   if (!x || typeof x !== 'object') return { ok: false, why: 'not an object' };
   if (!UUID.test(String(x.id ?? ''))) return { ok: false, why: 'no id' };
-  if (x.kind !== 'customer' && x.kind !== 'workspace') return { ok: false, why: `kind '${x.kind}'` };
+  if (x.kind !== 'customer' && x.kind !== 'workspace' && x.kind !== 'advisor') return { ok: false, why: `kind '${x.kind}'` };
   if (!UUID.test(String(x.business_id ?? ''))) return { ok: false, why: 'no business_id' };
   if (x.kind === 'customer' && !UUID.test(String(x.customer_id ?? ''))) return { ok: false, why: 'a customer line with no customer_id' };
   if (x.kind === 'workspace' && x.customer_id) return { ok: false, why: 'a workspace line naming a customer' };
+  if (x.kind === 'advisor' && (x.customer_id || !Array.isArray(x.thread_ids) || !x.thread_ids.length || !x.thread_ids.every((t) => UUID.test(String(t))))) {
+    return { ok: false, why: 'an advisor line without its conversations' };
+  }
+  if (x.person_id && !UUID.test(String(x.person_id))) return { ok: false, why: 'a person_id that is not an id' };
   if (x.request_id && !UUID.test(String(x.request_id))) return { ok: false, why: 'a request_id that is not an id' };
   if (Number.isNaN(new Date(x.at).getTime())) return { ok: false, why: 'no time' };
-  if (!['owner', 'operator', 'restore'].includes(x.via)) return { ok: false, why: `via '${x.via}'` };
+  if (!['owner', 'operator', 'restore', 'person', 'retention'].includes(x.via)) return { ok: false, why: `via '${x.via}'` };
   return { ok: true, line: ledgerLine(x) };
 }
 
 const SELECT_LEDGER = `select id::text as id, kind, business_id::text as business_id, customer_id::text as customer_id,
-                              request_id::text as request_id, via, by_who, at, counts
+                              request_id::text as request_id, person_id::text as person_id, thread_ids::text[] as thread_ids,
+                              via, by_who, at, counts
                          from erasure_ledger order by at, id`;
 
 async function readLedger(c) {
@@ -177,7 +187,9 @@ async function main() {
       try {
         const r = await replayOne(client, l, by || 'dry run');
         if (go) await client.query('commit'); else await client.query('rollback');
-        const what = l.kind === 'workspace' ? `workspace ${l.business_id}` : `customer ${l.customer_id} of ${l.business_id}`;
+        const what = l.kind === 'workspace' ? `workspace ${l.business_id}`
+          : l.kind === 'advisor' ? `${l.thread_ids.length} advisor conversation(s) of ${l.business_id}`
+          : `customer ${l.customer_id} of ${l.business_id}`;
         if (r.rows > 0) {
           applied++;
           console.log(`  ${go ? 'erased' : 'would erase'} ${String(r.rows).padStart(6)} rows · ${what} · ledger ${l.id} (${l.at.slice(0, 10)})`);
@@ -205,7 +217,11 @@ async function main() {
 async function replayOne(c, l, by) {
   let rows = 0;
   const biz = (await c.query('select 1 from businesses where id = $1::uuid', [l.business_id])).rowCount > 0;
-  if (l.kind === 'workspace') {
+  if (l.kind === 'advisor') {
+    if (biz) {
+      rows = Number((await c.query('select advisor_replay_erasure($1::uuid, $2::uuid[])::text as n', [l.business_id, l.thread_ids])).rows[0]?.n ?? 0);
+    }
+  } else if (l.kind === 'workspace') {
     if (biz) {
       const r = (await c.query('select erase_workspace_rows($1::uuid, false, true) as r', [l.business_id])).rows[0]?.r;
       rows = Number(r?.rows ?? 0);
@@ -232,10 +248,11 @@ async function replayOne(c, l, by) {
     }
   }
   // The copy's ledger made whole: the line as it was written, by its own id.
-  await c.query(`insert into erasure_ledger (id, kind, business_id, customer_id, request_id, via, by_who, at, counts)
-                 values ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6, $7, $8::timestamptz, $9::jsonb)
+  await c.query(`insert into erasure_ledger (id, kind, business_id, customer_id, request_id, person_id, thread_ids, via, by_who, at, counts)
+                 values ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid[], $8, $9, $10::timestamptz, $11::jsonb)
                  on conflict (id) do nothing`,
-    [l.id, l.kind, l.business_id, l.customer_id, l.request_id, l.via, l.by_who, l.at, JSON.stringify(l.counts ?? {})]);
+    [l.id, l.kind, l.business_id, l.customer_id, l.request_id, l.person_id ?? null, l.thread_ids ?? null, l.via, l.by_who, l.at,
+     JSON.stringify(l.counts ?? {})]);
   return { rows };
 }
 
