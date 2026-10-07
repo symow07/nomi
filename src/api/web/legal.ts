@@ -276,6 +276,8 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
       // w4-public-02 — the photo, which the operator's buyer erasure erases (`client_faces: { do: 'erase' }`).
       'legal.deletion.erased.identity', 'legal.deletion.erased.photo', 'legal.deletion.erased.messages', 'legal.deletion.erased.prepared',
       'legal.deletion.erased.notes', 'legal.deletion.erased.conversations',
+      // 0130 — the advisor's kept turns that name them, whole (erase-buyer's `advisor_turn_subjects`, `advisor_turns`).
+      'legal.deletion.erased.advisor',
     ])}</ul>
     <h2>${k('legal.deletion.kept.title')}</h2>
     <ul>${list([
@@ -283,6 +285,8 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
       'legal.deletion.kept.meta', 'legal.deletion.kept.elsewhere', 'legal.deletion.kept.backups',
       // 0126 — a restore brings nobody back: tools/replay-erasures.mjs, docs/BACKUP-RESTORE.md.
       'legal.deletion.kept.restored',
+      // 0130 — the honest limit: a name in the business's own words, with no record behind it.
+      'legal.deletion.kept.advisorUnlinked',
     ])}</ul>
     ${contact(l, email, !email)}
     <p><a href="/privacy">${k('legal.privacyLink')}</a> · <a href="/terms">${k('legal.termsLink')}</a></p>

@@ -15819,3 +15819,34 @@ New legal lines, written in zh, ar, es and fr in one pass from `docs/ADVISOR-MEM
 - **Check:** that «جهةَ معالجة» (ar), «encargado del tratamiento» (es), «sous-traitant» (fr) and 数据处理者 (zh) read as the GDPR "processor" in the terms' sentence; that the cookie purposes read as short statements in the table; that es and fr read naturally after the colon that introduces the provider's line.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-07 — the advisor's history: the card, the conversations, Settings
+
+The owner-facing lines of advisor memory PR 2 (#249) were written in zh, ar, es and fr in one pass from `docs/ADVISOR-MEMORY.md` §9.1–9.2, plus the page's own lines. None has had a native read. Read them on the advisor's page (after an answer) and in Settings → The advisor's history; the screenshots are in `docs/design/advisor-memory/`.
+
+- **The keys:**
+  - `advisor.memory.*` (the card, the switch, the confirms, the owner's delete-without-reading);
+  - `advisor.thread.*` (new, earlier, delete, unreadable);
+  - `advisor.history.*` (the Settings page, its Setup row's On/Off);
+  - `advisor.flash.*`;
+  - `advisor.export.*` (the download's headings).
+- **Where the words differ from the plan, and why** (the catalogue's rules, held by tests):
+  - "Nomi's database" became "Nomi" in every language ("kept by Nomi", 从 Nomi 中删除, من Nomi, de Nomi).
+  - Chinese drops 它们 ("这些对话将从 Nomi 中删除"). "The owner" is said to the owner as 你 ("你也不能"). The staff line ends with the existing `staff.ownerDecides` sentence instead of naming 老板.
+  - French drops elle/elles ("pour elle-même" → "La décision revient à chaque personne"; "sur lesquelles elles s'appuient" → "qui les fondent"). The download's headings are «Discussion» and «Votre question», because «Conversation» and «Question» read as untranslated.
+  - Spanish: "por sí misma" → "La decisión es de cada persona".
+  - Arabic: «كما هو الحال» → «كما يحدث الآن» (no «هو»). The owner's confirm names the person after «لـ» («المحفوظة لـ {name}»), so no verb agrees with them. The team line avoids addressing the owner in a gender («ولا يمكن ذلك من هنا أيضًا»).
+- **Check:** that the card's sentence «السماح لـ Nomi بحفظ محادثات المستشار…» reads as a request, not a statement, and that 暂不 reads as "not now" on a button.
+
+Reviewer: ______  Date: ______
+
+## 2026-10-07 — the data-deletion page: the advisor's kept turns
+
+The page that tells a customer what deletion does. Two new lines, and its date:
+
+- `legal.deletion.erased.advisor`: questions the business asked its advisor that name them, with their answers, where the business keeps its advisor history.
+- `legal.deletion.kept.advisorUnlinked`: the limit. A question that names them only in the business's own words, with nothing on record, may not be found.
+
+Written in zh, ar, es and fr in one pass; none has had a native read. Arabic addresses the customer with the unvowelled ـك only («تذكرك»).
+
+Reviewer: ______  Date: ______
