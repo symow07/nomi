@@ -13,6 +13,47 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The advisor's page is redesigned and shipped; the hardening batch is next (2026-10-08) — read this first
+
+**State:**
+- **#253, the advisor's page redesigned**, merged as `0cb18a6` on the owner's confirm and deployed 03:41 UTC.
+  - `/health` ok; production schema is still **130**, equal to `REQUIRED_SCHEMA_VERSION` (no migration).
+- **#252, the data-deletion page's advisor lines**, deployed earlier (13:58 UTC on 2026-10-07).
+- **Still the owner's:** paste `ADVISOR_KEY` into the nomi service in Railway (`openssl rand -hex 32 | pbcopy`).
+  Until then nothing is kept (D8).
+
+**What #253 changed on `/app/advisor`:**
+- **The empty page:** the orb (192 px; 144 on a phone) in a soft dithered light of its glow `#A1127A`, falling
+  to the paper close round the orb and gone before the bar. Under it, "Hello, {name}": the person's own name,
+  or a plain "Hello" when the record holds only the business's name or the access code's stand-in.
+- **No chips.** The empty box types the three questions in turn and stops the instant it is touched. It never
+  writes the box's text, and holds the longest question's height so nothing moves.
+- **After a question:** the orb glides down beside the bar (64 px) and thinks there, in a small pool drawn as
+  the glow made thin. After the first answer the box says "Ask a follow-up". A talking page opens at its
+  end, so the newest answer is above the bar. Every answer is one block, the reading measure wide.
+- **"New conversation" and "Earlier conversations"** are two small links; the earlier list has its own page,
+  `/app/advisor/earlier`. The opt-in card (D6) stays in the conversation.
+- **Scripts off, less motion, the orb's file blocked, a hidden tab and other pages** all behave as before. Each
+  of 22 guards was broken on purpose and failed its own test.
+- **Renders:** `docs/design/advisor-redesign/` (five languages, desktop and phone, the glide, three clips). Its
+  README has the banding measures: no colour holds for more than 6 device px.
+
+**Verification (#253):** `check` 7,419; trust 44/44; build; integration 1,397 of 1,397, none skipped. CI: both
+jobs pass on the head.
+
+**Found on the way:** the scratchpad's CI watcher (`waitci.sh`) ran in a folder that was no longer a git
+checkout. Every query failed, so it would have waited an hour and then refused to merge. It now runs in
+a live checkout.
+
+**Next: the hardening batch, `docs/PRE-LAUNCH.md`.** The owner's list, written down on 2026-10-08:
+- the IDOR audit first;
+- then the launch-blockers: age at sign-up, third-party browser requests, the unsubscribe link and postal address
+  on every e-mail, and Stripe's renewal terms;
+- then the rest, and the two found-not-fixed items.
+
+Anything that changes the send path is reported before it is fixed. Messaging policy and data protection are a
+separate batch after this one. The provider batch (D9) is not part of it.
+
 ## The orb is shipped (2026-10-07, evening) — read this first
 
 **State:**
@@ -2521,6 +2562,16 @@ once, in this order, and tick it here.
     None was done.
   - The two helper agents reported the same Supabase and MCP prompts and ignored them. Neither found instructions addressed to an AI.
   - No web page was read. The npm registry was read once for `thinking-orbs`' versions, and 0.3.2 is the newest.
+- 2026-10-07 and 08, the data-deletion page (#252) and the advisor redesign (#253):
+  - At each resume, the same asks came again, and none was done:
+    - the MCP servers asked for sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex);
+    - Definite failed to connect;
+    - the Adobe server's instructions said to call its init tool first;
+    - the Supabase connector's said to install its skill (`npx skills add …`);
+    - the Claude Docs server's said to open a document first;
+    - the watch hook asked for a Groq or OpenAI key.
+  - The IDOR helper agent was told to read only.
+  - No web page was read, and none addressed instructions to an AI.
 
 ## How to resume
 
