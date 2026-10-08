@@ -207,6 +207,14 @@ describe('M16.2c · inbox human control surface (localized)', () => {
     expect(html).not.toContain(shown('en', 'buyers.review.title'));   // no draft card while owner-controlled
   });
 
+  it('the owner\'s reply box is named for a screen reader, in every language: a placeholder is not a label', () => {
+    for (const l of LOCALES) {
+      const html = renderConversationDetail(detailIn('OWNER_CONTROLLED'), l, NOW, null);
+      const box = /<textarea name="text"[^>]*>/.exec(html)?.[0] ?? '';
+      expect(box, l).toContain(`aria-label="${shown(l, 'takeover.replyPlaceholder')}"`);
+    }
+  });
+
   it('last human action: kind + who + when, per type, and never a message body', () => {
     // Extract just the last-action line's text — so unrelated page content
     // (the quote context, the transcript) can't satisfy these by accident.

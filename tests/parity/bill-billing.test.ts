@@ -86,6 +86,17 @@ describe('BILL · the page', () => {
       expect(page).toContain(said(l, 'billing.trial', { days: 14 }));
       expect(page).not.toContain('/app/settings/billing/portal');
     });
+    it(`${l} · beside the button, in plain text: the plan renews on its own, at its price, until cancelled, and where to cancel`, () => {
+      const renews = `<p>${said(l, 'billing.renews', { portal: said(l, 'billing.portal') })}</p>`;
+      for (const s of [state, { ...state, cardSavedAt: new Date('2026-10-01T00:00:00Z'), planId: 'starter' }]) {
+        const page = renderBilling(view({ state: s }), l, null, 'Back');
+        const button = page.indexOf('<button class="btn send" type="submit">');
+        expect(button).toBeGreaterThan(0);
+        expect(page.indexOf(renews), 'next to the subscribe button').toBe(page.indexOf('</button>', button) + '</button>'.length + '\n        '.length);
+      }
+      // the words name the portal by its own label, so the two never drift apart
+      expect(t(l, 'billing.renews')).toContain('{portal}');
+    });
     it(`${l} · lapsed and past due said as alerts; once subscribed, the plan is Stripe's to change`, () => {
       const lapsed = renderBilling(view({ state: { ...state, planId: 'starter', status: 'lapsed', hasCustomer: true } }), l, null, 'Back');
       expect(lapsed).toContain(`role="alert">${said(l, 'billing.status.lapsed')}`);
