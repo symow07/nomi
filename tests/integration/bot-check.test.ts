@@ -26,7 +26,7 @@ const RUN = randomUUID().slice(0, 8);
 const PILOT = `b0700000-0000-4000-8000-${RUN}0001`;
 const PERSON = 'person-token';
 const FIELD = 'cf-turnstile-response';
-const ABOUT = { kind: 'brand', sells: 'Candles', country: 'AE', website: '', teamSize: '1', terms: 'on' };
+const ABOUT = { kind: 'brand', sells: 'Candles', country: 'AE', website: '', teamSize: '1', terms: 'on', age: '34' };
 const caller = (n: number) => `2001:db8:${RUN.slice(0, 4)}:${RUN.slice(4)}::${n.toString(16)}`;
 const shop = (n: number, domain = `acme-${RUN}.example`) =>
   ({ ...ABOUT, factory: `Bot Check ${RUN} ${n}`, name: 'Rania', email: `rania-${n}-${RUN}@${domain}`, password: `bot-check-password-${RUN}` });

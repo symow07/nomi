@@ -28,7 +28,7 @@ const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const PILOT = `c0de0000-0000-4000-8000-${RUN}0005`;
-const ABOUT = { kind: 'retail', sells: 'Ceramic tiles', website: '', teamSize: '2-5', terms: 'on' };
+const ABOUT = { kind: 'retail', sells: 'Ceramic tiles', website: '', teamSize: '2-5', terms: 'on', age: '34' };
 
 d('phase 5 · undo over confirm, and the assistant at work (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;

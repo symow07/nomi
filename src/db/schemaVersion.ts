@@ -329,7 +329,9 @@ import type { Db } from './client.js';
 //       database that write fails and no reset link is ever mailed.
 // 130 = the advisor's memory, storage and deletion (0130): its four tables, the consent gate, `advisor_forget`,
 //       the ledger's `advisor` kind, and a customer's erasure reaching the turns that name them.
-export const REQUIRED_SCHEMA_VERSION = 130;
+// 131 = the age at sign-up (0131): `businesses.owner_adult_at`. Every sign-up writes it; against a 130 database
+//       that write fails and no workspace can be made.
+export const REQUIRED_SCHEMA_VERSION = 131;
 
 export type SchemaState = {
   readonly required: number;

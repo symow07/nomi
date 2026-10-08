@@ -217,7 +217,7 @@ export function renderLegalTerms(l: Locale, email: string | null, home = '/site'
     <h2>${k('legal.terms.service.title')}</h2><p>${k('legal.terms.service.body')}</p>
     ${/* §9.5 — the advisor's history: what the business instructs Nomi, its processor, to keep. */ ''}<p>${k('legal.terms.service.advisor')}</p>
     <h2>${k('legal.terms.yours.title')}</h2>
-    ${list(['legal.terms.yours.you1', 'legal.terms.yours.you2', 'legal.terms.yours.you3'])}
+    ${list(['legal.terms.yours.you0', 'legal.terms.yours.you1', 'legal.terms.yours.you2', 'legal.terms.yours.you3'])}
     <h2>${k('legal.terms.use.title')}</h2>
     ${list(['legal.terms.use.use1', 'legal.terms.use.use2', 'legal.terms.use.use3', 'legal.terms.use.use4'])}
     <p>${k('legal.terms.use.after')}</p>

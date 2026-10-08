@@ -23,7 +23,7 @@ import { PASSWORD_MIN, PASSWORD_MAX } from '../../src/security/password.js';
 const opts = { mode: 'open' as const, passwordMin: PASSWORD_MIN, passwordMax: PASSWORD_MAX };
 const good = {
   factory: 'Corner Bakery', name: 'Sam', email: 'sam@bakery.example', password: 'correct horse battery', invite: '',
-  kind: 'retail', sells: 'Bread and cakes', country: 'US', website: '', teamSize: '2-5', channels: ['instagram'], terms: 'on',
+  kind: 'retail', sells: 'Bread and cakes', country: 'US', website: '', teamSize: '2-5', channels: ['instagram'], terms: 'on', age: '34',
 };
 
 describe('TZ · the zones offered are real', () => {

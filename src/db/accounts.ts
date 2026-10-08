@@ -83,6 +83,8 @@ export async function provisionAccount(db: Db, input: {
   };
   /** G1 — the terms she agreed to (their digest); a pending sign-up from before G1 has none. */
   readonly termsVersion?: string | null;
+  /** AGE — the one who signed up gave an age of at least MIN_AGE; a pending sign-up from before AGE did not say. */
+  readonly adultConfirmed?: boolean;
   /** G1 — how many self-serve workspaces may exist; null: no cap. Counted under one lock. */
   readonly cap?: number | null;
 }): Promise<ProvisionOutcome> {
@@ -107,7 +109,8 @@ export async function provisionAccount(db: Db, input: {
         await sql`select set_config('app.business_id', ${made.business_id}, true)`.execute(tx);
         const terms = input.termsVersion && /^[0-9a-f]{12}$/.test(input.termsVersion) ? input.termsVersion : null;
         await sql`update businesses set signed_up_at = now(), terms_version = ${terms},
-                    terms_accepted_at = case when ${terms}::text is null then null else now() end
+                    terms_accepted_at = case when ${terms}::text is null then null else now() end,
+                    owner_adult_at = case when ${input.adultConfirmed === true} then now() else null end
                    where id = ${made.business_id}::uuid`.execute(tx);
       }
       return made;

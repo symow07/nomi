@@ -17,7 +17,7 @@ import { esc } from '../../src/api/web/layout.js';
 
 const good = {
   factory: 'Oud House', name: 'Rana', email: 'rana@oud.example', password: 'correct horse battery', invite: '',
-  kind: 'retail', sells: 'Perfume oils', country: 'AE', website: '', teamSize: '2-5', channels: ['instagram'], terms: 'on',
+  kind: 'retail', sells: 'Perfume oils', country: 'AE', website: '', teamSize: '2-5', channels: ['instagram'], terms: 'on', age: '34',
 };
 const opts = { mode: 'open' as const, passwordMin: 10, passwordMax: 200 };
 

@@ -11,7 +11,7 @@
 export const TERMS_KEYS = [
   'legal.terms.title', 'legal.terms.intro',
   'legal.terms.service.title', 'legal.terms.service.body', 'legal.terms.service.advisor',
-  'legal.terms.yours.title', 'legal.terms.yours.you1', 'legal.terms.yours.you2', 'legal.terms.yours.you3',
+  'legal.terms.yours.title', 'legal.terms.yours.you0', 'legal.terms.yours.you1', 'legal.terms.yours.you2', 'legal.terms.yours.you3',
   'legal.terms.use.title', 'legal.terms.use.use1', 'legal.terms.use.use2', 'legal.terms.use.use3', 'legal.terms.use.use4', 'legal.terms.use.after',
   'legal.terms.ours.title', 'legal.terms.ours.we1', 'legal.terms.ours.we2', 'legal.terms.ours.we3', 'legal.terms.ours.we4',
   'legal.terms.fees.title', 'legal.terms.fees.body',
