@@ -119,6 +119,12 @@ describe('The IDOR audit · the owner\'s code, the language switch, the installa
     await fresh.close();
   });
 
+  it('the owner\'s own sign-ins are never counted: an office behind one address is not locked out by its owner', async () => {
+    const app = appWith(true);
+    for (let i = 0; i < 25; i++) expect((await login(app, 'let-me-in')).statusCode, `sign-in ${i + 1}`).toBe(302);
+    await app.close();
+  });
+
   it('the language switch goes on only to a path on this site: never "//host", "/\\host", nor one hidden behind a tab or a line break', async () => {
     const app = appWith(false);
     const to = async (next: string) => (await app.inject({ method: 'GET', url: `/locale?set=en&next=${next}` })).headers['location'];

@@ -1505,12 +1505,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      */
     let person: OwnerSession['person'];
     /**
-     * EVERY CODE WAITS ITS TURN, the owner's too. The throttle is asked BEFORE either code is compared: a caller
-     * past the limit is told to wait whether the guess is right or wrong, so guessing the owner's code is as slow
-     * as guessing a staff code (the IDOR audit, 2026-10-08; before it, a right guess got in at any rate). The
-     * throttle is in memory: the owner's login still depends on no query.
+     * EVERY CODE WAITS ITS TURN, the owner's too. A caller past the limit is told to wait BEFORE either code is
+     * compared, whether the guess is right or wrong, so guessing the owner's code is as slow as guessing a staff
+     * code (the IDOR audit, 2026-10-08; before it, a right guess got in at any rate). Only the tries are counted
+     * (below, as before), never the owner's own sign-in: an office behind one address is not locked out by its
+     * own owner. The throttle is in memory: the owner's login still depends on no query.
      */
-    if (!loginThrottle.allow(callerOf(req), Date.now())) {
+    if (loginThrottle.spent(callerOf(req), Date.now())) {
       return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
     }
     if (codeMatches(code, deps.accessCode)) {
@@ -1533,6 +1534,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // the people a second factory adds can sign in too. It is tried against
       // the environment's business first, exactly as before, so nothing about
       // the pilot's staff depends on the new lookup.
+      if (!loginThrottle.allow(callerOf(req), Date.now())) {
+        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
+      }
       const mine = code.trim() === '' ? null
         : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
       const theirs = mine || code.trim() === '' ? null
