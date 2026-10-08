@@ -3236,12 +3236,14 @@ export type SignupPageInput = {
     readonly factory?: string; readonly name?: string; readonly email?: string; readonly invite?: string;
     readonly kind?: string; readonly sells?: string; readonly country?: string; readonly website?: string;
     readonly teamSize?: string; readonly channels?: readonly string[]; readonly zone?: string;
-    readonly currency?: string; readonly terms?: boolean;
+    readonly currency?: string; readonly terms?: boolean; readonly age?: string;
   };
   /** Sentences, already chosen by the route: one per field, plus one for the whole form. */
   readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite'
-    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency' | 'terms', string>>;
+    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency' | 'terms' | 'age', string>>;
   readonly error?: string | null;
+  /** AGE — the age given was under the minimum: the page says the minimum, and there is no form to answer again. */
+  readonly ageRefused?: boolean;
   /**
    * BOT — the provider's widget, drawn just above the button with its own
    * script; the token it makes arrives in `field`. Absent: no check.
@@ -3254,6 +3256,10 @@ export function signupPage(input: SignupPageInput): string {
   const v = input.values ?? {};
   const p = input.problems ?? {};
   const other = `<p class="other"><a href="/login">${esc(t(locale, 'signup.toLogin'))}</a></p>`;
+  if (input.ageRefused) {
+    return doorFrame(locale, input.path, t(locale, 'signup.title'),
+      `<h1>${esc(t(locale, 'signup.title'))}</h1><p class="lead" role="alert">${esc(t(locale, 'signup.problem.age_under'))}</p>`, other);
+  }
   if (input.mode === 'closed') {
     const contact = input.contact
       ? `<p class="lead">${esc(t(locale, 'signup.closedContact', { email: input.contact }))}</p>` : '';
@@ -3266,15 +3272,15 @@ export function signupPage(input: SignupPageInput): string {
   const FIELD_ID: Readonly<Record<keyof typeof p, string>> = {
     invite: 'su-invite', factory: 'su-factory', kind: 'su-kind', sells: 'su-sells', country: 'su-country',
     zone: 'su-zone', currency: 'su-currency', website: 'su-website', teamSize: 'su-team', name: 'su-name',
-    email: 'su-email', password: 'su-password', terms: 'su-terms',
+    email: 'su-email', password: 'su-password', terms: 'su-terms', age: 'su-age',
   };
   const FIELD_LABEL: Readonly<Record<keyof typeof p, MessageKey>> = {
     invite: 'signup.invite', factory: 'signup.factory', kind: 'signup.kind', sells: 'signup.sells', country: 'signup.country',
     zone: 'signup.zone', currency: 'signup.currency', website: 'signup.website', teamSize: 'signup.teamSize', name: 'signup.name',
-    email: 'signup.email', password: 'signup.password', terms: 'signup.termsLink',
+    email: 'signup.email', password: 'signup.password', terms: 'signup.termsLink', age: 'signup.age',
   };
   const ORDER: readonly (keyof typeof p)[] = [...(input.mode === 'invite' ? ['invite' as const] : []),
-    'factory', 'kind', 'sells', 'country', 'zone', 'currency', 'website', 'teamSize', 'name', 'email', 'password', 'terms'];
+    'factory', 'kind', 'sells', 'country', 'zone', 'currency', 'website', 'teamSize', 'name', 'age', 'email', 'password', 'terms'];
   const refused = ORDER.filter((k) => p[k]);
   const cameBack = refused.length > 0 || Boolean(input.error);
   // Where the cursor starts: the first refusal; else the invitation while it is empty; else the business's name.
@@ -3351,6 +3357,10 @@ export function signupPage(input: SignupPageInput): string {
       <label for="su-name">${esc(t(locale, 'signup.name'))}</label>
       <input id="su-name" type="text" name="name" value="${esc(v.name ?? '')}" required maxlength="80" autocomplete="name"${at('name')} />
       ${fieldErr('name')}
+      <label for="su-age">${esc(t(locale, 'signup.age'))}</label>
+      <input id="su-age" type="number" name="age" value="${esc(v.age ?? '')}" required min="1" max="130" step="1" inputmode="numeric"
+        autocomplete="off"${at('age')} />
+      ${fieldErr('age')}
       <label for="su-email">${esc(t(locale, 'signup.email'))}</label>
       <input id="su-email" type="email" name="email" value="${esc(v.email ?? '')}" required maxlength="254"
         autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false"${at('email')} />

@@ -164,6 +164,10 @@ export const COOKIES: readonly NomiCookie[] = [
     reason: 'The state of an Instagram or Messenger connection in progress, checked when Meta sends the person back.',
   },
   {
+    name: 'yf_age_told', purpose: 'legal.privacy.cookies.for.age', lifetimeSec: 24 * 3600, class: 'necessary',
+    reason: 'That this browser gave an age under the minimum at sign-up (AGE, docs/PRE-LAUNCH.md item 1): for a day it is told so again rather than asked again, so an age cannot simply be changed. It holds nothing typed.',
+  },
+  {
     name: 'yf_wa', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
     reason: 'The state of a WhatsApp number connection in progress, checked when Meta sends the person back.',
   },

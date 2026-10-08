@@ -35,7 +35,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 const opts = { mode: 'open' as const, passwordMin: PASSWORD_MIN, passwordMax: PASSWORD_MAX };
 const good = {
   factory: 'Oud House', name: 'Rana', email: 'rana@oud.example', password: 'correct horse battery', invite: '',
-  kind: 'retail', sells: 'Perfume oils', country: 'AE', website: '', teamSize: '2-5', channels: ['instagram'], terms: 'on',
+  kind: 'retail', sells: 'Perfume oils', country: 'AE', website: '', teamSize: '2-5', channels: ['instagram'], terms: 'on', age: '34',
 };
 const one = (line: string, c: Currency) => parsePriceLines(line, c)[0]!;
 

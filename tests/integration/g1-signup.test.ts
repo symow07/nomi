@@ -25,8 +25,8 @@ const PILOT = `a1990000-0000-4000-8000-${RUN}0001`;
 const OPERATOR = `operator-${RUN}@nomi.example`;
 const ABOUT = { kind: 'brand', sells: 'Leather bags', country: 'AE', website: 'https://saffron.example', teamSize: '2-5' };
 const A = { factory: `Saffron Leather ${RUN}`, name: 'Huda', email: `huda-${RUN}@saffron.example`, password: `saffron-password-${RUN}`, ...ABOUT };
-const B = { ...A, factory: `Second Shop ${RUN}`, email: `second-${RUN}@shop.example`, terms: 'on' };
-const C = { ...A, factory: `Late Shop ${RUN}`, email: `late-${RUN}@shop.example`, terms: 'on' };
+const B = { ...A, factory: `Second Shop ${RUN}`, email: `second-${RUN}@shop.example`, terms: 'on', age: '34' };
+const C = { ...A, factory: `Late Shop ${RUN}`, email: `late-${RUN}@shop.example`, terms: 'on', age: '34' };
 
 d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
@@ -90,9 +90,33 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(outbox).toHaveLength(0);
   });
 
+  it('AGE: under 18, the sign-up is refused before anything is sent or made; that browser is told for a day, whatever it types next', async () => {
+    const young = { ...A, factory: `Young Shop ${RUN}`, email: `young-${RUN}@shop.example`, terms: 'on', age: '15' };
+    // its own address, so the hour's sign-up limit for this file's address is not spent here
+    const post = (fields: Record<string, string>, cookie = '') => prod.app.inject({
+      method: 'POST', url: '/signup', payload: new URLSearchParams(fields).toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '198.51.100.7', ...(cookie ? { cookie } : {}) },
+    });
+    const r = await post(young);
+    expect(r.statusCode).toBe(403);
+    expect(r.body).toContain(t('en', 'signup.problem.age_under'));
+    expect(r.body).not.toContain('action="/signup"');                    // no form to answer again
+    const told = ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? []).find((c) => c.startsWith('yf_age_told=')) ?? '';
+    expect(told).toMatch(/^yf_age_told=1; HttpOnly; Path=\/signup; SameSite=Lax; Max-Age=86400/);
+    const cookie = told.split(';')[0]!;
+    // the same browser, older now: still refused; and the page itself says so
+    expect((await post({ ...young, age: '34' }, cookie)).statusCode).toBe(403);
+    const page = await prod.app.inject({ method: 'GET', url: '/signup', headers: { cookie } });
+    expect(page.statusCode).toBe(403);
+    expect(page.body).toContain(t('en', 'signup.problem.age_under'));
+    // nothing was sent, nothing was made
+    expect(outbox).toHaveLength(0);
+    expect((await admin.query(`select 1 from businesses where name = $1`, [young.factory])).rowCount).toBe(0);
+  });
+
   it('WITH THEM: a code, then the workspace — made by sign-up, under the terms she saw — and the operator is told', async () => {
     const { TERMS_VERSION } = await import('../../src/api/web/legal.js');
-    const r = await form('/signup', { ...A, terms: 'on' });
+    const r = await form('/signup', { ...A, terms: 'on', age: '34' });
     expect([r.statusCode, r.headers['location']]).toEqual([302, '/verify']);
     const code = outbox.at(-1)!.subject.match(/\d{6}/)![0];
     // Another stranger asks while the last place is still free…
@@ -106,8 +130,9 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(full.statusCode).toBe(400);
     expect(full.body).toContain(t('en', 'signup.error.full'));
     expect((await admin.query(`select 1 from businesses where name = $1`, [C.factory])).rowCount).toBe(0);
-    const made = (await admin.query(`select signed_up_at, terms_version, terms_accepted_at from businesses where name = $1`, [A.factory])).rows[0];
+    const made = (await admin.query(`select signed_up_at, terms_version, terms_accepted_at, owner_adult_at from businesses where name = $1`, [A.factory])).rows[0];
     expect(made.signed_up_at).not.toBeNull();
+    expect(made.owner_adult_at).not.toBeNull();                         // AGE — that the age passed, and when; never the age
     expect(made.terms_version).toBe(TERMS_VERSION);
     expect(made.terms_accepted_at).not.toBeNull();
     const told = await (async () => {

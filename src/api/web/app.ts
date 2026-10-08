@@ -1360,9 +1360,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * could learn by trying to sign in anyway. The tenant is made by one definer
    * function (0055); this route cannot insert a business any other way.
    */
+  /**
+   * AGE (docs/PRE-LAUNCH.md item 1) — a browser that gave an age under MIN_AGE is told the minimum age, for a day,
+   * whatever it types next: the FTC's advice for an age screen is that an answer cannot simply be changed. Nothing
+   * it typed is kept; the cookie says only that this browser was told.
+   */
+  const AGE_TOLD = 'yf_age_told';
+  const ageToldHere = (req: FastifyRequest): boolean => parseCookies(req.headers.cookie)[AGE_TOLD] === '1';
+  const ageRefusal = (reply: FastifyReply, locale: Locale, mode: SignupMode, first: boolean) => {
+    if (first) writeCookie(reply, AGE_TOLD, '1', { path: '/signup', maxAgeSec: 86400 });
+    return html(reply, 403, signupPage({ locale, path: '/signup', mode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, ageRefused: true }));
+  };
   app.get('/signup', async (req, reply) => {
     if (sessionOf(req)) return reply.redirect('/app');
     const signupMode = await signupModeNow();
+    if (signupMode !== 'closed' && ageToldHere(req)) return ageRefusal(reply, localeOf(req), signupMode, false);
     const invite = String((req.query as { invite?: string }).invite ?? '').trim().slice(0, 64);
     return html(reply, 200, signupPage({
       locale: localeOf(req), path: req.url, mode: signupMode, passwordMin: PASSWORD_MIN,
@@ -1382,7 +1394,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       password: String(b['password'] ?? ''), invite: String(b['invite'] ?? ''),
       kind: String(b['kind'] ?? ''), sells: String(b['sells'] ?? ''), country: String(b['country'] ?? ''),
       website: String(b['website'] ?? ''), teamSize: String(b['teamSize'] ?? ''), zone: String(b['zone'] ?? ''),
-      currency: String(b['currency'] ?? ''), terms: String(b['terms'] ?? ''),
+      currency: String(b['currency'] ?? ''), terms: String(b['terms'] ?? ''), age: String(b['age'] ?? ''),
       channels: Object.keys(b).filter((k) => k.startsWith('channel_') && b[k] !== undefined).map((k) => k.slice('channel_'.length)).slice(0, 12),
     };
     const again = (code: number, extra: { problems?: Partial<Record<SignupField, string>>; error?: string }) =>
@@ -1391,10 +1403,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         values: {
           factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite, kind: raw.kind, sells: raw.sells,
           country: raw.country.toUpperCase(), website: raw.website, teamSize: raw.teamSize, channels: raw.channels, zone: raw.zone,
-          currency: raw.currency, terms: raw.terms === 'on',
+          currency: raw.currency, terms: raw.terms === 'on', age: raw.age,
         }, ...extra,
       }));
     if (signupMode === 'closed') return again(403, {});
+    if (ageToldHere(req)) return ageRefusal(reply, locale, signupMode, false);
     if (!signupThrottle.allow(callerOf(req), Date.now())) return again(429, { error: t(locale, 'signup.error.slow') });
     // BOT (0114) — the same limit in the database: it survives a deploy and is
     // shared by every process. A database that cannot count refuses the try.
@@ -1403,6 +1416,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
 
     const v = validateSignup(raw, { mode: signupMode, passwordMin: PASSWORD_MIN, passwordMax: PASSWORD_MAX });
+    // AGE — under the minimum refuses the sign-up itself, before anything else is said or spent, and keeps nothing.
+    if (!v.ok && v.problems.age === 'age_under') return ageRefusal(reply, locale, signupMode, true);
     if (!v.ok) {
       const sentence = (p: SignupProblem): string => t(locale, `signup.problem.${p}` as MessageKey, { n: PASSWORD_MIN });
       const problems: Partial<Record<SignupField, string>> = {};
@@ -1427,7 +1442,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       factory: v.value.factory, language: locale, ownerName: v.value.name, email: v.value.email,
       passwordHash: await hashPassword(v.value.password),
       invite: v.value.invite, inviteRequired: signupMode === 'invite',
-      profile: v.value.profile, termsVersion: TERMS_VERSION,
+      profile: v.value.profile, termsVersion: TERMS_VERSION, adultConfirmed: true,
     };
     // A3 — with a sender, the address has to answer first. An address that
     // already has a workspace is told so NOW, as before: she could learn it by
@@ -1728,6 +1743,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     readonly profile: Parameters<typeof provisionAccount>[1]['profile'];
     /** G1 — the terms agreed on the form; absent on a sign-up pending from before G1. */
     readonly termsVersion?: string | null;
+    /** AGE — the age given passed MIN_AGE; absent on a sign-up pending from before AGE. */
+    readonly adultConfirmed?: boolean;
   };
 
   /** Issues a code, mails it, and points the browser at /verify. False: tell her why not. */

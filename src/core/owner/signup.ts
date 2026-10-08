@@ -66,15 +66,26 @@ export type SignupInput = {
   readonly currency?: string;
   /** G1 — the terms box: 'on' when she agreed. */
   readonly terms?: string;
+  /** AGE (2026-10-08) — the age typed, in years: asked plainly, the threshold not shown before it is answered. */
+  readonly age?: string;
 };
 
 export type SignupField = 'factory' | 'name' | 'email' | 'password' | 'invite'
-  | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency' | 'terms';
+  | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency' | 'terms' | 'age';
 export type SignupProblem =
   | 'factory_missing' | 'name_missing' | 'email_invalid'
   | 'password_short' | 'password_long' | 'password_is_email' | 'invite_missing'
   | 'kind_missing' | 'sells_missing' | 'country_missing' | 'website_invalid' | 'team_size_missing'
-  | 'zone_missing' | 'currency_missing' | 'terms_missing';
+  | 'zone_missing' | 'currency_missing' | 'terms_missing'
+  /** AGE — no age in years; or under the minimum, which refuses the sign-up itself (the route, not the field). */
+  | 'age_missing' | 'age_under';
+
+/**
+ * AGE (docs/PRE-LAUNCH.md item 1, 2026-10-08) — the youngest who may sign a business up. Signing up agrees to
+ * terms for a business, so the age is an adult's, which also keeps every child under COPPA's thirteen out. The
+ * age is asked plainly, and only whether it passed is kept (`businesses.owner_adult_at`), never the age.
+ */
+export const MIN_AGE = 18;
 
 /** What sign-up learned about the business, in the shape `provision_workspace` takes. */
 export type BusinessProfile = {
@@ -118,6 +129,11 @@ export function validateSignup(
   if (opts.mode === 'invite' && !UUID.test(invite)) problems.invite = 'invite_missing';
   // G1 — the terms, agreed in so many words: a box she ticks, never a default.
   if (input.terms !== 'on') problems.terms = 'terms_missing';
+  // AGE — whole years, as typed; under the minimum is a refusal of the sign-up, which the route makes.
+  const ageText = (input.age ?? '').trim();
+  const age = /^[0-9]{1,3}$/.test(ageText) ? Number(ageText) : NaN;
+  if (!(age >= 1 && age <= 130)) problems.age = 'age_missing';
+  else if (age < MIN_AGE) problems.age = 'age_under';
 
   // A2 — about the business. Asked once, here; every answer is a choice from a
   // list or one short line, so nothing she types can be "wrong" in a way she

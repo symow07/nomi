@@ -26,7 +26,7 @@ const good = {
   // CUR — Morocco's own money is not on the list, so the owner picks one.
   currency: 'usd',
   // G1 — the terms box, ticked.
-  terms: 'on',
+  terms: 'on', age: '34',
 };
 // TZ — Morocco keeps one time zone, so sign-up gives it without asking.
 const profile = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'https://atlas.example', teamSize: '2-5', channels: ['whatsapp', 'email'], zone: 'Africa/Casablanca', currency: 'USD' };

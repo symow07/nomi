@@ -110,7 +110,7 @@ describe('the advisor batch · the privacy page says where the advisor\'s answer
       expect(items[advisor], l).toContain(({ en: 'advisor', zh: '顾问', ar: 'مستشار', es: 'Asesoría', fr: 'Conseil' } as const)[l]);
       expect(html, l).toContain(esc(t(l, 'legal.updated.privacy')));
       // the day the page changed, whole (a bare 7 would be found in 2026) — moved again by the advisor's history (2026-10-07)
-      expect(t(l, 'legal.updated.privacy').replace(/[\u2066-\u2069]/g, ''), l).toContain(({ en: '7 October 2026', zh: '2026 年 10 月 7 日', ar: '7 أكتوبر 2026', es: '7 de octubre de 2026', fr: '7 octobre 2026' } as const)[l]);
+      expect(t(l, 'legal.updated.privacy').replace(/[\u2066-\u2069]/g, ''), l).toContain(({ en: '8 October 2026', zh: '2026 年 10 月 8 日', ar: '8 أكتوبر 2026', es: '8 de octubre de 2026', fr: '8 octobre 2026' } as const)[l]);
     });
   }
 
