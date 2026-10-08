@@ -70,6 +70,18 @@ export function codeMatches(input: string, actual: string): boolean {
   return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
 }
 
+/**
+ * A path on this site, or null: where a `next=` may send the browser on to. A slash, then anything but a second
+ * slash; no backslash anywhere ("/\host" is "//host" to a browser), and no control character (a tab or a line
+ * break the browser drops, leaving "//host"). The IDOR audit, 2026-10-08.
+ */
+export function localPath(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length === 0 || raw.length > 2000) return null;
+  if (raw[0] !== '/' || raw[1] === '/') return null;
+  if (/[\\\u0000-\u001f\u007f]/.test(raw)) return null;
+  return raw;
+}
+
 /** Parse a Cookie header into a map. Tiny, no dependency. */
 export function parseCookies(header: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};

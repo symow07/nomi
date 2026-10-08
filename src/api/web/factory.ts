@@ -808,7 +808,7 @@ export function renderBusinessScreen(
     case 'channels': return channelsScreen(f, locale, flash, viewer, extras.approvalHtml ?? '');
     case 'allowlist': return allowlistScreen(f, locale, flash, viewer);
     case 'ready': return readyScreen(f, locale, flash, viewer);
-    case 'promises': return promisesScreen(f, locale, flash);
+    case 'promises': return promisesScreen(f, locale, flash, viewer);
     case 'how': return howScreen(f, locale, flash, viewer);
   }
 }
@@ -1095,7 +1095,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
  * that says it. What may be promised about returns, delivery and what is sold
  * is answered in How you sell, and the page says so with its door.
  */
-function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null): string {
+function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
   const name = assistantName(locale);
   // Only what the guard actually enforces, and only in the shape the owner's
   // own data takes: one floor, or a range across her products.
@@ -1106,7 +1106,9 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null): st
   // Phase 9 — nothing comes off a price unless she wrote a discount (the price
   // page says the same); with none, the ceiling and ask line limit nothing.
   const noDiscount = f.prices.volume.length === 0;
-  const priceRules = [
+  // The floor, the ceiling and the ask line are the owner's, like the price page they come from (G9a: the floor is
+  // what a customer must never learn): a member of staff is not shown them (the IDOR audit, 2026-10-08).
+  const priceRules = !viewer.isOwner ? [] : [
     lo !== null && hi !== null
       ? (lo.amount === hi.amount && lo.currency === hi.currency
         ? t(locale, 'factory.promise.floor', { price: show.money(locale, lo), name })

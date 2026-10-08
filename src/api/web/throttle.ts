@@ -12,6 +12,8 @@
 export type Throttle = {
   /** Counts this attempt. False when the key has used its allowance. */
   allow(key: string, now: number): boolean;
+  /** Whether the key has used its allowance, counting nothing: for a door whose right answer must not be counted. */
+  spent(key: string, now: number): boolean;
 };
 
 export function makeThrottle(opts: { readonly max: number; readonly windowMs: number; readonly maxKeys?: number }): Throttle {
@@ -30,6 +32,10 @@ export function makeThrottle(opts: { readonly max: number; readonly windowMs: nu
         if (first !== undefined) hits.delete(first);
       }
       return true;
+    },
+    spent(key, now) {
+      const since = now - opts.windowMs;
+      return (hits.get(key) ?? []).filter((t) => t > since).length >= opts.max;
     },
   };
 }
