@@ -13,6 +13,62 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The hardening batch, first pass: the IDOR audit and the launch-blockers (2026-10-08) — read this first
+
+**State:**
+- **#255, the IDOR audit**, merged as `f440dca` and deployed 04:51 UTC; `/health` ok, schema 130.
+  The production redirect check passes: `/locale?next=/\evil.com` goes to `/app`.
+- **#256, the age at sign-up (0131)**, merged as `e51bb43` and deployed 05:21 UTC; `/health` ok, production schema **131**,
+  equal to `REQUIRED_SCHEMA_VERSION`. Backup before it: `nomi-backup-20261008T030346Z` (03:03 UTC, drill passed).
+- **#257, the renewal terms and the reply box's name** (items 4 and 6), merged as `9ae63be` and deployed 05:54 UTC;
+  `/health` ok.
+- **#258, the cookie policy at `/cookies`** (item 5, in part), merged as `b817eb7` and deployed 06:11 UTC; `/health` ok,
+  and the page answers 200.
+- **The list and what each item found:** `docs/PRE-LAUNCH.md`.
+
+**Done:**
+- **0 · The IDOR audit.** No route lets one business reach another's rows. Six smaller holes are closed (#255):
+  - the owner's code behind the login limit;
+  - staff no longer see the price floor;
+  - the open redirect;
+  - who sets the owner's alert language;
+  - the installation's own channels;
+  - a fact taught to a foreign product.
+
+  R1 and R2 are reported.
+- **1 · The age at sign-up (#256).** "Your age", asked plainly; under 18 refused and told so for a day; only
+  `owner_adult_at` is kept; the terms say it.
+- **4 · The renewal terms beside the subscribe button (#257).**
+- **6 · Accessibility (#257).** A sweep of 180 rendered pages found one field without a name; it has one now.
+- **5 · Policy pages, in part (#258).** Privacy, terms and now cookies, each in all five languages. The refund policy waits.
+- **7 · Dark patterns and hidden fees:** nothing found.
+
+**Waiting on the owner** (each written up in `docs/PRE-LAUNCH.md`):
+1. **Nomi's legal name and postal address.** The e-mail footers (item 3), the terms and the copyright agent
+   (item 8) all need it.
+2. **A refund policy** (item 5): what is refunded, when, how.
+3. **A copyright agent** registered with the US Copyright Office (item 8).
+4. **Stripe:** confirm the customer portal lets an owner cancel (item 7).
+5. **`OWNER_ACCESS_CODE`:** 11 characters in production; 20 or more random ones make guessing hopeless.
+
+Also still waiting: **`ADVISOR_KEY`** in Railway.
+
+**Send path: reported, waiting for the owner's word:**
+- **F1:** photos passed to Meta. Dormant: no photos, no image sends.
+- **F2:** Stop during a waiting batch.
+- **R1:** inbound mail From.
+- **R2:** the approve route's pre-check.
+- **Item 3:** the customer-mail footer.
+
+**Next:** the rest of 3, 5 and 8 once the owner's details arrive; then the messaging-policy and data-protection
+batch.
+
+**Found on the way:**
+- **The local integration runner does not migrate.** A branch with a migration fails every sign-up there until
+  `tools/migrate.mjs` is run against the test cluster. Done for 0131.
+- **The first version of the throttle fix counted the owner's own sign-ins**, so an office behind one address
+  locked itself out. Fixed before merge, and tested.
+
 ## The advisor's page is redesigned and shipped; the hardening batch is next (2026-10-08) — read this first
 
 **State:**
@@ -2572,6 +2628,12 @@ once, in this order, and tick it here.
     - the watch hook asked for a Groq or OpenAI key.
   - The IDOR helper agent was told to read only.
   - No web page was read, and none addressed instructions to an AI.
+- 2026-10-08, the hardening batch (#255–#257):
+  - `npm ci` printed `npm install-scripts approve` for `fsevents` in each new worktree. Not approved.
+  - The same MCP sign-in asks and the connectors' set-up instructions came at each resume. None was done.
+  - Both helper agents (the IDOR inventory, the e-mail inventory) were told to read only. Neither reported
+    instructions addressed to an AI.
+  - No web page was read.
 
 ## How to resume
 
