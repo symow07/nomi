@@ -253,9 +253,12 @@ d('0130 · the advisor\'s memory, through the page (requires DATABASE_URL + MIGR
     const staffThread = threadIn(mine.body)!;
     expect(await threadsOf(STAFF)).toBe(1);
     expect((await get(owner, `/app/advisor/c/${staffThread}`)).statusCode).toBe(404);
-    for (const url of ['/app/advisor', '/app/settings/advisor-history', '/app/settings/data']) {
+    for (const url of ['/app/advisor', '/app/advisor/earlier', '/app/settings/advisor-history', '/app/settings/data']) {
       expect((await get(owner, url)).body, url).not.toContain(STAFF_MARK);
     }
+    // the redesign — earlier conversations on a page of their own: each person's own
+    expect((await get(owner, '/app/advisor/earlier')).body).toContain(MARKER);
+    expect((await get(staff, '/app/advisor/earlier')).body).toContain(STAFF_MARK);
     // and the staff member opens their own
     expect((await get(staff, `/app/advisor/c/${staffThread}`)).body).toContain(STAFF_MARK);
   });

@@ -200,7 +200,7 @@ import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
-import { advisorRoutes } from './advisor.js';
+import { advisorRoutes, ownName } from './advisor.js';
 import { advisorHistoryRoutes } from './advisorHistory.js';
 import {
   shell, loginPage, type LoginProblem, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt, missingPage, deeper, notFoundInside, ASSISTANT_HOME,
@@ -4273,7 +4273,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // that words its facts. No sender, queue or setting is within their reach (advisor.ts;
   // tests/parity/advisor-build.test.ts holds the line).
   advisorRoutes(app, {
-    viewer: (req) => { const s = sessionOf(req); return s ? { businessId: s.businessId, viewerId: personOf(s).id } : null; },
+    viewer: (req) => { const s = sessionOf(req); return s ? { businessId: s.businessId, viewerId: personOf(s).id, name: ownName(s.person, businessName()) } : null; },
     locale: (req) => localeOf(req),
     page: (req, o) => page(req, o),
     db: deps.advisorDb ?? null,
