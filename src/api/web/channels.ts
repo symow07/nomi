@@ -992,3 +992,13 @@ export function renderConnectGuide(locale: Locale, o: ConnectGuideOptions = {}):
 
 /** C4.a — the predicate moved to core; re-exported so every caller is unchanged. */
 export { satisfiedRequirements };
+
+/**
+ * The host's own channels (its WhatsApp number, Page and Instagram account, from the host's settings) for a
+ * workspace: all of them for the installation's own workspace, none for any other. Every route and page that
+ * offers or connects them asks this (the IDOR audit, 2026-10-08).
+ */
+export type HostChannels = { readonly number: string | null; readonly instagram: string | null; readonly messenger: string | null };
+export function hostChannelsFor(businessId: string, installation: string, host: HostChannels): HostChannels {
+  return businessId === installation ? host : { number: null, instagram: null, messenger: null };
+}

@@ -134,12 +134,23 @@ export async function teachKnowledge(db: Db, businessIdRaw: string, input: {
   const bid = parseBusinessId(businessIdRaw);
   const label = input.label.trim(), content = input.content.trim();
   if (!bid.ok || !KINDS.includes(input.kind as KnowledgeKind) || !label || !content) return { code: 'invalid' };
-  await withTenantTx(db, bid.value, (tx) => sql`
-    insert into product_knowledge (business_id, product_id, kind, label, content, source)
-    values (${bid.value}, ${input.productId}, ${input.kind}, ${label}, ${content}, 'owner_confirmed')
-  `.execute(tx));
-  return { code: 'taught' };
+  if (input.productId !== null && !PRODUCT_ID.test(input.productId)) return { code: 'invalid' };
+  const taught = await withTenantTx(db, bid.value, async (tx) => {
+    // The product must be this workspace's own. A foreign key looks past row security, so the insert alone would
+    // take another business's product id (the IDOR audit, 2026-10-08).
+    if (input.productId !== null) {
+      const mine = await sql`select 1 from products where id = ${input.productId}::uuid and business_id = ${bid.value}`.execute(tx);
+      if (mine.rows.length === 0) return false;
+    }
+    await sql`
+      insert into product_knowledge (business_id, product_id, kind, label, content, source)
+      values (${bid.value}, ${input.productId}, ${input.kind}, ${label}, ${content}, 'owner_confirmed')
+    `.execute(tx);
+    return true;
+  });
+  return { code: taught ? 'taught' : 'invalid' };
 }
+const PRODUCT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Correct = archive the old row, insert a new owner_corrected one that supersedes it. */
 export async function correctKnowledge(db: Db, businessIdRaw: string, id: string, content: string): Promise<{ code: KnowledgeFlash | 'invalid' }> {

@@ -68,7 +68,7 @@ import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } f
 import {
   loadChannels, renderChannelScreen, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
   channelScreenHref, channelScreenTitle, screenOfChannel,
-  disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
+  disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber, hostChannelsFor,
 } from './channels.js';
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail, renderProductMissing, businessKind,
@@ -232,7 +232,7 @@ import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWOR
 import { validateSignup, normalizeEmail, isEmailShape, signupModeInForce, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } from './botCheck.js';
 import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
-import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
+import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
@@ -1504,6 +1504,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * a query.
      */
     let person: OwnerSession['person'];
+    /**
+     * EVERY CODE WAITS ITS TURN, the owner's too. The throttle is asked BEFORE either code is compared: a caller
+     * past the limit is told to wait whether the guess is right or wrong, so guessing the owner's code is as slow
+     * as guessing a staff code (the IDOR audit, 2026-10-08; before it, a right guess got in at any rate). The
+     * throttle is in memory: the owner's login still depends on no query.
+     */
+    if (!loginThrottle.allow(callerOf(req), Date.now())) {
+      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
+    }
     if (codeMatches(code, deps.accessCode)) {
       /**
        * HER LOGIN NEVER DEPENDS ON A QUERY. The row is only her NAME; if the
@@ -1524,9 +1533,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // the people a second factory adds can sign in too. It is tried against
       // the environment's business first, exactly as before, so nothing about
       // the pilot's staff depends on the new lookup.
-      if (!loginThrottle.allow(callerOf(req), Date.now())) {
-        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', signupMode, recoveryOn: forgotOnDoor }));
-      }
       const mine = code.trim() === '' ? null
         : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
       const theirs = mine || code.trim() === '' ? null
@@ -2164,13 +2170,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/locale', async (req, reply) => {
     const q = req.query as { set?: string; next?: string };
     const set = parseLocale(q.set);
-    const nextRaw = typeof q.next === 'string' ? q.next : '/app';
-    const next = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/app';
+    const next = localPath(q.next) ?? '/app';
     if (set) {
       setLocaleCookie(reply, set);
-      // Persist for the logged-in owner so WhatsApp alerts use the same language.
+      // Persist for the logged-in OWNER so WhatsApp alerts use the same language: the owner's alerts are the
+      // owner's, so a member of staff switching their own page leaves them alone, and a link from another site
+      // switches the page but never the alerts (the IDOR audit, 2026-10-08).
       const s = sessionOf(req);
-      const bid = s ? parseBusinessId(s.businessId) : null;
+      const bid = s && personOf(s).isOwner && req.headers['sec-fetch-site'] !== 'cross-site' ? parseBusinessId(s.businessId) : null;
       if (bid?.ok) {
         try {
           await withTenantTx(deps.db, bid.value, (tx) =>
@@ -2834,6 +2841,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * land in this factory's inbox. The account comes from the host's settings,
    * never from the form.
    */
+  /**
+   * The installation's own WhatsApp number, Page and Instagram account, set in the host's settings, are the
+   * installation's own workspace's. Any other workspace connects its own (Embedded Signup, the Meta login) and is
+   * neither offered these nor able to claim them. Before the IDOR audit (2026-10-08), any workspace's owner could
+   * press Connect on them, and that number's or Page's customers would then have reached that workspace.
+   */
+  const hostChannels = (businessId: string) => hostChannelsFor(businessId, deps.businessId,
+    { number: deps.connectableNumber ?? null, instagram: deps.instagramAccountId ?? null, messenger: deps.messengerPageId ?? null });
   for (const kind of ['instagram', 'messenger'] as const) {
     app.post(`/app/channels/${kind}/connect`, async (req, reply) => {
       const s = await ownerOnly(req, reply, 'messaging_activation', channelScreenHref('meta'));
@@ -2841,7 +2856,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // G7 / KS6 — the same one question as the other connect routes (found 2026-10-01: this one never asked).
       const refused = await connectionRefusal(s.businessId);
       if (refused) return flashTo(reply, CHANNELS_HOME, refused);
-      const configured = kind === 'instagram' ? deps.instagramAccountId : deps.messengerPageId;
+      const configured = hostChannels(s.businessId)[kind];
       const r = await connectMetaChannel(deps.db, s.businessId, kind, configured ?? null, personOf(s).id);
       facts.evict(s.businessId);   // Phase 4b — any connected channel completes the setup step
       const key = r.code === 'connected' ? 'reach.inbound.flash.connected'
@@ -2859,7 +2874,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // G7 — the operator stopped new connections; KS6 — or the first one waits for approval.
     const refused = await connectionRefusal(s.businessId);
     if (refused) return flashTo(reply, CHANNELS_HOME, refused);
-    const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
+    const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, hostChannels(s.businessId).number);
     facts.evict(s.businessId);   // D — a channel connected is a setup step done
     return flashTo(reply, channelScreenHref('whatsapp'), channelFlash(r.code));
   });
@@ -2922,8 +2937,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       } : {}),
     });
     return new Map<OutreachChannel, InboundLink>([
-      ['instagram', inboundLink('instagram', (deps.instagramAccountId ?? null) !== null, linked.instagram)],
-      ['messenger', inboundLink('messenger', (deps.messengerPageId ?? null) !== null, linked.messenger)],
+      ['instagram', inboundLink('instagram', hostChannels(businessId).instagram !== null, linked.instagram)],
+      ['messenger', inboundLink('messenger', hostChannels(businessId).messenger !== null, linked.messenger)],
     ]);
   };
 
@@ -2976,7 +2991,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const flash = takeFlash(req, reply);
       const bid = parseBusinessId(s.businessId);
       const loaded = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none',
-        deps.connectableNumber ?? null);
+        hostChannels(s.businessId).number);
       // WA — her own WhatsApp number, and whether Embedded Signup is offered at all.
       const waOwn = screen === 'whatsapp' && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => liveWhatsAppAccount(tx, bid.value)).catch(() => null) : null;
       const waTemplates = bid.ok && waOwn ? await withTenantTx(deps.db, bid.value, (tx) => listReopenTemplates(tx, bid.value, waOwn.wabaId)).catch(() => []) : [];

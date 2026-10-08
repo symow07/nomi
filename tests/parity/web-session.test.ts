@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import Fastify from 'fastify';
-import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS } from '../../src/api/web/session.js';
+import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS } from '../../src/api/web/session.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { hostChannelsFor } from '../../src/api/web/channels.js';
 import { shell, loginPage, NAV } from '../../src/api/web/layout.js';
 import { registerWebApp } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -98,6 +101,50 @@ describe('M17.3 · production session cookie contract', () => {
     expect(c).toContain('Secure');
     expect(c).toContain('SameSite=Lax');
     await app.close();
+  });
+});
+
+/* ── The IDOR audit (2026-10-08): the door's own holes ───────────────────── */
+describe('The IDOR audit · the owner\'s code, the language switch, the installation\'s own channels', () => {
+  it('the owner\'s code waits behind the same limit as any code: past it, even the right code gets no cookie', async () => {
+    const app = appWith(true);
+    for (let i = 0; i < 20; i++) expect((await login(app, `wrong-${i}`)).statusCode).toBe(401);
+    const right = await login(app, 'let-me-in');
+    expect(right.statusCode).toBe(429);
+    expect(right.headers['set-cookie']).toBeUndefined();
+    await app.close();
+    // the control: before the limit, the right code signs in
+    const fresh = appWith(true);
+    expect((await login(fresh, 'let-me-in')).statusCode).toBe(302);
+    await fresh.close();
+  });
+
+  it('the language switch goes on only to a path on this site: never "//host", "/\\host", nor one hidden behind a tab or a line break', async () => {
+    const app = appWith(false);
+    const to = async (next: string) => (await app.inject({ method: 'GET', url: `/locale?set=en&next=${next}` })).headers['location'];
+    for (const evil of ['//evil.com', '/%5Cevil.com', '/%5C%5Cevil.com', '%5C%5Cevil.com', '/%09/evil.com', '/%0A/evil.com', '/%0D%0A/evil.com',
+      'https://evil.com', 'evil.com', '/%00/evil.com']) {
+      expect(await to(evil), evil).toBe('/app');
+    }
+    expect(await to('/app/inbox%3Ffilter%3Dall')).toBe('/app/inbox?filter=all');
+    expect(await to('/login')).toBe('/login');
+    await app.close();
+    expect(localPath('/app')).toBe('/app');
+    expect(localPath('/\\evil.com')).toBeNull();
+    expect(localPath('/a\\b')).toBeNull();
+    expect(localPath(undefined)).toBeNull();
+    expect(localPath('/' + 'a'.repeat(2000))).toBeNull();
+  });
+
+  it('the installation\'s own number, Page and Instagram account are its own workspace\'s alone, at every place they are offered or claimed', () => {
+    const host = { number: '15550001111', instagram: '1784', messenger: '1099' };
+    expect(hostChannelsFor('b-own', 'b-own', host)).toEqual(host);
+    expect(hostChannelsFor('b-other', 'b-own', host)).toEqual({ number: null, instagram: null, messenger: null });
+    // the app reads the host's ids in one place only: every route and page asks hostChannels
+    const src = readFileSync(fileURLToPath(new URL('../../src/api/web/app.ts', import.meta.url)), 'utf8');
+    const reads = src.match(/deps\.(connectableNumber|instagramAccountId|messengerPageId)/g) ?? [];
+    expect(reads).toHaveLength(3);
+    expect(src).toMatch(/const hostChannels = \(businessId: string\) => hostChannelsFor\(businessId, deps\.businessId,\n\s+\{ number: deps\.connectableNumber \?\? null, instagram: deps\.instagramAccountId \?\? null, messenger: deps\.messengerPageId \?\? null \}\);/);
   });
 });
 
