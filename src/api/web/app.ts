@@ -45,7 +45,7 @@ import {
   type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
-import { renderPrivacy, renderDataDeletion, renderLegalTerms, TERMS_VERSION, type LegalFacts } from './legal.js';
+import { renderPrivacy, renderDataDeletion, renderLegalTerms, renderCookies, TERMS_VERSION, type LegalFacts } from './legal.js';
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
 import { DEFAULT_PROCESSOR, HOSTING, processorLabel, transcriberProcessor } from '../../core/legal/processors.js';
 import type { AdvisorMemory } from '../../advisor/memory.js';
@@ -507,6 +507,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
   { method: 'GET', url: '/closed', why: '0126 — where an owner lands, signed out, after closing a workspace: says it was erased; reads nothing and names no tenant' },
   { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
+  { method: 'GET', url: '/cookies', why: 'PRE-LAUNCH item 5 — the cookie policy, the privacy page\'s own cookie section at its own address; names no tenant' },
   { method: 'GET', url: '/sw.js', why: 'G5b — the phone\'s own worker: shows an alert Nomi sent and opens the app when it is tapped. The same text for everyone; names no tenant' },
   { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
   { method: 'GET', url: '/assets/icon-192.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
@@ -1200,6 +1201,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, siteOf(req))));
   app.get('/terms', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
+  app.get('/cookies', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderCookies(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
   // 0126 — after a workspace is closed: signed out, and told what happened. Reads nothing.
   app.get('/closed', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderClosed(localeOf(req), siteOf(req))));

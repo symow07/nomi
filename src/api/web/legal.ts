@@ -146,6 +146,22 @@ const PRIVACY_CSS = `${PUBLIC_TOP_CSS}
   table.cookies code { font-size:var(--font-size-small); }
 `;
 
+/**
+ * The cookie policy as a page of its own (docs/PRE-LAUNCH.md item 5): the privacy page's own cookie section, word
+ * for word, at its own address, so a "cookie policy" link has somewhere to go. The one table, from the one
+ * registry: the two pages cannot differ. It is part of the privacy page, so it carries that page's date.
+ */
+export function renderCookies(l: Locale, email: string | null, facts: LegalFacts, home = '/site'): string {
+  return SHELL(l, t(l, 'legal.privacy.cookies.title'), `
+    <h1>${esc(t(l, 'legal.privacy.cookies.title'))}</h1>
+    <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
+    ${cookieTable(l)}
+    ${facts.botCheck ? `<p>${esc(t(l, 'legal.privacy.cookies.botCheck', { provider: processorLabel(facts.botCheck, l) }))}</p>` : ''}
+    <p><a href="/privacy">${esc(t(l, 'legal.privacyLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
+    ${contact(l, email, false)}
+    ${updated(l, 'legal.updated.privacy')}`, home, '/cookies', PRIVACY_CSS);
+}
+
 export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts, home = '/site'): string {
   const history = facts.advisorHistory !== false;
   const section = (title: string, body: string): string =>
