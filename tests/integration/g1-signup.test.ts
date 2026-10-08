@@ -102,7 +102,7 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(r.body).toContain(t('en', 'signup.problem.age_under'));
     expect(r.body).not.toContain('action="/signup"');                    // no form to answer again
     const told = ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? []).find((c) => c.startsWith('yf_age_told=')) ?? '';
-    expect(told).toMatch(/^yf_age_told=1; Max-Age=86400; Path=\/signup; HttpOnly; SameSite=Lax/);
+    expect(told).toMatch(/^yf_age_told=1; HttpOnly; Path=\/signup; SameSite=Lax; Max-Age=86400/);
     const cookie = told.split(';')[0]!;
     // the same browser, older now: still refused; and the page itself says so
     expect((await post({ ...young, age: '34' }, cookie)).statusCode).toBe(403);

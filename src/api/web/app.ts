@@ -1368,7 +1368,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const AGE_TOLD = 'yf_age_told';
   const ageToldHere = (req: FastifyRequest): boolean => parseCookies(req.headers.cookie)[AGE_TOLD] === '1';
   const ageRefusal = (reply: FastifyReply, locale: Locale, mode: SignupMode, first: boolean) => {
-    if (first) reply.header('set-cookie', `${AGE_TOLD}=1; Max-Age=86400; Path=/signup; HttpOnly; SameSite=Lax${deps.secureCookie ? '; Secure' : ''}`);
+    if (first) writeCookie(reply, AGE_TOLD, '1', { path: '/signup', maxAgeSec: 86400 });
     return html(reply, 403, signupPage({ locale, path: '/signup', mode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, ageRefused: true }));
   };
   app.get('/signup', async (req, reply) => {
