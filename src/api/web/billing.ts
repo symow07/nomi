@@ -58,7 +58,10 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
   const trial = s.trialDays && !s.trialStartedAt && s.status === 'none'
     ? `<p class="muted">${esc(t(locale, 'billing.trial', { days: s.trialDays }))}</p>` : '';
 
-  // Plans are chosen before a subscription exists; after, Stripe's page changes them.
+  // Plans are chosen before a subscription exists; after, Stripe's page changes them. Beside the button, in plain
+  // text and not greyed: the plan renews on its own, how often, at what price, until cancelled, and where to cancel
+  // (docs/PRE-LAUNCH.md item 4). Whether a cancelled plan runs to the end of its period is Stripe's own page's to
+  // say; nothing here promises either.
   const plans = v.plans.length === 0 ? `<p class="muted">${esc(t(locale, 'billing.noPlans'))}</p>`
     : s.status !== 'none' ? ''
     : `<form method="post" action="/app/settings/billing/card" class="pform">
@@ -68,6 +71,7 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
             p.seats ? ` · ${esc(t(locale, 'billing.plan.seats', { n: p.seats }))}` : ''}${p.assistants ? ` · ${esc(t(locale, 'billing.plan.assistants', { n: p.assistants }))}` : ''}</span></span></label>`).join('')}
         </fieldset>
         <button class="btn send" type="submit">${esc(t(locale, s.cardSavedAt ? 'billing.usePlan' : 'billing.saveCard'))}</button>
+        <p>${esc(t(locale, 'billing.renews', { portal: t(locale, 'billing.portal') }))}</p>
         <p class="muted">${esc(t(locale, 'billing.noChargeYet'))}</p>
       </form>`;
 
