@@ -670,9 +670,13 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   }
   /* The lit field (the redesign, 2026-10-08): the orb's glow at its centre falling to nothing at the edges,
      drawn pixel by pixel with half a step of noise in each channel, so the fall shows no bands; a pixel the
-     fall does not reach is left clear, and the paper shows. r: how far it reaches up, down, back and on. */
+     fall does not reach is left clear, and the paper shows. r: how far it reaches up, down, back and on.
+     o.depth: how deep at the centre; o.fall: how fast it falls (higher: sooner to the paper); o.clear: drawn as
+     the glow made thin, never as paper, for light that whatever passes beneath must show through. */
   function smoother(x) { x = x <= 0 ? 0 : x >= 1 ? 1 : x; return x * x * x * (x * (x * 6 - 15) + 10); }
-  function wash(canvas, cx, cy, r, depth, paper, glow) {
+  function wash(canvas, cx, cy, r, o) {
+    var paper = o.paper;
+    var glow = o.glow;
     var ctx = canvas.getContext ? canvas.getContext('2d') : 0;
     if (!ctx || !ctx.createImageData) return;
     var dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -695,8 +699,13 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         var q = nx * nx + ny;
         if (q >= 1) continue;
         var f = 1 - smoother(Math.sqrt(q));
-        var t = f * f * depth;
+        var t = Math.pow(f, o.fall) * o.depth;
         var at = (y * W + x) * 4;
+        if (o.clear) {
+          d[at] = glow.r; d[at + 1] = glow.g; d[at + 2] = glow.b;
+          d[at + 3] = 255 * t + noise() + noise() - 1;
+          continue;
+        }
         d[at] = paper.r + (glow.r - paper.r) * t + noise() + noise() - 1;
         d[at + 1] = paper.g + (glow.g - paper.g) * t + noise() + noise() - 1;
         d[at + 2] = paper.b + (glow.b - paper.b) * t + noise() + noise() - 1;
@@ -838,10 +847,14 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var cx = o.left + o.width / 2 - a.left;
       var cy = o.top + o.height / 2 - a.top;
       var side = Math.min(cx, a.width - cx) - 8;
-      var down = Math.min(b.top - a.top - cy - 24, side * 1.25);
+      /* Close round the orb (its canvas holds a margin of half its size, so its radius is a third of the
+         canvas): a soft presence the paper holds, never a cloud that fills the page. Wider than it is tall. */
+      var orb = o.width / 3;
+      var wide = Math.max(48, Math.min(side, orb * 2.6));
+      var tall = orb * 2.1;
+      var down = Math.min(b.top - a.top - cy - 24, tall);
       if (down < 48) return;
-      /* A pool, wider than it is tall: never a column of light on a narrow screen. */
-      wash(field, cx, cy, { up: Math.max(48, Math.min(cy - 8, side * 1.25)), down: down, back: Math.max(48, cx - 8), on: Math.max(48, a.width - cx - 8) }, 1, paper, glow);
+      wash(field, cx, cy, { up: Math.max(48, Math.min(cy - 8, tall)), down: down, back: wide, on: wide }, { depth: 1, fall: 3, paper: paper, glow: glow });
     }
     function litPool() {
       if (!pool || !here || !paper || !glow) return;
@@ -852,7 +865,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var c = slot.left + slot.width / 2;
       var edge = Math.min(Math.abs(bx.left - c), Math.abs(bx.right - c)) - 4;
       var reach = Math.max(16, Math.min(p.width / 2, edge));
-      wash(pool, p.width / 2, p.height / 2, { up: reach, down: reach, back: reach, on: reach }, 0.6, paper, glow);
+      wash(pool, p.width / 2, p.height / 2, { up: reach, down: reach, back: reach, on: reach }, { depth: 0.6, fall: 2, clear: true, paper: paper, glow: glow });
     }
     var restDraw = 0;
     var hereDraw = 0;
@@ -874,6 +887,14 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       litPool();
     }
     if (!rest && page && page.getAttribute('data-adv') === 'chat') settle(Number((rest || here || form).getAttribute('data-orb-pace')) || 0.5);
+    /* Talking: the page opens at its end, the newest answer's last line above the bar, never under it; and
+       again once everything has loaded (type and pictures can lengthen it), unless the owner has scrolled. */
+    if (page && page.getAttribute('data-adv') === 'chat' && window.scrollTo) {
+      var root = doc.scrollingElement || doc.documentElement;
+      var toEnd = function () { window.scrollTo(0, root.scrollHeight); return window.scrollY; };
+      var landed = toEnd();
+      loaded.then(function () { if (Math.abs(window.scrollY - landed) < 2) toEnd(); });
+    }
     var widthWas = window.innerWidth;
     window.addEventListener('resize', function () {
       if (window.innerWidth === widthWas) return;

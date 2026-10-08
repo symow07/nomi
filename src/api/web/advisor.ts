@@ -244,7 +244,7 @@ export function renderAdvisor(locale: Locale, exchange: { readonly asked: string
       <span class="adv-box">
         <label class="sr" for="advisor-q">${esc(t(locale, 'advisor.label'))}</label>
         <textarea id="advisor-q" name="q" rows="1" dir="auto" maxlength="${ADVISOR_MAX}" required
-          placeholder="${esc(atRest ? suggest[0]! : t(locale, 'advisor.label'))}"></textarea>
+          placeholder="${esc(atRest ? suggest[0]! : t(locale, 'advisor.followUp'))}"></textarea>
         ${thread ? `<input type="hidden" name="thread" value="${esc(thread)}">` : ''}
         <button class="btn send" type="submit">${esc(t(locale, 'advisor.ask'))}</button>
       </span>

@@ -106,6 +106,7 @@ const EN = {
   // The redesign (2026-10-08): the empty page's greeting, under the orb.
   'advisor.greeting': 'Hello, {name}',
   'advisor.greeting.plain': 'Hello',
+  'advisor.followUp': 'Ask a follow-up',
   'advisor.history.title': 'The advisor\'s history',
   'advisor.history.mine': 'Your advisor conversations',
   'advisor.history.workspace': 'Allow advisor history in this workspace',
@@ -4352,6 +4353,7 @@ const ZH: Record<MessageKey, string> = {
   // The redesign (2026-10-08): the empty page's greeting, under the orb.
   'advisor.greeting': '你好，{name}',
   'advisor.greeting.plain': '你好',
+  'advisor.followUp': '继续提问',
   'advisor.history.title': '顾问的历史记录',
   'advisor.history.mine': '你和顾问的对话',
   'advisor.history.workspace': '在这个工作台允许保存顾问记录',
@@ -8510,6 +8512,7 @@ const AR: Record<MessageKey, string> = {
   // The redesign (2026-10-08): the empty page's greeting, under the orb.
   'advisor.greeting': 'مرحبًا، {name}',
   'advisor.greeting.plain': 'مرحبًا',
+  'advisor.followUp': 'سؤال للمتابعة',
   'advisor.history.title': 'سجل المستشار',
   'advisor.history.mine': 'محادثات المستشار',
   'advisor.history.workspace': 'السماح بسجل المستشار في مساحة العمل هذه',
@@ -12669,6 +12672,7 @@ const ES: Record<MessageKey, string> = {
   // The redesign (2026-10-08): the empty page's greeting, under the orb.
   'advisor.greeting': 'Hola, {name}',
   'advisor.greeting.plain': 'Hola',
+  'advisor.followUp': 'Haz una pregunta de seguimiento',
   'advisor.history.title': 'El historial de la Asesoría',
   'advisor.history.mine': 'Tus conversaciones con la Asesoría',
   'advisor.history.workspace': 'Permitir el historial de la Asesoría en este espacio de trabajo',
@@ -16769,6 +16773,7 @@ const FR: Record<MessageKey, string> = {
   // The redesign (2026-10-08): the empty page's greeting, under the orb.
   'advisor.greeting': 'Bonjour, {name}',
   'advisor.greeting.plain': 'Bonjour',
+  'advisor.followUp': 'Poser une question de suivi',
   'advisor.history.title': 'L’historique du Conseil',
   'advisor.history.mine': 'Vos conversations avec le Conseil',
   'advisor.history.workspace': 'Autoriser l’historique du Conseil dans cet espace de travail',

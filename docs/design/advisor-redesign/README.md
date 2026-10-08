@@ -13,6 +13,34 @@ owner's record was born with the business's name. That is not a person's name, s
 it. A person with their own name on record (every sign-up asks for it) gets "Hello, {name}". The tests hold
 both cases.
 
+## The owner's four changes (second round)
+
+Re-rendered on desktop after the owner's four changes:
+
+- **`empty-desktop-en.png`** — the light is softer and closer. #A1127A is still its deepest point, at the orb's
+  centre, but it falls three times as fast and reaches only 2.6 orb-radii across and 2.1 up and down. Less
+  than a tenth of the page is lit more than a tenth of the way to the glow.
+- **`answered-desktop-en.png`** — the page as it opens after two questions:
+  - **At its end:** the newest answer's last line is 105 px above the composer. Before, the page opened at
+    the top and the answer ran under the composer.
+  - **"Ask a follow-up" in the box**, never "Your question". The hidden label for screen readers still says
+    "Your question".
+- **`answered-short-desktop-en.png`** — after one short answer: the same wide block as a long one.
+- **`answered-desktop-en-whole.png`** — the whole conversation: both answers 603 px wide.
+
+**Why no extra padding:** the composer sits in the page's flow, so the end of the page already keeps its
+height free. Bottom padding as well would have left an empty band the composer's size. The page opening at
+its end is what keeps the last line clear of it.
+
+**The pool beside the small orb is now the glow made thin, never paper.** Before, an answer passing under the
+bar showed a pale arc above the orb.
+
+**Banding on the new light:** the longest run of one colour is 3–4 device px on straight lines and 5 on
+diagonals. At six times the contrast there are no rings.
+
+**Not yet redone:** the other files below (phone, the other languages, gliding, thinking, the clips) still
+show the first round's light. They will be rendered again once these are confirmed.
+
 ## Files
 
 - **`empty-{desktop,phone}-{en,zh,ar,es,fr}.png`** — the empty page:
@@ -69,7 +97,7 @@ orb's glow (#A1127A); it never reaches the "needs you" magenta (#6E0C44), and a 
 
 ## Each guard broken on purpose
 
-Sixteen breaks, one at a time. Each made its own test fail, and the code was restored after each.
+Twenty-two breaks, one at a time. Each made its own test fail, and the code was restored after each.
 
 - **Less motion:**
   - the orb glides;
@@ -90,13 +118,20 @@ Sixteen breaks, one at a time. Each made its own test fail, and the code was res
 - **Scripts off:** the orb, the field or the slot shows.
 - **The hidden label:** it is shown, or gone.
 - **The greeting names the business.**
+- **The second round:**
+  - the field spreads, or falls, as before;
+  - the pool paints paper;
+  - a talking page opens at the top;
+  - a short answer is sized to its words;
+  - after an answer the box says "Your question".
 
 ## Choices worth a look
 
 1. **The field runs under the main column's side padding**, so it fades out rather than ending at an edge.
-2. **The field stops 24 px above the bar.** Its height is capped at 1.25 times its width, so on a phone it is a
-   pool, not a column.
-3. **The pool beside the bar** is lighter (60 %) and stops 4 px short of the box's edge.
+2. **The field stops 24 px above the bar** and keeps close to the orb: 2.6 orb-radii across and 2.1 up and
+   down. So it is wider than it is tall, on a phone too.
+3. **The pool beside the bar** is lighter (60 %), drawn as the glow made thin, and stops 4 px short of the
+   box's edge.
 4. **The glide takes 560 ms**, longer than the app's other motion, because it is the orb's own movement. The bar
    makes room for the orb over the same 560 ms.
 5. **The bar has a soft top** (16 px of paper fading in), so a conversation that scrolls under it fades instead

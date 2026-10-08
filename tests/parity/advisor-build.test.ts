@@ -389,7 +389,9 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
       expect(said.match(/<a\s/g)).toHaveLength(2);
       expect(said).toContain(`<a class="adv-link" href="/app/advisor?new=1">${esc(t(l, 'advisor.thread.new'))}</a>`);
       // talking, the box asks plainly; the typed questions are the empty page's alone
-      expect(said).toContain(`placeholder="${esc(t(l, 'advisor.label'))}"`);
+      // once there is an answer, the box asks for a follow-up — never "Your question"
+      expect(said).toContain(`placeholder="${esc(t(l, 'advisor.followUp'))}"`);
+      expect(said).not.toContain(`placeholder="${esc(t(l, 'advisor.label'))}"`);
       expect(said).not.toContain('data-adv-suggest');
       const plain = renderAdvisor(l, { asked: 'how many customers', answer: fact({ phrased: false, text: '' }) });
       expect(plain).toContain(`<p><bdi>${esc(t(l, 'advisor.fallback.head'))}</bdi></p><ul class="adv-facts"><li><bdi>Customers: 12</bdi></li></ul>`);

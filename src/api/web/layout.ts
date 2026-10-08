@@ -2378,8 +2378,10 @@ const STYLE_PAGES = `
      a voiced one holds several elements, so it opts out and the words opt in. */
   .bubble.voiced { white-space:normal; }
   .bubble.voiced .said { white-space:pre-wrap; }
-  /* The advisor's answer: a sentence, or the facts as a short list, and advice under its own label. */
+  /* The advisor's answer: a sentence, or the facts as a short list, and advice under its own label; every
+     answer the same block, the reading measure wide, however short. */
   .bubble.adv { white-space:normal; }
+  .adv-line .msg.inbound { max-width:var(--measure-prose); inline-size:100%; }
   .bubble.adv p { margin:0; white-space:pre-wrap; }
   .bubble.adv > * + * { margin-top:var(--space-8); }
   .adv-facts { margin:0; padding-inline-start:1.2em; }
