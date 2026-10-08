@@ -38,8 +38,8 @@ bar showed a pale arc above the orb.
 **Banding on the new light:** the longest run of one colour is 3–4 device px on straight lines and 5 on
 diagonals. At six times the contrast there are no rings.
 
-**Not yet redone:** the other files below (phone, the other languages, gliding, thinking, the clips) still
-show the first round's light. They will be rendered again once these are confirmed.
+**Every file in this folder now shows the second round.** After the owner confirmed it, the rest were
+rendered again: phone, the other languages, gliding, thinking, the clips.
 
 ## Files
 
@@ -65,12 +65,15 @@ show the first round's light. They will be rendered again once these are confirm
 
 ## Banding
 
-Measured on the rendered screenshots, along lines out of the orb until the field meets the paper:
+Measured on the rendered screenshots (second round), along lines out of the orb until the field meets the paper:
 
 | | Longest run of one colour (straight lines) | Diagonals | Colours along one line |
 |---|---|---|---|
-| Desktop | 4 device px (2 CSS px) | 6 | 205–399 |
-| Phone | 3–5 device px | 4–8 | 100–164 |
+| Desktop | 3–4 device px (2 CSS px) | 5–6 | 42–108 |
+| Phone | 3–5 device px | 4–5 | 42–83 |
+
+There are fewer colours along a line than in the first round because the light is shorter and fainter, not
+because it is stepped. A run never exceeds 6 device px.
 
 Diagonals read a little higher only because a diagonal walk visits some pixels twice.
 
