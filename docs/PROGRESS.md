@@ -13,7 +13,52 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## The hardening batch, second pass: the send-path fixes, e-mail compliance and the refund terms (2026-10-09) — read this first
+## The advisor's nav mark and the orb's dots (2026-10-09, afternoon) — read this first
+
+**State:**
+- **#265, PRE-LAUNCH and PROGRESS**, merged as `6c74b1d` and deployed 10:35 UTC; `/health` ok.
+- **#266, the advisor's nav mark and the orb's dots**, merged as `f395b5b` and deployed 14:46 UTC; `/health` ok,
+  and production's stylesheet carries the mark's light. Production schema is still **134**.
+- **Not merged: the orb's light as a ring**, on branch `advisor-orb-centre`, waiting for the owner. Close-ups are in
+  `docs/design/advisor-orb-ring/` on that branch.
+
+**Shipped in #266 (the owner's confirms, 2026-10-09):**
+- **The nav mark** is Solar's round bubble, empty (`chat-round`, unchanged), lit from within by the orb's glow
+  (`.ni-lit`, `advisorRailMark`).
+  - **The light:** 36 px across, still, and gone under forced colours. It stops 37 px or more short of any other
+    icon in the rail.
+  - **The one lit rail entry:** recorded in `icons.ts` and `tokens.ts` (the glow token now lights this too), and
+    held by the guards.
+- **WhatsApp** moved to Solar's `chat-round-line`: one meaning, one shape, no exception pair. `chat-round-dots` left
+  the Solar list.
+- **The orb:**
+  - nothing solid behind the dots (no body, no shadow);
+  - far dots in ink #25201C.
+
+  Measured: the ink alone does not make the middle readable. The library's back dots are at under half opacity,
+  so they take half the magenta behind them.
+- **Guards:** 53 breaks, each failing its own test. The renders are in `docs/design/advisor-nav-mark/` and
+  `docs/design/advisor-orb-dots/`.
+
+**Waiting on the owner (the ring, `advisor-orb-centre`):**
+- **The ring itself.**
+  - About 22 in 100 of the glow behind the middle; #A1127A in a ring at 1.25 of the dots' sphere.
+  - Middle dots below ΔE 10: from 55 to 22 in 100.
+  - The steepest step in lightness is about 1.5 times the old light's, and no slope bands.
+- **The lit area.** The ring lights 13 in 100 of the page more than a tenth of the way to the glow. The redesign's
+  rule (2026-10-08) said under 10, and only a ring inside the dots meets it. The guard holds 0.135 until the owner
+  decides.
+
+The earlier items (Nomi's legal name and address, the copyright agent, the trial setting, `OWNER_ACCESS_CODE`,
+`ADVISOR_KEY`, and the workspace's postal address) are unchanged: see the entry below.
+
+**Found on the way:**
+- **The Mac's lid closing mid-run** made one integration file time out (`provider-billing`, 2026-10-09). The power
+  log showed sleep for exactly that file's window; a re-run was clean.
+- **A luminance ratio cannot tell grey from magenta.** Dot legibility was measured as a colour difference (ΔE2000)
+  as well.
+
+## The hardening batch, second pass: the send-path fixes, e-mail compliance and the refund terms (2026-10-09)
 
 **State:**
 - **#260, R1: inbound mail's sender confirmed (0132)**, merged as `a88559e` and deployed 07:37 UTC; `/health` ok, schema 132.
