@@ -2416,7 +2416,7 @@ const STYLE_PAGES = `
   .adv-slot { position:relative; flex:none; inline-size:64px; block-size:64px; }
   .adv-page[data-adv="rest"] .adv-slot { inline-size:0; margin-inline-end:calc(-1 * var(--space-24)); }
   .adv-page[data-adv="rest"] .adv-slot canvas { visibility:hidden; }
-  /* Each orb canvas is half as large again as its orb; the margin it draws in (the halo, the shadow) takes no room. */
+  /* Each orb canvas is half as large again as its orb; the margin it draws in (the halo) takes no room. */
   .adv-slot canvas.orb { position:absolute; inset-inline-start:calc(-1 * var(--space-16)); inset-block-start:calc(-1 * var(--space-16)); inline-size:96px; block-size:96px; }
   .adv-pool { position:absolute; inset-inline-start:calc(-1 * var(--space-32)); inset-block-start:calc(-1 * var(--space-32)); inline-size:128px; block-size:128px; pointer-events:none; }
   .orb-rest-row { display:flex; justify-content:center; }

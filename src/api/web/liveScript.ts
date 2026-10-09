@@ -72,7 +72,7 @@
  *      under it, the small orb and its calm line (`template[data-orb-pending]`), until the answer's page
  *      replaces this one. The orb is the library's own (thinking-orbs, vendored in assets/vendor/; its
  *      `composing` state, its painter in its dark-paper mode), only its two ends ours; under it, a ground
- *      that is ours — a deep magenta halo, a body shaded to its rim and base, a shadow on the paper. The
+ *      that is ours — the deep magenta glow behind it, and nothing solid (no body, no shadow: 2026-10-09). The
  *      ground is drawn at once; the orb's file is imported once the page has loaded. It moves only while
  *      the page is seen (paused while the tab is hidden, resumed when shown); a reader who asked for less
  *      motion gets one still frame of each. If the orb cannot be had, its ground stays — no gap, nothing
@@ -630,43 +630,21 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     if (frame.lines.length) paintLines(ctx, frame.lines, light, far);
     paintDots(ctx, frame.dots, light, far);
   }
-  /* The ground under the orb — ours, not the library's, drawn first and never over its dots: a halo of the
-     glow bleeding into the paper, a body light in the middle and deepening to its rim, its base falling into
-     shadow, and a soft shadow on the paper beneath. The owner's pick, "medium":
-     [halo, its reach, body, rim, base, shadow]. */
-  var GROUND = [0.75, 1.42, 0.88, 0.48, 0.36, 0.24];
+  /* The ground under the orb — ours, not the library's, drawn first and never over its dots: the glow's halo
+     bleeding into the paper, and nothing else. NOTHING SOLID (the owner, 2026-10-09): no body behind the dots,
+     no shadow under them — dots floating in the light, every one the library draws in view, across the middle
+     too. The halo is as it was (the owner's "medium"): [its depth, its reach]. */
+  var GROUND = [0.75, 1.42];
   function tone(c, a) { return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
-  function toward(a, b, w) { return { r: Math.round(a.r + (b.r - a.r) * w), g: Math.round(a.g + (b.g - a.g) * w), b: Math.round(a.b + (b.b - a.b) * w) }; }
-  function ground(ctx, size, glow, light, dark, o) {
+  function ground(ctx, size, glow, o) {
     var c = size / 2;
     var R = size / 2 * 0.78;
-    var g;
-    ctx.save();
-    ctx.translate(c, c + R * 1.02);
-    ctx.scale(1, 0.22);
-    g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.9);
-    g.addColorStop(0, tone(dark, o[5]));
-    g.addColorStop(1, tone(dark, 0));
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-    g = ctx.createRadialGradient(c, c, R * 0.55, c, c, R * o[1]);
+    var g = ctx.createRadialGradient(c, c, R * 0.55, c, c, R * o[1]);
     g.addColorStop(0, tone(glow, o[0]));
     g.addColorStop(0.55, tone(glow, o[0] * 0.35));
     g.addColorStop(1, tone(glow, 0));
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(c, c, R * o[1], 0, Math.PI * 2); ctx.fill();
-    g = ctx.createRadialGradient(c - R * 0.18, c - R * 0.28, R * 0.05, c, c, R);
-    g.addColorStop(0, tone(toward(glow, light, 0.18), o[2]));
-    g.addColorStop(0.6, tone(glow, o[2]));
-    g.addColorStop(1, tone(toward(glow, dark, o[3]), o[2]));
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
-    g = ctx.createLinearGradient(0, c - R * 0.1, 0, c + R);
-    g.addColorStop(0, tone(dark, 0));
-    g.addColorStop(1, tone(dark, o[4]));
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
   }
   /* The lit field (the redesign, 2026-10-08): the orb's glow at its centre falling to nothing at the edges,
      drawn pixel by pixel with half a step of noise in each channel, so the fall shows no bands; a pixel the
@@ -773,7 +751,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var glowSaid = String(form.getAttribute('data-orb-glow') || '');
     var glow = /^[a-z-]+$/.test(glowSaid) ? rgbOf('--color-' + glowSaid) : 0;
     var light = rgbOf('--color-surface');
-    var dark = rgbOf('--color-ink');
     var paper = rgbOf('--color-paper');
     var plan = GROUND;
     var core = 0;
@@ -782,13 +759,13 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     function load() { if (!core) core = import(src); return core; }
     /* The orb's file is asked for only once the page has loaded: it plays no part in its first paint. */
     var loaded = new Promise(function (ok) { if (doc.readyState === 'complete') ok(); else window.addEventListener('load', function () { ok(); }); });
-    /* Draws on a canvas half as large again as the orb (its margin holds the halo and the shadow): the ground
+    /* Draws on a canvas half as large again as the orb (its margin holds the halo): the ground
        at once, with no file to wait for; then the library's orb on it, at a pace of its own speed, moving only
        while seen. If the orb cannot be had, the ground stays: no gap, and nothing moves. The pace can change
        (resting, then thinking) without the orb jumping. */
     function draw(canvas, pace) {
       var ctl = { pace: pace, base: 0, since: 0 };
-      var ctx = glow && light && dark && plan && canvas.getContext ? canvas.getContext('2d') : 0;
+      var ctx = glow && light && plan && canvas.getContext ? canvas.getContext('2d') : 0;
       if (!ctx) { failed = true; return { ctl: ctl, done: Promise.reject(new Error('no orb here')) }; }
       var box = canvas.getBoundingClientRect().width || 96;
       var size = box / 1.5;
@@ -800,7 +777,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, box, box);
         ctx.setTransform(dpr, 0, 0, dpr, dpr * pad, dpr * pad);
-        ground(ctx, size, glow, light, dark, plan);
+        ground(ctx, size, glow, plan);
       }
       under();
       var done = loaded.then(load).then(function (orb) {

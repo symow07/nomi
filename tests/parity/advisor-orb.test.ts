@@ -19,6 +19,10 @@ import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
  *   #A1127A, MEDIUM strength. Both states (192px resting, 64px thinking)." "Keep #6E0C44 out of the orb."
  *   "Advisor page ONLY … Pauses when the tab is hidden … Reduce motion: NEITHER state animates … Scripts off /
  *   the orb file fails: no orb moving, no gap, no layout shift."
+ * Nothing solid (the owner's brief of 2026-10-09): "Remove the filled sphere surface entirely. Only the library's
+ *   dots render. Every dot the library draws must be visible, including the ones across the middle — nothing
+ *   occludes them. Keep the magenta glow behind, exactly as it is now." The body and the shadow are gone; the
+ *   halo stays as it was.
  * The redesign (the owner's brief of 2026-10-08): a lit field, deepest at the orb and gone before the bar,
  *   dithered so it shows no bands; the orb goes down beside the bar after a question, small, and the light
  *   goes with it as a small pool that fades before the bar's edge; the empty bar types out three questions,
@@ -296,7 +300,7 @@ async function libraryDraws(t: number) {
   return ctx.calls;
 }
 
-describe('the orb is the library\'s own composing state, drawn as it ships; the glow and the shadow are ours', () => {
+describe('the orb is the library\'s own composing state, drawn as it ships; the glow behind it is ours, and nothing solid', () => {
   it('with white and black for its two ends, the script draws exactly the calls the library\'s own painter draws — resting and thinking', async () => {
     const p = page({ reduce: true, light: '#FFFFFF', glow: '#000000' });
     p.run(); await p.load();
@@ -328,25 +332,46 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
     }
   });
 
-  it('the ground is ours and under the orb: a halo of the glow, the body shaded to its rim and base, a shadow beneath — drawn first, every frame', async () => {
+  it('the ground is ours and under the orb: the glow\'s halo and nothing else — no body, no shadow — drawn first, every frame', async () => {
+    for (const p of [page({ reduce: true }), page({ reduce: true, width: 216 })]) {
+      p.run(); await p.load();
+      for (const c of [p.rest!, ...(await p.ask(), [p.here!])]) {
+        const ground = groundOf(c);
+        // one fill: the halo, a radial gradient of the glow round the orb's centre
+        expect(ground.filter(([k]) => k === 'fill')).toHaveLength(1);
+        expect(ground.filter(([k]) => k === 'createRadialGradient')).toHaveLength(1);
+        expect(ground.filter(([k]) => k === 'createLinearGradient')).toHaveLength(0);
+        expect(ground.filter(([k]) => k === 'arc')).toHaveLength(1);
+        expect(ground.some(([k]) => k === 'scale' || k === 'translate' || k === 'save')).toBe(false);   // the shadow's squash
+        const all = c.ctx.calls;
+        expect(all.indexOf(ground[0]!)).toBeLessThan(all.indexOf(orbOf(c)[0]!));   // never over a dot
+        expect(orbOf(c).some(([k]) => k === 'createRadialGradient' || k === 'createLinearGradient')).toBe(false);   // nothing after it either
+      }
+    }
+  });
+
+  it('the halo is as it was: the glow at three quarters from the middle out to 0.55 of the orb, a third of that at 0.55 of its reach, nothing at 1.42 orb radii', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const ground = groundOf(p.rest!);
-    expect(ground.filter(([k]) => k === 'createRadialGradient')).toHaveLength(3);   // the shadow, the halo, the body
-    expect(ground.filter(([k]) => k === 'createLinearGradient')).toHaveLength(1);   // the base falling into shadow
-    expect(ground.filter(([k]) => k === 'arc')).toHaveLength(4);
-    const all = p.rest!.ctx.calls;
-    expect(all.indexOf(ground[0]!)).toBeLessThan(all.indexOf(orbOf(p.rest!)[0]!));   // never over a dot
+    const [, x0, y0, r0, x1, y1, r1] = ground.find(([k]) => k === 'createRadialGradient')! as [string, number, number, number, number, number, number];
+    const R = 192 / 2 * 0.78;
+    expect([x0, y0, x1, y1]).toEqual([96, 96, 96, 96]);
+    expect(r0).toBeCloseTo(R * 0.55, 6);
+    expect(r1).toBeCloseTo(R * 1.42, 6);
+    const glow = hex(TOKENS.orbGlow);
+    const stops = ground.filter(([k]) => k === 'addColorStop').map(([, , at, c]) => [at, ...rgba(c)] as number[]);
+    expect(stops.map(([at, r, g, b]) => [at, r, g, b])).toEqual([[0, glow.r, glow.g, glow.b], [0.55, glow.r, glow.g, glow.b], [1, glow.r, glow.g, glow.b]]);
+    expect(stops.map(([, , , , a]) => a)).toEqual([0.75, expect.closeTo(0.2625, 9), 0]);
   });
 
-  it('the ground\'s colours are the glow, the paper\'s light end and the ink — never the "needs you" magenta, at any stop', async () => {
+  it('the ground\'s colour is the glow alone — never the ink, never the "needs you" magenta, at any stop', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
-    const glow = hex(TOKENS.orbGlow); const light = hex(TOKENS.surface); const dark = hex(TOKENS.ink);
-    const toward = (a: typeof glow, b: typeof glow, w: number) => ({ r: Math.round(a.r + (b.r - a.r) * w), g: Math.round(a.g + (b.g - a.g) * w), b: Math.round(a.b + (b.b - a.b) * w) });
-    const allowed = [glow, dark, toward(glow, light, 0.18), toward(glow, dark, 0.48)].map((c) => `${c.r},${c.g},${c.b}`);
+    const glow = hex(TOKENS.orbGlow);
+    const allowed = [glow].map((c) => `${c.r},${c.g},${c.b}`);
     const stops = groundOf(p.rest!).filter(([k]) => k === 'addColorStop').map(([, , , c]) => rgba(c));
-    expect(stops.length).toBeGreaterThanOrEqual(9);
+    expect(stops).toHaveLength(3);
     for (const [r, g, b] of stops) expect(allowed, `${r},${g},${b}`).toContain(`${r},${g},${b}`);
     const needs = hex(TOKENS.needs);
     const every = [...stops, ...orbOf(p.rest!).filter(([k]) => isColour(k)).map(([, v]) => rgba(v))];
@@ -750,11 +775,11 @@ describe('the guard: on the advisor\'s page only, resting or thinking, and only 
     expect(p.frames).toEqual([]);
   });
 
-  it('the orb\'s file cannot be had: the still ground stays, no dot is drawn, nothing moves, nothing is removed (no shift)', async () => {
+  it('the orb\'s file cannot be had: the still glow stays, no dot is drawn, nothing moves, nothing is removed (no shift)', async () => {
     const p = page({ orbUrl: 'data:text/javascript;base64,dGhyb3cgbmV3IEVycm9yKCdubycpOw==' });
     p.run(); await p.load();
     expect(transforms(p.rest!)).toHaveLength(2);                         // the ground, once; never the frame's
-    expect(drawn(p.rest!).filter(([k]) => k === 'arc')).toHaveLength(4);  // the ground's four shapes, no dot
+    expect(drawn(p.rest!).filter(([k]) => k === 'arc')).toHaveLength(1);  // the ground's one shape, the halo; no dot
     expect(p.rest!.isConnected).toBe(true);
     await p.ask();
     expect(p.here!.isConnected).toBe(true);
