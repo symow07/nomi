@@ -631,30 +631,24 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     if (frame.lines.length) paintLines(ctx, frame.lines, light, far);
     paintDots(ctx, frame.dots, light, far);
   }
-  /* The ground under the orb — ours, not the library's, drawn first and never over its dots: the glow's halo
-     bleeding into the paper, and nothing else. NOTHING SOLID (the owner, 2026-10-09): no body behind the dots,
-     no shadow under them — dots floating in the light, every one the library draws in view. [its depth, its reach,
-     in the dots' sphere radius: past the ring, far enough for its own fall to be as gentle as the field's]. */
+  /* The ground under the orb, ours, drawn first and never over its dots: the glow's halo and nothing solid (no
+     body, no shadow: the owner, 2026-10-09). [its depth, its reach in the dots' sphere radius]. */
   var GROUND = [0.75, 1.6];
-  /* THE LIGHT IS A RING (the owner, 2026-10-09): deepest just outside the dots, lighter directly behind them, so a
-     far dot (ink, at the library's own half opacity) reads against it. In the dots' sphere radius: the light middle
-     reaches RING[0], the ring is deepest at RING[1]. MIDDLE: how much of the glow is left behind the middle, of the
-     whole (field, pool and halo together). Every step between is the smootherstep, flat at both ends: no edge.
-     Chosen by measure (2026-10-09): the steepest step in lightness no more than half again the shipped light's,
-     and the fewest middle dots lost against what is behind them. */
+  /* THE LIGHT IS A RING (the owner, 2026-10-09): deepest just outside the dots, lighter behind them so a far dot
+     reads. In the dots' sphere radius: the light middle to RING[0], the deepest at RING[1]; MIDDLE: the glow left
+     behind the middle. Every step the smootherstep: no edge. Chosen by measure (docs/design/advisor-orb-ring). */
   var RING = [0.3, 1.25];
   var MIDDLE = 0.22;
-  /* The ring's shape at rho (in the sphere's radius): 0 in the light middle, 1 at the ring, 0 at the halo's reach. */
+  /* The halo's ring at rho: 0 in the middle, 1 at the ring, 0 at its reach. */
   function ringAt(rho, reach) {
     if (rho <= RING[0]) return 0;
     if (rho <= RING[1]) return smoother((rho - RING[0]) / (RING[1] - RING[0]));
     return 1 - smoother((rho - RING[1]) / (reach - RING[1]));
   }
-  /* A wash's ring, in px, for an orb of the given radius (the dots' sphere is 0.78 of it). */
+  /* A wash's ring in px, for an orb of that radius. */
   function ringFor(orb, middle) { return { light: orb * 0.78 * RING[0], deep: orb * 0.78 * RING[1], middle: middle }; }
   function tone(c, a) { return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
-  /* The halo is a ring too: nothing behind the middle (the field and the pool hold the middle's light), the glow
-     at three quarters on the ring, nothing at its reach — drawn as the curve itself, 25 stops along it. */
+  /* The halo, a ring too: the curve itself, 25 stops along it. */
   var HALO_STOPS = 24;
   function ground(ctx, size, glow, o) {
     var c = size / 2;
@@ -696,8 +690,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         if (q >= 1) continue;
         var t;
         if (o.ring) {
-          // a ring: the middle light, rising to the deepest just outside the dots, then the same fall to the reach,
-          // started from the ring along this direction
           var rho = Math.sqrt(dx * dx + dy * dy);
           if (rho <= o.ring.deep) {
             t = o.depth * (o.ring.middle + (1 - o.ring.middle) * smoother((rho - o.ring.light) / (o.ring.deep - o.ring.light)));
@@ -875,7 +867,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var c = slot.left + slot.width / 2;
       var edge = Math.min(Math.abs(bx.left - c), Math.abs(bx.right - c)) - 4;
       var reach = Math.max(16, Math.min(p.width / 2, edge));
-      // the pool is the glow made thin (six tenths at its deepest), so its middle keeps MIDDLE of the whole
       wash(pool, p.width / 2, p.height / 2, { up: reach, down: reach, back: reach, on: reach },
         { depth: 0.6, fall: 2, clear: true, paper: paper, glow: glow, ring: ringFor(here.getBoundingClientRect().width / 3, MIDDLE / 0.6) });
     }

@@ -46,8 +46,18 @@ The near (light) dots stay clear against the lighter middle. The far ink dots ca
   round the orb. Of the shapes tried, this one gains the most legibility for the least steepness.
 - **Bands:** on every slope no colour holds for more than 4 device pixels. The longest run of one colour (7 px) is
   on the ring's flat top, the glow itself, which is not a step.
-- **No corners:** the guard checks the change of slope along a line out of the orb (0.054 here, 0.017 before), and a
-  hard-edged middle fails it.
+- **No corners:** the guard checks how fast the slope itself changes along a line out of the orb, at two scales.
+  - The finer one finds a corner where a straight rise meets the flat, which the eye picks out as an edge: 0.083
+    here, 0.042 before, and 0.153 for a straight rise, which fails.
+  - A hard-edged middle fails both.
+- **Guards, broken on purpose:** 60 breaks, each failing its own test. They are every earlier guard of the orb, the
+  redesign and the nav mark, plus this branch's own:
+  - the middle as deep as the ring;
+  - the middle a hard disc;
+  - the ring inside the dots;
+  - the halo deep behind the middle, or cornered with three stops;
+  - the field forgetting the ring;
+  - a straight, cornered rise.
 
 ## For the owner to decide
 
