@@ -93,7 +93,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
 
     for (const [id, name] of [[BIZ, 'Write First Factory'], [OTHER_BIZ, 'Another Factory']] as const) {
       // D — workspaces WITH the outreach area, as the pilot's is.
-      await tenant(id, (x) => sql`insert into businesses (id, name, outreach_area) values (${id}, ${name}, true)
+      await tenant(id, (x) => sql`insert into businesses (id, name, outreach_area, postal_address) values (${id}, ${name}, true, '1 Mill Road, Yiwu')
                                    on conflict (id) do nothing`.execute(x));
     }
     const login = await prod.app.inject({
@@ -173,11 +173,15 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     await until(() => mine().length > 0, 'the mail to reach the transport');
     expect(mine(), 'one press sent more than one mail').toHaveLength(1);
     const m = mine()[0]!;
-    expect({ to: m.to, subject: m.subject, text: m.text }).toEqual({
-      to: addr('ahmed'), subject: 'Canvas totes from Yiwu', text: 'We make canvas totes, 500 pcs and up.',
-    });
     const link = /^<(https:\/\/nomi\.test\/u\?t=([^>]+))>$/.exec(m.headers['List-Unsubscribe'] ?? '');
     expect(link, 'no RFC 8058 link on a first message').not.toBeNull();
+    // 0133 — and in the mail's own words: the business, its postal address, and the same link, visible.
+    const { marketingFooter } = await import('../../src/outbound/worker.js');
+    expect({ to: m.to, subject: m.subject, text: m.text }).toEqual({
+      to: addr('ahmed'), subject: 'Canvas totes from Yiwu',
+      text: 'We make canvas totes, 500 pcs and up.'
+        + marketingFooter({ businessName: 'Write First Factory', postalAddress: '1 Mill Road, Yiwu' }, link![1]!, 'en'),
+    });
     expect(m.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
 
     // THE TOKEN IS ONE THE PAGE ACCEPTS: minted at the composition root with the
@@ -253,7 +257,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     const email = emailAdapter({ transport: own });
     const effects = await tx((x) => driveConversationOutbound({
       store: channelStore(x, bid), adapter: email, adapters: (k) => (k === 'email' ? email : undefined),
-      mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x' }), now: () => new Date(),
+      mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x', unsubscribeUrl: 'https://nomi.test/u?t=x' }), now: () => new Date(),
     }, cid));
     expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'suppressed' }));
     expect(own.sent).toEqual([]);

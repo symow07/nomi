@@ -333,7 +333,9 @@ import type { Db } from './client.js';
 //       that write fails and no workspace can be made.
 // 132 = an e-mail whose sender could not be confirmed (0132): the hand-off reason `email_unconfirmed`. Such a mail
 //       hands its conversation to a person under it; against a 131 database that write fails.
-export const REQUIRED_SCHEMA_VERSION = 132;
+// 133 = the business's postal address (0133): `businesses.postal_address`. Every first e-mail and follow-up reads it,
+//       and the profile writes it; against a 132 database both fail.
+export const REQUIRED_SCHEMA_VERSION = 133;
 
 export type SchemaState = {
   readonly required: number;

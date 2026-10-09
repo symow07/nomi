@@ -6,8 +6,9 @@ import { withWorkspace } from '../../src/api/web/say.js';
 const AREA_ON = { name: null, several: false, outreach: true, setup: null } as const;
 const reach = (...a: Parameters<typeof renderReach>) => withWorkspace(AREA_ON, () => renderReach(...a));
 import {
-  driveConversationOutbound, type ConversationSendContext, type OutboundStore, type OutboundWorkRow,
+  driveConversationOutbound, marketingFooter, type ConversationSendContext, type OutboundStore, type OutboundWorkRow,
 } from '../../src/outbound/worker.js';
+import { t as said } from '../../src/core/owner/i18n/messages.js';
 import type { ChannelAdapter, SendResult } from '../../src/channels/contract.js';
 import { emailAdapter } from '../../src/channels/email/adapter.js';
 import { fakeMailTransport } from '../../src/channels/email/transport.js';
@@ -42,6 +43,10 @@ const facts = (over: Partial<OutreachInput> = {}): OutreachInput => ({
   suppression: null, ceilingReached: false, ...over,
 });
 
+/** 0133 — the business that sends a first e-mail, as the store reads it. */
+const SENDER = { businessName: 'Yiwu Canvas Co.', postalAddress: '88 Silk Road, Yiwu, Zhejiang, China', locale: 'en' as const };
+/** A store that read no sender at all (no marketing mail queued, or a business it could not read). */
+const NO_SENDER = { sender: undefined } as unknown as Partial<ConversationSendContext>;
 const mailRow = (over: Partial<OutboundWorkRow> = {}): OutboundWorkRow => ({
   id: 'o1', seq: 1, status: 'queued', requiresOrder: false, attempts: 0, sentAt: null,
   to: ADDRESS, body: 'We make canvas totes.', origin: 'outreach', sendingSince: null,
@@ -60,6 +65,8 @@ function store(
     // activation is not its gate and the WhatsApp allowlist is not its list.
     activated: true, pilotMode: false, recipientAllowed: true, dailyCeilingReached: false,
     outreach: facts(),
+    // 0133 — who sends it, with the postal address its footer carries.
+    sender: SENDER,
     ...ctx,
   };
   // A store that could not resolve the facts leaves the field OUT, which is
@@ -86,6 +93,7 @@ function whatsapp(): ChannelAdapter & { texts: string[] } {
 }
 
 const HEADERS = { 'List-Unsubscribe': '<https://nomi.test/u?t=x>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
+const UNSUBSCRIBE = 'https://nomi.test/u?t=x';
 
 function rig(opts: {
   readonly outcome?: (m: { to: string }) => SendResult;
@@ -99,7 +107,7 @@ function rig(opts: {
   const locales: string[] = [];
   const drive = (s: OutboundStore) => driveConversationOutbound({
     store: s, adapter: wa, adapters: (k) => byChannel[k],
-    mailHeaders: (_row, o) => { locales.push(o.locale); return { headers: opts.headers ?? HEADERS, tag: 'signed-tag' }; },
+    mailHeaders: (_row, o) => { locales.push(o.locale); return { headers: opts.headers ?? HEADERS, tag: 'signed-tag', unsubscribeUrl: UNSUBSCRIBE }; },
     now: () => NOW,
   }, 'c1');
   return { transport, wa, drive, locales };
@@ -165,6 +173,43 @@ describe('C4.a · the adapter and the transport', () => {
 });
 
 describe('C4.a · a first e-mail goes out through the one send path', () => {
+  it('0133 · NO POSTAL ADDRESS, NO MARKETING E-MAIL: a first e-mail or follow-up is refused, and nothing reaches the provider', async () => {
+    for (const sender of [{ ...SENDER, postalAddress: null }, { ...SENDER, postalAddress: '   ' }, undefined]) {
+      const r = rig();
+      const s = store([mailRow()], sender === undefined ? NO_SENDER : { sender });
+      const effects = await r.drive(s);
+      expect(r.transport.sent, JSON.stringify(sender)).toEqual([]);
+      expect(s.refusals).toEqual(['no_postal_address']);
+      expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'no_postal_address' }));
+    }
+  });
+
+  it('0133 · every first e-mail carries, in its own text, the sender\'s postal address and a link that stops more — in the reader\'s language', async () => {
+    for (const l of LOCALES) {
+      const r = rig();
+      await r.drive(store([mailRow()], { buyerLocale: l }));
+      const text = r.transport.sent[0]!.text;
+      expect(text.startsWith('We make canvas totes.'), l).toBe(true);
+      expect(text, l).toContain(SENDER.businessName);
+      expect(text, l).toContain(SENDER.postalAddress);
+      expect(text, l).toContain(said(l, 'mail.footer.unsubscribe', { url: UNSUBSCRIBE }));
+      // and the header the mail client reads stays
+      expect(r.transport.sent[0]!.headers['List-Unsubscribe']).toBe('<https://nomi.test/u?t=x>');
+    }
+    // the reader's language unknown: the business's own
+    const r = rig();
+    await r.drive(store([mailRow()], { sender: { ...SENDER, locale: 'fr' } }));
+    expect(r.transport.sent[0]!.text).toContain(said('fr', 'mail.footer.unsubscribe', { url: UNSUBSCRIBE }));
+  });
+
+  it('0133 · a reply to someone who wrote first is not marketing: no footer, and no address needed', async () => {
+    const r = rig();
+    const s = store([mailRow({ origin: 'employee' })], { ...NO_SENDER, lastInboundAt: NOW });
+    await r.drive(s);
+    expect(s.refusals).toEqual([]);
+    expect(r.transport.sent[0]?.text).toBe('We make canvas totes.');
+  });
+
   it('SENT: through sendMail, with her subject, her words and the way out', async () => {
     const r = rig();
     const s = store([mailRow()]);
@@ -173,8 +218,11 @@ describe('C4.a · a first e-mail goes out through the one send path', () => {
     expect(r.transport.sent).toHaveLength(1);
     const m = r.transport.sent[0]!;
     expect({ to: m.to, subject: m.subject, text: m.text }).toEqual({
-      to: ADDRESS, subject: 'Canvas totes from Yiwu', text: 'We make canvas totes.',
+      to: ADDRESS, subject: 'Canvas totes from Yiwu', text: 'We make canvas totes.' + marketingFooter(SENDER, UNSUBSCRIBE, 'en'),
     });
+    // 0133 — in its own text, a way out a person can see and the sender's postal address
+    expect(m.text).toContain(UNSUBSCRIBE);
+    expect(m.text).toContain(SENDER.postalAddress);
     expect(m.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
     // C4.c — and the provider is handed the signed tag its bounce events echo.
     expect(m.tag).toBe('signed-tag');

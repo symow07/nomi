@@ -62,15 +62,22 @@ export type ProfileInput = {
   readonly name: string; readonly description: string; readonly location: string;
   readonly workingHours: string; readonly contactEmail: string; readonly contactPhone: string;
   readonly languagesServed: readonly string[];
+  /**
+   * 0133 — the business's postal address, for the footer of every first e-mail and follow-up. Absent (a form that
+   * does not carry the field, such as one from before it): left as it is, never cleared by omission.
+   */
+  readonly postalAddress?: string;
 };
 
 type ProfileValue = {
   readonly name: string; readonly description: string | null; readonly location: string | null;
   readonly workingHours: string | null; readonly contactEmail: string | null;
   readonly contactPhone: string | null; readonly languagesServed: readonly string[];
+  /** Absent: unchanged. */
+  readonly postalAddress?: string | null;
 };
 
-const CAP = { name: 200, location: 200, workingHours: 200, description: 1000 };
+const CAP = { name: 200, location: 200, workingHours: 200, description: 1000, postalAddress: 400 };
 const nz = (s: string): string | null => (s.trim() === '' ? null : s.trim());
 
 /**
@@ -80,7 +87,7 @@ const nz = (s: string): string | null => (s.trim() === '' ? null : s.trim());
  * Chinese landline without a leading "+" therefore silently threw away the
  * description, location, hours, e-mail and languages alongside it.
  */
-export type ProfileField = 'name' | 'description' | 'location' | 'workingHours' | 'contactEmail' | 'contactPhone';
+export type ProfileField = 'name' | 'description' | 'location' | 'workingHours' | 'contactEmail' | 'contactPhone' | 'postalAddress';
 export type ProfileError = 'required' | 'tooLong' | 'emailShape' | 'phoneShape';
 export type ProfileErrors = Partial<Record<ProfileField, ProfileError>>;
 
@@ -95,6 +102,7 @@ export function validateProfile(
   if (input.description.trim().length > CAP.description) errors.description = 'tooLong';
   if (input.location.trim().length > CAP.location) errors.location = 'tooLong';
   if (input.workingHours.trim().length > CAP.workingHours) errors.workingHours = 'tooLong';
+  if (input.postalAddress !== undefined && input.postalAddress.trim().length > CAP.postalAddress) errors.postalAddress = 'tooLong';
 
   const email = input.contactEmail.trim();
   if (email !== '' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.contactEmail = 'emailShape';
@@ -111,6 +119,7 @@ export function validateProfile(
       name, description: nz(input.description), location: nz(input.location),
       workingHours: nz(input.workingHours), contactEmail: email === '' ? null : email,
       contactPhone: phone.value, languagesServed: langs,
+      ...(input.postalAddress !== undefined ? { postalAddress: nz(input.postalAddress) } : {}),
     },
   };
 }
@@ -123,6 +132,10 @@ export type BusinessProfile = {
   readonly contactEmail: string | null;
   readonly contactPhone: string | null;
   readonly languagesServed: readonly string[];
+  /** 0133 — the postal address every first e-mail and follow-up carries; null: none yet, and none is sent. */
+  readonly postalAddress?: string | null;
+  /** 0068 — whether the business writes first at all: the postal address is marked as needed only then. */
+  readonly outreachArea?: boolean;
   /**
    * What the business sells, as How you sell asks it (`product_category`):
    * `category` null until answered. Absent where How you sell does not ask it
@@ -147,8 +160,9 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
       name: string; description: string | null; location: string | null; working_hours: string | null;
       contact_email: string | null; contact_phone: string | null; languages_served: string[] | null;
       kind: string | null; prices_to_owner: boolean | null; product_category: string | null;
+      postal_address: string | null; outreach_area: boolean | null;
     }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served,
-              kind, prices_to_owner, product_category
+              kind, prices_to_owner, product_category, postal_address, outreach_area
          from businesses where id = ${bid.value}`.execute(tx)).rows[0] ?? null;
     if (!b) return empty;
 
@@ -158,6 +172,7 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
       name: b.name, description: b.description, location: b.location, workingHours: b.working_hours,
       contactEmail: b.contact_email, contactPhone: b.contact_phone,
       languagesServed: b.languages_served ?? [],
+      postalAddress: b.postal_address, outreachArea: b.outreach_area === true,
       whatYouSell: asked ? { category: b.product_category && isProductCategory(b.product_category) ? b.product_category : null } : null,
     };
   });
@@ -178,13 +193,15 @@ export async function saveBusinessProfile(
     const cur = (await sql<{
       name: string; description: string | null; location: string | null; working_hours: string | null;
       contact_email: string | null; contact_phone: string | null; languages_served: string[] | null;
-    }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served
+      postal_address: string | null;
+    }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served, postal_address
          from businesses where id = ${bid.value}`.execute(tx)).rows[0];
 
     await sql`update businesses set
         name = ${v.value.name}, description = ${v.value.description}, location = ${v.value.location},
         working_hours = ${v.value.workingHours}, contact_email = ${v.value.contactEmail},
         contact_phone = ${v.value.contactPhone}, languages_served = ${langsSql(v.value.languagesServed)}
+        ${v.value.postalAddress !== undefined ? sql`, postal_address = ${v.value.postalAddress}` : sql``}
       where id = ${bid.value}`.execute(tx);
 
     // Audit only the field NAMES that changed — never sensitive values.
@@ -198,6 +215,7 @@ export async function saveBusinessProfile(
       if (!eq(cur.contact_email, v.value.contactEmail)) changed.push('contact_email');
       if (!eq(cur.contact_phone, v.value.contactPhone)) changed.push('contact_phone');
       if ((cur.languages_served ?? []).join(',') !== v.value.languagesServed.join(',')) changed.push('languages_served');
+      if (v.value.postalAddress !== undefined && !eq(cur.postal_address, v.value.postalAddress)) changed.push('postal_address');
     }
     await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
       values (${bid.value}, null, 'update_profile', ${actor}, ${JSON.stringify({ fields: changed })}::jsonb)`.execute(tx);
@@ -565,6 +583,12 @@ export function renderProfile(
       // as asking for both.
       field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail, '', { need: needs.contact ? t(locale, 'settings.profile.needOrPhone') : undefined, desc: t(locale, 'settings.desc.contact') }),
       field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'), { need: needs.contact ? t(locale, 'settings.profile.needOrEmail') : undefined }),
+      // 0133 — the address every first e-mail and follow-up carries. The business is the sender and owns the duty;
+      // the words say so. Marked as needed where the business writes first, since none goes without it.
+      fieldRow({ label: t(locale, 'settings.field.postalAddress'), forId: 'pf-postal', error: errLine('postalAddress') || undefined,
+        need: p.outreachArea && !(draft.postalAddress ?? p.postalAddress ?? '').trim() ? t(locale, 'settings.need.postalAddress') : undefined,
+        desc: t(locale, 'settings.desc.postalAddress'),
+        control: `<textarea id="pf-postal" name="postal_address" rows="3" maxlength="400" dir="auto">${esc(val('postalAddress', p.postalAddress ?? null))}</textarea>` }),
     ])}
     ${zone || currency ? rowsCard(t(locale, 'profile.group.zone'), [
       ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []),

@@ -219,6 +219,15 @@ export function channelStore(
              order by sent_at desc limit 1`.execute(tx)).rows[0]?.id ?? null
         : null;
 
+      // 0133 — who sends a first e-mail or follow-up, for its footer: read only when one is queued here.
+      const senderRow = initiates && channel === 'email'
+        ? (await sql<{ name: string; postal_address: string | null; default_language: string | null }>`
+            select name, postal_address, default_language from businesses where id = ${businessId}`.execute(tx)).rows[0]
+        : undefined;
+      const sender = senderRow ? {
+        businessName: senderRow.name, postalAddress: senderRow.postal_address,
+        locale: LOCALES.find((l) => l === senderRow.default_language) ?? 'en',
+      } : null;
       // WA-S — only a WhatsApp conversation has a window a template reopens.
       const reopen = channel === 'whatsapp' ? await reopenFor(tx, businessId, c?.buyer_locale ?? null) : null;
       const ctx: ConversationSendContext = {
@@ -249,6 +258,7 @@ export function channelStore(
         ...(buyerLocale ? { buyerLocale } : {}),
         ...(outreach ? { outreach } : {}),
         ...(inReplyTo ? { inReplyTo } : {}),
+        ...(sender ? { sender } : {}),
       };
       // WA-S — a business whose own number has the reopening template APPROVED
       // reopens a closed window with it, for this customer: the template state

@@ -7,6 +7,7 @@ import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal } f
 import { channelSendPlan, type TemplateState } from '../core/channel/window.js';
 import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
+import { t } from '../core/owner/i18n/messages.js';
 import type { ChannelAdapter } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
@@ -105,6 +106,12 @@ export type ConversationSendContext = {
    * number is live and has one approved; absent, a closed window stays closed.
    */
   readonly reopen?: { readonly name: string; readonly language: string; readonly params: readonly string[]; readonly text: string };
+  /**
+   * 0133 (docs/PRE-LAUNCH.md item 3) — who sends a first e-mail or follow-up, for its footer: the business's name,
+   * its postal address (null until the profile has one), and the language it writes in. Present only when such a
+   * mail is in this conversation's queue; a reply costs no extra query.
+   */
+  readonly sender?: { readonly businessName: string; readonly postalAddress: string | null; readonly locale: Locale };
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -161,6 +168,8 @@ export type RefusalReason =
   // mail with no subject. Both are the product's own fault rather than hers,
   // and both are shown rather than swallowed.
   | 'channel_unavailable' | 'subject_missing' | 'no_unsubscribe'
+  // 0133 — a first e-mail or follow-up from a business whose profile has no postal address yet.
+  | 'no_postal_address'
   // C4.a — a first message whose permission could not be established at all.
   // Not a refusal BY the outreach gate: a refusal because the gate could not be
   // asked, which is the one honest answer when the facts are missing.
@@ -185,6 +194,8 @@ export const REFUSAL_REASONS: readonly RefusalReason[] = [
   // subject, no way out for a buyer who never wrote first, or no way to tell
   // whether he may be written to at all.
   'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked',
+  // 0133 — and a marketing e-mail with no postal address to carry.
+  'no_postal_address',
 ];
 
 export type DriveEffect =
@@ -241,6 +252,8 @@ export type MailEnvelope = {
   readonly headers: Readonly<Record<string, string>>;
   /** C4.c — the same signed token, for the provider to echo on its events. */
   readonly tag: string | null;
+  /** 0133 — the same per-recipient unsubscribe address, for the link a person can SEE in a marketing e-mail's footer. */
+  readonly unsubscribeUrl?: string | null;
 };
 export type MailHeadersFor = (
   row: OutboundWorkRow,
@@ -267,6 +280,17 @@ export function servedByNomi(url: string, origin: string | null): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * 0133 — the footer of a first e-mail or follow-up: the signature line, the business's name and postal address, and
+ * the link that stops more of them, in the reader's language. Plain text, as every mail here is.
+ */
+export function marketingFooter(
+  sender: { readonly businessName: string; readonly postalAddress: string | null }, unsubscribeUrl: string, locale: Locale,
+): string {
+  return ['', '', '-- ', sender.businessName.trim(), (sender.postalAddress ?? '').trim(),
+    t(locale, 'mail.footer.unsubscribe', { url: unsubscribeUrl })].join('\n');
 }
 
 export async function driveConversationOutbound(
@@ -468,11 +492,30 @@ export async function driveConversationOutbound(
     await refuse(deps, candidate, 'no_unsubscribe');
     return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }];
   }
+  /*
+   * 0133 (docs/PRE-LAUNCH.md item 3) — A FIRST E-MAIL OR FOLLOW-UP CARRIES, IN ITS OWN TEXT, A WAY OUT A PERSON CAN
+   * SEE AND THE SENDER'S POSTAL ADDRESS. The header above is read by a mail client; the law in many places asks for
+   * both in the mail itself. The business is the sender and owns that duty; this is the plumbing that discharges it,
+   * the same for one business or ten thousand. Without the address the mail does not go, and the owner is told what
+   * to add: a mail that cannot comply is refused, never sent as it is.
+   */
+  const marketing = asMail && candidate.origin === 'outreach';
+  if (marketing && !ctx.sender?.postalAddress?.trim()) {
+    await refuse(deps, candidate, 'no_postal_address');
+    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_postal_address' }];
+  }
+  if (marketing && !envelope.unsubscribeUrl) {
+    await refuse(deps, candidate, 'no_unsubscribe');
+    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }];
+  }
+  const mailText = marketing
+    ? candidate.body + marketingFooter(ctx.sender!, envelope.unsubscribeUrl!, ctx.buyerLocale ?? ctx.sender!.locale)
+    : candidate.body;
 
   await deps.store.transition(candidate.id, 'sending', null);
   const result = asMail && adapter.sendMail
     ? await adapter.sendMail({
-        to: candidate.to, subject: candidate.subject ?? '', text: candidate.body, headers, tag: envelope.tag,
+        to: candidate.to, subject: candidate.subject ?? '', text: mailText, headers, tag: envelope.tag,
       })
     : candidate.kind === 'image' && candidate.mediaUrl && adapter.sendMedia
       ? await adapter.sendMedia(candidate.to, { url: candidate.mediaUrl, caption: candidate.body })

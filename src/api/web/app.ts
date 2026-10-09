@@ -5539,6 +5539,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       location: String(b['location'] ?? ''), workingHours: String(b['working_hours'] ?? ''),
       contactEmail: String(b['contact_email'] ?? ''), contactPhone: String(b['contact_phone'] ?? ''),
       languagesServed: SERVED_LANGUAGES.filter((l) => b[`lang_${l}`] !== undefined),
+      // 0133 — only when the form carries it: a form without the field leaves the address as it is.
+      ...(typeof b['postal_address'] === 'string' ? { postalAddress: b['postal_address'] } : {}),
     };
     const r = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
     facts.evict(s.businessId);   // D — a complete profile is a setup step done
@@ -5568,6 +5570,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         name: input.name, description: input.description, location: input.location,
         workingHours: input.workingHours, contactEmail: input.contactEmail,
         contactPhone: input.contactPhone, languagesServed: input.languagesServed,
+        ...(input.postalAddress !== undefined ? { postalAddress: input.postalAddress } : {}),
       }, r.errors, await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
     }));
   });

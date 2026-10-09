@@ -121,7 +121,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `sq${RUN}` }).adapter, logger: false, mailTransport: transport });
 
     // D — a workspace WITH the outreach area, as the pilot's is.
-    await tx((x) => sql`insert into businesses (id, name, outreach_area) values (${BIZ}, 'Sequence Factory', true)
+    await tx((x) => sql`insert into businesses (id, name, outreach_area, postal_address) values (${BIZ}, 'Sequence Factory', true, '1 Mill Road, Yiwu')
                         on conflict (id) do nothing`.execute(x));
     cookie = await login(prod.ownerAccessCode);
     expect(cookie).not.toBe('');
@@ -247,7 +247,12 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     await sweep(new Date(T0.getTime() + 2 * DAY + 5 * 60_000));
     await until(() => mailsTo('ahmed').length === 2, 'the follow-up');
     expect(mailsTo('ahmed')[1]!.subject).toBe('Following up on totes');
-    expect(mailsTo('ahmed')[1]!.text).toBe('Did the samples page reach you? (edited)');
+    // 0133 — a follow-up is marketing too: the business, its postal address and the link it carries in its header.
+    const { marketingFooter } = await import('../../src/outbound/worker.js');
+    const followUp = mailsTo('ahmed')[1]!;
+    const link = /^<(https:\/\/nomi\.test\/u\?t=[^>]+)>$/.exec(followUp.headers['List-Unsubscribe'] ?? '')![1]!;
+    expect(followUp.text).toBe('Did the samples page reach you? (edited)'
+      + marketingFooter({ businessName: 'Sequence Factory', postalAddress: '1 Mill Road, Yiwu' }, link, 'en'));
     const threads = await tx((x) => sql<{ n: number }>`
       select count(distinct conversation_id)::int as n from outbound_messages
        where business_id = ${BIZ} and to_wa_id = ${addr('ahmed')}`.execute(x).then((r) => r.rows[0]!.n));
@@ -415,7 +420,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
       const email = emailAdapter({ transport: own });
       const effects = await tx((x) => driveConversationOutbound({
         store: channelStore(x, b), adapter: email, adapters: (k) => (k === 'email' ? email : undefined),
-        mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x' }), now: () => new Date(),
+        mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x', unsubscribeUrl: 'https://nomi.test/u?t=x' }), now: () => new Date(),
       }, queued));
       expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'silenced' }));
       expect(own.sent).toEqual([]);
