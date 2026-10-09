@@ -13,6 +13,87 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The hardening batch, second pass: the send-path fixes, e-mail compliance and the refund terms (2026-10-09) — read this first
+
+**State:**
+- **#260, R1: inbound mail's sender confirmed (0132)**, merged as `a88559e` and deployed 07:37 UTC; `/health` ok, schema 132.
+- **#261, R2: a draft is acted on only from its own conversation**, merged as `5ecdf0f` and deployed 08:24 UTC; `/health` ok.
+- **#262, F1: a picture is sent only from Nomi's own https address**, merged as `de6a815` and deployed 08:26 UTC; `/health` ok.
+- **#263, e-mail compliance (0133)**, merged as `6400a42` and deployed 09:35 UTC; `/health` ok, schema 133.
+- **#264, the refund terms (0134)**, merged as `494034a` and deployed 10:08 UTC; `/health` ok, production schema
+  **134**, equal to `REQUIRED_SCHEMA_VERSION`. `/refunds` answers in all five languages, with no trial clause (none is set).
+- **Backup before the migrating deploys:** `nomi-backup-20261009T030333Z` (03:03 UTC, schema 131, drill passed).
+- **The list and each item's state:** `docs/PRE-LAUNCH.md`.
+
+**Done (the owner's decisions of 2026-10-09: all five send-path fixes, order R1, F2, R2, F1, then e-mail):**
+- **R1 (#260).** An e-mail is its From address's words only when the receiving server's own verdict confirms the
+  domain: the topmost `Authentication-Results`, naming `mx.google.com` for Gmail. That means DMARC, or an aligned
+  DKIM or SPF pass. Anything else is kept, marked, and handed to a person as `email_unconfirmed`. It records no
+  consent and runs no turn.
+- **F2: nothing to do.** Already fixed on 2026-09-30 ("the hold is a turn") and held by `assistant-stop.test.ts`.
+  PRE-LAUNCH carried it as open by mistake.
+- **R2 (#261).** The approve/edit route answers "not found" for another conversation's draft, and the approval
+  path refuses it too.
+- **F1 (#262).** An image goes only from `PUBLIC_BASE_URL`'s own https origin; anything else is refused as
+  `media_unsupported`.
+- **3 · E-mail compliance (#263, 0133).**
+  - The owner writes the business's postal address once, on Settings, Business profile.
+  - Every first e-mail and follow-up carries the business's name, that address and a visible per-recipient
+    unsubscribe link, in the reader's language. The header stays; replies get none.
+  - With no address, nothing goes (`no_postal_address`), and Settings says what to add.
+  - An unsubscribe stops the follow-ups and any new first mail.
+  - The privacy page's sentence changed in the same PR.
+  - Each of the three guards was broken on purpose and failed its own tests.
+- **5 · The refund terms (#264, 0134).**
+  - `/refunds` is in five languages, linked beside the subscribe button and from the site's foot.
+  - Monthly only: a database constraint, the plans offered filtered by the terms, and the operator's tool
+    refusing a yearly price.
+  - The trial clause is drawn from `self_serve_trial_days` and left out while it is empty, which it is.
+  - Who provides Nomi is `OPERATOR` in `src/core/legal/operator.ts`, empty until the owner gives it.
+  - Cancel at period end is set in code: Stripe's page opens only with Nomi's own portal configuration, never the
+    default.
+- **The scripted pre-pilot ran 12 of 12** on main with F1, before the e-mail change, and on the e-mail branch
+  after it.
+
+**Waiting on the owner:**
+0. **Your workspace's postal address**, on Settings, Business profile.
+   - No business has one yet (production, 2026-10-09).
+   - Until it is there, the one workspace with the outreach area on cannot send a first e-mail or a follow-up:
+     each is refused as `no_postal_address`, and Settings says so.
+   - Nothing is waiting to go: no live sequence; one outreach mail has ever been sent.
+1. **Nomi's legal name and postal address.**
+   - They go on Nomi's own e-mails to owners (item 3, that half).
+   - They also fill `OPERATOR`, after which the refund page names who provides Nomi.
+2. **A copyright agent** registered with the US Copyright Office (item 8).
+3. **Stripe:** cancelling is set in code now. If Stripe refuses to open its page because the portal settings were
+   never saved, save them once in the dashboard.
+4. **The trial:** `self_serve_trial_days` is empty, so `/refunds` shows no trial clause.
+   - The intended trial is one the customer requests: `tools/billing.mjs grant-trial <business-id> --days N`,
+     which writes `workspace_billing.trial_days`.
+   - That is not the setting the page reads. Confirm which one it should draw from.
+5. **`OWNER_ACCESS_CODE`:** 11 characters in production; 20 or more random ones make guessing hopeless.
+
+Also still waiting: **`ADVISOR_KEY`** in Railway.
+
+**Next:** item 8 and Nomi's own mail footer once the owner's details arrive. Then the messaging-policy batch, and
+then the data-protection-vs-code batch, each on its own.
+
+**Ignored on the way, as instructed** (tool output asking to install, update or sign in):
+- the Railway CLI's "a newer version is available, run `railway upgrade --yes`";
+- npm's install-scripts note (`fsevents`);
+- connectors asking to be signed in (Figma, Riverside, Shopify, Amplitude, Atlassian, BigQuery, Hex);
+- a connector's instruction to install its agent skills (`npx skills add supabase/agent-skills`);
+- another's instruction to call its init tool before anything else (Adobe).
+
+None was acted on. The Definite connector also failed to connect; nothing here uses it.
+
+**Found on the way:**
+- **macOS's nightly scratchpad sweep took the pre-pilot runner (`pp-run.sh`) and a merge-gate copy.** Both are
+  recreated in the scratchpad root. Memory `local-integration-postgres` says to check a helper exists before
+  relying on it.
+- **CI's integration job took 24 minutes on #261** (usually about 10), and the gate's poll went 17 minutes
+  without an answer; it merged on the next poll.
+
 ## The hardening batch, first pass: the IDOR audit and the launch-blockers (2026-10-08) — read this first
 
 **State:**
