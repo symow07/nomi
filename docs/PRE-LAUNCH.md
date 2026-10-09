@@ -19,22 +19,22 @@ only in a conversation. Work it in this order. Update the status column as each 
 
 | # | What | Kind | Status |
 |---|---|---|---|
-| 0 | **IDOR audit.** Every route that takes an id or a token: can one business, or one person, reach another's? | First | Done (#255); two findings reported, below |
+| 0 | **IDOR audit.** Every route that takes an id or a token: can one business, or one person, reach another's? | First | Done (#255); R1 fixed (#260, 0132), R2 fixed (#261) |
 | 1 | **Age at sign-up (COPPA).** An age field on the sign-up form. | Launch-blocker | Done (#256, migration 0131) |
-| 2 | **Third-party browser requests.** The fonts are already served by Nomi. Still open: stored product-photo addresses, and the addresses passed to Meta on sends (the send path: report first). | Launch-blocker | Browser side done (D7); the send side is F1, reported |
-| 3 | **E-mails.** An unsubscribe link and a postal address on every outbound e-mail, launch and marketing mail included. | Launch-blocker | Waits on the owner: Nomi's postal address. Customer mail is the send path, reported |
+| 2 | **Third-party browser requests.** The fonts are already served by Nomi. Still open: stored product-photo addresses, and the addresses passed to Meta on sends (the send path: report first). | Launch-blocker | Done: browser side (D7), send side F1 (#262) |
+| 3 | **E-mails.** An unsubscribe link and a postal address on every outbound e-mail, launch and marketing mail included. | Launch-blocker | Customer mail done (#263, 0133). Nomi's own mail to owners waits on the owner: Nomi's postal address |
 | 4 | **Stripe.** The renewal terms shown next to the subscribe button. | Launch-blocker | Done (#257) |
-| 5 | **Policy pages.** Privacy, terms, cookies and refunds, each in all five languages. | Next | Privacy, terms and cookies done in all five (cookies: #258); the refund policy waits on the owner |
+| 5 | **Policy pages.** Privacy, terms, cookies and refunds, each in all five languages. | Next | Done: privacy, terms, cookies (#258) and refunds (#264, 0134), each in all five |
 | 6 | **Accessibility.** Alt text, contrast and keyboard navigation. | Next | Done (#257) |
-| 7 | **No dark patterns and no hidden fees.** | Next | Nothing found; the owner confirms Stripe's portal allows cancelling |
+| 7 | **No dark patterns and no hidden fees.** | Next | Nothing found. Cancelling on Stripe's page is set in code now (#264) |
 | 8 | **A copyright agent for what people upload.** | Next | Waits on the owner: the agent's details and registration |
 
-**And two items found earlier, not yet fixed (both on the send path: report first):**
+**And two items found earlier (both on the send path):**
 
 | # | What | Status |
 |---|---|---|
-| F1 | **Product-photo addresses passed to Meta on sends.** The same thing as the second half of item 2. | Reported; dormant (no photos, no image sends) |
-| F2 | **Stop pressed while a customer's batch is still waiting.** The hold path fails because `markFragmentsProcessed` writes `processed_in`, which references `turns`, and the hold path writes no turn. The job dead-letters, and the customer reaches "Needs you" as `not_answered` about five minutes later instead of as "stopped". | Reported; the fix is proposed |
+| F1 | **Product-photo addresses passed to Meta on sends.** The same thing as the second half of item 2. | Fixed (#262): a picture is sent only from Nomi's own https address |
+| F2 | **Stop pressed while a customer's batch is still waiting.** The hold path fails because `markFragmentsProcessed` writes `processed_in`, which references `turns`, and the hold path writes no turn. The job dead-letters, and the customer reaches "Needs you" as `not_answered` about five minutes later instead of as "stopped". | Already fixed on 2026-09-30 ("the hold is a turn"), guarded by `tests/integration/assistant-stop.test.ts`. This list had it wrong |
 
 ## Item 0, the IDOR audit: what was found
 
@@ -56,14 +56,16 @@ function that takes an id either reads the workspace from the transaction or is 
 6. **Teaching a fact took any product id**, because a foreign key looks past row security. The product must now
    be this workspace's.
 
-**Reported, not fixed: the owner decides.**
+**Reported, then fixed on the owner's word (2026-10-09):**
 - **R1 · An inbound e-mail reply is matched by the quoted message id and the From line,** and From can be forged.
   Someone holding a message id Nomi sent could add a message to that conversation, record e-mail consent and
-  hand it to a person. Nothing is sent to anyone by it. This is the inbound mail path. The fix is to require
-  the mail provider's SPF/DKIM pass, or a signed reply-to address per send.
+  hand it to a person. Nothing is sent to anyone by it. This is the inbound mail path. **Fixed (#260, 0132):** a
+  mail counts as its sender's only when the receiving server's own verdict confirms the From domain (DMARC, or
+  an aligned DKIM or SPF pass); anything else is kept, marked, and handed to a person as `email_unconfirmed`.
 - **R2 · The approve/edit route checks the window and the allowlist for the conversation in the address, not
   the draft's own.** It only matters inside one workspace, and the send gate still refuses anything that may not
-  go. This is the approval path. The fix is to tie the draft to the conversation in the address.
+  go. This is the approval path. **Fixed (#261):** a draft is acted on only from its own conversation's page,
+  and the approval path refuses another conversation's draft too.
 
 **Small, left as they are:** `advisor_may_keep` is granted to the app role without need (only a trigger calls
 it; removing the grant is a migration). Quote-proof tokens are stored in clear, as their own key (256 bits).
@@ -80,9 +82,9 @@ one stops working at the next deploy.
 - **The browser side is done.** Since 7 October a product's page draws only photos Nomi serves itself
   (`mayLoad`, D7), and the fonts are Nomi's own. A stored photo on another host is never fetched by the
   owner's browser.
-- **The send side is F1.** An image message would pass the stored photo address to Meta, which fetches it.
-  Production holds **no product photos** and has **never sent an image message**, so this is dormant, not live.
-  The fix is on the send path: only send a photo Nomi serves. The owner decides.
+- **The send side was F1, fixed (#262).** An image message would pass the stored photo address to Meta, which
+  fetches it. Now a picture goes only from Nomi's own public https address (`servedByNomi`); anything else is
+  refused as `media_unsupported`. Production holds no product photos and has never sent an image message.
 
 ### 3 · E-mails: an unsubscribe link and a postal address on every one
 Nomi can send **14 kinds of e-mail**. None carries an unsubscribe link in its text, and none carries a postal
@@ -101,11 +103,19 @@ address. There is no launch or marketing mail feature.
   - None carries the business's postal address, which businesses are never asked for. They have only a
     free-text "Location".
 
-  The fix: a postal-address field for the business, and a footer with the unsubscribe link and that address
-  on first e-mails and follow-ups. The owner decides.
-- **The privacy page says more than the code does.** It says every e-mail the business sends carries a link
-  that stops further mail. Today it is a header, not a link. This goes with the data-protection batch, or with
-  the fix above.
+  **Fixed (#263, 0133):**
+  - **The address:** a postal-address field on Settings, Business profile, written once by the owner. Its help
+    says the business is the sender and owns the duty, and Nomi sends on its behalf.
+  - **The footer:** every first e-mail and follow-up carries the business's name and postal address, and a
+    visible per-recipient unsubscribe link, in the reader's language. The header stays.
+  - **Refusals:** with no address, the mail is refused (`no_postal_address`) and Settings says what to add.
+  - **Replies** get no footer.
+  - **Unsubscribing:** an unsubscribe stops the follow-ups and any new first mail to that person.
+  - **In production (2026-10-09):** no business has entered its address yet. The one workspace with the outreach
+    area on sends no first e-mail or follow-up until it does. Nothing was waiting to go: no live sequence.
+- **The privacy page said more than the code did.** It said every e-mail carries a link that stops more, and
+  it was only a header. Since #263 it says what is true: every first e-mail and follow-up carries the
+  business's postal address and the link, and a reply carries neither.
 - **An unsubscribe stops first e-mails and follow-ups, not replies** to someone who wrote in. This looks
   intended; it is recorded here so it is a decision, not an accident.
 
@@ -113,15 +123,31 @@ address. There is no launch or marketing mail feature.
 - **Beside the button,** in plain text and five languages:
   - the plan renews automatically, every month or year as shown, at its price, until cancelled;
   - it can be cancelled at any time under "Card and invoices".
-- **Whether a cancelled plan runs to the end of its period** is set on Stripe's own portal, and nothing here
-  promises either.
+- **Since #264 the line says monthly, and that a cancelled plan runs to the end of the month paid for.** This is
+  true in code: Stripe's page opens only with Nomi's own portal configuration (cancel at period end, nothing
+  prorated, no plan changes there), never the account's default.
 
 ### 5 · Policy pages in all five languages
 - **Privacy and terms** exist in all five languages.
 - **Cookies** have a page of their own, `/cookies` (#258), linked from the site's foot. It is the privacy page's
   own cookie section: the one table from the one cookie register, so the two pages cannot differ.
-- **There is no refund policy.** What is refunded, when and how is the owner's to decide. It is then written in
-  five languages and linked beside the subscribe button.
+- **Refunds** have a page, `/refunds` (#264), in five languages, linked beside the subscribe button and from
+  the site's foot. Its five clauses are the owner's:
+  - the free trial;
+  - cancelling;
+  - part-used months;
+  - if Nomi fails;
+  - charged by mistake.
+
+  **Monthly terms only.** The database refuses any other plan period (0134), and the operator's tool refuses a
+  yearly price. Who provides Nomi is a code constant (`src/core/legal/operator.ts`), empty until the owner gives
+  it; nothing stands in its place.
+- **The trial on that page.** The trial clause is drawn from `self_serve_trial_days` and left out while it is
+  empty.
+  - **Empty in production** (2026-10-09), so the page shows no trial clause.
+  - **The intended trial is one the customer requests.** That is `tools/billing.mjs grant-trial <business-id>
+    --days N`, which writes `workspace_billing.trial_days` for one workspace. It is not the setting the page
+    reads; confirm which one the page should draw from when the time comes.
 
 ### 6 · Accessibility — done
 - **A sweep of every owner page as rendered** (180 pages, English and Arabic) found:
@@ -139,8 +165,9 @@ address. There is no launch or marketing mail feature.
   - Prices are shown before a card is saved, and the trial is stated.
   - Saving a card charges nothing.
   - No tax is added by the code at checkout.
-- **For the owner to confirm:** that Stripe's customer portal lets an owner cancel. It is set in Stripe's
-  dashboard, under the customer portal's settings, not in this code.
+- **Cancelling is set in code since #264.** Stripe's page opens only with Nomi's own configuration, so the
+  dashboard's settings no longer decide it. If Stripe refuses to open the page because the portal settings
+  were never saved, the owner saves them once in the dashboard.
 
 ### 8 · A copyright agent for what people upload
 - **What people upload:** product photos and price-sheet pages, voice notes, and files customers send.
@@ -151,8 +178,6 @@ address. There is no launch or marketing mail feature.
   section is then written in five languages.
 
 ### The found-not-fixed items
-- **F2, Stop pressed while a customer's batch is waiting,** still dead-letters to `not_answered`. This is the
-  send path.
-  - The fix: the hold path writes a turn row of its own, so `processed_in` has something to point at.
-  - The customer then reaches "Needs you" at once, as "stopped".
-  - The owner decides.
+- **F2 was already fixed on 2026-09-30** ("the hold is a turn"): the hold path writes a turn of its own, and the
+  customer reaches "Needs you" at once, as "stopped". `tests/integration/assistant-stop.test.ts` holds it. This
+  list carried it as open by mistake.
