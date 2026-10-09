@@ -257,11 +257,28 @@ const adapterFor = (deps: { adapter?: ChannelAdapter; adapters?: AdapterFor }, c
   return deps.adapter?.kind === wanted ? deps.adapter : undefined;
 };
 
+/** F1 — an address on Nomi's own public origin, over https: the only kind of picture that may be sent. */
+export function servedByNomi(url: string, origin: string | null): boolean {
+  if (!origin) return false;
+  try {
+    const u = new URL(url);
+    const own = new URL(origin);
+    return u.protocol === 'https:' && u.origin === own.origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function driveConversationOutbound(
   deps: {
     /** WhatsApp, when the installation has it; the map answers for the rest. */
     store: OutboundStore; adapter?: ChannelAdapter; adapters?: AdapterFor;
     mailHeaders?: MailHeadersFor; now: () => Date;
+    /**
+     * F1 (docs/PRE-LAUNCH.md) — the one origin a picture may be sent from: Nomi's own public address
+     * (PUBLIC_BASE_URL). Absent, no picture is sent.
+     */
+    mediaOrigin?: string | null;
   },
   conversationId: string,
 ): Promise<readonly DriveEffect[]> {
@@ -403,8 +420,13 @@ export async function driveConversationOutbound(
   // to its caption: a caption without its picture is a different message from
   // the one the owner approved, and sending it would be exactly the quiet
   // substitution this product exists to not do.
+  //
+  // F1 (docs/PRE-LAUNCH.md) — and only a picture Nomi itself serves. The provider fetches the address it is handed:
+  // one on another host would have that host told who is being sent what, and when — the same third-party rule the
+  // owner's own pages keep (thirdParty.ts `mayLoad`). Nothing queues a picture today; this holds for the day
+  // something does. Refused like a picture that cannot be carried, never sent as its caption.
   if (candidate.kind === 'image') {
-    if (!candidate.mediaUrl || !adapterFor(deps, candidate.channel)?.sendMedia) {
+    if (!candidate.mediaUrl || !servedByNomi(candidate.mediaUrl, deps.mediaOrigin ?? null) || !adapterFor(deps, candidate.channel)?.sendMedia) {
       await refuse(deps, candidate, 'media_unsupported');
       return [...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }];
     }

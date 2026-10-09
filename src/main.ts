@@ -994,7 +994,7 @@ export async function buildProduction(
   // re-drive ticks (from status webhooks / wait-recheck).
   // 0080 — `asks`: the question the reply asks, written on its outbound row.
   type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null };
-  type Drivers = { adapter?: ChannelAdapter; adapters?: AdapterFor; mailHeaders?: MailHeadersFor };
+  type Drivers = { adapter?: ChannelAdapter; adapters?: AdapterFor; mailHeaders?: MailHeadersFor; mediaOrigin?: string | null };
   /**
    * P3 — PRACTICE'S SENDS (docs/PRACTICE.md). A practice copy's replies go
    * through this worker and its send gate like anyone's — Stop, the window,
@@ -1257,6 +1257,8 @@ export async function buildProduction(
     return {
       ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount, waAccount),
       mailHeaders: mailHeadersFor(businessId),
+      // F1 — a picture is sent only from Nomi's own public address.
+      mediaOrigin: cfg.PUBLIC_BASE_URL ?? null,
     };
   }));
 

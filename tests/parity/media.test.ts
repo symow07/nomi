@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { driveConversationOutbound, type OutboundStore, type OutboundWorkRow } from '../../src/outbound/worker.js';
+import { driveConversationOutbound, servedByNomi, type OutboundStore, type OutboundWorkRow } from '../../src/outbound/worker.js';
 import type { ChannelAdapter, OutboundMedia, SendResult } from '../../src/channels/contract.js';
 import { REFUSAL_REASONS } from '../../src/api/web/refusals.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -65,8 +65,8 @@ function store(row: Partial<OutboundWorkRow>): OutboundStore & { statuses: strin
   };
 }
 
-const drive = (s: OutboundStore, a: ChannelAdapter) =>
-  driveConversationOutbound({ store: s, adapter: a, now: () => NOW }, 'c1');
+const drive = (s: OutboundStore, a: ChannelAdapter, mediaOrigin: string | null = 'https://example.test') =>
+  driveConversationOutbound({ store: s, adapter: a, now: () => NOW, mediaOrigin }, 'c1');
 
 describe('M26 · a picture goes out through the one send path', () => {
   it('an image row calls sendMedia with the owner’s own url and the caption', async () => {
@@ -103,6 +103,21 @@ describe('M26 · a caption is never sent without its picture', () => {
     expect(a.sent).toEqual([]);                                     // nothing left the building
     expect(effects).toContainEqual({ kind: 'canceled', id: 'o1', reason: 'media_unsupported' });
     expect(s.refusals).toEqual(['media_unsupported']);              // and the owner is told
+  });
+
+  it('F1 · a picture on any other host, over plain http, or with no public address set is refused — never handed to the provider', async () => {
+    for (const [url, origin] of [['https://cdn.elsewhere.test/tote.jpg', 'https://example.test'], ['http://example.test/products/tote.jpg', 'https://example.test'],
+      [URL_, null], ['https://example.test.evil.test/tote.jpg', 'https://example.test']] as const) {
+      const a = adapter({ media: true });
+      const s = store({ kind: 'image', mediaUrl: url, body: 'Our non-woven tote.' });
+      await drive(s, a, origin);
+      expect(a.sent, `${url} from ${origin}`).toEqual([]);
+      expect(s.refusals).toEqual(['media_unsupported']);
+    }
+    expect(servedByNomi('https://app.nomidoes.com/p/photo/1.jpg', 'https://app.nomidoes.com')).toBe(true);
+    expect(servedByNomi('https://app.nomidoes.com.evil.test/x.jpg', 'https://app.nomidoes.com')).toBe(false);
+    expect(servedByNomi('/products/x.jpg', 'https://app.nomidoes.com')).toBe(false);
+    expect(servedByNomi('not a url', 'https://app.nomidoes.com')).toBe(false);
   });
 
   it('an image row with no url is refused, not sent as its caption', async () => {
