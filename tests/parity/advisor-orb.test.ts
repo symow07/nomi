@@ -470,16 +470,22 @@ describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepe
     const line: number[] = [];
     for (let x = 900; x < 1800; x++) { const q = px(img, x, 528); if (!q[3]) break; line.push(q[1]); }
     // a 17-pixel average takes the dither out; then no change faster than 2.6 levels of green per device pixel, and
-    // no corner: the change itself changes slowly. Measured 2026-10-09: the ring 2.29 and 0.054; the light deepest
-    // at the centre, before it, 1.32 and 0.017. A hard-edged middle (a disc) fails both.
+    // no corner: the change itself changes slowly — over ±8 px of that average, and, finer, over ±4 px of a 9-pixel
+    // one, which is what finds a corner where a straight rise meets the flat (a ring edge the eye picks out).
+    // Measured 2026-10-09: the ring 2.29, 0.054, 0.083; the light deepest at the centre, before it, 1.32, 0.017,
+    // 0.042; a straight rise cornered at both ends 0.153 on the finer bend; a hard-edged middle (a disc) fails all.
     const avg = line.map((_, i) => { const w = line.slice(Math.max(0, i - 8), i + 9); return w.reduce((s, v) => s + v, 0) / w.length; });
     let steep = 0; let bend = 0;
     for (let i = 12; i < avg.length - 12; i++) {
       steep = Math.max(steep, Math.abs(avg[i + 1]! - avg[i - 1]!) / 2);
       bend = Math.max(bend, Math.abs(avg[i + 8]! - 2 * avg[i]! + avg[i - 8]!) / 64);
     }
+    const avg9 = line.map((_, i) => { const w = line.slice(Math.max(0, i - 4), i + 5); return w.reduce((s, v) => s + v, 0) / w.length; });
+    let corner = 0;
+    for (let i = 10; i < avg9.length - 10; i++) corner = Math.max(corner, Math.abs(avg9[i + 4]! - 2 * avg9[i]! + avg9[i - 4]!) / 16);
     expect(steep).toBeLessThan(2.6);
     expect(bend).toBeLessThan(0.12);
+    expect(corner).toBeLessThan(0.11);
   });
 
   it('the field keeps close and soft: the paper holds the page, the glow a presence round the orb, never a cloud', async () => {
