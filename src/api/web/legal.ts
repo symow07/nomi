@@ -7,6 +7,7 @@ import { COOKIES } from './thirdParty.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { publicDocument, esc, publicTop, PUBLIC_TOP_CSS } from './layout.js';
+import { OPERATOR, operatorNamed } from '../../core/legal/operator.js';
 
 /** G1 — the version of the terms a sign-up agrees to: their English words, digested (src/core/legal/terms.ts). */
 export const TERMS_VERSION: string = createHash('sha256')
@@ -67,7 +68,7 @@ const contact = (l: Locale, email: string | null, business: boolean): string => 
  * which changed the privacy page and the terms and left the deletion page as
  * it was.
  */
-const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' | 'legal.updated.terms' | 'legal.updated.deletion' = 'legal.updated'): string =>
+const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' | 'legal.updated.terms' | 'legal.updated.deletion' | 'legal.updated.refunds' = 'legal.updated'): string =>
   `<p class="updated">${esc(t(l, key))}</p>`;
 
 /**
@@ -245,6 +246,34 @@ export function renderLegalTerms(l: Locale, email: string | null, home = '/site'
     ${contact(l, email, false)}
     <p><a href="/privacy">${k('legal.privacyLink')}</a></p>
     ${updated(l, 'legal.updated.terms')}`, home, '/terms');
+}
+
+/**
+ * The refund terms (docs/PRE-LAUNCH.md item 5): what a business that pays for Nomi can expect when it cancels, part
+ * of a month is used, Nomi fails, or it is charged by mistake. MONTHLY terms only — the only plan Nomi sells, and the
+ * only one a workspace can be offered (core/billing/refunds.ts, 0134).
+ *
+ * `trialDays` is the self-serve trial (`self_serve_trial_days()`): the trial clause is drawn from it and left out
+ * while none is set, so the page never promises a trial nobody is given. Who provides Nomi is named only once both
+ * the name and the address are known (`OPERATOR`); until then, nothing stands in their place.
+ */
+export function renderRefunds(l: Locale, email: string | null, facts: { readonly trialDays: number | null }, home = '/site'): string {
+  const k = (key: string, params?: Record<string, string | number>) => esc(t(l, key as Parameters<typeof t>[1], params));
+  const clause = (name: string, params?: Record<string, string | number>) =>
+    `<h2>${k(`legal.refunds.${name}.title`)}</h2><p>${k(`legal.refunds.${name}.body`, params)}</p>`;
+  return SHELL(l, t(l, 'legal.refunds.title'), `
+    <h1>${k('legal.refunds.title')}</h1>
+    <p>${k('legal.refunds.intro')}</p>
+    ${facts.trialDays ? clause('trial', { days: facts.trialDays }) : ''}
+    ${clause('cancel', { billing: t(l, 'billing.title'), portal: t(l, 'billing.portal') })}
+    ${clause('partial')}
+    ${clause('fails')}
+    ${clause('mistake')}
+    <p>${k('legal.refunds.ask')}</p>
+    ${contact(l, email, false)}
+    ${operatorNamed() ? `<p>${k('legal.refunds.operator', { company: OPERATOR.name.trim(), address: OPERATOR.address.trim() })}</p>` : ''}
+    <p><a href="/terms">${k('legal.termsLink')}</a> · <a href="/privacy">${k('legal.privacyLink')}</a></p>
+    ${updated(l, 'legal.updated.refunds')}`, home, '/refunds');
 }
 
 /**

@@ -53,7 +53,9 @@ try {
     if (!price.ok) { console.error(`✗  Stripe did not give that price: ${price.error}. Nothing was changed.`); process.exit(2); }
     done(await op.setPlan(client, { id: target, name: arg('--name'), price: price.value, customers: int(arg('--customers')),
       seats: int(arg('--seats')), assistants: int(arg('--assistants')), position: int(arg('--position')), by }),
-    { set: `✓ ${target}: ${price.value.amountMinor} ${price.value.currency} a ${price.value.interval}, as Stripe holds it.`, invalid: 'Usage: plan-set <id> --price price_… --name … --customers N [--seats N] [--assistants N] --by … --yes (the price must be recurring and active). Nothing was changed.' });
+    { set: `✓ ${target}: ${price.value.amountMinor} ${price.value.currency} a ${price.value.interval}, as Stripe holds it.`,
+      not_monthly: `✗  ${price.value.id} renews every ${price.value.interval}. Nomi sells monthly plans only, and the refund terms (/refunds) describe nothing else. Nothing was changed.`,
+      invalid: 'Usage: plan-set <id> --price price_… --name … --customers N [--seats N] [--assistants N] --by … --yes (the price must be recurring and active). Nothing was changed.' });
   } else if (verb === 'plan-off') {
     done(await op.planOff(client, { id: target, by }), { off: `✓ ${target} is no longer on offer; workspaces on it keep it.`, none: `No plan ${target} on offer.` });
   } else if (verb === 'grant-trial') {

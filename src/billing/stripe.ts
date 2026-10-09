@@ -55,6 +55,34 @@ export function stripeForm(params: Params): string {
 const API = 'https://api.stripe.com/v1';
 export const STRIPE_TIMEOUT_MS = 15_000;
 
+/**
+ * Stripe's own page, as Nomi sets it up — never the account's default, which the dashboard can change
+ * (docs/PRE-LAUNCH.md item 5, the refund terms). A cancellation takes effect at the end of the period already paid
+ * for, with nothing prorated or refunded by Stripe; the card and the invoices can be changed and read; the plan is
+ * not changed there. The page opens with this configuration or does not open: no fallback to the default.
+ *
+ * Found again by its `metadata.nomi_portal` and checked feature by feature, so a configuration someone edited in the
+ * dashboard is not trusted: a new one is made. Bump the version whenever the features change.
+ */
+export const PORTAL_CONFIG_VERSION = 'cancel-at-period-end-1';
+export const PORTAL_FEATURES = {
+  subscription_cancel: { enabled: true, mode: 'at_period_end', proration_behavior: 'none' },
+  payment_method_update: { enabled: true },
+  invoice_history: { enabled: true },
+  subscription_update: { enabled: false },
+} as const;
+
+/** Whether a configuration Stripe holds is Nomi's, as Nomi set it. Pure. */
+export function isNomiPortal(c: unknown): boolean {
+  const o = (c ?? {}) as Record<string, unknown>;
+  const f = (o['features'] ?? {}) as Record<string, Record<string, unknown> | undefined>;
+  return o['active'] === true
+    && ((o['metadata'] ?? {}) as Record<string, unknown>)['nomi_portal'] === PORTAL_CONFIG_VERSION
+    && f['subscription_cancel']?.['enabled'] === true && f['subscription_cancel']?.['mode'] === 'at_period_end'
+    && f['subscription_cancel']?.['proration_behavior'] === 'none'
+    && f['subscription_update']?.['enabled'] !== true;
+}
+
 export type StripeClient = {
   createCustomer(input: { readonly businessId: string; readonly email: string | null; readonly name: string }): Promise<StripeOutcome<{ id: string }>>;
   /** A Checkout page in setup mode: the card is saved, nothing is charged. */
@@ -65,7 +93,7 @@ export type StripeClient = {
   createSubscription(input: { readonly customerId: string; readonly priceId: string; readonly businessId: string; readonly trialEnd: number | null }): Promise<StripeOutcome<{ id: string; status: string; currentPeriodEnd: number | null; trialEnd: number | null }>>;
   /** A price as Stripe holds it: what a plan charges, read rather than typed. */
   price(priceId: string): Promise<StripeOutcome<{ id: string; amountMinor: number; currency: string; interval: 'month' | 'year'; active: boolean }>>;
-  /** Stripe's own page for the card and the invoices. */
+  /** Stripe's own page for the card, the invoices and cancelling — always with Nomi's configuration (`PORTAL_FEATURES`). */
   portal(input: { readonly customerId: string; readonly returnUrl: string; readonly locale: string }): Promise<StripeOutcome<{ url: string }>>;
 };
 
@@ -95,6 +123,23 @@ export function stripeClient(config: StripeConfig, fetchImpl: StripeFetch = fetc
   };
   const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
   const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  // Nomi's portal configuration, once found or made: this process asks Stripe for it once.
+  let portalConfig: string | null = null;
+  const nomiPortal = async (site: string): Promise<StripeOutcome<string>> => {
+    if (portalConfig) return { ok: true, value: portalConfig };
+    const listed = await call('GET', '/billing_portal/configurations?active=true&limit=100', null, null,
+      (b) => (Array.isArray(b['data']) ? (b['data'] as unknown[]) : null));
+    if (!listed.ok) return listed;
+    const found = listed.value.find(isNomiPortal) as { id?: unknown } | undefined;
+    const made = found && str(found.id) ? { ok: true as const, value: str(found.id)! }
+      : await call('POST', '/billing_portal/configurations', {
+        features: PORTAL_FEATURES, metadata: { nomi_portal: PORTAL_CONFIG_VERSION },
+        business_profile: { privacy_policy_url: `${site}/privacy`, terms_of_service_url: `${site}/terms` },
+      },
+        `portal-config-${PORTAL_CONFIG_VERSION}`, (b) => (isNomiPortal(b) && str(b['id']) ? str(b['id'])! : null));
+    if (made.ok) portalConfig = made.value;
+    return made;
+  };
   return {
     createCustomer: (i) => call('POST', '/customers', { name: i.name, email: i.email, metadata: { business_id: i.businessId } },
       `customer-${i.businessId}`, (b) => (str(b['id']) ? { id: str(b['id'])! } : null)),
@@ -121,8 +166,17 @@ export function stripeClient(config: StripeConfig, fetchImpl: StripeFetch = fetc
       return str(b['id']) && num(b['unit_amount']) !== null && str(b['currency']) && (interval === 'month' || interval === 'year')
         ? { id: str(b['id'])!, amountMinor: num(b['unit_amount'])!, currency: str(b['currency'])!, interval, active: b['active'] === true } : null;
     }),
-    portal: (i) => call('POST', '/billing_portal/sessions', { customer: i.customerId, return_url: i.returnUrl, locale: i.locale === 'zh' ? 'zh' : i.locale === 'es' ? 'es' : i.locale === 'fr' ? 'fr' : 'auto' },
-      null, (b) => (str(b['url']) ? { url: str(b['url'])! } : null)),
+    portal: async (i) => {
+      // The page's own links go to this installation's privacy page and terms, on the address it returns to.
+      let site: string;
+      try { site = new URL(i.returnUrl).origin; } catch { return { ok: false, error: 'stripe: no return address to name', retryable: false }; }
+      const configuration = await nomiPortal(site);
+      if (!configuration.ok) return configuration;
+      return call('POST', '/billing_portal/sessions', {
+        customer: i.customerId, return_url: i.returnUrl, configuration: configuration.value,
+        locale: i.locale === 'zh' ? 'zh' : i.locale === 'es' ? 'es' : i.locale === 'fr' ? 'fr' : 'auto',
+      }, null, (b) => (str(b['url']) ? { url: str(b['url'])! } : null));
+    },
   };
 }
 

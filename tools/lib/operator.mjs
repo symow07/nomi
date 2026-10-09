@@ -339,6 +339,8 @@ export async function setPlan(c, input) {
   const p = input.price;
   if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(String(input.id ?? '')) || !String(input.name ?? '').trim() || !input.by || !String(input.by).trim()) return 'invalid';
   if (!p || !/^price_[A-Za-z0-9]{6,}$/.test(p.id) || !Number.isInteger(p.amountMinor) || !/^[a-z]{3}$/.test(p.currency) || !['month', 'year'].includes(p.interval) || !p.active) return 'invalid';
+  // The refund terms (/refunds) describe monthly subscriptions only, and the database refuses any other (0134).
+  if (p.interval !== 'month') return 'not_monthly';
   if (!Number.isInteger(input.customers) || input.customers < 1 || !positive(input.seats) || !positive(input.assistants)) return 'invalid';
   await c.query(`
     insert into plans (id, name, stripe_price_id, amount_minor, currency, period, customers_a_month, seats, assistants, active, position, set_by)

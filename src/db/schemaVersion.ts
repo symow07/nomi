@@ -335,7 +335,9 @@ import type { Db } from './client.js';
 //       hands its conversation to a person under it; against a 131 database that write fails.
 // 133 = the business's postal address (0133): `businesses.postal_address`. Every first e-mail and follow-up reads it,
 //       and the profile writes it; against a 132 database both fail.
-export const REQUIRED_SCHEMA_VERSION = 133;
+// 134 = the refund terms (0134): `self_serve_trial_days()`, which the public /refunds page reads, and plans that
+//       can only be monthly. Against a 133 database the page cannot draw its trial.
+export const REQUIRED_SCHEMA_VERSION = 134;
 
 export type SchemaState = {
   readonly required: number;

@@ -199,6 +199,7 @@ export function renderSite(v: SiteInput): string {
       <a href="/privacy">${k('legal.privacyLink')}</a>
       <a href="/terms">${k('legal.termsLink')}</a>
       <a href="/cookies">${k('legal.privacy.cookies.title')}</a>
+      <a href="/refunds">${k('legal.refunds.title')}</a>
       <a href="/data-deletion">${k('site.foot.deletion')}</a>
     </nav>
     ${switcher(l, v.path)}
