@@ -173,12 +173,13 @@ const LINES = ['Who is waiting for me?', 'How much did we sell this month?', 'Wh
  * start (64) and the box 24 px on; the pool (128) round that place, the small orb's canvas (96) on it.
  */
 function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; light?: string; glow?: string; dark?: string; width?: number; orbUrl?: string;
-  restOnOtherPage?: boolean; glowSaid?: string; motion?: boolean; barTop?: number } = {}) {
+  restOnOtherPage?: boolean; glowSaid?: string; motion?: boolean; barTop?: number; fieldWidth?: number } = {}) {
   const body = new El('BODY');
   const main = body.appendChild(new El('MAIN'));
   const resting = o.resting !== false;
   const shell = main.appendChild(new El('DIV', { class: 'adv-page', 'data-adv': o.advisor !== false && resting ? 'rest' : 'chat' }));
-  const field = shell.appendChild(new El('CANVAS', { class: 'adv-field', 'data-adv-field': '' }, { left: 0, top: 0, width: 900, height: 700 }));
+  const fw = o.fieldWidth ?? 900;
+  const field = shell.appendChild(new El('CANVAS', { class: 'adv-field', 'data-adv-field': '' }, { left: 0, top: 0, width: fw, height: 700 }));
   let rest: El | null = null;
   if ((o.advisor !== false && resting) || o.restOnOtherPage) {
     const hero = shell.appendChild(new El('DIV', { class: 'adv-hero' }));
@@ -187,7 +188,7 @@ function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; light
     rest = row.appendChild(new El('CANVAS', { class: 'orb-rest', 'data-orb-rest': '', 'data-orb-pace': '0.5',
       // a page that smuggled the orb's whole description onto a canvas — still nothing without the advisor's form
       ...(o.restOnOtherPage ? { 'data-orb': o.orbUrl ?? ORB_URL, 'data-orb-state': 'composing', 'data-orb-glow': 'orb-glow' } : {}) },
-      { left: 450 - w / 2, top: 264 - w / 2, width: w, height: w }));
+      { left: fw / 2 - w / 2, top: 264 - w / 2, width: w, height: w }));
   }
   const timeline = shell.appendChild(new El('DIV', { class: 'timeline adv-line' }));
   let form: El | null = null; let box: El | null = null; let tpl: El | null = null; let here: El | null = null; let pool: El | null = null;
@@ -501,14 +502,28 @@ describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepe
     const lit = (x: number) => (paper.g - px(img, x, 528)[1]) / (paper.g - glow.g);
     expect(lit(900 + 2 * 100)).toBeGreaterThan(0.9);
     expect(lit(900 + 2 * 150)).toBeLessThan(0.45);
-    // what is lit more than a tenth of the way to the glow: under a tenth of the page with the light deepest at the
-    // centre (2026-10-08); the ring round the orb lights 13 in 100 — THE OWNER TO CONFIRM (2026-10-09), held here at 0.135
-    let litPx = 0;
-    for (let y = 0; y < img.height; y += 4) for (let x = 0; x < img.width; x += 4) {
-      const [, g, , a] = px(img, x, y);
-      if (a && (paper.g - g) / (paper.g - glow.g) > 0.1) litPx += 1;
+    // (no share of the page is counted: the owner, 2026-10-09 — judged by the middle's dots and a calm page; the
+    // numbers it must keep are where it stops: before the composer, and short of the nav)
+  });
+
+  it('the light never reaches the nav: clear for 8 px inside its own canvas on both sides and at the top, and that canvas is the main column\'s own box, beside the rail and under the nav row', async () => {
+    // a desktop's wide page, and a 360 px phone, where the column's own sides — not the light's reach — stop it
+    for (const [bar, fieldWidth, width] of [[600, 900, 288], [420, 900, 288], [600, 360, 216]] as const) {
+      const p = page({ reduce: true, barTop: bar, fieldWidth, width });
+      p.run(); await p.load();
+      const img = p.field.ctx.images.at(-1)!;
+      const lit = (x: number, y: number) => px(img, x, y)[3] > 0;
+      for (let y = 0; y < img.height; y += 3) for (const x of [0, 7, 15, img.width - 16, img.width - 8, img.width - 1]) expect(lit(x, y), `${fieldWidth}/${bar}: ${x},${y}`).toBe(false);
+      for (let x = 0; x < img.width; x += 5) for (const y of [0, 7, 15]) expect(lit(x, y), `${fieldWidth}/${bar}: ${x},${y}`).toBe(false);
+      // and on the phone it does reach close to those sides: held by them, not ending of itself
+      if (fieldWidth === 360) expect(lit(2 * 12, 2 * 264)).toBe(true);
     }
-    expect(litPx / ((img.height / 4) * (img.width / 4))).toBeLessThan(0.135);
+    // its canvas reaches out exactly as far as main's own padding, on a desktop and on a phone: main's border box, which
+    // sits beside the rail (and, on a phone, under the nav row), never over it
+    expect(APP_CSS).toContain('main { padding: var(--space-32);');
+    expect(APP_CSS).toContain('.adv-field { position:absolute; inset-block-start:0; inset-inline-start:calc(-1 * var(--space-32)); inline-size:calc(100% + 2 * var(--space-32));');
+    expect(APP_CSS).toContain('main { padding:var(--space-16); }');
+    expect(APP_CSS).toContain('.adv-field { inset-inline-start:calc(-1 * var(--space-16)); inline-size:calc(100% + 2 * var(--space-16)); }');
   });
 
   it('the field is gone before the bar: every pixel on the bar\'s line and below it is clear — on a short screen too', async () => {

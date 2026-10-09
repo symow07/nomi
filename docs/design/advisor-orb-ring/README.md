@@ -50,8 +50,8 @@ The near (light) dots stay clear against the lighter middle. The far ink dots ca
   - The finer one finds a corner where a straight rise meets the flat, which the eye picks out as an edge: 0.083
     here, 0.042 before, and 0.153 for a straight rise, which fails.
   - A hard-edged middle fails both.
-- **Guards, broken on purpose:** 60 breaks, each failing its own test. They are every earlier guard of the orb, the
-  redesign and the nav mark, plus this branch's own:
+- **Guards, broken on purpose:** 64 breaks, each failing its own test. They are every earlier guard of the orb, the
+  redesign and the nav mark, plus this branch's own, and the four limits below:
   - the middle as deep as the ring;
   - the middle a hard disc;
   - the ring inside the dots;
@@ -59,22 +59,41 @@ The near (light) dots stay clear against the lighter middle. The far ink dots ca
   - the field forgetting the ring;
   - a straight, cornered rise.
 
-## For the owner to decide
+## Where the light stops, measured in a real browser
 
-**The lit area.** The redesign's rule (2026-10-08): "less than a tenth of the page is lit more than a tenth of the
-way to the glow".
-- With the ring it is **13 in 100**, because the deepest light now sits round the orb rather than at a point.
-- A faster fall outside the ring brings it only to 11 in 100.
-- Under a tenth needs the ring pulled inside the dots, which is against the brief.
+The owner's two limits (2026-10-09): the wash stops before the composer, and never reaches the nav. Read from the
+light's own pixels on the empty page:
 
-The guard holds 0.135 for now, marked as the owner's to confirm.
+| | Short of the rail (desktop) or the nav row (phone) | Above the composer |
+|---|---|---|
+| Desktop, 1280 × 800 | 287 px | 132 px |
+| 13-inch laptop, 1280 × 720 | 287 px | 92 px |
+| Phone, 390 wide | 184 px | 150 px |
+| Phone, 360 wide | 132 px | 98 px |
+
+On a phone the column's own sides stop it, 8 px inside the screen. The guards hold all of it:
+- the wash clear 8 px inside its canvas on both sides and at the top (a 360 px phone included);
+- that canvas exactly main's own box;
+- every pixel from the bar's line down clear.
+
+No share of the page is counted. The owner: judge it by whether the middle dots are visible and the page still
+looks calm.
+
+## My read
+
+- **The middle dots are visible.** The far ink dots, lost before, show against the lighter middle.
+- **Calm is the owner's call.** The ring is a larger, more saturated magenta mass than the old light. On a phone
+  "Hello" sits just under its fading edge. If it should be quieter, the ring can be narrower or less deep; the
+  middle keeps its light either way.
 
 ## Files
 
-- `empty-{desktop,phone}-en-orb.png`: the resting orb, close up (192 px; 144 on a phone).
-- `empty-{desktop,phone}-en-wide.png`: the orb and its ring with room round them.
-- `empty-{desktop,phone}-en.png`: the whole page.
-- `thinking-{desktop,phone}-en-orb.png`: the thinking orb beside the bar, in its pool.
-- `empty-desktop-en-light-alone-orb.png`: the light alone (the orb's file blocked: no dots), to see the ring and its
-  smoothness.
-- `before-empty-desktop-en-orb.png`: the same close-up before this change (#266).
+- **Start here:**
+  - `ring-resting-{desktop,phone}-en-closeup.png`: the resting orb, close up (192 px; 144 on a phone).
+  - `ring-empty-page-{desktop,phone}-en.png`: the whole empty page.
+- `ring-resting-{desktop,phone}-en-wide.png`: the orb and its ring with room round them.
+- `ring-thinking-{desktop,phone}-en-closeup.png`: the thinking orb beside the bar, in its pool.
+- `ring-light-alone-desktop-en.png`: the light alone (the orb's file blocked: no dots), to judge the ring itself.
+- `before-ring-resting-desktop-en-closeup.png`: the same close-up before this change (#266).
+
+The `empty-*` files in `../advisor-orb-dots/` are #266's, before the ring.
