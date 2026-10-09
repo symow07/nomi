@@ -41,8 +41,8 @@ export const ADVISOR_MAX = 1000;
  * THE ADVISOR'S ORB (2026-10-07; the owner's pick, docs/design/advisor-orb/). The library's own orb, drawn as
  * it ships — geometry, dots, count and timing unchanged: its `composing` state (a sash of dotted lanes round a
  * sphere, read as columns), thinking at its tuned 64 px, resting the same orb shown larger (192 px, 144 on a
- * phone — the stylesheet's) at half the pace. Ours: its two ends (the light end, and the glow it recedes into)
- * and the ground under it — a magenta halo, a body shaded to its rim and base, a soft shadow on the paper.
+ * phone — the stylesheet's) at half the pace. Ours: its two ends (the light end, and the ink a far dot recedes
+ * into) and the magenta halo behind it — nothing solid: no body, no shadow (the owner, 2026-10-09), so every dot shows.
  * The glow is the palette's `orbGlow`, which is decorative and the orb's alone; never "needs you".
  */
 const ORB_STATE = 'composing';
