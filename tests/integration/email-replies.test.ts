@@ -26,6 +26,8 @@ const WEB_SECRET = createHmac('sha256', CREDENTIAL_KEY).update('yf-web-session')
 const HOOK_SECRET = `hook-secret-${RUN}`;
 const addr = (who: string) => `${who}.${RUN}@reply-buyer.test`;
 const DAY = 24 * 3600_000;
+// 0133 — the business's postal address, written once by the owner on Settings.
+const POSTAL = '7 Canal Street, Yiwu, Zhejiang, China';
 
 d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
@@ -124,6 +126,8 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
       await setSendingDomain(x, b, { domain: 'replies.example', dkimSelector: 'k1', by: 'owner' });
       await recordDomainCheck(x, b, { spf: 'ok', dkim: 'ok', dmarc: 'ok' }, new Date());
     });
+    // 0133 — the owner writes the business's postal address once, on Settings; every first mail carries it.
+    await post('/app/settings', { name: 'Reply Factory', postal_address: POSTAL });
     await post('/app/channels/outreach', { channel: 'email', enabled: 'true' });
     await post('/app/contacts', { channel: 'email', identity: addr('ahmed'), name: 'Ahmed', company: '' });
     await post('/app/contacts/consent', { channel: 'email', identity: addr('ahmed') });
@@ -256,4 +260,80 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
     const bare = await hook('/hooks/email/inbound', answer({ messageId: `<bare-${RUN}@mail.test>`, authenticationResults: undefined }));
     expect(bare.json()).toMatchObject({ outcome: 'unconfirmed' });
   });
+
+  /** Enrol someone new in the sequence, with consent, and let its first step run. */
+  const firstMailTo = async (who: string) => {
+    await post('/app/contacts', { channel: 'email', identity: addr(who), name: who, company: '' });
+    await post('/app/contacts/consent', { channel: 'email', identity: addr(who) });
+    expect(flashOf(await post(`/app/sequences/${seqId}/enroll`, { identity: addr(who) }))).toBe(t('en', 'seq.flash.enrolled'));
+    await sweep(new Date(Date.now() + 60_000));
+    await until(async () => ['sent', 'canceled'].includes((await tx((x) => sql<{ status: string }>`
+      select status from outbound_messages where business_id = ${BIZ} and to_wa_id = ${addr(who)} order by created_at limit 1`
+      .execute(x).then((r) => r.rows[0]?.status ?? '')))), `${who}'s first mail to be decided`);
+    return tx((x) => sql<{ status: string; cancel_reason: string | null }>`
+      select status, cancel_reason from outbound_messages where business_id = ${BIZ} and to_wa_id = ${addr(who)} order by created_at limit 1`
+      .execute(x).then((r) => r.rows[0]!));
+  };
+
+  it('0133 · EVERY FIRST MAIL CARRIES, IN ITS OWN TEXT, THE BUSINESS\'S POSTAL ADDRESS AND A LINK THAT STOPS MORE — and the header stays', async () => {
+    const first = transport.sent.find((m) => m.to === addr('ahmed'))!;
+    expect(first.text.startsWith('We make canvas totes.')).toBe(true);
+    expect(first.text).toContain('Reply Factory');
+    expect(first.text).toContain(POSTAL);
+    const link = /https:\/\/nomi\.test\/u\?t=\S+/.exec(first.text)?.[0];
+    expect(link, 'no unsubscribe link a person can see').toBeTruthy();
+    expect(first.headers['List-Unsubscribe']).toBe(`<${link}>`);
+    // her own reply to him is not marketing: no footer
+    const reply = transport.sent.filter((m) => m.to === addr('ahmed'))[1]!;
+    expect(reply.text).toBe('Prices attached — 5,000 at $0.92.');
+  });
+
+  it('0133 · NO POSTAL ADDRESS, NO FIRST MAIL: refused, nothing leaves, and Settings says what to add', async () => {
+    await post('/app/settings', { name: 'Reply Factory', postal_address: '' });
+    try {
+      const row = await firstMailTo('nadia');
+      expect(row).toEqual({ status: 'canceled', cancel_reason: 'canceled: no_postal_address' });
+      expect(transport.sent.filter((m) => m.to === addr('nadia'))).toEqual([]);
+      expect((await get('/app/settings/profile')).body).toContain(esc(t('en', 'settings.need.postalAddress')));
+    } finally {
+      // the address back, for what follows
+      await post('/app/settings', { name: 'Reply Factory', postal_address: POSTAL });
+    }
+    expect((await get('/app/settings/profile')).body).not.toContain(esc(t('en', 'settings.need.postalAddress')));
+  }, 60_000);
+
+  it('0133 · UNSUBSCRIBING WORKS: the link in the mail stops every further follow-up and first mail to that person', async () => {
+    // Omar unsubscribes; Lina, enrolled the same minute, is the control that shows a follow-up would have gone.
+    expect(await firstMailTo('omar')).toEqual({ status: 'sent', cancel_reason: null });
+    expect(await firstMailTo('lina')).toEqual({ status: 'sent', cancel_reason: null });
+    const mail = transport.sent.find((m) => m.to === addr('omar'))!;
+    const link = /https:\/\/nomi\.test(\/u\?t=\S+)/.exec(mail.text)![1]!;
+    expect((await prod.app.inject({ method: 'GET', url: link })).statusCode).toBe(200);
+    const res = await prod.app.inject({ method: 'POST', url: link, headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'List-Unsubscribe=One-Click' });
+    expect(res.statusCode).toBe(200);
+    expect(await tx((x) => sql<{ reason: string }>`
+      select reason from suppressions where business_id = ${BIZ} and channel = 'email' and identity = ${addr('omar')}`
+      .execute(x).then((r) => r.rows[0]?.reason))).toBe('unsubscribed');
+
+    // the follow-ups come due: Lina's goes, with the footer; Omar's does not, and his enrolment ends
+    await sweep(new Date(Date.now() + 3 * DAY));
+    await until(() => transport.sent.filter((m) => m.to === addr('lina')).length === 2, 'the control\'s follow-up to go');
+    const follow = transport.sent.filter((m) => m.to === addr('lina'))[1]!;
+    expect(follow.text.startsWith('Any interest?')).toBe(true);
+    expect(follow.text).toContain(POSTAL);
+    expect(follow.text).toMatch(/https:\/\/nomi\.test\/u\?t=\S+/);
+    expect(transport.sent.filter((m) => m.to === addr('omar'))).toHaveLength(1);
+    expect(await tx((x) => sql<{ stop_reason: string | null }>`
+      select stop_reason from sequence_enrollments where business_id = ${BIZ} and identity = ${addr('omar')}`
+      .execute(x).then((r) => r.rows[0]?.stop_reason))).toBe('unsubscribed');
+
+    // and nothing new can start: enrolling him again is refused, and nothing reaches him
+    expect(flashOf(await post(`/app/sequences/${seqId}/enroll`, { identity: addr('omar') }))).not.toBe(t('en', 'seq.flash.enrolled'));
+    expect(await tx((x) => sql<{ n: number }>`
+      select count(*)::int as n from sequence_enrollments where business_id = ${BIZ} and identity = ${addr('omar')} and stopped_at is null`
+      .execute(x).then((r) => r.rows[0]!.n))).toBe(0);
+    await sweep(new Date(Date.now() + 6 * DAY));
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(transport.sent.filter((m) => m.to === addr('omar'))).toHaveLength(1);
+  }, 120_000);
 });

@@ -93,8 +93,9 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
       // no adapter for the row's channel, a mail with no subject, an outreach
       // mail that could not carry a way out, and a first message whose outreach
       // facts could not be resolved so the gate could not be asked at all.
+      // 0133 — and a fifth: a first e-mail or follow-up from a business with no postal address to carry.
       .toEqual(['window_needs_owner', 'media_unsupported',
-                'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked']);
+                'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked', 'no_postal_address']);
   });
 
   it('each one answers what happened, why, and what to do — in all three locales', () => {

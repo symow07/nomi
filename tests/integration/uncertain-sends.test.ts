@@ -66,7 +66,7 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
       store: channelStore(x, b),
       adapter: emailAdapter({ transport }),
       adapters: (k) => (k === 'email' ? emailAdapter({ transport }) : undefined),
-      mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x' }),
+      mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x', unsubscribeUrl: 'https://nomi.test/u?t=x' }),
       now: () => new Date(),
     }, conversationId));
   };
@@ -101,7 +101,7 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
     }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `un${RUN}` }).adapter, logger: false, mailTransport: transport });
 
     // D — a workspace WITH the outreach area, as the pilot's is.
-    await tx((x) => sql`insert into businesses (id, name, outreach_area) values (${BIZ}, 'Unsure Factory', true)
+    await tx((x) => sql`insert into businesses (id, name, outreach_area, postal_address) values (${BIZ}, 'Unsure Factory', true, '1 Mill Road, Yiwu')
                         on conflict (id) do nothing`.execute(x));
     cookie = await login(prod.ownerAccessCode);
 

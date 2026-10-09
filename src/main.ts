@@ -1242,10 +1242,9 @@ export async function buildProduction(
     });
     // C4.c — the same token as the provider's event tag, so a bounce or a
     // complaint about this mail resolves to this business and this address.
-    return {
-      headers: unsubscribeHeaders(`${cfg.PUBLIC_BASE_URL.replace(/\/$/, '')}/u?t=${encodeURIComponent(token)}`),
-      tag: token,
-    };
+    // 0133 — the same address, for the link a person can see in a marketing e-mail's footer.
+    const unsubscribeUrl = `${cfg.PUBLIC_BASE_URL.replace(/\/$/, '')}/u?t=${encodeURIComponent(token)}`;
+    return { headers: unsubscribeHeaders(unsubscribeUrl), tag: token, unsubscribeUrl };
   };
 
   await boss.work<DriveJob>(QUEUES.outbound, driveOutbound(async (tx, businessId) => {
