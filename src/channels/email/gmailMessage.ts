@@ -37,6 +37,8 @@ export type ReadMail = {
   readonly inReplyTo: string | null;
   /** A machine wrote it: a bounce, a vacation notice, a list. Never answered. */
   readonly automatic: boolean;
+  /** R1 — every Authentication-Results header, topmost first: the receiving server's verdict on the sender. */
+  readonly authResults: readonly string[];
 };
 
 const header = (p: GmailPart | undefined, name: string): string | null => {
@@ -126,5 +128,6 @@ export function readGmailMessage(m: GmailMessage): ReadMail | { readonly skipped
     receivedAt: Number.isFinite(when.getTime()) ? when : new Date(),
     inReplyTo: header(p, 'In-Reply-To')?.replace(/^<|>$/g, '') ?? null,
     automatic,
+    authResults: (p.headers ?? []).filter((x) => (x.name ?? '').toLowerCase() === 'authentication-results').map((x) => x.value ?? ''),
   };
 }

@@ -6,7 +6,10 @@ import { recordConsent } from '../../db/contacts.js';
 import { decryptSecret } from '../../security/credentials.js';
 import { refreshAccessToken, type OAuthClients, type OAuthFetch } from '../../connectors/oauth.js';
 import { readGmailMessage, type GmailMessage, type ReadMail } from './gmailMessage.js';
-import type { BusinessId } from '../../core/types/ids.js';
+import type { BusinessId, ConversationId } from '../../core/types/ids.js';
+import { tenantRepos } from '../../db/repos.js';
+import { handToPerson } from '../../pipeline/received.js';
+import { senderConfirmed, GMAIL_AUTHSERV } from './senderAuth.js';
 
 /**
  * E1 — SHE READS THE INBOX, once a minute, for a mailbox whose owner granted it.
@@ -138,7 +141,7 @@ export async function readNewMail(deps: InboxReadDeps, businessId: BusinessId): 
     newest = Math.max(newest, mail.receivedAt.getTime());
     if (mail.automatic || own.has(mail.from)) { skipped++; continue; }
     const r = await recordInboundMail(deps, businessId, mail);
-    if (r === 'recorded') recorded++; else skipped++;
+    if (r === 'recorded' || r === 'held') recorded++; else skipped++;
   }
   // Only a read that got to the end of the list may move the watermark: Gmail
   // answers newest first, so stopping halfway leaves OLDER mail unseen, and
@@ -153,18 +156,31 @@ export async function readNewMail(deps: InboxReadDeps, businessId: BusinessId): 
  * The buyer's mail becomes a message on his e-mail conversation, and a turn is
  * queued for it — exactly what a webhook does for a WhatsApp message. Writing
  * first, then queueing, so a retry can never answer a mail it did not record.
+ *
+ * R1 (0132) — only when Google confirmed the sender (senderAuth.ts). A mail whose
+ * From line Google could not confirm may be anyone's: it is kept on that
+ * address's conversation, marked, and handed to a person — no consent is
+ * recorded, nothing about the address is updated, and no turn is queued, so
+ * nothing is drafted or sent to the address it names.
  */
-async function recordInboundMail(deps: InboxReadDeps, businessId: BusinessId, mail: ReadMail): Promise<'recorded' | 'duplicate'> {
+async function recordInboundMail(deps: InboxReadDeps, businessId: BusinessId, mail: ReadMail): Promise<'recorded' | 'held' | 'duplicate'> {
   const externalId = `email:${mail.messageId}`;
+  const confirmed = senderConfirmed(mail.authResults, mail.from, GMAIL_AUTHSERV);
   const conversationId = await withTenantTx(deps.db, businessId, async (tx) => {
     const conv = await ensureConversation(tx, businessId, mail.from, mail.fromName, 'email');
     await lockConversation(tx, conv.conversationId);
     const inserted = await sql<{ id: string }>`
-      insert into messages (conversation_id, external_id, direction, input_type, text_content, subject, sent_at)
-      values (${conv.conversationId}, ${externalId}, 'inbound', 'text', ${mail.text}, ${mail.subject || null}, ${mail.receivedAt})
+      insert into messages (conversation_id, external_id, direction, input_type, text_content, subject, sent_at, ai_analysis)
+      values (${conv.conversationId}, ${externalId}, 'inbound', 'text', ${mail.text}, ${mail.subject || null}, ${mail.receivedAt},
+              ${confirmed ? null : JSON.stringify({ sender: 'unconfirmed' })}::jsonb)
       on conflict do nothing
       returning id`.execute(tx);
     if (inserted.rows.length === 0) return null;
+    if (!confirmed) {
+      await handToPerson(tenantRepos(tx, businessId), conv.conversationId as ConversationId, { kind: 'email_unconfirmed' },
+        [{ messageId: externalId, text: mail.text }]);
+      return 'held' as const;
+    }
     await sql`update client_channels
                  set last_inbound_at = greatest(coalesce(last_inbound_at, '-infinity'::timestamptz), ${mail.receivedAt})
                where channel = 'email' and channel_user_id = ${mail.from}`.execute(tx);
@@ -179,6 +195,7 @@ async function recordInboundMail(deps: InboxReadDeps, businessId: BusinessId, ma
     return conv.conversationId;
   });
   if (!conversationId) return 'duplicate';
+  if (conversationId === 'held') return 'held';
   await deps.enqueue({ businessId, conversationId, messageId: externalId, text: mail.text });
   return 'recorded';
 }

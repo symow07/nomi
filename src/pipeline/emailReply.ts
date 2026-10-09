@@ -6,6 +6,7 @@ import { handToPerson } from './received.js';
 import { normalizeIdentity } from '../core/outreach/consent.js';
 import { parseBusinessId, type ConversationId } from '../core/types/ids.js';
 import type { InboundMail } from '../channels/email/inbound.js';
+import { senderConfirmed } from '../channels/email/senderAuth.js';
 
 /**
  * C4.c — HE ANSWERED. What that changes, in one transaction.
@@ -34,6 +35,12 @@ import type { InboundMail } from '../channels/email/inbound.js';
  * mailbox, or a forward, is not the person she wrote to, has consented to
  * nothing, and must not stop or advance anything in his name. It is dropped,
  * and said so in the outcome.
+ *
+ * R1 (0132) — and the From line must be TRUE. Anyone can type his address into
+ * it, quoting a Message-ID they saw. Only the receiving server's own verdict
+ * (senderAuth.ts) makes the mail his: without it the mail is still kept on the
+ * conversation, marked as unconfirmed, and a person reads it — but no consent is
+ * recorded, nothing about him is updated, and the hand-off says why.
  */
 
 export type EmailReplyOutcome =
@@ -43,7 +50,9 @@ export type EmailReplyOutcome =
   /** It quotes no mail this product sent. Acknowledged and ignored. */
   | 'unknown_thread'
   /** It answers one of her mails, from an address that mail did not go to. */
-  | 'not_the_recipient';
+  | 'not_the_recipient'
+  /** R1 — it says it is from him, and the receiving server could not confirm it: kept, marked, a person reads it. */
+  | 'unconfirmed';
 
 export async function recordEmailReply(
   db: Db, mail: InboundMail,
@@ -62,15 +71,23 @@ export async function recordEmailReply(
   const bid = parseBusinessId(thread.business_id);
   if (!bid.ok) return { outcome: 'unknown_thread', conversationId: null };
   const cid = thread.conversation_id;
+  const confirmed = senderConfirmed(mail.authResults, from.value, null);
 
   return withTenantTx(db, bid.value, async (tx) => {
     await lockConversation(tx, cid);
     const inserted = await sql<{ id: string }>`
-      insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
-      values (${cid}, ${`email:${mail.messageId}`}, 'inbound', 'text', ${mail.text}, clock_timestamp())
+      insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at, ai_analysis)
+      values (${cid}, ${`email:${mail.messageId}`}, 'inbound', 'text', ${mail.text}, clock_timestamp(),
+              ${confirmed ? null : JSON.stringify({ sender: 'unconfirmed' })}::jsonb)
       on conflict do nothing
       returning id`.execute(tx);
     if (inserted.rows.length === 0) return { outcome: 'duplicate' as const, conversationId: cid };
+
+    if (!confirmed) {
+      await handToPerson(tenantRepos(tx, bid.value), cid as ConversationId, { kind: 'email_unconfirmed' },
+        [{ messageId: `email:${mail.messageId}`, text: mail.text }]);
+      return { outcome: 'unconfirmed' as const, conversationId: cid };
+    }
 
     await sql`update client_channels set last_inbound_at = now()
                where channel = 'email' and channel_user_id = ${from.value}`.execute(tx);
