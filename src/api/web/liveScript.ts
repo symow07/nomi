@@ -639,6 +639,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
      behind the middle. Every step the smootherstep: no edge. Chosen by measure (docs/design/advisor-orb-ring). */
   var RING = [0.3, 1.25];
   var MIDDLE = 0.22;
+  /* The tint's depth at the orb. */
+  var TINT = 0.4;
   /* The halo's ring at rho: 0 in the middle, 1 at the ring, 0 at its reach. */
   function ringAt(rho, reach) {
     if (rho <= RING[0]) return 0;
@@ -658,12 +660,10 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(c, c, R * o[1], 0, Math.PI * 2); ctx.fill();
   }
-  /* The lit field (the redesign, 2026-10-08): the orb's glow at its centre falling to nothing at the edges,
-     drawn pixel by pixel with half a step of noise in each channel, so the fall shows no bands; a pixel the
-     fall does not reach is left clear, and the paper shows. r: how far it reaches up, down, back and on.
-     o.depth: how deep at the centre; o.fall: how fast it falls (higher: sooner to the paper); o.clear: drawn as
-     the glow made thin, never as paper, for light that whatever passes beneath must show through. */
-  function smoother(x) { x = x <= 0 ? 0 : x >= 1 ? 1 : x; return x * x * x * (x * (x * 6 - 15) + 10); }
+  /* The lit field: drawn pixel by pixel with half a step of noise per channel, so no bands; a pixel it does not
+     reach is clear. r: its reach up, down, back and on; o.depth, o.fall; o.clear: the glow made thin, never paper;
+     o.ring, o.tint: the ring and the tint (2026-10-09, -10). */
+  function smoother(x) { x = x <= 0 ? 0 : x >= 1 ? 1 : x; return Math.min(1, x * x * x * (x * (x * 6 - 15) + 10)); }
   function wash(canvas, cx, cy, r, o) {
     var paper = o.paper;
     var glow = o.glow;
@@ -678,18 +678,25 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var d = img.data;
     var seed = 2463534242;
     function noise() { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
+    var far = o.tint ? o.tint.r : r;
     for (var y = 0; y < H; y++) {
       var dy = (y + 0.5) / dpr - cy;
+      var my = dy / (dy < 0 ? far.up : far.down);
+      my *= my;
+      if (my >= 1) continue;
       var ny = dy / (dy < 0 ? r.up : r.down);
       ny *= ny;
-      if (ny >= 1) continue;
       for (var x = 0; x < W; x++) {
         var dx = (x + 0.5) / dpr - cx;
+        var mx = dx / (dx < 0 ? far.back : far.on);
+        var m = mx * mx + my;
+        if (m >= 1) continue;
         var nx = dx / (dx < 0 ? r.back : r.on);
         var q = nx * nx + ny;
-        if (q >= 1) continue;
-        var t;
-        if (o.ring) {
+        var t = 0;
+        if (q >= 1) {
+          t = 0;
+        } else if (o.ring) {
           var rho = Math.sqrt(dx * dx + dy * dy);
           if (rho <= o.ring.deep) {
             t = o.depth * (o.ring.middle + (1 - o.ring.middle) * smoother((rho - o.ring.light) / (o.ring.deep - o.ring.light)));
@@ -700,6 +707,11 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
           }
         } else {
           t = Math.pow(1 - smoother(Math.sqrt(q)), o.fall) * o.depth;
+        }
+        if (o.tint) {
+          var e = o.tint.depth * Math.pow(1 - smoother(Math.sqrt(m)), o.tint.fall);
+          if (o.ring) e *= smoother((Math.sqrt(dx * dx + dy * dy) - o.ring.light) / (o.ring.deep - o.ring.light));
+          t += (1 - t) * e;
         }
         var at = (y * W + x) * 4;
         if (o.clear) {
@@ -848,15 +860,18 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var cx = o.left + o.width / 2 - a.left;
       var cy = o.top + o.height / 2 - a.top;
       var side = Math.min(cx, a.width - cx) - 8;
-      /* Close round the orb (its canvas holds a margin of half its size, so its radius is a third of the
-         canvas): a soft presence the paper holds, never a cloud that fills the page. Wider than it is tall. */
+      /* Close round the orb; under it a TINT across the page (2026-10-10) to the column's sides, the top and the
+         bar, never past them. The orb's radius is a third of its canvas. */
       var orb = o.width / 3;
       var wide = Math.max(48, Math.min(side, orb * 2.6));
       var tall = orb * 2.1;
-      var down = Math.min(b.top - a.top - cy - 24, tall);
+      var reach = b.top - a.top - cy - 24;
+      var down = Math.min(reach, tall);
       if (down < 48) return;
+      var all = Math.max(48, side);
       wash(field, cx, cy, { up: Math.max(48, Math.min(cy - 8, tall)), down: down, back: wide, on: wide },
-        { depth: 1, fall: 3, paper: paper, glow: glow, ring: ringFor(orb, MIDDLE) });
+        { depth: 1, fall: 3, paper: paper, glow: glow, ring: ringFor(orb, MIDDLE),
+          tint: { r: { up: Math.max(48, cy - 8), down: reach, back: all, on: all }, depth: TINT, fall: 1.5 } });
     }
     function litPool() {
       if (!pool || !here || !paper || !glow) return;

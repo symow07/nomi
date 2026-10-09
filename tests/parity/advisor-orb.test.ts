@@ -458,8 +458,8 @@ describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepe
       expect(rr === needs.r && gg === needs.g && bb === needs.b).toBe(false);
       expect(gg).toBeGreaterThanOrEqual(glow.g - 2);
     }
-    // where it fades out it is the paper itself, to a step: no seam where it ends
-    const near = px(img, 900 - 2 * 246, 528);
+    // where it fades out (near the column's side, 442 css px out) it is the paper itself, to a step: no seam where it ends
+    const near = px(img, 900 - 2 * 436, 528);
     expect(near[3]).toBe(255);
     expect(Math.abs(near[0] - paper.r) + Math.abs(near[1] - paper.g) + Math.abs(near[2] - paper.b)).toBeLessThanOrEqual(6);
   });
@@ -489,21 +489,45 @@ describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepe
     expect(corner).toBeLessThan(0.11);
   });
 
-  it('the field keeps close and soft: the paper holds the page, the glow a presence round the orb, never a cloud', async () => {
+  it('the field carries the light across the page (the owner, 2026-10-10): the same light close round the orb, and a gentle tint on beyond it', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const img = p.field.ctx.images.at(-1)!;
     const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
-    // the orb is 192 px (its canvas 288): across, nothing past 2.6 of its radii (250 px); up and down, past 2.1 (202 px)
-    for (const x of [900 - 2 * 254, 900 + 2 * 254]) expect(px(img, x, 528)[3], `x ${x}`).toBe(0);
-    expect(px(img, 900, 528 - 2 * 206)[3]).toBe(0);
-    expect(px(img, 900, 528 + 2 * 206)[3]).toBe(0);
-    // the ring is round the orb, and half an orb further out it is already more paper than glow
-    const lit = (x: number) => (paper.g - px(img, x, 528)[1]) / (paper.g - glow.g);
-    expect(lit(900 + 2 * 100)).toBeGreaterThan(0.9);
-    expect(lit(900 + 2 * 150)).toBeLessThan(0.45);
-    // (no share of the page is counted: the owner, 2026-10-09 — judged by the middle's dots and a calm page; the
-    // numbers it must keep are where it stops: before the composer, and short of the nav)
+    const lit = (x: number, y: number) => { const q = px(img, 900 + 2 * x, 528 + 2 * y); return q[3] ? (paper.g - q[1]) / (paper.g - glow.g) : 0; };
+    // close round the orb, as before: the ring's deepest at its edge, and falling after it at its own pace (the
+    // redesign's three; slower, a fall of two, reads 0.68, 0.28 and 0.33 at these three)
+    expect(lit(100, 0)).toBeGreaterThan(0.9);
+    expect(lit(150, 0)).toBeGreaterThan(0.52); expect(lit(150, 0)).toBeLessThan(0.62);
+    expect(lit(0, -150)).toBeGreaterThan(0.13); expect(lit(0, -150)).toBeLessThan(0.22);
+    expect(lit(0, 150)).toBeGreaterThan(0.19); expect(lit(0, 150)).toBeLessThan(0.28);
+    expect(lit(200, 0)).toBeLessThan(0.3);
+    // beyond, where the light used to end (2.6 of the orb's radii across, 250 px): a gentle tint, carried on
+    expect(lit(250, 0)).toBeGreaterThan(0.04);
+    expect(lit(250, 0)).toBeLessThan(0.2);
+    expect(lit(300, 0)).toBeGreaterThan(0.01);
+    expect(lit(-300, 0)).toBeGreaterThan(0.01);
+    expect(lit(0, -150)).toBeGreaterThan(0.08);
+    // and paper again before the column's sides
+    expect(lit(430, 0)).toBeLessThan(0.01);
+    expect(lit(-430, 0)).toBeLessThan(0.01);
+  });
+
+  it('every pixel of the light lies on the line from the paper to the glow: never a colour of its own, never a black pixel', async () => {
+    for (const [fieldWidth, width, bar] of [[900, 288, 600], [360, 216, 600], [900, 288, 420]] as const) {
+      const p = page({ reduce: true, fieldWidth, width, barTop: bar });
+      p.run(); await p.load();
+      const img = p.field.ctx.images.at(-1)!;
+      const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
+      let off = 0;
+      for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) {
+        const [r, g, b, a] = px(img, x, y);
+        if (!a) continue;
+        const t = (paper.g - g) / (paper.g - glow.g);
+        if (t < -0.05 || t > 1.05 || Math.abs(r - (paper.r + (glow.r - paper.r) * t)) + Math.abs(b - (paper.b + (glow.b - paper.b) * t)) > 12) off += 1;
+      }
+      expect(off, `${fieldWidth}/${bar}`).toBe(0);
+    }
   });
 
   it('the light never reaches the nav: clear for 8 px inside its own canvas on both sides and at the top, and that canvas is the main column\'s own box, beside the rail and under the nav row', async () => {
