@@ -63,7 +63,11 @@ export type ApplyDeps = {
 
 export async function applyOwnerCommand(
   deps: ApplyDeps,
-  input: { businessId: BusinessId; draftId: string; rawReply: string; decidedBy: string },
+  input: {
+    businessId: BusinessId; draftId: string; rawReply: string; decidedBy: string;
+    /** R2 — the conversation the command was given on: a draft of any other is not found. Absent: any of the workspace's. */
+    conversationId?: string;
+  },
 ): Promise<ApplyResult> {
   const cmd = parseOwnerReply(input.rawReply);
   const now = deps.now();
@@ -85,7 +89,9 @@ export async function applyOwnerCommand(
       replaced_by_disclosure: boolean; asks: PendingQuestion | null;
     }>`
       select id, conversation_id, status, capability, draft_text, replaced_by_disclosure, asks
-        from drafts where id = ${input.draftId} for update
+        from drafts where id = ${input.draftId}
+         and (${input.conversationId ?? null}::uuid is null or conversation_id = ${input.conversationId ?? null}::uuid)
+         for update
     `.execute(tx);
     const draft = dr.rows[0];
     if (!draft) return { outcome: 'not_found', conversationId: null, sendText: null };

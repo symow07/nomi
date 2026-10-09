@@ -164,7 +164,7 @@ import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen,
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate, setPilotMode } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
-import { keepDraftEdit, keepUnsentReply, clearUnsentReply, draftTextOf, sameWords } from '../../db/ownerWords.js';
+import { keepDraftEdit, keepUnsentReply, clearUnsentReply, draftTextOf, draftConversationOf, sameWords } from '../../db/ownerWords.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
@@ -2459,6 +2459,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const body = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string };
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !body.draftId) return reply.redirect(conversationUrl(conversationId));
+    // R2 (docs/PRE-LAUNCH.md) — the draft must be THIS conversation's. Every check below (the window, the allowlist,
+    // the kept edit) is asked of the conversation in the address, so a draft of another conversation posted here
+    // would have gone past them. Here it is not found, and nothing is done.
+    const ownConversation = UUID.test(conversationId) && UUID.test(body.draftId)
+      ? await withTenantTx(deps.db, bid.value, (tx) => draftConversationOf(tx, bid.value, body.draftId!)) : null;
+    if (ownConversation === null || ownConversation !== conversationId.toLowerCase()) {
+      return flashTo(reply, conversationUrl(conversationId), 'inbox.flash.not_found');
+    }
     facts.evict(s.businessId);   // D — the first approved reply is the last setup step
 
     // The design pass — the approval card's one Send posts what is in the box:
@@ -2496,7 +2504,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const rawReply = body.command === '改' ? `改：${body.edit ?? ''}` : (body.command ?? '');
     const r = await applyOwnerCommand(
       { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
-      { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: personOf(s).id },
+      { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: personOf(s).id, conversationId: ownConversation },
     );
     const key: MessageKey = (r.outcome === 'sent' || r.outcome === 'edited_sent') && notLive
       ? 'inbox.flash.sentNotLive'

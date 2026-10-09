@@ -42,6 +42,17 @@ export async function draftTextOf(tx: Tx, businessId: BusinessId, draftId: strin
 }
 
 /**
+ * R2 (docs/PRE-LAUNCH.md) — which conversation a draft belongs to, in this workspace; null when there is no such
+ * draft. The approval route asks it before anything else, so a draft is only ever acted on from its own page.
+ */
+export async function draftConversationOf(tx: Tx, businessId: BusinessId, draftId: string): Promise<string | null> {
+  const row = (await sql<{ conversation_id: string }>`
+    select conversation_id::text as conversation_id from drafts where id = ${draftId}::uuid and business_id = ${businessId}::uuid
+  `.execute(tx)).rows[0];
+  return row ? row.conversation_id : null;
+}
+
+/**
  * The same words, as the card and the approval path compare them — after
  * whitespace normalisation (R1, the ramp's "sent as written"): spaces, tabs
  * and line breaks are spacing, not an edit.
