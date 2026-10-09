@@ -19,6 +19,7 @@ import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
  *   #A1127A, MEDIUM strength. Both states (192px resting, 64px thinking)." "Keep #6E0C44 out of the orb."
  *   "Advisor page ONLY … Pauses when the tab is hidden … Reduce motion: NEITHER state animates … Scripts off /
  *   the orb file fails: no orb moving, no gap, no layout shift."
+ * The far dots in ink (the owner, 2026-10-09): drawn in the glow, a far dot vanished into the glow behind it.
  * Nothing solid (the owner's brief of 2026-10-09): "Remove the filled sphere surface entirely. Only the library's
  *   dots render. Every dot the library draws must be visible, including the ones across the middle — nothing
  *   occludes them. Keep the magenta glow behind, exactly as it is now." The body and the shadow are gone; the
@@ -302,7 +303,7 @@ async function libraryDraws(t: number) {
 
 describe('the orb is the library\'s own composing state, drawn as it ships; the glow behind it is ours, and nothing solid', () => {
   it('with white and black for its two ends, the script draws exactly the calls the library\'s own painter draws — resting and thinking', async () => {
-    const p = page({ reduce: true, light: '#FFFFFF', glow: '#000000' });
+    const p = page({ reduce: true, light: '#FFFFFF', dark: '#000000' });
     p.run(); await p.load();
     const lib = await libraryDraws(0.6);
     expect(lib.length).toBeGreaterThan(2000);                          // 566 dots: its count, unchanged
@@ -313,23 +314,29 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
     expect(orbOf(p.here!)).toEqual(lib);
   });
 
-  it('with the palette\'s ends: the same dots, sizes and order; each colour on the line from the light end to the glow', async () => {
+  it('with the palette\'s ends: the same dots, sizes and order; each colour on the line from the light end to the ink (never the glow: a far dot would vanish into it)', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const ours = orbOf(p.rest!);
     const lib = await libraryDraws(0.6);
     expect(ours.filter(([k]) => !isColour(k))).toEqual(lib.filter(([k]) => !isColour(k)));
-    const light = hex(TOKENS.surface); const glow = hex(TOKENS.orbGlow);
+    const light = hex(TOKENS.surface); const ink = hex(TOKENS.ink);
+    let farthest = 1;
     for (const [k, v] of ours.filter(([k]) => isColour(k))) {
       const [r, g, b, a] = rgba(v);
-      // the depth, read off the widest channel (green: 0x12 to 0xFD), and the others on the same line, to rounding
-      const w = (g - glow.g) / (light.g - glow.g);
+      // the depth, read off the widest channel (green: 0x20 to 0xFD), and the others on the same line, to rounding
+      const w = (g - ink.g) / (light.g - ink.g);
       expect(w, `${k} ${v}`).toBeGreaterThanOrEqual(-0.003);
       expect(w, `${k} ${v}`).toBeLessThanOrEqual(1.003);
-      expect(Math.abs(r - (glow.r + (light.r - glow.r) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(b - (glow.b + (light.b - glow.b) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(r - (ink.r + (light.r - ink.r) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(b - (ink.b + (light.b - ink.b) * w)), `${k} ${v}`).toBeLessThanOrEqual(1);
       expect(a).toBeLessThanOrEqual(1);
+      farthest = Math.min(farthest, w);
     }
+    expect(farthest).toBeLessThan(0.25);   // the far dots come close to the ink: the composing state's farthest sit a fifth of the way
+    // and no dot is the glow's own colour
+    const glow = hex(TOKENS.orbGlow);
+    expect(ours.filter(([k]) => isColour(k)).some(([, v]) => { const [r, g, b] = rgba(v); return r === glow.r && g === glow.g && b === glow.b; })).toBe(false);
   });
 
   it('the ground is ours and under the orb: the glow\'s halo and nothing else — no body, no shadow — drawn first, every frame', async () => {

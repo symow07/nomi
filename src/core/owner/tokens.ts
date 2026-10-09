@@ -235,9 +235,11 @@ export const DESIGN_TOKENS = {
    * `palette.test.ts` keeps all of their values out of the product.
    *
    * And one DECORATIVE magenta, which is not a meaning (the owner, 2026-10-07):
-   *   orbGlow      #A1127A, the glow behind the advisor's orb, and nothing else.
-   *                Never a button, a chip, a pill, a state, a text colour, a
-   *                border or a fill of anything but that orb. Its own value: a
+   *   orbGlow      #A1127A, the glow behind the advisor's orb, and the light
+   *                behind the advisor's mark in the nav (the owner, 2026-10-09:
+   *                the mark is the orb's), and nothing else. Never a button, a
+   *                chip, a pill, a state, a text colour, a border or a fill of
+   *                anything but those two. Its own value: a
    *                touch toward violet, held clear of `needs` (ΔE00 12.5) and of
    *                `assistant` (10.3). Four magentas is the CEILING — brand,
    *                needs, assistant, orbGlow — and `palette.test.ts` holds both.

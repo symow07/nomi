@@ -595,9 +595,10 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   }
   /* The library's own painter (thinking-orbs 0.3.2: paintFrame, paintLines, paint; MIT, Jakub Antalik,
      assets/vendor/thinking-orbs/0.3.2/LICENSE), line for line, in its dark-paper mode: a near dot light, a far
-     one dark, by the same depth (1 - w). ONE change: the two ends are ours — the light end and the glow it
-     recedes into — where the library has white and black. With white and black the two draw the very same
-     calls; tests/parity/advisor-orb.test.ts holds that. */
+     one dark, by the same depth (1 - w). ONE change: the two ends are ours — the light end and the ink — where
+     the library has white and black (the far end was the glow until 2026-10-09: a far dot vanished into the
+     glow behind it). With white and black the two draw the very same calls; tests/parity/advisor-orb.test.ts
+     holds that. */
   function inkColor(w, alpha, light, far) {
     var ramp = function (l, f) { return Math.round(f + (l - f) * (1 - w)); };
     return 'rgba(' + ramp(light.r, far.r) + ',' + ramp(light.g, far.g) + ',' + ramp(light.b, far.b) + ',' + alpha + ')';
@@ -751,6 +752,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var glowSaid = String(form.getAttribute('data-orb-glow') || '');
     var glow = /^[a-z-]+$/.test(glowSaid) ? rgbOf('--color-' + glowSaid) : 0;
     var light = rgbOf('--color-surface');
+    var ink = rgbOf('--color-ink');
     var paper = rgbOf('--color-paper');
     var plan = GROUND;
     var core = 0;
@@ -765,7 +767,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
        (resting, then thinking) without the orb jumping. */
     function draw(canvas, pace) {
       var ctl = { pace: pace, base: 0, since: 0 };
-      var ctx = glow && light && plan && canvas.getContext ? canvas.getContext('2d') : 0;
+      var ctx = glow && light && ink && plan && canvas.getContext ? canvas.getContext('2d') : 0;
       if (!ctx) { failed = true; return { ctl: ctl, done: Promise.reject(new Error('no orb here')) }; }
       var box = canvas.getBoundingClientRect().width || 96;
       var size = box / 1.5;
@@ -789,7 +791,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         function paint(t) {
           under();
           ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * pad, dpr * pad);
-          paintFrame(ctx, shape(64, t, pre.opts), light, glow);
+          paintFrame(ctx, shape(64, t, pre.opts), light, ink);
         }
         paint(0.6);
         var running = false;

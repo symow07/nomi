@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, facesFor, fontAt } from './type.js';
 import { shapeMask, SHAPE_BOX, SHAPE_CSS } from './marks.js';
-import { icon, iconMask, railIcon, type RailIcon, GO, BACK } from './icons.js';
+import { icon, iconMask, railIcon, advisorRailMark, type RailIcon, GO, BACK } from './icons.js';
 import { agentMark } from './agentMark.js';
 import { mayLoad } from './thirdParty.js';
 
@@ -82,8 +82,9 @@ export const ASSISTANT_HOME = '/app/settings/assistant';
  */
 export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
   home: 'home-2', inbox: 'inbox', calendar: 'calendar', settings: 'settings',
-  // The advisor run — the owner's choice: Solar's round chat bubble with its three dots.
-  advisor: 'chat-round-dots',
+  // The advisor run — the owner's choice: Solar's round chat bubble; since 2026-10-09 without its three dots, and
+  // lit from within by the orb's glow (`advisorRailMark`).
+  advisor: 'chat-round',
 };
 
 /**
@@ -694,6 +695,14 @@ ${FACE_CSS}
   nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600;
     box-shadow: var(--shadow-lift1); }
   nav.side a.navlink.active .ni { color: var(--color-nav-active); }
+  /* The advisor's mark (the owner, 2026-10-09): the empty bubble lit from within by the orb's glow, the one rail
+     icon with a light behind it. Still, never moving; held to the icon and a little round it, so it never reaches
+     the entry above or below; dropped under forced colours, the bubble staying. */
+  nav.side .ni-lit { position:relative; display:inline-flex; flex:none; margin-block:calc((1lh - 28px) / 2); }
+  nav.side .ni-lit > .ni { position:relative; margin-block:0; }
+  nav.side .ni-lit::before { content:""; position:absolute; inset:calc(-1 * var(--space-4)); border-radius:var(--radius-chip);
+    background:radial-gradient(closest-side, var(--color-orb-glow), transparent); opacity:0.34; pointer-events:none; }
+  @media (forced-colors: active) { nav.side .ni-lit::before { display:none; } }
   .nl-short { display:none; }
   /* The rail's one number: customers waiting for the owner. The identity system: the needs FILL — the deep
      magenta under white words and the white needs dot before them — is the badge's own shape and reads
@@ -1293,6 +1302,7 @@ ${SIGNAL_CSS}${MOTION_CSS}
     nav.side .nl-body { display:contents; }
     nav.side .nl-text { max-inline-size:100%; overflow:hidden; text-overflow:ellipsis; }
     nav.side .ni { margin-block:0; }
+    nav.side .ni-lit { margin-block:0; }
     /* The count rides the icon's corner on a phone: the word keeps its room. Cut out of the tile by a
        ring of the tile's own white, so on the filled Inbox it stays a count, not part of the shape. */
     nav.side .navcount { position:absolute; inset-block-start:2px; inset-inline-start:calc(50% + 4px); margin:0; padding:0 var(--space-4);
@@ -2936,7 +2946,7 @@ export function shell(input: {
     const text = `<span class="nl-body"><span class="nl-text">${esc(label)}</span>${badge}</span>`;
     // A11y — `aria-current="page"` tells a screen reader which entry is this page.
     // The Solar nav — one line drawing at rest and where you are (the stylesheet colours it).
-    const mark = railIcon(NAV_ICON[n.id] ?? 'home-2');
+    const mark = n.id === 'advisor' ? advisorRailMark() : railIcon(NAV_ICON[n.id] ?? 'home-2');
     return `<a href="${n.href}" class="navlink${sub ? ' sub' : ''}${on ? ' active' : ''}" data-nav="${n.id}"${on ? ' aria-current="page"' : ''}${aria}
        >${mark}${text}</a>`;
   };

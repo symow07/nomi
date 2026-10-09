@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { shell, NEEDS_DOT } from '../../src/api/web/layout.js';
 import { withWorkspace } from '../../src/api/web/say.js';
 import { SOLAR } from '../../src/api/web/solar.js';
-import { icon, railIcon, GO, BACK, AWAY, type IconId } from '../../src/api/web/icons.js';
+import { icon, railIcon, advisorRailMark, GO, BACK, AWAY, type IconId } from '../../src/api/web/icons.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
 import { renderSettingsHome } from '../../src/api/web/settings.js';
 import { cssVariables } from '../../src/core/owner/css.js';
@@ -59,9 +59,10 @@ const keysOf = (map: 'ICON') => {
 const SCOPE = { name: 'Lily', several: false, outreach: false, setup: null, business: 'Hana Skincare', needsYou: 3, zone: 'Asia/Shanghai' };
 const LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
 // THE ADVISOR RUN (2026-10-06) — the assistant's slot left the rail for Settings' first row; the advisor holds it,
-// drawn in Solar's round chat bubble with its three dots (the owner's choice).
+// drawn in Solar's round chat bubble (the owner's choice); since 2026-10-09 the bubble without its dots, lit from
+// within by the orb's glow — the one rail icon with a light behind it (`advisorRailMark`).
 const ENTRIES = [['home', '/app'], ['inbox', '/app/inbox'], ['calendar', '/app/calendar'], ['advisor', '/app/advisor'], ['settings', '/app/settings']] as const;
-const RAIL_ICON = { home: 'home-2', inbox: 'inbox', calendar: 'calendar', advisor: 'chat-round-dots', settings: 'settings' } as const;
+const RAIL_ICON = { home: 'home-2', inbox: 'inbox', calendar: 'calendar', advisor: 'chat-round', settings: 'settings' } as const;
 /** What the rail draws for each entry: Solar's drawing. */
 const railMarkOf = (id: string) => railIcon(RAIL_ICON[id as keyof typeof RAIL_ICON]);
 const navOf = (html: string) => html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
@@ -212,6 +213,9 @@ describe('Phosphor is gone, and cannot come back', () => {
     expect(shared).toEqual(['calendar-mark: closures, date-closure', 'gift: date-sample, samples']);
     // and none is the nav's: the rail's drawings mean the rail's places
     for (const n of ['home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded']) expect(byDrawing.has(n), n).toBe(false);
+    // ONE KNOWN OVERLAP (2026-10-09, told to the owner): the advisor's empty bubble is Solar's chat-round, which is also
+    // WhatsApp's in My business. The rail's is lit; WhatsApp's is a plain line. Nothing else may join it.
+    expect(byDrawing.get('chat-round')).toEqual(['whatsapp']);
   });
 });
 
@@ -297,6 +301,40 @@ describe('the rail, in Solar\'s Linear set', () => {
       expect(icons.match(/fill="(?!none")[^"]*"/g), here).toBeNull();
     }
     expect(navOf(page('settings', '/app/settings/people'))).toMatch(/class="navlink active" data-nav="settings"/);
+  });
+
+  it('the advisor\'s mark: Solar\'s empty bubble, lit from within — the ONE rail entry with a light behind it, in every language, at rest and where you are', () => {
+    const lit = `<span class="ni-lit">${railIcon('chat-round')}</span>`;
+    expect(advisorRailMark()).toBe(lit);
+    expect(SOLAR['chat-round']).not.toMatch(/H8\.009|H12M|H16"/);                                   // no dots in it
+    for (const l of LOCALES) {
+      for (const [here, path] of ENTRIES) {
+        const nav = navOf(page(here, path, l));
+        const advisor = /<a [^>]*data-nav="advisor"[^>]*>([\s\S]*?)<\/a>/.exec(nav)?.[1] ?? '';
+        expect(advisor.startsWith(lit), `${l} ${here}`).toBe(true);
+        expect(nav.match(/ni-lit/g), `${l} ${here}: one light in the rail`).toHaveLength(1);
+      }
+    }
+  });
+
+  it('its light: the orb\'s glow, soft, still, held to the icon — never animated, gone under forced colours, the bubble staying', () => {
+    const glow = bodyOf('nav.side .ni-lit::before');
+    expect(glow).toContain('radial-gradient(closest-side, var(--color-orb-glow), transparent)');
+    expect(glow).toContain('opacity:0.34');
+    expect(glow).toContain('border-radius:var(--radius-chip)');
+    expect(glow).toContain('pointer-events:none');
+    // contained: a ring no wider than the 4 px step round the 28 px icon — 36 px across, where the entries above and
+    // below sit 52 px and more apart; nothing that moves
+    expect(glow).toContain('inset:calc(-1 * var(--space-4))');
+    expect(glow).not.toMatch(/animation|transition|filter|box-shadow/);
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/\.ni-lit[^{}]*\{[^}]*(animation|transition)/);
+    expect(css).toMatch(/@media \(forced-colors: active\) \{ nav\.side \.ni-lit::before \{ display:none; \} \}/);
+    // the bubble keeps the rail's place and line: the wrapper takes the icon's margins, the phone's tile resets them
+    expect(bodyOf('nav.side .ni-lit')).toContain('margin-block:calc((1lh - 28px) / 2)');
+    expect(bodyOf('nav.side .ni-lit > .ni')).toContain('margin-block:0');
+    expect(phoneBlock).toContain('nav.side .ni-lit { margin-block:0; }');
+    // and it is the only light in the rail's rules: no other entry is lit
+    expect(rules.filter((r) => /nav\.side/.test(r.sel) && /orb-glow/.test(r.body)).map((r) => r.sel)).toEqual(['nav.side .ni-lit::before']);
   });
 
   it('the heading "Customers" draws Solar\'s group at 20 px, centred in the 28 px column', () => {

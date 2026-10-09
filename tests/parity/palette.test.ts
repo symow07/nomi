@@ -95,16 +95,20 @@ describe('the palette', () => {
     expect(magentas).toEqual(['assistant', 'brand', 'needs', 'orbGlow']);
   });
 
-  it('the orb\'s glow is decorative and the advisor orb\'s alone: named by the orb, drawn by no rule, never a role', async () => {
-    // Its value, its token and its variable, anywhere in the product: only where it is defined, and the one form that names it.
+  it('the orb\'s glow is decorative and the advisor\'s alone: named by the orb, drawn by one rule (the nav mark\'s light), never a role', async () => {
+    // Its value, its token and its variable, anywhere in the product: where it is defined, the one form that names it,
+    // and the stylesheet's one rule that lights the advisor's mark in the nav (the owner, 2026-10-09).
     const naming = (await sources(SRC)).filter(({ src }) => /orbGlow|--color-orb-glow|'orb-glow'|A1127A/i.test(src)).map(({ f }) => f).sort();
-    expect(naming).toEqual(['advisor.ts', 'tokens.ts']);
+    expect(naming).toEqual(['advisor.ts', 'layout.ts', 'tokens.ts']);
     const advisor = readFileSync(join(SRC_PATH, 'api/web/advisor.ts'), 'utf8');
     expect(advisor.match(/'orb-glow'/g)).toHaveLength(1);                         // the orb's glow, and nothing else on the page
     expect(advisor).toContain("const ORB_GLOW = 'orb-glow';");
     expect(Object.values(DESIGN_TOKENS.colorRole)).not.toContain('orbGlow');
-    // no stylesheet rule paints with it: the variable is declared, and used by nothing
+    // declared once; one stylesheet rule paints with it, the advisor's mark's light, and nothing else
     expect(cssVariables().match(/--color-orb-glow/g)).toHaveLength(1);
+    const layout = readFileSync(join(SRC_PATH, 'api/web/layout.ts'), 'utf8');
+    expect(layout.match(/--color-orb-glow/g)).toHaveLength(1);
+    expect(layout).toContain('nav.side .ni-lit::before { content:""; position:absolute; inset:calc(-1 * var(--space-4)); border-radius:var(--radius-chip);\n    background:radial-gradient(closest-side, var(--color-orb-glow), transparent);');
   });
 
   it('the orb\'s glow is its own value, held clear of the "needs you" magenta — and needs is never the orb\'s', () => {

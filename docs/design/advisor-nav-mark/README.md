@@ -1,46 +1,36 @@
-# The advisor's nav mark: three sketches drawn from the orb
+# The advisor's nav mark: the empty bubble, lit from within
 
-Rendered 2026-10-09 in Brave (Chromium; device scale 2) in the real nav, on a local instance with the demo
-workspace. Each sketch was put into the nav's advisor icon in place, so it is drawn by the page's own stylesheet
-at the nav's size and line, next to Home, Customers, Inbox, Calendar and Settings. Today's Solar bubble is
-alongside for comparison. **Nothing is changed in the code yet.** The owner picks, then the chosen mark is built,
-guarded and recorded as the one exception to "every nav icon is Solar Linear".
+Rendered 2026-10-09 in Brave (Chromium; device scale 2) from the build itself, on a local instance with the demo
+workspace. Round one (three sketches drawn from the orb) is in `round-1-sketches/`. The owner chose this instead.
 
-## How each is drawn (so it sits with the Solar icons)
+## What it is
 
-- **The box:** the Solar Linear set's 24-unit square, drawn at 28 px.
-- **The circle:** Solar's own (`r = 10`, as in its circle icons).
-- **The line:** round, not filled, taking the nav's 1.75 px from the same rule as every rail icon.
-- **The dots:** drawn the way Solar draws its own (Calendar's days, the bubble's three): a round-capped stroke of
-  no length, so each is the line's width. Nothing is filled.
-- **The active state:** the white pill and the deep magenta line, unchanged.
+- **The drawing:** Solar's round speech bubble, empty. It is the advisor's bubble without its three dots, which
+  is Solar's own `chat-round`, unchanged. The rail is still all Solar Linear, and the CC BY 4.0 notice is unchanged.
+- **On the system:** 28 px, the nav's 1.75 px line, ink at rest. Active, the white pill and the deep magenta line.
+- **The light:** the orb's glow (#A1127A) behind it.
+  - A soft disc from the bubble's middle out to 4 px past the icon (36 px across), at a third of the glow's
+    strength.
+  - **The only rail icon with a light, on purpose.** It is the recorded exception, and the guards hold that no
+    other entry is lit.
+  - **Still:** nothing animates it.
+  - **Contained:** measured on every render, it stops 37 px or more short of any other icon in the rail (Calendar
+    above, Settings below, the phone's neighbours).
+  - **Less motion:** unchanged; it never moved. **Scripts off:** unchanged; it is the stylesheet's.
+  - **Forced colours:** the light is dropped and the bubble stays.
 
-## The three
+## One thing to know
 
-- **A · the sash:** six even dots on the front half of a band round the sphere, tilted, rim side to rim side. It
-  is the orb's own `composing` sash.
-- **B · the lane:** five even dots in one column, bowed to the right like the orb's dotted lanes.
-- **C · the sash, with depth:** A's band with seven dots, the middle ones larger (2.6 px down to 1.5 px), as the
-  orb's near dots are.
-
-None is a ring concentric with the circle (the loading spinner's shape), and none is the Nomi character.
-
-## My read, at real size
-
-- **B is the one I would pick.** It reads as the orb's dotted lanes on a sphere. At 28 px it is quiet, a little
-  lighter than its neighbours, because its middle is mostly empty. It does not read as a spinner.
-- **A reads as a face, or a dial.** At this size a curved row of dots in the lower half of a circle looks like a
-  smile.
-- **C comes closest to a loading indicator.** Dots that grow and shrink along an arc are the classic "dots
-  spinner" cue, and it shares A's smile.
-
-If none of the three is strong enough, the brief's fallback stands: keep a Solar glyph.
+**`chat-round` is also WhatsApp's icon in My business** (one of the ways customers reach the business), so two
+meanings now share one drawing. The rail's is lit and WhatsApp's is a plain line, and the guard pins it to just
+these two. To keep "one meaning, one shape" strictly, WhatsApp could take another Solar drawing; that is the
+owner's call.
 
 ## Files
 
-- `sheet-desktop-{en,zh,ar,es,fr}.png`: the rail on a desktop, each sketch (and today's bubble) resting (on
-  Home) and active (on the advisor). Arabic is mirrored, the rail on the right.
-- `sheet-phone.png`: the phone's nav in all five languages, each sketch resting and active.
-- `{A,B,C,now}-{resting,active}-{desktop,phone}-en.png`: the whole page.
-- `sketches-at-28-and-112.png`: the three beside the Solar icons at 28 px (ink, then the active magenta), then
-  enlarged. The enlarged row draws C's dots at their 28 px sizes, so they look small there only.
+- **The rail, five languages:** `lit-{resting,active}-{desktop,phone}-{en,zh,ar,es,fr}.png`.
+  - Resting is on Home; active is on the advisor.
+  - Arabic is mirrored: the rail is on the right, and the phone's row runs right to left.
+- **Close up, English:** `lit-{resting,active}-{desktop,phone}-en-close.png`.
+- **The whole page, English:** `lit-{resting,active}-{desktop,phone}-en-whole.png`.
+- **Edge cases:** `lit-active-{desktop,phone}-en-{reduced-motion,scripts-off,forced-colors}.png`.
