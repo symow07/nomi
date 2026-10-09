@@ -28,7 +28,7 @@ d('PRE-LAUNCH 5 · the refund terms (requires DATABASE_URL + MIGRATE_DATABASE_UR
   let esc: typeof import('../../src/api/web/layout.js')['esc'];
   let before: number | null = null;
   const trial = (days: number | null) => admin.query(`update billing_settings set self_serve_trial_days = $1 where id`, [days]);
-  const page = async () => (await app.inject({ method: 'GET', url: '/refunds' })).body.replace(/[⁦-⁩]/g, '');
+  const page = async () => (await app.inject({ method: 'GET', url: '/refunds' })).body.replace(/[\u2066-\u2069]/g, '');
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: MIGRATE_URL });
