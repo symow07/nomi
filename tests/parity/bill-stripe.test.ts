@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { stripeConfigFrom, stripeForm, stripeClient, verifyStripeEvent, STRIPE_SIGNATURE_TOLERANCE_S, type StripeFetch } from '../../src/billing/stripe.js';
+import {
+  stripeConfigFrom, stripeForm, stripeClient, verifyStripeEvent, STRIPE_SIGNATURE_TOLERANCE_S, type StripeFetch,
+  PORTAL_CONFIG_VERSION, PORTAL_FEATURES, isNomiPortal,
+} from '../../src/billing/stripe.js';
 
 /**
  * BILL — the Stripe client, against Stripe's documented API, with the network
@@ -10,6 +13,8 @@ import { stripeConfigFrom, stripeForm, stripeClient, verifyStripeEvent, STRIPE_S
 const KEY = 'sk_test_notarealkey0000000001';
 const WHSEC = 'whsec_notarealsecret0000001';
 const CFG = { secretKey: KEY, webhookSecret: WHSEC };
+/** Nomi's portal configuration as Stripe holds it (PRE-LAUNCH item 5). */
+const NOMI_PORTAL = { id: 'bpc_nomi', active: true, metadata: { nomi_portal: PORTAL_CONFIG_VERSION }, features: PORTAL_FEATURES };
 
 describe('BILL · the keys, both or none', () => {
   it('none is none, quietly; both is a client', () => {
@@ -58,6 +63,7 @@ describe('BILL · the requests', () => {
     const { calls, f } = recorder({
       '/checkout/sessions': { status: 200, body: { id: 'cs_1', url: 'https://checkout.stripe.com/c/cs_1' } },
       '/billing_portal/sessions': { status: 200, body: { url: 'https://billing.stripe.com/p/1' } },
+      '/billing_portal/configurations': { status: 200, body: { data: [NOMI_PORTAL] } },
       '/setup_intents/': { status: 200, body: { id: 'seti_1', payment_method: 'pm_1' } },
       '/customers/': { status: 200, body: { id: 'cus_1' } },
     });
@@ -85,7 +91,78 @@ describe('BILL · the requests', () => {
     expect((await s503.createCustomer({ businessId: 'b', email: null, name: 'n' })).ok === false).toBe(true);
     expect(await s503.createCustomer({ businessId: 'b', email: null, name: 'n' })).toMatchObject({ retryable: true });
     const down = stripeClient(CFG, async () => { throw new Error('ECONNRESET'); });
-    expect(await down.portal({ customerId: 'c', returnUrl: 'r', locale: 'en' })).toEqual({ ok: false, error: 'stripe: ECONNRESET', retryable: true });
+    expect(await down.portal({ customerId: 'c', returnUrl: 'https://nomi.test/r', locale: 'en' })).toEqual({ ok: false, error: 'stripe: ECONNRESET', retryable: true });
+    // the portal names this installation's privacy page and terms, so it needs a real address to return to
+    expect(await down.portal({ customerId: 'c', returnUrl: 'r', locale: 'en' })).toEqual({ ok: false, error: 'stripe: no return address to name', retryable: false });
+  });
+});
+
+describe('PRE-LAUNCH 5 · Stripe\'s page opens only as Nomi set it: a cancellation runs to the end of the period paid for', () => {
+  type Call = { method: string; path: string; body: string };
+  /** A Stripe that answers by method and path, and remembers what it was asked. */
+  const stripe = (held: unknown[], made: unknown = { ...NOMI_PORTAL, id: 'bpc_new' }) => {
+    const calls: Call[] = [];
+    const f: StripeFetch = async (url, init) => {
+      const path = url.replace('https://api.stripe.com/v1', '');
+      calls.push({ method: init.method, path, body: decodeURIComponent(init.body ?? '') });
+      const answer = init.method === 'GET' && path.startsWith('/billing_portal/configurations') ? { data: held }
+        : path === '/billing_portal/configurations' ? made
+        : path === '/billing_portal/sessions' ? { url: 'https://billing.stripe.com/p/1' } : null;
+      return answer ? { ok: true, status: 200, text: async () => JSON.stringify(answer) }
+        : { ok: false, status: 404, text: async () => JSON.stringify({ error: { message: 'no such route' } }) };
+    };
+    return { calls, f };
+  };
+  const open = (f: StripeFetch) => stripeClient(CFG, f).portal({ customerId: 'cus_1', returnUrl: 'https://app.nomi.test/app/settings/billing', locale: 'en' });
+
+  it('none held: Nomi\'s is made — cancel at period end, nothing prorated, the plan not changed there — and the page opens with it', async () => {
+    const { calls, f } = stripe([]);
+    expect(await open(f)).toEqual({ ok: true, value: { url: 'https://billing.stripe.com/p/1' } });
+    const made = calls.find((c) => c.method === 'POST' && c.path === '/billing_portal/configurations')!;
+    expect(made.body).toContain('features[subscription_cancel][enabled]=true');
+    expect(made.body).toContain('features[subscription_cancel][mode]=at_period_end');
+    expect(made.body).toContain('features[subscription_cancel][proration_behavior]=none');
+    expect(made.body).toContain('features[subscription_update][enabled]=false');
+    expect(made.body).toContain(`metadata[nomi_portal]=${PORTAL_CONFIG_VERSION}`);
+    expect(made.body).toContain('business_profile[privacy_policy_url]=https://app.nomi.test/privacy');
+    expect(made.body).toContain('business_profile[terms_of_service_url]=https://app.nomi.test/terms');
+    const session = calls.find((c) => c.path === '/billing_portal/sessions')!;
+    expect(session.body).toContain('configuration=bpc_new');
+  });
+
+  it('Nomi\'s held already: used as it is, nothing made; asked for once a process', async () => {
+    const { calls, f } = stripe([{ id: 'bpc_other', active: true, metadata: {}, features: {} }, NOMI_PORTAL]);
+    const s = stripeClient(CFG, f);
+    for (let i = 0; i < 2; i++) {
+      expect((await s.portal({ customerId: 'cus_1', returnUrl: 'https://app.nomi.test/x', locale: 'fr' })).ok).toBe(true);
+    }
+    expect(calls.filter((c) => c.path.startsWith('/billing_portal/configurations')).map((c) => c.method)).toEqual(['GET']);
+    expect(calls.filter((c) => c.path === '/billing_portal/sessions').map((c) => c.body.includes('configuration=bpc_nomi'))).toEqual([true, true]);
+  });
+
+  it('one edited in the dashboard to cancel at once, or to change plans, is not trusted: a new one is made', async () => {
+    for (const edited of [
+      { ...NOMI_PORTAL, features: { ...NOMI_PORTAL.features, subscription_cancel: { enabled: true, mode: 'immediately', proration_behavior: 'none' } } },
+      { ...NOMI_PORTAL, features: { ...NOMI_PORTAL.features, subscription_update: { enabled: true } } },
+      { ...NOMI_PORTAL, active: false },
+    ]) {
+      expect(isNomiPortal(edited)).toBe(false);
+      const { calls, f } = stripe([edited]);
+      expect((await open(f)).ok).toBe(true);
+      expect(calls.some((c) => c.method === 'POST' && c.path === '/billing_portal/configurations')).toBe(true);
+      expect(calls.find((c) => c.path === '/billing_portal/sessions')!.body).toContain('configuration=bpc_new');
+    }
+  });
+
+  it('never the default: no configuration to be had, or one Stripe made otherwise, and the page does not open', async () => {
+    const down = stripe([], { id: 'bpc_wrong', active: true, metadata: { nomi_portal: PORTAL_CONFIG_VERSION }, features: { subscription_cancel: { enabled: true, mode: 'immediately' } } });
+    expect((await open(down.f)).ok).toBe(false);
+    expect(down.calls.some((c) => c.path === '/billing_portal/sessions')).toBe(false);
+    const gone: StripeFetch = async () => ({ ok: false, status: 503, text: async () => 'down' });
+    const calls: string[] = [];
+    const counting: StripeFetch = async (url, init) => { calls.push(url); return gone(url, init); };
+    expect((await open(counting)).ok).toBe(false);
+    expect(calls.some((u) => u.includes('/billing_portal/sessions'))).toBe(false);
   });
 });
 

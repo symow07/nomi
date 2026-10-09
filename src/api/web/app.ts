@@ -5,7 +5,7 @@ import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
-import { billingState, plansOnOffer, chooseBilling, setStripeCustomer } from '../../db/billing.js';
+import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays } from '../../db/billing.js';
 import { renderBilling } from './billing.js';
 import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
@@ -45,7 +45,7 @@ import {
   type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
-import { renderPrivacy, renderDataDeletion, renderLegalTerms, renderCookies, TERMS_VERSION, type LegalFacts } from './legal.js';
+import { renderPrivacy, renderDataDeletion, renderLegalTerms, renderCookies, renderRefunds, TERMS_VERSION, type LegalFacts } from './legal.js';
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
 import { DEFAULT_PROCESSOR, HOSTING, processorLabel, transcriberProcessor } from '../../core/legal/processors.js';
 import type { AdvisorMemory } from '../../advisor/memory.js';
@@ -508,6 +508,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/closed', why: '0126 — where an owner lands, signed out, after closing a workspace: says it was erased; reads nothing and names no tenant' },
   { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
   { method: 'GET', url: '/cookies', why: 'PRE-LAUNCH item 5 — the cookie policy, the privacy page\'s own cookie section at its own address; names no tenant' },
+  { method: 'GET', url: '/refunds', why: 'PRE-LAUNCH item 5 — the refund terms, linked beside the subscribe button; reads the installation\'s trial, names no tenant' },
   { method: 'GET', url: '/sw.js', why: 'G5b — the phone\'s own worker: shows an alert Nomi sent and opens the app when it is tapped. The same text for everyone; names no tenant' },
   { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
   { method: 'GET', url: '/assets/icon-192.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
@@ -1203,6 +1204,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
   app.get('/cookies', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderCookies(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
+  // The refund terms: the trial clause only while a self-serve trial is set. A database that does not answer leaves
+  // the clause out — the page then promises less, never something nobody is given.
+  app.get('/refunds', async (req, reply) => {
+    let trialDays: number | null = null;
+    try { trialDays = await selfServeTrialDays(deps.db); } catch (e) { req.log.warn({ err: e }, 'refunds: the trial could not be read'); }
+    return reply.type('text/html; charset=utf-8').send(renderRefunds(localeOf(req), deps.legalContact ?? null, { trialDays }, siteOf(req)));
+  });
   // 0126 — after a workspace is closed: signed out, and told what happened. Reads nothing.
   app.get('/closed', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderClosed(localeOf(req), siteOf(req))));

@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { Db, Tx } from './client.js';
 import type { BillingStatus } from '../core/billing/status.js';
+import { coveredByRefundTerms } from '../core/billing/refunds.js';
 
 /**
  * BILL (0117) — the app's side of billing. The tables are not the app's: it
@@ -48,13 +49,23 @@ export async function billingState(tx: Tx): Promise<BillingState> {
   };
 }
 
+/**
+ * The plans a workspace may choose: those on offer that the refund terms describe (core/billing/refunds.ts). The
+ * database already refuses any other (0134); this keeps the page's promise if that ever changes first.
+ */
 export async function plansOnOffer(tx: Tx): Promise<Plan[]> {
   return (await sql<{ id: string; name: string; amount_minor: number; currency: string; period: 'month' | 'year';
     customers_a_month: number; seats: number | null; assistants: number | null; stripe_price_id: string }>`
     select * from plans_on_offer()`.execute(tx)).rows.map((p) => ({
     id: p.id, name: p.name, amountMinor: p.amount_minor, currency: p.currency, period: p.period,
     customersAMonth: p.customers_a_month, seats: p.seats, assistants: p.assistants, stripePriceId: p.stripe_price_id,
-  }));
+  })).filter((p) => coveredByRefundTerms(p.period));
+}
+
+/** The free trial every new self-serve workspace gets, in days, or null: none set (trials are on request). */
+export async function selfServeTrialDays(db: Db): Promise<number | null> {
+  const d = (await sql<{ d: number | null }>`select self_serve_trial_days() as d`.execute(db)).rows[0]?.d;
+  return typeof d === 'number' && d > 0 ? d : null;
 }
 
 /** The hold: the payment lapsed (never a pilot). */
@@ -79,6 +90,8 @@ export async function planLimits(tx: Tx): Promise<{ readonly seats: number | nul
 }
 
 export async function chooseBilling(tx: Tx, planId: string): Promise<'chosen' | 'no_plan' | 'not_billed'> {
+  // Only a plan the page offers: one the refund terms describe.
+  if (!(await plansOnOffer(tx)).some((p) => p.id === planId)) return 'no_plan';
   const r = (await sql<{ r: string }>`select billing_choose(${planId}) as r`.execute(tx)).rows[0]?.r;
   return r === 'chosen' || r === 'no_plan' ? r : 'not_billed';
 }
