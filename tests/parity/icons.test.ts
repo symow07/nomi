@@ -38,7 +38,7 @@ const SOLAR_PKG = 'node_modules/@iconify-json/solar';
 const SOLAR_OF: Readonly<Record<string, keyof typeof SOLAR>> = {
   talk: 'chat-square-line', knowledge: 'notebook-minimalistic', question: 'question-circle', nope: 'forbidden-circle',
   name: 'user-id', sliders: 'tuning-2', check: 'check-circle', practice: 'play-circle', next: 'flag', history: 'history',
-  business: 'shop', products: 'box', promise: 'shield-check', kind: 'case', reach: 'dialog', whatsapp: 'chat-round',
+  business: 'shop', products: 'box', promise: 'shield-check', kind: 'case', reach: 'dialog', whatsapp: 'chat-round-line',
   meta: 'chat-square', email: 'letter', live: 'power', alerts: 'bell', terms: 'file-text', samples: 'gift',
   rate: 'transfer-horizontal', guide: 'video-frame-play-horizontal', setup: 'checklist', people: 'users-group-two-rounded',
   account: 'key', billing: 'card', data: 'folder', logout: 'logout', download: 'download-minimalistic', regular: 'repeat',
@@ -212,10 +212,8 @@ describe('Phosphor is gone, and cannot come back', () => {
     const shared = [...byDrawing.entries()].filter(([, ids]) => ids.length > 1).map(([n, ids]) => `${n}: ${ids.sort().join(', ')}`).sort();
     expect(shared).toEqual(['calendar-mark: closures, date-closure', 'gift: date-sample, samples']);
     // and none is the nav's: the rail's drawings mean the rail's places
-    for (const n of ['home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded']) expect(byDrawing.has(n), n).toBe(false);
-    // ONE KNOWN OVERLAP (2026-10-09, told to the owner): the advisor's empty bubble is Solar's chat-round, which is also
-    // WhatsApp's in My business. The rail's is lit; WhatsApp's is a plain line. Nothing else may join it.
-    expect(byDrawing.get('chat-round')).toEqual(['whatsapp']);
+    // (the advisor's empty bubble too: WhatsApp moved to the bubble with its lines for it, 2026-10-09 — no shared pair)
+    for (const n of ['home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded', 'chat-round']) expect(byDrawing.has(n), n).toBe(false);
   });
 });
 

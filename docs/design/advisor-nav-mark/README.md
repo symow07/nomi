@@ -19,12 +19,12 @@ workspace. Round one (three sketches drawn from the orb) is in `round-1-sketches
   - **Less motion:** unchanged; it never moved. **Scripts off:** unchanged; it is the stylesheet's.
   - **Forced colours:** the light is dropped and the bubble stays.
 
-## One thing to know
+## One meaning, one shape
 
-**`chat-round` is also WhatsApp's icon in My business** (one of the ways customers reach the business), so two
-meanings now share one drawing. The rail's is lit and WhatsApp's is a plain line, and the guard pins it to just
-these two. To keep "one meaning, one shape" strictly, WhatsApp could take another Solar drawing; that is the
-owner's call.
+**`chat-round` was also WhatsApp's icon in My business.** On the owner's word (2026-10-09), WhatsApp moved to
+Solar's `chat-round-line`, the round bubble with its lines. The empty bubble is now the advisor's alone, and the
+guard has no shared pair: no other meaning may draw `chat-round`. See
+`whatsapp-my-business-{desktop,phone}-en.png`.
 
 ## Files
 
@@ -34,3 +34,4 @@ owner's call.
 - **Close up, English:** `lit-{resting,active}-{desktop,phone}-en-close.png`.
 - **The whole page, English:** `lit-{resting,active}-{desktop,phone}-en-whole.png`.
 - **Edge cases:** `lit-active-{desktop,phone}-en-{reduced-motion,scripts-off,forced-colors}.png`.
+- **WhatsApp's new drawing, in My business:** `whatsapp-my-business-{desktop,phone}-en.png`.

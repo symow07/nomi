@@ -34,7 +34,7 @@ export const SOLAR_WANTED = [
   'home-2', 'inbox', 'calendar', 'settings', 'users-group-rounded', 'user-circle',
   // the menus: the assistant's, My business, Setup and Settings
   'chat-square-line', 'notebook-minimalistic', 'question-circle', 'forbidden-circle', 'user-id', 'tuning-2',
-  'check-circle', 'play-circle', 'flag', 'history', 'shop', 'box', 'shield-check', 'case', 'dialog', 'chat-round',
+  'check-circle', 'play-circle', 'flag', 'history', 'shop', 'box', 'shield-check', 'case', 'dialog', 'chat-round', 'chat-round-line',
   'chat-square', 'letter', 'power', 'bell', 'file-text', 'gift', 'transfer-horizontal', 'video-frame-play-horizontal',
   'checklist', 'users-group-two-rounded', 'key', 'card', 'folder', 'logout',
   // Your data's download, the regular customer, an empty calendar, a customer with no name yet,
