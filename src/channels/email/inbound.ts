@@ -16,6 +16,9 @@
  *     "references": "<a@...> <b@...>" | [...]  the thread
  *     "subject":    "Re: Canvas totes",
  *     "text":       "Yes, send prices."         required — the plain-text body
+ *     "authenticationResults": "mx.example; dmarc=pass header.from=example.com" | [...]
+ *                                              the receiving server's own verdict (R1); without a pass for
+ *                                              the From domain the mail is held for a person
  *   }
  *
  * ── WHAT IS DELIBERATELY NOT DONE ─────────────────────────────────────────
@@ -39,6 +42,8 @@ export type InboundMail = {
   readonly quoted: readonly string[];
   readonly subject: string | null;
   readonly text: string;
+  /** R1 — the receiving server's Authentication-Results, its own first (channels/email/senderAuth.ts). */
+  readonly authResults: readonly string[];
 };
 
 /** The longest body kept. A reply longer than this is a forwarded catalogue. */
@@ -78,5 +83,7 @@ export function parseInboundMail(payload: unknown): InboundMail | null {
     quoted,
     subject: typeof p['subject'] === 'string' && p['subject'].trim() ? p['subject'].trim().slice(0, 200) : null,
     text: text.slice(0, MAX_REPLY_CHARS),
+    authResults: (Array.isArray(p['authenticationResults']) ? p['authenticationResults'] : [p['authenticationResults']])
+      .filter((x): x is string => typeof x === 'string' && x.trim() !== '').slice(0, 8),
   };
 }

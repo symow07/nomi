@@ -156,7 +156,9 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
   const answer = (over: Record<string, unknown> = {}) => ({
     from: `Ahmed <${addr('ahmed')}>`, messageId: `<${HIS_ID}>`,
     subject: 'Re: Canvas totes from Yiwu', text: 'Yes — send prices for 5,000.\n\n> We make canvas totes.',
-    references: `<${ourMessageId}>`, ...over,
+    references: `<${ourMessageId}>`,
+    // R1 — the receiving server confirmed him: his own domain's SPF passed.
+    authenticationResults: `mx.inbound.test; spf=pass smtp.mailfrom=${addr('ahmed')}`, ...over,
   });
 
   it('A FORGED SIGNATURE is not heard, and cannot be told apart from no route at all', async () => {
@@ -230,5 +232,28 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
       select reason from suppressions where business_id = ${BIZ} and channel = 'email' and identity = ${addr('ahmed')}`
       .execute(x).then((r) => r.rows[0]));
     expect(s?.reason).toBe('bounced');
+  });
+
+  it('R1 · A FORGED FROM: his address and a Message-ID she sent, but no confirmation — kept and marked for a person; no consent, nothing in his name', async () => {
+    const before = await counts();
+    const forged = answer({
+      messageId: `<forged-${RUN}@mail.test>`, text: 'Cancel my order and send the refund to account 12345.',
+      authenticationResults: `mx.inbound.test; spf=fail smtp.mailfrom=someone@elsewhere.test; dmarc=fail header.from=${addr('ahmed').split('@')[1]}`,
+    });
+    const res = await hook('/hooks/email/inbound', forged);
+    expect(res.json()).toMatchObject({ outcome: 'unconfirmed' });
+    // kept, so a person reads it — and nothing else: no consent, no ordinary reply signal
+    expect(await counts()).toEqual({ inbound: before.inbound + 1, consent: before.consent, signals: before.signals });
+    const held = await tx((x) => sql<{ sender: string | null; reason: number }>`
+      select (select ai_analysis->>'sender' from messages where external_id = ${`email:forged-${RUN}@mail.test`}) as sender,
+             (select count(*)::int from conversation_signals where conversation_id = ${conversationId}::uuid and kind = 'email_unconfirmed') as reason`
+      .execute(x).then((r) => r.rows[0]!));
+    expect(held).toEqual({ sender: 'unconfirmed', reason: 1 });
+    const page = (await get(`/app/inbox/${conversationId}`)).body;
+    expect(page).toContain(esc('Cancel my order and send the refund to account 12345.'));
+    expect(page).toContain(esc(t('en', 'conv.senderUnconfirmed')));
+    // with no verdict at all, the same
+    const bare = await hook('/hooks/email/inbound', answer({ messageId: `<bare-${RUN}@mail.test>`, authenticationResults: undefined }));
+    expect(bare.json()).toMatchObject({ outcome: 'unconfirmed' });
   });
 });

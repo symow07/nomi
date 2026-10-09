@@ -331,7 +331,9 @@ import type { Db } from './client.js';
 //       the ledger's `advisor` kind, and a customer's erasure reaching the turns that name them.
 // 131 = the age at sign-up (0131): `businesses.owner_adult_at`. Every sign-up writes it; against a 130 database
 //       that write fails and no workspace can be made.
-export const REQUIRED_SCHEMA_VERSION = 131;
+// 132 = an e-mail whose sender could not be confirmed (0132): the hand-off reason `email_unconfirmed`. Such a mail
+//       hands its conversation to a person under it; against a 131 database that write fails.
+export const REQUIRED_SCHEMA_VERSION = 132;
 
 export type SchemaState = {
   readonly required: number;

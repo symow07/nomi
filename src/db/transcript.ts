@@ -72,6 +72,8 @@ export type TranscriptRow = {
   readonly about?: string | null;
   /** D4 — who wrote an outbound message, from the sent row it was copied from. */
   readonly origin: string | null;
+  /** R1 (0132) — 'unconfirmed': an e-mail whose sender the receiving server could not confirm. */
+  readonly sender?: string | null;
 };
 
 export type TranscriptWindow = {
@@ -102,6 +104,7 @@ export async function loadTranscriptWindow(tx: Tx, conversationId: string, befor
   const read = (await sql<TranscriptRow>`
     select m.id::text as id, m.direction, m.text_content, m.sent_at, m.input_type, m.transcription,
            m.ai_analysis->>'received' as received, m.ai_analysis->>'about' as about, m.provider_media_id as media,
+           m.ai_analysis->>'sender' as sender,
            -- D4 — the sent row it was copied from, by the id it was copied under.
            -- CH3 — or the owner's own reply from Meta's app, which no sent row holds.
            coalesce(o.origin, case when m.external_id like 'echo:%' then 'owner' end) as origin

@@ -49,6 +49,11 @@ export type Signal =
    */
   | { readonly kind: 'email_reply' }
   /**
+   * R1 (0132) — an e-mail whose sender the receiving server could not confirm: its From line may be forged. It is
+   * kept on the conversation, marked, and a person reads it; nothing is answered, no consent is recorded.
+   */
+  | { readonly kind: 'email_unconfirmed' }
+  /**
    * 0070 — the owner stopped the assistant on every channel. It writes nothing
    * while stopped, so a person answers — and this signal is what hands the
    * conversation over, which is what keeps the buyer on "Needs you". Not a
@@ -148,6 +153,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'unlisted_number',
   // C4.c — he answered her cold e-mail, and a person answers him.
   'email_reply',
+  // R1 (0132) — an e-mail whose sender could not be confirmed: a person reads it.
+  'email_unconfirmed',
   // 0070 — the owner stopped the assistant, so a person answers.
   'assistant_stopped',
   // 0071 — sending is paused by ops, so a person answers.
@@ -186,6 +193,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   media_unreadable: { kind: 'media_unreadable', received: 'document' },
   unlisted_number: { kind: 'unlisted_number' },
   email_reply: { kind: 'email_reply' },
+  email_unconfirmed: { kind: 'email_unconfirmed' },
   assistant_stopped: { kind: 'assistant_stopped' },
   ops_silenced: { kind: 'ops_silenced' },
   deletion_requested: { kind: 'deletion_requested' },
@@ -227,6 +235,7 @@ export const TRIGGER_REASONS = [
   'media_unreadable',
   'unlisted_number',
   'email_reply',
+  'email_unconfirmed',
   'assistant_stopped',
   'ops_silenced',
   'deletion_requested',
@@ -259,6 +268,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'unlisted_number';
     case 'email_reply':
       return 'email_reply';
+    case 'email_unconfirmed':
+      return 'email_unconfirmed';
     case 'assistant_stopped':
       return 'assistant_stopped';
     case 'ops_silenced':

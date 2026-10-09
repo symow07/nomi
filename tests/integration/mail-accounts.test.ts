@@ -334,7 +334,9 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
       payload: { mimeType: 'text/plain', headers: Object.entries({ From: from, Subject: subject, 'Message-ID': `<${id}@x.test>`, ...extra }).map(([name, value]) => ({ name, value })),
         body: { data: b64(text) } },
     });
-    gmail['m1'] = mail('m1', `Ahmed <ahmed-${RUN}@buyer.test>`, 'Price for 500 bags', 'Hello, what is your price for 500 bags?');
+    // R1 — Google confirmed him: its own verdict, DMARC passed for his domain.
+    gmail['m1'] = mail('m1', `Ahmed <ahmed-${RUN}@buyer.test>`, 'Price for 500 bags', 'Hello, what is your price for 500 bags?',
+      { 'Authentication-Results': `mx.google.com; dkim=pass header.i=@buyer.test; spf=pass (google.com: domain of ahmed-${RUN}@buyer.test designates 192.0.2.1 as permitted sender) smtp.mailfrom=ahmed-${RUN}@buyer.test; dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=buyer.test` });
     gmail['m2'] = mail('m2', `lily@${DOMAIN}`, 'Re: Price', 'my own sent mail, in the inbox by cc');          // hers
     gmail['m3'] = mail('m3', 'Mail Delivery <mailer-daemon@googlemail.com>', 'Undeliverable', 'bounce');  // a machine's
     gmail['m4'] = mail('m4', `no-reply@${DOMAIN}`, '123456 is your code', 'Your code is 123456.');       // the installation's alias
@@ -362,6 +364,29 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     expect(queued).toHaveLength(1);
     // The refresh happened once: the token is cached beside the sender's.
     expect(wireCalls.filter((c) => c.body?.includes('refresh_token=refresh-read-')).length).toBe(1);
+
+    // R1 — a mail whose sender Google could not confirm is held: kept on that address's conversation, marked, and
+    // handed to a person — no turn, so nothing is drafted to the address it names, and no consent.
+    gmail['m5'] = mail('m5', `Nadia <nadia-${RUN}@buyer.test>`, 'Change of address', 'Send the order to a new address, please.',
+      { 'Authentication-Results': `mx.google.com; dkim=none; spf=softfail smtp.mailfrom=nadia-${RUN}@buyer.test; dmarc=fail (p=NONE) header.from=buyer.test` });
+    // …and one that wrote its own "pass" below Google's verdict: only Google's own, the topmost, counts.
+    const m6 = mail('m6', `Omar <omar-${RUN}@buyer.test>`, 'Hello', 'Hello, a question about bags.',
+      { 'Authentication-Results': 'mx.google.com; dmarc=fail header.from=buyer.test' });
+    gmail['m6'] = { ...m6, payload: { ...m6.payload, headers: [...m6.payload.headers, { name: 'Authentication-Results', value: 'mx.google.com; dmarc=pass header.from=buyer.test' }] } };
+    const third = await readNewMail(deps, B);
+    expect(third).toEqual({ outcome: 'read', recorded: 2, skipped: 4 });
+    expect(queued, 'a turn was queued for a mail nobody confirmed').toHaveLength(1);
+    for (const who of [`nadia-${RUN}@buyer.test`, `omar-${RUN}@buyer.test`]) {
+      const held = await tx((x) => sql<{ sender: string | null; consent: number; reason: number; assigned: string | null }>`
+        select m.ai_analysis->>'sender' as sender,
+               (select count(*)::int from contact_consent where business_id = ${BIZ}::uuid and channel = 'email' and identity = ${who}) as consent,
+               (select count(*)::int from conversation_signals s where s.conversation_id = c.id and s.kind = 'email_unconfirmed') as reason,
+               c.assigned_to as assigned
+          from messages m join conversations c on c.id = m.conversation_id
+          join client_channels cc on cc.client_id = c.client_id and cc.channel = 'email'
+         where cc.channel_user_id = ${who}`.execute(x).then((r) => r.rows[0]));
+      expect(held, who).toEqual({ sender: 'unconfirmed', consent: 0, reason: 1, assigned: 'unclaimed' });
+    }
 
     // A mailbox that only sends is left alone — and says so on the page.
     await tx((x) => connectMailAccount(x, B, {

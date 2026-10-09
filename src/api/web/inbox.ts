@@ -518,6 +518,8 @@ export type TimelineMessage = {
   direction: 'inbound' | 'outbound';
   text: string;
   at: Date | null;
+  /** R1 (0132) — an e-mail whose sender could not be confirmed: said under it, so it is read as possibly not theirs. */
+  unconfirmed?: true;
   /**
    * M34 — how these words reached us. 'voice' means the buyer spoke and this is
    * what was heard; 'voice_corrected' means the owner has since said what he
@@ -879,6 +881,7 @@ export async function loadConversationDetail(
           ...(received && m.about ? { about: m.about } : {}),
           // G13 — a note recorded before 0043 has no handle, and says so.
           ...(spoken && m.media ? { playable: true } : {}),
+          ...(m.direction === 'inbound' && m.sender === 'unconfirmed' ? { unconfirmed: true as const } : {}),
         };
       });
 
@@ -2406,6 +2409,7 @@ export function renderConversationDetail(
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div dir="auto" class="${bubbleClass(speakerOf(m))}"><bdi>${esc(m.text)}</bdi></div>`}
+          ${m.unconfirmed ? `<p class="note muted" role="note">${esc(t(locale, 'conv.senderUnconfirmed'))}</p>` : ''}
           <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',
             // The design pass (UI-PASS 5): each speaker by their name — the
             // customer's, "You", the assistant's — never a role word; a
