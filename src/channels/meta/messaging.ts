@@ -329,7 +329,10 @@ export function metaMessagingSender(cfg: {
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${cfg.accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient: { id: to }, message: { text: body } }),
+          // The audit (2026-10-10): Meta's Send API names `messaging_type` as required. Every message here
+          // answers a buyer inside their 24 hours (the gate refuses anything else), which is a RESPONSE; no
+          // message tag is ever sent, so nothing leaves outside the window.
+          body: JSON.stringify({ recipient: { id: to }, messaging_type: 'RESPONSE', message: { text: body } }),
           signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
         },
       );
