@@ -203,7 +203,7 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     expect(flashSaid(res, SECRET)).not.toContain('still being checked');
   });
 
-  it('and the page names the languages whose replies wait — it reads the real flags (es, fr and pt, and any other language)', async () => {
+  it('and the page names the languages whose replies wait — it reads the real flags (ar, es, fr and pt, and any other language)', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     // (The fix wave, V1-417) while something holds EVERY reply — here the name nobody confirmed — the page says
@@ -215,7 +215,8 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
       on conflict (business_id) do update set assistant_named_at = now()`.execute(t));
     const page = await app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('English, Chinese, and Arabic');
-    expect(page.body).toContain('Spanish, French, and Portuguese, or in any other language, wait for you');
+    // 2026-10-10 — Arabic waits again (the owner, D3), so it is named with the others.
+    expect(page.body).toContain('English and Chinese');
+    expect(page.body).toContain('Arabic, Spanish, French, and Portuguese, or in any other language, wait for you');
   });
 });
