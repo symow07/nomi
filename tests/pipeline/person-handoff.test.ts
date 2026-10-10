@@ -82,13 +82,15 @@ describe('layer 2 · true — the ordinary hand-off, and the writer is never cal
       expect(p.replyWriter.calls).toBe(0);
       expect(r.decision.action).toEqual({ kind: 'handoff', notifyOnly: false });
       expect(r.reply).toBe(HANDOFF_REPLIES.en);
+      // Fix 1 (2026-10-10) — marked, so the send gate lets it reach the buyer now waiting for a person.
+      expect(r.notice).toBe('handoff');
       expect(r.answerPath).toBe('handoff');
       expect(r.newState.assignedTo).toBe(UNCLAIMED_AGENT);
       expect(p.tenant.states.get(CONVERSATION)?.assignedTo).toBe(UNCLAIMED_AGENT);
       expect(signalsOf(p)).toEqual(['human_requested']);
       expect(alertKindFor(fx)).toBe('handoff');
-      if (mode === 'auto') expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES.en);
-      else expect(p.tenant.draftsCreated.map((d) => d.draftText)).toEqual([HANDOFF_REPLIES.en]);
+      if (mode === 'auto') expect(fx.outbound).toEqual(expect.objectContaining({ reply: HANDOFF_REPLIES.en, notice: 'handoff' }));
+      else expect(p.tenant.draftsCreated.map((d) => [d.draftText, d.notice])).toEqual([[HANDOFF_REPLIES.en, 'handoff']]);
     });
   }
 });

@@ -134,7 +134,7 @@ describe('0135 · a request for a person is the hand-off, never an opt-out', () 
       const { r } = await run(p, text);
       expect(r.decision.action.kind, text).toBe('handoff');
       expect(Object.values(HANDOFF_REPLIES), text).toContain(r.reply);
-      expect(r.notice, text).toBeNull();
+      expect(r.notice, text).toBe('handoff');            // fix 1 — marked, so it reaches them
       expect(p.tenant.optOutsRecorded, text).toEqual([]);
     }
   });
