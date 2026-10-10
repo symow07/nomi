@@ -203,7 +203,8 @@ describe('C9 · handing a reply to Meta', () => {
     expect(r).toEqual({ ok: true, providerMessageId: 'mid.out.1' });
     expect(calls[0]!.url).toBe('https://graph.facebook.com/v23.0/102000000000000/messages');
     expect(JSON.parse(calls[0]!.body)).toEqual({
-      recipient: { id: 'PSID_BUYER' }, message: { text: 'Our price is $0.92.' },
+      // A reply inside their 24 hours, said so; never a message tag.
+      recipient: { id: 'PSID_BUYER' }, messaging_type: 'RESPONSE', message: { text: 'Our price is $0.92.' },
     });
     expect(calls[0]!.auth).toBe('Bearer page-token');
   });

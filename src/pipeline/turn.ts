@@ -1260,7 +1260,18 @@ export async function commitTurn(
     // LG (decision 16) — the language is the gate's, decided by fixed rules,
     // never the analysis's word alone; one nobody can tell (`und`) drafts.
     const language = r.gateLanguage;
-    const released = !speaksAlone || (language !== UNDETERMINED && tenant.autonomy.released(language));
+    /*
+     * G8 (the messaging-policy audit, 2026-10-10) — and the REPLY's own
+     * language, where the writer chose one. The gate read the customer's
+     * language; the writer writes in the analysis's `replyIn`, which can be
+     * another (a customer who wrote in Spanish before writes "ok" today). A
+     * reply in a language whose sentence is unread waits, whatever the
+     * customer's message was in.
+     */
+    const replyIn = r.answerPath === 'model' ? (r.analysis?.language.replyIn ?? null) : null;
+    const replyDiffers = replyIn !== null && languageHead(replyIn) !== languageHead(language);
+    const released = !speaksAlone || (language !== UNDETERMINED && tenant.autonomy.released(language)
+      && (!replyDiffers || tenant.autonomy.released(replyIn!)));
     // LG — and, in a workspace that signed itself up, only once five replies in
     // that language have gone out with the owner's approval (trust first;
     // 0108). A workspace the operator made or opened is not bound.
@@ -1269,14 +1280,17 @@ export async function commitTurn(
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
     const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);
     /** What the card and the timeline say about the language, when that is why it waits. */
+    /** The language that held it: the customer's, or (G8) the reply's own. */
+    const heldBy = language !== UNDETERMINED && tenant.autonomy.released(language) && replyDiffers ? replyIn! : language;
     const languageWithheld = !released
-      ? (withheldBecause(language) === 'language_unknown' ? { reason: 'language_unknown' as const }
-        : { reason: withheldBecause(language), language: languageHead(language) })
+      ? (withheldBecause(heldBy) === 'language_unknown' ? { reason: 'language_unknown' as const }
+        : { reason: withheldBecause(heldBy), language: languageHead(heldBy) })
       : !proven ? { reason: 'language_new' as const, language: languageHead(language) } : null;
 
+    const switches = await tenant.ops.switches();
     const mode = effectiveMode(
       (r.hold || !mayDisclose) ? 'draft' : policyMode,
-      capability, await tenant.ops.switches(),
+      capability, switches,
     );
     if (speaksAlone && !mayDisclose) {
       // Recorded, because a capability that silently stopped acting as the
@@ -1369,6 +1383,9 @@ export async function commitTurn(
        * the approval path reads that from the row.
        */
       const disclosureInstead = policyMode === 'auto'
+        // G5 (2026-10-10) — not past an operator's "draft only": that switch
+        // means nothing goes alone, the disclosure included.
+        && effectiveMode(policyMode, capability, switches) === 'auto'
         && r.identityViolation?.kind === 'identity_question_unanswered'
         && sentence !== null;
 

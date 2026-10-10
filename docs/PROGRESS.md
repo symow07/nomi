@@ -60,6 +60,12 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
   fixed reply that dodges is held, and in auto the disclosure goes instead. `ar: false` — Arabic customers'
   replies wait for the owner until the owner re-signs the sentence that is sent.
 
+- **#273, the template (fix 3), D4 and the 改 bypass (fix 4)**, merged as `7072d2d` and deployed 11:23 UTC;
+  `/health` ok, production schema **136**. Backup before it: `nomi-backup-20261010T105607Z` (manual, schema 135).
+  The reopening template goes only for a row a person approved (`outbound_messages.approved`) or the owner's own
+  words, and only within 7 days of the buyer's last message; the owner's precheck asks the same plan. 改 with the
+  draft's own words is refused like 发送 on a reply the disclosure replaced.
+
 **Found on the way:**
 - **One integration run in about a thousand failed `imported-products`** (all four tests; it passed alone). Root
   cause: its SKUs carry a random hex run, and when that run held "aed" the price-list parser read
@@ -76,7 +82,7 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
 - It reaches the buyer whoever holds the conversation, and through a pause; never through Stop or the ops switch.
 - A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi" goes to a person and is never recorded as a stop.
 
-**Next:** the template and 改 (0136), then the small fixes.
+**Next:** the small fixes (the last of the batch).
 
 ## The advisor's light: a ring round the orb, and the column lit (2026-10-10)
 
