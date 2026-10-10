@@ -48,6 +48,16 @@ export function windowState(lastInboundAt: Date | null, now: Date): WindowState 
   return left <= CLOSING_SOON_MS ? 'closing_soon' : 'open';
 }
 
+/**
+ * D4 (the owner, 2026-10-10) — the reopening template goes only within seven
+ * days of the customer's last message. Older than that, no template at all: a
+ * closed window stays closed until they write.
+ */
+export const REOPEN_MAX_MS = 7 * 24 * 3600 * 1000;
+export function reopenAllowed(lastInboundAt: Date | null, now: Date): boolean {
+  return lastInboundAt !== null && now.getTime() - lastInboundAt.getTime() <= REOPEN_MAX_MS;
+}
+
 export function windowMsLeft(lastInboundAt: Date | null, now: Date): number {
   if (!lastInboundAt) return 0;
   return Math.max(0, lastInboundAt.getTime() + WINDOW_MS - now.getTime());
@@ -127,6 +137,7 @@ export function channelSendPlan(
    * is to wait for the buyer. Treating her approved WhatsApp template as usable
    * there would produce a send Meta refuses and this product records as sent.
    */
-  const reopenable = cap?.reopenWithTemplate === true ? template : 'none';
+  // D4 — and only within seven days of their last message.
+  const reopenable = cap?.reopenWithTemplate === true && reopenAllowed(lastInboundAt, now) ? template : 'none';
   return sendPlan(windowed ? windowState(lastInboundAt, now) : 'open', 'reply', reopenable);
 }

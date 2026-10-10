@@ -161,7 +161,7 @@ import { loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, r
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
-import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
+import { channelSendPlan, sendPlan, windowState, type TemplateState, reopenAllowed } from '../../core/channel/window.js';
 import { activate, deactivate, setPilotMode } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
 import { keepDraftEdit, keepUnsentReply, clearUnsentReply, draftTextOf, draftConversationOf, sameWords } from '../../db/ownerWords.js';
@@ -940,7 +940,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         reopening: false,
       };
     }
-    const windowAction = sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply', templateState).action;
+    // D4 — the reopening template only within seven days of their last message.
+    const windowAction = sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply',
+      reopenAllowed(pre.lastInboundAt, new Date()) ? templateState : 'none').action;
     if (stop && windowAction === 'send_template') return { verdict: 'opted_out' as const, reopening: false };
     const verdict = precheckOwnerSend(pre.facts, { ...pre, windowAction });
     return { verdict, reopening: verdict === 'ok' && windowAction === 'send_template' && reopen !== null };

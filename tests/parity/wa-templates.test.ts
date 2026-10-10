@@ -137,7 +137,22 @@ describe('WA-S · the worker, after the 24 hours', () => {
     expect(r.effects).toEqual([{ kind: 'sent', id: 'r1', providerMessageId: 'wamid.tpl' }]);
   });
   it('a draft of the assistant\'s the owner approved reopens too', async () => {
-    expect((await run({ origin: 'employee' })).templates).toHaveLength(1);
+    expect((await run({ origin: 'employee', approved: true })).templates).toHaveLength(1);
+  });
+  // 0136 (the messaging-policy audit, 2026-10-10) — before, origin alone decided, and this went as the template.
+  it('a reply the assistant sent alone, that waited past the 24 hours: refused, never the template', async () => {
+    const r = await run({ origin: 'employee' });
+    expect(r.templates).toEqual([]);
+    expect(r.texts).toEqual([]);
+    expect(r.effects).toEqual([{ kind: 'canceled', id: 'r1', reason: 'window_needs_owner' }]);
+  });
+  // D4 (the owner, 2026-10-10) — seven days since their last message, and no template at all.
+  it('their last message more than seven days ago: no template, for the owner either', async () => {
+    const r = await run({}, { lastInboundAt: daysAgo(8) });
+    expect(r.templates).toEqual([]);
+    expect(r.texts).toEqual([]);
+    expect(r.effects).toEqual([{ kind: 'canceled', id: 'r1', reason: 'window_closed' }]);
+    expect((await run({}, { lastInboundAt: daysAgo(6) })).templates).toHaveLength(1);
   });
   it('an automated follow-up, a first message, a picture, or no approved template: refused as before, nothing sent', async () => {
     for (const [row, ctx] of [
