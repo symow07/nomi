@@ -50,14 +50,21 @@ The near (light) dots stay clear against the lighter middle. The far ink dots ca
   - The finer one finds a corner where a straight rise meets the flat, which the eye picks out as an edge: 0.083
     here, 0.042 before, and 0.153 for a straight rise, which fails.
   - A hard-edged middle fails both.
-- **Guards, broken on purpose:** 64 breaks, each failing its own test. They are every earlier guard of the orb, the
-  redesign and the nav mark, plus this branch's own, and the four limits below:
+- **Guards, broken on purpose:** 68 distinct breaks (the final run, with the tint); 67 fail their own tests. They are
+  every earlier guard of the orb, the redesign and the nav mark, plus this branch's own:
   - the middle as deep as the ring;
   - the middle a hard disc;
   - the ring inside the dots;
   - the halo deep behind the middle, or cornered with three stops;
   - the field forgetting the ring;
-  - a straight, cornered rise.
+  - a straight, cornered rise;
+  - the near fall slower;
+  - the light reaching the column's sides, the page's top or the composer;
+  - its canvas reaching past main;
+  - the tint absent, loud, or darkening the middle.
+
+  **The one not caught:** removing the smootherstep's clamp. With the oval's whole-number powers it cannot misdraw,
+  so the clamp is a safeguard only.
 
 ## Bigger: the column lit (the owner, 2026-10-10)
 
