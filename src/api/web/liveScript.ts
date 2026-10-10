@@ -639,7 +639,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
      behind the middle. Every step the smootherstep: no edge. Chosen by measure (docs/design/advisor-orb-ring). */
   var RING = [0.3, 1.25];
   var MIDDLE = 0.22;
-  /* The tint: flat across the column, to its four edges (a rounded box), fading only near them. */
+  /* The tint (the owner, 2026-10-10): flat across the column, an oval to its four sides, fading only near them. */
   var TINT = 0.32;
   /* The halo's ring at rho: 0 in the middle, 1 at the ring, 0 at its reach. */
   function ringAt(rho, reach) {
@@ -679,16 +679,17 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var seed = 2463534242;
     function noise() { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
     var far = o.tint ? o.tint.r : r;
-    var pw = 2;
     for (var y = 0; y < H; y++) {
       var dy = (y + 0.5) / dpr - cy;
-      var my = Math.pow(Math.abs(dy / (dy < 0 ? far.up : far.down)), pw);
+      var my = dy / (dy < 0 ? far.up : far.down);
+      my *= my;
       if (my >= 1) continue;
       var ny = dy / (dy < 0 ? r.up : r.down);
       ny *= ny;
       for (var x = 0; x < W; x++) {
         var dx = (x + 0.5) / dpr - cx;
-        var m = Math.pow(Math.abs(dx / (dx < 0 ? far.back : far.on)), pw) + my;
+        var mx = dx / (dx < 0 ? far.back : far.on);
+        var m = mx * mx + my;
         if (m >= 1) continue;
         var nx = dx / (dx < 0 ? r.back : r.on);
         var q = nx * nx + ny;
@@ -708,7 +709,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
           t = Math.pow(1 - smoother(Math.sqrt(q)), o.fall) * o.depth;
         }
         if (o.tint) {
-          var e = o.tint.depth * (1 - smoother((Math.pow(m, 1 / pw) - o.tint.flat) / (1 - o.tint.flat)));
+          var e = o.tint.depth * (1 - smoother((Math.sqrt(m) - o.tint.flat) / (1 - o.tint.flat)));
           if (o.ring) e *= smoother((Math.sqrt(dx * dx + dy * dy) - o.ring.light) / (o.ring.deep - o.ring.light));
           t += (1 - t) * e;
         }
