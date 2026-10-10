@@ -66,6 +66,13 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
   words, and only within 7 days of the buyer's last message; the owner's precheck asks the same plan. 改 with the
   draft's own words is refused like 发送 on a reply the disclosure replaced.
 
+- **#274, the small fixes**, merged as `05e2577` and deployed 11:49 UTC; `/health` ok, schema 136. Instagram and
+  Messenger sends say `messaging_type: RESPONSE`; a reply goes alone only in a language signed off for the reply
+  itself too (G8); the disclosure-instead waits behind an operator's "draft only" (G5).
+- **Guards:** 44 broken on purpose across the five PRs (#270: 22, #271: 6, #272: 6, #273: 7, #274: 3), every one caught.
+- **Verification, each PR:** check, trust 44/44, build, integration all passing (1421 → 1427), pre-pilot 12/12 before
+  and after.
+
 **Found on the way:**
 - **One integration run in about a thousand failed `imported-products`** (all four tests; it passed alone). Root
   cause: its SKUs carry a random hex run, and when that run held "aed" the price-list parser read
@@ -82,7 +89,15 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
 - It reaches the buyer whoever holds the conversation, and through a pause; never through Stop or the ops switch.
 - A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi" goes to a person and is never recorded as a stop.
 
-**Next:** the small fixes (the last of the batch).
+**Waiting on the owner (from this batch):**
+- **Re-sign the Arabic disclosure** (D3). The sentence sent is quoted under "The owner's questions of 2026-09-30"
+  below; when signed, `ar` goes back to true in the same commit that names the reader.
+- **Whether the line that answers a stop should go alone everywhere.** Today it obeys the send-alone rules, so in a
+  draft-only workspace or in Arabic it waits for the owner's tap — silence the owner said reads as broken (D1).
+- **Whether "remove me from your list" should get the line too.** It also asks for deletion, so today it gets the
+  deletion's silence (rule 18); the stop is recorded either way.
+
+**The batch is done.** Next in the queue as before (`docs/ROADMAP.md` §2b).
 
 ## The advisor's light: a ring round the orb, and the column lit (2026-10-10)
 

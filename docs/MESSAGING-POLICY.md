@@ -59,7 +59,7 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 | 5 | "Are you a bot?" passed with a product word ("machine-washable", «غسيل آلي»), and was not checked at all on taught answers, the order line or fixed replies | #272 |
 | 3 | The reopening template could carry a reply nobody approved | #273 (0136) |
 | 4 | 改 with the draft's own words sent a reply the disclosure replaced | #273 |
-| — | Instagram/Messenger without `messaging_type`; the reply's own language not gated; the disclosure-instead past "draft only"; an identity failure that a later attempt corrected still held the turn | small-fixes PR |
+| — | Instagram/Messenger without `messaging_type`; the reply's own language not gated; the disclosure-instead past "draft only"; an identity failure that a later attempt corrected still held the turn | #274 |
 
 **Left as they are, on purpose:**
 - **The owner's alerts on WhatsApp outside the owner's own 24 hours** fail at Meta. E-mail and push still go, so no rule is broken.
