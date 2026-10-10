@@ -13,7 +13,50 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## The advisor's nav mark and the orb's dots (2026-10-09, afternoon) — read this first
+## The advisor's light: a ring round the orb, and the column lit (2026-10-10) — read this first
+
+**State:**
+- **#268, the advisor's light**, merged as `895f67b` and deployed 03:44 (2026-10-10) UTC; `/health` ok. Production schema is still
+  **134**.
+- **The owner's three rounds (2026-10-09 to -10):**
+  - deepest in a ring round the orb, lighter behind it so the far dots read;
+  - bigger, carried across the page;
+  - much stronger, to all four sides.
+  
+  The owner picked B, the oval, over A, the rounded box: "A's straight sides read as a panel, B reads as light."
+
+**What shipped:**
+- **The ring:** #A1127A deepest at 1.25 times the dots' radius, just outside them; the middle at 22 in 100 of the glow.
+  Middle dots below ΔE 10 went from 55 to 22 in 100.
+- **The tint:** a second light under the ring, flat at 0.32 of the glow across most of the column, reaching its four
+  sides, the top and the composer.
+  - **How lit:** halfway to the edges 32–35 in 100 (it was about 10).
+  - **"Hello":** at worst 3.9:1 on a desktop and 3.3:1 on a phone.
+- **The limits (the owner's):** the light stops short of the composer (40 px on a desktop, 12 on a phone, at its
+  outermost pixel) and of the rail and the nav row (24 px).
+  - There is no coverage rule: the owner dropped the "tenth of the page" bound as not theirs.
+- **Guards:** 68 distinct breaks, 67 caught. The clamp on the smootherstep is a safeguard that nothing can trip with
+  the oval.
+- **Renders:** `docs/design/advisor-orb-ring/`.
+
+**Found on the way:**
+- **Two black pixels at the light's edge.** The smootherstep passed 1 and a fractional power made NaN. It is clamped,
+  and every pixel of the light is now held to the line from the paper to the glow.
+- **The first stretched light was rejected.** It spread the deep magenta and put "Hello" at 2.2:1.
+- **The page's one script nears its 46,000-byte cap** (45,827). Comments ship to the browser, so new ones must be
+  short.
+- **The renders' file names once let the owner open #266's picture for the ring's.** The ring's files are now named
+  `ring-*`.
+
+**Waiting on the owner:** as in the entries below:
+- Nomi's legal name and address;
+- the copyright agent;
+- the trial setting;
+- `OWNER_ACCESS_CODE`;
+- `ADVISOR_KEY`;
+- the workspace's postal address.
+
+## The advisor's nav mark and the orb's dots (2026-10-09, afternoon)
 
 **State:**
 - **#265, PRE-LAUNCH and PROGRESS**, merged as `6c74b1d` and deployed 10:35 UTC; `/health` ok.
