@@ -56,7 +56,7 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 |---|---|---|
 | 2 | No opt-out in chat: a STOP ran an ordinary turn, and in auto the assistant answered it | #270 (0135) |
 | 1 | "Someone from our team will reply" never reached the buyer: the hand-off gave the conversation to a person in the same turn, and the gate cancelled the sentence as `handed_off` | #271 |
-| 5 | "Are you a bot?" passed with a product word ("machine-washable", «غسيل آلي»), and was not checked at all on taught answers, the order line or fixed replies | identity PR |
+| 5 | "Are you a bot?" passed with a product word ("machine-washable", «غسيل آلي»), and was not checked at all on taught answers, the order line or fixed replies | #272 |
 | 3 | The reopening template could carry a reply nobody approved | template PR (0136) |
 | 4 | 改 with the draft's own words sent a reply the disclosure replaced | template PR |
 | — | Instagram/Messenger without `messaging_type`; the reply's own language not gated; the disclosure-instead past "draft only"; an identity failure that a later attempt corrected still held the turn | small-fixes PR |
