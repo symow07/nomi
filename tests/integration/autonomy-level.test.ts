@@ -173,10 +173,11 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     // is per language (the owner): es/fr customers' replies wait; en/zh/ar go.
     const { disclosureAwaitingReview, autonomyReleased, autonomyReleasedFor, DISCLOSURE_NATIVE_REVIEW } = await import('../../src/core/conversation/disclosure.js');
     // Updated deliberately again (rule 1): the pt pack (2026-10-01) added Portuguese, awaiting review like es and fr.
-    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true, es: false, fr: false, pt: false });
-    expect(disclosureAwaitingReview()).toEqual(['es', 'fr', 'pt']);
+    // And again, 2026-10-10, by the owner's instruction: ar back to false — the sentence sent is not the one signed off.
+    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: false, es: false, fr: false, pt: false });
+    expect(disclosureAwaitingReview()).toEqual(['ar', 'es', 'fr', 'pt']);
     expect(autonomyReleased()).toBe(true);
-    expect(['en', 'zh', 'ar', 'es', 'fr', 'pt'].map((l) => autonomyReleasedFor(l))).toEqual([true, true, true, false, false, false]);
+    expect(['en', 'zh', 'ar', 'es', 'fr', 'pt'].map((l) => autonomyReleasedFor(l))).toEqual([true, true, false, false, false, false]);
   });
 
   it('"talks" and "sells" are REFUSED by the route, and nothing is written', async () => {

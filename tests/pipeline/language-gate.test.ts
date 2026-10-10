@@ -106,7 +106,13 @@ describe('LG · a hand-off no model read is in the language of the pattern that 
       expect(p.analyzer.calls).toBe(0);
       expect(r.decision.action.kind).toBe('handoff');
       expect(r.gateLanguage).toBe(lang);
-      expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES[lang]);
+      // 2026-10-10 — Arabic's disclosure is unread again (the owner): its hand-off waits for the owner, in Arabic.
+      if (lang === 'ar') {
+        expect(fx.outbound).toBeNull();
+        expect(p.tenant.draftsCreated.map((d) => d.draftText)).toEqual([HANDOFF_REPLIES.ar]);
+      } else {
+        expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES[lang]);
+      }
     });
   }
 });

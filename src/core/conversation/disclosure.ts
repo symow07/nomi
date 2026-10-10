@@ -38,13 +38,12 @@ const TEXT: Readonly<Record<DisclosureLocale, string>> = {
   // Signed off by the owner, 2026-09-28, unchanged: 人工服务 is the term a
   // Chinese buyer expects, and the register is right.
   zh: '您好，我是{name}，{business}的AI助手。如需人工服务请告诉我，同事会尽快回复您。',
-  // Signed off by the owner, 2026-09-28, with two changes: «مساعد آلي» (an
-  // automated assistant) for «المساعد الذكي» ("the smart assistant"), which
-  // named a quality rather than a kind and is the ordinary marketing phrase
-  // for any chatbot; and the buyer is no longer addressed in a gender — rule 6:
-  // «فأخبرني» (tell me) was a masculine imperative, so the clause now says
-  // "to speak with a person from our team, asking is enough, and the reply
-  // comes as soon as possible", addressing nobody.
+  // The owner changed one phrase, 2026-09-28: «مساعد آلي» (an automated
+  // assistant) for «المساعد الذكي» ("the smart assistant"), which named a
+  // quality rather than a kind. The second clause was rewritten the same day
+  // (#118) so the buyer is addressed in no gender (rule 6) — «فأخبرني» was a
+  // masculine imperative — and THAT version the owner has not read: so it is
+  // not signed off (2026-10-10, below).
   ar: 'مرحبًا، أنا {name}، مساعد آلي لدى {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت ممكن.',
   // 2026-09-29 — Spanish and French, for the customers the EU AI Act already
   // covers, who were told in English. Translated to carry the English
@@ -87,16 +86,20 @@ const isDisclosureLocale = (v: string): v is DisclosureLocale =>
  * unread (#124) stopped every workspace sending alone, Westlake's included,
  * which nobody had decided (docs/PROGRESS.md, "The owner's questions").
  *
- * LIFTED for zh and ar 2026-09-28: the owner read the `zh` and `ar` strings
- * above, changed one phrase in the Arabic, and the flags were set in the same
- * commit. The Arabic's second clause was rewritten the same day (#118) and the
- * owner has not read that version — PROGRESS quotes both for him. A locale
- * added to DISCLOSURE_LOCALES later starts false: its customers get drafts.
+ * LIFTED for zh 2026-09-28: the owner read the `zh` string above and the flag
+ * was set in the same commit. Arabic was lifted the same day and set back on
+ * 2026-10-10 by the owner: its second clause was rewritten after the sign-off
+ * (#118), and the owner will read the version that is sent and sign it again.
+ * A locale added to DISCLOSURE_LOCALES later starts false: its customers get drafts.
  */
 export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean>> = {
   en: true,
   zh: true,   // the owner, 2026-09-28
-  ar: true,   // the owner, 2026-09-28
+  // 2026-10-10 — the owner: "Set ar: false. The sentence being sent is not the
+  // sentence signed off, so the flag is claiming a review that didn't happen.
+  // I'll read the live version and re-sign it myself." Arabic customers' replies
+  // wait for the owner until then.
+  ar: false,
   // Awaiting a native reader (the owner's instruction, 2026-09-29). Never set
   // true by an assistant: a reviewer reads the sentence above, and the flag
   // flips in the same commit that names them.
