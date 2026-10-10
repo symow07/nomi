@@ -59,7 +59,8 @@ describe('G10b · she is told his window is shut, when she presses send', () => 
     const reply = app.slice(app.indexOf("app.post('/app/inbox/:conversationId/reply'"));
     // WA-S — the reply asks the same verdict through `ownerSendWindow`, which also says whether it reopens.
     expect(reply.slice(0, reply.indexOf('ownerReply('))).toContain('ownerSendWindow(');
-    expect(app).toContain('const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => (await ownerSendWindow(bid, conversationId)).verdict;');
+    // 0135 — with the one exception it carries: the line that answers a stop.
+    expect(app).toContain('const ownerSendVerdict = async (bid: BusinessId, conversationId: string, opts: { readonly notice?: boolean } = {}) =>\n    (await ownerSendWindow(bid, conversationId, opts)).verdict;');
   });
 });
 

@@ -7,6 +7,7 @@ import type { TurnEffects } from './turn.js';
 import { QUEUES, type InboundJob } from '../queue/boss.js';
 import { ownershipOf, canTransition, WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
 import { asksForDeletion } from '../core/safety/deletion.js';
+import { readOptOut } from '../core/scoring/detect.js';
 
 /**
  * G2c — recording a message she will not answer: a reaction or a sticker she
@@ -100,6 +101,16 @@ export async function handToPerson(
   if (asking) {
     await tenant.signals.record(conversationId, { kind: 'deletion_requested' });
     await tenant.deletionAsks.note({ conversationId, messageId: asking.messageId, now: new Date() });
+  }
+  // 0135 — and a stop: recorded on every path where no turn runs (stopped,
+  // paused, an unlisted number, an e-mail reply), so it binds the send gate
+  // whoever answers next. Nothing is said back here: the assistant is not
+  // speaking on these paths.
+  const stopping = said.some((x) => readOptOut(x.text ?? '')?.kind === 'opt_out');
+  if (stopping) {
+    await tenant.signals.record(conversationId, { kind: 'opted_out' });
+    const recorded = await tenant.optOuts.record({ conversationId, now: new Date() });
+    await tenant.events.append(conversationId, 'opted_out', { recorded });
   }
   const state = await tenant.conversations.loadState(conversationId);
   const from = ownershipOf(state?.assignedTo ?? null);

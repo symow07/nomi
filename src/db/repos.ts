@@ -44,6 +44,7 @@ import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { issueProofLinkTx } from './proofs.js';
 import { noteDeletionAsk } from './deletionAsks.js';
+import { recordOptOut } from './optOuts.js';
 import { proposeOrder, pendingProposalOf } from './orderProposals.js';
 
 const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
@@ -744,10 +745,10 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     async create(input) {
       const r = await sql<{ id: string }>`
         insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status,
-                            replaced_by_disclosure, asks)
+                            replaced_by_disclosure, asks, notice)
         values (${businessId}, ${input.conversationId}, ${input.capability},
                 ${input.draftText}, ${input.turnMessageId}, 'pending',
-                ${input.replacedByDisclosure ?? false}, ${input.asks ?? null})
+                ${input.replacedByDisclosure ?? false}, ${input.asks ?? null}, ${input.notice ?? null})
         returning id
       `.execute(tx);
       return { draftId: r.rows[0]!.id };
@@ -776,6 +777,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
   // 0076 — the request is written down when it arrives (db/deletionAsks.ts).
   const deletionAsks: import('./ports.js').DeletionAskRepo = {
     note: (input) => noteDeletionAsk(tx, businessId, input),
+  };
+
+  // 0135 — a buyer who says stop (db/optOuts.ts).
+  const optOuts: import('./ports.js').OptOutRepo = {
+    record: (input) => recordOptOut(tx, businessId, { conversationId: input.conversationId, by: 'buyer', now: input.now }),
   };
 
   // ── knowledge (M13) ──────────────────────────────────────────────────────
@@ -809,7 +815,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
   };
 
   return {
-    businessId, conversations, clients, catalog, orders, samples, deletionAsks, orderProposals, signals, events, audit, autonomy, ops, drafts, knowledge, proofs,
+    businessId, conversations, clients, catalog, orders, samples, deletionAsks, optOuts, orderProposals, signals, events, audit, autonomy, ops, drafts, knowledge, proofs,
     zone: () => zoneOf(tx, businessId),
   };
 }

@@ -3,7 +3,7 @@ import { ownershipOf, aiMaySpeak } from '../core/conversation/ownership.js';
 import {
   onSendFailure, isUncertainSend,
 } from '../core/channel/delivery.js';
-import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal } from '../core/channel/sendGate.js';
+import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal, type Notice } from '../core/channel/sendGate.js';
 import { channelSendPlan, type TemplateState } from '../core/channel/window.js';
 import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
@@ -48,6 +48,8 @@ export type OutboundWorkRow = OutboundRow & {
   readonly mediaUrl?: string | null;
   /** 0080 — the question this message asks the customer, if any. */
   readonly asks?: PendingQuestion | null;
+  /** 0135 — one of the fixed sentences that must reach a buyer a person holds (sendGate.ts `Notice`). */
+  readonly notice?: Notice | null;
 };
 
 export type ConversationSendContext = {
@@ -112,6 +114,12 @@ export type ConversationSendContext = {
    * mail is in this conversation's queue; a reply costs no extra query.
    */
   readonly sender?: { readonly businessName: string; readonly postalAddress: string | null; readonly locale: Locale };
+  /**
+   * 0135 — this buyer asked, on this channel, to stop being messaged: when
+   * they last said it. The gate compares it with `lastInboundAt`. Absent or
+   * null: they have not.
+   */
+  readonly optOut?: { readonly lastAskedAt: Date } | null;
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -343,7 +351,7 @@ export async function driveConversationOutbound(
     // inline here — and only this copy ran, so the tested one could have
     // drifted from the shipped one without a single failure. One rule, one
     // definition; this function decides what to DO about it.
-    const doomed = new Set(cancelableOnTakeover(live));
+    const doomed = new Set(cancelableOnTakeover(live, ownershipOf(ctx.assignedTo)));
     active = [];
     for (const r of live) {
       if (doomed.has(r.id)) {
@@ -398,6 +406,9 @@ export async function driveConversationOutbound(
     silenced: ctx.silenced,
     // 0070 — the owner's Stop: required all the way down, like the ops switch.
     stopped: ctx.stopped,
+    // 0135 — the line that answers a stop, or the hand-off sentence; and the buyer's stop itself.
+    ...(candidate.notice ? { notice: candidate.notice } : {}),
+    ...(ctx.optOut ? { optOut: { repliedSince: ctx.lastInboundAt !== null && ctx.lastInboundAt.getTime() > ctx.optOut.lastAskedAt.getTime() } } : {}),
   });
   if (!gate.allow) {
     await refuse(deps, candidate, gate.reason);

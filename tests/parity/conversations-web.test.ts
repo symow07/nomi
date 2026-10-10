@@ -81,9 +81,11 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
     // CC-02a, 0126 — and, for the owner only, the one that deletes this
     // customer's data when they asked. It posts to this page's own route too,
     // and carries a note, never a draft or a command.
-    expect(forms).toEqual(['/app/conversations/c1/name', '/app/conversations/c1/deletion/erase']);
+    // 0135 — and, for anyone looking after them, recording a stop their words
+    // asked for and nothing caught: it only ever stops sending.
+    expect(forms).toEqual(['/app/conversations/c1/name', '/app/conversations/c1/opt-out/record', '/app/conversations/c1/deletion/erase']);
     const staff = renderCustomerFile(file, 'en', NOW, null, { isOwner: false });
-    expect([...staff.matchAll(/<form[^>]*action="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/conversations/c1/name']);
+    expect([...staff.matchAll(/<form[^>]*action="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/conversations/c1/name', '/app/conversations/c1/opt-out/record']);
     expect(html).not.toContain('name="command"');
     expect(html).not.toContain('name="draftId"');
   });

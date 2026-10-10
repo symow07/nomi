@@ -63,10 +63,10 @@ export function channelStore(
         attempts: number; sent_at: Date | null; to_wa_id: string | null; body: string;
         origin: 'employee' | 'owner' | 'outreach'; sending_since: Date | null;
         kind: string; media_url: string | null; channel: string; subject: string | null;
-        automated: boolean; asks: PendingQuestion | null;
+        automated: boolean; asks: PendingQuestion | null; notice: 'handoff' | 'opt_out' | null;
       }>`
         select id, seq, status, requires_order, attempts, sent_at, to_wa_id, body,
-               origin, sending_since, kind, media_url, channel, subject, asks,
+               origin, sending_since, kind, media_url, channel, subject, asks, notice,
                -- C4.b — released by a follow-up schedule rather than a person.
                exists (select 1 from sequence_sends ss where ss.outbound_id = outbound_messages.id) as automated
           from outbound_messages
@@ -129,6 +129,7 @@ export function channelStore(
         channel: r.channel, subject: r.subject,
         ...(r.automated ? { automated: true } : {}),
         ...(r.asks ? { asks: r.asks } : {}),
+        ...(r.notice ? { notice: r.notice } : {}),
       }));
       /**
        * C4.a — WHICH CHANNEL THIS CONVERSATION IS ON, because the three facts
@@ -230,6 +231,13 @@ export function channelStore(
       } : null;
       // WA-S — only a WhatsApp conversation has a window a template reopens.
       const reopen = channel === 'whatsapp' ? await reopenFor(tx, businessId, c?.buyer_locale ?? null) : null;
+      // 0135 — did this buyer ask, on this channel, to stop? Read at send time like
+      // every other fact here, under every identity a row here is addressed to.
+      const identities = [...new Set([c?.buyer_wa_id ?? '', ...rows.map((r) => r.to)].filter((x) => x !== ''))];
+      const optOutAt = identities.length === 0 ? null : (await sql<{ at: Date | null }>`
+        select max(last_asked_at) as at from opt_outs
+         where business_id = ${businessId} and channel = ${channel}
+           and identity = any(${identities}::text[]) and lifted_at is null`.execute(tx)).rows[0]?.at ?? null;
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
         // M51.2 — ONE rule, applied here. A tenant with no budget row is not
@@ -259,6 +267,7 @@ export function channelStore(
         ...(outreach ? { outreach } : {}),
         ...(inReplyTo ? { inReplyTo } : {}),
         ...(sender ? { sender } : {}),
+        ...(optOutAt ? { optOut: { lastAskedAt: optOutAt } } : {}),
       };
       // WA-S — a business whose own number has the reopening template APPROVED
       // reopens a closed window with it, for this customer: the template state
@@ -594,6 +603,11 @@ export async function enqueueOutboundRow(
    * the provider accepts it (worker.ts), never before.
    */
   asks: PendingQuestion | null = null,
+  /**
+   * 0135 — one of the fixed sentences that must reach a buyer a person holds:
+   * the line that answers a stop, or the hand-off sentence (sendGate.ts).
+   */
+  notice: 'handoff' | 'opt_out' | null = null,
 ): Promise<string | null> {
   // C4.a — the identity to send to is the conversation's OWN channel, not
   // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
@@ -638,10 +652,10 @@ export async function enqueueOutboundRow(
   // on body either: two contacts can honestly receive the same first line.
   const row = await sql<{ id: string }>`
     insert into outbound_messages
-      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject, asks)
+      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject, asks, notice)
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
-           ${channel}, ${subject}, ${asks}::text
+           ${channel}, ${subject}, ${asks}::text, ${notice}
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not exists (
       select 1 from outbound_messages

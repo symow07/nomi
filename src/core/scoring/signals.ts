@@ -76,6 +76,13 @@ export type Signal =
    */
   | { readonly kind: 'deletion_requested' }
   /**
+   * 0135 — the buyer asked the business to stop messaging them. A PROBLEM
+   * signal: a person picks the conversation up, and the opt-out itself is
+   * recorded for the buyer on the channel (`opt_outs`), which the send gate
+   * reads. Answered with one fixed line (`OPT_OUT_REPLIES`), then nothing.
+   */
+  | { readonly kind: 'opted_out' }
+  /**
    * 0077 — nobody could tell what this message asked, so a person answers it.
    * Two ways in: the analyser was asked whether the buyer wants a person and
    * its answer could not be read (`Analysis.wantsPerson === null`), or the
@@ -161,6 +168,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'ops_silenced',
   // 0075 — the buyer asked for their data to be deleted; a person answers.
   'deletion_requested',
+  // 0135 — the buyer asked to stop being messaged; a person picks it up.
+  'opted_out',
   // 0077 — nobody could tell what the message asked; a person answers.
   'not_answered',
   // K5 (0094) — a price question, where prices go to the owner.
@@ -197,6 +206,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   assistant_stopped: { kind: 'assistant_stopped' },
   ops_silenced: { kind: 'ops_silenced' },
   deletion_requested: { kind: 'deletion_requested' },
+  opted_out: { kind: 'opted_out' },
   not_answered: { kind: 'not_answered' },
   price_to_owner: { kind: 'price_to_owner' },
   stock_asked: { kind: 'stock_asked' },
@@ -242,6 +252,7 @@ export const TRIGGER_REASONS = [
   'not_answered',
   'price_to_owner',
   'allowance_used',
+  'opted_out',
   'stock_asked',
   'billing_lapsed',
   'plan_limit',
@@ -276,6 +287,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'ops_silenced';
     case 'deletion_requested':
       return 'deletion_requested';
+    case 'opted_out':
+      return 'opted_out';
     case 'not_answered':
       return 'not_answered';
     case 'price_to_owner':
@@ -340,6 +353,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'deletion_requested':
         problem = 100; // absolute: only a person answers a deletion request.
+        break;
+      case 'opted_out':
+        problem = 100; // absolute: nothing more is written to them; a person picks it up.
         break;
       case 'not_answered':
         problem = 100; // absolute: nobody knows what it asked, so a person answers.

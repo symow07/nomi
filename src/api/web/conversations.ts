@@ -12,6 +12,7 @@ import { shape } from './marks.js';
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
 import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
+import { standingOptOut, type StandingOptOut } from '../../db/optOuts.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
@@ -129,6 +130,11 @@ export type CustomerFile = {
    */
   readonly deletionAsk?: WaitingAsk | null;
   /**
+   * 0135 — they asked, on this conversation's channel, not to be messaged.
+   * Optional so a fixture without one reads as nothing standing.
+   */
+  readonly optOut?: StandingOptOut | null;
+  /**
    * The fix wave (w4-conversation-19) — their face (the photo's version, else
    * their initial) and what they spent and ordered (`customerValues`, the one
    * definition, as the card and the strip read it). Optional for fixtures.
@@ -199,6 +205,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
 
     const deletion = await buyerDeletionOf(tx, conversationId);
     const deletionAsk = await waitingAskOf(tx, conversationId);
+    const optOut = await standingOptOut(tx, bid.value, conversationId);
     const client = head.client_id;
     const customer = client ? {
       clientId: client,
@@ -277,6 +284,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       },
       deletion,
       deletionAsk,
+      optOut,
       customer,
     };
   });
@@ -389,6 +397,37 @@ export async function renameBuyer(
  * the owner's note of how and when — it is the record of the asking, and
  * their own message is among what goes.
  */
+/**
+ * 0135 — they asked not to be messaged, on this channel: since when, what that
+ * means, and the one way it ends — the OWNER, because the customer asked to
+ * hear from the business again. A sales assistant sees it and whose call it is.
+ * Not standing: anyone looking after them may record one, for a message that
+ * asked to stop and was not caught (it only ever stops sending).
+ */
+function optOutSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
+  const o = f.optOut ?? null;
+  const here = `/app/conversations/${encodeURIComponent(f.conversationId)}`;
+  const channel = channelName(locale, f.channel);
+  if (!o) {
+    return `<details class="block" id="opt-out">
+      <summary>${esc(t(locale, 'conv.optOut.record'))}</summary>
+      <p class="muted">${esc(t(locale, 'conv.optOut.recordNote', { channel }))}</p>
+      <form method="post" action="${here}/opt-out/record">
+        <button class="btn" type="submit" data-confirm="${esc(t(locale, 'conv.optOut.recordConfirm', { channel }))}">${esc(t(locale, 'conv.optOut.record'))}</button>
+      </form>
+    </details>`;
+  }
+  return `<div class="block" id="opt-out">
+    <h2>${esc(t(locale, 'conv.optOut.title', { channel }))}</h2>
+    <p>${esc(t(locale, o.repliedSince ? 'conv.optOut.replied' : 'conv.optOut.body', { date: show.date(locale, o.lastAskedAt) }))}</p>
+    ${viewer.isOwner
+      ? `<form method="post" action="${here}/opt-out/lift">
+          <button class="btn" type="submit" data-confirm="${esc(t(locale, 'conv.optOut.liftConfirm'))}">${esc(t(locale, 'conv.optOut.lift'))}</button>
+        </form>`
+      : `<p class="muted">${esc(t(locale, 'conv.optOut.staff'))}</p>`}
+  </div>`;
+}
+
 function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
   const d = f.deletion ?? null;
   const date = (x: Date) => show.date(locale, x);
@@ -550,5 +589,6 @@ export function renderCustomerFile(
     ${profile}
     ${timeline}
     ${context}
+    ${optOutSection(f, locale, viewer)}
     ${deletionSection(f, locale, viewer)}`;
 }

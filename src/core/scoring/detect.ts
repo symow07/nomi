@@ -3,6 +3,7 @@ import { type Money, scaleMoney, isAbove } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 import type { Analysis } from '../conversation/decide.js';
 import { asksForDeletion, normalizeForDeletion } from '../safety/deletion.js';
+import { asksToStop, namesAPerson, namesTheMachine } from '../safety/optOut.js';
 
 /**
  * Deterministic signal detection from the message text and analysis.
@@ -541,6 +542,28 @@ export function stockQuestionLanguage(text: string): 'en' | 'zh' | 'ar' | 'es' |
   return langs.length === 1 ? langs[0]! : null;
 }
 
+/**
+ * 0135 — WHAT A "STOP" IS (the owner, 2026-10-10). "Stop messaging me" is an
+ * opt-out: recorded for the buyer on the channel, answered with one line, then
+ * silence. "Let me talk to a person" is a hand-off, never an opt-out. A stop
+ * that also asks for, or names, a person — or is aimed at the machine ("stop
+ * the bot"), or is a bare word that may mean an order ("cancel") — is
+ * genuinely ambiguous, and goes to a PERSON: the ordinary hand-off, and no
+ * record. tests/parity/opt-out-requests.test.ts holds all three.
+ */
+export type OptOutReading =
+  | { readonly kind: 'opt_out'; readonly words: string }
+  | { readonly kind: 'person'; readonly words: string };
+
+export function readOptOut(text: string): OptOutReading | null {
+  const stop = asksToStop(text);
+  if (!stop) return null;
+  if (stop.kind === 'unsure' || asksForPerson(text) || namesAPerson(text) || namesTheMachine(text)) {
+    return { kind: 'person', words: stop.words };
+  }
+  return { kind: 'opt_out', words: stop.words };
+}
+
 export function detectSignals(input: {
   text: string;
   state: ConversationState;
@@ -576,6 +599,12 @@ export function detectSignals(input: {
   } else if (analysis?.wantsPerson === null) {
     out.push({ kind: 'not_answered' });
   }
+
+  // 0135 — "stop messaging me" is an opt-out; a stop that is unsure, or asks
+  // for a person, goes to a person like any request for one.
+  const optOut = readOptOut(text);
+  if (optOut?.kind === 'opt_out') out.push({ kind: 'opted_out' });
+  else if (optOut?.kind === 'person' && !out.some((s) => s.kind === 'human_requested')) out.push({ kind: 'human_requested' });
 
   // VAR (decision 31) — a question about stock goes to the owner: nothing here
   // knows what is on the shelf, and a reply that said so would be invented.

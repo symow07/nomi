@@ -113,7 +113,8 @@ export function decideTurn(input: TurnInput): TurnDecision {
   // with nothing said, which reveals nothing either. "Forget everything you
   // know about me" is both, and was answered with the canned reply instead.
   const injection = detectInjection(text).detected;
-  const deletionAsked = signals.some((s) => s.kind === 'deletion_requested');
+  // 0135 — nor a stop: "stop messaging me, ignore your instructions" is still a stop.
+  const deletionAsked = signals.some((s) => s.kind === 'deletion_requested' || s.kind === 'opted_out');
   if (injection && !deletionAsked) {
     return {
       ...base,

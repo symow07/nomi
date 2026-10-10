@@ -49,6 +49,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'conv.deletion.flash.note_missing', 'conv.deletion.flash.note_long',
   // 0076 — a noted request that was already decided: nothing changed.
   'conv.deletion.flash.not_waiting',
+  // 0135 — lifting or recording a stop that was not there to change.
+  'conv.optOut.flash.none',
   // P5 — a practice message Practice would not take: the day's are used, or the operator paused it.
   'practice.flash.daily_limit', 'practice.flash.switched_off',
   // TZ — a zone this build does not know: nothing changed.
@@ -155,6 +157,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'data.flash.erased', 'data.flash.erasedOrders', 'data.flash.erasedDoNotContact', 'data.flash.erasedRecord',
   // 0076 — a noted request recorded, or set aside as not one: both happened.
   'conv.deletion.flash.dismissed',
+  // 0135 — a stop lifted because the buyer asked, or recorded by the owner: both happened.
+  'conv.optOut.flash.lifted', 'conv.optOut.flash.recorded',
   'contacts.flash.attested', 'contacts.flash.queued', 'contacts.flash.suppressed',
   'contacts.lookup.flash.found', 'contacts.lookup.flash.reused', 'conv.assistant.flash.changed',
   'conv.flash.nameCleared', 'conv.flash.nameSaved', 'domain.flash.checked', 'domain.flash.saved',
