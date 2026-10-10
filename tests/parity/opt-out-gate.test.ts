@@ -74,9 +74,10 @@ describe('0135 · no stop: nothing changes', () => {
     expect(gateOutbound({ ...base, assignedTo: 'unclaimed' })).toEqual({ allow: false, reason: 'handed_off' });
     expect(gateOutbound({ ...base, windowPlan: viaTemplate })).toEqual({ allow: true, viaTemplate: true });
   });
-  it('a hand-off row is not yet a notice that passes a person (fix 1 of the batch)', () => {
-    expect(noticeSpeaks('handoff', 'WAITING_HUMAN')).toBe(false);
+  it('which notice speaks to whom', () => {
     expect(noticeSpeaks('opt_out', 'OWNER_CONTROLLED')).toBe(true);
+    expect(noticeSpeaks('handoff', 'WAITING_HUMAN')).toBe(true);     // fix 1
+    expect(noticeSpeaks('handoff', 'OWNER_CONTROLLED')).toBe(false);
     expect(noticeSpeaks(null, 'AI')).toBe(false);
   });
   it('takeover spares the line, and cancels the rest of what the assistant queued', () => {
@@ -96,5 +97,31 @@ describe('0135 · the owner is told, in every locale', () => {
       expect(t(locale, 'inbox.blocked.opted_out').length, locale).toBeGreaterThan(10);
       expect(t(locale, 'takeover.reason.opted_out').length, locale).toBeGreaterThan(5);
     }
+  });
+});
+
+/**
+ * Fix 1 (2026-10-10) — "someone from our team will reply" reaches the buyer
+ * who asked for a person. The hand-off gives the conversation to a person in
+ * the same turn, so without its mark the gate refused it as `handed_off`.
+ */
+describe('fix 1 · the hand-off sentence reaches the buyer waiting for a person', () => {
+  it('waiting for a person: it goes; without its mark it would not', () => {
+    expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff' })).toEqual({ allow: true, viaTemplate: false });
+    expect(gateOutbound({ ...base, assignedTo: 'unclaimed' })).toEqual({ allow: false, reason: 'handed_off' });
+  });
+  it('a person has taken it, or the conversation is paused: it does not', () => {
+    expect(gateOutbound({ ...base, assignedTo: 'owner', notice: 'handoff' })).toEqual({ allow: false, reason: 'handed_off' });
+    expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', paused: true })).toEqual({ allow: false, reason: 'paused' });
+  });
+  it('Stop, the ops switch, the window and a template still bind it', () => {
+    expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', stopped: true })).toEqual({ allow: false, reason: 'stopped' });
+    expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', silenced: true })).toEqual({ allow: false, reason: 'silenced' });
+    expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', windowPlan: viaTemplate })).toEqual({ allow: false, reason: 'window_closed' });
+  });
+  it('takeover by a person cancels it; waiting for one spares it', () => {
+    const row = { id: 'h', seq: 1, status: 'queued' as const, requiresOrder: false, attempts: 0, sentAt: null, origin: 'employee' as const, notice: 'handoff' as const };
+    expect(cancelableOnTakeover([row], 'WAITING_HUMAN')).toEqual([]);
+    expect(cancelableOnTakeover([row], 'OWNER_CONTROLLED')).toEqual(['h']);
   });
 });

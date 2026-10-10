@@ -224,6 +224,8 @@ export function ownPriceCount(line: string, currency: Currency): number {
  * shape is unmistakable.
  */
 const ARTICLE_NO = /^([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+|[A-Za-z]{1,6}\d{2,})\s+/;
+/** The hyphenated article number alone: the shape no price is ever written in. */
+const CODE_FIRST = /^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+\s+/;
 
 /**
  * Deterministic parser for the shapes owners actually paste:
@@ -280,9 +282,17 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
 
   // T4 — a price in any currency but the workspace's is refused, not ignored:
   // "18元" once came in as a product with no price, and "HK$25" as $25.
-  let problem: ReadingProblem | null = reading.foreign(line) ? 'other_currency' : null;
+  //
+  // Read without a leading code: an article number never carries the price or
+  // its money, and "D1-FFF4AED6-TOTE" or "TA-3AED7" is a code, not dirhams
+  // (found 2026-10-10: one test run in a thousand drew a SKU with "AED" in it,
+  // and every line of the list was refused as another currency). Only the
+  // hyphenated shape: a leading "AED12" may be a price, and is still read.
+  const code = CODE_FIRST.exec(line);
+  const priced = code ? line.slice(code[0].length) : line;
+  let problem: ReadingProblem | null = reading.foreign(priced) ? 'other_currency' : null;
   let price: number | null = null;
-  const written = line.match(reading.before)?.[1] ?? line.match(reading.after)?.[1] ?? null;
+  const written = priced.match(reading.before)?.[1] ?? priced.match(reading.after)?.[1] ?? null;
   if (!problem && written !== null) {
     const a = readAmount(written, currency);
     if (a === 'ambiguous') problem = 'ambiguous_price';

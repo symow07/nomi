@@ -209,7 +209,8 @@ d('0135 · a buyer who says stop, through production (requires DATABASE_URL)', {
       await until(async () => ((await state(conv)).assigned !== null ? true : undefined), `the hand-off of ${text}`);
       const s = await state(conv);
       expect(s.signals, text).toContain('human_requested');
-      expect(s.pending, text).toEqual([{ text: HANDOFF_REPLIES.en, notice: null }]);
+      // Fix 1 — marked, so it reaches the buyer now waiting for a person.
+      expect(s.pending, text).toEqual([{ text: HANDOFF_REPLIES.en, notice: 'handoff' }]);
       expect(await optOutOf(wa), text).toEqual([]);
     }
   });

@@ -543,6 +543,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         answerPath = 'handoff';
       } else {
         reply = HANDOFF_REPLIES[sayIn];
+        // Fix 1 (2026-10-10) — marked, so it reaches the buyer the hand-off just
+        // gave to a person: before, the gate refused it as `handed_off`.
+        notice = 'handoff';
         answerPath = 'handoff';
       }
       break;
@@ -863,6 +866,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null, language: sayIn });
     newState = stateAfter(decision);
     reply = decision.action.kind === 'handoff' ? HANDOFF_REPLIES[sayIn] : null;
+    notice = reply === null ? null : 'handoff';
     replyDeterministic = true;
     answerPath = 'handoff';
     knowledgeUsed = [];

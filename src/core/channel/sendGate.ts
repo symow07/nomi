@@ -108,14 +108,19 @@ export type Notice = 'handoff' | 'opt_out';
 
 /**
  * 0135 — may this notice reach a buyer the assistant no longer speaks to?
- * The line that answers a stop: whoever holds the conversation, and through a
- * pause — it is the answer to the stop itself, and nothing else will be said.
+ *   · The line that answers a stop: whoever holds the conversation — it is the
+ *     answer to the stop itself, and nothing else will be said.
+ *   · "Someone from our team will reply" (fix 1, 2026-10-10): while the buyer
+ *     WAITS for a person, which is exactly when it is true and still news.
+ *     Once a person has taken the conversation, they answer; the sentence
+ *     would only stand in front of them. The hand-off sets 'unclaimed' in the
+ *     same turn, so the gate refused every one of these as `handed_off` until
+ *     this mark existed — a buyer who asked for a person heard nothing.
  * Never through Stop or the ops switch, which bind everything the machine
  * writes (checked before this is asked).
  */
 export function noticeSpeaks(notice: Notice | null | undefined, holder: ConversationOwnership): boolean {
-  void holder;
-  return notice === 'opt_out';
+  return notice === 'opt_out' || (notice === 'handoff' && holder === 'WAITING_HUMAN');
 }
 
 /**
@@ -216,7 +221,8 @@ export function gateOutbound(g: GateInput): GateDecision {
   if (g.origin === 'employee') {
     // 0135 — except a notice that may still reach them (`noticeSpeaks`).
     if (!aiMaySpeak(ownershipOf(g.assignedTo)) && !noticeSpeaks(g.notice, ownershipOf(g.assignedTo))) return { allow: false, reason: 'handed_off' };
-    if (g.paused && !noticeSpeaks(g.notice, ownershipOf(g.assignedTo))) return { allow: false, reason: 'paused' };
+    // Through a pause only the line that answers a stop: nothing else the assistant writes.
+    if (g.paused && g.notice !== 'opt_out') return { allow: false, reason: 'paused' };
   }
 
   // M18.2 — the pilot allowlist binds EVERYONE, including the owner. During a

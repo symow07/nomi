@@ -13,7 +13,61 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## The advisor's light: a ring round the orb, and the column lit (2026-10-10) — read this first
+## The messaging-policy batch (2026-10-10) — read this first
+
+**The owner's order** (2026-10-10): audit every send against the 24-hour window, opt-in and opt-out, templates
+and the AI disclosure; report before changing the send path. Then, on the report: fix 2 (opt-out) first, then 1
+(the hand-off sentence), 5 (the identity check), 3 (the reopening template), 4 (the 改 bypass), and the small
+ones. The rules as they now stand, the findings and every decision: `docs/MESSAGING-POLICY.md`.
+
+**The owner's decisions:**
+- **D1** — after a stop, one fixed line, then silence.
+- **D2** — writing again lifts the reply block, not the do-not-contact; only the owner lifts that, on the buyer's
+  page; a stop binds the owner's own replies too.
+- **D3** — `ar: false`: the Arabic sentence sent is not the one signed off. The owner will read the live version
+  and re-sign it. Arabic customers' replies wait for the owner until then.
+- **D4** — the reopening template only within 7 days of the buyer's last message.
+
+**Also decided** (the owner's paste before the batch):
+- **Westlake's postal address:** Westlake is the demo workspace and needs none. It stays blocked from sending
+  first e-mails; that is the guard working.
+- **The legal name, address and copyright agent:** parked until the company exists. `OPERATOR` stays empty.
+- **The refund page's trial:** read from `billing_settings.self_serve_trial_days`, the clause left out while it
+  is empty. The number is set with plans, prices and Stripe in one sitting.
+- **The keys** (pasted 2026-10-09):
+  - `ADVISOR_KEY` is live: the boot log no longer warns that it is unset.
+  - `OWNER_ACCESS_CODE` is present by name; whether it is the new value cannot be checked without reading it.
+
+**Shipped:**
+- **#270, the opt-out (fix 2)**, merged as `809b5da` and deployed 09:59 (2026-10-10) UTC. `/health` ok, production
+  schema **135** (`opt_outs` and both `notice` columns there, no rows yet).
+  - Backup before it: `nomi-backup-20261010T093310Z` (manual, schema 134, 3.3 MB dump, encrypted copy in the
+    bucket), beside the 03:00 scheduled one.
+  - A stop is read before any model, recorded per buyer and channel, handed to a person and answered with one line;
+    the send gate then refuses everything to them until they write again, and anything sent first for good.
+  - 22 guards broken on purpose, 22 caught. Corpus: about 330 opt-outs in six languages and the Arabic dialects,
+    requests for a person and mixed stops in all six, about 140 lines that must stay unread. Four held-out rounds
+    were measured before any pattern changed: 62, 69, 85, 90 % caught, no false alarm in 135 lines.
+
+**Found on the way:**
+- **One integration run in about a thousand failed `imported-products`** (all four tests; it passed alone). Root
+  cause: its SKUs carry a random hex run, and when that run held "aed" the price-list parser read
+  "D1-FFF4AED6-TOTE" as dirhams — the currency code's edges excluded letters, not digits — and refused every line.
+  Any owner's code can hold those letters. Fixed in the hand-off PR: a line's price and money are read without its
+  leading hyphenated article number. 19 of 20,000 random runs failed before; the guard fails with the fix removed.
+
+**Calls I made, reported:**
+- A request that is both a deletion and a stop ("remove me from your list") gets the deletion's silence (rule 18),
+  and the stop is still recorded.
+- The line that answers a stop obeys the send-alone rules: alone where a reply would go (auto, a signed-off
+  language, with the disclosure if none was given yet); otherwise a one-tap draft. In a draft-only workspace, or in
+  Arabic now (D3), the buyer hears it only when the owner sends it.
+- It reaches the buyer whoever holds the conversation, and through a pause; never through Stop or the ops switch.
+- A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi" goes to a person and is never recorded as a stop.
+
+**Next:** the hand-off PR (fix 1), then the identity check and D3, the template and 改, the small fixes.
+
+## The advisor's light: a ring round the orb, and the column lit (2026-10-10)
 
 **State:**
 - **#268, the advisor's light**, merged as `895f67b` and deployed 03:44 (2026-10-10) UTC; `/health` ok. Production schema is still

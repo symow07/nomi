@@ -110,3 +110,23 @@ describe('T4 · the review names each refusal, with the line itself', () => {
     }
   });
 });
+
+/**
+ * 2026-10-10 — a code is not money. One integration run in about a thousand
+ * drew a random SKU with "AED" inside it ("D1-FFF4AED6-TOTE"), and the whole
+ * list was refused as dirhams. Any owner's code can hold those letters.
+ */
+describe('a currency code inside an article number is not a currency', () => {
+  it('the hyphenated code leads the line: the price is the line\'s, in the workspace\'s money', () => {
+    for (const code of ['D1-FFF4AED6-TOTE', 'TA-3AED7', 'BAG-USD12-X', 'CN-4CNY9-S', 'SR-77SAR-1']) {
+      const [p] = parsePriceLines(`${code} Canvas tote $1.05 MOQ 500`, 'USD');
+      expect(p?.problem, code).toBeUndefined();
+      expect(p?.price, code).toEqual({ amount: 1.05, currency: 'USD' });
+      expect(p?.sku, code).toBe(code);
+    }
+  });
+  it('another currency in the line itself is still refused', () => {
+    const [p] = parsePriceLines('D1-ABC-TOTE Canvas tote AED 4.50 MOQ 500', 'USD');
+    expect(p?.problem).toBe('other_currency');
+  });
+});
