@@ -47,6 +47,12 @@ under "Decided" below.
   short.
 - **The renders' file names once let the owner open #266's picture for the ring's.** The ring's files are now named
   `ring-*`.
+- **The orb's pixel tests timed out on CI** (#269's first run). Two tests ran 5.2 and 5.0 s against vitest's 5 s
+  default, which left main flaky after #268.
+  - **The cause:** they draw the light pixel by pixel in plain JavaScript, and CI's runner is about 2.5 times
+    slower than this Mac.
+  - **The fix (in #269):** the file has its own 30 s limit, with the reason beside it.
+  - **Reproduced both ways:** under a tight limit, 4 tests time out without the fix and none with it.
 
 **Waiting on the owner:** as in the entries below:
 - Nomi's legal name and address;
