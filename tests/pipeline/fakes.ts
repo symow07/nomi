@@ -225,6 +225,15 @@ export class FakeTenant implements Tenant {
    */
   deletionAsksNoted: Array<{ conversationId: string; messageId: string; outcome: import('../../src/db/deletionAsks.js').DeletionAskNoted }> = [];
   deletionRecorded = false;
+  /** 0135 — every stop recorded, in order. The real recording is proved against Postgres. */
+  optOutsRecorded: Array<{ conversationId: string; outcome: import('../../src/db/optOuts.js').OptOutRecorded }> = [];
+  optOuts: import('../../src/db/ports.js').OptOutRepo = {
+    record: async ({ conversationId }) => {
+      const outcome = this.optOutsRecorded.some((x) => x.conversationId === (conversationId as string)) ? 'asked_again' as const : 'recorded' as const;
+      this.optOutsRecorded.push({ conversationId: conversationId as string, outcome });
+      return outcome;
+    },
+  };
   deletionAsks: import('../../src/db/ports.js').DeletionAskRepo = {
     note: async ({ conversationId, messageId }) => {
       const outcome = this.deletionRecorded ? 'already_recorded' as const
@@ -255,6 +264,8 @@ export class FakeTenant implements Tenant {
     replacedByDisclosure: boolean;
     /** 0080 — the question it asks, set only if it is sent unchanged. */
     asks: string | null;
+    /** 0135 — the line that answers a stop. */
+    notice: string | null;
   }> = [];
   private draftSeq = 0;
 
@@ -307,6 +318,7 @@ export class FakeTenant implements Tenant {
         capability: input.capability, draftText: input.draftText,
         replacedByDisclosure: input.replacedByDisclosure ?? false,
         asks: input.asks ?? null,
+        notice: input.notice ?? null,
       });
       return { draftId };
     },

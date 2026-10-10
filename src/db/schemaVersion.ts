@@ -337,7 +337,9 @@ import type { Db } from './client.js';
 //       and the profile writes it; against a 132 database both fail.
 // 134 = the refund terms (0134): `self_serve_trial_days()`, which the public /refunds page reads, and plans that
 //       can only be monthly. Against a 133 database the page cannot draw its trial.
-export const REQUIRED_SCHEMA_VERSION = 134;
+// 135 = a buyer who says stop (0135): `opt_outs`, `outbound_messages.notice`, `drafts.notice`, the hand-off reason
+//       'opted_out'. Every turn and every send reads or writes them; against a 134 database each fails.
+export const REQUIRED_SCHEMA_VERSION = 135;
 
 export type SchemaState = {
   readonly required: number;

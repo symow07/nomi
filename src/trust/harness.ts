@@ -199,6 +199,15 @@ class HarnessTenant implements Tenant {
       return again ? 'asked_again' : 'noted';
     },
   };
+  /** 0135 — a stop, recorded; the real recording is proved against Postgres. */
+  optOutsRecorded: string[] = [];
+  optOuts: import('../db/ports.js').OptOutRepo = {
+    record: async ({ conversationId }) => {
+      const again = this.optOutsRecorded.includes(conversationId as string);
+      this.optOutsRecorded.push(conversationId as string);
+      return again ? 'asked_again' : 'recorded';
+    },
+  };
   /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
   priorQuotes: Array<{ quantity: number; unitPrice: Money; at: Date }> = [];
   audit: AuditRepo = {

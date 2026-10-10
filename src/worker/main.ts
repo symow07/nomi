@@ -269,6 +269,8 @@ export async function startWorker(
         reply: effects.outbound.reply,
         // 0080 — the question it asks, stamped when it leaves.
         asks: effects.outbound.asks ?? null,
+        // 0135 — the line that answers a stop.
+        notice: effects.outbound.notice ?? null,
         channel: 'auto',
       }, { singletonKey: input.messageId });
     }

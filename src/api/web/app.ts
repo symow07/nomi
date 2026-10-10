@@ -22,7 +22,7 @@ import type { PendingQuestion } from '../../core/types/conversation.js';
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
-import { withTenantTx, type Db } from '../../db/client.js';
+import { withTenantTx, lockConversation, type Db } from '../../db/client.js';
 import { keptFace } from '../../db/faces.js';
 import { loadCustomerCard } from '../../db/customerCard.js';
 import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
@@ -167,6 +167,7 @@ import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
 import { keepDraftEdit, keepUnsentReply, clearUnsentReply, draftTextOf, draftConversationOf, sameWords } from '../../db/ownerWords.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
+import { standingOptOut, draftNotice, liftOptOut, recordOwnersOptOut } from '../../db/optOuts.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { aloneNow } from '../../core/conversation/aloneNow.js';
@@ -367,7 +368,7 @@ export type WebDeps = {
    * The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)).
    * 0080 — `asks`: the question the reply asks, stamped when it leaves.
    */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null) => Promise<void>;
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null, notice?: 'handoff' | 'opt_out' | null) => Promise<void>;
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
@@ -903,13 +904,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * later in the worker and cannot answer her in time. Since G10 it includes
    * the buyer's own 24-hour window.
    */
-  const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => (await ownerSendWindow(bid, conversationId)).verdict;
+  const ownerSendVerdict = async (bid: BusinessId, conversationId: string, opts: { readonly notice?: boolean } = {}) =>
+    (await ownerSendWindow(bid, conversationId, opts)).verdict;
   /**
    * WA-S — the same answer, and whether it goes as the reopening template: on
    * WhatsApp, after the customer's 24 hours, a business with the template
    * APPROVED may still answer — the template goes, the words wait in the box.
    */
-  const ownerSendWindow = async (bid: BusinessId, conversationId: string) => {
+  const ownerSendWindow = async (bid: BusinessId, conversationId: string, opts: { readonly notice?: boolean } = {}) => {
+    /**
+     * 0135 — the buyer said stop on this channel. Until they write again,
+     * nothing goes — the owner's own words included (the owner's decision,
+     * 2026-10-10) — except the line that answers the stop (`notice`). After
+     * they write, a reply may go, and never as the reopening template.
+     */
+    const stop = opts.notice ? null : await withTenantTx(deps.db, bid, (tx) => standingOptOut(tx, bid, conversationId));
+    if (stop && !stop.repliedSince) return { verdict: 'opted_out' as const, reopening: false };
     const pre = await withTenantTx(deps.db, bid, (tx) => ownerSendFacts(tx, bid, conversationId, whatsappConfigured));
     const reopen = pre.channel === 'whatsapp'
       ? await withTenantTx(deps.db, bid, (tx) => reopenFor(tx, bid, null)).catch(() => null)
@@ -931,6 +941,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       };
     }
     const windowAction = sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply', templateState).action;
+    if (stop && windowAction === 'send_template') return { verdict: 'opted_out' as const, reopening: false };
     const verdict = precheckOwnerSend(pre.facts, { ...pre, windowAction });
     return { verdict, reopening: verdict === 'ok' && windowAction === 'send_template' && reopen !== null };
   };
@@ -2497,8 +2508,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // again she approves it then. Not live at all: unchanged — an approval
     // before going live is her decision recorded, and she is told nothing went.
     const sends = body.command === '发送' || body.command === '改';
-    const verdict = sends ? await ownerSendVerdict(bid.value, conversationId) : 'ok';
-    if (verdict === 'window_closed' || verdict === 'not_allowlisted') {
+    // 0135 — the line that answers a stop, sent as written, is let past the stop it answers.
+    const notice = body.command === '发送' && UUID.test(body.draftId)
+      ? (await withTenantTx(deps.db, bid.value, (tx) => draftNotice(tx, bid.value, body.draftId!))) === 'opt_out' : false;
+    const verdict = sends ? await ownerSendVerdict(bid.value, conversationId, { notice }) : 'ok';
+    if (verdict === 'window_closed' || verdict === 'not_allowlisted' || verdict === 'opted_out') {
       // CC-24 — refused before it reached the draft service: the edit is kept on
       // the draft all the same, and the edit box opens with it.
       if (body.command === '改') {
@@ -2561,7 +2575,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const proposalId = String((req.body as { proposalId?: string } | undefined)?.proposalId ?? '');
     if (!bid.ok || !proposalId) return reply.redirect(conversationUrl(cid));
     const verdict = await ownerSendVerdict(bid.value, cid);
-    if (verdict === 'window_closed' || verdict === 'not_allowlisted') {
+    if (verdict === 'window_closed' || verdict === 'not_allowlisted' || verdict === 'opted_out') {
       return flashTo(reply, conversationUrl(cid), `inbox.blocked.${verdict}` as MessageKey);
     }
     const notLive = !messagingEnabled || verdict === 'not_activated' || verdict === 'not_connected';
@@ -4068,6 +4082,40 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await dismissDeletionAsk(deps.db, s.businessId, conversationId, personOf(s).id);
     return flashTo(reply, here, r === 'dismissed' ? 'conv.deletion.flash.dismissed'
       : r === 'not_waiting' ? 'conv.deletion.flash.not_waiting' : 'data.flash.failed');
+  });
+
+  /**
+   * 0135 — the customer asked to hear from the business again: only the owner
+   * lifts their stop (`messaging_activation` — who may be written to is a
+   * go-live condition, rule 11). On the audit trail; the row stays as the
+   * record that they once asked.
+   */
+  app.post('/app/conversations/:conversationId/opt-out/lift', async (req, reply) => {
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const s = await ownerOnly(req, reply, 'messaging_activation', here);
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const r = await withTenantTx(deps.db, bid.value, (tx) => liftOptOut(tx, bid.value, { conversationId, actor: personOf(s).id, now: new Date() }));
+    return flashTo(reply, `${here}#opt-out`, r === 'lifted' ? 'conv.optOut.flash.lifted' : 'conv.optOut.flash.none');
+  });
+
+  /**
+   * 0135 — a message that asked to stop and was not caught: anyone looking
+   * after the customer records it. It only ever stops sending.
+   */
+  app.post('/app/conversations/:conversationId/opt-out/record', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(conversationId)) return reply.redirect('/app/inbox');
+    const r = await withTenantTx(deps.db, bid.value, async (tx) => {
+      await lockConversation(tx, conversationId);
+      return recordOwnersOptOut(tx, bid.value, { conversationId, actor: personOf(s).id, now: new Date() });
+    });
+    return flashTo(reply, `${here}#opt-out`, r === 'no_identity' ? 'conv.optOut.flash.none' : 'conv.optOut.flash.recorded');
   });
 
   // What she calls him — owner or staff, whoever is looking after him. The

@@ -58,7 +58,7 @@ export type ApplyDeps = {
    * 0080 — `asks`: the question the draft asks, carried to the message so the
    * conversation's pending question is set when it actually leaves.
    */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null) => Promise<void>;
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null, notice?: 'handoff' | 'opt_out' | null) => Promise<void>;
 };
 
 export async function applyOwnerCommand(
@@ -80,15 +80,15 @@ export async function applyOwnerCommand(
   // `draft_resolved` event payload and `capability_events.actor`.
 
   const result = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{
-    outcome: ApplyOutcome; conversationId: string | null; sendText: string | null; asks?: PendingQuestion | null;
+    outcome: ApplyOutcome; conversationId: string | null; sendText: string | null; asks?: PendingQuestion | null; notice?: 'handoff' | 'opt_out' | null;
   }> => {
     // FOR UPDATE + status='pending' is the idempotency guard: a second submit
     // finds it no longer pending and does nothing.
     const dr = await sql<{
       id: string; conversation_id: string; status: string; capability: string; draft_text: string;
-      replaced_by_disclosure: boolean; asks: PendingQuestion | null;
+      replaced_by_disclosure: boolean; asks: PendingQuestion | null; notice: 'handoff' | 'opt_out' | null;
     }>`
-      select id, conversation_id, status, capability, draft_text, replaced_by_disclosure, asks
+      select id, conversation_id, status, capability, draft_text, replaced_by_disclosure, asks, notice
         from drafts where id = ${input.draftId}
          and (${input.conversationId ?? null}::uuid is null or conversation_id = ${input.conversationId ?? null}::uuid)
          for update
@@ -177,14 +177,14 @@ export async function applyOwnerCommand(
         // Capped at three a week and silent — nothing is pushed to the owner.
         await ensureSpotChecks(tx, input.businessId);
         // 0080 — sent as written, it asks what the draft asked.
-        return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks };
+        return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks, notice: draft.notice };
       case 'edit':
         // R1 (fix 1) — "Edit & send" with the words unchanged is the draft sent
         // as written, and counts so: the box opens with the draft in it.
         if (sameWords(draft.draft_text, cmd.text)) {
           await resolve('approved', draft.draft_text);
           await ensureSpotChecks(tx, input.businessId);
-          return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks };
+          return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks, notice: draft.notice };
         }
         // sent_text ≠ draft_text is exactly what the training_examples view reads.
         // 0080 — the owner's words ask whatever they ask, which Nomi cannot
@@ -217,7 +217,8 @@ export async function applyOwnerCommand(
 
   // Send AFTER commit, through the existing worker path. Only approve/edit send.
   if (result.sendText && result.conversationId) {
-    await deps.kickOutbound(input.businessId, result.conversationId, result.sendText, result.asks ?? null);
+    // 0135 — the line that answers a stop keeps its mark when it is sent as written; an edit is the owner's own words.
+    await deps.kickOutbound(input.businessId, result.conversationId, result.sendText, result.asks ?? null, result.notice ?? null);
   }
 
   return { outcome: result.outcome, conversationId: result.conversationId, messageZh: messageFor(result.outcome) };

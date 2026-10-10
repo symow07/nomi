@@ -1,4 +1,4 @@
-import { aiMaySpeak, ownershipOf } from '../conversation/ownership.js';
+import { aiMaySpeak, ownershipOf, type ConversationOwnership } from '../conversation/ownership.js';
 import { OUTREACH_REFUSALS, gateOutreach, type OutreachInput } from '../outreach/gate.js';
 import type { SendPlan } from './window.js';
 import type { OutboundRow } from '../../outbound/sequencer.js';
@@ -89,7 +89,34 @@ export type GateInput = {
    * test holds the store to it.
    */
   readonly automated?: boolean;
+  /**
+   * 0135 — one of the two fixed sentences that must reach a buyer a person
+   * now holds: the line that answers a stop (`opt_out`) or "someone from our
+   * team will reply" (`handoff`). Marked on the row, never guessed from words.
+   * Absent is an ordinary message.
+   */
+  readonly notice?: Notice | null;
+  /**
+   * 0135 — this buyer asked, on this channel, to stop being messaged
+   * (`opt_outs`). `repliedSince`: they wrote after they last said it.
+   * Absent or null: they have not.
+   */
+  readonly optOut?: { readonly repliedSince: boolean } | null;
 };
+
+export type Notice = 'handoff' | 'opt_out';
+
+/**
+ * 0135 — may this notice reach a buyer the assistant no longer speaks to?
+ * The line that answers a stop: whoever holds the conversation, and through a
+ * pause — it is the answer to the stop itself, and nothing else will be said.
+ * Never through Stop or the ops switch, which bind everything the machine
+ * writes (checked before this is asked).
+ */
+export function noticeSpeaks(notice: Notice | null | undefined, holder: ConversationOwnership): boolean {
+  void holder;
+  return notice === 'opt_out';
+}
 
 /**
  * Every way this gate can refuse, as data. The type DERIVES from the list, so a
@@ -108,6 +135,7 @@ export const GATE_REFUSALS = [
   'daily_ceiling',        // M18.5
   'silenced',             // M34.6
   'stopped',              // 2026-09-27 — the owner's Stop, on every channel (0070)
+  'opted_out',            // 0135 — the buyer asked, on this channel, to stop being messaged
   // M42 — the outreach refusals, SPREAD from the outreach gate's own list
   // rather than restated. Same reason this list exists at all: a vocabulary
   // that must be edited in two places to stay true is the transcription bug
@@ -126,6 +154,28 @@ export function gateOutbound(g: GateInput): GateDecision {
   // so it binds the owner exactly as it binds the employee. It is checked
   // first: before the pilot is live, nothing else about this message matters.
   if (g.activated !== true) return { allow: false, reason: 'not_activated' };
+
+  /**
+   * 0135 — A NOTICE IS NEVER A TEMPLATE. The line that answers a stop, and the
+   * hand-off sentence, are said inside the buyer's own 24 hours or not at all:
+   * as the reopening template they would become "we have a reply for you".
+   */
+  if (g.notice && g.windowPlan.action === 'send_template') return { allow: false, reason: 'window_closed' };
+
+  /**
+   * 0135 — THE BUYER SAID STOP. It binds everyone, the owner included (the
+   * owner's decision, 2026-10-10), and it is checked before anything about who
+   * is speaking:
+   *   · nothing at all until they write again — except the one line that
+   *     answers the stop;
+   *   · once they have, a reply inside their 24 hours — and still never a
+   *     follow-up, a first message, or the reopening template.
+   */
+  if (g.optOut && g.notice !== 'opt_out') {
+    if (g.origin === 'outreach' || g.automated === true) return { allow: false, reason: 'opted_out' };
+    if (!g.optOut.repliedSince) return { allow: false, reason: 'opted_out' };
+    if (g.windowPlan.action === 'send_template') return { allow: false, reason: 'opted_out' };
+  }
 
   /**
    * M42 — a message nobody asked for answers to everything below AND to this.
@@ -164,8 +214,9 @@ export function gateOutbound(g: GateInput): GateDecision {
     return { allow: false, reason: 'stopped' };
   }
   if (g.origin === 'employee') {
-    if (!aiMaySpeak(ownershipOf(g.assignedTo))) return { allow: false, reason: 'handed_off' };
-    if (g.paused) return { allow: false, reason: 'paused' };
+    // 0135 — except a notice that may still reach them (`noticeSpeaks`).
+    if (!aiMaySpeak(ownershipOf(g.assignedTo)) && !noticeSpeaks(g.notice, ownershipOf(g.assignedTo))) return { allow: false, reason: 'handed_off' };
+    if (g.paused && !noticeSpeaks(g.notice, ownershipOf(g.assignedTo))) return { allow: false, reason: 'paused' };
   }
 
   // M18.2 — the pilot allowlist binds EVERYONE, including the owner. During a
@@ -198,9 +249,11 @@ export function gateOutbound(g: GateInput): GateDecision {
  * gate blocks their retries.
  */
 export function cancelableOnTakeover(
-  rows: readonly (OutboundRow & { readonly origin: 'employee' | 'owner' | 'outreach' })[],
+  rows: readonly (OutboundRow & { readonly origin: 'employee' | 'owner' | 'outreach'; readonly notice?: Notice | null })[],
+  holder: ConversationOwnership = 'OWNER_CONTROLLED',
 ): readonly string[] {
   return rows
-    .filter((r) => r.status === 'queued' && r.origin === 'employee')
+    // 0135 — a notice that may still reach them is not the employee speaking.
+    .filter((r) => r.status === 'queued' && r.origin === 'employee' && !noticeSpeaks(r.notice, holder))
     .map((r) => r.id);
 }

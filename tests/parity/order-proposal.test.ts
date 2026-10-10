@@ -123,7 +123,7 @@ describe('0080 · the pending question is set when its message leaves, and only 
     const channels = read('src/db/channels.ts');
     expect(channels).toMatch(/async markQuestionAsked\(conversationId, asks\)/);
     expect(channels).toMatch(/origin, sending_since, kind, media_url, channel, subject, asks,/);
-    expect(read('src/main.ts')).toMatch(/enqueueOutboundRow\(tx, businessId\.value, job\.data\.conversationId, job\.data\.reply,\s*'employee', null, job\.data\.asks \?\? null\)/);
+    expect(read('src/main.ts')).toMatch(/enqueueOutboundRow\(tx, businessId\.value, job\.data\.conversationId, job\.data\.reply,\s*'employee', null, job\.data\.asks \?\? null,/);
     expect(read('src/worker/main.ts')).toMatch(/asks: effects\.outbound\.asks \?\? null/);
   });
 });

@@ -51,6 +51,7 @@ export interface Tenant {
   readonly orders: OrderRepo;
   readonly samples: SampleRepo;
   readonly deletionAsks: DeletionAskRepo;
+  readonly optOuts: OptOutRepo;
   readonly orderProposals: OrderProposalRepo;
   readonly signals: SignalRepo;
   readonly events: EventLog;
@@ -172,6 +173,8 @@ export interface DraftRepo {
      * (sent unchanged by the owner); a draft nobody sent asks nothing.
      */
     asks?: PendingQuestion | null;
+    /** 0135 — the line that answers a stop: approved unchanged, it reaches a buyer a person holds. */
+    notice?: 'handoff' | 'opt_out' | null;
   }): Promise<{ draftId: string }>;
 }
 
@@ -341,6 +344,14 @@ export type SellingFacts = {
  * request outlives the conversation being handed back. The reminder, never the
  * action: nothing is erased because of it and nobody else is told.
  */
+/**
+ * 0135 — a buyer who says stop (src/db/optOuts.ts): recorded for them on the
+ * conversation's channel, queued messages refused, waiting drafts superseded.
+ */
+export interface OptOutRepo {
+  record(input: { readonly conversationId: ConversationId; readonly now: Date }): Promise<import('./optOuts.js').OptOutRecorded>;
+}
+
 export interface DeletionAskRepo {
   note(input: {
     readonly conversationId: ConversationId;

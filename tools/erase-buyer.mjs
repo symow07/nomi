@@ -186,6 +186,8 @@ export const RULES = Object.freeze({
   // go with them; the prohibition below stays.
   pilot_allowlist: { do: 'erase', match: 'phone' },
   suppressions: { do: 'keep', match: 'identity', says: 'so they are never written to again' },
+  // 0135 — they asked, on a channel, not to be messaged: it stays, like a suppression.
+  opt_outs: { do: 'keep', match: 'identity', says: 'their request not to be messaged, so it is still honoured' },
 
   // ── The request itself ────────────────────────────────────────────────────
   deletion_requests: { do: 'keep', says: 'the request, closed as done (and any earlier one naming them)' },

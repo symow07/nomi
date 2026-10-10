@@ -26,6 +26,8 @@ import { guardIdentity, type IdentityViolation } from '../core/safety/identity.j
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
 import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
+import { OPT_OUT_REPLIES, optOutLanguage } from '../core/safety/optOut.js';
+import type { Notice } from '../core/channel/sendGate.js';
 
 /**
  * Why a reply that would have gone alone waits: nobody can tell its language
@@ -237,6 +239,17 @@ export type TurnResult = {
    * earlier request still unresolved — that one was written down when it came.
    */
   deletionAsked: boolean;
+  /**
+   * 0135 — the buyer's words, this turn, asked the business to stop messaging
+   * them. commitTurn records it (`opt_outs`) before anything else is written.
+   */
+  optedOut: boolean;
+  /**
+   * 0135 — the reply is one of the fixed sentences that must reach a buyer a
+   * person holds: the line that answers a stop. Carried to the draft and the
+   * outbound row, where the send gate reads it.
+   */
+  notice: Notice | null;
   /** Stage timings (ms) + token usage — the P1 measurement surface. */
   timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
   usage: { llmCalls: number; inputTokens: number; outputTokens: number };
@@ -352,7 +365,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // before any model read it is in the language of the pattern that caught it.
   // The fixed sentences below are said in it where it is one of the three they
   // are written in.
-  const pattern = analysis ? null : (personRequestLanguage(req.text) ?? stockQuestionLanguage(req.text));
+  const pattern = analysis ? null : (personRequestLanguage(req.text) ?? stockQuestionLanguage(req.text) ?? optOutLanguage(req.text));
   const analysedLanguage = analysis?.language.detected ?? (pattern ? null : state.preferredLanguage);
   const gateLang = languageEvidence(req.text, analysedLanguage, pattern) ?? gateLanguage(
     (await history()).filter((m) => m.direction === 'inbound').map((m) => m.text).reverse().slice(0, 3), analysedLanguage);
@@ -481,11 +494,24 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let knowledgeUsed: readonly string[] = [];
   let catalogue: readonly string[] = [];
 
+  /**
+   * 0135 — THE BUYER SAID STOP, in this turn's words (core/safety/optOut.ts).
+   * Recorded by commitTurn whatever happens here; answered with one fixed line,
+   * then nothing — whoever holds the conversation. Never when a deletion was
+   * asked too: that hand-off says nothing (0075), and the stop is still recorded.
+   */
+  const optingOut = textOnlySignals.some((s) => s.kind === 'opted_out');
+  const answersStop = optingOut && !signals.some((s) => s.kind === 'deletion_requested');
+  let notice: Notice | null = null;
+
   switch (decision.action.kind) {
     case 'silent':
-      reply = null;
+      // A person holds the conversation: the assistant says nothing — except
+      // the one line that answers a stop, which nothing else will.
+      reply = answersStop ? OPT_OUT_REPLIES[sayIn] : null;
+      if (answersStop) notice = 'opt_out';
       replyDeterministic = true;
-      answerPath = 'silent';
+      answerPath = answersStop ? 'canned' : 'silent';
       break;
 
     case 'canned_reply':
@@ -510,6 +536,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       if (signals.some((s) => s.kind === 'deletion_requested' || s.kind === 'not_answered')) {
         reply = null;
         answerPath = 'silent';
+      } else if (answersStop) {
+        // 0135 — a stop is answered with its own line, not "someone will reply".
+        reply = OPT_OUT_REPLIES[sayIn];
+        notice = 'opt_out';
+        answerPath = 'handoff';
       } else {
         reply = HANDOFF_REPLIES[sayIn];
         answerPath = 'handoff';
@@ -894,6 +925,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     asks: reply !== null ? decision.pendingQuestion : null,
     deletionPromiseWithheld,
     deletionAsked: textOnlySignals.some((s) => s.kind === 'deletion_requested') || deletionPromiseWithheld !== null,
+    optedOut: optingOut,
+    notice: reply === null ? null : notice,
     timings, usage,
     fingerprint,
   };
@@ -901,12 +934,13 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
 
 /** Everything commitTurn causes beyond the database, for the caller to enqueue. */
 export type TurnEffects = {
+  // 0135 — `outbound.notice`: the line that answers a stop, for the send gate.
   /**
    * Present only when the reply may auto-send (capability in auto mode).
    * 0080 — `asks`: the question it asks, set as the conversation's pending
    * question by the send path when the message leaves, not before.
    */
-  outbound: { conversationId: ConversationId; reply: string; asks?: PendingQuestion | null } | null;
+  outbound: { conversationId: ConversationId; reply: string; asks?: PendingQuestion | null; notice?: Notice | null } | null;
   /** Present when the reply needs owner approval (capability in draft mode):
    * a pending draft was persisted; the owner resolves it via applyOwnerCommand. */
   draftCreated: { conversationId: ConversationId; draftId: string } | null;
@@ -1084,6 +1118,13 @@ export async function commitTurn(
   if (r.decision.hotLead) await tenant.events.append(req.conversationId, 'lead_hot', {});
   if (r.decision.action.kind === 'handoff') {
     await tenant.events.append(req.conversationId, 'handoff', {});
+  }
+  // 0135 — the buyer said stop: written down for them on this channel BEFORE
+  // any draft is (recording supersedes the drafts waiting, and cancels what
+  // was queued). Whoever holds the conversation, whatever is said back.
+  if (r.optedOut) {
+    const recorded = await tenant.optOuts.record({ conversationId: req.conversationId, now: ports.now() });
+    await tenant.events.append(req.conversationId, 'opted_out', { recorded });
   }
   // 0075 — layer 2 threw a reply away because it promised a deletion. Kept on
   // the record with the words that did it, so the ones layer 1 missed can be
@@ -1283,7 +1324,10 @@ export async function commitTurn(
       // gone out alone. So two replies queued before either leaves both say
       // it: read twice, rarely, rather than not at all.
       const say = r.newState.aiDisclosureDeliveredAt === null ? sentence : null;
-      outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply, asks: r.asks };
+      outbound = {
+        conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply, asks: r.asks,
+        ...(r.notice ? { notice: r.notice } : {}),
+      };
       if (say) await recordDisclosure('first_auto_send');
       // R5 (0109) — work sent alone is on the record, so it can be spot-checked
       // once it has left: the words exactly as queued, the capability, and the
@@ -1304,6 +1348,7 @@ export async function commitTurn(
         draftText: reply, turnMessageId: req.messageId,
         ...(disclosureInstead ? { replacedByDisclosure: true } : {}),
         asks: r.asks,
+        ...(r.notice ? { notice: r.notice } : {}),
       });
       draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
       // G10 — the language the reply is in, so the card can say when the owner may not read it.
