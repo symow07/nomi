@@ -59,31 +59,43 @@ The near (light) dots stay clear against the lighter middle. The far ink dots ca
   - the field forgetting the ring;
   - a straight, cornered rise.
 
-## Bigger: a tint carried across the page (the owner, 2026-10-10)
+## Bigger: the column lit (the owner, 2026-10-10)
 
-"Spread the magenta wider across the surface so it carries the theme across the page … Keep the centre as it is
-now … Still one continuous fall-off … fade out before the composer and never reach the nav rail."
+The first tint was too faint. The owner: "the only visible change is a slight pinkness above the orb … Push the tint
+much harder … Carry it to all four edges of the column."
 
 - **The centre and the ring are exactly as before:**
   - the same light middle (22 in 100 of the glow);
   - the same #A1127A ring just outside the dots;
   - the same quick fall close round the orb.
-- **Under it, a second, faint light (the tint):**
-  - **Strength:** at most 0.4 of the glow, laid on whatever the first light leaves.
-  - **Reach:** as far as the page allows — the column's sides, the page's top, and the composer — falling gently
-    all the way.
+- **Under it, the tint:** a second light, laid on whatever the first leaves.
+  - **Flat:** at 0.32 of the glow across most of the column.
+  - **Fading at the edges:** only in the last 40 % of its reach, which runs to the column's sides, the page's top
+    and the composer.
   - **Not behind the middle:** it rises with the ring, so the middle keeps its light.
-- **One continuous fall:** the tint adds smoothly, every join is the smootherstep, and no pixel is off the line from
-  the paper to the glow (a guard).
-- **A first try was rejected:** stretching the one light further spread the deep magenta as well. "Hello" then sat
-  on the glow itself, at 2.2:1. The tint keeps the deep part where it was.
+- **One continuous fall:** every join is the smootherstep, and no pixel is off the line from the paper to the glow (a
+  guard).
 
-**"Hello" against the light behind it, at worst:** 4.5:1 on a desktop and 3.4:1 on a phone. Both pass the 3:1 large
-text needs.
+**How lit the column is**, as depth from the orb's centre toward each edge (0 is paper, 100 the glow), on a desktop:
 
-**A bug found and fixed on the way:** the smootherstep could return a hair above 1 at the light's edge. Raised to
-the tint's 1.5 power, that made two black pixels at its corners. It is clamped now, and the guard that every pixel
-lies on the paper-to-glow line holds it.
+| | Halfway to the edge | Three quarters | Column lit more than 0.1 |
+|---|---|---|---|
+| The faint tint (before) | 10–16 | about 1 | 22 % |
+| Now | 32–35 | about 20 (8 toward the composer, which is near) | 51 % |
+
+**"Hello" against the light behind it, at worst:** 3.9:1 on a desktop and 3.3:1 on a phone, so no hold-back behind it
+was needed. (Stretching the one light instead was tried and rejected earlier: the deep magenta spread and "Hello" sat
+on it at 2.2:1.)
+
+**Two shapes, the same strength — the owner's pick.** Both are in `ring-tint-compare-{desktop,phone}-en.png`, side by
+side with the faint tint at the same size.
+- **A, a rounded box** (`candidate-a-box-empty-page-*`): reaches into the column's corners, but reads as a pink panel
+  with straight sides.
+- **B, an oval** (the `ring-*` files, and the code on this branch): reaches all four sides of the column and reads as
+  light, not a panel. **My pick.** One line changes it to A.
+
+**A bug found and fixed on the way:** the smootherstep could return a hair above 1 at the light's edge. Raised to a
+fractional power, that made two black pixels. It is clamped now, and the paper-to-glow guard holds it.
 
 ## Where the light stops, measured in a real browser
 
@@ -109,13 +121,15 @@ No share of the page is counted. The owner: judge it by whether the page feels l
 ## Files
 
 - **Start here:**
-  - `ring-resting-{desktop,phone}-en-closeup.png`: the resting orb, close up (192 px; 144 on a phone).
-  - `ring-empty-page-{desktop,phone}-en.png`: the whole empty page.
-- `ring-resting-{desktop,phone}-en-wide.png`: the orb and its light with room round them.
-- `ring-light-alone-desktop-en.png`: the light alone (the orb's file blocked: no dots), to judge the ring, the tint
-  and the fall.
+  - `ring-tint-compare-{desktop,phone}-en.png`: the faint tint, A and B, side by side at the same size.
+  - `ring-empty-page-{desktop,phone}-en.png`: the whole empty page with B, as the code on this branch draws it.
+  - `ring-resting-{desktop,phone}-en-closeup.png`: the resting orb, close up.
+- `candidate-a-box-empty-page-{desktop,phone}-en.png`: the same page with A.
+- `faint-tint-empty-page-{desktop,phone}-en.png`: the faint tint (before this round).
+- `ring-resting-{desktop,phone}-en-wide.png`: the orb and its light with room round them (B).
+- `ring-light-alone-desktop-en.png`: the light alone (B; the orb's file blocked: no dots).
 - `ring-thinking-{desktop,phone}-en-closeup.png`: the thinking orb beside the bar, in its pool (no tint there).
-- `before-tint-ring-*`: the ring before the tint (2026-10-09).
+- `before-tint-ring-*`: the ring before any tint (2026-10-09).
 - `before-ring-resting-desktop-en-closeup.png`: before the ring (#266).
 
 The `empty-*` files in `../advisor-orb-dots/` are #266's, before the ring.

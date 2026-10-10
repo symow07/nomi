@@ -639,8 +639,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
      behind the middle. Every step the smootherstep: no edge. Chosen by measure (docs/design/advisor-orb-ring). */
   var RING = [0.3, 1.25];
   var MIDDLE = 0.22;
-  /* The tint's depth at the orb. */
-  var TINT = 0.4;
+  /* The tint: flat across the column, to its four edges (a rounded box), fading only near them. */
+  var TINT = 0.32;
   /* The halo's ring at rho: 0 in the middle, 1 at the ring, 0 at its reach. */
   function ringAt(rho, reach) {
     if (rho <= RING[0]) return 0;
@@ -679,17 +679,16 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var seed = 2463534242;
     function noise() { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
     var far = o.tint ? o.tint.r : r;
+    var pw = 2;
     for (var y = 0; y < H; y++) {
       var dy = (y + 0.5) / dpr - cy;
-      var my = dy / (dy < 0 ? far.up : far.down);
-      my *= my;
+      var my = Math.pow(Math.abs(dy / (dy < 0 ? far.up : far.down)), pw);
       if (my >= 1) continue;
       var ny = dy / (dy < 0 ? r.up : r.down);
       ny *= ny;
       for (var x = 0; x < W; x++) {
         var dx = (x + 0.5) / dpr - cx;
-        var mx = dx / (dx < 0 ? far.back : far.on);
-        var m = mx * mx + my;
+        var m = Math.pow(Math.abs(dx / (dx < 0 ? far.back : far.on)), pw) + my;
         if (m >= 1) continue;
         var nx = dx / (dx < 0 ? r.back : r.on);
         var q = nx * nx + ny;
@@ -709,7 +708,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
           t = Math.pow(1 - smoother(Math.sqrt(q)), o.fall) * o.depth;
         }
         if (o.tint) {
-          var e = o.tint.depth * Math.pow(1 - smoother(Math.sqrt(m)), o.tint.fall);
+          var e = o.tint.depth * (1 - smoother((Math.pow(m, 1 / pw) - o.tint.flat) / (1 - o.tint.flat)));
           if (o.ring) e *= smoother((Math.sqrt(dx * dx + dy * dy) - o.ring.light) / (o.ring.deep - o.ring.light));
           t += (1 - t) * e;
         }
@@ -871,7 +870,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var all = Math.max(48, side);
       wash(field, cx, cy, { up: Math.max(48, Math.min(cy - 8, tall)), down: down, back: wide, on: wide },
         { depth: 1, fall: 3, paper: paper, glow: glow, ring: ringFor(orb, MIDDLE),
-          tint: { r: { up: Math.max(48, cy - 8), down: reach, back: all, on: all }, depth: TINT, fall: 1.5 } });
+          tint: { r: { up: Math.max(48, cy - 8), down: reach, back: all, on: all }, depth: TINT, flat: 0.6 } });
     }
     function litPool() {
       if (!pool || !here || !paper || !glow) return;

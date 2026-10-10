@@ -489,28 +489,29 @@ describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepe
     expect(corner).toBeLessThan(0.11);
   });
 
-  it('the field carries the light across the page (the owner, 2026-10-10): the same light close round the orb, and a gentle tint on beyond it', async () => {
+  it('the field carries the light across the page (the owner, 2026-10-10): the same light close round the orb, and the column lit to its four sides', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const img = p.field.ctx.images.at(-1)!;
     const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
     const lit = (x: number, y: number) => { const q = px(img, 900 + 2 * x, 528 + 2 * y); return q[3] ? (paper.g - q[1]) / (paper.g - glow.g) : 0; };
-    // close round the orb, as before: the ring's deepest at its edge, and falling after it at its own pace (the
-    // redesign's three; slower, a fall of two, reads 0.68, 0.28 and 0.33 at these three)
+    // close round the orb, as before: the ring's deepest at its edge, and falling after it at its own pace, the
+    // tint under it (a slower near fall, the redesign's three made two, reads 0.68, 0.48 and 0.47 at these three)
     expect(lit(100, 0)).toBeGreaterThan(0.9);
-    expect(lit(150, 0)).toBeGreaterThan(0.52); expect(lit(150, 0)).toBeLessThan(0.62);
-    expect(lit(0, -150)).toBeGreaterThan(0.13); expect(lit(0, -150)).toBeLessThan(0.22);
-    expect(lit(0, 150)).toBeGreaterThan(0.19); expect(lit(0, 150)).toBeLessThan(0.28);
-    expect(lit(200, 0)).toBeLessThan(0.3);
-    // beyond, where the light used to end (2.6 of the orb's radii across, 250 px): a gentle tint, carried on
-    expect(lit(250, 0)).toBeGreaterThan(0.04);
-    expect(lit(250, 0)).toBeLessThan(0.2);
-    expect(lit(300, 0)).toBeGreaterThan(0.01);
-    expect(lit(-300, 0)).toBeGreaterThan(0.01);
-    expect(lit(0, -150)).toBeGreaterThan(0.08);
-    // and paper again before the column's sides
+    expect(lit(150, 0)).toBeGreaterThan(0.55); expect(lit(150, 0)).toBeLessThan(0.65);
+    expect(lit(0, -150)).toBeGreaterThan(0.35); expect(lit(0, -150)).toBeLessThan(0.43);
+    expect(lit(0, 150)).toBeGreaterThan(0.35); expect(lit(0, 150)).toBeLessThan(0.43);
+    // the column reads lit (the owner, 2026-10-10): three quarters of the way to each side, and toward the top and
+    // the composer, the tint still holds a fifth of the glow and more — never loud
+    for (const [x, y] of [[330, 0], [-330, 0], [0, -190], [0, 230]] as const) {
+      expect(lit(x, y), `${x},${y}`).toBeGreaterThan(0.18);
+      expect(lit(x, y), `${x},${y}`).toBeLessThan(0.36);
+    }
+    expect(lit(250, 0)).toBeLessThan(0.4);
+    // and paper again before the column's sides and the composer
     expect(lit(430, 0)).toBeLessThan(0.01);
     expect(lit(-430, 0)).toBeLessThan(0.01);
+    expect(lit(0, 290)).toBeLessThan(0.06);
   });
 
   it('every pixel of the light lies on the line from the paper to the glow: never a colour of its own, never a black pixel', async () => {
