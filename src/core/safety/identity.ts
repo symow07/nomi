@@ -303,25 +303,47 @@ const IDENTITY_QUESTIONS: readonly RegExp[] = [
  * "put me through to a human agent"; it is the handoff this whole rule exists
  * to produce. Only 人工智能 / 人工智慧 — the full word for the machine — counts.
  */
+/*
+ * 2026-10-10 (the messaging-policy audit, G4) — AN ACKNOWLEDGMENT IS THE
+ * ASSISTANT SPEAKING OF ITSELF. The list read single words — machine,
+ * software, robot, bot, automated, «آلي», automático — so "it's machine-
+ * washable", "our robot vacuum", «غسيل آلي» passed an "are you a bot?" without
+ * saying what was answering. Now a word counts only as what the assistant IS:
+ *   · a name for an assistant that only an automated one has ("AI assistant",
+ *     "virtual assistant", «مساعد آلي», 智能助手, "asistente de IA", "l'IA de");
+ *   · a word for a machine after the assistant's own "I am" / "this is" / "you're
+ *     talking to" ("I'm a bot", 我是机器人, «أنا روبوت», "soy un bot");
+ *   · "I am not a human", by the other door.
+ * Every disclosure sentence (core/conversation/disclosure.ts) is one, and the
+ * corpus in tests/parity/identity-guard.test.ts holds both sides.
+ */
+const MACHINE_EN = String.raw`(?:a\.\s?i\.?|ai|artificial\s+intelligence|bot|robot|chat\s?bot|machine|computer(?:\s+program)?|program|software|automated(?:\s+\w+)?|virtual\s+assistant|digital\s+assistant)`;
 const ACKNOWLEDGMENTS: readonly RegExp[] = [
-  // "a.i." with its dots only: bare "ai" is French «j'ai»; "AI" is its own line below.
-  /\b(?:a\.\s?i\.?|artificial\s+intelligence|chat\s?bot|bot|robot|automated|virtual\s+assistant|digital\s+assistant|computer\s+program|software|machine)\b/i,
+  // A name only an automated assistant has: "AI assistant", "virtual assistant", "automated assistant", "a chatbot".
+  /\b(?:a\.\s?i\.?|AI|artificial\s+intelligence|virtual|digital|automated)[\s-]+(?:assistant|agent|helper|chat\s?bot|bot|system|program|reply|response)\b/i,
+  /\bchat\s?bot\b/i,
+  // The assistant's own "I am", "this is", "you're talking to", then the machine: "I'm a bot", "this is an automated assistant".
+  new RegExp(String.raw`\b(?:i(?:'m|’m|\s+am)|this\s+is|you(?:'re|’re|\s+are)\s+(?:talking|chatting|speaking|writing)\s+(?:to|with)|you(?:'ve|’ve|\s+have)\s+reached)\s+(?:(?:just|only|actually|really|in\s+fact|an?|the|\w+['’]s|their|our)\s+){0,3}${MACHINE_EN}\b`, 'i'),
+  /\bas\s+an?\s+(?:ai|a\.i\.|artificial\s+intelligence|bot|automated\s+assistant|virtual\s+assistant)\b/i,
   // "I am not a human" — an acknowledgment by the other door.
   /\bi(?:'m|’m|\s+am)\s+not\s+(?:a\s+)?(?:human(?:\s+being)?|person|real\s+person)\b/i,
-  // T2 — "AI" as the word, in capitals: it was matched case-blind anywhere,
-  // so "details", "email", "available" (and French "j'ai", "taille") read as
-  // an admission, and a reply that dodged "are you a bot?" went out.
-  /\bAI\b/,
-  /(?:人工智能|人工智慧|智能助手|机器人|機器人|自动回复|自動回覆)/,
+  // 中文: 智能助手 / AI助手 / 人工智能助手 / 自动回复; or 我是 / 这是 … 机器人 / AI / 人工智能 — never 人工 alone (转人工 is the hand-off).
+  /(?:AI|人工智能|人工智慧|智能|虚拟|虛擬)\s*(?:助手|客服|助理)|自动回复|自動回覆/i,
+  // Only her own 我是: 这是机器人吸尘器 is the product.
+  /我(?:只)?(?:是|係)(?:一个|一個|個)?\s*(?:AI|人工智能|人工智慧|机器人|機器人|智能助手|自动)/i,
   /我不是(?:真人|人类|人類)/,
-  /(?:ذكاء\s+اصطناعي|مساعد\s+ذكي|مساعدة\s+ذكية|روبوت|بوت|آلي)/,
+  // العربية: «مساعد آلي» / «مساعد ذكي» / «رد آلي»; or «أنا … روبوت / ذكاء اصطناعي»; «لست إنسانًا».
+  /(?:مساعد|مساعدة|رد|ردود|برنامج)\s+(?:آلي|آلية|ذكي|ذكية|افتراضي|افتراضية|تلقائي|تلقائية)|روبوت\s+محادثة|بالذكاء\s+الاصطناعي\s+(?:يرد|أرد|ارد)/,
+  /(?:أنا|انا|هذا|هذه)\s+(?:(?:مجرد|فقط)\s+)?(?:روبوت|بوت|ذكاء\s+اصطناعي|مساعد|برنامج|آلة|آلي)/,
   /لست\s+(?:إنسان|انسان|بشر)/,
-  // Spanish and French: "asistente de IA", "l'IA de …", "no soy una persona".
-  /\bIA\b/,
-  /\b(?:inteligencia\s+artificial|intelligence\s+artificielle|asistente\s+virtual|assistant\s+virtuel|autom[aá]tic[oa]|automatique)\b/i,
+  // Arabizi: "ana AI", "ana bas robot", "ana mosa3ed ali".
+  /\b(?:ana|ena|anaa)\s+(?:(?:bas|faqat|mjarad|mujarad|3ebara\s+3an)\s+)?(?:AI|a\.i\.|robot|rob0t|bot|mosa3ed\s+ali|musa3ed\s+ali|mosa3ed\s+zaki|barnamaj)\b/i,
+  // Español · Français · Português: "asistente de IA", "assistant virtuel", "l'IA de", "assistente de IA"; or "soy / je suis / sou … bot / IA".
+  /\b(?:asistente|assistant|assistente|agente)\s+(?:virtual|virtuel|de\s+IA|d['’]IA|IA|autom[aá]tic[oa]|automatique|de\s+inteligencia\s+artificial|de\s+intelig[eê]ncia\s+artificial)\b/i,
+  /\bl['’]IA\s+de\b/,
+  /\b(?:soy|eres\s+hablando\s+con|est[aá]s\s+hablando\s+con|je\s+suis|vous\s+parlez\s+[àa]|tu\s+parles\s+[àa]|sou|voc[eê]\s+est[aá]\s+falando\s+com)\s+(?:(?:una?|um|uma|solo|s[oó]lo|seulement|apenas|juste)\s+)?(?:bot|robot|rob[oô]|chatbot|IA|programa|programme|intelig[eê]ncia\s+artificial|inteligencia\s+artificial|intelligence\s+artificielle|asistente\s+virtual|assistant\s+virtuel|assistente\s+virtual)\b/i,
   /\bno\s+soy\s+(?:una?\s+)?(?:persona|humano|humana)\b|\bje\s+ne\s+suis\s+pas\s+(?:une?\s+)?(?:personne|humaine?)\b/i,
-  // Portuguese: "assistente de IA" (the \bIA\b above), "inteligência artificial", "não sou uma pessoa".
-  /(?<![a-zçãõáéíóúâêô])(?:intelig[eê]ncia\s+artificial|resposta\s+autom[aá]tica)(?![a-zçãõáéíóúâêô])|(?<![a-zçãõáéíóúâêô])n[aã]o\s+sou\s+(?:uma?\s+)?(?:pessoa|humano|humana)(?![a-zçãõáéíóúâêô])/i,
+  /(?<![a-zçãõáéíóúâêô])n[aã]o\s+sou\s+(?:uma?\s+)?(?:pessoa|humano|humana)(?![a-zçãõáéíóúâêô])|(?<![a-zçãõáéíóúâêô])resposta\s+autom[aá]tica(?![a-zçãõáéíóúâêô])/i,
 ];
 
 /** The first denial in this reply, or null. */

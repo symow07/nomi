@@ -433,17 +433,19 @@ describe('nothing is sent alone until the disclosure has had native review', () 
     expect(drafts[0]!.replacedByDisclosure).toBe(false);   // nothing replaced it
   });
 
-  it('the real flags: es and fr await a native reader (2026-09-29); en, zh and ar are read — per language', async () => {
+  it('the real flags: es and fr await a native reader (2026-09-29), and ar again (2026-10-10); en and zh are read — per language', async () => {
     const { disclosureAwaitingReview, autonomyReleased, autonomyReleasedFor, disclosureStanding } = await import('../../src/core/conversation/disclosure.js');
     // zh and ar were read by the owner on 2026-09-28; es and fr were added
     // on 2026-09-29 and wait for a reviewer. Flipping them is a person's act.
     // pt joined them with its pack (2026-10-01), unread too.
-    expect(disclosureAwaitingReview()).toEqual(['es', 'fr', 'pt']);
+    // 2026-10-10 — the owner set ar back to false: the sentence sent is not the one signed off.
+    expect(disclosureAwaitingReview()).toEqual(['ar', 'es', 'fr', 'pt']);
     // Per language since 2026-09-30 (the owner): the unread ones hold their own
     // customers' replies, not everyone's (#124 had stopped every workspace).
     expect(autonomyReleased()).toBe(true);
-    for (const l of ['en', 'zh', 'zh-Hans', 'ar', 'ar-EG', null, '']) expect(autonomyReleasedFor(l), String(l)).toBe(true);
-    for (const l of ['es', 'fr', 'fr-CA', 'pt', 'pt-BR']) expect(disclosureStanding(l), l).toBe('unreviewed');
+    for (const l of ['en', 'zh', 'zh-Hans', null, '']) expect(autonomyReleasedFor(l), String(l)).toBe(true);
+    for (const l of ['ar', 'ar-EG', 'es', 'fr', 'fr-CA', 'pt', 'pt-BR']) expect(disclosureStanding(l), l).toBe('unreviewed');
+    for (const l of ['ar', 'ar-EG']) expect(autonomyReleasedFor(l), l).toBe(false);
     for (const l of ['de', 'ru', 'und']) expect(disclosureStanding(l), l).toBe('unwritten');
     for (const l of ['es', 'fr', 'pt', 'de']) expect(autonomyReleasedFor(l), l).toBe(false);
   });
@@ -456,7 +458,7 @@ describe('the gate is per language (the owner, 2026-09-30): each customer\'s own
   };
 
   // LG — the customer writes in the language: the gate reads the text, the analysis only confirms it.
-  for (const [detected, said, hello] of [['en', "Yiwu Canvas Co's AI assistant", 'Hello'], ['zh', 'Yiwu Canvas Co的AI助手', '你好'], ['ar', 'مساعد آلي لدى Yiwu Canvas Co', 'مرحبا']] as const) {
+  for (const [detected, said, hello] of [['en', "Yiwu Canvas Co's AI assistant", 'Hello'], ['zh', 'Yiwu Canvas Co的AI助手', '你好']] as const) {
     it(`${detected} — signed off: auto sends alone, with the disclosure in ${detected}`, async () => {
       const p = ports('auto');
       await real(p);
@@ -470,7 +472,8 @@ describe('the gate is per language (the owner, 2026-09-30): each customer\'s own
     });
   }
 
-  for (const [detected, hello] of [['es', 'Hola'], ['fr', 'Bonjour']] as const) {
+  // ar since 2026-10-10: the owner set it back to unread (the sentence sent is not the one signed off).
+  for (const [detected, hello] of [['es', 'Hola'], ['fr', 'Bonjour'], ['ar', 'مرحبا']] as const) {
     it(`${detected} — written, not yet read: the reply is a draft, and the card is told the language and why`, async () => {
       const p = ports('auto');
       await real(p);

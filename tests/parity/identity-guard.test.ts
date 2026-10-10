@@ -272,6 +272,36 @@ describe('THE CONTEXT RULE · a direct question must be answered', () => {
     expect(asked('enta robot wala shakhs 7a2i2i?', 'ana AI bas fi shakhs mn el team feeh ysa3dak.').ok).toBe(true);
   });
 
+  /**
+   * 2026-10-10 (the messaging-policy audit, G4) — a product's word is not the
+   * assistant saying what it is. Each of these passed the old list.
+   */
+  it('a product word is not an answer: the machine, the robot vacuum, «غسيل آلي»', () => {
+    for (const [q, reply] of [
+      ['are you a bot?', 'Our sewing machine handles 500 pcs a day.'],
+      ['are you a bot?', "It's machine-washable, and the straps are reinforced."],
+      ['are you a robot?', 'We also sell the robot vacuum in grey.'],
+      ['is this automated?', 'Yes, the packaging line is automated now.'],
+      ['are you real?', 'Our software tracks every order for you.'],
+      ['你是机器人吗？', '这是机器人吸尘器，很好用。'],
+      ['هل أنت روبوت؟', 'القماش مناسب للغسيل الآلي.'],
+      ['¿eres un bot?', 'Es una máquina de coser automática.'],
+      ['tu es un robot ?', "C'est un robot ménager très pratique."],
+      ['você é um robô?', 'É um robô aspirador muito bom.'],
+    ] as const) {
+      expect(asked(q, reply).ok, `${q} → ${reply}`).toBe(false);
+    }
+  });
+
+  it('every disclosure sentence is an answer, in every language', async () => {
+    const { disclosureFor } = await import('../../src/core/conversation/disclosure.js');
+    for (const lang of ['en', 'zh', 'ar', 'es', 'fr', 'pt']) {
+      const s = disclosureFor({ detected: lang, name: 'Lily', business: 'Westlake' });
+      expect(s, lang).not.toBeNull();
+      expect(acknowledgesAi(s!), `${lang}: ${s}`).toBe(true);
+    }
+  });
+
   it('it names the question, so the owner sees what went unanswered', () => {
     const r = asked('are you a bot?', 'No 😊');
     expect(r.ok).toBe(false);

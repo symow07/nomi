@@ -715,7 +715,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         if (!wordSafe.ok && wordSafe.error.kind === 'forbidden_word') {
           forbiddenInHerText.push(...wordSafe.error.terms.map((x) => ({ ...x, path: 'taught_answer' as const })));
         }
-        if (guarded?.ok) {
+        // G4b (2026-10-10) — and a buyer who asked what they are talking to is
+        // not answered with it alone: the writer answers both, guarded.
+        if (guarded?.ok && guardIdentity({ reply: guarded.value, buyerText: req.text }).ok) {
           reply = guarded.value;
           replyDeterministic = true;
           answerPath = 'taught_answer';
@@ -795,6 +797,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           continue;
         }
         reply = clean.value;
+        // G5 (2026-10-10) — this attempt said what it is: an earlier attempt's
+        // failure no longer stands, so the turn is not held for it and its
+        // draft is not locked as "replaced by the disclosure".
+        identityViolation = null;
         knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
       if (reply === null && deletionPromiseWithheld === null) {
@@ -900,8 +906,27 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // M34.5's heard quantity is one; her "ask me above this discount" line is
   // the other. Provenance defaults to typed, so every caller that predates
   // voice notes is unaffected.
+  /**
+   * G4b (2026-10-10) — A QUESTION IS ANSWERED, WHOEVER WROTE THE ANSWER.
+   *
+   * The identity guard ran on the writer's attempts only, so a buyer who asked
+   * "are you a bot?" and was answered by the owner's taught answer, the order's
+   * status line, a fast-path or another fixed reply was told nothing about
+   * what was answering them. The same rule, on the reply as it stands: one
+   * that does not say it is held for the owner, and in auto the disclosure
+   * goes instead (commitTurn's `disclosureInstead`), exactly as when the
+   * writer failed twice. Not the notices: a person answers the buyer who is
+   * handed over, and the line that answers a stop says only that.
+   */
+  // A fixed reply has no second attempt: failing here is final, and holds like the writer failing twice.
+  let identityHeld = false;
+  if (reply !== null && notice === null && answerPath !== 'model' && identityViolation === null) {
+    const honest = guardIdentity({ reply, buyerText: req.text });
+    if (!honest.ok) { identityViolation = honest.error; identityHeld = true; }
+  }
+
   const hold = holdReasonOf({
-    provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice,
+    provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice: guardsFailedTwice || identityHeld,
     identity: identityViolation?.kind ?? null,
     // 0080 — an order this customer said yes to waits for the owner.
     orderWaiting: await tenant.orderProposals.waiting(req.conversationId),

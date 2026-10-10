@@ -49,6 +49,11 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
     requests for a person and mixed stops in all six, about 140 lines that must stay unread. Four held-out rounds
     were measured before any pattern changed: 62, 69, 85, 90 % caught, no false alarm in 135 lines.
 
+- **#271, the hand-off sentence (fix 1)**, merged as `962fe0e` and deployed 10:30 UTC; `/health` ok, schema 135.
+  "Someone from our team will reply" carries the `handoff` mark and reaches the buyer waiting for a person (before,
+  the gate cancelled every one as `handed_off`). Proven end to end in auto through the real worker
+  (`integration/handoff-notice`). It also carries the parser fix below.
+
 **Found on the way:**
 - **One integration run in about a thousand failed `imported-products`** (all four tests; it passed alone). Root
   cause: its SKUs carry a random hex run, and when that run held "aed" the price-list parser read
@@ -65,7 +70,7 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
 - It reaches the buyer whoever holds the conversation, and through a pause; never through Stop or the ops switch.
 - A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi" goes to a person and is never recorded as a stop.
 
-**Next:** the hand-off PR (fix 1), then the identity check and D3, the template and 改, the small fixes.
+**Next:** the identity check and D3, then the template and 改, then the small fixes.
 
 ## The advisor's light: a ring round the orb, and the column lit (2026-10-10)
 
