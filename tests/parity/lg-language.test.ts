@@ -151,7 +151,9 @@ describe('LG · the turn reads it, and nothing else', () => {
   const turn = src('src/pipeline/turn.ts');
   it('the gate, the disclosure and the reason all use the gate\'s language', () => {
     expect(turn).toContain('const language = r.gateLanguage;');
-    expect(turn).toContain('const released = !speaksAlone || (language !== UNDETERMINED && tenant.autonomy.released(language));');
+    expect(turn).toContain('const released = !speaksAlone || (language !== UNDETERMINED && tenant.autonomy.released(language)');
+    // G8 (2026-10-10) — and the reply's own language, where the writer chose another.
+    expect(turn).toContain('&& (!replyDiffers || tenant.autonomy.released(replyIn!)));');
     expect(turn).toContain('detected: r.gateLanguage,');
     expect(turn).toContain('const proven = !speaksAlone || !released || await tenant.autonomy.languageProven(languageHead(language));');
   });
