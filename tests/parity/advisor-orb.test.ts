@@ -173,12 +173,13 @@ const LINES = ['Who is waiting for me?', 'How much did we sell this month?', 'Wh
  * start (64) and the box 24 px on; the pool (128) round that place, the small orb's canvas (96) on it.
  */
 function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; light?: string; glow?: string; dark?: string; width?: number; orbUrl?: string;
-  restOnOtherPage?: boolean; glowSaid?: string; motion?: boolean; barTop?: number } = {}) {
+  restOnOtherPage?: boolean; glowSaid?: string; motion?: boolean; barTop?: number; fieldWidth?: number } = {}) {
   const body = new El('BODY');
   const main = body.appendChild(new El('MAIN'));
   const resting = o.resting !== false;
   const shell = main.appendChild(new El('DIV', { class: 'adv-page', 'data-adv': o.advisor !== false && resting ? 'rest' : 'chat' }));
-  const field = shell.appendChild(new El('CANVAS', { class: 'adv-field', 'data-adv-field': '' }, { left: 0, top: 0, width: 900, height: 700 }));
+  const fw = o.fieldWidth ?? 900;
+  const field = shell.appendChild(new El('CANVAS', { class: 'adv-field', 'data-adv-field': '' }, { left: 0, top: 0, width: fw, height: 700 }));
   let rest: El | null = null;
   if ((o.advisor !== false && resting) || o.restOnOtherPage) {
     const hero = shell.appendChild(new El('DIV', { class: 'adv-hero' }));
@@ -187,7 +188,7 @@ function page(o: { advisor?: boolean; resting?: boolean; reduce?: boolean; light
     rest = row.appendChild(new El('CANVAS', { class: 'orb-rest', 'data-orb-rest': '', 'data-orb-pace': '0.5',
       // a page that smuggled the orb's whole description onto a canvas — still nothing without the advisor's form
       ...(o.restOnOtherPage ? { 'data-orb': o.orbUrl ?? ORB_URL, 'data-orb-state': 'composing', 'data-orb-glow': 'orb-glow' } : {}) },
-      { left: 450 - w / 2, top: 264 - w / 2, width: w, height: w }));
+      { left: fw / 2 - w / 2, top: 264 - w / 2, width: w, height: w }));
   }
   const timeline = shell.appendChild(new El('DIV', { class: 'timeline adv-line' }));
   let form: El | null = null; let box: El | null = null; let tpl: El | null = null; let here: El | null = null; let pool: El | null = null;
@@ -357,19 +358,28 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
     }
   });
 
-  it('the halo is as it was: the glow at three quarters from the middle out to 0.55 of the orb, a third of that at 0.55 of its reach, nothing at 1.42 orb radii', async () => {
+  it('the halo is a ring: nothing behind the middle, the glow at three quarters just outside the dots, nothing at its reach — a smooth curve, 25 stops along it', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const ground = groundOf(p.rest!);
     const [, x0, y0, r0, x1, y1, r1] = ground.find(([k]) => k === 'createRadialGradient')! as [string, number, number, number, number, number, number];
     const R = 192 / 2 * 0.78;
-    expect([x0, y0, x1, y1]).toEqual([96, 96, 96, 96]);
-    expect(r0).toBeCloseTo(R * 0.55, 6);
-    expect(r1).toBeCloseTo(R * 1.42, 6);
+    expect([x0, y0, r0, x1, y1]).toEqual([96, 96, 0, 96, 96]);
+    expect(r1).toBeCloseTo(R * 1.6, 6);
     const glow = hex(TOKENS.orbGlow);
     const stops = ground.filter(([k]) => k === 'addColorStop').map(([, , at, c]) => [at, ...rgba(c)] as number[]);
-    expect(stops.map(([at, r, g, b]) => [at, r, g, b])).toEqual([[0, glow.r, glow.g, glow.b], [0.55, glow.r, glow.g, glow.b], [1, glow.r, glow.g, glow.b]]);
-    expect(stops.map(([, , , , a]) => a)).toEqual([0.75, expect.closeTo(0.2625, 9), 0]);
+    expect(stops).toHaveLength(25);
+    for (const [, r, g, b] of stops) expect([r, g, b]).toEqual([glow.r, glow.g, glow.b]);
+    const alpha = stops.map(([, , , , a]) => a!);
+    // the curve itself: the smootherstep up from 0.3 of the sphere to 1.25, and down to 1.6 — flat at every join
+    const sm = (x: number) => { x = Math.min(1, Math.max(0, x)); return x * x * x * (x * (x * 6 - 15) + 10); };
+    const want = (rho: number) => 0.75 * (rho <= 0.3 ? 0 : rho <= 1.25 ? sm((rho - 0.3) / 0.95) : 1 - sm((rho - 1.25) / 0.35));
+    stops.forEach(([at], i) => expect(alpha[i], `stop ${i}`).toBeCloseTo(want(1.6 * at!), 9));
+    expect(alpha[0]).toBe(0);                                             // nothing behind the middle
+    expect(Math.max(...alpha)).toBeGreaterThan(0.74);                    // three quarters on the ring
+    expect(alpha.at(-1)).toBe(0);
+    const peak = alpha.indexOf(Math.max(...alpha));
+    for (let i = 1; i < alpha.length; i++) expect(i <= peak ? alpha[i]! >= alpha[i - 1]! : alpha[i]! <= alpha[i - 1]!, `stop ${i}`).toBe(true);
   });
 
   it('the ground\'s colour is the glow alone — never the ink, never the "needs you" magenta, at any stop', async () => {
@@ -378,7 +388,7 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
     const glow = hex(TOKENS.orbGlow);
     const allowed = [glow].map((c) => `${c.r},${c.g},${c.b}`);
     const stops = groundOf(p.rest!).filter(([k]) => k === 'addColorStop').map(([, , , c]) => rgba(c));
-    expect(stops).toHaveLength(3);
+    expect(stops).toHaveLength(25);
     for (const [r, g, b] of stops) expect(allowed, `${r},${g},${b}`).toContain(`${r},${g},${b}`);
     const needs = hex(TOKENS.needs);
     const every = [...stops, ...orbOf(p.rest!).filter(([k]) => isColour(k)).map(([, v]) => rgba(v))];
@@ -418,16 +428,25 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
   });
 });
 
-describe('the lit field and the pool (the redesign): deepest at the orb, no bands, gone before the bar', () => {
-  it('the field: the orb\'s glow at its centre, the paper\'s own colour at its reach, and nothing at all past it', async () => {
+describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepest round the orb, no bands, gone before the bar', () => {
+  it('the field is a ring: lighter directly behind the orb, the glow itself just outside its dots, the paper\'s own colour at its reach, nothing past it', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const img = p.field.ctx.images.at(-1)!;
     expect(img.width).toBe(1800);                                        // 900 css px at a device ratio of 2
     const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
-    const [r, g, b, a] = px(img, 900, 528);                              // the orb's centre: (450, 264) css
+    const mixed = (t: number) => [paper.r + (glow.r - paper.r) * t, paper.g + (glow.g - paper.g) * t, paper.b + (glow.b - paper.b) * t];
+    const off = (c: number[], w: number[]) => Math.abs(c[0]! - w[0]!) + Math.abs(c[1]! - w[1]!) + Math.abs(c[2]! - w[2]!);
+    // behind the middle: 22 in 100 of the way to the glow (the orb's centre is (450, 264) css; its dots' sphere 75 px)
+    const [r, g, b, a] = px(img, 900, 528);
     expect(a).toBe(255);
-    expect(Math.abs(r - glow.r) + Math.abs(g - glow.g) + Math.abs(b - glow.b)).toBeLessThanOrEqual(6);
+    expect(off([r, g, b], mixed(0.22))).toBeLessThanOrEqual(6);
+    // the ring: the glow itself, at 1.25 of the dots' sphere (94 css px out), every way round
+    for (const [dx, dy] of [[94, 0], [-94, 0], [0, -94], [0, 94], [66, -66]]) {
+      const [rr, gg, bb] = px(img, 900 + 2 * dx!, 528 + 2 * dy!);
+      expect(off([rr, gg, bb], [glow.r, glow.g, glow.b]), `${dx},${dy}`).toBeLessThanOrEqual(6);
+    }
+    expect(g).toBeGreaterThan(px(img, 900 + 2 * 94, 528)[1] + 100);      // the middle far lighter than the ring
     // its reach is clear: the paper shows, and no pixel has an edge
     expect(px(img, 0, 528)[3]).toBe(0);
     expect(px(img, 900, 0)[3]).toBe(0);
@@ -439,32 +458,97 @@ describe('the lit field and the pool (the redesign): deepest at the orb, no band
       expect(rr === needs.r && gg === needs.g && bb === needs.b).toBe(false);
       expect(gg).toBeGreaterThanOrEqual(glow.g - 2);
     }
-    // where it fades out it is the paper itself, to a step: no seam where it ends
-    const near = px(img, 900 - 2 * 246, 528);
+    // where it fades out (near the column's side, 442 css px out) it is the paper itself, to a step: no seam where it ends
+    const near = px(img, 900 - 2 * 436, 528);
     expect(near[3]).toBe(255);
     expect(Math.abs(near[0] - paper.r) + Math.abs(near[1] - paper.g) + Math.abs(near[2] - paper.b)).toBeLessThanOrEqual(6);
   });
 
-  it('the field keeps close and soft: the paper holds the page, the glow a presence round the orb, never a cloud', async () => {
+  it('the field\'s ring is smooth: no step, no edge — along a line out of the orb its lightness changes gently everywhere', async () => {
+    const p = page({ reduce: true });
+    p.run(); await p.load();
+    const img = p.field.ctx.images.at(-1)!;
+    const line: number[] = [];
+    for (let x = 900; x < 1800; x++) { const q = px(img, x, 528); if (!q[3]) break; line.push(q[1]); }
+    // a 17-pixel average takes the dither out; then no change faster than 2.6 levels of green per device pixel, and
+    // no corner: the change itself changes slowly — over ±8 px of that average, and, finer, over ±4 px of a 9-pixel
+    // one, which is what finds a corner where a straight rise meets the flat (a ring edge the eye picks out).
+    // Measured 2026-10-09: the ring 2.29, 0.054, 0.083; the light deepest at the centre, before it, 1.32, 0.017,
+    // 0.042; a straight rise cornered at both ends 0.153 on the finer bend; a hard-edged middle (a disc) fails all.
+    const avg = line.map((_, i) => { const w = line.slice(Math.max(0, i - 8), i + 9); return w.reduce((s, v) => s + v, 0) / w.length; });
+    let steep = 0; let bend = 0;
+    for (let i = 12; i < avg.length - 12; i++) {
+      steep = Math.max(steep, Math.abs(avg[i + 1]! - avg[i - 1]!) / 2);
+      bend = Math.max(bend, Math.abs(avg[i + 8]! - 2 * avg[i]! + avg[i - 8]!) / 64);
+    }
+    const avg9 = line.map((_, i) => { const w = line.slice(Math.max(0, i - 4), i + 5); return w.reduce((s, v) => s + v, 0) / w.length; });
+    let corner = 0;
+    for (let i = 10; i < avg9.length - 10; i++) corner = Math.max(corner, Math.abs(avg9[i + 4]! - 2 * avg9[i]! + avg9[i - 4]!) / 16);
+    expect(steep).toBeLessThan(2.6);
+    expect(bend).toBeLessThan(0.12);
+    expect(corner).toBeLessThan(0.11);
+  });
+
+  it('the field carries the light across the page (the owner, 2026-10-10): the same light close round the orb, and the column lit to its four sides', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const img = p.field.ctx.images.at(-1)!;
     const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
-    // the orb is 192 px (its canvas 288): across, nothing past 2.6 of its radii (250 px); up and down, past 2.1 (202 px)
-    for (const x of [900 - 2 * 254, 900 + 2 * 254]) expect(px(img, x, 528)[3], `x ${x}`).toBe(0);
-    expect(px(img, 900, 528 - 2 * 206)[3]).toBe(0);
-    expect(px(img, 900, 528 + 2 * 206)[3]).toBe(0);
-    // at the orb's own edge it is already mostly paper: a third of the way to the glow, at most
-    const lit = (x: number) => (paper.g - px(img, x, 528)[1]) / (paper.g - glow.g);
-    expect(lit(900 + 2 * 100)).toBeLessThan(0.36);
-    expect(lit(900 + 2 * 100)).toBeGreaterThan(0.2);
-    // and what is lit more than a tenth of the way to the glow is less than a tenth of the page
-    let litPx = 0;
-    for (let y = 0; y < img.height; y += 4) for (let x = 0; x < img.width; x += 4) {
-      const [, g, , a] = px(img, x, y);
-      if (a && (paper.g - g) / (paper.g - glow.g) > 0.1) litPx += 1;
+    const lit = (x: number, y: number) => { const q = px(img, 900 + 2 * x, 528 + 2 * y); return q[3] ? (paper.g - q[1]) / (paper.g - glow.g) : 0; };
+    // close round the orb, as before: the ring's deepest at its edge, and falling after it at its own pace, the
+    // tint under it (a slower near fall, the redesign's three made two, reads 0.68, 0.48 and 0.47 at these three)
+    expect(lit(100, 0)).toBeGreaterThan(0.9);
+    expect(lit(150, 0)).toBeGreaterThan(0.55); expect(lit(150, 0)).toBeLessThan(0.65);
+    expect(lit(0, -150)).toBeGreaterThan(0.35); expect(lit(0, -150)).toBeLessThan(0.43);
+    expect(lit(0, 150)).toBeGreaterThan(0.35); expect(lit(0, 150)).toBeLessThan(0.43);
+    // the column reads lit (the owner, 2026-10-10): three quarters of the way to each side, and toward the top and
+    // the composer, the tint still holds a fifth of the glow and more — never loud
+    for (const [x, y] of [[330, 0], [-330, 0], [0, -190], [0, 230]] as const) {
+      expect(lit(x, y), `${x},${y}`).toBeGreaterThan(0.18);
+      expect(lit(x, y), `${x},${y}`).toBeLessThan(0.36);
     }
-    expect(litPx / ((img.height / 4) * (img.width / 4))).toBeLessThan(0.1);
+    expect(lit(250, 0)).toBeLessThan(0.4);
+    // and paper again before the column's sides and the composer
+    expect(lit(430, 0)).toBeLessThan(0.01);
+    expect(lit(-430, 0)).toBeLessThan(0.01);
+    expect(lit(0, 290)).toBeLessThan(0.06);
+  });
+
+  it('every pixel of the light lies on the line from the paper to the glow: never a colour of its own, never a black pixel', async () => {
+    for (const [fieldWidth, width, bar] of [[900, 288, 600], [360, 216, 600], [900, 288, 420]] as const) {
+      const p = page({ reduce: true, fieldWidth, width, barTop: bar });
+      p.run(); await p.load();
+      const img = p.field.ctx.images.at(-1)!;
+      const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
+      let off = 0;
+      for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) {
+        const [r, g, b, a] = px(img, x, y);
+        if (!a) continue;
+        const t = (paper.g - g) / (paper.g - glow.g);
+        if (t < -0.05 || t > 1.05 || Math.abs(r - (paper.r + (glow.r - paper.r) * t)) + Math.abs(b - (paper.b + (glow.b - paper.b) * t)) > 12) off += 1;
+      }
+      expect(off, `${fieldWidth}/${bar}`).toBe(0);
+    }
+  });
+
+  it('the light never reaches the nav: clear for 8 px inside its own canvas on both sides and at the top, and that canvas is the main column\'s own box, beside the rail and under the nav row', async () => {
+    // a desktop's wide page, and a 360 px phone, where the column's own sides — not the light's reach — stop it
+    for (const [bar, fieldWidth, width] of [[600, 900, 288], [420, 900, 288], [600, 360, 216]] as const) {
+      const p = page({ reduce: true, barTop: bar, fieldWidth, width });
+      p.run(); await p.load();
+      const img = p.field.ctx.images.at(-1)!;
+      const lit = (x: number, y: number) => px(img, x, y)[3] > 0;
+      for (let y = 0; y < img.height; y += 3) for (const x of [0, 7, 15, img.width - 16, img.width - 8, img.width - 1]) expect(lit(x, y), `${fieldWidth}/${bar}: ${x},${y}`).toBe(false);
+      for (let x = 0; x < img.width; x += 5) for (const y of [0, 7, 15]) expect(lit(x, y), `${fieldWidth}/${bar}: ${x},${y}`).toBe(false);
+      // and on the phone it does reach close to those sides: held by them, not ending of itself
+      if (fieldWidth === 360) expect(lit(2 * 12, 2 * 264)).toBe(true);
+    }
+    // its canvas reaches out exactly as far as main's own padding, on a desktop and on a phone: main's border box, which
+    // sits beside the rail (and, on a phone, under the nav row), never over it
+    expect(APP_CSS).toContain('main { padding: var(--space-32);');
+    expect(APP_CSS).toContain('.adv-field { position:absolute; inset-block-start:0; inset-inline-start:calc(-1 * var(--space-32)); inline-size:calc(100% + 2 * var(--space-32));');
+    expect(APP_CSS).toContain('main { padding:var(--space-16); }');
+    expect(APP_CSS).toContain('.adv-field { inset-inline-start:calc(-1 * var(--space-16)); inline-size:calc(100% + 2 * var(--space-16)); }');
   });
 
   it('the field is gone before the bar: every pixel on the bar\'s line and below it is clear — on a short screen too', async () => {
@@ -836,3 +920,4 @@ describe('the guard, server side: the page draws the orb only on the advisor, an
     expect(LIVE_SCRIPT).not.toMatch(/rest\.hidden|removeChild\(canvas\)/);
   });
 });
+
