@@ -940,7 +940,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         reopening: false,
       };
     }
-    const windowAction = sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply', templateState).action;
+    // The worker's own plan (window.ts `channelSendPlan`): the 24 hours, and D4's seven days for the template.
+    const windowAction = channelSendPlan(pre.channel, pre.lastInboundAt, new Date(), templateState).action;
     if (stop && windowAction === 'send_template') return { verdict: 'opted_out' as const, reopening: false };
     const verdict = precheckOwnerSend(pre.facts, { ...pre, windowAction });
     return { verdict, reopening: verdict === 'ok' && windowAction === 'send_template' && reopen !== null };

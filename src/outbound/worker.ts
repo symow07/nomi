@@ -50,6 +50,8 @@ export type OutboundWorkRow = OutboundRow & {
   readonly asks?: PendingQuestion | null;
   /** 0135 — one of the fixed sentences that must reach a buyer a person holds (sendGate.ts `Notice`). */
   readonly notice?: Notice | null;
+  /** 0136 — a person decided this row should go: it may reopen a closed window with the template. */
+  readonly approved?: boolean;
 };
 
 export type ConversationSendContext = {
@@ -427,8 +429,12 @@ export async function driveConversationOutbound(
      * quietly dropped.
      */
     const tAdapter = adapterFor(deps, candidate.channel);
+    // 0136 — "a reply someone approved" is now what the row says, not what
+    // its origin suggests: an automatic reply that waited past the 24 hours
+    // went as the template too, and nobody had approved it.
     if (ctx.reopen && tAdapter?.sendTemplate && candidate.automated !== true
-        && candidate.origin !== 'outreach' && candidate.kind !== 'image') {
+        && candidate.origin !== 'outreach' && candidate.kind !== 'image'
+        && (candidate.origin === 'owner' || candidate.approved === true)) {
       await deps.store.transition(candidate.id, 'sending', null);
       const sent = await tAdapter.sendTemplate(candidate.to, { name: ctx.reopen.name, language: ctx.reopen.language, params: ctx.reopen.params });
       if (sent.ok) {

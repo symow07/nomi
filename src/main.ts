@@ -951,8 +951,9 @@ export async function buildProduction(
       secureCookie: process.env['NODE_ENV'] === 'production',
       // The EXISTING outbound path — the same QUEUES.outbound worker the turn
       // pipeline uses. applyOwnerCommand (inbox actions) sends through this.
+      // 0136 — every kick is a person's act (a draft sent, an order confirmed): approved.
       kickOutbound: async (businessId, conversationId, reply, asks, notice) => {
-        await boss.send(QUEUES.outbound, { businessId, conversationId, reply, asks: asks ?? null, notice: notice ?? null },
+        await boss.send(QUEUES.outbound, { businessId, conversationId, reply, asks: asks ?? null, notice: notice ?? null, approved: true },
           { singletonKey: conversationId });
       },
       // M16.1: bare re-drive tick — delivers an owner takeover reply through the
@@ -993,7 +994,7 @@ export async function buildProduction(
   // Outbound drive: consumes both reply jobs (from turn effects) and bare
   // re-drive ticks (from status webhooks / wait-recheck).
   // 0080 — `asks`: the question the reply asks, written on its outbound row.
-  type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null; notice?: 'handoff' | 'opt_out' | null };
+  type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null; notice?: 'handoff' | 'opt_out' | null; approved?: boolean };
   type Drivers = { adapter?: ChannelAdapter; adapters?: AdapterFor; mailHeaders?: MailHeadersFor; mediaOrigin?: string | null };
   /**
    * P3 — PRACTICE'S SENDS (docs/PRACTICE.md). A practice copy's replies go
@@ -1020,7 +1021,8 @@ export async function buildProduction(
           await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply,
             'employee', null, job.data.asks ?? null,
             // 0135 — only the two notices; anything else a job says is not one.
-            job.data.notice === 'opt_out' || job.data.notice === 'handoff' ? job.data.notice : null);
+            job.data.notice === 'opt_out' || job.data.notice === 'handoff' ? job.data.notice : null,
+            job.data.approved === true);
         }
         const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
         const practice = await isPracticeCopy(tx, businessId.value);

@@ -54,6 +54,12 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
   the gate cancelled every one as `handed_off`). Proven end to end in auto through the real worker
   (`integration/handoff-notice`). It also carries the parser fix below.
 
+- **#272, the identity check (fix 5) and D3**, merged as `e9a13ed` and deployed 10:54 UTC; `/health` ok, schema 135.
+  An answer to "are you a bot?" must be the assistant speaking of itself (a product word no longer counts), and is
+  required whoever writes the reply: a taught answer that dodges is set aside for the writer; the order line or a
+  fixed reply that dodges is held, and in auto the disclosure goes instead. `ar: false` — Arabic customers'
+  replies wait for the owner until the owner re-signs the sentence that is sent.
+
 **Found on the way:**
 - **One integration run in about a thousand failed `imported-products`** (all four tests; it passed alone). Root
   cause: its SKUs carry a random hex run, and when that run held "aed" the price-list parser read
@@ -70,7 +76,7 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
 - It reaches the buyer whoever holds the conversation, and through a pause; never through Stop or the ops switch.
 - A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi" goes to a person and is never recorded as a stop.
 
-**Next:** the identity check and D3, then the template and 改, then the small fixes.
+**Next:** the template and 改 (0136), then the small fixes.
 
 ## The advisor's light: a ring round the orb, and the column lit (2026-10-10)
 

@@ -117,6 +117,19 @@ d('applyOwnerCommand — the full approval loop (requires DATABASE_URL)', () => 
     expect(row.sent_text).toBeNull();
   });
 
+  // G2 (the messaging-policy audit, 2026-10-10) — 改 with the draft's own words was a way round the refusal above.
+  it('改 with the draft\'s own words is the same refusal — nothing is sent', async () => {
+    sent = [];
+    const text = 'What size were you looking for?';
+    const id = await replacedDraft(BIZ_A, CONV_A, text);
+    const r = await applyOwnerCommand(deps(), { businessId: bidA(), draftId: id, rawReply: `改：${text}`, decidedBy: 'owner' });
+    expect(r.outcome).toBe('needs_edit');
+    expect(sent).toEqual([]);
+    const row = await readDraft(id);
+    expect(row.status).toBe('pending');
+    expect(row.sent_text).toBeNull();
+  });
+
   it('…but 改 sends HER words, which is the way out', async () => {
     sent = [];
     const id = await replacedDraft(BIZ_A, CONV_A, 'What size were you looking for?');

@@ -339,7 +339,9 @@ import type { Db } from './client.js';
 //       can only be monthly. Against a 133 database the page cannot draw its trial.
 // 135 = a buyer who says stop (0135): `opt_outs`, `outbound_messages.notice`, `drafts.notice`, the hand-off reason
 //       'opted_out'. Every turn and every send reads or writes them; against a 134 database each fails.
-export const REQUIRED_SCHEMA_VERSION = 135;
+// 136 = sends a person approved (0136): `outbound_messages.approved`. Every queued row writes it and the send path reads
+//       it; against a 135 database both fail.
+export const REQUIRED_SCHEMA_VERSION = 136;
 
 export type SchemaState = {
   readonly required: number;
