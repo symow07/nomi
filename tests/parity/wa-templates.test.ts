@@ -172,3 +172,15 @@ describe('WA-S · the worker, after the 24 hours', () => {
     expect(r.templates).toEqual([]);
   });
 });
+
+// D4 — the owner's own precheck asks the worker's plan, so the seven days bind both in one place.
+describe('D4 · one plan for the worker and the owner\'s precheck', () => {
+  it('the precheck reads channelSendPlan, never its own copy of the window', async () => {
+    const { readFileSync } = await import('node:fs');
+    const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    const win = app.slice(app.indexOf('const ownerSendWindow = async'), app.indexOf('const ownerSendWindow = async') + 4000);
+    expect(win).toContain('channelSendPlan(pre.channel, pre.lastInboundAt, new Date(), templateState).action');
+    expect(win).not.toMatch(/sendPlan\(windowState\(/);
+  });
+});
+
