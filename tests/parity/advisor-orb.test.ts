@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import vm from 'node:vm';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -30,6 +30,11 @@ import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
  *   never its own text; less motion: nothing glides and one line stands still.
  * The one script runs here against a small stand-in for the page, importing the very file the app serves.
  */
+
+// This file draws the light pixel by pixel in plain JavaScript, so its tests are CPU-bound: locally the heaviest take
+// 1.4-2.1 s, and CI's runner is about two and a half times slower, which put two of them past vitest's 5 s default
+// (#269's first run, 2026-10-10). Their own limit, with room; a test that truly hangs still fails.
+vi.setConfig({ testTimeout: 30_000 });
 
 const ROOT = resolve(new URL('../..', import.meta.url).pathname);
 const VENDOR = join(ROOT, 'assets/vendor/thinking-orbs/0.3.2');
