@@ -182,6 +182,13 @@ export async function applyOwnerCommand(
         // R1 (fix 1) — "Edit & send" with the words unchanged is the draft sent
         // as written, and counts so: the box opens with the draft in it.
         if (sameWords(draft.draft_text, cmd.text)) {
+          // G2 (the messaging-policy audit, 2026-10-10) — the draft's own words
+          // ARE "send this exact text", so the refusal above holds here too: a
+          // reply the disclosure replaced is not sent unchanged through 改. The
+          // Send button was covered; the command, typed or posted, was not.
+          if (draft.replaced_by_disclosure) {
+            return { outcome: 'needs_edit', conversationId: draft.conversation_id, sendText: null };
+          }
           await resolve('approved', draft.draft_text);
           await ensureSpotChecks(tx, input.businessId);
           return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks, notice: draft.notice };
