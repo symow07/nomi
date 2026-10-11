@@ -53,7 +53,8 @@ describe('G4 · the rule, where it is decided', () => {
   });
   it('commitTurn asks it before it would send alone, and names it first', () => {
     const turn = src('src/pipeline/turn.ts');
-    expect(turn).toContain('const earned = !speaksAlone || (await tenant.autonomy.earnedRung()) >= rungOf(capability);');
+    // D2 (2026-10-11) — the ramp is about her writing; the line that answers a stop is fixed.
+    expect(turn).toContain('const earned = !speaksAlone || stopLine || (await tenant.autonomy.earnedRung()) >= rungOf(capability);');
     // R3 — and the product's first quote, beside it.
     // LG — and the language's first five, beside it.
     expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);');

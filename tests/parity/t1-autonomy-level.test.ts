@@ -74,7 +74,9 @@ describe('T1 · what the choice does not loosen', () => {
     // The one line that makes every level safe to offer: her rules can hold a
     // turn (a discount above the ask line, a contradicting price, a heard
     // quantity, guards that failed twice) and a held turn is a draft, full stop.
-    expect(read('src/pipeline/turn.ts')).toMatch(/effectiveMode\(\s*\(r\.hold \|\| !mayDisclose\) \? 'draft' : policyMode,/);
+    // D2 (the owner, 2026-10-11) — except the line that answers a stop: a fixed sentence, nothing to hold.
+    expect(read('src/pipeline/turn.ts')).toMatch(/effectiveMode\(\s*\(\(r\.hold && !stopLine\) \|\| !mayDisclose\) \? 'draft' : speaksAlone \? 'auto' : policyMode,/);
+    expect(read('src/pipeline/turn.ts')).toContain("const stopLine = r.notice === 'opt_out';");
     const hold = read('src/core/conversation/hold.ts');
     for (const why of ['discount_needs_owner', 'guards_failed_twice', 'contradicts_history']) expect(hold, why).toContain(why);
   });
