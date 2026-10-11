@@ -112,8 +112,9 @@ which accepts a connection and then goes silent, is not on its path. One run:
 3. encrypts with the age public key; the private key never lives on Railway;
 4. uploads to `nomi-backups` under `daily/<name>/` and reads the listing back;
 5. prunes dailies older than 60 days, and the manual pairs at the bucket root
-   older than 180 days — one rule for both, never the newest pair of either
-   kind ([How long copies are kept](#how-long-copies-are-kept));
+   older than 180 days — one rule for both; the newest pair of either kind
+   stands past its own limit, but never past 180 days
+   ([How long copies are kept](#how-long-copies-are-kept));
 6. writes one row to `backup_runs` (0069), then pings the dead-man's switch.
 
 Setup, variables (all references, nothing typed) and the schedule are in
@@ -151,10 +152,10 @@ both. Owner's decision, 2026-09-27: dailies 60 days, manual pairs 180 days.
 | Copy | Where, and its name | Made by | Pruned by | Kept |
 |---|---|---|---|---|
 | Daily | bucket `nomi-backups`, `daily/nomi-backup-<UTC>/` (three `.age` objects) | `backup/run.sh`, 03:00 UTC | `backup/run.sh` step 5, every run | **60 days** |
-| Manual, in the bucket | bucket root, `nomi-backup-<UTC>/` (three `.age` objects) | `tools/backup.sh` with `RAILWAY_BUCKET` | `backup/run.sh` step 5, every run | **180 days**, never the newest manual pair |
+| Manual, in the bucket | bucket root, `nomi-backup-<UTC>/` (three `.age` objects) | `tools/backup.sh` with `RAILWAY_BUCKET` | `backup/run.sh` step 5, every run | **180 days**, the newest included (D11) |
 | On the laptop | `~/nomi-backups/nomi-backup-<UTC>/`, plaintext plus `encrypted/` — the manual pairs and the dailies the drill fetched | `tools/backup.sh`, `tools/fetch-backup.sh` | the same two tools, at the end of a run that succeeded | **180 days**, only when one of these tools runs |
-| PITR (WAL and base backups) | the bucket Railway's pgBackRest writes to | Railway | Railway's own retention | not set here |
-| Railway volume backups, if enabled | Railway | Railway | Railway's schedule | not set here |
+| PITR (WAL and base backups) | the bucket Railway's pgBackRest writes to | Railway | Railway's own retention | **about four weeks**: the last 4 weekly full backups (Railway's documentation, checked 2026-10-12) |
+| Railway volume backups | Railway | Railway | none scheduled (`railway postgres pitr schedule list`, 2026-10-12) | one manual, below |
 
 **The rule** (every row this repository controls):
 
@@ -171,7 +172,8 @@ both. Owner's decision, 2026-09-27: dailies 60 days, manual pairs 180 days.
 - Never pruned: a name that is not `nomi-backup-<a real UTC time>` (the age
   key, `pgbackrest/`, anything else beside the pairs); the pair just made or
   fetched; the newest pair and the newest *complete* pair of each kind,
-  whatever their age; a pair named more than an hour in the future.
+  past their own limit but never past 180 days; a pair named more than an
+  hour in the future.
 - Every pruned pair is named in the output with its age, and every run ends
   with the count. `KEEP_ALL=1` makes the laptop tools prune nothing.
 - When the job's prune cannot finish (the bucket cannot be listed, a delete
@@ -189,15 +191,22 @@ what normally keeps it pruned.
 
 **The exceptions, plainly:**
 
-- The newest manual pair is kept whatever its age, so the last manual copy
-  always survives. If no manual backup is taken for more than 180 days, that
-  pair outlives 180 days until the next one is taken.
+- **Nothing is kept past 180 days, the newest included** (D11, 2026-10-12 —
+  the privacy page promises "at most 180 days"). Past its own limit the
+  newest pair and the newest complete pair of each kind still stand, so a
+  half-finished upload is never why the last good copy went; at 180 days they
+  go too. The daily job's 36-hour alert means a newer copy is never far behind.
 - The oldest manual pairs date from 2026-08-08/09 (the first `tools/backup.sh`
   runs), so no manual pair reaches 180 days before **2027-02-04** — the first
   day the job can prune one.
-- PITR and Railway's volume backups hold copies too, on Railway's schedule.
-  This repository neither sets nor checks it; read it in the Railway console
-  before promising anyone a maximum.
+- **PITR** holds about four weeks: Railway keeps its last 4 weekly full
+  backups and the WAL between them (Railway's documentation, "Point-in-Time
+  Recovery", checked 2026-10-12). The pages say "about four weeks".
+- **Railway volume backups:** no schedule is set (checked 2026-10-12). One
+  manual volume backup is still listed, "Pre-Security-Patch Backup" of
+  2026-08-22, past its expiry date (2026-09-21). It holds the database as it
+  was then; delete it in the Railway console if it is not needed — the
+  operator's call, never a tool's.
 
 **Keeping a pair longer** — a legal hold, a decommissioned factory's final
 backup, the pre-0026 pairs. The prune reads only `daily/` and the bucket root,

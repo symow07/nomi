@@ -7,6 +7,8 @@
 BACKUP_KEEP_DAILY_DAYS=60      # daily/<name>/ in the bucket: one a day, made by backup/run.sh
 BACKUP_KEEP_MANUAL_DAYS=180    # <name>/ at the bucket root: made by hand with tools/backup.sh;
                                # and every pair on the laptop, whichever tool wrote it
+BACKUP_KEEP_AT_MOST_DAYS=180   # D11 (2026-10-12): no pair outlives this — the newest included.
+                               # The privacy page promises "at most 180 days".
 #
 # THE RULE, the same for both. A pair is dated by the UTC time in its name,
 # nomi-backup-YYYYMMDDTHHMMSSZ — the moment its dump was taken. Not by upload
@@ -21,9 +23,11 @@ BACKUP_KEEP_MANUAL_DAYS=180    # <name>/ at the bucket root: made by hand with t
 #     moved aside to be kept) is not this rule's to judge;
 #   · the pair the caller has just made or fetched;
 #   · the newest pair, and the newest COMPLETE pair (roles and dump both
-#     present), whatever their age — so at least one copy of each kind always
-#     survives, and a half-finished upload can never be why the last good
-#     copy went;
+#     present), past their own limit — so a half-finished upload can never be
+#     why the last good copy went — but never past BACKUP_KEEP_AT_MOST_DAYS.
+#     Past 180 days the last copy goes too: the privacy page promises at most
+#     180 days (D11), and the daily backup's 36-hour alert means a newer copy
+#     is never far behind;
 #   · a pair named more than an hour ahead of now: a clock was wrong when it
 #     was named, and nothing is deleted on a wrong clock's word.
 #
@@ -96,8 +100,8 @@ END {
     if (at[t] < 0) { print "undated", t; continue }
     age = now - at[t]
     if (t == made)                    why = "made"
-    else if (t == newest)             why = "newest"
-    else if (t == complete)           why = "complete"
+    else if (t == newest && age <= ceiling * 86400)   why = "newest"
+    else if (t == complete && age <= ceiling * 86400) why = "complete"
     else if (age < -3600)             why = "future"
     else if (age > keep_days * 86400) why = "prune"
     else                              why = "young"
@@ -112,6 +116,7 @@ END {
 retention_plan() {
   local out
   out="$(LC_ALL=C "${AWK:-awk}" -v now="$1" -v keep_days="$2" -v made="${3:-}" \
+    -v ceiling="${BACKUP_KEEP_AT_MOST_DAYS:-180}" \
     "$_RETENTION_AWK_DATES$_RETENTION_AWK_PLAN")" || return 1
   printf '%s\n' "$out" | LC_ALL=C sort -k2,2
 }

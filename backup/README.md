@@ -22,7 +22,8 @@ reads either. Dailies are kept 60 days, manual pairs 180 days.
    for both, with the two limits side by side in `retention.sh`: dated by the
    UTC time in the name, on the database's clock; whole pairs only; never a
    name it cannot date, the pair just uploaded, or the newest pair of its
-   kind. Every pair pruned is named in the log, with the count.
+   kind while it is under 180 days (D11: nothing past 180, the newest
+   included). Every pair pruned is named in the log, with the count.
 6. **Record** a row in `backup_runs`, then **ping** the dead-man's switch.
 
 Any failure exits non-zero (the run shows as failed on Railway) and pings
