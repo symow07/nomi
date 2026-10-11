@@ -13,7 +13,25 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## The messaging-policy batch (2026-10-10) — read this first
+## The orb's one light, the plain nav mark, Arabic signed, and D2/D3 (2026-10-11) — read this first
+
+**The owner's order** (2026-10-11): five changes, each its own PR, four checks and the pre-pilot before and after
+each. The orb glow and the nav icon STOP before merging, for the owner's eyes on a render; the rest merge.
+1. **The orb glow, one smooth fall** — the ring and the tint showed as bands at real size (a darker band, a lighter
+   oval, an edge that did not fade). One gradient, the lighter centre kept, the column's spread kept.
+2. **The nav icon, no glow** — the plain Solar bubble like every other entry.
+3. **Arabic signed off** — the live sentence confirmed by a native speaker; the flag follows the text from now on.
+4. **D2** — the line that answers a stop always goes, whatever the autonomy setting, except in a language whose
+   disclosure is unsigned.
+5. **D3** — "remove me from your list" gets that line, not the deletion's silence; the deletion is still recorded.
+
+**State:** the integration and render clusters (55451, 55477) were rebuilt on 2026-10-11 after the midnight
+`/tmp` sweep took their files again (the dead one set aside as `pg-broken-20261011`). Pre-pilot on main
+(`b64688e`): 12/12.
+
+**Shipped:**
+
+## The messaging-policy batch (2026-10-10)
 
 **The owner's order** (2026-10-10): audit every send against the 24-hour window, opt-in and opt-out, templates
 and the AI disclosure; report before changing the send path. Then, on the report: fix 2 (opt-out) first, then 1
@@ -90,12 +108,11 @@ ones. The rules as they now stand, the findings and every decision: `docs/MESSAG
 - A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi" goes to a person and is never recorded as a stop.
 
 **Waiting on the owner (from this batch):**
-- **Re-sign the Arabic disclosure** (D3). The sentence sent is quoted under "The owner's questions of 2026-09-30"
-  below; when signed, `ar` goes back to true in the same commit that names the reader.
-- **Whether the line that answers a stop should go alone everywhere.** Today it obeys the send-alone rules, so in a
-  draft-only workspace or in Arabic it waits for the owner's tap — silence the owner said reads as broken (D1).
-- **Whether "remove me from your list" should get the line too.** It also asks for deletion, so today it gets the
-  deletion's silence (rule 18); the stop is recorded either way.
+- **Re-sign the Arabic disclosure** (D3). Answered 2026-10-11: confirmed by a native speaker, signed (above).
+- **Whether the line that answers a stop should go alone everywhere.** Answered 2026-10-11: yes, except in a
+  language whose disclosure is unsigned (D2, above).
+- **Whether "remove me from your list" should get the line too.** Answered 2026-10-11: yes; the deletion is still
+  recorded and alerted (D3, above).
 
 **The batch is done.** Next in the queue as before (`docs/ROADMAP.md` §2b).
 
@@ -2895,6 +2912,12 @@ once, in this order, and tick it here.
   - Both helper agents (the IDOR inventory, the e-mail inventory) were told to read only. Neither reported
     instructions addressed to an AI.
   - No web page was read.
+- 2026-10-10 and -11, the messaging-policy batch and the batch after it:
+  - At each resume the same MCP sign-in asks (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian,
+    BigQuery, Hex; Definite failed to connect) and the watch hook's Whisper key. None was done.
+  - `rclone` printed a NOTICE that its config file was not found, during the backups; nothing asked, nothing done.
+  - The audit's helper agents were told to read only and reported no instructions addressed to an AI. No web page
+    was read.
 
 ## How to resume
 
