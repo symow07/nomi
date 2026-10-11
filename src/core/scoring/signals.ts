@@ -222,7 +222,6 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
 };
 
 export const isProblemSignal = (s: Signal): boolean => PROBLEM_KINDS.has(s.kind);
-export const isLeadSignal = (s: Signal): boolean => !isProblemSignal(s);
 
 /**
  * Mirrors the DB CHECK constraint on escalation_events.trigger_reason.

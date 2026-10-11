@@ -13,6 +13,48 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Dead-code and naming cleanup (2026-10-11) — before the data-protection audit
+
+**The owner's order:** two passes, with a stop between them. First an inventory, nothing deleted. Then delete only
+what the owner approved, with no behaviour change, and stop if any test would change.
+
+**What the inventory found:** the repo was already mostly clean.
+- No n8n folder and no Verdictly in the repo.
+- The YiwuFlow rename was already done outside history (ADR-0010).
+- journey.ts, buyer-memory and the weekly report were gone since `b24f052c`.
+- Only two modules are unreachable, and both are declared.
+
+**Deleted (approved):**
+- 11 exports nothing referenced: `hiddenEarlier`, `meaningLine`, `numberedList`, `translationLine`,
+  `TYPE_SCALE_PX`, `KEYBOARD_SHORTCUTS`, `CAPABILITY_ZH`, `isLeadSignal`, `isHandedOff`, `parseClientId`,
+  `parseOrderId`.
+- TERM's `weeklyReport`, `monthlyReview` and `repair`.
+- `.env.example`'s `SANDBOX_LIVE_AI`.
+
+**Moved:** `docs/GIT-STRATEGY.md` to `docs/archive/`.
+
+**Stale wording fixed:** the worker comment, the `escalation_score` comment, the `price_usd_per_unit` comment, and
+`LIVE-VERIFICATION.md`.
+
+**Kept, on the owner's word:**
+- the four `result.ts` helpers;
+- the `/tmp/yf-run` path;
+- everything that needs a migration: the `escalation_score` write, `businesses.engine`, `shadow.turn_decisions` and
+  the `supabase/` folder name;
+- the 360dialog provider;
+- history (migrations, ADRs, the archive, the backup role name);
+- the sibling projects and the untracked iCloud files.
+
+**Newly orphaned, for the owner:** two items the approved deletions left with no reader. Neither was on the approved
+list, so both stay.
+- `INDENT` (`tokens.ts`): `meaningLine` was its only reader.
+- The `HandedOff` type (`types/conversation.ts`): `isHandedOff` was its only reader.
+
+`tools/symbol-baseline.json` "nothing" is now 7, down from 17.
+
+**Checks:** the unit count is identical to main's (7733 passed, 1428 skipped); trust 44/44; build; integration
+1433 of 1433.
+
 ## The orb's one light, the plain nav mark, Arabic signed, and D2/D3 (2026-10-11) — read this first
 
 **The owner's order** (2026-10-11): five changes, each its own PR, four checks and the pre-pilot before and after

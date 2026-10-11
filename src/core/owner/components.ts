@@ -1,4 +1,4 @@
-import { BOX, INDENT, MARK } from './tokens.js';
+import { BOX, MARK } from './tokens.js';
 
 /**
  * M2 — The text component kit. Every owner-facing renderer composes these;
@@ -39,26 +39,6 @@ export function buyerHeader(input: {
 
 /** 标签：内容 — labeled line. */
 export const labeled = (label: string, text: string): string => `${label}：${text}`;
-
-/** Indented back-translation line under a foreign message. */
-export const meaningLine = (zh: string, short = false): string =>
-  `${short ? INDENT : ''}${short ? MARK.meaningShort : MARK.meaning}${zh}`;
-
-/** 〔翻译〕 line for the buyer's own words. */
-export const translationLine = (zh: string): string => `${MARK.translation}${zh}`;
-
-/** Numbered list capped at `max`, remainder summarized — never a wall. */
-export function numberedList(
-  items: readonly string[],
-  max: number,
-): readonly string[] {
-  const shown = items.slice(0, max).map((it, i) => `${i + 1}. ${it}`);
-  if (items.length > max) shown.push(`……还有 ${items.length - max} 件`);
-  return shown;
-}
-
-/** （更早的 N 条略过） */
-export const hiddenEarlier = (n: number): string => `（更早的 ${n} 条略过）`;
 
 /**
  * The action bar: reply words, always the same three, always this shape.

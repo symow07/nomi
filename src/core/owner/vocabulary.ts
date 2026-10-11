@@ -18,7 +18,6 @@ export const TERM = {
   promotion: '晋升',
   demotion: '退回试用',      // demotion = back to probation, never "downgrade"
   spotCheck: '抽查',
-  repair: '修复',
   revoke: '收回',
   inquiry: '询盘',
   quote: '报价',
@@ -29,8 +28,6 @@ export const TERM = {
   jobSheet: '工作职责表',
   personnelFile: '员工档案',
   dailySummary: '今日总结',
-  weeklyReport: '员工周报',
-  monthlyReview: '员工月报',
   handled: '已处理',
 } as const;
 
@@ -46,17 +43,6 @@ export const STATUS = {
   onNightShift: '夜班中',    // auto right now via the night window
 } as const;
 export type OwnerStatus = keyof typeof STATUS;
-
-/** Capability names as the owner reads them. */
-export const CAPABILITY_ZH: Record<string, string> = {
-  greet: '接待问候',
-  qualify: '了解需求',
-  recommend: '推荐产品',
-  quote: '报价',
-  negotiate: '谈价',
-  confirm_order: '确认订单',
-  follow_up: '跟进客户',
-};
 
 /** Units as the owner reads them (catalog stores trade units). */
 export const UNIT_ZH: Record<string, string> = {
