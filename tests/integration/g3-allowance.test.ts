@@ -128,7 +128,6 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
     } satisfies Analysis;
     replyWriter.replies = ['Yes, the brass one comes in black.'];
     const from = `9715${runDigits(RUN, 6)}1`;
-    const before = analyzer.calls;
     expect((await writes(from, 'Does the brass lamp come in black?')).statusCode).toBe(200);
     firstConv = await until(async () => {
       const id = await convOf(from);
@@ -136,7 +135,7 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
       const n = await q(async (tx) => (await sql<{ n: number }>`select count(*)::int as n from drafts where conversation_id = ${id}::uuid and status = 'pending'`.execute(tx)).rows[0]!.n);
       return n > 0 ? id : undefined;
     }, 'the draft');
-    expect(analyzer.calls).toBeGreaterThan(before);
+    expect(analyzer.texts).toContain('Does the brass lamp come in black?');
   }, 120_000);
 
   it('THE SOFT-WARN LINE AND 100% wait in the app: claimed once each a day, and nothing is e-mailed (phase 8)', async () => {
@@ -163,7 +162,6 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
 
   it('AT THE CAP: recorded, handed to a person in silence, no model asked, nothing sent', async () => {
     const from = `9715${runDigits(RUN, 6)}2`;
-    const calls = analyzer.calls;
     expect((await writes(from, 'Do you ship to Sharjah?')).statusCode).toBe(200);
     const conv = await until(async () => {
       const id = await convOf(from);
@@ -172,7 +170,10 @@ d('G3 · the day\'s allowance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', (
         select count(*)::int as n from conversation_signals where conversation_id = ${id}::uuid and kind = 'allowance_used'`.execute(tx)).rows[0]!.n);
       return s > 0 ? id : undefined;
     }, 'the allowance hand-off');
-    expect(analyzer.calls, 'no model was asked').toBe(calls);
+    // By its own words, never by a count (2026-10-11): pg-boss is shared, and another file's
+    // leftover turn, retried into this file's worker, is answered by this model too (tenant.ts
+    // `dropQueuedWork`). The claim is that THIS message reached no model.
+    expect(analyzer.texts, 'no model was asked').not.toContain('Do you ship to Sharjah?');
     const row = await q(async (tx) => (await sql<{ msgs: number; outbound: number; held: string | null; owner: string | null }>`
       select (select count(*)::int from messages where conversation_id = ${conv}::uuid and direction = 'inbound') as msgs,
              (select count(*)::int from outbound_messages where conversation_id = ${conv}::uuid) as outbound,

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
-import { runDigits, flashSaid} from './tenant.js';
+import { runDigits, flashSaid, dropQueuedWork } from './tenant.js';
 import { offlineModels } from '../pipeline/fakes.js';
 
 /**
@@ -154,7 +154,9 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
   }, 90_000);
 
-  afterAll(async () => { await prod?.close(); });
+  // The buyers' messages here are recorded and never answered (offlineModels): their turns
+  // must not outlive this file (tenant.ts `dropQueuedWork`, 2026-10-11).
+  afterAll(async () => { if (prod) await dropQueuedWork(prod, [BIZ, OTHER]); await prod?.close(); });
 
   it('THE WEBHOOKS ARE UP WITH NO ACCOUNT IN THE ENVIRONMENT — a Page connected here must be able to deliver', async () => {
     expect([...prod.channels].sort()).toEqual(['instagram', 'messenger']);

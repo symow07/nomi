@@ -181,3 +181,31 @@ export function flashWasRefusal(
   const token = cookie.slice(FLASH_COOKIE.length + 1).split(';')[0] ?? '';
   return readFlash(sessionSecret, token, 'en', Date.now())?.bad ?? false;
 }
+
+/**
+ * WHAT A FILE QUEUED ENDS WITH IT (2026-10-11).
+ *
+ * A file that records buyers' messages and never lets them be answered —
+ * offlineModels(), or a test that stops at "it landed in the inbox" — leaves
+ * their turns queued when it closes. Integration files run one at a time, but
+ * pg-boss is shared: the next file's worker runs those turns, they fail where
+ * no model is scripted, and the retries (10, 20, 40 s) walk on through the
+ * files after it until one answers them with ITS model. On 2026-10-11 that was
+ * g3-allowance, inside its "no model was asked" count, after a new file moved
+ * the timing by eleven seconds (meta-connect's four messages; the second pass
+ * on CI). Cancels every unfinished job of these businesses; returns how many.
+ */
+export async function dropQueuedWork(
+  prod: { readonly db: import('../../src/db/client.js').Db; readonly boss: import('pg-boss').PgBoss },
+  businessIds: readonly string[],
+): Promise<number> {
+  const { sql } = await import('kysely');
+  const rows = (await sql<{ id: string; name: string }>`
+    select id::text as id, name from pgboss.job
+     where state in ('created', 'retry', 'active') and data->>'businessId' = any(${[...businessIds]}::text[])`
+    .execute(prod.db)).rows;
+  for (const name of new Set(rows.map((r) => r.name))) {
+    await prod.boss.cancel(name, rows.filter((r) => r.name === name).map((r) => r.id));
+  }
+  return rows.length;
+}
