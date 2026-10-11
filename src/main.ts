@@ -1070,6 +1070,13 @@ export async function buildProduction(
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
     });
+    // D1 (0137) — a sign-up never finished is not kept: its form and address go an hour after its code
+    // expired. In both modes: sign-up runs with no channel configured, too.
+    await boss.schedule(QUEUES.signupExpiry, '45 3 * * *', {});
+    await boss.work(QUEUES.signupExpiry, async () => {
+      const n = Number((await sql<{ n: string }>`select login_codes_forget()::text as n`.execute(db)).rows[0]?.n ?? 0);
+      if (n > 0) console.log(`[signup] ${n} unfinished sign-up(s) forgotten`);
+    });
   };
 
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
