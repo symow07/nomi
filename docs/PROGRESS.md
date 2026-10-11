@@ -59,9 +59,16 @@ each. The orb glow and the nav icon STOP before merging, for the owner's eyes on
   - "Delete my number and stop texting me" (and the same in es, fr and pt) is now a deletion request, not "Done — …".
   - The corpora are `OFF_A_LIST` and `STOP_AND_DELETE`, in six languages.
 
-**Waiting for the owner's eyes (renders, not merged):**
-- **#277** — the orb's one light: `docs/design/advisor-orb-one/`.
-- **#278** — the plain nav mark: `docs/design/advisor-nav-plain/`.
+- **#277, the orb's one light** — merged on the owner's word after the render review, 2026-10-11 (merge
+  `6deed318`, deployed, `/health` ok). One fall-off from the centre out to nothing; renders in
+  `docs/design/advisor-orb-one/`.
+- **#278, the plain nav mark** — merged on the owner's word after the render review, 2026-10-11 (merge
+  `0550a38c`, deployed, `/health` ok). The Advisor entry is the plain Solar bubble, like every other entry; renders
+  in `docs/design/advisor-nav-plain/`.
+- Before those two merged, both branches were brought up to date with main. Main with both merged in passed the
+  four checks (integration 1433 of 1433) and the pre-pilot (12 of 12).
+
+**The batch is done.** All five changes are merged and deployed; no migration (schema 136).
 
 ## The messaging-policy batch (2026-10-10)
 
