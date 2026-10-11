@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  DISCLOSURE_LOCALES, DISCLOSURE_NATIVE_REVIEW, disclosureFor, isSignedOff, signedBy,
+  DISCLOSURE_LOCALES, DISCLOSURE_NATIVE_REVIEW, disclosureFor, isSignedOff,
 } from '../../src/core/conversation/disclosure.js';
 
 /**
@@ -19,7 +19,8 @@ describe('the disclosure is signed off against the exact sentence sent', () => {
     expect(DISCLOSURE_NATIVE_REVIEW.ar).toBe(true);
     expect(template('ar').endsWith(` ${CONFIRMED}`)).toBe(true);
     expect(isSignedOff('ar', template('ar'))).toBe(true);
-    expect(signedBy('ar')).toMatch(/native speaker/);
+    const src = readFileSync(new URL('../../src/core/conversation/disclosure.ts', import.meta.url), 'utf8');
+    expect(src).toContain("by: 'a native speaker, confirmed by the owner, 2026-10-11'");
   });
 
   it('one letter changed, and the language is no longer signed off', () => {

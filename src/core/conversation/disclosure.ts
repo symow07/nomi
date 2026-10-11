@@ -119,9 +119,6 @@ export function isSignedOff(locale: DisclosureLocale, sentence: string): boolean
   return SIGNED[locale]?.text === sentence;
 }
 
-/** Who signed each language off, for the record; absent where nobody has. */
-export const signedBy = (locale: DisclosureLocale): string | null => SIGNED[locale]?.by ?? null;
-
 export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean>> = Object.freeze(
   Object.fromEntries(DISCLOSURE_LOCALES.map((l) => [l, isSignedOff(l, TEXT[l])])) as Record<DisclosureLocale, boolean>,
 );
