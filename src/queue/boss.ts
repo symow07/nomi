@@ -82,6 +82,11 @@ export const QUEUES = {
    */
   advisorExpiry: 'ops.advisor_expiry',
   /**
+   * D1 (0137) — once a day: a sign-up never finished keeps neither its form nor
+   * its address past an hour after its code expired (`login_codes_forget`).
+   */
+  signupExpiry: 'ops.signup_expiry',
+  /**
    * CH3 — a message the business's own account sent, come back from Meta. Held
    * a little before it is read (`ECHO_SETTLE_SECONDS`), so Nomi's own send has
    * recorded the id Meta gave it and is recognised as ours (src/pipeline/echo.ts).

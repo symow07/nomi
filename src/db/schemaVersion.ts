@@ -341,7 +341,7 @@ import type { Db } from './client.js';
 //       'opted_out'. Every turn and every send reads or writes them; against a 134 database each fails.
 // 136 = sends a person approved (0136): `outbound_messages.approved`. Every queued row writes it and the send path reads
 //       it; against a 135 database both fail.
-export const REQUIRED_SCHEMA_VERSION = 136;
+export const REQUIRED_SCHEMA_VERSION = 137;
 
 export type SchemaState = {
   readonly required: number;
