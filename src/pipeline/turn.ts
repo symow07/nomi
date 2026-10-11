@@ -1240,14 +1240,24 @@ export async function commitTurn(
      * Monotone like the rungs around it — this can only ever remove
      * authority, never grant it.
      */
-    const speaksAlone = policyMode === 'auto';
+    /*
+     * D2 (the owner, 2026-10-11) — THE LINE THAT ANSWERS A STOP GOES ALONE,
+     * however its capability is set: a fixed acknowledgement, nothing to
+     * review. So not the rungs about her own writing — the ramp (G4/R2), the
+     * first five in a language (LG), a hold — which a fixed sentence never
+     * needs. Still every rung about saying what she is (a signed sentence in
+     * its language, a confirmed name: an unsigned language drafts it), and the
+     * operator's switches and the owner's Stop, which win everywhere.
+     */
+    const stopLine = r.notice === 'opt_out';
+    const speaksAlone = policyMode === 'auto' || stopLine;
     // G4 (0102) — a workspace that signed itself up sends nothing alone until
     // it has earned it (the ramp, or the operator for a pilot); a practice
     // copy answers as its workspace does. Monotone like the rest: it can only
     // take authority away.
     // R2 (0106) — and only as far as its rung: greet/qualify/recommend/follow_up
     // need rung 1 (talks), quote/negotiate rung 2 (sells).
-    const earned = !speaksAlone || (await tenant.autonomy.earnedRung()) >= rungOf(capability);
+    const earned = !speaksAlone || stopLine || (await tenant.autonomy.earnedRung()) >= rungOf(capability);
     // R3 (0107) — a reply that states a product's price goes alone only after
     // the owner has sent that product's first quote themselves.
     const quotedProduct = r.quote && r.decision.product ? r.decision.product.productId : null;
@@ -1275,7 +1285,7 @@ export async function commitTurn(
     // LG — and, in a workspace that signed itself up, only once five replies in
     // that language have gone out with the owner's approval (trust first;
     // 0108). A workspace the operator made or opened is not bound.
-    const proven = !speaksAlone || !released || await tenant.autonomy.languageProven(languageHead(language));
+    const proven = !speaksAlone || !released || stopLine || await tenant.autonomy.languageProven(languageHead(language));
     const sentence = speaksAlone && released ? await disclosureText() : null;
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
     const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);
@@ -1289,7 +1299,7 @@ export async function commitTurn(
 
     const switches = await tenant.ops.switches();
     const mode = effectiveMode(
-      (r.hold || !mayDisclose) ? 'draft' : policyMode,
+      ((r.hold && !stopLine) || !mayDisclose) ? 'draft' : speaksAlone ? 'auto' : policyMode,
       capability, switches,
     );
     if (speaksAlone && !mayDisclose) {

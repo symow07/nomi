@@ -28,6 +28,10 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 - **What happens next:**
   - the conversation goes to a person;
   - the buyer gets one fixed line (D1), then nothing until they write again — the owner's own reply included.
+- **The line goes alone** however its capability is set, even with nothing on auto (the owner, 2026-10-11).
+  - It still needs what any message sent alone needs to say what is answering: a signed sentence in its language, and a
+    confirmed name. In es, fr and pt it waits for the owner.
+  - The operator's switches and the owner's Stop still bind it.
 - **After they write again (D2):** replies inside their 24 hours may go. Nothing is ever sent first: no follow-up, no outreach, no reopening template.
 - **Lifting it:** only the owner, on the buyer's page, because the buyer asked to hear from the business again.
 - **Not a stop:**
@@ -80,6 +84,20 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 
 **Claude's calls, reported:**
 - **Deletion and stop in the same words** ("remove me from your list"): the deletion rule wins on what is said (nothing, rule 18), and the stop is still recorded.
-- **The line obeys the send-alone rules.** It goes alone where a reply would; otherwise it is a draft the owner sends with one tap.
-  - In a draft-only workspace, or a language not signed off (Arabic now), the buyer hears the line only when the owner sends it.
+- ~~**The line obeys the send-alone rules.**~~ Replaced by the owner's decision of 2026-10-11, below.
 - **A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi":** go to a person, never recorded as a stop.
+
+**The owner, 2026-10-11:**
+- **The stop line always goes alone,** overriding the autonomy setting: a fixed acknowledgement, nothing to review.
+  Except in a language whose disclosure is not signed off.
+  - Arabic was that exception until it was signed the same day (#276). es, fr and pt are in it now.
+- **Claude's calls, reported:**
+  - **Rules it skips:** the ones about the assistant's own writing — the ramp, the first five replies in a language, a
+    hold such as an order waiting for the owner.
+  - **Rules it keeps:**
+    - a confirmed name (rule 2; the disclosure says it);
+    - the disclosure on the first message sent alone (rule 3);
+    - an unknown language waits;
+    - the operator's switches and the owner's Stop.
+  - **When a person holds the conversation:** the line still goes alone. If it is the first message sent alone there, it
+    carries the disclosure.

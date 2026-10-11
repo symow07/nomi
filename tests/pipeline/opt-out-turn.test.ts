@@ -15,7 +15,8 @@ import { asksForDeletion } from '../../src/core/safety/deletion.js';
  *
  *   · An opt-out is caught before any model: recorded (`optOuts.record`),
  *     handed to a person, and answered with ONE line — the notice the send
- *     gate lets through — in the buyer's language where Nomi writes it.
+ *     gate lets through — in the buyer's language where Nomi writes it. The
+ *     line goes alone however the capability is set (D2): stop-line-alone.test.ts.
  *   · Whoever holds the conversation: a person holding it gets the record and
  *     the line too, and keeps the conversation.
  *   · "Let me talk to a person", and a stop that asks for one, is the ordinary
@@ -69,12 +70,9 @@ describe('0135 · an opt-out: recorded, one line, a person picks it up', () => {
       expect(signalsOf(p)).toEqual(['opted_out']);
       expect(p.tenant.optOutsRecorded).toEqual([{ conversationId: CONVERSATION, outcome: 'recorded' }]);
       expect(alertKindFor(fx)).toBe('handoff');
-      if (mode === 'auto') {
-        expect(fx.outbound).toEqual(expect.objectContaining({ reply: OPT_OUT_REPLIES.en, notice: 'opt_out' }));
-      } else {
-        expect(fx.outbound).toBeNull();
-        expect(p.tenant.draftsCreated.map((d) => [d.draftText, d.notice])).toEqual([[OPT_OUT_REPLIES.en, 'opt_out']]);
-      }
+      // D2 (2026-10-11) — the line goes alone in both: tests/pipeline/stop-line-alone.test.ts.
+      expect(fx.outbound).toEqual(expect.objectContaining({ reply: OPT_OUT_REPLIES.en, notice: 'opt_out' }));
+      expect(p.tenant.draftsCreated).toEqual([]);
     });
   }
 
