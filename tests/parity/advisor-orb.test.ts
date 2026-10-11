@@ -345,62 +345,27 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
     expect(ours.filter(([k]) => isColour(k)).some(([, v]) => { const [r, g, b] = rgba(v); return r === glow.r && g === glow.g && b === glow.b; })).toBe(false);
   });
 
-  it('the ground is ours and under the orb: the glow\'s halo and nothing else — no body, no shadow — drawn first, every frame', async () => {
+  it('nothing is drawn under the orb on its own canvas (the owner, 2026-10-11): the light is the page\'s one field — no halo, no body, no shadow', async () => {
     for (const p of [page({ reduce: true }), page({ reduce: true, width: 216 })]) {
       p.run(); await p.load();
       for (const c of [p.rest!, ...(await p.ask(), [p.here!])]) {
-        const ground = groundOf(c);
-        // one fill: the halo, a radial gradient of the glow round the orb's centre
-        expect(ground.filter(([k]) => k === 'fill')).toHaveLength(1);
-        expect(ground.filter(([k]) => k === 'createRadialGradient')).toHaveLength(1);
-        expect(ground.filter(([k]) => k === 'createLinearGradient')).toHaveLength(0);
-        expect(ground.filter(([k]) => k === 'arc')).toHaveLength(1);
-        expect(ground.some(([k]) => k === 'scale' || k === 'translate' || k === 'save')).toBe(false);   // the shadow's squash
-        const all = c.ctx.calls;
-        expect(all.indexOf(ground[0]!)).toBeLessThan(all.indexOf(orbOf(c)[0]!));   // never over a dot
-        expect(orbOf(c).some(([k]) => k === 'createRadialGradient' || k === 'createLinearGradient')).toBe(false);   // nothing after it either
+        // the canvas is cleared, and then only the library's dots: no gradient, no shape of ours under them
+        expect(groundOf(c).map(([k]) => k)).toEqual(['clearRect']);
+        expect(c.ctx.calls.some(([k]) => k === 'createRadialGradient' || k === 'createLinearGradient')).toBe(false);
       }
     }
+    // the halo, the ring and the tint are gone: one curve draws all the light there is
+    expect(LIVE_SCRIPT).not.toMatch(/function ground\(|var GROUND|var TINT|var RING\b|function ringAt/);
   });
-
-  it('the halo is a ring: nothing behind the middle, the glow at three quarters just outside the dots, nothing at its reach — a smooth curve, 25 stops along it', async () => {
+  it('the orb\'s own drawing never uses the "needs you" magenta, and nothing in its script names it', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
-    const ground = groundOf(p.rest!);
-    const [, x0, y0, r0, x1, y1, r1] = ground.find(([k]) => k === 'createRadialGradient')! as [string, number, number, number, number, number, number];
-    const R = 192 / 2 * 0.78;
-    expect([x0, y0, r0, x1, y1]).toEqual([96, 96, 0, 96, 96]);
-    expect(r1).toBeCloseTo(R * 1.6, 6);
-    const glow = hex(TOKENS.orbGlow);
-    const stops = ground.filter(([k]) => k === 'addColorStop').map(([, , at, c]) => [at, ...rgba(c)] as number[]);
-    expect(stops).toHaveLength(25);
-    for (const [, r, g, b] of stops) expect([r, g, b]).toEqual([glow.r, glow.g, glow.b]);
-    const alpha = stops.map(([, , , , a]) => a!);
-    // the curve itself: the smootherstep up from 0.3 of the sphere to 1.25, and down to 1.6 — flat at every join
-    const sm = (x: number) => { x = Math.min(1, Math.max(0, x)); return x * x * x * (x * (x * 6 - 15) + 10); };
-    const want = (rho: number) => 0.75 * (rho <= 0.3 ? 0 : rho <= 1.25 ? sm((rho - 0.3) / 0.95) : 1 - sm((rho - 1.25) / 0.35));
-    stops.forEach(([at], i) => expect(alpha[i], `stop ${i}`).toBeCloseTo(want(1.6 * at!), 9));
-    expect(alpha[0]).toBe(0);                                             // nothing behind the middle
-    expect(Math.max(...alpha)).toBeGreaterThan(0.74);                    // three quarters on the ring
-    expect(alpha.at(-1)).toBe(0);
-    const peak = alpha.indexOf(Math.max(...alpha));
-    for (let i = 1; i < alpha.length; i++) expect(i <= peak ? alpha[i]! >= alpha[i - 1]! : alpha[i]! <= alpha[i - 1]!, `stop ${i}`).toBe(true);
-  });
-
-  it('the ground\'s colour is the glow alone — never the ink, never the "needs you" magenta, at any stop', async () => {
-    const p = page({ reduce: true });
-    p.run(); await p.load();
-    const glow = hex(TOKENS.orbGlow);
-    const allowed = [glow].map((c) => `${c.r},${c.g},${c.b}`);
-    const stops = groundOf(p.rest!).filter(([k]) => k === 'addColorStop').map(([, , , c]) => rgba(c));
-    expect(stops).toHaveLength(25);
-    for (const [r, g, b] of stops) expect(allowed, `${r},${g},${b}`).toContain(`${r},${g},${b}`);
     const needs = hex(TOKENS.needs);
-    const every = [...stops, ...orbOf(p.rest!).filter(([k]) => isColour(k)).map(([, v]) => rgba(v))];
+    const every = orbOf(p.rest!).filter(([k]) => isColour(k)).map(([, v]) => rgba(v));
+    expect(every.length).toBeGreaterThan(0);
     expect(every.some(([r, g, b]) => r === needs.r && g === needs.g && b === needs.b)).toBe(false);
     expect(LIVE_SCRIPT.slice(LIVE_SCRIPT.indexOf('The advisor\'s orb (item 9)'))).not.toMatch(/--color-needs|6E0C44/i);
   });
-
   it('the glow is a palette colour, named: a page that hands the orb a colour of its own gets no orb, and no field, at all', async () => {
     for (const said of ['#6E0C44', 'rgb(110,12,68)', 'needs; x', '']) {
       const p = page({ reduce: true, glowSaid: said });
@@ -433,8 +398,8 @@ describe('the orb is the library\'s own composing state, drawn as it ships; the 
   });
 });
 
-describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepest round the orb, no bands, gone before the bar', () => {
-  it('the field is a ring: lighter directly behind the orb, the glow itself just outside its dots, the paper\'s own colour at its reach, nothing past it', async () => {
+describe('the lit field and the pool (the redesign; one light, 2026-10-11): lighter behind the orb, one fall, no bands, gone before the bar', () => {
+  it('the field is ONE light (the owner, 2026-10-11): lighter behind the orb, deepest just outside its dots and never a band, the paper at its reach', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const img = p.field.ctx.images.at(-1)!;
@@ -442,83 +407,92 @@ describe('the lit field and the pool (the redesign; the ring, 2026-10-09): deepe
     const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
     const mixed = (t: number) => [paper.r + (glow.r - paper.r) * t, paper.g + (glow.g - paper.g) * t, paper.b + (glow.b - paper.b) * t];
     const off = (c: number[], w: number[]) => Math.abs(c[0]! - w[0]!) + Math.abs(c[1]! - w[1]!) + Math.abs(c[2]! - w[2]!);
+    const lit = (x: number, y: number) => { const q = px(img, 900 + 2 * x, 528 + 2 * y); return q[3] ? (paper.g - q[1]) / (paper.g - glow.g) : 0; };
     // behind the middle: 22 in 100 of the way to the glow (the orb's centre is (450, 264) css; its dots' sphere 75 px)
     const [r, g, b, a] = px(img, 900, 528);
     expect(a).toBe(255);
     expect(off([r, g, b], mixed(0.22))).toBeLessThanOrEqual(6);
-    // the ring: the glow itself, at 1.25 of the dots' sphere (94 css px out), every way round
-    for (const [dx, dy] of [[94, 0], [-94, 0], [0, -94], [0, 94], [66, -66]]) {
-      const [rr, gg, bb] = px(img, 900 + 2 * dx!, 528 + 2 * dy!);
-      expect(off([rr, gg, bb], [glow.r, glow.g, glow.b]), `${dx},${dy}`).toBeLessThanOrEqual(6);
+    // just outside the dots, every way round: the deepest the light is — under half the glow. The ring was the glow
+    // itself there (1.0), and under it the tint a flat third: two levels the eye read as a band and an oval.
+    for (const [dx, dy] of [[100, 0], [-100, 0], [0, -100], [0, 100], [70, -70]]) {
+      expect(lit(dx!, dy!), `${dx},${dy}`).toBeGreaterThan(0.36);
+      expect(lit(dx!, dy!), `${dx},${dy}`).toBeLessThan(0.5);
     }
-    expect(g).toBeGreaterThan(px(img, 900 + 2 * 94, 528)[1] + 100);      // the middle far lighter than the ring
+    let deepest = 0;
+    for (let y = 0; y < img.height; y += 3) for (let x = 0; x < img.width; x += 3) { const q = px(img, x, y); if (q[3]) deepest = Math.max(deepest, (paper.g - q[1]) / (paper.g - glow.g)); }
+    expect(deepest).toBeLessThan(0.5);
+    expect(lit(100, 0) - lit(0, 0)).toBeGreaterThan(0.15);              // the middle stays the lighter, so a far dot reads
     // its reach is clear: the paper shows, and no pixel has an edge
     expect(px(img, 0, 528)[3]).toBe(0);
     expect(px(img, 900, 0)[3]).toBe(0);
-    // the deepest it ever is, is the glow, never the "needs you" magenta, and never darker than the glow
+    // never the "needs you" magenta
     const needs = hex(TOKENS.needs);
     for (let x = 0; x < img.width; x += 37) {
       const [rr, gg, bb, aa] = px(img, x, 528);
-      if (!aa) continue;
-      expect(rr === needs.r && gg === needs.g && bb === needs.b).toBe(false);
-      expect(gg).toBeGreaterThanOrEqual(glow.g - 2);
+      if (aa) expect(rr === needs.r && gg === needs.g && bb === needs.b).toBe(false);
     }
-    // where it fades out (near the column's side, 442 css px out) it is the paper itself, to a step: no seam where it ends
+    // where it ends (near the column's side, 436 css px out) it is the paper itself, to a step
     const near = px(img, 900 - 2 * 436, 528);
     expect(near[3]).toBe(255);
     expect(Math.abs(near[0] - paper.r) + Math.abs(near[1] - paper.g) + Math.abs(near[2] - paper.b)).toBeLessThanOrEqual(6);
   });
-
-  it('the field\'s ring is smooth: no step, no edge — along a line out of the orb its lightness changes gently everywhere', async () => {
+  it('one fall, no ring and no plateau: out from just past the dots the light only falls, and keeps falling, gently, to the paper', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const img = p.field.ctx.images.at(-1)!;
-    const line: number[] = [];
-    for (let x = 900; x < 1800; x++) { const q = px(img, x, 528); if (!q[3]) break; line.push(q[1]); }
-    // a 17-pixel average takes the dither out; then no change faster than 2.6 levels of green per device pixel, and
-    // no corner: the change itself changes slowly — over ±8 px of that average, and, finer, over ±4 px of a 9-pixel
-    // one, which is what finds a corner where a straight rise meets the flat (a ring edge the eye picks out).
-    // Measured 2026-10-09: the ring 2.29, 0.054, 0.083; the light deepest at the centre, before it, 1.32, 0.017,
-    // 0.042; a straight rise cornered at both ends 0.153 on the finer bend; a hard-edged middle (a disc) fails all.
-    const avg = line.map((_, i) => { const w = line.slice(Math.max(0, i - 8), i + 9); return w.reduce((s, v) => s + v, 0) / w.length; });
-    let steep = 0; let bend = 0;
-    for (let i = 12; i < avg.length - 12; i++) {
-      steep = Math.max(steep, Math.abs(avg[i + 1]! - avg[i - 1]!) / 2);
-      bend = Math.max(bend, Math.abs(avg[i + 8]! - 2 * avg[i]! + avg[i - 8]!) / 64);
+    const paper = hex(TOKENS.paper);
+    // along four lines out of the orb, a 17-pixel average takes the dither out
+    for (const [ax, ay, name] of [[1, 0, 'right'], [-1, 0, 'left'], [0, -1, 'up'], [0, 1, 'down']] as const) {
+      const line: number[] = [];
+      for (let s = 0; ; s++) {
+        const x = 900 + ax * s, y = 528 + ay * s;
+        if (x < 0 || y < 0 || x >= img.width || y >= img.height) break;
+        const q = px(img, x, y); if (!q[3]) break; line.push(q[1]);
+      }
+      const avg = line.map((_, i) => { const w = line.slice(Math.max(0, i - 8), i + 9); return w.reduce((t, v) => t + v, 0) / w.length; });
+      // from 1.6 of the dots' sphere (240 device px) to where it meets the paper: never lighter going in (no second
+      // ring, no dip), and falling by at least a level every 40 css px (no plateau: the tint held flat for 140)
+      const from = 240;
+      const end = avg.findIndex((v, i) => i > from && paper.g - v < 3);
+      expect(end, name).toBeGreaterThan(from + 100);
+      for (let i = from; i < end - 1; i++) expect(avg[i + 1]! - avg[i]!, `${name} @${i}`).toBeGreaterThan(-0.25);
+      for (let i = from; i + 80 < end; i += 20) expect(avg[i + 80]! - avg[i]!, `${name} @${i}`).toBeGreaterThan(1);
+      // gentle everywhere, and no corner: the change itself changes slowly, at two scales. Measured 2026-10-11: the
+      // one light 0.71, 0.018, 0.056 on the line to the right; the ring and tint before it 2.29, 0.054, 0.083.
+      let steep = 0; let bend = 0;
+      for (let i = 12; i < avg.length - 12; i++) {
+        steep = Math.max(steep, Math.abs(avg[i + 1]! - avg[i - 1]!) / 2);
+        bend = Math.max(bend, Math.abs(avg[i + 8]! - 2 * avg[i]! + avg[i - 8]!) / 64);
+      }
+      const avg9 = line.map((_, i) => { const w = line.slice(Math.max(0, i - 4), i + 5); return w.reduce((t, v) => t + v, 0) / w.length; });
+      let corner = 0;
+      for (let i = 10; i < avg9.length - 10; i++) corner = Math.max(corner, Math.abs(avg9[i + 4]! - 2 * avg9[i]! + avg9[i - 4]!) / 16);
+      expect(steep, name).toBeLessThan(1.3);
+      expect(bend, name).toBeLessThan(0.04);
+      expect(corner, name).toBeLessThan(0.07);
     }
-    const avg9 = line.map((_, i) => { const w = line.slice(Math.max(0, i - 4), i + 5); return w.reduce((s, v) => s + v, 0) / w.length; });
-    let corner = 0;
-    for (let i = 10; i < avg9.length - 10; i++) corner = Math.max(corner, Math.abs(avg9[i + 4]! - 2 * avg9[i]! + avg9[i - 4]!) / 16);
-    expect(steep).toBeLessThan(2.6);
-    expect(bend).toBeLessThan(0.12);
-    expect(corner).toBeLessThan(0.11);
   });
-
-  it('the field carries the light across the page (the owner, 2026-10-10): the same light close round the orb, and the column lit to its four sides', async () => {
+  it('the light carries across the column (the owner, 2026-10-10, kept 2026-10-11): a third of the glow halfway to each side, still there at three quarters, paper before the sides and the bar', async () => {
     const p = page({ reduce: true });
     p.run(); await p.load();
     const img = p.field.ctx.images.at(-1)!;
     const glow = hex(TOKENS.orbGlow); const paper = hex(TOKENS.paper);
     const lit = (x: number, y: number) => { const q = px(img, 900 + 2 * x, 528 + 2 * y); return q[3] ? (paper.g - q[1]) / (paper.g - glow.g) : 0; };
-    // close round the orb, as before: the ring's deepest at its edge, and falling after it at its own pace, the
-    // tint under it (a slower near fall, the redesign's three made two, reads 0.68, 0.48 and 0.47 at these three)
-    expect(lit(100, 0)).toBeGreaterThan(0.9);
-    expect(lit(150, 0)).toBeGreaterThan(0.55); expect(lit(150, 0)).toBeLessThan(0.65);
-    expect(lit(0, -150)).toBeGreaterThan(0.35); expect(lit(0, -150)).toBeLessThan(0.43);
-    expect(lit(0, 150)).toBeGreaterThan(0.35); expect(lit(0, 150)).toBeLessThan(0.43);
-    // the column reads lit (the owner, 2026-10-10): three quarters of the way to each side, and toward the top and
-    // the composer, the tint still holds a fifth of the glow and more — never loud
-    for (const [x, y] of [[330, 0], [-330, 0], [0, -190], [0, 230]] as const) {
-      expect(lit(x, y), `${x},${y}`).toBeGreaterThan(0.18);
-      expect(lit(x, y), `${x},${y}`).toBeLessThan(0.36);
+    // halfway to the sides, to the top and toward the bar: a third of the glow (the tint's level, which the owner approved)
+    for (const [x, y] of [[220, 0], [-220, 0], [0, -128], [0, 150]] as const) {
+      expect(lit(x, y), `${x},${y}`).toBeGreaterThan(0.27);
+      expect(lit(x, y), `${x},${y}`).toBeLessThan(0.4);
     }
-    expect(lit(250, 0)).toBeLessThan(0.4);
+    // three quarters of the way: still lit, and falling — never the tint's flat third held out to the sides
+    for (const [x, y] of [[330, 0], [-330, 0], [0, -192]] as const) {
+      expect(lit(x, y), `${x},${y}`).toBeGreaterThan(0.05);
+      expect(lit(x, y), `${x},${y}`).toBeLessThan(0.2);
+    }
     // and paper again before the column's sides and the composer
     expect(lit(430, 0)).toBeLessThan(0.01);
     expect(lit(-430, 0)).toBeLessThan(0.01);
     expect(lit(0, 290)).toBeLessThan(0.06);
   });
-
   it('every pixel of the light lies on the line from the paper to the glow: never a colour of its own, never a black pixel', async () => {
     for (const [fieldWidth, width, bar] of [[900, 288, 600], [360, 216, 600], [900, 288, 420]] as const) {
       const p = page({ reduce: true, fieldWidth, width, barTop: bar });
@@ -760,16 +734,15 @@ describe('the guard: on the advisor\'s page only, resting or thinking, and only 
     expect(p.frames).toEqual([]);
   });
 
-  it('resting: the ground and the field at once; the orb once the page has loaded, never before; moving frame after frame while seen', async () => {
+  it('resting: the field at once; the orb once the page has loaded, never before; moving frame after frame while seen', async () => {
     const p = page();
     p.run();
     for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 30));   // time enough for the file, were it asked for
-    expect(transforms(p.rest!)).toHaveLength(2);                                // the ground's two, and no frame's
-    expect(drawn(p.rest!).some(([k]) => k === 'createRadialGradient')).toBe(true);
+    expect(transforms(p.rest!)).toHaveLength(1);                                // the canvas cleared, and no frame's
     expect(p.field.ctx.images).toHaveLength(1);
     expect(p.frames).toEqual([]);
     await p.load();
-    expect(transforms(p.rest!).length).toBeGreaterThan(2);
+    expect(transforms(p.rest!).length).toBeGreaterThan(1);
     expect(p.tick(1000)).toBe(1);
     const a = JSON.stringify(drawn(p.rest!).slice(-400));
     expect(p.tick(1500)).toBe(1);
@@ -874,12 +847,12 @@ describe('the guard: on the advisor\'s page only, resting or thinking, and only 
   it('the orb\'s file cannot be had: the still glow stays, no dot is drawn, nothing moves, nothing is removed (no shift)', async () => {
     const p = page({ orbUrl: 'data:text/javascript;base64,dGhyb3cgbmV3IEVycm9yKCdubycpOw==' });
     p.run(); await p.load();
-    expect(transforms(p.rest!)).toHaveLength(2);                         // the ground, once; never the frame's
-    expect(drawn(p.rest!).filter(([k]) => k === 'arc')).toHaveLength(1);  // the ground's one shape, the halo; no dot
+    expect(transforms(p.rest!)).toHaveLength(1);                         // cleared, once; never the frame's
+    expect(drawn(p.rest!).filter(([k]) => k === 'arc')).toHaveLength(0);  // no dot, and no shape of ours (the field is the light)
     expect(p.rest!.isConnected).toBe(true);
     await p.ask();
     expect(p.here!.isConnected).toBe(true);
-    expect(transforms(p.here!)).toHaveLength(2);
+    expect(transforms(p.here!)).toHaveLength(1);
     expect(p.frames).toEqual([]);
   });
 });
@@ -925,4 +898,5 @@ describe('the guard, server side: the page draws the orb only on the advisor, an
     expect(LIVE_SCRIPT).not.toMatch(/rest\.hidden|removeChild\(canvas\)/);
   });
 });
+
 
