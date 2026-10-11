@@ -34,6 +34,30 @@ each. The orb glow and the nav icon STOP before merging, for the owner's eyes on
   migration, schema 136). Each language's flag is now the comparison of the live sentence with the signed one
   (`isSignedOff`), so a changed letter puts it back to waiting. Arabic replies go alone again where the owner's
   autonomy allows.
+- **#279, D2** — the stop line goes alone however its capability is set (merge `d4fef257`, deployed, `/health` ok;
+  no migration).
+  - It skips the rules about the assistant's own writing: the ramp, the first five replies in a language, and a
+    hold.
+  - It keeps the rules about saying what is answering: a signed sentence, a confirmed name, and the disclosure on
+    the first message sent alone. It also keeps the operator's switches and the owner's Stop.
+  - es, fr and pt are unsigned, so their line waits for the owner.
+  - **Found on the way, fixed in the same PR:** a defect in the test suite, not in the product.
+    - Cause: meta-connect closed with four buyers' turns still queued. The next files' workers ran them, failed
+      (no model scripted), and retried them on the 10/20/40 s backoff until g3-allowance's model answered one
+      inside its "no model was asked" count. It showed on CI's second pass.
+    - Fix: `dropQueuedWork` (`tests/integration/tenant.ts`) cancels a file's unfinished jobs at teardown, and
+      meta-connect calls it. g3-allowance and practice-worker now check that their own message reached no model,
+      not a global count.
+    - Reproduced locally both ways: four jobs left queued before, none after.
+- **#280, D3** — "remove me from your list" gets the stop line (merge `5c21c2f4`, deployed, `/health` ok; no
+  migration).
+  - This applies only when every deletion word only takes the buyer off a list (`asksOnlyOffAList`). A stop that
+    also asks for the data to go, or names a database or records, stays silent.
+  - The deletion is still written down (`deletion_asks`), and the owner still gets its own alert. Nothing on the
+    deletion side was suppressed: it owes the buyer no reply of its own (rule 18).
+  - Newly caught as stops: list removals in ar, es, fr and pt, 移出名单, and Darija «حيدني من الليستة».
+  - "Delete my number and stop texting me" (and the same in es, fr and pt) is now a deletion request, not "Done — …".
+  - The corpora are `OFF_A_LIST` and `STOP_AND_DELETE`, in six languages.
 
 **Waiting for the owner's eyes (renders, not merged):**
 - **#277** — the orb's one light: `docs/design/advisor-orb-one/`.
@@ -2926,6 +2950,14 @@ once, in this order, and tick it here.
   - `rclone` printed a NOTICE that its config file was not found, during the backups; nothing asked, nothing done.
   - The audit's helper agents were told to read only and reported no instructions addressed to an AI. No web page
     was read.
+  - 2026-10-11, at the resume after #276:
+    - the same sign-in asks;
+    - the watch hook's Whisper key;
+    - the Adobe server's "call `adobe_mandatory_init` first";
+    - the Supabase connector's "install its agent skill with npx";
+    - the Claude Docs server's set-up instructions.
+
+    None was done.
 
 ## How to resume
 
