@@ -38,8 +38,10 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 **4. The AI disclosure** (`core/conversation/disclosure.ts`, `core/safety/identity.ts`)
 - **When it is sent:** the first message sent alone in a conversation carries it, counted by delivery (0079). It is sent again whenever the buyer asks what is answering them.
 - **Per language:** a reply goes alone only in a language whose sentence a native reader signed off — the customer's language and the reply's own (G8).
-  - Signed off: en, zh.
-  - Not signed off: ar (D3), es, fr, pt.
+  - Signed off: en, zh, ar (ar again on 2026-10-11, against the exact sentence sent).
+  - Not signed off: es, fr, pt.
+  - Each flag is the comparison of the sentence sent with the sentence signed (`isSignedOff`): change one letter
+    and that language waits for a reader again.
 - **Counting as an answer:** an answer to "are you a bot?" must be the assistant speaking of itself (G4). This holds whoever writes the reply (G4b).
 
 **5. Notices** (`outbound_messages.notice`, `drafts.notice`)
@@ -71,6 +73,7 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 - **D1:** one fixed line after a stop, then silence ("silence after STOP reads as broken").
 - **D2:** writing again lifts the reply block, not the do-not-contact.
 - **D3:** `ar: false`. The Arabic sentence sent is not the one signed off; the owner will read it and sign it again.
+  Signed on 2026-10-11, confirmed by a native speaker.
 - **D4:** the reopening template only within 7 days of the buyer's last message.
 - **Lifting a stop:** the owner, on the buyer's page.
 - **Sending during a stop:** a stop binds everyone, the owner included.

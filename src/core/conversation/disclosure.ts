@@ -42,8 +42,8 @@ const TEXT: Readonly<Record<DisclosureLocale, string>> = {
   // assistant) for «المساعد الذكي» ("the smart assistant"), which named a
   // quality rather than a kind. The second clause was rewritten the same day
   // (#118) so the buyer is addressed in no gender (rule 6) — «فأخبرني» was a
-  // masculine imperative — and THAT version the owner has not read: so it is
-  // not signed off (2026-10-10, below).
+  // masculine imperative. THAT version was confirmed by a native speaker on
+  // 2026-10-11 ("right and natural", the owner) and is signed off below.
   ar: 'مرحبًا، أنا {name}، مساعد آلي لدى {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت ممكن.',
   // 2026-09-29 — Spanish and French, for the customers the EU AI Act already
   // covers, who were told in English. Translated to carry the English
@@ -86,27 +86,45 @@ const isDisclosureLocale = (v: string): v is DisclosureLocale =>
  * unread (#124) stopped every workspace sending alone, Westlake's included,
  * which nobody had decided (docs/PROGRESS.md, "The owner's questions").
  *
- * LIFTED for zh 2026-09-28: the owner read the `zh` string above and the flag
- * was set in the same commit. Arabic was lifted the same day and set back on
- * 2026-10-10 by the owner: its second clause was rewritten after the sign-off
- * (#118), and the owner will read the version that is sent and sign it again.
- * A locale added to DISCLOSURE_LOCALES later starts false: its customers get drafts.
+ * LIFTED for zh 2026-09-28: the owner read the `zh` string above. Arabic was
+ * lifted the same day, set back on 2026-10-10 (its second clause had been
+ * rewritten after the sign-off, #118), and signed again on 2026-10-11 against
+ * the sentence now sent, confirmed by a native speaker. A locale added to
+ * DISCLOSURE_LOCALES later starts false: nobody has signed it, so its customers
+ * get drafts.
  */
-export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean>> = {
-  en: true,
-  zh: true,   // the owner, 2026-09-28
-  // 2026-10-10 — the owner: "Set ar: false. The sentence being sent is not the
-  // sentence signed off, so the flag is claiming a review that didn't happen.
-  // I'll read the live version and re-sign it myself." Arabic customers' replies
-  // wait for the owner until then.
-  ar: false,
-  // Awaiting a native reader (the owner's instruction, 2026-09-29). Never set
-  // true by an assistant: a reviewer reads the sentence above, and the flag
-  // flips in the same commit that names them.
-  es: false,
-  fr: false,
-  pt: false,
+/**
+ * WHAT EACH READER SIGNED, WORD FOR WORD (the owner, 2026-10-11: "If signed
+ * text and live text ever diverge again, flip back to ar: false
+ * automatically"). A language is signed off only while the sentence sent is,
+ * character for character, the sentence its reader signed: change one letter
+ * of TEXT above and that language's flag reads false — its customers' replies
+ * wait for the owner — until a reader signs the new words here, named. The
+ * flag is never set by hand any more; it is this comparison.
+ *
+ * Arabic stayed true for two weeks after #118 changed its second clause,
+ * because the flag was a literal nobody had to touch. That cannot happen now.
+ */
+const SIGNED: Readonly<Partial<Record<DisclosureLocale, { readonly text: string; readonly by: string }>>> = {
+  en: { text: "Hi, I'm {name}, {business}'s AI assistant. If you'd like a person from our team, just say so and they'll reply as soon as they can.", by: 'the owner, who wrote it' },
+  zh: { text: '您好，我是{name}，{business}的AI助手。如需人工服务请告诉我，同事会尽快回复您。', by: 'the owner, 2026-09-28' },
+  ar: { text: 'مرحبًا، أنا {name}، مساعد آلي لدى {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت ممكن.', by: 'a native speaker, confirmed by the owner, 2026-10-11' },
+  // es, fr, pt: awaiting a native reader (the owner's instruction, 2026-09-29).
+  // Never signed by an assistant: a reviewer reads the sentence above, and it is
+  // written here in the same commit that names them.
 };
+
+/** Is this exact sentence the one a reader signed for this language? */
+export function isSignedOff(locale: DisclosureLocale, sentence: string): boolean {
+  return SIGNED[locale]?.text === sentence;
+}
+
+/** Who signed each language off, for the record; absent where nobody has. */
+export const signedBy = (locale: DisclosureLocale): string | null => SIGNED[locale]?.by ?? null;
+
+export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean>> = Object.freeze(
+  Object.fromEntries(DISCLOSURE_LOCALES.map((l) => [l, isSignedOff(l, TEXT[l])])) as Record<DisclosureLocale, boolean>,
+);
 
 /** The locales still waiting for a native reading, in order. */
 export const disclosureAwaitingReview = (): readonly DisclosureLocale[] =>
