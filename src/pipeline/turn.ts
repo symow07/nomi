@@ -26,7 +26,7 @@ import { guardIdentity, type IdentityViolation } from '../core/safety/identity.j
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
 import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
-import { OPT_OUT_REPLIES, optOutLanguage } from '../core/safety/optOut.js';
+import { OPT_OUT_REPLIES, asksOnlyOffAList, optOutLanguage } from '../core/safety/optOut.js';
 import type { Notice } from '../core/channel/sendGate.js';
 
 /**
@@ -499,9 +499,16 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
    * Recorded by commitTurn whatever happens here; answered with one fixed line,
    * then nothing — whoever holds the conversation. Never when a deletion was
    * asked too: that hand-off says nothing (0075), and the stop is still recorded.
+   *
+   * D3 (the owner, 2026-10-11) — except "remove me from your list": its
+   * deletion words only take the buyer off a list (`asksOnlyOffAList`), so it
+   * gets the stop's line. The deletion is still written down and the owner
+   * still told. A request that names their data, or one still waiting from an
+   * earlier message, keeps the silence.
    */
   const optingOut = textOnlySignals.some((s) => s.kind === 'opted_out');
-  const answersStop = optingOut && !signals.some((s) => s.kind === 'deletion_requested');
+  const offAList = optingOut && asksOnlyOffAList(req.text) && !historicEarly.some((s) => s.kind === 'deletion_requested');
+  const answersStop = optingOut && (offAList || !signals.some((s) => s.kind === 'deletion_requested'));
   let notice: Notice | null = null;
 
   switch (decision.action.kind) {
@@ -533,7 +540,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // 0077 — nor when nobody could tell what the message asked (the
       // analyser's answer could not be read): the same silence as an unheard
       // voice note or an unreadable file. A person reads it and answers.
-      if (signals.some((s) => s.kind === 'deletion_requested' || s.kind === 'not_answered')) {
+      if (signals.some((s) => (s.kind === 'deletion_requested' && !offAList) || s.kind === 'not_answered')) {
         reply = null;
         answerPath = 'silent';
       } else if (answersStop) {

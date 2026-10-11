@@ -29,6 +29,10 @@ export const REQUESTS: Record<string, readonly string[]> = {
     'Could you delete the data you have about me?',
     'DELETE MY DATA',
     'delete my number.',
+    // D3 (2026-10-11) — a deletion and then a stop: the bare number counts when
+    // a stop follows, so the stop's line ("Done — …") is never what it hears.
+    'delete my number and stop texting me',
+    "remove my email and don't write to me again",
   ],
   zh: [
     '请删除我的数据',
@@ -63,6 +67,8 @@ export const REQUESTS: Record<string, readonly string[]> = {
     'Retirez mon numéro de votre liste svp',
     'Supprimez mon e-mail.',
     'Mes informations personnelles soient effacées, merci',
+    // D3 — a deletion and then a stop.
+    "Supprimez mon numéro et arrêtez de m'écrire",
   ],
   es: [
     'Por favor borren mis datos',
@@ -73,6 +79,8 @@ export const REQUESTS: Record<string, readonly string[]> = {
     'Borren mi número de su lista, por favor',
     'Eliminen todos mis datos personales',
     'Borra mi historial',
+    // D3 — a deletion and then a stop.
+    'Borra mi número y deja de escribirme',
   ],
   // The pt pack (2026-10-01).
   pt: [
@@ -85,6 +93,8 @@ export const REQUESTS: Record<string, readonly string[]> = {
     'Excluam todos os meus dados pessoais',
     'Apague meu histórico',
     'Delete meu cadastro, por favor',
+    // D3 — a deletion and then a stop.
+    'Apague meu número e pare de me mandar mensagens',
   ],
   de: ['Bitte löschen Sie meine Daten'],
   ru: ['Удалите мои данные, пожалуйста'],

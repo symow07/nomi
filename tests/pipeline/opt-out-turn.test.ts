@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeTurn, commitTurn, UNCLAIMED_AGENT, type TurnPorts } from '../../src/pipeline/turn.js';
 import { HANDOFF_REPLIES } from '../../src/core/conversation/templates.js';
-import { OPT_OUT_REPLIES } from '../../src/core/safety/optOut.js';
+import { OPT_OUT_REPLIES, asksOnlyOffAList } from '../../src/core/safety/optOut.js';
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
 import { isProblemSignal, toTriggerReason } from '../../src/core/scoring/signals.js';
 import { alertKindFor } from '../../src/pipeline/notify.js';
@@ -118,8 +118,9 @@ describe('0135 · an opt-out: recorded, one line, a person picks it up', () => {
       const p = ports('draft');
       const { r } = await run(p, text);
       expect(p.tenant.optOutsRecorded, text).toHaveLength(1);
-      // "remove me from your list" also asks for their data to go: that hand-off says nothing (0075).
-      if (asksForDeletion(text)) expect(r.reply, text).toBeNull();
+      // D3 (2026-10-11) — "remove me from your list" gets its line; a stop that asks for the data
+      // to go says nothing (0075): tests/pipeline/off-a-list-turn.test.ts.
+      if (asksForDeletion(text) && !asksOnlyOffAList(text)) expect(r.reply, text).toBeNull();
       else expect(lines.has(r.reply ?? ''), `${text} → ${r.reply}`).toBe(true);
     }
   });
