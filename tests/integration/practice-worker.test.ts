@@ -226,14 +226,14 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     await post('/app/sandbox/reset');   // a conversation of its own: nothing earlier waits in it
     await inBiz(PILOT, (tx) => sql`update businesses set assistant_stopped_at = now(), assistant_stopped_by = 'owner' where id = ${PILOT}::uuid`.execute(tx));
     try {
-      const asked = analyzer.calls;
       await say('Are you there?');
       const conv = (await practiceConv())!;
       const held = await until(() => inCopy((tx) => sql<{ reason: string }>`
         select decision->'action'->>'reason' as reason from turns
          where conversation_id = ${conv}::uuid and decision->'action'->>'kind' = 'held' limit 1`.execute(tx).then((x) => x.rows[0])), 'the held turn');
       expect(held.reason).toBe('assistant_stopped');
-      expect(analyzer.calls).toBe(asked);
+      // By its words, not a count: another file's leftover turn can reach this model (tenant.ts `dropQueuedWork`).
+      expect(analyzer.texts).not.toContain('Are you there?');
       const assigned = await inCopy((tx) => sql<{ a: string | null }>`select assigned_to as a from conversations where id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.a));
       expect(assigned).toBe('unclaimed');
       expect(await pendingDraft(conv)).toBeUndefined();
@@ -295,12 +295,11 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     expect((await post('/app/sandbox/stop', 'on=1')).statusCode).toBe(302);
     try {
       expect((await page()).body).toContain(t('en', 'practice.stop.stopped'));
-      const asked = analyzer.calls;
       await say('Anyone there?');
       const conv = (await practiceConv())!;
       await until(() => inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from turns
         where conversation_id = ${conv}::uuid and decision->'action'->>'kind' = 'held'`.execute(tx).then((x) => (x.rows[0]!.n > 0 ? true : undefined))), 'the held turn');
-      expect(analyzer.calls).toBe(asked);
+      expect(analyzer.texts).not.toContain('Anyone there?');
       const real = await inBiz(PILOT, (tx) => sql<{ s: boolean }>`select assistant_stopped_at is not null as s from businesses
         where id = ${PILOT}::uuid`.execute(tx).then((x) => x.rows[0]!.s));
       expect(real).toBe(false);
@@ -469,7 +468,6 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     const conv = await practiceConv();
     const said0 = conv ? await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from messages
       where conversation_id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.n)) : 0;
-    const asked = analyzer.calls;
     const r = await say('one more?');
     expect(r.statusCode).toBe(302);
     const { flashSaid } = await import('./tenant.js');
@@ -479,7 +477,7 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     expect(said1).toBe(said0);
     expect((await lines()).n).toBe(50);
     await new Promise((res) => setTimeout(res, 2_000));
-    expect(analyzer.calls).toBe(asked);
+    expect(analyzer.texts).not.toContain('one more?');
     // Start over erases the transcript, and does not give the day back.
     await post('/app/sandbox/reset');
     expect(flashSaid(await say('and now?'), WEB_SECRET)).toContain('Practice takes');
@@ -548,12 +546,12 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     await admin.connect();
     try {
       const errorsNow = async () => (await admin.query('select coalesce(sum(count), 0)::int as n from app_errors')).rows[0].n as number;
-      const [asked, errors0] = [analyzer.calls, await errorsNow()];
+      const errors0 = await errorsNow();
       const { QUEUES } = await import('../../src/queue/boss.js');
       const id = await prod.boss.send(QUEUES.inbound, { businessId: copy, conversationId: randomUUID(), messageId: `practice:${randomUUID()}`, text: 'late line', messageType: 'text' });
       const state = () => admin.query('select state from pgboss.job where id = $1', [id]).then((r) => r.rows[0]?.state as string | undefined);
       await until(async () => ((await state()) === 'completed' ? true : undefined), 'the job, completed');
-      expect(analyzer.calls).toBe(asked);
+      expect(analyzer.texts).not.toContain('late line');
       expect(await errorsNow()).toBe(errors0);
     } finally {
       await admin.end();

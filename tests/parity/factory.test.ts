@@ -456,7 +456,11 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     if (q.ok) expect(holdReasonOf({ provenance: 'typed', quote: q.value, turnText: '' })).toBe('discount_needs_owner');
     const { readFile } = await import('node:fs/promises');
     const turn = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    expect(turn).toMatch(/\(r\.hold \|\| !mayDisclose\) \? 'draft' : policyMode/);
+    // D2 (the owner, 2026-10-11) — the one exception: the line that answers a stop (the notice
+    // 'opt_out') is a fixed sentence and goes alone whatever its capability; a hold does not hold
+    // it, and it still needs everything mayDisclose asks (tests/pipeline/stop-line-alone.test.ts).
+    expect(turn).toContain("const stopLine = r.notice === 'opt_out';");
+    expect(turn).toMatch(/\(\(r\.hold && !stopLine\) \|\| !mayDisclose\) \? 'draft' : speaksAlone \? 'auto' : policyMode/);
 
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const { esc } = await import('../../src/api/web/layout.js');

@@ -28,6 +28,10 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 - **What happens next:**
   - the conversation goes to a person;
   - the buyer gets one fixed line (D1), then nothing until they write again — the owner's own reply included.
+- **The line goes alone** however its capability is set, even with nothing on auto (the owner, 2026-10-11).
+  - It still needs what any message sent alone needs to say what is answering: a signed sentence in its language, and a
+    confirmed name. In es, fr and pt it waits for the owner.
+  - The operator's switches and the owner's Stop still bind it.
 - **After they write again (D2):** replies inside their 24 hours may go. Nothing is ever sent first: no follow-up, no outreach, no reopening template.
 - **Lifting it:** only the owner, on the buyer's page, because the buyer asked to hear from the business again.
 - **Not a stop:**
@@ -38,8 +42,10 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 **4. The AI disclosure** (`core/conversation/disclosure.ts`, `core/safety/identity.ts`)
 - **When it is sent:** the first message sent alone in a conversation carries it, counted by delivery (0079). It is sent again whenever the buyer asks what is answering them.
 - **Per language:** a reply goes alone only in a language whose sentence a native reader signed off — the customer's language and the reply's own (G8).
-  - Signed off: en, zh.
-  - Not signed off: ar (D3), es, fr, pt.
+  - Signed off: en, zh, ar (ar again on 2026-10-11, against the exact sentence sent).
+  - Not signed off: es, fr, pt.
+  - Each flag is the comparison of the sentence sent with the sentence signed (`isSignedOff`): change one letter
+    and that language waits for a reader again.
 - **Counting as an answer:** an answer to "are you a bot?" must be the assistant speaking of itself (G4). This holds whoever writes the reply (G4b).
 
 **5. Notices** (`outbound_messages.notice`, `drafts.notice`)
@@ -71,12 +77,46 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 - **D1:** one fixed line after a stop, then silence ("silence after STOP reads as broken").
 - **D2:** writing again lifts the reply block, not the do-not-contact.
 - **D3:** `ar: false`. The Arabic sentence sent is not the one signed off; the owner will read it and sign it again.
+  Signed on 2026-10-11, confirmed by a native speaker.
 - **D4:** the reopening template only within 7 days of the buyer's last message.
 - **Lifting a stop:** the owner, on the buyer's page.
 - **Sending during a stop:** a stop binds everyone, the owner included.
 
 **Claude's calls, reported:**
-- **Deletion and stop in the same words** ("remove me from your list"): the deletion rule wins on what is said (nothing, rule 18), and the stop is still recorded.
-- **The line obeys the send-alone rules.** It goes alone where a reply would; otherwise it is a draft the owner sends with one tap.
-  - In a draft-only workspace, or a language not signed off (Arabic now), the buyer hears the line only when the owner sends it.
+- ~~**Deletion and stop in the same words**: the deletion rule wins on what is said.~~ Replaced by the owner's decision of
+  2026-10-11, below.
+- ~~**The line obeys the send-alone rules.**~~ Replaced by the owner's decision of 2026-10-11, below.
 - **A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi":** go to a person, never recorded as a stop.
+
+**The owner, 2026-10-11:**
+- **The stop line always goes alone,** overriding the autonomy setting: a fixed acknowledgement, nothing to review.
+  Except in a language whose disclosure is not signed off.
+  - Arabic was that exception until it was signed the same day (#276). es, fr and pt are in it now.
+- **Claude's calls, reported:**
+  - **Rules it skips:** the ones about the assistant's own writing — the ramp, the first five replies in a language, a
+    hold such as an order waiting for the owner.
+  - **Rules it keeps:**
+    - a confirmed name (rule 2; the disclosure says it);
+    - the disclosure on the first message sent alone (rule 3);
+    - an unknown language waits;
+    - the operator's switches and the owner's Stop.
+  - **When a person holds the conversation:** the line still goes alone. If it is the first message sent alone there, it
+    carries the disclosure.
+- **"Remove me from your list" gets the stop line,** not the deletion's silence. The opt-out is recorded as before.
+- **Claude's calls, reported:**
+  - **Only when every deletion word only takes them off a list** (`asksOnlyOffAList`).
+    - If the message also asks for their data to go, it stays silent: "…and delete my data", "…and your database",
+      "remove me from your database", «احذفوا بياناتي». "Done — …" there would read as a deletion promise.
+    - Silent too when an earlier deletion request is still waiting.
+  - **Nothing on the deletion side is suppressed.** It owes the buyer no reply of its own: rule 18 is the owner's choice
+    of nothing. It owes the owner the record (`deletion_asks`) and the deletion's own alert. Both still happen for a
+    list removal, and the owner can mark it "not a deletion request".
+  - **List removals that were not read as stops before:**
+    - the buyer's number or name off a list in ar, es, fr and pt;
+    - 移出你们的名单 and 群发名单;
+    - Darija «حيدني من الليستة».
+
+    They are stops now, in `tests/parity/opt-out-corpus.ts` (`OFF_A_LIST`).
+  - **"Delete my number and stop texting me"** (and the same in es, fr and pt) is a deletion request now. Before, it was
+    answered with "Done — …".
+  - **E-mail replies:** unchanged. Every one goes to a person and nothing is sent on its own.

@@ -11,7 +11,8 @@ import type { Analysis } from '../../src/core/conversation/decide.js';
  *
  *   · The stop is written down (`opt_outs`, per buyer and channel), the
  *     conversation goes to a person, and the one line waits as a draft
- *     carrying its mark (no capability is on auto here).
+ *     carrying its mark: no assistant's name is confirmed here, so even the
+ *     line cannot go alone (D2 — stop-line-alone.test.ts sends it).
  *   · What was on its way is cleared: a reply waiting for approval is
  *     superseded, a queued message refused as `opted_out`.
  *   · The gate: until they write again only the line leaves — the owner's own
