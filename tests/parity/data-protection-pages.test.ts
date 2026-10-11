@@ -49,7 +49,10 @@ describe('D6 · the deletion page names every copy no deletion inside Nomi reach
     const html = page('en', 'privacy@nomi.test');
     expect(html).toContain(esc(t('en', 'legal.deletion.kept.logs', { hosting: 'Railway (USA)' })));
     // WhatsApp twice in every language: among Meta's own copies, and among the business's own inboxes.
-    for (const l of LOCALES) expect(t(l, 'legal.deletion.kept.meta').split('WhatsApp').length - 1, l).toBe(2);
+    for (const l of LOCALES) {
+      const name = l === 'ar' ? 'واتساب' : 'WhatsApp';
+      expect(t(l, 'legal.deletion.kept.meta').split(name).length - 1, l).toBe(2);
+    }
     expect(t('en', 'legal.deletion.kept.meta')).toMatch(/only the business can delete/);
   });
   it('the transcriber only where one runs; our mailbox only where the page gives an address', () => {
