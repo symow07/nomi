@@ -75,7 +75,10 @@ const EN_MINE_STRONG = '(?:my\\s+(?:personal\\s+)?(?:data|information|info|detai
  */
 const EN_MINE_WEAK = '(?:my\\s+(?:e-?mail(?:\\s+address)?|(?:phone\\s+|mobile\\s+|whatsapp\\s+)?number)(?![a-z]))';
 const EN_WEAK_ENDS = '(?=\\s*(?:$|[.!?,;]|please\\b|thanks?\\b|thank\\s+you\\b|from\\s+(?:your|all|every)\\b'
-  + '|from\\s+the\\s+(?:list|database|records|system|contacts|files|mailing\\s+list|marketing\\s+list)\\b))';
+  + '|from\\s+the\\s+(?:list|database|records|system|contacts|files|mailing\\s+list|marketing\\s+list)\\b'
+  // D3 (2026-10-11) — and a stop after it: "delete my number and stop texting me" asks for both, and the
+  // stop's line ("Done — …") would read as the deletion done.
+  + "|(?:and|&)\\s+(?:stop|quit|don'?t|do\\s+not|never|no\\s+more|leave\\s+me)\\b))";
 const EN_MINE_AFTER_VERB = `(?:${EN_MINE_STRONG}|${EN_MINE_WEAK}${EN_WEAK_ENDS})`;
 const EN_MINE_ANY = `(?:${EN_MINE_STRONG}|${EN_MINE_WEAK})`;
 const EN: readonly RegExp[] = [
@@ -128,7 +131,7 @@ const OTHER: readonly RegExp[] = [
   // "j'ai supprimé mon e-mail" is the buyer's own act, not a request.
   /\b(?:supprimez|supprime|effacez|efface|retirez|retire)[-\s](?:moi|nous)\s+de\s+(?:votre|vos|ta|tes)\s+(?:base(?:\s+de\s+donn[ée]es)?|fichiers?|liste|syst[èe]me|contacts?)\b/,
   /\b(?:supprimez|supprime|supprimer|effacez|efface|effacer|retirez|retirer)\s+(?:mon|mes)\s+(?:compte|historique|messages|conversations?|profil)\b/,
-  /\b(?:supprimez|supprime|supprimer|effacez|efface|effacer|retirez|retirer)\s+mon\s+(?:num[ée]ro(?:\s+de\s+t[ée]l[ée]phone)?|e-?mail|adresse\s+e-?mail)(?=\s*(?:$|[.!?,;]|de\s+(?:votre|vos)\s+(?:base|fichiers?|liste|syst[èe]me)|s'il\s+vous\s+pla[iî]t|svp))/,
+  /\b(?:supprimez|supprime|supprimer|effacez|efface|effacer|retirez|retirer)\s+mon\s+(?:num[ée]ro(?:\s+de\s+t[ée]l[ée]phone)?|e-?mail|adresse\s+e-?mail)(?=\s*(?:$|[.!?,;]|de\s+(?:votre|vos)\s+(?:base|fichiers?|liste|syst[èe]me)|s'il\s+vous\s+pla[iî]t|svp|et\s+(?:arr[eê]te|cessez|cesse|ne\s+m|ne\s+me|ne\s+plus)))/,
   /\b(?:supprimiez|effaciez)\s+(?:toutes\s+)?(?:mes|les)\s+(?:donn[ée]es|informations|coordonn[ée]es)\b/,
   // Spanish
   /\b(?:borrar|borren|borra|borre|eliminar|eliminen|elimina|elimine|suprimir|supriman)\s+(?:todos\s+)?mis\s+(?:datos|informaci[oó]n)(?:\s+personales)?\b/,
@@ -136,14 +139,14 @@ const OTHER: readonly RegExp[] = [
   /\bderecho\s+al\s+olvido\b/,
   /\b(?:b[oó]rrame|b[oó]rrenme|elim[ií]name|elim[ií]nenme|s[aá]came|s[aá]quenme)\s+de\s+(?:tu|su|vuestra|vuestras|sus|tus)\s+(?:base(?:\s+de\s+datos)?|lista|sistema|registros?|contactos?|archivos?)\b/,
   /\b(?:borra|borre|borren|borrar|elimina|elimine|eliminen|eliminar|suprime|suprima|supriman|suprimir)\s+(?:todos\s+)?(?:mi|mis)\s+(?:cuenta|historial|mensajes|conversaci[oó]n(?:es)?|perfil|registros?)\b/,
-  /\b(?:borra|borre|borren|borrar|elimina|elimine|eliminen|eliminar|suprime|suprima|supriman|suprimir)\s+mi\s+(?:n[uú]mero(?:\s+de\s+tel[ée]fono)?|correo(?:\s+electr[oó]nico)?|e-?mail|tel[ée]fono)(?=\s*(?:$|[.!?,;]|de\s+(?:tu|su|vuestra)\s+(?:base|lista|sistema)|por\s+favor))/,
+  /\b(?:borra|borre|borren|borrar|elimina|elimine|eliminen|eliminar|suprime|suprima|supriman|suprimir)\s+mi\s+(?:n[uú]mero(?:\s+de\s+tel[ée]fono)?|correo(?:\s+electr[oó]nico)?|e-?mail|tel[ée]fono)(?=\s*(?:$|[.!?,;]|de\s+(?:tu|su|vuestra)\s+(?:base|lista|sistema)|por\s+favor|y\s+(?:deja|dejen|dejad|no\s+me|ya\s+no|para|paren)))/,
   // Portuguese (completed by the pt pack, 2026-10-01)
   /\b(?:apagar|apaguem|apague|apaga|excluir|excluam|exclua|exclui|eliminar|eliminem|elimine|deletar|deletem|delete|deleta|remover|removam|remova|remove)\s+(?:todos\s+)?(?:os\s+)?meus\s+(?:dados|informa[çc][õo]es)(?:\s+pessoais)?\b/,
   /\bdireito\s+ao\s+esquecimento\b/,
   /\b(?:os\s+)?meus\s+(?:dados|informa[çc][õo]es)(?:\s+pessoais)?\s+(?:sejam\s+|ser\s+)?(?:apagad|exclu[íi]d|eliminad|removid|deletad)\w*/,
   /\b(?:me\s+(?:apague|apaga|exclua|exclui|remova|remove|tire|tira|delete|deleta)|apague-me|exclua-me|remova-me|tire-me)\s+(?:da|do|de)\s+(?:sua\s+|seu\s+|vossa\s+|vosso\s+|tua\s+|teu\s+)?(?:base(?:\s+de\s+dados)?|lista|sistema|cadastro|registros?|contatos?)\b/,
   /\b(?:apaga|apague|apaguem|apagar|exclui|exclua|excluam|excluir|deleta|delete|deletem|deletar|remove|remova|removam|remover)\s+(?:a\s+|o\s+|as\s+|os\s+)?(?:minha|meu|minhas|meus)\s+(?:conta|hist[óo]rico|mensagens|conversas?|perfil|cadastro|registros?)\b/,
-  /\b(?:apaga|apague|apaguem|apagar|exclui|exclua|excluam|excluir|deleta|delete|deletem|deletar|remove|remova|removam|remover)\s+(?:o\s+)?meu\s+(?:n[úu]mero(?:\s+de\s+telefone)?|e-?mail|telefone)(?=\s*(?:$|[.!?,;]|d[ao]\s+(?:sua|seu|vossa|vosso)\s+(?:base|lista|sistema|cadastro)|por\s+favor))/,
+  /\b(?:apaga|apague|apaguem|apagar|exclui|exclua|excluam|excluir|deleta|delete|deletem|deletar|remove|remova|removam|remover)\s+(?:o\s+)?meu\s+(?:n[úu]mero(?:\s+de\s+telefone)?|e-?mail|telefone)(?=\s*(?:$|[.!?,;]|d[ao]\s+(?:sua|seu|vossa|vosso)\s+(?:base|lista|sistema|cadastro)|por\s+favor|e\s+(?:pare|parem|para\s+de|n[aã]o\s+me)))/,
   // German
   /\b(?:l[öo]schen|l[öo]sche|entfernen|entfernt)(?:\s+sie)?\s+(?:alle\s+)?meine\s+(?:pers[öo]nlichen\s+)?(?:daten|informationen|angaben)\b/,
   /\bmeine\s+(?:pers[öo]nlichen\s+)?(?:daten|informationen|angaben)\s+(?:bitte\s+)?(?:l[öo]schen|entfernen|gel[öo]scht)\b/,

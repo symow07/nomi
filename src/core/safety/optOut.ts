@@ -1,4 +1,4 @@
-import { normalizeForDeletion } from './deletion.js';
+import { asksForDeletion, normalizeForDeletion } from './deletion.js';
 
 /**
  * A BUYER WHO SAYS STOP IS NOT WRITTEN TO AGAIN (the owner, 2026-10-10).
@@ -148,6 +148,8 @@ const EN: readonly RegExp[] = [
   /\b(?:lose|forget)\s+my\s+(?:number|contact)\b/,
   // "remove me from your list", "take me off your mailing list", "delete me from the broadcast"
   /\b(?:remove|take|delete|drop|erase)\s+(?:me|us|my\s+number|this\s+number)\s+(?:off|from|out\s+of)\s+(?:your|the|this|ur|all|any)\s+(?:\w+\s+){0,2}?(?:list|lists|contacts?|database|broadcasts?|groups?|system|records?|mailing)\b/,
+  // D3 (2026-10-11) — the buyer's number, name or e-mail off it: "delete my e-mail from your mailing list"
+  /\b(?:remove|take|delete|drop|erase|wipe)\s+(?:my\s+(?:(?:phone|mobile|cell|whatsapp)\s+)?number|my\s+name|my\s+e-?mail(?:\s+address)?|my\s+contact(?:\s+details)?)\s+(?:off|from|out\s+of)\s+(?:your|the|this|ur|all|any)\s+(?:\w+\s+){0,2}?(?:list|lists|contacts?|database|broadcasts?|groups?|system|records?|mailing)\b/,
   // "I will block you", "I'm going to report this number"
   /\b(?:i|we)(?:'ll|\s+will|\s+am\s+going\s+to|'m\s+going\s+to|\s+are\s+going\s+to)\s+(?:block|report)\s+(?:you|this\s+number|ur\s+number|your\s+number)\b/,
   // The last sentence is "stop": "not interested. stop", "pls stop!!", "Stop, please."
@@ -179,6 +181,9 @@ const ZH: readonly RegExp[] = [
   /再发(?:我就|就|我)?(?:投诉|举报|拉黑|报警|屏蔽)/,
   /把我(?:删了|删掉|删除|移除|拉黑)/,
   /(?:从|把我从)(?:你们的)?(?:名单|列表|通讯录|群发列表)(?:里|中)?(?:删|移|去)(?:除|掉)?/,
+  // D3 — 请把我移出你们的名单, 把我从群发名单删掉
+  /(?:移出|踢出)(?:你们的|你的|您的)?(?:名单|列表|群发列表|群发名单|客户名单)/,
+  /从(?:你们|你|您)?(?:的)?(?:群发名单|发送列表|客户名单|营销名单)(?:里|中|上)?(?:删|移|去|清)(?:除|掉)?/,
   /(?:请|麻烦)?停止(?:发送|推送|发|给我发|联系|骚扰|打扰|群发)/,
   /不(?:想|要|需要|愿意)(?:再)?(?:收到|接到|看到|接收)(?:你们的|你的|任何)?(?:消息|信息|短信|广告|推送|推广|邮件)/,
   /(?:我)?不需要(?:你们的|你的)?(?:消息|信息|推送|广告|推广)(?:了)?/,
@@ -198,6 +203,11 @@ const AR_MSGS = String.raw`(?:رسائل|الرسائل|رسايل|الرساي�
 const AR_AGAIN = String.raw`(?:مره\s+(?:ثانيه|ثانية|تانيه|تانية|اخري)|مرة\s+(?:ثانيه|ثانية|تانيه|تانية|اخري)|تاني|ثاني|بعد\s+(?:اليوم|الان|كذا)|ابدا|مجددا|نهائيا|خلاص)`;
 const AR_STOP_V = String.raw`(?:التوقف|الكف|ايقاف|توقيف|بلاش|توقف|توقفوا|توقفي|اوقف|اوقفوا|اوقفي|وقف|وقفوا|وقفي|بطل|بطلوا|بطلي|كفايه|كفاية|كفي|كفا|بس|خلاص|حبس|حبسو|حبسي|سد|سدو|باراكا|بركا|براكا|يكفي)`;
 const AR_STOP_OBJ = String.raw`(?:عن\s+)?(?:مراسلتي|مراسلتنا|ارسال\s+(?:ال)?(?:رسائل|رسايل|مسجات)|ارسال|الارسال|الرسائل|الرسايل|رسائل|رسايل|رسائلكم|رسايلكم|المسجات|مسجات|الميساجات|ميساجات|المساجات|مساجات|الميساج|الازعاج|ازعاجي|ازعاجنا|التواصل\s+معي|الاتصال\s+بي|ازعاج|تبعتلي|تبعتولي|تراسلني|تراسلوني|ترسل\s+لي|ترسلوا\s+لي|تصيفط|تصيفطو|تصيفطلي|تصيفطولي)`;
+
+/** D3 — what a buyer takes their number off: a list, in the Gulf's, the Levant's and Darija's words. */
+const AR_LIST = 'القائمه|القائمة|قائمتكم|قائمه|قائمة|قوائمكم|الليست|الليسته|الليستة|ليستتكم|اللائحه|اللائحة|لائحتكم';
+const AR_OFF_VERB = 'احذف|احذفوا|احذفي|امسح|امسحوا|امسحي|مسح|ازل|ازيلوا|ازيلي|شيل|شيلوا|شيلي|حيد|حيدوا|حيدي|طلع|طلعوا|اخرج|اخرجوا';
+const AR_OFF_ME = 'احذفني|احذفوني|امسحني|امسحوني|شيلني|شيلوني|ازلني|ازيلوني|اخرجني|اخرجوني|طلعني|طلعوني|حيدني|حيدوني|حيدنا|حيدونا';
 
 const AR_PATTERNS: readonly RegExp[] = [
   // «لا تراسلني», «لا تتواصلوا معي», «ما عاد تراسلني», «مش تبعتلي»
@@ -223,6 +233,9 @@ const AR_PATTERNS: readonly RegExp[] = [
   // «إلغاء الاشتراك», «ألغوا اشتراكي», «احذفني من القائمة», «شيلني من عندكم»
   new RegExp(`${NA}(?:الغاء|الغي|الغوا|اوقف|اوقفوا)\\s+(?:ال)?(?:اشتراك|اشتراكي|الاشتراك|التسجيل)${NZ}`),
   new RegExp(`${NA}(?:احذفني|احذفوني|امسحني|امسحوني|شيلني|شيلوني|ازلني|ازيلوني|اخرجني|اخرجوني|طلعني|طلعوني)\\s+من\\s+(?:القائمه|القائمة|قائمتكم|قائمه|قائمة|عندكم|الليست|الجروب|المجموعه|المجموعة|قوائمكم)${NZ}`),
+  // D3 (2026-10-11) — the buyer's number or name off it, «احذف رقمي من القائمة»; Darija «حيدني من الليستة»
+  new RegExp(`${NA}(?:${AR_OFF_VERB})\\s+(?:رقمي|اسمي|ايميلي|بريدي|رقم\\s+(?:هاتفي|جوالي|تلفوني|تليفوني|موبايلي))\\s+من\\s+(?:${AR_LIST}|عندكم|الجروب|المجموعه|المجموعة)${NZ}`),
+  new RegExp(`${NA}(?:${AR_OFF_ME})\\s+من\\s+(?:${AR_LIST}|عندكم|الجروب|المجموعه|المجموعة)${NZ}`),
   // «اتركني في حالي», «سيبني في حالي», «خليني فحالي», «خلوني بحالي»
   new RegExp(`${NA}(?:اتركني|اتركوني|سيبني|سيبوني|خليني|خلوني|خلني|دعني|دعوني)\\s+(?:في\\s+|ف|ب)?(?:حالي|شاني|وشاني|راحتي)${NZ}`),
   // «ابعدوا عني», «ابعد عني» — stay away from me
@@ -262,6 +275,8 @@ const ES: readonly RegExp[] = [
   new RegExp(String.raw`${NL}(?:cancelar|cancela|cancelen|anular)\s+(?:la\s+|mi\s+)?suscripci[oó]n${NR}`),
   new RegExp(String.raw`${NL}desuscrib\w*|${NL}desinscrib\w*`),
   new RegExp(String.raw`${NL}(?:s[aá]came|s[aá]quenme|qu[ií]tame|qu[ií]tenme|b[oó]rrame|b[oó]rrenme|elim[ií]name|elim[ií]nenme)\s+de\s+(?:la|tu|su|esta|vuestra|sus|tus)\s+(?:\w+\s+)?(?:lista|listas|difusi[oó]n|base|grupo|contactos)${NR}`),
+  // D3 — "elimina mi número de tu lista"
+  new RegExp(String.raw`${NL}(?:saca|saque|saquen|quita|quite|quiten|borra|borre|borren|elimina|elimine|eliminen)\s+mi\s+(?:n[uú]mero(?:\s+de\s+(?:tel[ée]fono|whatsapp|m[oó]vil|celular))?|tel[ée]fono|m[oó]vil|celular|correo(?:\s+electr[oó]nico)?|e-?mail|nombre|contacto)\s+de\s+(?:la|tu|su|esta|vuestra|sus|tus)\s+(?:\w+\s+)?(?:lista|listas|difusi[oó]n|base|grupo|contactos)${NR}`),
   // "déjame en paz", "basta de mensajes", "ya no me escribas"
   new RegExp(String.raw`${NL}(?:d[eé]jame|d[eé]jenme|dejadme)\s+en\s+paz${NR}`),
   new RegExp(String.raw`${NL}(?:basta|ya\s+basta|suficiente)\s+(?:de\s+|con\s+)(?:los\s+|tus\s+|sus\s+)?(?:mensajes|correos|spam|publicidad|promociones)${NR}`),
@@ -279,6 +294,8 @@ const FR: readonly RegExp[] = [
   // "désabonnez-moi", "me désinscrire", "retirez-moi de votre liste"
   new RegExp(String.raw`${NL}d[ée]sabonn\w*|${NL}d[ée]sinscri\w*`),
   new RegExp(String.raw`${NL}(?:retirez|retire|enlevez|enl[eè]ve|supprimez|supprime|sortez|sors)[-\s](?:moi|nous)\s+de\s+(?:la|votre|vos|ta|tes|cette)\s+(?:\w+\s+)?(?:liste|listes|diffusion|fichier|base|groupe)${NR}`),
+  // D3 — "supprimez mon numéro de votre liste"
+  new RegExp(String.raw`${NL}(?:retirez|retire|enlevez|enl[eè]ve|supprimez|supprime|effacez|efface|sortez)\s+mon\s+(?:num[ée]ro(?:\s+de\s+(?:t[ée]l[ée]phone|portable|whatsapp))?|t[ée]l[ée]phone|portable|e-?mail|adresse(?:\s+e-?mail)?|nom|contact)\s+de\s+(?:la|votre|vos|ta|tes|cette)\s+(?:\w+\s+)?(?:liste|listes|diffusion|fichier|base|groupe)${NR}`),
   // "laissez-moi tranquille", "foutez-moi la paix", "plus de messages svp"
   new RegExp(String.raw`${NL}(?:laissez|laisse|laissez[-\s]nous)[-\s]moi\s+tranquille${NR}|${NL}(?:foutez|fichez|fiche|fous)[-\s]moi\s+la\s+paix${NR}`),
   new RegExp(String.raw`${NL}(?:plus\s+de|assez\s+de|ras\s+le\s+bol\s+des?)\s+(?:vos\s+|ces\s+|tes\s+)?(?:messages|mails|e-?mails|sms|pubs?|publicit[ée]s|spams?|relances)${NR}`),
@@ -300,7 +317,9 @@ const PT: readonly RegExp[] = [
   new RegExp(String.raw`${NL}n[aã]o\s+(?:quero|queremos)\s+(?:receber\s+)?(?:mais\s+nada|nada\s+mais)${NR}`),
   new RegExp(String.raw`${NL}n[aã]o\s+(?:quero|queremos)\s+que\s+(?:me|nos)\s+(?:mandem|mande|enviem|envie|escrevam|escreva|liguem|ligue|contatem|contate|incomodem|incomode)${NR}`),
   new RegExp(String.raw`${NL}(?:cancelar|cancela|cancelem)\s+(?:a\s+|minha\s+)?(?:inscri[cç][aã]o|assinatura)${NR}`),
-  new RegExp(String.raw`${NL}(?:me\s+)?(?:tira|tire|tirem|remove|remova|removam|exclui|exclua|apaga|apague)(?:[-\s]me)?\s+(?:da|dessa|desta|de\s+sua|de\s+tua|do|desse|deste)\s+(?:\w+\s+)?(?:lista|listas|transmiss[aã]o|grupo|cadastro|contatos)${NR}`),
+  new RegExp(String.raw`${NL}(?:me\s+)?(?:tira|tire|tirem|remove|remova|removam|exclui|exclua|apaga|apague)(?:[-\s]me)?\s+(?:da|dessa|desta|de\s+sua|de\s+tua|do|desse|deste)\s+(?:\w+\s+)?(?:lista|listas|transmiss[aã]o|grupo|cadastro|contatos|base)${NR}`),
+  // D3 — "remova meu número da sua lista"
+  new RegExp(String.raw`${NL}(?:tira|tire|tirem|remove|remova|removam|exclui|exclua|excluam|apaga|apague|apaguem|retira|retire|deleta|delete)\s+(?:o\s+)?meu\s+(?:n[uú]mero(?:\s+de\s+(?:telefone|celular|whatsapp))?|telefone|celular|e-?mail|nome|contato)\s+(?:da|dessa|desta|de\s+sua|de\s+tua|do|desse|deste)\s+(?:\w+\s+)?(?:lista|listas|transmiss[aã]o|grupo|cadastro|contatos|base)${NR}`),
   new RegExp(String.raw`${NL}(?:quero\s+)?sair\s+(?:da|dessa|desta)\s+(?:lista|transmiss[aã]o|grupo)${NR}`),
   // "me deixa em paz", "chega de mensagens"
   new RegExp(String.raw`${NL}(?:me\s+deix[ae]|deixe[-\s]me|deixa[-\s]me|me\s+deixem)\s+em\s+paz${NR}`),
@@ -403,6 +422,48 @@ export function optOutLanguage(text: string): 'en' | 'zh' | 'ar' | 'es' | 'fr' |
     if (list.some((p) => p.test(t))) return lang;
   }
   return null;
+}
+
+// ── D3: off a list is a stop, not a deletion ────────────────────────────────
+
+/**
+ * "Remove me from your list", «احذف رقمي من القائمة», «retirez-moi de votre
+ * liste»: the deletion check reads the buyer's number leaving (0075), but what
+ * they ask is to hear nothing more. The owner, 2026-10-11: they get the stop's
+ * line, not the deletion's silence. The deletion is still written down and the
+ * owner still told; nothing about it is said.
+ *
+ * Only when EVERY deletion word went on taking them off a list. With those
+ * phrases taken out, what is left must ask for no deletion and name no store of
+ * their data — "…and your database", "…and delete everything you have on me",
+ * «…واحذفوا بياناتي» keep the silence. A list only: a database, records, a
+ * system, files or contacts are where their data is, and stay deletions.
+ */
+const OFF_LIST_EN = String.raw`(?:(?:mailing|marketing|contact|broadcast|whatsapp|sms|sending|distribution|messaging|promo(?:tional)?|subscriber|subscription|newsletter)\s+)?lists?`;
+const OFF_LIST_ES = String.raw`(?:lista|listas)(?:\s+de\s+(?:difusi[oó]n|contactos|env[ií]os?|correos?))?`;
+const OFF_LIST_FR = String.raw`(?:liste|listes)(?:\s+de\s+(?:diffusion|contacts?|envoi|mailing))?`;
+const OFF_LIST_PT = String.raw`(?:lista|listas)(?:\s+de\s+(?:contatos|contactos|transmiss[aã]o|envios?|e-?mails?))?`;
+const OFF_A_LIST: readonly RegExp[] = [
+  new RegExp(String.raw`\b(?:remove|take|delete|drop|erase|wipe|purge)\s+(?:me|us|my\s+(?:(?:phone|mobile|cell|whatsapp)\s+)?number|this\s+number|my\s+name|my\s+e-?mail(?:\s+address)?)\s+(?:off(?:\s+of)?|from|out\s+of)\s+(?:your|the|this|ur|all\s+(?:your|the)|any)\s+${OFF_LIST_EN}\b`, 'g'),
+  /(?:把我|将我|我)?(?:的(?:号码|电话号码|电话|手机号码|手机号|邮箱|名字))?从(?:你们|你|您)?(?:的)?(?:名单|列表|群发列表|群发名单|发送列表|客户名单|营销名单)(?:里|中|上)?(?:面)?(?:删除|删掉|删了|删去|删|清除|移除|移出|去掉|拿掉)(?:掉|了)?(?:我的(?:号码|电话号码|电话|手机号码|手机号|邮箱|名字)|我)?/g,
+  /(?:把我|将我)?(?:移出|踢出)(?:你们的|你的|您的)?(?:名单|列表|群发列表|群发名单|客户名单)/g,
+  new RegExp(`${NA}(?:${AR_OFF_VERB})\\s+(?:رقمي|اسمي|ايميلي|بريدي|رقم\\s+(?:هاتفي|جوالي|تلفوني|تليفوني|موبايلي))\\s+من\\s+(?:${AR_LIST})${NZ}`, 'g'),
+  new RegExp(`${NA}(?:${AR_OFF_ME})\\s+من\\s+(?:${AR_LIST})${NZ}`, 'g'),
+  new RegExp(String.raw`${NL}(?:s[aá]came|s[aá]quenme|qu[ií]tame|qu[ií]tenme|b[oó]rrame|b[oó]rrenme|elim[ií]name|elim[ií]nenme)\s+de\s+(?:la|tu|su|esta|vuestra|sus|tus)\s+${OFF_LIST_ES}${NR}`, 'g'),
+  new RegExp(String.raw`${NL}(?:saca|saque|saquen|quita|quite|quiten|borra|borre|borren|elimina|elimine|eliminen)\s+mi\s+(?:n[uú]mero(?:\s+de\s+(?:tel[ée]fono|whatsapp|m[oó]vil|celular))?|tel[ée]fono|m[oó]vil|celular|correo(?:\s+electr[oó]nico)?|e-?mail|nombre)\s+de\s+(?:la|tu|su|esta|vuestra|sus|tus)\s+${OFF_LIST_ES}${NR}`, 'g'),
+  new RegExp(String.raw`${NL}(?:retirez|retire|enlevez|enl[eè]ve|supprimez|supprime|sortez|sors|effacez|efface)[-\s](?:moi|nous)\s+de\s+(?:la|votre|vos|ta|tes|cette)\s+${OFF_LIST_FR}${NR}`, 'g'),
+  new RegExp(String.raw`${NL}(?:retirez|retire|enlevez|enl[eè]ve|supprimez|supprime|effacez|efface|sortez)\s+mon\s+(?:num[ée]ro(?:\s+de\s+(?:t[ée]l[ée]phone|portable|whatsapp))?|t[ée]l[ée]phone|portable|e-?mail|adresse(?:\s+e-?mail)?|nom)\s+de\s+(?:la|votre|vos|ta|tes|cette)\s+${OFF_LIST_FR}${NR}`, 'g'),
+  new RegExp(String.raw`${NL}(?:me\s+)?(?:tira|tire|tirem|remove|remova|removam|exclui|exclua|apaga|apague|retira|retire|delete|deleta)(?:[-\s]me)?\s+(?:da|dessa|desta|de\s+sua|de\s+tua)\s+(?:sua\s+|tua\s+|vossa\s+)?${OFF_LIST_PT}${NR}`, 'g'),
+  new RegExp(String.raw`${NL}(?:tira|tire|tirem|remove|remova|removam|exclui|exclua|excluam|apaga|apague|apaguem|retira|retire|deleta|delete)\s+(?:o\s+)?meu\s+(?:n[uú]mero(?:\s+de\s+(?:telefone|celular|whatsapp))?|telefone|celular|e-?mail|nome)\s+(?:da|dessa|desta|de\s+sua|de\s+tua)\s+(?:sua\s+|tua\s+|vossa\s+)?${OFF_LIST_PT}${NR}`, 'g'),
+];
+/** Where a buyer's data is kept, named beside the list: then it is a deletion after all. */
+const DATA_STORE = new RegExp(String.raw`${NL}(?:databases?|data|records?|systems?|files?|bases?|donn[ée]es|datos|dados|fichiers?|archivos?|registros?|cadastro|contacts?|contactos|contatos)${NR}|数据|资料|记录|系统|档案|隐私|通讯录|بيانات|البيانات|قاعده|قاعدة|سجلات|سجل|ملفات`);
+
+export function asksOnlyOffAList(text: string): boolean {
+  if (asksForDeletion(text) === null) return false;
+  let off = false;
+  const rest = OFF_A_LIST.reduce((t, p) => t.replace(p, () => { off = true; return ' ; '; }), readableForOptOut(text));
+  return off && asksForDeletion(rest) === null && !DATA_STORE.test(rest);
 }
 
 // ── What turns a stop into a request for a person ───────────────────────────

@@ -282,3 +282,41 @@ export const HELD_OUT_NEITHER: readonly string[] = [
   'arrêtez-vous à quelle heure ?', "ne m'envoyez pas l'ancien modèle", 'plus de couleurs ?',
   'pare no centro', 'chega quando?', 'não me mande o modelo antigo', 'basta isso',
 ];
+
+/**
+ * D3 (the owner, 2026-10-11) — OFF A LIST: "remove me from your list" is a stop
+ * and gets the stop's line, even where the deletion check also reads the
+ * buyer's number leaving (it is still written down as a deletion request, and
+ * the owner told). Each is a stop; each the deletion check reads is read as
+ * ONLY off a list (`asksOnlyOffAList`).
+ */
+export const OFF_A_LIST: Record<Lang, readonly string[]> = {
+  en: ['remove me from your list', 'take me off your list', 'please remove my number from your mailing list',
+    'delete me from your contact list', 'remove me from the broadcast list', 'Remove my number from your list please'],
+  zh: ['把我从名单里删除', '从你们的列表里删掉我的号码', '把我的号码从群发列表移除', '请把我移出你们的名单', '把我从群发名单删掉'],
+  ar: ['احذف رقمي من القائمة', 'امسحوا رقمي من قائمتكم', 'شيلوني من القائمة', 'أزيلوا رقمي من قائمة الإرسال',
+    'حيدني من الليستة', 'مسح رقمي من الليستة ديالكم'],
+  es: ['sácame de tu lista', 'bórrame de tu lista de difusión', 'elimina mi número de tu lista', 'quítame de la lista',
+    'Borren mi número de su lista, por favor'],
+  fr: ['retirez-moi de votre liste', 'supprimez mon numéro de votre liste', 'enlevez-moi de votre liste de diffusion',
+    'retire-moi de ta liste', 'Retirez mon numéro de votre liste svp'],
+  pt: ['me tire da sua lista de contatos', 'me remove da lista', 'remova meu número da sua lista', 'me exclui da lista de transmissão',
+    'Apaguem meu número da sua lista, por favor'],
+};
+
+/**
+ * …and a stop that also asks for the buyer's DATA to go — or names where it is
+ * kept beside the list: the deletion's silence stands (0075), the stop is still
+ * recorded. "Done — we won't send you any more messages" would read as the
+ * deletion done.
+ */
+export const STOP_AND_DELETE: Record<Lang, readonly string[]> = {
+  en: ['stop messaging me and delete my data', 'remove me from your database', 'delete my number and stop texting me',
+    'remove me from your list and delete everything you have on me', 'remove me from your list and your database'],
+  zh: ['别再发了，删除我的个人信息', '不要再联系我，把我的资料都删了', '从名单里删掉我的号码，也删除我的数据'],
+  ar: ['توقفوا عن مراسلتي واحذفوا بياناتي', 'لا تراسلني وامسح معلوماتي', 'احذف رقمي من القائمة واحذفوا بياناتي'],
+  es: ['deja de escribirme y borra mis datos', 'bórrame de vuestra base de datos', 'sácame de tu lista y borra mis datos'],
+  fr: ["arrêtez de m'écrire et supprimez mes données", 'supprimez-moi de votre base de données',
+    'retirez-moi de votre liste et de votre fichier'],
+  pt: ['pare de me mandar mensagens e apague meus dados', 'me tire da sua base de dados', 'me tire da sua lista e apague meus dados'],
+};
