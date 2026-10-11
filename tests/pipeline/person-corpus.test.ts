@@ -15,6 +15,7 @@ import {
   PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS,
 } from '../person/person-corpus.js';
 import { REQUESTS as DELETION_REQUESTS } from '../parity/deletion-corpus.js';
+import { OPT_OUT_REPLIES, asksOnlyOffAList } from '../../src/core/safety/optOut.js';
 
 /**
  * "WANTS A PERSON" — THE WHOLE CORPUS THROUGH THE REAL TURN (computeTurn →
@@ -285,7 +286,14 @@ describe('on the FIRST message, before any disclosure, every plain ask still han
       const { r, fx } = await run(p, text);
       expect(r.decision.action.kind, text).toBe('handoff');
       expect(signalsOf(p), text).toContain('deletion_requested');
-      expect(fx.outbound, text).toBeNull();
+      // D3 (the owner, 2026-10-11) — off a list is a stop: the stop's line goes, the deletion is
+      // still written down. Every other request says nothing (0075).
+      if (asksOnlyOffAList(text)) {
+        expect(fx.outbound, text).toEqual(expect.objectContaining({ notice: 'opt_out' }));
+        expect(fx.outbound?.reply ?? '', text).toContain(OPT_OUT_REPLIES[fixedLanguage(r.gateLanguage)]);
+      } else {
+        expect(fx.outbound, text).toBeNull();
+      }
     });
   }
 });

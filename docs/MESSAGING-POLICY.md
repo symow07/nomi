@@ -83,7 +83,8 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
 - **Sending during a stop:** a stop binds everyone, the owner included.
 
 **Claude's calls, reported:**
-- **Deletion and stop in the same words** ("remove me from your list"): the deletion rule wins on what is said (nothing, rule 18), and the stop is still recorded.
+- ~~**Deletion and stop in the same words**: the deletion rule wins on what is said.~~ Replaced by the owner's decision of
+  2026-10-11, below.
 - ~~**The line obeys the send-alone rules.**~~ Replaced by the owner's decision of 2026-10-11, below.
 - **A bare "cancel", 取消, «إلغاء», "annuler", «خلاص», "safi":** go to a person, never recorded as a stop.
 
@@ -101,3 +102,21 @@ What failed was fixed in five PRs. The owner decided the four points marked **D1
     - the operator's switches and the owner's Stop.
   - **When a person holds the conversation:** the line still goes alone. If it is the first message sent alone there, it
     carries the disclosure.
+- **"Remove me from your list" gets the stop line,** not the deletion's silence. The opt-out is recorded as before.
+- **Claude's calls, reported:**
+  - **Only when every deletion word only takes them off a list** (`asksOnlyOffAList`).
+    - If the message also asks for their data to go, it stays silent: "…and delete my data", "…and your database",
+      "remove me from your database", «احذفوا بياناتي». "Done — …" there would read as a deletion promise.
+    - Silent too when an earlier deletion request is still waiting.
+  - **Nothing on the deletion side is suppressed.** It owes the buyer no reply of its own: rule 18 is the owner's choice
+    of nothing. It owes the owner the record (`deletion_asks`) and the deletion's own alert. Both still happen for a
+    list removal, and the owner can mark it "not a deletion request".
+  - **List removals that were not read as stops before:**
+    - the buyer's number or name off a list in ar, es, fr and pt;
+    - 移出你们的名单 and 群发名单;
+    - Darija «حيدني من الليستة».
+
+    They are stops now, in `tests/parity/opt-out-corpus.ts` (`OFF_A_LIST`).
+  - **"Delete my number and stop texting me"** (and the same in es, fr and pt) is a deletion request now. Before, it was
+    answered with "Done — …".
+  - **E-mail replies:** unchanged. Every one goes to a person and nothing is sent on its own.
