@@ -87,16 +87,12 @@ export function icon(id: IconId, className = 'ni'): string {
 export type RailIcon = 'home-2' | 'inbox' | 'calendar' | 'settings' | 'users-group-rounded' | 'chat-round';
 export const railIcon = (name: RailIcon): string => solarSvg('ni', name, 28);
 
-/**
- * THE ADVISOR'S MARK (the owner, 2026-10-09) — Solar's round bubble, empty: the advisor's bubble without its three
- * dots, which is Solar's own `chat-round`, unchanged. Lit from within by the orb's glow, so the advisor's entry is
- * the orb's: THE ONE RAIL ICON WITH A LIGHT BEHIND IT, on purpose — the recorded exception to "every rail icon is
- * a plain Solar line". The light is the stylesheet's (`.ni-lit`): still, held to the icon and a little round it,
- * dropped under forced colours; the bubble itself is the rail's like every other (ink, 1.75 px, the white pill
- * and the deep magenta where you are). One meaning, one shape: no other meaning draws `chat-round` (WhatsApp moved
- * to `chat-round-line` for it, 2026-10-09).
+/*
+ * THE ADVISOR'S MARK — Solar's round bubble, empty (`chat-round`, unchanged): a plain rail icon like every other
+ * (the owner, 2026-10-11: "Remove the magenta glow … Plain icon like every other nav entry"), ink, 1.75 px, the
+ * white pill and the deep magenta where you are. One meaning, one shape: no other meaning draws `chat-round`
+ * (WhatsApp moved to `chat-round-line` for it, 2026-10-09).
  */
-export const advisorRailMark = (): string => `<span class="ni-lit">${railIcon('chat-round')}</span>`;
 
 /**
  * A door's caret and the way back's, in the brand like the door's words. One shape: `.go` mirrors it on a
