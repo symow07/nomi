@@ -155,7 +155,9 @@ describe('LG · the turn reads it, and nothing else', () => {
     // G8 (2026-10-10) — and the reply's own language, where the writer chose another.
     expect(turn).toContain('&& (!replyDiffers || tenant.autonomy.released(replyIn!)));');
     expect(turn).toContain('detected: r.gateLanguage,');
-    expect(turn).toContain('const proven = !speaksAlone || !released || await tenant.autonomy.languageProven(languageHead(language));');
+    // D2 (2026-10-11) — the first five are about her writing; the line that answers a stop is fixed.
+    // `released` binds it all the same: an unsigned language drafts it.
+    expect(turn).toContain('const proven = !speaksAlone || !released || stopLine || await tenant.autonomy.languageProven(languageHead(language));');
   });
   it('every draft records the language the gate read, so the first five can be counted', () => {
     expect(turn).toContain('gate: language,');

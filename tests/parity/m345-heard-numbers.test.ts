@@ -81,8 +81,12 @@ describe('M34.5 · the rule narrows permission and never widens it', () => {
     // statement it sits in, which M34.6 and G7a each rewrapped.
     const src = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
     // The identity gate added the second term: she may not speak alone
-    // until she can say what she is. Both narrow; neither can widen.
-    expect(src).toMatch(/\(r\.hold \|\| !mayDisclose\) \? 'draft' : policyMode/);
+    // until she can say what she is. Both narrow; neither can widen —
+    // D2 (the owner, 2026-10-11) is the one exception, and it is named: the
+    // line that answers a stop, a fixed sentence, goes alone whatever its
+    // capability, and only as far as mayDisclose allows.
+    expect(src).toContain("const stopLine = r.notice === 'opt_out';");
+    expect(src).toMatch(/\(\(r\.hold && !stopLine\) \|\| !mayDisclose\) \? 'draft' : speaksAlone \? 'auto' : policyMode/);
   });
 
   it('the worker marks a transcript as transcribed, and typed text as typed', async () => {
