@@ -444,13 +444,3 @@ export const DESIGN_TOKENS = {
  * product has is `motionMs`, `motionEase`, `motionTravelPx` and `motionScale`
  * above, drawn by the shell's stylesheet (`MOTION_CSS`, layout.ts).
  */
-
-/** M7 desktop keyboard shortcuts — approval flow first, vim-adjacent. */
-export const KEYBOARD_SHORTCUTS = {
-  approve: 'Enter',
-  edit: 'e',
-  skip: 'x',
-  nextCard: 'j',
-  prevCard: 'k',
-  search: '/',
-} as const;

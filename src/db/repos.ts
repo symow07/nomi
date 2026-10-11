@@ -117,8 +117,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           client_email_collected: state.contact.email !== null,
           problem_score: state.scores.problem,
           lead_score: state.scores.lead,
-          // DUAL-WRITE (ADR-0007): n8n still reads the legacy blended score
-          // during shadow. Dropped by the contract migration, not before.
+          // The legacy blended score: nothing reads it since n8n was deleted
+          // (M28). The write stays until a migration drops the column (ADR-0007).
           escalation_score: state.scores.problem,
           pending_question: state.pendingQuestion,
           turn_count: state.turnCount,

@@ -55,5 +55,4 @@ error code or English, that is a bug — file it against `src/core/owner/channel
 ## Rollback
 The channel layer is additive. To stop live traffic: deactivate the
 credential row (`channel_credentials.is_active = false`) — ingress rejects,
-worker sends nothing. No deploy needed. n8n remains the live engine
-regardless (`businesses.engine` flag, ADR-0009).
+worker sends nothing. No deploy needed.

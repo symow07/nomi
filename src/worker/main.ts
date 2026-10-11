@@ -37,8 +37,8 @@ import { balanceEndpointFor, type BalanceReading } from '../core/ops/providerWat
 import { aiProcessor } from '../core/legal/processors.js';
 
 /**
- * Entrypoint 2: the worker. Becomes the LIVE engine at cutover — until then it
- * simply is not started (businesses.engine = 'n8n' routes nothing here).
+ * Entrypoint 2: the worker, the only engine since n8n was deleted (M28).
+ * `businesses.engine` is still written ('service') and routes nothing.
  *
  * One inbound job = one turn:
  *   lock conversation → computeTurn → commitTurn → enqueue effects.

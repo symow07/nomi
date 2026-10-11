@@ -13,6 +13,7 @@ current instruction.**
 | `workflow-01-build.md`, `workflow-02-image-extension.md` | Earlier build notes for the same. |
 | `yiwuflow-milestones.md`, `yiwuflow-ship-roadmap.md` | The plan under the product's earlier name. |
 | `RISK-REVIEW-2026-07-14.md` | A risk review of the n8n-era build. |
+| `GIT-STRATEGY.md` | The solo-dev git and backup rules of the n8n era: `npm run workflows:check`, committed `n8n/*.json`, the shadow phase. Moved here 2026-10-11. |
 
 The product is now one TypeScript service: a Fastify process serving the owner
 Command Center and the WhatsApp webhook, a pg-boss worker, and PostgreSQL with

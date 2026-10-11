@@ -89,12 +89,3 @@ ${lines.join('\n')}
 }
 ${perScript}`;
 }
-
-/**
- * The type sizes the product is allowed to use, as a set of `NNpx` strings.
- * The shell's own test derives its scale from here rather than restating it —
- * `shell.test.ts` used to carry `const SCALE = [12,13,14,15,17,19,22,26]`,
- * which is how 19px and 26px stayed "on the scale" while being in no token.
- */
-export const TYPE_SCALE_PX: readonly string[] =
-  Object.values(DESIGN_TOKENS.font.sizePx).map((v) => `${v}px`);

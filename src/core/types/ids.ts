@@ -28,10 +28,8 @@ const uuidParser =
       : err(`invalid ${label}: ${JSON.stringify(raw)}`);
 
 export const parseBusinessId = uuidParser<BusinessId>('BusinessId');
-export const parseClientId = uuidParser<ClientId>('ClientId');
 export const parseConversationId = uuidParser<ConversationId>('ConversationId');
 export const parseProductId = uuidParser<ProductId>('ProductId');
-export const parseOrderId = uuidParser<OrderId>('OrderId');
 
 /**
  * Email parsing is deliberately conservative and deliberately NOT an LLM call.
