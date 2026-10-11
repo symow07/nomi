@@ -14,6 +14,12 @@ import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
  *     and nothing waits for the owner.
  *   · Spanish (unsigned): the line waits for the owner, with its mark.
  *   · Only the line: an ordinary reply still waits for the owner.
+ *
+ * D3 (the owner, 2026-10-11), on the same composition:
+ *   · "remove me from your list": the line leaves, and the deletion is still
+ *     written down (deletion_asks) beside the stop (opt_outs).
+ *   · "remove me from your database": nothing is said (0075); both are
+ *     written down all the same.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -154,6 +160,35 @@ d('D2 · the stop line goes alone with nothing on auto, through production (requ
     const conv = await convOf(wa);
     expect(await waiting(conv, 'the reply as a draft')).toEqual([{ text: 'Which colour would you like?', notice: null }]);
     expect(await rows(conv)).toEqual([]);
+    expect(sim.sendCount()).toBe(before);
+  });
+
+  const asked = (conv: string, wa: string) => q((tx) => sql<{ deletion: number; stop: number }>`
+    select (select count(*)::int from deletion_asks where conversation_id = ${conv}::uuid and state = 'waiting') as deletion,
+           (select count(*)::int from opt_outs where business_id = ${BIZ}::uuid and identity = ${wa} and lifted_at is null) as stop`
+    .execute(tx).then((x) => x.rows[0]!));
+
+  it('D3 · "remove me from your list": the line leaves, and the deletion is still written down', async () => {
+    const { OPT_OUT_REPLIES } = await import('../../src/core/safety/optOut.js');
+    const wa = buyer();
+    expect((await post(sim.inboundText({ from: wa, text: 'remove me from your list' }))).statusCode).toBe(200);
+    const conv = await convOf(wa);
+    const r = await settled(conv, 'the line');
+    expect(r).toEqual([expect.objectContaining({ status: 'sent', notice: 'opt_out' })]);
+    expect(r[0]!.body.endsWith(OPT_OUT_REPLIES.en)).toBe(true);
+    expect(await until(async () => { const a = await asked(conv, wa); return a.deletion > 0 ? a : undefined; }, 'the deletion written down'))
+      .toEqual({ deletion: 1, stop: 1 });
+  });
+
+  it('D3 · "remove me from your database": nothing is said, and both are written down', async () => {
+    const wa = buyer();
+    const before = sim.sendCount();
+    expect((await post(sim.inboundText({ from: wa, text: 'remove me from your database' }))).statusCode).toBe(200);
+    const conv = await convOf(wa);
+    expect(await until(async () => { const a = await asked(conv, wa); return a.deletion > 0 && a.stop > 0 ? a : undefined; }, 'both written down'))
+      .toEqual({ deletion: 1, stop: 1 });
+    expect(await rows(conv)).toEqual([]);
+    expect(await pending(conv)).toEqual([]);
     expect(sim.sendCount()).toBe(before);
   });
 });

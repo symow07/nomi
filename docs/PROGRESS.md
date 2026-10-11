@@ -30,6 +30,14 @@ each. The orb glow and the nav icon STOP before merging, for the owner's eyes on
 (`b64688e`): 12/12.
 
 **Shipped:**
+- **#276** — Arabic signed off against the exact sentence sent (merge `d0f53ed8`, deployed, `/health` ok; no
+  migration, schema 136). Each language's flag is now the comparison of the live sentence with the signed one
+  (`isSignedOff`), so a changed letter puts it back to waiting. Arabic replies go alone again where the owner's
+  autonomy allows.
+
+**Waiting for the owner's eyes (renders, not merged):**
+- **#277** — the orb's one light: `docs/design/advisor-orb-one/`.
+- **#278** — the plain nav mark: `docs/design/advisor-nav-plain/`.
 
 ## The messaging-policy batch (2026-10-10)
 
