@@ -631,38 +631,18 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     if (frame.lines.length) paintLines(ctx, frame.lines, light, far);
     paintDots(ctx, frame.dots, light, far);
   }
-  /* The ground under the orb, ours, drawn first and never over its dots: the glow's halo and nothing solid (no
-     body, no shadow: the owner, 2026-10-09). [its depth, its reach in the dots' sphere radius]. */
-  var GROUND = [0.75, 1.6];
-  /* THE LIGHT IS A RING (the owner, 2026-10-09): deepest just outside the dots, lighter behind them so a far dot
-     reads. In the dots' sphere radius: the light middle to RING[0], the deepest at RING[1]; MIDDLE: the glow left
-     behind the middle. Every step the smootherstep: no edge. Chosen by measure (docs/design/advisor-orb-ring). */
-  var RING = [0.3, 1.25];
+  /* ONE LIGHT (the owner, 2026-10-11: the ring and the tint read as bands). One curve from the orb to nothing:
+     a rise round the orb (MIDDLE of the glow behind its dots, so a far dot reads, lifting by its edge) times a
+     fall out to the column's sides, the top and the bar: SPREAD*(1 - s^FALL)^3, s the oval's distance. No layer,
+     no plateau, no seam; it and its slope are 0 where it ends. Chosen by measure (docs/design/advisor-orb-one). */
   var MIDDLE = 0.22;
-  /* The tint (the owner, 2026-10-10): flat across the column, an oval to its four sides, fading only near them. */
-  var TINT = 0.32;
-  /* The halo's ring at rho: 0 in the middle, 1 at the ring, 0 at its reach. */
-  function ringAt(rho, reach) {
-    if (rho <= RING[0]) return 0;
-    if (rho <= RING[1]) return smoother((rho - RING[0]) / (RING[1] - RING[0]));
-    return 1 - smoother((rho - RING[1]) / (reach - RING[1]));
-  }
-  /* A wash's ring in px, for an orb of that radius. */
-  function ringFor(orb, middle) { return { light: orb * 0.78 * RING[0], deep: orb * 0.78 * RING[1], middle: middle }; }
-  function tone(c, a) { return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
-  /* The halo, a ring too: the curve itself, 25 stops along it. */
-  var HALO_STOPS = 24;
-  function ground(ctx, size, glow, o) {
-    var c = size / 2;
-    var R = size / 2 * 0.78;
-    var g = ctx.createRadialGradient(c, c, 0, c, c, R * o[1]);
-    for (var i = 0; i <= HALO_STOPS; i++) g.addColorStop(i / HALO_STOPS, tone(glow, o[0] * ringAt(o[1] * i / HALO_STOPS, o[1])));
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(c, c, R * o[1], 0, Math.PI * 2); ctx.fill();
-  }
+  var SPREAD = 0.46;
+  var FALL = 3.2;
+  /* Where the rise starts and ends, in the dots' sphere radius. */
+  var RISE = [0.3, 1.3];
   /* The lit field: drawn pixel by pixel with half a step of noise per channel, so no bands; a pixel it does not
-     reach is clear. r: its reach up, down, back and on; o.depth, o.fall; o.clear: the glow made thin, never paper;
-     o.ring, o.tint: the ring and the tint (2026-10-09, -10). */
+     reach is clear. r: its reach up, down, back and on; o.orb: the dots' sphere radius; o.spread, o.fall, o.middle;
+     o.clear: the glow made thin, never paper. */
   function smoother(x) { x = x <= 0 ? 0 : x >= 1 ? 1 : x; return Math.min(1, x * x * x * (x * (x * 6 - 15) + 10)); }
   function wash(canvas, cx, cy, r, o) {
     var paper = o.paper;
@@ -678,41 +658,21 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var d = img.data;
     var seed = 2463534242;
     function noise() { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
-    var far = o.tint ? o.tint.r : r;
+    var lo = o.orb * RISE[0];
+    var hi = o.orb * RISE[1];
+    var mid = o.middle / o.spread;
     for (var y = 0; y < H; y++) {
       var dy = (y + 0.5) / dpr - cy;
-      var my = dy / (dy < 0 ? far.up : far.down);
+      var my = dy / (dy < 0 ? r.up : r.down);
       my *= my;
       if (my >= 1) continue;
-      var ny = dy / (dy < 0 ? r.up : r.down);
-      ny *= ny;
       for (var x = 0; x < W; x++) {
         var dx = (x + 0.5) / dpr - cx;
-        var mx = dx / (dx < 0 ? far.back : far.on);
+        var mx = dx / (dx < 0 ? r.back : r.on);
         var m = mx * mx + my;
         if (m >= 1) continue;
-        var nx = dx / (dx < 0 ? r.back : r.on);
-        var q = nx * nx + ny;
-        var t = 0;
-        if (q >= 1) {
-          t = 0;
-        } else if (o.ring) {
-          var rho = Math.sqrt(dx * dx + dy * dy);
-          if (rho <= o.ring.deep) {
-            t = o.depth * (o.ring.middle + (1 - o.ring.middle) * smoother((rho - o.ring.light) / (o.ring.deep - o.ring.light)));
-          } else {
-            var s = Math.sqrt(q);
-            var sr = s * o.ring.deep / rho;
-            t = o.depth * Math.pow(1 - smoother((s - sr) / (1 - sr)), o.fall);
-          }
-        } else {
-          t = Math.pow(1 - smoother(Math.sqrt(q)), o.fall) * o.depth;
-        }
-        if (o.tint) {
-          var e = o.tint.depth * (1 - smoother((Math.sqrt(m) - o.tint.flat) / (1 - o.tint.flat)));
-          if (o.ring) e *= smoother((Math.sqrt(dx * dx + dy * dy) - o.ring.light) / (o.ring.deep - o.ring.light));
-          t += (1 - t) * e;
-        }
+        var f = 1 - Math.pow(m, o.fall / 2);
+        var t = o.spread * f * f * f * (mid + (1 - mid) * smoother((Math.sqrt(dx * dx + dy * dy) - lo) / (hi - lo)));
         var at = (y * W + x) * 4;
         if (o.clear) {
           d[at] = glow.r; d[at + 1] = glow.g; d[at + 2] = glow.b;
@@ -788,7 +748,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     var light = rgbOf('--color-surface');
     var ink = rgbOf('--color-ink');
     var paper = rgbOf('--color-paper');
-    var plan = GROUND;
     var core = 0;
     var failed = false;
     var shown = [];
@@ -801,7 +760,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
        (resting, then thinking) without the orb jumping. */
     function draw(canvas, pace) {
       var ctl = { pace: pace, base: 0, since: 0 };
-      var ctx = glow && light && ink && plan && canvas.getContext ? canvas.getContext('2d') : 0;
+      var ctx = glow && light && ink && canvas.getContext ? canvas.getContext('2d') : 0;
       if (!ctx) { failed = true; return { ctl: ctl, done: Promise.reject(new Error('no orb here')) }; }
       var box = canvas.getBoundingClientRect().width || 96;
       var size = box / 1.5;
@@ -812,8 +771,6 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       function under() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, box, box);
-        ctx.setTransform(dpr, 0, 0, dpr, dpr * pad, dpr * pad);
-        ground(ctx, size, glow, plan);
       }
       under();
       var done = loaded.then(load).then(function (orb) {
@@ -860,18 +817,13 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var cx = o.left + o.width / 2 - a.left;
       var cy = o.top + o.height / 2 - a.top;
       var side = Math.min(cx, a.width - cx) - 8;
-      /* Close round the orb; under it a TINT across the page (2026-10-10) to the column's sides, the top and the
-         bar, never past them. The orb's radius is a third of its canvas. */
-      var orb = o.width / 3;
-      var wide = Math.max(48, Math.min(side, orb * 2.6));
-      var tall = orb * 2.1;
+      /* One light, from the orb to the column's sides, the top and the bar, never past them. The orb's dots'
+         sphere is 0.78 of a third of its canvas. */
       var reach = b.top - a.top - cy - 24;
-      var down = Math.min(reach, tall);
-      if (down < 48) return;
+      if (reach < 48) return;
       var all = Math.max(48, side);
-      wash(field, cx, cy, { up: Math.max(48, Math.min(cy - 8, tall)), down: down, back: wide, on: wide },
-        { depth: 1, fall: 3, paper: paper, glow: glow, ring: ringFor(orb, MIDDLE),
-          tint: { r: { up: Math.max(48, cy - 8), down: reach, back: all, on: all }, depth: TINT, flat: 0.6 } });
+      wash(field, cx, cy, { up: Math.max(48, cy - 8), down: reach, back: all, on: all },
+        { orb: o.width / 3 * 0.78, spread: SPREAD, fall: FALL, middle: MIDDLE, paper: paper, glow: glow });
     }
     function litPool() {
       if (!pool || !here || !paper || !glow) return;
@@ -883,7 +835,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       var edge = Math.min(Math.abs(bx.left - c), Math.abs(bx.right - c)) - 4;
       var reach = Math.max(16, Math.min(p.width / 2, edge));
       wash(pool, p.width / 2, p.height / 2, { up: reach, down: reach, back: reach, on: reach },
-        { depth: 0.6, fall: 2, clear: true, paper: paper, glow: glow, ring: ringFor(here.getBoundingClientRect().width / 3, MIDDLE / 0.6) });
+        { orb: here.getBoundingClientRect().width / 3 * 0.78, spread: 0.6, fall: 2, middle: MIDDLE, clear: true, paper: paper, glow: glow });
     }
     var restDraw = 0;
     var hereDraw = 0;
