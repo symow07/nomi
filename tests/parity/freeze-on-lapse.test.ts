@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { gateOutbound } from '../../src/core/channel/sendGate.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { renderDataDeletion } from '../../src/api/web/legal.js';
+import { esc } from '../../src/api/web/layout.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * D4 (the owner's decision, 2026-10-12) — FROZEN ON LAPSE, NEVER ERASED BY A
@@ -80,5 +83,46 @@ describe('D4 · one notice when it freezes: what frozen means, and the way back 
     expect(t('en', 'notify.billing_lapsed')).toMatch(/take a copy of your data/);
     expect(t('en', 'notify.billing_lapsed')).toMatch(/close the workspace/);
     expect(t('en', 'notify.billing_lapsed')).not.toMatch(/Needs you|paused/);
+  });
+});
+
+describe('D4 · the pages say it plainly: a lapse freezes, and only a request or closing erases', () => {
+  const frozen = { en: /frozen/, zh: /冻结/, ar: /تُجمَّد/, es: /congela/, fr: /gelé/ } as const;
+  const noTimer = { en: /No timer deletes/, zh: /不会因为时间到了就删除/, ar: /لا يُحذف شيء بمرور الوقت/, es: /Ningún plazo (lo )?borra/, fr: /Aucun délai ne (les efface|supprime)/ } as const;
+  const restored = { en: /(restores it|brings it back) exactly as it was/, zh: /续订后一切恢复原样/, ar: /وبالتجديد تعود كما كانت تمامًا/, es: /vuelve exactamente como estaba/, fr: /le rétablit à l’identique/ } as const;
+  it('the privacy page, to the people who write to a business: no set end, no timer, frozen when the business stops paying', () => {
+    for (const l of LOCALES) {
+      const line = t(l, 'legal.privacy.howLong.body', { deletion: 'X' });
+      expect(line, l).toMatch(frozen[l]);
+      expect(line, l).toMatch(noTimer[l]);
+      // The words this replaced: a business that stopped paying "keeps it", as if nothing changed.
+      expect(line, l).not.toMatch(/stops using Nomi without closing|不再使用 Nomi 但没有关闭|توقفت الشركة عن استخدام Nomi دون|deja de usar Nomi sin cerrar|cesse d’utiliser Nomi sans fermer/);
+    }
+  });
+  it('the privacy page, to the owner, and the terms: frozen not deleted, what still works, and renewing restores it', () => {
+    for (const l of LOCALES) {
+      for (const key of ['legal.privacy.owner.howLong', 'legal.terms.fees.body'] as const) {
+        const line = t(l, key);
+        expect(line, `${l} ${key}`).toMatch(frozen[l]);
+        expect(line, `${l} ${key}`).toMatch(noTimer[l]);
+        expect(line, `${l} ${key}`).toMatch(restored[l]);
+      }
+    }
+    expect(t('en', 'legal.terms.fees.body')).toMatch(/nothing is sent from it — your own replies included — and nothing that arrives is kept/);
+    expect(t('en', 'legal.terms.fees.body')).toMatch(/read everything, download your business’s records[\s\S]*and close the workspace/);
+  });
+  it('the deletion page: freezing erases nothing, and a request that waits is chased — the business still decides', () => {
+    for (const l of LOCALES) {
+      expect(t(l, 'legal.deletion.closed'), l).toMatch(frozen[l]);
+      const chased = t(l, 'legal.deletion.chased');
+      for (const n of ['7', '30', '60']) expect(chased, `${l} ${n}`).toContain(n);
+      expect(withoutIsolates(renderDataDeletion(l, null)), l).toContain(`<p>${esc(withoutIsolates(chased))}</p>`);
+    }
+    expect(t('en', 'legal.deletion.chased')).toMatch(/Nomi does not delete anything in the business’s place: the business decides\./);
+  });
+  it('no served sentence still says "for as long as the business uses Nomi"', () => {
+    const src = read('src/core/owner/i18n/messages.ts');
+    expect(src).not.toMatch(/as long as the business uses Nomi/i);
+    expect(src).not.toMatch(/商家使用 Nomi 期间一直保存/);
   });
 });
