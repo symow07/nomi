@@ -200,6 +200,26 @@ d('G5 · alerts by e-mail (requires DATABASE_URL)', () => {
     expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, mail, whatsappApproved: true },
       { businessId: BIZ, kind: 'hot_lead', conversationId: null })).toBe('skipped_quiet');
     expect([mails, texts]).toEqual([[], []]);
+    // D4 (the owner, 2026-10-12) — a deletion alert carries no customer data: one sentence and Nomi's
+    // own page, never the conversation — the first alert and a reminder, by e-mail and by WhatsApp.
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const conv = randomUUID();
+    const said: { to: string; text: string }[] = [];
+    const sayMail = { send: async (m: { to: string; text: string }) => { said.push(m); return { ok: true as const }; } };
+    const sayText = { sendText: async (to: string, text: string) => { said.push({ to, text }); return { ok: true as const, providerMessageId: 'x' }; } };
+    await q((tx) => sql`update businesses set owner_phone = '+971500009999' where id = ${BIZ}::uuid`.execute(tx));
+    await choose('whatsapp');
+    for (const kind of ['deletion_requested', 'deletion_reminder'] as const) {
+      said.length = 0;
+      expect(await deliverOwnerAlert({ db: prod.db, adapter: sayText, mail: sayMail, whatsappApproved: true, publicBaseUrl: BASE },
+        { businessId: BIZ, kind, conversationId: conv })).toBe('sent');
+      expect(said.map((m) => m.to).sort(), kind).toEqual(['+971500009999', OWNER].sort());
+      for (const m of said) {
+        expect(m.text, kind).toBe(`${t('en', `notify.${kind}`)}\n\n${BASE}/app/settings/data#buyers`);
+        expect(m.text, kind).not.toContain(conv);
+      }
+    }
+    await choose(null);
     // No number and no sender: nowhere to go, and it says so.
     await q((tx) => sql`update businesses set owner_phone = null where id = ${BIZ}::uuid`.execute(tx));
     expect(await deliverOwnerAlert({ db: prod.db, adapter: ok, whatsappApproved: true }, job)).toBe('skipped_no_destination');

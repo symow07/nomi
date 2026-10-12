@@ -58,9 +58,10 @@ describe('0076 · its own alert', () => {
       expect(t(l, k('notify.deletion_requested.subject')), l).not.toBe('notify.deletion_requested.subject');
       expect(text, l).not.toBe(t(l, k('notify.handoff')));
     }
-    const en = withoutIsolates(renderOwnerAlert('en', 'deletion_requested'));
-    expect(en).toContain('asked for their data to be deleted');
-    expect(en).toContain('needs an answer from you');
+    // D4 (the owner, 2026-10-12) — no customer data at all: "a deletion request is waiting, open Nomi".
+    // What happened is the subject's; the decision is on Your data, where the link opens.
+    expect(withoutIsolates(renderOwnerAlert('en', 'deletion_requested'))).toBe('A deletion request is waiting. Open Nomi.');
+    expect(t('en', k('notify.deletion_requested.subject'))).toBe('A customer asked for their data to be deleted');
   });
 
   it('never depends on WhatsApp: it is one of the two interruptions, and every way it can take falls back to e-mail', () => {

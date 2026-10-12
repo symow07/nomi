@@ -245,9 +245,6 @@ export type NotifyJob = {
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance';
   conversationId: string | null;
-  /** D4 (0147) — `deletion_reminder`: when the customer asked (ISO), and how many days it has waited (7 or 30). */
-  deletionAskedAt?: string;
-  deletionDays?: number;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
   /**
