@@ -125,14 +125,18 @@ type Loader = (tx: Tx, businessId: string, locale: Locale) => Promise<ExportShee
 /**
  * A buyer, and how to reach them. `client_channels` carries one row per
  * channel, so they are folded into one cell rather than multiplying the buyer.
+ *
+ * D7 (the data-protection audit, 2026-10-12) — the customer's id first: a name
+ * is often blank (Instagram, Messenger) or shared, and the messages file names
+ * the same id, so a row of one can be found in the other.
  */
 const buyers: Loader = async (tx, businessId) => {
   const r = await sql<{
-    display_name: string | null; email: string | null; phone: string | null; country: string | null;
+    id: string; display_name: string | null; email: string | null; phone: string | null; country: string | null;
     preferred_language: string | null; total_orders: number | null; is_vip: boolean | null;
     notes: string | null; created_at: Date; last_seen_at: Date | null; reach: string | null;
   }>`
-    select c.display_name, c.email, c.phone, c.country, c.preferred_language,
+    select c.id::text as id, c.display_name, c.email, c.phone, c.country, c.preferred_language,
            c.total_orders, c.is_vip, c.notes, c.created_at, c.last_seen_at,
            (select string_agg(cc.channel || ': ' || cc.channel_user_id, ' | ' order by cc.channel)
               from client_channels cc where cc.client_id = c.id) as reach
@@ -141,9 +145,9 @@ const buyers: Loader = async (tx, businessId) => {
      order by c.created_at
      limit ${EXPORT_MAX_ROWS}`.execute(tx);
   return {
-    header: ['name', 'email', 'phone', 'country', 'language', 'orders', 'vip', 'notes', 'first seen', 'last seen', 'reachable at'],
+    header: ['customer id', 'name', 'email', 'phone', 'country', 'language', 'orders', 'vip', 'notes', 'first seen', 'last seen', 'reachable at'],
     rows: r.rows.map((x) => [
-      x.display_name, x.email, x.phone, x.country, x.preferred_language,
+      x.id, x.display_name, x.email, x.phone, x.country, x.preferred_language,
       x.total_orders, x.is_vip, x.notes, x.created_at, x.last_seen_at, x.reach,
     ]),
   };
@@ -158,14 +162,21 @@ const buyers: Loader = async (tx, businessId) => {
  * about a buyer (intent, sentiment, a guessed language), not something the
  * buyer said or the owner wrote, and handing it over as "your data" would
  * invite it to be read as fact about a person.
+ *
+ * D7 (the data-protection audit, 2026-10-12) — each message names its customer
+ * by id and by the account it came through (their number, address or handle on
+ * that channel), not by a display name alone, which Instagram and Messenger
+ * often leave blank.
  */
 const messages: Loader = async (tx, businessId) => {
   const r = await sql<{
-    sent_at: Date | null; channel: string; who: string; buyer: string | null;
+    sent_at: Date | null; channel: string; who: string; buyer: string | null; client: string | null; account: string | null;
     direction: string; input_type: string | null; text_content: string | null;
     transcription: string | null; detected_language: string | null; subject: string | null;
   }>`
-    select m.sent_at, cv.channel, coalesce(cl.display_name, '') as who, cl.display_name as buyer,
+    select m.sent_at, cv.channel, coalesce(cl.display_name, '') as who, cl.display_name as buyer, cl.id::text as client,
+           (select cc.channel_user_id from client_channels cc where cc.client_id = cv.client_id and cc.channel = cv.channel
+             order by cc.created_at limit 1) as account,
            m.direction, m.input_type, m.text_content, m.transcription, m.detected_language, m.subject
       from messages m
       join conversations cv on cv.id = m.conversation_id
@@ -174,9 +185,9 @@ const messages: Loader = async (tx, businessId) => {
      order by m.sent_at nulls last
      limit ${EXPORT_MAX_ROWS}`.execute(tx);
   return {
-    header: ['when', 'channel', 'customer', 'direction', 'kind', 'subject', 'what was said', 'heard as', 'language'],
+    header: ['when', 'channel', 'customer', 'customer id', 'account', 'direction', 'kind', 'subject', 'what was said', 'heard as', 'language'],
     rows: r.rows.map((x) => [
-      x.sent_at, x.channel, x.buyer, x.direction, x.input_type, x.subject,
+      x.sent_at, x.channel, x.buyer, x.client, x.account, x.direction, x.input_type, x.subject,
       x.text_content, x.transcription, x.detected_language,
     ]),
   };
@@ -550,7 +561,7 @@ export async function loadExport(db: Db, businessIdRaw: string, subject: ExportS
  * do, and the trail is where that shows up.
  */
 export async function recordExport(
-  db: Db, businessIdRaw: string, subject: ExportSubject, rows: number, actor: string,
+  db: Db, businessIdRaw: string, subject: ExportSubject | 'customer-copy', rows: number, actor: string,
 ): Promise<void> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return;

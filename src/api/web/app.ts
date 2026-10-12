@@ -219,6 +219,7 @@ import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindPro
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
+import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
@@ -2063,6 +2064,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // keep a copy to hand to the next person who asks.
       .header('cache-control', 'no-store')
       .send(csvFile(sheet.header, sheet.rows, show.csvDialectFor(localeOf(req))));
+  });
+
+  /**
+   * D7 (the data-protection audit, 2026-10-12) — the copy for ONE customer, when
+   * they ask what is kept about them: every row of the same person (D3), one
+   * file. Owner-only, throttled with the other downloads, written on the
+   * business's own audit trail, never cached.
+   */
+  app.get('/app/conversations/:conversationId/copy.csv', async (req, reply) => {
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const here = `/app/conversations/${encodeURIComponent(conversationId)}#copy`;
+    const s = await ownerOnly(req, reply, 'data_rights', here);
+    if (!s) return reply;
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
+      return flashTo(reply, here, 'data.export.flash.tooMany');
+    }
+    const copy = await loadBuyerCopy(deps.db, s.businessId, conversationId);
+    if (!copy) return reply.callNotFound();
+    await recordExport(deps.db, s.businessId, 'customer-copy', copy.sheet.rows.length, personOf(s).id);
+    const locale = localeOf(req);
+    // In the reader's plain letters, as the other downloads are named.
+    const name = locale === 'es' ? 'copia-del-cliente' : locale === 'fr' ? 'copie-client' : 'customer-copy';
+    return reply
+      .type('text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${csvFilename(name, new Date())}"`)
+      .header('cache-control', 'no-store')
+      .send(csvFile(copy.sheet.header, copy.sheet.rows, show.csvDialectFor(locale)));
   });
 
   /**

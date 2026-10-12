@@ -454,6 +454,21 @@ export function samePersonLine(locale: Locale, others: readonly SamePersonRecord
   return `<p class="muted" id="same-person">${esc(before)}${formatList(locale, each)}${esc(after)}</p>`;
 }
 
+/**
+ * D7 (the data-protection audit, 2026-10-12) — a copy of what is kept about
+ * them, for when they ask: one file, every row of the same person. The owner's
+ * (`data_rights`), like deleting; a sales assistant sees nothing here.
+ */
+function copySection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
+  if (!viewer.isOwner) return '';
+  const here = `/app/conversations/${encodeURIComponent(f.conversationId)}`;
+  return `<div class="block" id="copy">
+    <h2>${esc(t(locale, 'conv.copy.title'))}</h2>
+    <p class="muted">${esc(t(locale, 'conv.copy.lead'))}</p>
+    ${deeper(`${here}/copy.csv`, t(locale, 'conv.copy.download'))}
+  </div>`;
+}
+
 function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
   const d = f.deletion ?? null;
   const date = (x: Date) => show.date(locale, x);
@@ -617,5 +632,6 @@ export function renderCustomerFile(
     ${timeline}
     ${context}
     ${optOutSection(f, locale, viewer)}
+    ${copySection(f, locale, viewer)}
     ${deletionSection(f, locale, viewer)}`;
 }

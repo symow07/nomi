@@ -210,7 +210,7 @@ describe('the terms · one sentence: Nomi keeps the history as the business\'s p
     expect(t('en', 'legal.terms.service.advisor')).toMatch(/as your processor/);
     // (both moved again on 8 October: the terms' age line, and the privacy page's age cookie; the privacy page
     // again on 9 October: what every first e-mail and follow-up carries)
-    expect(t('en', 'legal.updated.terms')).toBe('Last updated 8 October 2026.');
+    expect(t('en', 'legal.updated.terms')).toBe('Last updated 12 October 2026.'); // D7 — the fees paragraph says what the download holds
     expect(t('en', 'legal.updated.privacy')).toBe('Last updated 12 October 2026.');
     // The deletion page did not change, so its date did not either.
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.updated.deletion')));
