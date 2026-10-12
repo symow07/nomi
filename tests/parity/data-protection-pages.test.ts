@@ -270,3 +270,14 @@ describe('D13 · settled: "Try it in Practice" copies nothing until the owner se
     expect(read('src/api/web/legal.ts')).toMatch(/'legal\.deletion\.erased\.advisor',[\s\S]{0,120}'legal\.deletion\.erased\.practice',/);
   });
 });
+
+describe('D14 · the erasure takes every queued job that names them, and the privacy page says how long the queue keeps one', () => {
+  it('jobs with no conversation that name their account go too, in the database and in the tool', () => {
+    expect(read('migrations/0143_queue_jobs.sql')).toMatch(/data->>'conversationId' is null and data->>'customer' = any\(\$2\)/);
+    expect(read('tools/erase-buyer.mjs')).toMatch(/data->>'conversationId' is null and data->>'customer' = any\(\$3::text\[\]\)/);
+  });
+  it('every language states the queue\'s week', () => {
+    const week = { en: /about a week after the work is done/, zh: /约一周/, ar: /نحو أسبوع/, es: /una semana/, fr: /une semaine/ } as const;
+    for (const l of LOCALES) expect(t(l, 'legal.privacy.howLong.body', { deletion: 'X' }), l).toMatch(week[l]);
+  });
+});

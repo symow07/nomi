@@ -355,7 +355,9 @@ import type { Db } from './client.js';
 //       database both fail.
 // 142 = a customer's erasure reaches their words in Practice (0142): `practice_erase_conversations`, which
 //       `practice_erase` and the erasure call; against a 141 database Start over and the thirty days fail.
-export const REQUIRED_SCHEMA_VERSION = 142;
+// 143 = a customer's erasure takes every queued job that names them (0143): `erase_customer_rows_practice`
+//       inside; tools/erase-buyer.mjs plans the same jobs, and against a 142 database its counts disagree.
+export const REQUIRED_SCHEMA_VERSION = 143;
 
 export type SchemaState = {
   readonly required: number;
