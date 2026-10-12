@@ -243,6 +243,13 @@ buyer's rows, checks every statement's row count against the plan, then plans
 again inside the transaction and commits only if nothing is left to erase and
 every kept row is still there.
 
+Since 0144 (D19) every table that holds a business's rows (a `business_id`
+column) must be decided in the contract — erased, kept, or `unrelated` with
+its reason — whatever its other columns are called. A new one stops both the
+tool and the owner's button, by name, until it is. The 55 decided `unrelated`
+in 0144 are listed in RULES with their reasons; `app_errors` is among them
+because it now keeps an error's message without the values it quoted.
+
 It refuses, and changes nothing, when:
 - it is run as a role that row-level security filters — the app's own
   `DATABASE_URL` pasted by mistake would see a buyer with nothing to erase;

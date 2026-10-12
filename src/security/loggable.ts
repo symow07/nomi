@@ -1,4 +1,4 @@
-import { describeThrown, scrubSecrets } from '../core/ops/appErrors.js';
+import { cut, describeThrown, scrubSecrets } from '../core/ops/appErrors.js';
 import { redactSecrets } from './credentials.js';
 
 /**
@@ -24,7 +24,8 @@ const PROVIDER_REASON = /"message":\s*$/;
 /** Frames kept from a stack. */
 const FRAMES = 8;
 
-export function loggableMessage(message: string): string {
+/** `max`: the longest it may be; a longer one is cut and ends in "…". */
+export function loggableMessage(message: string, max = 300): string {
   const shaped = message
     .replace(/, "[\s\S]*?"(?:\.\.\.)? is not valid JSON/g, ', "…" is not valid JSON')
     .replace(/(: )"[^"]*"/g, '$1"…"')
@@ -33,7 +34,7 @@ export function loggableMessage(message: string): string {
         ? whole : '"…"')
     .replace(/\s+/g, ' ')
     .trim();
-  return scrubSecrets(redactSecrets(shaped)).slice(0, 300);
+  return cut(scrubSecrets(redactSecrets(shaped)), max);
 }
 
 export function loggableError(err: unknown): LoggableError {

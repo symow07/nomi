@@ -226,6 +226,72 @@ export const RULES = Object.freeze({
   // ── A buyer-like column name, and not a buyer ─────────────────────────────
   logins: { do: 'unrelated' },       // the business's own team signing in
   login_codes: { do: 'unrelated' },  // codes e-mailed to that team
+  // ── D19 (0144) — every other table with a business_id, decided: no customer's data in it. ──
+  // The workspace's own settings and rules.
+  autonomy_policy: { do: 'unrelated' },
+  bundle_rules: { do: 'unrelated' },
+  claims_policy: { do: 'unrelated' },
+  factory_closures: { do: 'unrelated' },
+  forbidden_terms: { do: 'unrelated' },
+  negotiation_rules: { do: 'unrelated' },
+  onboarding_state: { do: 'unrelated' },
+  outreach_settings: { do: 'unrelated' },
+  owner_rates: { do: 'unrelated' },
+  pricing_policy: { do: 'unrelated' },
+  sample_policy: { do: 'unrelated' },
+  selling_answers: { do: 'unrelated' },
+  substitution_rules: { do: 'unrelated' },
+  trade_terms: { do: 'unrelated' },
+  tenant_budgets: { do: 'unrelated' },
+  assistants: { do: 'unrelated' },
+  // Its catalogue and what the owner taught.
+  products: { do: 'unrelated' },
+  product_knowledge: { do: 'unrelated' },
+  catalog_imports: { do: 'unrelated' },
+  catalog_import_photos: { do: 'unrelated' },
+  knowledge_proposals: { do: 'unrelated' },
+  // Its channels and connections.
+  channels: { do: 'unrelated' },
+  channel_credentials: { do: 'unrelated' },
+  channel_sources: { do: 'unrelated' },
+  connector_credentials: { do: 'unrelated' },
+  connection_approvals: { do: 'unrelated' },
+  mail_accounts: { do: 'unrelated' },
+  meta_accounts: { do: 'unrelated' },
+  whatsapp_accounts: { do: 'unrelated' },
+  whatsapp_templates: { do: 'unrelated' },
+  sending_domains: { do: 'unrelated' },
+  // The people who work there, and their own records.
+  people: { do: 'unrelated' },
+  agents: { do: 'unrelated' },
+  login_setups: { do: 'unrelated' },
+  push_subscriptions: { do: 'unrelated' },
+  advisor_consents: { do: 'unrelated' },
+  // Outreach sequences as written, before anyone is enrolled.
+  sequences: { do: 'unrelated' },
+  sequence_steps: { do: 'unrelated' },
+  // Billing, usage and plan.
+  payments: { do: 'unrelated' },
+  stripe_events: { do: 'unrelated' },
+  subscriptions: { do: 'unrelated' },
+  workspace_billing: { do: 'unrelated' },
+  workspace_suspensions: { do: 'unrelated' },
+  usage_ledger: { do: 'unrelated' },
+  allowance_alerts: { do: 'unrelated' },
+  retention_notices: { do: 'unrelated' },
+  // Operations: flags, practice counts, the assistant's capability history (counts), the erasure ledger (ids and counts).
+  ops_flags: { do: 'unrelated' },
+  practice_checks: { do: 'unrelated' },
+  practice_totals: { do: 'unrelated' },
+  capability_events: { do: 'unrelated' },
+  erasure_ledger: { do: 'unrelated' },
+  // Words the owner or the operator wrote, never linked to a customer: a calendar entry, the pilot's log.
+  calendar_entries: { do: 'unrelated' },
+  pilot_log: { do: 'unrelated' },
+  // A company's public facts, looked up by its domain.
+  organization_enrichments: { do: 'unrelated' },
+  // Errors, with no value they carried (D19: messages stored without quoted values).
+  app_errors: { do: 'unrelated' },
 });
 
 /**
@@ -384,7 +450,10 @@ export function coverage(schema, rules = RULES, virtual = VIRTUAL_EDGES) {
 
   const suspects = [...schema.tables].filter((t) => SUSPECT_COLUMNS.some((c) => has(t, c)));
   const declared = Object.entries(rules).filter(([, r]) => r.match || r.do === 'receipts' || r.do === 'redact').map(([t]) => t);
-  const inScope = new Set([...reach, ...suspects, ...declared].filter((t) => schema.tables.has(t)));
+  // D19 (0144) — and every table that holds a business's rows, whatever its columns are called: a customer's
+  // words under a name no list foresaw are found by being decided, not by being guessed.
+  const businessTables = [...schema.tables].filter((t) => has(t, 'business_id'));
+  const inScope = new Set([...reach, ...suspects, ...declared, ...businessTables].filter((t) => schema.tables.has(t)));
 
   const unclassified = [...inScope].filter((t) => !rules[t]).sort();
   const stale = Object.keys(rules).filter((t) => !schema.tables.has(t)).sort();
