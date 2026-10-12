@@ -239,3 +239,17 @@ describe('D9 · the unsubscribe link stops everything until they write again, an
     expect(t('en', 'legal.privacy.choices.body', { deletion: 'X' })).toMatch(/stops anything more being sent to that address until you write to the business again/);
   });
 });
+
+describe('D12 · "carried out again before the service runs": every ledger line reaches the mailbox, and a Railway restore stops the app first', () => {
+  it('the job mails what was not mailed, every fifteen minutes; the routes note what they mailed', () => {
+    const main = read('src/main.ts');
+    expect(main).toMatch(/boss\.schedule\(QUEUES\.erasureMail, '\*\/15 \* \* \* \*'/);
+    expect(main).toMatch(/mailUnmailedLedger\(db, systemMail, cfg\.LEGAL_CONTACT_EMAIL/);
+    expect(read('src/api/web/app.ts').match(/await markLedgerMailed\(deps\.db, ledgerIds\(/g)?.length).toBe(2);
+  });
+  it('the runbook stops the app before a Railway restore, and says the mailbox holds every line since 0141', () => {
+    const doc = read('docs/BACKUP-RESTORE.md');
+    expect(doc).toMatch(/stop the `nomi` service/);
+    expect(doc).toMatch(/since\s+0141 \(D12\) a job every fifteen minutes mails every line not yet mailed/);
+  });
+});

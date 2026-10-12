@@ -224,6 +224,10 @@ import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletio
 import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
 import { samePersonOf } from '../../db/samePerson.js';
+import { markLedgerMailed } from '../../db/erasureMail.js';
+
+/** The ids of ledger lines, as the erasure returned them. */
+const ledgerIds = (lines: readonly Record<string, unknown>[]): string[] => lines.map((l) => String(l['id'] ?? '')).filter((x) => x !== '');
 import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
@@ -2186,7 +2190,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (deps.systemMail && deps.legalContact) {
       const mail = erasureNotice('workspace', r.line ? [r.line] : []);
       void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
-        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'workspace erasure notice could not be sent'); },
+        // D12 (0141) — noted once it went; if it did not, the fifteen-minute job sends the line.
+        async (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'workspace erasure notice could not be sent'); else await markLedgerMailed(deps.db, ledgerIds(r.line ? [r.line] : [])); },
         (e: unknown) => req.log.warn({ err: e }, 'workspace erasure notice could not be sent'),
       );
     }
@@ -4089,7 +4094,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (deps.systemMail && deps.legalContact) {
       const mail = erasureNotice('customer', r.lines);
       void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
-        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'customer erasure notice could not be sent'); },
+        // D12 (0141) — noted once it went; if it did not, the fifteen-minute job sends the lines.
+        async (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'customer erasure notice could not be sent'); else await markLedgerMailed(deps.db, ledgerIds(r.lines)); },
         (e: unknown) => req.log.warn({ err: e }, 'customer erasure notice could not be sent'),
       );
     }

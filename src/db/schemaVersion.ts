@@ -350,7 +350,10 @@ import type { Db } from './client.js';
 // 140 = kept records stop describing an erased customer (0140): the erasure clears tracking numbers, update notes,
 //       the request's note and a do-not-contact detail, and deletes a stop taken back; `customer_erasure_contract`
 //       says so, and tools/erase-buyer.mjs refuses a database whose contract differs from its RULES.
-export const REQUIRED_SCHEMA_VERSION = 140;
+// 141 = every ledger line reaches the operator's mailbox (0141): `erasure_ledger_unmailed`,
+//       `erasure_ledger_mark_mailed`, which the fifteen-minute job and the erasure routes call; against a 140
+//       database both fail.
+export const REQUIRED_SCHEMA_VERSION = 141;
 
 export type SchemaState = {
   readonly required: number;

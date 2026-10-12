@@ -87,6 +87,7 @@ import { installCrashReporting } from './worker/appErrors.js';
 import { startHeartbeat } from './worker/heartbeat.js';
 import { requestLogger } from './api/requestLog.js';
 import { loggableLine, loggableMessage } from './security/loggable.js';
+import { mailUnmailedLedger } from './db/erasureMail.js';
 
 /**
  * PRODUCTION ENTRYPOINT (audit C1). Composes existing components — worker,
@@ -1081,6 +1082,14 @@ export async function buildProduction(
       // D2 (0138) — and the sign-up guard's hashed callers, past two days.
       const c = Number((await sql<{ n: string }>`select signup_throttles_forget()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (c > 0) console.log(`[signup] ${c} sign-up caller count(s) forgotten`);
+    });
+    // D12 (0141) — every erasure's ledger line reaches the operator's mailbox, the copy that outlives a total
+    // loss: what the app did not mail at once (the advisor's deletions, the twelve-month expiry, a team member
+    // removed, an operator's tool, a mail that failed). Ids only.
+    await boss.schedule(QUEUES.erasureMail, '*/15 * * * *', {});
+    await boss.work(QUEUES.erasureMail, async () => {
+      const n = await mailUnmailedLedger(db, systemMail, cfg.LEGAL_CONTACT_EMAIL ?? null);
+      if (n > 0) console.log(`[erasure] ${n} ledger line(s) mailed to the operator`);
     });
   };
 

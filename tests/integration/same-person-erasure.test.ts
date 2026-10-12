@@ -190,6 +190,9 @@ d('D3 · the erasure reaches the same person on every channel (requires DATABASE
     for (const l of lines) expect(parseLedgerLine(l).ok).toBe(true);
     expect(lines.map((l) => JSON.parse(l).id).sort()).toEqual(ledger.map((l: { id: string }) => l.id).sort());
     for (const personal of [PHONE, EMAIL, IG, R.p.name, R.q.name]) expect(notices[0]!.text).not.toContain(personal);
+    // D12 (0141) — the mail went, so its lines are noted: the fifteen-minute job does not send them again.
+    await expect.poll(async () => (await admin.query(`select count(*)::int as n from erasure_ledger_mailed where ledger_id = any($1::uuid[])`,
+      [ledger.map((l: { id: string }) => l.id)])).rows[0].n).toBe(3);
   });
 
   it('more rows than one person has: refused by the database, nothing changed', async () => {

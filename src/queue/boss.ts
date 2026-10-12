@@ -90,6 +90,11 @@ export const QUEUES = {
    */
   signupExpiry: 'ops.signup_expiry',
   /**
+   * D12 (0141) — every fifteen minutes: the erasure ledger's lines the operator
+   * was not yet mailed (`erasure_ledger_unmailed`), mailed and noted.
+   */
+  erasureMail: 'ops.erasure_mail',
+  /**
    * CH3 — a message the business's own account sent, come back from Meta. Held
    * a little before it is read (`ECHO_SETTLE_SECONDS`), so Nomi's own send has
    * recorded the id Meta gave it and is recognised as ours (src/pipeline/echo.ts).
