@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { renderDataDeletion } from '../../src/api/web/legal.js';
-import { aiProcessor, HOSTING } from '../../src/core/legal/processors.js';
+import { aiProcessor, HOSTING, type Processor } from '../../src/core/legal/processors.js';
 import { esc } from '../../src/api/web/layout.js';
 import { withoutIsolates } from './isolates.js';
 
@@ -33,7 +33,8 @@ describe('D8 · the pictures a buyer sends go to the language service, and the p
 });
 
 describe('D6 · the deletion page names every copy no deletion inside Nomi reaches', () => {
-  const DEEPSEEK = { processor: aiProcessor('https://api.deepseek.com/anthropic'), hosting: HOSTING, transcriber: null };
+  const DEEPSEEK: { processor: Processor; hosting: Processor; transcriber: Processor | null } =
+    { processor: aiProcessor('https://api.deepseek.com/anthropic'), hosting: HOSTING, transcriber: null };
   const page = (l: (typeof LOCALES)[number], email: string | null, facts = DEEPSEEK) => withoutIsolates(renderDataDeletion(l, email, facts));
   const items = (html: string) => [...html.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1]!);
 
