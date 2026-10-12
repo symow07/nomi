@@ -68,7 +68,9 @@ d('D7 · a copy of one customer (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
     const wa = await customer(SHOP, `Amal ${RUN}`, PHONE, EMAIL, 'whatsapp', PHONE, `wa-said-${RUN}`);
     const mail = await customer(SHOP, null, null, EMAIL, 'email', EMAIL, `mail-said-${RUN}`);
     const other = await customer(SHOP, `Bilal ${RUN}`, `972${DIGITS}`, null, 'whatsapp', `972${DIGITS}`, `bilal-said-${RUN}`);
-    const theirs = await customer(OTHER, `Amal elsewhere ${RUN}`, PHONE, EMAIL, 'whatsapp', PHONE, `theirs-said-${RUN}`);
+    // A channel account is one customer row across every business (client_channels is unique on it): the same
+    // person in another business holds the number and address on the row, and writes there on Instagram.
+    const theirs = await customer(OTHER, `Amal elsewhere ${RUN}`, PHONE, EMAIL, 'instagram', `ig-theirs-${RUN}`, `theirs-said-${RUN}`);
     Object.assign(C, { wa: wa.client, waConv: wa.conv, mail: mail.client, mailConv: mail.conv, other: other.client, otherConv: other.conv, theirs: theirs.client, theirsConv: theirs.conv });
 
     await admin.query(`insert into messages (conversation_id, direction, text_content, sent_at) values ($1, 'outbound', $2, now())`, [wa.conv, `reply-${RUN}`]);
