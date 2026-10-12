@@ -341,7 +341,11 @@ import type { Db } from './client.js';
 //       'opted_out'. Every turn and every send reads or writes them; against a 134 database each fails.
 // 136 = sends a person approved (0136): `outbound_messages.approved`. Every queued row writes it and the send path reads
 //       it; against a 135 database both fail.
-export const REQUIRED_SCHEMA_VERSION = 137;
+// 137 = a sign-up is not kept (0137): `login_codes_forget`, which the daily ops.signup_expiry job calls, and
+//       `otp_redeem` handing the form back once; against a 136 database the job fails.
+// 138 = a sign-up's caller is forgotten (0138): `signup_throttles_forget`, which the same job calls; against a 137
+//       database it fails.
+export const REQUIRED_SCHEMA_VERSION = 138;
 
 export type SchemaState = {
   readonly required: number;

@@ -1,4 +1,5 @@
 import { PgBoss } from 'pg-boss';
+import { loggableLine } from '../security/loggable.js';
 
 /**
  * Queue topology. (ADR-0004)
@@ -83,7 +84,9 @@ export const QUEUES = {
   advisorExpiry: 'ops.advisor_expiry',
   /**
    * D1 (0137) — once a day: a sign-up never finished keeps neither its form nor
-   * its address past an hour after its code expired (`login_codes_forget`).
+   * its address past an hour after its code expired (`login_codes_forget`);
+   * D2 (0138) — and the sign-up guard's hashed callers go after two days
+   * (`signup_throttles_forget`).
    */
   signupExpiry: 'ops.signup_expiry',
   /**
@@ -164,7 +167,8 @@ export async function startBoss(connectionString: string): Promise<PgBoss> {
     schema: 'pgboss',
     // migrations run as the app role's owner; pg-boss manages its own schema
   });
-  boss.on('error', (err: Error) => console.error('[pg-boss]', err));
+  // D2 — the error's kind, code and frames; a database error's `detail` holds the row.
+  boss.on('error', (err: Error) => console.error('[pg-boss]', loggableLine(err)));
   await boss.start();
 
   // Dead queues FIRST: pg-boss v12 validates the deadLetter target exists at

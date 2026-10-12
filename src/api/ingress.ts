@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { ChannelAdapter } from '../channels/contract.js';
 import type { ChannelEvent } from '../channels/whatsapp/parse.js';
 import { isStaleEvent } from '../channels/whatsapp/signature.js';
+import { requestLogger } from './requestLog.js';
 
 /**
  * M3 — Webhook ingress. The <5s ack contract: this handler verifies the
@@ -43,7 +44,7 @@ export type IngressDeps = {
 };
 
 export function buildIngressApp(deps: IngressDeps): FastifyInstance {
-  const app = Fastify({ logger: deps.logger ?? false });
+  const app = Fastify({ logger: requestLogger(deps.logger ?? false) });
   const now = deps.now ?? (() => new Date());
 
   // Keep the RAW body: signatures are computed over bytes, not parsed JSON.

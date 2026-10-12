@@ -229,6 +229,7 @@ import {
   setupLinkEmail, spendSetupLink, requestRecoveryLink, markLoginEmailProven,
 } from '../../db/accounts.js';
 import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
+import { loggableMessage } from '../../security/loggable.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
 import { validateSignup, normalizeEmail, isEmailShape, signupModeInForce, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } from './botCheck.js';
@@ -1994,7 +1995,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         const e = verifyStripeEvent(raw, String(req.headers['stripe-signature'] ?? '') || undefined, stripe.webhookSecret, Math.floor(Date.now() / 1000));
         if (!e) return reply.code(400).send({ error: 'signature' });
         const outcome = await handleStripeEvent(deps.db, stripe.client, e).catch((err: unknown) => {
-          req.log.warn({ reason: err instanceof Error ? err.message : String(err) }, 'stripe event failed');
+          req.log.warn({ reason: loggableMessage(err instanceof Error ? err.message : String(err)) }, 'stripe event failed');
           return 'retry' as const;
         });
         return outcome === 'retry' ? reply.code(500).send({ error: 'retry' }) : reply.code(200).send({ received: true });
