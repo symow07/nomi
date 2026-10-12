@@ -66,6 +66,10 @@ fingerprint (a cleared tracking number); the in-app erasure's request note (now 
 Chinese do-not-contact pin; add-login's and phone-alerts' archived rows (now empty); the 360dialog boot test
 (refused until named).
 
+**A flake found on the way, root-caused (#305):** the sign-up guard counts per UTC clock hour, and its two
+throttle tests failed when they straddled one (CI, 03:59:59–04:00:00 UTC, on the docs-only #304). They now wait out
+the last minute of an hour; the guard is unchanged.
+
 **The owner's, from this audit:**
 - **D4, the retention policy** — the options and their costs are in the batch report; nothing is built until the
   owner chooses.
