@@ -232,6 +232,16 @@ default.
 > `tools/verify-restore.sh` checks for pgvector and warns before it starts.
 > `tools/backup.sh` refuses to dump with a `pg_dump` older than the server.
 
+> **Railway's own restores put the database back UNDER THE RUNNING APP** (D12,
+> 2026-10-12). A point-in-time restore or a volume backup restored from the
+> dashboard replaces the Postgres volume, and the `nomi` service carries on
+> against it at once — with every erasure made since that moment undone.
+> Before restoring that way: **stop the `nomi` service** (remove its active
+> deployment, or set its replicas to 0), restore, then run step 5 below
+> against the restored database, and only then start `nomi` again. The same
+> holds for the `backup` service's next run: let it run only once step 5 is
+> done, or its copy is of the undone state.
+
 If the artifacts came from the bucket, decrypt them first:
 
 ```bash
@@ -278,8 +288,14 @@ schedule). That is exactly what `/data-deletion` says, and it stays true.
 What must never happen is a restore that brings someone **back**. So every
 erasure writes one line in `erasure_ledger` — ids, who acted, when, the
 request, how many rows of each table; never a name, a number or a word — in
-the erasure's own transaction, and mails the same line to
-`LEGAL_CONTACT_EMAIL`. The ledger outlives the workspace (no foreign key; the
+the erasure's own transaction. Every line reaches `LEGAL_CONTACT_EMAIL`:
+an owner's customer erasure or closing mails its lines at once, and since
+0141 (D12) a job every fifteen minutes mails every line not yet mailed — the
+advisor's deletions, the twelve-month expiry, a team member removed, an
+erasure an operator's tool carried out, and any immediate mail that failed
+(`erasure_ledger_mailed` notes each line once its mail went). Before 0141
+only the owner's own erasures were mailed: lines older than that are in the
+live database and the backups, not in the mailbox. The ledger outlives the workspace (no foreign key; the
 workspace erasure leaves it). After ANY restore — a dump pair, PITR, a scratch
 copy restored to fetch one thing back — step 5 above carries out again every
 erasure the restored copy does not hold:
@@ -289,7 +305,7 @@ erasure the restored copy does not hold:
 | The restored copy itself | always (and any of its own lines that do not hold in it) |
 | The database being replaced, if it still answers | `--ledger-db-env <NAME>` — its URL in that variable, never on the command line |
 | The newest backup, or a copy of the live ledger saved earlier | `node tools/replay-erasures.mjs --export > lines.jsonl` against it, then `--ledger lines.jsonl` |
-| The erasure mails sent to `LEGAL_CONTACT_EMAIL` | each mail's JSON line, saved one per line, `--ledger mails.jsonl` |
+| The erasure mails sent to `LEGAL_CONTACT_EMAIL` | each mail's JSON lines (a customer who was several records, or the fifteen-minute mail, has several), saved one per line, `--ledger mails.jsonl` |
 
 The replay erases with the same contract the owner's button runs
 (`erase_customer_rows`, `erase_workspace_rows`), closes the request (writing it

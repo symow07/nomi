@@ -147,6 +147,8 @@ const INDIRECT: Record<string, string> = {
 const GLOBAL = new Set(['_migrations', 'backup_runs', 'signup_invites', 'mail_sends', 'installation_limits', 'spend_breaker_alerts', 'signup_settings', 'signup_throttles', 'plans', 'billing_settings',
   // 0126 — the ids-only record of every erasure: the operator's, outliving any workspace, asserted on its own below.
   'erasure_ledger',
+  // 0141 (D12) — which ledger lines the operator was mailed: ids only, the operator's, no business's.
+  'erasure_ledger_mailed',
   // 0128 — the model provider's account: the installation's, no business's (one health row, the balance's readings and steps).
   'provider_health', 'provider_balance_checks', 'provider_balance_alerts']);
 /** Every schema but the system's and the queue's (the queue is read on its own, below). */
