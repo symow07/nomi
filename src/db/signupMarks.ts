@@ -57,6 +57,28 @@ export async function markSignupAttempt(db: Db, d: SignupDigests): Promise<void>
   await sql`select signup_mark_attempt(${d.device}, ${d.network})`.execute(db);
 }
 
+/** 0149 — a refusal, counted: the points and the reasons, nothing a person typed and no mark. */
+export async function markSignupRefused(db: Db, score: SignupScore): Promise<void> {
+  await sql`select signup_mark_refused(${score.points}::int, ${[...score.reasons]}::text[])`.execute(db);
+}
+
+export type SignupCheckDay = {
+  readonly cards: number; readonly refused: number;
+  readonly why: readonly { readonly outcome: 'card' | 'refused'; readonly reason: string; readonly n: number }[];
+};
+
+/** 0149 — what the check did since `since`, for the operator's daily digest. */
+export async function signupCheckSince(db: Db, since: Date): Promise<SignupCheckDay> {
+  const rows = (await sql<{ outcome: 'card' | 'refused'; reason: string | null; n: number }>`
+    select outcome, reason, n from signup_check_since(${since})`.execute(db)).rows;
+  const total = (o: 'card' | 'refused') => rows.find((r) => r.outcome === o && r.reason === null)?.n ?? 0;
+  return {
+    cards: total('card'), refused: total('refused'),
+    why: rows.filter((r) => r.reason !== null).map((r) => ({ outcome: r.outcome, reason: r.reason!, n: r.n }))
+      .sort((a, b) => (a.outcome === b.outcome ? b.n - a.n || a.reason.localeCompare(b.reason) : a.outcome === 'card' ? -1 : 1)),
+  };
+}
+
 /**
  * A workspace was made: its marks, and the tier its subscription follows (0148: medium needs a card and has no
  * free trial). A sign-up the operator vouched for (an invitation) is recorded as low, whatever it scored.

@@ -182,7 +182,24 @@ d('Phase 1 · open sign-up, scored (requires DATABASE_URL + MIGRATE_DATABASE_URL
     await admin.query(`delete from signup_marks where digest in ($1, $2, $3)`, [dev, nw, hex('3')]);
   });
 
+  it('THE OPERATOR SEES IT (0149): the day\'s list counts the cards asked for and the refusals, with their reasons; a refusal goes after 30 days', async () => {
+    const { signupDigestAlert } = await import('../../src/pipeline/signupDigest.js');
+    const job = await signupDigestAlert(prod.db, PILOT, new Date());
+    expect(job?.check?.refused).toBeGreaterThanOrEqual(2);
+    expect(job?.check?.cards).toBeGreaterThanOrEqual(2);
+    const why = (o: string) => (job?.check?.why ?? []).filter((w) => w.outcome === o).map((w) => w.reason);
+    expect(why('refused')).toEqual(expect.arrayContaining(['repeat_device', 'repeat_email']));
+    expect(why('card')).toEqual(expect.arrayContaining(['fresh_email', 'repeat_fingerprint']));
+    await admin.query(`insert into signup_refusals (at, points, reasons) values (now() - interval '31 days', 4, '{repeat_device}'),
+      (now() - interval '29 days', 4, '{repeat_device}')`);
+    await app.query(`select signup_marks_forget()`);
+    const kept = (await admin.query(`select count(*)::int as n from signup_refusals where at < now() - interval '28 days'`)).rows[0].n;
+    expect(kept).toBe(1);
+    await admin.query(`delete from signup_refusals where at < now() - interval '28 days'`);
+  });
+
   it('THE APP touches only the functions: it can neither read nor write the marks, and reads only its own risk row', async () => {
+    await expect(app.query(`select count(*) from signup_refusals`)).rejects.toThrow(/permission denied/);
     await expect(app.query(`select count(*) from signup_marks`)).rejects.toThrow(/permission denied/);
     await expect(app.query(`insert into signup_marks (kind, digest, what) values ('device', $1, 'attempt')`, ['a'.repeat(64)]))
       .rejects.toThrow(/permission denied/);

@@ -367,7 +367,10 @@ import type { Db } from './client.js';
 // 148 = trial-abuse scoring (0148): `signup_marks`, `signup_risk`, the functions every sign-up calls and the
 //       daily ops.signup_expiry job's `signup_marks_forget`; billing's trial and card read the risk. Against a 147
 //       database every sign-up fails.
-export const REQUIRED_SCHEMA_VERSION = 148;
+// 149 = the operator sees what the sign-up check did (0149): `signup_refusals`, `signup_mark_refused`, which a
+//       refused sign-up calls, and `signup_check_since`, which the daily digest reads; against a 148 database the
+//       digest fails.
+export const REQUIRED_SCHEMA_VERSION = 149;
 
 export type SchemaState = {
   readonly required: number;

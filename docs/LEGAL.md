@@ -72,7 +72,8 @@ runs the product. The draft terms for the business itself are in
   invitation vouches. Marks hold no business, outlive a closed workspace (so a second trial is seen), and are
   forgotten after 180 days (an attempt's after two). Named on the privacy page (`legal.privacy.owner.signupCheck`,
   the owner's "How long") and in the cookie table; the cookie is strictly necessary for the sign-up's security, so
-  there is still no banner, and the cookie paragraph no longer says none of them tracks you.
+  there is still no banner, and the cookie paragraph no longer says none of them tracks you. A refusal is counted
+  for the operator's daily list with its points and reasons only (`signup_refusals`, 0149), kept 30 days.
 - A deletion request that waits is chased (0147): the owner is reminded at 7
   and 30 days (e-mail always), and it is flagged in the app at 60; every chase
   is recorded in `deletion_chases`. Nomi still deletes nothing on its own: the

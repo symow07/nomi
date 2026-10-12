@@ -177,3 +177,26 @@ describe('Phase 1 · the database keeps marks, not people', () => {
     expect(m).toContain('select w.business_id, w.stripe_customer_id, pl.stripe_price_id, trial_days_for(w.business_id), first_channel_at(w.business_id)');
   });
 });
+
+describe('Phase 1 · the operator sees what the check did (0149)', () => {
+  it('the daily list says how many were asked for a card first and how many were refused, and why', async () => {
+    const { renderOwnerAlert } = await import('../../src/pipeline/notify.js');
+    const check = { cards: 2, refused: 1, why: [
+      { outcome: 'card' as const, reason: 'fresh_email', n: 2 }, { outcome: 'refused' as const, reason: 'repeat_device', n: 1 }] };
+    const text = renderOwnerAlert('en', 'signup_digest', null, { signups: [], check });
+    expect(text).toContain('The sign-up check asked 2 for a card first (fresh_email ×2).');
+    expect(text).toContain('The sign-up check refused 1 (repeat_device ×1).');
+    expect(renderOwnerAlert('en', 'signup_digest', null, { signups: [], check: { cards: 0, refused: 0, why: [] } })).not.toContain('sign-up check');
+    expect(renderOwnerAlert('en', 'signup_digest', null, { signups: [], check: { cards: 0, refused: 2, why: [] } })).not.toContain('for a card');
+  });
+  it('a refusal is counted before the page answers: its points and reasons, nothing a person typed', () => {
+    const app = read('src/api/web/app.ts');
+    expect(app.indexOf('await markSignupRefused(deps.db, risk.score)')).toBeGreaterThan(app.indexOf("risk?.score.tier === 'high'"));
+    expect(app.indexOf('await markSignupRefused(deps.db, risk.score)')).toBeLessThan(app.indexOf('return riskRefusal(reply, locale);'));
+    const m = read('migrations/0149_signup_refusals.sql');
+    const table = /create table if not exists signup_refusals \(([\s\S]*?)\n\);/.exec(m)![1]!;
+    expect([...table.matchAll(/^\s+([a-z_]+)\s+(bigserial|integer|text\[\]|timestamptz)/gm)].map((x) => x[1])).toEqual(['id', 'at', 'points', 'reasons']);
+    expect(m).toContain("delete from signup_refusals where at < now() - interval '30 days';");
+    expect(read('src/pipeline/signupDigest.ts')).toContain('const check = await signupCheckSince(db, since);');
+  });
+});

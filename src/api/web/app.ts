@@ -239,7 +239,7 @@ import { loggableMessage } from '../../security/loggable.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
 import { validateSignup, normalizeEmail, isEmailShape, signupModeInForce, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } from './botCheck.js';
-import { checkSignup, markSignupAttempt, markSignupWorkspace, newSignupDeviceId, signupDigests, type SignupCheck } from '../../db/signupMarks.js';
+import { checkSignup, markSignupAttempt, markSignupRefused, markSignupWorkspace, newSignupDeviceId, signupDigests, type SignupCheck } from '../../db/signupMarks.js';
 import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
@@ -1543,6 +1543,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!vouched && risk?.score.tier === 'high') {
       // Which marks, never whose: the reasons and the points, nothing a person typed.
       req.log.warn({ reasons: risk.score.reasons, points: risk.score.points }, 'sign-up refused by the abuse check');
+      // 0149 — counted for the operator's digest: the reasons and points only.
+      await markSignupRefused(deps.db, risk.score).catch(() => undefined);
       return riskRefusal(reply, locale);
     }
     const wanted = {
