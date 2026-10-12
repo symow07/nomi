@@ -3260,6 +3260,11 @@ export type SignupPageInput = {
   /** AGE — the age given was under the minimum: the page says the minimum, and there is no form to answer again. */
   readonly ageRefused?: boolean;
   /**
+   * Phase 1 (0148) — the sign-up scored high: refused, said plainly, and the way to a person who can open the
+   * workspace by hand. Never a silent block, and never which mark it was.
+   */
+  readonly riskRefused?: boolean;
+  /**
    * BOT — the provider's widget, drawn just above the button with its own
    * script; the token it makes arrives in `field`. Absent: no check.
    */
@@ -3274,6 +3279,13 @@ export function signupPage(input: SignupPageInput): string {
   if (input.ageRefused) {
     return doorFrame(locale, input.path, t(locale, 'signup.title'),
       `<h1>${esc(t(locale, 'signup.title'))}</h1><p class="lead" role="alert">${esc(t(locale, 'signup.problem.age_under'))}</p>`, other);
+  }
+  if (input.riskRefused) {
+    const contact = input.contact
+      ? `<p class="lead">${esc(t(locale, 'signup.riskRefused.contact', { email: '\u0000' })).replace('\u0000',
+        `<a href="mailto:${esc(input.contact)}">${esc(input.contact)}</a>`)}</p>` : '';
+    return doorFrame(locale, input.path, t(locale, 'signup.title'),
+      `<h1>${esc(t(locale, 'signup.title'))}</h1><p class="lead" role="alert">${esc(t(locale, 'signup.riskRefused'))}</p>${contact}`, other);
   }
   if (input.mode === 'closed') {
     const contact = input.contact

@@ -217,6 +217,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(t(l, 'legal.privacy.owner.what'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.staff'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.why'))}</p>
+    ${/* Phase 1 (0148) — the sign-up's abuse check, the fingerprint named as one. */ ''}<p id="signup-check">${esc(t(l, 'legal.privacy.owner.signupCheck'))}</p>
     <p>${esc(t(l, 'legal.privacy.owner.who', { processor: processorLabel(facts.processor, l), hosting: processorLabel(facts.hosting, l) }))}${
       facts.botCheck ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}` : ''}${
       l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.nobody'))}</p>

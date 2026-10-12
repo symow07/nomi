@@ -64,6 +64,15 @@ runs the product. The draft terms for the business itself are in
   `tests/integration/freeze.test.ts`). Said on `legal.privacy.howLong.body`,
   `legal.privacy.owner.howLong`, `legal.deletion.closed` and
   `legal.terms.fees.body`.
+- Sign-up abuse check (Phase 1, 0148, the owner's roadmap of 2026-10-13): every sign-up is scored on four marks,
+  each kept only as the app's keyed SHA-256 — a first-party sign-up cookie (`yf_signup`, 180 days, sent to the
+  form only), a browser fingerprint made from request headers (user agent, languages, platform) with the network,
+  the network (/24 or /48), and the e-mail as a mailbox — and on a day's attempts. Low gets the installation's
+  free trial, medium a card first and no trial, high is refused with the legal contact to reach a person; an
+  invitation vouches. Marks hold no business, outlive a closed workspace (so a second trial is seen), and are
+  forgotten after 180 days (an attempt's after two). Named on the privacy page (`legal.privacy.owner.signupCheck`,
+  the owner's "How long") and in the cookie table; the cookie is strictly necessary for the sign-up's security, so
+  there is still no banner, and the cookie paragraph no longer says none of them tracks you.
 - A deletion request that waits is chased (0147): the owner is reminded at 7
   and 30 days (e-mail always), and it is flagged in the app at 60; every chase
   is recorded in `deletion_chases`. Nomi still deletes nothing on its own: the

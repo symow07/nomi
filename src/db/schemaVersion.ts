@@ -364,7 +364,10 @@ import type { Db } from './client.js';
 //       push_subscriptions and mail_accounts.
 // 147 = a deletion request nobody answers is chased (0147): `deletion_chases`, `claim_deletion_chases`, which the
 //       daily ops.deletion_chase job calls; against a 146 database it fails.
-export const REQUIRED_SCHEMA_VERSION = 147;
+// 148 = trial-abuse scoring (0148): `signup_marks`, `signup_risk`, the functions every sign-up calls and the
+//       daily ops.signup_expiry job's `signup_marks_forget`; billing's trial and card read the risk. Against a 147
+//       database every sign-up fails.
+export const REQUIRED_SCHEMA_VERSION = 148;
 
 export type SchemaState = {
   readonly required: number;

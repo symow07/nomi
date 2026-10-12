@@ -239,6 +239,7 @@ import { loggableMessage } from '../../security/loggable.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
 import { validateSignup, normalizeEmail, isEmailShape, signupModeInForce, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } from './botCheck.js';
+import { checkSignup, markSignupAttempt, markSignupWorkspace, newSignupDeviceId, signupDigests, type SignupCheck } from '../../db/signupMarks.js';
 import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
@@ -1437,9 +1438,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (first) writeCookie(reply, AGE_TOLD, '1', { path: '/signup', maxAgeSec: 86400 });
     return html(reply, 403, signupPage({ locale, path: '/signup', mode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, ageRefused: true }));
   };
+  /**
+   * Phase 1 (0148) — TRIAL-ABUSE SCORING. This browser's sign-up cookie: a random id, kept 180 days, sent only to
+   * the sign-up form. It is how a second workspace from the same browser is seen; it is kept only as a one-way code.
+   */
+  const SIGNUP_COOKIE = 'yf_signup';
+  /**
+   * The score is one of the database's limits on the door, so it runs where they do: the production composition
+   * (`signupGuard`, main.ts). A test's app without them — one that signs many up from one address on purpose —
+   * is not scored, as it is not throttled.
+   */
+  const scoring = Boolean(deps.signupGuard);
+  const signupDeviceOf = (req: FastifyRequest): string | undefined => parseCookies(req.headers.cookie)[SIGNUP_COOKIE];
+  const keepSignupDevice = (req: FastifyRequest, reply: FastifyReply): void => {
+    // 180 days, the marks' own window (SIGNUP_MARK_DAYS), written out so the cookie table's reader checks it.
+    if (!signupDeviceOf(req)) writeCookie(reply, SIGNUP_COOKIE, newSignupDeviceId(), { path: '/signup', maxAgeSec: 15552000 });
+  };
+  /** A sign-up that scored high is refused, said plainly, with the way to a person — never a silent block. */
+  const riskRefusal = (reply: FastifyReply, locale: Locale) =>
+    html(reply, 403, signupPage({ locale, path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, riskRefused: true }));
   app.get('/signup', async (req, reply) => {
     if (sessionOf(req)) return reply.redirect('/app');
     const signupMode = await signupModeNow();
+    if (scoring && signupMode !== 'closed') keepSignupDevice(req, reply);
     if (signupMode !== 'closed' && ageToldHere(req)) return ageRefusal(reply, localeOf(req), signupMode, false);
     const invite = String((req.query as { invite?: string }).invite ?? '').trim().slice(0, 64);
     return html(reply, 200, signupPage({
@@ -1504,11 +1525,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (deps.signupCap != null && (await selfServeCount(deps.db).catch(() => 0)) >= deps.signupCap) {
       return again(403, { error: t(locale, 'signup.error.full') });
     }
+    /**
+     * Phase 1 (0148) — THE SCORE, before a code is sent: what this sign-up shares with the workspaces signed up
+     * before it, and how fast it comes (core/owner/signupRisk.ts). High is refused here, plainly, with a way to a
+     * person; medium goes on, and its workspace needs a card and has no free trial. A sign-up the operator
+     * vouched for — invite mode, or an open invitation in open mode — is scored and marked, never refused.
+     * In open mode a database that cannot count refuses the try, as the throttle does.
+     */
+    const vouched = signupMode === 'invite'
+      || (v.value.invite !== null && await inviteIsOpen(deps.db, v.value.invite).catch(() => false));
+    const risk: (SignupCheck & { readonly vouched: boolean }) | null = !scoring ? null
+      : await checkSignup(deps.db, signupDigests(deps.sessionSecret, {
+        deviceId: signupDeviceOf(req), ip: callerOf(req), headers: req.headers, email: v.value.email,
+      }), v.value.email).then((c) => ({ ...c, vouched })).catch(() => null);
+    if (risk) await markSignupAttempt(deps.db, risk.digests).catch(() => undefined);
+    if (scoring && !vouched && !risk) return again(503, { error: t(locale, 'signup.error.failed') });
+    if (!vouched && risk?.score.tier === 'high') {
+      // Which marks, never whose: the reasons and the points, nothing a person typed.
+      req.log.warn({ reasons: risk.score.reasons, points: risk.score.points }, 'sign-up refused by the abuse check');
+      return riskRefusal(reply, locale);
+    }
     const wanted = {
       factory: v.value.factory, language: locale, ownerName: v.value.name, email: v.value.email,
       passwordHash: await hashPassword(v.value.password),
       invite: v.value.invite, inviteRequired: signupMode === 'invite',
-      profile: v.value.profile, termsVersion: TERMS_VERSION, adultConfirmed: true,
+      profile: v.value.profile, termsVersion: TERMS_VERSION, adultConfirmed: true, risk,
     };
     // A3 — with a sender, the address has to answer first. An address that
     // already has a workspace is told so NOW, as before: she could learn it by
@@ -1525,8 +1566,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (made.code !== 'created') {
       return again(made.code === 'failed' ? 500 : made.code === 'full' ? 403 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
     }
+    await markWorkspace(req, made.businessId, risk);
     toldOfSignup(made.businessId);
-    noticeOnNextPage(reply, 'signup.welcome');
+    noticeOnNextPage(reply, welcomeFor(risk));
     return signIn(reply, made.businessId, { id: made.personId, name: v.value.name, isOwner: true },
       '/app/business', await passwordVersionOf(made.businessId, made.personId));
   });
@@ -1811,7 +1853,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     readonly termsVersion?: string | null;
     /** AGE — the age given passed MIN_AGE; absent on a sign-up pending from before AGE. */
     readonly adultConfirmed?: boolean;
+    /** Phase 1 (0148) — the score and its marks, written when the workspace is made; absent from before it. */
+    readonly risk?: (SignupCheck & { readonly vouched: boolean }) | null;
   };
+  /** Phase 1 — the workspace's marks and tier; a failure is logged, never the sign-up's undoing. */
+  const markWorkspace = async (req: FastifyRequest, businessId: string, risk: PendingSignup['risk']): Promise<void> => {
+    if (!risk) return;
+    await markSignupWorkspace(deps.db, businessId, risk, risk.vouched)
+      .catch((e: unknown) => { req.log.warn({ err: e }, 'sign-up marks could not be written'); });
+  };
+  /** A medium sign-up is told at once that a card comes before the first channel: no surprise later. */
+  const welcomeFor = (risk: PendingSignup['risk']): MessageKey | readonly FlashPart[] =>
+    risk && !risk.vouched && risk.score.tier === 'medium'
+      ? [{ key: 'signup.welcome' }, { key: 'signup.welcome.card' }] : 'signup.welcome';
 
   /** Issues a code, mails it, and points the browser at /verify. False: tell her why not. */
   const sendCode = async (
@@ -1889,8 +1943,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         // PWR2 (0129) — the address answered the code: a reset link may go there.
         await markLoginEmailProven(deps.db, login.loginId).catch(() => undefined);
       }
+      await markWorkspace(req, made.businessId, p.risk ?? null);
       toldOfSignup(made.businessId);
-      noticeOnNextPage(reply, 'signup.welcome');
+      noticeOnNextPage(reply, welcomeFor(p.risk ?? null));
       return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
         '/app/business', await passwordVersionOf(made.businessId, made.personId));
     }

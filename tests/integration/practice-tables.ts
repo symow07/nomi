@@ -99,6 +99,8 @@ export const PRACTICE_SKIP = [
   'advisor_consents', 'advisor_threads', 'advisor_turns', 'advisor_turn_subjects',
   // D4 (0147) — the record of each deletion request chased: the workspace's, never a copy's.
   'deletion_chases',
+  // Phase 1 (0148) — how the workspace signed up: a copy never signed up.
+  'signup_risk',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];
