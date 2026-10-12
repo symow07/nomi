@@ -99,14 +99,17 @@ import { toolClient } from './lib/db.mjs';
 //   shell              goes, unless a kept row points at it — then it stays,
 //                      emptied: `clear` nulled, closed and inactive.
 //   keep               stays; `clear` columns nulled, `blank` columns ''.
+//   keep-standing      stays while it still does its job (a stop not lifted);
+//                      one they took back goes (D10, 0140).
 //   anonymise          the buyer's own row: stays, `clear` nulled.
 //   detach             stays; the key to the buyer (`detach`) and `clear` nulled.
 //   receipts / redact  no key at all; written out in `textLinks` below.
 //   unrelated          looks like buyer data by a column name, and is not.
 //
 // `match` is how a table with no key to the buyer is found: 'identity' is
-// (channel, identity) as M38 stores it, 'phone' is the pilot allowlist's
-// digits. `says` is what the dry run prints beside a table that is not simply
+// (channel, identity) as M38 stores it, on their number or address;
+// 'any-identity' the same on every channel they wrote on (a stop asked on
+// Instagram); 'phone' is the pilot allowlist's digits. `says` is what the dry run prints beside a table that is not simply
 // erased.
 // ─────────────────────────────────────────────────────────────────────────────
 const ADVISOR_ORDER = Object.freeze({ advisor_turns: 1, advisor_threads: 2 });
@@ -166,10 +169,11 @@ export const RULES = Object.freeze({
 
   // ── What they bought ──────────────────────────────────────────────────────
   orders: {
-    do: 'keep', clear: ['client_email', 'shipping_address', 'notes'],
-    says: 'items, prices and status stay; e-mail, shipping address and notes cleared',
+    do: 'keep', clear: ['client_email', 'shipping_address', 'notes', 'tracking_reference'],
+    says: 'items, prices and status stay; e-mail, shipping address, notes and tracking number cleared',
   },
-  order_updates: { do: 'keep', says: "the order's status history" },
+  // D10 (0140) — a parcel's tracking number and a note on an update point at them.
+  order_updates: { do: 'keep', clear: ['note', 'tracking_reference'], says: "the order's status history; notes and tracking numbers cleared" },
   email_confirmations: {
     do: 'keep', blank: ['to_email'], clear: ['subject', 'body_html'],
     says: 'when it was sent and whether it arrived; the address and the mail itself cleared',
@@ -185,12 +189,13 @@ export const RULES = Object.freeze({
   // Permission to write to their number during the pilot. Permissions to write
   // go with them; the prohibition below stays.
   pilot_allowlist: { do: 'erase', match: 'phone' },
-  suppressions: { do: 'keep', match: 'identity', says: 'so they are never written to again' },
-  // 0135 — they asked, on a channel, not to be messaged: it stays, like a suppression.
-  opt_outs: { do: 'keep', match: 'identity', says: 'their request not to be messaged, so it is still honoured' },
+  suppressions: { do: 'keep', match: 'identity', clear: ['detail'], says: 'so they are never written to again; its free-text detail cleared' },
+  // 0135 — they asked, on a channel, not to be messaged: a standing stop stays, like a suppression. D10 (0140):
+  // one they took back protects nobody and goes; and it is found on whichever channel they asked on.
+  opt_outs: { do: 'keep-standing', match: 'any-identity', says: 'a standing request not to be messaged, so it is still honoured; one taken back goes' },
 
   // ── The request itself ────────────────────────────────────────────────────
-  deletion_requests: { do: 'keep', says: 'the request, closed as done (and any earlier one naming them)' },
+  deletion_requests: { do: 'keep', clear: ['subject_note'], says: 'the request, closed as done (and any earlier one naming them); the note of who they were cleared' },
   // 0076 — the request as noted from their message: their conversation, the
   // message itself and when. It was the reminder; the request above is what
   // stays as the record that they asked.
@@ -246,7 +251,7 @@ export const SUSPECT_COLUMNS = Object.freeze([
 ]);
 const KEY_COLUMNS = ['client_id', 'conversation_id'];
 
-const ACTIONS = new Set(['erase', 'erase-unless-kept', 'shell', 'keep', 'anonymise', 'detach', 'receipts', 'redact', 'unrelated']);
+const ACTIONS = new Set(['erase', 'erase-unless-kept', 'shell', 'keep', 'keep-standing', 'anonymise', 'detach', 'receipts', 'redact', 'unrelated']);
 /** Actions the foreign-key walk knows how to carry out. */
 const FK_ACTIONS = new Set(['erase', 'erase-unless-kept', 'shell', 'keep', 'anonymise', 'detach']);
 /** Columns a shell is judged by. */
@@ -402,7 +407,8 @@ export function coverage(schema, rules = RULES, virtual = VIRTUAL_EDGES) {
       else if (has(t, c) && schema.columns.get(t).get(c).notnull) problems.push(`${t}.${c} is to be detached, and it is NOT NULL`);
     }
     if (r.do === 'shell') for (const c of SHELL_COLUMNS) if (!has(t, c)) problems.push(`${t}.${c}: a shell is closed by it, and this database has no such column`);
-    if (r.match === 'identity' && !(has(t, 'channel') && has(t, 'identity') && has(t, 'business_id'))) problems.push(`${t} is matched by (channel, identity) and lacks one of them`);
+    if ((r.match === 'identity' || r.match === 'any-identity') && !(has(t, 'channel') && has(t, 'identity') && has(t, 'business_id'))) problems.push(`${t} is matched by (channel, identity) and lacks one of them`);
+    if (r.do === 'keep-standing' && !has(t, 'lifted_at')) problems.push(`${t} is kept while standing and has no lifted_at`);
     if (r.match === 'phone' && !(has(t, 'phone') && has(t, 'business_id'))) problems.push(`${t} is matched by phone and lacks it`);
   }
 
@@ -579,6 +585,7 @@ export async function planErasure(client, subject, options = {}) {
     const r = rules[t];
     for (const c of [...(r?.clear ?? []), ...(r?.blank ?? []), ...(r?.detach ?? [])]) cols.add(c);
     if (r?.do === 'shell') for (const c of SHELL_COLUMNS) cols.add(c);
+    if (r?.do === 'keep-standing') cols.add('lifted_at');
     return [...cols];
   };
   const sel = (t) => wanted(t).map((c) => `${q(c)}::text as ${q(c)}`).join(', ');
@@ -588,14 +595,15 @@ export async function planErasure(client, subject, options = {}) {
   const byIdentity = identities.filter((i) => i.channel === 'email' || i.channel === 'whatsapp');
   const matched = async (t) => {
     const r = rules[t];
-    if (r.match === 'identity') {
-      if (!byIdentity.length) return [];
+    if (r.match === 'identity' || r.match === 'any-identity') {
+      const ids = r.match === 'any-identity' ? identities : byIdentity;
+      if (!ids.length) return [];
       return (await client.query(`
         select ${sel(t)} from ${qt(t)} x
          where x.business_id = $1
            and exists (select 1 from unnest($2::text[], $3::text[]) as i(ch, v)
                         where i.ch = x.channel and (x.identity = i.v or (i.ch = 'email' and lower(x.identity) = i.v)))`,
-        [businessId, byIdentity.map((i) => i.channel), byIdentity.map((i) => i.identity)])).rows;
+        [businessId, ids.map((i) => i.channel), ids.map((i) => i.identity)])).rows;
     }
     if (r.match === 'phone') {
       const phones = distinct(identities.filter((i) => i.channel === 'whatsapp').map((i) => i.identity));
@@ -663,6 +671,8 @@ export async function planErasure(client, subject, options = {}) {
   const kept = new Map();
   for (const [t, rows] of scoped) {
     if (['keep', 'anonymise'].includes(rules[t]?.do)) kept.set(t, new Set(rows.keys()));
+    // D10 (0140) — a stop stays while it stands; one taken back goes.
+    if (rules[t]?.do === 'keep-standing') kept.set(t, new Set([...rows].filter(([, row]) => row.lifted_at === null).map(([k]) => k)));
   }
   const index = new Map();   // "table.col" -> Map(value -> [keys])
   const lookup = (t, c, v) => {

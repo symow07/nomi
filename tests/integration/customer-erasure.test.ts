@@ -190,7 +190,7 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
     expect(reached.length).toBeGreaterThan(30);
     expect(reached.filter((x: string) => !contract.has(x)), 'erased, detached, kept — or decided unrelated: every one').toEqual([]);
     for (const x of reached) {
-      expect(['erase', 'erase-unless-kept', 'shell', 'keep', 'anonymise', 'detach', 'receipts', 'redact', 'unrelated'], x).toContain(contract.get(x));
+      expect(['erase', 'erase-unless-kept', 'shell', 'keep', 'keep-standing', 'anonymise', 'detach', 'receipts', 'redact', 'unrelated'], x).toContain(contract.get(x));
     }
     expect((await admin.query('select customer_erasure_problems() as p')).rows[0].p).toEqual([]);
   });
@@ -293,7 +293,9 @@ d('0126 · the owner deletes a customer\'s data, and closes a workspace (require
     expect(String(ok.headers['location'])).toBe('/app/settings/data#buyers');
     expect(await footprint(C.noted)).toEqual({ messages: 0, identities: 0, named: 0, conversations: 0 });
     const req = (await admin.query(`select state, subject_note, closed_by from deletion_requests where client_id = $1`, [C.noted.client])).rows[0];
-    expect(req).toEqual({ state: 'done', subject_note: 'By e-mail, 3 October', closed_by: OWNER_ID });
+    // D10 (0140) — the owner's note of how they asked was the record until the erasure; after it, it is cleared like
+    // every kept field that could describe them. The request, its state and who closed it stay.
+    expect(req).toEqual({ state: 'done', subject_note: null, closed_by: OWNER_ID });
   });
 
   it('AN OPEN REQUEST FROM BEFORE: deleted now, from Your data, no note asked again — and it lands back on Your data', async () => {

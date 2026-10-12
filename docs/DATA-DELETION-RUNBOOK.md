@@ -198,17 +198,22 @@ out exactly this — no more, no less.
 **Kept**:
 - the orders they placed, with items, prices and status history
   (`order_updates`, `email_confirmations`). The order's e-mail, shipping
-  address and notes are cleared; a confirmation mail keeps when it went and
-  whether it arrived, not the address or the text;
+  address, notes and tracking number are cleared, and so are each update's
+  note and tracking number (0140, D10); a confirmation mail keeps when it went
+  and whether it arrived, not the address or the text;
 - a quote an order was made from (a price snapshot, nothing personal);
 - the conversation an order points at, as an **empty shell**: nothing in it,
   closed, inactive, held by nobody — it shows as done, never as a live buyer;
 - their `clients` row, with every personal field cleared (name, e-mail, phone,
   country, language, notes), so the order and the request still point at
   someone who is nobody;
-- `suppressions` for their identities, so they are never written to again;
+- `suppressions` for their identities, so they are never written to again —
+  the entry's free-text `detail` cleared (0140);
+- a standing stop (`opt_outs`, 0135) on any channel they wrote on, for the same
+  reason; a stop they took back (`lifted_at`) protects nobody and is erased
+  (0140);
 - the request itself, closed as `done`: when, by whom, and the counts in
-  `closed_note`. The audit trail has no verb for a carried-out deletion, so the
+  `closed_note`; the owner's `subject_note` of who they were is cleared (0140). The audit trail has no verb for a carried-out deletion, so the
   closed request is the record.
 
 **Changed in place** — rows that are not theirs but quoted them:
