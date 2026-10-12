@@ -41,8 +41,8 @@
 # PRUNES THE FOLDER IT WRITES TO. At the end of a run that succeeded — never
 # after one that failed — pairs in <destination> older than 180 days are
 # removed (backup/retention.sh: dated by the UTC time in the name, by the
-# DATABASE's clock; never the pair just made, the newest pair, or a name with
-# no date in it; each one named as it goes). KEEP_ALL=1 keeps everything.
+# DATABASE's clock; never the pair just made, the newest pair while it is under
+# 180 days, or a name with no date in it; each one named as it goes). KEEP_ALL=1 keeps everything.
 # This is the only way a copy on this laptop ever goes: nothing prunes it
 # while no tool runs. The copies uploaded to the bucket root are pruned there
 # by the scheduled job (backup/run.sh), on the same rule and the same 180 days.
@@ -306,7 +306,7 @@ for k,v in {
     || fail "upload failed — the local pair is intact at $FINAL"
   echo "    uploaded $NAME/ to $RAILWAY_BUCKET"
   rclone ls "BK:$BK_NAME/$NAME/" 2>/dev/null | awk '{printf "      %-40s %s bytes\n", $2, $1}'
-  echo "    kept there ${BACKUP_KEEP_MANUAL_DAYS:-180} days: the scheduled job prunes older manual pairs, never the newest"
+  echo "    kept there ${BACKUP_KEEP_MANUAL_DAYS:-180} days: the scheduled job prunes older manual pairs, the newest included"
 fi
 
 # ── prune this folder ───────────────────────────────────────────────────────

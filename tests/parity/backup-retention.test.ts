@@ -219,18 +219,29 @@ describe('the plan — which pairs go, and which never do', SHELL, () => {
       .toEqual({ [p61]: 'prune', [p59]: 'keep:young', [today]: 'keep:made' });
   });
 
-  it('the NEWEST pair stays whatever its age — and goes once a newer one exists (the control)', () => {
-    const p400 = pair(NOW - 400 * DAY), p300 = pair(NOW - 300 * DAY);
-    expect(plan([p400, p300].flatMap(objects), 180)).toEqual({ [p400]: 'prune', [p300]: 'keep:newest' });
+  it('the NEWEST pair stays past its own limit — and goes once a newer one exists (the control)', () => {
+    const d120 = pair(NOW - 120 * DAY), d100 = pair(NOW - 100 * DAY);
+    expect(plan([d120, d100].flatMap(objects), 60)).toEqual({ [d120]: 'prune', [d100]: 'keep:newest' });
     const later = pair(NOW - 10 * DAY);
-    expect(plan([p400, p300, later].flatMap(objects), 180)[p300]).toBe('prune');
+    expect(plan([d120, d100, later].flatMap(objects), 60)[d100]).toBe('prune');
+  });
+
+  it('D11 — but never past 180 days: then the newest goes too (the privacy page promises at most 180)', () => {
+    const p300 = pair(NOW - 300 * DAY), p181 = pair(NOW - 181 * DAY), p180 = pair(NOW - 180 * DAY);
+    expect(plan([p300, p181].flatMap(objects), 60)).toEqual({ [p300]: 'prune', [p181]: 'prune' });
+    expect(plan([p300, p181].flatMap(objects), 180)).toEqual({ [p300]: 'prune', [p181]: 'prune' });
+    // The control: at exactly 180 days the newest still stands.
+    expect(plan([p300, p180].flatMap(objects), 60)).toEqual({ [p300]: 'prune', [p180]: 'keep:newest' });
   });
 
   it('when the newest is HALF a pair, the newest COMPLETE pair stays too — and goes once the newest is whole (control)', () => {
-    const whole = pair(NOW - 250 * DAY), half = pair(NOW - 200 * DAY);
+    const whole = pair(NOW - 150 * DAY), half = pair(NOW - 100 * DAY);
     const halfOnly = [`${half}/nomi-${tsOf(half)}.dump.age`];
-    expect(plan([...objects(whole), ...halfOnly], 180)).toEqual({ [whole]: 'keep:complete', [half]: 'keep:newest' });
-    expect(plan([...objects(whole), ...objects(half)], 180)).toEqual({ [whole]: 'prune', [half]: 'keep:newest' });
+    expect(plan([...objects(whole), ...halfOnly], 60)).toEqual({ [whole]: 'keep:complete', [half]: 'keep:newest' });
+    expect(plan([...objects(whole), ...objects(half)], 60)).toEqual({ [whole]: 'prune', [half]: 'keep:newest' });
+    // D11 — past 180 days neither stands.
+    const old = pair(NOW - 250 * DAY), older = pair(NOW - 200 * DAY);
+    expect(plan([...objects(old), `${older}/nomi-${tsOf(older)}.dump.age`], 60)).toEqual({ [old]: 'prune', [older]: 'prune' });
   });
 
   it('a name with no real date is never judged; a dated pair of the same age goes (control)', () => {
@@ -331,16 +342,18 @@ describe('the bucket — prune_bucket over a folder standing in for it', SHELL, 
     expect(tree(f.b).filter((p) => !p.startsWith('daily')), 'the root is not the daily rule’s').toEqual(rootBefore);
   });
 
-  it('the newest manual pair stays even at 300 days, and says so — until a newer one exists (control)', () => {
+  it('D11 — the newest manual pair goes too once it is past 180 days; younger, it stays and says so (control)', () => {
     const b = fresh('bucket');
     const p400 = pair(NOW - 400 * DAY), p300 = pair(NOW - 300 * DAY);
     bucketPair(b, p400); bucketPair(b, p300);
-    const r = pruneBucket('manual "BK:$B/" 180 "$NOW_S"', { B: b, NOW_S: String(NOW) });
-    expect(readdirSync(b)).toEqual([p300]);
-    expect(r.out).toContain(`kept ${p300}, 300 d 0 h old, because it is the newest pair here`);
-    bucketPair(b, pair(NOW - 5 * DAY));
     pruneBucket('manual "BK:$B/" 180 "$NOW_S"', { B: b, NOW_S: String(NOW) });
-    expect(readdirSync(b)).toEqual([pair(NOW - 5 * DAY)]);
+    expect(readdirSync(b), 'nothing past 180 days, the last copy included').toEqual([]);
+    const d = fresh('bucket');
+    const d90 = pair(NOW - 90 * DAY), d70 = pair(NOW - 70 * DAY);
+    bucketPair(d, d90); bucketPair(d, d70);
+    const r = pruneBucket('daily "BK:$B/" 60 "$NOW_S"', { B: d, NOW_S: String(NOW) });
+    expect(readdirSync(d)).toEqual([d70]);
+    expect(r.out).toContain(`kept ${d70}, 70 d 0 h old, because it is the newest pair here`);
   });
 
   it('half a pair goes whole, and is named as half', () => {
@@ -647,6 +660,21 @@ describe('the docs say what the code does', () => {
 
   it('no file still says a manual pair is kept with no end date', () => {
     for (const f of FILES) for (const re of FOREVER) expect(read(f), `${f} ${re}`).not.toMatch(re);
+  });
+
+  it('D11 — the pages promise what the rule enforces: the same 60, the same 180, and four weeks for PITR', async () => {
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const lib = read('backup/retention.sh');
+    const num = (name: string) => Number(lib.match(new RegExp(`^${name}=(\\d+)`, 'm'))?.[1]);
+    expect(num('BACKUP_KEEP_AT_MOST_DAYS')).toBe(180);
+    expect(num('BACKUP_KEEP_MANUAL_DAYS')).toBeLessThanOrEqual(num('BACKUP_KEEP_AT_MOST_DAYS'));
+    for (const key of ['legal.privacy.advisor.basis', 'legal.deletion.kept.backups'] as const) {
+      const en = t('en', key);
+      expect(en, key).toContain(`for ${num('BACKUP_KEEP_DAILY_DAYS')} days`);
+      expect(en, key).toContain(`at most ${num('BACKUP_KEEP_AT_MOST_DAYS')} days`);
+      expect(en, key).toMatch(/about (the last )?four weeks/);
+      expect(en, key).toMatch(/each time the backup tools run there/);
+    }
   });
 
   it('the retention docs and the erasure tool name both numbers', () => {

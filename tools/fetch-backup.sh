@@ -13,8 +13,8 @@
 #
 # PRUNES THE FOLDER IT WRITES TO, like tools/backup.sh: after a fetch that
 # succeeded, pairs in <destination> older than 180 days are removed
-# (backup/retention.sh) — never the pair just fetched, the newest pair, or a
-# name with no date in it (the age key is safe). The dates are read with this
+# (backup/retention.sh) — never the pair just fetched, the newest pair while
+# it is under 180 days, or a name with no date in it (the age key is safe). The dates are read with this
 # machine's clock, so the prune first checks that clock against the time the
 # newest daily was taken, and skips if they disagree. KEEP_ALL=1 keeps
 # everything. This and tools/backup.sh are the only things that ever prune the

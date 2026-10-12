@@ -76,7 +76,7 @@ product writes to them.
 4. **Take a backup you can actually restore**, and know how long it is kept.
    This is the last moment a mistake is recoverable. A manual pair is kept
    180 days — in the bucket, and on the laptop until a backup tool next runs
-   there — and the newest manual pair until a newer one exists. The person
+   there; since D11 (2026-10-12) the newest manual pair goes at 180 days too. The person
    you are about to erase lives on in it that long
    (`docs/BACKUP-RESTORE.md`, "How long copies are kept").
 
@@ -249,8 +249,8 @@ It refuses, and changes nothing, when:
    erased, Nomi cannot write to them — a confirmation the owner wants to send
    through Nomi goes out **before** you run the tool.
 3. Backups keep the old rows until they age out — dailies after 60 days,
-   manual pairs after 180 days, the newest manual pair only once a newer one
-   exists; say so.
+   manual pairs after 180 days (the newest included, since D11), PITR after
+   about four weeks; say so.
 
 The tool does not read free text people typed about the buyer elsewhere — the
 owner's own description in `subject_note`, the notes on their order's status
@@ -261,9 +261,9 @@ theirs to edit.
 
 - **Backups.** They age out: dailies after 60 days, manual pairs after 180
   days — with the exceptions in `docs/BACKUP-RESTORE.md` ("How long copies are
-  kept": the newest manual pair, laptop copies that prune only when a backup
-  tool runs, and Railway's own PITR and volume backups). Say so when you
-  reply, and promise no date those exceptions could break.
+  kept": laptop copies that prune only when a backup tool runs, and Railway's
+  own PITR, about four weeks). Say so when you reply, and promise no date
+  those exceptions could break.
 - **Meta's own copies.** A buyer manages those in their own Instagram or
   Facebook settings, and `/data-deletion` says so.
 - **Another business's records.** Two businesses can hold the same buyer, and

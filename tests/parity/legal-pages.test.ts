@@ -104,7 +104,7 @@ describe('Legal pages · what a stranger may read', () => {
     expect(renderLegalTerms('en', null)).toContain(esc(t('en', 'legal.updated.terms')));
     expect(renderPrivacy('en', null, FACTS)).toContain(esc(t('en', 'legal.updated.privacy')));
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.updated.deletion')));
-    expect(t('en', 'legal.updated.deletion')).toBe('Last updated 7 October 2026.');
+    expect(t('en', 'legal.updated.deletion')).toBe('Last updated 12 October 2026.');
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.deletion.erased.advisor')));
     expect(renderDataDeletion('en', null)).toContain(esc(t('en', 'legal.deletion.kept.advisorUnlinked')));
   });
