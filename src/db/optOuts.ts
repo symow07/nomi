@@ -71,26 +71,66 @@ export async function recordOptOut(
     do update set asks = opt_outs.asks + 1, last_asked_at = greatest(opt_outs.last_asked_at, excluded.last_asked_at)
     returning asks`.execute(tx)).rows[0];
 
-  // What was already on its way to them, refused now — the gate would refuse
-  // it at send time anyway, but only until they write again.
+  await refuseWaiting(tx, businessId, input.conversationId, who.identity, input.now);
+  return (row?.asks ?? 1) > 1 ? 'asked_again' : 'recorded';
+}
+
+/**
+ * What was already on its way to them, refused now — the gate would refuse it
+ * at send time anyway, but only until they write again — and every reply still
+ * waiting for the owner: approved later, it would answer someone who asked not
+ * to be.
+ */
+async function refuseWaiting(tx: Tx, businessId: BusinessId, conversationId: string, identity: string, now: Date): Promise<void> {
   const queued = (await sql<{ id: string; to_wa_id: string | null }>`
     select id::text as id, to_wa_id from outbound_messages
-     where conversation_id = ${input.conversationId}::uuid and business_id = ${businessId}::uuid
+     where conversation_id = ${conversationId}::uuid and business_id = ${businessId}::uuid
        and status = 'queued' and notice is null
      order by seq`.execute(tx)).rows;
   const store = channelStore(tx, businessId);
   for (const q of queued) {
     await store.transition(q.id, 'canceled', 'canceled: opted_out');
-    await store.recordRefusal?.(q.id, q.to_wa_id ?? who.identity, 'opted_out');
+    await store.recordRefusal?.(q.id, q.to_wa_id ?? identity, 'opted_out');
   }
-  // …and every reply still waiting for the owner: approved later, it would
-  // answer a buyer who asked not to be.
   await sql`
-    update drafts set status = 'superseded', decided_at = ${input.now}
-     where conversation_id = ${input.conversationId}::uuid and business_id = ${businessId}::uuid
+    update drafts set status = 'superseded', decided_at = ${now}
+     where conversation_id = ${conversationId}::uuid and business_id = ${businessId}::uuid
        and status = 'pending'`.execute(tx);
+}
 
-  return (row?.asks ?? 1) > 1 ? 'asked_again' : 'recorded';
+/**
+ * D9 (the data-protection audit, 2026-10-12) — THE UNSUBSCRIBE LINK IS A STOP.
+ *
+ * The link (and a mail program's one-click unsubscribe, which every mail
+ * carries in its headers) said "nothing will be sent to this address again",
+ * but wrote only a suppression, which only first e-mails and follow-ups read:
+ * the assistant's replies, approved drafts, the owner's own typed e-mail — on a
+ * cold thread the person never answered, too — and order confirmations still
+ * went. Now it is the same stop as a buyer's own words (0135), recorded for that
+ * address on that channel: nothing at all goes until they write to the business
+ * again; then a reply may, never a follow-up or a first mail. What was queued to
+ * that address is refused now and every waiting draft retired. The owner lifts
+ * it, as any stop.
+ */
+export async function recordAddressStop(
+  tx: Tx, businessId: BusinessId, input: { readonly channel: string; readonly identity: string; readonly now: Date },
+): Promise<void> {
+  await sql`
+    insert into opt_outs (business_id, channel, identity, asked_at, last_asked_at, recorded_by)
+    values (${businessId}::uuid, ${input.channel}, ${input.identity}, ${input.now}, ${input.now}, 'buyer')
+    on conflict (business_id, channel, identity) where lifted_at is null
+    do update set asks = opt_outs.asks + 1, last_asked_at = greatest(opt_outs.last_asked_at, excluded.last_asked_at)`.execute(tx);
+  // Every conversation of the business on that channel with that person, and
+  // any with a row queued to that address.
+  const conversations = (await sql<{ id: string }>`
+    select c.id::text as id from conversations c
+     where c.business_id = ${businessId}::uuid and c.channel = ${input.channel}
+       and exists (select 1 from client_channels cc where cc.client_id = c.client_id and cc.channel = c.channel
+                    and lower(cc.channel_user_id) = lower(${input.identity}))
+    union
+    select o.conversation_id::text from outbound_messages o
+     where o.business_id = ${businessId}::uuid and o.status = 'queued' and lower(o.to_wa_id) = lower(${input.identity})`.execute(tx)).rows;
+  for (const c of conversations) await refuseWaiting(tx, businessId, c.id, input.identity, input.now);
 }
 
 /** 0135 — is this draft the line that answers a stop? Its mark lets it past the stop it answers. */

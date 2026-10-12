@@ -116,8 +116,12 @@ address. There is no launch or marketing mail feature.
 - **The privacy page said more than the code did.** It said every e-mail carries a link that stops more, and
   it was only a header. Since #263 it says what is true: every first e-mail and follow-up carries the
   business's postal address and the link, and a reply carries neither.
-- **An unsubscribe stops first e-mails and follow-ups, not replies** to someone who wrote in. This looks
-  intended; it is recorded here so it is a decision, not an accident.
+- ~~An unsubscribe stops first e-mails and follow-ups, not replies~~ — **changed 2026-10-12 (D9 of the
+  data-protection audit, approved by the owner):** the page said "nothing will be sent to this address
+  again", and the owner's own typed mail on a cold thread still went. The link (and a mail program's
+  one-click unsubscribe) now also records the stop (`opt_outs`, 0135) for that address: nothing at all
+  goes until they write to the business again, then a reply may, never a follow-up or a first mail.
+  The unsubscribe and privacy pages say exactly that.
 
 ### 4 · Stripe: the renewal terms beside the subscribe button — done
 - **Beside the button,** in plain text and five languages:
