@@ -292,6 +292,8 @@ export const RULES = Object.freeze({
   organization_enrichments: { do: 'unrelated' },
   // Errors, with no value they carried (D19: messages stored without quoted values).
   app_errors: { do: 'unrelated' },
+  // D4 (0147) — the record that a waiting deletion request was chased: ids and dates, Nomi's own.
+  deletion_chases: { do: 'unrelated' },
 });
 
 /**

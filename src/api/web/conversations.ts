@@ -469,9 +469,15 @@ function copySection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
   </div>`;
 }
 
-function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
+/** D4 (0147) — a request unanswered this long is flagged on its page; the reminders went at 7 and 30 days. */
+export const DELETION_FLAG_DAYS = 60;
+
+function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer, now: Date = new Date()): string {
   const d = f.deletion ?? null;
   const date = (x: Date) => show.date(locale, x);
+  // Nomi never acts on it: the line only says how long it has waited, and whose decision it is.
+  const waitedLong = (asked: Date) => now.getTime() - asked.getTime() >= DELETION_FLAG_DAYS * 86_400_000
+    ? `<p class="fwarn" id="deletion-waited">${esc(t(locale, 'conv.deletion.waiting60'))}</p>` : '';
   const state = (tone: string, key: MessageKey) =>
     `<span class="pill ${tone}">${esc(t(locale, key))}</span>`;
   const head = `<h2>${esc(t(locale, 'conv.deletion.title'))}</h2>`;
@@ -506,6 +512,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
       : staff;
     return `<div class="block" id="deletion">${head}
       <p>${state('warn', 'data.ask.state.waiting')}${esc(t(locale, 'conv.deletion.waiting', { date: date(ask.askedAt) }))}</p>
+      ${waitedLong(ask.askedAt)}
       ${ask.words ? `<p class="voice"><bdi dir="auto">${esc(ask.words)}</bdi></p>` : ''}
       ${decide}
     </div>`;
@@ -514,6 +521,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
   if (d?.state === 'open') {
     return `<div class="block" id="deletion">${head}
       <p>${state('warn', 'data.deletion.state.open')}${esc(t(locale, 'conv.deletion.open', { asked: date(d.askedAt) }))}</p>
+      ${waitedLong(d.askedAt)}
       ${viewer.isOwner
         ? `${what}
         ${erase(false)}
@@ -633,5 +641,5 @@ export function renderCustomerFile(
     ${context}
     ${optOutSection(f, locale, viewer)}
     ${copySection(f, locale, viewer)}
-    ${deletionSection(f, locale, viewer)}`;
+    ${deletionSection(f, locale, viewer, now)}`;
 }

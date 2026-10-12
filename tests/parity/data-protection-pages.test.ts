@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -204,7 +204,7 @@ describe('D7 · the terms say what the download holds, not "in full"', () => {
   it('the buyer page offers the copy to the owner only, beside deleting', () => {
     const src = read('src/api/web/conversations.ts');
     expect(src).toMatch(/function copySection[\s\S]*?if \(!viewer\.isOwner\) return '';/);
-    expect(src).toMatch(/\$\{copySection\(f, locale, viewer\)\}\s*\$\{deletionSection\(f, locale, viewer\)\}/);
+    expect(src).toMatch(/\$\{copySection\(f, locale, viewer\)\}\s*\$\{deletionSection\(f, locale, viewer, now\)\}/);
     expect(read('src/api/web/app.ts')).toMatch(/app\.get\('\/app\/conversations\/:conversationId\/copy\.csv'[\s\S]{0,400}ownerOnly\(req, reply, 'data_rights'/);
   });
 });
@@ -286,7 +286,11 @@ describe('D19 · every business table is decided, so none escapes the erasure by
   it('the tool and the database name the same tables unrelated, and the tool refuses a business table it has not decided', async () => {
     // @ts-expect-error — the operator tools, plain JS on purpose.
     const { RULES, coverage } = await import('../../tools/erase-buyer.mjs');
-    const sql = read('migrations/0144_every_table.sql');
+    // The newest migration that re-creates the contract is the one in force (0144, then 0147 …).
+    const newest = readdirSync(ROOT + 'migrations').filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort()
+      .filter((f) => /create or replace function customer_erasure_contract\(/i.test(read(`migrations/${f}`))).at(-1)!;
+    expect(newest >= '0147').toBe(true);
+    const sql = read(`migrations/${newest}`);
     const inSql = [...sql.matchAll(/\('([a-z_.]+)', 'unrelated'/g)].map((m) => m[1]).sort();
     const inTool = Object.entries(RULES as Record<string, { do: string }>).filter(([, r]) => r.do === 'unrelated').map(([t]) => t).sort();
     expect(inSql).toEqual(inTool);
