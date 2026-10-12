@@ -91,3 +91,16 @@ describe('D15 · the deletion page says what D3’s stop line does', () => {
     for (const l of ['zh', 'ar', 'es', 'fr'] as const) expect(t(l, 'legal.deletion.step3'), l).toContain(said[l]);
   });
 });
+
+describe('D4 · until the owner sets a retention policy, the pages claim no end date and no deadline', () => {
+  it('no timer erases a workspace (0126 retired the 90-day one), so "How long" names no end', () => {
+    expect(read('src/queue/boss.ts')).toMatch(/RETIRED_QUEUES = \{ retention: 'ops\.retention' \}/);
+    for (const l of LOCALES) expect(t(l, 'legal.privacy.howLong.body', { deletion: 'X' }), l).not.toMatch(/\b(30|60|90) (days|días|jours)\b/);
+    expect(t('en', 'legal.privacy.howLong.body', { deletion: 'X' })).toMatch(/no set end/);
+  });
+  it('and the deletion page says how soon is the business’s, with no deadline from Nomi', () => {
+    expect(t('en', 'legal.deletion.step2')).toMatch(/How soon is up to the business; Nomi deletes nothing on its own\./);
+    const said = { zh: '什么时候删由商家决定', ar: 'وتوقيت الحذف بيد الشركة', es: 'Cuándo lo hace depende del negocio', fr: 'Le moment de la suppression dépend de l’entreprise' } as const;
+    for (const l of ['zh', 'ar', 'es', 'fr'] as const) expect(t(l, 'legal.deletion.step2'), l).toContain(said[l]);
+  });
+});
