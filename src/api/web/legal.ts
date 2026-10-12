@@ -211,6 +211,18 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <p>${esc(advisorProviders(l, facts.processor))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.nobody'))}</p>
     <p>${esc(t(l, 'legal.privacy.advisor.customers'))}</p>` : ''}
+    ${/* D5 (the data-protection audit, 2026-10-12) — the people who use Nomi at a business: what is kept about them,
+         why, who receives it (Nomi's own mail is Google's, checked in production), how long, and how to export and
+         delete it. The bot check is named only where one runs, as in the list above. */ ''}<h2 id="business">${esc(t(l, 'legal.privacy.owner.title'))}</h2>
+    <p>${esc(t(l, 'legal.privacy.owner.what'))}</p>
+    <p>${esc(t(l, 'legal.privacy.owner.staff'))}</p>
+    <p>${esc(t(l, 'legal.privacy.owner.why'))}</p>
+    <p>${esc(t(l, 'legal.privacy.owner.who', { processor: processorLabel(facts.processor, l), hosting: processorLabel(facts.hosting, l) }))}${
+      facts.botCheck ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.owner.botCheck', { botCheck: processorLabel(facts.botCheck, l) }))}` : ''}${
+      l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.nobody'))}</p>
+    <p>${esc(t(l, 'legal.privacy.owner.howLong'))}</p>
+    <p>${esc(t(l, 'legal.privacy.owner.export', { data: t(l, 'data.title') }))}</p>
+    <p>${esc(t(l, 'legal.privacy.owner.delete', { data: t(l, 'data.title'), people: t(l, 'people.title') }))}</p>
     ${/* §9.4 — D7: every cookie is strictly necessary, so there is no banner; the list is the code's own. */ ''}<h2 id="cookies">${esc(t(l, 'legal.privacy.cookies.title'))}</h2>
     <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
     ${cookieTable(l)}

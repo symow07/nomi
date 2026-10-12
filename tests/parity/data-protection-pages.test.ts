@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { renderDataDeletion } from '../../src/api/web/legal.js';
+import { renderDataDeletion, renderPrivacy } from '../../src/api/web/legal.js';
 import { aiProcessor, HOSTING, type Processor } from '../../src/core/legal/processors.js';
 import { esc } from '../../src/api/web/layout.js';
 import { withoutIsolates } from './isolates.js';
@@ -127,3 +127,42 @@ describe('D20 · the wording items', () => {
     expect(t('ar', 'legal.privacy.cookies.body')).toContain('لا يتتبّعك');
   });
 });
+
+describe('D5 · the privacy page has a statement for the people who use Nomi at a business', () => {
+  const FACTS = { processor: aiProcessor('https://api.deepseek.com/anthropic'), hosting: HOSTING, transcriber: null, botCheck: null };
+  const page = (l: (typeof LOCALES)[number], facts: Parameters<typeof renderPrivacy>[2] = FACTS) => withoutIsolates(renderPrivacy(l, 'privacy@nomi.test', facts));
+
+  it('in every language: its own section, after the advisor’s and before the cookies, with every part', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      const at = (x: string) => html.indexOf(x);
+      expect(at('id="business"'), l).toBeGreaterThan(at('id="advisor"'));
+      expect(at('id="business"'), l).toBeLessThan(at('id="cookies"'));
+      for (const k of ['title', 'what', 'staff', 'why', 'howLong'] as const) expect(html, `${l} ${k}`).toContain(esc(t(l, `legal.privacy.owner.${k}`)));
+    }
+  });
+  it('names who receives it by name: Google for Nomi’s own mail (production’s system mailbox is Google’s, checked 2026-10-12), the configured language service and host', () => {
+    const html = page('en');
+    expect(t('en', 'legal.privacy.owner.who', { processor: 'X', hosting: 'Y' })).toMatch(/^Who receives it: Google, which carries Nomi’s own e-mail/);
+    expect(html).toContain(esc(t('en', 'legal.privacy.owner.who', { processor: 'DeepSeek (China)', hosting: 'Railway (USA)' })));
+    // The system mail is sent through the operator's own connected mailbox first (src/main.ts).
+    expect(read('src/main.ts')).toMatch(/mailboxSystemMailer\(systemSmtp\.from/);
+  });
+  it('the bot check only where one runs', () => {
+    const said = (h: string) => h.includes(esc(t('en', 'legal.privacy.owner.botCheck', { botCheck: '@@' })).split('@@')[1]!);
+    expect(said(page('en'))).toBe(false);
+    expect(said(page('en', { ...FACTS, botCheck: { name: 'Cloudflare Turnstile', country: 'US' } }))).toBe(true);
+  });
+  it('what it promises is what the code does: a password only as a hash, no age, an unfinished sign-up forgotten within a day (D1)', () => {
+    const what = t('en', 'legal.privacy.owner.what');
+    expect(what).toMatch(/your password, only as a one-way hash/);
+    expect(what).toMatch(/not your age/);
+    expect(t('en', 'legal.privacy.owner.howLong')).toMatch(/A sign-up never finished is forgotten within a day of its code expiring/);
+    expect(read('migrations/0137_signup_records.sql')).toMatch(/create or replace function login_codes_forget\(\)/);
+    expect(read('src/main.ts')).toMatch(/boss\.schedule\(QUEUES\.signupExpiry, '45 3 \* \* \*'/);
+  });
+  it('the intro points to it', () => {
+    expect(t('en', 'legal.privacy.intro')).toMatch(/Further down, it says the same for the people who use Nomi at a business\./);
+  });
+});
+
