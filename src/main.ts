@@ -1477,15 +1477,12 @@ export async function buildProduction(
    */
   await boss.schedule(QUEUES.deletionChase, '15 7 * * *', {});
   await boss.work(QUEUES.deletionChase, async () => {
-    const due = (await sql<{ business_id: string; subject: string; step: string; asked_at: Date; conversation_id: string | null }>`
-      select business_id::text as business_id, subject, step, asked_at, conversation_id::text as conversation_id
-        from claim_deletion_chases()`.execute(db)).rows;
+    const due = (await sql<{ business_id: string; step: string }>`
+      select business_id::text as business_id, step from claim_deletion_chases()`.execute(db)).rows;
     for (const c of due) {
       if (c.step === '60d') continue;   // the app flags it; the chase is recorded
-      await boss.send(QUEUES.notify, {
-        businessId: c.business_id, kind: 'deletion_reminder', conversationId: c.conversation_id,
-        deletionAskedAt: c.asked_at.toISOString(), deletionDays: c.step === '7d' ? 7 : 30,
-      } satisfies NotifyJob);
+      // The owner's decision (2026-10-12): the reminder carries no customer data — no date, no conversation.
+      await boss.send(QUEUES.notify, { businessId: c.business_id, kind: 'deletion_reminder', conversationId: null } satisfies NotifyJob);
     }
     if (due.length > 0) console.log(`[deletions] ${due.length} waiting request(s) chased`);
   });

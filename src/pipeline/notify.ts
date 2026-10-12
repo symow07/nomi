@@ -152,6 +152,16 @@ export const waitsInApp = (kind: AlertKind): boolean => (QUIET_KINDS as readonly
 export const alertLink = (base: string, conversationId: string): string =>
   `${base.replace(/\/$/, '')}${conversationUrl(conversationId)}`;
 
+/**
+ * D4 (the owner, 2026-10-12) — A DELETION ALERT CARRIES NO CUSTOMER DATA: "a deletion request is
+ * waiting, open Nomi", and nothing more. Not the date asked, not how long, not the conversation's
+ * address: the link opens Your data, which lists every waiting request. The first alert and the
+ * reminders alike, on every way (e-mail, phone, WhatsApp).
+ */
+export const DELETION_ALERT_KINDS = ['deletion_requested', 'deletion_reminder'] as const satisfies readonly AlertKind[];
+export const isDeletionAlert = (kind: AlertKind): boolean => (DELETION_ALERT_KINDS as readonly AlertKind[]).includes(kind);
+export const deletionAlertLink = (base: string): string => `${base.replace(/\/$/, '')}/app/settings/data#buyers`;
+
 /** One open deletion request the operator must carry out soon, as the alert names it. */
 export type DeletionDueLine = {
   readonly business: string;
@@ -171,9 +181,6 @@ export type OperatorAlertDetail = {
   readonly metaErrors?: readonly { readonly business: string; readonly attempted: number; readonly failed: number; readonly errors: readonly string[] }[];
   /** TZ — the zone the reader's dates are said in: the receiving workspace's. UTC when not given. */
   readonly zone?: string;
-  /** D4 (0147) — `deletion_reminder`: when the customer asked, and how many days it has waited. */
-  readonly deletionAskedAt?: Date | null;
-  readonly deletionDays?: number;
   /** `signup_digest` (G1): who signed up in the last day. */
   readonly signups?: readonly { readonly business: string; readonly kind: string | null; readonly country: string | null }[];
   /** `signup_digest` (G7): the operator switches still on. */
@@ -246,13 +253,6 @@ export function renderOwnerAlert(
     return detail.lastBackupAt
       ? t(locale, 'notify.backup_stale', { when: formatDate(locale, detail.lastBackupAt, detail.zone ?? 'UTC') })
       : t(locale, 'notify.backup_stale.never');
-  }
-  // D4 (0147) — a deletion request still waiting: when it was asked, how long ago, and that Nomi never acts on it.
-  if (kind === 'deletion_reminder') {
-    return t(locale, 'notify.deletion_reminder', {
-      date: formatDate(locale, detail.deletionAskedAt ?? new Date(), detail.zone ?? 'UTC'),
-      days: detail.deletionDays ?? 7,
-    });
   }
   // CC-02a — which requests, whose, asked when and due by when; a late one
   // says so. The words for the kind of request are the owner's page's own.
@@ -557,7 +557,9 @@ export async function reachPeople(
  * anyone was reached: a retry would tell them twice.
  */
 export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
-  const conversationId = job.conversationId && UUID.test(job.conversationId) ? job.conversationId : null;
+  // D4 — a deletion alert names no conversation: not in its words, not in its link.
+  const bare = isDeletionAlert(job.kind);
+  const conversationId = !bare && job.conversationId && UUID.test(job.conversationId) ? job.conversationId : null;
   const found = await withTenantTx(deps.db, bid, async (tx) => {
     const facts = await ownerAlertFacts(tx, bid);
     if (!facts) return null;
@@ -569,13 +571,12 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
   });
   if (!found) return 'skipped_no_destination';
   const locale: Locale = parseLocale(found.locale) ?? 'en';
-  const words = renderOwnerAlert(locale, job.kind, found.name, {
-    ...(job.deletionAskedAt ? { deletionAskedAt: new Date(job.deletionAskedAt) } : {}),
-    ...(job.deletionDays !== undefined ? { deletionDays: job.deletionDays } : {}),
-  });
+  const words = renderOwnerAlert(locale, job.kind, found.name);
   const subject = t(locale, `notify.${job.kind}.subject` as MessageKey);
-  const link = deps.publicBaseUrl && conversationId ? alertLink(deps.publicBaseUrl, conversationId) : null;
-  const text = link ? `${words}\n\n${t(locale, 'notify.open', { url: link })}` : words;
+  const link = !deps.publicBaseUrl ? null
+    : bare ? deletionAlertLink(deps.publicBaseUrl)
+    : conversationId ? alertLink(deps.publicBaseUrl, conversationId) : null;
+  const text = !link ? words : bare ? `${words}\n\n${link}` : `${words}\n\n${t(locale, 'notify.open', { url: link })}`;
   const push = deps.push ?? null;
   const ownerPhone = found.ownerPhone;
 

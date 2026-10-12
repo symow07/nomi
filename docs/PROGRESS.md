@@ -792,7 +792,7 @@ separate batch after this one. The provider batch (D9) is not part of it.
 - The rate is shown exactly as the rate page shows it, never rounded by a formatter.
 - Lists are capped at 15 to 30 lines, then "…and N more".
 
-**Waiting on the owner:** a native read of about 210 `advisor.*` lines in zh, ar, es and fr (`docs/NATIVE-REVIEW-UI.md`, not a gate). Arabic verb agreement in the model's own sentences cannot be checked by pattern; `tools/check-advisor-model.mjs` prints live answers to read.
+**Waiting on the owner:** a native read of about 210 `advisor.*` lines in zh, ar, es and fr (`docs/NATIVE-REVIEW-UI.md`, not a gate); since 2026-10-12 beside them, the data-protection audit's and D4's lines (its last section). Arabic verb agreement in the model's own sentences cannot be checked by pattern; `tools/check-advisor-model.mjs` prints live answers to read.
 
 **Verification (#242):**
 - `check`: 7,311 passed.

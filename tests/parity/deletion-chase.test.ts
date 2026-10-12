@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { renderOwnerAlert, interrupts } from '../../src/pipeline/notify.js';
+import { renderOwnerAlert, interrupts, DELETION_ALERT_KINDS, deletionAlertLink } from '../../src/pipeline/notify.js';
 import { renderCustomerFile, DELETION_FLAG_DAYS, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, tn } from '../../src/core/owner/i18n/messages.js';
-import { formatDate } from '../../src/core/owner/i18n/format.js';
+import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 // @ts-expect-error — the operator tool, plain JS on purpose (tools/ is not type-checked).
@@ -68,27 +67,38 @@ describe('D4 · the chase is recorded, once per step, and deletes nothing', () =
     const main = read('src/main.ts');
     expect(main).toContain("await boss.schedule(QUEUES.deletionChase, '15 7 * * *', {});");
     expect(main).toContain("if (c.step === '60d') continue;");
-    expect(main).toMatch(/kind: 'deletion_reminder'[\s\S]{0,200}deletionDays: c\.step === '7d' \? 7 : 30/);
+    expect(main).toContain("await boss.send(QUEUES.notify, { businessId: c.business_id, kind: 'deletion_reminder', conversationId: null } satisfies NotifyJob);");
     expect(read('src/pipeline/notify.ts')).toContain("mailOwnerAlways: job.kind === 'deletion_requested' || job.kind === 'deletion_reminder',");
     expect(interrupts('deletion_reminder')).toBe(true);
   });
 });
 
-describe('D4 · the reminder says when, how long, and whose decision it is', () => {
-  it('in five languages: the date, the days, and that Nomi deletes nothing on its own', () => {
-    const asked = new Date('2026-11-01T09:00:00Z');
-    const never = { en: /never deletes anything on its own/, zh: /不会自行删除/, ar: /لا يحذف Nomi أي شيء من تلقاء نفسه/,
-      es: /nunca borra nada por su cuenta/, fr: /ne supprime jamais rien de sa propre initiative/ } as const;
+describe('D4 · a deletion alert carries no customer data (the owner, 2026-10-12)', () => {
+  it('"a deletion request is waiting, open Nomi" and nothing more — the first alert and the reminders alike, in five languages', () => {
+    const said = { en: 'A deletion request is waiting. Open Nomi.', zh: '有一条删除要求在等待。请打开 Nomi。',
+      ar: 'طلب حذف بانتظار الرد. يُرجى فتح Nomi.', es: 'Hay una solicitud de borrado esperando. Abre Nomi.',
+      fr: 'Une demande de suppression attend. Ouvrez Nomi.' } as const;
     for (const l of LOCALES) {
-      for (const days of [7, 30]) {
-        const text = withoutIsolates(renderOwnerAlert(l, 'deletion_reminder', 'Shop', { deletionAskedAt: asked, deletionDays: days }));
-        expect(text, l).toContain(formatDate(l, asked, 'UTC'));
-        expect(text, l).toContain(String(days));
-        expect(text, l).not.toMatch(/\{|\}/);
-        expect(text, l).toMatch(never[l]);
+      for (const kind of DELETION_ALERT_KINDS) {
+        const text = withoutIsolates(renderOwnerAlert(l, kind, 'Shop'));
+        expect(text, `${l} ${kind}`).toBe(said[l]);
+        // No date, no count, no name: nothing that could say who asked or when.
+        expect(text, `${l} ${kind}`).not.toMatch(/\d|\{|\}|Shop/);
+        const subject = t(l, `notify.${kind}.subject` as MessageKey);
+        expect(subject, `${l} ${kind}`).not.toMatch(/\d|\{|\}/);
       }
-      expect(t(l, 'notify.deletion_reminder.subject'), l).not.toBe('notify.deletion_reminder.subject');
     }
+    expect([...DELETION_ALERT_KINDS].sort()).toEqual(['deletion_reminder', 'deletion_requested']);
+  });
+  it('its link opens Your data — never a conversation — on every way it leaves', () => {
+    expect(deletionAlertLink('https://app.example.test/')).toBe('https://app.example.test/app/settings/data#buyers');
+    const notify = read('src/pipeline/notify.ts');
+    // The conversation is dropped before anything reads it, so neither the words, the link, the
+    // e-mail, the phone alert nor the WhatsApp text can carry it.
+    expect(notify).toContain('const conversationId = !bare && job.conversationId && UUID.test(job.conversationId) ? job.conversationId : null;');
+    expect(notify).toMatch(/: bare \? deletionAlertLink\(deps\.publicBaseUrl\)/);
+    expect(notify).toContain("const text = !link ? words : bare ? `${words}\\n\\n${link}` :");
+    expect(notify).toContain('sendPush(phone, { title: subject, body: words, url: link }');
   });
 });
 

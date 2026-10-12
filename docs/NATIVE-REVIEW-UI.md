@@ -15850,3 +15850,28 @@ The page that tells a customer what deletion does. Two new lines, and its date:
 Written in zh, ar, es and fr in one pass; none has had a native read. Arabic addresses the customer with the unvowelled ـك only («تذكرك»).
 
 Reviewer: ______  Date: ______
+
+## 2026-10-12 — the data-protection audit (D1–D20, #284–#303) and D4 (#306–#309, and the bare deletion alert)
+
+Every new or changed line of the two runs, written in zh, ar, es and fr in one pass; none has had a native read.
+**Not a gate** (the owner, 2026-10-12): these wait beside the advisor's lines above. Read the legal ones on
+/privacy, /terms and /data-deletion, with the lines around them; the owner's ones on Today, a customer's page,
+Billing and Setup (a lapsed workspace shows the frozen banner on every page).
+
+- **D4, the legal lines:** `legal.deletion.chased`, `legal.deletion.closed`, `legal.privacy.howLong.body`, `legal.privacy.owner.howLong`, `legal.terms.fees.body`.
+- **D4, the owner's lines:** `alerts.alsoMail`, `billing.status.lapsed`, `conv.deletion.waiting60`, `frozen.banner.billing`, `frozen.banner.body`, `frozen.banner.data`, `frozen.banner.title`, `frozen.refused`, `inbox.flash.billing_lapsed`, `notify.billing_lapsed`, `notify.billing_lapsed.subject`, `notify.deletion_reminder`, `notify.deletion_reminder.subject`, `notify.deletion_requested`, `order.flash.billing_lapsed`, `refused.do.frozen`, `refused.why.frozen`, `setup.value.billing.lapsed`, `takeover.flash.billing_lapsed`, `takeover.reason.billing_lapsed`, `today.deletion.long.few`, `today.deletion.long.many`, `today.deletion.long.one`, `today.deletion.long.other`, `today.deletion.long.two`, `today.deletion.long.zero`.
+- **The data-protection audit, the legal lines:** `legal.deletion.erased.identity`, `legal.deletion.erased.practice`, `legal.deletion.kept.backups`, `legal.deletion.kept.doNotContact`, `legal.deletion.kept.logs`, `legal.deletion.kept.mailbox`, `legal.deletion.kept.meta`, `legal.deletion.kept.orders`, `legal.deletion.kept.processor`, `legal.deletion.kept.transcriber`, `legal.deletion.step2`, `legal.deletion.step3`, `legal.privacy.advisor.basis`, `legal.privacy.advisor.customers`, `legal.privacy.advisor.nobody`, `legal.privacy.ai`, `legal.privacy.choices.body`, `legal.privacy.cookies.body`, `legal.privacy.cookies.botCheck`, `legal.privacy.howLong.body`, `legal.privacy.intro`, `legal.privacy.kept.photo`, `legal.privacy.owner.botCheck`, `legal.privacy.owner.delete`, `legal.privacy.owner.export`, `legal.privacy.owner.howLong`, `legal.privacy.owner.staff`, `legal.privacy.owner.title`, `legal.privacy.owner.what`, `legal.privacy.owner.who`, `legal.privacy.owner.why`, `legal.privacy.who.advisorKept`, `legal.privacy.who.ai`, `legal.privacy.who.botCheck`, `legal.privacy.who.hosting`, `legal.terms.fees.body`, `legal.updated.deletion`, `legal.updated.privacy`, `legal.updated.terms`.
+- **The data-protection audit, the other lines:** `conv.copy.download`, `conv.copy.lead`, `conv.copy.title`, `conv.deletion.erased`, `conv.deletion.kept`, `conv.deletion.samePerson`, `data.flash.erasedSamePerson`, `unsub.body`, `unsub.done.body`.
+- **Where the words differ from the English, and why** (the catalogue's rules, held by tests):
+  - "Frozen" is 冻结 / تُجمَّد / se congela / gelé throughout; the deletion alert is one sentence in every language
+    («طلب حذف بانتظار الرد. يُرجى فتح Nomi.»: «يُرجى» so nobody is addressed in a gender).
+  - Arabic: «كما هو» became «دون تغيير» (no «هو»); "whoever wrote it" is «أيًّا كان كاتبه», not a verb that
+    addresses the owner; the decision is «القرار للشركة».
+  - French: no «il» except impersonal ("S'il prend fin" became «À la fin de l'abonnement»; "tel qu'il était"
+    became «à l'identique»); a narrow no-break space before «:» and «;».
+  - Spanish: no «él» ("desde él" dropped: «no se envía nada»).
+  - Chinese: 自动 is kept out (the timer is 不会因为时间到了就删除).
+- **Check:** that 冻结 / تجميد / congelar / geler read as a pause that keeps everything, not a loss; that
+  the reminder days (7, 30, 60) on /data-deletion read as reminders, not deadlines.
+
+Reviewer: ______  Date: ______
