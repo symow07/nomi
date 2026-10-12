@@ -344,6 +344,7 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
       email ? `<p>${k('legal.deletion.viaUs')}</p>` : ''}
     ${/* 0126 — why there is no form here, and what closing a workspace does. */ ''}<p>${k('legal.deletion.noForm')}</p>
     <p>${k('legal.deletion.closed')}</p>
+    ${/* D4 (0147) — a request that waits is chased, never carried out by Nomi. */ ''}<p>${k('legal.deletion.chased')}</p>
     <h2>${k('legal.deletion.erased.title')}</h2>
     <ul>${list([
       // w4-public-02 — the photo, which the operator's buyer erasure erases (`client_faces: { do: 'erase' }`).

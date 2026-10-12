@@ -249,6 +249,8 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
         li('legal.deletion.step2'), li('legal.deletion.step3'), `<p>${w('legal.deletion.viaUs')}</p>`,
         // 0126 — why there is no form, and what closing a workspace does.
         `<p>${w('legal.deletion.noForm')}</p>`, `<p>${w('legal.deletion.closed')}</p>`,
+        // D4 (0147) — a request that waits is chased at 7, 30 and 60 days; Nomi still decides nothing.
+        `<p>${w('legal.deletion.chased')}</p>`,
         h2('legal.deletion.erased.title'), li('legal.deletion.erased.identity'), li('legal.deletion.erased.photo'),
         li('legal.deletion.erased.messages'),
         li('legal.deletion.erased.prepared'), li('legal.deletion.erased.notes'), li('legal.deletion.erased.conversations'),
@@ -292,7 +294,8 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
     // The retention model is not "delete after 90 days": kept while the workspace is active,
     // deleted when the customer asks, or when the workspace closes.
     expect(messages.en['legal.privacy.howLong.body']).toMatch(/with no set end: it stays until the business deletes it, which you can ask it to do, or closes its workspace, which erases everything in it/);
-    expect(messages.en['legal.privacy.howLong.body']).toMatch(/A business that stops using Nomi without closing its workspace keeps it\./);
+    // D4 (the freeze, 2026-10-12) — a business that stops paying is frozen, not erased: said as that, not as "keeps it".
+    expect(messages.en['legal.privacy.howLong.body']).toMatch(/If the business stops paying for Nomi, its workspace is frozen: Nomi stops answering, and what you send the business from then on is not kept in Nomi; what was there stays as it was, and the business can still delete it\./);
     expect(messages.en['legal.privacy.howLong.body']).not.toMatch(/For as long as the business uses Nomi/);
     for (const l of LOCALES) expect(messages[l]['legal.privacy.howLong.body'], l).not.toMatch(/90/);
     // Phase 9 (public-missed-15) — the deletion page by its own name, and a link wherever it is named.

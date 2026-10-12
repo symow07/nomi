@@ -51,10 +51,23 @@ runs the product. The draft terms for the business itself are in
   its processor, keeps the advisor conversations of the people who allow it
   (`legal.terms.service.advisor`, part of `TERMS_KEYS`, so `TERMS_VERSION`
   moved with it).
-- How long (0126, the owner's direction of 2026-10-04): for as long as the
-  business uses Nomi; deleted when the person asks the business, or when the
-  business closes its workspace, which erases everything in it. Never "after
-  90 days": RET (0116) is retired.
+- How long (0126, the owner's direction of 2026-10-04; D4, 2026-10-12): for as
+  long as the workspace exists, with no set end and no timer; deleted when the
+  person asks the business, or when the business closes its workspace, which
+  erases everything in it. Never "after 90 days": RET (0116) is retired.
+- A lapsed subscription FREEZES the workspace (D4, the owner's decision of
+  2026-10-12), never erases it: nothing is sent from any source (the owner's
+  own replies included), what arrives is acknowledged and dropped (nothing
+  stored), channels stay connected; the dashboard is read-only, and the owner
+  can still read, take a copy (`/app/settings/data`) and close the workspace.
+  Renewing restores it exactly (`billing_held()`, the send gate's `frozen`,
+  `tests/integration/freeze.test.ts`). Said on `legal.privacy.howLong.body`,
+  `legal.privacy.owner.howLong`, `legal.deletion.closed` and
+  `legal.terms.fees.body`.
+- A deletion request that waits is chased (0147): the owner is reminded at 7
+  and 30 days (e-mail always), and it is flagged in the app at 60; every chase
+  is recorded in `deletion_chases`. Nomi still deletes nothing on its own: the
+  business is the controller (`legal.deletion.chased`).
 - Deletion (0126): the person asks the business — a message from the account
   they used — or writes to `LEGAL_CONTACT_EMAIL`, and **the operator passes it
   on to that business**. **The business deletes it, at once and for good**:
