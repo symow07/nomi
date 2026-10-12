@@ -2,6 +2,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { readUnsubscribe, type UnsubscribeClaim } from '../../outbound/unsubscribe.js';
 import { suppress } from '../../db/contacts.js';
+import { recordAddressStop } from '../../db/optOuts.js';
 import { t } from './say.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
@@ -40,21 +41,25 @@ export function renderUnsubscribed(locale: Locale): string {
 }
 
 /**
- * Write the suppression.
+ * Write the suppression — and, since D9, the stop (`recordAddressStop`): the
+ * page says nothing more will be sent to this address until they write to the
+ * business again, and that is every kind of message, not only first e-mails
+ * and follow-ups. One transaction: both or neither.
  *
  * IDEMPOTENT AND UNCONDITIONAL. It does not check whether he is already
  * suppressed, whether a contact row exists, or whether he ever consented —
- * `suppress` is `on conflict do nothing`, and a person asking to be left alone
- * must never meet a branch that could decide not to record it.
+ * `suppress` is `on conflict do nothing`, a standing stop is counted again, and
+ * a person asking to be left alone must never meet a branch that could decide
+ * not to record it.
  */
 export async function applyUnsubscribe(db: Db, claim: UnsubscribeClaim): Promise<boolean> {
   const bid = parseBusinessId(claim.businessId);
   if (!bid.ok) return false;
   try {
-    await withTenantTx(db, bid.value, (tx) => suppress(tx, bid.value, {
-      channel: claim.channel, identity: claim.identity,
-      reason: 'unsubscribed', detail: 'link',
-    }));
+    await withTenantTx(db, bid.value, async (tx) => {
+      await suppress(tx, bid.value, { channel: claim.channel, identity: claim.identity, reason: 'unsubscribed', detail: 'link' });
+      await recordAddressStop(tx, bid.value, { channel: claim.channel, identity: claim.identity, now: new Date() });
+    });
     return true;
   } catch {
     // A business that no longer exists, or a database that is down. He is told

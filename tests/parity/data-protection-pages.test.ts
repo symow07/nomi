@@ -224,3 +224,18 @@ describe('D10 · what is kept after a deletion says it no longer describes them'
     }
   });
 });
+
+describe('D9 · the unsubscribe link stops everything until they write again, and the pages say so', () => {
+  it('the link records the stop (0135) beside the suppression, in one transaction', () => {
+    const src = read('src/api/web/unsubscribe.ts');
+    expect(src).toMatch(/withTenantTx\(db, bid\.value, async \(tx\) => \{\s*await suppress\([\s\S]*?\);\s*await recordAddressStop\(tx, bid\.value/);
+  });
+  it('every language says nothing more goes unless they write to the business again', () => {
+    const again = { en: /unless you write to the business again/, zh: /除非你再次写信给商家/, ar: /إلا إذا وصلت منه رسالة جديدة/, es: /salvo si vuelves a escribir al negocio/, fr: /sauf si vous écrivez de nouveau/ } as const;
+    for (const l of LOCALES) {
+      expect(t(l, 'unsub.body'), l).toMatch(again[l]);
+      expect(t(l, 'unsub.done.body'), l).toMatch(again[l]);
+    }
+    expect(t('en', 'legal.privacy.choices.body', { deletion: 'X' })).toMatch(/stops anything more being sent to that address until you write to the business again/);
+  });
+});

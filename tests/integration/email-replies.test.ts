@@ -336,4 +336,27 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
     await new Promise((r) => setTimeout(r, 1500));
     expect(transport.sent.filter((m) => m.to === addr('omar'))).toHaveLength(1);
   }, 120_000);
+
+  it('D9 · THE LINK IS A STOP: even the owner\'s own typed mail on his cold thread is refused — the page said nothing more goes', async () => {
+    // The stop, recorded for his address on e-mail, as his own words would record it.
+    expect(await tx((x) => sql<{ recorded_by: string; lifted_at: Date | null }>`
+      select recorded_by, lifted_at from opt_outs where business_id = ${BIZ} and channel = 'email' and identity = ${addr('omar')}`
+      .execute(x).then((r) => r.rows[0]))).toEqual({ recorded_by: 'buyer', lifted_at: null });
+    const omarConv = await tx((x) => sql<{ id: string }>`
+      select conversation_id::text as id from outbound_messages where business_id = ${BIZ} and to_wa_id = ${addr('omar')}
+       order by created_at limit 1`.execute(x).then((r) => r.rows[0]!.id));
+    // The owner takes the thread he never answered and types to him: refused, kept in the box, nothing reaches him.
+    await post(`/app/inbox/${omarConv}/takeover`, {});
+    const res = await post(`/app/inbox/${omarConv}/reply`, { text: 'Just checking in, Omar.' });
+    expect(flashOf(res)).toContain('this customer asked not to be messaged');
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(transport.sent.filter((m) => m.to === addr('omar'))).toHaveLength(1);
+    // Lina, who did not unsubscribe, is the control: the same typed mail reaches her.
+    const linaConv = await tx((x) => sql<{ id: string }>`
+      select conversation_id::text as id from outbound_messages where business_id = ${BIZ} and to_wa_id = ${addr('lina')}
+       order by created_at limit 1`.execute(x).then((r) => r.rows[0]!.id));
+    await post(`/app/inbox/${linaConv}/takeover`, {});
+    expect(flashOf(await post(`/app/inbox/${linaConv}/reply`, { text: 'Just checking in, Lina.' }))).not.toContain('asked not to be messaged');
+    await until(() => transport.sent.some((m) => m.to === addr('lina') && m.text === 'Just checking in, Lina.'), 'the control\'s typed mail to go');
+  }, 120_000);
 });
