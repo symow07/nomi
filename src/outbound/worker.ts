@@ -80,6 +80,8 @@ export type ConversationSendContext = {
    * is the defect, so no store gets to leave it unanswered.
    */
   readonly stopped: boolean;
+  /** D4 (2026-10-12) — the subscription lapsed: the workspace is frozen, and nothing is sent. REQUIRED, like the stops. */
+  readonly frozen: boolean;
   /**
    * C4.a — everything the OUTREACH gate needs about this buyer, for a message
    * that starts a conversation instead of continuing one.
@@ -345,7 +347,9 @@ export async function driveConversationOutbound(
   // It agreed for every value assigned_to can hold — a latent duplication, not
   // a live defect — and now there is nothing left to drift from.
   const humanOwns = !aiMaySpeak(ownershipOf(ctx.assignedTo));
-  const suppressReason = humanOwns ? 'handed_off' as const : ctx.paused ? 'paused' as const : null;
+  // D4 (2026-10-12) — frozen first: a lapsed workspace sends nothing, and the record says why (the gate
+  // refuses every other row as frozen too).
+  const suppressReason = ctx.frozen ? 'frozen' as const : humanOwns ? 'handed_off' as const : ctx.paused ? 'paused' as const : null;
   let active = live;
   if (suppressReason) {
     // M34.10 — WHICH rows are cancelable is `cancelableOnTakeover`'s decision,
@@ -408,6 +412,8 @@ export async function driveConversationOutbound(
     silenced: ctx.silenced,
     // 0070 — the owner's Stop: required all the way down, like the ops switch.
     stopped: ctx.stopped,
+    // D4 — frozen on lapse: required all the way down too.
+    frozen: ctx.frozen,
     // 0135 — the line that answers a stop, or the hand-off sentence; and the buyer's stop itself.
     ...(candidate.notice ? { notice: candidate.notice } : {}),
     ...(ctx.optOut ? { optOut: { repliedSince: ctx.lastInboundAt !== null && ctx.lastInboundAt.getTime() > ctx.optOut.lastAskedAt.getTime() } } : {}),

@@ -3,7 +3,7 @@ import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, businessName, needsYouCount, needsYouSince, tn } from './say.js';
+import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate } from './values.js';
@@ -2891,6 +2891,20 @@ export const notFoundInside = (locale: Locale): string =>
   // Phase 9 (w4-today-setup-30) — a calm line and its door, not the dashed box the run retired.
   `<h1 class="page">${esc(t(locale, 'error.notfound.title'))}</h1><p class="muted">${esc(t(locale, 'error.notfound.body'))}</p>${deeper('/app', t(locale, 'error.home'))}`;
 
+/**
+ * D4 (the owner's decision, 2026-10-12) — FROZEN ON LAPSE, said on every page:
+ * what frozen means, and the two ways on (start the subscription again; take a
+ * copy). Nothing when the workspace is not frozen.
+ */
+export function frozenBanner(locale: Locale): string {
+  if (!workspaceFrozen()) return '';
+  return `<div class="held-all" role="status" id="frozen">
+    <p class="fwarn">${esc(t(locale, 'frozen.banner.title'))}</p>
+    <p class="muted">${esc(t(locale, 'frozen.banner.body'))}</p>
+    <div class="doors">${deeper('/app/settings/billing', t(locale, 'frozen.banner.billing'))}${deeper('/app/settings/data', t(locale, 'frozen.banner.data'))}</div>
+  </div>`;
+}
+
 export function shell(input: {
   readonly title: string;
   readonly active: string;
@@ -3000,7 +3014,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }

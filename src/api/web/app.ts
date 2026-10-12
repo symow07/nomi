@@ -5,7 +5,7 @@ import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
 import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
-import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays } from '../../db/billing.js';
+import { billingState, plansOnOffer, chooseBilling, setStripeCustomer, selfServeTrialDays, billingHeld } from '../../db/billing.js';
 import { renderBilling } from './billing.js';
 import { handleStripeEvent } from '../../pipeline/billing.js';
 import { ownerLoginEmail } from '../../db/backups.js';
@@ -781,8 +781,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       Promise.all([
         withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx, personOf(s).id)),
         newestWaiting(deps.db, bid.value).catch(() => null),
+        // D4 — frozen or not, read fresh like the count: a page must never say frozen after a renewal, or miss a lapse.
+        withTenantTx(deps.db, bid.value, (tx) => billingHeld(tx)).catch(() => f.frozen),
       ]).then(
-        ([c, newest]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at) }, done),
+        ([c, newest, frozen]) => withWorkspace({ ...f, needsYou: c.waiting, needsYouAt: railMomentOf(newest?.at), frozen }, done),
         () => withWorkspace(f, done),
       );
     };
@@ -808,6 +810,40 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // A stranger is not told what exists here: the route answers with the same
     // login redirect as every other address.
     if (isOutreachRoute(req.url) && sessionOf(req) && !outreachShown()) return reply.callNotFound();
+  });
+
+  /**
+   * D4 (the owner's decision, 2026-10-12) — FROZEN ON LAPSE: THE DASHBOARD IS
+   * READ-ONLY. While the subscription is lapsed (`billing_held`, read fresh for
+   * every write, never from the minute's cache), every change is refused with
+   * one notice, except what must stay possible in a frozen workspace: starting
+   * the subscription again; closing the workspace (or asking Nomi to) and taking
+   * that back; a customer's deletion request; the owner's own password; and
+   * taking someone's access away — a team member, a phone, a connection. Pages
+   * still open (GET), taking a copy included. Nothing is sent or received
+   * meanwhile (the send gate's `frozen`; the webhooks, the reply hook and the
+   * mailbox reader drop what arrives).
+   */
+  const FROZEN_STILL_OPEN: readonly RegExp[] = [
+    /^\/app\/settings\/billing\//,
+    /^\/app\/settings\/data\/(close|delete|withdraw)$/,
+    /^\/app\/conversations\/[^/]+\/deletion(\/(erase|dismiss))?$/,
+    /^\/app\/settings\/account\/password$/,
+    /^\/app\/settings\/people\/[^/]+\/remove$/,
+    /^\/app\/settings\/alerts\/phone\/[^/]+\/remove$/,
+    /^\/app\/connect\/(mail|meta|whatsapp)\/disconnect$/,
+  ];
+  app.addHook('preHandler', async (req, reply) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || !req.url.startsWith('/app')) return;
+    const path = req.url.split('?')[0] ?? '';
+    if (FROZEN_STILL_OPEN.some((p) => p.test(path))) return;
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    if (!s || !bid || !bid.ok) return;
+    if (!(await withTenantTx(deps.db, bid.value, (tx) => billingHeld(tx)))) return;
+    const back = String(req.headers['referer'] ?? '');
+    const to = (() => { try { const u = new URL(back, 'http://x'); return u.pathname.startsWith('/app') ? u.pathname : '/app'; } catch { return '/app'; } })();
+    return flashTo(reply, to, 'frozen.refused');
   });
 
   // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.

@@ -59,8 +59,8 @@ describe('G3 · the hold', () => {
       expect(src(f), f).toContain('allowanceOf(tx)');
       expect(src(f), f).not.toMatch(/from tenant_budgets/);
     }
-    // BILL — a lapsed payment pauses the same way.
-    expect(src('src/db/channels.ts')).toContain('paused: allowanceUsed(await allowanceOf(tx)) || await billingHeld(tx),');
+    // D4 (2026-10-12) — the allowance pauses; a lapsed payment freezes, on its own input (bill-billing.test.ts).
+    expect(src('src/db/channels.ts')).toContain('paused: allowanceUsed(await allowanceOf(tx)),');
   });
 });
 

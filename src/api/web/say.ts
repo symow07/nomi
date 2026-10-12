@@ -52,6 +52,8 @@ export type RequestScope = {
   readonly zone?: string;
   /** Phase 9 (V1-009) — the workspace's country, for how an amount is written on its pages. */
   readonly country?: string | null;
+  /** D4 (2026-10-12) — the subscription lapsed: the workspace is frozen, and every page says so. */
+  readonly frozen?: boolean;
 };
 
 const scope = new AsyncLocalStorage<RequestScope>();
@@ -72,7 +74,7 @@ export const withAssistantName = <T>(
   const outer = scope.getStore();
   return scope.run({
     name, several, outreach: outer?.outreach ?? false, setup: outer?.setup ?? null, business: outer?.business ?? null,
-    needsYou: outer?.needsYou ?? null, needsYouAt: outer?.needsYouAt ?? null,
+    needsYou: outer?.needsYou ?? null, needsYouAt: outer?.needsYouAt ?? null, frozen: outer?.frozen ?? false,
   }, fn);
 };
 
@@ -86,6 +88,9 @@ export const withNeedsYou = <T>(needsYou: number | null, fn: () => T): T => {
   const outer = scope.getStore();
   return outer ? scope.run({ ...outer, needsYou }, fn) : fn();
 };
+
+/** D4 — is this workspace frozen (its subscription lapsed)? Outside a scope: no. */
+export const workspaceFrozen = (): boolean => scope.getStore()?.frozen ?? false;
 
 /** Is the outreach area shown for this workspace? Outside a scope: no. */
 export const outreachShown = (): boolean => scope.getStore()?.outreach ?? false;

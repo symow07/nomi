@@ -89,6 +89,7 @@ import { startHeartbeat } from './worker/heartbeat.js';
 import { requestLogger } from './api/requestLog.js';
 import { loggableLine, loggableMessage } from './security/loggable.js';
 import { mailUnmailedLedger } from './db/erasureMail.js';
+import { billingHeld } from './db/billing.js';
 
 /**
  * PRODUCTION ENTRYPOINT (audit C1). Composes existing components — worker,
@@ -1608,6 +1609,10 @@ export async function buildProduction(
     persistEvent: async (e, rawPayload, channel) => {
       const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return 'duplicate';   // unknown credential: ack, never process
+      // D4 (2026-10-12) — a frozen workspace (its subscription lapsed) receives nothing: the event is
+      // acknowledged and dropped, never stored, and no turn runs. The channel stays connected, so renewing
+      // resumes at once.
+      if (await withTenantTx(db, bid, (tx) => billingHeld(tx))) return 'duplicate';
       return withTenantTx(db, bid, async (tx) => {
         const r = await sql<{ id: string }>`
           insert into channel_events

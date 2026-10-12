@@ -108,7 +108,7 @@ describe('WA-S · the worker, after the 24 hours', () => {
       async load() {
         return { rows, ctx: {
           assignedTo: null, paused: false, lastInboundAt: daysAgo(3), template: 'approved', pilotMode: false, activated: true,
-          silenced: false, stopped: false, reopen: REOPEN, ...ctx,
+          silenced: false, stopped: false, frozen: false, reopen: REOPEN, ...ctx,
         } };
       },
       async transition(id, to, detail) { log.push(`${id}:${to}${detail ? `(${detail})` : ''}`); },
