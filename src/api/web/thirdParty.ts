@@ -1,4 +1,5 @@
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
+import { SIGNUP_MARK_DAYS } from '../../core/owner/signupRisk.js';
 
 /**
  * D7 (the owner's decision, 2026-10-07) — WHAT A BROWSER MAY BE ASKED TO FETCH
@@ -162,6 +163,10 @@ export const COOKIES: readonly NomiCookie[] = [
   {
     name: 'yf_meta', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
     reason: 'The state of an Instagram or Messenger connection in progress, checked when Meta sends the person back.',
+  },
+  {
+    name: 'yf_signup', purpose: 'legal.privacy.cookies.for.signup', lifetimeSec: SIGNUP_MARK_DAYS * 24 * 3600, class: 'necessary',
+    reason: 'Phase 1 (0148) — open sign-up gives a stranger a free trial; this is how one browser is stopped from taking trial after trial. Sent only to the sign-up form; kept only as a one-way code.',
   },
   {
     name: 'yf_age_told', purpose: 'legal.privacy.cookies.for.age', lifetimeSec: 24 * 3600, class: 'necessary',

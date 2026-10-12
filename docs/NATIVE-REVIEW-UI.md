@@ -15875,3 +15875,20 @@ Billing and Setup (a lapsed workspace shows the frozen banner on every page).
   the reminder days (7, 30, 60) on /data-deletion read as reminders, not deadlines.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-13 — Phase 1: the sign-up check, the fingerprint named
+
+Written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read the privacy page's "If you
+use Nomi at a business" section and its cookie table, and the sign-up page's refusal.
+
+- **The keys:** `legal.privacy.owner.signupCheck` (the check, the fingerprint, the 180 days), `legal.privacy.cookies.for.signup`,
+  `legal.privacy.cookies.body` (the sign-up cookie added; "none tracks you" dropped), `legal.privacy.owner.howLong` (the
+  marks outlive a closed workspace), `legal.updated.privacy`, `signup.riskRefused`, `signup.riskRefused.contact`,
+  `signup.welcome.card`.
+- **Where the words differ, and why:** no "we" (the roadmap: nothing says "we" until the company is registered), so
+  the refusal says "a person will look at it"; zh keeps out 它 (浏览器所在的网络, 这些编码); Arabic uses the passive for
+  everything Nomi does («تُقارَن», «تُطلب بطاقة دفع»); French has no «il/elle» («n'est pas ouverte directement»).
+- **Check:** that 指纹 / بصمة المتصفح / huella del navegador / empreinte du navigateur read as the technical term, not as
+  a fingerprint taken from a person; that the refusal reads as a door, not an accusation.
+
+Reviewer: ______  Date: ______

@@ -1086,6 +1086,9 @@ export async function buildProduction(
       // D2 (0138) — and the sign-up guard's hashed callers, past two days.
       const c = Number((await sql<{ n: string }>`select signup_throttles_forget()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (c > 0) console.log(`[signup] ${c} sign-up caller count(s) forgotten`);
+      // Phase 1 (0148) — and the sign-up's marks: an attempt's after two days, a workspace's after 180.
+      const m = Number((await sql<{ n: string }>`select signup_marks_forget()::text as n`.execute(db)).rows[0]?.n ?? 0);
+      if (m > 0) console.log(`[signup] ${m} sign-up mark(s) forgotten`);
     });
     // D12 (0141) — every erasure's ledger line reaches the operator's mailbox, the copy that outlives a total
     // loss: what the app did not mail at once (the advisor's deletions, the twelve-month expiry, a team member

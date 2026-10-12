@@ -124,7 +124,10 @@ describe('D20 · the wording items', () => {
     expect(t('zh', 'legal.privacy.ai')).not.toContain('有些回复');
     expect(t('ar', 'legal.privacy.ai')).not.toContain('بعض الردود');
     expect(t('ar', 'legal.privacy.who.advisorKept')).not.toContain('مسبق');
-    expect(t('ar', 'legal.privacy.cookies.body')).toContain('لا يتتبّعك');
+    // Phase 1 (the owner, 2026-10-13) — "none tracks you" is gone in every language (the sign-up cookie and the
+    // fingerprint recognise a returning browser); what each promises now is that none is used beyond its purpose.
+    expect(t('ar', 'legal.privacy.cookies.body')).toContain('ولا يُستخدم أيٌّ منها إلا لما ذُكر له');
+    expect(t('ar', 'legal.privacy.cookies.body')).not.toContain('لا يتتبّعك');
   });
 });
 
