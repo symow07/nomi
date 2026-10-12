@@ -13,6 +13,50 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## D4 — frozen on lapse, never erased by a timer (2026-10-12) — read this first
+
+**The owner's decision** (2026-10-12, replacing the countdown ladder): a lapsed subscription FREEZES the workspace —
+nothing is sent from any source (the owner's own replies included: "that's the paid product"), what arrives is
+acknowledged and dropped, channels stay connected, the dashboard is read-only, the owner can still take a copy and
+close it, and renewing restores it exactly. No dormancy timer: nothing erases on a clock. One notice, no countdown.
+Deletion requests nobody answers are chased (7 and 30 days, flagged at 60), every chase recorded; Nomi never erases on
+its own. The pages say all of it. Priced at 3–4 PRs, about 12 h; built as four.
+
+- #306 the freeze: `frozen` is the send gate's first rule (a reply queued before the lapse is cancelled as
+  `frozen`); the webhook, e-mail replies and the inbox reader drop what arrives before any row is written; every POST
+  under `/app` is refused except billing, the copy, closing/deleting, a customer's deletion request, the password and
+  taking someone's access away; a banner on every page. Pre-pilot 12/12 before and after.
+- #307 the notice: `notify.billing_lapsed` says frozen, what still works and how to restore it; every lapse line
+  says frozen.
+- #308 the chase (0147): `deletion_chases` (ids and dates; the app reads, never writes), `claim_deletion_chases()`
+  (the furthest step due, once; a recorded request carries its message's chases), a daily job at 07:15 UTC, the
+  `deletion_reminder` alert by e-mail always at 7 and 30 days, the flag at 60 on Today and the customer's page.
+- #309 the pages: privacy (both audiences), the terms' "Fees and leaving" and the deletion page, in five languages;
+  `docs/LEGAL.md`.
+
+**Checked in production:** schema 147; `/health` ok; no workspace lapsed and no deletion request waiting, so nothing
+changed for anyone on deploy. Backup before 0147: `nomi-backup-20261012T030455Z` (drill passed).
+
+**Claude's calls, reported:** the reminders reach the owner outside the app (e-mail always): they are the deletion
+hand-over still waiting, so they join the "only two things leave Nomi" exceptions (`INTERRUPTION_KINDS`) — the owner
+may take that back (in-app only is a one-line change). The 60-day flag adds no act. The chase record outlives the
+erasure (`unrelated` in the contract) so it can be shown the business was told.
+
+**Tests changed on purpose:** the budget pin (a lapse no longer pauses, it freezes), the interruption list and its
+e-mail-always line, the privacy page's old "keeps it" sentence, the deletion page's paragraph order, the boot test's
+empty snapshot (one more zero), Practice's skip list (the chase record is never copied).
+
+**Found on the way:** the claim function failed every call as "ambiguous" (its result columns share the tables'
+names) — the integration test caught it before any deploy; `#variable_conflict use_column`, pinned.
+
+**Found, not fixed — FAIR's fairness rests on poll timing.** `fair-queue.test.ts` failed once on #309's CI (four busy
+customers read before the quiet one; the bound is three); its rerun passed. Not reproduced locally in ten runs (CPU
+load, longer turns): one, every time. The job timeline shows why it can move: each poll takes the OLDEST job, and the
+quiet workspace's wake is always the youngest, so it is served only by a poll that lands while the busy workspace's
+turn runs; if the workers' polls fall into step with the busy turns, it waits. The test now prints the queue's job
+timeline when the bound fails, so the next occurrence names its cause. A deterministic fix (e.g. a priority for a
+workspace with less waiting) changes the order replies go out in — the owner's call.
+
 ## The data-protection audit, fixed in three batches (2026-10-12) — read this first
 
 **The owner's order** (2026-10-12): all of D1–D20 from the inventory, in three batches, each item its own PR, full
@@ -71,8 +115,7 @@ throttle tests failed when they straddled one (CI, 03:59:59–04:00:00 UTC, on t
 the last minute of an hour; the guard is unchanged.
 
 **The owner's, from this audit:**
-- **D4, the retention policy** — the options and their costs are in the batch report; nothing is built until the
-  owner chooses.
+- **D4, the retention policy** — decided and built the same day (the section above).
 - Railway still lists one manual volume backup past its expiry, "Pre-Security-Patch Backup" (2026-08-22, expired
   2026-09-21): the owner deletes it in the dashboard.
 - `INDENT` and the `HandedOff` type were left with no reader by the cleanup (kept, not approved for deletion).

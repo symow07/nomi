@@ -104,6 +104,7 @@ d('FAIR · one workspace\'s backlog does not hold another\'s customer (requires 
     await until(async () => (await q<{ n: number }>`select count(*)::int as n from pgboss.job
       where name = 'message.inbound' and state = 'active'`.execute(prod.db)).rows[0]!.n === 0 ? true : undefined,
       'the running jobs to finish', 30_000).catch(() => undefined);
+    const t0 = Date.now();
     for (let i = 0; i < 8; i++) {
       expect((await post(busy.inboundText({ from: `9719${runDigits(RUN, 6)}${i}`, text: `busy customer ${i}: price for totes?` }))).statusCode).toBe(200);
     }
@@ -114,9 +115,20 @@ d('FAIR · one workspace\'s backlog does not hold another\'s customer (requires 
       return i === -1 ? undefined : i;
     }, 'the quiet workspace\'s customer to be read');
     const busyBefore = analyzer.texts.slice(0, readAt).filter((t) => t.startsWith('busy')).length;
+    // A failure says what the queue did, job by job (ms after the first message), so a run that
+    // reads more of the backlog first names its own cause. It happened once on CI (2026-10-12, #309:
+    // four busy first); locally the quiet one is read after one, every time — the order hangs on
+    // whether a worker polls while the busy workspace's turn is running (its wake is the youngest job).
+    const timeline = async () => (await q<{ line: string }>`
+      select (case when data->>'businessId' = ${BUSY} then 'busy' else 'quiet' end) || ' created '
+             || ((extract(epoch from created_on) * 1000)::bigint - ${t0}) || ' due '
+             || ((extract(epoch from start_after) * 1000)::bigint - ${t0}) || ' started '
+             || coalesce(((extract(epoch from started_on) * 1000)::bigint - ${t0})::text, '-') || ' ' || state as line
+        from pgboss.job where name = 'message.inbound' and data->>'businessId' in (${BUSY}, ${QUIET})
+       order by started_on nulls last, created_on`.execute(prod.db)).rows.map((r) => r.line).join('\n');
     // In queue order it would have been ninth (switched off, it is); now most
     // of the backlog is still waiting when the quiet customer is read.
-    expect(busyBefore, `busy customers read before the quiet one: ${busyBefore}`).toBeLessThanOrEqual(3);
+    expect(busyBefore, `busy customers read before the quiet one: ${busyBefore}${busyBefore > 3 ? `\n${await timeline()}` : ''}`).toBeLessThanOrEqual(3);
 
     await until(() => (analyzer.texts.filter((t) => t.startsWith('busy')).length >= 8 ? true : undefined), 'the busy backlog to clear', 150_000);
     expect(mostAtOnceForBusy, 'one workspace never has two turns at once').toBe(1);
