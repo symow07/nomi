@@ -1211,7 +1211,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/privacy', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
   app.get('/data-deletion', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, siteOf(req))));
+    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
   app.get('/terms', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
   app.get('/cookies', async (req, reply) =>

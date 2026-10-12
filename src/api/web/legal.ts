@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { t } from './say.js';
 import { TERMS_KEYS } from '../../core/legal/terms.js';
-import { processorLabel, providerLineKey, type Processor } from '../../core/legal/processors.js';
+import { DEFAULT_PROCESSOR, HOSTING, processorLabel, providerLineKey, type Processor } from '../../core/legal/processors.js';
 import { formatLifetime } from '../../core/owner/i18n/format.js';
 import { COOKIES } from './thirdParty.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
@@ -301,9 +301,25 @@ export function renderRefunds(l: Locale, email: string | null, facts: { readonly
  * tests/parity/deletion-page.test.ts holds every one of these in all three
  * languages, and holds the old promises out.
  */
-export function renderDataDeletion(l: Locale, email: string | null, home = '/site'): string {
+/** What the deletion page names by its configured name; a page drawn without them names the defaults. */
+type DeletionFacts = Pick<LegalFacts, 'processor' | 'hosting' | 'transcriber'>;
+const DEFAULT_DELETION_FACTS: DeletionFacts = { processor: DEFAULT_PROCESSOR, hosting: HOSTING, transcriber: null };
+
+export function renderDataDeletion(l: Locale, email: string | null, facts: DeletionFacts = DEFAULT_DELETION_FACTS, home = '/site'): string {
   const k = (key: string) => esc(t(l, key as Parameters<typeof t>[1]));
   const list = (keys: readonly string[]) => keys.map((x) => `<li>${k(x)}</li>`).join('');
+  // D6 (the data-protection audit, 2026-10-12) — the copies no deletion inside Nomi reaches, each by the name the
+  // privacy page gives it: the language service with what its own terms say, the transcriber where one runs, the
+  // host's logs, and our own mailbox where the page offers an address to write to.
+  const gap = l === 'zh' ? '' : ' ';
+  const line = providerLineKey(facts.processor);
+  const outside = [
+    `${esc(t(l, 'legal.deletion.kept.processor', { processor: processorLabel(facts.processor, l) }))}${
+      line ? `${gap}${esc(t(l, line, { provider: facts.processor.name }))}` : ''}`,
+    ...(facts.transcriber ? [esc(t(l, 'legal.deletion.kept.transcriber', { transcriber: processorLabel(facts.transcriber, l) }))] : []),
+    esc(t(l, 'legal.deletion.kept.logs', { hosting: processorLabel(facts.hosting, l) })),
+    ...(email ? [k('legal.deletion.kept.mailbox')] : []),
+  ].map((x) => `<li>${x}</li>`).join('');
   return SHELL(l, t(l, 'legal.deletion.title'), `
     <h1>${k('legal.deletion.title')}</h1>
     <p>${k('legal.deletion.intro')}</p>
@@ -327,7 +343,9 @@ export function renderDataDeletion(l: Locale, email: string | null, home = '/sit
     <h2>${k('legal.deletion.kept.title')}</h2>
     <ul>${list([
       'legal.deletion.kept.orders', 'legal.deletion.kept.doNotContact', 'legal.deletion.kept.record',
-      'legal.deletion.kept.meta', 'legal.deletion.kept.elsewhere', 'legal.deletion.kept.backups',
+      'legal.deletion.kept.meta', 'legal.deletion.kept.elsewhere',
+    ])}${outside}${list([
+      'legal.deletion.kept.backups',
       // 0126 — a restore brings nobody back: tools/replay-erasures.mjs, docs/BACKUP-RESTORE.md.
       'legal.deletion.kept.restored',
       // 0130 — the honest limit: a name in the business's own words, with no record behind it.
