@@ -360,7 +360,9 @@ import type { Db } from './client.js';
 // 144 = every business table is in the erasure's contract (0144): `customer_erasure_problems` refuses one that is
 //       not; tools/erase-buyer.mjs's RULES name the same 55, and against a 143 database the contracts differ.
 // 145 = an advisor conversation that outlives a customer's erasure loses its title (0145); the app reads '' as none.
-export const REQUIRED_SCHEMA_VERSION = 145;
+// 146 = what is archived stops holding who someone was, or a way in (0146): triggers on people, logins,
+//       push_subscriptions and mail_accounts.
+export const REQUIRED_SCHEMA_VERSION = 146;
 
 export type SchemaState = {
   readonly required: number;

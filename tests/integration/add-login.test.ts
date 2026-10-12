@@ -253,7 +253,8 @@ d('0078 · add-login gives a workspace that exists a login (requires DATABASE_UR
     expect(r.code, r.err).toBe(0);
     expect(r.out).toContain(`Archived: ${OWNER.email}`);
     expect(await loginsOf(OLD)).toEqual([
-      { email: OWNER.email, archived: true, name: `Westlake ${RUN}`, is_owner: true },
+      // D17 (0146) — the archived login keeps no address or password: it signs nobody in and names nobody.
+      { email: expect.stringMatching(/^erased\..+@login\.invalid$/), archived: true, name: `Westlake ${RUN}`, is_owner: true },
       { email: moved, archived: false, name: `Westlake ${RUN}`, is_owner: true },
     ]);
     expect((await signIn(OWNER.email, OWNER.password)).statusCode).toBe(401);

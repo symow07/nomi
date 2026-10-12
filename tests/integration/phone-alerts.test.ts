@@ -208,14 +208,16 @@ d('G5b · alerts on the phone, and a reply that waited too long (requires DATABA
     expect(flashSaid(test, webSecret)).toContain('Test notification sent.');
     expect(pushed.slice(before).map((p) => p.url).sort()).toEqual([mine.endpoint, old.endpoint].sort());
     expect(mine.open(pushed.slice(before).find((p) => p.url === mine.endpoint)!.body)).toMatchObject({ title: 'Nomi', body: 'Notifications on this phone are on.' }); // one name for one thing (w4-settings-a-06)
+    // D17 (0146) — a phone archived keeps no endpoint or keys: an address that reaches nothing.
+    const erased = expect.stringMatching(/^https:\/\/erased\.invalid\//);
     expect(await phones()).toEqual([
       { endpoint: mine.endpoint, archived_reason: null },
-      { endpoint: old.endpoint, archived_reason: 'gone' },
+      { endpoint: erased, archived_reason: 'gone' },
     ]);
     const id = await q((tx) => sql<{ id: string }>`select id::text as id from push_subscriptions where endpoint = ${mine.endpoint}`.execute(tx).then((r) => r.rows[0]!.id));
     const stop = await post(`/app/settings/alerts/phone/${id}/remove`, {});
     expect(flashSaid(stop, webSecret)).toContain('Notifications stopped for that phone.');
-    expect((await phones())[0]).toEqual({ endpoint: mine.endpoint, archived_reason: 'removed' });
+    expect((await phones())[0]).toEqual({ endpoint: erased, archived_reason: 'removed' });
     expect(flashSaid(await post('/app/settings/alerts/test', {}), webSecret)).toContain('No phone received it.');
   });
 
