@@ -311,3 +311,23 @@ describe('D19 · every business table is decided, so none escapes the erasure by
     expect(entry.message).not.toMatch(/Sure|bags/);
   });
 });
+
+describe('D16 · the advisor: a title an erasure cleared, what is not encrypted, every way history is deleted', () => {
+  it('a conversation whose title an erasure cleared shows by its date, never as unreadable', async () => {
+    const { renderEarlier } = await import('../../src/api/web/advisor.js');
+    const at = new Date('2026-10-01T10:00:00Z');
+    const html = renderEarlier('en', [{ id: '00000000-0000-4000-8000-000000000001', startedAt: at, lastTurnAt: at, title: '' }]);
+    expect(html).not.toContain(t('en', 'advisor.thread.unreadable'));
+    expect(read('src/advisor/memory.ts')).toMatch(/const openTitle = \(c: string, w: string\) => \(c === '' \? \{ plain: '', stale: false \} : open\(c, w\)\);/);
+  });
+  it('every language says what is not encrypted, that a surviving conversation loses its title, and every way history goes', () => {
+    const notEncrypted = { en: /What is not encrypted/, zh: /不加密的部分/, ar: /وما لا يُشفَّر/, es: /Lo que no se cifra/, fr: /Ce qui n’est pas chiffré/ } as const;
+    const title = { en: /loses its title/, zh: /失去标题/, ar: /عنوانها/, es: /pierde su título/, fr: /perd son titre/ } as const;
+    const team = { en: /when you leave the team/, zh: /你离开团队/, ar: /عند الخروج من الفريق/, es: /cuando sales del equipo/, fr: /quand vous quittez l’équipe/ } as const;
+    for (const l of LOCALES) {
+      expect(t(l, 'legal.privacy.advisor.nobody'), l).toMatch(notEncrypted[l]);
+      expect(t(l, 'legal.privacy.advisor.customers'), l).toMatch(title[l]);
+      expect(t(l, 'legal.privacy.advisor.basis'), l).toMatch(team[l]);
+    }
+  });
+});
