@@ -30,9 +30,6 @@ export const MARK = {
   meaningShort: '〔意思〕',  // thread view — tighter lines
 } as const;
 
-/** Spacing: the full-width indent for continuation lines; blank line = section. */
-export const INDENT = '　';
-
 /** Line budgets (thumb-perfect, enforced by tests). */
 export const BUDGET = {
   cardLines: 24,        // approval card incl. quote box

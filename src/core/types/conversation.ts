@@ -112,6 +112,3 @@ export type ConversationState = {
    */
   readonly aiDisclosureDeliveredAt: Date | null;
 };
-
-/** A conversation a human has taken over. Proven at the type level. */
-export type HandedOff = ConversationState & { readonly assignedTo: AgentId };
