@@ -281,3 +281,33 @@ describe('D14 · the erasure takes every queued job that names them, and the pri
     for (const l of LOCALES) expect(t(l, 'legal.privacy.howLong.body', { deletion: 'X' }), l).toMatch(week[l]);
   });
 });
+
+describe('D19 · every business table is decided, so none escapes the erasure by its column names', () => {
+  it('the tool and the database name the same tables unrelated, and the tool refuses a business table it has not decided', async () => {
+    // @ts-expect-error — the operator tools, plain JS on purpose.
+    const { RULES, coverage } = await import('../../tools/erase-buyer.mjs');
+    const sql = read('migrations/0144_every_table.sql');
+    const inSql = [...sql.matchAll(/\('([a-z_.]+)', 'unrelated'/g)].map((m) => m[1]).sort();
+    const inTool = Object.entries(RULES as Record<string, { do: string }>).filter(([, r]) => r.do === 'unrelated').map(([t]) => t).sort();
+    expect(inSql).toEqual(inTool);
+    expect(inSql.length).toBeGreaterThanOrEqual(57);
+    for (const t of ['app_errors', 'calendar_entries', 'organization_enrichments', 'pilot_log']) expect(inTool, t).toContain(t);
+    const col = (names: string[]) => new Map(names.map((n) => [n, { type: 'text', notnull: false }]));
+    const schema = {
+      tables: new Set(['clients', 'new_notes']),
+      columns: new Map([['clients', col(['id', 'business_id'])], ['new_notes', col(['id', 'business_id', 'note'])]]),
+      pks: new Map([['clients', ['id']], ['new_notes', ['id']]]),
+      fks: [],
+    };
+    expect(coverage(schema, { clients: RULES.clients }, []).unclassified).toEqual(['new_notes']);
+    expect(coverage(schema, { clients: RULES.clients, new_notes: { do: 'unrelated' } }, []).unclassified).toEqual([]);
+  });
+  it('an error is kept without the values it quoted (a parser quotes the model\'s answer)', async () => {
+    const { appErrorEntry } = await import('../../src/worker/appErrors.js');
+    let thrown: unknown;
+    try { JSON.parse('Sure! Your 500 bags ship Friday'); } catch (e) { thrown = e; }
+    const entry = appErrorEntry(thrown, 'worker:message.inbound', {}, { root: '/x', knownSecrets: [] });
+    expect(entry.message).toMatch(/is not valid JSON/);
+    expect(entry.message).not.toMatch(/Sure|bags/);
+  });
+});

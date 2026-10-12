@@ -7,6 +7,7 @@ import {
   recordAppError, releaseHeldAppErrorAlert, type AppErrorAlert, type AppErrorEntry,
 } from '../db/appErrors.js';
 import { redactSecrets } from '../security/credentials.js';
+import { loggableMessage } from '../security/loggable.js';
 import {
   cut, describeThrown, errorWhere, firstRepoFrame, messageShape, scrubSecrets, MESSAGE_MAX,
   type ErrorContext, type ErrorWhere, type ReportError,
@@ -76,7 +77,9 @@ export function appErrorEntry(
   const thrown = describeThrown(err);
   const w = errorWhere(where);
   const name = cut(clean(thrown.name, opts.knownSecrets), 120);
-  const message = cut(clean(thrown.message, opts.knownSecrets), MESSAGE_MAX);
+  // D19 (0144) — kept beyond any erasure: the message without the values it quoted (a parser's snippet is the
+  // model's answer, so a customer's words), as the logs keep it (D2).
+  const message = cut(clean(loggableMessage(thrown.message, Number.MAX_SAFE_INTEGER), opts.knownSecrets), MESSAGE_MAX);
   const frame = firstRepoFrame(thrown.stack, opts.root);
   const route = context.route ? cut(clean(context.route, opts.knownSecrets), 300) : null;
   const identity = frame
@@ -171,7 +174,7 @@ export function makeErrorReporter(deps: {
   /** The recording's own failure, said once and in words that cannot leak. */
   const failed = (what: string) => (e: unknown) => {
     const d = describeThrown(e);
-    log(`[errors] ${what}: ${cut(clean(`${d.name}: ${d.message}`, knownSecrets), 200)}`);
+    log(`[errors] ${what}: ${cut(clean(`${d.name}: ${loggableMessage(d.message)}`, knownSecrets), 200)}`);
   };
 
   const track = (p: Promise<void>): Promise<void> => {
