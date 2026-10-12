@@ -19,7 +19,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 const open = sendPlan('open', 'reply', 'none');
 const viaTemplate = sendPlan('expired', 'reply', 'approved');
 const base: GateInput = {
-  silenced: false, stopped: false, pilotMode: false, activated: true,
+  silenced: false, stopped: false, frozen: false, pilotMode: false, activated: true,
   origin: 'employee', assignedTo: null, paused: false, windowPlan: open,
 };
 const quiet = { optOut: { repliedSince: false } } as const;
@@ -43,7 +43,7 @@ describe('0135 · before they write again: nothing, except the line', () => {
     expect(gateOutbound({ ...base, ...quiet, paused: true, notice: 'opt_out' })).toEqual({ allow: true, viaTemplate: false });
   });
   it('…never through Stop or the ops switch, and never as the reopening template', () => {
-    expect(gateOutbound({ ...base, ...quiet, notice: 'opt_out', stopped: true })).toEqual({ allow: false, reason: 'stopped' });
+    expect(gateOutbound({ ...base, ...quiet, notice: 'opt_out', stopped: true, frozen: false })).toEqual({ allow: false, reason: 'stopped' });
     expect(gateOutbound({ ...base, ...quiet, notice: 'opt_out', silenced: true })).toEqual({ allow: false, reason: 'silenced' });
     expect(gateOutbound({ ...base, ...quiet, notice: 'opt_out', windowPlan: viaTemplate })).toEqual({ allow: false, reason: 'window_closed' });
   });
@@ -115,7 +115,7 @@ describe('fix 1 · the hand-off sentence reaches the buyer waiting for a person'
     expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', paused: true })).toEqual({ allow: false, reason: 'paused' });
   });
   it('Stop, the ops switch, the window and a template still bind it', () => {
-    expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', stopped: true })).toEqual({ allow: false, reason: 'stopped' });
+    expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', stopped: true, frozen: false })).toEqual({ allow: false, reason: 'stopped' });
     expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', silenced: true })).toEqual({ allow: false, reason: 'silenced' });
     expect(gateOutbound({ ...base, assignedTo: 'unclaimed', notice: 'handoff', windowPlan: viaTemplate })).toEqual({ allow: false, reason: 'window_closed' });
   });

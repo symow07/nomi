@@ -45,8 +45,11 @@ describe('BILL · the hold, the unit, the gate', () => {
     expect('plan_limit' in HOLD_OUTCOME).toBe(false);
     expect(src('src/worker/main.ts')).toContain('turnHold(tx, businessId.value, conversationId.value)');
   });
-  it('the send gate pauses as for the allowance: queued replies wait, one already sending finishes', () => {
-    expect(src('src/db/channels.ts')).toContain('paused: allowanceUsed(await allowanceOf(tx)) || await billingHeld(tx),');
+  it('D4 (2026-10-12) — a lapsed payment FREEZES the workspace at send time: nothing goes, from anyone', () => {
+    // It used to pause as the allowance does (the assistant's replies waited for a person). The owner's
+    // decision: a lapsed workspace messages no customer at all, the owner's own replies included.
+    expect(src('src/db/channels.ts')).toContain('frozen: await billingHeld(tx),');
+    expect(src('src/db/channels.ts')).toContain('paused: allowanceUsed(await allowanceOf(tx)),');
   });
   it('the unit is counted where it happens: a draft, or a reply sent alone — never a practice copy\'s', () => {
     const m = src('migrations/0117_billing.sql');

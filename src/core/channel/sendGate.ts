@@ -68,6 +68,16 @@ export type GateInput = {
    */
   readonly stopped: boolean;
   /**
+   * D4 (the owner's decision, 2026-10-12) — FROZEN ON LAPSE: the workspace's
+   * subscription lapsed (`billing_held`, 0117). A lapsed workspace messages no
+   * customer at all — the assistant, the owner, outreach, not even the line
+   * that answers a stop: that is the paid product. Resubscribing lifts it.
+   *
+   * REQUIRED, like the two stops above: the permissive default is the
+   * dangerous one, and the compiler names every caller that must resolve it.
+   */
+  readonly frozen: boolean;
+  /**
    * M42 — present when this message INITIATES rather than replies.
    *
    * Absent means a reply, and that default is safe by construction rather than
@@ -140,6 +150,7 @@ export const GATE_REFUSALS = [
   'daily_ceiling',        // M18.5
   'silenced',             // M34.6
   'stopped',              // 2026-09-27 — the owner's Stop, on every channel (0070)
+  'frozen',               // D4 (2026-10-12) — the subscription lapsed: nothing goes, from anyone
   'opted_out',            // 0135 — the buyer asked, on this channel, to stop being messaged
   // M42 — the outreach refusals, SPREAD from the outreach gate's own list
   // rather than restated. Same reason this list exists at all: a vocabulary
@@ -155,6 +166,10 @@ export type GateDecision =
   | { readonly allow: false; readonly reason: GateRefusal };
 
 export function gateOutbound(g: GateInput): GateDecision {
+  // D4 (2026-10-12) — frozen on lapse, first: a lapsed workspace sends nothing, whoever writes it and
+  // whatever it is, so nothing else about this message matters.
+  if (g.frozen) return { allow: false, reason: 'frozen' };
+
   // M20.1 — activation is a property of the CHANNEL, not of who is speaking,
   // so it binds the owner exactly as it binds the employee. It is checked
   // first: before the pilot is live, nothing else about this message matters.

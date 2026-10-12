@@ -120,8 +120,10 @@ d('M51.2 · the budget gate (requires DATABASE_URL)', () => {
     const { readFile } = await import('node:fs/promises');
     const src = await readFile(new URL('../../src/db/channels.ts', import.meta.url), 'utf8');
     // G3 — through the one reader the hold and Today ask too; it asks core.
-    // BILL — a lapsed payment pauses the same way.
-    expect(src).toContain('paused: allowanceUsed(await allowanceOf(tx)) || await billingHeld(tx),');
+    // D4 — a lapsed payment no longer pauses: it freezes, its own field, read
+    // first by the gate (tests/parity/freeze-on-lapse.test.ts).
+    expect(src).toContain('paused: allowanceUsed(await allowanceOf(tx)),');
+    expect(src).toContain('frozen: await billingHeld(tx),');
     expect(await readFile(new URL('../../src/db/allowance.ts', import.meta.url), 'utf8')).toContain('verdict: checkBudget(usage, budget)');
     // The SQL supplies numbers now. A boolean computed in the lateral is the
     // duplicate returning.

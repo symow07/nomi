@@ -16,7 +16,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 const openPlan = { action: 'send_free', ownerNoteZh: '' } as const;
 const base: GateInput = {
   origin: 'employee', assignedTo: null, paused: false, windowPlan: openPlan,
-  activated: true, pilotMode: false, recipientAllowed: true, silenced: false, stopped: true,
+  activated: true, pilotMode: false, recipientAllowed: true, silenced: false, stopped: true, frozen: false,
 };
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
 
@@ -35,7 +35,7 @@ describe('the gate: Stop binds the machine, never the owner', () => {
   });
 
   it('answers exactly as before when nothing is stopped', () => {
-    expect(gateOutbound({ ...base, stopped: false })).toEqual({ allow: true, viaTemplate: false });
+    expect(gateOutbound({ ...base, stopped: false, frozen: false })).toEqual({ allow: true, viaTemplate: false });
   });
 
   it('names the ops switch first when both are set — the reason the owner did not choose', () => {
@@ -80,6 +80,8 @@ describe('where Stop is asked', () => {
   it('the store resolves it inside the send’s own transaction, and the worker hands it to the gate', () => {
     expect(src('src/db/channels.ts')).toMatch(/const stopped = await assistantStopped\(tx, businessId\);/);
     expect(src('src/outbound/worker.ts')).toContain('stopped: ctx.stopped,');
+    // D4 — and the freeze beside it, required all the way down too.
+    expect(src('src/outbound/worker.ts')).toContain('frozen: ctx.frozen,');
   });
 
   it('the one hand-back and the one approval path both ask it, inside their own transaction', () => {

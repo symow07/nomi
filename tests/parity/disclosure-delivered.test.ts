@@ -87,7 +87,7 @@ function memStore(body: string, ctx: Partial<ConversationSendContext> = {}, orig
   const delivered: { conversationId: string; at: Date }[] = [];
   const context: ConversationSendContext = {
     assignedTo: null, paused: false, lastInboundAt: new Date(NOW.getTime() - 3600_000), template: 'none',
-    pilotMode: false, activated: true, silenced: false, stopped: false, ...ctx,
+    pilotMode: false, activated: true, silenced: false, stopped: false, frozen: false, ...ctx,
   };
   const store: OutboundStore = {
     async load() { return { rows: [{ ...row }], ctx: context }; },
@@ -130,7 +130,7 @@ describe('the drive loop — told when the provider ACCEPTS a message carrying i
 
   it('refused at send time — Stop, the ops silence, a hand-over, a pause, the allowlist — is not told', async () => {
     for (const ctx of [
-      { stopped: true }, { silenced: true }, { assignedTo: 'owner' }, { paused: true },
+      { stopped: true, frozen: false }, { silenced: true }, { assignedTo: 'owner' }, { paused: true },
       { pilotMode: true, recipientAllowed: false },
     ] as Partial<ConversationSendContext>[]) {
       const m = memStore(TOLD, ctx);

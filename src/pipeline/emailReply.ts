@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { withTenantTx, lockConversation, type Db } from '../db/client.js';
+import { billingHeld } from '../db/billing.js';
 import { tenantRepos } from '../db/repos.js';
 import { recordConsent } from '../db/contacts.js';
 import { handToPerson } from './received.js';
@@ -52,7 +53,9 @@ export type EmailReplyOutcome =
   /** It answers one of her mails, from an address that mail did not go to. */
   | 'not_the_recipient'
   /** R1 — it says it is from him, and the receiving server could not confirm it: kept, marked, a person reads it. */
-  | 'unconfirmed';
+  | 'unconfirmed'
+  /** D4 (2026-10-12) — the workspace is frozen (its subscription lapsed): acknowledged and dropped, nothing stored. */
+  | 'frozen';
 
 export async function recordEmailReply(
   db: Db, mail: InboundMail,
@@ -71,6 +74,8 @@ export async function recordEmailReply(
   const bid = parseBusinessId(thread.business_id);
   if (!bid.ok) return { outcome: 'unknown_thread', conversationId: null };
   const cid = thread.conversation_id;
+  // D4 — a frozen workspace receives nothing: acknowledged and dropped, never stored.
+  if (await withTenantTx(db, bid.value, (tx) => billingHeld(tx))) return { outcome: 'frozen', conversationId: null };
   const confirmed = senderConfirmed(mail.authResults, from.value, null);
 
   return withTenantTx(db, bid.value, async (tx) => {

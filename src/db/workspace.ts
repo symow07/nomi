@@ -4,6 +4,7 @@ import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { mainAssistant } from './assistants.js';
 import { setupProgress, type SetupProgress } from './setup.js';
+import { billingHeld } from './billing.js';
 
 /**
  * D — the facts about a workspace that EVERY page needs before it draws
@@ -24,6 +25,8 @@ export type WorkspaceFacts = {
   readonly zone: string;
   /** Phase 9 (V1-009) — the workspace's country (ISO code), for how its pages write an amount; null if none on record. */
   readonly country: string | null;
+  /** D4 (2026-10-12) — the subscription lapsed: frozen, read-only, nothing sent or received. */
+  readonly frozen: boolean;
 };
 
 /**
@@ -48,5 +51,6 @@ export async function workspaceFacts(tx: Tx, businessId: BusinessId): Promise<Wo
   const zone = await zoneOf(tx, businessId);
   const country = (await sql<{ country: string | null }>`
     select country from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.country ?? null;
-  return { name: who.name, several: who.several, outreach, setup, zone, country };
+  const frozen = await billingHeld(tx);
+  return { name: who.name, several: who.several, outreach, setup, zone, country, frozen };
 }

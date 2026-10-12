@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { withTenantTx, lockConversation, type Db } from '../../db/client.js';
+import { billingHeld } from '../../db/billing.js';
 import { liveMailAccount, markInboxRead, markMailAccountNeedsAttention } from '../../db/mailAccounts.js';
 import { ensureConversation } from '../../db/channels.js';
 import { recordConsent } from '../../db/contacts.js';
@@ -74,6 +75,8 @@ export type InboxReadResult =
 
 export async function readNewMail(deps: InboxReadDeps, businessId: BusinessId): Promise<InboxReadResult> {
   const now = deps.now ?? (() => new Date());
+  // D4 (2026-10-12) — a frozen workspace (its subscription lapsed) reads no mail: nothing new is stored.
+  if (await withTenantTx(deps.db, businessId, (tx) => billingHeld(tx))) return { outcome: 'not_reading' };
   const account = await withTenantTx(deps.db, businessId, (tx) => liveMailAccount(tx, businessId));
   if (!account || !account.readsInbox || account.provider !== 'google') return { outcome: 'not_reading' };
   if (account.needsAttention) return { outcome: 'needs_attention' };

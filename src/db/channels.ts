@@ -245,9 +245,11 @@ export function channelStore(
         // paused: absence is "she has set no ceiling", never "stop". G3 — the
         // numbers from the one reader, which charges a practice copy's sends to
         // the workspace that pays (P5).
-        // BILL (0117) — a lapsed payment pauses as the allowance does: queued
-        // replies wait for a person; one already sending finishes.
-        paused: allowanceUsed(await allowanceOf(tx)) || await billingHeld(tx),
+        // G3 — the day's allowance used pauses the assistant: queued replies wait for a person.
+        paused: allowanceUsed(await allowanceOf(tx)),
+        // D4 (2026-10-12) — a lapsed subscription FREEZES the workspace (0117's hold, read here at send
+        // time): nothing at all is sent, the owner's own replies included, until it is renewed.
+        frozen: await billingHeld(tx),
         lastInboundAt: c?.last_inbound_at ?? null,
         // M25 — THE template entry point (TEMPLATE_ENTRY_POINT in
         // core/channel/templateReadiness.ts names it). No longer a literal: it

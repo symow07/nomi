@@ -69,7 +69,7 @@ function memStore(asks: PendingQuestion | null, ctx: Partial<ConversationSendCon
   const asked: { conversationId: string; asks: PendingQuestion | null }[] = [];
   const context: ConversationSendContext = {
     assignedTo: null, paused: false, lastInboundAt: new Date(NOW.getTime() - 3600_000), template: 'none',
-    pilotMode: false, activated: true, silenced: false, stopped: false, ...ctx,
+    pilotMode: false, activated: true, silenced: false, stopped: false, frozen: false, ...ctx,
   };
   const store: OutboundStore = {
     async load() { return { rows: [{ ...row }], ctx: context }; },
@@ -107,7 +107,7 @@ describe('0080 · the pending question is set when its message leaves, and only 
   });
 
   it('refused at send time, or refused by the provider: nothing was asked', async () => {
-    for (const ctx of [{ stopped: true }, { silenced: true }, { assignedTo: 'owner' }, { paused: true }] as Partial<ConversationSendContext>[]) {
+    for (const ctx of [{ stopped: true, frozen: false }, { silenced: true }, { assignedTo: 'owner' }, { paused: true }] as Partial<ConversationSendContext>[]) {
       const m = memStore('order_confirmation', ctx);
       await drive(m.store);
       expect(m.row.status, JSON.stringify(ctx)).not.toBe('sent');
