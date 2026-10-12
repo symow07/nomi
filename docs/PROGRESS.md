@@ -13,6 +13,60 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## The data-protection audit, fixed in three batches (2026-10-12) — read this first
+
+**The owner's order** (2026-10-12): all of D1–D20 from the inventory, in three batches, each item its own PR, full
+checks, a backup before any migrating merge, a report after each batch. D4 is the owner's decision, not code: the
+pages stop claiming an end date, and the options go to the owner.
+
+**Batch 1 — stop the false statements, delete what should not exist (shipped, schema 137):**
+- #284 D1 (0137): a sign-up's form and password hash are not kept (spent on completion, forgotten an hour after
+  expiry, blanked when a workspace closes).
+- #285 D11: backups really go at 180 days, the newest included; the pages say what Railway keeps.
+- #286 D8: the privacy page says pictures go to the language service too.
+- #287 D6: the deletion page names every copy no deletion reaches (the language service, logs, our mailbox, WhatsApp).
+- #288 D15: the deletion page says what the stop line does.
+- #289 D4 (page only): no end date and no deadline the code does not keep.
+- #290 D20: the smaller wording items.
+- #291 D5: a privacy statement for the people who use Nomi at a business; the system mail is Google (checked).
+
+**Batch 2 — the real code gaps (PRs #292–#300, stacked; merging in order, each through the gate):**
+- #292 D2 (0138): logs keep the path, never the query or the caller; errors without quoted values; dead letters by
+  id; the sign-up guard's hashed callers go after two days (found on the way).
+- #293 D3 (0139): the erasure reaches the same person on every row of theirs (shared phone, e-mail or account,
+  onward; more than 20 refuses). The test that said the second row survives is changed.
+- #294 D7: a per-customer copy on the buyer page; files name a customer by id and account; the terms say what the
+  download holds.
+- #295 D10 (0140): kept rows stop describing them (request note, tracking numbers, do-not-contact detail; a lifted
+  stop goes). A latent disagreement fixed: a standing stop is counted by the database too.
+- #296 D9 (send path): the unsubscribe link records the stop; nothing goes until they write again. Pre-pilot 12/12
+  before and after.
+- #297 D12 (0141): every ledger line is mailed to the operator (a 15-minute job); the runbook stops the app before a
+  Railway restore.
+- #298 D13 (0142): settled first — "Try it" copies nothing until the owner sends; then the erasure reaches it in
+  Practice.
+- #299 D14 (0143): the erasure takes queued jobs that name them; the privacy page states the queue's week.
+- #300 D19 (0144): every business table is decided in the erasure's contract (55 `unrelated`, with reasons);
+  app_errors keeps no quoted values.
+
+**Batch 3 — advisor, staff, latent (PRs #301–#303, after Batch 2):**
+- #301 D16 (0145): a surviving advisor conversation loses its title; the page says what is not encrypted and every
+  way history goes.
+- #302 D17 (0146): archiving a member, login, device or mailbox clears what identified them or opened anything.
+- #303 D18: a service the privacy page does not name cannot be switched on (boot refuses; Apollo not wired).
+
+**The owner's, from this audit:**
+- **D4, the retention policy** — the options and their costs are in the batch report; nothing is built until the
+  owner chooses.
+- Railway still lists one manual volume backup past its expiry, "Pre-Security-Patch Backup" (2026-08-22, expired
+  2026-09-21): the owner deletes it in the dashboard.
+- `INDENT` and the `HandedOff` type were left with no reader by the cleanup (kept, not approved for deletion).
+
+**Tool output that asked to install, update or sign into something** (none of it was done): the MCP connectors'
+sign-in (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery, Hex; "definite" failed to
+connect), the watch hook's Whisper key, Supabase's "install its agent skill", Adobe's "mandatory init", Claude Docs'
+guide, npm's fsevents install scripts, and `railway postgres pitr status` answering "signup_required".
+
 ## Dead-code and naming cleanup (2026-10-11) — before the data-protection audit
 
 **The owner's order:** two passes, with a stop between them. First an inventory, nothing deleted. Then delete only
@@ -55,7 +109,7 @@ list, so both stay.
 **Checks:** the unit count is identical to main's (7733 passed, 1428 skipped); trust 44/44; build; integration
 1433 of 1433.
 
-## The orb's one light, the plain nav mark, Arabic signed, and D2/D3 (2026-10-11) — read this first
+## The orb's one light, the plain nav mark, Arabic signed, and D2/D3 (2026-10-11)
 
 **The owner's order** (2026-10-11): five changes, each its own PR, four checks and the pre-pilot before and after
 each. The orb glow and the nav icon STOP before merging, for the owner's eyes on a render; the rest merge.
