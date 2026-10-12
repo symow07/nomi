@@ -67,3 +67,18 @@ describe('D4 · the dashboard is read-only, with the doors that must stay open',
     }
   });
 });
+
+describe('D4 · one notice when it freezes: what frozen means, and the way back — no countdown', () => {
+  const frozen = { en: /frozen/, zh: /冻结/, ar: /تجمّد|مجمّد/, es: /congelado/, fr: /gelé/ } as const;
+  it('the lapse e-mail, the Billing line and Setup say frozen, in every language; none promises "Needs you" any more', () => {
+    for (const l of LOCALES) {
+      for (const k of ['notify.billing_lapsed.subject', 'notify.billing_lapsed', 'billing.status.lapsed', 'setup.value.billing.lapsed'] as const) {
+        expect(t(l, k), `${l} ${k}`).toMatch(frozen[l]);
+      }
+    }
+    expect(t('en', 'notify.billing_lapsed')).toMatch(/nothing is deleted on its own/);
+    expect(t('en', 'notify.billing_lapsed')).toMatch(/take a copy of your data/);
+    expect(t('en', 'notify.billing_lapsed')).toMatch(/close the workspace/);
+    expect(t('en', 'notify.billing_lapsed')).not.toMatch(/Needs you|paused/);
+  });
+});
