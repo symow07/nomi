@@ -54,6 +54,11 @@ export const QUEUES = {
    */
   deletions: 'ops.deletions',
   /**
+   * D4 (0147) — once a day: a deletion request nobody answered is chased — the
+   * owner reminded at 7 and 30 days, the app flagging it at 60 — never carried out.
+   */
+  deletionChase: 'ops.deletion_chase',
+  /**
    * CC-10 — every five minutes: the error alert the hourly limit held back,
    * once the hour has room for it (src/db/appErrors.ts). Errors are recorded
    * where they happen; this only makes sure a held one is not forgotten when
@@ -236,10 +241,13 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
+  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance';
   conversationId: string | null;
+  /** D4 (0147) — `deletion_reminder`: when the customer asked (ISO), and how many days it has waited (7 or 30). */
+  deletionAskedAt?: string;
+  deletionDays?: number;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
   /**

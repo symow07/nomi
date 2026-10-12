@@ -90,7 +90,8 @@ describe('G5 → phase 8 · a waiting reply and a hot lead keep their codes, and
   it('each interruption has its words and an e-mail subject in every language; a hand-off names the assistant', async () => {
     const { INTERRUPTION_KINDS } = await import('../../src/pipeline/notify.js');
     const { t } = await import('../../src/core/owner/i18n/messages.js');
-    expect([...INTERRUPTION_KINDS].sort()).toEqual(['deletion_requested', 'handoff', 'order_proposed']);
+    // D4 — a deletion request still waiting is chased at 7 and 30 days (tests/parity/deletion-chase.test.ts).
+    expect([...INTERRUPTION_KINDS].sort()).toEqual(['deletion_reminder', 'deletion_requested', 'handoff', 'order_proposed']);
     for (const l of LOCALES) for (const k of INTERRUPTION_KINDS) {
       expect(t(l, `notify.${k}.subject` as MessageKey), `${l}:${k}`).not.toMatch(/^notify\./);
       expect(renderOwnerAlert(l, k, 'Lily'), `${l}:${k}`).not.toMatch(/^notify\./);

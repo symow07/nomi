@@ -362,7 +362,9 @@ import type { Db } from './client.js';
 // 145 = an advisor conversation that outlives a customer's erasure loses its title (0145); the app reads '' as none.
 // 146 = what is archived stops holding who someone was, or a way in (0146): triggers on people, logins,
 //       push_subscriptions and mail_accounts.
-export const REQUIRED_SCHEMA_VERSION = 146;
+// 147 = a deletion request nobody answers is chased (0147): `deletion_chases`, `claim_deletion_chases`, which the
+//       daily ops.deletion_chase job calls; against a 146 database it fails.
+export const REQUIRED_SCHEMA_VERSION = 147;
 
 export type SchemaState = {
   readonly required: number;

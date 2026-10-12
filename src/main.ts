@@ -1467,6 +1467,30 @@ export async function buildProduction(
   });
 
   /**
+   * D4 (the owner's decision, 2026-10-12; 0147) — A DELETION REQUEST NOBODY
+   * ANSWERS IS CHASED, NEVER CARRIED OUT. Once a day: every request waiting for
+   * an owner (noted from a message, or recorded and not done) is claimed at its
+   * furthest step due, once — reminded at 7 and 30 days (the owner's alert,
+   * e-mail always), flagged in the app at 60 (Today and the customer's page read
+   * the age). Every chase is recorded (`deletion_chases`); the business, the
+   * controller, decides — Nomi deletes nothing on its own.
+   */
+  await boss.schedule(QUEUES.deletionChase, '15 7 * * *', {});
+  await boss.work(QUEUES.deletionChase, async () => {
+    const due = (await sql<{ business_id: string; subject: string; step: string; asked_at: Date; conversation_id: string | null }>`
+      select business_id::text as business_id, subject, step, asked_at, conversation_id::text as conversation_id
+        from claim_deletion_chases()`.execute(db)).rows;
+    for (const c of due) {
+      if (c.step === '60d') continue;   // the app flags it; the chase is recorded
+      await boss.send(QUEUES.notify, {
+        businessId: c.business_id, kind: 'deletion_reminder', conversationId: c.conversation_id,
+        deletionAskedAt: c.asked_at.toISOString(), deletionDays: c.step === '7d' ? 7 : 30,
+      } satisfies NotifyJob);
+    }
+    if (due.length > 0) console.log(`[deletions] ${due.length} waiting request(s) chased`);
+  });
+
+  /**
    * CEIL — every hour, Meta's error rate per workspace (0085): the operator is
    * told of any workspace over the line (src/core/ops/metaErrors.ts), by e-mail
    * always, at most once in six hours — the next hour's check would repeat it.

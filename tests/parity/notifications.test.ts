@@ -118,7 +118,9 @@ describe('the default and the choice', () => {
 
 describe('only two things leave Nomi', () => {
   it('an order waiting, and a hand-over — a deletion request among them, with its own words', () => {
-    expect([...INTERRUPTION_KINDS].sort()).toEqual(['deletion_requested', 'handoff', 'order_proposed']);
+    // D4 (the owner's decision, 2026-10-12) — the reminders at 7 and 30 days are the same hand-over, chased:
+    // the deletion request is still waiting for the owner, so it may reach them outside the app.
+    expect([...INTERRUPTION_KINDS].sort()).toEqual(['deletion_reminder', 'deletion_requested', 'handoff', 'order_proposed']);
     for (const k of INTERRUPTION_KINDS) {
       expect(interrupts(k), k).toBe(true);
       expect(goesByMail(k), k).toBe(false);
@@ -235,7 +237,7 @@ describe('the one delivery function chooses each person\'s way, and falls back t
     expect(k.asked).toEqual(['browser:1']);
     // and the delivery passes it for a deletion request, and only for one
     const src = readFileSync(new URL('../../src/pipeline/notify.ts', import.meta.url), 'utf8');
-    expect(src).toContain("mailOwnerAlways: job.kind === 'deletion_requested',");
+    expect(src).toContain("mailOwnerAlways: job.kind === 'deletion_requested' || job.kind === 'deletion_reminder',");
   });
 
   it('the day approval lands, the same owner — still on the default — is WhatsApp, and only WhatsApp', async () => {

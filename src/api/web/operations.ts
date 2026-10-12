@@ -59,6 +59,8 @@ export type OperationsSnapshot = {
      * Absent (a snapshot built before 0076) is none.
      */
     readonly deletionAsks?: number;
+    /** D4 (0147) — requests waiting more than 60 days, noted or recorded and not carried out: flagged on Today. Absent is none. */
+    readonly deletionAsksLong?: number;
     /**
      * 0080 — orders customers said yes to, waiting for the owner's tap. Leads
      * the list: nothing was confirmed or sent until the owner decides. Absent
@@ -188,6 +190,8 @@ export type AttentionCounts = {
   readonly ownerHandling: number;
   readonly blockedMessages: number;
   readonly deletionAsks: number;
+  /** D4 (0147) — noted or recorded requests waiting more than 60 days. */
+  readonly deletionAsksLong?: number;
   /** 0080 — orders customers said yes to, waiting for the owner's tap. */
   readonly ordersWaiting: number;
 };
@@ -207,13 +211,17 @@ export async function readAttention(db: Db, B: BusinessId): Promise<AttentionCou
         if (o === 'WAITING_HUMAN') handoffs += r.n;
         else if (o === 'OWNER_CONTROLLED') ownerHandling += r.n;
       }
-      const q = (await sql<{ pending: number; deletion_asks: number; orders: number }>`
+      const q = (await sql<{ pending: number; deletion_asks: number; deletion_asks_long: number; orders: number }>`
         select
           (select count(*)::int from drafts where business_id = ${B} and status = 'pending') as pending,
           (select count(*)::int from deletion_asks where business_id = ${B} and state = 'waiting') as deletion_asks,
+          (select count(*)::int from deletion_asks where business_id = ${B} and state = 'waiting'
+              and asked_at <= now() - interval '60 days')
+          + (select count(*)::int from deletion_requests where business_id = ${B} and scope = 'buyer' and state = 'open'
+              and asked_at <= now() - interval '60 days') as deletion_asks_long,
           (select count(*)::int from order_proposals where business_id = ${B} and state = 'pending') as orders
       `.execute(tx)).rows[0]!;
-      return { handoffs, ownerHandling, pending: q.pending, deletionAsks: q.deletion_asks, ordersWaiting: q.orders };
+      return { handoffs, ownerHandling, pending: q.pending, deletionAsks: q.deletion_asks, deletionAsksLong: q.deletion_asks_long, ordersWaiting: q.orders };
     }),
     // M22 — counted by the database over persisted canceled rows, through the
     // SAME predicate that lists them, so the number and the list agree.
@@ -221,7 +229,7 @@ export async function readAttention(db: Db, B: BusinessId): Promise<AttentionCou
   ]);
   return {
     pendingApprovals: counts.pending, handoffs: counts.handoffs, ownerHandling: counts.ownerHandling,
-    blockedMessages, deletionAsks: counts.deletionAsks, ordersWaiting: counts.ordersWaiting,
+    blockedMessages, deletionAsks: counts.deletionAsks, deletionAsksLong: counts.deletionAsksLong, ordersWaiting: counts.ordersWaiting,
   };
 }
 
@@ -326,7 +334,9 @@ const attentionCount = (s: OperationsSnapshot, k: AttentionKind): number =>
  */
 const ownerWaiting = (s: OperationsSnapshot, today: TodayData): number =>
   today.needs.total + s.attention.blockedMessages + (s.attention.deletionAsks ?? 0) + s.knowledge.openGaps
-  + (s.supervision?.spotChecks ?? 0) + (s.supervision?.demoted.length ?? 0);
+  + (s.supervision?.spotChecks ?? 0) + (s.supervision?.demoted.length ?? 0)
+  // D4 — its own line: a recorded request left open 60 days is on no other line, and is never "caught up".
+  + (s.attention.deletionAsksLong ?? 0);
 
 /** True only when nothing anywhere needs the owner — including her own threads. */
 export const needsOwnerAttention = (s: OperationsSnapshot): boolean =>
@@ -405,6 +415,8 @@ export function renderOperationsHome(
     blocked > 0 ? deeper('/app/inbox?filter=blocked', tn(locale, 'today.blocked', blocked)) : '',
     // 0076 — a deletion request waits as its own thing, with its own list.
     asks > 0 ? deeper('/app/inbox?filter=deletion', tn(locale, 'today.deletion', asks)) : '',
+    // D4 (0147) — the ones that have waited more than 60 days: Nomi never acts on them; the owner decides.
+    (s.attention.deletionAsksLong ?? 0) > 0 ? deeper('/app/settings/data#buyers', tn(locale, 'today.deletion.long', s.attention.deletionAsksLong ?? 0)) : '',
     gaps > 0 ? deeper('/app/knowledge', tn(locale, 'today.gaps', gaps, { name })) : '',
     // R5 — the assistant stepped back on its own, and work sent alone waits to be checked.
     s.supervision?.demoted.length ? deeper(`${ASSISTANT_HOME}#on-her-own`, t(locale, 'today.demoted', {

@@ -121,7 +121,7 @@ export const ALLOWANCE_ALERT_KINDS = ['allowance_warn', 'allowance_reached'] as 
  * Each goes the way its reader chose on Notifications (`deliverOwnerInterruption`).
  * Each needs `notify.<kind>` and `notify.<kind>.subject` in every locale.
  */
-export const INTERRUPTION_KINDS = ['order_proposed', 'handoff', 'deletion_requested'] as const satisfies readonly AlertKind[];
+export const INTERRUPTION_KINDS = ['order_proposed', 'handoff', 'deletion_requested', 'deletion_reminder'] as const satisfies readonly AlertKind[];
 export const interrupts = (kind: AlertKind): boolean => (INTERRUPTION_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
@@ -171,6 +171,9 @@ export type OperatorAlertDetail = {
   readonly metaErrors?: readonly { readonly business: string; readonly attempted: number; readonly failed: number; readonly errors: readonly string[] }[];
   /** TZ — the zone the reader's dates are said in: the receiving workspace's. UTC when not given. */
   readonly zone?: string;
+  /** D4 (0147) — `deletion_reminder`: when the customer asked, and how many days it has waited. */
+  readonly deletionAskedAt?: Date | null;
+  readonly deletionDays?: number;
   /** `signup_digest` (G1): who signed up in the last day. */
   readonly signups?: readonly { readonly business: string; readonly kind: string | null; readonly country: string | null }[];
   /** `signup_digest` (G7): the operator switches still on. */
@@ -243,6 +246,13 @@ export function renderOwnerAlert(
     return detail.lastBackupAt
       ? t(locale, 'notify.backup_stale', { when: formatDate(locale, detail.lastBackupAt, detail.zone ?? 'UTC') })
       : t(locale, 'notify.backup_stale.never');
+  }
+  // D4 (0147) — a deletion request still waiting: when it was asked, how long ago, and that Nomi never acts on it.
+  if (kind === 'deletion_reminder') {
+    return t(locale, 'notify.deletion_reminder', {
+      date: formatDate(locale, detail.deletionAskedAt ?? new Date(), detail.zone ?? 'UTC'),
+      days: detail.deletionDays ?? 7,
+    });
   }
   // CC-02a — which requests, whose, asked when and due by when; a late one
   // says so. The words for the kind of request are the owner's page's own.
@@ -559,7 +569,10 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
   });
   if (!found) return 'skipped_no_destination';
   const locale: Locale = parseLocale(found.locale) ?? 'en';
-  const words = renderOwnerAlert(locale, job.kind, found.name);
+  const words = renderOwnerAlert(locale, job.kind, found.name, {
+    ...(job.deletionAskedAt ? { deletionAskedAt: new Date(job.deletionAskedAt) } : {}),
+    ...(job.deletionDays !== undefined ? { deletionDays: job.deletionDays } : {}),
+  });
   const subject = t(locale, `notify.${job.kind}.subject` as MessageKey);
   const link = deps.publicBaseUrl && conversationId ? alertLink(deps.publicBaseUrl, conversationId) : null;
   const text = link ? `${words}\n\n${t(locale, 'notify.open', { url: link })}` : words;
@@ -570,8 +583,8 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
     whatsappReachable: ownerWhatsAppReachable({ ownerPhone, channelLive: found.channelLive }),
     approved: deps.whatsappApproved === true,
     pushOn: push !== null,
-    // Rule 18 — a deletion request reaches the owner's sign-in address by e-mail always.
-    mailOwnerAlways: job.kind === 'deletion_requested',
+    // Rule 18 — a deletion request reaches the owner's sign-in address by e-mail always; D4 — and so does each reminder.
+    mailOwnerAlways: job.kind === 'deletion_requested' || job.kind === 'deletion_reminder',
   }, {
     email: deps.mail ? async (to) => {
       const m = await deps.mail!.send({ to, subject, text });
