@@ -346,3 +346,35 @@ describe('D17 · staff and owner records: archiving clears them, and the page sa
     expect(t('en', 'legal.privacy.owner.staff')).toMatch(/when they were last active, which the owner sees/);
   });
 });
+
+describe('D18 · no service receives anyone\'s data before the privacy page names it', () => {
+  it('each of the six, switched on, stops the boot; none switched on, nothing is said', async () => {
+    const { unnamedRecipientProblems, OPTIONAL_RECIPIENTS } = await import('../../src/core/legal/recipients.js');
+    expect(OPTIONAL_RECIPIENTS.map((r) => r.id).sort()).toEqual(['apollo', 'd360', 'httpsMail', 'smtp', 'stripe', 'webPush']);
+    expect(unnamedRecipientProblems({})).toEqual([]);
+    for (const [env, name] of [
+      [{ STRIPE_SECRET_KEY: 'sk_test_x' }, 'Stripe'], [{ VAPID_PRIVATE_KEY: 'x' }, 'web push'], [{ MAIL_API_KEY: 'x' }, 'Resend or Postmark'],
+      [{ WHATSAPP_PROVIDER: '360dialog' }, '360dialog'], [{ SMTP_HOST: 'smtp.example.test' }, 'SMTP server'],
+    ] as const) {
+      const p = unnamedRecipientProblems(env);
+      expect(p, name).toHaveLength(1);
+      expect(p[0], name).toContain(name);
+    }
+    // Named, it may be switched on.
+    const named = OPTIONAL_RECIPIENTS.map((r) => ({ ...r, named: { key: 'legal.privacy.who.x' } }));
+    expect(unnamedRecipientProblems({ STRIPE_SECRET_KEY: 'x', SMTP_HOST: 'y' }, named)).toEqual([]);
+  });
+  it('a service marked named has its line on the privacy page, in every language', async () => {
+    const { OPTIONAL_RECIPIENTS } = await import('../../src/core/legal/recipients.js');
+    for (const r of OPTIONAL_RECIPIENTS) {
+      if (!r.named) continue;
+      for (const l of LOCALES) expect(t(l, r.named.key as Parameters<typeof t>[1]).length, `${r.id} ${l}`).toBeGreaterThan(20);
+    }
+  });
+  it('Apollo, switched on inside the product by a stored key, is not wired until named; the boot reads the list', () => {
+    const main = read('src/main.ts');
+    expect(main).toMatch(/\.\.\.\(recipientNamed\('apollo'\) \? \{ prospectSourceFor: /);
+    expect(main).not.toMatch(/^\s*prospectSourceFor: \(apiKey: string\) => apolloSource/m);
+    expect(main).toMatch(/const problems: string\[\] = \[\.\.\.unnamedRecipientProblems\(env, recipients\)\];/);
+  });
+});
