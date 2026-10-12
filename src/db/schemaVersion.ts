@@ -353,7 +353,9 @@ import type { Db } from './client.js';
 // 141 = every ledger line reaches the operator's mailbox (0141): `erasure_ledger_unmailed`,
 //       `erasure_ledger_mark_mailed`, which the fifteen-minute job and the erasure routes call; against a 140
 //       database both fail.
-export const REQUIRED_SCHEMA_VERSION = 141;
+// 142 = a customer's erasure reaches their words in Practice (0142): `practice_erase_conversations`, which
+//       `practice_erase` and the erasure call; against a 141 database Start over and the thirty days fail.
+export const REQUIRED_SCHEMA_VERSION = 142;
 
 export type SchemaState = {
   readonly required: number;

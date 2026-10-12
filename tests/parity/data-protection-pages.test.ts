@@ -253,3 +253,20 @@ describe('D12 · "carried out again before the service runs": every ledger line 
     expect(doc).toMatch(/since\s+0141 \(D12\) a job every fifteen minutes mails every line not yet mailed/);
   });
 });
+
+describe('D13 · settled: "Try it in Practice" copies nothing until the owner sends; then the erasure reaches it', () => {
+  it('the link only fills the Practice box — the question rides in the address, which the logs no longer keep (D2)', () => {
+    expect(read('src/api/web/knowledge-insights.ts')).toMatch(/const testHref = `\/app\/sandbox\?ask=\$\{encodeURIComponent\(g\.question\)\}#compose`/);
+    expect(read('src/api/web/app.ts')).toMatch(/const prefill = typeof q\.ask === 'string' \? q\.ask : asked\[0\] \?\? '';/);
+  });
+  it('the erasure deletes a practice conversation that holds their words, twelve characters or more, word for word', () => {
+    const sql = read('migrations/0142_practice_copies.sql');
+    expect(sql).toMatch(/select 12/);
+    expect(sql).toMatch(/v_n := practice_erase_conversations\(v_copy, v_convs\);/);
+    expect(sql).toMatch(/return practice_erase_conversations\(p_copy, v_ids\);/);
+  });
+  it('the deletion page says so, in every language', () => {
+    for (const l of LOCALES) expect(t(l, 'legal.deletion.erased.practice').length, l).toBeGreaterThan(20);
+    expect(read('src/api/web/legal.ts')).toMatch(/'legal\.deletion\.erased\.advisor',[\s\S]{0,120}'legal\.deletion\.erased\.practice',/);
+  });
+});
