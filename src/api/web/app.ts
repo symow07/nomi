@@ -222,6 +222,7 @@ import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataE
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
+import { samePersonOf } from '../../db/samePerson.js';
 import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
@@ -2155,7 +2156,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     facts.evict(s.businessId);
     liveness.evictBusiness(s.businessId);
     if (deps.systemMail && deps.legalContact) {
-      const mail = erasureNotice('workspace', r.line);
+      const mail = erasureNotice('workspace', r.line ? [r.line] : []);
       void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
         (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'workspace erasure notice could not be sent'); },
         (e: unknown) => req.log.warn({ err: e }, 'workspace erasure notice could not be sent'),
@@ -4033,13 +4034,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // With no script: the page that asks. It names who, and what goes and stays.
       const bid = parseBusinessId(s.businessId);
       const buyer = bid.ok && /^[0-9a-f-]{36}$/i.test(conversationId)
-        ? await withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ name: string | null }>`
-            select c.display_name as name from conversations v join clients c on c.id = v.client_id
-             where v.id = ${conversationId}::uuid`.execute(tx)).rows[0]) : undefined;
+        ? await withTenantTx(deps.db, bid.value, async (tx) => {
+            const row = (await sql<{ name: string | null; client: string }>`
+              select c.display_name as name, c.id::text as client from conversations v join clients c on c.id = v.client_id
+               where v.id = ${conversationId}::uuid`.execute(tx)).rows[0];
+            return row ? { name: row.name, samePerson: await samePersonOf(tx, row.client) } : undefined;
+          }) : undefined;
       if (!buyer) return reply.redirect('/app/inbox');
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'erase.ask.title'), active: 'inbox',
-        bodyHtml: renderEraseAsk(locale, { conversationId, buyer: buyer.name, note, from }),
+        bodyHtml: renderEraseAsk(locale, { conversationId, buyer: buyer.name, note, from, samePerson: buyer.samePerson }),
       }));
     }
     const r = await eraseCustomerNow(deps.db, s.businessId, conversationId, note, personOf(s).id);
@@ -4055,7 +4059,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     facts.evict(s.businessId);
     if (deps.systemMail && deps.legalContact) {
-      const mail = erasureNotice('customer', r.line);
+      const mail = erasureNotice('customer', r.lines);
       void deps.systemMail.send({ to: deps.legalContact, ...mail }).then(
         (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'customer erasure notice could not be sent'); },
         (e: unknown) => req.log.warn({ err: e }, 'customer erasure notice could not be sent'),
@@ -4064,6 +4068,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // What went, then each thing that stayed and why — in the owner's words.
     return flashTo(reply, '/app/settings/data#buyers', [
       { key: 'data.flash.erased' },
+      ...(r.samePerson > 0 ? [{ key: 'data.flash.erasedSamePerson' as const, params: { n: show.count(locale, r.samePerson) } }] : []),
       ...(r.ordersKept > 0 ? [{ key: 'data.flash.erasedOrders' as const, params: { n: show.count(locale, r.ordersKept) } }] : []),
       ...(r.doNotContactKept > 0 ? [{ key: 'data.flash.erasedDoNotContact' as const }] : []),
       { key: 'data.flash.erasedRecord' },

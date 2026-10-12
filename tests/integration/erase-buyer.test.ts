@@ -16,13 +16,15 @@ import { normalizePhone } from '../../src/core/channel/phone.js';
  * role, against a business seeded here with a buyer (A) who left a row in
  * every table the contract names — two conversations, one holding a confirmed
  * order — beside a second buyer (B) in the same business, a third (D) whose
- * webhook receipt also carried A's message, and the SAME person as A (C) in a
+ * webhook receipt also carried A's message, the SAME person as A recorded a
+ * second time in A's business by e-mail (Y), and the same person as A (C) in a
  * different business.
  *
  * The proof is a fingerprint of every row of both businesses, taken before and
  * after: the rows that went must be exactly A's erasable rows, the rows that
- * changed exactly the ones the contract changes, and nothing else — not one
- * byte of B, C or D beyond the receipt D shared with A.
+ * changed exactly the ones the contract changes — Y's row among them, since
+ * D3 (0139): the erasure reaches the same person on every channel — and
+ * nothing else — not one byte of B, C or D beyond the receipt D shared with A.
  */
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -114,7 +116,7 @@ const B = {
 };
 const D = { client: id(85), cc: id(86), c: id(87), m: id(88) };
 const C = { client: id(90), c: id(91), m: id(92), s: id(93), ct: id(94), cn: id(95), sup: id(96), pl: id(97), req: id(98), au: '', job: '' };
-/** The same person as A recorded a second time in A's business — by e-mail. */
+/** The same person as A recorded a second time in A's business — by e-mail. Erased with A (D3, 0139). */
 const Y = { client: id(100) };
 
 /** A key as the snapshot prints it: the row's primary key, `row(...)::text`. */
@@ -338,7 +340,8 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       });
       // An open WORKSPACE request in the same business: not this tool's to carry out.
       await ins('deletion_requests', { id: WS_REQ, business_id: B1, scope: 'workspace', asked_by: 'owner' });
-      // A second buyer row holding A's address. Not named by the request, so not erased — but named in the dry run.
+      // A second buyer row holding A's address: the same person. Not named by the request, and erased with it all the
+      // same (D3, 0139) — until 0139 it survived, and this test said it must.
       await ins('clients', { id: Y.client, business_id: B1, display_name: `Mail contact ${RUN}`, email: EMAIL_A });
 
       // ── B: another buyer of the same business ─────────────────────────────
@@ -567,7 +570,8 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     expect(r.out).toMatch(/\b1 {2}suppressions — so they are never written to again/);
     expect(r.out).toMatch(/CHANGED IN PLACE[\s\S]*\b2 {2}channel_audit\b/);
     expect(r.out).toMatch(/sample credit/);
-    expect(r.out).toContain(`Another buyer row in this business shares one of their identities: ${Y.client}.`);
+    expect(r.out).toContain(`Erased with this request too, as the same person (a shared phone number, e-mail address or channel account): ${Y.client}.`);
+    expect(r.out).toContain(`SAME PERSON · buyer row ${Y.client}`);
     expect(r.out).toContain('Dry run. Nothing was changed.');
     expect(r.out).toContain(`--confirm ${A.req.slice(0, 8)}`);
     // Never the whole identity of someone being erased, on screen or in a log.
@@ -595,6 +599,11 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     const ledger = (await db.query<Record<string, unknown>>(
       `select * from erasure_ledger where id = $1::uuid`, [trail.detail['erasure']])).rows[0]!;
     expect(ledger).toMatchObject({ kind: 'customer', business_id: B1, customer_id: A.client, request_id: A.req, via: 'operator', by_who: 'Operator Test' });
+    expect(trail.detail['records']).toBe(2);
+    // D3 (0139) — a ledger line for each row of the same person, so a restore erases Y again too.
+    const lines = (await db.query<{ customer_id: string }>(
+      `select customer_id::text as customer_id from erasure_ledger where request_id = $1::uuid order by at, id`, [A.req])).rows;
+    expect(lines.map((l) => l.customer_id).sort()).toEqual([A.client, Y.client].sort());
     expect((ledger['counts'] as { erased: Record<string, number> }).erased['messages']).toBe(4);
     for (const personal of [PHONE_A, EMAIL_A, IG_A, NAME_A, SAID_A]) expect(JSON.stringify(ledger)).not.toContain(personal);
     expect(change.removed).toEqual([
@@ -631,6 +640,8 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     ].sort());
     expect(change.changed).toEqual([
       `clients:${k(A.client)}`,
+      // D3 (0139) — the same person's second row: anonymous now, like A's.
+      `clients:${k(Y.client)}`,
       `conversations:${k(A.c2)}`,
       `orders:${k(A.order)}`,
       `email_confirmations:${k(A.ec)}`,
@@ -685,9 +696,9 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     expect(await mentioning(db, [B1], IG_A)).toEqual([]);
     expect(await mentioning(db, [B1], NAME_A)).toEqual([]);
     expect(await mentioning(db, [B1], SAID_A)).toEqual([]);
-    // The suppression — and the second buyer row the request does not name.
-    expect(await mentioning(db, [B1], EMAIL_A)).toEqual(['clients', 'suppressions']);
-    expect((await db.query('select email from clients where id = $1', [Y.client])).rows[0]).toEqual({ email: EMAIL_A });
+    // The suppression, and nothing else: the same person's second row went with A (D3, 0139).
+    expect(await mentioning(db, [B1], EMAIL_A)).toEqual(['suppressions']);
+    expect((await db.query('select display_name, email from clients where id = $1', [Y.client])).rows[0]).toEqual({ display_name: null, email: null });
     // The same person in another business is that business's buyer, untouched.
     expect(await mentioning(db, [B2], PHONE_A)).toEqual(['channel_audit', 'channel_events', 'clients', 'pilot_allowlist']);
     expect(await mentioning(db, [B2], EMAIL_A)).toEqual(['clients', 'contact_consent', 'contacts', 'suppressions']);

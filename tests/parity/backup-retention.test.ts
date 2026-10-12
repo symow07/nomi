@@ -682,7 +682,9 @@ describe('the docs say what the code does', () => {
       expect(read(f), f).toContain('60 days');
       expect(read(f), f).toContain('180 days');
     }
-    expect(read('tools/erase-buyer.mjs')).toMatch(/dailies after 60 days, manual pairs after 180/);
+    // D11 — the newest manual pair is no exception any more: any copy but a daily goes by 180 days.
+    expect(read('tools/erase-buyer.mjs')).toMatch(/dailies after 60 days, any other copy after at most 180/);
+    expect(read('tools/erase-buyer.mjs')).not.toMatch(/newest manual pair only once/);
     expect(read('docs/BACKUP-RESTORE.md')).toMatch(/only when one of these tools runs/i);
   });
 });

@@ -154,7 +154,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'advisor.flash.on', 'advisor.flash.notNow', 'advisor.flash.workspaceOn', 'advisor.flash.workspaceOff',
   'advisor.flash.deleted', 'advisor.flash.threadDeleted', 'advisor.flash.ownerDeleted',
   // 0126 — deleted, and what stayed.
-  'data.flash.erased', 'data.flash.erasedOrders', 'data.flash.erasedDoNotContact', 'data.flash.erasedRecord',
+  'data.flash.erased', 'data.flash.erasedOrders', 'data.flash.erasedSamePerson', 'data.flash.erasedDoNotContact', 'data.flash.erasedRecord',
   // 0076 — a noted request recorded, or set aside as not one: both happened.
   'conv.deletion.flash.dismissed',
   // 0135 — a stop lifted because the buyer asked, or recorded by the owner: both happened.

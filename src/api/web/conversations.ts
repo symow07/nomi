@@ -13,6 +13,7 @@ import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
 import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
 import { standingOptOut, type StandingOptOut } from '../../db/optOuts.js';
+import { samePersonOf, type SamePersonRecord } from '../../db/samePerson.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
@@ -135,6 +136,12 @@ export type CustomerFile = {
    */
   readonly optOut?: StandingOptOut | null;
   /**
+   * D3 (0139) — the same person's other customer rows here (a shared phone
+   * number or e-mail address), which deleting this customer deletes too.
+   * Optional so a fixture without one reads as nobody else.
+   */
+  readonly samePerson?: readonly SamePersonRecord[];
+  /**
    * The fix wave (w4-conversation-19) — their face (the photo's version, else
    * their initial) and what they spent and ordered (`customerValues`, the one
    * definition, as the card and the strip read it). Optional for fixtures.
@@ -207,6 +214,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     const deletionAsk = await waitingAskOf(tx, conversationId);
     const optOut = await standingOptOut(tx, bid.value, conversationId);
     const client = head.client_id;
+    const samePerson = client ? await samePersonOf(tx, client) : [];
     const customer = client ? {
       clientId: client,
       photo: (await faceVersions(tx, [client])).get(client) ?? null,
@@ -285,6 +293,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       deletion,
       deletionAsk,
       optOut,
+      samePerson,
       customer,
     };
   });
@@ -428,6 +437,23 @@ function optOutSection(f: CustomerFile, locale: Locale, viewer: Viewer): string 
   </div>`;
 }
 
+/**
+ * D3 (0139) — before deleting: the same person's other customer rows, by name
+ * and channel, which go too. Nothing when there are none.
+ */
+export function samePersonLine(locale: Locale, others: readonly SamePersonRecord[]): string {
+  if (others.length === 0) return '';
+  const each = others.map((o) => {
+    const name = `<bdi>${esc(o.name ?? t(locale, 'common.buyer'))}</bdi>`;
+    if (!o.channel) return name;
+    const ch = esc(channelName(locale, o.channel));
+    return locale === 'zh' ? `${name}（${ch}）` : `${name} (${ch})`;
+  });
+  // The sentence is escaped around the list, whose names are escaped one by one and isolated.
+  const [before = '', after = ''] = t(locale, 'conv.deletion.samePerson', { list: '\u0000' }).split('\u0000');
+  return `<p class="muted" id="same-person">${esc(before)}${formatList(locale, each)}${esc(after)}</p>`;
+}
+
 function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
   const d = f.deletion ?? null;
   const date = (x: Date) => show.date(locale, x);
@@ -436,6 +462,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
   const head = `<h2>${esc(t(locale, 'conv.deletion.title'))}</h2>`;
   const here = `/app/conversations/${encodeURIComponent(f.conversationId)}`;
   const what = `<p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
+        ${samePersonLine(locale, f.samePerson ?? [])}
         <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
         <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>`;
   // The one act. `asked` is 1 only when the product's dialog said yes; with no
