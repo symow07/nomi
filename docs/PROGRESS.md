@@ -30,7 +30,7 @@ pages stop claiming an end date, and the options go to the owner.
 - #290 D20: the smaller wording items.
 - #291 D5: a privacy statement for the people who use Nomi at a business; the system mail is Google (checked).
 
-**Batch 2 — the real code gaps (PRs #292–#300, stacked; merging in order, each through the gate):**
+**Batch 2 — the real code gaps (shipped, schema 144; stacked PRs merged in order, each through the gate):**
 - #292 D2 (0138): logs keep the path, never the query or the caller; errors without quoted values; dead letters by
   id; the sign-up guard's hashed callers go after two days (found on the way).
 - #293 D3 (0139): the erasure reaches the same person on every row of theirs (shared phone, e-mail or account,
@@ -49,11 +49,22 @@ pages stop claiming an end date, and the options go to the owner.
 - #300 D19 (0144): every business table is decided in the erasure's contract (55 `unrelated`, with reasons);
   app_errors keeps no quoted values.
 
-**Batch 3 — advisor, staff, latent (PRs #301–#303, after Batch 2):**
+**Batch 3 — advisor, staff, latent (shipped, schema 146):**
 - #301 D16 (0145): a surviving advisor conversation loses its title; the page says what is not encrypted and every
   way history goes.
 - #302 D17 (0146): archiving a member, login, device or mailbox clears what identified them or opened anything.
 - #303 D18: a service the privacy page does not name cannot be switched on (boot refuses; Apollo not wired).
+
+**Checked in production after the merges:** schema 146; `customer_erasure_problems()` is empty (every business
+table is decided, so the owner's delete button runs); none of the six guarded variables is set (only
+`SYSTEM_SMTP_*`, the Google mailbox the page names). Backup before the first migration:
+`nomi-backup-20261012T030455Z` (drill passed).
+
+**Tests changed on purpose, per the owner's decisions:** backup retention (the newest copy is no longer kept past
+180 days); the page-sentence pins; erase-buyer's second record of the same person (now erased) and its
+fingerprint (a cleared tracking number); the in-app erasure's request note (now cleared); the deletion page's
+Chinese do-not-contact pin; add-login's and phone-alerts' archived rows (now empty); the 360dialog boot test
+(refused until named).
 
 **The owner's, from this audit:**
 - **D4, the retention policy** — the options and their costs are in the batch report; nothing is built until the
