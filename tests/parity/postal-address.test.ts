@@ -63,13 +63,13 @@ describe('0133 · the postal address on Settings', () => {
   });
 });
 
-describe('0133 · the privacy page says what each first e-mail and follow-up carries, and that a reply carries neither', () => {
+describe('0133 · the privacy page says what each first e-mail and follow-up carries, and that a reply shows neither (D20: its headers may still offer to unsubscribe)', () => {
   const said: Record<string, readonly RegExp[]> = {
-    en: [/Every first e-mail and follow-up/, /postal address/, /A reply to an e-mail you wrote first carries neither/],
-    zh: [/每封首次邮件和跟进邮件/, /邮寄地址/, /回复你先发来的邮件时，这两项都不附/],
-    ar: [/وكل رسالة بريد أولى وكل رسالة متابعة/, /العنوان البريدي/, /ولا يحمل الردُّ على رسالة وردت منك أولًا أيًّا منهما/],
-    es: [/Cada primer correo y cada seguimiento/, /dirección postal/, /Una respuesta a un correo que escribiste tú primero no lleva ninguno de los dos/],
-    fr: [/Chaque premier e-mail et chaque relance/, /adresse postale/, /Une réponse à un e-mail que vous avez écrit en premier ne porte ni l’un ni l’autre/],
+    en: [/Every first e-mail and follow-up/, /postal address/, /A reply to an e-mail you wrote first shows neither, though your mail program may still offer you a way to unsubscribe/],
+    zh: [/每封首次邮件和跟进邮件/, /邮寄地址/, /回复你先发来的邮件时，这两项都不显示/],
+    ar: [/وكل رسالة بريد أولى وكل رسالة متابعة/, /العنوان البريدي/, /ولا يُظهر الردُّ على رسالة وردت منك أولًا أيًّا منهما/],
+    es: [/Cada primer correo y cada seguimiento/, /dirección postal/, /Una respuesta a un correo que escribiste tú primero no muestra ninguno de los dos/],
+    fr: [/Chaque premier e-mail et chaque relance/, /adresse postale/, /Une réponse à un e-mail que vous avez écrit en premier n’affiche ni l’un ni l’autre/],
   };
   for (const l of LOCALES) {
     it(`${l} · on the page, in the business's choices`, () => {
