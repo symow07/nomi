@@ -351,6 +351,8 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
       'legal.deletion.erased.notes', 'legal.deletion.erased.conversations',
       // 0130 — the advisor's kept turns that name them, whole (erase-buyer's `advisor_turn_subjects`, `advisor_turns`).
       'legal.deletion.erased.advisor',
+      // D13 (0142) — a question of theirs the business sent word for word in Practice.
+      'legal.deletion.erased.practice',
     ])}</ul>
     <h2>${k('legal.deletion.kept.title')}</h2>
     <ul>${list([
