@@ -49,6 +49,17 @@ d('BOT · the sign-up\'s guards (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
   const otpCookie = (r: { headers: Record<string, unknown> }) =>
     ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? []).map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_otp=')) ?? '';
   const setSwitch = (mode: string | null) => admin.query(`update signup_settings set mode = $1, set_by = 'bot-check test' where id`, [mode]);
+  /**
+   * The guard counts per UTC clock HOUR (0114, `claim_signup_throttle`), so a sequence that must reach its limit
+   * needs one hour to itself: with less than a minute left in the database's hour, wait for the next to begin.
+   * CI ran the per-domain test from 03:59:59 to 04:00:00 UTC on 2026-10-12 — its eleventh code fell in a fresh
+   * hour and went (302, not 429).
+   */
+  const oneClockHour = async () => {
+    const left = async () => Number((await admin.query(
+      `select extract(epoch from date_trunc('hour', now()) + interval '1 hour' - now())::float8 as s`)).rows[0].s);
+    while ((await left()) < 60) await new Promise((r) => setTimeout(r, 1000));
+  };
 
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: MIGRATE_URL });
@@ -120,6 +131,7 @@ d('BOT · the sign-up\'s guards (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
   });
 
   it('PER CALLER, IN THE DATABASE: five tries an hour — and a second process (a deploy) still refuses the sixth', async () => {
+    await oneClockHour();
     const from = caller(0x100);
     for (let i = 0; i < 5; i++) expect((await form('/signup', { ...shop(0x100 + i) }, from)).statusCode).toBe(400);
     // The process's own limit refuses the sixth here, as before 0114…
@@ -146,9 +158,10 @@ d('BOT · the sign-up\'s guards (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
     // Kept only as a hash.
     expect((await admin.query(`select 1 from signup_throttles where kind = 'caller' and key_hash = $1`, [sha(from)])).rowCount).toBe(1);
     await other.close(); await db.destroy();
-  });
+  }, 120_000);
 
   it('PER COMPANY DOMAIN: ten codes an hour, then none — a resend included; a public provider\'s domain is never counted', async () => {
+    await oneClockHour();
     const pending: string[] = [];
     for (let i = 0; i < 10; i++) {
       const r = await form('/signup', { ...shop(0x200 + i, `firm-${RUN}.example`), [FIELD]: PERSON }, caller(0x200 + i));
@@ -166,7 +179,7 @@ d('BOT · the sign-up\'s guards (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
     expect((await form('/signup', { ...shop(0x20c, `other-${RUN}.example`), [FIELD]: PERSON }, caller(0x20c))).statusCode).toBe(302);
     expect((await form('/signup', { ...shop(0x20d, 'gmail.com'), [FIELD]: PERSON }, caller(0x20d))).statusCode).toBe(302);
     expect((await admin.query(`select 1 from signup_throttles where kind = 'domain' and key_hash = $1`, [sha('gmail.com')])).rowCount).toBe(0);
-  });
+  }, 120_000);
 
   it('OPEN WITHOUT A CHECK reads as invite: only an invitation can make Nomi send a code', async () => {
     const { registerWebApp } = await import('../../src/api/web/app.js');
