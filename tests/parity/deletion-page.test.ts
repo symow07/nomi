@@ -71,7 +71,7 @@ const OLD: Record<Locale, string> = {
  */
 const MUST: Record<Locale, Record<string, RegExp>> = {
   en: {
-    businessDeletes: /The business sees your request in Nomi and deletes your data there/,
+    businessDeletes: /The business sees your request in Nomi and, when it decides to, deletes your data there/,
     gone: /It is deleted at once: gone, not hidden/,
     notWritten: /Nomi sends you nothing about the deletion/,
     noForm: /There is no form on this page, on purpose/,
@@ -94,7 +94,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     keptMeta: /copies Meta itself holds/,
   },
   zh: {
-    businessDeletes: /商家在 Nomi 里看到你的要求，并在那里删除你的数据/,
+    businessDeletes: /商家在 Nomi 里看到你的要求。商家在那里删除你的数据时/,
     gone: /删除立即生效：数据被真正删掉，而不是隐藏起来/,
     notWritten: /Nomi 不会就删除另外联系你/,
     noForm: /这一页上故意没有表单/,
@@ -113,7 +113,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     keptMeta: /Meta 自己保存的副本/,
   },
   ar: {
-    businessDeletes: /ترى الشركة الطلب في Nomi وتحذف بياناتك من هناك/,
+    businessDeletes: /ترى الشركة الطلب في Nomi\. وعندما تحذف بياناتك من هناك/,
     gone: /تزول البيانات فعلًا، ولا تُخفى فحسب/,
     notWritten: /لا يراسلك Nomi بشأن الحذف/,
     noForm: /لا توجد استمارة في هذه الصفحة/,
@@ -132,7 +132,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     keptMeta: /النسخ التي تحتفظ بها Meta نفسها/,
   },
   es: {
-    businessDeletes: /El negocio ve tu solicitud en Nomi y borra allí tus datos/,
+    businessDeletes: /El negocio ve tu solicitud en Nomi\. Cuando borra allí tus datos/,
     gone: /se eliminan de verdad, no se ocultan/,
     notWritten: /Nomi no te escribe sobre el borrado/,
     noForm: /Esta página no tiene formulario, a propósito/,
@@ -151,7 +151,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     keptMeta: /copias que guarda la propia Meta/,
   },
   fr: {
-    businessDeletes: /L’entreprise voit votre demande dans Nomi et y supprime vos données/,
+    businessDeletes: /L’entreprise voit votre demande dans Nomi\. Quand l’entreprise y supprime vos données/,
     gone: /les données sont réellement effacées, pas seulement masquées/,
     notWritten: /Nomi ne vous écrit pas au sujet de la suppression/,
     noForm: /Cette page n’a pas de formulaire, et c’est voulu/,
@@ -287,12 +287,13 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
     }
   });
 
-  it('the privacy page says how long, as the owner decided (0126): while the business uses Nomi, until you ask or it closes — and points to the deletion page', () => {
+  it('the privacy page says how long, truthfully (D4, 2026-10-12): no set end; until the business deletes it or closes — and points to the deletion page', () => {
     const facts = { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
     // The retention model is not "delete after 90 days": kept while the workspace is active,
     // deleted when the customer asks, or when the workspace closes.
-    expect(messages.en['legal.privacy.howLong.body']).toMatch(/^For as long as the business uses Nomi/);
-    expect(messages.en['legal.privacy.howLong.body']).toMatch(/deleted when you ask the business to delete yours, or when the business closes its workspace, which erases everything in it/);
+    expect(messages.en['legal.privacy.howLong.body']).toMatch(/with no set end: it stays until the business deletes it, which you can ask it to do, or closes its workspace, which erases everything in it/);
+    expect(messages.en['legal.privacy.howLong.body']).toMatch(/A business that stops using Nomi without closing its workspace keeps it\./);
+    expect(messages.en['legal.privacy.howLong.body']).not.toMatch(/For as long as the business uses Nomi/);
     for (const l of LOCALES) expect(messages[l]['legal.privacy.howLong.body'], l).not.toMatch(/90/);
     // Phase 9 (public-missed-15) — the deletion page by its own name, and a link wherever it is named.
     expect(messages.en['legal.privacy.choices.body']).toMatch(/as the page “\{deletion\}” describes/);
