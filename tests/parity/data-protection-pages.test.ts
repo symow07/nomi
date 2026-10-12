@@ -331,3 +331,18 @@ describe('D16 · the advisor: a title an erasure cleared, what is not encrypted,
     }
   });
 });
+
+describe('D17 · staff and owner records: archiving clears them, and the page says what goes', () => {
+  it('the four archives clear on the way, and a removed member takes their login and devices', () => {
+    const sql = read('migrations/0146_staff_records.sql');
+    for (const t of ['people_archived_forget', 'people_archived_cascade', 'logins_archived_forget', 'push_subscriptions_archived_forget', 'mail_accounts_archived_forget']) {
+      expect(sql, t).toMatch(new RegExp(`create trigger ${t} `));
+    }
+  });
+  it('every language says what goes when a member is removed, and what an old sign-in, device or mailbox keeps', () => {
+    const goes = { en: /Everything else of theirs goes when they are removed/, zh: /成员被移除时/, ar: /وعند إزالة العضو/, es: /Todo lo demás se borra al quitarlo/, fr: /Tout le reste est supprimé au retrait/ } as const;
+    for (const l of LOCALES) expect(t(l, 'legal.privacy.owner.howLong'), l).toMatch(goes[l]);
+    // D5 already told a team member that the owner sees when they were last active (the audit's second D17 point).
+    expect(t('en', 'legal.privacy.owner.staff')).toMatch(/when they were last active, which the owner sees/);
+  });
+});
