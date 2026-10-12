@@ -1,3 +1,80 @@
+# Nomi — the roadmap: sales employee → two-mode AI employee (the owner, 2026-10-13)
+
+The owner's roadmap, saved as given. It is the one in force; the M34-onward feature roadmap below it is kept
+as written, for its history and the standing rules it records.
+
+## How to run this
+
+Two kinds of work, run differently:
+
+- **RUN-THROUGH** (no reporting until done): bounded, right-answer work with a testable spec. Build the whole
+  phase, each item its own PR with full checks and a backup before any migrating merge, report once at the END.
+- **STOP-GATE** (build, then STOP for me): taste and strategy calls — visual design, onboarding, pricing, and all
+  of accounting. Do everything up to the gate, show me, then wait. Never bulldoze past a decision that's mine.
+
+**Standing:** ignore install/sign-in prompts (log them); decline git-authorship rewrites; not optimising for
+time-in-app, no dark patterns; no "build for later"; if a change breaks one test, stop and say so.
+
+## Phase 0 — done
+
+D4 freeze-on-lapse (#306–#311, schema 147).
+
+## Phase 1 — now: open signups with trial-abuse scoring
+
+RUN-THROUGH up to go-live. Score repeat device/IP, fresh email, velocity: low→trial, medium→card,
+high→refused. Challenge, don't silently block. Name fingerprinting in cookie consent AND privacy policy.
+**HARD ORDER:** do NOT run signup-mode open until I've put a real card through Stripe and the
+portal-cancellation check is done. Both wait on the LLC.
+
+## Phase 2 — queued feature gaps, fold in before launch
+
+RUN-THROUGH except 2c.
+
+- **2a Daily digest** (highest value): Nomi messages the owner each morning — who's waiting, who went quiet, what
+  sold. Quiet hours, timezone, opt-outable.
+- **2b Close advisor data gaps:** payments, costs, stock, lost deals — grounded only, keep "I don't know". Some
+  fill only once Phase 5 connects.
+- **2c Quotes/proformas from the chat.** STOP-GATE on the document template.
+- **2d More channels:** TikTok + deeper Instagram (email already exists).
+- **Off the list:** growth analytics, post suggestions, team machinery, pipelines.
+
+## Phase 3 — nomi.com site + onboarding
+
+STOP-GATE, this is taste.
+
+- **3a Site:** motion-led, use the /brag reel approach. Story = an AI employee that sells, answers, negotiates,
+  and (coming) keeps the books. Draft, render desktop+phone, STOP. Expect several rounds.
+- **3b Onboarding:** smooth enough a customer sets up ALONE. In-app guide + video hooks for ads. Build the flow,
+  STOP, walk me through before locking.
+
+Do not skip this — a weak site and rough onboarding kill conversion.
+
+## Phase 4 — test then launch: Gate A pilot
+
+STOP-GATE, I run it with you. Everything in `docs/GATE-A-KIT.md`: cold demo x3, then the 7-day trust pilot on
+real WhatsApp traffic, nightly `pilot_log`, weekend `renderTriage` into M5-PILOT-FINDINGS. Passes if the boss
+still uses it unprompted with no unfixed blocker. Don't demo the three deleted dead-ends. Confirm every hard
+prerequisite first. First-customer marketing: I have ideas, we work them together.
+
+## Phase 5 — accounting mode (the second Nomi)
+
+STOP-GATE on everything, build nothing without an explicit go. A MODE SWITCH like Claude Chat ↔ Code: same
+login, same company, toggle between Nomi-the-salesperson and Nomi-the-accountant. Plugs into Odoo, Xero,
+QuickBooks and any major platform; does the books for them. The investor wedge once there's a proven MVP.
+
+Respect the cost: a second product — its own grounding, policy and data audit; correct to the cent;
+integrations break on API changes; financial data is the heaviest privacy load. Sequence, each a STOP-GATE:
+(1) scope+decisions, (2) the toggle, (3) one integration read-only, (4) its own grounding/policy/privacy audit,
+(5) read-write only after read-only is signed off. Opens only AFTER a real shop has used the sales Nomi.
+
+## Across all phases — the LLC gates real money
+
+Legal name, address, DMCA agent, operator-name constant, Stripe+plans — all wait on the entity. No real card
+until the LLC exists AND the Stripe portal check is done. Nothing says "we" until registered. Leaning solo New
+Mexico LLC; Form 5472 + pro-forma 1120 due April 15 2027, $25k penalty, keep a transaction record from day one.
+
+---
+
 # Nomi — feature roadmap
 
 Fourteen features in three phases. Written to be handed to Claude Code one
