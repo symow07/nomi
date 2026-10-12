@@ -97,6 +97,8 @@ export const PRACTICE_SKIP = [
   'erasure_ledger',
   // 0130 — the advisor's history: each person's own, by their consent; the copy keeps none.
   'advisor_consents', 'advisor_threads', 'advisor_turns', 'advisor_turn_subjects',
+  // D4 (0147) — the record of each deletion request chased: the workspace's, never a copy's.
+  'deletion_chases',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];
