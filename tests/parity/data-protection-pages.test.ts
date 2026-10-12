@@ -190,3 +190,21 @@ describe('D2 · the pages say what the logs hold and for how long', () => {
     expect(read('src/main.ts')).toMatch(/boss\.schedule\(QUEUES\.signupExpiry, '45 3 \* \* \*'/);
   });
 });
+
+describe('D7 · the terms say what the download holds, not "in full"', () => {
+  it('every language names the row limit the export keeps, and no longer promises everything', async () => {
+    const { EXPORT_MAX_ROWS } = await import('../../src/api/web/dataExport.js');
+    const full = { en: /in full/, zh: /完整导出/, ar: /كاملة/, es: /completos/, fr: /en totalité/ } as const;
+    for (const l of LOCALES) {
+      const line = t(l, 'legal.terms.fees.body');
+      expect(line.replace(/[^\d]/g, ''), l).toContain(String(EXPORT_MAX_ROWS));
+      expect(line, l).not.toMatch(full[l]);
+    }
+  });
+  it('the buyer page offers the copy to the owner only, beside deleting', () => {
+    const src = read('src/api/web/conversations.ts');
+    expect(src).toMatch(/function copySection[\s\S]*?if \(!viewer\.isOwner\) return '';/);
+    expect(src).toMatch(/\$\{copySection\(f, locale, viewer\)\}\s*\$\{deletionSection\(f, locale, viewer\)\}/);
+    expect(read('src/api/web/app.ts')).toMatch(/app\.get\('\/app\/conversations\/:conversationId\/copy\.csv'[\s\S]{0,400}ownerOnly\(req, reply, 'data_rights'/);
+  });
+});
