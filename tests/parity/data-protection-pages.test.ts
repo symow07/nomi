@@ -77,3 +77,17 @@ describe('D6 · the deletion page names every copy no deletion inside Nomi reach
   });
 });
 
+
+describe('D15 · the deletion page says what D3’s stop line does', () => {
+  it('a stop said as "remove me from your list" is answered with the stop line (src/pipeline/turn.ts)', () => {
+    expect(read('src/pipeline/turn.ts')).toMatch(/asksOnlyOffAList\(req\.text\)/);
+  });
+  it('so step 3 says nothing about the deletion is sent, and names the one fixed line that confirms a stop', () => {
+    const en = t('en', 'legal.deletion.step3');
+    expect(en).toMatch(/^Nomi sends you nothing about the deletion\./);
+    expect(en).toMatch(/one fixed line confirms that, and nothing more/);
+    expect(en).not.toMatch(/does not write to you about it/);
+    const said = { zh: '一句固定的话', ar: 'جملة واحدة ثابتة', es: 'una única frase fija', fr: 'une seule phrase fixe' } as const;
+    for (const l of ['zh', 'ar', 'es', 'fr'] as const) expect(t(l, 'legal.deletion.step3'), l).toContain(said[l]);
+  });
+});

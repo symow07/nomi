@@ -73,7 +73,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
   en: {
     businessDeletes: /The business sees your request in Nomi and deletes your data there/,
     gone: /It is deleted at once: gone, not hidden/,
-    notWritten: /Nomi does not write to you about it/,
+    notWritten: /Nomi sends you nothing about the deletion/,
     noForm: /There is no form on this page, on purpose/,
     closedWorkspace: /If the business closes its Nomi workspace, everything in it is erased, your data included/,
     erasedIdentity: /Who you are on every channel/,
@@ -96,7 +96,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
   zh: {
     businessDeletes: /商家在 Nomi 里看到你的要求，并在那里删除你的数据/,
     gone: /删除立即生效：数据被真正删掉，而不是隐藏起来/,
-    notWritten: /Nomi 不会就此另外联系你/,
+    notWritten: /Nomi 不会就删除另外联系你/,
     noForm: /这一页上故意没有表单/,
     closedWorkspace: /如果商家关闭自己的 Nomi 工作台，其中的一切都会被清除，包括你的数据/,
     erasedIdentity: /你在各个渠道上的身份/,
@@ -115,7 +115,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
   ar: {
     businessDeletes: /ترى الشركة الطلب في Nomi وتحذف بياناتك من هناك/,
     gone: /تزول البيانات فعلًا، ولا تُخفى فحسب/,
-    notWritten: /لا يراسلك Nomi بهذا الشأن/,
+    notWritten: /لا يراسلك Nomi بشأن الحذف/,
     noForm: /لا توجد استمارة في هذه الصفحة/,
     closedWorkspace: /إن أغلقت الشركة مساحة عملها في Nomi، يُمحى كل ما فيها/,
     erasedIdentity: /هويتك على كل قناة/,
@@ -134,7 +134,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
   es: {
     businessDeletes: /El negocio ve tu solicitud en Nomi y borra allí tus datos/,
     gone: /se eliminan de verdad, no se ocultan/,
-    notWritten: /Nomi no te escribe por esto/,
+    notWritten: /Nomi no te escribe sobre el borrado/,
     noForm: /Esta página no tiene formulario, a propósito/,
     closedWorkspace: /Si el negocio cierra su espacio de trabajo en Nomi, se borra todo lo que contiene, también tus datos/,
     erasedIdentity: /Quién eres en cada canal/,
@@ -153,7 +153,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
   fr: {
     businessDeletes: /L’entreprise voit votre demande dans Nomi et y supprime vos données/,
     gone: /les données sont réellement effacées, pas seulement masquées/,
-    notWritten: /Nomi ne vous écrit pas à ce sujet/,
+    notWritten: /Nomi ne vous écrit pas au sujet de la suppression/,
     noForm: /Cette page n’a pas de formulaire, et c’est voulu/,
     closedWorkspace: /Si l’entreprise ferme son espace Nomi, tout son contenu est effacé, vos données comprises/,
     erasedIdentity: /Qui vous êtes sur chaque canal/,
