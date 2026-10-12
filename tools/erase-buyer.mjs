@@ -958,11 +958,16 @@ async function textLinks(client, { businessId, clientId, requestId, identities, 
   // so the run refuses until it is done.
   const jobs = { erase: [], active: 0 };
   const boss = (await client.query("select to_regclass('pgboss.job') is not null as ok")).rows[0]?.ok;
-  if (boss && conversationIds.length) {
+  // D14 (0143) — and a job with no conversation that names them by account: an owner's reply sent from
+  // the business's own Instagram or Messenger app (EchoJob's `customer`).
+  const accounts = distinct(identities.map((i) => i.identity));
+  if (boss && (conversationIds.length || accounts.length)) {
     const rows = (await client.query(
       `select id::text as id, state::text as state from pgboss.job
-        where data->>'businessId' = $1 and data->>'conversationId' = any($2::text[])`,
-      [businessId, conversationIds])).rows;
+        where data->>'businessId' = $1
+          and (data->>'conversationId' = any($2::text[])
+               or (data->>'conversationId' is null and data->>'customer' = any($3::text[])))`,
+      [businessId, conversationIds, accounts])).rows;
     jobs.active = rows.filter((r) => r.state === 'active').length;
     jobs.erase = rows.filter((r) => r.state !== 'active').map((r) => r.id);
   }
