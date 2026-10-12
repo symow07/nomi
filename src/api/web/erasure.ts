@@ -5,6 +5,8 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import { t } from './say.js';
 import { back, esc, publicDocument, publicTop, PUBLIC_TOP_CSS } from './layout.js';
 import { recordBuyerRequest, BUYER_NOTE_MAX } from './dataRights.js';
+import { samePersonLine } from './conversations.js';
+import type { SamePersonRecord } from '../../db/samePerson.js';
 import * as show from './values.js';
 
 /**
@@ -28,7 +30,7 @@ import * as show from './values.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The erasure's own count of what stayed, for the owner's notice. */
+/** The erasure's own count of what stayed, for the owner's notice — over every row of the same person (D3, 0139). */
 export type ErasedSummary = {
   readonly requestId: string;
   /** Orders kept, without contact details. */
@@ -37,8 +39,10 @@ export type ErasedSummary = {
   readonly doNotContactKept: number;
   /** Rows erased, in all. */
   readonly erased: number;
-  /** The ledger's line (ids, who, when, counts) — what the operator is sent. */
-  readonly line: Record<string, unknown> | null;
+  /** The same person's other customer rows, erased with this one. */
+  readonly samePerson: number;
+  /** The ledger's lines (ids, who, when, counts), one per customer row — what the operator is sent. */
+  readonly lines: readonly Record<string, unknown>[];
 };
 
 export type EraseOutcome =
@@ -78,11 +82,14 @@ export async function eraseCustomerNow(
       if (asked.outcome !== 'asked') return { outcome: 'refused', error: new Error(`request: ${asked.outcome}`) };
       const r = (await sql<{ r: Record<string, unknown> }>`
         select erase_customer(${asked.requestId}::uuid, ${actor}) as r`.execute(tx)).rows[0]?.r ?? {};
-      const kept = (r['kept'] ?? {}) as Record<string, number>;
+      // D3 (0139) — `total` is every row of the same person; the top level, the requested row alone.
+      const total = (r['total'] ?? r) as Record<string, unknown>;
+      const kept = (total['kept'] ?? {}) as Record<string, number>;
+      const lines = Array.isArray(r['lines']) ? r['lines'] as Record<string, unknown>[] : r['line'] ? [r['line'] as Record<string, unknown>] : [];
       return {
         outcome: 'erased', requestId: asked.requestId,
         ordersKept: Number(kept['orders'] ?? 0), doNotContactKept: Number(kept['suppressions'] ?? 0),
-        erased: sum(r['erased']), line: (r['line'] ?? null) as Record<string, unknown> | null,
+        erased: sum(total['erased']), samePerson: Array.isArray(r['same_person']) ? r['same_person'].length : 0, lines,
       };
     });
   } catch (e) {
@@ -125,16 +132,22 @@ export async function closeWorkspace(db: Db, businessIdRaw: string, typedName: s
   }
 }
 
-/** The operator's mail after an erasure: the ledger's line, ids only — what tools/replay-erasures.mjs --ledger reads. */
-export function erasureNotice(kind: 'customer' | 'workspace', line: Record<string, unknown> | null): { subject: string; text: string } {
-  const json = JSON.stringify(line ?? {});
+/**
+ * The operator's mail after an erasure: the ledger's lines, ids only, one JSON
+ * line each — what tools/replay-erasures.mjs --ledger reads. A customer who was
+ * several customer rows (D3, 0139) has a line per row, all needed after a restore.
+ */
+export function erasureNotice(kind: 'customer' | 'workspace', lines: readonly Record<string, unknown>[]): { subject: string; text: string } {
+  const business = String(lines[0]?.['business_id'] ?? '');
+  const json = (lines.length ? lines : [{}]).map((l) => JSON.stringify(l)).join('\n');
+  const many = lines.length > 1;
   return {
-    subject: kind === 'customer' ? `Customer data erased · ${String(line?.['business_id'] ?? '')}` : `Workspace closed and erased · ${String(line?.['business_id'] ?? '')}`,
+    subject: kind === 'customer' ? `Customer data erased · ${business}` : `Workspace closed and erased · ${business}`,
     text: `${kind === 'customer'
-      ? 'An owner deleted a customer\'s data in Nomi. It is gone from the database now.'
+      ? `An owner deleted a customer's data in Nomi. It is gone from the database now.${many ? ` They were ${lines.length} customer records in that workspace (the same phone number or e-mail address); each has its line.` : ''}`
       : 'An owner closed a workspace. Everything in it is gone from the database now.'}\n\n`
-      + 'The erasure ledger\'s line, ids only. Keep this mail: if a backup is ever restored, '
-      + 'save this line to a file and give it to tools/replay-erasures.mjs --ledger (docs/BACKUP-RESTORE.md, "Restore").\n\n'
+      + `The erasure ledger's ${many ? 'lines' : 'line'}, ids only. Keep this mail: if a backup is ever restored, `
+      + `save ${many ? 'these lines' : 'this line'} to a file and give it to tools/replay-erasures.mjs --ledger (docs/BACKUP-RESTORE.md, "Restore").\n\n`
       + `${json}\n`,
   };
 }
@@ -150,6 +163,8 @@ export function renderEraseAsk(
   locale: Locale, o: {
     readonly conversationId: string; readonly buyer: string | null; readonly note: string | null;
     readonly from: 'data' | 'conversation';
+    /** D3 (0139) — the same person's other customer rows, which go too. */
+    readonly samePerson?: readonly SamePersonRecord[];
   },
 ): string {
   const here = `/app/conversations/${encodeURIComponent(o.conversationId)}`;
@@ -158,6 +173,7 @@ export function renderEraseAsk(
     <h1 class="page">${esc(t(locale, 'erase.ask.title'))}</h1>
     ${o.buyer ? `<p><b><bdi>${esc(o.buyer)}</bdi></b></p>` : ''}
     <p>${esc(t(locale, 'conv.deletion.erased'))}</p>
+    ${samePersonLine(locale, o.samePerson ?? [])}
     <p>${esc(t(locale, 'conv.deletion.kept'))}</p>
     <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>
     <form method="post" action="${here}/deletion/erase" class="pform">

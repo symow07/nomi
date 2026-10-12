@@ -57,12 +57,15 @@ d('G20 · the app role cannot erase (requires DATABASE_URL)', () => {
       select has_function_privilege('nomi_app', ${fn}, 'EXECUTE') as ok`.execute(db)).rows[0]!.ok;
     expect(await may('erase_customer(uuid, text)')).toBe(true);
     expect(await may('close_workspace(text, text)')).toBe(true);
+    // D3 (0139) — the owner's page reads who else is the same person, in its own workspace only.
+    expect(await may('customer_same_person(uuid)')).toBe(true);
     for (const fn of [
       'erase_customer_rows(uuid, uuid, uuid, boolean)', 'carry_out_customer_request(uuid, uuid, text, text)',
       'erase_workspace_rows(uuid, boolean, boolean)', 'carry_out_workspace_erasure(uuid, uuid, text)',
       'workspace_erasure_steps()', 'customer_erasure_problems()', 'customer_erasure_contract()', 'customer_erasure_edges()',
       'erasure_ledger_unkept()', 'erasure_owner_of(uuid, text)', 'erasure_note(jsonb, text)',
       'erasure_prune(jsonb, text[])', 'erasure_mentions(jsonb, text[])', 'erasure_identity(text, text)',
+      'same_person_clients(uuid, uuid)', 'erasure_merge(jsonb, jsonb)', 'same_person_limit()',
     ]) expect(await may(fn), fn).toBe(false);
     // The ledger: nothing granted at all, and nothing readable through row security either.
     const held = (await sql<{ p: string }>`

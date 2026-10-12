@@ -162,9 +162,16 @@ the owner's note on who the buyer is, their identities (masked — check it is
 the right person), how many conversations they have and how many stay as empty
 shells, then three lists: **ERASED**, **KEPT** and **CHANGED IN PLACE**, with a
 count per table. A line starting `!` is something to settle first — a sample
-credit their order page will stop showing, another buyer row holding one of
-their identities (the same person recorded twice needs a request of its own),
-or a worker busy with them right now. `--by` goes on the request as who carried
+credit their order page will stop showing, the same person's other buyer rows
+(below), or a worker busy with them right now. Since 0139 (D3) the same person
+recorded more than once in the business — a WhatsApp buyer and an e-mail
+contact that became a second buyer row — goes with the request: every buyer
+row that shares a normalised phone number, e-mail address or channel account
+with theirs, and onward (`same_person_clients`). The dry run lists each under
+**SAME PERSON**, planned on its own; the run erases each the same way, writes a
+ledger line for each, closes an open request for any of them, and checks after
+that nothing of any of them is left. More than 20 rows refuses, unchanged: an
+address that many buyers share is not one person's. `--by` goes on the request as who carried
 it out. On Railway, run both steps through `railway run --service Postgres`, as
 for a workspace, so the URL never passes through a shell history.
 
@@ -214,7 +221,11 @@ out exactly this — no more, no less.
   that buyer's part; theirs is taken out.
 
 The same person in **another** business is that business's buyer, and nothing
-there is touched.
+there is touched. In the **same** business, every buyer row of theirs goes
+(D3, 0139, above); an account that shares no phone number or e-mail address
+with the others (an Instagram account where they never gave either) is found
+only if the buyer or the owner names it — the owner then deletes it from that
+conversation too.
 
 ### How it decides, and when it refuses
 

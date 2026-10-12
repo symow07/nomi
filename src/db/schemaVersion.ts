@@ -345,7 +345,9 @@ import type { Db } from './client.js';
 //       `otp_redeem` handing the form back once; against a 136 database the job fails.
 // 138 = a sign-up's caller is forgotten (0138): `signup_throttles_forget`, which the same job calls; against a 137
 //       database it fails.
-export const REQUIRED_SCHEMA_VERSION = 138;
+// 139 = the same person on every channel (0139): `customer_same_person`, which the buyer page reads, and
+//       `carry_out_customer_request` erasing every row of one person; against a 138 database the page fails.
+export const REQUIRED_SCHEMA_VERSION = 139;
 
 export type SchemaState = {
   readonly required: number;

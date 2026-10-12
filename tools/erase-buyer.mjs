@@ -829,9 +829,8 @@ export async function planErasure(client, subject, options = {}) {
       + 'The real run refuses until it finishes — try again in a minute.');
   }
   if (text.others.length) {
-    notes.push(`Another buyer row in this business shares one of their identities: ${text.others.join(', ')}. `
-      + 'Contacts and consent for that identity go with this request; that buyer row and its conversations stay. '
-      + 'If it is the same person, the owner records a request for it too.');
+    notes.push(`Erased with this request too, as the same person (a shared phone number, e-mail address or channel account): `
+      + `${text.others.join(', ')}. Each is erased the same way, with its own ledger line (D3, 0139); each is planned below.`);
   }
 
   const counts = (m) => new Map([...m].map(([t, v]) => [t, Array.isArray(v) ? v.length : v]));
@@ -846,6 +845,8 @@ export async function planErasure(client, subject, options = {}) {
   return {
     requestId, businessId, clientId, identities, steps, notes,
     erased, kept: keptCount, changed, pending,
+    /** D3 (0139) — the same person's other buyer rows here, as the database finds them; erased with this request. */
+    samePerson: text.others,
     jobsActive: text.jobs.active,
     conversations: { total: conversationIds.length, shells: kept.get('conversations')?.size ?? 0 },
     totals: {
@@ -932,24 +933,13 @@ async function textLinks(client, { businessId, clientId, requestId, identities, 
     }
   }
 
-  // ── Worth a person's look before saying yes. ──────────────────────────────
-  // The same person recorded twice in this business — a WhatsApp buyer and an
-  // e-mail contact that became a second buyer row. Rows keyed by the identity
-  // (contacts, consent) go with this request; the other buyer row's own
-  // conversations are not this request's to erase.
+  // ── The same person, recorded more than once in this business (D3, 0139). ──
+  // A WhatsApp buyer and an e-mail contact that became a second buyer row are
+  // one person: the database's own definition (`same_person_clients`, shared
+  // normalised identities, onward) says who, and the erasure takes them all.
   const others = (await client.query(
-    `select distinct cl.id::text as id
-       from clients cl
-      where cl.business_id = $1 and cl.id <> $2 and (
-            cl.phone = any($3::text[]) or lower(cl.email) = any($4::text[])
-         or exists (select 1 from client_channels cc
-                     where cc.client_id = cl.id
-                       and exists (select 1 from unnest($5::text[], $6::text[]) as i(ch, v)
-                                    where i.ch = cc.channel and i.v = cc.channel_user_id)))`,
-    [businessId, clientId,
-      identities.filter((i) => i.channel === 'whatsapp').map((i) => i.identity),
-      identities.filter((i) => i.channel === 'email').map((i) => i.identity.toLowerCase()),
-      identities.map((i) => i.channel), identities.map((i) => i.identity)])).rows.map((r) => r.id);
+    'select x::text as id from unnest(same_person_clients($1::uuid, $2::uuid)) as x where x <> $2::uuid',
+    [businessId, clientId])).rows.map((r) => r.id);
 
   // ── pgboss.job — queued and finished work. ────────────────────────────────
   // Inbound, outbound and notify jobs carry `conversationId`, and inbound ones
@@ -993,6 +983,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DAY = 24 * 3600_000;
 /** Words an owner typed, printed on an operator's terminal: never its control sequences. */
 const plain = (s) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, '?');
+
+/** D3 (0139) — the same person's other buyer rows, each planned on its own (a row both share is counted in each). */
+function printSamePerson(twins, rules = RULES) {
+  for (const p of twins) {
+    console.log(`  SAME PERSON · buyer row ${p.clientId} · identities: ${p.identities.map((i) => `${i.channel} ${mask(i)}`).join(', ') || 'none left'}\n`);
+    printPlan({ ...p, notes: [] }, rules);
+  }
+}
 
 function printPlan(plan, rules = RULES) {
   const row = (n, t, says) => console.log(`  ${String(n).padStart(8)}  ${t}${says ? ` — ${says}` : ''}`);
@@ -1109,8 +1107,12 @@ async function main() {
       // A dry run cannot write, even by mistake: the database refuses it.
       await client.query('begin isolation level repeatable read read only');
       let plan;
+      const twins = [];
       try {
         plan = await planErasure(client, subject);
+        if (!plan.refusals.length) {
+          for (const id of plan.samePerson) twins.push(await planErasure(client, { ...subject, clientId: id }));
+        }
       } finally {
         await client.query('rollback').catch(() => {});
       }
@@ -1118,6 +1120,7 @@ async function main() {
       console.log(`  identities: ${plan.identities.map((i) => `${i.channel} ${mask(i)}`).join(', ') || 'none left'}`);
       console.log(`  conversations: ${plan.conversations.total}, of which ${plan.conversations.shells} stay as empty shells\n`);
       printPlan(plan);
+      printSamePerson(twins);
       console.log('  Dry run. Nothing was changed.');
       console.log(`  To carry it out:  --yes --confirm ${req.id.slice(0, 8)} --by "<your name>"\n`);
       return;
@@ -1133,6 +1136,7 @@ async function main() {
     // a message arriving now waits, then finds no conversation to join.
     await client.query('begin isolation level repeatable read');
     let plan;
+    const twins = [];
     try {
       await client.query("set local lock_timeout = '15s'");
       const still = (await client.query(
@@ -1149,8 +1153,23 @@ async function main() {
         throw Object.assign(new Error(`A worker is handling this buyer right now (${plan.jobsActive} active). `
           + 'Run it again in a minute. Nothing was changed.'), { refusal: true });
       }
+      // D3 (0139) — the same person's other rows: locked and planned the same way, before anything changes.
+      for (const id of plan.samePerson) {
+        await client.query('select id from clients where id = $1 for update', [id]);
+        await client.query('select id from conversations where client_id = $1 for update', [id]);
+        const p = await planErasure(client, { ...subject, clientId: id });
+        if (p.refusals.length) {
+          throw Object.assign(new Error(`Cannot carry this out for the same person's row ${id}:\n   · ${p.refusals.join('\n   · ')}\n   Nothing was changed.`), { refusal: true });
+        }
+        if (p.jobsActive > 0) {
+          throw Object.assign(new Error(`A worker is handling the same person's row ${id} right now (${p.jobsActive} active). `
+            + 'Run it again in a minute. Nothing was changed.'), { refusal: true });
+        }
+        twins.push(p);
+      }
       console.log('');
       printPlan(plan);
+      printSamePerson(twins);
 
       // The one erasure: the database's, as the product's owner runs it.
       const done = (await client.query(
@@ -1164,6 +1183,12 @@ async function main() {
       if (disagree.length) {
         throw new Error(`The database's erasure and this tool's plan disagree:\n   · ${disagree.join('\n   · ')}\n   Rolled back; nothing changed.`);
       }
+      const doneSame = (Array.isArray(done?.same_person) ? done.same_person.map(String) : []).sort();
+      const planSame = [...plan.samePerson].sort();
+      if (doneSame.join() !== planSame.join()) {
+        throw new Error(`The database erased the same person's rows ${doneSame.join(', ') || 'none'}, where this tool planned `
+          + `${planSame.join(', ') || 'none'}. Rolled back; nothing changed.`);
+      }
       const closed = (await client.query("select state from deletion_requests where id = $1", [req.id])).rows[0]?.state;
       if (closed !== 'done') throw new Error('The request was not closed as done. Rolled back; nothing changed.');
 
@@ -1172,6 +1197,11 @@ async function main() {
       const after = await planErasure(client, subject, { identities: plan.identities });
       const wrong = afterProblems(plan, after);
       if (wrong.length) throw new Error(`After the erasure the database is not what the plan said:\n   · ${wrong.join('\n   · ')}\n   Rolled back; nothing changed.`);
+      for (const p of twins) {
+        const a = await planErasure(client, { ...subject, clientId: p.clientId }, { identities: p.identities });
+        const w = afterProblems(p, a);
+        if (w.length) throw new Error(`After the erasure the same person's row ${p.clientId} is not what the plan said:\n   · ${w.join('\n   · ')}\n   Rolled back; nothing changed.`);
+      }
 
       // The record is the database's: the closed request (state, when, by
       // whom, the counts in closed_note), the ids-only `erasure_ledger` row and
@@ -1200,8 +1230,9 @@ async function main() {
     // the locks) shows up here — the buyer writing again at that very moment.
     await client.query('begin isolation level repeatable read read only');
     try {
-      const late = await planErasure(client, subject, { identities: plan.identities });
-      if (late.totals.erased || late.totals.changed) {
+      const lates = [await planErasure(client, subject, { identities: plan.identities })];
+      for (const p of twins) lates.push(await planErasure(client, { ...subject, clientId: p.clientId }, { identities: p.identities }));
+      for (const late of lates.filter((l) => l.totals.erased || l.totals.changed)) {
         console.error(`\n!  Something wrote about this buyer while the erasure ran: ${[list(late.erased), list(late.changed)].filter(Boolean).join(', ')}.`
           + '\n   Look before doing anything: if they wrote again, that is a new conversation, and whether it goes too'
           + '\n   is the owner\'s to decide — with a new request.\n');
@@ -1212,10 +1243,11 @@ async function main() {
 
     console.log(`✓  ${plain(req.name)}: buyer erased — ${plan.totals.erased} rows erased, ${plan.totals.kept} kept`
       + `${plan.totals.changed ? `, ${plan.totals.changed} changed in place` : ''}.`);
+    if (twins.length) console.log(`   The same person's other ${twins.length === 1 ? 'row' : `${twins.length} rows`} went too: ${twins.map((p) => p.clientId).join(', ')}.`);
     console.log(`   Request ${req.id} is closed as done, by ${plain(by)}.`);
     console.log('   Tell the owner; confirming to the buyer is theirs.');
-    console.log('   Backups still hold them until they age out: dailies after 60 days, manual pairs after 180 —');
-    console.log('   the newest manual pair only once a newer one exists (docs/BACKUP-RESTORE.md, "How long copies are kept").');
+    console.log('   Backups still hold them until they age out: dailies after 60 days, any other copy after at most 180');
+    console.log('   (docs/BACKUP-RESTORE.md, "How long copies are kept").');
     console.log('   If a backup is ever restored, tools/replay-erasures.mjs carries this erasure out again (erasure_ledger).\n');
   } catch (e) {
     console.error(`\n✗  ${e instanceof Error ? e.message : String(e)}\n`);
