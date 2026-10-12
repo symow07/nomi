@@ -75,6 +75,7 @@ export type KeptTurn = {
   readonly door: { readonly href: string; readonly label: string } | null;
 };
 
+/** `title`: null when it cannot be opened; '' when a customer's erasure cleared it (D16, 0145). */
 export type ThreadRow = { readonly id: string; readonly startedAt: Date; readonly lastTurnAt: Date; readonly title: string | null };
 
 export type Opened = { readonly id: string; readonly startedAt: Date; readonly lastTurnAt: Date; readonly turns: readonly (KeptTurn & { readonly askedAt: Date })[] };
@@ -119,6 +120,8 @@ export function advisorMemory(db: Db, keys: AdvisorKeys): AdvisorMemory {
   }
   const seal = (plain: string) => sealAdvisor(keys, plain);
   const open = (c: string, w: string) => openAdvisor(keys, c, w);
+  /** D16 (0145) — a title a customer's erasure cleared is no title: the conversation shows by its date. */
+  const openTitle = (c: string, w: string) => (c === '' ? { plain: '', stale: false } : open(c, w));
   const code = (e: unknown): string => String((e as { code?: unknown } | null)?.code ?? '');
 
   /** A stale seal (the previous key) sealed again with the current one, on the way past (D8's rotation). */
@@ -223,7 +226,7 @@ export function advisorMemory(db: Db, keys: AdvisorKeys): AdvisorMemory {
       const rows = await asPerson(businessId, personId, async (tx) => (await sql<{ id: string; started_at: Date; last_turn_at: Date; title_ciphertext: string; sealed_with: string }>`
         select id::text as id, started_at, last_turn_at, title_ciphertext, sealed_with from advisor_threads
          where person_id = ${personId}::uuid order by last_turn_at desc limit 50`.execute(tx)).rows).catch(() => null);
-      return (rows ?? []).map((r) => ({ id: r.id, startedAt: r.started_at, lastTurnAt: r.last_turn_at, title: open(r.title_ciphertext, r.sealed_with)?.plain ?? null }));
+      return (rows ?? []).map((r) => ({ id: r.id, startedAt: r.started_at, lastTurnAt: r.last_turn_at, title: openTitle(r.title_ciphertext, r.sealed_with)?.plain ?? null }));
     },
 
     async open(businessId, personId, threadId) {
@@ -238,11 +241,11 @@ export function advisorMemory(db: Db, keys: AdvisorKeys): AdvisorMemory {
                  answer_ciphertext, facts_ciphertext, sealed_with
             from advisor_turns where thread_id = ${threadId}::uuid order by asked_at`.execute(tx)).rows;
         const turns = rows.map(openTurn);
-        const title = open(th.title_ciphertext, th.sealed_with);
+        const title = openTitle(th.title_ciphertext, th.sealed_with);
         if (!title || turns.some((x) => x === null)) return 'unreadable';
         // D5 counts from here: opened is kept another year.
         await sql`update advisor_threads set opened_at = now() where id = ${threadId}::uuid`.execute(tx);
-        if (title.stale) await reseal(tx, 'advisor_threads', th.id, { title_ciphertext: title.plain });
+        if (title.stale && title.plain !== '') await reseal(tx, 'advisor_threads', th.id, { title_ciphertext: title.plain });
         for (const [i, x] of turns.entries()) if (x!.stale) await reseal(tx, 'advisor_turns', rows[i]!.id, x!.raw);
         return {
           id: th.id, startedAt: th.started_at, lastTurnAt: th.last_turn_at,
@@ -344,7 +347,8 @@ export function advisorMemory(db: Db, keys: AdvisorKeys): AdvisorMemory {
       const unreadable = t(locale, 'advisor.thread.unreadable');
       return (rows ?? []).map((r) => {
         const x = openTurn(r);
-        const title = open(r.title_ciphertext, r.thread_sealed)?.plain ?? unreadable;
+        // D16 (0145) — a title an erasure cleared exports as no title, never as "unreadable".
+        const title = openTitle(r.title_ciphertext, r.thread_sealed)?.plain ?? unreadable;
         const said = x ? (x.phrased || x.lines.length === 0 ? x.text : [x.text, ...x.lines].filter(Boolean).join('\n')) : unreadable;
         return [title, r.started_at.toISOString(), r.asked_at.toISOString(), x?.question ?? unreadable, said];
       });
