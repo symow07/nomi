@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from './client.js';
 import { parseBusinessId } from '../core/types/ids.js';
+import { loggableMessage } from '../security/loggable.js';
 
 /**
  * T7 — COMPLETE METERING (the one-month build order, 2026-09-29).
@@ -57,6 +58,6 @@ export async function recordSpendAlone(db: Db, businessId: string, spent: Spent,
   try {
     await withTenantTx(db, bid.value, (tx) => recordSpend(tx, businessId, spent, opts));
   } catch (e) {
-    console.error(`[usage] not recorded for ${businessId}: ${(e as Error).message}`);
+    console.error(`[usage] not recorded for ${businessId}: ${loggableMessage((e as Error).message)}`);
   }
 }

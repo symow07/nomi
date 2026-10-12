@@ -85,6 +85,8 @@ import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
 import { startHeartbeat } from './worker/heartbeat.js';
+import { requestLogger } from './api/requestLog.js';
+import { loggableLine, loggableMessage } from './security/loggable.js';
 
 /**
  * PRODUCTION ENTRYPOINT (audit C1). Composes existing components — worker,
@@ -1076,6 +1078,9 @@ export async function buildProduction(
     await boss.work(QUEUES.signupExpiry, async () => {
       const n = Number((await sql<{ n: string }>`select login_codes_forget()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[signup] ${n} unfinished sign-up(s) forgotten`);
+      // D2 (0138) — and the sign-up guard's hashed callers, past two days.
+      const c = Number((await sql<{ n: string }>`select signup_throttles_forget()::text as n`.execute(db)).rows[0]?.n ?? 0);
+      if (c > 0) console.log(`[signup] ${c} sign-up caller count(s) forgotten`);
     });
   };
 
@@ -1088,7 +1093,7 @@ export async function buildProduction(
   if (channelsHere.length === 0) {
     await boss.work<DriveJob>(QUEUES.outbound, driveOutbound(async () => ({})));
     await erasePracticeDaily();
-    const app = Fastify({ logger: overrides?.logger ?? true });
+    const app = Fastify({ logger: requestLogger(overrides?.logger ?? true) });
     mountHealth(app, 'disabled');
     mountCommandCenter(app);
     app.log.warn('No messaging channel configured. Running in deployment mode.');
@@ -1339,12 +1344,12 @@ export async function buildProduction(
       if (lookedUp < DOMAIN_CHECKS_PER_SWEEP) {
         const r = await refreshDomainCheckIfDue({
           db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
-        }, tenant, new Date()).catch((e: unknown) => { console.warn('[domain-check]', e instanceof Error ? e.message : e); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); return 'checked' as const; });
+        }, tenant, new Date()).catch((e: unknown) => { console.warn('[domain-check]', loggableMessage(e instanceof Error ? e.message : String(e))); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); return 'checked' as const; });
         if (r === 'checked') lookedUp++;
       }
       if (spent()) return;
       await runDueSteps(sequenceDeps, tenant)
-        .catch((e: unknown) => { console.warn('[sequences]', e instanceof Error ? e.message : e); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); });
+        .catch((e: unknown) => { console.warn('[sequences]', loggableMessage(e instanceof Error ? e.message : String(e))); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); });
     }
 
     /**
@@ -1361,7 +1366,7 @@ export async function buildProduction(
      * hundred of them).
      */
     const readable = spent() ? [] : await businessesReadingInbox(db, INBOX_READS_PER_SWEEP)
-      .catch((e: unknown) => { console.warn('[inbox]', e instanceof Error ? e.message : e); return [] as readonly string[]; });
+      .catch((e: unknown) => { console.warn('[inbox]', loggableMessage(e instanceof Error ? e.message : String(e))); return [] as readonly string[]; });
     for (const id of readable) {
       const b = parseBusinessId(id);
       if (!b.ok) continue;
@@ -1371,7 +1376,7 @@ export async function buildProduction(
         db, credentialKey, clients: oauthClients, fetchImpl: oauthFetch, cache: tokenCache,
         ownAddresses: systemSmtp ? [systemSmtp.from, systemSmtp.user] : [],
         enqueue: (job) => enqueueInbound(boss, { ...job, messageType: 'text' }),
-      }, tenant).catch((e: unknown) => { console.warn('[inbox]', e instanceof Error ? e.message : e); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); return null; });
+      }, tenant).catch((e: unknown) => { console.warn('[inbox]', loggableMessage(e instanceof Error ? e.message : String(e))); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); return null; });
       if (read && read.outcome !== 'not_reading') inboxesRead++;
       if (read && read.outcome === 'read' && read.recorded > 0) console.log(`[inbox] ${read.recorded} new mail(s) recorded`);
     }
@@ -1510,7 +1515,7 @@ export async function buildProduction(
     // KS5 — and the operator, once a day, when the installation passes its ceiling.
     const breaker = await spendBreakerAlert(db, PILOT_BUSINESS_ID);
     // BILL — a subscription for each workspace whose first channel connected with a card saved; then its e-mails, each once.
-    if (stripe) await subscribeSweep(db, stripe.client, new Date()).catch((e: unknown) => console.warn(`[billing] sweep: ${e instanceof Error ? e.message : String(e)}`));
+    if (stripe) await subscribeSweep(db, stripe.client, new Date()).catch((e: unknown) => console.warn(`[billing] sweep: ${loggableMessage(e instanceof Error ? e.message : String(e))}`));
     // KS6 — and each decision on a first connection, told to its owner once.
     for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db), ...await billingAlerts(db)]) {
       await boss.send(QUEUES.notify, job satisfies NotifyJob);
@@ -1699,7 +1704,7 @@ if (isMain) {
   installCrashReporting(process, {
     report: prod.reportError,
     exit: (code) => process.exit(code),
-    log: (line, err) => console.error(line, err),
+    log: (line, err) => console.error(line, loggableLine(err)),
   });
   await prod.app.listen({ port: v.cfg.PORT, host: '0.0.0.0' });
   // CC-10 — the dead-man's switch: only now that /health can answer on loopback.

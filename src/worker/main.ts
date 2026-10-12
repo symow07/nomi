@@ -28,7 +28,7 @@ import {
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor, interrupts } from '../pipeline/notify.js';
-import { redactSecrets } from '../security/credentials.js';
+import { loggableLine, loggableMessage } from '../security/loggable.js';
 import {
   appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
 } from './appErrors.js';
@@ -257,7 +257,7 @@ export async function startWorker(
     });
     // 0128 — the model answered this turn: if the provider was refusing for billing, it is back.
     if ((spent as { llmCalls: number } | null)?.llmCalls) {
-      await watch.answered().catch((e: unknown) => console.warn(`[provider] could not record the answer: ${(e as Error).message}`));
+      await watch.answered().catch((e: unknown) => console.warn(`[provider] could not record the answer: ${loggableMessage((e as Error).message)}`));
     }
 
     // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers
@@ -346,7 +346,7 @@ export async function startWorker(
     try {
       await onInbound(job);
     } catch (e) {
-      console.error('[inbound failed]', redactSecrets(e instanceof Error ? e.message : String(e)).slice(0, 300));
+      console.error('[inbound failed]', loggableLine(e, false));
       // 0128 — refused for billing: retrying cannot help, so a person answers now.
       if (job && await handOverForBilling(job, e)) return;
       throw e;
@@ -723,7 +723,12 @@ export async function startWorker(
   for (const name of Object.values(QUEUES)) {
     await boss.work(`${name}.dead`, async ([job]: { data: unknown; id?: string }[]) => {
       if (!job) return;
-      console.error(`[DEAD LETTER] ${name}`, redactSecrets(JSON.stringify(job.data)).slice(0, 500));
+      // D2 (2026-10-12) — the queue and the ids, never the job's data: an inbound job carries the buyer's
+      // words, an outbound one the reply, an echo the customer and text, and the log is beyond any deletion.
+      const ids = job.data as { businessId?: unknown; conversationId?: unknown } | null;
+      console.error(`[DEAD LETTER] ${name}`, JSON.stringify({ job: job.id ?? null,
+        businessId: typeof ids?.businessId === 'string' ? ids.businessId : null,
+        conversationId: typeof ids?.conversationId === 'string' ? ids.conversationId : null }));
       // CC-10 — written down as its own kind of error, one per queue: the job
       // gave up. Never its data (a buyer's words ride in an inbound job), and
       // never an error alert that could not be delivered — that is the loop.

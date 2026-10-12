@@ -166,3 +166,27 @@ describe('D5 · the privacy page has a statement for the people who use Nomi at 
   });
 });
 
+
+describe('D2 · the pages say what the logs hold and for how long', () => {
+  const week = { en: /for a week/, zh: /一周/, ar: /أسبوع/, es: /una semana/, fr: /une semaine/ } as const;
+  const since = { en: /12 October 2026/, zh: /2026 年 10 月 12 日/, ar: /12 أكتوبر 2026/, es: /12 de octubre de 2026/, fr: /12 octobre 2026/ } as const;
+  const days3 = { en: /at most three days/, zh: /最多保存三天/, ar: /ثلاثة أيام على الأكثر/, es: /tres días como máximo/, fr: /trois jours au plus/ } as const;
+  it('every language: the host logs each visit, Nomi reads a week of it, the host may keep more', () => {
+    for (const l of LOCALES) {
+      const host = t(l, 'legal.privacy.who.hosting', { hosting: 'H' });
+      const logs = t(l, 'legal.deletion.kept.logs', { hosting: 'H' });
+      expect(host, l).toMatch(week[l]);
+      expect(logs, l).toMatch(week[l]);
+      expect(logs, l).toMatch(since[l]);
+    }
+  });
+  it('the page leaves the query out because the app and the host both do (checked against the host on 2026-10-12)', () => {
+    expect(t('en', 'legal.privacy.who.hosting', { hosting: 'H' })).toMatch(/without anything after a “\?”/);
+    expect(read('src/api/requestLog.ts')).toMatch(/split\('\?'\)\[0\]/);
+  });
+  it('a sign-up’s address, hashed, for at most three days: two past its hour, and the daily job (0138)', () => {
+    for (const l of LOCALES) expect(t(l, 'legal.privacy.owner.what'), l).toMatch(days3[l]);
+    expect(read('migrations/0138_signup_callers.sql')).toMatch(/delete from signup_throttles where hour < now\(\) - interval '2 days'/);
+    expect(read('src/main.ts')).toMatch(/boss\.schedule\(QUEUES\.signupExpiry, '45 3 \* \* \*'/);
+  });
+});
