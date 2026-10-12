@@ -104,3 +104,26 @@ describe('D4 · until the owner sets a retention policy, the pages claim no end 
     for (const l of ['zh', 'ar', 'es', 'fr'] as const) expect(t(l, 'legal.deletion.step2'), l).toContain(said[l]);
   });
 });
+
+describe('D20 · the wording items', () => {
+  it('the cookie paragraph names every purpose the table lists — the access code, the age and the password link included', () => {
+    const en = t('en', 'legal.privacy.cookies.body');
+    for (const said of ['signed in', 'language', 'notice once', 'device you have confirmed', 'password-setting link', 'connection', 'access code once', 'minimum age']) {
+      expect(en, said).toContain(said);
+    }
+  });
+  it('the photo is refreshed only while the account stays connected; the last copy is kept, not updated', () => {
+    expect(t('en', 'legal.privacy.kept.photo')).toMatch(/while the business’s Instagram or Messenger account stays connected to Nomi; if that account is disconnected, the last copy is kept, not updated/);
+  });
+  it('the bot check is named where the sign-up FORM is shown (it also comes back on /verify), not a page', () => {
+    expect(t('en', 'legal.privacy.cookies.botCheck', { provider: 'X' })).toMatch(/^Only where the sign-up form is shown/);
+    expect(t('en', 'legal.privacy.who.botCheck', { botCheck: 'X' })).toMatch(/sign-up form/);
+  });
+  it('the translations promise what English does', () => {
+    expect(t('zh', 'legal.privacy.advisor.customers')).toContain('顾问对话中提到该客户的内容也会被删除');
+    expect(t('zh', 'legal.privacy.ai')).not.toContain('有些回复');
+    expect(t('ar', 'legal.privacy.ai')).not.toContain('بعض الردود');
+    expect(t('ar', 'legal.privacy.who.advisorKept')).not.toContain('مسبق');
+    expect(t('ar', 'legal.privacy.cookies.body')).toContain('لا يتتبّعك');
+  });
+});
