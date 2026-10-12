@@ -105,7 +105,9 @@ d('D3 · the erasure reaches the same person on every channel (requires DATABASE
     R.q = await row(SHOP, `rania.ig ${RUN}`, { phone: PHONE_WRITTEN, email: EMAIL }, 'instagram', IG);
     R.r = await row(SHOP, `Rania Mail ${RUN}`, { email: EMAIL.toUpperCase() }, 'email', EMAIL.toUpperCase());
     R.s = await row(SHOP, `Samir ${RUN}`, { phone: `972${DIGITS}`, email: `samir.${RUN}@buyer.test` }, 'whatsapp', `972${DIGITS}`);
-    R.t = await row(OTHER, `Rania elsewhere ${RUN}`, { phone: PHONE, email: EMAIL }, 'whatsapp', PHONE);
+    // A channel account is one customer row across every business (client_channels is unique on it), so the
+    // same person in another shop holds the number and address on the row, and writes there on Instagram.
+    R.t = await row(OTHER, `Rania elsewhere ${RUN}`, { phone: PHONE, email: EMAIL }, 'instagram', `ig-elsewhere-${RUN}`);
     // The owner had already recorded a request for the e-mail row, by itself.
     R_REQ = (await admin.query(`insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note) values ($1, 'buyer', $2, 'owner', 'By e-mail') returning id::text as id`,
       [SHOP, R.r.client])).rows[0].id;
