@@ -53,6 +53,7 @@ import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { deriveKey, acceptRetiredKeys } from './security/credentials.js';
 import { apolloSource } from './connectors/apollo.js';
+import { OPTIONAL_RECIPIENTS, recipientNamed, unnamedRecipientProblems, type OptionalRecipient } from './core/legal/recipients.js';
 import { metaAdapter, metaMediaFetcher, metaAudioFetcher } from './channels/whatsapp/meta.js';
 import type { FetchLike } from './channels/whatsapp/client.js';
 import { waLoginFrom } from './channels/whatsapp/embeddedSignup.js';
@@ -217,10 +218,11 @@ const OPTIONAL_SHAPES: Record<string, Shape> = {
   CREDENTIAL_KEY_PREVIOUS: (v) => /^[0-9a-f]{64}$/i.test(v),
 };
 
-export function validateEnv(env: Record<string, string | undefined>):
+export function validateEnv(env: Record<string, string | undefined>, recipients: readonly OptionalRecipient[] = OPTIONAL_RECIPIENTS):
   | { ok: true; cfg: ProdConfig }
   | { ok: false; problems: string[] } {
-  const problems: string[] = [];
+  // D18 — a service that would receive someone's data, switched on before the privacy page names it.
+  const problems: string[] = [...unnamedRecipientProblems(env, recipients)];
 
   // Explicit provider choice; unset = deployment mode (no messaging).
   const provider = env['WHATSAPP_PROVIDER'] ?? 'disabled';
@@ -911,7 +913,8 @@ export async function buildProduction(
     // C5 — her connector keys are encrypted with the same key as every other
     // credential; Apollo is built from her key per request, never held.
     credentialKey: deriveKey(cfg.CREDENTIAL_KEY),
-    prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }),
+    // D18 — Apollo receives prospect searches: wired only once the privacy page names it.
+    ...(recipientNamed('apollo') ? { prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }) } : {}),
     // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.
     oauthClients,
     // C9 — the accounts buyers write to, when the host configured them.

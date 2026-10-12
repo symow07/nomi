@@ -1,3 +1,4 @@
+import { OPTIONAL_RECIPIENTS } from '../../src/core/legal/recipients.js';
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -194,9 +195,14 @@ describe('provider selection (validateEnv)', () => {
   });
 
   it('360dialog mode requires D360_* and NOT Meta variables', () => {
-    const v = validateEnv({ WHATSAPP_PROVIDER: '360dialog', ...base, ...d360Vars });
+    // D18 — 360dialog would receive every WhatsApp message and the privacy page does not name it: refused until it does.
+    const refused = validateEnv({ WHATSAPP_PROVIDER: '360dialog', ...base, ...d360Vars });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.problems.join()).toMatch(/switches on 360dialog, which the privacy page does not name/);
+    const named = OPTIONAL_RECIPIENTS.map((r) => (r.id === 'd360' ? { ...r, named: { key: 'legal.privacy.who.d360' } } : r));
+    const v = validateEnv({ WHATSAPP_PROVIDER: '360dialog', ...base, ...d360Vars }, named);
     expect(v.ok).toBe(true);
-    const missing = validateEnv({ WHATSAPP_PROVIDER: '360dialog', ...base });
+    const missing = validateEnv({ WHATSAPP_PROVIDER: '360dialog', ...base }, named);
     expect(missing.ok).toBe(false);
     if (!missing.ok) {
       expect(missing.problems.join()).toContain('D360_API_KEY');
