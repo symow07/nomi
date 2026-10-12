@@ -347,7 +347,10 @@ import type { Db } from './client.js';
 //       database it fails.
 // 139 = the same person on every channel (0139): `customer_same_person`, which the buyer page reads, and
 //       `carry_out_customer_request` erasing every row of one person; against a 138 database the page fails.
-export const REQUIRED_SCHEMA_VERSION = 139;
+// 140 = kept records stop describing an erased customer (0140): the erasure clears tracking numbers, update notes,
+//       the request's note and a do-not-contact detail, and deletes a stop taken back; `customer_erasure_contract`
+//       says so, and tools/erase-buyer.mjs refuses a database whose contract differs from its RULES.
+export const REQUIRED_SCHEMA_VERSION = 140;
 
 export type SchemaState = {
   readonly required: number;

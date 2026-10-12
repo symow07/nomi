@@ -644,6 +644,8 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       `clients:${k(Y.client)}`,
       `conversations:${k(A.c2)}`,
       `orders:${k(A.order)}`,
+      // D10 (0140) — the shipped update's tracking number names their parcel: cleared, the update kept.
+      `order_updates:${k(A.ou2)}`,
       `email_confirmations:${k(A.ec)}`,
       `spot_checks:${k(A.sc)}`,
       ...[A.au1, A.au2].map((x) => `channel_audit:${k(x)}`),

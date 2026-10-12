@@ -106,7 +106,7 @@ const MUST: Record<Locale, Record<string, RegExp>> = {
     erasedNotes: /备注和标记/,
     erasedConversations: /为保留你下过的订单所必需的部分除外/,
     keptOrders: /你下过的订单[^。]*不再关联你的联系方式和消息/,
-    keptDoNotContact: /不会再向这个地址发送/,
+    keptDoNotContact: /不会再向这个地址或账号发送/, // D10 (0140) — a stop on any channel's account stays too
     keptRecord: /你提出过删除要求，以及何时完成。其中不含任何被删除的内容/,
     keptBackups: /备份不会为删除某一个人而修改；你的数据会随该备份被删除而消失/,
     keptRestored: /该备份之后做过的每一次删除，都会在服务运行之前重新执行/,

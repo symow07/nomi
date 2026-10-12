@@ -208,3 +208,19 @@ describe('D7 · the terms say what the download holds, not "in full"', () => {
     expect(read('src/api/web/app.ts')).toMatch(/app\.get\('\/app\/conversations\/:conversationId\/copy\.csv'[\s\S]{0,400}ownerOnly\(req, reply, 'data_rights'/);
   });
 });
+
+describe('D10 · what is kept after a deletion says it no longer describes them', () => {
+  it('the contract clears what kept rows held, and the pages name it, in every language', () => {
+    const sql = read('migrations/0140_kept_records.sql');
+    for (const c of [`('orders', 'keep', array['client_email','shipping_address','notes','tracking_reference']`,
+      `('order_updates', 'keep', array['note','tracking_reference']`, `('suppressions', 'keep', array['detail']`,
+      `('opt_outs', 'keep-standing'`, `('deletion_requests', 'keep', array['subject_note']`]) expect(sql).toContain(c);
+    const tracking = { en: /tracking number/, zh: /物流单号/, ar: /تتبّع الشحن/, es: /seguimiento/, fr: /suivi/ } as const;
+    const tookBack = { en: /took back is deleted/, zh: /撤回/, ar: /سُحب/, es: /retiraste/, fr: /retirée/ } as const;
+    for (const l of LOCALES) {
+      expect(t(l, 'legal.deletion.kept.orders'), l).toMatch(tracking[l]);
+      expect(t(l, 'legal.deletion.kept.doNotContact'), l).toMatch(tookBack[l]);
+      expect(t(l, 'conv.deletion.kept'), l).toMatch(tracking[l]);
+    }
+  });
+});
