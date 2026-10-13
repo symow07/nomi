@@ -157,9 +157,9 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     // (the control's row has no conversation: it is no customer, and counts in no answer below)
   });
 
-  it('every one of the fifty reads runs on it — none writes, none fails — for a workspace with data and one with none', async () => {
+  it('every one of the fifty-one reads runs on it — none writes, none fails — for a workspace with data and one with none', async () => {
     const { READS } = await import('../../src/advisor/reads.js');
-    expect(Object.keys(READS)).toHaveLength(50);
+    expect(Object.keys(READS)).toHaveLength(51); // Phase 2b — C5, the deals that went nowhere
     for (const biz of [BIZ, EMPTY]) {
       for (const [key, run] of Object.entries(READS)) {
         const sheet = await run(await ctx({ biz, params: { customer: 'Amira', product: 'tote', reference: REF } }));

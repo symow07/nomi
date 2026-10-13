@@ -111,7 +111,7 @@ Each entry gives the exact source, its kind, and what the advisor says when ther
 | C2 | Who hasn't answered since we gave them a price? | C1's `quote` entries (`quietAfterPrice`). Definition: `PRICE_GIVEN` (`db/quotesGiven.ts`). | Grounded now | "Everyone answered after their price." |
 | C3 | Which regulars stopped ordering? | `customerValues(…).quietSince`: last order older than `max(30, 2 × median gap)` days. | Grounded now | "No regular has gone quiet." |
 | C4 | What follow-ups are due? | `loadCalendar(db, bid, { category: 'promised' … })` (`db/calendar.ts`): the follow-ups a sent reply promised (`promised_dates`). With the outreach area on, also `followups` (`sequence_enrollments.next_due_at`). | Grounded now | "No follow-up is due." |
-| C5 | Why did we lose that deal? Which deals did we lose? | Nothing records a lost deal or its reason. | **Not stored** | "Nomi doesn't record why a deal was lost." |
+| C5 | Why did we lose that deal? Which deals did we lose? | Nothing records a lost deal or its reason. **Since Phase 2b (2026-10-13, the owner's word): built from evidence on record** — a price given and nothing from the customer for 14+ days (Home's own rule), orders set aside, orders cancelled, in Home's 30-day window — said as what happened, never labelled, with a fixed line that Nomi doesn't record why. | **New** (was Not stored) | The evidence lines; then "Nomi doesn't record why a deal went nowhere." |
 
 ### D · Sales and orders
 
@@ -252,7 +252,7 @@ Every **new query**, and the small "ever" checks behind "no data" (section 3), i
 - the 37 grounded-now questions, plus the grounded halves of the 3 split ones;
 - the 8 new queries, plus A4's "when did we last write";
 - the 2 approved metrics (B8, D8);
-- every "not stored" gap with its fixed sentence (no data entry is added for any of them);
+- every "not stored" gap with its fixed sentence (no data entry is added for any of them; C5 left the list in Phase 2b, read from evidence already on record — payments, costs and stock wait for Phase 5);
 - the 7 opinion questions, under "My suggestion, not a fact from your records:", citing only the grounded entries named in section 4.
 
 Before the advisor goes live, the privacy page says that the question and its query result (customer names, amounts, dates) go to the same model provider the assistant uses, to phrase the answer.

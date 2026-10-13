@@ -29,7 +29,7 @@ import { CATALOGUE } from '../../src/advisor/catalogue.js';
  */
 
 /** The entries whose lines (or fixed sentence) can name a customer. */
-const NAMES_CUSTOMERS = ['A2', 'A3', 'A4', 'A5', 'A7', 'A8', 'B1', 'B7', 'C1', 'C2', 'C3', 'C4', 'D3', 'D11', 'E1', 'E2', 'E3', 'E4', 'E6'] as const;
+const NAMES_CUSTOMERS = ['A2', 'A3', 'A4', 'A5', 'A7', 'A8', 'B1', 'B7', 'C1', 'C2', 'C3', 'C4', 'C5', 'D3', 'D11', 'E1', 'E2', 'E3', 'E4', 'E6'] as const;
 /** The entries whose lines quote what customers wrote, without naming them: G5's unanswered questions. */
 const QUOTES_CUSTOMERS = ['G5'] as const;
 /** The entries that never name or quote one: counts, totals, products, the assistant, the business. */
@@ -76,6 +76,7 @@ const who = (n: number, name: string | null): Who => ({ client: id(100 + n), con
  *   Nils     a conversation with no message in it.
  *   Delia    asked to be deleted half an hour ago; the request waits.
  *   Ingrid   asked a question nothing taught answers (a gap), forty minutes ago; she was answered.
+ *   Leo      given a price twenty days ago, and nothing from him since: a deal gone nowhere (C5).
  *   (nameless) wrote twenty minutes ago; every line says "Customer".
  *   Crowd 01–16  wrote an hour or so ago, unanswered: enough to cut the lists at "…and N more". Crowd 01–11
  *            each asked a gap question of their own, so G5 shows ten and counts two; Crowd 16 asked Ingrid's,
@@ -94,13 +95,14 @@ const NILS = who(8, 'Nils Berg');
 const DELIA = who(9, 'Delia Fontaine');
 const NAMELESS = who(10, null);
 const INGRID = who(11, 'Ingrid Solberg');
+const LEO = who(12, 'Leo Lindqvist');
 const CROWD = Array.from({ length: 16 }, (_, i) => who(20 + i, `Crowd ${String(i + 1).padStart(2, '0')}`));
 const TESS = who(50, 'Tess Testing');
 const ZORA = who(60, 'Zora Elsewhere');
 const REGINA_MORE = [id(301), id(302)];
 
 /** Every named customer of the workspace, and the two who must never be a subject. */
-const NAMED: readonly Who[] = [WANDA, QUENTIN, REGINA, ORLA, SAMI, HANA, PETRA, NILS, DELIA, INGRID, ...CROWD];
+const NAMED: readonly Who[] = [WANDA, QUENTIN, REGINA, ORLA, SAMI, HANA, PETRA, NILS, DELIA, INGRID, LEO, ...CROWD];
 const NEVER: readonly Who[] = [TESS, ZORA];
 
 /** What the customers wrote, each distinctive: every message, every gap question, the sample request. */
@@ -217,6 +219,10 @@ d('the advisor\'s subjects · every customer a read names or quotes is one of it
       // Quentin: a price given five days ago (a line left to him after it), nothing from him since
       await sql`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version, currency, created_at)
                 values (${BIZ}, ${QUENTIN.conv}, ${PID}, 200, '{}'::jsonb, 2.5, 500, 'test', 'USD', now() - make_interval(mins => ${5 * DAY}))`.execute(t);
+      // Leo: a price twenty days ago (a line left to him after it), nothing from him since — past C5's fourteen days
+      await say(LEO, 'outbound', 20 * DAY - 1, 'Here is the price.');
+      await sql`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version, currency, created_at)
+                values (${BIZ}, ${LEO.conv}, ${PID}, 300, '{}'::jsonb, 2.5, 750, 'test', 'USD', now() - make_interval(mins => ${20 * DAY}))`.execute(t);
       // Regina: three orders, twenty days apart, the last sixty days ago; Orla: one, by reference
       const order = (ref: string, c: Who, conv: string, total: number, at: string) =>
         sql`insert into orders (order_reference, business_id, client_id, conversation_id, product_id, quantity, unit,
@@ -331,7 +337,8 @@ d('the advisor\'s subjects · every customer a read names or quotes is one of it
     expect(b7.subjects).toEqual([WANDA, NAMELESS, DELIA, ...CROWD.slice(0, 12)].map((c) => c.client));
     for (const c of [...CROWD.slice(12), HANA]) expect(b7.subjects).not.toContain(c.client);
     const a2 = await read('A2');
-    expect(a2.lines).toContain(t('en', 'advisor.k.more', { n: '7' }));
+    // 28 customers, 20 shown: Leo (C5's, the one written to longest ago) is among the 8 counted
+    expect(a2.lines).toContain(t('en', 'advisor.k.more', { n: '8' }));
     expect(a2.subjects).toHaveLength(20);
     for (const c of [CROWD[15]!, HANA, PETRA, SAMI, QUENTIN, NILS, REGINA]) expect(a2.subjects).not.toContain(c.client);
   });
