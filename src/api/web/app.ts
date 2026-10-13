@@ -48,7 +48,8 @@ import {
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms, renderCookies, renderRefunds, TERMS_VERSION, type LegalFacts } from './legal.js';
-import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
+import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress, type SiteInput } from './site.js';
+import { renderSiteReel, reelReady } from './siteReel.js';
 import { DEFAULT_PROCESSOR, HOSTING, processorLabel, transcriberProcessor } from '../../core/legal/processors.js';
 import type { AdvisorMemory } from '../../advisor/memory.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
@@ -500,6 +501,7 @@ export const PUBLIC_ROUTES: readonly {
 }[] = [
   { method: 'GET', url: '/', why: 'redirects to /login or /app; reveals nothing either way. On a SITE_HOSTS host it is the public site, which reads nothing and names no tenant' },
   { method: 'GET', url: '/site', why: 'Phase 5 — the public site, previewed on any host and marked noindex; reads nothing and names no tenant' },
+  { method: 'GET', url: '/site/next', why: 'Phase 3a — the motion-led draft of the site, for the owner to read before it replaces the first screen; noindex, reads nothing, names no tenant' },
   { method: 'GET', url: '/login', why: 'the login form itself' },
   { method: 'POST', url: '/login', why: 'submitting an e-mail and password, or an access code' },
   { method: 'GET', url: '/login/set-password', why: '0078 — the one-time link tools/add-login.mjs prints: shows which e-mail it sets a password for, spends nothing' },
@@ -1354,19 +1356,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 5 — on a site host, `/` is the site; everywhere else it is the door.
   // SITE (opening step 4) — the button is sign-up only while sign-up is open
   // in force, asked as the door asks it, on every request.
-  const site = async (req: FastifyRequest, path: '/' | '/site', noindex: boolean): Promise<string> => renderSite({
+  const siteInput = async (req: FastifyRequest, path: '/' | '/site' | '/site/next', noindex: boolean): Promise<SiteInput> => ({
     locale: localeOf(req), path, noindex, contact: deps.legalContact ?? null,
     signIn: (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/login') : null) ?? '/login',
     signUp: (await signupModeNow()) === 'open'
       ? (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/signup') : null) ?? '/signup' : null,
   });
+  const site = async (req: FastifyRequest, path: '/' | '/site', noindex: boolean): Promise<string> => renderSite(await siteInput(req, path, noindex));
+  // Phase 3a — the reel becomes the first screen only once every language's words have had a native read
+  // (`reelReady`, the owner's word 2026-10-13): until then `/` is the site as it is, and the reel is at /site/next.
   app.get('/', async (req, reply) =>
     onSiteHost(req)
-      ? reply.type('text/html; charset=utf-8').send(await site(req, '/', false))
+      ? reply.type('text/html; charset=utf-8').send(reelReady()
+        ? renderSiteReel(await siteInput(req, '/', false)) : await site(req, '/', false))
       : reply.redirect(sessionOf(req) ? '/app' : '/login'));
   // The same page on any host, for the owner to read before the DNS exists.
   app.get('/site', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(await site(req, '/site', true)));
+  // Phase 3a — the motion-led draft, for the owner's stop-gate: the same page, its first screen the reel. Noindex.
+  app.get('/site/next', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderSiteReel(await siteInput(req, '/site/next', true))));
 
   // G1 — open sign-up asks every new address for a code, so it needs the
   // installation's own sender: without one, open reads as closed. BOT — and a

@@ -15943,3 +15943,25 @@ reply card, and a photo that left).
   not as a refusal of the customer.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-13 — Phase 3a — the reel (a GATE: the site's first screen waits on it)
+
+**Unlike the sections above, this one is a gate** (the owner, 2026-10-13). The motion-led first screen is served at
+`/site/next` only. It replaces today's first screen at `/` once every language's words below have had a native
+read: `REEL_NATIVE_REVIEW` in `src/api/web/siteReel.ts` (`en` is the owner's; `zh`, `ar`, `es` and `fr` wait). Flip a
+language's flag in the same commit that records its reviewer here, and `tests/parity/site-reel.test.ts` with it. A
+Chinese, Arabic, Spanish or French visitor must never land on a first screen that is half English. This list
+already waits on the zh/ar/es/fr legal and advisor lines above; read the reel with them.
+
+- **The keys:** every `site.reel.*` line, the headline, the four beats, the made-up shop's conversation, the
+  captions, "Coming". The customer's first reply quotes the disclosure (`src/core/conversation/disclosure.ts`) word
+  for word; its zh/ar/es/fr wording is already waiting for its own native review, which gates autonomy.
+- **Where the words differ, and why:** the beats are the headline's verbs in every language (the owner: one promise,
+  one verb); Arabic uses verbal nouns for them («إجابة، وتفاوض، وإتمام للبيع») and the passive throughout, so no verb
+  agrees with the assistant, and the customer's agreement is a noun («عند موافقة العميل»); zh keeps out 它 (the
+  headline names what is done, not who); French and Spanish use the infinitive or the impersonal, never «il/elle»,
+  «él/ella».
+- **Check:** that the made-up shop's lines read like a real customer and a real shop in each market, and that the
+  example mark («مثال — متجر من الخيال», 示例——虚构的店铺…) reads as "this is a demonstration", not as a disclaimer.
+
+Reviewer (per language): ______  Date: ______

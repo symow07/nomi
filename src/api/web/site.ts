@@ -19,10 +19,20 @@ import { face } from './faces.js';
  * read it at app.nomidoes.com before the DNS exists.
  *
  * WHAT IT MAY SAY. Only what the product does today, checked against the code:
- * no price, no trial, no number nobody measured, no channel that is not wired
- * (WeChat is not). The assistant has no pronoun and no fixed name — "an
- * assistant you name". Copy is in the catalogue under `site.*`, so the banned
- * vocabulary and pronoun tests read it like every other sentence.
+ * no price of Nomi's, no trial, no channel that is not wired (WeChat is not).
+ * The assistant has no pronoun and no fixed name — "an assistant you name".
+ * Copy is in the catalogue under `site.*`, so the banned vocabulary and pronoun
+ * tests read it like every other sentence.
+ *
+ * FIGURES (the owner's rule, 2026-10-13 — read it whole, it is not "figures
+ * are fine now"). The ban is on PERFORMANCE claims nobody can check: never, on
+ * any page of the site, the reel included, a figure about results, speed,
+ * revenue, conversion, time saved or how many customers ("30% more sales",
+ * "replies in 2 seconds"). The one exception: inside the reel's made-up shop
+ * (siteReel.ts), visibly marked as an example, a quantity and a per-piece
+ * price may move — a price in a pretend conversation is not a claim about
+ * Nomi. The catalogue's own words carry no figure at all; the example's come in
+ * as parameters. `tests/parity/site-reel.test.ts` holds both halves.
  */
 
 /** `SITE_HOSTS` → lower-cased host names. Empty entries are dropped. */
@@ -65,7 +75,7 @@ export function appAddress(publicBaseUrl: string | null | undefined, url: string
 export type SiteInput = {
   readonly locale: Locale;
   /** The address this page was asked at — the language switch returns to it. */
-  readonly path: '/' | '/site';
+  readonly path: '/' | '/site' | '/site/next';
   /** `LEGAL_CONTACT_EMAIL`. Absent, the invitation line is not drawn. */
   readonly contact: string | null;
   /** Where "Sign in" goes: the app's own login. */
@@ -87,7 +97,13 @@ export type SiteInput = {
  */
 const EXAMPLE_CUSTOMER = 'site-example-customer';
 
-export function renderSite(v: SiteInput): string {
+/**
+ * Phase 3a (a draft, at the owner's stop-gate) — another first screen in place of the hero, with its own rules:
+ * the motion-led reel (`siteReel.ts`), previewed at /site/next. Absent, the site as it is.
+ */
+export type SiteFirstScreen = { readonly hero?: string; readonly css?: string };
+
+export function renderSite(v: SiteInput, first: SiteFirstScreen = {}): string {
   const l = v.locale;
   // Phase 9 (V1-023) — "e-mail" never breaks at its hyphen: a no-break hyphen, drawn, not stored.
   const k = (key: Parameters<typeof t>[1]) => esc(t(l, key)).replace(/(^|[^\p{L}])([eE])-mail/gu, '$1$2\u2011mail');
@@ -123,7 +139,7 @@ export function renderSite(v: SiteInput): string {
 
   return publicDocument({
     locale: l, title: t(l, 'site.title'), description: t(l, 'site.description'),
-    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SITE_CSS,
+    noindex: v.noindex, icon: true, mainClass: 'site', extraCss: LANGSW_CSS + FACE_CSS + SITE_CSS + (first.css ?? ''),
     body: `<div class="site-root" data-surface="site">
   <header class="site-top">
     <a class="site-brand" href="${v.path}">${markSmall(28, null)}<span>Nomi</span></a>
@@ -131,7 +147,7 @@ export function renderSite(v: SiteInput): string {
     <div class="site-lang">${switcher(l, v.path)}</div>
   </header>
 
-  <section class="site-hero">
+  ${first.hero ?? `<section class="site-hero">
     <div class="site-hero-text">
       <h1>${k('site.hero.title')}</h1>
       <p class="site-lead">${k('site.hero.lead')}</p>
@@ -152,7 +168,7 @@ export function renderSite(v: SiteInput): string {
         <p class="site-acts">${k('site.example.acts')}</p>
       </div>
     </figure>
-  </section>
+  </section>`}
 
   <section class="site-sec" aria-labelledby="site-how">
     <h2 id="site-how">${k('site.how.title')}</h2>
