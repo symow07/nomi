@@ -136,7 +136,7 @@ export function renderReelHero(v: SiteInput): { readonly html: string; readonly 
       ${said(tl.appear(1, 0.3), DRAFT.s2.asks)}
       <div class="rl-card rl-mine ${tl.appear(1, 1.1)}">
         <p class="rl-card-head"><span class="rl-by">${k(DRAFT.s2.by)}</span>
-          <span class="rl-state"><span class="rl-waits ${tl.leave(1, 3.0)}">${k(DRAFT.s2.waits)}</span><span class="rl-done ${tl.appear(1, 3.1)}">${k(DRAFT.s2.sent)}</span></span></p>
+          <span class="rl-state"><span class="rl-need ${tl.leave(1, 3.0)}">${k(DRAFT.s2.waits)}</span><span class="ok ${tl.appear(1, 3.1)}">${k(DRAFT.s2.sent)}</span></span></p>
         <p class="rl-card-text" dir="auto">${k(DRAFT.s2.reply)}</p>
         <p class="rl-price">${k(DRAFT.s2.price)}</p>
         <p class="rl-act ${tl.leave(1, 3.0)}"><span class="rl-btn">${k(DRAFT.s2.send)}<span class="rl-ring ${tl.tap(1, 2.6)}"></span></span></p>
@@ -147,7 +147,7 @@ export function renderReelHero(v: SiteInput): { readonly html: string; readonly 
       ${said(tl.appear(2, 0.3), DRAFT.s3.asks)}
       <div class="rl-card ${tl.appear(2, 1.0)}">
         <p class="rl-card-head"><span class="rl-by">${k(DRAFT.s3.order)}</span>
-          <span class="rl-state"><span class="rl-waits ${tl.leave(2, 2.6)}">${k(DRAFT.s3.waits)}</span><span class="rl-done ${tl.appear(2, 2.7)}">${k(DRAFT.s3.confirmed)}</span></span></p>
+          <span class="rl-state"><span class="rl-need ${tl.leave(2, 2.6)}">${k(DRAFT.s3.waits)}</span><span class="ok ${tl.appear(2, 2.7)}">${k(DRAFT.s3.confirmed)}</span></span></p>
         <p class="rl-act ${tl.leave(2, 2.6)}"><span class="rl-btn">${k(DRAFT.s3.confirm)}<span class="rl-ring ${tl.tap(2, 2.2)}"></span></span></p>
       </div>
       <p class="rl-doc ${tl.appear(2, 3.0)}"><span class="rl-doc-mark" aria-hidden="true"></span>${k(DRAFT.s3.proforma)}</p>
@@ -239,15 +239,15 @@ const REEL_CSS = `
   @keyframes rl-scene { 0% { opacity:0; } 1.5%, 23.5% { opacity:1; } 25%, 100% { opacity:0; } }
   .rl-late { align-self:center; margin:0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .rl-bubble { margin:0; padding:var(--space-8) var(--space-12); border-radius:var(--radius-card); max-width:85%;
-    background:var(--color-surface); color:var(--color-ink); font-family:var(--font-voice); font-size:var(--font-size-small);
+    background:var(--color-surface); color:var(--color-ink); font-size:var(--font-size-small);
     align-self:flex-start; box-shadow:var(--shadow-lift1); }
   .rl-bubble.rl-mine { align-self:flex-end; background:var(--color-assistant-wash); }
   .rl-disclose { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .rl-stack { display:grid; justify-items:end; }
   .rl-stack > * { grid-area:1 / 1; }
-  .rl-typing { margin:0; align-self:start; display:inline-flex; gap:4px; padding:var(--space-8) var(--space-12);
+  .rl-typing { margin:0; align-self:start; display:inline-flex; gap:var(--space-4); padding:var(--space-8) var(--space-12);
     border-radius:var(--radius-card); background:var(--color-assistant-wash); }
-  .rl-typing i { inline-size:6px; block-size:6px; border-radius:var(--radius-chip); background:var(--color-assistant); opacity:0.6; }
+  .rl-typing i { inline-size:6px; block-size:6px; border-radius:var(--radius-chip); background:var(--color-ink-secondary); opacity:0.6; }
   .rl-card, .rl-ledger { align-self:flex-end; inline-size:85%; padding:var(--space-12); border-radius:var(--radius-card);
     background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-lift1);
     display:flex; flex-direction:column; gap:var(--space-8); }
@@ -260,12 +260,12 @@ const REEL_CSS = `
   .rl-state { display:inline-grid; margin-inline-start:auto; }
   .rl-beat-title { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-4) 0; }
   .rl-state > span { grid-area:1 / 1; justify-self:end; padding:1px var(--space-8); border-radius:var(--radius-chip); font-weight:600; }
-  .rl-waits { background:var(--color-needs-wash); color:var(--color-needs); }
-  .rl-waits::before { ${NEEDS_DOT} margin-inline-end:0.4em; }
-  .rl-done { background:var(--color-ok-wash); color:var(--color-ok); }
-  .rl-card-text { font-family:var(--font-voice); font-size:var(--font-size-small); color:var(--color-ink); }
+  .rl-need { background:var(--color-needs-wash); color:var(--color-needs); }
+  .rl-need::before { ${NEEDS_DOT} margin-inline-end:0.4em; }
+  .rl-state > .ok { background:var(--color-ok-wash); color:var(--color-ok); }
+  .rl-card-text { font-size:var(--font-size-small); color:var(--color-ink); }
   .rl-price { align-self:flex-start; padding:var(--space-4) var(--space-12); border-radius:var(--radius-chip);
-    background:var(--color-surface); border:1px dashed var(--color-assistant); color:var(--color-assistant); font-size:var(--font-size-caption); font-weight:600; }
+    background:var(--color-surface); border:1px dashed var(--color-border); color:var(--color-assistant); font-size:var(--font-size-caption); font-weight:600; }
   .rl-act { display:flex; justify-content:flex-end; }
   .rl-btn { position:relative; display:inline-flex; padding:var(--space-4) var(--space-16); border-radius:var(--radius-control);
     background:var(--color-brand); color:var(--color-surface); font-size:var(--font-size-small); font-weight:600; }
@@ -276,12 +276,12 @@ const REEL_CSS = `
   .rl-ledger ul { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-4); }
   .rl-ledger li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); color:var(--color-ink); }
   .rl-ledger li:last-child { color:var(--color-ink-secondary); border-bottom:0; }
-  .rl-caption { margin:auto 0 0; align-self:center; text-align:center; font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); text-wrap:balance; }
+  .rl-caption { margin:auto 0 0; font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); text-wrap:balance; }
 
   @media (prefers-reduced-motion: reduce) {
     .rl-chat { block-size:auto; display:grid; gap:var(--space-16); padding:var(--space-16); }
     .rl-scene { position:static; padding:0; }
     .rl-hero *, .rl-beat, .rl-dot, .rl-play { animation:none !important; opacity:1; transform:none; }
-    .rl-typing, .rl-ring, .rl-waits, .rl-play { display:none; }
+    .rl-typing, .rl-ring, .rl-need, .rl-play { display:none; }
   }
 `;

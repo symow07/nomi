@@ -185,7 +185,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'alerts.flash.on', 'alerts.flash.removed', 'alerts.flash.tested', 'alerts.flash.way',
   // Phase 2a — the morning summary's switch and quiet hours saved.
   'alerts.flash.morning',
-  'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued',
+  'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued', 'signup.welcome', 'signup.welcome.card',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',
   'samples.flash.saved', 'seq.flash.added', 'seq.flash.approved', 'seq.flash.archived',
