@@ -207,14 +207,15 @@ describe('the wall · the advisor reaches no send, queue, model, pipeline or set
 describe('the catalogue · every question has a read or a fixed sentence; opinions stand only on facts', () => {
   const kinds = (k: string) => CATALOGUE.filter((e) => e.kind === k).map((e) => e.id);
 
-  it('the approved shape: 37 grounded and 3 split (built as grounded), 8 new, 2 metrics, 9 not stored, 7 opinions — 66 entries, 50 reads', () => {
+  // Phase 2b (the owner's word, 2026-10-13): C5 leaves "not stored" — the deals that went nowhere, from evidence on record.
+  it('the approved shape: 37 grounded and 3 split (built as grounded), 9 new, 2 metrics, 8 not stored, 7 opinions — 66 entries, 51 reads', () => {
     expect(new Set(CATALOGUE.map((e) => e.id)).size).toBe(CATALOGUE.length);
     expect(kinds('grounded')).toHaveLength(40);
-    expect(kinds('new')).toHaveLength(8);
+    expect(kinds('new')).toHaveLength(9);
     expect(kinds('metric')).toEqual(['B8', 'D8']);
-    expect(kinds('notStored')).toEqual(['A9', 'B6', 'C5', 'D6', 'D9', 'D10', 'F5', 'F6', 'H2n']);
+    expect(kinds('notStored')).toEqual(['A9', 'B6', 'D6', 'D9', 'D10', 'F5', 'F6', 'H2n']);
     expect(kinds('opinion')).toEqual(['G9', 'I1', 'I2', 'I3', 'I4', 'I5', 'I6']);
-    expect(Object.keys(READS)).toHaveLength(50);
+    expect(Object.keys(READS)).toHaveLength(51);
     expect(Object.keys(READS).sort()).toEqual([...kinds('grounded'), ...kinds('new'), ...kinds('metric')].sort());
   });
 
@@ -457,7 +458,14 @@ describe('the routes · signed in only; a fixed sentence asks the database and t
     expect(NAV.find((n) => n.id === 'advisor')?.href).toBe('/app/advisor');
   });
 
-  for (const id of ['A9', 'B6', 'C5', 'D6', 'D9', 'D10', 'F5', 'F6', 'H2n']) {
+  it('C5 · the deals that went nowhere read Home\'s own window: the same 30 days as readAttention', async () => {
+    const { QUIET_UNTIL_DAYS } = await import('../../src/db/inboxAttention.js');
+    expect(QUIET_UNTIL_DAYS).toBe(30);
+    expect(readFileSync(new URL('../../src/advisor/reads.ts', import.meta.url), 'utf8')).toContain('const LOST_WINDOW_DAYS = 30;');
+  });
+
+  // Phase 2b (the owner's word, 2026-10-13) — C5 left the list: it is read from evidence now.
+  for (const id of ['A9', 'B6', 'D6', 'D9', 'D10', 'F5', 'F6', 'H2n']) {
     it(`${id} · not stored: its fixed sentence — the database is not touched, and the model words nothing`, async () => {
       const calls: string[] = [];
       const r = await ask('POST', io({ model: model({ id, period: null, customer: null, product: null, reference: null }, calls) }), { q: 'anything' });

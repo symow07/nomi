@@ -59,7 +59,8 @@ export const CATALOGUE: readonly Entry[] = [
   g('C2', 'Customers who have not answered since they were given a price.'),
   g('C3', 'Regular customers who stopped ordering.'),
   g('C4', 'Follow-ups that are due; follow-ups promised to customers.'),
-  none('C5', 'Why deals were lost; which deals were lost.', 'advisor.notStored.lost'),
+  // Phase 2b (the owner's word, 2026-10-13) — from evidence on record; never a guessed label, and never why.
+  n('C5', 'Which deals went nowhere lately: a price given and nothing since, orders set aside, orders cancelled (never why).'),
   // D · Sales and orders
   g('D1', 'How much the business sold; sales or revenue in a period.'),
   g('D2', 'How many orders there were in a period, and in which state.'),

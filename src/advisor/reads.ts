@@ -424,6 +424,49 @@ async function attention(ctx: ReadCtx, only: AttentionItem['kind'] | null, none:
     items.map((i) => i.name ?? ''), INBOX, { subjects: shown(items).map((i) => i.clientId) });
 }
 
+/**
+ * C5 — Phase 2b (the owner's word, 2026-10-13): THE DEALS THAT WENT NOWHERE, from what is on record in the window
+ * Home's attention band reads (`readAttention`, 30 days) — each said as what happened, never labelled "lost", and
+ * never why: Nomi records no reason, and the sheet says so. Three kinds of evidence, the owner's own tests left out:
+ *   a price given and nothing from the customer since, for 14 days or more (Home's own "quiet after a price");
+ *   an order the owner set aside (`order_proposals.state = 'set_aside'`);
+ *   an order cancelled (when: its own log, `order_updates`).
+ */
+const LOST_QUIET_DAYS = 14;
+/** Home's attention window (`QUIET_UNTIL_DAYS`, inboxAttention.ts), which `readAttention` reads: the same 30 days for all three. */
+const LOST_WINDOW_DAYS = 30;
+async function lostDeals(ctx: ReadCtx): Promise<Sheet> {
+  const rows = await ro(ctx, async (tx) => {
+    const since = new Date(ctx.now.getTime() - LOST_WINDOW_DAYS * 86_400_000);
+    const quietFrom = ctx.now.getTime() - LOST_QUIET_DAYS * 86_400_000;
+    const tests = await testing(tx);
+    const priced = (await readAttention(tx, ctx.now, ctx.viewerId))
+      .filter((i) => i.kind === 'quote' && i.since.getTime() <= quietFrom && !tests.has(i.conversationId));
+    const setAside = (await sql<{ client_id: string; name: string | null; at: Date }>`
+      select op.client_id::text as client_id, cl.display_name as name, op.decided_at as at
+        from order_proposals op join conversations c on c.id = op.conversation_id and not c.owner_testing
+        left join clients cl on cl.id = op.client_id
+       where op.state = 'set_aside' and op.decided_at >= ${since}
+       order by op.decided_at desc`.execute(tx)).rows;
+    const cancelled = (await sql<{ client_id: string | null; name: string | null; ref: string; at: Date }>`
+      select o.client_id::text as client_id, cl.display_name as name, o.order_reference as ref,
+             coalesce((select max(u.at) from order_updates u where u.order_id = o.id and u.state = 'cancelled'), o.created_at) as at
+        from orders o left join clients cl on cl.id = o.client_id
+       where o.status = 'cancelled' and ${notOwnerTesting('o.conversation_id')}
+         and coalesce((select max(u.at) from order_updates u where u.order_id = o.id and u.state = 'cancelled'), o.created_at) >= ${since}
+       order by at desc`.execute(tx)).rows;
+    return { priced, setAside, cancelled };
+  });
+  const all = [
+    ...rows.priced.map((r) => ({ id: r.clientId, name: r.name, line: L(ctx, 'advisor.k.lost.quiet', { name: nameOf(ctx, r.name), when: when(ctx, r.since) }) })),
+    ...rows.setAside.map((r) => ({ id: r.client_id, name: r.name, line: L(ctx, 'advisor.k.lost.setAside', { name: nameOf(ctx, r.name), when: when(ctx, r.at) }) })),
+    ...rows.cancelled.map((r) => ({ id: r.client_id, name: r.name, line: L(ctx, 'advisor.k.lost.cancelled', { name: nameOf(ctx, r.name), ref: r.ref, when: when(ctx, r.at) }) })),
+  ];
+  if (all.length === 0) return nothing('advisor.none.lost', undefined, INBOX);
+  return sheet([...cap(ctx, all.map((x) => x.line)), L(ctx, 'advisor.k.lost.why')], all.map((x) => x.name ?? ''), INBOX,
+    { subjects: shown(all).map((x) => x.id) });
+}
+
 /** C4 · E1 · E2 · E3 · E4 · E6 — the calendar's own rows (`loadCalendar`), minus what is done (`isDone`). */
 async function dated(ctx: ReadCtx, days: number, category: CalendarCategory | null, keep: (e: CalendarEntry) => boolean = () => true): Promise<CalendarEntry[]> {
   const zone = await ro(ctx, (tx) => zoneOf(tx, ctx.businessId));
@@ -873,6 +916,7 @@ export const READS: Readonly<Record<string, (ctx: ReadCtx) => Promise<Sheet>>> =
   C2: (ctx) => attention(ctx, 'quote', 'advisor.none.quietAfterPrice'),
   C3: (ctx) => attention(ctx, 'regular', 'advisor.none.regularsQuiet'),
   C4: async (ctx) => datedSheet(ctx, await dated(ctx, 14, null, (e) => e.kind === 'promise_follow_up' || e.kind === 'followup_due'), 'advisor.none.followUps'),
+  C5: lostDeals,
   D1: sales, D2: ordersByState, D3: ordersWaiting, D4: pricesSent, D5: averageOrder, D7: againstLastMonth, D8: salesAtRate, D11: orderByReference,
   E1: async (ctx) => {
     const days = rangeOf(ctx, 'week') === 'today' ? 0 : 6;
