@@ -56,7 +56,14 @@ describe('Phase 5 · the site copy', () => {
   });
 
   it('never says {name}: a stranger would read "your assistant" as a name', () => {
-    for (const l of LOCALES) expect(siteCopy(l).filter(([, v]) => v.includes('{')).map(([k]) => `${l} ${k}`)).toEqual([]);
+    // NARROWED at the Phase 3 stop-gate (the owner's decision 2, 2026-10-13): the reel's made-up shop may show a
+    // quantity and a per-piece price moving, and the catalogue holds no digit, so those two lines take the example's
+    // figures as {qty} and {now} — those two placeholders, in those two keys, and nothing else anywhere.
+    const EXAMPLE_FIGURES: Record<string, string[]> = { 'site.reel.s2.asks': ['{qty}'], 'site.reel.s2.reply': ['{qty}', '{now}'] };
+    for (const l of LOCALES) {
+      const left = siteCopy(l).map(([k, v]) => [k, (EXAMPLE_FIGURES[k] ?? []).reduce((s, p) => s.split(p).join(''), v)] as const);
+      expect(left.filter(([, v]) => v.includes('{')).map(([k]) => `${l} ${k}`)).toEqual([]);
+    }
   });
 });
 
