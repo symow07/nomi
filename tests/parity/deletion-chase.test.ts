@@ -67,7 +67,8 @@ describe('D4 · the chase is recorded, once per step, and deletes nothing', () =
     const main = read('src/main.ts');
     expect(main).toContain("await boss.schedule(QUEUES.deletionChase, '15 7 * * *', {});");
     expect(main).toContain("if (c.step === '60d') continue;");
-    expect(main).toContain("await boss.send(QUEUES.notify, { businessId: c.business_id, kind: 'deletion_reminder', conversationId: null } satisfies NotifyJob);");
+    // Every alert goes through `sendAlert` since the time-to-send guard (its priority comes from its kind).
+    expect(main).toContain("await sendAlert(boss, { businessId: c.business_id, kind: 'deletion_reminder', conversationId: null } satisfies NotifyJob);");
     expect(read('src/pipeline/notify.ts')).toContain("mailOwnerAlways: job.kind === 'deletion_requested' || job.kind === 'deletion_reminder',");
     expect(interrupts('deletion_reminder')).toBe(true);
   });
