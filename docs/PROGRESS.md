@@ -13,6 +13,45 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Phase 3 — the site and onboarding, at the owner's STOP-GATE (2026-10-13) — read this first
+
+Built up to the gate and NOT merged (the owner's word): the motion-led site draft (`site-reel-draft`, previewed at
+`/site/next`) and the onboarding draft stacked on it (`onboarding-draft`: sign-up lands on Getting started, a new
+quiet workspace's Home leads with the next step, a next-step strip on every page). The review page with the
+decisions is the artifact linked in the stop message. Waiting on the owner: the site's story, figures in the reel,
+the "Coming" books beat, the word "AI"; the onboarding's three changes, a button for the first step, folding the
+Checklist into Getting started, and Playwright's ffmpeg (recording the guide videos and the ad hooks needs it —
+an install prompt, skipped and logged). Found on the walk and live today: the sign-up welcome is drawn as an error
+(`signup.welcome` unclassified in `flashTone.ts`; fixed only in the draft). `smoke.sh` stops on `/app/employee`
+(now a redirect); the server runs when started by hand.
+
+## Phase 2 — the queued feature gaps (2026-10-13)
+
+RUN-THROUGH except 2c (a STOP-GATE on the document template, approved by the owner the same day).
+
+- #319 (0150) **2a, the morning summary** — a fourth alert class (`DAILY_KINDS`): owner only, on by default with an
+  off switch, 08:00 in the business's zone, never in the owner's quiet hours, the owner's way, nothing on a day with
+  nothing to say; counts, never names.
+- #320 **the summary waits behind every interruption** (`DAILY_PRIORITY` -1) — found by the integration suite the
+  same day: the 07:45 sweep's 47 summaries put g3-allowance's hand-over e-mail 106 s late. In production the same
+  happens at 08:00 in every zone with many owners. Shown both ways on the real pg-boss.
+- #321 **2b, "which deals went nowhere" (C5)** — priced and quiet (Home's attention rule, 14+ days), set aside,
+  cancelled; grounded only. Payments, costs and stock stay "I don't know" until Phase 5. `advisor-subjects` classifies
+  C5 (the owner's OK) and its fixture gains Leo, so the check is not vacuous; A2's cut reads "…and 8 more".
+- #322 (0151) **2c, the proforma as a page the customer opens** (`/pi/<token>`) — made from the conversation or the
+  order, in the customer's language, never indexed, NO BANK DETAILS on purpose (invoice fraud; a test holds it), the
+  text proforma stays English for now (two language rules, to align later). `docs/PROFORMA-LINK.md`.
+- #323 (0152) **2d, a product's photo sent in an Instagram chat** — kept in Postgres (the owner's choice), served at
+  `/media/<token>`, sent by the owner holding the conversation (WhatsApp, Instagram, Messenger; Meta's pictures carry
+  no caption). The surface walk found a real defect on the way: one primary image per product — fixed. TikTok and
+  comments wait for the owner's applications.
+
+**Checked in production:** schema 152; `/health` ok after every deploy. Backup before 0150–0152:
+`nomi-backup-20261013T030432Z` (drill passed), PITR on. Existing tests changed by design, each named in its PR:
+`notifications` (four classes), `advisor-build` (51 entries), `advisor-subjects` (C5, Leo, "…and 8 more"),
+`erase-buyer` (a kept order carries a proforma link), `c9-meta-messaging` (Instagram and Messenger carry a picture),
+`surface-walk` (each public link walked with its own token; its foreign image not primary).
+
 ## Phase 1 — open sign-up with trial-abuse scoring (2026-10-13) — read this first
 
 **The owner's roadmap** (2026-10-13, at the top of `docs/ROADMAP.md`, #312): Phase 1 is RUN-THROUGH up to go-live.
