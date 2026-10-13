@@ -17,8 +17,17 @@
  *   node tools/record-guide.mjs                              # every step, every language
  *   node tools/record-guide.mjs --steps products --locales es
  *
- * Needs Playwright's Chromium (`npx playwright install chromium`). The webm is
- * re-encoded smaller with Playwright's own ffmpeg when it is there.
+ * The browser: Playwright's Chromium, or any Chromium named with `--browser
+ * <path>` (Brave, Chrome). The recording: Playwright's own when its ffmpeg is
+ * installed; otherwise the browser's own screencast (CDP), its frames put
+ * together by the system's `ffmpeg` at the moments they were drawn — nothing
+ * to download.
+ *
+ * `KEEP_GUIDE_FRAMES=1` leaves the last video's pictures in `.guide-recording/` to look at.
+ *
+ * Each language's video shows the demo shop under a name in that language
+ * (`NAMES`), saved through the profile form before that language records, so
+ * an English video never shows a Chinese name (`--keep-name` leaves it).
  */
 import { chromium } from 'playwright';
 import { mkdir, writeFile, rm, readdir, rename } from 'node:fs/promises';
@@ -41,6 +50,8 @@ const PHONE = argv.includes('--phone');
 const SIZE = PHONE ? { width: 390, height: 844 } : { width: 1024, height: 640 };
 const FRAME = SIZE;
 const SUFFIX = PHONE ? '.phone' : '';
+const BROWSER = opt('browser') ?? process.env.GUIDE_BROWSER;
+const KEEP_NAME = argv.includes('--keep-name');
 
 const { messages, t } = await import('../dist/core/owner/i18n/messages.js');
 /** The catalogue's own words, through `t` — so "your assistant" is capitalised where a sentence starts. */
@@ -97,6 +108,9 @@ const SAMPLE = {
 };
 let LOCALE = 'en';
 
+/** The demo shop's name in each language's video: a Yiwu housewares maker, as its own words say. */
+const NAMES = { en: 'Hongfa Housewares', zh: '宏发日用品厂', ar: 'هونغفا للأدوات المنزلية', es: 'Hongfa Artículos para el Hogar', fr: 'Hongfa Articles Ménagers' };
+
 /** Each step: what is shown under each caption. `cue(n)` marks the caption's start. */
 const SCRIPTS = {
   // The warmth run (w4-whole-10) — each video walks the way its first caption names: Settings, then the
@@ -148,10 +162,16 @@ const SCRIPTS = {
     await typeInto(page, 'main form[action="/app/sandbox/message"] textarea', SAMPLE.ask[LOCALE]);
     await pause(1200);
     await press(page, 'main form[action="/app/sandbox/message"] button[type="submit"]');
-    cue(2); await pause(3000);
-    // The reply is drafted by the worker: the page is read again to show it.
-    await page.reload(); await page.waitForLoadState('networkidle').catch(() => {});
-    await point(page, 'main form[action="/app/sandbox/reply"] textarea, main .draft, main .bubble'); await pause(4000);
+    cue(2); await pause(2000);
+    // The reply is written by the worker: the page is read again until "writing a reply" has gone (up to 15 s),
+    // then the reply itself is shown — the assistant's message, or the draft waiting for the owner.
+    for (let i = 0; i < 10; i++) {
+      await page.reload(); await page.waitForLoadState('networkidle').catch(() => {});
+      if (await page.locator('main .block.working').count() === 0) break;
+      await pause(1500);
+    }
+    if (!(await point(page, 'main .bubble.by-as'))) await point(page, 'main form[action="/app/sandbox/reply"] textarea, main .draft');
+    await pause(4000);
     // The step is done in the Inbox: the video ends there, where the caption says.
     cue(3); await press(page, 'a[href="/app/inbox"]'); await pause(5000);
   },
@@ -174,38 +194,115 @@ const ffmpeg = (() => {
   return null;
 })();
 
+/** Without Playwright's ffmpeg, the browser's own screencast, put together by the system's ffmpeg. */
+const SYSTEM_FFMPEG = (() => {
+  const r = spawnSync('sh', ['-c', 'command -v ffmpeg']);
+  return r.status === 0 ? r.stdout.toString().trim() : null;
+})();
+const SCREENCAST = !ffmpeg;
+if (SCREENCAST && !SYSTEM_FFMPEG) throw new Error('no ffmpeg: install Playwright\'s (npx playwright install ffmpeg) or put ffmpeg on PATH');
+const ENCODE = ['-an', '-c:v', 'libvpx', '-b:v', '350k', '-crf', '32'];
+
+/** Every frame the page draws, with the moment it arrived (the same clock as the captions' cues). */
+async function screencast(page) {
+  const cdp = await page.context().newCDPSession(page);
+  const frames = [];
+  cdp.on('Page.screencastFrame', ({ data, sessionId }) => {
+    frames.push({ data, at: Date.now() });
+    cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+  });
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 85, maxWidth: SIZE.width, maxHeight: SIZE.height, everyNthFrame: 1 });
+  return { frames, stop: () => cdp.send('Page.stopScreencast').catch(() => {}) };
+}
+
+/**
+ * The frames as a video, on an exact 25-a-second clock: each tick is one picture, the newest frame drawn by then (a
+ * still page draws none, so its last frame simply stays). Read back as a plain image sequence — ffmpeg's concat
+ * reader stretches still images, so it is not used.
+ */
+async function assemble(frames, from, until, file) {
+  const dir = path.join(tmp, 'frames');
+  await mkdir(dir, { recursive: true });
+  if (frames.length === 0) throw new Error(`no frame was drawn for ${file}`);
+  const TICK = 40;
+  let i = 0;
+  let n = 0;
+  let picture = null;
+  for (let t = from; t < until; t += TICK, n++) {
+    const before = i;
+    while (i + 1 < frames.length && frames[i + 1].at <= t) i++;
+    if (picture === null || i !== before) picture = Buffer.from(frames[i].data, 'base64');
+    await writeFile(path.join(dir, `${String(n).padStart(5, '0')}.jpg`), picture);
+  }
+  const { width, height } = SIZE;
+  const r = spawnSync(SYSTEM_FFMPEG, ['-y', '-loglevel', 'error', '-framerate', '25', '-i', path.join(dir, '%05d.jpg'),
+    '-vf', `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=white,format=yuv420p`,
+    ...ENCODE, file]);
+  if (r.status !== 0) throw new Error(`ffmpeg could not put ${file} together: ${r.stderr}`);
+}
+
+/** Signed in with the access code, through the context, before any page is drawn. */
+async function signedIn(context) {
+  const login = await context.request.post(`${BASE}/login`, { form: { code: CODE }, maxRedirects: 0 });
+  if (login.status() !== 302) throw new Error(`sign-in refused: ${login.status()}`);
+}
+
+/** The shop's name in this language, saved the way an owner saves it: the profile form, every other field as it is. */
+async function nameTheShop(locale) {
+  const context = await browser.newContext({ viewport: SIZE });
+  await context.addCookies([{ name: 'yf_locale', value: locale, url: BASE }]);
+  await signedIn(context);
+  const page = await context.newPage();
+  await page.goto(`${BASE}/app/settings/profile`);
+  const field = page.locator('main form[action="/app/settings"] input[name="name"]');
+  await field.fill(NAMES[locale]);
+  // The page is already at the profile's address: wait for the form's own answer, not for an address.
+  const [saved] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/app/settings'),
+    field.evaluate((el) => el.form.requestSubmit()),
+  ]);
+  if (saved.status() !== 302) throw new Error(`the shop's name was not saved (${saved.status()})`);
+  await page.waitForLoadState('load');
+  await context.close();
+}
+
 await mkdir(OUT, { recursive: true });
-const browser = await chromium.launch();
+const browser = await chromium.launch(BROWSER ? { executablePath: BROWSER } : {});
 const tmp = path.join(ROOT, '.guide-recording');
 for (const locale of LOCALES) {
   LOCALE = locale;
+  if (!KEEP_NAME) await nameTheShop(locale);
   for (const step of STEPS) {
     await rm(tmp, { recursive: true, force: true });
-    const context = await browser.newContext({ viewport: SIZE, recordVideo: { dir: tmp, size: FRAME }, locale: locale === 'zh' ? 'zh-CN' : locale });
+    const context = await browser.newContext({ viewport: SIZE, ...(SCREENCAST ? {} : { recordVideo: { dir: tmp, size: FRAME } }), locale: locale === 'zh' ? 'zh-CN' : locale });
     await context.addCookies([{ name: 'yf_locale', value: locale, url: BASE }]);
     await context.addInitScript(POINTER);
-    // Signed in with the access code, through the context, before any page is drawn.
-    const login = await context.request.post(`${BASE}/login`, { form: { code: CODE }, maxRedirects: 0 });
-    if (login.status() !== 302) throw new Error(`sign-in refused: ${login.status()}`);
+    await signedIn(context);
     const page = await context.newPage();
+    const cast = SCREENCAST ? await screencast(page) : null;
     const videoStart = Date.now();
     const t0 = Date.now();
     const cues = [];
     await SCRIPTS[step](page, (n) => cues.push({ n, at: Date.now() - t0 }));
     const end = Date.now() - t0 + 400;
-    const video = page.video();
-    await context.close();
-    const raw = await video.path();
-    // The recording began before sign-in. With ffmpeg the sign-in is cut off and
-    // the video starts with the step; without it, the captions start later instead.
-    const signIn = t0 - videoStart;
     const file = path.join(OUT, `${step}.${locale}${SUFFIX}.webm`);
-    let lead = signIn;
-    if (ffmpeg) {
-      const r = spawnSync(ffmpeg, ['-y', '-loglevel', 'error', '-ss', (signIn / 1000).toFixed(2), '-i', raw, '-an',
-        '-c:v', 'libvpx', '-b:v', '350k', '-crf', '32', file]);
+    let lead = 0;
+    if (cast) {
+      await pause(400);
+      await cast.stop();
+      await context.close();
+      await assemble(cast.frames, t0, t0 + end, file);
+    } else {
+      const video = page.video();
+      await context.close();
+      const raw = await video.path();
+      // The recording began before sign-in. With ffmpeg the sign-in is cut off and
+      // the video starts with the step; without it, the captions start later instead.
+      const signIn = t0 - videoStart;
+      lead = signIn;
+      const r = spawnSync(ffmpeg, ['-y', '-loglevel', 'error', '-ss', (signIn / 1000).toFixed(2), '-i', raw, ...ENCODE, file]);
       if (r.status === 0) lead = 0; else await rename(raw, file);
-    } else await rename(raw, file);
+    }
     // Each caption runs until the next begins, the last until the video ends.
     const vtt = ['WEBVTT', ''];
     cues.forEach((c, i) => {
@@ -217,5 +314,5 @@ for (const locale of LOCALES) {
   }
 }
 await browser.close();
-await rm(tmp, { recursive: true, force: true });
+if (!process.env.KEEP_GUIDE_FRAMES) await rm(tmp, { recursive: true, force: true });
 console.log(`written to ${path.relative(ROOT, OUT)} — ${(await readdir(OUT)).length} files`);

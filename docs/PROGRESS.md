@@ -13,17 +13,41 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## Phase 3 — the site and onboarding, at the owner's STOP-GATE (2026-10-13) — read this first
+## Phase 4 — the Gate A pilot, at the owner's STOP-GATE (2026-10-14) — read this first
 
-Built up to the gate and NOT merged (the owner's word): the motion-led site draft (`site-reel-draft`, previewed at
-`/site/next`) and the onboarding draft stacked on it (`onboarding-draft`: sign-up lands on Getting started, a new
-quiet workspace's Home leads with the next step, a next-step strip on every page). The review page with the
-decisions is the artifact linked in the stop message. Waiting on the owner: the site's story, figures in the reel,
-the "Coming" books beat, the word "AI"; the onboarding's three changes, a button for the first step, folding the
-Checklist into Getting started, and Playwright's ffmpeg (recording the guide videos and the ad hooks needs it —
-an install prompt, skipped and logged). Found on the walk and live today: the sign-up welcome is drawn as an error
-(`signup.welcome` unclassified in `flashTone.ts`; fixed only in the draft). `smoke.sh` stops on `/app/employee`
-(now a redirect); the server runs when started by hand.
+The kit is built and NOT merged (the owner's word: "show me the pilot kit before anything goes to a real business"):
+PR #331 — `docs/GATE-A-KIT.md` rewritten for schema 152 (prerequisites with their status read from production,
+the owner's decisions, the cold demo on Westlake, the seven days, the three dead ends never to demo, the shadow
+template), `tools/pilot-log.mjs` (the one writer of `pilot_log`; `add`, `triage`, `set`, `kinds`) with its
+integration test, and `tests/parity/gate-a-kit.test.ts` (every file, page and tool the kit names exists). The review
+page is the artifact linked in the stop message. **Waiting on the owner:** whose WhatsApp number the boss uses (A: the
+boss's number joins Nomi's WABA — recommended; B: 360dialog; C: wait for M52), exempting the pilot workspace from
+billing for the week, whether "we" on the pages is acceptable for an invited pilot, who the boss is and when, and
+the +1 555 number's display name in WhatsApp Manager (the last WhatsApp send, 2026-09-19, was refused `#131037`;
+nothing has been sent on WhatsApp since). Read from production 2026-10-14: schema 152, no ops flag, 0 errors in 7
+days, nightly backups with drills, `HEALTH_PING_URL` set. Found while recording, for later (send path / model, not
+touched): in Practice, the model's Arabic reply addressed the buyer in the masculine (تبحث), and the Arabic run's trust
+check flagged "never send without permission" where the English run passed every check.
+
+## Phase 3 — the site and onboarding (2026-10-13/14), merged after the owner's stop-gate answers
+
+- #325 **the sign-up welcome is good news** — `signup.welcome` (and five more keys) classified; a test walks every
+  key a route hands a notice. Shipped ahead of the rest, as asked.
+- #326 **an urgent alert is never held back by a flood** — every alert through `sendAlert` (priority from its kind);
+  an urgent one that waits over 60 s is reported (`lateUrgentAlert`); 50 floods then a hand-over on the real pg-boss.
+- #327 **the smoke script checks `/app/settings/assistant`**, and a test keeps it off redirect-only routes.
+- #328 **3a, the site's reel at `/site/next`** — "Closes" is the beat; figures only in the made-up shop, marked
+  Example (the narrowed rule is in `site.ts`); "Coming" has no date and no link; "AI" only in the disclosure. `/`
+  stays today's site until `REEL_NATIVE_REVIEW` is true in all five languages (on the native-review list as a GATE).
+- #329 **3b, one onboarding path** — sign-up lands on Getting started; a quiet Home leads with the next step;
+  "Getting started · n of 5 steps done" on every other page; "Do it now" is the ONE filled button, on the first
+  incomplete step only (the hard cap is in `tests/parity/buttons-and-doors.ts`).
+- #330 **the guide's 50 videos re-recorded and the three 9:16 hooks** (`docs/marketing/hooks/`) — the recorder
+  runs without Playwright's ffmpeg (CDP screencast + the system's ffmpeg) and names the shop in each video's language.
+
+Tests changed by design, each named in its PR: the six pinned to Home (approved), `deletion-chase` and
+`summary-priority` (#326), `site.test`'s brace rule (#328), `otp`, `accounts`, `signup-risk`, `signup-records`,
+`panes` (#329). Next round (approved): fold the Checklist into Getting started.
 
 ## Phase 2 — the queued feature gaps (2026-10-13)
 
