@@ -100,7 +100,9 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'autonomy.flash.notReleased',
   // G4 — a workspace that signed itself up has not earned sending alone yet.
   'autonomy.flash.notEarned',
-  'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'proof.owner.flash.failed', 'pi.owner.flash.failed',
+  'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'proof.owner.flash.failed',
+  // Found 2026-10-13 by the walk of every key a route hands a notice (pr3-errors-countries-flash): named no `.flash.`.
+  'staff.notAllowed', 'product.add.nothingRead', 'business.kind.invalid', 'pi.owner.flash.failed',
   'product.photo.flash.not_a_photo', 'product.photo.flash.too_large', 'product.photo.flash.empty', 'product.photo.flash.failed',
   'photo.flash.no_photo', 'photo.flash.no_address', 'photo.flash.photo_unsupported', 'photo.flash.window',
   'prospects.flash.exists', 'prospects.flash.failed', 'prospects.flash.invalid',
@@ -187,7 +189,10 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'alerts.flash.on', 'alerts.flash.removed', 'alerts.flash.tested', 'alerts.flash.way',
   // Phase 2a — the morning summary's switch and quiet hours saved.
   'alerts.flash.morning',
-  'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued', 'pi.owner.flash.made', 'pi.owner.flash.off',
+  'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued',
+  // Found 2026-10-13 the same way, and drawn as refusals until now: the sign-up welcome (the first thing a new owner
+  // reads) and the business kind saved.
+  'signup.welcome', 'signup.welcome.card', 'business.kind.saved', 'pi.owner.flash.made', 'pi.owner.flash.off',
   'product.photo.flash.saved', 'product.photo.flash.removed', 'photo.flash.sent',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',
