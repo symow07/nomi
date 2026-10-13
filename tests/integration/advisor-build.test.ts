@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import pg from 'pg';
 import { seedRunTenant } from './tenant.js';
 import type { AdvisorModel } from '../../src/llm/ports.js';
 import { moneyFromRow } from '../../src/core/types/money.js';
@@ -25,7 +26,9 @@ import { moneyFromRow } from '../../src/core/types/money.js';
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
-const d = DATABASE_URL ? describe : describe.skip;
+// The admin role too: what the app wrote is read in every table, across row security (the write test below).
+const MIGRATE_URL = process.env['MIGRATE_DATABASE_URL'];
+const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 const RUN = randomUUID().slice(0, 8);
 const id = (n: number) => `dda30000-0000-4000-8000-${RUN}${String(n).padStart(4, '0')}`;
 const BIZ = id(1); const EMPTY = id(2); const PID = id(3);
@@ -62,6 +65,7 @@ function fakeModel(routes: Record<string, Route>, says: Record<string, string> =
 d('the advisor batch · facts from read-only reads, worded under the check (requires DATABASE_URL)', () => {
   let db: import('../../src/db/client.js').Db;
   let ro: import('../../src/db/client.js').Db;
+  let admin: pg.Client;
   const tx = async <R>(biz: string, fn: (t: import('../../src/db/client.js').Tx) => Promise<R>, on = () => db): Promise<R> => {
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
@@ -78,13 +82,40 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     const { answerQuestion } = await import('../../src/advisor/answer.js');
     return answerQuestion({ db: ro, model, businessId: o.biz ?? BIZ, viewerId: 'owner', locale: o.locale ?? 'en', now: new Date() }, question);
   };
-  /** The next transaction id the database would hand out: any transaction that writes moves it; reading never does. */
+  /** The next transaction id the database would hand out: where a window of writing starts. */
   const horizon = async () => BigInt((await sql<{ x: string }>`select pg_snapshot_xmax(pg_current_snapshot())::text as x`.execute(db)).rows[0]!.x);
+  /**
+   * WHAT THE APP WROTE since `since` (a transaction id), table by table, in every schema but Postgres's own: a
+   * row inserted or updated carries its writer's transaction id (`xmin`); a delete shows in the count. The
+   * database's own background work (ANALYZE, autovacuum) writes only its catalogue, so it is never counted —
+   * the global transaction counter this replaced was moved by it (CI, 2026-10-12, twice; reproduced with an
+   * `analyze` loop beside the test). The owner's word (2026-10-13): count only the app's own writes.
+   */
+  const footprint = async (since: bigint): Promise<Map<string, { rows: number; fresh: number }>> => {
+    // `xmin` is the 32-bit transaction id: comparable with `since` while the ids are in their first epoch.
+    expect(since < 2n ** 32n, 'transaction ids still in their first epoch').toBe(true);
+    const tables = (await admin.query<{ t: string }>(`
+      select format('%I.%I', n.nspname, c.relname) as t from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where c.relkind = 'r' and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\\_%'
+       order by 1`)).rows.map((r) => r.t);
+    const out = new Map<string, { rows: number; fresh: number }>();
+    for (const t of tables) {
+      const r = (await admin.query<{ rows: number; fresh: number }>(
+        `select count(*)::int as rows, (count(*) filter (where xmin::text::bigint >= $1))::int as fresh from ${t}`, [Number(since)])).rows[0]!;
+      out.set(t, r);
+    }
+    return out;
+  };
+  /** The tables written between two footprints: a row of their own transaction ids, or a count that moved. */
+  const wrote = (a: Map<string, { rows: number; fresh: number }>, b: Map<string, { rows: number; fresh: number }>): string[] =>
+    [...b].filter(([t, x]) => x.fresh > (a.get(t)?.fresh ?? 0) || x.rows !== a.get(t)?.rows).map(([t]) => t);
 
   beforeAll(async () => {
     const { createDb, createReadOnlyDb } = await import('../../src/db/client.js');
     db = createDb(DATABASE_URL!);
     ro = createReadOnlyDb(DATABASE_URL!);
+    admin = new pg.Client({ connectionString: MIGRATE_URL });
+    await admin.connect();
     await tx(BIZ, async (t) => {
       await sql`insert into businesses (id, name, timezone, country, currency) values (${BIZ}, 'Advisor Build Co', ${MIDDAY}, 'CN', 'USD')`.execute(t);
       await sql`insert into products (id, business_id, sku, name, unit, is_active) values (${PID}, ${BIZ}, ${REF}, 'Canvas tote', 'pcs', true)`.execute(t);
@@ -116,7 +147,7 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     });
     await tx(EMPTY, (t) => sql`insert into businesses (id, name, timezone) values (${EMPTY}, 'Nothing Yet Co', ${MIDDAY})`.execute(t));
   });
-  afterAll(async () => { await ro?.destroy(); await db?.destroy(); });
+  afterAll(async () => { await ro?.destroy(); await db?.destroy(); await admin?.end(); });
 
   it('the advisor\'s pool cannot write: an insert in a tenant transaction is refused by the database (the app\'s pool is the control)', async () => {
     const write = (on: () => import('../../src/db/client.js').Db) =>
@@ -138,15 +169,19 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     }
   });
 
-  it('asking writes nothing anywhere: the database hands out no transaction id while questions are answered (a real write is the control)', async () => {
+  it('asking writes nothing anywhere: no table holds a row the asking wrote, and no count moved (a real write is the control)', async () => {
+    // The control: one write by the app is seen, in its table and nowhere else.
     const c0 = await horizon();
+    const f0 = await footprint(c0);
     await tx(BIZ, (t) => sql`update businesses set name = name where id = ${BIZ}`.execute(t));
-    expect(await horizon()).toBeGreaterThan(c0);
+    expect(wrote(f0, await footprint(c0))).toEqual(['public.businesses']);
+    // The asking: nothing, anywhere.
     const before = await horizon();
+    const f1 = await footprint(before);
     const routes = { a: { id: 'A1' }, b: { id: 'B8' }, c: { id: 'D8' }, d: { id: 'I3' }, e: { id: 'A3', customer: 'Amira' }, f: { id: 'D11', reference: REF } };
     for (const q of Object.keys(routes)) expect((await ask(q, fakeModel(routes))).kind, q).not.toBe('failed');
-    expect(await horizon()).toBe(before);
-  });
+    expect(wrote(f1, await footprint(before))).toEqual([]);
+  }, 120_000);
 
   it('the figures are the database\'s, and the owner\'s test is in none of them', async () => {
     const { READS } = await import('../../src/advisor/reads.js');
