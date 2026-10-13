@@ -113,9 +113,12 @@ describe('C9 · a buyer writes, and it lands in the right place', () => {
   it('the adapters name their own channel and share one provider', () => {
     expect([ig.kind, fb.kind]).toEqual(['instagram', 'messenger']);
     expect([ig.provider, fb.provider]).toEqual(['meta', 'meta']);
-    // Neither carries a subject or a picture: a reply here is text.
+    // Neither carries a subject: a reply here is no e-mail.
     expect(ig.sendMail).toBeUndefined();
-    expect(fb.sendMedia).toBeUndefined();
+    // Phase 2d (the owner's word, 2026-10-13) — both carry a picture now: a product photo Nomi serves, sent by the
+    // owner holding the conversation (`metaImageSender`; tests/parity/product-photos.test.ts).
+    expect(typeof ig.sendMedia).toBe('function');
+    expect(typeof fb.sendMedia).toBe('function');
   });
 });
 

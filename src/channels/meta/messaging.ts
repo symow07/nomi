@@ -1,4 +1,4 @@
-import type { SendResult } from '../contract.js';
+import type { SendResult, OutboundMedia } from '../contract.js';
 import type { ChannelEvent, InboundMessageEvent } from '../whatsapp/parse.js';
 
 /**
@@ -315,14 +315,33 @@ function metaErrorCode(text: string): string {
   }
 }
 
-export function metaMessagingSender(cfg: {
+type MetaSendConfig = {
   readonly accountId: string;
   readonly accessToken: string;
   readonly graphVersion: string;
   readonly fetchImpl?: MetaFetch;
-}) {
+};
+
+export function metaMessagingSender(cfg: MetaSendConfig) {
+  const post = metaPoster(cfg);
+  return (to: string, body: string): Promise<SendResult> => post(to, { text: body });
+}
+
+/**
+ * Phase 2d (0152) — a photo, as an image attachment Meta fetches from the address given (one Nomi serves: the
+ * worker refuses any other, F1). Meta's attachments carry no caption, so a picture with words is REFUSED, never sent
+ * without them: a picture without its words is a different message (the contract's rule for `sendMedia`).
+ */
+export function metaImageSender(cfg: MetaSendConfig) {
+  const post = metaPoster(cfg);
+  return async (to: string, media: OutboundMedia): Promise<SendResult> => media.caption.trim()
+    ? { ok: false, retryable: false, error: 'meta takes no caption on a picture' }
+    : post(to, { attachment: { type: 'image', payload: { url: media.url, is_reusable: false } } });
+}
+
+function metaPoster(cfg: MetaSendConfig) {
   const doFetch: MetaFetch = cfg.fetchImpl ?? (fetch as unknown as MetaFetch);
-  return async (to: string, body: string): Promise<SendResult> => {
+  return async (to: string, message: Readonly<Record<string, unknown>>): Promise<SendResult> => {
     try {
       const res = await doFetch(
         `https://graph.facebook.com/${cfg.graphVersion}/${encodeURIComponent(cfg.accountId)}/messages`,
@@ -332,7 +351,7 @@ export function metaMessagingSender(cfg: {
           // The audit (2026-10-10): Meta's Send API names `messaging_type` as required. Every message here
           // answers a buyer inside their 24 hours (the gate refuses anything else), which is a RESPONSE; no
           // message tag is ever sent, so nothing leaves outside the window.
-          body: JSON.stringify({ recipient: { id: to }, messaging_type: 'RESPONSE', message: { text: body } }),
+          body: JSON.stringify({ recipient: { id: to }, messaging_type: 'RESPONSE', message }),
           signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
         },
       );

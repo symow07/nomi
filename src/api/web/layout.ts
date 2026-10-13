@@ -1683,6 +1683,8 @@ const STYLE_PAGES = `
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .info { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
+  .sent-photo { padding:var(--space-4); }
+  .sent-photo img { display:block; width:200px; max-width:100%; height:auto; border-radius:var(--radius-control); }
   .imgs img { width:96px; height:96px; object-fit:cover; border-radius:var(--radius-control); border:1px solid var(--color-border); }
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); }
   .qrow:last-child { border-bottom:none; }
@@ -2352,10 +2354,10 @@ const STYLE_PAGES = `
   /* Who holds it, and handing it on. The card a person holds is a column; its pill stays a pill. */
   .takeover.owner > .pill { align-self:flex-start; }
   .why, .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
-  .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); align-self:stretch;
+  .handto, .photosend { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); align-self:stretch;
     margin:0; font-size:var(--font-size-small); }
   /* The name, the list of people and the button on one line where they fit: a select at the full width pushed its own button under it. */
-  .handto select, .as-hand select { width:auto; flex:1 1 12em; min-width:0; max-width:var(--measure-form); }
+  .handto select, .photosend select, .as-hand select { width:auto; flex:1 1 12em; min-width:0; max-width:var(--measure-form); }
   /* M22 — a refusal is information, not an alarm: amber, like a disconnected
      channel. Something needs the owner, and nothing is broken. 0052 — a send
      nobody can account for is the same amber, with the words and two answers. */

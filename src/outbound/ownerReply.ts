@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import { withTenantTx, lockConversation, type Db, type Tx } from '../db/client.js';
 import { tenantRepos } from '../db/repos.js';
 import { enqueueOutboundRow } from '../db/channels.js';
+import { productPhotoToken, productPhotoUrl, PHOTO_CHANNELS } from '../db/productPhotos.js';
 import { ownershipOf, ownerMayReply, type ConversationOwnership } from '../core/conversation/ownership.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 
@@ -71,5 +72,42 @@ export async function ownerReply(deps: OwnerReplyDeps, input: { businessId: Busi
   if (result.outcome === 'sent') {
     await deps.kickDrive(input.businessId, input.conversationId);
   }
+  return result;
+}
+
+/**
+ * Phase 2d (0152) — the owner sends a product's photo, through the same ONE path as their words: the same
+ * ownership gate (held by a person who may reply), the same queue, origin 'owner'. The row is a picture
+ * (`kind = 'image'`) at the address Nomi serves it at, with no caption — Instagram and Messenger carry none.
+ * On a channel that cannot carry a picture, nothing is queued and the owner is told.
+ */
+export type OwnerPhotoOutcome = OwnerReplyOutcome | 'no_photo' | 'no_address' | 'photo_unsupported';
+
+export async function ownerPhoto(
+  deps: OwnerReplyDeps,
+  input: { businessId: BusinessId; conversationId: string; productId: string; actor: string; publicBaseUrl: string | null | undefined },
+): Promise<{ readonly outcome: OwnerPhotoOutcome; readonly ownership: ConversationOwnership | null }> {
+  const result = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{ outcome: OwnerPhotoOutcome; ownership: ConversationOwnership | null }> => {
+    const cur = await currentOwnership(tx, input.businessId, input.conversationId);
+    if (cur === null) return { outcome: 'not_found', ownership: null };
+    if (cur === 'AI') return { outcome: 'ai_owned', ownership: cur };
+    if (!ownerMayReply(cur)) return { outcome: 'must_take_over', ownership: cur };
+    const channel = (await sql<{ channel: string }>`
+      select channel from conversations where id = ${input.conversationId}::uuid and business_id = ${input.businessId}`
+      .execute(tx)).rows[0]?.channel ?? null;
+    if (!channel || !PHOTO_CHANNELS.includes(channel)) return { outcome: 'photo_unsupported', ownership: cur };
+    const token = /^[0-9a-f-]{36}$/i.test(input.productId) ? await productPhotoToken(tx, input.productId) : null;
+    if (!token) return { outcome: 'no_photo', ownership: cur };
+    const url = productPhotoUrl(input.publicBaseUrl, token);
+    if (!url) return { outcome: 'no_address', ownership: cur };
+
+    await lockConversation(tx, input.conversationId);
+    const rowId = await enqueueOutboundRow(tx, input.businessId, input.conversationId, '', 'owner', null, null, null, false, { url });
+    if (rowId === null) return { outcome: 'no_channel', ownership: cur };
+    // Audit: who, and which product's photo — no picture, no customer data.
+    await tenantRepos(tx, input.businessId).events.append(input.conversationId as ConversationId, 'owner_photo', { actor: input.actor, productId: input.productId });
+    return { outcome: 'sent', ownership: cur };
+  });
+  if (result.outcome === 'sent') await deps.kickDrive(input.businessId, input.conversationId);
   return result;
 }

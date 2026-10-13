@@ -217,6 +217,19 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         select proforma_token as t from orders where id = ${order}::uuid`.execute(tx).then((r) => r.rows[0]?.t ?? null));
       if (pi) ownToken['/pi/:token'] = pi;
     }
+    // Phase 2d — a REAL product photo, kept through the owner's route: /media/:token is walked with its own address.
+    const BOUNDARY = '----walk2d';
+    await app.inject({
+      method: 'POST', url: `/app/products/${real['productId']}/photo`,
+      headers: { cookie, 'content-type': `multipart/form-data; boundary=${BOUNDARY}` },
+      payload: Buffer.concat([
+        Buffer.from(`--${BOUNDARY}\r\nContent-Disposition: form-data; name="photo"; filename="walk.png"\r\nContent-Type: image/png\r\n\r\n`),
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]), Buffer.from(`\r\n--${BOUNDARY}--\r\n`)]),
+    });
+    const photo = await withTenantTx(db, bid.value, (tx) => sql<{ t: string | null }>`
+      select token as t from product_images where product_id = ${real['productId']}::uuid and token is not null`
+      .execute(tx).then((r) => r.rows[0]?.t ?? null));
+    if (photo) ownToken['/media/:token'] = photo;
   }, 90_000);
 
   afterAll(async () => { await app?.close(); await db?.destroy(); });
@@ -491,8 +504,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       const { createDb } = await import('../../src/db/client.js');
       const admin = createDb(MIGRATE_URL);
       try {
+        // Not the primary image: the walk's own photo (Phase 2d) already is, and a product has one.
         await sql`insert into product_images (product_id, url, is_primary, sort_order)
-                  values (${real['productId']}::uuid, 'https://elsewhere.example/walk.jpg', true, 0)`.execute(admin);
+                  values (${real['productId']}::uuid, 'https://elsewhere.example/walk.jpg', false, 0)`.execute(admin);
       } finally { await admin.destroy(); }
     }
     const problems: string[] = [];
@@ -546,6 +560,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
 
   it('and every surface returns 200, not merely "not 500"', async () => {
     expect(ownToken['/pi/:token'], 'no proforma link was made, so /pi/:token would be walked with another link').toBeTruthy();
+    expect(ownToken['/media/:token'], 'no product photo was kept, so /media/:token would be walked with another address').toBeTruthy();
     const notOk: string[] = [];
     for (const url of [...new Set(routes)]) {
       // Skipped because this walk cannot mint the credential they carry in the

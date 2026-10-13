@@ -15926,3 +15926,20 @@ the page a link that no longer opens shows.
   fiscale) says what it should in each market.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-13 — Phase 2d: a product's photo, kept and sent in a chat
+
+Written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read a product's page (the
+Photos block, with and without a photo) and a conversation the owner holds on Instagram (the photo picker in the
+reply card, and a photo that left).
+
+- **The keys:** `product.photo.*` (why, none, add, replace, save, remove, removeConfirm, and the notices under
+  `product.photo.flash.*`), `photo.send.label`, `photo.send.button`, `photo.sent.alt`, `photo.flash.*` (sent,
+  no_photo, no_address, photo_unsupported, window).
+- **Where the words differ, and why:** Arabic says "a conversation a person holds" («محادثة يتولاها شخص») so no verb
+  addresses the owner in a gender, and the buttons are verbal nouns («إرسال الصورة», «إزالة الصورة»); zh keeps out
+  它 and 自动; French has no «il/elle» («Écrivez-lui d'abord», «lui» being either).
+- **Check:** that the 24-hour notice (`photo.flash.window`) reads as "write in words first, then the photo can go",
+  not as a refusal of the customer.
+
+Reviewer: ______  Date: ______
