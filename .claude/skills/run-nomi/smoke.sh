@@ -129,7 +129,8 @@ get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandb
 
 #  The warmth run — My business, the assistant and Settings are menus: each is the
 #  door to the surfaces it holds, and they must stay reachable.
-get /app/employee   "$SK/app-employee.html" 'level-control'               "The assistant's page did not render"
+# The assistant's page lives in Settings (ASSISTANT_HOME); /app/employee only redirects there, and `get` does not follow.
+get /app/settings/assistant "$SK/app-employee.html" 'level-control'      "The assistant's page did not render"
 get /app/settings   "$SK/app-settings.html" 'href="/app/settings/setup"'  "Settings did not render"
 for pair in app-factory.html:/app/products app-factory.html:/app/business/channels \
             app-employee.html:/app/knowledge app-settings.html:/app/business; do
