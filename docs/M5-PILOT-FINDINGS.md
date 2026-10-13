@@ -4,10 +4,11 @@
 category, not a finding. Nothing here may be marked resolved, prioritized, or
 acted on until it carries an actual observation from the Gate A pilot.**
 
-Capture flow: shadow the owner with `OBSERVATION_TEMPLATE_ZH`
-([src/pilot/log.ts](../src/pilot/log.ts)) → transcribe into `pilot_log`
-(migration 0012) as structured entries → `renderTriage()` orders the open
-items → each fix links back to its entry, its test, and its commit.
+Capture flow (docs/GATE-A-KIT.md §4, 2026-10-14): shadow the owner with the
+template in the kit → each evening, `tools/pilot-log.mjs add` writes the note
+into `pilot_log` (migration 0012) → at the weekend `tools/pilot-log.mjs
+triage` orders the open items → each fix links back to its entry (`set
+--status fixed --task "#PR"`), its test, and its commit.
 
 ## Finding template (copy per observation)
 

@@ -1,5 +1,9 @@
 # M4 — The Cold Demo (义乌宏发日用品厂, demo company)
 
+> **Superseded for Gate A (2026-10-14):** the cold demo is now `docs/GATE-A-KIT.md` §2, on the
+> owner's own live workspace. This July script is kept for its history: it names surfaces that
+> have since changed (the back-translation, 今日总结, "the live DB" — production has no demo business).
+
 Single source of truth for the storyline is `renderDemoScript()` in
 [src/demo/factory.ts](../src/demo/factory.ts); this file adds the operator
 notes. The demo company is seeded in the live DB (business id
