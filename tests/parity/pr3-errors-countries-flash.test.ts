@@ -196,6 +196,31 @@ describe('D5 · a refusal stops looking like good news', () => {
     }
   });
 
+  /**
+   * THE KEY THAT NAMED NO ".flash." (found 2026-10-13): the sign-up welcome — the first thing a new owner reads —
+   * travelled as `signup.welcome`, was in neither list, and so arrived drawn as a refusal (red, with a ×). The list
+   * above walks only keys named `.flash.`. This walks what the routes actually hand a notice: every key written as
+   * an argument of `flashTo` or `noticeOnNextPage`, and every `{ key: '…' }` part, in every web file.
+   */
+  it('every key a route hands a notice is classified, whatever its name', () => {
+    const handed = new Set<string>();
+    for (const f of webFiles()) {
+      const src = readFileSync(WEB + f, 'utf8');
+      // Every dotted key in the call — both sides of a `?:` — but not one that is only a parameter's words (`t(locale, '…')`).
+      for (const call of src.matchAll(/(?:flashTo|noticeOnNextPage)\(\s*reply\s*,[^;]*;/g)) {
+        const said = call[0].replace(/\bt\(\s*\w+\s*,\s*'[^']*'/g, '');
+        for (const m of said.matchAll(/'([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)'/g)) handed.add(m[1]!);
+      }
+      // A notice's parts: `{ key: '…' }` alone, or with its params — not a record that merely has a `key` field.
+      for (const m of src.matchAll(/\{\s*key:\s*'([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)'\s*(?:,\s*params:\s*\{[^}]*\})?\s*\}/g)) handed.add(m[1]!);
+    }
+    const keys = [...handed].filter((k) => k in messages.en);
+    expect(keys, 'sanity: the walk finds the welcome').toContain('signup.welcome');
+    const unclassified = keys.filter((k) => !FLASH_REFUSALS.has(k) && !FLASH_CONFIRMATIONS.has(k));
+    expect(unclassified, 'a notice no list names is drawn as a refusal — decide how it looks').toEqual([]);
+    expect(flashTone('signup.welcome'), 'the welcome is good news').toBe('ok');
+  });
+
   it('neither list names a sentence that no longer exists', () => {
     for (const k of [...FLASH_REFUSALS, ...FLASH_CONFIRMATIONS]) {
       expect(k in messages.en, `${k} is classified but is not in the catalogue`).toBe(true);
