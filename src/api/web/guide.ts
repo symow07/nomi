@@ -60,6 +60,18 @@ export type GuideView = {
   readonly next: SetupStep | null;
 };
 
+/**
+ * THE ONE LINK DRAWN AS A FILLED BUTTON (the owner's decision at the Phase 3 stop-gate, 2026-10-13) — the only
+ * exception to "buttons do things; doors go places" (tests/parity/buttons-and-doors.ts), and a HARD CAP:
+ *   · at most ONE filled button on a page that carries it — this one, and no other filled button beside it;
+ *   · only on the FIRST INCOMPLETE STEP of setting up ("Do it now", to that step's own page) — never a later step,
+ *     never once the five are done, never anywhere else.
+ * It takes the step, not an address, so it can only ever open a setup step; and this is the one place in the
+ * source that writes `<a class="btn`. Every other link is a door.
+ */
+export const firstStepButton = (locale: Locale, next: SetupStep): string =>
+  `<a class="btn send" data-first-step href="${esc(STEP_LINK[next])}">${esc(t(locale, 'guide.do'))}</a>`;
+
 export function renderGuide(v: GuideView, locale: Locale, name: string, videos: (step: SetupStep, locale: Locale) => boolean = hasVideo): string {
   const items = SETUP_STEPS.map((step, i) => {
     const done = v.steps.find((s) => s.step === step)?.done ?? false;
@@ -87,7 +99,7 @@ export function renderGuide(v: GuideView, locale: Locale, name: string, videos: 
         ${/* The warmth run's re-audit (w4-today-setup-06) — a step to do is a chore: the to-do ○, never the waiting signal's magenta. */ ''}<span class="pill${done ? ' ok' : ''}">${done ? '' : `${todoMark()} `}${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></span></h2>
       ${video}
       <ol class="gs-words">${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
-      ${done ? '' : deeper(STEP_LINK[step], t(locale, 'guide.do'), v.next === step ? 'next' : '')}
+      ${done ? '' : v.next === step ? firstStepButton(locale, step) : deeper(STEP_LINK[step], t(locale, 'guide.do'))}
     </li>`;
   }).join('');
   return `<h1 class="page">${esc(t(locale, 'guide.title'))}</h1>

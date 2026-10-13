@@ -59,7 +59,8 @@ d('Phase 1 · open sign-up, scored (requires DATABASE_URL + MIGRATE_DATABASE_URL
     const otp = cookiesOf(asked).find((c) => c.startsWith('yf_otp=')) ?? '';
     const code = [...outbox].reverse().find((m) => m.to === fields['email'])?.subject.match(/\d{6}/)?.[0];
     const made = await post(b, '/verify', { code: code! }, otp);
-    expect([made.statusCode, made.headers['location']]).toEqual([302, '/app/business']);
+    // Phase 3b (the owner, 2026-10-13): a new workspace lands on Getting started, the one path — no longer My business.
+    expect([made.statusCode, made.headers['location']]).toEqual([302, '/app/guide']);
     const business = (await admin.query(`select b.id::text as id from businesses b join logins l on l.business_id = b.id where l.email = $1`,
       [fields['email']!.toLowerCase()])).rows[0].id as string;
     return { business, cookies: cookiesOf(made).join('; ') };

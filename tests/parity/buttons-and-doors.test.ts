@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buttonsAndDoors } from './buttons-and-doors.js';
+import { renderGuide } from '../../src/api/web/guide.js';
+import { STEP_LINK } from '../../src/api/web/onboarding.js';
+import { SETUP_STEPS, setupFrom, type SetupStep } from '../../src/db/setup.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { usd } from '../../src/core/types/money.js';
@@ -32,16 +35,44 @@ describe('the checker catches each way the rule breaks — and passes what keeps
   });
 });
 
+describe('the one exception has a hard cap: one filled button on its page, on the first incomplete step only', () => {
+  const button = '<a class="btn send" data-first-step href="/app/settings/profile">Do it now</a>';
+  it('the first step\'s button alone passes; a second, or another filled button beside it, does not', () => {
+    expect(buttonsAndDoors(`<p>${button}</p><a class="deeper" href="/app/guide#profile">Watch</a>`)).toEqual([]);
+    expect(buttonsAndDoors(button + button)).toEqual(['2 first-step buttons on one page: the cap is one']);
+    expect(buttonsAndDoors(`${button}<form method="post" action="/x"><button class="btn send">Send</button></form>`))
+      .toEqual(['the first step\'s button is not the page\'s only filled button (2 filled)']);
+    // A plain button in a form beside it is not filled: it stays.
+    expect(buttonsAndDoors(`${button}<form method="post" action="/x"><button class="btn">Save</button></form>`)).toEqual([]);
+    // Without the mark, it is a link dressed as a button like any other.
+    expect(buttonsAndDoors('<a class="btn send" href="/app/settings/profile">Do it now</a>')).toEqual(['a link drawn as a button: /app/settings/profile']);
+  });
+
+  it('Getting started: the first incomplete step\'s "Do it now" is the button, every later step\'s a door; none once all are done', () => {
+    const steps = (done: Record<SetupStep, boolean>) => ({ steps: SETUP_STEPS.map((step) => ({ step, done: done[step] })), next: setupFrom(done).next });
+    const some = steps({ profile: true, products: false, name: false, channels: true, first_success: false });
+    const html = renderGuide(some, 'en', 'Mira', () => false);
+    expect(buttonsAndDoors(html)).toEqual([]);
+    expect([...html.matchAll(/data-first-step href="([^"]+)"/g)].map((m) => m[1])).toEqual([STEP_LINK.products]);
+    for (const later of ['name', 'first_success'] as const) expect(html).toContain(`<a class="deeper" href="${STEP_LINK[later]}"`);
+    const all = renderGuide(steps({ profile: true, products: true, name: true, channels: true, first_success: true }), 'en', 'Mira', () => false);
+    expect(all).not.toContain('data-first-step');
+  });
+});
+
 describe('the source of every page draws no link as a button', () => {
-  it('src/api/web — not one <a class="btn">', () => {
-    const offenders: string[] = [];
+  it('src/api/web — one <a class="btn">, and it is the first step\'s (the owner\'s exception, 2026-10-13)', () => {
+    const found: string[] = [];
     for (const f of readdirSync(`${ROOT}src/api/web`).filter((n) => n.endsWith('.ts'))) {
       const src = readFileSync(`${ROOT}src/api/web/${f}`, 'utf8');
       for (const m of src.matchAll(/<a\b[^>]*\bclass="(?:[^"$]*\s)?btn(?:[\s"])/g)) {
-        offenders.push(`${f}: ${src.slice(m.index!, m.index! + 70).replace(/\s+/g, ' ')}`);
+        found.push(`${f}: ${src.slice(m.index!, m.index! + 70).replace(/\s+/g, ' ')}`);
       }
     }
-    expect(offenders).toEqual([]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatch(/^guide\.ts: <a class="btn send" data-first-step href="\$\{esc\(STEP_LINK\[next\]\)\}">/);
+    // It takes the step, never an address: it can only open the step it names.
+    expect(readFileSync(`${ROOT}src/api/web/guide.ts`, 'utf8')).toContain('export const firstStepButton = (locale: Locale, next: SetupStep): string =>');
   });
 });
 

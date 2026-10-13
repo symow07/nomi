@@ -3,7 +3,7 @@ import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen } from './say.js';
+import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, setupState } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate } from './values.js';
@@ -963,6 +963,22 @@ ${SIGNAL_CSS}${MOTION_CSS}
   .today-worth .grow { text-wrap:pretty; font-size:var(--font-size-small); }
   .today-worth .row.has-face { display:grid; grid-template-columns:min-content minmax(0, 1fr) auto; column-gap:var(--space-12); }
   .today-foot { font-size:var(--font-size-small); margin:var(--space-16) 0 0; }
+  .block.home-start { background:var(--color-surface); border-radius:var(--radius-card); box-shadow:var(--shadow-lift1);
+    padding:var(--space-24); margin:0 0 var(--space-24); }
+  .home-start h2 { font-size:var(--font-size-display); line-height:var(--line-height-tight); margin:0; text-wrap:balance; }
+  .home-start > p { margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
+  .home-start-go { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-12) var(--space-24); margin-top:var(--space-16); }
+  .home-steps { list-style:none; margin:var(--space-24) 0 0; padding:var(--space-16) 0 0; border-top:1px solid var(--color-border);
+    display:grid; gap:var(--space-8); counter-reset:home-step; font-size:var(--font-size-small); }
+  .home-steps li { counter-increment:home-step; display:flex; gap:var(--space-8); align-items:baseline; color:var(--color-ink-secondary); }
+  .home-steps li::before { content:counter(home-step); flex:none; display:inline-grid; place-items:center; inline-size:1.7em; block-size:1.7em;
+    border-radius:var(--radius-chip); border:1px solid var(--color-border); font-size:var(--font-size-caption); font-weight:600; }
+  .home-steps li.next { color:var(--color-ink); font-weight:600; }
+  .home-steps li.next::before { border-color:var(--color-ink); color:var(--color-ink); }
+  .home-steps li.ok::before { background:var(--color-ok-wash); border-color:var(--color-ok-line); }
+  .setup-strip { display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-4) var(--space-12); margin:0 0 var(--space-16);
+    padding:var(--space-8) var(--space-16); border-radius:var(--radius-card); background:var(--color-surface); border:1px solid var(--color-border); }
+  .setup-strip .deeper { margin:0; }
   .today-foot p { margin:0; }
   /* Phase 9 (w4-today-setup-07) — setting up is its own small block under the band, never inside the calm panel. */
   .today-foot.setup { margin:0 0 var(--space-24); }
@@ -3016,10 +3032,25 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${setupStrip(locale, input.active, input.path)}${heading}${frozenBanner(locale)}${wayBack(locale, input.path, input.bodyHtml)}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div>${toasts}${askDialog(locale)}${cardSheet(locale)}</body></html>`);
 }
+
+/**
+ * Phase 3b (approved at the owner's stop-gate, 2026-10-13) — THE NEXT STEP, ON EVERY PAGE, until setup is done: where the owner
+ * stands, counted the way Setup and the nav count it ("3 of 5 steps done" — steps are done in any order, so never
+ * "Step 4 of 5" beside a step that is first in the list),
+ * is on the five steps and the door to the next one. Not on Home (it leads with the step itself) nor on the guide
+ * (it is the five steps). Gone once the five are done.
+ */
+const setupStrip = (locale: Locale, active: string, path: string): string => {
+  const s = setupState();
+  if (!s || s.next === null || active === 'home' || path.startsWith('/app/guide')) return '';
+  return `<div class="setup-strip"><span class="caption muted">${esc(t(locale, 'guide.title'))} · ${
+    esc(t(locale, 'nav.setup.progress', { done: s.done, total: s.total }))}</span>${
+    deeper(`/app/guide#${s.next}`, t(locale, `factory.next.${s.next}` as MessageKey, { name: assistantName(locale) }))}</div>`;
+};
 
 /**
  * PHASE 5 OF THE UI REBUILD (2026-10-02) — the product's own way of asking

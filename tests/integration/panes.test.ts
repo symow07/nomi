@@ -111,7 +111,8 @@ d('the shell: the rail, the list pane, the customer panel (requires DATABASE_URL
   it('a conversation stands between its list and its customer', async () => {
     const html = await page(`/app/inbox/${maya}`);
     // V1-105 — on a phone every page says whose workspace it is, so its line may come first.
-    expect(html).toMatch(/<main id="main" class="wide">(?:<p class="business-name"><bdi>[^<]*<\/bdi><\/p>)?<div class="panes"><aside class="listpane"/);
+    // Phase 3b (the owner, 2026-10-13): while setup is unfinished, the setup strip opens every page, this one too.
+    expect(html).toMatch(/<main id="main" class="wide">(?:<div class="setup-strip">(?:(?!<\/div>)[^])*<\/div>)?(?:<p class="business-name"><bdi>[^<]*<\/bdi><\/p>)?<div class="panes"><aside class="listpane"/);
     // The warmth run, phase 4 — the Inbox's own row, and its own first page: "waiting now", the
     // whole list, whoever needs the owner first. Maya (a reply to review) leads it; Omar is under her.
     expect(html).toMatch(new RegExp(`<div class="irow is-\\w+[^"]* on">(?:(?!<div class="irow)[\\s\\S])*?<a class="ir-main" href="/app/inbox/${maya}#latest" aria-current="page">`));

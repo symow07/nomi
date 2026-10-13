@@ -176,14 +176,32 @@ describe('w4-today-setup-05 · a line about one customer leads with their face, 
 describe('w4-today-setup-06 · -07 · -09 · -27 · setting up is a chore under the band, said one way; the calm state said once', () => {
   const setup = setupFrom({ profile: true, products: true, name: false, channels: true, first_success: false });
   for (const l of LOCALES) {
-    it(`${l} · a calm day with setting up left: the calm panel holds no chore; the chore carries the to-do ○`, () => {
+    // CHANGED at the Phase 3 stop-gate (the owner, 2026-10-13): a calm day with setting up left is LED by the next
+    // step — its own card above the band, a chore with the to-do ○ (never the waiting signal), "Do it now" the one
+    // filled button — and the foot's line is not said as well. The calm panel still holds no chore.
+    it(`${l} · a calm day with setting up left: the next step leads, a chore with the to-do ○; the calm panel holds no chore`, () => {
       const html = today(l, SNAP(true), day(), { setup });
       const band = html.slice(html.indexOf('aria-labelledby="today-now"'), html.indexOf('</section>', html.indexOf('aria-labelledby="today-now"')));
       expect(band).toContain(esc(t(l, 'today.calm.title')));
-      expect(band).not.toContain('today-foot setup');
+      expect(band).not.toContain('home-start');
       expect(band).not.toContain(esc(t(l, 'today.needs.none')));
+      const at = html.indexOf('<section class="block home-start"');
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(html.indexOf('aria-labelledby="today-now"'));
+      // The figures come isolated where the page runs right to left; the words are the catalogue's.
+      const card = html.slice(at, html.indexOf('</section>', at)).replace(/[\u2068\u2069]/g, '');
+      expect(card).toContain(`<p class="caption muted"><span class="dot todo shape s-chore" aria-hidden="true"></span> ${esc(t(l, 'nav.setup.progress', { done: 3, total: 5 }))}</p>`);
+      expect(card).not.toContain('s-waiting');
+      expect(card).toContain(`<a class="btn send" data-first-step href="${STEP_LINK.name}">${esc(t(l, 'guide.do'))}</a>`);
+      expect(html).not.toContain('today-foot setup');
+    });
+    it(`${l} · a day with someone waiting keeps setting up to its line at the foot, a door and no button`, () => {
+      const busy: OperationsSnapshot = { ...SNAP(true), attention: { ...SNAP(true).attention, blockedMessages: 1 }, hasAttention: true };
+      const html = today(l, busy, day(), { setup });
+      expect(html).not.toContain('home-start');
+      expect(html).not.toContain('data-first-step');
       expect(html).toContain(`<div class="today-foot setup"><p><span class="dot todo shape s-chore" aria-hidden="true"></span>`);
-      expect(html).not.toContain(`<span class="dot warn shape s-waiting" aria-hidden="true"></span> <span class="muted">${esc(t(l, 'today.setup.line', { done: 3, total: 5 }))}`);
+      expect(html).toContain(`href="${STEP_LINK.name}"`);
     });
     it(`${l} · Today's line and Setup's row phrase the count the same way`, () => {
       expect(t(l, 'today.setup.line', { done: 3, total: 5 })).toContain(t(l, 'nav.setup.progress', { done: 3, total: 5 }));

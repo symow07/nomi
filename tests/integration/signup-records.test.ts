@@ -86,7 +86,8 @@ d('D1 · a sign-up is not kept (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
       .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_otp=')) ?? '';
     const code = outbox.at(-1)!.subject.match(/\d{6}/)![0];
     const ok = await form('/verify', { code }, pending);
-    expect([ok.statusCode, ok.headers['location']]).toEqual([302, '/app/business']);
+    // Phase 3b (the owner, 2026-10-13): a new workspace lands on Getting started, the one path — no longer My business.
+    expect([ok.statusCode, ok.headers['location']]).toEqual([302, '/app/guide']);
     session = ([] as string[]).concat(ok.headers['set-cookie'] as string | string[] ?? [])
       .map((c) => c.split(';')[0]!).filter((c) => c.startsWith('yf_session=')).join('; ');
     expect(session).not.toBe('');
