@@ -198,9 +198,20 @@ on a day's attempts (`src/core/owner/signupRisk.ts`). Low gets the installation'
 card before its first channel and has no free trial, and is told so on its first page; high is refused, in plain
 words, with the legal contact to reach a person. An invitation vouches: an invited sign-up is never refused.
 
+**The rule this rests on** (the owner, 2026-10-13): **nothing public may say "we" before a real customer can sign
+up, and no real customer can sign up before the LLC.** So the pages' "we" is rewritten in ONE pass, at step 1
+below — never earlier, or it is done twice.
+
 **Before the switch** (each the owner's, in this order):
 
-1. The LLC exists; Nomi's legal name, address and copyright agent are on the pages.
+1. The LLC exists. Then, in one pass, one PR:
+   - `OPERATOR` in `src/core/legal/operator.ts` gets the LLC's legal name and postal address (both, in one commit;
+     until then no page names anybody);
+   - the copyright agent's details go on the pages (`docs/PRE-LAUNCH.md` item 8);
+   - every public line that says "we", "us" or "our" is rewritten to name the company or to say nothing of
+     itself — about 76 English lines on 2026-10-13, in all five languages (the legal pages, the site, import,
+     refusals, errors): `grep -inE "\b(we|us|our)\b"` over the catalogue's English block finds them;
+   - the zh/ar/es/fr rewrites go on `docs/NATIVE-REVIEW-UI.md`.
 2. A real card has gone through Stripe, and cancelling from Stripe's customer portal was checked end to end.
 3. The plans are set from Stripe's prices (`tools/billing.mjs plan-set …`) — pricing is the owner's.
 4. The free trial, if any: `tools/billing.mjs trial-default <days|off>` — the owner's. Unset, nobody has one.
