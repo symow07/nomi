@@ -13,7 +13,65 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## D4 — frozen on lapse, never erased by a timer (2026-10-12) — read this first
+## Phase 1 — open sign-up with trial-abuse scoring (2026-10-13) — read this first
+
+**The owner's roadmap** (2026-10-13, at the top of `docs/ROADMAP.md`, #312): Phase 1 is RUN-THROUGH up to go-live.
+Score repeat device/IP, fresh e-mail, velocity — low → trial, medium → card, high → refused; challenge, don't
+silently block; name fingerprinting in the cookie table and the privacy policy. **HARD ORDER: signup-mode open is
+not run** until the owner has put a real card through Stripe and the portal-cancellation check is done; both wait
+on the LLC. Standing: if a change breaks a test, stop and say so. Production still asks for an invitation.
+
+- #312: the roadmap saved at the top of `docs/ROADMAP.md`.
+- #313: `INDENT` and the `HandedOff` type deleted (the owner's word); the unused-symbol ceiling 7 → 6.
+- #314 (0148) the score and its marks: `src/core/owner/signupRisk.ts` (points and thresholds in one place);
+  `signup_marks` (keyed SHA-256 only, no business, outlive a closed workspace, 180 days, an attempt's two days);
+  `signup_risk` (medium needs a card whatever the switch, and no trial); the installation's trial now really starts
+  every other self-serve subscription (`trial_days_for`; before, only an operator's grant reached Stripe); the
+  route scores after the form, the bot check and the invitation and before any code; high is refused with the
+  legal contact; an invitation vouches; the score runs where the door's database limits run (`signupGuard`); the
+  privacy page names the check and the browser fingerprint, the cookie table lists `yf_signup` (live: `/signup`
+  sets it), "none tracks you" is gone.
+- #315 (0149) go-live readiness: refusals counted (points and reasons, 30 days) and the 07:15 UTC list says how
+  many were asked for a card first and refused, and why; the refund page says one trial per business (hidden
+  while no trial is set); `docs/GO-LIVE.md` "Opening sign-up to anyone" (the hard order, the owner's pricing
+  calls, the switch, the watch, the stop).
+
+**Checked in production:** schema 149; `/health` ok; `/signup` still has the invitation field. Backups before the
+migrations: `nomi-backup-20261012T030455Z` (0148) and `nomi-backup-20261013T030432Z` (0149), drills passed.
+
+**Tests changed on the owner's word (2026-10-13), asked before each:** the privacy page's date pins (6); the
+Arabic cookie paragraph's "none tracks you" pin (1); `erase-buyer.test.ts`'s list of tables with no business
+(`signup_marks`, `signup_refusals`). Adapted in code instead of changing a test: the cookie lifetime written as
+seconds (the cookie table's reader), the digest's two lines on the alert test's standard placeholders.
+
+**Found on the way, fixed:** the billing page and /refunds showed the installation's trial, but only an operator's
+grant reached Stripe; my own new test's fixed codes collided with a run-derived one about 3 runs in 16 (now
+run-unique); a `tsc` in another worktree during a check run timed out `owner-language.test.ts` (memory: no heavy
+job anywhere during a run).
+
+**Found, not fixed — `advisor-build.test.ts` "asking writes nothing anywhere" is cluster-wide.** It compares the
+database's global transaction counter before and after the advisor answers, so any other transaction in the
+cluster in that window fails it — Postgres's own background ANALYZE included. It failed on main's CI on
+2026-10-12 (run 38266217309) and on #315's second CI pass; reproduced locally by running `analyze` in a loop
+beside it (139048 vs 139045), 10/10 without. The advisor writes nothing; the test measures more than the advisor.
+A fix (count only rows written by the app's own sessions, e.g. by `xmin` in user tables) changes an existing
+test — the owner's call.
+
+**Still the owner's, from Phase 1:**
+- The go-live steps in `docs/GO-LIVE.md`, in order, after the LLC.
+- The pages still say "we" / "us" / "our" in about 76 English lines (×5 languages). The roadmap says nothing says
+  "we" until the company is registered; Phase 1 added none. A rewrite pass is the owner's to order.
+- The new zh/ar/es/fr lines are on `docs/NATIVE-REVIEW-UI.md` (2026-10-13 section). Not a gate.
+
+**The session restarted on 2026-10-13 and cleared the scratchpad** (the check scripts, the worktrees and the local
+55451 database). Every branch had been pushed; nothing was lost. The local database is rebuilt from the
+`local-integration-postgres` memory when a code change next needs it.
+
+**Tool output that asked to install, update or sign in** (none done): the Railway CLI's "newer version available,
+run railway upgrade"; the MCP connectors' sign-in prompts (Amplitude, Amplitude EU, Atlassian, BigQuery, Hex;
+"definite" failed to connect).
+
+## D4 — frozen on lapse, never erased by a timer (2026-10-12)
 
 **The owner's decision** (2026-10-12, replacing the countdown ladder): a lapsed subscription FREEZES the workspace —
 nothing is sent from any source (the owner's own replies included: "that's the paid product"), what arrives is
