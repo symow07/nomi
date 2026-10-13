@@ -199,7 +199,8 @@ import { answerSpotCheck } from '../../pipeline/spotChecks.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
-import { ownerReply } from '../../outbound/ownerReply.js';
+import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
+import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { PageTranscriber, DraftTranslator, PageFactsReader, AdvisorModel } from '../../llm/ports.js';
 import { startPageFacts, loadProposal, confirmPageFacts, renderPageFactsForm, renderProposal, type PageFactsKept } from './pageFacts.js';
@@ -513,6 +514,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
+  { method: 'GET', url: '/media/:token', why: 'Phase 2d — a product photo the owner sent in a chat: Meta and WhatsApp fetch it by this unguessable address. The bytes only — no product, no business' },
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
   { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
@@ -1239,6 +1241,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .header('referrer-policy', 'no-referrer')
       .header('x-robots-tag', 'noindex, nofollow')
       .send(renderProof(view));
+  });
+
+  // Phase 2d (0152) — a product's photo, for the provider that delivers a sent one (and the owner's product page):
+  // the bytes and their type, nothing else; 404 for every failure alike; never cached, so a removed photo is gone.
+  app.get('/media/:token', async (req, reply) => {
+    const token = String((req.params as { token: string }).token ?? '');
+    const photo = /^[A-Za-z0-9_-]{32,}$/.test(token) ? await servedProductPhoto(deps.db, token) : null;
+    if (!photo) return reply.code(404).type('text/plain; charset=utf-8').header('cache-control', 'no-store').send('Not found');
+    return reply.type(photo.mediaType)
+      .header('cache-control', 'no-store')
+      .header('x-content-type-options', 'nosniff')
+      .header('referrer-policy', 'no-referrer')
+      .header('x-robots-tag', 'noindex, nofollow')
+      .header('content-disposition', 'inline')
+      .send(photo.bytes);
   });
 
   // Phase 2c (0151) — the proforma as a page the customer opens: the same rules as the price link above.
@@ -2840,6 +2857,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
+   * Phase 2d (0152) — the owner sends a product's photo in the conversation they hold: the same checks as their
+   * words (`ownerSendWindow`), and inside WhatsApp's 24 hours only — the reopening template carries no picture.
+   */
+  app.post('/app/inbox/:conversationId/photo', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect('/app/inbox');
+    const productId = String((req.body as { product?: string } | undefined)?.product ?? '');
+    const { verdict, reopening } = await ownerSendWindow(bid.value, cid);
+    if (verdict !== 'ok') return flashTo(reply, conversationUrl(cid), `inbox.blocked.${verdict}` as MessageKey);
+    if (reopening) return flashTo(reply, conversationUrl(cid), 'photo.flash.window');
+    const r = await ownerPhoto(
+      { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
+      { businessId: bid.value, conversationId: cid, productId, actor: personOf(s).id, publicBaseUrl: deps.publicBaseUrl },
+    );
+    if (r.outcome === 'sent') return flashTo(reply, conversationUrl(cid), messagingEnabled ? 'photo.flash.sent' : 'inbox.flash.sentNotLive');
+    if (r.outcome === 'no_photo' || r.outcome === 'no_address' || r.outcome === 'photo_unsupported') {
+      return flashTo(reply, conversationUrl(cid), `photo.flash.${r.outcome}` as MessageKey);
+    }
+    return takeoverFlash(reply, cid, r.outcome);
+  });
+
+  /**
    * M34 — the owner corrects what was heard.
    *
    * ARCHIVE, NEVER ERASE. `transcription` keeps the machine's original reading
@@ -3489,6 +3530,47 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * MULTIPART LIMITS: this route raises the file count to MAX_PHOTOS; the size
    * of each stays the registration's 8 MB.
    */
+  /**
+   * Phase 2d (0152) — the product's photo, which the owner can then send in a chat: kept on the product's page,
+   * owner only (the catalogue is the owner's, Phase 4). One file, read whole; what it is comes from its own bytes.
+   */
+  app.post('/app/products/:id/photo', async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const back = `/app/products/${encodeURIComponent(id)}`;
+    const s = await ownerOnly(req, reply, 'price_rules', back);
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(id)) return reply.redirect('/app/products');
+    let bytes: Buffer | null = null;
+    try {
+      for await (const part of req.parts({ limits: { files: 1, parts: 2 } })) {
+        if (part.type === 'file') {
+          const got = await part.toBuffer();
+          if (part.fieldname === 'photo') bytes = got;
+        }
+      }
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      return flashTo(reply, `${back}#photo`, code === 'FST_REQ_FILE_TOO_LARGE' ? 'product.photo.flash.too_large' : 'product.photo.flash.failed');
+    }
+    if (!bytes) return flashTo(reply, `${back}#photo`, 'product.photo.flash.empty');
+    const photo = bytes;
+    const r = await withTenantTx(deps.db, bid.value, (tx) => saveProductPhoto(tx, bid.value, id, photo));
+    if (r.outcome === 'not_found') return reply.redirect('/app/products');
+    return flashTo(reply, `${back}#photo`, `product.photo.flash.${r.outcome}` as MessageKey);
+  });
+
+  app.post('/app/products/:id/photo/remove', async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const back = `/app/products/${encodeURIComponent(id)}`;
+    const s = await ownerOnly(req, reply, 'price_rules', back);
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(id)) return reply.redirect('/app/products');
+    const removed = await withTenantTx(deps.db, bid.value, (tx) => removeProductPhoto(tx, id));
+    return flashTo(reply, `${back}#photo`, removed ? 'product.photo.flash.removed' : 'product.photo.flash.failed');
+  });
+
   app.post('/app/products/add/photo', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;

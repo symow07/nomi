@@ -20,6 +20,7 @@ import { labelled, formatList } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
 import { addAliases, renameAlias, removeAlias } from '../../db/productAliases.js';
+import { productPhotoToken, PRODUCT_PHOTO_MAX_BYTES } from '../../db/productPhotos.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -203,6 +204,8 @@ export type ProductDetail = {
   readonly tiers: readonly { minQty: number; maxQty: number | null; unitPrice: Money }[];
   readonly aliases: readonly string[];
   readonly images: readonly string[];
+  /** Phase 2d (0152) — the photo Nomi serves for it (one the owner can send in a chat), or none. */
+  readonly photo?: { readonly token: string } | null;
   /** Phase 9 (V1-306) — each with when it was worked out, for whom, and the conversation it came from. */
   readonly recentQuotes: readonly {
     quantity: number; unitPrice: Money; total: Money;
@@ -274,6 +277,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits, findable: aliases.length > 0 }),
       imageMatchable: p.is_active && aliases.length + images.length > 0,
       tiers, aliases, images, recentQuotes,
+      photo: await productPhotoToken(tx, productId).then((token) => (token ? { token } : null)),
       currency: await currencyOf(tx, bid.value),
       source: p.source_line === null ? null : { line: p.source_line, importId: p.source_import_id, photo: p.photo },
       options: optionsOf(p.options),
@@ -705,8 +709,22 @@ export function renderProductDetail(
   // rows that exist came from the system before it), and the block goes when none is
   // left to show.
   const shown = d.images.filter((url) => mayLoad(url, '/app/products/:id'));
-  const images = shown.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${shown.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
+  // Phase 2d (0152) — the owner keeps the product's photo here, to send in a chat: one, replaced or removed here.
+  // Staff see the photos and no form (Phase 4: the catalogue is the owner's).
+  const pid = encodeURIComponent(d.id);
+  const photoForms = viewer.isOwner ? `<p class="muted">${esc(t(locale, 'product.photo.why', { mb: show.count(locale, PRODUCT_PHOTO_MAX_BYTES / 1024 / 1024) }))}</p>
+      <form method="post" action="/app/products/${pid}/photo" enctype="multipart/form-data" class="pform">
+        <label class="fld"><span class="muted">${esc(t(locale, d.photo ? 'product.photo.replace' : 'product.photo.add'))}</span>
+          <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required /></label>
+        <button class="btn" type="submit">${esc(t(locale, 'product.photo.save'))}</button>
+      </form>
+      ${d.photo ? `<form method="post" action="/app/products/${pid}/photo/remove" class="inline">
+        <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'product.photo.removeConfirm'))}">${esc(t(locale, 'product.photo.remove'))}</button></form>` : ''}` : '';
+  const images = shown.length || viewer.isOwner
+    ? `<div class="block" id="photo"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2>${shown.length
+        ? `<div class="imgs">${shown.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div>`
+        : `<p class="muted">${esc(t(locale, 'product.photo.none'))}</p>`}${photoForms}</div>`
     : '';
 
   // Phase 9 (V1-306) — each quote says when, for whom, and opens the conversation it was worked out in.

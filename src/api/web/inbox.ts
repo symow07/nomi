@@ -27,6 +27,7 @@ import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
+import { productsWithPhotos, PHOTO_CHANNELS } from '../../db/productPhotos.js';
 import { detectClaims } from '../../core/safety/claims.js';
 import { chosenName } from '../../db/assistants.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
@@ -549,6 +550,14 @@ export type TimelineMessage = {
   about?: string | undefined;
   /** G13 — the provider still has a handle for this audio, so it can be played. */
   playable?: boolean | undefined;
+  /** Phase 2d — a product photo that left, by the address Nomi serves it at (`/media/<token>`). */
+  photo?: string | undefined;
+};
+
+/** Phase 2d — a picture that left, drawn only when it is a photo Nomi serves: its path from the root, or null. */
+export const sentPhotoPath = (imageUrl: string | null | undefined): string | null => {
+  const m = /\/media\/([A-Za-z0-9_-]{32,})$/.exec(imageUrl ?? '');
+  return m ? `/media/${m[1]}` : null;
 };
 
 /** M16.2c — the human control-plane event kinds, in conversation_events. */
@@ -759,6 +768,8 @@ export type ConversationDetail = {
   readonly sampleAsked: { readonly policyStated: boolean } | null;
   /** The design pass — the conversation's channel, for the card's "goes on …". Optional so fixtures still type. */
   readonly channel?: string;
+  /** Phase 2d (0152) — the product photos the owner may send here; none on a channel that cannot carry a picture. */
+  readonly photos?: readonly { readonly productId: string; readonly name: string; readonly nameZh: string | null; readonly token: string }[];
   /**
    * G5b — the newest reply, when it waited past the day its channel allows and
    * was marked expired: shown for what it was, never offered to send.
@@ -889,6 +900,7 @@ export async function loadConversationDetail(
           // G13 — a note recorded before 0043 has no handle, and says so.
           ...(spoken && m.media ? { playable: true } : {}),
           ...(m.direction === 'inbound' && m.sender === 'unconfirmed' ? { unconfirmed: true as const } : {}),
+          ...(m.direction === 'outbound' && m.input_type === 'image' && sentPhotoPath(m.image_url) ? { photo: sentPhotoPath(m.image_url)! } : {}),
         };
       });
 
@@ -1069,6 +1081,8 @@ export async function loadConversationDetail(
       knowledgeUsed,
       claimsAllowed: (await tenantRepos(tx, bid.value).catalog.claimsPolicy()).filter((c) => c.allowed).map((c) => `${c.kind}:${c.claimKey}`),
       channel: head.channel,
+      // Phase 2d — the photos the owner can send here: only on a channel that carries a picture.
+      photos: PHOTO_CHANNELS.includes(head.channel) ? await productsWithPhotos(tx) : [],
       // The quote's figures are read with or without a turn on record.
       reading: cardReadingOf(turn?.analysis ?? null, turn?.own_understanding ?? null, q),
     };
@@ -1871,9 +1885,27 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
           ${/* A placeholder is not a label (docs/PRE-LAUNCH.md item 6): the box is named for a screen reader in the same words. */ ''}<textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" aria-label="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
           <button class="${heldByOther ? 'btn send' : NEEDS_ACT}" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
+        ${photoForm(d, locale)}
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
   }
+}
+
+/**
+ * Phase 2d (0152) — the owner holding the conversation sends a product's photo: the products with a photo Nomi
+ * serves, the conversation's own product first. Nothing on a channel that cannot carry a picture, or with no photo.
+ */
+function photoForm(d: ConversationDetail, locale: Locale): string {
+  const photos = d.photos ?? [];
+  if (photos.length === 0) return '';
+  const own = d.product?.name ?? null;
+  const ordered = [...photos].sort((a, b) => Number(b.name === own) - Number(a.name === own));
+  return `<form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/photo" class="photosend">
+      <label class="muted" for="photo-pick">${esc(t(locale, 'photo.send.label'))}</label>
+      <select id="photo-pick" name="product" required>${ordered.map((p) =>
+        `<option value="${esc(p.productId)}">${esc(productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.name)}</option>`).join('')}</select>
+      <button class="btn" type="submit">${esc(t(locale, 'photo.send.button'))}</button>
+    </form>`;
 }
 
 /**
@@ -2453,6 +2485,7 @@ export function renderConversationDetail(
             m.direction === 'outbound' && m.by !== 'owner' ? `<div class="msg-by">${byAssistant(assistantName(locale))}</div>` : ''}
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
+            : m.photo ? `<div class="bubble sent-photo"><img src="${esc(m.photo)}" alt="${esc(t(locale, 'photo.sent.alt'))}" loading="lazy" /></div>`
             : `<div dir="auto" class="${bubbleClass(speakerOf(m))}"><bdi>${esc(m.text)}</bdi></div>`}
           ${m.unconfirmed ? `<p class="note muted" role="note">${esc(t(locale, 'conv.senderUnconfirmed'))}</p>` : ''}
           <div class="ts muted">${[m.at ? esc(show.time(locale, m.at)) : '',

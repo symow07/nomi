@@ -1,6 +1,6 @@
 import type { ChannelAdapter } from '../contract.js';
 import { verifySignature } from '../whatsapp/signature.js';
-import { parseMetaMessaging, metaMessagingSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
+import { parseMetaMessaging, metaMessagingSender, metaImageSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
 
 /**
  * Facebook Messenger conversations, as this product's contract sees them.
@@ -24,10 +24,11 @@ export function messengerAdapter(cfg: {
   readonly graphVersion: string;
   readonly fetchImpl?: MetaFetch;
 }): ChannelAdapter {
-  const send = metaMessagingSender({
+  const sendAs = {
     accountId: cfg.accountId, accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
     ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
-  });
+  };
+  const send = metaMessagingSender(sendAs);
   const nameOf = metaProfileLookup({
     channel: 'messenger', accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
     ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
@@ -38,6 +39,8 @@ export function messengerAdapter(cfg: {
     verifyWebhook: (rawBody, header) => verifySignature(rawBody, header, cfg.appSecret),
     parseWebhook: (payload) => parseMetaMessaging('messenger', payload),
     sendText: send,
+    // Phase 2d — the same Send API as Instagram's: a product's photo, by the address Nomi serves it at.
+    sendMedia: metaImageSender(sendAs),
     nameOf,
   };
 }

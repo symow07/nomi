@@ -68,6 +68,8 @@ export type TranscriptRow = {
   readonly received: string | null;
   /** G13 — the provider's handle for a voice note's audio. */
   readonly media: string | null;
+  /** Phase 2d — where a picture that left was: a product photo Nomi serves (`/media/<token>`). */
+  readonly image_url?: string | null;
   /** CH7 — the product a shared post or story was matched to. */
   readonly about?: string | null;
   /** D4 — who wrote an outbound message, from the sent row it was copied from. */
@@ -102,7 +104,7 @@ export async function loadTranscriptWindow(tx: Tx, conversationId: string, befor
   const older = cursor !== null && anchor !== undefined && anchor.sent_at.getTime() === cursor.at;
 
   const read = (await sql<TranscriptRow>`
-    select m.id::text as id, m.direction, m.text_content, m.sent_at, m.input_type, m.transcription,
+    select m.id::text as id, m.direction, m.text_content, m.sent_at, m.input_type, m.transcription, m.image_url,
            m.ai_analysis->>'received' as received, m.ai_analysis->>'about' as about, m.provider_media_id as media,
            m.ai_analysis->>'sender' as sender,
            -- D4 — the sent row it was copied from, by the id it was copied under.

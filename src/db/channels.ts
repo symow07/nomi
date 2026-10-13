@@ -617,6 +617,11 @@ export async function enqueueOutboundRow(
    * closed window with the template.
    */
   approved = false,
+  /**
+   * Phase 2d (0152) — a photo Nomi serves, at its absolute public address: the row goes as a picture
+   * (`kind = 'image'`, 0024), its body the caption. The worker still refuses one it does not serve (F1).
+   */
+  media: { readonly url: string } | null = null,
 ): Promise<string | null> {
   // C4.a — the identity to send to is the conversation's OWN channel, not
   // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
@@ -661,10 +666,11 @@ export async function enqueueOutboundRow(
   // on body either: two contacts can honestly receive the same first line.
   const row = await sql<{ id: string }>`
     insert into outbound_messages
-      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject, asks, notice, approved)
+      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject, asks, notice, approved, kind, media_url)
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
-           ${channel}, ${subject}, ${asks}::text, ${notice}, ${approved}
+           ${channel}, ${subject}, ${asks}::text, ${notice}, ${approved},
+           ${media ? 'image' : 'text'}, ${media?.url ?? null}
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not exists (
       select 1 from outbound_messages
