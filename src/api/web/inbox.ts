@@ -609,7 +609,14 @@ export type ConversationDetail = {
     /** G11 — the link as a BUYER would open it. Null when no public address is set. */
     readonly url?: string | null;
   };
-  readonly order: { status: string; reference: string; total: Money | null; id: string } | null;
+  readonly order: {
+    status: string; reference: string; total: Money | null; id: string;
+    /**
+     * Phase 2c — the order's proforma link: whether the order has what a proforma needs, its live token, and (filled
+     * by the route, as the price link's) the link as the customer opens it — null when no public address is set.
+     */
+    proforma?: { readonly ready: boolean; readonly token: string | null; readonly url?: string | null };
+  } | null;
   /** CC-25 — one window of the transcript (the newest, unless `transcript.older`), oldest first. */
   readonly messages: readonly TimelineMessage[];
   /**
@@ -906,8 +913,12 @@ export async function loadConversationDetail(
     // conversation. Confirming closes the conversation; when he writes again
     // weeks later it is a new one, and the owner reading his "where is my
     // order?" must see — and reach — the order he is asking about.
-    const o = (await sql<{ id: string; status: string; order_reference: string; total_value_usd: string | null; currency: string }>`
-      select o.id::text as id, o.status, o.order_reference, o.total_value_usd, o.currency from orders o
+    const o = (await sql<{ id: string; status: string; order_reference: string; total_value_usd: string | null; currency: string;
+      proforma_token: string | null; proforma_ready: boolean }>`
+      select o.id::text as id, o.status, o.order_reference, o.total_value_usd, o.currency, o.proforma_token,
+             -- Phase 2c — what a proforma needs (\`proformaText\`): a price, the owner's payment terms, a delivery term.
+             (o.agreed_unit_price_usd is not null and o.total_value_usd is not null
+              and o.payment_terms is not null and o.incoterm is not null) as proforma_ready from orders o
        where o.client_id = (select client_id from conversations where id = ${conversationId})
        order by o.created_at desc limit 1
     `.execute(tx)).rows[0];
@@ -1005,6 +1016,7 @@ export async function loadConversationDetail(
       order: o ? {
         id: o.id, status: o.status, reference: o.order_reference,
         total: o.total_value_usd !== null ? moneyFromRow(Number(o.total_value_usd), o.currency) : null,
+        proforma: { ready: o.proforma_ready && moneyFromRow(Number(o.total_value_usd), o.currency) !== null, token: o.proforma_token },
       } : null,
       messages,
       transcript: { earlier: transcript.earlier, older: transcript.older },
@@ -1895,6 +1907,38 @@ function proofRow(d: ConversationDetail, locale: Locale): string {
 }
 
 /**
+ * Phase 2c — the owner's control over the order's proforma link, beside the order on the conversation and on the
+ * order's own page: one tap makes it (nothing is sent), the whole link to copy, a look at the page as the customer
+ * sees it, and one tap turns it off. Nothing when the order lacks what a proforma needs — the order page says which.
+ */
+export function proformaRow(
+  order: { readonly id: string; readonly proforma?: { readonly ready: boolean; readonly token: string | null; readonly url?: string | null } },
+  locale: Locale, from: 'conversation' | 'order',
+): string {
+  const p = order.proforma;
+  if (!p || !p.ready) return '';
+  const action = `/app/orders/${encodeURIComponent(order.id)}/proforma-link`;
+  const back = `<input type="hidden" name="from" value="${from}">`;
+  if (!p.token) {
+    return `<form method="post" action="${action}" class="proofrow">${back}
+      <span class="muted">${esc(t(locale, 'pi.owner.none'))}</span>
+      <button class="btn" type="submit">${esc(t(locale, 'pi.owner.make'))}</button>
+    </form>`;
+  }
+  return `<div class="proofrow">
+    <span class="muted">${esc(t(locale, p.url ? 'pi.owner.live' : 'pi.owner.noAddress'))}</span>
+    ${p.url ? `<code class="prooflink"><bdi>${esc(p.url)}</bdi></code>
+    <a class="deeper" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(t(locale, 'pi.owner.open'))}${GO}</a>` : ''}
+    <form method="post" action="${action}/off" class="inline">${back}
+      <button class="btn danger" type="submit"
+        onclick="return confirm(this.dataset.confirm)"
+        data-confirm="${esc(t(locale, 'pi.owner.offConfirm'))}"
+      >${esc(t(locale, 'pi.owner.off'))}</button>
+    </form>
+  </div>`;
+}
+
+/**
  * M44 — did a closure she stated withhold the date this quote would have
  * promised?
  *
@@ -2368,6 +2412,7 @@ export function renderConversationDetail(
       ].join(' · ')}${d.order.total !== null ? inHerMoney(d.order.total, d.rate, locale) : ''}
         <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}${GO}</a></div>` : ''}
       ${proofRow(d, locale)}
+      ${d.order ? proformaRow(d.order, locale, 'conversation') : ''}
     </div>` : '';
 
   /**

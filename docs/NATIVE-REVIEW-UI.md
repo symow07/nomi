@@ -15908,3 +15908,21 @@ Written in zh, ar, es and fr in one pass; none has had a native read. Not a gate
 - **Check:** that 免打扰时段 / ساعات الهدوء / horas de silencio / heures de silence read as "don't send me anything then".
 
 Reviewer: ______  Date: ______
+
+## 2026-10-13 — Phase 2c: the proforma as a page (a draft, at the owner's stop-gate)
+
+Written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read the page a customer opens
+(`/pi/…`, in the customer's language), the link row beside an order on the conversation and on the order page, and
+the page a link that no longer opens shows.
+
+- **The keys:** `pi.title`, `pi.heading`, `pi.number`, `pi.date`, `pi.billTo`, `pi.col.*`, `pi.total`, `pi.lessSample`,
+  `pi.due`, `pi.incoterm`, `pi.payment`, `pi.what`, `pi.questions` (the customer's page); `pi.owner.*` (the owner's
+  row and its notices); `public.notFound.proforma.*`.
+- **Where the words differ, and why:** the customer is addressed by a label, never a pronoun — "Bill to" is 买方,
+  «إلى», «Para», «Destinataire» (epicene); Arabic's footer has no «هي» («وليست فاتورة ضريبية») and asks with «يُرجى»;
+  French has no «il/elle» («Ce n'est pas une facture fiscale»).
+- **Check:** that 形式发票 / فاتورة مبدئية / factura proforma / facture pro forma are the terms a trader would use, and
+  that "not a tax invoice" (不是税务发票 / ليست فاتورة ضريبية / no es una factura fiscal / ce n'est pas une facture
+  fiscale) says what it should in each market.
+
+Reviewer: ______  Date: ______

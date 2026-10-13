@@ -169,8 +169,8 @@ export const RULES = Object.freeze({
 
   // ── What they bought ──────────────────────────────────────────────────────
   orders: {
-    do: 'keep', clear: ['client_email', 'shipping_address', 'notes', 'tracking_reference'],
-    says: 'items, prices and status stay; e-mail, shipping address, notes and tracking number cleared',
+    do: 'keep', clear: ['client_email', 'shipping_address', 'notes', 'tracking_reference', 'proforma_token'],
+    says: "items, prices and status stay; e-mail, shipping address, notes, tracking number and the proforma's link cleared",
   },
   // D10 (0140) — a parcel's tracking number and a note on an update point at them.
   order_updates: { do: 'keep', clear: ['note', 'tracking_reference'], says: "the order's status history; notes and tracking numbers cleared" },

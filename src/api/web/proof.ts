@@ -260,7 +260,7 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
  * not the owner's interface setting. A page the buyer forwards to their boss
  * should be in the language the buyer wrote in.
  */
-async function buyerLocale(tx: Tx, conversationId: string | null): Promise<Locale> {
+export async function buyerLocale(tx: Tx, conversationId: string | null): Promise<Locale> {
   if (!conversationId) return DEFAULT_LOCALE;
   // G11 — what the turn remembered about HIM first (clients.preferred_language,
   // written from the analyser), then the language stamped on a message. Before
@@ -444,7 +444,7 @@ export async function loadProofLinkState(tx: Tx, conversationId: string): Promis
  * was revoked, not which factory it belonged to. A helpful message here would
  * be the oracle the 404 exists to remove.
  */
-export function notFoundPage(locale: Locale = DEFAULT_LOCALE, kind: 'proof' | 'unsubscribe' = 'proof'): string {
+export function notFoundPage(locale: Locale = DEFAULT_LOCALE, kind: 'proof' | 'proforma' | 'unsubscribe' = 'proof'): string {
   // Phase 9 (V1-081–084) — in the reader's language, with the product's name
   // and the ways out every visitor may have (the policies; for an unsubscribe
   // link, how to stop the mail anyway). Still nothing about the link: the same
@@ -453,9 +453,10 @@ export function notFoundPage(locale: Locale = DEFAULT_LOCALE, kind: 'proof' | 'u
   // for, why it may not work and what to do instead, under the mark; the tab
   // names Nomi. A price link still names no seller: saying whose it was would
   // tell a stranger that the link had existed.
-  const title = t(locale, kind === 'proof' ? 'public.notFound.proof.title' : 'public.notFound.title');
-  const said = kind === 'proof'
-    ? `<p class="muted">${esc(t(locale, 'public.notFound.proof.body'))}</p>\n<p>${esc(t(locale, 'public.notFound.proof.next'))}</p>`
+  // Phase 2c — a proforma link says what it was for in the same words, and names no seller either.
+  const title = t(locale, kind === 'unsubscribe' ? 'public.notFound.title' : `public.notFound.${kind}.title`);
+  const said = kind !== 'unsubscribe'
+    ? `<p class="muted">${esc(t(locale, `public.notFound.${kind}.body`))}</p>\n<p>${esc(t(locale, `public.notFound.${kind}.next`))}</p>`
     : `<p class="muted">${esc(t(locale, 'public.notFound.body'))}</p>\n<p>${esc(t(locale, 'public.notFound.unsubscribe'))}</p>`;
   return publicDocument({
     locale, title: `${title} · Nomi`, noindex: true, mainClass: 'proof', extraCss: PROOF_CSS + PUBLIC_TOP_CSS,

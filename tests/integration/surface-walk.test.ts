@@ -44,6 +44,14 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   let cookie = '';
   const routes: string[] = [];
   const real: Record<string, string> = {};
+  /**
+   * Phase 2c (and the public links after it) — a link route walked with its OWN credential, minted in setup through
+   * the owner's route; every other `:token` is the price link's. A route with no credential of its own is walked as
+   * before.
+   */
+  const ownToken: Record<string, string> = {};
+  const tokenParams = (url: string): Record<string, string | undefined> =>
+    ownToken[url] ? { ...real, token: ownToken[url] } : real;
   const CODE = 'surface-walk-code';
   /**
    * CC-26 — the live line's addresses answer only with the mark a page was
@@ -193,6 +201,22 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         .execute(tx).then((r) => r.rows[0]?.token));
       if (tk) real['token'] = tk;
     }
+    // Phase 2c — a REAL proforma link, made through the owner's route on an order with what a proforma needs (a
+    // price, the owner's payment terms, a delivery term): the seed has no order, so this is the walk's one.
+    const order = await withTenantTx(db, bid.value, (tx) => sql<{ id: string }>`
+      insert into orders (order_reference, business_id, client_id, conversation_id, product_id, quantity, unit,
+                          agreed_unit_price_usd, total_value_usd, currency, status, confirmed_at, payment_terms, incoterm)
+      select ${`PI-${RUN_NS}`}, c.business_id, c.client_id, c.id, ${real['productId']}::uuid, 2500, 'pcs', 1.95, 4875, 'USD',
+             'confirmed', now() - interval '1 day', '30% deposit, 70% before shipment', 'FOB Ningbo'
+        from conversations c where c.id = ${real['conversationId']}::uuid
+      returning id::text as id`.execute(tx).then((r) => r.rows[0]?.id));
+    if (order) {
+      await app.inject({ method: 'POST', url: `/app/orders/${order}/proforma-link`, payload: 'from=order',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' } });
+      const pi = await withTenantTx(db, bid.value, (tx) => sql<{ t: string | null }>`
+        select proforma_token as t from orders where id = ${order}::uuid`.execute(tx).then((r) => r.rows[0]?.t ?? null));
+      if (pi) ownToken['/pi/:token'] = pi;
+    }
   }, 90_000);
 
   afterAll(async () => { await app?.close(); await db?.destroy(); });
@@ -222,7 +246,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       let target = url;
       let skip = false;
       for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
-        const v = real[m[1]!];
+        const v = tokenParams(url)[m[1]!];
         if (!v) { skip = true; break; }
         target = target.replace(`:${m[1]}`, encodeURIComponent(v));
       }
@@ -412,7 +436,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         if (url.startsWith('/app/live') || url === '/p/:token' || url === '/u') continue;
         let target = url; let skip = false;
         for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
-          const v = real[m[1]!];
+          const v = tokenParams(url)[m[1]!];
           if (!v) { skip = true; break; }
           target = target.replace(`:${m[1]}`, encodeURIComponent(v));
         }
@@ -488,7 +512,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       for (const signedIn of [true, false]) {
         for (const url of [...new Set(routes)]) {
           // `:id` is a taught fact's id everywhere else in this walk; the product page is given its product.
-          const given: Record<string, string | undefined> = url === '/app/products/:id' ? { ...real, id: real['productId'] } : real;
+          const given: Record<string, string | undefined> = url === '/app/products/:id' ? { ...real, id: real['productId'] } : tokenParams(url);
           let target = url; let skip = false;
           for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
             const v = given[m[1]!];
@@ -521,6 +545,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   }, 240_000);
 
   it('and every surface returns 200, not merely "not 500"', async () => {
+    expect(ownToken['/pi/:token'], 'no proforma link was made, so /pi/:token would be walked with another link').toBeTruthy();
     const notOk: string[] = [];
     for (const url of [...new Set(routes)]) {
       // Skipped because this walk cannot mint the credential they carry in the
@@ -530,7 +555,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       if (url === '/p/:token' || url === '/u' || url === '/') continue;
       let target = url; let skip = false;
       for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
-        const v = real[m[1]!];
+        const v = tokenParams(url)[m[1]!];
         if (!v) { skip = true; break; }
         target = target.replace(`:${m[1]}`, encodeURIComponent(v));
       }
