@@ -293,6 +293,8 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
         id: A.order, order_reference: `YW-T-${RUN}-A`, business_id: B1, client_id: A.client, conversation_id: A.c2,
         product_id: P1, quantity: 500, unit: 'pcs', agreed_unit_price_usd: 2, total_value_usd: 1000, client_email: EMAIL_A,
         shipping_address: `1 Palm St ${RUN}`, notes: `call ${NAME_A}`, status: 'shipped', quote_id: A.q2, confirmed_at: now,
+        // Phase 2c (0151) — the proforma's link the customer was sent: the kept order stops opening from outside.
+        proforma_token: `pi-${RUN}-${'t'.repeat(32)}`,
       });
       await ins('order_updates', { id: A.ou1, business_id: B1, order_id: A.order, state: 'confirmed' });
       await ins('order_updates', { id: A.ou2, business_id: B1, order_id: A.order, state: 'shipped', tracking_reference: 'TRK-1' });
@@ -675,7 +677,7 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     }
 
     const order = await one<Record<string, unknown>>('select * from orders where id = $1', [A.order]);
-    expect(order).toMatchObject({ client_email: null, shipping_address: null, notes: null, client_id: A.client, conversation_id: A.c2, quote_id: A.q2, quantity: 500, status: 'shipped' });
+    expect(order).toMatchObject({ client_email: null, shipping_address: null, notes: null, proforma_token: null, client_id: A.client, conversation_id: A.c2, quote_id: A.q2, quantity: 500, status: 'shipped' });
     expect(Number(order['total_value_usd'])).toBe(1000);
     expect((await one<{ n: number }>('select count(*)::int as n from order_updates where order_id = $1', [A.order])).n).toBe(2);
     expect(await one('select to_email, subject, body_html, status from email_confirmations where id = $1', [A.ec]))

@@ -373,7 +373,10 @@ import type { Db } from './client.js';
 // 150 = the morning summary (0150): `people.morning_summary`, `quiet_from`, `quiet_until`, `morning_summaries`,
 //       `claim_morning_summaries` and `morning_summary_done`, which the fifteen-minute job and the notify worker
 //       call; against a 149 database the job fails and Notifications cannot read the owner's switch.
-export const REQUIRED_SCHEMA_VERSION = 150;
+// 151 = the proforma's link (0151): `orders.proforma_token` and `resolve_proforma`, which the order and conversation
+//       pages and the public `/pi/:token` read; the customer's erasure clears it. Against a 150 database every order
+//       page and every conversation with an order fails.
+export const REQUIRED_SCHEMA_VERSION = 151;
 
 export type SchemaState = {
   readonly required: number;

@@ -100,7 +100,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'autonomy.flash.notReleased',
   // G4 — a workspace that signed itself up has not earned sending alone yet.
   'autonomy.flash.notEarned',
-  'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'proof.owner.flash.failed',
+  'people.flash.name_too_long', 'product.flash.refused', 'product.alias.notRemoved', 'proof.owner.flash.failed', 'pi.owner.flash.failed',
   'prospects.flash.exists', 'prospects.flash.failed', 'prospects.flash.invalid',
   'prospects.flash.not_found', 'rate.flash.failed', 'rate.flash.missing', 'rate.flash.not_a_number',
   'rate.flash.not_positive', 'rate.flash.same_currency',
@@ -185,7 +185,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'alerts.flash.on', 'alerts.flash.removed', 'alerts.flash.tested', 'alerts.flash.way',
   // Phase 2a — the morning summary's switch and quiet hours saved.
   'alerts.flash.morning',
-  'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued',
+  'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued', 'pi.owner.flash.made', 'pi.owner.flash.off',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',
   'samples.flash.saved', 'seq.flash.added', 'seq.flash.approved', 'seq.flash.archived',

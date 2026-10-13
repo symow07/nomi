@@ -29,6 +29,8 @@ import { renderCustomerCard, cardOpenedFrom } from './customerCard.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
+import { loadProformaPage, renderProformaPage } from './proforma.js';
+import { makeProformaLink, stopProformaLink, proformaUrl } from '../../db/proformaLinks.js';
 import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
 import { connectMetaChannel, metaLinkStatus } from './metaChannels.js';
@@ -510,6 +512,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/verify/resend', why: 'A3 — a new code for the same waiting sign-up; six an hour per address, counted in the database' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
+  { method: 'GET', url: '/pi/:token', why: 'Phase 2c — the proforma link. The unguessable token IS the credential; it opens the one order it names, as a document' },
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
   { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
@@ -1236,6 +1239,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .header('referrer-policy', 'no-referrer')
       .header('x-robots-tag', 'noindex, nofollow')
       .send(renderProof(view));
+  });
+
+  // Phase 2c (0151) — the proforma as a page the customer opens: the same rules as the price link above.
+  app.get('/pi/:token', async (req, reply) => {
+    const token = String((req.params as { token: string }).token ?? '');
+    const view = token.length >= 32 ? await loadProformaPage(deps.db, token) : null;
+    if (!view) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage(localeOf(req), 'proforma'));
+    return reply.type('text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      .header('referrer-policy', 'no-referrer')
+      .header('x-robots-tag', 'noindex, nofollow')
+      .send(renderProformaPage(view));
   });
 
   // The legal pages. Public and indexable — Meta fetches them before the app
@@ -2453,6 +2468,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const withProof = {
       ...detail,
       proof: { ...detail.proof, url: detail.proof.token ? proofUrl(deps.publicBaseUrl, detail.proof.token) : null },
+      // Phase 2c — the proforma's link the same way.
+      order: detail.order?.proforma?.token
+        ? { ...detail.order, proforma: { ...detail.order.proforma, url: proformaUrl(deps.publicBaseUrl, detail.order.proforma.token) } }
+        : detail.order,
     };
     /**
      * The design pass — the panes: the list this conversation came from (Buyers'
@@ -4800,7 +4819,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const v = await loadOrder(deps.db, sess.businessId, id);
     if (!v) return missingPage(locale, t(locale, 'order.notFound'), { href: '/app/inbox', label: t(locale, 'inbox.detail.back') });
     // Phase 9 of the warmth run (V1-184) — the tab names whose order it is, as the heading does.
-    return { bodyHtml: renderOrder(v, locale, takeFlash(req, reply)), title: orderTitle(locale, v) };
+    return { bodyHtml: renderOrder(v, locale, takeFlash(req, reply), { publicBaseUrl: deps.publicBaseUrl }), title: orderTitle(locale, v) };
   }));
 
   // Phase 9 (V1-188) — the proforma as a file, the same text the page shows:
@@ -4817,6 +4836,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .header('cache-control', 'no-store')
       .send(`${text}\n`);
   });
+
+  /**
+   * Phase 2c (0151) — the order's proforma link, made or turned off from the conversation or the order (`from`
+   * says which page to return to). Making it needs what the proforma needs (`proformaText`), sends nothing, and is
+   * idempotent; both are written on the conversation's trail, as the price link's are.
+   */
+  const proformaLinkAction = (verb: '' | '/off') =>
+    app.post(`/app/orders/:id/proforma-link${verb}`, async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const id = (req.params as { id: string }).id;
+      const from = ((req.body ?? {}) as Record<string, string | undefined>)['from'];
+      const bid = parseBusinessId(s.businessId);
+      const v = bid.ok && UUID.test(id) ? await loadOrder(deps.db, s.businessId, id) : null;
+      const to = v && from === 'conversation' ? conversationUrl(v.conversationId) : `/app/orders/${encodeURIComponent(id)}`;
+      if (!bid.ok || !v || (verb === '' && proformaText(v) === null)) return flashTo(reply, to, 'pi.owner.flash.failed');
+      const done = await withTenantTx(deps.db, bid.value, async (tx) => {
+        if (verb === '/off') {
+          if (!(await stopProformaLink(tx, bid.value, v.orderId))) return false;
+          await tenantRepos(tx, bid.value).events.append(v.conversationId as never, 'proforma_link_off', { orderId: v.orderId });
+          return true;
+        }
+        const made = await makeProformaLink(tx, bid.value, v.orderId);
+        if (!made) return false;
+        if (made.made) await tenantRepos(tx, bid.value).events.append(v.conversationId as never, 'proforma_link_made', { orderId: v.orderId });
+        return true;
+      });
+      return flashTo(reply, to, done ? (verb === '/off' ? 'pi.owner.flash.off' : 'pi.owner.flash.made') : 'pi.owner.flash.failed');
+    });
+  proformaLinkAction('');
+  proformaLinkAction('/off');
 
   app.post('/app/orders/:id/update', async (req, reply) => {
     const s = sessionOf(req);

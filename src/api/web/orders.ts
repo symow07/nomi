@@ -14,7 +14,8 @@ import { labelled } from '../../core/owner/i18n/format.js';
 import { isGeneratedSku } from '../../core/owner/sku.js';
 import { unitLabel } from './products.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
-import { productName } from './inbox.js';
+import { productName, proformaRow } from './inbox.js';
+import { proformaUrl } from '../../db/proformaLinks.js';
 import { flashBanner, type Flash } from './flash.js';
 import { faceLink } from './faces.js';
 import { faceVersions } from '../../db/faces.js';
@@ -67,6 +68,8 @@ export type OrderView = {
     | { readonly kind: 'mismatch'; readonly amount: Money } | null;
   /** Newest first. Append-only: this is what she said, not what was computed. */
   readonly history: readonly OrderUpdate[];
+  /** Phase 2c (0151) — the live token of the proforma's link for the customer, or null. */
+  readonly proformaToken?: string | null;
 };
 
 export async function loadOrder(db: Db, businessIdRaw: string, orderId: string): Promise<OrderView | null> {
@@ -78,11 +81,12 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       name: string | null; name_zh: string | null; sku: string; quantity: number; unit: string;
       unit_price: string | null; total: string | null; currency: string;
       client_email: string | null; payment_terms: string | null; incoterm: string | null; confirmed_at: Date | null;
+      proforma_token: string | null;
     }>`
       select o.id, o.order_reference as reference, o.conversation_id::text as conversation_id,
              cl.display_name as buyer, cl.id::text as client_id, p.name, p.name_zh, p.sku, o.quantity, o.unit,
              o.agreed_unit_price_usd as unit_price, o.total_value_usd as total, o.currency,
-             o.client_email, o.payment_terms, o.incoterm, o.confirmed_at, b.name as seller
+             o.client_email, o.payment_terms, o.incoterm, o.confirmed_at, o.proforma_token, b.name as seller
         from orders o
         join businesses b on b.id = o.business_id
         left join clients cl on cl.id = o.client_id
@@ -160,6 +164,7 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
         state: r.state, at: r.at, note: r.note,
         trackingReference: r.tracking_reference, by: r.by_actor,
       }] : []),
+      proformaToken: o.proforma_token,
     };
   });
 }
@@ -252,7 +257,8 @@ function docText(text: string, sku: string): string {
 /** The proforma's file name: its reference, in the characters any file system takes. */
 export const proformaFileName = (v: OrderView): string => `proforma-${v.reference.replace(/[^A-Za-z0-9._-]+/g, '-')}.txt`;
 
-export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): string {
+export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null,
+  opts: { readonly publicBaseUrl?: string | null | undefined } = {}): string {
   const name = assistantName(locale);
   // G18 — the order's own money, in the order's own currency. Both of these
   // used to be rebuilt as dollars and then hidden unless the order WAS in
@@ -306,6 +312,9 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}${locale === 'en' ? '' : ` ${esc(t(locale, 'order.invoice.english'))}`}</p>
         ${/* Phase 9 (V1-188) — a way to take it: the same text, as a file. The warmth run's phase 9 (w4-customers-12) — it
              says it saves a file, and carries a file's mark (the download icon), not a door's chevron. */ ''}<a class="deeper" href="/app/orders/${esc(encodeURIComponent(v.orderId))}/proforma.txt" download>${esc(t(locale, 'order.invoice.download'))}<span class="go" aria-hidden="true">${icon('download', 'gi')}</span></a>
+        ${/* Phase 2c — the same proforma as a page the customer opens, in their language: the link, made here or beside the
+             order on the conversation. */ ''}${proformaRow({ id: v.orderId, proforma: { ready: true, token: v.proformaToken ?? null,
+          url: v.proformaToken ? proformaUrl(opts.publicBaseUrl, v.proformaToken) : null } }, locale, 'order')}
         ${/* Phase 9 (V1-185–187) — an English document reads left to right and wraps on a phone, never cut at either edge.
              The warmth run's phase 9 (w4-customers-09) — and an article number is never broken at its hyphen ("ZX-" / "200"). */ ''}<pre class="doc" dir="ltr">${docText(text, v.productSku)}</pre>
         ${v.sampleCredit?.kind === 'mismatch'
