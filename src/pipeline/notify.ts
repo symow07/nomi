@@ -17,6 +17,8 @@ import { sendPush, type VapidKeys, type PushFetch } from '../net/webPush.js';
 import { archivePhone, markPhoneSent, type PhoneSubscription } from '../db/pushSubscriptions.js';
 import { alertChannelFor, ownerWhatsAppReachable, type AlertChannel } from '../core/owner/alertChannel.js';
 import { interruptionPeople, ownerAlertFacts, type InterruptionPerson } from '../db/alertChannel.js';
+import { morningFacts, morningSummaryDone } from '../db/morningSummary.js';
+import { morningLines } from '../core/owner/morningSummary.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -123,6 +125,14 @@ export const ALLOWANCE_ALERT_KINDS = ['allowance_warn', 'allowance_reached'] as 
  */
 export const INTERRUPTION_KINDS = ['order_proposed', 'handoff', 'deletion_requested', 'deletion_reminder'] as const satisfies readonly AlertKind[];
 export const interrupts = (kind: AlertKind): boolean => (INTERRUPTION_KINDS as readonly AlertKind[]).includes(kind);
+
+/**
+ * Phase 2a (the owner's roadmap and word, 2026-10-13) — THE FOURTH CLASS: a daily letter to the owner, once a
+ * morning, that the owner can stop (Notifications). Not an interruption (it is not urgent and waits for 08:00 and
+ * the owner's quiet hours), not quiet in the app (it leaves). `deliverMorningSummary`.
+ */
+export const DAILY_KINDS = ['morning_summary'] as const satisfies readonly AlertKind[];
+export const isDaily = (kind: AlertKind): boolean => (DAILY_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
  * …and what used to reach the owner outside Nomi and now waits in it, by the
@@ -425,6 +435,8 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
   if (await withTenantTx(deps.db, bid.value, (tx) => isPracticeCopy(tx, bid.value))) return 'skipped_practice';
   if (waitsInApp(job.kind)) return 'skipped_quiet';
   if (goesByMail(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
+  // Phase 2a — the owner's morning summary: a daily letter, its own class.
+  if (isDaily(job.kind)) return deliverMorningSummary(deps, bid.value, job);
   // What is left is an interruption: `Unclassified` below proves there is nothing else.
   return deliverOwnerInterruption(deps, bid.value, job);
 }
@@ -432,7 +444,7 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
 /** Every kind is classified: an operator alert or an account letter, an interruption, or quiet. */
 type Unclassified = Exclude<AlertKind, typeof OPERATOR_ALERT_KINDS[number] | typeof BILLING_ALERT_KINDS[number]
   | 'connection_approved' | 'connection_refused'
-  | typeof INTERRUPTION_KINDS[number] | typeof QUIET_KINDS[number]>;
+  | typeof INTERRUPTION_KINDS[number] | typeof QUIET_KINDS[number] | typeof DAILY_KINDS[number]>;
 const everyKindClassified: [Unclassified] extends [never] ? true : false = true;
 void everyKindClassified;
 
@@ -594,10 +606,26 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
     pushOn: push !== null,
     // Rule 18 — a deletion request reaches the owner's sign-in address by e-mail always; D4 — and so does each reminder.
     mailOwnerAlways: job.kind === 'deletion_requested' || job.kind === 'deletion_reminder',
-  }, {
+  }, ownerWays(deps, bid, job.kind, { subject, words, text, link }, ownerPhone));
+  if (r.later) throw new Error(`owner alert not delivered yet (retryable): ${job.kind}`);
+  if (r.outcome === 'skipped_no_destination') console.warn(`[notify] ${job.kind} alert has nowhere to go: no sign-in e-mail or sender, no phone, no open WhatsApp path`);
+  return r.outcome;
+}
+
+/**
+ * The three ways out to a person, for one message: e-mail to their sign-in address, a push to their phones, and
+ * WhatsApp to the owner's alert number. Shared by the interruptions and the morning summary (2a), so both leave
+ * the same way and fall back the same way (`reachPeople`).
+ */
+function ownerWays(deps: NotifyDeps, bid: BusinessId, kind: AlertKind,
+  msg: { readonly subject: string; readonly words: string; readonly text: string; readonly link: string | null },
+  ownerPhone: string | null): InterruptionWays {
+  const { subject, words, text, link } = msg;
+  const push = deps.push ?? null;
+  return {
     email: deps.mail ? async (to) => {
       const m = await deps.mail!.send({ to, subject, text });
-      if (!m.ok) console.warn(`[notify] ${job.kind} alert e-mail failed: ${m.error}`);
+      if (!m.ok) console.warn(`[notify] ${kind} alert e-mail failed: ${m.error}`);
       return m.ok ? 'sent' : 'failed';
     } : null,
     browser: async (phones) => {
@@ -608,7 +636,7 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
         if (sent.kind === 'sent') { result = 'sent'; await withTenantTx(deps.db, bid, (tx) => markPhoneSent(tx, phone.id)); }
         else if (sent.kind === 'gone') await withTenantTx(deps.db, bid, (tx) => archivePhone(tx, bid, phone.id, 'gone'));
         else {
-          console.warn(`[notify] ${job.kind} phone alert failed (${sent.status ?? 'no answer'})`);
+          console.warn(`[notify] ${kind} phone alert failed (${sent.status ?? 'no answer'})`);
           if (sent.retryable && result === 'failed') result = 'later';
         }
       }
@@ -618,12 +646,44 @@ export async function deliverOwnerInterruption(deps: NotifyDeps, bid: BusinessId
       if (!ownerPhone) return 'failed';
       const sent = await deps.adapter.sendText(ownerPhone, text);
       if (sent.ok) return 'sent';
-      console.warn(`[notify] ${job.kind} WhatsApp alert failed: ${sent.error}`);
+      console.warn(`[notify] ${kind} WhatsApp alert failed: ${sent.error}`);
       return sent.retryable ? 'later' : 'failed';
     },
+  };
+}
+
+/**
+ * Phase 2a (0150) — THE MORNING SUMMARY, the fourth class (the owner's word, 2026-10-13): not an interruption,
+ * not quiet in the app, but a daily letter to the owner that the owner can stop. Claimed once per local day
+ * (`claim_morning_summaries`); built at the moment it leaves, so it says what is true then; nothing leaves on a
+ * day with nothing to say. It goes the owner's chosen way, with e-mail as the floor, like the interruptions.
+ */
+export async function deliverMorningSummary(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
+  const personId = job.personId ?? null;
+  const day = job.summaryDay ?? null;
+  if (!personId || !day || !UUID.test(personId)) return 'skipped_no_destination';
+  const found = await withTenantTx(deps.db, bid, async (tx) => {
+    const facts = await ownerAlertFacts(tx, bid);
+    const owner = (await interruptionPeople(tx, bid)).find((p) => p.isOwner && p.id === personId);
+    if (!facts || !owner) return null;
+    return { ...facts, owner, summary: await morningFacts(tx, bid, personId, new Date()) };
   });
-  if (r.later) throw new Error(`owner alert not delivered yet (retryable): ${job.kind}`);
-  if (r.outcome === 'skipped_no_destination') console.warn(`[notify] ${job.kind} alert has nowhere to go: no sign-in e-mail or sender, no phone, no open WhatsApp path`);
+  if (!found) { await morningSummaryDone(deps.db, personId, day, 'failed', null); return 'skipped_no_destination'; }
+  const locale: Locale = parseLocale(found.locale) ?? 'en';
+  const lines = morningLines(locale, found.summary);
+  if (!lines) { await morningSummaryDone(deps.db, personId, day, 'nothing', null); return 'skipped_quiet'; }
+  const base = deps.publicBaseUrl ? deps.publicBaseUrl.replace(/\/$/, '') : null;
+  const subject = t(locale, 'notify.morning_summary.subject');
+  const words = [t(locale, 'notify.morning_summary'), ...lines].join('\n');
+  // Every summary says how to stop it, where it can say where.
+  const text = base ? `${words}\n\n${t(locale, 'summary.open', { url: `${base}/app` })}\n${t(locale, 'summary.off', { url: `${base}/app/settings/alerts#morning` })}` : words;
+  const r = await reachPeople([found.owner], {
+    whatsappReachable: ownerWhatsAppReachable({ ownerPhone: found.ownerPhone, channelLive: found.channelLive }),
+    approved: deps.whatsappApproved === true,
+    pushOn: (deps.push ?? null) !== null,
+  }, ownerWays(deps, bid, job.kind, { subject, words, text, link: base ? `${base}/app` : null }, found.ownerPhone));
+  if (r.later) throw new Error('morning summary not delivered yet (retryable)');
+  await morningSummaryDone(deps.db, personId, day, r.outcome === 'sent' ? 'sent' : 'failed', r.went[0] ?? null);
   return r.outcome;
 }
 

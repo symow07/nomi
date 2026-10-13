@@ -14,6 +14,7 @@ import {
 } from '../../core/owner/alertChannel.js';
 import { alertPerson, ownerAlertFacts, saveAlertChoice } from '../../db/alertChannel.js';
 import { GO } from './icons.js';
+import { morningSetting, type MorningSetting } from '../../db/morningSummary.js';
 
 /**
  * G5b — "Alerts on your phone": the page a person turns them on from. Anyone
@@ -54,6 +55,8 @@ export type AlertWaysView = {
   readonly ownerPhone: string | null;
   /** Meta approved Nomi (the operator's `META_APP_REVIEW`): what the page says of WhatsApp's plan. Absent: not yet. */
   readonly approved?: boolean;
+  /** Phase 2a (0150) — the owner's morning summary: on or off, and the quiet hours. Absent for a colleague. */
+  readonly morning?: MorningSetting | null;
 };
 
 /** What WhatsApp is for this person now. */
@@ -72,7 +75,8 @@ export async function loadAlertWays(db: Db, businessIdRaw: string, sessionPerson
     if (!person || !facts) return null;
     const reachable = ownerWhatsAppReachable({ ownerPhone: facts.ownerPhone, channelLive: facts.channelLive });
     return { choice: person.choice, isOwner: person.isOwner, email: person.email,
-      whatsapp: whatsappFor(person.isOwner, approved, reachable), ownerPhone: reachable ? facts.ownerPhone : null, approved };
+      whatsapp: whatsappFor(person.isOwner, approved, reachable), ownerPhone: reachable ? facts.ownerPhone : null, approved,
+      morning: person.isOwner ? await morningSetting(tx, bid.value) : null };
   });
 }
 
@@ -235,6 +239,30 @@ function waysForm(w: AlertWaysView, v: PhoneAlertsView, locale: Locale, from: Al
  * notifications are not offered here, the way's own line says so and no
  * empty section repeats it (w4-settings-a-08).
  */
+/**
+ * Phase 2a (0150) — the owner's morning summary: one switch and the quiet hours, in the business's own zone. The
+ * summary goes the way chosen above; this says only whether, and when not.
+ */
+function morningForm(m: MorningSetting, locale: Locale): string {
+  const hours = (name: string, id: string, value: number | null) => `<select id="${id}" name="${name}">
+      <option value=""${value === null ? ' selected' : ''}>${esc(t(locale, 'alerts.morning.none'))}</option>${Array.from({ length: 24 }, (_, h) =>
+      `<option value="${h}"${value === h ? ' selected' : ''}>${esc(show.isolate(locale, `${String(h).padStart(2, '0')}:00`))}</option>`).join('')}</select>`;
+  return `<section class="sgroup" id="morning" aria-labelledby="alerts-morning">
+      <h2 class="sgroup-h" id="alerts-morning">${esc(t(locale, 'alerts.morning.title'))}</h2>
+      <p class="ways-sub">${esc(t(locale, 'alerts.morning.lede'))}</p>
+      <form method="post" action="/app/settings/alerts/morning" class="pform">
+        <label class="check"><input type="checkbox" name="on" value="1"${m.on ? ' checked' : ''} /> ${esc(t(locale, 'alerts.morning.on'))}</label>
+        <fieldset>
+          <legend>${esc(t(locale, 'alerts.morning.quiet'))}</legend>
+          <p class="caption muted">${esc(t(locale, 'alerts.morning.quietHint'))}</p>
+          <label for="quiet-from">${esc(t(locale, 'alerts.morning.from'))}</label> ${hours('quietFrom', 'quiet-from', m.quietFrom)}
+          <label for="quiet-until">${esc(t(locale, 'alerts.morning.until'))}</label> ${hours('quietUntil', 'quiet-until', m.quietUntil)}
+        </fieldset>
+        <button class="btn" type="submit">${esc(t(locale, 'alerts.morning.save'))}</button>
+      </form>
+    </section>`;
+}
+
 export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Flash | null, from: AlertsFrom = 'setup'): string {
   // Phase 9 (settings-a-new-06) — the phones as the settings pages' rows, in a card;
   // (settings-a-new-04) none yet says where to turn them on.
@@ -277,5 +305,6 @@ export function renderPhoneAlerts(v: PhoneAlertsView, locale: Locale, flash: Fla
     <p class="ways-sub">${esc(t(locale, 'alerts.rest'))}</p>
     ${also}
     ${v.ways ? waysForm(v.ways, v, locale, from) : ''}
+    ${v.ways?.morning ? morningForm(v.ways.morning, locale) : ''}
     ${devices}`;
 }

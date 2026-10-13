@@ -247,6 +247,8 @@ import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
+import { saveMorningSetting } from '../../db/morningSummary.js';
+import { parseQuietHours } from '../../core/owner/morningSummary.js';
 
 /**
  * M9 — Command Center web app. Server-rendered pages over the EXISTING
@@ -4607,6 +4609,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { approved: whatsappApproved(), pushOn: Boolean(deps.push) });
     return flashTo(reply, alertsFrom(b['from']) === 'channels' ? '/app/settings/alerts?from=channels' : '/app/settings/alerts',
       way ? 'alerts.flash.way' : 'alerts.flash.wayBad');
+  });
+  /**
+   * Phase 2a (0150) — the owner's morning summary: on or off, and the quiet hours (both or neither, never the same
+   * hour twice). The owner's own: a colleague's form is never drawn, and a colleague's post changes nothing.
+   */
+  app.post('/app/settings/alerts/morning', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const quiet = parseQuietHours(b['quietFrom'], b['quietUntil']);
+    const bid = parseBusinessId(s.businessId);
+    if (!quiet || !bid.ok || !personOf(s).isOwner) return flashTo(reply, '/app/settings/alerts#morning', 'alerts.flash.morningBad');
+    const ok = await withTenantTx(deps.db, bid.value, (tx) =>
+      saveMorningSetting(tx, bid.value, { on: b['on'] === '1', quietFrom: quiet.from, quietUntil: quiet.until })).catch(() => false);
+    return flashTo(reply, '/app/settings/alerts#morning', ok ? 'alerts.flash.morning' : 'alerts.flash.morningBad');
   });
   app.post('/app/settings/alerts/phone', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

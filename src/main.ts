@@ -90,6 +90,7 @@ import { requestLogger } from './api/requestLog.js';
 import { loggableLine, loggableMessage } from './security/loggable.js';
 import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
+import { claimMorningSummaries } from './db/morningSummary.js';
 
 /**
  * PRODUCTION ENTRYPOINT (audit C1). Composes existing components — worker,
@@ -1488,6 +1489,20 @@ export async function buildProduction(
       await boss.send(QUEUES.notify, { businessId: c.business_id, kind: 'deletion_reminder', conversationId: null } satisfies NotifyJob);
     }
     if (due.length > 0) console.log(`[deletions] ${due.length} waiting request(s) chased`);
+  });
+
+  /**
+   * Phase 2a (0150) — THE MORNING SUMMARY. Every fifteen minutes: each owner whose business's clock is at or past
+   * 08:00, outside their quiet hours, with the summary on, is claimed once for that local day; the notify worker
+   * builds it as it leaves and sends it the owner's way (nothing on a day with nothing to say).
+   */
+  await boss.schedule(QUEUES.morningSummary, '*/15 * * * *', {});
+  await boss.work(QUEUES.morningSummary, async () => {
+    for (const due of await claimMorningSummaries(db)) {
+      await boss.send(QUEUES.notify, {
+        businessId: due.businessId, kind: 'morning_summary', conversationId: null, personId: due.personId, summaryDay: due.day,
+      } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600 });
+    }
   });
 
   /**
