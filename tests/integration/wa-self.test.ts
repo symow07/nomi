@@ -203,7 +203,12 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
     expect(sent.url).toBe(`https://graph.facebook.com/v23.0/${PNID}/messages`);
     expect(sent.auth).toBe('Bearer business-token-not-real');
     expect(sim.sendCount()).toBe(0);   // never the installation's number
-    // Meta's receipt, to the same number: the next reply is not held for one.
+    // Meta's receipt, to the same number: the next reply is not held for one. Only once the send is RECORDED: the
+    // fake Meta sees the request before the sender's transaction writes its id, and a receipt for an id not yet
+    // written matches no row — the next reply would then wait out the sequencer's 90 s (the CI flake on #330,
+    // 2026-10-14; WA-S below already waits for its row).
+    await until(() => tx((x) => sql<{ id: string }>`select id::text as id from outbound_messages
+      where business_id = ${BIZ} and provider_message_id = ${sent.id}`.execute(x)).then((q) => q.rows[0]), 'the send recorded');
     expect((await toOwnNumber(sim.status(sent.id, 'delivered'))).statusCode).toBe(200);
   }, 60_000);
 
