@@ -14,6 +14,7 @@ import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.
 import { formatList } from '../../core/owner/i18n/format.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
+import { firstStepButton } from './guide.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
 import { esc, deeper, signalMark, todoMark, ASSISTANT_HOME } from './layout.js';
@@ -451,7 +452,21 @@ export function renderOperationsHome(
   // that says everything is done (w4-today-setup-07); a chore's to-do ○, never
   // the waiting signal, which says a CUSTOMER waits (w4-today-setup-06).
   const setup = setupState();
-  const finishSetup = setup && setup.next !== null
+  // Phase 3b (approved at the owner's stop-gate, 2026-10-13) — A NEW WORKSPACE STARTS HERE. While setup is unfinished and nobody is
+  // waiting, setup is the only thing to do: Home leads with the next step — its name, why it matters, the door to do
+  // it (the page's one filled button, `firstStepButton`) and the video that shows it — and the five steps under it. A workspace in use keeps the small line below.
+  const starting = setup !== null && setup.next !== null && quietNow;
+  const startCard = starting && setup && setup.next ? `<section class="block home-start" aria-labelledby="home-start">
+      <h2 id="home-start">${esc(t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}</h2>
+      <p class="caption muted">${todoMark()} ${esc(t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))}</p>
+      <p>${esc(t(locale, `start.why.${setup.next}` as MessageKey, { name }))}</p>
+      <div class="home-start-go">${firstStepButton(locale, setup.next)}${
+        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div>
+      <ol class="home-steps" aria-label="${esc(t(locale, 'guide.title'))}">${setup.steps.map((x) =>
+        `<li class="${x.done ? 'ok' : x.step === setup.next ? 'next' : ''}"${x.step === setup.next ? ' aria-current="step"' : ''}><span>${
+          esc(t(locale, `factory.next.${x.step}` as MessageKey, { name }))}</span></li>`).join('')}</ol>
+    </section>` : '';
+  const finishSetup = setup && setup.next !== null && !starting
     ? `<div class="today-foot setup"><p>${todoMark()} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
         <div class="today-next">${deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
         deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
@@ -463,7 +478,7 @@ export function renderOperationsHome(
   </section>`;
 
   // What needs you — the raised card (the caught-up box's own lift), its rule above it the page's own.
-  const needsYou = `<section class="block home-now" aria-labelledby="today-now">
+  const needsYou = `${startCard}<section class="block home-now" aria-labelledby="today-now">
     <div class="home-card${quietNow ? ' is-calm' : ''}">
       ${head}
       ${refusing}${silenced}${stopped}${budget}

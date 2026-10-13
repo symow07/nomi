@@ -136,10 +136,13 @@ describe('D · the Today card', () => {
 
   it('names the next step and opens its door while setup is unfinished', () => {
     const html = withWorkspace(facts(), () => renderOperationsHome(snapshot, 'en', QUIET));
-    // The design pass: one line at the foot, the count in its sentence.
-    expect(html).toContain(t('en', 'today.setup.line', { done: 3, total: 5 }));
+    // CHANGED at the Phase 3 stop-gate (the owner, 2026-10-13): on a quiet day a workspace still setting up is led by
+    // the next step itself — where setup stands, its name, and "Do it now" as the page's one filled button — in place of
+    // the line at the foot. The line stays for a day with someone waiting (w5-today-setup).
+    expect(html).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    expect(html).not.toContain('today-foot setup');
     // the next step here is the name — confirmed on Getting ready
-    expect(html).toContain(`href="${STEP_LINK.name}"`);
+    expect(html).toContain(`<a class="btn send" data-first-step href="${STEP_LINK.name}">${t('en', 'guide.do')}</a>`);
     expect(html).toContain(t('en', 'factory.next.name'));
   });
 

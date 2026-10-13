@@ -104,7 +104,8 @@ d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL
     const spaced = `${lastCode().slice(0, 3)} ${lastCode().slice(3)}`;
     const ok = await form('/verify', { code: spaced }, `yf_otp=${pending}`);
     expect(ok.statusCode, ok.body.slice(0, 200)).toBe(302);
-    expect(String(ok.headers['location'])).toBe('/app/business');
+    // Phase 3b (the owner, 2026-10-13): a new workspace lands on Getting started, the one path — no longer My business.
+    expect(String(ok.headers['location'])).toBe('/app/guide');
     expect(flashSaid(ok, WEB_SECRET)).toBe(t('en', 'signup.welcome'));
     const set = cookies(ok);
     device = set['yf_dev'] ?? '';

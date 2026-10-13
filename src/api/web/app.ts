@@ -1615,7 +1615,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     toldOfSignup(made.businessId);
     noticeOnNextPage(reply, welcomeFor(risk));
     return signIn(reply, made.businessId, { id: made.personId, name: v.value.name, isOwner: true },
-      '/app/business', await passwordVersionOf(made.businessId, made.personId));
+      // Phase 3b — a new workspace lands on the one path: Getting started, its five steps in order.
+      '/app/guide', await passwordVersionOf(made.businessId, made.personId));
   });
 
   app.post('/login', async (req, reply) => {
@@ -1992,7 +1993,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       toldOfSignup(made.businessId);
       noticeOnNextPage(reply, welcomeFor(p.risk ?? null));
       return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
-        '/app/business', await passwordVersionOf(made.businessId, made.personId));
+        // Phase 3b — a new workspace lands on the one path: Getting started, its five steps in order.
+        '/app/guide', await passwordVersionOf(made.businessId, made.personId));
     }
     // A browser we had not seen, and now have.
     const login = await lookupLogin(deps.db, r.email).catch(() => null);
