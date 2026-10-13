@@ -27,7 +27,7 @@ import {
 } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
-import { alertKindFor, interrupts } from '../pipeline/notify.js';
+import { alertKindFor, interrupts, sendAlert } from '../pipeline/notify.js';
 import { loggableLine, loggableMessage } from '../security/loggable.js';
 import {
   appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
@@ -127,7 +127,7 @@ export async function startWorker(
   const watch = providerWatch({
     db,
     operatorBusinessId: env.PILOT_BUSINESS_ID ?? null,
-    send: async (job, key) => { await boss.send(QUEUES.notify, job, { singletonKey: key }); },
+    send: async (job, key) => { await sendAlert(boss, job, { singletonKey: key }); },
     provider: aiProcessor(llm.baseURL).name,
     probe: models.probe ?? (scripted ? null : async () => {
       // The smallest question there is; paid for only when it is answered, once per outage.
@@ -281,7 +281,7 @@ export async function startWorker(
     // customer ready to buy waits in the app, so no job is queued for them.
     const alertKind = alertKindFor(effects);
     if (alertKind && interrupts(alertKind)) {
-      await boss.send(QUEUES.notify, {
+      await sendAlert(boss, {
         businessId: input.businessId, kind: alertKind, conversationId: input.conversationId,
       } satisfies NotifyJob, {
         singletonKey: `${input.businessId}:${alertKind}:${input.conversationId}`,
@@ -306,7 +306,7 @@ export async function startWorker(
   ): Promise<void> => {
     const kind = effects ? alertKindFor(effects) : null;
     if (!kind || !interrupts(kind)) return;
-    await boss.send(QUEUES.notify, {
+    await sendAlert(boss, {
       businessId, kind, conversationId,
     } satisfies NotifyJob, { singletonKey: `${businessId}:${kind}:${conversationId}` });
   };

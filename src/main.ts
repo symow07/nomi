@@ -69,7 +69,8 @@ import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
 import { runDueSteps } from './outbound/sequences.js';
-import { deliverOwnerAlert, DAILY_PRIORITY } from './pipeline/notify.js';
+import { deliverOwnerAlert, sendAlert, lateUrgentAlert } from './pipeline/notify.js';
+import type { JobWithMetadata } from 'pg-boss';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
@@ -1407,8 +1408,13 @@ export async function buildProduction(
   const noNumberForAlerts = {
     sendText: async () => ({ ok: false as const, retryable: false, error: 'no WhatsApp adapter: owner alerts need a number' }),
   };
-  await boss.work<NotifyJob>(QUEUES.notify, async ([job]: { data: NotifyJob }[]) => {
+  await boss.work(QUEUES.notify, { includeMetadata: true }, async ([job]: JobWithMetadata<NotifyJob>[]) => {
     if (!job) return;
+    // The owner's word after the 106 seconds (2026-10-13): an urgent alert that waited too long in the queue is
+    // reported, so whatever held it back is named the day it happens (`lateUrgentAlert`).
+    const late = lateUrgentAlert(job.data.kind, job.createdOn, new Date());
+    if (late !== null) void errors.report(new Error(`an urgent alert (${job.data.kind}) waited ${Math.round(late / 1000)} s in the queue`),
+      `worker:${QUEUES.notify}`, { businessId: job.data.businessId });
     // Phase 8 of the warmth run — WhatsApp is a way out of Nomi only once Meta
     // approved Nomi (`META_APP_REVIEW=approved:<date>`): the day it does, everyone
     // on the default notification way is on WhatsApp, with nothing rebuilt.
@@ -1444,7 +1450,7 @@ export async function buildProduction(
     const fresh = backupFreshness(latest?.uploadedAt ?? null, new Date());
     if (!fresh.stale) { console.log(`[backups] last completed ${fresh.hoursSince.toFixed(1)} h ago (${latest?.name})`); return; }
     console.warn(`[backups] STALE: ${fresh.hoursSince === null ? 'no completed backup ever' : `${fresh.hoursSince.toFixed(1)} h since ${latest?.name}`}`);
-    await boss.send(QUEUES.notify, {
+    await sendAlert(boss, {
       businessId: job.data.businessId, kind: 'backup_stale', conversationId: null,
       lastBackupAt: latest?.uploadedAt.toISOString() ?? null,
     } satisfies NotifyJob, { singletonKey: 'backup_stale' });
@@ -1466,7 +1472,7 @@ export async function buildProduction(
     const alert = await deletionDueAlert(db, job.data.businessId, new Date());
     if (!alert) { console.log('[deletions] nothing due within 7 days'); return; }
     console.warn(`[deletions] ${alert.deletionsDue?.length ?? 0} request(s) due within 7 days or late`);
-    await boss.send(QUEUES.notify, alert satisfies NotifyJob,
+    await sendAlert(boss, alert satisfies NotifyJob,
       { singletonKey: 'deletion_due', singletonSeconds: 24 * 3600 });
   });
 
@@ -1486,7 +1492,7 @@ export async function buildProduction(
     for (const c of due) {
       if (c.step === '60d') continue;   // the app flags it; the chase is recorded
       // The owner's decision (2026-10-12): the reminder carries no customer data — no date, no conversation.
-      await boss.send(QUEUES.notify, { businessId: c.business_id, kind: 'deletion_reminder', conversationId: null } satisfies NotifyJob);
+      await sendAlert(boss, { businessId: c.business_id, kind: 'deletion_reminder', conversationId: null } satisfies NotifyJob);
     }
     if (due.length > 0) console.log(`[deletions] ${due.length} waiting request(s) chased`);
   });
@@ -1499,9 +1505,9 @@ export async function buildProduction(
   await boss.schedule(QUEUES.morningSummary, '*/15 * * * *', {});
   await boss.work(QUEUES.morningSummary, async () => {
     for (const due of await claimMorningSummaries(db)) {
-      await boss.send(QUEUES.notify, {
+      await sendAlert(boss, {
         businessId: due.businessId, kind: 'morning_summary', conversationId: null, personId: due.personId, summaryDay: due.day,
-      } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600, priority: DAILY_PRIORITY });
+      } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600 });
     }
   });
 
@@ -1538,7 +1544,7 @@ export async function buildProduction(
     const alert = await metaErrorAlert(db, job.data.businessId, new Date());
     if (!alert) return;
     console.warn(`[meta-errors] ${alert.metaErrors?.length ?? 0} workspace(s) over the line`);
-    await boss.send(QUEUES.notify, alert satisfies NotifyJob,
+    await sendAlert(boss, alert satisfies NotifyJob,
       { singletonKey: 'meta_errors', singletonSeconds: META_ERROR_ALERT_EVERY_HOURS * 3600 });
   });
 
@@ -1556,7 +1562,7 @@ export async function buildProduction(
   await boss.work(QUEUES.signupDigest, async () => {
     const digest = await signupDigestAlert(db, PILOT_BUSINESS_ID, new Date());
     if (!digest) return;
-    await boss.send(QUEUES.notify, digest satisfies NotifyJob, { singletonKey: 'signup_digest', singletonSeconds: 23 * 3600 });
+    await sendAlert(boss, digest satisfies NotifyJob, { singletonKey: 'signup_digest', singletonSeconds: 23 * 3600 });
   });
 
   // G3 — every five minutes: an owner whose workspace crossed 80% or 100% of
@@ -1570,7 +1576,7 @@ export async function buildProduction(
     if (stripe) await subscribeSweep(db, stripe.client, new Date()).catch((e: unknown) => console.warn(`[billing] sweep: ${loggableMessage(e instanceof Error ? e.message : String(e))}`));
     // KS6 — and each decision on a first connection, told to its owner once.
     for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db), ...await billingAlerts(db)]) {
-      await boss.send(QUEUES.notify, job satisfies NotifyJob);
+      await sendAlert(boss, job satisfies NotifyJob);
     }
   });
 
