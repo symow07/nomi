@@ -58,6 +58,7 @@ export const QUEUES = {
    * owner reminded at 7 and 30 days, the app flagging it at 60 — never carried out.
    */
   deletionChase: 'ops.deletion_chase',
+  morningSummary: 'ops.morning_summary',
   /**
    * CC-10 — every five minutes: the error alert the hourly limit held back,
    * once the hour has room for it (src/db/appErrors.ts). Errors are recorded
@@ -241,7 +242,7 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
+  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'morning_summary' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
     | 'provider_refusing' | 'provider_answering' | 'provider_balance';
   conversationId: string | null;
@@ -272,6 +273,9 @@ export type NotifyJob = {
   mail?: { codes: number; alerts: number; refused: number };
   /** `signup_digest` (KS6): asks to connect a first channel waiting for the operator. */
   approvals?: number;
+  /** `morning_summary` (Phase 2a, 0150): whose summary, and which of their local days it is for. */
+  personId?: string;
+  summaryDay?: string;
   /** `signup_digest` (Phase 1, 0149): the sign-up check's day — asked for a card first, refused, and why. */
   check?: { cards: number; refused: number; why: { outcome: 'card' | 'refused'; reason: string; n: number }[] };
   /** BILL: the trial's end (`billing_trial_ending`), ISO. */

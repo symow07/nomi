@@ -27,6 +27,8 @@ import type { MessageKey } from './i18n/messages.js';
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // HS — saved with no line ticked: nothing was written.
   'hs.flash.noneTicked',
+  // Phase 2a — quiet hours that are not a window: nothing was saved.
+  'alerts.flash.morningBad',
   // G5b — a phone that could not be added, or a test no phone received.
   'alerts.flash.bad', 'alerts.flash.testNone',
   // The warmth run, phase 8 — a way that cannot be chosen here: nothing was saved.
@@ -181,6 +183,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'hs.flash.saved', 'hs.flash.skipped',
   // G5b — alerts turned on, stopped, or a test sent.
   'alerts.flash.on', 'alerts.flash.removed', 'alerts.flash.tested', 'alerts.flash.way',
+  // Phase 2a — the morning summary's switch and quiet hours saved.
+  'alerts.flash.morning',
   'product.flash.alreadyHere', 'product.flash.updated', 'product.alias.removed', 'proof.owner.flash.issued',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',

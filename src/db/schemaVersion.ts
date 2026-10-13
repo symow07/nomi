@@ -370,7 +370,10 @@ import type { Db } from './client.js';
 // 149 = the operator sees what the sign-up check did (0149): `signup_refusals`, `signup_mark_refused`, which a
 //       refused sign-up calls, and `signup_check_since`, which the daily digest reads; against a 148 database the
 //       digest fails.
-export const REQUIRED_SCHEMA_VERSION = 149;
+// 150 = the morning summary (0150): `people.morning_summary`, `quiet_from`, `quiet_until`, `morning_summaries`,
+//       `claim_morning_summaries` and `morning_summary_done`, which the fifteen-minute job and the notify worker
+//       call; against a 149 database the job fails and Notifications cannot read the owner's switch.
+export const REQUIRED_SCHEMA_VERSION = 150;
 
 export type SchemaState = {
   readonly required: number;

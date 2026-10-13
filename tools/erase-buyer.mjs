@@ -295,6 +295,7 @@ export const RULES = Object.freeze({
   // D4 (0147) — the record that a waiting deletion request was chased: ids and dates, Nomi's own.
   deletion_chases: { do: 'unrelated' },
   signup_risk: { do: 'unrelated' },
+  morning_summaries: { do: 'unrelated' },
 });
 
 /**

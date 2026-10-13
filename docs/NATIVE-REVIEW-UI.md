@@ -15893,3 +15893,18 @@ use Nomi at a business" section and its cookie table, and the sign-up page's ref
   a fingerprint taken from a person; that the refusal reads as a door, not an accusation.
 
 Reviewer: ______  Date: ______
+
+## 2026-10-13 — Phase 2a: the morning summary
+
+Written in zh, ar, es and fr in one pass; none has had a native read. Not a gate. Read the summary as it arrives
+(e-mail by default) and the "Morning summary" section on Notifications.
+
+- **The keys:** `notify.morning_summary.subject`, `notify.morning_summary`, `summary.waiting`, `summary.quiet`,
+  `summary.sold`, `summary.soldBare`, `summary.open`, `summary.off`, `alerts.morning.*` (title, lede, on, quiet,
+  quietHint, from, until, none, save), `alerts.flash.morning`, `alerts.flash.morningBad`.
+- **Where the words differ, and why:** counts, never names (no customer's name leaves Nomi in it); Arabic says
+  "conversations that stopped" («محادثات متوقفة») so no verb agrees with a customer, and «يلزم» rather than «تحتاج»,
+  which reads as addressing the owner; French has no «il/elle».
+- **Check:** that 免打扰时段 / ساعات الهدوء / horas de silencio / heures de silence read as "don't send me anything then".
+
+Reviewer: ______  Date: ______

@@ -4,7 +4,7 @@ import {
   ALERT_CHANNELS, alertChannelFor, defaultAlertChannel, ownerWhatsAppReachable, ownerWhatsAppDefault, parseAlertChannel, storedAlertChoice,
 } from '../../src/core/owner/alertChannel.js';
 import {
-  reachPeople, deliverOwnerAlert, interrupts, waitsInApp, goesByMail, INTERRUPTION_KINDS, QUIET_KINDS, OPERATOR_ALERT_KINDS,
+  reachPeople, deliverOwnerAlert, interrupts, waitsInApp, goesByMail, isDaily, INTERRUPTION_KINDS, QUIET_KINDS, OPERATOR_ALERT_KINDS,
   type InterruptionWays, type WayResult,
 } from '../../src/pipeline/notify.js';
 import type { InterruptionPerson } from '../../src/db/alertChannel.js';
@@ -138,13 +138,14 @@ describe('only two things leave Nomi', () => {
     for (const k of OPERATOR_ALERT_KINDS) expect(goesByMail(k), k).toBe(true);
   });
 
-  it('every kind a job can carry is one of the three, and no kind is two of them', () => {
+  // Phase 2a (the owner's word, 2026-10-13) — a fourth class: the morning summary, a daily letter the owner can stop.
+  it('every kind a job can carry is one of the four, and no kind is two of them', () => {
     const boss = readFileSync(new URL('../../src/queue/boss.ts', import.meta.url), 'utf8');
     const union = /kind: ('[a-z_]+'(?:\s*\|\s*'[a-z_]+')*);/.exec(boss.replace(/\n\s*\|/g, ' |'))![1]!;
     const kinds = [...union.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]! as Parameters<typeof interrupts>[0]);
     expect(kinds.length).toBeGreaterThan(20);
     for (const k of kinds) {
-      expect([goesByMail(k), interrupts(k), waitsInApp(k)].filter(Boolean), k).toHaveLength(1);
+      expect([goesByMail(k), interrupts(k), waitsInApp(k), isDaily(k)].filter(Boolean), k).toHaveLength(1);
     }
   });
 
