@@ -59,8 +59,10 @@ test — the owner's call.
 
 **Still the owner's, from Phase 1:**
 - The go-live steps in `docs/GO-LIVE.md`, in order, after the LLC.
-- The pages still say "we" / "us" / "our" in about 76 English lines (×5 languages). The roadmap says nothing says
-  "we" until the company is registered; Phase 1 added none. A rewrite pass is the owner's to order.
+- The pages still say "we" / "us" / "our" in about 76 English lines (×5 languages). Decided (the owner,
+  2026-10-13): left as they are, and rewritten in ONE pass when the LLC exists, with the `OPERATOR` constant and
+  the legal name and address — step 1 of `docs/GO-LIVE.md` "Opening sign-up to anyone". Nothing public may say
+  "we" before a real customer can sign up, and no real customer can sign up before the LLC.
 - The new zh/ar/es/fr lines are on `docs/NATIVE-REVIEW-UI.md` (2026-10-13 section). Not a gate.
 
 **The session restarted on 2026-10-13 and cleared the scratchpad** (the check scripts, the worktrees and the local
