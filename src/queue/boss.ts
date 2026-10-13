@@ -272,6 +272,8 @@ export type NotifyJob = {
   mail?: { codes: number; alerts: number; refused: number };
   /** `signup_digest` (KS6): asks to connect a first channel waiting for the operator. */
   approvals?: number;
+  /** `signup_digest` (Phase 1, 0149): the sign-up check's day — asked for a card first, refused, and why. */
+  check?: { cards: number; refused: number; why: { outcome: 'card' | 'refused'; reason: string; n: number }[] };
   /** BILL: the trial's end (`billing_trial_ending`), ISO. */
   billingAt?: string;
   /** `spend_breaker` (KS5): the installation's day so far, and its ceiling. */

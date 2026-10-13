@@ -15884,7 +15884,8 @@ use Nomi at a business" section and its cookie table, and the sign-up page's ref
 - **The keys:** `legal.privacy.owner.signupCheck` (the check, the fingerprint, the 180 days), `legal.privacy.cookies.for.signup`,
   `legal.privacy.cookies.body` (the sign-up cookie added; "none tracks you" dropped), `legal.privacy.owner.howLong` (the
   marks outlive a closed workspace), `legal.updated.privacy`, `signup.riskRefused`, `signup.riskRefused.contact`,
-  `signup.welcome.card`.
+  `signup.welcome.card`; the refund page's "one trial per business" (`legal.refunds.trial.body`, `legal.updated.refunds`);
+  and the operator's `notify.signup_digest.check.cards` and `.refused` (0149).
 - **Where the words differ, and why:** no "we" (the roadmap: nothing says "we" until the company is registered), so
   the refusal says "a person will look at it"; zh keeps out 它 (浏览器所在的网络, 这些编码); Arabic uses the passive for
   everything Nomi does («تُقارَن», «تُطلب بطاقة دفع»); French has no «il/elle» («n'est pas ouverte directement»).

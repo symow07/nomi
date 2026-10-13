@@ -184,3 +184,42 @@ drafts only, operator-assisted (decision 34). `docs/FACTORY-PROVISIONING.md`
 connections at once; `--set global_silence` silences the assistant;
 `tools/suspend-workspace.mjs` takes one workspace out completely
 (`docs/INCIDENT-PLAYBOOK.md`).
+
+## Opening sign-up to anyone (Phase 1)
+
+Built and tested (#314, #315; 0148, 0149); **not switched on.** The owner's hard order (the roadmap of
+2026-10-13): open waits until a real card has gone through Stripe and the portal-cancellation check is done, and
+both wait on the LLC. Nothing below is run before the owner says go.
+
+**What open sign-up does** (`docs/LEGAL.md`, "Sign-up abuse check"): every form is scored on what it shares with
+the workspaces signed up in the last 180 days — the same browser (a sign-up cookie), the same browser fingerprint
+on the same network, the same network, the same mailbox (dots and "+tags" set aside), a throwaway mailbox — and
+on a day's attempts (`src/core/owner/signupRisk.ts`). Low gets the installation's free trial; medium is asked for a
+card before its first channel and has no free trial, and is told so on its first page; high is refused, in plain
+words, with the legal contact to reach a person. An invitation vouches: an invited sign-up is never refused.
+
+**Before the switch** (each the owner's, in this order):
+
+1. The LLC exists; Nomi's legal name, address and copyright agent are on the pages.
+2. A real card has gone through Stripe, and cancelling from Stripe's customer portal was checked end to end.
+3. The plans are set from Stripe's prices (`tools/billing.mjs plan-set …`) — pricing is the owner's.
+4. The free trial, if any: `tools/billing.mjs trial-default <days|off>` — the owner's. Unset, nobody has one.
+5. Whether every workspace needs a card before its first channel: `tools/ops-flags.mjs --set billing_required --all`
+   — the owner's. Medium sign-ups need one either way.
+
+**The switch:**
+
+1. A backup younger than the day; schema at least 149; `/health` ok.
+2. In Railway, by name (values pasted by the owner): the installation's sender (without it open reads as
+   closed), `BOT_CHECK_PROVIDER`, `BOT_CHECK_SITE_KEY`, `BOT_CHECK_SECRET` (without them open reads as invite —
+   `tools/signup-mode.mjs` says which), `SIGNUP_CAP` as decided.
+3. `railway run --service nomi -- node tools/signup-mode.mjs open --by "<you>" --yes`. Check: `/signup` has no
+   invitation field; nomidoes.com's button says sign up (it follows the mode in force, #189).
+
+**Every day after:** the 07:15 UTC sign-up list has a line for the check — how many were asked for a card first,
+how many were refused, and each reason's count. A refusal that should not have been: the person writes to the
+legal contact; answer with an invitation (`tools/invite-factory.mjs`), which vouches. Many wrong refusals for one
+reason: the points and thresholds are in `src/core/owner/signupRisk.ts` (a code change, with its tests).
+
+**To stop at once:** `tools/signup-mode.mjs closed --by "<you>" --yes` (or `invite`); `deployment` follows
+`SIGNUP_MODE` again.

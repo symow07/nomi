@@ -193,6 +193,8 @@ export type OperatorAlertDetail = {
   readonly mail?: { readonly codes: number; readonly alerts: number; readonly refused: number };
   /** `signup_digest` (KS6): how many workspaces wait for the operator's approval to connect. */
   readonly approvals?: number;
+  /** `signup_digest` (Phase 1, 0149): the sign-up check's day — asked for a card first, refused, and why. */
+  readonly check?: { readonly cards: number; readonly refused: number; readonly why: readonly { readonly outcome: 'card' | 'refused'; readonly reason: string; readonly n: number }[] };
   /** `billing_trial_ending` (BILL): when the trial ends, ISO. */
   readonly billingAt?: string;
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
@@ -339,9 +341,15 @@ export function renderOwnerAlert(
     const mail = detail.mail ? [t(locale, detail.mail.refused ? 'notify.signup_digest.mail.capped' : 'notify.signup_digest.mail', detail.mail)] : [];
     // KS6 — asks to connect a first channel, waiting for the operator.
     const approvals = detail.approvals ? [t(locale, 'notify.signup_digest.approvals', { n: detail.approvals })] : [];
+    // Phase 1 (0149) — what the sign-up check did: reasons by their codes, the operator's own words for them.
+    const why = (o: 'card' | 'refused') => (detail.check?.why ?? []).filter((w) => w.outcome === o).map((w) => `${w.reason} ×${w.n}`).join(', ') || '—';
+    const check = [
+      ...(detail.check?.cards ? [t(locale, 'notify.signup_digest.check.cards', { n: detail.check.cards, why: why('card') })] : []),
+      ...(detail.check?.refused ? [t(locale, 'notify.signup_digest.check.refused', { n: detail.check.refused, why: why('refused') })] : []),
+    ];
     return [t(locale, 'notify.signup_digest', { n: list.length }),
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
-      ...forms, ...cohort, ...mail, ...approvals, ...flags].join('\n');
+      ...forms, ...check, ...cohort, ...mail, ...approvals, ...flags].join('\n');
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -645,6 +653,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.cohort ? { cohort: job.cohort } : {}),
     ...(job.mail ? { mail: job.mail } : {}),
     ...(job.approvals ? { approvals: job.approvals } : {}),
+    ...(job.check ? { check: job.check } : {}),
     ...(job.billingAt ? { billingAt: job.billingAt } : {}),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
