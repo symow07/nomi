@@ -13,6 +13,7 @@ import {
   type ErrorContext, type ErrorWhere, type ReportError,
 } from '../core/ops/appErrors.js';
 import { QUEUES, type NotifyJob } from '../queue/boss.js';
+import { sendAlert } from '../pipeline/notify.js';
 
 /**
  * CC-10 — THE ERROR RECORDER. One per process, built by `startWorker` beside
@@ -126,7 +127,7 @@ export function appErrorAlertsTo(
   boss: Pick<PgBoss, 'send'>, operatorBusinessId: string,
 ): (a: AppErrorAlert, tx: Tx) => Promise<void> {
   return async (a, tx) => {
-    const id = await boss.send(QUEUES.notify, appErrorNotifyJob(operatorBusinessId, a) satisfies NotifyJob, {
+    const id = await sendAlert(boss, appErrorNotifyJob(operatorBusinessId, a) satisfies NotifyJob, {
       // One job per fingerprint a minute, at most — the row's claim is the
       // real guarantee; this is the queue's own belt to that brace.
       singletonKey: `app_error:${a.fingerprint}`, singletonSeconds: 60,

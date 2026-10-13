@@ -3,7 +3,8 @@ import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import { type Locale, parseLocale } from '../core/owner/i18n/locale.js';
 import { t, capabilityName, type MessageKey } from '../core/owner/i18n/messages.js';
-import type { AppErrorAlertJob, NotifyJob } from '../queue/boss.js';
+import { QUEUES, type AppErrorAlertJob, type NotifyJob } from '../queue/boss.js';
+import type { PgBoss, SendOptions } from 'pg-boss';
 import type { SendResult } from '../channels/contract.js';
 import { assistantNameOfConversation, mainAssistantName } from '../db/assistants.js';
 import { ownerLoginEmail, channelIsLive } from '../db/backups.js';
@@ -142,6 +143,41 @@ export const isDaily = (kind: AlertKind): boolean => (DAILY_KINDS as readonly Al
  * summary goes below them: an interruption queued after fifty summaries is the next one out.
  */
 export const DAILY_PRIORITY = -1;
+
+/**
+ * THE ALERTS A CUSTOMER IS WAITING ON, NOW (the owner's word after the 106 seconds, 2026-10-13): a hand-over, an order
+ * waiting for the owner's tap, a deletion request — each the moment it happens. They go out before anything else in
+ * the queue, whatever floods it: a batch at the default priority (a sweep's quiet alerts, the operator's lists, the
+ * daily deletion chase) cannot hold one back again. `deletion_reminder` interrupts too, but it is the daily chase of a
+ * request already waiting, sent in a batch: put at the top it would be the next flood.
+ */
+export const URGENT_KINDS = ['handoff', 'order_proposed', 'deletion_requested'] as const satisfies readonly (typeof INTERRUPTION_KINDS[number])[];
+export const isUrgent = (kind: AlertKind): boolean => (URGENT_KINDS as readonly AlertKind[]).includes(kind);
+export const URGENT_PRIORITY = 1;
+
+/** The queue priority of an alert, by its class: urgent first, every other alert, the daily letter last. */
+export const alertPriority = (kind: AlertKind): number =>
+  isUrgent(kind) ? URGENT_PRIORITY : isDaily(kind) ? DAILY_PRIORITY : 0;
+
+/**
+ * THE ONE WAY AN ALERT IS QUEUED: with its class's priority. `tests/parity/alert-priority.test.ts` refuses any other
+ * `send` to the alert queue anywhere in src/.
+ */
+export function sendAlert(boss: Pick<PgBoss, 'send'>, job: NotifyJob, options: SendOptions = {}): Promise<string | null> {
+  return boss.send(QUEUES.notify, job, { ...options, priority: alertPriority(job.kind) });
+}
+
+/**
+ * THE ALARM ON TIME-TO-SEND: an urgent alert that waited longer than this in the queue is reported as an error (the
+ * operator's e-mail, rate-limited, like every other) — so whatever delays the next one is named the day it happens,
+ * not found in a test run weeks later.
+ */
+export const URGENT_LATE_MS = 60_000;
+export function lateUrgentAlert(kind: AlertKind, queuedAt: Date | null | undefined, now: Date): number | null {
+  if (!isUrgent(kind) || !queuedAt) return null;
+  const waited = now.getTime() - queuedAt.getTime();
+  return waited > URGENT_LATE_MS ? waited : null;
+}
 
 /**
  * …and what used to reach the owner outside Nomi and now waits in it, by the

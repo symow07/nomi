@@ -58,10 +58,12 @@ d('the morning summary waits behind every alert that interrupts (requires DATABA
     expect(await firstOut(AFTER, DAILY_PRIORITY)).toBe('handoff');
   });
 
-  it('the sweep sends every summary at DAILY_PRIORITY', () => {
+  it('the sweep sends every summary at DAILY_PRIORITY — through sendAlert, which gives each alert its class\'s', async () => {
     const src = readFileSync('src/main.ts', 'utf8');
     const sweep = src.slice(src.indexOf('await boss.work(QUEUES.morningSummary'), src.indexOf('});', src.indexOf('await boss.work(QUEUES.morningSummary')));
     expect(sweep).toContain("kind: 'morning_summary'");
-    expect(sweep).toContain('priority: DAILY_PRIORITY');
+    expect(sweep).toContain('await sendAlert(boss, ');
+    const { alertPriority } = await import('../../src/pipeline/notify.js');
+    expect(alertPriority('morning_summary')).toBe(DAILY_PRIORITY);
   });
 });
