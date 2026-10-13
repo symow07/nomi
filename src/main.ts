@@ -69,7 +69,7 @@ import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { metaReviewFrom } from './core/channel/metaReview.js';
 import { runDueSteps } from './outbound/sequences.js';
-import { deliverOwnerAlert } from './pipeline/notify.js';
+import { deliverOwnerAlert, DAILY_PRIORITY } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
@@ -1501,7 +1501,7 @@ export async function buildProduction(
     for (const due of await claimMorningSummaries(db)) {
       await boss.send(QUEUES.notify, {
         businessId: due.businessId, kind: 'morning_summary', conversationId: null, personId: due.personId, summaryDay: due.day,
-      } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600 });
+      } satisfies NotifyJob, { singletonKey: `morning:${due.personId}:${due.day}`, singletonSeconds: 20 * 3600, priority: DAILY_PRIORITY });
     }
   });
 

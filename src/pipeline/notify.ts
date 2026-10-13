@@ -135,6 +135,15 @@ export const DAILY_KINDS = ['morning_summary'] as const satisfies readonly Alert
 export const isDaily = (kind: AlertKind): boolean => (DAILY_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
+ * THE DAILY LETTER WAITS ITS TURN (found 2026-10-13, by the integration suite). The sweep claims every owner whose
+ * clock reached 08:00 at once, and the alert queue is one: its worker takes a job a poll (about two seconds), oldest
+ * first among equals. Fifty summaries queued at 08:00 put a customer's hand-over, queued a second later, behind all
+ * of them — a hundred seconds late. pg-boss takes the higher priority first; every other alert is sent at 0, so a
+ * summary goes below them: an interruption queued after fifty summaries is the next one out.
+ */
+export const DAILY_PRIORITY = -1;
+
+/**
  * …and what used to reach the owner outside Nomi and now waits in it, by the
  * same rule ("Everything else waits quietly in-app"). Where each waits:
  *
