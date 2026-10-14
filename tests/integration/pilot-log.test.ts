@@ -114,8 +114,12 @@ d('Gate A · the pilot log is written, ordered and moved by one tool (requires D
     expect(out).toContain('PILOT DECISIONS — 1');
     expect(out).toContain(`[until ${until}] Billing exempt for the pilot week`);
 
-    // Its day passes: the triage says to undo it.
-    await admin.query("update pilot_log set ends_on = current_date - 1 where business_id = $1 and kind = 'pilot_decision'", [OTHER]);
+    // Its day passes: the triage says to undo it. "Yesterday" by the TOOL's clock (UTC — it reads today as
+    // `new Date().toISOString()`), never the database's `current_date`: a local database runs on the machine's zone,
+    // and from 00:00 to 08:00 in Shanghai its yesterday is the tool's today — this failed every night then (found
+    // 2026-10-15, 00:30 local). Production's database runs on UTC, so only the test disagreed.
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    await admin.query("update pilot_log set ends_on = $2::date where business_id = $1 and kind = 'pilot_decision'", [OTHER, yesterday]);
     out = tool(['triage', '--business', OTHER]).out;
     expect(out).toMatch(/\[ENDED \d{4}-\d{2}-\d{2} — undo it\] Billing exempt/);
   });
