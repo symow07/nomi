@@ -387,7 +387,10 @@ import type { Db } from './client.js';
 // 155 = a buyer's address is each workspace's own (0155): `client_channels` unique on (business_id, channel,
 //       channel_user_id), which every new conversation's insert names. Against a 154 database that insert has no
 //       matching key and every first message from a new buyer fails.
-export const REQUIRED_SCHEMA_VERSION = 155;
+// 156 = a Chinese product name is found from the part of it a buyer says (0156): `alias_match`, which
+//       `retrieve_products` and `tools/capability-sweep.mjs` call. Against a 155 database Chinese names are matched
+//       by trigrams as before (a substring of a name scored 0.077) and the sweep's catalogue layer fails.
+export const REQUIRED_SCHEMA_VERSION = 156;
 
 export type SchemaState = {
   readonly required: number;

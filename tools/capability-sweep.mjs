@@ -19,13 +19,14 @@
  *     times per language (default 3), so a language that only wobbles is told
  *     from one that differs;
  *  2. the catalogue search — before any model, a product is found only through
- *     its names (`retrieve_products`, migration 0007: trigram similarity over
- *     `product_aliases`, kept above 0.15). For the scenarios about the pilot
+ *     its names (`retrieve_products`: `alias_match` over `product_aliases`,
+ *     kept above 0.15 — trigrams, and a Chinese name by its character pairs
+ *     since 0156). For the scenarios about the pilot
  *     product, this asks whether ITS names — "Non-woven shopping bag",
  *     "无纺布购物袋" and the two customer names the Practice sandbox gives it,
  *     as a workspace that typed English and Chinese names has — are found from
- *     each language's words, using Postgres's own `similarity()` (production's
- *     database answers it identically; checked 2026-10-14). Where they are not,
+ *     each language's words, using the database's own `alias_match()` — the
+ *     function production calls (a local database at 156 or later). Where they are not,
  *     the scenario is run again with nothing found, as production would.
  *
  * WHAT IT REPORTS, per scenario and layer: the kind of reply (greet / qualify
@@ -37,7 +38,7 @@
  * one language and waits in another, under any of the three.
  *
  * It touches no Nomi database: the model is asked through the service's
- * environment, and Postgres is asked only `similarity()` of two strings, on a
+ * environment, and Postgres is asked only `alias_match()` of two strings, on a
  * LOCAL database named by SWEEP_TRGM_URL (refused unless it is this machine).
  * It prints no secret: the provider's kind and the model's name only.
  *
@@ -81,7 +82,7 @@ const analyzer = anthropicAnalyzer(llmClient(provider), provider.model, requestE
 // ── layer 2: does the catalogue search find the pilot product from these words? ──
 /** The pilot product's names, as a workspace that typed them in English and Chinese has them. */
 const PRODUCT_NAMES = aliasRowsFor(['Non-woven shopping bag', '无纺布购物袋', 'shopping bag', 'non woven bag']).map((a) => a.alias);
-/** `retrieve_products` keeps an alias above this similarity (migration 0007). */
+/** `retrieve_products` keeps an alias whose `alias_match` is above this (0007, 0156). */
 const KEEP_ABOVE = 0.15;
 
 let similarityOf = null;
@@ -91,14 +92,14 @@ if (CATALOGUE) {
   let host = '';
   try { host = new URL(url).hostname; } catch { /* not a URL */ }
   if (!['127.0.0.1', 'localhost', '[::1]', '::1'].includes(host)) {
-    console.error('Layer 2 asks a LOCAL Postgres for similarity(): set SWEEP_TRGM_URL to one on this machine, or pass --no-catalogue.');
+    console.error('Layer 2 asks a LOCAL Postgres for alias_match(): set SWEEP_TRGM_URL to one on this machine, or pass --no-catalogue.');
     process.exit(2);
   }
   const { toolClient } = await import('./lib/db.mjs');
   db = toolClient(url, { replyTimeoutMs: 10_000 });
   await db.connect();
   similarityOf = async (text) => Number((await db.query(
-    'select coalesce(max(similarity(lower(a), lower($1))), 0)::float8 as r from unnest($2::text[]) a',
+    'select coalesce(max(alias_match(a, $1)), 0)::float8 as r from unnest($2::text[]) a',
     [text, PRODUCT_NAMES])).rows[0].r);
 }
 
