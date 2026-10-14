@@ -160,6 +160,12 @@ export type ProdConfig = {
    * whoever has it can mark the check up — so it is never logged.
    */
   HEALTH_PING_URL?: string;
+  /**
+   * The person who runs Nomi until the company exists (the owner's decision at the Phase 4 gate, 2026-10-14): named
+   * on the legal pages as who "we" means, with the contact address. Optional: absent, the pages name nobody and the
+   * boot says so. Kept out of the repository on purpose: it is a person's name.
+   */
+  OPERATOR_PERSON?: string;
 };
 
 type Shape = (v: string) => boolean;
@@ -219,6 +225,8 @@ const OPTIONAL_SHAPES: Record<string, Shape> = {
   HEALTH_PING_URL: (v) => /^https:\/\/[^\s/?#]+\/[^\s]+$/.test(v),
   // REKEY — the key CREDENTIAL_KEY replaced, only during a rotation: read with, never sealed with.
   CREDENTIAL_KEY_PREVIOUS: (v) => /^[0-9a-f]{64}$/i.test(v),
+  // A person's name as written: letters (any script), spaces, the marks names carry; 2–80 characters.
+  OPERATOR_PERSON: (v) => /^\p{L}[\p{L}\p{M} .'’-]{1,79}$/u.test(v.trim()),
 };
 
 export function validateEnv(env: Record<string, string | undefined>, recipients: readonly OptionalRecipient[] = OPTIONAL_RECIPIENTS):
@@ -291,6 +299,7 @@ export function validateEnv(env: Record<string, string | undefined>, recipients:
       ...(env['PUBLIC_BASE_URL'] ? pick('PUBLIC_BASE_URL') : {}),
       ...(env['SITE_HOSTS'] ? pick('SITE_HOSTS') : {}),
       ...(env['HEALTH_PING_URL'] ? pick('HEALTH_PING_URL') : {}),
+      ...(env['OPERATOR_PERSON'] ? pick('OPERATOR_PERSON') : {}),
     },
   };
 }
@@ -807,6 +816,10 @@ export async function buildProduction(
   // the model client is built from, so the two can never disagree again.
   const legalFacts = { processor: aiProcessor(llm.baseURL), hosting: HOSTING };
   console.log(`Privacy page names: ${processorForLog(legalFacts.processor)} · hosted on ${processorForLog(HOSTING)}`);
+  // The owner's decision at the Phase 4 gate (2026-10-14): the legal pages name who runs Nomi before any real business
+  // uses it. The name is not logged; only whether one is set.
+  console.log(cfg.OPERATOR_PERSON?.trim() ? 'Legal pages name who runs Nomi (OPERATOR_PERSON).'
+    : 'Legal pages name nobody as running Nomi: OPERATOR_PERSON is unset.');
   if (legalFacts.processor.country === null) {
     console.warn(`Model provider ${legalFacts.processor.name} is not a host this build can name a country for — the privacy page will not state where messages are processed.`);
   }
@@ -947,6 +960,8 @@ export async function buildProduction(
       // Named on /privacy and /data-deletion; absent, those pages say to write
       // to the business from the account you used.
       legalContact: cfg.LEGAL_CONTACT_EMAIL ?? null,
+      // Phase 4 gate (2026-10-14) — who "we" means on the legal pages until the company exists.
+      operatorPerson: cfg.OPERATOR_PERSON?.trim() || null,
       legalFacts,
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
       // their emoji, unchanged. The small cut, because the header avatar is 30px.

@@ -320,6 +320,11 @@ export type WebDeps = {
    */
   readonly legalContact?: string | null;
   /**
+   * The person who runs Nomi until the company exists (`OPERATOR_PERSON`; the owner's decision at the Phase 4 gate,
+   * 2026-10-14): each legal page says so at its top, and that "we" on it means them. Absent, it names nobody.
+   */
+  readonly operatorPerson?: string | null;
+  /**
    * Who processes a buyer's words, and where. The privacy page states it, so it
    * is given the answer rather than repeating one — see core/legal/processors.
    */
@@ -1289,19 +1294,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     botCheck: deps.botCheck ? { name: BOT_CHECK_WIDGET[deps.botCheck.provider].name, country: null } : null,
   };
   app.get('/privacy', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
+    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req), deps.operatorPerson ?? null)));
   app.get('/data-deletion', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
+    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req), deps.operatorPerson ?? null)));
   app.get('/terms', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req))));
+    reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null, siteOf(req), deps.operatorPerson ?? null)));
   app.get('/cookies', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderCookies(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req))));
+    reply.type('text/html; charset=utf-8').send(renderCookies(localeOf(req), deps.legalContact ?? null, legalFacts, siteOf(req), deps.operatorPerson ?? null)));
   // The refund terms: the trial clause only while a self-serve trial is set. A database that does not answer leaves
   // the clause out — the page then promises less, never something nobody is given.
   app.get('/refunds', async (req, reply) => {
     let trialDays: number | null = null;
     try { trialDays = await selfServeTrialDays(deps.db); } catch (e) { req.log.warn({ err: e }, 'refunds: the trial could not be read'); }
-    return reply.type('text/html; charset=utf-8').send(renderRefunds(localeOf(req), deps.legalContact ?? null, { trialDays }, siteOf(req)));
+    return reply.type('text/html; charset=utf-8').send(renderRefunds(localeOf(req), deps.legalContact ?? null, { trialDays }, siteOf(req), deps.operatorPerson ?? null));
   });
   // 0126 — after a workspace is closed: signed out, and told what happened. Reads nothing.
   app.get('/closed', async (req, reply) =>
