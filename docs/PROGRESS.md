@@ -21,7 +21,7 @@ a pattern is a finding of its own, dealt with before the pilot. The operator too
 boss's workspace, with a test that fails if a message could cross workspaces. The WhatsApp round trip, the three cold
 demos and naming the boss are the owner's.
 
-- **The wording bug — fixed, #PR_ADDRESS:** a reply addresses the buyer in neither gender. `prompts/response.txt`
+- **The wording bug — fixed, #336:** a reply addresses the buyer in neither gender. `prompts/response.txt`
   gains ADDRESS: Arabic replies in simple standard Arabic (in dialect almost every address has a gender — the writer
   had been answering a dialect in kind), noun phrases / the passive / «يمكن · يُرجى», no gender for the assistant
   either. The guard `src/core/safety/address.ts` sits in the writer's retry chain: a gendered reply is written again,
