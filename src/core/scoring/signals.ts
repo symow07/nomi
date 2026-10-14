@@ -153,7 +153,11 @@ export type Signal =
       readonly offer?: {
         readonly productName: string; readonly quantity: number; readonly unit: string;
         readonly unitPrice: Money; readonly total: Money; readonly givenAt: string;
+        /** On PR 345 — the product, so the owner can prepare the order from the card (src/pipeline/maybeOrder.ts). */
+        readonly productId?: string;
       } | null;
+      /** On PR 345 — the message that may have said yes: the prepared order is tied to it, its words above Confirm. */
+      readonly messageId?: string;
     }
   /**
    * Rule 6 (2026-10-14, the owner) — the writer was asked twice and both times addressed the buyer as a man or a

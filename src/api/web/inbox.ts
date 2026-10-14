@@ -713,6 +713,8 @@ export type ConversationDetail = {
       readonly productName: string; readonly quantity: number; readonly unit: string;
       readonly unitPrice: Money; readonly total: Money; readonly givenAt: string;
     } | null;
+    /** On PR 345 — the buyer's e-mail on record, to prefill the order the owner may prepare from here. */
+    readonly email?: string | null;
   } | null;
   /** M34 — why a voice note could not be heard, when one could not. */
   readonly unheardReason: string | null;
@@ -980,6 +982,8 @@ export async function loadConversationDetail(
     const maybeYes = maybeRow ? {
       said: typeof maybeRow.payload?.['said'] === 'string' ? maybeRow.payload['said'] as string : null,
       offer: (maybeRow.payload?.['offer'] ?? null) as NonNullable<ConversationDetail['maybeYes']>['offer'],
+      email: (await sql<{ email: string | null }>`select cl.email from clients cl
+        join conversations c on c.client_id = cl.id where c.id = ${conversationId}`.execute(tx)).rows[0]?.email ?? null,
     } : null;
     // M34 — WHY she could not hear it decides what the owner should do about
     // it, so the reason travels to the surface rather than collapsing into
@@ -1812,6 +1816,7 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
       ${p.said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
       <blockquote class="unsure-q" dir="auto"><bdi>${esc(p.said)}</bdi></blockquote>` : ''}
       <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
+      ${p.unquoted ? `<p class="fwarn" role="alert">${esc(t(locale, 'order.card.unquoted'))}</p>` : ''}
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
       <div dir="auto" class="proposed"><bdi>${esc(willSend)}</bdi></div>
       <div class="acts">
@@ -2606,8 +2611,11 @@ export function renderConversationDetail(
    * one tap away from confirming an order on a model's guess… Show me the mismatch, don't hide it behind a verb." So,
    * before anything: their words, verbatim; the last price they were actually given (product, quantity, unit price,
    * total, when); and, when their message names another quantity than that price was for, the mismatch, said plainly.
-   * No Confirm here, on purpose: the owner answers in their own words, and an order is confirmed only when the buyer
-   * says yes to exactly that (the order card, with its own Confirm and the same facts).
+   * No Confirm here, on purpose. On PR 345 (the owner: "what do I actually do when the buyer HAS said yes in a phrasing
+   * that wasn't on the list?… if it's a dead end, build one"): one form that PREPARES the order — a quantity and the
+   * buyer's e-mail; the price is theirs or the list's, said as such (src/pipeline/maybeOrder.ts) — and the order card
+   * that follows has the Confirm, every fact above it. Where their words name another quantity, the field starts
+   * EMPTY: the owner types the quantity they mean. Not shown while an order already waits.
    */
   const maybe = d.maybeYes;
   const said = maybe?.said ?? null;
@@ -2631,6 +2639,14 @@ export function renderConversationDetail(
           ${otherQuantities.length && offer ? `<div class="rf-t" role="alert"><strong>${esc(t(locale, 'maybeYes.mismatch', {
             said: otherQuantities.join(', '), given: show.quantityOf(locale, offer.quantity, offer.unit) }))}</strong></div>` : ''}
           <div class="rf-d muted">${esc(t(locale, 'maybeYes.do'))}</div>
+          ${offer && !d.orderProposal ? `<form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/maybe-yes/order" class="pform maybe-order">
+            <p class="muted">${esc(t(locale, 'maybeYes.prepare.intro'))}</p>
+            <label class="fld"><span class="muted">${esc(t(locale, 'order.field.quantity'))}</span>
+              <input type="number" name="quantity" min="1" step="1" inputmode="numeric" required value="${otherQuantities.length ? '' : esc(String(offer.quantity))}" /></label>
+            <label class="fld"><span class="muted">${esc(t(locale, 'order.card.email'))}</span>
+              <input type="email" name="email" required dir="ltr" value="${esc(maybe.email ?? '')}" /></label>
+            <button class="btn" type="submit">${esc(t(locale, 'maybeYes.prepare.button'))}</button>
+          </form>` : ''}
         </div>
       </div>`
     : '';

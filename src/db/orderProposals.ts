@@ -36,6 +36,11 @@ export type PendingProposal = {
   readonly customerLanguage?: string | null;
   /** The customer's message that said yes, word for word — shown above the owner's Confirm (2026-10-14). */
   readonly said?: string | null;
+  /**
+   * On PR 345 — the owner prepared it from "may be saying yes" at a quantity this buyer was never priced for: its price
+   * is the list's, never sent to them. The order card says so above Confirm.
+   */
+  readonly unquoted?: boolean;
 };
 
 /** The row as the owner's tap reads it, under its lock. */
@@ -47,7 +52,7 @@ type Raw = {
   id: string; conversation_id: string; product_id: string; product_name: string;
   quantity: number; unit: string; unit_price: string; total: string; currency: string;
   client_email: string; payment_terms: string | null; incoterm: string | null;
-  created_at: Date; state: ProposalRow['state']; customer_language: string | null; said: string | null;
+  created_at: Date; state: ProposalRow['state']; customer_language: string | null; said: string | null; unquoted: boolean;
 };
 
 /**
@@ -75,6 +80,7 @@ const rowOf = (r: Raw): ProposalRow | null => {
   state: r.state,
   customerLanguage: r.customer_language,
   said: r.said,
+  unquoted: r.unquoted,
   };
 };
 
@@ -85,7 +91,11 @@ const SELECT = sql`
          cl.preferred_language as customer_language,
          (select m.text_content from messages m
            where m.conversation_id = op.conversation_id and m.external_id = op.turn_message_id
-           order by m.sent_at desc limit 1) as said
+           order by m.sent_at desc limit 1) as said,
+         -- On PR 345 — prepared by the owner from "may be saying yes" at a price this buyer was never sent.
+         exists (select 1 from conversation_events e
+                  where e.conversation_id = op.conversation_id and e.type = 'order_prepared'
+                    and e.payload->>'proposalId' = op.id::text and e.payload->>'quoted' = 'false') as unquoted
     from order_proposals op
     join products p on p.id = op.product_id
     left join clients cl on cl.id = op.client_id`;

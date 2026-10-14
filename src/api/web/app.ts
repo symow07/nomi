@@ -199,6 +199,7 @@ import { isAutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
+import { prepareOrderFromMaybe } from '../../pipeline/maybeOrder.js';
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply, ownerPhoto } from '../../outbound/ownerReply.js';
 import { saveProductPhoto, removeProductPhoto, servedProductPhoto } from '../../db/productPhotos.js';
@@ -2770,6 +2771,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? 'order.flash.confirmedNotLive'
       : `order.flash.${r.outcome}` as MessageKey;
     return flashTo(reply, conversationUrl(cid), key);
+  });
+
+  /**
+   * On PR 345 — "may be saying yes" → a prepared order (src/pipeline/maybeOrder.ts): the owner's judgment that it is a
+   * yes, at the price this buyer was given (or the list's, said as such). Nothing is confirmed or sent: the order card
+   * that follows has the Confirm. Not owner-only, like that card.
+   */
+  app.post('/app/inbox/:conversationId/maybe-yes/order', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !UUID.test(cid)) return reply.redirect(conversationUrl(cid));
+    const body = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await prepareOrderFromMaybe(deps.db, {
+      businessId: bid.value, conversationId: cid, quantity: Number(body['quantity'] ?? ''),
+      email: String(body['email'] ?? ''), by: personOf(s).id,
+    });
+    return flashTo(reply, conversationUrl(cid), `order.flash.prepare.${r.outcome}` as MessageKey);
   });
 
   app.post('/app/inbox/:conversationId/order/step-in', async (req, reply) => {
