@@ -3,7 +3,8 @@ import { t } from './say.js';
 import { esc, deeper, todoMark } from './layout.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
-import { SETUP_STEPS, type SetupStep } from '../../db/setup.js';
+import { SETUP_STEPS, type NamesWanted, type SetupStep } from '../../db/setup.js';
+import { namesWantedLines } from './namesWanted.js';
 import { STEP_LINK } from './onboarding.js';
 import * as show from './values.js';
 
@@ -58,6 +59,8 @@ export const captionKeys = (step: SetupStep): MessageKey[] =>
 export type GuideView = {
   readonly steps: readonly { readonly step: SetupStep; readonly done: boolean }[];
   readonly next: SetupStep | null;
+  /** 2026-10-14 — what the products step still waits for: a name in each served language with its own script. */
+  readonly names?: readonly NamesWanted[];
 };
 
 /**
@@ -99,6 +102,7 @@ export function renderGuide(v: GuideView, locale: Locale, name: string, videos: 
         ${/* The warmth run's re-audit (w4-today-setup-06) — a step to do is a chore: the to-do ○, never the waiting signal's magenta. */ ''}<span class="pill${done ? ' ok' : ''}">${done ? '' : `${todoMark()} `}${esc(t(locale, done ? 'guide.done' : 'guide.todo'))}</span></span></h2>
       ${video}
       <ol class="gs-words">${words.map((w) => `<li>${esc(w)}</li>`).join('')}</ol>
+      ${step === 'products' && !done ? namesWantedLines(locale, v.names ?? []) : ''}
       ${done ? '' : v.next === step ? firstStepButton(locale, step) : deeper(STEP_LINK[step], t(locale, 'guide.do'))}
     </li>`;
   }).join('');

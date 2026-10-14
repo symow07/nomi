@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { anyConnected, connectedChannels } from './connectedChannels.js';
+import { scriptLanguagesOf, scriptPattern, type ScriptLanguage } from '../core/onboard/scriptNames.js';
 
 /**
  * D — how far a workspace is through setting up, as five steps.
@@ -27,23 +28,54 @@ import { anyConnected, connectedChannels } from './connectedChannels.js';
 export type SetupStep = 'profile' | 'products' | 'name' | 'channels' | 'first_success';
 export const SETUP_STEPS: readonly SetupStep[] = ['profile', 'products', 'name', 'channels', 'first_success'];
 
+/** Active products with no name in a served language that has its own script: how many, of how many. */
+export type NamesWanted = { readonly lang: ScriptLanguage; readonly missing: number; readonly of: number };
+
 export type SetupProgress = {
   readonly steps: readonly { readonly step: SetupStep; readonly done: boolean }[];
   readonly done: number;
   readonly total: number;
   /** The first step not done, else null: setup is complete. */
   readonly next: SetupStep | null;
+  /**
+   * 2026-10-14 — the products step waits on these too: a product named only in English is not found by a buyer
+   * writing Chinese (`src/core/onboard/scriptNames.ts`). Only languages with something missing; empty when none.
+   */
+  readonly names?: readonly NamesWanted[];
 };
 
-export const setupFrom = (m: Record<SetupStep, boolean>): SetupProgress => {
+export const setupFrom = (m: Record<SetupStep, boolean>, names: readonly NamesWanted[] = []): SetupProgress => {
   const steps = SETUP_STEPS.map((s) => ({ step: s, done: m[s] }));
   return {
     steps,
     done: steps.filter((s) => s.done).length,
     total: steps.length,
     next: steps.find((s) => !s.done)?.step ?? null,
+    names,
   };
 };
+
+/**
+ * For each served language with a script of its own, the active products none of whose names — the name, the
+ * Chinese name, the names customers use — is written in it. Read live, like every step.
+ */
+export async function namesWantedFor(tx: Tx, businessId: BusinessId): Promise<readonly NamesWanted[]> {
+  const served = (await sql<{ served: string[] | null }>`
+    select languages_served as served from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.served ?? [];
+  const out: NamesWanted[] = [];
+  for (const lang of scriptLanguagesOf(served)) {
+    const pat = scriptPattern(lang);
+    const r = (await sql<{ missing: number; of: number }>`
+      select count(*) filter (where not (p.name ~ ${pat} or coalesce(p.name_zh ~ ${pat}, false)
+                                         or exists (select 1 from product_aliases a
+                                                     where a.product_id = p.id and a.alias ~ ${pat})))::int as missing,
+             count(*)::int as of
+        from products p
+       where p.business_id = ${businessId}::uuid and p.is_active`.execute(tx)).rows[0]!;
+    if (r.missing > 0) out.push({ lang, missing: r.missing, of: r.of });
+  }
+  return out;
+}
 
 export const NOTHING_DONE: SetupProgress = setupFrom({
   profile: false, products: false, name: false, channels: false, first_success: false,
@@ -76,8 +108,11 @@ export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<Set
   // Phase 4b — ANY place a buyer writes, connected: WhatsApp, Instagram,
   // Messenger or a mailbox. The same definition the Channels page reads.
   const channelsDone = anyConnected(await connectedChannels(tx, businessId));
+  // 2026-10-14 (the owner) — "any owner selling to Chinese buyers has this problem on day one": the products step
+  // is done only once every active product carries a name in each served language written in its own script.
+  const names = await namesWantedFor(tx, businessId);
   return setupFrom({
-    profile: r.profile_done, products: r.products_done, name: r.name_done,
+    profile: r.profile_done, products: r.products_done && names.length === 0, name: r.name_done,
     channels: channelsDone, first_success: r.first_success_done,
-  });
+  }, names);
 }

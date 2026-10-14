@@ -15,6 +15,7 @@ import { formatList } from '../../core/owner/i18n/format.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
 import { firstStepButton } from './guide.js';
+import { namesWantedLines } from './namesWanted.js';
 import { countRefusals } from './refusals.js';
 import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
 import { esc, deeper, signalMark, todoMark, ASSISTANT_HOME } from './layout.js';
@@ -459,7 +460,8 @@ export function renderOperationsHome(
   const startCard = starting && setup && setup.next ? `<section class="block home-start" aria-labelledby="home-start">
       <h2 id="home-start">${esc(t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}</h2>
       <p class="caption muted">${todoMark()} ${esc(t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))}</p>
-      <p>${esc(t(locale, `start.why.${setup.next}` as MessageKey, { name }))}</p>
+      ${setup.next === 'products' && (setup.names ?? []).length > 0 ? namesWantedLines(locale, setup.names ?? [])
+        : `<p>${esc(t(locale, `start.why.${setup.next}` as MessageKey, { name }))}</p>`}
       <div class="home-start-go">${firstStepButton(locale, setup.next)}${
         deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div>
       <ol class="home-steps" aria-label="${esc(t(locale, 'guide.title'))}">${setup.steps.map((x) =>
@@ -468,7 +470,8 @@ export function renderOperationsHome(
     </section>` : '';
   const finishSetup = setup && setup.next !== null && !starting
     ? `<div class="today-foot setup"><p>${todoMark()} <span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span></p>
-        <div class="today-next">${deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
+        <div class="today-next">${deeper(STEP_LINK[setup.next], setup.next === 'products' && (setup.names ?? []).length > 0
+          ? t(locale, 'setup.names.door') : t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}${
         deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</div></div>`
     : '';
 
