@@ -4,7 +4,7 @@ import type { Money } from '../core/types/money.js';
 import { capabilityOf, resolveMode, type AutonomyGrant } from '../core/conversation/autonomy.js';
 import type { TurnResult, TurnEffects } from '../pipeline/turn.js';
 import type { Tenant } from '../db/ports.js';
-import { runCheck, type CheckResult, type TurnOutcome } from './invariants.js';
+import { runCheck, requestedModeOf, type CheckResult, type TurnOutcome } from './invariants.js';
 import type { Expectation, Scenario } from './scenarios.js';
 
 /**
@@ -61,8 +61,8 @@ export function evaluateTrust(input: {
   const { result, effects } = input;
   const capability = capabilityOf(result.decision, result.quote !== null);
   // G7a — her hold rules narrow the grant; the same field commitTurn read.
-  const requestedMode = result.hold ? 'draft'
-    : resolveMode({ capability, grants: input.grants, now: input.now, timeZone: input.zone });
+  const requestedMode = requestedModeOf(result, effects,
+    () => resolveMode({ capability, grants: input.grants, now: input.now, timeZone: input.zone }));
   const appliedMode: PracticeTrust['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (pid: string): number | null =>
     result.quote && pid === (result.quote.productId as string) ? input.floorPrice?.amount ?? null : null;
