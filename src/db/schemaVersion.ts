@@ -394,7 +394,9 @@ import type { Db } from './client.js';
 //       Against a 156 database such a buyer's hand-over cannot be written, and the turn fails instead.
 // 158 = a reply that could not be written without a gender is a person's (0158): the `address_unwritten` reason on
 //       both reason lists. Against a 157 database that hand-over cannot be written, and the turn fails instead.
-export const REQUIRED_SCHEMA_VERSION = 158;
+// 159 = a language held out of one workspace (0159): `businesses.languages_held`, which every turn reads, and the
+//       `language_held` reason on both reason lists. Against a 158 database every turn fails on the missing column.
+export const REQUIRED_SCHEMA_VERSION = 159;
 
 export type SchemaState = {
   readonly required: number;

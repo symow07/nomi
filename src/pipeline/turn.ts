@@ -434,6 +434,16 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const languageUnreviewed = gateLang !== UNDETERMINED && !tenant.autonomy.released(gateLang);
   if (languageUnreviewed) byKind.set('language_not_reviewed', { kind: 'language_not_reviewed' });
   /**
+   * 0159 (the owner, 2026-10-14) — A LANGUAGE HELD OUT OF THIS WORKSPACE. "Arabic joins the pilot automatically once
+   * BOTH are true: the boss's products carry Arabic names, and a fresh 60-turn Arabic run against the REAL product set
+   * comes back with nothing gendered sent, nothing held silent, and no split against English or Chinese." Until the
+   * operator releases it (`tools/language-hold.mjs`), a buyer writing in it is handed to a person — and, its
+   * disclosure being signed, hears the ordinary hand-off sentence: a buyer who gets nothing is not a pass.
+   */
+  if (!languageUnreviewed && gateLang !== UNDETERMINED && await tenant.autonomy.held(languageHead(gateLang))) {
+    byKind.set('language_held', { kind: 'language_held' });
+  }
+  /**
    * 2026-10-14 — the owner, the language sweep's finding 1: A YES THE LIST DID NOT KNOW GOES TO THE OWNER, never
    * answered with the price again. The fast path confirms an order only on a word it has («好的» and «تمام» were not
    * among them), and everything else reached the writer, which quoted again — alone, where prices may go alone. "Make

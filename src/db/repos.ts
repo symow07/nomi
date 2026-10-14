@@ -715,6 +715,9 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     quoteVetted: async (productId) => (await sql<{ v: boolean }>`select quote_vetted(${productId}::uuid) as v`.execute(tx)).rows[0]?.v === true,
     // LG — the first five replies in a language, approved by the owner (0108).
     languageProven: async (language) => (await sql<{ v: boolean }>`select language_proven(${language}) as v`.execute(tx)).rows[0]?.v === true,
+    // 0159 — the operator's hold on a language in this workspace.
+    held: async (language) => (await sql<{ v: boolean }>`
+      select ${language}::text = any(languages_held) as v from businesses where id = ${businessId}`.execute(tx)).rows[0]?.v === true,
     async assistantNamed() {
       const r = await sql<{ named: boolean }>`
         select (assistant_named_at is not null) as named

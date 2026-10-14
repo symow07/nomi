@@ -234,6 +234,8 @@ class HarnessTenant implements Tenant {
   quoteVettedFlag = true;
   /** LG — five replies already approved in every language, unless a test says otherwise. */
   languageProvenFor: (language: string) => boolean = () => true;
+  /** 0159 — languages the operator held out of this workspace; none by default. */
+  heldLanguages: readonly string[] = [];
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -247,6 +249,7 @@ class HarnessTenant implements Tenant {
     earnedRung: async () => this.earnedRungValue,
     quoteVetted: async () => this.quoteVettedFlag,
     languageProven: async (language: string) => this.languageProvenFor(language),
+    held: async (language: string) => this.heldLanguages.includes(language),
   };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.
