@@ -40,6 +40,25 @@ names in the onboarding path itself. Reports go to docs/ as files (the artifact 
 - **R1 in the turn — #346:** a guard trip on a reply rewritten clean withdrew the capability anyway (the turn added
   its trips to the evidence the loader had already cleaned), so ONE caught-and-fixed Arabic gendered word made every
   English greeting wait. Only the kept reply's trip demotes now. Production: no self-demotion in 45 days, never fired.
+- **Check 3 corrected — #349 (0160):** the owner: "puts a permanently-undone step in front of owners who will never have
+  an Arabic or Russian buyer… require a name only for a language the owner actually serves — the ones they selected, or
+  the ones their buyers have actually written in." Required = a script language on a list the owner CHANGED on the
+  profile (`businesses.languages_chosen_at`; the default en/zh/ar is nobody's choice) or one a real buyer wrote in
+  (`clients.preferred_language`, owner tests excluded); everything else on the profile is a suggestion (one quiet line,
+  a caption). 0 of 60 workspaces ever changed the list; Westlake's 5 buyers all wrote English, so its step waits on
+  nothing. Russian is one of the profile's nine checkboxes (0093), never a default.
+- **Ask which: every close product — #350:** the top two were taken and the rest dropped. Every product within 85% of
+  the best is named (four by name, the rest counted, "Several fit: A, B, C, D, and 2 more"); the line tested at
+  0.340/0.339 against 0.400 through a whole turn.
+- **"May be saying yes" → a real order — #351:** it was a dead end (a maybe hands the conversation to a person; no turn
+  runs; only a turn's listed yes made a proposal). The card's one form PREPARES the order (a quantity — empty where
+  their words name another — and the e-mail), at the price this buyer was given for it or the list price said as such
+  (`src/pipeline/maybeOrder.ts`); the order card's own Confirm follows, every fact above it. Never Confirm on the maybe.
+- **R1 both ways — #352:** over Postgres: a clean rewrite keeps the capability, a failed kept reply withdraws it. It
+  found that #346 had stopped a reply gendered twice (handed over, 0158) from withdrawing anything — the kept reply
+  failed when the guards failed twice OR it could not be written without a gender (`TurnResult.addressUnwritten`).
+  Also: the pilot-log test read "yesterday" from the local database's clock and failed every night 00:00–08:00
+  Shanghai; it reads the tool's UTC clock now.
 - **Arabic: held per workspace, and the run that releases it — #347 (0159):** `businesses.languages_held`, set only
   by `tools/language-hold.mjs`; a held language goes to a person and the buyer hears the ordinary hand-off sentence.
   `tools/check-language-release.mjs` is (a) and (b): export a workspace's catalogue READ ONLY, refuse while any product
