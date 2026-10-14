@@ -258,7 +258,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
   const prompt = loadPrompt('response.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, options, sampleNote, closureNote, speaker, priceFirst }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, violation, knowledge, options, sampleNote, closureNote, speaker, priceFirst }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
@@ -293,7 +293,10 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         ...(priceFirst ? { selling: { price_first: true } } : {}),
       };
 
-      const guard = retryAfterViolation
+      const guard = violation === 'gendered_address'
+        ? '\n\nSTRICT: your previous draft addressed the client as a man or a woman. ' +
+          'Follow ADDRESS above: no second-person verb, imperative, pronoun or word of address that has a gender.'
+        : retryAfterViolation
         ? '\n\nSTRICT: your previous draft contained a number not present in ' +
           'CONTEXT.quote or CONTEXT.knowledge. Use ONLY figures from those, or no figures at all.'
         : '';

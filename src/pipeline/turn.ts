@@ -24,6 +24,7 @@ import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
+import { addressesInGender } from '../core/safety/address.js';
 import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
 import { fixedLanguage, gateLanguage, languageEvidence, UNDETERMINED } from '../core/conversation/gateLanguage.js';
 import { OPT_OUT_REPLIES, asksOnlyOffAList, optOutLanguage } from '../core/safety/optOut.js';
@@ -197,6 +198,12 @@ export type TurnResult = {
    *                                and the reply did not say
    */
   identityViolation: IdentityViolation | null;
+  /**
+   * Rule 6 — the words that addressed the buyer as a man or a woman
+   * («هل تبحث…»), on the last attempt the address guard stopped; null when
+   * none did. Recorded with the guard violation, like the forbidden words.
+   */
+  genderedAddress: string | null;
   /**
    * G8 — forbidden words found in HER OWN text: her taught answer, or the
    * order-status line built from her order. Tagged by where, shown to her,
@@ -495,6 +502,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[] = [];
   /** Why the identity guard stopped a reply, if it did. Owner-visible. */
   let identityViolation: IdentityViolation | null = null;
+  let genderedAddress: string | null = null;
+  /** What the last attempt got wrong, so the next one is told which rule. */
+  let lastViolation: 'gendered_address' | null = null;
   /** G8 — the same, found in her own text rather than in what the employee wrote. */
   const forbiddenInHerText: ForbiddenInHerText[] = [];
   /** G8 — both generated attempts failed a guard; the reply is a stand-in. */
@@ -764,6 +774,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           replyLanguage,
           nextQuestion,
           retryAfterViolation: attempt > 0,
+          ...(lastViolation ? { violation: lastViolation } : {}),
           knowledge,
           ...(options.length ? { options } : {}),
           // Absent when she has stated nothing: the model is told nothing to
@@ -806,8 +817,20 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         if (!clean.ok) {
           guardViolations++;
           forbiddenHits = clean.error.terms;
+          lastViolation = null;
           continue;
         }
+        // Rule 6 (2026-10-14) — and nobody is addressed as a man or a woman:
+        // «هل تبحث…» decided a buyer's gender nobody knew. The same retry, the
+        // same end twice (held for a person); the next attempt is told why.
+        const addressed = addressesInGender(clean.value);
+        if (addressed !== null) {
+          guardViolations++;
+          genderedAddress = addressed;
+          lastViolation = 'gendered_address';
+          continue;
+        }
+        lastViolation = null;
         // SHE MAY NOT CLAIM TO BE HUMAN. `prompts/response.txt` tells the
         // writer never to deny being an AI; this is the same rule where it
         // cannot be talked out of. Last in the chain, so it reads the text
@@ -846,9 +869,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         guardsFailedTwice = true;
         const standIn = guardFallbackReply(quote, analysis?.intent.nextLogicalQuestion ?? null, sayIn);
         const numeralsOk = guardNumerals({ reply: standIn, quote, state: newState, clientText: req.text, allow: numeralAllow, catalogue });
+        // The analyser's question is model text too: it addresses nobody in a gender either.
         const passes = numeralsOk.ok
           && guardClaims({ reply: standIn, policy: claimsPolicy }).ok
-          && guardForbidden({ reply: standIn, ownerTerms: forbiddenTerms }).ok;
+          && guardForbidden({ reply: standIn, ownerTerms: forbiddenTerms }).ok
+          && addressesInGender(standIn) === null;
         reply = passes ? standIn : SAFE_REPLIES[sayIn];
         replyDeterministic = true;
         answerPath = 'stand_in';
@@ -976,6 +1001,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     guardViolations,
     forbiddenHits,
     identityViolation,
+    genderedAddress,
     forbiddenInHerText,
     sampleRequested,
     hold,
@@ -1392,6 +1418,8 @@ export async function commitTurn(
         ...(r.forbiddenHits.length
           ? { forbidden: r.forbiddenHits.map((t) => ({ term: t.term, source: t.source })) }
           : {}),
+        // Rule 6 — and the words that addressed the buyer in a gender.
+        ...(r.genderedAddress ? { address: r.genderedAddress } : {}),
       });
       if (policyMode === 'auto') {
         await tenant.autonomy.selfDemote({
