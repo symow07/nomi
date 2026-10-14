@@ -46,7 +46,7 @@ demos and naming the boss are the owner's.
   `tests/integration/buyer-per-workspace.test.ts`; against 154 and main's code it finds 2 clients and no address.
   **Changed by design:** `write-first` pinned "an address another factory holds writes nothing here" — the old key
   speaking, not a rule (its own comment said so); it now writes, one client, its address, no ghost.
-- **The operator tool — #PR_ATTACH:** `tools/attach-number.mjs <business-id> <phone-number-id> [--register] [--yes]`
+- **The operator tool — #339:** `tools/attach-number.mjs <business-id> <phone-number-id> [--register] [--yes]`
   attaches a spare number in Nomi's account to a workspace (the rows Embedded Signup writes; the installation's
   token sealed). The owner's test, `tests/integration/attach-number.test.ts`: two workspaces, two numbers, one
   customer writing to both — each message lands in its own number's workspace only, each reply leaves from its own
