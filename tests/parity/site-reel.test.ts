@@ -129,6 +129,41 @@ describe('Phase 3a · the first screen stays today\'s until every language is re
   });
 });
 
+describe('Phase 4 gate · the hooks (the owner\'s notes, 2026-10-14)', () => {
+  it('a · the order card carries the stakes: the quantity, the price agreed, and the total they make', async () => {
+    const show = await import('../../src/api/web/values.js');
+    const { usd } = await import('../../src/core/types/money.js');
+    for (const l of LOCALES) {
+      const sum = /<p class="rl-card-text rl-sum">[\s\S]*?<\/p>/.exec(page(l))?.[0] ?? '';
+      expect(sum, l).toContain(esc(show.money(l, usd(3.8))));
+      expect(sum, l).toContain(esc(show.money(l, usd(500 * 3.8))));   // the total IS 500 × 3.80
+      expect(sum, l).toContain('×');
+    }
+  });
+
+  it('b · the proforma line draws the product\'s own document icon, never an empty box', () => {
+    const html = page('en');
+    expect(html).not.toContain('rl-doc-mark');
+    expect(html).toMatch(/<p class="rl-doc [^"]*"><svg class="rl-doc-icon sl"[^>]*aria-hidden="true"/);
+  });
+
+  it('c · a tapped button folds away, and the hooks show one scene, as tall as its words', () => {
+    const html = page('en');
+    expect(html).not.toMatch(/<p class="rl-act rl-\d-rl-out-/);
+    expect(html).toMatch(/<p class="rl-act rl-\d-rl-fold-/);
+    expect(html).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.rl-act \{ display:none; \}|\.rl-play, \.rl-act \{ display:none; \}/);
+    const hooks = readFileSync('tools/record-hooks.mjs', 'utf8');
+    expect(hooks).toContain('.hook .rl-scene.rl-s${scene} { display:flex; }');
+    expect(hooks).toContain('.hook .rl-chat { block-size:auto; }');
+  });
+
+  it('d · one made-up shop everywhere: the reel never names a real business, and the hooks are drawn from the reel', () => {
+    for (const l of LOCALES) expect(page(l), l).not.toMatch(/Westlake|Hongfa|义乌宏发/);
+    expect(page('en')).toContain('Linden Totes');
+    expect(readFileSync('tools/record-hooks.mjs', 'utf8')).toContain("const { renderSiteReel } = await import('../dist/api/web/siteReel.js');");
+  });
+});
+
 describe('Phase 3a · motion', () => {
   it('nothing moves under reduced motion, and the page runs no script', () => {
     const html = page('en');
