@@ -390,7 +390,9 @@ import type { Db } from './client.js';
 // 156 = a Chinese product name is found from the part of it a buyer says (0156): `alias_match`, which
 //       `retrieve_products` and `tools/capability-sweep.mjs` call. Against a 155 database Chinese names are matched
 //       by trigrams as before (a substring of a name scored 0.077) and the sweep's catalogue layer fails.
-export const REQUIRED_SCHEMA_VERSION = 156;
+// 157 = a yes the list did not know goes to the owner (0157): the `maybe_confirmation` reason on both reason lists.
+//       Against a 156 database such a buyer's hand-over cannot be written, and the turn fails instead.
+export const REQUIRED_SCHEMA_VERSION = 157;
 
 export type SchemaState = {
   readonly required: number;

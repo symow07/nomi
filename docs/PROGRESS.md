@@ -29,6 +29,14 @@ setup step for the owner in the kit, not code).
   messages find no product in any language — the number did not go up). Re-sweep (588 turns): Chinese now finds the
   product where the words name it (`low-confidence-match`: zh = en); the order-"yes" splits wait for fix 1; Arabic's
   is the missing Arabic names.
+- **Fix 1 — a yes the list did not know goes to the owner — #PR_YES (0157):** (a) the fast path reads past punctuation
+  ("Yes.", «好的。») and has the owner's words («好的», «是的», «可以», «确认», «تمام», «موافق», "yes please", …); (b) the list
+  is no longer load-bearing: after a price was given, a reply that asks nothing and holds nothing back goes to the
+  owner as `maybe_confirmation` when a "shall I go ahead?" is waiting, when it sounds like a yes in any of the five
+  languages (`acceptance.ts`), or when the analysis reads an order. The buyer hears the order's own line ("a
+  colleague will review this order with you"); the writer is never asked, no price is worked out or recorded, nothing
+  is proposed. A question or a hesitation is answered as before. Tests: a phrase deliberately NOT on the list in each
+  language, pure, through a turn and over Postgres; each part switched off fails its own tests.
 
 ## Phase 4 — Arabic "not yet", and the operator tool (2026-10-14) — read this first
 
