@@ -53,7 +53,10 @@ for the pilot only:
    call; the display name is the boss's business.
 2. Meta reviews the name. `node tools/wa-number-status.mjs --phone-number-id <its id>` (under `railway run`) says
    when it is usable.
-3. Attaching it to the boss's workspace: the deployment connects ONE configured number (Westlake's). A second number
-   in Nomi's own account needs an operator tool that writes the rows embedded sign-up writes — **not built yet**
-   (named in the kit as mine to build, before the boss's first day).
+3. Attaching it to the boss's workspace (`tools/attach-number.mjs`), inside `railway run --service nomi -- …` after
+   `npm run build`: first `node tools/attach-number.mjs <business-id> <phone-number-id>` shows what it would do and
+   changes nothing; add `--register` if it says the number is not on the Cloud API yet, then `--yes` to write it. It
+   refuses — naming the workspace — a number any other workspace holds, the installation's own number, and a
+   workspace that already has one: a number belongs to exactly one workspace. The boss's owner then activates
+   WhatsApp on My business, as for any number.
 4. Then this page's round trip, from a phone on the boss's allowlist.

@@ -58,7 +58,7 @@ import { metaAdapter, metaMediaFetcher, metaAudioFetcher } from './channels/what
 import type { FetchLike } from './channels/whatsapp/client.js';
 import { waLoginFrom } from './channels/whatsapp/embeddedSignup.js';
 import { whatsAppAccountToken } from './channels/whatsapp/connect.js';
-import { liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount } from './db/whatsappAccounts.js';
+import { activeWhatsAppNumber, liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount } from './db/whatsappAccounts.js';
 import { withTenantTx, lockConversation, createReadOnlyDb, type Db, type Tx } from './db/client.js';
 import { advisorKeysFrom, sealAdvisor, openAdvisor } from './advisor/seal.js';
 import { advisorMemory } from './advisor/memory.js';
@@ -948,6 +948,7 @@ export async function buildProduction(
     waConnect: {
       db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: waLogin,
       fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
+      installationWabaId: cfg.META_WHATSAPP_BUSINESS_ACCOUNT_ID ?? null,
     },
     // WA — and plays back a voice note with that number's own token.
     audioFor: async (businessIdRaw: string) => {
@@ -1257,7 +1258,18 @@ export async function buildProduction(
     };
   };
 
-  const adaptersFor = (businessId: BusinessId, metaAccount: MetaAccount | null = null, waAccount: WhatsAppAccount | null = null) => {
+  /**
+   * The installation's own WhatsApp number (the Meta provider's), when there is one. It sends ONLY for the business
+   * whose live credential is that number (2026-10-14, the operator tool): a business with no number of its own — one
+   * attached and since disconnected, one that never had one — is refused (`channel_unavailable`), never answered from
+   * another workspace's number. Unknown (no Meta number configured) keeps the one provider for every business.
+   */
+  const installationNumber = cfg.provider === 'meta' ? (cfg.META_WHATSAPP_PHONE_NUMBER_ID ?? null) : null;
+
+  const adaptersFor = (
+    businessId: BusinessId, metaAccount: MetaAccount | null = null, waAccount: WhatsAppAccount | null = null,
+    waNumber: string | null = null,
+  ) => {
     const email = emailAdapter({
       transport: overrides?.mailTransport ?? (smtpConfig
         ? smtpMailTransport({ db, businessId, config: smtpConfig })
@@ -1269,6 +1281,7 @@ export async function buildProduction(
     const byChannel: Record<string, ChannelAdapter | undefined> = {
       ...(adapter ? { [adapter.kind]: adapter } : {}), email, ...metaAdaptersFor(businessId, metaAccount),
       ...waAdaptersFor(businessId, waAccount),
+      ...(waAccount === null && installationNumber !== null && waNumber !== installationNumber ? { whatsapp: undefined } : {}),
     };
     return (channel: string): ChannelAdapter | undefined => byChannel[channel];
   };
@@ -1302,8 +1315,10 @@ export async function buildProduction(
     const metaAccount = await liveMetaAccount(tx, businessId);
     // WA — and the business's own WhatsApp number, read the same way.
     const waAccount = await liveWhatsAppAccount(tx, businessId);
+    // …and, with none of its own, which number its credential routes: the installation's serves only its holder.
+    const waNumber = waAccount ? null : await activeWhatsAppNumber(tx, businessId);
     return {
-      ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount, waAccount),
+      ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount, waAccount, waNumber),
       mailHeaders: mailHeadersFor(businessId),
       // F1 — a picture is sent only from Nomi's own public address.
       mediaOrigin: cfg.PUBLIC_BASE_URL ?? null,
