@@ -392,7 +392,9 @@ import type { Db } from './client.js';
 //       by trigrams as before (a substring of a name scored 0.077) and the sweep's catalogue layer fails.
 // 157 = a yes the list did not know goes to the owner (0157): the `maybe_confirmation` reason on both reason lists.
 //       Against a 156 database such a buyer's hand-over cannot be written, and the turn fails instead.
-export const REQUIRED_SCHEMA_VERSION = 157;
+// 158 = a reply that could not be written without a gender is a person's (0158): the `address_unwritten` reason on
+//       both reason lists. Against a 157 database that hand-over cannot be written, and the turn fails instead.
+export const REQUIRED_SCHEMA_VERSION = 158;
 
 export type SchemaState = {
   readonly required: number;

@@ -68,3 +68,18 @@ deletion) among them, in all three.
 What no case showed: a reply going out alone that the owner's own level forbids
 for that kind of reply. The language changes WHICH kind of reply is chosen; the
 owner's rules for that kind still decide.
+
+## 2026-10-14, after the fixes — 588 turns, none failed
+
+The owner's decisions: build 1 (order confirmation) and 2 (Chinese names), leave 3 with a mandatory re-measure.
+
+- **Fix 2 (0156, #340)** and **fix 1 (0157, #341)** in, the same 41 × 3 × 3. As production runs it (the catalogue
+  layer where a scenario has one): **send-alone / waits splits 3 → 1; scenarios where English and Chinese differ 3
+  → 0.** The one left is `low-confidence-match` in Arabic — a product with no Arabic name is never found from Arabic
+  words: a data step for the owner (docs/GATE-A-KIT.md, row 13), not code.
+- **Finding 3, re-measured against the new matcher before anything moved:** its own phrasings, 5 runs each, the
+  product offered only where `alias_match` finds it — **0/10 tied in en, zh and ar** (none names the product; none
+  finds it). The model-only rows still show it (zh ties an unnamed product it is handed), and in production it is not
+  handed one.
+- Also: «好的» proposes the order like "yes" and «نعم» (the order-"yes" splits are gone); two scenarios wobble once in
+  one language, three differ in kind with the same send-or-wait — all in the model-only layer.

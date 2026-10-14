@@ -34,6 +34,10 @@ message goes to a person instead (0153). **Blocker 2, understood:** the Arabic p
 calling a reply HELD for the owner an escalation; nothing was sent in either language (the check is fixed). **The
 pilot runs in English and Chinese only** until the owner says Arabic may join.
 
+**Arabic, the owner's conditions (2026-10-14):** the language sweep's fixes 1 (a yes the list does not know goes to
+the owner) and 2 (Chinese product names found from part of the name) landed; finding 3 re-measured clean against the
+new matcher; and the **Arabic product names** below — a setup step for the owner, not code.
+
 ---
 
 ## 1 · Hard prerequisites — every one, before the first demo
@@ -54,6 +58,7 @@ Status as read from production on 2026-10-14 (read-only; names only for variable
 | 10 | Going live in that workspace | Getting ready: assistant named, the confirmations, the allowlist (pilot mode is ON by default: only listed numbers are answered); `secrets_rotated` stamped by `tools/installation-checks.mjs` | □ with the boss, day 1 |
 | 11 | The week's limits will not bite | 50 of the assistant's messages a day for a new workspace (`tools/send-ceiling.mjs` raises it); 1,000 model calls and 20 photo reads a day | ✓ ample for a pilot; raise the send ceiling only once he trusts it |
 | 12 | The legal pages name who runs Nomi | Each legal page opens with the owner's name and "we" means them (`OPERATOR_PERSON`); the contact section carries the address | ✓ set in Railway; on the pages from the deploy that carries it |
+| 13 | **Each product is found from the words its buyers use** — the owner's setup | A product is found only through its names (`docs/CAPABILITY-SWEEP.md`): a buyer's words never reach one with no name in their language. On each product: **More names customers use** — the Chinese name and the short names Chinese buyers say (for the pilot), and **an Arabic name before Arabic joins** (a buyer writing in Arabic is otherwise always asked what they want). `node tools/capability-sweep.mjs` (layer 2) shows what is found | □ with the boss, before day 1; Arabic names before Arabic joins |
 
 ---
 

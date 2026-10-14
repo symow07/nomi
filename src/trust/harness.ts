@@ -279,6 +279,8 @@ class HarnessTenant implements Tenant {
 export type ScenarioOverride = {
   readonly text?: string;
   readonly analyzer?: Analyzer;
+  /** tools/check-arabic-address.mjs --through-the-turn: the real writer, in the real engine. */
+  readonly replyWriter?: ReplyWriter;
   readonly candidates?: readonly RetrievedProduct[];
 };
 
@@ -287,7 +289,8 @@ function buildPorts(s: Scenario, over: ScenarioOverride = {}): { ports: TurnPort
   const candidates = over.candidates
     ?? (s.candidates === 'none' ? [] : s.candidates ?? (s.catalog?.map(toCandidate) ?? []));
   const analyzer = over.analyzer ?? new StubAnalyzer(s.analysis ?? defaultAnalysis());
-  const replyWriter = new StubReplyWriter(s.proposedReply ?? 'Thanks for your message — could you tell me a little more about what you need?');
+  const replyWriter = over.replyWriter
+    ?? new StubReplyWriter(s.proposedReply ?? 'Thanks for your message — could you tell me a little more about what you need?');
   const now = new Date(s.now ?? DEFAULT_NOW);
   return { ports: { tenant, retriever: new StubRetriever(candidates), analyzer, replyWriter, now: () => now }, tenant, now };
 }
