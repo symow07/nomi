@@ -489,7 +489,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     language: sayIn,
   });
   // The close call, above: the reply that would have been written asks which product, by name — her Chinese name to a
-  // Chinese buyer — with no product taken, so no price is worked out.
+  // Chinese buyer — EVERY close one (the first four named, the rest counted), with no product taken, so no price is
+  // worked out.
   if (close && decision.action.kind === 'generate_reply') {
     const names = await productWords();
     const nameOf = (p: RetrievedProduct): string => {
@@ -498,7 +499,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     };
     decision = {
       ...decision,
-      action: { kind: 'canned_reply', reply: whichOne(nameOf(close[0]), nameOf(close[1]), sayIn) },
+      action: { kind: 'canned_reply', reply: whichOne(close.map(nameOf), sayIn) },
       product: null,
       pendingQuestion: null,
     };

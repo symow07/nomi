@@ -21,16 +21,18 @@ const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 const RUN = randomUUID().slice(0, 8);
 const BOTH = `dd740000-0000-4000-8000-${RUN}0001`;    // 无纺布购物袋, 无纺布手提袋, 帆布袋
 const CLEAR = `dd740000-0000-4000-8000-${RUN}0002`;   // 无纺布购物袋, 帆布袋
+const THREE = `dd740000-0000-4000-8000-${RUN}0003`;   // 无纺布购物袋, 无纺布手提袋, 无纺布背心袋 (the owner, on #343)
 
 const CATALOGUE = {
   shopping: { name: 'Non-woven shopping bag', zh: '无纺布购物袋', price: 0.45 },
   tote: { name: 'Non-woven tote bag', zh: '无纺布手提袋', price: 0.60 },
   canvas: { name: 'Canvas shopping bag', zh: '帆布袋', price: 1.20 },
+  vest: { name: 'Non-woven vest bag', zh: '无纺布背心袋', price: 0.30 },
 } as const;
 
 d('which product — ask when two fit about equally, never guess (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 120_000 }, () => {
   let db: import('../../src/db/client.js').Db;
-  const ids: Record<string, Record<string, string>> = { [BOTH]: {}, [CLEAR]: {} };
+  const ids: Record<string, Record<string, string>> = { [BOTH]: {}, [CLEAR]: {}, [THREE]: {} };
 
   const as = async <T>(biz: string, fn: (t: import('../../src/db/client.js').Tx) => Promise<T>): Promise<T> => {
     const { withTenantTx } = await import('../../src/db/client.js');
@@ -77,7 +79,8 @@ d('which product — ask when two fit about equally, never guess (requires DATAB
     const { createDb } = await import('../../src/db/client.js');
     const { aliasRowsFor } = await import('../../src/core/onboard/aliases.js');
     db = createDb(DATABASE_URL!);
-    for (const [biz, keys] of [[BOTH, ['shopping', 'tote', 'canvas']], [CLEAR, ['shopping', 'canvas']]] as const) {
+    for (const [biz, keys] of [[BOTH, ['shopping', 'tote', 'canvas']], [CLEAR, ['shopping', 'canvas']],
+                               [THREE, ['shopping', 'tote', 'vest']]] as const) {
       await as(biz, async (t) => {
         await sql`insert into businesses (id, name, engine) values (${biz}, ${`Bags ${RUN}`}, 'service') on conflict (id) do nothing`.execute(t);
         await sql`insert into pricing_policy (business_id, product_id, floor_price_usd, currency, max_discount_pct, human_required_above_pct)
@@ -119,6 +122,14 @@ d('which product — ask when two fit about equally, never guess (requires DATAB
     const { r } = await turn(CLEAR, ids[CLEAR]!['shopping']!, '无纺布袋多少钱？');
     expect(r.reply ?? '').not.toMatch(/哪一款/);
     expect(r.quote?.unitPrice.amount).toBe(0.45);
+  });
+
+  it('THREE CLOSE — «无纺布袋多少钱？» with 无纺布购物袋, 无纺布手提袋 and 无纺布背心袋: all three named; nothing priced', async () => {
+    const { r, writerAsked } = await turn(THREE, ids[THREE]!['shopping']!, '无纺布袋多少钱？');
+    for (const name of ['无纺布购物袋', '无纺布手提袋', '无纺布背心袋']) expect(r.reply, name).toContain(name);
+    expect(r.reply).toMatch(/哪一款/);
+    expect(r.quote).toBeNull();
+    expect(writerAsked).toBe(0);
   });
 
   it('English too: "the shopping bags" fits a non-woven and a canvas one — asked; "the non-woven shopping bag" — priced', async () => {
