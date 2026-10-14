@@ -270,10 +270,23 @@ class HarnessTenant implements Tenant {
   };
 }
 
-function buildPorts(s: Scenario): { ports: TurnPorts; tenant: HarnessTenant; now: Date } {
+/**
+ * What a sweep may put in place of the scenario's own, leaving the rest of its
+ * world as written (tools/capability-sweep.mjs): the buyer's words in another
+ * language, the real analyser, and the candidates a real catalogue search
+ * returned for those words. The golden run passes none of them.
+ */
+export type ScenarioOverride = {
+  readonly text?: string;
+  readonly analyzer?: Analyzer;
+  readonly candidates?: readonly RetrievedProduct[];
+};
+
+function buildPorts(s: Scenario, over: ScenarioOverride = {}): { ports: TurnPorts; tenant: HarnessTenant; now: Date } {
   const tenant = new HarnessTenant(s);
-  const candidates = s.candidates === 'none' ? [] : s.candidates ?? (s.catalog?.map(toCandidate) ?? []);
-  const analyzer = new StubAnalyzer(s.analysis ?? defaultAnalysis());
+  const candidates = over.candidates
+    ?? (s.candidates === 'none' ? [] : s.candidates ?? (s.catalog?.map(toCandidate) ?? []));
+  const analyzer = over.analyzer ?? new StubAnalyzer(s.analysis ?? defaultAnalysis());
   const replyWriter = new StubReplyWriter(s.proposedReply ?? 'Thanks for your message — could you tell me a little more about what you need?');
   const now = new Date(s.now ?? DEFAULT_NOW);
   return { ports: { tenant, retriever: new StubRetriever(candidates), analyzer, replyWriter, now: () => now }, tenant, now };
@@ -297,12 +310,13 @@ export type HarnessReport = {
  */
 export async function evaluateScenario(
   s: Scenario,
+  over: ScenarioOverride = {},
 ): Promise<{ readonly report: ScenarioReport; readonly outcome: TurnOutcome }> {
   if (s.schemaVersion !== SCHEMA_VERSION) {
     throw new Error(`scenario ${s.id}: unsupported schemaVersion ${s.schemaVersion} (harness supports ${SCHEMA_VERSION})`);
   }
-  const { ports, tenant, now } = buildPorts(s);
-  const req = { conversationId: CONVERSATION, messageId: `m-${s.id}`, text: s.buyer.text };
+  const { ports, tenant, now } = buildPorts(s, over);
+  const req = { conversationId: CONVERSATION, messageId: `m-${s.id}`, text: over.text ?? s.buyer.text };
 
   const result = await computeTurn(ports, req);
   const effects = await commitTurn(ports, req, result, Date.now());

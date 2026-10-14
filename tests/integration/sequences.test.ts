@@ -14,6 +14,9 @@ import { offlineModels } from '../pipeline/fakes.js';
  * the real clock; it can only ever see a step that is due in real time, and the
  * send key makes it harmless when it does. So every assertion here reads the
  * DATABASE and the TRANSPORT, never a sweep's own counters.
+ *
+ * Fails in a local full run, passes alone and in CI? Known (2026-10-14): the run seeds ~30 workspaces as it goes and the
+ * minute sweep runs out of budget before this tenant's step — not this file's bug; run the file alone to check it.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];

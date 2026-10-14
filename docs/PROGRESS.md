@@ -30,6 +30,14 @@ demos and naming the boss are the owner's.
   Arabic messages × 5 (`tools/check-arabic-address.mjs`): **before 36 / 60 replies gendered (hand count; the old
   word list caught 7); after 5 / 60 at the first writing, all 5 caught, 0 after the rewrite — none reaches a buyer.**
   Scripted pre-pilot 12/12 before and after.
+- **The capability sweep — run, NOT clean, #337:** `tools/capability-sweep.mjs` runs the 41 golden scenarios in
+  en / zh / ar (`tools/capability-sweep.languages.mjs`) against the real analyser, in two layers (the model; the catalogue
+  search as production runs it). 591 turns, deepseek-flash: 32 of 41 the same everywhere; three causes of a
+  send-alone / waits split, two deterministic and both reaching **Chinese**: the order "yes" list (`fastpath.ts YES`:
+  «好的», «是的», «تمام» do not confirm an order — the buyer is quoted again), the name search (a product is found
+  only from words close to its names; Arabic never, Chinese not from a shorter name), and the model tying an unnamed
+  product in Chinese, not English or Arabic. `docs/CAPABILITY-SWEEP.md` has the numbers. **Waiting on the owner:**
+  which to fix before the pilot. Arabic stays out.
 
 ## Phase 4 — the Gate A pilot: the owner's answers (2026-10-14)
 
