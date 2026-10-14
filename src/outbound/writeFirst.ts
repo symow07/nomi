@@ -66,11 +66,12 @@ export type WriteFirstOutcome =
   /** No subject or no message. A mail is both, and neither is invented here. */
   | 'empty'
   /**
-   * The address belongs to a client this tenant cannot see. `client_channels`
-   * is unique on (channel, identity) GLOBALLY, so an address already held by
-   * another factory writes no identity row here and there is nothing to send
-   * to. Named rather than swallowed: `enqueueOutboundRow` returning null used
-   * to read as success everywhere it happened.
+   * There is no address row to send to. Until 0155 that was every address
+   * another workspace already held (`client_channels` was unique on (channel,
+   * identity) across ALL businesses); since then an address is each
+   * workspace's own, and this names what is left — a row the store could not
+   * write. Named rather than swallowed: `enqueueOutboundRow` returning null
+   * used to read as success everywhere it happened.
    */
   | 'no_channel'
   | IdentityError

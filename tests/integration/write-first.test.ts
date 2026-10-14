@@ -298,7 +298,10 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     await post('/app/channels/outreach', { channel: 'email', enabled: 'true' });
   });
 
-  it('AN ADDRESS ANOTHER FACTORY ALREADY HOLDS writes nothing here — not even an empty thread', async () => {
+  // 0155 (2026-10-14) — CHANGED BY DESIGN. This pinned "an address another factory holds writes nothing here", which
+  // was the global (channel, identity) key speaking, not a rule: the address is each workspace's own now, so the same
+  // write goes out — to one client of hers, with its address, and no client without one left behind.
+  it('AN ADDRESS ANOTHER WORKSPACE ALSO HOLDS is hers to write to — her own client, her own address, no ghost', async () => {
     const { ensureConversation } = await import('../../src/db/channels.js');
     const shared = addr('shared');
     const other = await bidOf(OTHER_BIZ);
@@ -306,11 +309,18 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
 
     await addAndAttest(shared, 'Ours Too');
     const res = await write(shared, 'Hello', 'Hello.');
-    expect(flashOf(res)).toBe(t('en', 'contacts.flash.no_channel'));
-    const ghosts = await tx((x) => sql<{ n: number }>`
-      select count(*)::int as n from clients where business_id = ${BIZ} and email = ${shared}`
+    expect(flashOf(res)).toBe(t('en', 'contacts.flash.queued'));
+    const mine = await tx((x) => sql<{ clients: number; addressed: number }>`
+      select count(*)::int as clients,
+             count(*) filter (where exists (select 1 from client_channels cc where cc.client_id = cl.id and cc.channel = 'email'
+                                              and cc.channel_user_id = ${shared}))::int as addressed
+        from clients cl where cl.business_id = ${BIZ} and cl.email = ${shared}`
+      .execute(x).then((r) => r.rows[0]!));
+    expect(mine, 'one client of hers, with the address — never one without').toEqual({ clients: 1, addressed: 1 });
+    const theirs = await tenant(OTHER_BIZ, (x) => sql<{ n: number }>`
+      select count(*)::int as n from clients where business_id = ${OTHER_BIZ} and email = ${shared}`
       .execute(x).then((r) => r.rows[0]!.n));
-    expect(ghosts, 'a client with no address was left behind in her list').toBe(0);
+    expect(theirs, 'the other workspace\'s client is untouched').toBe(1);
   });
 
   it('ONE BUYER ON TWO CHANNELS HAS TWO THREADS — a first mail never lands in his WhatsApp conversation', async () => {
