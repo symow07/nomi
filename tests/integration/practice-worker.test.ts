@@ -266,7 +266,9 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     expect(auto).toBe(before);                                            // back to the workspace's levels
   }, 90_000);
 
-  it('P4 — as if sending alone lifts the owner\'s level and nothing else: a Spanish customer\'s reply still waits, and the card says why', async () => {
+  // CHANGED (Phase 4 gate, blocker 1, the owner, 2026-10-14): the Spanish reply waited as a draft; now the Spanish
+  // customer goes to a person — "as if sending alone" lifts the owner's level, never the language rule.
+  it('P4 — as if sending alone lifts the owner\'s level and nothing else: a Spanish customer goes to a person, and the page says why', async () => {
     await post('/app/sandbox/reset');
     await post('/app/sandbox/alone', 'on=1');
     try {
@@ -278,8 +280,11 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
       replyWriter.replies = ['Sí, hacemos bolsas de lona.'];
       await say('¿Hacen bolsas de lona?');
       const conv = (await practiceConv())!;
-      await until(() => pendingDraft(conv), 'the Spanish reply, waiting');
-      expect((await page()).body).toContain('does not send alone to customers writing in Spanish yet');
+      await until(() => inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversation_signals
+        where conversation_id = ${conv}::uuid and kind = 'language_not_reviewed' and resolved_at is null`.execute(tx)
+        .then((x) => (x.rows[0]!.n > 0 ? true : undefined))), 'the Spanish customer, with a person');
+      expect(await pendingDraft(conv)).toBeFalsy();
+      expect((await page()).body).toContain(t('en', 'takeover.reason.language_not_reviewed'));
     } finally {
       analyzer.next = {
         language: { detected: 'en', replyIn: 'en' },

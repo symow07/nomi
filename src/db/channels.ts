@@ -5,7 +5,7 @@ import { reopenFor } from './whatsappTemplates.js';
 import { notePromises } from './promisedDates.js';
 import { dayKey } from '../core/owner/i18n/format.js';
 import { isAllowlisted } from '../channels/allowlist.js';
-import { carriesDisclosure } from '../core/conversation/disclosure.js';
+import { carriesDisclosure, autonomyReleasedFor } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel } from './assistants.js';
 import { allowanceOf, allowanceUsed } from './allowance.js';
 import { billingHeld } from './billing.js';
@@ -211,6 +211,9 @@ export function channelStore(
       // stays null and the caller decides, because a wrong language stated
       // confidently is worse than a fallback named as one.
       const buyerLocale = LOCALES.find((l) => l === c?.buyer_locale) ?? null;
+      // 0153 — and whether a native reader signed the disclosure in it: the send gate refuses anything automated to
+      // a buyer whose language on record was never signed. None on record stays absent (the turn decides those).
+      const buyerLanguage = c?.buyer_locale ? (autonomyReleasedFor(c.buyer_locale) ? 'reviewed' as const : 'unreviewed' as const) : null;
       // C4.c — his latest e-mail's Message-ID, so what she sends into his thread
       // threads under it. Stored as the message's external id, 'email:<id>'.
       const inReplyTo = channel === 'email'
@@ -267,6 +270,7 @@ export function channelStore(
         // reply is never blocked by the ceiling.
         dailyCeilingReached: (c?.sent_today ?? 0) >= (c?.send_ceiling ?? DAILY_OUTBOUND_CEILING),
         ...(buyerLocale ? { buyerLocale } : {}),
+        ...(buyerLanguage ? { buyerLanguage } : {}),
         ...(outreach ? { outreach } : {}),
         ...(inReplyTo ? { inReplyTo } : {}),
         ...(sender ? { sender } : {}),

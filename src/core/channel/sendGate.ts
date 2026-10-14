@@ -112,6 +112,18 @@ export type GateInput = {
    * Absent or null: they have not.
    */
   readonly optOut?: { readonly repliedSince: boolean } | null;
+  /**
+   * 0136 — the owner pressed send on this row (their own words, or the assistant's draft they approved). Read here
+   * only by the language rule below: what the owner sends is the owner speaking.
+   */
+  readonly approved?: boolean;
+  /**
+   * 0153 — Phase 4 gate, blocker 1: the language on record for this buyer (`clients.preferred_language`), and
+   * whether a native reader signed its disclosure. Absent: none on record — the turn decides those (a language nobody
+   * can tell drafts; one known and unsigned hands over before anything is written), so this layer refuses only what
+   * it KNOWS: an unsigned language.
+   */
+  readonly buyerLanguage?: 'reviewed' | 'unreviewed';
 };
 
 export type Notice = 'handoff' | 'opt_out';
@@ -152,6 +164,7 @@ export const GATE_REFUSALS = [
   'stopped',              // 2026-09-27 — the owner's Stop, on every channel (0070)
   'frozen',               // D4 (2026-10-12) — the subscription lapsed: nothing goes, from anyone
   'opted_out',            // 0135 — the buyer asked, on this channel, to stop being messaged
+  'language_not_reviewed', // 0153 — the buyer's language has no signed disclosure: nothing automated reaches them
   // M42 — the outreach refusals, SPREAD from the outreach gate's own list
   // rather than restated. Same reason this list exists at all: a vocabulary
   // that must be edited in two places to stay true is the transcription bug
@@ -232,6 +245,16 @@ export function gateOutbound(g: GateInput): GateDecision {
   // one the owner did not choose.
   if (g.stopped && (g.origin === 'employee' || g.automated === true)) {
     return { allow: false, reason: 'stopped' };
+  }
+  /**
+   * 0153 — Phase 4 gate, blocker 1 (the owner, 2026-10-14): A BUYER WHOSE LANGUAGE HAS NO SIGNED DISCLOSURE RECEIVES
+   * NO AUTOMATED MESSAGE AT ALL. The turn already hands such a buyer to a person and writes nothing; this is the last
+   * door, for anything that would still reach them alone — a reply queued before, the hand-off sentence or the stop
+   * line, a follow-up a schedule released. What the owner sends goes: their own words, or a draft they approved.
+   */
+  if (g.buyerLanguage === 'unreviewed'
+    && ((g.origin === 'employee' && g.approved !== true) || g.automated === true)) {
+    return { allow: false, reason: 'language_not_reviewed' };
   }
   if (g.origin === 'employee') {
     // 0135 — except a notice that may still reach them (`noticeSpeaks`).

@@ -379,7 +379,10 @@ import type { Db } from './client.js';
 // 152 = a product's photo, kept and served (0152): `product_images.token`, `media_type`, `bytes`, `product_photo`
 //       and `product_photo_remove`, which the product page, `/media/:token` and the conversation's photo list read.
 //       Against a 151 database every product page fails.
-export const REQUIRED_SCHEMA_VERSION = 152;
+// 153 = a buyer whose language has no signed disclosure goes to a person (0153): the `language_not_reviewed`
+//       reason on both reason lists. Against a 152 database such a buyer's hand-over cannot be written, and the turn
+//       fails instead of handing over.
+export const REQUIRED_SCHEMA_VERSION = 153;
 
 export type SchemaState = {
   readonly required: number;

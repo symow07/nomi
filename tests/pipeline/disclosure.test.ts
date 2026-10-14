@@ -61,6 +61,15 @@ async function run(p: ReturnType<typeof ports>, text: string) {
   return { r, fx, sent: fx.outbound?.reply ?? null, drafts: p.tenant.draftsCreated, events: p.tenant.eventRows };
 }
 
+/** Blocker 1 (0153) — the buyer is with a person: nothing written, nothing sent, the reason recorded. */
+const handedOver = (p: ReturnType<typeof ports>, out: Awaited<ReturnType<typeof run>>) => {
+  expect(out.sent).toBeNull();
+  expect(out.drafts).toHaveLength(0);
+  expect(out.fx.handoffAlert).toBe(true);
+  expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toContain('language_not_reviewed');
+  expect(out.events.find((e) => e.type === 'autonomy_withheld')).toBeUndefined();
+};
+
 const seed = (p: ReturnType<typeof ports>, over = {}) =>
   p.tenant.seed(CONVERSATION, emptyState({
     phase: 'clarification',
@@ -406,31 +415,26 @@ describe('nothing is sent alone until the disclosure has had native review', () 
    * in auto before this rule existed; without this rung, confirming her name
    * would have put them straight back to sending the unreviewed zh/ar text.
    */
-  it('AUTO with the gate down drafts, and says why on the timeline', async () => {
+  // CHANGED (blocker 1, the owner, 2026-10-14): it drafted; now the buyer goes to a person and nothing is written.
+  it('AUTO with the gate down: the buyer goes to a person — nothing is written or sent, and the reason is recorded', async () => {
     const p = ports('auto');
     p.tenant.releasedFlag = false;
     seed(p);
     p.analyzer.next = analysis();
     p.replyWriter.replies = ['We make canvas totes in several sizes.'];
 
-    const { sent, drafts, events } = await run(p, 'Hello, do you make canvas bags?');
-    expect(sent).toBeNull();
-    expect(drafts).toHaveLength(1);
-    const withheld = events.find((e) => e.type === 'autonomy_withheld');
-    expect((withheld?.payload as { reason?: string }).reason).toBe('disclosure_not_reviewed');
+    handedOver(p, await run(p, 'Hello, do you make canvas bags?'));
   });
 
-  it('…even for a buyer who asked — no unreviewed sentence goes out in place of an answer', async () => {
+  // CHANGED (blocker 1): it drafted; now a person answers, and no unreviewed sentence goes out in place of an answer.
+  it('…even for a buyer who asked — a person answers, and no unreviewed sentence goes out in place of an answer', async () => {
     const p = ports('auto');
     p.tenant.releasedFlag = false;
     seed(p);
     p.analyzer.next = analysis('zh');
     p.replyWriter.replies = Array(3).fill('您需要什么尺寸？');
 
-    const { sent, drafts } = await run(p, '你是机器人吗？');
-    expect(sent).toBeNull();
-    expect(drafts).toHaveLength(1);
-    expect(drafts[0]!.replacedByDisclosure).toBe(false);   // nothing replaced it
+    handedOver(p, await run(p, '你是机器人吗？'));
   });
 
   it('the real flags: es, fr and pt await a native reader; en, zh and ar are read (ar signed again 2026-10-11) — per language', async () => {
@@ -471,53 +475,45 @@ describe('the gate is per language (the owner, 2026-09-30): each customer\'s own
   }
 
   for (const [detected, hello] of [['es', 'Hola'], ['fr', 'Bonjour']] as const) {
-    it(`${detected} — written, not yet read: the reply is a draft, and the card is told the language and why`, async () => {
+    // CHANGED (blocker 1): it drafted; now the buyer goes to a person, and nothing automated reaches them.
+    it(`${detected} — written, not yet read: the buyer goes to a person; nothing is written or sent`, async () => {
       const p = ports('auto');
       await real(p);
       seed(p);
       p.analyzer.next = analysis(detected);
       p.replyWriter.replies = ['Hacemos bolsas de lona.'];
-      const { sent, drafts, events } = await run(p, hello);
-      expect(sent).toBeNull();
-      expect(drafts).toHaveLength(1);
-      expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'disclosure_not_reviewed', language: detected });
-      expect(events.find((e) => e.type === 'draft_pending')?.payload).toMatchObject({ withheld: { reason: 'disclosure_not_reviewed', language: detected } });
+      handedOver(p, await run(p, hello));
     });
   }
 
   // German since the pt pack (2026-10-01) gave Portuguese a sentence of its own (unread, so its replies still wait).
-  it('a language with no sentence at all (German): a draft — never an English sentence, never a translation made up for the occasion', async () => {
+  // CHANGED (blocker 1): it drafted; now a person answers — still never an English sentence or a made-up translation.
+  it('a language with no sentence at all (German): a person answers — never an English sentence, never a translation made up for the occasion', async () => {
     const p = ports('auto');
     await real(p);
     seed(p);
     p.analyzer.next = analysis('de');
     p.replyWriter.replies = ['Wir machen Taschen aus Segeltuch.'];
-    const { sent, drafts, events } = await run(p, 'Hallo, haben Sie Taschen?');
-    expect(sent).toBeNull();
-    expect(drafts).toHaveLength(1);
-    expect(drafts[0]!.draftText).not.toContain('AI assistant');
-    expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'language_without_disclosure', language: 'de' });
+    handedOver(p, await run(p, 'Hallo, haben Sie Taschen?'));
   });
 
-  it('Portuguese has its sentence now, unread: a draft, and the card says it awaits a native reader', async () => {
+  // CHANGED (blocker 1): it drafted; now a person answers until a native reader signs the Portuguese sentence.
+  it('Portuguese has its sentence now, unread: a person answers until a native reader signs it', async () => {
     const p = ports('auto');
     await real(p);
     seed(p);
     p.analyzer.next = analysis('pt');
     p.replyWriter.replies = ['Fazemos sacolas de lona.'];
-    const { sent, events } = await run(p, 'Olá, vocês têm sacolas?');
-    expect(sent).toBeNull();
-    expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'disclosure_not_reviewed', language: 'pt' });
+    handedOver(p, await run(p, 'Olá, vocês têm sacolas?'));
   });
 
-  it('a capability in draft is untouched: nothing was going alone, nothing is withheld', async () => {
+  // CHANGED (blocker 1): a capability in draft drafted; the rule is now one for every capability — a person answers.
+  it('a capability in draft: the same — the buyer goes to a person, whatever the level', async () => {
     const p = ports('draft');
     await real(p);
     seed(p);
     p.analyzer.next = analysis('es');
     p.replyWriter.replies = ['Hacemos bolsas de lona.'];
-    const { events } = await run(p, 'Hola');
-    expect(events.find((e) => e.type === 'autonomy_withheld')).toBeUndefined();
-    expect((events.find((e) => e.type === 'draft_pending')?.payload as Record<string, unknown>)['withheld']).toBeUndefined();
+    handedOver(p, await run(p, 'Hola'));
   });
 });
