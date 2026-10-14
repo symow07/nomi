@@ -536,10 +536,11 @@ export async function ensureConversation(
       returning id
     `.execute(tx);
     clientId = client.rows[0]!.id;
+    // 0155 — unique per workspace: this workspace's address for this buyer, whoever else they write to.
     await sql`
-      insert into client_channels (client_id, channel, channel_user_id)
-      values (${clientId}, ${channel}, ${identity})
-      on conflict (channel, channel_user_id) do nothing
+      insert into client_channels (business_id, client_id, channel, channel_user_id)
+      values (${businessId}, ${clientId}, ${channel}, ${identity})
+      on conflict (business_id, channel, channel_user_id) do nothing
     `.execute(tx);
   }
 

@@ -38,6 +38,14 @@ demos and naming the boss are the owner's.
   only from words close to its names; Arabic never, Chinese not from a shorter name), and the model tying an unnamed
   product in Chinese, not English or Arabic. `docs/CAPABILITY-SWEEP.md` has the numbers. **Waiting on the owner:**
   which to fix before the pilot. Arabic stays out.
+- **A buyer's address is each workspace's own — #338 (0155):** found building the operator tool. `client_channels`
+  was unique on (channel, number) across ALL workspaces, so a buyer who had written to one workspace became, in a
+  second, a client with no address — a new one with every message, and nowhere for a reply to go (nothing crossed;
+  the second workspace lost them). The first person to write to both pilot numbers would have been the owner. Now
+  unique per (business_id, channel, number), `business_id` filled from the client by a trigger.
+  `tests/integration/buyer-per-workspace.test.ts`; against 154 and main's code it finds 2 clients and no address.
+  **Changed by design:** `write-first` pinned "an address another factory holds writes nothing here" — the old key
+  speaking, not a rule (its own comment said so); it now writes, one client, its address, no ghost.
 
 ## Phase 4 — the Gate A pilot: the owner's answers (2026-10-14)
 

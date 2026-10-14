@@ -200,7 +200,7 @@ export function demoSeedSql(namespace: string = DEMO_NAMESPACE): string {
       // conversation's would be.
       `insert into client_channels (client_id, channel, channel_user_id, last_inbound_at) values`,
       `  ('${b.id}', 'whatsapp', '${b.phone.replace(/[^0-9]/g, '')}', now() - interval '1 hour')`,
-      `  on conflict (channel, channel_user_id) do nothing;`,
+      `  on conflict (business_id, channel, channel_user_id) do nothing;`,
     );
   }
 
@@ -233,11 +233,11 @@ export function demoSeedSql(namespace: string = DEMO_NAMESPACE): string {
   // nowhere else in the generated text — asserted by a test, since a
   // substitution that hit a product name would corrupt the seed silently.
   let out2 = sql.replaceAll(DEMO_NAMESPACE, namespace);
-  // Phone numbers need it too, and for a reason worth writing down:
-  // `client_channels` is UNIQUE on (channel, channel_user_id) GLOBALLY, not per
-  // business. A second tenant reusing the demo numbers silently loses every
-  // client_channels row to `on conflict do nothing`, leaving buyers who cannot
-  // be reached — a seed that looks complete and is not.
+  // Phone numbers need it too: until 0155 `client_channels` was UNIQUE on
+  // (channel, channel_user_id) across ALL businesses, and a second tenant
+  // reusing the demo numbers silently lost every row to `on conflict do
+  // nothing`. Unique per workspace now; namespaced still, so no seed's buyer is
+  // ever another tenant's by accident.
   for (const b of DEMO_BUYERS) out2 = out2.replaceAll(b.phone, demoPhone(b.phone, namespace));
   return out2;
 }

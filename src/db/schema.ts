@@ -31,6 +31,8 @@ export interface Database {
   };
   client_channels: {
     id: Generated<string>;
+    /** 0155 — the client's business, filled by a trigger; the address is unique per business. */
+    business_id: Generated<string>;
     client_id: string;
     channel: string;
     channel_user_id: string;

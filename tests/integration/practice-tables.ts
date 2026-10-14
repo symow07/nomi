@@ -54,6 +54,8 @@ export const PRACTICE_SKIP = [
   'capability_events', 'deletion_asks', 'deletion_requests', 'calendar_entries',
   // Who: customers, contacts and what was learned about them.
   'clients', 'contacts', 'contact_consent', 'suppressions', 'organization_enrichments',
+  // 0155 — a customer's address, now each workspace's own (it carries the business since then).
+  'client_channels',
   // 0135 — a real customer's stop: never copied, and a practice customer's stays in its copy.
   'opt_outs',
   // Where: every channel, credential and sending identity — a copy can reach nobody.
