@@ -116,6 +116,16 @@ export async function linkWhatsAppCredentials(
   return 'linked';
 }
 
+/**
+ * The number this business's WhatsApp credential routes, while it is switched
+ * on; null when it has none. The outbound worker reads it to keep the
+ * installation's number for the business that number is connected to.
+ */
+export async function activeWhatsAppNumber(tx: Tx, businessId: BusinessId): Promise<string | null> {
+  return (await sql<{ ref: string }>`select external_ref as ref from channel_credentials
+    where business_id = ${businessId} and channel = 'whatsapp' and is_active limit 1`.execute(tx)).rows[0]?.ref ?? null;
+}
+
 /** Disconnect: the credential switches off, so Meta's next delivery is dropped; nothing is erased. */
 export async function unlinkWhatsAppCredentials(tx: Tx, businessId: BusinessId, actor: string): Promise<void> {
   await sql`update channel_credentials set is_active = false

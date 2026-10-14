@@ -33,7 +33,15 @@ export type WaConnectDeps = {
   readonly login: WaLogin | null;
   readonly fetchImpl: MetaFetch;
   readonly graphVersion: string;
+  /**
+   * The installation's own WhatsApp account (META_WHATSAPP_BUSINESS_ACCOUNT_ID). A number the operator attached from it
+   * (tools/attach-number.mjs) is disconnected WITHOUT unsubscribing the account: other workspaces' numbers live there.
+   */
+  readonly installationWabaId?: string | null;
 };
+
+/** A connection that could not finish its last row: thrown inside the transaction so nothing of it is kept. */
+class NumberTaken extends Error {}
 
 export async function completeWhatsAppConnection(
   deps: WaConnectDeps,
@@ -88,18 +96,26 @@ export async function completeWhatsAppConnection(
   const pin = newPin();
   if (!await registerNumber({ phoneNumberId: number.id, token, pin, graphVersion: deps.graphVersion }, deps.fetchImpl)) return { outcome: 'refused' };
 
-  return withTenantTx(deps.db, input.businessId, async (tx) => {
-    const stored = await connectWhatsAppAccount(tx, input.businessId, {
-      wabaId, phoneNumberId: number.id, display: number.display, verifiedName: number.verifiedName, nameStatus: number.nameStatus,
-      ciphertext: encryptSecret(token!, key), fingerprint: credentialFingerprint(token!), pinCiphertext: encryptSecret(pin, key), by: input.by,
+  // 2026-10-14 — a number another workspace's credential holds is refused WHOLE: the account row written a moment
+  // before goes too. Returned instead of thrown, it was committed — a live account, sending from a number whose
+  // customers' messages reach another workspace.
+  try {
+    return await withTenantTx(deps.db, input.businessId, async (tx) => {
+      const stored = await connectWhatsAppAccount(tx, input.businessId, {
+        wabaId, phoneNumberId: number.id, display: number.display, verifiedName: number.verifiedName, nameStatus: number.nameStatus,
+        ciphertext: encryptSecret(token!, key), fingerprint: credentialFingerprint(token!), pinCiphertext: encryptSecret(pin, key), by: input.by,
+      });
+      if (!stored.ok) throw new NumberTaken();
+      const linked = await linkWhatsAppCredentials(tx, input.businessId, {
+        accountId: stored.id, phoneNumberId: number.id, display: number.display, actor: input.by,
+      });
+      if (linked === 'number_taken') throw new NumberTaken();
+      return { outcome: 'connected' as const, display: number.display, verifiedName: number.verifiedName, nameStatus: number.nameStatus };
     });
-    if (!stored.ok) return { outcome: 'number_taken' as const };
-    const linked = await linkWhatsAppCredentials(tx, input.businessId, {
-      accountId: stored.id, phoneNumberId: number.id, display: number.display, actor: input.by,
-    });
-    if (linked === 'number_taken') return { outcome: 'number_taken' as const };
-    return { outcome: 'connected' as const, display: number.display, verifiedName: number.verifiedName, nameStatus: number.nameStatus };
-  });
+  } catch (e) {
+    if (e instanceof NumberTaken) return { outcome: 'number_taken' };
+    throw e;
+  }
 }
 
 /** Meta stops sending us the account's messages (best effort); the rows here are archived and the credential switched off. */
@@ -109,7 +125,9 @@ export async function disconnectWhatsAppAccount(
   const account = await withTenantTx(deps.db, input.businessId, (tx) => liveWhatsAppAccount(tx, input.businessId));
   if (!account) return false;
   const token = deps.credentialKey ? whatsAppAccountToken(account, deps.credentialKey) : null;
-  if (token) await unsubscribeWaba({ wabaId: account.wabaId, token, graphVersion: deps.graphVersion }, deps.fetchImpl);
+  // Never the installation's own account: Westlake's number, and every other the operator attached, are in it.
+  const shared = deps.installationWabaId != null && account.wabaId === deps.installationWabaId;
+  if (token && !shared) await unsubscribeWaba({ wabaId: account.wabaId, token, graphVersion: deps.graphVersion }, deps.fetchImpl);
   return withTenantTx(deps.db, input.businessId, async (tx) => {
     await unlinkWhatsAppCredentials(tx, input.businessId, input.by);
     return archiveWhatsAppAccount(tx, input.businessId, input.by);
