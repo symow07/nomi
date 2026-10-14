@@ -11,6 +11,7 @@ import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { formatList } from '../../src/core/owner/i18n/format.js';
 import * as show from '../../src/api/web/values.js';
 import { usd } from '../../src/core/types/money.js';
 
@@ -145,6 +146,28 @@ describe('the list and the product\'s page say it of each product', () => {
       expect(fine, l).not.toContain(esc(t(l, 'product.detail.noName', { language: languageCalled(l, 'zh') })));
     }
   });
+  it('ON #344 — a language only on the default list is a suggestion: one quiet line on the list, a caption on the product, no mark, no warning', () => {
+    for (const l of LOCALES) {
+      const html = withWorkspace(scope({}), () => renderProductList([{ ...item([]), namesSuggested: ['zh', 'ar'] }], l));
+      const line = esc(t(l, 'product.list.namesSuggested', { languages: formatList(l, [languageCalled(l, 'zh'), languageCalled(l, 'ar')]) }));
+      expect(html.split(line).length - 1, l).toBe(1);
+      expect(html, l).toContain(`<p class="caption muted">${line}</p>`);
+      expect(html, l).not.toContain(esc(t(l, 'product.list.noName', { language: languageCalled(l, 'zh') })));
+      const detail = withWorkspace(scope({}), () => renderProductDetail({
+        id: 'p1', name: 'Canvas tote', nameZh: null, sku: 'CT-1', category: null, unit: 'pcs', moq: 100, leadTimeDays: null,
+        customizable: false, learned: true, status: 'learned', imageMatchable: true, isActive: true,
+        tiers: [{ minQty: 100, maxQty: null, unitPrice: usd(1.2) }], aliases: ['canvas tote'], images: [], recentQuotes: [],
+        photo: null, currency: 'USD', source: null, namesWanted: [], namesSuggested: ['ar'],
+      } as unknown as ProductDetail, l));
+      expect(detail, l).toContain(`<p class="caption muted">${esc(t(l, 'product.detail.nameSuggested', { language: languageCalled(l, 'ar') }))}</p>`);
+      expect(detail, l).not.toContain(esc(t(l, 'product.detail.noName', { language: languageCalled(l, 'ar') })));
+    }
+  });
+  it('nothing suggested: no line', () => {
+    const html = withWorkspace(scope({}), () => renderProductList([item([])], 'en'));
+    expect(html).not.toContain('Selling to people who write');
+  });
+
   it('the language is named in the owner\'s own language', () => {
     expect(languageCalled('en', 'zh')).toBe('Chinese');
     expect(languageCalled('zh', 'zh')).toBe('中文');

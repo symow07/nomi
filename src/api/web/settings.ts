@@ -197,10 +197,14 @@ export async function saveBusinessProfile(
     }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served, postal_address
          from businesses where id = ${bid.value}`.execute(tx)).rows[0];
 
+    // 0160 (the owner, on #344) — a list the owner CHANGED is theirs from then on: setting up asks for product names
+    // in its languages. The default list nobody touched never is (`scriptNeeds`, src/db/setup.ts).
+    const langsChanged = !!cur && (cur.languages_served ?? []).join(',') !== v.value.languagesServed.join(',');
     await sql`update businesses set
         name = ${v.value.name}, description = ${v.value.description}, location = ${v.value.location},
         working_hours = ${v.value.workingHours}, contact_email = ${v.value.contactEmail},
         contact_phone = ${v.value.contactPhone}, languages_served = ${langsSql(v.value.languagesServed)}
+        ${langsChanged ? sql`, languages_chosen_at = coalesce(languages_chosen_at, now())` : sql``}
         ${v.value.postalAddress !== undefined ? sql`, postal_address = ${v.value.postalAddress}` : sql``}
       where id = ${bid.value}`.execute(tx);
 
@@ -214,7 +218,7 @@ export async function saveBusinessProfile(
       if (!eq(cur.working_hours, v.value.workingHours)) changed.push('working_hours');
       if (!eq(cur.contact_email, v.value.contactEmail)) changed.push('contact_email');
       if (!eq(cur.contact_phone, v.value.contactPhone)) changed.push('contact_phone');
-      if ((cur.languages_served ?? []).join(',') !== v.value.languagesServed.join(',')) changed.push('languages_served');
+      if (langsChanged) changed.push('languages_served');
       if (v.value.postalAddress !== undefined && !eq(cur.postal_address, v.value.postalAddress)) changed.push('postal_address');
     }
     await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
@@ -548,7 +552,7 @@ export function renderProfile(
     label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined, need: extra.need, desc: extra.desc,
     control: `<input id="pf-${id}" name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />` });
 
-  const languages = fieldRow({ label: t(locale, 'settings.field.languages'),
+  const languages = fieldRow({ label: t(locale, 'settings.field.languages'), desc: t(locale, 'settings.desc.languages'),
     control: `<div class="langs">${SERVED_LANGUAGES.map((l) =>
       `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> <bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi></label>`).join('')}</div>` });
   // Phase 9 (V1-524) — who reads what: the description reaches the assistant
