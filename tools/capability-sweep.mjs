@@ -47,11 +47,13 @@
  * Options: --repeats N (1–10, default 3) · --only id,id · --concurrency N (default 6)
  * · --json <file> (every run, for the report page) · --no-catalogue (layer 1 only).
  */
+// The words, read from source (Node 22.18+ strips the types): the one list the parity test holds complete.
+import { SCENARIO_LANGUAGES } from '../src/trust/scenarioLanguages.ts';
+
 const { llmProviderFrom, llmClient, requestExtrasFor } = await import('../dist/llm/provider.js');
 const { anthropicAnalyzer } = await import('../dist/llm/anthropic.js');
 const { evaluateScenario } = await import('../dist/trust/harness.js');
 const { SCENARIOS, TRUST_PRODUCT_ID, candidate } = await import('../dist/trust/scenarios.js');
-const { SCENARIO_LANGUAGES } = await import('../dist/trust/scenarioLanguages.js');
 const { modesFor } = await import('../dist/core/conversation/autonomyLevel.js');
 const { aliasRowsFor } = await import('../dist/core/onboard/aliases.js');
 const { writeFileSync } = await import('node:fs');
