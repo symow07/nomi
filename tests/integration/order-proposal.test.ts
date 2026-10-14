@@ -447,10 +447,17 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
       .then((x) => (x.rows[0]!.n >= 1 ? true : undefined))), 'the maybe');
     const page = await get(`/app/inbox/${conv}`);
     expect(page.statusCode).toBe(200);
-    const from = page.body.indexOf('id="maybe-yes"');
-    expect(from, 'the card').toBeGreaterThan(-1);
-    const rest = page.body.slice(from);
-    const card = rest.slice(0, rest.indexOf('<div class="card', 1) > 0 ? rest.indexOf('<div class="card', 1) : undefined);
+    // The card alone — its own <div>, to the one that closes it — never the reply box after it, which has a form.
+    const from = page.body.lastIndexOf('<div', page.body.indexOf('id="maybe-yes"'));
+    expect(page.body.indexOf('id="maybe-yes"'), 'the card').toBeGreaterThan(-1);
+    const tags = /<div\b|<\/div>/g;
+    tags.lastIndex = from;
+    let depth = 0, to = page.body.length;
+    for (let m = tags.exec(page.body); m; m = tags.exec(page.body)) {
+      depth += m[0] === '</div>' ? -1 : 1;
+      if (depth === 0) { to = m.index + m[0].length; break; }
+    }
+    const card = page.body.slice(from, to);
     const at = (x: string) => card.indexOf(x);
     const words = at('<bdi>ok, 5000 again please</bdi>');
     const product = at('<bdi>Gift box</bdi>');
@@ -462,5 +469,9 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     expect(words, 'their words first').toBeLessThan(product);
     expect(total, 'then the price, then the mismatch').toBeLessThan(mismatch);
     expect(card, 'nothing to press on a maybe').not.toMatch(/<form|<button|order\/confirm/);
+    // The hand-off's alert is queued by the turn: let it finish, so this file leaves no job for the next one.
+    await until(async () => ((await sql<{ n: number }>`select count(*)::int as n from pgboss.job
+      where data->>'conversationId' = ${conv} and name <> 'message.outbound' and state in ('created', 'retry', 'active')`
+      .execute(prod.db)).rows[0]!.n === 0 ? true : undefined), 'the alert to be sent');
   });
 });

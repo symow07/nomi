@@ -35,13 +35,19 @@ const base = (over: Partial<ConversationDetail> = {}): ConversationDetail => ({
 
 const bare = (x: string): string => x.replace(/[\u2068\u2069]/g, '');
 
-/** The maybe card alone: from its id to the next card. */
+/** The card alone: its own <div>, from its opening tag to the one that closes it. */
 const cardOf = (html: string): string => {
-  const from = html.indexOf('id="maybe-yes"');
-  if (from < 0) return '';
-  const rest = html.slice(from);
-  const next = rest.indexOf('<div class="card', 1);
-  return next > 0 ? rest.slice(0, next) : rest;
+  const at = html.indexOf('id="maybe-yes"');
+  if (at < 0) return '';
+  const start = html.lastIndexOf('<div', at);
+  const tags = /<div\b|<\/div>/g;
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let m = tags.exec(html); m; m = tags.exec(html)) {
+    depth += m[0] === '</div>' ? -1 : 1;
+    if (depth === 0) return html.slice(start, m.index + m[0].length);
+  }
+  return html.slice(start);
 };
 
 describe('the numbers a buyer wrote', () => {
@@ -109,6 +115,14 @@ describe('"may be saying yes": what the owner sees before deciding anything', ()
     const card = cardOf(renderConversationDetail(base({ maybeYes: { said: '<b>ok</b> 5000', offer: OFFER } }), 'en', NOW, null, OWNER_VIEW));
     expect(card).toContain('&lt;b&gt;ok&lt;/b&gt; 5000');
     expect(card).not.toContain('<b>ok</b>');
+  });
+
+  it('the card is cut out whole, and nothing after it: the reply box below has a form', () => {
+    const html = renderConversationDetail(base(), 'en', NOW, null, OWNER_VIEW);
+    const card = cardOf(html);
+    expect(card.startsWith('<div class="card refused" id="maybe-yes">')).toBe(true);
+    expect(card.endsWith('</div>')).toBe(true);
+    expect(html.indexOf(card)).toBeGreaterThan(-1);
   });
 
   it('only while the maybe is the reason it waits', () => {
