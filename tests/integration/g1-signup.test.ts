@@ -32,7 +32,17 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   let prod: import('../../src/main.js').Production;
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
   let admin: pg.Client;
+  /**
+   * The mail this file is about: to the people signing up here, and to this installation's operator. NOT every letter
+   * the installation sends while it runs — its workers also take jobs other files left queued, and the schedules that
+   * fire every few minutes (the morning summary, the provider's state, the sweeps) mail other workspaces' owners. That
+   * mail landed here and failed "nothing is sent" at random (CI on main, 2026-10-14 18:20 UTC: one letter at the first
+   * test, before any sign-up). It is kept apart in `elsewhere`, and named on stderr so the next one says what it was.
+   */
   const outbox: { to: string; subject: string; text: string }[] = [];
+  const elsewhere: { to: string; subject: string }[] = [];
+  const ours = (): readonly string[] => [OPERATOR, A.email, B.email, C.email, `young-${RUN}@shop.example`];
+  const mailTo = (to: string) => outbox.filter((m) => m.to === to);
   const errorAlerts: { to: string; subject: string; text: string }[] = [];
   const form = (url: string, fields: Record<string, string>, cookie = '') => prod.app.inject({
     method: 'POST', url, headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `203.0.113.${RUN.charCodeAt(1) % 200}`, ...(cookie ? { cookie } : {}) },
@@ -74,7 +84,10 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
       // BOT — a passing check, and no database limits: this file signs many up within the hour.
       botCheck: PASSING_BOT_CHECK, signupGuard: null,
       systemMail: { from: 'no-reply@nomi.test', send: async (m) => {
-        (m.subject === t('en', 'notify.app_error.subject') ? errorAlerts : outbox).push(m); return { ok: true };
+        if (m.subject === t('en', 'notify.app_error.subject')) errorAlerts.push(m);
+        else if (ours().includes(m.to)) outbox.push(m);
+        else { elsewhere.push({ to: m.to, subject: m.subject }); console.warn(`[g1] a letter for another workspace: "${m.subject}"`); }
+        return { ok: true };
       } },
     } as Parameters<typeof buildProduction>[1]);
   }, 90_000);
@@ -87,7 +100,7 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     const r = await form('/signup', A);
     expect(r.statusCode).toBe(400);
     expect(r.body).toContain(t('en', 'signup.problem.terms_missing'));
-    expect(outbox).toHaveLength(0);
+    expect(mailTo(A.email), 'no code to them').toEqual([]);
   });
 
   it('AGE: under 18, the sign-up is refused before anything is sent or made; that browser is told for a day, whatever it types next', async () => {
@@ -110,7 +123,7 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(page.statusCode).toBe(403);
     expect(page.body).toContain(t('en', 'signup.problem.age_under'));
     // nothing was sent, nothing was made
-    expect(outbox).toHaveLength(0);
+    expect(mailTo(young.email), 'no code to them').toEqual([]);
     expect((await admin.query(`select 1 from businesses where name = $1`, [young.factory])).rowCount).toBe(0);
   });
 
@@ -118,11 +131,11 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     const { TERMS_VERSION } = await import('../../src/api/web/legal.js');
     const r = await form('/signup', { ...A, terms: 'on', age: '34' });
     expect([r.statusCode, r.headers['location']]).toEqual([302, '/verify']);
-    const code = outbox.at(-1)!.subject.match(/\d{6}/)![0];
+    const code = mailTo(A.email).at(-1)!.subject.match(/\d{6}/)![0];
     // Another stranger asks while the last place is still free…
     const late = await form('/signup', C);
     expect([late.statusCode, late.headers['location']]).toEqual([302, '/verify']);
-    const lateCode = outbox.at(-1)!.subject.match(/\d{6}/)![0];
+    const lateCode = mailTo(C.email).at(-1)!.subject.match(/\d{6}/)![0];
     const ok = await form('/verify', { code }, otpCookie(r));
     expect(ok.statusCode, ok.body.slice(0, 200)).toBe(302);
     // …and comes back with the code after it was taken: counted again, under the lock, and nothing made.
@@ -137,7 +150,7 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(made.terms_accepted_at).not.toBeNull();
     const told = await (async () => {
       for (let i = 0; i < 50; i++) {
-        const m = outbox.find((x) => x.to === OPERATOR);
+        const m = mailTo(OPERATOR).find((x) => x.subject === t('en', 'notify.signup_new.subject'));
         if (m) return m;
         await new Promise((res) => setTimeout(res, 100));
       }
@@ -180,11 +193,11 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   }, 30_000);
 
   it('PAST THE COHORT CAP, sign-up says it is full and makes nothing', async () => {
-    const before = outbox.length;
+    const before = mailTo(B.email).length;
     const r = await form('/signup', B);
     expect(r.statusCode).toBe(403);
     expect(r.body).toContain(t('en', 'signup.error.full'));
-    expect(outbox.length, 'no code is sent for a place there is not').toBe(before);
+    expect(mailTo(B.email).length, 'no code is sent for a place there is not').toBe(before);
     expect((await admin.query(`select 1 from businesses where name = $1`, [B.factory])).rowCount).toBe(0);
   });
 
