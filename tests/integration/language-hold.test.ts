@@ -107,9 +107,11 @@ d('0159 · a language held out of one workspace (requires DATABASE_URL + MIGRATE
     expect(held.fx.outbound?.reply, 'told, never silence').toContain(HANDOFF_REPLIES.ar);
     expect(held.written).toBe(0);
 
+    // Answered: the reply written (after the disclosure a first reply in a conversation carries), not the hand-off.
     const other = await turn(OTHER, ARABIC);
     expect(other.signals).not.toContain('language_held');
-    expect(other.fx.outbound?.reply).toBe(REPLY);
+    expect(other.fx.outbound?.reply).toContain(REPLY);
+    expect(other.fx.outbound?.reply).not.toContain(HANDOFF_REPLIES.ar);
   });
 
   it('released by the tool: answered again, as every signed language is', async () => {
@@ -118,6 +120,8 @@ d('0159 · a language held out of one workspace (requires DATABASE_URL + MIGRATE
     expect(r.out).toMatch(/ar RELEASED/);
     const after = await turn(HELD, ARABIC);
     expect(after.signals).not.toContain('language_held');
-    expect(after.fx.outbound?.reply).toBe(REPLY);
+    const { HANDOFF_REPLIES } = await import('../../src/core/conversation/templates.js');
+    expect(after.fx.outbound?.reply).toContain(REPLY);
+    expect(after.fx.outbound?.reply).not.toContain(HANDOFF_REPLIES.ar);
   });
 });
