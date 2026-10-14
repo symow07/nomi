@@ -59,6 +59,9 @@ names in the onboarding path itself. Reports go to docs/ as files (the artifact 
   failed when the guards failed twice OR it could not be written without a gender (`TurnResult.addressUnwritten`).
   Also: the pilot-log test read "yesterday" from the local database's clock and failed every night 00:00–08:00
   Shanghai; it reads the tool's UTC clock now.
+- **Main's CI after #349–#353 — #354:** the sign-up test's outbox caught every letter the installation sent, so
+  another workspace's mail (a left job, the */15 morning summary for any owner past 08:00) failed "nothing is sent" at
+  the first test. Reproduced with one stray letter; the outbox is now its own recipients' mail, the rest named on stderr.
 - **Arabic: held per workspace, and the run that releases it — #347 (0159):** `businesses.languages_held`, set only
   by `tools/language-hold.mjs`; a held language goes to a person and the buyer hears the ordinary hand-off sentence.
   `tools/check-language-release.mjs` is (a) and (b): export a workspace's catalogue READ ONLY, refuse while any product

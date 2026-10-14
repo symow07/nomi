@@ -65,6 +65,13 @@ It was a dead end, and I built the exit. An order existed only through a proposa
 - **0160** was deployed after the backup `nomi-backup-20261014T030046Z` (13 hours old, PITR on). Production schema is now 160; every deploy's health check was ok.
 - **One unrelated nightly flake, found on the way and root-caused.** The pilot-log test read "yesterday" from the local database's clock (Shanghai time), while the tool reads UTC, so it failed every night from 00:00 to 08:00. It now reads the tool's clock; production's database runs on UTC.
 
+**After the merges, main's own CI failed once — fixed (#354).**
+- **What failed.** Every PR's CI had passed, but the merged code failed the sign-up test: "nothing is sent" found one e-mail before anything was signed up.
+- **Why.** That test caught every e-mail the app sent while it ran. That includes other workspaces' mail its workers pick up: jobs another test file left behind, and the scheduled sends, such as the morning summary that goes to any owner whose clock is past 08:00. Whether one lands depends on the hour and on which file ran just before.
+- **Reproduced:** one stray letter makes the old test fail exactly as CI did.
+- **Fixed:** the test now reads only mail to its own people, and prints any other letter's subject, so the next one is named. That CI run didn't record which letter it was.
+- **Verified:** the combined code passed all four checks, 1,569/1,569.
+
 **Tests changed by design:**
 - `setup-names` (rewritten for item 1).
 - `maybe-yes-card` (the card now has one form, which prepares).
