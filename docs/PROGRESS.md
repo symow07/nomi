@@ -13,6 +13,22 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Phase 4 — after #340–#342 (2026-10-14) — read this first
+
+**The owner's word, given now (2026-10-14):** Arabic joins the pilot AUTOMATICALLY once both are true — (a) the
+boss's products carry Arabic names, and (b) a fresh 60-turn Arabic run against the REAL product set comes back with
+nothing gendered sent, nothing held silent, and no split against English or Chinese. If (b) fails, Arabic stays out
+and the owner is told what failed; if it passes, Arabic is turned on and the next report says so. Don't ask again.
+Three checks before the kit closes: the matcher's ambiguity case; what the "may be saying yes" card shows; Chinese
+names in the onboarding path itself. Reports go to docs/ as files (the artifact service refused).
+
+- **Two products the words fit about equally: ask which, never guess — #343:** «无纺布袋多少钱？» with «无纺布购物袋»
+  and «无纺布手提袋» scored 0.400 each and the analysis's pick was priced. Now, when the two best names are close (the
+  second at least 0.85 of the first, both by name), the model's pick is dropped and the buyer is asked which — by name,
+  her Chinese name to a Chinese buyer — with nothing priced (`src/core/conversation/whichProduct.ts`). A clear lead is
+  not asked about: the whole name (1.0 vs 0.4), «无纺布袋» against «帆布袋» (0.40 vs 0.25). Tests: the real search with a
+  genuinely ambiguous pair and with pairs that are not; English too; the ask switched off fails the two ambiguous ones.
+
 ## Phase 4 — the language sweep's decisions (2026-10-14) — read this first
 
 **The owner's decisions on the sweep:** build 1 (order confirmation) and 2 (Chinese product matching); leave 3 (the

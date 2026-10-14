@@ -17,6 +17,7 @@ import type { TextProvenance } from '../core/safety/heardNumbers.js';
 import { holdReasonOf, type HoldReason } from '../core/conversation/hold.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { asksOrHolds, soundsLikeYes } from '../core/conversation/acceptance.js';
+import { closeCall, whichOne } from '../core/conversation/whichProduct.js';
 import { analyserWasAvoidable, type AnswerPath } from '../core/conversation/answerPath.js';
 import { agreesOnEverything, compareWithModel, understand, type Agreement, type OwnUnderstanding } from '../core/conversation/understand.js';
 import { detectInjection } from '../core/safety/injection.js';
@@ -365,6 +366,24 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     }
   }
 
+  /**
+   * 2026-10-14 (the owner) — TWO PRODUCTS THE WORDS FIT ABOUT EQUALLY: ASK WHICH, NEVER GUESS. «无纺布袋多少钱？» fits
+   * «无纺布购物袋» and «无纺布手提袋» exactly as well, and the analysis's pick was then priced: "a confident price for the
+   * wrong product is a money error in front of a real buyer". Neither is taken (`whichProduct.ts`); below, a reply
+   * that would have been written asks which instead, by name, and nothing is priced.
+   */
+  const close = gated ? null
+    : closeCall(retrieved, state.product?.confirmedByClient ? state.product.productId : null);
+  /** Her products' names and codes, read ONCE for the turn: by the close call's question and by the guards (PC). */
+  let words: Awaited<ReturnType<typeof tenant.catalog.productWords>> | null = null;
+  const productWords = async () => (words ??= await tenant.catalog.productWords());
+  if (close && analysis) {
+    const pick = analysis.intent.productCandidate?.productId ?? null;
+    if (pick === null || close.some((x) => x.productId === pick)) {
+      analysis = { ...analysis, intent: { ...analysis.intent, productCandidate: null } };
+    }
+  }
+
   // ── LG (decision 16): the customer's language, by fixed rules. ─────────────
   // This turn's words first; a message that says nothing of its language ("ok",
   // "200 pcs?") is read by the customer's last three. The analysis — this
@@ -447,6 +466,21 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     quote: null, // negotiation logic consults it in Week 3; gates ignore it
     language: sayIn,
   });
+  // The close call, above: the reply that would have been written asks which product, by name — her Chinese name to a
+  // Chinese buyer — with no product taken, so no price is worked out.
+  if (close && decision.action.kind === 'generate_reply') {
+    const names = await productWords();
+    const nameOf = (p: RetrievedProduct): string => {
+      const zh = names.find((w) => w.sku === p.sku)?.names[1];
+      return sayIn === 'zh' && zh ? zh : p.name;
+    };
+    decision = {
+      ...decision,
+      action: { kind: 'canned_reply', reply: whichOne(nameOf(close[0]), nameOf(close[1]), sayIn) },
+      product: null,
+      pendingQuestion: null,
+    };
+  }
 
   // ── Quote: deterministic, snapshotted, Postgres-owned. ─────────────────────
   let quote: Quote | null = null;
@@ -653,7 +687,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // her own codes, read once for the turn: their exact words are set aside
       // by the numeral guard at every one of its four places below; their
       // figures are never sourced values (core/safety/numerals.ts).
-      catalogue = catalogueWords(await tenant.catalog.productWords());
+      catalogue = catalogueWords(await productWords());
       const refusalCtx = quoteRefusal ? quoteRefusalContext(quoteRefusal) : null;
       const replyLanguage =
         analysis?.language.replyIn ?? state.preferredLanguage ?? 'en';

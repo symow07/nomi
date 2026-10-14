@@ -204,7 +204,9 @@ describe('PC · one rule, at every place a reply is checked', () => {
     expect(calls).toHaveLength(4);   // order status, taught answer, the writer's attempts, the stand-in
     for (const c of calls) expect(c).toMatch(/\bcatalogue\b/);
     expect(turn.match(/tenant\.catalog\.productWords\(\)/g)).toHaveLength(1);
-    expect(turn).toContain('catalogue = catalogueWords(await tenant.catalog.productWords());');
+    // 2026-10-14 — read once, through one memo shared with the close call's question (whichProduct.ts).
+    expect(turn).toContain('const productWords = async () => (words ??= await tenant.catalog.productWords());');
+    expect(turn).toContain('catalogue = catalogueWords(await productWords());');
   });
   it('the trust invariant re-runs the guard on the turn’s own catalogue', async () => {
     const inv = await src('src/trust/invariants.ts');
