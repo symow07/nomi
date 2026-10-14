@@ -145,7 +145,16 @@ export type Signal =
    * confirmation" — never answered by sending the price again. The buyer hears the order's own line ("a colleague
    * will review this order with you"), and the owner confirms or answers. Scored like a request for a person.
    */
-  | { readonly kind: 'maybe_confirmation' }
+  | {
+      readonly kind: 'maybe_confirmation';
+      /** The buyer's message, word for word, as the owner's card shows it (2026-10-14: "the mismatch, not a verb"). */
+      readonly said?: string;
+      /** The last price this buyer was actually given for the conversation's product; null when none is on record. */
+      readonly offer?: {
+        readonly productName: string; readonly quantity: number; readonly unit: string;
+        readonly unitPrice: Money; readonly total: Money; readonly givenAt: string;
+      } | null;
+    }
   /**
    * Rule 6 (2026-10-14, the owner) — the writer was asked twice and both times addressed the buyer as a man or a
    * woman (src/core/safety/address.ts, Arabic). A person answers, and the buyer hears the ordinary hand-off sentence,

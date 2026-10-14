@@ -88,3 +88,14 @@ export function soundsLikeYes(text: string): string | null {
   const zh = t.replace(GREETING_ZH, '');
   return (t.match(NO_PROBLEM) ?? t.match(YES_LATIN) ?? t.match(YES_AR) ?? zh.match(YES_ZH) ?? t.match(YES_EMOJI))?.[0] ?? null;
 }
+
+/**
+ * The whole numbers a message says ("ok, 5000 again please" → [5000]; «好的，5,000个» → [5000]; «٥٠٠٠» → [5000]),
+ * for the owner's card: a maybe-yes that names another quantity than the price on record is shown as a mismatch.
+ * Decimals are prices, not quantities, and are left out.
+ */
+export function quantitiesSaid(text: string): number[] {
+  const t = text.normalize('NFKC').replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/(\d)[,，](?=\d{3}\b)/g, '$1');
+  return [...t.matchAll(/(?<![\d.])\d+(?![\d.])/g)].map((m) => Number(m[0])).filter((n) => n >= 2);
+}

@@ -40,6 +40,7 @@ import { customerValues, REGULAR_ORDERS } from '../../db/customerValue.js';
 import { faceVersions } from '../../db/faces.js';
 import { readAttention, type AttentionItem } from '../../db/inboxAttention.js';
 import * as show from './values.js';
+import { quantitiesSaid } from '../../core/conversation/acceptance.js';
 import { workspaceZone } from './zone.js';
 import { stateOfPlay, type Speaker } from '../../core/conversation/stateOfPlay.js';
 import type { CatchUp } from '../../db/catchUp.js';
@@ -705,6 +706,14 @@ export type ConversationDetail = {
    * Optional so a detail built before 0080 (a fixture, the sandbox) still types.
    */
   readonly orderProposal?: PendingProposal | null;
+  /** 2026-10-14 — a reply that may be a yes the list did not know: their words, and the last price they were given. */
+  readonly maybeYes?: {
+    readonly said: string | null;
+    readonly offer: {
+      readonly productName: string; readonly quantity: number; readonly unit: string;
+      readonly unitPrice: Money; readonly total: Money; readonly givenAt: string;
+    } | null;
+  } | null;
   /** M34 — why a voice note could not be heard, when one could not. */
   readonly unheardReason: string | null;
   /**
@@ -967,6 +976,11 @@ export async function loadConversationDetail(
        where conversation_id = ${conversationId} and resolved_at is null
     `.execute(tx)).rows;
     const handoffReasons = signalRows.map((r) => r.kind).filter((k) => PROBLEM_KINDS.has(k));
+    const maybeRow = signalRows.find((r) => r.kind === 'maybe_confirmation');
+    const maybeYes = maybeRow ? {
+      said: typeof maybeRow.payload?.['said'] === 'string' ? maybeRow.payload['said'] as string : null,
+      offer: (maybeRow.payload?.['offer'] ?? null) as NonNullable<ConversationDetail['maybeYes']>['offer'],
+    } : null;
     // M34 — WHY she could not hear it decides what the owner should do about
     // it, so the reason travels to the surface rather than collapsing into
     // "something went wrong".
@@ -1065,6 +1079,7 @@ export async function loadConversationDetail(
       deletionRecorded: await buyerDeletionOf(tx, conversationId)
         .then((r) => (r?.state === 'open' ? { askedAt: r.askedAt } : null)),
       orderProposal: await pendingProposalOf(tx, conversationId),
+      maybeYes,
       unheardReason,
       unreadable,
       unreadableRef,
@@ -1779,6 +1794,8 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
   const fields: readonly (readonly [MessageKey, string])[] = [
     ['order.field.product', p.productName],
     ['order.field.quantity', show.quantityOf(locale, p.quantity, p.unit)],
+    // 2026-10-14 (the owner) — the price itself, beside the quantity it is for, before any button.
+    ['order.field.unitPrice', show.money(locale, p.unitPrice)],
     ['order.field.total', show.money(locale, p.total)],
     ['order.card.email', p.email],
     ...(p.paymentTerms ? [['order.card.terms', p.paymentTerms] as const] : []),
@@ -1792,6 +1809,8 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
   return `<div class="card draft order" role="region" id="order">
       <h2>${esc(t(locale, 'order.card.title'))}</h2>
       <p class="muted review-intro">${esc(t(locale, 'order.card.intro'))}</p>
+      ${p.said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
+      <blockquote class="unsure-q" dir="auto"><bdi>${esc(p.said)}</bdi></blockquote>` : ''}
       <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
       <div dir="auto" class="proposed"><bdi>${esc(willSend)}</bdi></div>
@@ -2582,6 +2601,40 @@ export function renderConversationDetail(
    * owner recorded one, a new ask says it is already recorded, and since when
    * (0126: the owner deletes it, on the customer's page; nothing waits for anyone else).
    */
+  /**
+   * 2026-10-14 — MAY BE SAYING YES. The owner: "If it says 'this buyer may be confirming' with a Confirm button, I am
+   * one tap away from confirming an order on a model's guess… Show me the mismatch, don't hide it behind a verb." So,
+   * before anything: their words, verbatim; the last price they were actually given (product, quantity, unit price,
+   * total, when); and, when their message names another quantity than that price was for, the mismatch, said plainly.
+   * No Confirm here, on purpose: the owner answers in their own words, and an order is confirmed only when the buyer
+   * says yes to exactly that (the order card, with its own Confirm and the same facts).
+   */
+  const maybe = d.maybeYes;
+  const said = maybe?.said ?? null;
+  const offer = maybe?.offer ?? null;
+  const otherQuantities = said && offer ? quantitiesSaid(said).filter((n) => n !== offer.quantity) : [];
+  const maybeYesCard = maybe && d.handoffReasons.includes('maybe_confirmation')
+    ? `<div class="card refused" id="maybe-yes">
+        ${stateHead('warn', t(locale, 'maybeYes.title'))}
+        <div class="rf">
+          <div class="rf-w">${esc(t(locale, 'maybeYes.what'))}</div>
+          ${said ? `<p class="muted">${esc(t(locale, 'order.card.said'))}</p>
+          <blockquote class="unsure-q" dir="auto"><bdi>${esc(said)}</bdi></blockquote>` : ''}
+          ${offer ? `<p class="muted">${esc(t(locale, 'maybeYes.offer'))}</p>
+          <ul class="rows">
+            <li class="row"><span class="muted">${esc(t(locale, 'order.field.product'))}</span> <bdi>${esc(offer.productName)}</bdi></li>
+            <li class="row"><span class="muted">${esc(t(locale, 'order.field.quantity'))}</span> <bdi>${esc(show.quantityOf(locale, offer.quantity, offer.unit))}</bdi></li>
+            <li class="row"><span class="muted">${esc(t(locale, 'order.field.unitPrice'))}</span> <bdi>${esc(show.money(locale, offer.unitPrice))}</bdi></li>
+            <li class="row"><span class="muted">${esc(t(locale, 'order.field.total'))}</span> <bdi>${esc(show.money(locale, offer.total))}</bdi></li>
+            <li class="row"><span class="muted">${esc(t(locale, 'maybeYes.given'))}</span> ${esc(show.date(locale, new Date(offer.givenAt)))}</li>
+          </ul>` : `<div class="rf-t">${esc(t(locale, 'maybeYes.noOffer'))}</div>`}
+          ${otherQuantities.length && offer ? `<div class="rf-t" role="alert"><strong>${esc(t(locale, 'maybeYes.mismatch', {
+            said: otherQuantities.join(', '), given: show.quantityOf(locale, offer.quantity, offer.unit) }))}</strong></div>` : ''}
+          <div class="rf-d muted">${esc(t(locale, 'maybeYes.do'))}</div>
+        </div>
+      </div>`
+    : '';
+
   const deletionAsked = d.handoffReasons.includes('deletion_requested');
   const deletionCard = deletionAsked || d.deletionAsk
     ? `<div class="card refused">
@@ -2705,6 +2758,7 @@ export function renderConversationDetail(
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${takeoverCard(d, locale, now, viewer)}
     ${billingCard}
+    ${maybeYesCard}
     ${deletionCard}
     ${unheardCard}
     ${unreadableCard}

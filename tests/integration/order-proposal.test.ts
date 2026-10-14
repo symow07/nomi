@@ -43,6 +43,7 @@ const CUSTOMERS = {
   maybeEn: `9718${runDigits(RUN, 6)}5`,
   maybeZh: `9718${runDigits(RUN, 6)}6`,
   maybeAr: `9718${runDigits(RUN, 6)}7`,
+  mismatch: `9718${runDigits(RUN, 6)}8`,
 } as const;
 
 type Tx = import('../../src/db/client.js').Tx;
@@ -269,6 +270,15 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('They said yes to this order');
     expect(page.body).toContain('customer@example.com');
+    // 2026-10-14 — before either button: their words as they wrote them (the message the proposal was made from,
+    // `order_proposals.turn_message_id` → `messages.external_id`), and the unit price beside the total.
+    const words = page.body.indexOf('<blockquote class="unsure-q" dir="auto"><bdi>yes</bdi></blockquote>');
+    const unit = page.body.indexOf('$2.10');
+    const confirm = page.body.indexOf(`/app/inbox/${confirmConv}/order/confirm`);
+    expect(words, 'their words, verbatim').toBeGreaterThan(-1);
+    expect(unit, 'the unit price').toBeGreaterThan(-1);
+    expect(words).toBeLessThan(confirm);
+    expect(unit).toBeLessThan(confirm);
     expect(page.body).toContain(`/app/inbox/${confirmConv}/order/confirm`);
     expect(page.body).toContain(`/app/inbox/${confirmConv}/order/step-in`);
   });
@@ -406,5 +416,62 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
         where conversation_id = ${conv}::uuid and (body like '%2.10%' or body like '%84.00%')`.execute(tx).then((x) => x.rows[0]!.n));
       expect(priced, `${lang}: never the price again`).toBe(0);
     }
+  });
+
+  it('THE CARD — "ok, 5000 again please" after a price for 500: their words, the price they were given, and the mismatch; nothing to press', async () => {
+    const { esc } = await import('../../src/api/web/layout.js');
+    const show = await import('../../src/api/web/values.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { usd } = await import('../../src/core/types/money.js');
+    const wa = CUSTOMERS.mismatch;
+    await say(wa, 'hello, I would like some gift boxes');
+    const conv = await convOf(wa);
+    await until(async () => ((await turnsOf(conv)) >= 1 ? true : undefined), 'the first turn');
+    await until(() => q((tx) => sql<{ n: number }>`select count(*)::int as n from outbound_messages
+      where conversation_id = ${conv}::uuid and status = 'sent'`.execute(tx).then((x) => (x.rows[0]!.n >= 1 ? true : undefined))), 'the first reply to leave');
+    await q((tx) => sql`update outbound_messages set status = 'delivered'
+      where conversation_id = ${conv}::uuid and status = 'sent'`.execute(tx));
+    // A price given for 500 boxes — and nothing asked.
+    await q(async (tx) => {
+      await sql`update conversations set phase = 'commercial_discussion', assigned_to = null where id = ${conv}::uuid`.execute(tx);
+      await sql`update conversation_state set identified_product_id = ${PID}::uuid, product_confidence = 0.95,
+                  product_confirmed_by_client = true, inquiry_quantity = 500, inquiry_unit = 'boxes',
+                  pending_question = null, problem_score = 0
+                 where conversation_id = ${conv}::uuid`.execute(tx);
+      await sql`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version)
+                values (${BIZ}, ${conv}::uuid, ${PID}, 500, '{}'::jsonb, 2.10, 1050, 'test')`.execute(tx);
+    });
+    await say(wa, 'ok, 5000 again please');
+    await until(() => q((tx) => sql<{ n: number }>`select count(*)::int as n from conversation_signals
+      where conversation_id = ${conv}::uuid and kind = 'maybe_confirmation' and resolved_at is null`.execute(tx)
+      .then((x) => (x.rows[0]!.n >= 1 ? true : undefined))), 'the maybe');
+    const page = await get(`/app/inbox/${conv}`);
+    expect(page.statusCode).toBe(200);
+    // The card alone — its own <div>, to the one that closes it — never the reply box after it, which has a form.
+    const from = page.body.lastIndexOf('<div', page.body.indexOf('id="maybe-yes"'));
+    expect(page.body.indexOf('id="maybe-yes"'), 'the card').toBeGreaterThan(-1);
+    const tags = /<div\b|<\/div>/g;
+    tags.lastIndex = from;
+    let depth = 0, to = page.body.length;
+    for (let m = tags.exec(page.body); m; m = tags.exec(page.body)) {
+      depth += m[0] === '</div>' ? -1 : 1;
+      if (depth === 0) { to = m.index + m[0].length; break; }
+    }
+    const card = page.body.slice(from, to);
+    const at = (x: string) => card.indexOf(x);
+    const words = at('<bdi>ok, 5000 again please</bdi>');
+    const product = at('<bdi>Gift box</bdi>');
+    const quantity = at(esc(show.quantityOf('en', 500, 'boxes')));
+    const unit = at(esc(show.money('en', usd(2.1))));
+    const total = at(esc(show.money('en', usd(1050))));
+    const mismatch = at(esc(t('en', 'maybeYes.mismatch', { said: '5000', given: show.quantityOf('en', 500, 'boxes') })));
+    for (const [what, i] of Object.entries({ words, product, quantity, unit, total, mismatch })) expect(i, what).toBeGreaterThan(-1);
+    expect(words, 'their words first').toBeLessThan(product);
+    expect(total, 'then the price, then the mismatch').toBeLessThan(mismatch);
+    expect(card, 'nothing to press on a maybe').not.toMatch(/<form|<button|order\/confirm/);
+    // The hand-off's alert is queued by the turn: let it finish, so this file leaves no job for the next one.
+    await until(async () => ((await sql<{ n: number }>`select count(*)::int as n from pgboss.job
+      where data->>'conversationId' = ${conv} and name <> 'message.outbound' and state in ('created', 'retry', 'active')`
+      .execute(prod.db)).rows[0]!.n === 0 ? true : undefined), 'the alert to be sent');
   });
 });
