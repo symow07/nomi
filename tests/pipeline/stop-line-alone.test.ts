@@ -104,23 +104,27 @@ describe('D2 · the line goes alone, whatever the capability is set to', () => {
 
 describe('D2 · the exception: what she is cannot be said', () => {
   for (const [text, lang] of [['deja de escribirme', 'es'], ["arrêtez de m'écrire", 'fr'], ['pare de me mandar mensagens', 'pt']] as const) {
-    it(`${lang}, unsigned: the line waits for the owner, and says why — ${JSON.stringify(text)}`, async () => {
+    // CHANGED (blocker 1, the owner, 2026-10-14): the line waited as a draft; now the person answers the stop too —
+    // nothing is written, the stop is recorded, and the buyer is on Needs you under its own reason.
+    it(`${lang}, unsigned: the person answers the stop — nothing written, the stop recorded — ${JSON.stringify(text)}`, async () => {
       const p = ports();
-      const { fx, withheld, pending } = await run(p, text);
+      const { fx, withheld } = await run(p, text);
       expect(fx.outbound).toBeNull();
-      expect(p.tenant.draftsCreated.map((d) => [d.draftText, d.notice])).toEqual([[OPT_OUT_REPLIES[lang], 'opt_out']]);
-      expect(withheld).toMatchObject({ reason: 'disclosure_not_reviewed', language: lang });
-      expect(pending).toMatchObject({ withheld: { reason: 'disclosure_not_reviewed', language: lang } });
+      expect(p.tenant.draftsCreated).toEqual([]);
+      expect(withheld).toBeUndefined();
+      expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toEqual(expect.arrayContaining(['opted_out', 'language_not_reviewed']));
     });
   }
 
-  it('Arabic unsigned (as until 2026-10-11): the line waits — the exception the owner named', async () => {
+  // CHANGED (blocker 1): the line waited as a draft; now the person answers the stop, and nothing is written.
+  it('Arabic unsigned (as until 2026-10-11): the person answers the stop — nothing written', async () => {
     const p = ports();
     p.tenant.releasedFor = (l) => autonomyReleasedFor(l) && (l ?? '').slice(0, 2) !== 'ar';
     const { fx, withheld } = await run(p, 'لا تراسلني');
     expect(fx.outbound).toBeNull();
-    expect(p.tenant.draftsCreated.map((d) => d.draftText)).toEqual([OPT_OUT_REPLIES.ar]);
-    expect(withheld).toMatchObject({ reason: 'disclosure_not_reviewed', language: 'ar' });
+    expect(p.tenant.draftsCreated).toEqual([]);
+    expect(withheld).toBeUndefined();
+    expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toContain('language_not_reviewed');
   });
 
   it('the name not confirmed, or nobody named: the line waits', async () => {

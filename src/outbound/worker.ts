@@ -124,6 +124,11 @@ export type ConversationSendContext = {
    * null: they have not.
    */
   readonly optOut?: { readonly lastAskedAt: Date } | null;
+  /**
+   * 0153 — the language on record for this buyer (`clients.preferred_language`), read as the send gate needs it:
+   * signed off by a native reader, or not. Absent: none on record.
+   */
+  readonly buyerLanguage?: 'reviewed' | 'unreviewed';
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -417,6 +422,9 @@ export async function driveConversationOutbound(
     // 0135 — the line that answers a stop, or the hand-off sentence; and the buyer's stop itself.
     ...(candidate.notice ? { notice: candidate.notice } : {}),
     ...(ctx.optOut ? { optOut: { repliedSince: ctx.lastInboundAt !== null && ctx.lastInboundAt.getTime() > ctx.optOut.lastAskedAt.getTime() } } : {}),
+    // 0153 — the buyer's language on record, and whether its disclosure was signed; and whether the owner sent this.
+    ...(ctx.buyerLanguage ? { buyerLanguage: ctx.buyerLanguage } : {}),
+    ...(candidate.approved === true ? { approved: true } : {}),
   });
   if (!gate.allow) {
     await refuse(deps, candidate, gate.reason);

@@ -47,10 +47,13 @@ describe('G4 · sending alone is earned', () => {
     // The card reads the reason from the draft's own event.
     expect(events.find((e) => e.type === 'draft_pending')?.payload).toMatchObject({ withheld: { reason: 'not_earned' } });
   });
-  it('named first when the disclosure is also unread: earning is the one the owner cannot do anything about today', async () => {
+  // CHANGED (blocker 1, 2026-10-14): a customer language with no signed sentence now goes to a person before any reply
+  // is written, so the order is shown where a reply is still held for its language: the reply's own (G8).
+  it('named first when the reply\'s language is also unread: earning is the one the owner cannot do anything about today', async () => {
     const p = ports('auto');
     p.tenant.earnedRungValue = 0;
-    p.tenant.releasedFlag = false;
+    p.tenant.releasedFor = (l) => !(l ?? '').startsWith('es');
+    p.analyzer.next = { ...p.analyzer.next!, language: { detected: 'en', replyIn: 'es' } };
     const { events } = await run(p);
     expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'not_earned' });
   });

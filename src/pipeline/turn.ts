@@ -394,6 +394,18 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
    * with its own reason, before any reply is written or any quote worked out.
    */
   if (selling.pricesToOwner && analysis?.intent.primary === 'price_request') byKind.set('price_to_owner', { kind: 'price_to_owner' });
+  /**
+   * PHASE 4 GATE, BLOCKER 1 (the owner, 2026-10-14) — A BUYER WHOSE LANGUAGE HAS NO SIGNED DISCLOSURE RECEIVES NO
+   * AUTOMATED MESSAGE AT ALL: THE MESSAGE GOES TO A PERSON INSTEAD. "Drafts only" was true and not enough — the
+   * owner asked what goes out if a Spanish-speaking buyer writes during the pilot, and the answer must be nothing,
+   * with the buyer on Needs you. So the gate's language (LG, the fixed rules above), when it is known and its
+   * sentence was never read by a native speaker (es, fr, pt; every language with none), hands the turn to a person
+   * before anything is written, and the hand-off is SILENT (below): the hand-off sentence and the stop line are the
+   * assistant speaking too. A language nobody can tell (`und`) is not this: no reply to it goes alone either, and
+   * it drafts as before (commitTurn). The send gate refuses whatever would still reach such a buyer alone.
+   */
+  const languageUnreviewed = gateLang !== UNDETERMINED && !tenant.autonomy.released(gateLang);
+  if (languageUnreviewed) byKind.set('language_not_reviewed', { kind: 'language_not_reviewed' });
   let signals: readonly Signal[] = [...byKind.values()];
 
   // ── Decide. Pure. ───────────────────────────────────────────────────────────
@@ -512,14 +524,18 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let notice: Notice | null = null;
 
   switch (decision.action.kind) {
-    case 'silent':
+    case 'silent': {
       // A person holds the conversation: the assistant says nothing — except
-      // the one line that answers a stop, which nothing else will.
-      reply = answersStop ? OPT_OUT_REPLIES[sayIn] : null;
-      if (answersStop) notice = 'opt_out';
+      // the one line that answers a stop, which nothing else will. Not in a
+      // language whose disclosure nobody signed (blocker 1): the person answers
+      // the stop as well; the stop itself is recorded all the same.
+      const stopLine = answersStop && !languageUnreviewed;
+      reply = stopLine ? OPT_OUT_REPLIES[sayIn] : null;
+      if (stopLine) notice = 'opt_out';
       replyDeterministic = true;
-      answerPath = answersStop ? 'canned' : 'silent';
+      answerPath = stopLine ? 'canned' : 'silent';
       break;
+    }
 
     case 'canned_reply':
       reply = decision.action.reply;
@@ -540,7 +556,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // 0077 — nor when nobody could tell what the message asked (the
       // analyser's answer could not be read): the same silence as an unheard
       // voice note or an unreadable file. A person reads it and answers.
-      if (signals.some((s) => (s.kind === 'deletion_requested' && !offAList) || s.kind === 'not_answered')) {
+      //
+      // Blocker 1 (0153) — nor in a language whose disclosure nobody signed: the
+      // hand-off sentence and the stop line are the assistant speaking, in a
+      // language whose sentence saying so was never read. The person answers.
+      if (signals.some((s) => (s.kind === 'deletion_requested' && !offAList) || s.kind === 'not_answered'
+        || s.kind === 'language_not_reviewed')) {
         reply = null;
         answerPath = 'silent';
       } else if (answersStop) {

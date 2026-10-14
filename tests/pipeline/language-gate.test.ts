@@ -90,10 +90,23 @@ describe('LG · the language is the gate\'s, not the analysis\'s word', () => {
     expect(r.gateLanguage).toBe('zh');
     expect(fx.outbound?.reply).toContain(ANSWER);
   });
-  it('a language whose sentence is unread is still named as before (fr)', async () => {
+  // CHANGED (blocker 1, the owner, 2026-10-14): the reply drafted and was named; now the buyer goes to a person
+  // before anything is written. The name stays where a reply is still written: the reply's own language (G8, below).
+  it('a language whose sentence is unread (fr): the buyer goes to a person, and nothing is written', async () => {
     const p = ports();
     p.analyzer.next = analysis('fr');
-    const { withheld } = await run(p, 'Bonjour, vous avez des sacs ?');
+    const { fx, withheld } = await run(p, 'Bonjour, vous avez des sacs ?');
+    expect(fx.outbound).toBeNull();
+    expect(fx.draftCreated).toBeNull();
+    expect(fx.handoffAlert).toBe(true);
+    expect(withheld).toBeUndefined();
+    expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toContain('language_not_reviewed');
+  });
+  it('G8 · an English customer, a reply written in French: the reply waits, named for its own language', async () => {
+    const p = ports();
+    p.analyzer.next = { ...analysis('en'), language: { detected: 'en', replyIn: 'fr' } };
+    const { fx, withheld } = await run(p, 'Hello, do you have bags?');
+    expect(fx.outbound).toBeNull();
     expect(withheld).toEqual({ capability: 'qualify', reason: 'disclosure_not_reviewed', language: 'fr' });
   });
 });
@@ -130,7 +143,8 @@ describe('LG · the first five replies in a language (0108)', () => {
     p.tenant.languageProvenFor = (l) => { asked.push(l); return false; };
     const { withheld } = await run(p, 'Bonjour, vous avez des sacs ?');
     expect(asked).toEqual([]);
-    expect(withheld?.['reason']).toBe('disclosure_not_reviewed');
+    // CHANGED (blocker 1): it was named `disclosure_not_reviewed`; now the buyer goes to a person and nothing is withheld.
+    expect(withheld).toBeUndefined();
   });
   it('named after "not earned": the workspace\'s rung comes first', async () => {
     const p = ports();

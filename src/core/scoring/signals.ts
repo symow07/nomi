@@ -131,6 +131,14 @@ export type Signal =
    * the operator is told (src/pipeline/providerWatch.ts).
    */
   | { readonly kind: 'provider_billing' }
+  /**
+   * 0153 — Phase 4 gate, blocker 1 (the owner, 2026-10-14): the buyer writes in a language whose disclosure no
+   * native reader signed (es, fr, pt today, and any language with no sentence at all). Nothing automated may reach
+   * them, so a person answers, and the buyer is told nothing — not the hand-off sentence, not the stop line: both
+   * would be the assistant speaking, in a language whose sentence saying so was never read. Scored like a request
+   * for a person; handing back resolves it, and their next message in that language hands over again.
+   */
+  | { readonly kind: 'language_not_reviewed' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -183,6 +191,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'plan_limit',
   // 0128 — the model provider refused for billing; a person answers.
   'provider_billing',
+  // 0153 — the buyer writes in a language with no signed disclosure; a person answers.
+  'language_not_reviewed',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -214,6 +224,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   billing_lapsed: { kind: 'billing_lapsed' },
   plan_limit: { kind: 'plan_limit' },
   provider_billing: { kind: 'provider_billing' },
+  language_not_reviewed: { kind: 'language_not_reviewed' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -256,6 +267,7 @@ export const TRIGGER_REASONS = [
   'billing_lapsed',
   'plan_limit',
   'provider_billing',
+  'language_not_reviewed',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -302,6 +314,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'plan_limit';
     case 'provider_billing':
       return 'provider_billing';
+    case 'language_not_reviewed':
+      return 'language_not_reviewed';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -361,6 +375,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'provider_billing':
         problem = 100; // absolute: no reply can be written, so a person answers.
+        break;
+      case 'language_not_reviewed':
+        problem = 100; // absolute: nothing automated may reach them, so a person answers.
         break;
       case 'price_to_owner':
         problem = 100; // absolute: her prices are hers to give.

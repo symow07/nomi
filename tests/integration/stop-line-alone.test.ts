@@ -136,13 +136,17 @@ d('D2 · the stop line goes alone with nothing on auto, through production (requ
     });
   }
 
-  it('es, unsigned: the line waits for the owner with its mark, and nothing is sent', async () => {
-    const { OPT_OUT_REPLIES } = await import('../../src/core/safety/optOut.js');
+  // CHANGED (Phase 4 gate, blocker 1, the owner, 2026-10-14): the line waited as a draft; now the person answers
+  // the stop too — nothing is written, the stop is recorded, and nothing is sent.
+  it('es, unsigned: the person answers the stop — nothing written, nothing sent', async () => {
     const wa = buyer();
     const before = sim.sendCount();
     expect((await post(sim.inboundText({ from: wa, text: 'deja de escribirme' }))).statusCode).toBe(200);
     const conv = await convOf(wa);
-    expect(await waiting(conv, 'the line as a draft')).toEqual([{ text: OPT_OUT_REPLIES.es, notice: 'opt_out' }]);
+    await until(() => q((tx) => sql<{ n: number }>`select count(*)::int as n from conversation_signals
+      where conversation_id = ${conv}::uuid and kind = 'language_not_reviewed' and resolved_at is null`.execute(tx)
+      .then((x) => (x.rows[0]!.n > 0 ? true : undefined))), 'the buyer, with a person');
+    expect(await pending(conv)).toEqual([]);
     expect(await rows(conv)).toEqual([]);
     expect(sim.sendCount()).toBe(before);
   });
