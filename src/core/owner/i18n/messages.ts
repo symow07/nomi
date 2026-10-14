@@ -18024,7 +18024,7 @@ const FR: Record<MessageKey, string> = {
   'product.detail.noName': 'Pas encore de nom en {language} : dans un message en {language}, ce produit n’est pas trouvé par son nom. Ajoutez ci-dessous son nom en {language} et les noms courts employés.',
   'product.list.namesSuggested': 'Vous vendez à des personnes qui écrivent en {languages} ? Un produit n’est trouvé que par un nom dans leur écriture : ajoutez-le le moment venu.',
   'product.detail.nameSuggested': 'Pas de nom en {language} : utile seulement quand vous vendez à des personnes qui écrivent en {language}.',
-  'settings.desc.languages': 'Cochez les langues dans lesquelles on vous écrit. La configuration demandera alors un nom de produit dans chacune qui a son écriture (chinois, arabe, russe).',
+  'settings.desc.languages': 'Cochez les langues dans lesquelles on vous écrit. La mise en route demandera alors un nom de produit dans chacune qui a son écriture (chinois, arabe, russe).',
   'factory.next.channels': 'Connecter l’endroit où vos clients vous écrivent',
   'factory.next.first_success': 'Envoyer à un client la première réponse de {name}',
   'activation.can': '{name} peut commencer à parler à de vrais clients dès que vous le décidez.',

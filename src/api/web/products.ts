@@ -565,7 +565,7 @@ export function renderProductList(
   const byQuantity = sellsByQuantity(kind);
   const name = assistantName(locale);
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
-  // On #344 (the owner) — a language only on the profile's default list is a suggestion: said once, quietly.
+  // On PR 344 (the owner) — a language only on the profile's default list is a suggestion: said once, quietly.
   const suggested = [...new Set(items.flatMap((p) => p.namesSuggested ?? []))];
   // Phase 9 (V1-301, V1-304) — the way to add says "add", under the title and
   // in the list's own column: it was a far-right text link ("Teach your
@@ -722,7 +722,7 @@ export function renderProductDetail(
     : '';
   // 2026-10-14 (the owner) — a name in each language the owner chose or a buyer wrote in, or those buyers cannot find it.
   const noName = (d.namesWanted ?? []).map((l) => `<p class="fwarn">${esc(t(locale, 'product.detail.noName', { language: languageCalled(locale, l) }))}</p>`).join('')
-    // On #344 — a language only on the default list: a suggestion, not a warning.
+    // On PR 344 — a language only on the default list: a suggestion, not a warning.
     + (d.namesSuggested ?? []).map((l) => `<p class="caption muted">${esc(t(locale, 'product.detail.nameSuggested', { language: languageCalled(locale, l) }))}</p>`).join('');
   const aliases = d.aliases.length
     ? `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>${noName}<div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>

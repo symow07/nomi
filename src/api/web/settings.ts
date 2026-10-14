@@ -197,7 +197,7 @@ export async function saveBusinessProfile(
     }>`select name, description, location, working_hours, contact_email, contact_phone, languages_served, postal_address
          from businesses where id = ${bid.value}`.execute(tx)).rows[0];
 
-    // 0160 (the owner, on #344) — a list the owner CHANGED is theirs from then on: setting up asks for product names
+    // 0160 (the owner, on PR 344) — a list the owner CHANGED is theirs from then on: setting up asks for product names
     // in its languages. The default list nobody touched never is (`scriptNeeds`, src/db/setup.ts).
     const langsChanged = !!cur && (cur.languages_served ?? []).join(',') !== v.value.languagesServed.join(',');
     await sql`update businesses set

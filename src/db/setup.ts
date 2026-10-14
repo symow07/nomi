@@ -62,7 +62,7 @@ export const setupFrom = (
 };
 
 /**
- * WHICH SCRIPTS A WORKSPACE NEEDS NAMES IN (the owner, 2026-10-14, on #344): "require a name only for a language the
+ * WHICH SCRIPTS A WORKSPACE NEEDS NAMES IN (the owner, 2026-10-14, on PR 344): "require a name only for a language the
  * owner actually serves — the ones they selected, or the ones their buyers have actually written in. Everything else
  * is a suggestion, not an undone step."
  *
@@ -144,7 +144,7 @@ export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<Set
   const channelsDone = anyConnected(await connectedChannels(tx, businessId));
   // 2026-10-14 (the owner) — "any owner selling to Chinese buyers has this problem on day one": the products step
   // is done only once every active product carries a name in each language the owner chose or a buyer wrote in.
-  // On #344: never one merely on the default list — that is a suggestion (`scriptNeeds`).
+  // On PR 344: never one merely on the default list — that is a suggestion (`scriptNeeds`).
   const { names, suggested } = await namesWantedFor(tx, businessId);
   return setupFrom({
     profile: r.profile_done, products: r.products_done && names.length === 0, name: r.name_done,
