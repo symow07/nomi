@@ -37,7 +37,7 @@ setup step for the owner in the kit, not code).
   colleague will review this order with you"); the writer is never asked, no price is worked out or recorded, nothing
   is proposed. A question or a hesitation is answered as before. Tests: a phrase deliberately NOT on the list in each
   language, pure, through a turn and over Postgres; each part switched off fails its own tests.
-- **Arabic, re-measured through the turn — #PR_HAND (0158):** `tools/check-arabic-address.mjs --through-the-turn`
+- **Arabic, re-measured through the turn — #342 (0158):** `tools/check-arabic-address.mjs --through-the-turn`
   (the real engine, every capability on auto). First run: 4 of 60 caught, all rewritten and sent — but one rewrite
   still said «في أي شيء تحتاجه الآن» (missed: the verb with its object, after a noun; now caught, no new false catch
   over 185 real replies). And a reply gendered TWICE was held as a draft — the buyer waited on nothing ("a buyer who
