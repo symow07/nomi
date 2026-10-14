@@ -23,7 +23,7 @@
  * the real catalogue search, the real analyser and writer of this installation — in the language under test and in
  * English and Chinese, until the language has had at least 60 turns. Every reply in it is printed in full.
  *
- *   npm run build && RELEASE_CHECK_DB=postgresql://nomi_app:nomi_app@127.0.0.1:<port>/nomi \
+ *   npm run build && RELEASE_CHECK_DB=<the app role's address on a local throwaway database> \
  *     railway run --service nomi -- node tools/check-language-release.mjs --catalogue <file> [--language ar] [--json <out>]
  *
  * RELEASE_CHECK_DB must be this machine's (it is refused otherwise), migrated to this build's schema. Every other
