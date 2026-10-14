@@ -396,7 +396,10 @@ import type { Db } from './client.js';
 //       both reason lists. Against a 157 database that hand-over cannot be written, and the turn fails instead.
 // 159 = a language held out of one workspace (0159): `businesses.languages_held`, which every turn reads, and the
 //       `language_held` reason on both reason lists. Against a 158 database every turn fails on the missing column.
-export const REQUIRED_SCHEMA_VERSION = 159;
+// 160 = the languages an owner chose, told apart from the default (0160): `businesses.languages_chosen_at`, which
+//       setting up and the products pages read, and the profile writes. Against a 159 database every page that
+//       draws the setup count fails on the missing column.
+export const REQUIRED_SCHEMA_VERSION = 160;
 
 export type SchemaState = {
   readonly required: number;

@@ -21,6 +21,7 @@ import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
 import { namesWanted, type ScriptLanguage } from '../../core/onboard/scriptNames.js';
 import { languageCalled } from './namesWanted.js';
+import { scriptNeeds } from '../../db/setup.js';
 import { addAliases, renameAlias, removeAlias } from '../../db/productAliases.js';
 import { productPhotoToken, PRODUCT_PHOTO_MAX_BYTES } from '../../db/productPhotos.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
@@ -117,8 +118,13 @@ export type ProductListItem = {
   readonly imageMatchable: boolean;
   /** Deactivated products stay in the list but are not something you sell. */
   readonly isActive: boolean;
-  /** 2026-10-14 — served languages with their own script that none of its names is written in (active products only). */
+  /**
+   * 2026-10-14 — languages the owner chose or buyers wrote in (`scriptNeeds`), with their own script, that none of
+   * its names is written in (active products only): the step waits on these.
+   */
   readonly namesWanted?: readonly ScriptLanguage[];
+  /** …and the profile's other script languages none of its names is in: a suggestion, said once on the list. */
+  readonly namesSuggested?: readonly ScriptLanguage[];
 };
 
 /**
@@ -153,15 +159,14 @@ export async function businessKind(db: Db, businessIdRaw: string): Promise<strin
 export async function loadProductList(db: Db, businessIdRaw: string): Promise<readonly ProductListItem[]> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
-  return withTenantTx(db, bid.value, async (tx) => (await sql<{
+  return withTenantTx(db, bid.value, async (tx) => { const needs = await scriptNeeds(tx, bid.value); return (await sql<{
     id: string; name: string; name_zh: string | null; sku: string; moq: number | null; unit: string;
     is_active: boolean; price: string | null; currency: string;
     entry_qty: number | null; entry_price: string | null; extras: number; has_limits: boolean; has_alias: boolean;
-    aliases: string[]; served: string[] | null;
+    aliases: string[];
   }>`
     select p.id, p.name, p.name_zh, p.sku, p.moq, p.unit, p.is_active, p.price_usd_per_unit as price,
            (select coalesce(array_agg(a.alias), '{}') from product_aliases a where a.product_id = p.id) as aliases,
-           (select b.languages_served from businesses b where b.id = p.business_id) as served,
            p.currency, t.min_qty as entry_qty, t.unit_price_usd as entry_price,
            exists (select 1 from pricing_policy pp where pp.business_id = p.business_id
                     and (pp.product_id = p.id or pp.product_id is null)) as has_limits,
@@ -186,15 +191,18 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       status: productStatus({ isActive: r.is_active, hasPrice: entryPrice !== null, hasLimits: r.has_limits, findable: r.has_alias }),
       imageMatchable: r.is_active && Number(r.extras) > 0,
       isActive: r.is_active,
-      namesWanted: r.is_active ? namesWanted(r.served ?? [], [r.name, r.name_zh, ...r.aliases]) : [],
+      namesWanted: r.is_active ? namesWanted(needs.required, [r.name, r.name_zh, ...r.aliases]) : [],
+      namesSuggested: r.is_active ? namesWanted(needs.suggested, [r.name, r.name_zh, ...r.aliases]) : [],
     };
-  }));
+  }); });
 }
 
 export type ProductDetail = {
   readonly id: string;
-  /** 2026-10-14 — served languages with their own script that none of its names is written in (active only). */
+  /** 2026-10-14 — languages the owner chose or buyers wrote in that none of its names is written in (active only). */
   readonly namesWanted?: readonly ScriptLanguage[];
+  /** …and the profile's other script languages none of its names is in: a suggestion. */
+  readonly namesSuggested?: readonly ScriptLanguage[];
   readonly name: string;
   readonly nameZh: string | null;
   readonly sku: string;
@@ -233,14 +241,14 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok || !isUuid(productId)) return null;
   return withTenantTx(db, bid.value, async (tx) => {
+    const needs = await scriptNeeds(tx, bid.value);
     const p = (await sql<{
       id: string; name: string; name_zh: string | null; sku: string; category: string | null;
       unit: string; moq: number | null; lead_time_days: number | null; customizable: boolean;
       is_active: boolean; price: string | null; currency: string; has_limits: boolean;
       source_line: string | null; source_import_id: string | null; photo: number | null; kind: string | null;
-      options: unknown; served: string[] | null; every_alias: string[];
+      options: unknown; every_alias: string[];
     }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active, options,
-              (select b.languages_served from businesses b where b.id = products.business_id) as served,
               (select coalesce(array_agg(a.alias), '{}') from product_aliases a where a.product_id = products.id) as every_alias,
               price_usd_per_unit as price, currency, source_line, source_import_id,
               (select b.kind from businesses b where b.id = products.business_id) as kind,
@@ -288,7 +296,8 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       customizable: p.customizable, learned, isActive: p.is_active,
       status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits, findable: aliases.length > 0 }),
       imageMatchable: p.is_active && aliases.length + images.length > 0,
-      namesWanted: p.is_active ? namesWanted(p.served ?? [], [p.name, p.name_zh, ...p.every_alias]) : [],
+      namesWanted: p.is_active ? namesWanted(needs.required, [p.name, p.name_zh, ...p.every_alias]) : [],
+      namesSuggested: p.is_active ? namesWanted(needs.suggested, [p.name, p.name_zh, ...p.every_alias]) : [],
       tiers, aliases, images, recentQuotes,
       photo: await productPhotoToken(tx, productId).then((token) => (token ? { token } : null)),
       currency: await currencyOf(tx, bid.value),
@@ -556,6 +565,8 @@ export function renderProductList(
   const byQuantity = sellsByQuantity(kind);
   const name = assistantName(locale);
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
+  // On PR 344 (the owner) — a language only on the profile's default list is a suggestion: said once, quietly.
+  const suggested = [...new Set(items.flatMap((p) => p.namesSuggested ?? []))];
   // Phase 9 (V1-301, V1-304) — the way to add says "add", under the title and
   // in the list's own column: it was a far-right text link ("Teach your
   // assistant your products ›"), and on a Spanish phone dropped 50 px below the
@@ -565,7 +576,9 @@ export function renderProductList(
     ${flashBanner(flash)}
     ${viewer.isOwner && items.length > 0 ? deeper('/app/products/add', t(locale, 'product.teach'), 'prod-add') : ''}
     ${waiting > 0 ? `<div class="block measure-prose"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name }))}
-      ${viewer.isOwner ? `<a class="blink" href="/app/business/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}`;
+      ${viewer.isOwner ? `<a class="blink" href="/app/business/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}
+    ${suggested.length ? `<div class="block measure-prose"><p class="caption muted">${esc(t(locale, 'product.list.namesSuggested', {
+      languages: formatList(locale, suggested.map((l) => languageCalled(locale, l))) }))}</p></div>` : ''}`;
   if (items.length === 0) {
     // Phase 9 (missed-01) — the door names the page it opens.
     return `${head}
@@ -707,8 +720,10 @@ export function renderProductDetail(
         ${/* w4-products-knowledge-09 — it throws a name away, so it looks like it, and so does its question's go-ahead. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form>`
     : '';
-  // 2026-10-14 (the owner) — a name in each served language with its own script, or those buyers cannot find it.
-  const noName = (d.namesWanted ?? []).map((l) => `<p class="fwarn">${esc(t(locale, 'product.detail.noName', { language: languageCalled(locale, l) }))}</p>`).join('');
+  // 2026-10-14 (the owner) — a name in each language the owner chose or a buyer wrote in, or those buyers cannot find it.
+  const noName = (d.namesWanted ?? []).map((l) => `<p class="fwarn">${esc(t(locale, 'product.detail.noName', { language: languageCalled(locale, l) }))}</p>`).join('')
+    // On PR 344 — a language only on the default list: a suggestion, not a warning.
+    + (d.namesSuggested ?? []).map((l) => `<p class="caption muted">${esc(t(locale, 'product.detail.nameSuggested', { language: languageCalled(locale, l) }))}</p>`).join('');
   const aliases = d.aliases.length
     ? `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>${noName}<div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
         <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name }))}</p>${removeName}</div>`

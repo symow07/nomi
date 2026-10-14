@@ -39,12 +39,17 @@ export type SetupProgress = {
   readonly next: SetupStep | null;
   /**
    * 2026-10-14 — the products step waits on these too: a product named only in English is not found by a buyer
-   * writing Chinese (`src/core/onboard/scriptNames.ts`). Only languages with something missing; empty when none.
+   * writing Chinese (`src/core/onboard/scriptNames.ts`). Only the languages the owner chose or buyers wrote in
+   * (`scriptNeeds`), and only those with something missing; empty when none.
    */
   readonly names?: readonly NamesWanted[];
+  /** …and the profile's other script languages: shown as a suggestion, never an undone step. */
+  readonly suggested?: readonly NamesWanted[];
 };
 
-export const setupFrom = (m: Record<SetupStep, boolean>, names: readonly NamesWanted[] = []): SetupProgress => {
+export const setupFrom = (
+  m: Record<SetupStep, boolean>, names: readonly NamesWanted[] = [], suggested: readonly NamesWanted[] = [],
+): SetupProgress => {
   const steps = SETUP_STEPS.map((s) => ({ step: s, done: m[s] }));
   return {
     steps,
@@ -52,18 +57,39 @@ export const setupFrom = (m: Record<SetupStep, boolean>, names: readonly NamesWa
     total: steps.length,
     next: steps.find((s) => !s.done)?.step ?? null,
     names,
+    suggested,
   };
 };
 
 /**
- * For each served language with a script of its own, the active products none of whose names — the name, the
- * Chinese name, the names customers use — is written in it. Read live, like every step.
+ * WHICH SCRIPTS A WORKSPACE NEEDS NAMES IN (the owner, 2026-10-14, on PR 344): "require a name only for a language the
+ * owner actually serves — the ones they selected, or the ones their buyers have actually written in. Everything else
+ * is a suggestion, not an undone step."
+ *
+ *   · required — a language with its own script that the owner CHOSE (the profile's list, once they changed it:
+ *     `languages_chosen_at`, 0160 — the default en/zh/ar is nobody's choice), or that a buyer of theirs has written in
+ *     (`clients.preferred_language`, the analysis's reading; the owner's own test conversations do not count);
+ *   · suggested — one on the profile's list that is neither: shown, never an undone step.
  */
-export async function namesWantedFor(tx: Tx, businessId: BusinessId): Promise<readonly NamesWanted[]> {
-  const served = (await sql<{ served: string[] | null }>`
-    select languages_served as served from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.served ?? [];
+export async function scriptNeeds(tx: Tx, businessId: BusinessId): Promise<{
+  readonly required: readonly ScriptLanguage[]; readonly suggested: readonly ScriptLanguage[];
+}> {
+  const r = (await sql<{ served: string[] | null; chosen: boolean; written: string[] | null }>`
+    select b.languages_served as served, b.languages_chosen_at is not null as chosen,
+           array(select distinct cl.preferred_language from clients cl
+                  where cl.business_id = b.id and cl.preferred_language is not null
+                    and exists (select 1 from conversations c
+                                 where c.client_id = cl.id and not coalesce(c.owner_testing, false))) as written
+      from businesses b where b.id = ${businessId}::uuid`.execute(tx)).rows[0];
+  const served = r?.served ?? [];
+  const required = scriptLanguagesOf([...(r?.chosen ? served : []), ...(r?.written ?? [])]);
+  return { required, suggested: scriptLanguagesOf(served).filter((l) => !required.includes(l)) };
+}
+
+/** Active products with no name in each of these languages: how many, of how many. Only languages with one missing. */
+async function namesMissing(tx: Tx, businessId: BusinessId, langs: readonly ScriptLanguage[]): Promise<readonly NamesWanted[]> {
   const out: NamesWanted[] = [];
-  for (const lang of scriptLanguagesOf(served)) {
+  for (const lang of langs) {
     const pat = scriptPattern(lang);
     const r = (await sql<{ missing: number; of: number }>`
       select count(*) filter (where not (p.name ~ ${pat} or coalesce(p.name_zh ~ ${pat}, false)
@@ -75,6 +101,14 @@ export async function namesWantedFor(tx: Tx, businessId: BusinessId): Promise<re
     if (r.missing > 0) out.push({ lang, missing: r.missing, of: r.of });
   }
   return out;
+}
+
+/** What the products step waits for (`names`, required) and what is only suggested. */
+export async function namesWantedFor(tx: Tx, businessId: BusinessId): Promise<{
+  readonly names: readonly NamesWanted[]; readonly suggested: readonly NamesWanted[];
+}> {
+  const needs = await scriptNeeds(tx, businessId);
+  return { names: await namesMissing(tx, businessId, needs.required), suggested: await namesMissing(tx, businessId, needs.suggested) };
 }
 
 export const NOTHING_DONE: SetupProgress = setupFrom({
@@ -109,10 +143,11 @@ export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<Set
   // Messenger or a mailbox. The same definition the Channels page reads.
   const channelsDone = anyConnected(await connectedChannels(tx, businessId));
   // 2026-10-14 (the owner) — "any owner selling to Chinese buyers has this problem on day one": the products step
-  // is done only once every active product carries a name in each served language written in its own script.
-  const names = await namesWantedFor(tx, businessId);
+  // is done only once every active product carries a name in each language the owner chose or a buyer wrote in.
+  // On PR 344: never one merely on the default list — that is a suggestion (`scriptNeeds`).
+  const { names, suggested } = await namesWantedFor(tx, businessId);
   return setupFrom({
     profile: r.profile_done, products: r.products_done && names.length === 0, name: r.name_done,
     channels: channelsDone, first_success: r.first_success_done,
-  }, names);
+  }, names, suggested);
 }
