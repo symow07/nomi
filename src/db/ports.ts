@@ -148,6 +148,12 @@ export interface AutonomyRepo {
    * that signed itself up; always where the operator made or opened it.
    */
   languageProven(language: string): Promise<boolean>;
+  /**
+   * 0159 (the owner, 2026-10-14) — is this language (two letters) held out of THIS workspace? Signed for the product,
+   * but not answered here until the operator releases it (`tools/language-hold.mjs`): Arabic joins the pilot only
+   * once its products carry Arabic names and a run over its real catalogue comes back clean.
+   */
+  held(language: string): Promise<boolean>;
 }
 
 /**

@@ -161,6 +161,12 @@ export type Signal =
    * which addresses nobody: "a buyer who gets nothing is not a pass". Scored like a request for a person.
    */
   | { readonly kind: 'address_unwritten' }
+  /**
+   * 2026-10-14 (the owner) — the buyer writes in a language held out of this workspace (0159,
+   * `businesses.languages_held`; the operator's `tools/language-hold.mjs`): signed for the product, not yet answered
+   * here. A person answers, and the buyer hears the ordinary hand-off sentence. Scored like a request for a person.
+   */
+  | { readonly kind: 'language_held' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -219,6 +225,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'maybe_confirmation',
   // 0158 — no reply could be written without a gender for the buyer; a person answers.
   'address_unwritten',
+  // 0159 — the buyer writes in a language held out of this workspace; a person answers, the buyer is told.
+  'language_held',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -253,6 +261,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   language_not_reviewed: { kind: 'language_not_reviewed' },
   maybe_confirmation: { kind: 'maybe_confirmation' },
   address_unwritten: { kind: 'address_unwritten' },
+  language_held: { kind: 'language_held' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -298,6 +307,7 @@ export const TRIGGER_REASONS = [
   'language_not_reviewed',
   'maybe_confirmation',
   'address_unwritten',
+  'language_held',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -350,6 +360,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'maybe_confirmation';
     case 'address_unwritten':
       return 'address_unwritten';
+    case 'language_held':
+      return 'language_held';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -418,6 +430,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'address_unwritten':
         problem = 100; // absolute: no reply could be written without a gender for the buyer.
+        break;
+      case 'language_held':
+        problem = 100; // absolute: this workspace does not answer that language alone yet.
         break;
       case 'price_to_owner':
         problem = 100; // absolute: her prices are hers to give.
