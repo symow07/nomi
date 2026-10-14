@@ -95,8 +95,9 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // country, saved with the kind of business, decides how an amount is
     // written on every page: one more. 0126 — two more: a customer's data
     // deleted (the setup step "first reply" may count their replies) and the
-    // workspace closed.
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(23);
+    // workspace closed. 2026-10-14 — one more: a name taken off a product (the
+    // products step waits for a name in each script the buyers write).
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(24);
   });
 });
 
