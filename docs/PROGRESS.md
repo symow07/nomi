@@ -22,7 +22,7 @@ and the owner is told what failed; if it passes, Arabic is turned on and the nex
 Three checks before the kit closes: the matcher's ambiguity case; what the "may be saying yes" card shows; Chinese
 names in the onboarding path itself. Reports go to docs/ as files (the artifact service refused).
 
-- **Two products the words fit about equally: ask which, never guess — #PR_WHICH:** «无纺布袋多少钱？» with «无纺布购物袋»
+- **Two products the words fit about equally: ask which, never guess — #343:** «无纺布袋多少钱？» with «无纺布购物袋»
   and «无纺布手提袋» scored 0.400 each and the analysis's pick was priced. Now, when the two best names are close (the
   second at least 0.85 of the first, both by name), the model's pick is dropped and the buyer is asked which — by name,
   her Chinese name to a Chinese buyer — with nothing priced (`src/core/conversation/whichProduct.ts`). A clear lead is
