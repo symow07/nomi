@@ -13,6 +13,23 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Phase 4 — the language sweep's decisions (2026-10-14) — read this first
+
+**The owner's decisions on the sweep:** build 1 (order confirmation) and 2 (Chinese product matching); leave 3 (the
+model tying an unnamed product in Chinese) with a MANDATORY re-measure against the new matcher — up instead of down is
+a blocker. Arabic stays out until 1 and 2 land, 3 re-measures clean, and the boss's products have Arabic names (a
+setup step for the owner in the kit, not code).
+
+- **Fix 2 — a Chinese product name is found from the part of it a buyer says — #340 (0156):** the tokenizer, not
+  the 0.15. `alias_match` reads a name's Chinese stretches as character pairs: «购物袋多少钱？» 0.077 → 0.40,
+  «无纺布袋» 0.038 → 0.40, «纸袋» → «牛皮纸袋»; one pair from the middle of a name («购物») never offers a product, and a
+  one-pair match counts half so two pairs outrank one («无纺布袋» finds the non-woven bag before «帆布袋»). English
+  and Arabic scored as before; the cut-off still 0.15. `tests/integration/cjk-name-match.test.ts` (found / not found).
+  **Finding 3 re-measured against it, live, before anything moved: 0/10 tied in en, zh and ar** (the price-only
+  messages find no product in any language — the number did not go up). Re-sweep (588 turns): Chinese now finds the
+  product where the words name it (`low-confidence-match`: zh = en); the order-"yes" splits wait for fix 1; Arabic's
+  is the missing Arabic names.
+
 ## Phase 4 — Arabic "not yet", and the operator tool (2026-10-14) — read this first
 
 **The owner's direction:** Arabic joins the pilot once the wording bug is fixed AND a sweep of the golden scenarios in
