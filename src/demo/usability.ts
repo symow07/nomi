@@ -330,7 +330,7 @@ export function usabilitySeedSql(namespace: string = DEMO_NAMESPACE): string {
       `insert into clients (id, business_id, display_name, phone, country, preferred_language, total_orders, created_at, last_seen_at) values`,
       `  ('${b.id}', '${B}', '${esc(b.name)}', '${b.phone}', '${b.country}', '${b.language}', ${conv?.kind === 'order' ? 1 + USABILITY_REGULAR_PAST.length : 0}, ${ago(regularSince(b, firstIn))}, ${ago(lastIn)}) on conflict (id) do nothing;`,
       `insert into client_channels (client_id, channel, channel_user_id, last_inbound_at) values`,
-      `  ('${b.id}', 'whatsapp', '${b.phone}', ${ago(lastIn)}) on conflict (channel, channel_user_id) do nothing;`,
+      `  ('${b.id}', 'whatsapp', '${b.phone}', ${ago(lastIn)}) on conflict (business_id, channel, channel_user_id) do nothing;`,
     );
   }
 

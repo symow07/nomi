@@ -384,7 +384,10 @@ import type { Db } from './client.js';
 //       fails instead of handing over.
 // 154 = the pilot's own decisions, each with the day it ends (0154): `pilot_log.ends_on`, which
 //       `tools/pilot-log.mjs` writes and reads. Against a 153 database the tool's `decision` and `triage` fail.
-export const REQUIRED_SCHEMA_VERSION = 154;
+// 155 = a buyer's address is each workspace's own (0155): `client_channels` unique on (business_id, channel,
+//       channel_user_id), which every new conversation's insert names. Against a 154 database that insert has no
+//       matching key and every first message from a new buyer fails.
+export const REQUIRED_SCHEMA_VERSION = 155;
 
 export type SchemaState = {
   readonly required: number;
