@@ -28,6 +28,25 @@ names in the onboarding path itself. Reports go to docs/ as files (the artifact 
   her Chinese name to a Chinese buyer — with nothing priced (`src/core/conversation/whichProduct.ts`). A clear lead is
   not asked about: the whole name (1.0 vs 0.4), «无纺布袋» against «帆布袋» (0.40 vs 0.25). Tests: the real search with a
   genuinely ambiguous pair and with pairs that are not; English too; the ask switched off fails the two ambiguous ones.
+- **"May be saying yes": their words, the price they were given, the mismatch — #345:** the maybe card shows the
+  buyer's message verbatim, then the LAST price this buyer was given (product, quantity, unit price, total, when), and —
+  when their message names another quantity — "Check the quantity: their message says 5000; the price was for 500
+  boxes." No Confirm on it: the owner answers in their own words. The order card (a real yes) shows their words and the
+  unit price above Confirm. `maybe_confirmation` carries `said` and `offer` (payload; no migration).
+- **Setting up asks for a name in each script the buyers write — #344:** the products step is done only once every
+  active product has a name in each served language with its own script — Chinese, Arabic, Russian
+  (`languages_served`, default en/zh/ar). Getting started, Home, the products list and the product's page say which
+  names are missing. A live workspace with English-only products shows the step undone again; nothing gates on it.
+- **R1 in the turn — #346:** a guard trip on a reply rewritten clean withdrew the capability anyway (the turn added
+  its trips to the evidence the loader had already cleaned), so ONE caught-and-fixed Arabic gendered word made every
+  English greeting wait. Only the kept reply's trip demotes now. Production: no self-demotion in 45 days, never fired.
+- **Arabic: held per workspace, and the run that releases it — #347 (0159):** `businesses.languages_held`, set only
+  by `tools/language-hold.mjs`; a held language goes to a person and the buyer hears the ordinary hand-off sentence.
+  `tools/check-language-release.mjs` is (a) and (b): export a workspace's catalogue READ ONLY, refuse while any product
+  has no Arabic name, else 60+ Arabic turns through the real engine and model on a local copy (one per language),
+  compared with English and Chinese. **The procedure, the owner's word:** hold `ar` the day the boss's workspace exists;
+  when Setup shows no product without an Arabic name, export and run; PASS → `--release ar` and the next report says
+  so; FAIL → Arabic stays held and the report says what failed. Do not ask again.
 
 ## Phase 4 — the language sweep's decisions (2026-10-14) — read this first
 
