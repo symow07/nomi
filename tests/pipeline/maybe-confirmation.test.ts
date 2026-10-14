@@ -101,6 +101,27 @@ describe('a yes the list does not know goes to the owner — never answered with
     }
   });
 
+  it('the owner\'s card is told what to show: their words verbatim, and the LAST price given — "5000" after a price for 1,000', async () => {
+    const p = ports();
+    p.tenant.priorQuotes = [
+      { quantity: 5000, unitPrice: usd(0.45), at: new Date('2026-07-14T09:00:00Z') },
+      { quantity: 1000, unitPrice: usd(0.5), at: new Date('2026-07-14T10:00:00Z') },
+    ];
+    const { r } = await run(p, priced(), 'ok, 5000 again please');
+    const s = r.signals.find((x) => x.kind === 'maybe_confirmation');
+    expect(s).toMatchObject({
+      said: 'ok, 5000 again please',
+      offer: { quantity: 1000, unitPrice: usd(0.5), total: usd(500), givenAt: '2026-07-14T10:00:00.000Z' },
+    });
+    expect(s && 'offer' in s ? s.offer?.productName : null).toBeTruthy();
+  });
+
+  it('a "shall I go ahead?" waiting with no price on record: the card says so (offer null), their words still kept', async () => {
+    const p = ports();
+    const { r } = await run(p, waiting(), 'Sounds great, let us go with that');
+    expect(r.signals.find((x) => x.kind === 'maybe_confirmation')).toMatchObject({ said: 'Sounds great, let us go with that', offer: null });
+  });
+
   it('a yes with none of the words, read by the analysis as an order, after a price: the owner\'s', async () => {
     const p = ports();
     p.tenant.priorQuotes = [{ quantity: 5000, unitPrice: usd(0.45), at: new Date('2026-07-14T10:00:00Z') }];

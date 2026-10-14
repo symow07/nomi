@@ -448,10 +448,22 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const fastPath = detectFastPath(req.text, state);
   if (!fastPath.matched && computeScores([...byKind.values()]).problem < PROBLEM_HANDOFF_THRESHOLD && !asksOrHolds(req.text)) {
     const awaitingYes = state.pendingQuestion === 'order_confirmation';
-    const quoted = awaitingYes || (state.product !== null
-      && (await tenant.audit.priorQuotesForClient(state.clientId, state.product.productId)).length > 0);
+    const given = state.product !== null ? await tenant.audit.priorQuotesForClient(state.clientId, state.product.productId) : [];
+    const quoted = awaitingYes || given.length > 0;
     if (quoted && (awaitingYes || soundsLikeYes(req.text) !== null || analysis?.intent.primary === 'order_intent')) {
-      byKind.set('maybe_confirmation', { kind: 'maybe_confirmation' });
+      // What the owner's card shows before anything else: their words, and the last price they were actually given.
+      const last = [...given].sort((a, b) => b.at.getTime() - a.at.getTime())[0];
+      const product = last && state.product ? await tenant.catalog.product(state.product.productId) : null;
+      byKind.set('maybe_confirmation', {
+        kind: 'maybe_confirmation',
+        said: req.text.slice(0, 1000),
+        offer: last && product ? {
+          productName: product.name, quantity: last.quantity, unit: product.unit,
+          unitPrice: last.unitPrice,
+          total: { amount: Math.round(last.unitPrice.amount * last.quantity * 100) / 100, currency: last.unitPrice.currency },
+          givenAt: last.at.toISOString(),
+        } : null,
+      });
     }
   }
   let signals: readonly Signal[] = [...byKind.values()];
