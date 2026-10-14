@@ -374,6 +374,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
    */
   const close = gated ? null
     : closeCall(retrieved, state.product?.confirmedByClient ? state.product.productId : null);
+  /** Her products' names and codes, read ONCE for the turn: by the close call's question and by the guards (PC). */
+  let words: Awaited<ReturnType<typeof tenant.catalog.productWords>> | null = null;
+  const productWords = async () => (words ??= await tenant.catalog.productWords());
   if (close && analysis) {
     const pick = analysis.intent.productCandidate?.productId ?? null;
     if (pick === null || close.some((x) => x.productId === pick)) {
@@ -466,9 +469,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // The close call, above: the reply that would have been written asks which product, by name — her Chinese name to a
   // Chinese buyer — with no product taken, so no price is worked out.
   if (close && decision.action.kind === 'generate_reply') {
-    const words = await tenant.catalog.productWords();
+    const names = await productWords();
     const nameOf = (p: RetrievedProduct): string => {
-      const zh = words.find((w) => w.sku === p.sku)?.names[1];
+      const zh = names.find((w) => w.sku === p.sku)?.names[1];
       return sayIn === 'zh' && zh ? zh : p.name;
     };
     decision = {
@@ -684,7 +687,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // her own codes, read once for the turn: their exact words are set aside
       // by the numeral guard at every one of its four places below; their
       // figures are never sourced values (core/safety/numerals.ts).
-      catalogue = catalogueWords(await tenant.catalog.productWords());
+      catalogue = catalogueWords(await productWords());
       const refusalCtx = quoteRefusal ? quoteRefusalContext(quoteRefusal) : null;
       const replyLanguage =
         analysis?.language.replyIn ?? state.preferredLanguage ?? 'en';
