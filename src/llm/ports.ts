@@ -64,6 +64,12 @@ export interface ReplyWriter {
     /** second attempt after a numeral violation — be stricter */
     retryAfterViolation: boolean;
     /**
+     * Rule 6 — the attempt before addressed the buyer as a man or a woman
+     * (src/core/safety/address.ts): the next is told that, not the numbers
+     * rule. Absent after any other violation.
+     */
+    violation?: 'gendered_address';
+    /**
      * A5.3 — who is speaking and for which business, in the owner's own words.
      * Tone and focus only: it carries no fact a buyer may be quoted, and the
      * guards run on the output exactly as before. ABSENT when nothing is known.

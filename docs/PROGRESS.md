@@ -13,7 +13,25 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## Phase 4 — the Gate A pilot: the owner's answers (2026-10-14) — read this first
+## Phase 4 — Arabic "not yet", and the operator tool (2026-10-14) — read this first
+
+**The owner's direction:** Arabic joins the pilot once the wording bug is fixed AND a sweep of the golden scenarios in
+en / zh / ar shows the chosen kind of reply does not depend on the language (apart from the one case already found);
+a pattern is a finding of its own, dealt with before the pilot. The operator tool attaches a spare number to the
+boss's workspace, with a test that fails if a message could cross workspaces. The WhatsApp round trip, the three cold
+demos and naming the boss are the owner's.
+
+- **The wording bug — fixed, #PR_ADDRESS:** a reply addresses the buyer in neither gender. `prompts/response.txt`
+  gains ADDRESS: Arabic replies in simple standard Arabic (in dialect almost every address has a gender — the writer
+  had been answering a dialect in kind), noun phrases / the passive / «يمكن · يُرجى», no gender for the assistant
+  either. The guard `src/core/safety/address.ts` sits in the writer's retry chain: a gendered reply is written again,
+  told why; twice and it waits for a person; the stand-in is checked too. Corpus `tests/parity/arabic-address.test.ts`
+  (gendered and neutral lines, the live ones marked, every fixed Arabic sentence read). Live, deepseek-flash, 12
+  Arabic messages × 5 (`tools/check-arabic-address.mjs`): **before 36 / 60 replies gendered (hand count; the old
+  word list caught 7); after 5 / 60 at the first writing, all 5 caught, 0 after the rewrite — none reaches a buyer.**
+  Scripted pre-pilot 12/12 before and after.
+
+## Phase 4 — the Gate A pilot: the owner's answers (2026-10-14)
 
 **The owner's answers** (decisions 1–4, two blockers, four notes on the hooks) and what was done with them:
 
