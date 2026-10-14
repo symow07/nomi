@@ -3782,6 +3782,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const alias = String(((req.body ?? {}) as Record<string, string | undefined>)['alias'] ?? '');
     const ok = await removeProductName(deps.db, s.businessId, id, personOf(s).id, alias);
+    facts.evict(s.businessId);   // 2026-10-14 — a name taken off can leave a product with none in a served script
     return flashTo(reply, `${back}#names`, ok ? 'product.alias.removed' : 'product.alias.notRemoved');
   });
 
@@ -4608,7 +4609,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const progress = setupState() ?? (bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => setupProgress(tx, bid.value)).catch(() => null) : null);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'guide.title'), active: 'settings',
-      bodyHtml: renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null }, locale, assistantName(locale)),
+      bodyHtml: renderGuide({ steps: progress?.steps ?? [], next: progress?.next ?? null, names: progress?.names ?? [] }, locale, assistantName(locale)),
     }));
   });
   // The guide's videos and their captions: only names the folder holds, of the one shape.

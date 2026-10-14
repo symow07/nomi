@@ -19,6 +19,8 @@ import { t, tn, assistantName } from './say.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
+import { namesWanted, type ScriptLanguage } from '../../core/onboard/scriptNames.js';
+import { languageCalled } from './namesWanted.js';
 import { addAliases, renameAlias, removeAlias } from '../../db/productAliases.js';
 import { productPhotoToken, PRODUCT_PHOTO_MAX_BYTES } from '../../db/productPhotos.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
@@ -115,6 +117,8 @@ export type ProductListItem = {
   readonly imageMatchable: boolean;
   /** Deactivated products stay in the list but are not something you sell. */
   readonly isActive: boolean;
+  /** 2026-10-14 — served languages with their own script that none of its names is written in (active products only). */
+  readonly namesWanted?: readonly ScriptLanguage[];
 };
 
 /**
@@ -153,8 +157,11 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
     id: string; name: string; name_zh: string | null; sku: string; moq: number | null; unit: string;
     is_active: boolean; price: string | null; currency: string;
     entry_qty: number | null; entry_price: string | null; extras: number; has_limits: boolean; has_alias: boolean;
+    aliases: string[]; served: string[] | null;
   }>`
     select p.id, p.name, p.name_zh, p.sku, p.moq, p.unit, p.is_active, p.price_usd_per_unit as price,
+           (select coalesce(array_agg(a.alias), '{}') from product_aliases a where a.product_id = p.id) as aliases,
+           (select b.languages_served from businesses b where b.id = p.business_id) as served,
            p.currency, t.min_qty as entry_qty, t.unit_price_usd as entry_price,
            exists (select 1 from pricing_policy pp where pp.business_id = p.business_id
                     and (pp.product_id = p.id or pp.product_id is null)) as has_limits,
@@ -179,12 +186,15 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       status: productStatus({ isActive: r.is_active, hasPrice: entryPrice !== null, hasLimits: r.has_limits, findable: r.has_alias }),
       imageMatchable: r.is_active && Number(r.extras) > 0,
       isActive: r.is_active,
+      namesWanted: r.is_active ? namesWanted(r.served ?? [], [r.name, r.name_zh, ...r.aliases]) : [],
     };
   }));
 }
 
 export type ProductDetail = {
   readonly id: string;
+  /** 2026-10-14 — served languages with their own script that none of its names is written in (active only). */
+  readonly namesWanted?: readonly ScriptLanguage[];
   readonly name: string;
   readonly nameZh: string | null;
   readonly sku: string;
@@ -228,8 +238,10 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       unit: string; moq: number | null; lead_time_days: number | null; customizable: boolean;
       is_active: boolean; price: string | null; currency: string; has_limits: boolean;
       source_line: string | null; source_import_id: string | null; photo: number | null; kind: string | null;
-      options: unknown;
+      options: unknown; served: string[] | null; every_alias: string[];
     }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active, options,
+              (select b.languages_served from businesses b where b.id = products.business_id) as served,
+              (select coalesce(array_agg(a.alias), '{}') from product_aliases a where a.product_id = products.id) as every_alias,
               price_usd_per_unit as price, currency, source_line, source_import_id,
               (select b.kind from businesses b where b.id = products.business_id) as kind,
               (select ph.position from catalog_import_photos ph where ph.id = products.source_photo_id) as photo,
@@ -276,6 +288,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       customizable: p.customizable, learned, isActive: p.is_active,
       status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits, findable: aliases.length > 0 }),
       imageMatchable: p.is_active && aliases.length + images.length > 0,
+      namesWanted: p.is_active ? namesWanted(p.served ?? [], [p.name, p.name_zh, ...p.every_alias]) : [],
       tiers, aliases, images, recentQuotes,
       photo: await productPhotoToken(tx, productId).then((token) => (token ? { token } : null)),
       currency: await currencyOf(tx, bid.value),
@@ -577,6 +590,7 @@ export function renderProductList(
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}"><span class="prod-m">
       <span class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</span>
       <span class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</span>
+      ${(p.namesWanted ?? []).map((l) => `<span class="p-tag">${esc(t(locale, 'product.list.noName', { language: languageCalled(locale, l) }))}</span>`).join('')}
       ${p.imageMatchable ? '' : `<span class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</span>`}
     </span>${GO}</a>`;
   }).join('');
@@ -693,12 +707,14 @@ export function renderProductDetail(
         ${/* w4-products-knowledge-09 — it throws a name away, so it looks like it, and so does its question's go-ahead. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'product.alias.remove.confirm', { name }))}">${esc(t(locale, 'product.alias.remove.button'))}</button></form>`
     : '';
+  // 2026-10-14 (the owner) — a name in each served language with its own script, or those buyers cannot find it.
+  const noName = (d.namesWanted ?? []).map((l) => `<p class="fwarn">${esc(t(locale, 'product.detail.noName', { language: languageCalled(locale, l) }))}</p>`).join('');
   const aliases = d.aliases.length
-    ? `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
+    ? `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>${noName}<div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
         <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name }))}</p>${removeName}</div>`
     // T3 — found by no name: said, with what makes it findable.
-    : `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>
-        <p class="fwarn">${esc(t(locale, 'product.detail.notFindable'))}</p></div>`;
+    : `<div class="block" id="names"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>
+        <p class="fwarn">${esc(t(locale, 'product.detail.notFindable'))}</p>${noName}</div>`;
 
   // D7 (2026-10-07) — only a photo Nomi serves is drawn: an address from the root
   // (`/…`, never `//host`). `product_images.url` is drawn as stored, and an address on
