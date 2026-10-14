@@ -15,11 +15,17 @@ import type { ConversationState, PendingQuestion, Phase } from '../types/convers
  * (pendingQuestion) and this module consumes it.
  */
 
+/**
+ * The words that answer yes, whole. 2026-10-14 (the owner, the language sweep): «好的», «是的», «可以», «确认», «تمام»,
+ * «موافق» and "yes please" were not here, and a buyer saying them was quoted again. This list is no longer what keeps
+ * that from happening — a yes it does not know goes to the owner (`acceptance.ts`, `maybe_confirmation`) — but every
+ * word on it saves the buyer that wait. Written as `bare` reads (Arabic alef forms folded: «أكيد» is «اكيد»).
+ */
 const YES = new Set([
   'yes', 'yeah', 'yep', 'correct', 'right', 'exactly', 'sure', 'ok', 'okay',
-  'confirm', 'confirmed', 'agreed',
-  'نعم', 'صح',            // Arabic
-  '是', '对', '好',        // Chinese
+  'confirm', 'confirmed', 'agreed', 'yes please', 'go ahead',
+  'نعم', 'صح', 'تمام', 'موافق', 'اكيد', 'ايوه',          // Arabic
+  '是', '对', '好', '好的', '是的', '可以', '确认', '行', '没问题',   // Chinese
   'sí', 'si',              // Spanish
   'oui',                   // French
   'да',                    // Russian
@@ -32,6 +38,20 @@ const NO = new Set([
   'non',                   // French
   'нет',                   // Russian
 ]);
+
+/**
+ * The answer as the lists read it: lower case, NFKC, Arabic alef forms and diacritics folded, the punctuation and
+ * the few emoji around a bare answer gone ("Yes." «好的。» «تمام!» "ok 👍"), spaces single. Before 2026-10-14 the
+ * comparison was exact, and "Yes." was not a yes.
+ */
+function bare(text: string): string {
+  return (text ?? '').normalize('NFKC').toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآٱ]/g, 'ا')
+    .replace(/[\s.,!。，！~～…·:;、\u{1F44D}\u{1F44C}\u{1F64F}\u{1F60A}\u{1F642}]+$/u, '')
+    .replace(/^[\s.,!。，！~～…·:;、]+/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export type FastPathType =
   | 'product_confirmed_yes'
@@ -89,7 +109,7 @@ function replyFor(type: FastPathType, language: string | null): string {
 }
 
 export function detectFastPath(text: string, state: ConversationState): FastPathResult {
-  const t = (text ?? '').toLowerCase().trim();
+  const t = bare(text);
   const pending = state.pendingQuestion;
   const lang = state.preferredLanguage;
 

@@ -16,6 +16,7 @@ import { effectiveMode } from '../core/ops/killSwitch.js';
 import type { TextProvenance } from '../core/safety/heardNumbers.js';
 import { holdReasonOf, type HoldReason } from '../core/conversation/hold.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
+import { asksOrHolds, soundsLikeYes } from '../core/conversation/acceptance.js';
 import { analyserWasAvoidable, type AnswerPath } from '../core/conversation/answerPath.js';
 import { agreesOnEverything, compareWithModel, understand, type Agreement, type OwnUnderstanding } from '../core/conversation/understand.js';
 import { detectInjection } from '../core/safety/injection.js';
@@ -413,6 +414,27 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
    */
   const languageUnreviewed = gateLang !== UNDETERMINED && !tenant.autonomy.released(gateLang);
   if (languageUnreviewed) byKind.set('language_not_reviewed', { kind: 'language_not_reviewed' });
+  /**
+   * 2026-10-14 — the owner, the language sweep's finding 1: A YES THE LIST DID NOT KNOW GOES TO THE OWNER, never
+   * answered with the price again. The fast path confirms an order only on a word it has («好的» and «تمام» were not
+   * among them), and everything else reached the writer, which quoted again — alone, where prices may go alone. "Make
+   * the list stop being load-bearing… Fail toward me, not toward a wrong reply."
+   *
+   * After a price was given — a "shall I go ahead?" waiting, or a price this buyer was given for the conversation's
+   * product (G7b's `priorQuotesForClient`) — a reply the fast path did not take, that asks nothing and holds nothing
+   * back (`asksOrHolds`: a question, a no, "too expensive"), hands the conversation to the owner as "this may be a
+   * confirmation" when: a "shall I go ahead?" is waiting (anything else is an answer to it); or it sounds like a yes
+   * (`soundsLikeYes`); or the analysis reads it as an order. A question is still answered as before.
+   */
+  const fastPath = detectFastPath(req.text, state);
+  if (!fastPath.matched && computeScores([...byKind.values()]).problem < PROBLEM_HANDOFF_THRESHOLD && !asksOrHolds(req.text)) {
+    const awaitingYes = state.pendingQuestion === 'order_confirmation';
+    const quoted = awaitingYes || (state.product !== null
+      && (await tenant.audit.priorQuotesForClient(state.clientId, state.product.productId)).length > 0);
+    if (quoted && (awaitingYes || soundsLikeYes(req.text) !== null || analysis?.intent.primary === 'order_intent')) {
+      byKind.set('maybe_confirmation', { kind: 'maybe_confirmation' });
+    }
+  }
   let signals: readonly Signal[] = [...byKind.values()];
 
   // ── Decide. Pure. ───────────────────────────────────────────────────────────
@@ -579,6 +601,16 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         reply = OPT_OUT_REPLIES[sayIn];
         notice = 'opt_out';
         answerPath = 'handoff';
+      } else if (signals.some((s) => s.kind === 'maybe_confirmation')) {
+        // 2026-10-14 — a yes the list did not know: the order's own line ("a colleague will review this order with
+        // you"), never the price again. The owner confirms it, or answers.
+        reply = orderBlockedReply(['conversation_handed_off'], null, sayIn);
+        notice = 'handoff';
+        answerPath = 'handoff';
+        // No price was said, so none is recorded as told (G7b counts what a buyer was given).
+        quote = null;
+        quoteInputs = null;
+        quoteRefusal = null;
       } else {
         reply = HANDOFF_REPLIES[sayIn];
         // Fix 1 (2026-10-10) — marked, so it reaches the buyer the hand-off just

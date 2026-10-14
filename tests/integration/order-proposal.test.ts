@@ -22,7 +22,10 @@ import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
  *     nothing created or sent;
  *   · while the assistant is stopped the tap is refused and the order waits;
  *   · the pending question is set when a message that asks it LEAVES — an
- *     approved draft carries its question to the send; an edited one does not.
+ *     approved draft carries its question to the send; an edited one does not;
+ *   · a yes the list does not know (2026-10-14, 0157), in en, zh and ar, goes to
+ *     the owner as "this may be a confirmation": the buyer gets the order's own
+ *     line, never the price again, and nothing is proposed.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -37,6 +40,9 @@ const CUSTOMERS = {
   stepIn: `9718${runDigits(RUN, 6)}2`,
   stopped: `9718${runDigits(RUN, 6)}3`,
   asks: `9718${runDigits(RUN, 6)}4`,
+  maybeEn: `9718${runDigits(RUN, 6)}5`,
+  maybeZh: `9718${runDigits(RUN, 6)}6`,
+  maybeAr: `9718${runDigits(RUN, 6)}7`,
 } as const;
 
 type Tx = import('../../src/db/client.js').Tx;
@@ -366,5 +372,39 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
       .execute(tx).then((x) => (x.rows[0]?.status === 'sent' ? x.rows[0] : undefined))), 'the approved draft to leave');
     expect(row.asks).toBe('order_confirmation');
     await until(async () => ((await pending()) === 'order_confirmation' ? true : undefined), 'the pending question');
+  });
+  it('A YES NOT ON THE LIST, in en, zh and ar, goes to the owner — the order\'s line, never the price, nothing proposed', async () => {
+    const { orderBlockedReply } = await import('../../src/core/conversation/templates.js');
+    const cases = [
+      [CUSTOMERS.maybeEn, 'Sounds great, let us go with that', 'en'],
+      [CUSTOMERS.maybeZh, '那就这么定了吧', 'zh'],
+      [CUSTOMERS.maybeAr, 'تمام كذا، نمشي على هذا', 'ar'],
+    ] as const;
+    for (const [wa, text, lang] of cases) {
+      await say(wa, 'hello, I would like some gift boxes');
+      const conv = await convOf(wa);
+      await until(async () => ((await turnsOf(conv)) >= 1 ? true : undefined), 'the first turn');
+      await until(() => q((tx) => sql<{ n: number }>`select count(*)::int as n from outbound_messages
+        where conversation_id = ${conv}::uuid and status = 'sent'`.execute(tx).then((x) => (x.rows[0]!.n >= 1 ? true : undefined))), 'the first reply to leave');
+      // WhatsApp's receipt, which the simulator never sends: the next message would wait 90 s behind it (sequencer.ts).
+      await q((tx) => sql`update outbound_messages set status = 'delivered'
+        where conversation_id = ${conv}::uuid and status = 'sent'`.execute(tx));
+      await readyToConfirm(conv);
+      await say(wa, text);
+      await until(async () => ((await turnsOf(conv)) >= 2 ? true : undefined), `the second turn (${lang})`);
+      const line = orderBlockedReply(['conversation_handed_off'], null, lang);
+      await until(() => q((tx) => sql<{ n: number }>`select count(*)::int as n from outbound_messages
+        where conversation_id = ${conv}::uuid and position(${line} in body) > 0`.execute(tx)
+        .then((x) => (x.rows[0]!.n >= 1 ? true : undefined))), `the order's line (${lang})`);
+      const signals = await q((tx) => sql<{ kind: string }>`select kind from conversation_signals
+        where conversation_id = ${conv}::uuid and resolved_at is null`.execute(tx).then((x) => x.rows.map((r) => r.kind)));
+      expect(signals, lang).toContain('maybe_confirmation');
+      const after = await footprint(conv);
+      expect(after.proposals, `${lang}: no order proposed on a maybe`).toBe(0);
+      expect(after.orders, lang).toBe(0);
+      const priced = await q((tx) => sql<{ n: number }>`select count(*)::int as n from outbound_messages
+        where conversation_id = ${conv}::uuid and (body like '%2.10%' or body like '%84.00%')`.execute(tx).then((x) => x.rows[0]!.n));
+      expect(priced, `${lang}: never the price again`).toBe(0);
+    }
   });
 });

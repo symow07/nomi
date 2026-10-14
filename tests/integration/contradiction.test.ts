@@ -162,7 +162,9 @@ d('G7b · a contradicting price waits for her, then becomes the baseline (requir
     expect((await decide(fx.draftCreated!.draftId, '发送')).outcome).toBe('sent');
     expect(await baseline()).toEqual([0.45, 0.40]);
 
-    const next = await turn('ok, 5000 again please');
+    // CHANGED BY DESIGN (2026-10-14, 0157): this was "ok, 5000 again please" — after a price, a possible yes, which
+    // now goes to the owner as "this may be a confirmation" instead of being quoted. Asked as a question, it is quoted.
+    const next = await turn('5000 again — what is the price?');
     expect(next.r.quote?.unitPrice.amount).toBe(0.45);
     expect(next.r.quote?.contradicts).toBeNull();
     expect(next.r.hold).toBeNull();

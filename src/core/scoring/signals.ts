@@ -139,6 +139,13 @@ export type Signal =
    * for a person; handing back resolves it, and their next message in that language hands over again.
    */
   | { readonly kind: 'language_not_reviewed' }
+  /**
+   * 2026-10-14 — the owner, the language sweep's finding 1: after a price was given, the buyer's reply could be a
+   * yes the fast path's list does not know («好的», «تمام», "sounds great"). It goes to the owner as "this may be a
+   * confirmation" — never answered by sending the price again. The buyer hears the order's own line ("a colleague
+   * will review this order with you"), and the owner confirms or answers. Scored like a request for a person.
+   */
+  | { readonly kind: 'maybe_confirmation' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -193,6 +200,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'provider_billing',
   // 0153 — the buyer writes in a language with no signed disclosure; a person answers.
   'language_not_reviewed',
+  // 0157 — after a price, a reply that may be a yes the list does not know: the owner confirms or answers.
+  'maybe_confirmation',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -225,6 +234,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   plan_limit: { kind: 'plan_limit' },
   provider_billing: { kind: 'provider_billing' },
   language_not_reviewed: { kind: 'language_not_reviewed' },
+  maybe_confirmation: { kind: 'maybe_confirmation' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -268,6 +278,7 @@ export const TRIGGER_REASONS = [
   'plan_limit',
   'provider_billing',
   'language_not_reviewed',
+  'maybe_confirmation',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -316,6 +327,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'provider_billing';
     case 'language_not_reviewed':
       return 'language_not_reviewed';
+    case 'maybe_confirmation':
+      return 'maybe_confirmation';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -378,6 +391,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'language_not_reviewed':
         problem = 100; // absolute: nothing automated may reach them, so a person answers.
+        break;
+      case 'maybe_confirmation':
+        problem = 100; // absolute: it may be a yes, and only the owner confirms an order.
         break;
       case 'price_to_owner':
         problem = 100; // absolute: her prices are hers to give.
