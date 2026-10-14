@@ -76,7 +76,7 @@ describe('"may be saying yes": what the owner sees before deciding anything', ()
   it('"ok, 5000 again please" after a price for 500: the mismatch, in words, in every language', () => {
     for (const locale of LOCALES) {
       const card = cardOf(renderConversationDetail(base(), locale, NOW, null, OWNER_VIEW));
-      // The figures are drawn isolated where the page runs right to left (⁨5000⁩): compared without the isolates.
+      // The figures are drawn isolated where the page runs right to left (5000 between isolates): compared without the isolates.
       const line = bare(esc(t(locale, 'maybeYes.mismatch', { said: '5000', given: show.quantityOf(locale, 500, 'boxes') })));
       expect(bare(card), locale).toContain(line);
       expect(card, locale).toMatch(/role="alert"/);
