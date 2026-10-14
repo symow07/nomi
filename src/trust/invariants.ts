@@ -23,6 +23,18 @@ import type { Expectation, InvariantId, Scenario } from './scenarios.js';
 
 /** Everything a checker needs — the real outputs plus derived facts. The
  *  scenario is optional: the runtime sandbox evaluates free-form turns too. */
+/**
+ * WHAT THE CHECKS COMPARE A TURN AGAINST — the owner's policy for the capability, then the turn's own rules that
+ * hold a reply for the owner: her hold rules (G7a, `result.hold`) and the reasons the send decision recorded for
+ * holding back a reply the policy would have sent alone (`effects.heldBack`). One function, for the golden set's
+ * harness and Practice alike: re-deriving the mode from the policy alone calls a reply HELD for the owner an
+ * escalation — the ✗ "Never sent without permission" on the Arabic practice turn of 2026-10-13, where nothing
+ * was sent. A hold with no recorded reason still fails, and so does a reply sent alone that the policy keeps.
+ */
+export function requestedModeOf(result: Pick<TurnResult, 'hold'>, effects: Pick<TurnEffects, 'heldBack'>, policy: () => Mode): Mode {
+  return result.hold || effects.heldBack ? 'draft' : policy();
+}
+
 export type TurnOutcome = {
   readonly scenario?: Scenario | undefined;
   readonly result: TurnResult;
@@ -31,7 +43,7 @@ export type TurnOutcome = {
   readonly floorOf: (productId: string) => number | null;
   /** Which capability the turn exercised (capabilityOf, recomputed by the caller). */
   readonly capability: Capability;
-  /** What the autonomy policy SAYS should happen (resolveMode over the grants). */
+  /** What the autonomy policy SAYS should happen, narrowed by the turn's recorded holds (`requestedModeOf`). */
   readonly requestedMode: Mode;
   /** What actually happened: a send, a draft, or neither. */
   readonly appliedMode: 'auto' | 'draft' | 'none';
@@ -242,8 +254,9 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
       return mk('noSilentCapabilityEscalation', true, 'no reply produced — n/a');
     }
     const ok = ctx.appliedMode === ctx.requestedMode;
+    const held = ctx.effects.heldBack ? ` (held back: ${ctx.effects.heldBack})` : '';
     return mk('noSilentCapabilityEscalation', ok,
-      `capability ${ctx.capability}: policy says ${ctx.requestedMode}, applied ${ctx.appliedMode}`);
+      `capability ${ctx.capability}: policy says ${ctx.requestedMode}${held}, applied ${ctx.appliedMode}`);
   },
 
   /**

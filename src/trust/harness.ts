@@ -20,7 +20,7 @@ import type { AllowedClaim } from '../core/safety/claims.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import type { ConversationId, ClientId, ProductId } from '../core/types/ids.js';
 import { unsafeBrand } from '../core/types/brand.js';
-import { runCheck, type CheckResult, type TurnOutcome } from './invariants.js';
+import { runCheck, requestedModeOf, type CheckResult, type TurnOutcome } from './invariants.js';
 import {
   analysis as defaultAnalysis, candidate as toCandidate,
   SCHEMA_VERSION, TRUST_BUSINESS_ID, TRUST_PRODUCT_ID, type Scenario,
@@ -311,8 +311,8 @@ export async function evaluateScenario(
   // G7a — what HER rules resolve to: the grant, then her hold rules, read
   // from the one field the pipeline decided. Re-deriving the mode from the
   // grant alone would call every held turn an escalation failure.
-  const requestedMode = result.hold ? 'draft'
-    : resolveMode({ capability, grants: tenant.grantRows, now, timeZone: SCENARIO_ZONE });
+  const requestedMode = requestedModeOf(result, effects,
+    () => resolveMode({ capability, grants: tenant.grantRows, now, timeZone: SCENARIO_ZONE }));
   const appliedMode: TurnOutcome['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (productId: string): number | null => tenant.floorFor(productId);
 

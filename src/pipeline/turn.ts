@@ -994,6 +994,15 @@ export type TurnEffects = {
    * e-mail as well as WhatsApp (notify.ts). A turn never creates an order.
    */
   orderProposed: { proposalId: string; fresh: boolean } | null;
+  /**
+   * WHY A REPLY ITS POLICY WOULD HAVE SENT ALONE WAITS FOR THE OWNER INSTEAD — the reason recorded as
+   * `autonomy_withheld` (the ramp, the first quote, the language, the name), or `ops_force_draft` when the
+   * operator's switch made it a draft. Null when nothing held it back; absent on effects built before it.
+   * The trust checks read it (`requestedModeOf`): a hold with a recorded reason is the guard holding MORE,
+   * never a "silent" change — the Arabic practice turn of 2026-10-13 was reported ✗ "Never sent without
+   * permission" for exactly that, a reply held for the owner.
+   */
+  heldBack?: string | null;
 };
 
 
@@ -1194,6 +1203,7 @@ export async function commitTurn(
   // confirmation is sent by the owner's tap on a proposal, never by a turn.
   let outbound: TurnEffects['outbound'] = null;
   let draftCreated: TurnEffects['draftCreated'] = null;
+  let heldBack: string | null = null;
   if (reply) {
     const capability = capabilityOf(r.decision, r.quote !== null);
     const grants = await tenant.autonomy.grants();
@@ -1318,6 +1328,12 @@ export async function commitTurn(
           ? languageWithheld : { reason: named ? 'no_assistant_name' : 'assistant_not_named' }),
       });
     }
+    // Blocker 2 (2026-10-14) — the same reason, for the trust checks (`TurnEffects.heldBack`); or the operator's
+    // force-draft switch, when it alone turned a reply that would have gone alone into a draft.
+    heldBack = speaksAlone && !mayDisclose
+      ? (!earned ? 'not_earned' : !vetted ? 'first_quote' : languageWithheld
+        ? languageWithheld.reason : named ? 'no_assistant_name' : 'assistant_not_named')
+      : mode === 'draft' && speaksAlone && !(r.hold && !stopLine) && switches.forceDraft.includes(capability) ? 'ops_force_draft' : null;
 
     const recordDisclosure = async (why: 'first_auto_send' | 'identity_question') => {
       // In this turn's transaction, like the draft beside it. The send is
@@ -1485,5 +1501,6 @@ export async function commitTurn(
     handoffAlert: r.decision.action.kind === 'handoff',
     deletionAlert,
     orderProposed,
+    heldBack,
   };
 }
