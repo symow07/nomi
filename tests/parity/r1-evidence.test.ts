@@ -12,8 +12,14 @@ describe('R1 · counted right', () => {
     expect(sameWords('Which size  would\nyou like? ', 'Which size would you like?')).toBe(true);
     expect(sameWords('Which size?', 'Which colour?')).toBe(false);
   });
-  it('3 · the guard event says whether the KEPT reply tripped', () => {
-    expect(src('src/pipeline/turn.ts')).toContain("final: r.hold === 'guards_failed_twice',");
+  // CHANGED BY DESIGN (the owner, on PR 346: "a genuine violation that was NOT cleanly rewritten must still withdraw
+  // the capability"): the kept reply also failed when it could not be written without a gender and became a
+  // hand-over (0158) — the event says so, and the same flag decides the demotion.
+  it('3 · the guard event says whether the KEPT reply tripped — twice over, or gendered twice', () => {
+    const turn = src('src/pipeline/turn.ts');
+    expect(turn).toContain("const keptReplyFailed = r.hold === 'guards_failed_twice' || r.addressUnwritten;");
+    expect(turn).toContain('final: keptReplyFailed,');
+    expect(turn).toContain("if (policyMode === 'auto' && keptReplyFailed) {");
   });
   it('6 · every evidence query names the business, and the watermark is the system\'s demotion only', () => {
     const cap = src('src/pipeline/capability.ts');
