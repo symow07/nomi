@@ -20,7 +20,7 @@ model tying an unnamed product in Chinese) with a MANDATORY re-measure against t
 a blocker. Arabic stays out until 1 and 2 land, 3 re-measures clean, and the boss's products have Arabic names (a
 setup step for the owner in the kit, not code).
 
-- **Fix 2 — a Chinese product name is found from the part of it a buyer says — #PR_CJK (0156):** the tokenizer, not
+- **Fix 2 — a Chinese product name is found from the part of it a buyer says — #340 (0156):** the tokenizer, not
   the 0.15. `alias_match` reads a name's Chinese stretches as character pairs: «购物袋多少钱？» 0.077 → 0.40,
   «无纺布袋» 0.038 → 0.40, «纸袋» → «牛皮纸袋»; one pair from the middle of a name («购物») never offers a product, and a
   one-pair match counts half so two pairs outrank one («无纺布袋» finds the non-woven bag before «帆布袋»). English
