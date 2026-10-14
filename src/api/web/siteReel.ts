@@ -7,6 +7,7 @@ import { disclosureFor } from '../../core/conversation/disclosure.js';
 import { usd } from '../../core/types/money.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import * as show from './values.js';
+import { solarSvg } from './icons.js';
 
 /**
  * PHASE 3a — THE SITE, MOTION-LED (approved by the owner at the stop-gate, 2026-10-13).
@@ -44,7 +45,7 @@ const CUSTOMER = 'Amira';
 const ASSISTANT = 'Mira';
 const INSTAGRAM: Readonly<Record<Locale, string>> = { en: 'Instagram', zh: 'Instagram', ar: 'إنستغرام', es: 'Instagram', fr: 'Instagram' };
 /** The example's figures: a quantity, the per-piece price before and after — inside the reel only. */
-const EXAMPLE = { qty: 500, was: usd(4.2), now: usd(3.8) } as const;
+const EXAMPLE = { qty: 500, was: usd(4.2), now: usd(3.8), total: usd(1900) } as const;
 
 const CYCLE = 20;
 const SCENE = 5;
@@ -75,6 +76,12 @@ function timeline() {
     /** Is there from the scene's start, and fades back at `at` seconds: the price that came down. */
     dim: (scene: number, at: number) => run(scene, `rl-dim-${id(at)}`,
       `0%, ${pc(at)} { opacity:1; } ${pc(at + 0.3)}, 100% { opacity:0.45; }`),
+    /**
+     * Is there from the scene's start, and FOLDS away at `at` seconds — the button once it is tapped: the card closes
+     * up over it rather than keeping an empty box where it was (the owner's note on the hooks, 2026-10-14).
+     */
+    fold: (scene: number, at: number) => run(scene, `rl-fold-${id(at)}`,
+      `0%, ${pc(at)} { opacity:1; max-block-size:4rem; } ${pc(at + 0.3)}, 100% { opacity:0; max-block-size:0; margin-block:0; padding-block:0; }`),
     /** Is there from the scene's start, and leaves at `at` seconds. */
     leave: (scene: number, at: number) => run(scene, `rl-out-${id(at)}`,
       `0%, ${pc(at)} { opacity:1; } ${pc(at + 0.2)}, 100% { opacity:0; }`),
@@ -99,6 +106,8 @@ export function renderReelHero(v: SiteInput): { readonly html: string; readonly 
   const qty = show.quantityOf(l, EXAMPLE.qty, unitLabel(l, 'pcs'));
   const was = show.money(l, EXAMPLE.was);
   const now = show.money(l, EXAMPLE.now);
+  // The order's total, for the payoff (the owner's note on hook 3): the example's quantity at the price agreed.
+  const total = show.money(l, EXAMPLE.total);
   const disclosure = disclosureFor({ detected: l, name: ASSISTANT, business: SHOP }) ?? '';
   const said = (cls: string, text: string, mine = false) =>
     `<p class="rl-bubble${mine ? ' rl-mine' : ''} ${cls}" dir="auto">${text}</p>`;
@@ -121,7 +130,7 @@ export function renderReelHero(v: SiteInput): { readonly html: string; readonly 
           <span class="rl-state"><span class="rl-need ${tl.leave(1, 3.0)}">${w('s2.waits')}</span><span class="ok ${tl.appear(1, 3.1)}">${w('s2.sent')}</span></span></p>
         <p class="rl-card-text" dir="auto">${w('s2.reply', { qty, now })}</p>
         <p class="rl-price"><s class="rl-was ${tl.dim(1, 1.8)}"><bdi>${esc(was)}</bdi></s> <b class="${tl.appear(1, 1.9)}"><bdi>${esc(now)}</bdi></b> ${w('s2.each')}</p>
-        <p class="rl-act ${tl.leave(1, 3.0)}"><span class="rl-btn">${w('s2.send')}<span class="rl-ring ${tl.tap(1, 2.6)}"></span></span></p>
+        <p class="rl-act ${tl.fold(1, 3.0)}"><span class="rl-btn">${w('s2.send')}<span class="rl-ring ${tl.tap(1, 2.6)}"></span></span></p>
       </div>
       ${caption(1, 3.4, 's2.caption')}
     </div>`,
@@ -130,9 +139,10 @@ export function renderReelHero(v: SiteInput): { readonly html: string; readonly 
       <div class="rl-card ${tl.appear(2, 1.0)}">
         <p class="rl-card-head"><span class="rl-by">${w('s3.order')}</span>
           <span class="rl-state"><span class="rl-need ${tl.leave(2, 2.6)}">${w('s2.waits')}</span><span class="ok ${tl.appear(2, 2.7)}">${w('s3.confirmed')}</span></span></p>
-        <p class="rl-act ${tl.leave(2, 2.6)}"><span class="rl-btn">${w('s3.confirm')}<span class="rl-ring ${tl.tap(2, 2.2)}"></span></span></p>
+        <p class="rl-card-text rl-sum"><bdi>${esc(qty)}</bdi> × <bdi>${esc(now)}</bdi> = <b><bdi>${esc(total)}</bdi></b></p>
+        <p class="rl-act ${tl.fold(2, 2.6)}"><span class="rl-btn">${w('s3.confirm')}<span class="rl-ring ${tl.tap(2, 2.2)}"></span></span></p>
       </div>
-      <p class="rl-doc ${tl.appear(2, 3.0)}"><span class="rl-doc-mark" aria-hidden="true"></span>${w('s3.proforma')}</p>
+      <p class="rl-doc ${tl.appear(2, 3.0)}">${solarSvg('rl-doc-icon', 'file-text', 18)}${w('s3.proforma')}</p>
       ${caption(2, 3.5, 's3.caption')}
     </div>`,
     `<div class="rl-scene rl-s3 rl-books">
@@ -256,13 +266,14 @@ const REEL_CSS = `
     font-variant-numeric:tabular-nums; }
   .rl-price s { color:var(--color-ink-secondary); }
   .rl-price b { color:var(--color-ink); font-size:var(--font-size-base); }
-  .rl-act { display:flex; justify-content:flex-end; }
+  .rl-act { display:flex; justify-content:flex-end; overflow:hidden; }
   .rl-btn { position:relative; display:inline-flex; padding:var(--space-4) var(--space-16); border-radius:var(--radius-control);
     background:var(--color-brand); color:var(--color-surface); font-size:var(--font-size-small); font-weight:600; }
   .rl-ring { position:absolute; inset:-6px; border-radius:var(--radius-control); border:2px solid var(--color-brand); opacity:0; pointer-events:none; }
   .rl-doc { align-self:flex-end; display:inline-flex; align-items:center; gap:var(--space-8); margin:0; padding:var(--space-8) var(--space-12);
     border-radius:var(--radius-card); background:var(--color-surface); border:1px solid var(--color-border); font-size:var(--font-size-small); font-weight:600; }
-  .rl-doc-mark { inline-size:14px; block-size:18px; border-radius:2px; border:2px solid var(--color-ink-secondary); }
+  .rl-doc-icon { flex:none; inline-size:18px; block-size:18px; color:var(--color-ink-secondary); }
+  .rl-sum b { font-weight:700; }
   .rl-ledger ul { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-4); }
   .rl-ledger li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); color:var(--color-ink); }
   .rl-ledger li:last-child { color:var(--color-ink-secondary); border-bottom:0; }
@@ -272,6 +283,6 @@ const REEL_CSS = `
     .rl-chat { block-size:auto; display:grid; gap:var(--space-16); padding:var(--space-16); }
     .rl-scene { position:static; padding:0; }
     .rl-hero *, .rl-beat, .rl-dot, .rl-play { animation:none !important; opacity:1; transform:none; }
-    .rl-typing, .rl-ring, .rl-need, .rl-play { display:none; }
+    .rl-typing, .rl-ring, .rl-need, .rl-play, .rl-act { display:none; }
   }
 `;

@@ -50,8 +50,12 @@ const styles = [...page.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]
 const phone = /<figure class="rl-phone"[\s\S]*?<\/figure>/.exec(page)?.[0];
 if (!phone) throw new Error('the reel has no phone: is dist/ built from this checkout?');
 
-/** One 9:16 frame: the hook line, the reel's phone, the product's name and its sentence. */
-const frame = (line) => `<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><style>${styles}
+/**
+ * One 9:16 frame: the hook line, the reel's phone, the product's name and its sentence. The phone shows only this
+ * hook's scene, and is as tall as that scene's words (the owner's note, 2026-10-14: no dead gap between the last
+ * bubble and the caption) — the reel's stage keeps one height for all four scenes; a hook has one.
+ */
+const frame = (line, scene) => `<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><style>${styles}
   html, body { margin:0; block-size:100%; background:var(--color-paper); }
   /* One column, top to bottom. The site's own rules place the phone in a named grid area and keep it narrow and
      sticky: here it is the frame's full width, in the flow. */
@@ -59,6 +63,9 @@ const frame = (line) => `<!doctype html><html lang="en" dir="ltr"><head><meta ch
     grid-template-rows:auto 1fr auto; gap:24px; padding:48px 32px 40px; }
   .hook-line { margin:0; font-size:44px; line-height:1.12; font-weight:700; letter-spacing:-0.01em; color:var(--color-ink); text-wrap:balance; }
   .hook .rl-phone { grid-area:auto; position:static; inline-size:100%; max-width:none; justify-self:stretch; margin:0; align-self:center; }
+  .hook .rl-chat { block-size:auto; }
+  .hook .rl-scene { position:static; display:none; }
+  .hook .rl-scene.rl-s${scene} { display:flex; }
   .hook-end { margin:0; display:flex; flex-direction:column; gap:6px; color:var(--color-ink-secondary); font-size:17px; }
   .hook-end b { color:var(--color-brand); font-size:24px; }
 </style></head><body><div class="hook">
@@ -77,7 +84,7 @@ for (const hook of HOOKS) {
   await mkdir(TMP, { recursive: true });
   const context = await browser.newContext({ viewport: { width: 540, height: 960 }, deviceScaleFactor: 2, reducedMotion: 'no-preference' });
   const tab = await context.newPage();
-  await tab.setContent(frame(hook.line), { waitUntil: 'load' });
+  await tab.setContent(frame(hook.line, hook.scene), { waitUntil: 'load' });
   await tab.evaluate(() => document.fonts.ready);
   await tab.evaluate(() => { for (const a of document.getAnimations()) a.pause(); });
   const count = Math.round(IN * FPS);
