@@ -46,6 +46,15 @@ const withLink = (l: Locale, key: string, param: string, href: string, label: st
   esc(t(l, key as Parameters<typeof t>[1], { [param]: '\u0000' })).replace('\u0000', `<a href="${esc(href)}">${esc(label)}</a>`);
 
 /**
+ * WHO RUNS NOMI, AT THE TOP OF EVERY LEGAL PAGE (the owner's decision at the Phase 4 gate, 2026-10-14). Until the
+ * company exists, "we" on these pages names a company that does not, and real buyers' names, numbers and messages
+ * pass through Nomi in the pilot: so each page says, first, that a person runs it — named — and that "we" means
+ * them; the contact section below carries the address. Absent (`OPERATOR_PERSON` unset), nothing is said here.
+ */
+const whoRuns = (l: Locale, person: string | null): string =>
+  person ? `<p class="who-runs">${esc(t(l, 'legal.operator.person', { person }))}</p>` : '';
+
+/**
  * How to reach us. The address, with the language's own full stop (V1-062).
  * `business`: the line for a person who wrote to a business — the privacy page's
  * (V1-059); the deletion page's only where there is no address, since its first
@@ -152,9 +161,10 @@ const PRIVACY_CSS = `${PUBLIC_TOP_CSS}
  * for word, at its own address, so a "cookie policy" link has somewhere to go. The one table, from the one
  * registry: the two pages cannot differ. It is part of the privacy page, so it carries that page's date.
  */
-export function renderCookies(l: Locale, email: string | null, facts: LegalFacts, home = '/site'): string {
+export function renderCookies(l: Locale, email: string | null, facts: LegalFacts, home = '/site', person: string | null = null): string {
   return SHELL(l, t(l, 'legal.privacy.cookies.title'), `
     <h1>${esc(t(l, 'legal.privacy.cookies.title'))}</h1>
+    ${whoRuns(l, person)}
     <p>${esc(t(l, 'legal.privacy.cookies.body'))}</p>
     ${cookieTable(l)}
     ${facts.botCheck ? `<p>${esc(t(l, 'legal.privacy.cookies.botCheck', { provider: processorLabel(facts.botCheck, l) }))}</p>` : ''}
@@ -163,7 +173,7 @@ export function renderCookies(l: Locale, email: string | null, facts: LegalFacts
     ${updated(l, 'legal.updated.privacy')}`, home, '/cookies', PRIVACY_CSS);
 }
 
-export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts, home = '/site'): string {
+export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts, home = '/site', person: string | null = null): string {
   const history = facts.advisorHistory !== false;
   const section = (title: string, body: string): string =>
     `<h2>${esc(t(l, title as Parameters<typeof t>[1]))}</h2><p>${esc(t(l, body as Parameters<typeof t>[1]))}</p>`;
@@ -172,6 +182,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     `<h2>${esc(t(l, title as Parameters<typeof t>[1]))}</h2><p>${withLink(l, body, 'deletion', '/data-deletion', t(l, 'legal.deletion.title'))}</p>`;
   return SHELL(l, t(l, 'legal.privacy.title'), `
     <h1>${esc(t(l, 'legal.privacy.title'))}</h1>
+    ${whoRuns(l, person)}
     <p>${esc(t(l, 'legal.privacy.intro'))}</p>
     <!-- Who the person writing in is actually talking to. High on the page rather than
          buried in the processor list below, because it is the first thing a
@@ -238,11 +249,12 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
  * "Terms of Service URL" is about. The people who write in are covered by the
  * privacy page, and the first paragraph says so.
  */
-export function renderLegalTerms(l: Locale, email: string | null, home = '/site'): string {
+export function renderLegalTerms(l: Locale, email: string | null, home = '/site', person: string | null = null): string {
   const k = (key: string) => esc(t(l, key as Parameters<typeof t>[1]));
   const list = (keys: readonly string[]) => `<ul>${keys.map((x) => `<li>${k(x)}</li>`).join('')}</ul>`;
   return SHELL(l, t(l, 'legal.terms.title'), `
     <h1>${k('legal.terms.title')}</h1>
+    ${whoRuns(l, person)}
     <p>${k('legal.terms.intro')}</p>
     <h2>${k('legal.terms.service.title')}</h2><p>${k('legal.terms.service.body')}</p>
     ${/* §9.5 — the advisor's history: what the business instructs Nomi, its processor, to keep. */ ''}<p>${k('legal.terms.service.advisor')}</p>
@@ -270,12 +282,13 @@ export function renderLegalTerms(l: Locale, email: string | null, home = '/site'
  * while none is set, so the page never promises a trial nobody is given. Who provides Nomi is named only once both
  * the name and the address are known (`OPERATOR`); until then, nothing stands in their place.
  */
-export function renderRefunds(l: Locale, email: string | null, facts: { readonly trialDays: number | null }, home = '/site'): string {
+export function renderRefunds(l: Locale, email: string | null, facts: { readonly trialDays: number | null }, home = '/site', person: string | null = null): string {
   const k = (key: string, params?: Record<string, string | number>) => esc(t(l, key as Parameters<typeof t>[1], params));
   const clause = (name: string, params?: Record<string, string | number>) =>
     `<h2>${k(`legal.refunds.${name}.title`)}</h2><p>${k(`legal.refunds.${name}.body`, params)}</p>`;
   return SHELL(l, t(l, 'legal.refunds.title'), `
     <h1>${k('legal.refunds.title')}</h1>
+    ${whoRuns(l, person)}
     <p>${k('legal.refunds.intro')}</p>
     ${facts.trialDays ? clause('trial', { days: facts.trialDays }) : ''}
     ${clause('cancel', { billing: t(l, 'billing.title'), portal: t(l, 'billing.portal') })}
@@ -318,7 +331,7 @@ export function renderRefunds(l: Locale, email: string | null, facts: { readonly
 type DeletionFacts = Pick<LegalFacts, 'processor' | 'hosting' | 'transcriber'>;
 const DEFAULT_DELETION_FACTS: DeletionFacts = { processor: DEFAULT_PROCESSOR, hosting: HOSTING, transcriber: null };
 
-export function renderDataDeletion(l: Locale, email: string | null, facts: DeletionFacts = DEFAULT_DELETION_FACTS, home = '/site'): string {
+export function renderDataDeletion(l: Locale, email: string | null, facts: DeletionFacts = DEFAULT_DELETION_FACTS, home = '/site', person: string | null = null): string {
   const k = (key: string) => esc(t(l, key as Parameters<typeof t>[1]));
   const list = (keys: readonly string[]) => keys.map((x) => `<li>${k(x)}</li>`).join('');
   // D6 (the data-protection audit, 2026-10-12) — the copies no deletion inside Nomi reaches, each by the name the
@@ -335,6 +348,7 @@ export function renderDataDeletion(l: Locale, email: string | null, facts: Delet
   ].map((x) => `<li>${x}</li>`).join('');
   return SHELL(l, t(l, 'legal.deletion.title'), `
     <h1>${k('legal.deletion.title')}</h1>
+    ${whoRuns(l, person)}
     <p>${k('legal.deletion.intro')}</p>
     <h2>${k('legal.deletion.how.title')}</h2>
     <ol>
