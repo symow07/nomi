@@ -1517,7 +1517,12 @@ export async function commitTurn(
         // Rule 6 — and the words that addressed the buyer in a gender.
         ...(r.genderedAddress ? { address: r.genderedAddress } : {}),
       });
-      if (policyMode === 'auto') {
+      // R1 (fix 3), here too (found 2026-10-14 by the Arabic release run): a reply caught and rewritten clean was
+      // the guard working, not evidence against her — the evidence loader and the ramp already skip it, but this
+      // call added the turn's trips to the evidence anyway, so ONE clean rewrite (a gendered word, a forbidden
+      // word) withdrew the capability for every buyer in every language. Only a trip on the reply that was KEPT
+      // demotes.
+      if (policyMode === 'auto' && r.hold === 'guards_failed_twice') {
         await tenant.autonomy.selfDemote({
           capability,
           conversationId: req.conversationId,
