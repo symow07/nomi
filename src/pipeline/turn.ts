@@ -207,6 +207,13 @@ export type TurnResult = {
    */
   genderedAddress: string | null;
   /**
+   * Rule 6 (0158) — the writer's LAST attempt still addressed the buyer in a gender, so the turn became a hand-over.
+   * Like `guards_failed_twice`, a failure of the reply that was kept, not a trip rewritten clean: it is evidence, and it
+   * withdraws the capability (R1; the owner, on #346: "a genuine violation that was NOT cleanly rewritten must still
+   * withdraw the capability").
+   */
+  addressUnwritten: boolean;
+  /**
    * G8 — forbidden words found in HER OWN text: her taught answer, or the
    * order-status line built from her order. Tagged by where, shown to her,
    * and never counted against her employee — the employee did not write
@@ -1120,6 +1127,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     forbiddenHits,
     identityViolation,
     genderedAddress,
+    addressUnwritten: addressHandOver && deletionPromiseWithheld === null,
     forbiddenInHerText,
     sampleRequested,
     hold,
@@ -1524,12 +1532,15 @@ export async function commitTurn(
     // The violation is recorded whatever the mode (it is evidence either way),
     // but the demotion only fires from auto: `autoDemote` refuses to act on a
     // capability already at the floor.
+    // R1 — the reply that was KEPT failed its guards: twice over (`guards_failed_twice`), or, in Arabic, it could not be
+    // written without a gender at all and the buyer went to a person (0158).
+    const keptReplyFailed = r.hold === 'guards_failed_twice' || r.addressUnwritten;
     if (r.guardViolations > 0) {
       await tenant.events.append(req.conversationId, 'guard_violation', {
         capability, count: r.guardViolations,
         // R1 (fix 3) — did the reply that was KEPT fail its guards, or was a
         // tripped attempt rewritten clean? Only the first counts as evidence.
-        final: r.hold === 'guards_failed_twice',
+        final: keptReplyFailed,
         // M37.5 — name the words. A refusal the owner cannot act on is a
         // complaint; naming the term tells her whether it was her own rule or
         // the floor, and lets her fix her list if it was hers.
@@ -1543,8 +1554,9 @@ export async function commitTurn(
       // the guard working, not evidence against her — the evidence loader and the ramp already skip it, but this
       // call added the turn's trips to the evidence anyway, so ONE clean rewrite (a gendered word, a forbidden
       // word) withdrew the capability for every buyer in every language. Only a trip on the reply that was KEPT
-      // demotes.
-      if (policyMode === 'auto' && r.hold === 'guards_failed_twice') {
+      // demotes — and every one does: a reply gendered twice and handed over is one (on #346, the owner: "a guard
+      // that never demotes is as bad as one that demotes on everything").
+      if (policyMode === 'auto' && keptReplyFailed) {
         await tenant.autonomy.selfDemote({
           capability,
           conversationId: req.conversationId,

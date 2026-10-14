@@ -62,6 +62,16 @@ describe('R1 in the turn · only the kept reply\'s guard trip withdraws a capabi
     expect(p.tenant.selfDemoted).toEqual([]);
   });
 
+  it('ON #346 — an Arabic reply gendered twice and handed to a person: the kept reply failed — withdrawn', async () => {
+    const p = ports('ar');
+    const { r, fx, violation } = await turn(p, 'أريد حقيبة قماش', ['هل تبحث عن مقاس معين؟', 'هل تحب تشوف الموديلات؟']);
+    expect(r.signals.map((s) => s.kind)).toContain('address_unwritten');
+    expect(r.addressUnwritten).toBe(true);
+    expect(fx.outbound?.reply ?? '').not.toMatch(/تبحث|تحب/);
+    expect(violation).toMatchObject({ final: true });
+    expect(p.tenant.selfDemoted).toHaveLength(1);
+  });
+
   it('the forbidden word written twice — the kept reply failed: withdrawn, as before', async () => {
     const p = ports('en');
     const { r, violation } = await turn(p, 'do you make bags?', [`We work with ${FORBIDDEN}.`, `${FORBIDDEN} makes them.`]);

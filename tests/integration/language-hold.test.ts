@@ -67,6 +67,17 @@ d('0159 · a language held out of one workspace (requires DATABASE_URL + MIGRATE
     });
   };
 
+  /**
+   * What a FIRST message in a conversation is, exactly: the disclosure in the buyer's language, then the words
+   * (rule 3; `withDisclosure`). Each turn here opens a new conversation, so every reply carries it. (On #347 these
+   * assertions first expected the bare reply — the test, not the code, was wrong: the pipeline tests seed a buyer who
+   * was already told, these do not.)
+   */
+  const first = async (words: string): Promise<string> => {
+    const { disclosureFor, withDisclosure } = await import('../../src/core/conversation/disclosure.js');
+    return withDisclosure(disclosureFor({ detected: 'ar', name: 'Lily', business: `Hold ${RUN}` })!, words);
+  };
+
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');
     db = createDb(DATABASE_URL!);
@@ -104,14 +115,14 @@ d('0159 · a language held out of one workspace (requires DATABASE_URL + MIGRATE
     expect(held.signals).toContain('language_held');
     expect(held.r.decision.action.kind).toBe('handoff');
     const { HANDOFF_REPLIES } = await import('../../src/core/conversation/templates.js');
-    expect(held.fx.outbound?.reply, 'told, never silence').toContain(HANDOFF_REPLIES.ar);
+    // Exactly: the disclosure every first message of a conversation carries (rule 3, 0079), then the hand-off sentence.
+    expect(held.fx.outbound?.reply, 'told, never silence').toBe(await first(HANDOFF_REPLIES.ar));
     expect(held.written).toBe(0);
 
-    // Answered: the reply written (after the disclosure a first reply in a conversation carries), not the hand-off.
+    // Answered: exactly the disclosure, then the reply written — not the hand-off.
     const other = await turn(OTHER, ARABIC);
     expect(other.signals).not.toContain('language_held');
-    expect(other.fx.outbound?.reply).toContain(REPLY);
-    expect(other.fx.outbound?.reply).not.toContain(HANDOFF_REPLIES.ar);
+    expect(other.fx.outbound?.reply).toBe(await first(REPLY));
   });
 
   it('released by the tool: answered again, as every signed language is', async () => {
@@ -120,8 +131,6 @@ d('0159 · a language held out of one workspace (requires DATABASE_URL + MIGRATE
     expect(r.out).toMatch(/ar RELEASED/);
     const after = await turn(HELD, ARABIC);
     expect(after.signals).not.toContain('language_held');
-    const { HANDOFF_REPLIES } = await import('../../src/core/conversation/templates.js');
-    expect(after.fx.outbound?.reply).toContain(REPLY);
-    expect(after.fx.outbound?.reply).not.toContain(HANDOFF_REPLIES.ar);
+    expect(after.fx.outbound?.reply).toBe(await first(REPLY));
   });
 });
