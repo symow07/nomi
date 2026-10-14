@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { SCENARIOS } from '../../src/trust/scenarios.js';
-import { SCENARIO_LANGUAGES } from '../../src/trust/scenarioLanguages.js';
+// @ts-expect-error — the operator tools, plain JS on purpose (tools/ is not type-checked).
+import { SCENARIO_LANGUAGES } from '../../tools/capability-sweep.languages.mjs';
 import { evaluateScenario } from '../../src/trust/harness.js';
 
 /**
@@ -22,7 +23,7 @@ describe('every golden scenario has its words in en, zh and ar', () => {
 
   for (const s of SCENARIOS) {
     it(s.id, () => {
-      const t = SCENARIO_LANGUAGES[s.id]!;
+      const t = SCENARIO_LANGUAGES[s.id] as { en: string; zh: string; ar: string };
       expect(HAN.test(t.zh), t.zh).toBe(true);
       expect(ARABIC.test(t.ar), t.ar).toBe(true);
       expect(HAN.test(t.en) || ARABIC.test(t.en), t.en).toBe(false);

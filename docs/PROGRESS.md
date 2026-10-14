@@ -31,7 +31,7 @@ demos and naming the boss are the owner's.
   word list caught 7); after 5 / 60 at the first writing, all 5 caught, 0 after the rewrite — none reaches a buyer.**
   Scripted pre-pilot 12/12 before and after.
 - **The capability sweep — run, NOT clean, #337:** `tools/capability-sweep.mjs` runs the 41 golden scenarios in
-  en / zh / ar (`src/trust/scenarioLanguages.ts`) against the real analyser, in two layers (the model; the catalogue
+  en / zh / ar (`tools/capability-sweep.languages.mjs`) against the real analyser, in two layers (the model; the catalogue
   search as production runs it). 591 turns, deepseek-flash: 32 of 41 the same everywhere; three causes of a
   send-alone / waits split, two deterministic and both reaching **Chinese**: the order "yes" list (`fastpath.ts YES`:
   «好的», «是的», «تمام» do not confirm an order — the buyer is quoted again), the name search (a product is found

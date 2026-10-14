@@ -7,7 +7,7 @@ of the two went out alone and the other waited. Whether a reply waits for the
 owner must not depend on the language it was asked in.
 
 `tools/capability-sweep.mjs` runs every golden scenario (`src/trust/scenarios.ts`)
-in en, zh and ar (`src/trust/scenarioLanguages.ts`) against the real analyser,
+in en, zh and ar (`tools/capability-sweep.languages.mjs`) against the real analyser,
 and reports where the kind of reply — or whether it goes out alone — differs by
 language. Two layers:
 

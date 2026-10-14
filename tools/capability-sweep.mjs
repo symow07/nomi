@@ -8,7 +8,7 @@
  * one of the two went out alone and the other waited. Whether a reply waits for
  * the owner must not depend on the language it was asked in. This runs every
  * golden scenario (src/trust/scenarios.ts) in en, zh and ar
- * (src/trust/scenarioLanguages.ts) and reports where it does.
+ * (tools/capability-sweep.languages.mjs) and reports where it does.
  *
  * TWO LAYERS, because two things stand between the words and the choice:
  *
@@ -47,8 +47,8 @@
  * Options: --repeats N (1–10, default 3) · --only id,id · --concurrency N (default 6)
  * · --json <file> (every run, for the report page) · --no-catalogue (layer 1 only).
  */
-// The words, read from source (Node 22.18+ strips the types): the one list the parity test holds complete.
-import { SCENARIO_LANGUAGES } from '../src/trust/scenarioLanguages.ts';
+// The words: the one list the parity test holds complete.
+import { SCENARIO_LANGUAGES } from './capability-sweep.languages.mjs';
 
 const { llmProviderFrom, llmClient, requestExtrasFor } = await import('../dist/llm/provider.js');
 const { anthropicAnalyzer } = await import('../dist/llm/anthropic.js');
@@ -106,7 +106,7 @@ if (CATALOGUE) {
 const scenarios = SCENARIOS.filter((s) => ONLY.length === 0 || ONLY.includes(s.id));
 const missing = scenarios.filter((s) => !SCENARIO_LANGUAGES[s.id]);
 if (missing.length) {
-  console.error(`No en/zh/ar words for: ${missing.map((s) => s.id).join(', ')} (src/trust/scenarioLanguages.ts).`);
+  console.error(`No en/zh/ar words for: ${missing.map((s) => s.id).join(', ')} (tools/capability-sweep.languages.mjs).`);
   process.exit(2);
 }
 

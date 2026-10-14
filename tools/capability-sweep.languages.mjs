@@ -1,6 +1,6 @@
 /**
  * The golden scenarios' buyer messages in the three signed languages — for
- * `tools/capability-sweep.mjs`, which runs each scenario in each and reports
+ * tools/capability-sweep.mjs (beside it, not in src/: nothing in production reads it), which runs each scenario in each and reports
  * where the kind of reply chosen (greet / qualify / recommend / quote / …)
  * depends on the language the buyer wrote in.
  *
@@ -14,9 +14,8 @@
  * words as that language's line. tests/parity/scenario-languages.test.ts holds
  * that every golden scenario is here, in all three.
  */
-export type ScenarioLanguage = 'en' | 'zh' | 'ar';
-
-export const SCENARIO_LANGUAGES: Readonly<Record<string, Readonly<Record<ScenarioLanguage, string>>>> = {
+/** scenario id → { en, zh, ar } */
+export const SCENARIO_LANGUAGES = {
   'price-floor-clamp-under-aggressive-discount': {
     en: 'We can commit to 5000 units. What is the very best price you can do?',
     zh: '我们可以确定下5000个。你们最低能给到什么价格？',
