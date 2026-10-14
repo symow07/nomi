@@ -34,9 +34,11 @@ message goes to a person instead (0153). **Blocker 2, understood:** the Arabic p
 calling a reply HELD for the owner an escalation; nothing was sent in either language (the check is fixed). **The
 pilot runs in English and Chinese only** until the owner says Arabic may join.
 
-**Arabic, the owner's conditions (2026-10-14):** the language sweep's fixes 1 (a yes the list does not know goes to
-the owner) and 2 (Chinese product names found from part of the name) landed; finding 3 re-measured clean against the
-new matcher; and the **Arabic product names** below — a setup step for the owner, not code.
+**Arabic, pre-approved and conditional (the owner, 2026-10-14):** Arabic joins the pilot on its own once (a) every
+one of the boss's products carries an Arabic name, and (b) a fresh 60-turn Arabic run against the REAL product set comes
+back with nothing gendered sent, nothing held silent, and no split against English or Chinese. Until then the pilot
+workspace HOLDS Arabic (0159, row 14): an Arabic buyer goes to a person and is told so. If (b) fails, Arabic stays held
+and the owner is told what failed; if it passes, it is released and the next report says so.
 
 ---
 
@@ -53,12 +55,13 @@ Status as read from production on 2026-10-14 (read-only; names only for variable
 | 5 | **WhatsApp sends** | `railway run --service nomi -- node tools/wa-number-status.mjs`, then the round trip in `docs/LIVE-VERIFICATION.md` §3. The last send (2026-09-19) was refused, `#131037` (display name) | ○ Meta now reads the name "nomi" **usable** (`AVAILABLE_WITHOUT_REVIEW`, GREEN); **owner: one round trip proves it** |
 | 6 | **The boss's number** | Decision 1: a spare SIM, added to Nomi's account (`docs/LIVE-VERIFICATION.md` §5); its display name is reviewed by Meta once it exists. Attached to the boss's workspace with `tools/attach-number.mjs` (§5 step 3 there); a number belongs to exactly one workspace | □ when the boss is named |
 | 7 | Nothing automated in an unsigned language | Blocker 1 (0153): a buyer whose language has no signed disclosure goes to a person, and the send gate refuses anything the assistant would still send them alone. Signed: en, zh, ar | ✓ built; **pilot languages: en and zh** (blocker 2) |
-| 8 | The pilot workspace exists and has a login | Invitation sign-up (sign-up stays `invite`: the HARD ORDER), or the operator makes it and `tools/add-login.mjs` gives the owner a one-time link | □ when the boss is named |
+| 8 | The pilot workspace exists and has a login | Invitation sign-up (sign-up stays `invite`: the HARD ORDER), or the operator makes it and `tools/add-login.mjs` gives the owner a one-time link. **The same day, the operator holds Arabic in it:** `node tools/language-hold.mjs --business <id> --hold ar` (row 14) | □ when the boss is named |
 | 9 | It cannot be frozen for money — and nothing else is loosened | `railway run --service nomi -- node tools/billing.mjs exempt <business-id> --by "<you>" --yes`, then the decision on the log with its end date (§4). Exemption touches billing only: the send ceiling and the model allowance never read it (a test holds it) | □ day 1 |
 | 10 | Going live in that workspace | Getting ready: assistant named, the confirmations, the allowlist (pilot mode is ON by default: only listed numbers are answered); `secrets_rotated` stamped by `tools/installation-checks.mjs` | □ with the boss, day 1 |
 | 11 | The week's limits will not bite | 50 of the assistant's messages a day for a new workspace (`tools/send-ceiling.mjs` raises it); 1,000 model calls and 20 photo reads a day | ✓ ample for a pilot; raise the send ceiling only once he trusts it |
 | 12 | The legal pages name who runs Nomi | Each legal page opens with the owner's name and "we" means them (`OPERATOR_PERSON`); the contact section carries the address | ✓ set in Railway; on the pages from the deploy that carries it |
-| 13 | **Each product is found from the words its buyers use** — the owner's setup | A product is found only through its names (`docs/CAPABILITY-SWEEP.md`): a buyer's words never reach one with no name in their language. On each product: **More names customers use** — the Chinese name and the short names Chinese buyers say (for the pilot), and **an Arabic name before Arabic joins** (a buyer writing in Arabic is otherwise always asked what they want). `node tools/capability-sweep.mjs` (layer 2) shows what is found | □ with the boss, before day 1; Arabic names before Arabic joins |
+| 13 | **Each product is found from the words its buyers use** — the owner's setup | A product is found only through its names (`docs/CAPABILITY-SWEEP.md`): a buyer's words never reach one with no name in their language. On each product: **More names customers use** — the Chinese name and the short names Chinese buyers say (for the pilot), and **an Arabic name before Arabic joins** (a buyer writing in Arabic is otherwise always asked what they want). **Setting up asks for it too (#344):** the products step waits until every product has a name in each served language with its own script, and Getting started, Home, the list and each product say which are missing. `node tools/capability-sweep.mjs` (layer 2) shows what is found | □ with the boss, before day 1; Arabic names before Arabic joins |
+| 14 | **Arabic joins only on the run** — the operator's, pre-approved | Held from row 8. When Setup shows no product without an Arabic name: `railway run --service Postgres -- sh -c 'CATALOGUE_DATABASE_URL="$DATABASE_PUBLIC_URL" node tools/check-language-release.mjs --export --business <id> --out <file>'`, then `npm run build && RELEASE_CHECK_DB=<a local throwaway database> railway run --service nomi -- node tools/check-language-release.mjs --catalogue <file> --language ar`. PASS → `tools/language-hold.mjs --release ar`, said in the next report; FAIL → stays held, the report says what failed | □ after row 13's Arabic names |
 
 ---
 
