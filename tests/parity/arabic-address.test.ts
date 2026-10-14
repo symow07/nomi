@@ -67,6 +67,8 @@ const GENDERED: readonly (readonly [string, string])[] = [
   ['وإذا عندك بريد إلكتروني أرسله لي.', 'live: "send it to me"'],
   ['وإذا تحب أرسل لك ملخص على الإيميل.', 'live: "if you [m.] like"'],
   ['هل كنتَ تقصد المقاس الكبير؟', '«كنتَ» written with its vowel'],
+  ['نعم، أنا مساعد آلي. ويسعدني مساعدتك في أي شيء تحتاجه الآن.', 'live through the turn, 2026-10-14: a REWRITE that was sent — "anything you [m.] need now"'],
+  ['هذا الموديل ستجده في الكتالوج المرفق.', '"you will find it" — the verb with its object, no subject after it'],
   ['مرحبًا، أنا ليلى، مساعد آلي لدى المتجر. إذا أردت التحدث مع شخص من فريقنا فأخبرني، وسيرد عليك في أقرب وقت.',
     "the disclosure's own wording until 2026-09-28 — #118 removed «فأخبرني» by hand"],
 ];
@@ -84,6 +86,7 @@ const NEUTRAL: readonly (readonly [string, string])[] = [
   ['الحقيبة لا تحتاج إلى كي.', "the bag's need, after «لا»"],
   ['المدة التي تحتاجها الطلبية خمسة وعشرون يومًا.', 'its subject follows: the order needs'],
   ['كم يومًا تحتاج الطلبية؟', 'its subject follows'],
+  ['حقيبة تحتاجها الأسواق الآن.', 'its subject follows the verb and its object: the markets need it'],
   ['كم تبلغ تكلفة الشحن؟', "the cost's verb"],
   ['نتوقع أن تصل الشحنة خلال أسبوع.', '«أن» after "we expect", not after "you can"'],
   ['الشركة تفضل الدفع بالتحويل البنكي.', '«تفضل» mid-sentence: the company prefers'],

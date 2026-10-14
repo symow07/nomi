@@ -19,10 +19,17 @@
  * it again, told why, and counts what is still caught — each of those would
  * go to a person, never to the buyer.
  *
+ * `--through-the-turn` (the owner, 2026-10-14: "confirm those … went to hand-over and not to silence: a buyer who
+ * gets nothing is not a pass") runs the same messages through the REAL engine instead (computeTurn + commitTurn, the
+ * golden scenarios' world, every capability on auto, the real analyser and writer) and says, for every reply the
+ * guard caught, what reached the buyer: rewritten and sent, handed to a person with the buyer told, held as a draft
+ * (the buyer waits), or nothing. Exit 1 if any caught reply ends in a held draft or in nothing.
+ *
  * It touches no database and prints no secret: only the provider's kind, the
  * model's name and the prompt's version.
  *
  *   npm run build && railway run --service nomi -- node tools/check-arabic-address.mjs --retry
+ *   npm run build && railway run --service nomi -- node tools/check-arabic-address.mjs --through-the-turn
  */
 const { llmProviderFrom, llmClient, requestExtrasFor } = await import('../dist/llm/provider.js');
 const { anthropicReplyWriter } = await import('../dist/llm/anthropic.js');
@@ -34,6 +41,7 @@ const arg = (name, fallback) => {
 };
 const REPEATS = Math.max(1, Math.min(20, Number(arg('--repeats', '5')) || 5));
 const RETRY = process.argv.includes('--retry');
+const THROUGH = process.argv.includes('--through-the-turn');
 
 const provider = llmProviderFrom(process.env, process.env['ANTHROPIC_API_KEY'] ?? '');
 if (!provider.apiKey) {
@@ -85,6 +93,56 @@ const write = async ([, phase, text, extra], violation) => {
     return { reply: null, failed: String(e?.status ?? e?.name ?? 'error') };
   }
 };
+
+if (THROUGH) {
+  const { evaluateScenario } = await import('../dist/trust/harness.js');
+  const { SCENARIOS, TRUST_PRODUCT_ID, bags, candidate } = await import('../dist/trust/scenarios.js');
+  const { CAPABILITIES } = await import('../dist/core/conversation/autonomy.js');
+  const { anthropicAnalyzer } = await import('../dist/llm/anthropic.js');
+  const analyzer = anthropicAnalyzer(llmClient(provider), provider.model, requestExtrasFor(provider));
+  const base = SCENARIOS.find((x) => x.id === 'auto-qualify-grant-sends');
+  const told = { aiDisclosedAt: new Date('2026-07-14T11:00:00Z'), aiDisclosureDeliveredAt: new Date('2026-07-14T11:00:05Z') };
+  const theBag = (confirmed) => ({ productId: TRUST_PRODUCT_ID, confidence: 0.9, confirmedByClient: confirmed, matchMethod: 'text' });
+  /** The engine's own state for each case's phase. */
+  const stateFor = (phase) => ({
+    phase, ...told,
+    ...(phase === 'warm_intake' ? {} : { product: theBag(phase !== 'clarification') }),
+    ...(phase === 'commercial_discussion' || phase === 'confirmation' ? { quantity: { value: 5000, unit: 'pcs' } } : {}),
+    ...(phase === 'confirmation' ? { pendingQuestion: 'order_confirmation' } : {}),
+  });
+  const ends = { sent: 0, told: 0, held: 0, nothing: 0 };
+  let turns = 0, caught = 0, failed = 0, leaked = 0;
+  console.log(`provider: ${provider.name} · model: ${provider.model} · repeats: ${REPEATS} · through the turn, every capability on auto`);
+  for (const c of CASES) {
+    console.log(`\n${c[0]} (${c[1]}) — ${c[2]}`);
+    const scenario = {
+      ...base, id: `arabic-${c[0]}`, catalog: [bags()], candidates: [candidate(bags())], analysis: undefined,
+      grants: CAPABILITIES.map((capability) => ({ capability, mode: 'auto', timeWindow: null })),
+      state: stateFor(c[1]),
+    };
+    for (let i = 0; i < REPEATS; i++) {
+      let outcome;
+      try {
+        ({ outcome } = await evaluateScenario(scenario, { text: c[2], analyzer, replyWriter: writer }));
+      } catch (e) { failed++; console.log(`  failed (${String(e?.status ?? e?.name ?? 'error')})`); continue; }
+      turns++;
+      const { result, effects } = outcome;
+      const end = effects.outbound ? (result.decision.action.kind === 'handoff' ? 'told' : 'sent')
+        : effects.draftCreated ? 'held' : 'nothing';
+      const words = result.genderedAddress;
+      if (words) { caught++; ends[end]++; }
+      const said = effects.outbound?.reply ?? result.reply ?? '';
+      // What reached the buyer, read again by the guard: a rewrite it passed is still checked here, in full.
+      const still = effects.outbound ? addressesInGender(said) : null;
+      if (still) leaked++;
+      console.log(`  ${words ? `CAUGHT «${words}» → ${end.padEnd(7)}` : `ok · ${end.padEnd(14)}`}${still ? ` STILL «${still}»` : ''} ${said.replace(/\s+/g, ' ')}`);
+    }
+  }
+  console.log(`\nturns: ${turns} · failed: ${failed} · caught by the guard: ${caught}`);
+  console.log(`of those caught — rewritten and sent: ${ends.sent} · handed to a person, buyer told: ${ends.told} · held as a draft: ${ends.held} · nothing: ${ends.nothing}`);
+  console.log(`sent and still read as gendered by the guard: ${leaked}`);
+  process.exit(failed > 0 || ends.held > 0 || ends.nothing > 0 || leaked > 0 ? 1 : 0);
+}
 
 console.log(`provider: ${provider.name} · model: ${provider.model} · repeats: ${REPEATS}${RETRY ? ' · with the retry' : ''}`);
 let total = 0, caught = 0, failed = 0, stillCaught = 0, version = '';

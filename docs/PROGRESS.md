@@ -37,6 +37,17 @@ setup step for the owner in the kit, not code).
   colleague will review this order with you"); the writer is never asked, no price is worked out or recorded, nothing
   is proposed. A question or a hesitation is answered as before. Tests: a phrase deliberately NOT on the list in each
   language, pure, through a turn and over Postgres; each part switched off fails its own tests.
+- **Arabic, re-measured through the turn — #342 (0158):** `tools/check-arabic-address.mjs --through-the-turn`
+  (the real engine, every capability on auto). First run: 4 of 60 caught, all rewritten and sent — but one rewrite
+  still said «في أي شيء تحتاجه الآن» (missed: the verb with its object, after a noun; now caught, no new false catch
+  over 185 real replies). And a reply gendered TWICE was held as a draft — the buyer waited on nothing ("a buyer who
+  gets nothing is not a pass"): it now hands over (`address_unwritten`), the buyer told by the hand-off sentence. Re-run:
+  **5 caught → 2 rewritten and sent, 3 handed over with the buyer told, 0 held, 0 nothing, 0 gendered sent.** Found on
+  the way (rule 3): a hand-over in answer to "are you a bot? I want a person" said only that a person would reply —
+  it now carries the disclosure too, in every language.
+- **The final re-sweep (both fixes, 588 turns):** in production composition, send-alone / waits splits 3 → 1 and
+  English-vs-Chinese differences 3 → 0; the one left is Arabic without Arabic product names — a setup step for the
+  owner, now row 13 of the kit. `docs/CAPABILITY-SWEEP.md`.
 
 ## Phase 4 — Arabic "not yet", and the operator tool (2026-10-14) — read this first
 

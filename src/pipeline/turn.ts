@@ -23,7 +23,7 @@ import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals, catalogueWords } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
-import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
+import { asksAboutBeingAi, guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
 import { addressesInGender } from '../core/safety/address.js';
 import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
@@ -527,6 +527,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let genderedAddress: string | null = null;
   /** What the last attempt got wrong, so the next one is told which rule. */
   let lastViolation: 'gendered_address' | null = null;
+  /** Rule 6 — the writer's last attempt still addressed the buyer in a gender: a person answers (below). */
+  let addressHandOver = false;
   /** G8 — the same, found in her own text rather than in what the employee wrote. */
   const forbiddenInHerText: ForbiddenInHerText[] = [];
   /** G8 — both generated attempts failed a guard; the reply is a stand-in. */
@@ -836,12 +838,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           allow: numeralAllow,
           catalogue,
         });
-        if (!guarded.ok) { guardViolations++; continue; }
+        if (!guarded.ok) { guardViolations++; lastViolation = null; continue; }
         // The claims guard runs beside the numeral guard: numeral-free
         // commitments ("CE certified", "we ship DDP") are exactly as binding
         // as prices, and default-deny against claims_policy. (Priority 4)
         const claimed = guardClaims({ reply: guarded.value, policy: claimsPolicy });
-        if (!claimed.ok) { guardViolations++; continue; }
+        if (!claimed.ok) { guardViolations++; lastViolation = null; continue; }
         // M37.5 — and the words she has forbidden. Runs beside the other two
         // guards, in the same retry loop, for the same reason: a regeneration
         // is cheap and an insult in writing is not.
@@ -886,7 +888,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         identityViolation = null;
         knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
-      if (reply === null && deletionPromiseWithheld === null) {
+      if (reply === null && deletionPromiseWithheld === null && lastViolation === 'gendered_address') {
+        // Rule 6 (2026-10-14, the owner) — the last attempt still addressed the buyer as a man or a woman. Not a
+        // draft held for the owner, which the buyer would wait on in silence: "a buyer who gets nothing is not a
+        // pass". The conversation goes to a person and the buyer hears that it has (`address_unwritten`, below).
+        addressHandOver = true;
+      } else if (reply === null && deletionPromiseWithheld === null) {
         // Two violations: the model does not get a third chance to invent a
         // number. Deterministic stand-in, sourced figures only — and G8:
         //
@@ -936,6 +943,29 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     reply = null;
     replyDeterministic = true;
     answerPath = 'silent';
+    knowledgeUsed = [];
+    quote = null;
+    quoteInputs = null;
+    quoteRefusal = null;
+  }
+
+  /**
+   * RULE 6 — A REPLY THAT COULD NOT BE WRITTEN WITHOUT A GENDER IS A PERSON'S, AND THE BUYER IS TOLD SO.
+   *
+   * The writer was asked twice and both times addressed the buyer as a man or a woman (src/core/safety/address.ts).
+   * The other guards hold such a turn as a draft for the owner; here the buyer would wait on it with nothing said
+   * (the owner, 2026-10-14: "a buyer who gets nothing is not a pass"). So the turn is re-decided as a hand-off with
+   * its own reason: the ordinary hand-off sentence — which addresses nobody in a gender — reaches the buyer, the
+   * owner is alerted, and no quote is recorded as told.
+   */
+  if (addressHandOver && deletionPromiseWithheld === null) {
+    signals = [...signals.filter((s) => s.kind !== 'address_unwritten'), { kind: 'address_unwritten' }];
+    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null, language: sayIn });
+    newState = stateAfter(decision);
+    reply = HANDOFF_REPLIES[sayIn];
+    notice = 'handoff';
+    replyDeterministic = true;
+    answerPath = 'handoff';
     knowledgeUsed = [];
     quote = null;
     quoteInputs = null;
@@ -1480,12 +1510,17 @@ export async function commitTurn(
       // still queued may yet fail — and a reply that overtook it would have
       // gone out alone. So two replies queued before either leaves both say
       // it: read twice, rarely, rather than not at all.
-      const say = r.newState.aiDisclosureDeliveredAt === null ? sentence : null;
+      //
+      // Rule 3, "again whenever a buyer asks what they are talking to" (found 2026-10-14): a hand-over sentence in
+      // answer to "are you a bot? I want a person" — or to «هل أنت روبوت؟» when no reply could be written without a
+      // gender — said only that a person would reply. The question was asked now; it is answered now.
+      const askedWhatItIs = r.notice === 'handoff' && asksAboutBeingAi(req.text) !== null;
+      const say = r.newState.aiDisclosureDeliveredAt === null || askedWhatItIs ? sentence : null;
       outbound = {
         conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply, asks: r.asks,
         ...(r.notice ? { notice: r.notice } : {}),
       };
-      if (say) await recordDisclosure('first_auto_send');
+      if (say) await recordDisclosure(r.newState.aiDisclosureDeliveredAt === null ? 'first_auto_send' : 'identity_question');
       // R5 (0109) — work sent alone is on the record, so it can be spot-checked
       // once it has left: the words exactly as queued, the capability, and the
       // message it answered. Approved drafts and these share one outbound path.

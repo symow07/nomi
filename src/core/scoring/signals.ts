@@ -146,6 +146,12 @@ export type Signal =
    * will review this order with you"), and the owner confirms or answers. Scored like a request for a person.
    */
   | { readonly kind: 'maybe_confirmation' }
+  /**
+   * Rule 6 (2026-10-14, the owner) — the writer was asked twice and both times addressed the buyer as a man or a
+   * woman (src/core/safety/address.ts, Arabic). A person answers, and the buyer hears the ordinary hand-off sentence,
+   * which addresses nobody: "a buyer who gets nothing is not a pass". Scored like a request for a person.
+   */
+  | { readonly kind: 'address_unwritten' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -202,6 +208,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'language_not_reviewed',
   // 0157 — after a price, a reply that may be a yes the list does not know: the owner confirms or answers.
   'maybe_confirmation',
+  // 0158 — no reply could be written without a gender for the buyer; a person answers.
+  'address_unwritten',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -235,6 +243,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   provider_billing: { kind: 'provider_billing' },
   language_not_reviewed: { kind: 'language_not_reviewed' },
   maybe_confirmation: { kind: 'maybe_confirmation' },
+  address_unwritten: { kind: 'address_unwritten' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -279,6 +288,7 @@ export const TRIGGER_REASONS = [
   'provider_billing',
   'language_not_reviewed',
   'maybe_confirmation',
+  'address_unwritten',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -329,6 +339,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'language_not_reviewed';
     case 'maybe_confirmation':
       return 'maybe_confirmation';
+    case 'address_unwritten':
+      return 'address_unwritten';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -394,6 +406,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'maybe_confirmation':
         problem = 100; // absolute: it may be a yes, and only the owner confirms an order.
+        break;
+      case 'address_unwritten':
+        problem = 100; // absolute: no reply could be written without a gender for the buyer.
         break;
       case 'price_to_owner':
         problem = 100; // absolute: her prices are hers to give.

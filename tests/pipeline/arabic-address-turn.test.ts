@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeTurn, commitTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
-import { SAFE_REPLIES } from '../../src/core/conversation/templates.js';
+import { HANDOFF_REPLIES, SAFE_REPLIES } from '../../src/core/conversation/templates.js';
 import { emptyState, CONVERSATION } from '../parity/fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from './fakes.js';
 
@@ -34,12 +34,12 @@ const arabic = (nextQuestion: string | null = null): Analysis => ({
   recommendedPhase: 'clarification',
 });
 
-async function turn(replies: string[], opts: { nextQuestion?: string; forbidden?: string[] } = {}) {
+async function turn(replies: string[], opts: { nextQuestion?: string; forbidden?: string[]; text?: string } = {}) {
   const p = ports();
   p.analyzer.next = arabic(opts.nextQuestion ?? null);
   p.replyWriter.replies = replies;
   if (opts.forbidden) p.tenant.forbidden = opts.forbidden;
-  const req = { conversationId: CONVERSATION, messageId: `m-${replies.join('|').length}`, text: 'أريد حقيبة قماش' };
+  const req = { conversationId: CONVERSATION, messageId: `m-${replies.join('|').length}`, text: opts.text ?? 'أريد حقيبة قماش' };
   const r = await computeTurn(p, req);
   const fx = await commitTurn(p, req, r, Date.now());
   const said = [fx.outbound?.reply ?? '', ...p.tenant.draftsCreated.map((d) => d.draftText)].filter(Boolean);
@@ -68,26 +68,40 @@ describe('rule 6 · a reply that addresses the buyer in a gender never reaches t
     expect(ev?.payload).toMatchObject({ address: 'تبحث', final: false });
   });
 
-  it('gendered twice: nothing is sent alone — it waits for a person, and what waits addresses nobody', async () => {
+  // CHANGED BY DESIGN (2026-10-14, 0158): this held the turn as a draft — the buyer waited on it with nothing said.
+  // The owner: "a buyer who gets nothing is not a pass". Gendered twice is now a hand-over the buyer is told about.
+  it('gendered twice: a person answers, and the buyer is TOLD — the hand-off sentence, which addresses nobody', async () => {
     const { r, fx, said } = await turn([GENDERED, 'تحب تشوف الموديلات؟']);
-    expect(r.hold).toBe('guards_failed_twice');
-    expect(fx.outbound).toBeNull();
-    expect(said.length).toBeGreaterThan(0);
+    expect(r.signals.map((s) => s.kind)).toContain('address_unwritten');
+    expect(r.decision.action.kind).toBe('handoff');
+    expect(r.hold).toBeNull();
+    expect(fx.outbound?.reply).toBe(HANDOFF_REPLIES.ar);
+    expect(fx.draftCreated).toBeFalsy();
     for (const s of said) {
       expect(s).not.toContain('تبحث');
       expect(s).not.toContain('تحب');
     }
   });
 
+  // Rule 3 — and when the buyer had asked what they are talking to, the hand-over answers that too (seen live through
+  // the turn, 2026-10-14: three «هل أنت روبوت؟» handed over with only "a person will reply").
+  it('gendered twice on «هل أنت روبوت؟»: handed over, and the buyer is told what is answering — the disclosure', async () => {
+    const { r, fx } = await turn([GENDERED, 'تحب تشوف الموديلات؟'], { text: 'هل أنت روبوت؟' });
+    expect(r.signals.map((s) => s.kind)).toContain('address_unwritten');
+    expect(fx.outbound?.reply).toContain(HANDOFF_REPLIES.ar);
+    expect(fx.outbound?.reply).toContain('مساعد آلي');
+  });
+
+  // The stand-in is for a turn whose LAST attempt failed another guard: here, a number nobody gave.
   it("the stand-in never carries the analyser's own gendered question: the fixed sentence instead", async () => {
-    const { r, said } = await turn([GENDERED], { nextQuestion: 'هل تريد معرفة السعر؟' });
+    const { r, said } = await turn([GENDERED, 'السعر 9.99 دولار للقطعة.'], { nextQuestion: 'هل تريد معرفة السعر؟' });
     expect(r.hold).toBe('guards_failed_twice');
     expect(r.reply).toBe(SAFE_REPLIES.ar);
     for (const s of said) expect(s).not.toContain('تريد');
   });
 
   it("a neutral analyser's question still stands in, as before", async () => {
-    const { r } = await turn([GENDERED], { nextQuestion: 'ما الكمية المطلوبة تقريبًا؟' });
+    const { r } = await turn([GENDERED, 'السعر 9.99 دولار للقطعة.'], { nextQuestion: 'ما الكمية المطلوبة تقريبًا؟' });
     expect(r.reply).toBe('ما الكمية المطلوبة تقريبًا؟');
   });
 

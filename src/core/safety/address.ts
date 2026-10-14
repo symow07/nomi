@@ -117,8 +117,10 @@ const PATTERNS: readonly RegExp[] = [
   new RegExp(`${L}${PRE}ت(?:${alt(EITHER)})ين(?:ه|ها|هم|ني|نا)?${R}`, 'u'),
   // "how many pieces do you need?", "which colour do you prefer?" — not «كم يومًا تحتاج الطلبية».
   new RegExp(`${L}(?:كم|اي)(?:\\s+[${AR}]+){1,2}\\s+ت(?:${alt(EITHER)})${POST}${R}(?!\\s+ال)`, 'u'),
-  // "the quantity you need?" — and not «المدة التي تحتاجها الطلبية», whose subject follows.
-  new RegExp(`${L}(?:الذي|التي|ما)\\s+ت(?:${alt(EITHER)})(?:ين)?(?:ه|ها)${R}(?!\\s+ال)`, 'u'),
+  // "anything you need", "the quantity you need": the buyer's verb with its object on it and no subject after it
+  // (seen live through the turn, 2026-10-14: «في أي شيء تحتاجه الآن») — not «المدة التي تحتاجها الطلبية», whose subject
+  // follows; a time word after it («الآن», «اليوم») is no subject.
+  new RegExp(`${L}${PRE}ت(?:${alt(EITHER)})(?:ين)?(?:ه|ها)${R}(?!\\s+(?!الان|اليوم|الحين)ال)`, 'u'),
   // "you can … / you have to …": the verb after «أن» is the buyer's, whatever it is.
   new RegExp(`${L}(?:يمكنك|بامكانك|باستطاعتك|عليك|منك)\\s+ان\\s+ت[${AR}]+${R}`, 'u'),
   // "you tell me", "you send us": the listener does it to us.
