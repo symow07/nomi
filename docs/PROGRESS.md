@@ -13,7 +13,40 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
-## Phase 4 — the Gate A pilot, at the owner's STOP-GATE (2026-10-14) — read this first
+## Phase 4 — the Gate A pilot: the owner's answers (2026-10-14) — read this first
+
+**The owner's answers** (decisions 1–4, two blockers, four notes on the hooks) and what was done with them:
+
+- **Blocker 1 — closed, #333 (0153):** a buyer whose language has no signed disclosure receives nothing automated.
+  Layer 1, the turn: a known, unsigned language (es, fr, pt; any language with none) hands the conversation to a
+  person before anything is written, silently, under `language_not_reviewed`. Layer 2, the send gate: anything the
+  machine would still send without the owner to such a buyer is refused. `und` still drafts. Each layer switched off
+  fails its own tests; scripted pre-pilot 12/12 before and after.
+- **Blocker 2 — understood and fixed, #332:** the Arabic practice ✗ "Never sent without permission" was the check
+  calling a reply HELD for the owner an escalation (the model classed the Arabic question `qualify`, set to send
+  alone, the English one `recommend`, set to draft; the send decision held the Arabic reply for a recorded reason).
+  Nothing was sent in either language. `TurnEffects.heldBack` + `requestedModeOf`, for Practice and the golden set's
+  harness. **The pilot runs in en and zh only** until the owner says Arabic may join. The masculine Arabic reply
+  (تبحث) is a separate quality bug, logged, not fixed.
+- **Decision 1 — A, the boss's working number never moves** (a spare SIM). Corrected at the gate: attaching a second
+  number from Nomi's account to the boss's workspace needs an operator tool — not built, mine, before day 1.
+  `tools/wa-number-status.mjs` (read-only): the +1 555 number's name "nomi" reads `AVAILABLE_WITHOUT_REVIEW` (GREEN,
+  TIER_250) on 2026-10-14 — one round trip from the owner's phone proves the 19 Sep refusal is gone.
+- **Decision 2 — billing exempt only, on the log with an end date:** `tools/pilot-log.mjs decision` (0154,
+  `pilot_log.ends_on`); a test holds that the send ceiling and model allowance never read an exemption.
+- **Decision 3 — #334:** the legal pages name the owner (`OPERATOR_PERSON`, set in Railway 2026-10-14, never in the
+  repo); the 76-line "we" rewrite still waits for the LLC.
+- **Decision 4 — the date waits on four things:** the display name usable · three cold-demo runs on Westlake · the
+  "wants a person" model check green the day before · the two blockers closed. The owner names the boss after the
+  display name clears.
+- **Hooks — #335:** the order's total on hook 3, a real document icon, cards as tall as their words, one made-up shop.
+- **The kit — #331 (0154):** the answers; `docs/LIVE-VERIFICATION.md` rewritten for the Meta path and held to the
+  tree with the kit.
+
+Found on the way: the scratchpad was wiped by an OS restart (2026-10-14) — every branch had been pushed, nothing lost;
+the CI flake on #330 root-caused (`wa-self` posted a receipt before the send was recorded) and fixed in the test.
+
+## Phase 4 — the Gate A pilot, at the owner's STOP-GATE (2026-10-14) — the kit as first shown
 
 The kit is built and NOT merged (the owner's word: "show me the pilot kit before anything goes to a real business"):
 PR #331 — `docs/GATE-A-KIT.md` rewritten for schema 152 (prerequisites with their status read from production,

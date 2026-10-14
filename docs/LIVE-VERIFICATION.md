@@ -1,58 +1,59 @@
-# M3 Live Verification Runbook
+# Live verification — WhatsApp, on the path Nomi runs
 
-Everything in M3 is implemented and tested against the local simulator
-(`src/channels/whatsapp/simulator.ts`). This runbook is the **only** remaining
-work, and it is blocked exclusively on external credentials. Budget: **under
-30 minutes** once credentials exist.
+Rewritten 2026-10-14. The page it replaces described a reseller's sandbox (a path the owner rejected at the Phase 4
+gate) and named three files that no longer exist. This one describes the Meta Cloud API path production uses
+(`WHATSAPP_PROVIDER=meta`), and `tests/parity/gate-a-kit.test.ts` holds it to the tree: every file, page and tool it
+names must exist.
 
-## Credentials required (where each one goes)
+How the path was set up the first time is `docs/META-CLOUD-API-SETUP.md`. This page is the check that it still
+works — run it before each cold demo and before the pilot's first day (`docs/GATE-A-KIT.md` §1, prerequisite 5).
 
-| Credential | Source | Where it goes |
-|---|---|---|
-| 360dialog sandbox API key | 360dialog Hub → free sandbox (no verification needed) | env `D360_API_KEY` |
-| Webhook HMAC secret | you choose it (any 32+ char random string) | env `WEBHOOK_SECRET` — also given to 360dialog webhook config |
-| Webhook verify token | you choose it | env `WEBHOOK_VERIFY_TOKEN` |
-| Credential encryption key | `openssl rand -hex 32` | env `CREDENTIAL_KEY` |
-| Database runtime credentials (`nomi_app`) | your standalone PostgreSQL host (e.g. Railway) — bootstrap with `npm run migrate`, then `alter role nomi_app login password '…'`; see POSTGRES-MIGRATION-RUNBOOK.md | env `DATABASE_URL` (admin URL only in `MIGRATE_DATABASE_URL`) |
-| Anthropic API key | console.anthropic.com | env `ANTHROPIC_API_KEY` (AI replies only — not needed for channel verification) |
+## 1 · Where the number stands with Meta (one minute)
 
-Secrets go in `.env` (gitignored) only. Never in code, fixtures, or chat.
+```bash
+railway run --service nomi -- node tools/wa-number-status.mjs
+```
 
-## Steps
+It prints the number's display name and its status, and nothing secret. `name_status` must read `APPROVED` or
+`AVAILABLE_WITHOUT_REVIEW`; anything else means nothing sends, whoever writes it. On 2026-10-14 the installation's
+number (+1 555-472-3574, name "nomi") read `AVAILABLE_WITHOUT_REVIEW`, quality GREEN, tier 250.
 
-1. **Start the webhook** (any public tunnel works for the sandbox):
-   ```bash
-   npx tsx src/api/server.ts &          # or the ingress standalone
-   cloudflared tunnel --url http://localhost:8787
-   ```
-2. **Register the callback** with 360dialog (sandbox: one API call):
-   ```bash
-   curl -X POST https://waba-sandbox.360dialog.io/v1/configs/webhook \
-     -H "D360-API-KEY: $D360_API_KEY" -H 'Content-Type: application/json' \
-     -d '{"url":"https://<tunnel>/webhook/whatsapp"}'
-   ```
-   (No owner ever does this — the wizard automates it at onboarding.)
-3. **Connection test** — run `runTestConnection` against the real adapter
-   (ownerPhone = your own WhatsApp). Expected owner result: `连接正常，可以开始接待客户`.
-4. **Incoming**: send a WhatsApp message to the sandbox number. Verify a
-   `channel_events` row (PK = wamid) and an enqueued inbound job.
-5. **Outgoing**: enqueue an outbound row; verify the worker sends it and
-   `outbound_transitions` shows `queued→sending→sent`.
-6. **Delivery receipts**: watch the status webhook flip the row to
-   `delivered` (and `read`), and that a duplicate/late status is logged as
-   `ignored` in `outbound_transitions`.
-7. **Expired-window flow**: with a >24h-old conversation, enqueue a reply.
-   Expected: canceled with `window_closed`, owner copy `暂时不能主动发送，客户回复后即可继续`.
-   Then reply from the buyer phone → window reopens → send succeeds.
-8. **Reconnection**: set the credential inactive (`channels.status`), confirm
-   the owner card shows `需要处理` + 「重新连接」 copy; reactivate; re-run step 3.
+## 2 · The app is up and current
 
-## Expected owner-facing results
-Only the five statuses (已连接/正在连接/需要处理/已断开/暂时异常), the four
-test-connection results, and three-part problem copy. If anything shows an
-error code or English, that is a bug — file it against `src/core/owner/channel.ts`.
+`curl -4 https://app.nomidoes.com/health` → `"ok":true`, `"worker":true`, `"provider":"active"`.
 
-## Rollback
-The channel layer is additive. To stop live traffic: deactivate the
-credential row (`channel_credentials.is_active = false`) — ingress rejects,
-worker sends nothing. No deploy needed.
+## 3 · The round trip (five minutes)
+
+From the owner's phone — the one number on Westlake's allowlist:
+
+1. Send "hello" to +1 555-472-3574.
+2. Within a minute the conversation is in Westlake's Buyers (`/app/inbox`).
+3. The reply arrives on the phone. On a first contact it opens with the disclosure; Westlake's capabilities are on
+   auto and English is signed.
+4. The conversation shows the reply delivered.
+
+A reply goes only within 24 hours of the buyer's last message: send the "hello" first, every time.
+
+## 4 · When something does not arrive
+
+- **Nothing reaches Buyers:** Meta did not call the webhook, or Nomi refused it. Railway's logs for
+  `/webhook/whatsapp`; on My business (`/app/business`), the channel's health.
+- **The reply does not reach the phone:** the reply's error is recorded with Meta's code (`#131037`: the display name
+  is not usable — step 1; `#131047`: outside the 24 hours). `railway run --service nomi -- node tools/errors.mjs`
+  lists what the app reported.
+- **The reply was never sent:** the conversation page says why (the send gate's reason, in the owner's words): not
+  activated, not on the allowlist, the daily ceiling, Stop, a language whose disclosure is unsigned.
+
+## 5 · A second number, for a pilot business (decision 1, A)
+
+The owner's decision (2026-10-14): the boss's working number never moves. A spare SIM, a number the boss advertises
+for the pilot only:
+
+1. WhatsApp Manager → Phone numbers → Add: the spare number (it must not be on the WhatsApp app), verified by SMS or
+   call; the display name is the boss's business.
+2. Meta reviews the name. `node tools/wa-number-status.mjs --phone-number-id <its id>` (under `railway run`) says
+   when it is usable.
+3. Attaching it to the boss's workspace: the deployment connects ONE configured number (Westlake's). A second number
+   in Nomi's own account needs an operator tool that writes the rows embedded sign-up writes — **not built yet**
+   (named in the kit as mine to build, before the boss's first day).
+4. Then this page's round trip, from a phone on the boss's allowlist.
