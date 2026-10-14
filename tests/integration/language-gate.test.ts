@@ -104,7 +104,9 @@ d('the disclosure gate is per language, with the real flags (requires DATABASE_U
     process.env['PILOT_BUSINESS_ID'] = BIZ;
     prod = await buildProduction({
       provider: 'meta', DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
-      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      // The installation's number IS the one this workspace's credential holds, as in production: since
+      // 2026-10-14 that number sends only for its own workspace (src/main.ts `installationNumber`).
+      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: sim.phoneNumberId,
       META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765', META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'lg-verify-token-xxx', CREDENTIAL_KEY: 'c'.repeat(64), PORT: 0,
     }, { adapter: sim.adapter, logger: false, media: {}, models: { analyzer, replyWriter } });   // the REAL gate: no autonomyReleased override
