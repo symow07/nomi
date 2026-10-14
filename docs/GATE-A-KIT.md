@@ -1,16 +1,38 @@
 # Gate A — the pilot kit
 
-Rewritten 2026-10-14 for the product as it is: schema 152, Phase 3 shipped. It replaces the July kit, which named a
-provider's sandbox, a SQL editor, a page and a module that are all gone.
+Rewritten 2026-10-14 for the product as it is, and updated the same day with the owner's answers at the Phase 4
+gate (below). It replaces the July kit, which named a provider's sandbox, a SQL editor, a page and a module that are
+all gone.
 
-**This is a STOP-GATE.** Nothing goes to a real business until the owner has read this page and said go. Phase 4
-of `docs/ROADMAP.md`: cold demo ×3, then the 7-day trust pilot on real WhatsApp traffic, the log written every
-evening, triaged at the weekend into `docs/M5-PILOT-FINDINGS.md`.
+**This is a STOP-GATE.** Nothing goes to a real business before the owner names the boss. Phase 4 of
+`docs/ROADMAP.md`: cold demo ×3, then the 7-day trust pilot on real WhatsApp traffic, the log written every evening,
+triaged at the weekend into `docs/M5-PILOT-FINDINGS.md`.
 
 **Gate A passes** when the boss still uses it unprompted at the end of the week, and the log holds no unfixed
 blocker. **M5's exit** (it may come later): he gives one piece of work to the assistant on his own.
 
-`tests/parity/gate-a-kit.test.ts` checks that every tool, page and document this kit names exists.
+`tests/parity/gate-a-kit.test.ts` checks that every tool, page and document this kit and `docs/LIVE-VERIFICATION.md`
+name exists.
+
+## The owner's answers (2026-10-14)
+
+1. **Whose number: A, with a hard constraint.** The boss's working number never moves into Nomi's account — a spare
+   SIM or a new number, which the boss advertises for the pilot. B (a reseller) is rejected: a monthly fee before any
+   revenue, and it would move Westlake too. C (Meta Tech Provider, M52) is the long-term answer; it stays on the
+   roadmap and nothing waits for it.
+2. **Billing: exempt, billing only.** Recorded on the pilot log with the day it ends (§4); the 50-a-day send ceiling
+   and the model-call limits stay as they are.
+3. **"We" on the pages:** the pilot proceeds, but the legal pages name the owner, personally, with the contact
+   address — privacy, terms, refunds, cookies (and the deletion page). Built: `OPERATOR_PERSON`, set in Railway on
+   2026-10-14. The rest of "we" waits for the LLC, as decided.
+4. **The date.** The owner names the boss once the display name clears, and no date is set until all four are true:
+   the display name usable · the three cold-demo runs done on Westlake · the "wants a person" model check green the
+   day before · the two blockers closed.
+
+**Blocker 1, closed:** a buyer whose language has no signed disclosure receives nothing automated at all — the
+message goes to a person instead (0153). **Blocker 2, understood:** the Arabic practice turn's ✗ was the check
+calling a reply HELD for the owner an escalation; nothing was sent in either language (the check is fixed). **The
+pilot runs in English and Chinese only** until the owner says Arabic may join.
 
 ---
 
@@ -20,33 +42,18 @@ Status as read from production on 2026-10-14 (read-only; names only for variable
 
 | # | Prerequisite | How to confirm | 2026-10-14 |
 |---|---|---|---|
-| 1 | The app is healthy and current | `curl -4 https://app.nomidoes.com/health` → `"ok":true,"worker":true,"provider":"active"`; schema = `REQUIRED_SCHEMA_VERSION` | ✓ schema 152, no operator flag set, no error in 7 days |
-| 2 | Backups run and restore | `backup_runs` (nightly 03:00 UTC, with a restore drill); PITR on | ✓ last 2026-10-13 03:04 UTC, drill passed |
+| 1 | The app is healthy and current | `curl -4 https://app.nomidoes.com/health` → `"ok":true,"worker":true,"provider":"active"`; schema = `REQUIRED_SCHEMA_VERSION` | ✓ no operator flag set, no error in 7 days |
+| 2 | Backups run and restore | `backup_runs` (nightly 03:00 UTC, with a restore drill); PITR on | ✓ nightly, drills passing |
 | 3 | Someone outside Railway notices an outage | `HEALTH_PING_URL` set on `nomi`; the Healthchecks.io check shows pings | ✓ set — **owner: look once that the check is green** |
-| 4 | The model answers "wants a person" | `npm run build && railway run --service nomi -- node tools/check-person-model.mjs` the day before (never while integration runs) | □ run it on the pilot's eve |
-| 5 | **WhatsApp sends** | The last WhatsApp send (2026-09-19) was refused by Meta, `#131037`: the number's display name was not approved. Nothing has been sent on WhatsApp since. WhatsApp Manager → Phone numbers → display name → Approved; then a round trip from the owner's phone | □ **owner** |
-| 6 | **The boss's own WhatsApp number** | See the decision below | □ **owner decides** |
-| 7 | The disclosure is signed in the buyers' languages | `DISCLOSURE_NATIVE_REVIEW` (`src/core/conversation/disclosure.ts`) | ✓ en, zh, ar. es/fr/pt buyers get drafts only — fine for a Chinese- or Arabic-speaking boss |
-| 8 | The pilot workspace exists and has a login | Invitation sign-up (sign-up stays `invite`: the HARD ORDER), or the operator makes it and `tools/add-login.mjs` gives the owner a one-time link | □ when the boss is chosen |
-| 9 | It cannot be frozen for money | No card exists before the LLC. `railway run --service nomi -- node tools/billing.mjs exempt <business-id> --by "<you>" --yes` for the pilot week | □ **owner** (money is the owner's) |
+| 4 | The model answers "wants a person" | `npm run build && railway run --service nomi -- node tools/check-person-model.mjs` the day before (never while integration runs) | □ the day before the pilot |
+| 5 | **WhatsApp sends** | `railway run --service nomi -- node tools/wa-number-status.mjs`, then the round trip in `docs/LIVE-VERIFICATION.md` §3. The last send (2026-09-19) was refused, `#131037` (display name) | ○ Meta now reads the name "nomi" **usable** (`AVAILABLE_WITHOUT_REVIEW`, GREEN); **owner: one round trip proves it** |
+| 6 | **The boss's number** | Decision 1: a spare SIM, added to Nomi's account (`docs/LIVE-VERIFICATION.md` §5); its display name is reviewed by Meta once it exists. Attaching it to the boss's workspace needs an operator tool that is not built yet (mine) | □ when the boss is named |
+| 7 | Nothing automated in an unsigned language | Blocker 1 (0153): a buyer whose language has no signed disclosure goes to a person, and the send gate refuses anything the assistant would still send them alone. Signed: en, zh, ar | ✓ built; **pilot languages: en and zh** (blocker 2) |
+| 8 | The pilot workspace exists and has a login | Invitation sign-up (sign-up stays `invite`: the HARD ORDER), or the operator makes it and `tools/add-login.mjs` gives the owner a one-time link | □ when the boss is named |
+| 9 | It cannot be frozen for money — and nothing else is loosened | `railway run --service nomi -- node tools/billing.mjs exempt <business-id> --by "<you>" --yes`, then the decision on the log with its end date (§4). Exemption touches billing only: the send ceiling and the model allowance never read it (a test holds it) | □ day 1 |
 | 10 | Going live in that workspace | Getting ready: assistant named, the confirmations, the allowlist (pilot mode is ON by default: only listed numbers are answered); `secrets_rotated` stamped by `tools/installation-checks.mjs` | □ with the boss, day 1 |
 | 11 | The week's limits will not bite | 50 of the assistant's messages a day for a new workspace (`tools/send-ceiling.mjs` raises it); 1,000 model calls and 20 photo reads a day | ✓ ample for a pilot; raise the send ceiling only once he trusts it |
-
-**Decision 6 — whose WhatsApp number.** Nomi can only drive numbers that sit in its own WhatsApp Business account
-("nomi", the one Westlake's +1 555 number is in). The boss's buyers write to the boss's number, so the pilot needs one
-of these:
-
-- **A · The boss's number joins Nomi's account** (WhatsApp Manager → add phone number). The number must leave the
-  WhatsApp app (a spare SIM is simplest), and its display name — the boss's business — waits for Meta's approval
-  (decision 5 shows that wait is real). Meta caps business-started conversations for an unverified portfolio; buyers
-  who write first are answered without that cap. **Recommended**: no new code, no monthly fee.
-- **B · 360dialog**, the provider already built in. A monthly fee, and `WHATSAPP_PROVIDER` is one switch for the whole
-  deployment: Westlake would move with it.
-- **C · Wait for Meta Tech Provider (M52)** so the boss connects his own number himself. Last on the roadmap, always.
-
-**Also the owner's, before a real business sees the pages:** the owner decided the pages keep "we / us / our" until
-the LLC (PROGRESS, 2026-10-13: "Nothing public may say 'we' before a real customer can sign up"). A pilot boss is
-invited, not signed up in public — say whether that is close enough, or the pilot waits for the one-pass rewrite.
+| 12 | The legal pages name who runs Nomi | Each legal page opens with the owner's name and "we" means them (`OPERATOR_PERSON`); the contact section carries the address | ✓ set in Railway; on the pages from the deploy that carries it |
 
 ---
 
@@ -72,6 +79,9 @@ to buyers, a weekly report. The morning summary is a daily count; do not call it
 - [ ] A hotspot, not the room's Wi-Fi
 - [ ] Do Not Disturb off on both phones
 - [ ] If the channel fails: Practice, then the Buyers list and a real conversation's history
+
+**Write each run down** — the date, what landed, the second someone frowned. The third run is one of the four things
+the date waits on.
 
 **It worked** when they take out their phone, or ask what it costs. Neither → write down the second they frowned:
 that is the next thing to fix.
@@ -124,9 +134,18 @@ railway run --service nomi -- node tools/pilot-log.mjs add --business <id> --own
 `node tools/pilot-log.mjs kinds` lists the nineteen kinds. Severity 3 is the worst; trust runs from −2 (broke it) to
 +2 (built it); `--blocker` marks what must be fixed before Gate A can pass.
 
+**A decision made for the pilot** — the billing exemption on day 1 — goes on the same log, with the day it ends:
+
+```bash
+railway run --service nomi -- node tools/pilot-log.mjs decision --business <id> \
+  --what "Billing exempt for the pilot week; the send ceiling and the model limits unchanged" --until <YYYY-MM-DD> --by "<you>"
+```
+
 **At the weekend:** `railway run --service nomi -- node tools/pilot-log.mjs triage --business <id>` — blockers first,
 then the worst, then the most trust lost, then the oldest. Each open line becomes a finding in
 `docs/M5-PILOT-FINDINGS.md`; each fix links back with `tools/pilot-log.mjs set --id <n> --status fixed --task "#PR"`.
+Triage also lists the pilot's decisions: those in force, and any whose day has passed — undo it (for the exemption,
+`tools/billing.mjs unexempt`).
 
 ---
 

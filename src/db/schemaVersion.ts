@@ -382,7 +382,9 @@ import type { Db } from './client.js';
 // 153 = a buyer whose language has no signed disclosure goes to a person (0153): the `language_not_reviewed`
 //       reason on both reason lists. Against a 152 database such a buyer's hand-over cannot be written, and the turn
 //       fails instead of handing over.
-export const REQUIRED_SCHEMA_VERSION = 153;
+// 154 = the pilot's own decisions, each with the day it ends (0154): `pilot_log.ends_on`, which
+//       `tools/pilot-log.mjs` writes and reads. Against a 153 database the tool's `decision` and `triage` fail.
+export const REQUIRED_SCHEMA_VERSION = 154;
 
 export type SchemaState = {
   readonly required: number;

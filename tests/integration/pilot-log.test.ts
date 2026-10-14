@@ -63,7 +63,9 @@ d('Gate A · the pilot log is written, ordered and moved by one tool (requires D
       ['--blocker', '--fix', 'Say "numbers it may answer"']).code).toBe(0);
     const r = tool(['triage', '--business', PILOT]);
     expect(r.code, r.err).toBe(0);
-    const lines = r.out.trim().split('\n');
+    // The observations' block; the pilot's decisions follow it after a blank line (0154).
+    const lines = r.out.trim().split('\n\n')[0]!.split('\n');
+    expect(r.out).toContain('PILOT DECISIONS — none');
     expect(lines[0]).toBe('PILOT TRIAGE — 4 open / 4 total');
     expect(lines.slice(1).map((l) => /(\w+) @ /.exec(l)![1])).toEqual(
       ['felt_too_technical', 'missed_important_notification', 'hesitated_before_approval', 'positive_surprise']);
@@ -95,6 +97,43 @@ d('Gate A · the pilot log is written, ordered and moved by one tool (requires D
     ];
     for (const [r, code] of refusals) expect(r.code, `${r.out}${r.err}`).toBe(code);
     expect(await count()).toBe(before);
+  });
+
+  it('DECISIONS (0154): one made for the pilot is written with the day it ends, listed apart, and flagged once it has ended', async () => {
+    const until = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const r = tool(['decision', '--business', OTHER, '--what', 'Billing exempt for the pilot week; the send ceiling and the model limits unchanged',
+      '--until', until, '--by', 'the operator']);
+    expect(r.code, r.err).toBe(0);
+    expect(r.out).toMatch(new RegExp(`decision written as #\\d+, until ${until}`));
+    const row = (await admin.query("select kind, ends_on::text as ends_on, owner_label, surface from pilot_log where business_id = $1 and kind = 'pilot_decision'", [OTHER])).rows[0];
+    expect(row).toEqual({ kind: 'pilot_decision', ends_on: until, owner_label: 'the operator', surface: 'operator' });
+
+    // Listed apart from what the owner did: the observations' count is untouched.
+    let out = tool(['triage', '--business', OTHER]).out;
+    expect(out).toContain('PILOT TRIAGE — 0 open / 0 total');
+    expect(out).toContain('PILOT DECISIONS — 1');
+    expect(out).toContain(`[until ${until}] Billing exempt for the pilot week`);
+
+    // Its day passes: the triage says to undo it.
+    await admin.query("update pilot_log set ends_on = current_date - 1 where business_id = $1 and kind = 'pilot_decision'", [OTHER]);
+    out = tool(['triage', '--business', OTHER]).out;
+    expect(out).toMatch(/\[ENDED \d{4}-\d{2}-\d{2} — undo it\] Billing exempt/);
+  });
+
+  it('a decision needs its words, who made it, and a day still to come — or nothing is written', async () => {
+    const before = await count(OTHER);
+    const future = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    for (const [args, code] of [
+      [['--what', 'x', '--until', future, '--by', 'op'], 2],
+      [['--what', 'Billing exempt', '--until', '2026-13-40', '--by', 'op'], 2],
+      [['--what', 'Billing exempt', '--until', '2020-01-01', '--by', 'op'], 2],
+      [['--what', 'Billing exempt', '--until', future], 2],
+    ] as const) {
+      const r = tool(['decision', '--business', OTHER, ...args]);
+      expect(r.code, `${args.join(' ')}: ${r.out}${r.err}`).toBe(code);
+    }
+    expect(tool(['decision', '--business', `91107000-0000-4000-8000-${RUN}0009`, '--what', 'Billing exempt', '--until', future, '--by', 'op']).code).toBe(1);
+    expect(await count(OTHER)).toBe(before);
   });
 
   it('names the nineteen kinds without a database', () => {

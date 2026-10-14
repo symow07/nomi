@@ -12,6 +12,9 @@
  *       [--fix "<suggested fix>"] [--blocker] [--at <ISO time, default now>]
  *   MIGRATE_DATABASE_URL=… node tools/pilot-log.mjs triage --business <uuid>      # open entries, worst first
  *   MIGRATE_DATABASE_URL=… node tools/pilot-log.mjs set --id <n> --status new|triaged|fixing|fixed|wont_fix [--task "#NNN"]
+ *   MIGRATE_DATABASE_URL=… node tools/pilot-log.mjs decision --business <uuid> --what "<the decision>" --until <YYYY-MM-DD> --by "<you>"
+ *       a decision made for the pilot, with the day it ends (0154) — the billing exemption first (the owner's
+ *       decision 2, 2026-10-14). Triage lists those in force, and those whose day has passed: undo them.
  *   node tools/pilot-log.mjs kinds                                               # the nineteen kinds
  *
  * Severity 3 is the worst. Trust: −2 broke it … +2 built it. Records only: it explains nothing, defends nothing.
@@ -27,6 +30,9 @@ export const KINDS = [
   'felt_too_technical', 'unnatural_chinese', 'mobile_layout_issue', 'unnecessary_notification', 'missed_important_notification',
 ];
 const STATUSES = ['new', 'triaged', 'fixing', 'fixed', 'wont_fix'];
+/** 0154 — a decision made for the pilot, not an observation of its owner: kept apart from the nineteen. */
+export const DECISION = 'pilot_decision';
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const [command, ...args] = process.argv.slice(2);
@@ -42,7 +48,19 @@ export const triageOrder = (rows) => [...rows].sort((a, b) =>
   Number(b.blocks_launch) - Number(a.blocks_launch) || b.severity - a.severity
   || a.trust_impact - b.trust_impact || new Date(a.at).getTime() - new Date(b.at).getTime());
 
-export const renderTriage = (rows) => {
+/** The decisions made for the pilot: those in force, then those whose day has passed (undo them). */
+export const renderDecisions = (rows, today) => {
+  // A date as the database keeps it (read as text: a JS Date would land at local midnight and shift a day in UTC).
+  const day = (d) => String(d).slice(0, 10);
+  const decisions = rows.filter((e) => e.kind === DECISION).sort((a, b) => day(a.ends_on).localeCompare(day(b.ends_on)));
+  if (decisions.length === 0) return 'PILOT DECISIONS — none';
+  return [`PILOT DECISIONS — ${decisions.length}`, ...decisions.map((e) => day(e.ends_on) < today
+    ? `[ENDED ${day(e.ends_on)} — undo it] ${e.event}  [#${e.id} · ${e.owner_label}]`
+    : `[until ${day(e.ends_on)}] ${e.event}  [#${e.id} · ${e.owner_label}]`)].join('\n');
+};
+
+export const renderTriage = (allRows) => {
+  const rows = allRows.filter((e) => e.kind !== DECISION);
   const open = triageOrder(rows.filter((e) => e.status !== 'fixed' && e.status !== 'wont_fix'));
   return [`PILOT TRIAGE — ${open.length} open / ${rows.length} total`, ...open.map((e) =>
     `${e.blocks_launch ? '[BLOCKER] ' : ''}S${e.severity} trust:${e.trust_impact >= 0 ? '+' : ''}${e.trust_impact} `
@@ -54,14 +72,21 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 
 async function main() {
   if (command === 'kinds') { console.log(KINDS.join('\n')); return; }
-  if (!['add', 'triage', 'set'].includes(command ?? '')) usage('Say what to do: add, triage, set or kinds.');
+  if (!['add', 'triage', 'set', 'decision'].includes(command ?? '')) usage('Say what to do: add, triage, set, decision or kinds.');
   const url = process.env['MIGRATE_DATABASE_URL'];
   if (!url) usage('MIGRATE_DATABASE_URL is not set.');
 
   // Everything is checked before the database is asked anything.
   let entry = null;
-  if (command === 'add' || command === 'triage') {
+  if (command === 'add' || command === 'triage' || command === 'decision') {
     if (!UUID.test(flag('business') ?? '')) usage('--business must be a uuid.');
+  }
+  if (command === 'decision') {
+    if (!flag('what') || flag('what').trim().length < 3) usage('--what says the decision, in words.');
+    if (!flag('by') || flag('by').trim() === '') usage('--by says who decided.');
+    const until = flag('until') ?? '';
+    if (!DAY.test(until) || Number.isNaN(new Date(`${until}T00:00:00Z`).getTime())) usage('--until is the day it ends, as YYYY-MM-DD.');
+    if (until < new Date().toISOString().slice(0, 10)) usage('--until is in the past: a decision ends on a day still to come.');
   }
   if (command === 'add') {
     const severity = Number(flag('severity'));
@@ -96,10 +121,17 @@ async function main() {
       [entry.business, entry.at, entry.owner, entry.surface, entry.kind, entry.event, entry.expected, entry.happened,
         entry.quote, entry.severity, entry.trust, entry.fix, entry.blocker])).rows[0];
       console.log(`\n✓  ${biz.name}: written as #${row.id}.${entry.blocker ? ' Marked as blocking the launch.' : ''}\n`);
+    } else if (command === 'decision') {
+      const biz = (await client.query('select name from businesses where id = $1', [flag('business')])).rows[0];
+      if (!biz) { console.error(`\n✗  No business ${flag('business')}. Nothing written.\n`); process.exitCode = 1; return; }
+      const row = (await client.query(`insert into pilot_log (business_id, at, owner_label, surface, kind, event, severity, trust_impact, ends_on)
+        values ($1, now(), $2, 'operator', $3, $4, 1, 0, $5::date) returning id`,
+      [flag('business'), flag('by').trim(), DECISION, flag('what').trim(), flag('until')])).rows[0];
+      console.log(`\n✓  ${biz.name}: decision written as #${row.id}, until ${flag('until')}.\n`);
     } else if (command === 'triage') {
-      const rows = (await client.query(`select id, at, surface, kind, event, severity, trust_impact, suggested_fix, blocks_launch,
-          status, linked_task from pilot_log where business_id = $1`, [flag('business')])).rows;
-      console.log(`\n${renderTriage(rows)}\n`);
+      const rows = (await client.query(`select id, at, owner_label, surface, kind, event, severity, trust_impact, suggested_fix, blocks_launch,
+          status, linked_task, ends_on::text as ends_on from pilot_log where business_id = $1`, [flag('business')])).rows;
+      console.log(`\n${renderTriage(rows)}\n\n${renderDecisions(rows, new Date().toISOString().slice(0, 10))}\n`);
     } else {
       const r = await client.query('update pilot_log set status = $2, linked_task = coalesce($3, linked_task) where id = $1 returning status',
         [flag('id'), flag('status'), flag('task')]);
