@@ -44,6 +44,7 @@ const CUSTOMERS = {
   maybeZh: `9718${runDigits(RUN, 6)}6`,
   maybeAr: `9718${runDigits(RUN, 6)}7`,
   mismatch: `9718${runDigits(RUN, 6)}8`,
+  matched: `9718${runDigits(RUN, 6)}9`,
 } as const;
 
 type Tx = import('../../src/db/client.js').Tx;
@@ -418,12 +419,9 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     }
   });
 
-  it('THE CARD — "ok, 5000 again please" after a price for 500: their words, the price they were given, and the mismatch; nothing to press', async () => {
-    const { esc } = await import('../../src/api/web/layout.js');
-    const show = await import('../../src/api/web/values.js');
-    const { t } = await import('../../src/core/owner/i18n/messages.js');
-    const { usd } = await import('../../src/core/types/money.js');
-    const wa = CUSTOMERS.mismatch;
+  let mismatchConv = '';
+  /** A buyer priced for 500 boxes, nothing asked, who then writes `text`: the conversation, once it waits as a maybe. */
+  const maybeAfterQuote = async (wa: string, text: string): Promise<string> => {
     await say(wa, 'hello, I would like some gift boxes');
     const conv = await convOf(wa);
     await until(async () => ((await turnsOf(conv)) >= 1 ? true : undefined), 'the first turn');
@@ -431,7 +429,6 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
       where conversation_id = ${conv}::uuid and status = 'sent'`.execute(tx).then((x) => (x.rows[0]!.n >= 1 ? true : undefined))), 'the first reply to leave');
     await q((tx) => sql`update outbound_messages set status = 'delivered'
       where conversation_id = ${conv}::uuid and status = 'sent'`.execute(tx));
-    // A price given for 500 boxes — and nothing asked.
     await q(async (tx) => {
       await sql`update conversations set phase = 'commercial_discussion', assigned_to = null where id = ${conv}::uuid`.execute(tx);
       await sql`update conversation_state set identified_product_id = ${PID}::uuid, product_confidence = 0.95,
@@ -441,10 +438,24 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
       await sql`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version)
                 values (${BIZ}, ${conv}::uuid, ${PID}, 500, '{}'::jsonb, 2.10, 1050, 'test')`.execute(tx);
     });
-    await say(wa, 'ok, 5000 again please');
+    await say(wa, text);
     await until(() => q((tx) => sql<{ n: number }>`select count(*)::int as n from conversation_signals
       where conversation_id = ${conv}::uuid and kind = 'maybe_confirmation' and resolved_at is null`.execute(tx)
       .then((x) => (x.rows[0]!.n >= 1 ? true : undefined))), 'the maybe');
+    return conv;
+  };
+  /** The hand-off's alert is queued by the turn: let it finish, so this file leaves no job for the next one. */
+  const drained = (conv: string) => until(async () => ((await sql<{ n: number }>`select count(*)::int as n from pgboss.job
+    where data->>'conversationId' = ${conv} and name <> 'message.outbound' and state in ('created', 'retry', 'active')`
+    .execute(prod.db)).rows[0]!.n === 0 ? true : undefined), 'the alert to be sent');
+
+  it('THE CARD — "ok, 5000 again please" after a price for 500: their words, the price they were given, and the mismatch; no Confirm', async () => {
+    const { esc } = await import('../../src/api/web/layout.js');
+    const show = await import('../../src/api/web/values.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { usd } = await import('../../src/core/types/money.js');
+    const conv = await maybeAfterQuote(CUSTOMERS.mismatch, 'ok, 5000 again please');
+    mismatchConv = conv;
     const page = await get(`/app/inbox/${conv}`);
     expect(page.statusCode).toBe(200);
     // The card alone — its own <div>, to the one that closes it — never the reply box after it, which has a form.
@@ -468,10 +479,70 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     for (const [what, i] of Object.entries({ words, product, quantity, unit, total, mismatch })) expect(i, what).toBeGreaterThan(-1);
     expect(words, 'their words first').toBeLessThan(product);
     expect(total, 'then the price, then the mismatch').toBeLessThan(mismatch);
-    expect(card, 'nothing to press on a maybe').not.toMatch(/<form|<button|order\/confirm/);
-    // The hand-off's alert is queued by the turn: let it finish, so this file leaves no job for the next one.
-    await until(async () => ((await sql<{ n: number }>`select count(*)::int as n from pgboss.job
-      where data->>'conversationId' = ${conv} and name <> 'message.outbound' and state in ('created', 'retry', 'active')`
-      .execute(prod.db)).rows[0]!.n === 0 ? true : undefined), 'the alert to be sent');
+    // CHANGED BY DESIGN (on PR 345): no Confirm on a maybe — one form that PREPARES, the quantity left for the owner to
+    // type where their words name another.
+    expect(card, 'no Confirm on a maybe').not.toMatch(/order\/confirm/);
+    expect(card.match(/<form/g)).toHaveLength(1);
+    expect(card).toContain(`action="/app/inbox/${conv}/maybe-yes/order"`);
+    expect(card).toMatch(/<input type="number" name="quantity"[^>]* value="" \/>/);
+    await drained(conv);
+  });
+
+  it('THE WAY OUT (on PR 345) — the owner prepares 5,000: the list price, said never sent; their words above Confirm; confirmed', async () => {
+    const { esc } = await import('../../src/api/web/layout.js');
+    const show = await import('../../src/api/web/values.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { usd } = await import('../../src/core/types/money.js');
+    const conv = mismatchConv;
+    // A bad address prepares nothing.
+    const bad = await postForm(`/app/inbox/${conv}/maybe-yes/order`, { quantity: '5000', email: 'not an address' });
+    expect(bad.statusCode).toBe(302);
+    expect((await footprint(conv)).proposals).toBe(0);
+    const r = await postForm(`/app/inbox/${conv}/maybe-yes/order`, { quantity: '5000', email: 'maya@example.com' });
+    expect(r.statusCode).toBe(302);
+    expect((await footprint(conv)).proposals).toBe(1);
+    expect((await footprint(conv)).orders, 'prepared, not confirmed').toBe(0);
+    const page = await get(`/app/inbox/${conv}`);
+    expect(page.body, 'the maybe card has gone').not.toContain('id="maybe-yes"');
+    const at = (x: string) => page.body.indexOf(x);
+    const confirm = at(`/app/inbox/${conv}/order/confirm`);
+    for (const [what, x] of Object.entries({
+      words: '<bdi>ok, 5000 again please</bdi>',
+      quantity: esc(show.quantityOf('en', 5000, 'boxes')),
+      unit: esc(show.money('en', usd(2.1))),
+      total: esc(show.money('en', usd(10500))),
+      never: esc(t('en', 'order.card.unquoted')),
+    })) {
+      expect(at(x), what).toBeGreaterThan(-1);
+      expect(at(x), `${what} before Confirm`).toBeLessThan(confirm);
+    }
+    // A second submit changes nothing.
+    await postForm(`/app/inbox/${conv}/maybe-yes/order`, { quantity: '5000', email: 'maya@example.com' });
+    expect((await footprint(conv)).proposals).toBe(1);
+    const p = (await proposalOf(conv))!;
+    expect((await postForm(`/app/inbox/${conv}/order/confirm`, { proposalId: p.id })).statusCode).toBe(302);
+    const after = await footprint(conv);
+    expect(after.orders).toBe(1);
+    expect(after.events).toContain('order_prepared');
+    expect(after.events).toContain('order_created');
+  });
+
+  it('THE WAY OUT — a yes the list did not know, at the quantity priced: prepared at the price they were given; confirmed', async () => {
+    const { esc } = await import('../../src/api/web/layout.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const conv = await maybeAfterQuote(CUSTOMERS.matched, 'Sounds great, let us go with that');
+    const card = await get(`/app/inbox/${conv}`);
+    expect(card.body).toMatch(/<input type="number" name="quantity"[^>]* value="500" \/>/);
+    await postForm(`/app/inbox/${conv}/maybe-yes/order`, { quantity: '500', email: 'lee@example.com' });
+    const page = await get(`/app/inbox/${conv}`);
+    expect(page.body).toContain(`/app/inbox/${conv}/order/confirm`);
+    expect(page.body, 'the price they were given: nothing to warn').not.toContain(esc(t('en', 'order.card.unquoted')));
+    const p = (await proposalOf(conv))!;
+    await postForm(`/app/inbox/${conv}/order/confirm`, { proposalId: p.id });
+    expect((await footprint(conv)).orders).toBe(1);
+    const email = await q((tx) => sql<{ email: string | null }>`select cl.email from clients cl
+      join conversations c on c.client_id = cl.id where c.id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.email));
+    expect(email).toBe('lee@example.com');
+    await drained(conv);
   });
 });

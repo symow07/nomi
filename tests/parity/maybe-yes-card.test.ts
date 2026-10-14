@@ -103,12 +103,46 @@ describe('"may be saying yes": what the owner sees before deciding anything', ()
     expect(card).toContain(esc(t('zh', 'maybeYes.noOffer')));
   });
 
-  it('nothing to press: no Confirm, no form — the owner answers in their own words', () => {
+  // CHANGED BY DESIGN (the owner, on #345): this card had nothing to press, and that was a dead end — "what do I
+  // actually do when the buyer HAS said yes in a phrasing that wasn't on the list?". It still has no Confirm: ONE form,
+  // which PREPARES the order, and the order card that follows has the Confirm.
+  it('no Confirm, ever: one form, and it prepares — its button says so, its address is not the order\'s confirm', () => {
     for (const locale of LOCALES) {
       const card = cardOf(renderConversationDetail(base(), locale, NOW, null, OWNER_VIEW));
-      expect(card, locale).not.toMatch(/<form|<button|order\/confirm/);
+      expect(card.match(/<form/g), locale).toHaveLength(1);
+      expect(card, locale).toContain('action="/app/inbox/conv-1/maybe-yes/order"');
+      expect(card, locale).not.toMatch(/order\/confirm/);
+      expect(card, locale).not.toContain(esc(t(locale, 'order.action.confirm')));
+      expect(card, locale).toContain(`>${esc(t(locale, 'maybeYes.prepare.button'))}</button>`);
+      expect(card, locale).toContain(esc(t(locale, 'maybeYes.prepare.intro')));
       expect(card, locale).toContain(esc(t(locale, 'maybeYes.do')));
     }
+  });
+
+  it('their words name ANOTHER quantity: the quantity field starts empty — the owner types the one they mean', () => {
+    const card = cardOf(renderConversationDetail(base(), 'en', NOW, null, OWNER_VIEW));
+    expect(card).toMatch(/<input type="number" name="quantity"[^>]* value="" \/>/);
+  });
+
+  it('no other quantity in their words: the quantity priced, and the e-mail on record, are filled in', () => {
+    const card = cardOf(renderConversationDetail(base({ maybeYes: { said: 'Sounds great, let us go with that', offer: OFFER, email: 'maya@example.com' } }),
+      'en', NOW, null, OWNER_VIEW));
+    expect(card).toMatch(/<input type="number" name="quantity"[^>]* value="500" \/>/);
+    expect(card).toMatch(/<input type="email" name="email"[^>]* value="maya@example.com" \/>/);
+  });
+
+  it('no price on record, or an order already waiting: nothing to prepare here', () => {
+    const none = cardOf(renderConversationDetail(base({ maybeYes: { said: 'ok', offer: null } }), 'en', NOW, null, OWNER_VIEW));
+    expect(none).not.toContain('<form');
+    const waiting = cardOf(renderConversationDetail(base({
+      orderProposal: {
+        id: 'f0000000-0000-0000-0000-000000000001', conversationId: 'conv-1',
+        productId: 'b0000000-0000-0000-0000-000000000001', productName: 'Gift box', quantity: 500, unit: 'boxes',
+        unitPrice: usd(2.1), total: usd(1050), email: 'maya@example.com',
+        paymentTerms: null, incoterm: null, createdAt: new Date('2026-10-14T09:30:00Z'),
+      },
+    }), 'en', NOW, null, OWNER_VIEW));
+    expect(waiting).not.toContain('<form');
   });
 
   it('their words are escaped, never markup', () => {
@@ -154,6 +188,17 @@ describe('the order card — a real yes — shows their words and the unit price
       expect(html, locale).toContain(esc(show.money(locale, usd(2.1))));
     }
   });
+  it('ON #345 — prepared at a price never sent to them: said, before Confirm, in every language; not otherwise', () => {
+    for (const locale of LOCALES) {
+      const base0 = proposal('yes');
+      const html = renderConversationDetail({ ...base0, orderProposal: { ...base0.orderProposal!, unquoted: true } }, locale, NOW, null, OWNER_VIEW);
+      const line = html.indexOf(esc(t(locale, 'order.card.unquoted')));
+      expect(line, locale).toBeGreaterThan(-1);
+      expect(line, locale).toBeLessThan(html.indexOf('order/confirm'));
+      expect(renderConversationDetail(base0, locale, NOW, null, OWNER_VIEW), locale).not.toContain(esc(t(locale, 'order.card.unquoted')));
+    }
+  });
+
   it('a proposal from before their words were kept: the card still renders, without the quote', () => {
     const html = renderConversationDetail(proposal(null), 'en', NOW, null, OWNER_VIEW);
     expect(html).toContain('order/confirm');

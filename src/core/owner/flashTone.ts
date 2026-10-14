@@ -40,6 +40,9 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'order.flash.assistant_stopped', 'order.flash.assistant_silenced', 'order.flash.confirmedNotLive',
   // G3 — the day's allowance is used: the order still waits.
   'order.flash.allowance_used', 'order.flash.billing_lapsed',
+  // On PR 345 — nothing was prepared from "may be saying yes".
+  'order.flash.prepare.no_maybe', 'order.flash.prepare.already_waiting', 'order.flash.prepare.bad_email',
+  'order.flash.prepare.bad_quantity', 'order.flash.prepare.no_product', 'order.flash.prepare.not_priceable',
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // 0126 — nothing was deleted or closed: the old form, the installation's own workspace, a paid plan, a reply in hand, a refusal.
@@ -144,7 +147,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'conv.testing.flash.on', 'conv.testing.flash.off',
   // 0082 — a date of the owner's own, put on the calendar or taken off it.
   'calendar.flash.added', 'calendar.flash.removed', 'calendar.flash.restored',
-  'order.flash.confirmed', 'order.flash.set_aside',
+  'order.flash.confirmed', 'order.flash.set_aside', 'order.flash.prepare.prepared',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'autonomy.flash.savedHeld', 'channel.flash.connected',

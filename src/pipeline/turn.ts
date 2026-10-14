@@ -467,8 +467,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       byKind.set('maybe_confirmation', {
         kind: 'maybe_confirmation',
         said: req.text.slice(0, 1000),
+        messageId: req.messageId,
         offer: last && product ? {
-          productName: product.name, quantity: last.quantity, unit: product.unit,
+          productName: product.name, productId: product.id, quantity: last.quantity, unit: product.unit,
           unitPrice: last.unitPrice,
           total: { amount: Math.round(last.unitPrice.amount * last.quantity * 100) / 100, currency: last.unitPrice.currency },
           givenAt: last.at.toISOString(),
