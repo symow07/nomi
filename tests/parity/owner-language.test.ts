@@ -239,6 +239,8 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
       caps: 'Quote and Negotiate', why: 'a spot check found a wrong price',
       // 0163 — one stepped back in one language: "Quote, in Arabic".
       cap: 'Quote', language: 'Arabic',
+      // 0167 — production behind main: what runs, main's head, minutes, its first line.
+      running: '2ecdad0', main: '531f934', minutes: 72, title: 'Merge pull request #362',
       // MAIL — yesterday's mail on the operator's list.
       codes: 12, alerts: 40, refused: 3,
       // KS5 — the installation's day against its ceiling.

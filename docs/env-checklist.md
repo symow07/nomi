@@ -71,6 +71,7 @@ channel must be re-authorised — see `SECRET-ROTATION.md`.
 | `WHATSAPP_PROVIDER` | `meta`, `360dialog`, or `disabled` (the default). While disabled there is no WhatsApp adapter and no `/webhook/whatsapp`. Deployment mode — no outbound worker at all — is only when no other channel is configured either; with `META_PAGE_*` set, Instagram and Messenger run without a number (2026-09-17). |
 | `META_WHATSAPP_ACCESS_TOKEN` · `META_WHATSAPP_PHONE_NUMBER_ID` · `META_WHATSAPP_BUSINESS_ACCOUNT_ID` · `META_APP_SECRET` | Required when the provider is `meta`. Shapes are defined once in `core/channel/metaReadiness.ts`, so the boot check and the owner-facing readiness page cannot disagree. |
 | `META_GRAPH_API_VERSION` | e.g. `v23.0`. Defaults to `v23.0`. |
+| `RAILWAY_GIT_REPO_OWNER` / `RAILWAY_GIT_REPO_NAME` | Injected by Railway. 0167 — the repository whose `main` the deploy alarm compares with the commit this process runs (`RAILWAY_GIT_COMMIT_SHA`). Never set by hand; absent (local, a hand upload), the alarm is off and the boot says so. |
 | `META_TEMPLATE_NAMES` | Comma-separated names of message templates Meta has **actually approved**. Empty (the default) means a conversation older than 24 hours goes back to the owner instead of being re-opened. Nothing in the product calls Meta to check this — an operator records what was granted. |
 | `D360_API_KEY` · `D360_BASE_URL` · `WEBHOOK_SECRET` | Required only when the provider is `360dialog`. |
 

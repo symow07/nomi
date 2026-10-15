@@ -411,7 +411,8 @@ import type { Db } from './client.js';
 //       write and /health reads. Against a 164 database every model call's record fails (logged; the call is unharmed).
 // 166 = every five-minute model check kept a month (0166): `model_check_log`, which the check appends to and
 //       tools/model-uptime.mjs reads. Against a 165 database the check's history is not kept (logged).
-export const REQUIRED_SCHEMA_VERSION = 166;
+// 167 = the deploy alarm (0167): `deploy_lag`, which the ten-minute look writes once per head of main an hour late.
+export const REQUIRED_SCHEMA_VERSION = 167;
 
 export type SchemaState = {
   readonly required: number;
