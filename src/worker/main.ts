@@ -9,6 +9,7 @@ import {
 } from '../db/fragments.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from '../llm/provider.js';
+import { modelHealth } from '../pipeline/modelHealth.js';
 import type { Analyzer, ReplyWriter, VisionDescriber } from '../llm/ports.js';
 import { computeTurn, commitTurn } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
@@ -85,6 +86,11 @@ export async function startWorker(
      */
     probe?: () => Promise<void>;
     balance?: () => Promise<BalanceReading | null>;
+    /**
+     * 0165 — the model's health check: the smallest call, its tokens. Tests only, like `probe`: a test that scripts a
+     * model port and not this is never checked — and never reaches a real provider.
+     */
+    ask?: () => Promise<{ readonly tokens: number }>;
   } = {},
   /**
    * The pre-pilot walkthrough only: behave as if the AI disclosure had passed
@@ -112,17 +118,34 @@ export async function startWorker(
   const llm = llmProviderFrom(process.env, env.ANTHROPIC_API_KEY);
   // 0128 — every answer it sends tells the provider watch whether it refuses for billing.
   let watchOf: ProviderWatch | null = null;
-  const anthropic = llmClient(llm, { observe: (a) => watchOf?.observe(a) });
+  const extras = requestExtrasFor(llm);
+  const scripted = Object.keys(models).length > 0;
+  /**
+   * 0165 — the model's health, from real calls (src/pipeline/modelHealth.ts): every five minutes the smallest call,
+   * timed, on a client of its own (so it is not counted twice), and every real call this client makes.
+   */
+  const checkClient = llmClient(llm, { observe: (a) => watchOf?.observe(a) });
+  const health = modelHealth({
+    db,
+    providers: [{
+      role: 'primary', provider: aiProcessor(llm.baseURL).name, model: llm.model,
+      ask: models.ask ?? (scripted ? null : async () => {
+        const res = await checkClient.messages.create({
+          model: llm.model, ...extras, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the word OK.' }],
+        }, { timeout: 20_000, maxRetries: 0 });
+        return { tokens: res.usage.input_tokens + res.usage.output_tokens };
+      }),
+    }],
+  });
+  const anthropic = llmClient(llm, { observe: (a) => watchOf?.observe(a), onCall: health.callsOf('primary') });
 
   const { transcriber, audio, image: mediaFetcher, postCaption } = media;
-  const extras = requestExtrasFor(llm);
   /**
    * 0128 — BILLING RESILIENCE: the provider's account, watched
    * (src/pipeline/providerWatch.ts). Its two outside calls — the probe while
    * refusing, and DeepSeek's balance — are production's own only: a test that
    * scripts a model port and not these gets neither.
    */
-  const scripted = Object.keys(models).length > 0;
   const balanceAt = balanceEndpointFor(llm.baseURL);
   const watch = providerWatch({
     db,
@@ -767,7 +790,7 @@ export async function startWorker(
     });
   }
 
-  return { db, boss, errors, watch };
+  return { db, boss, errors, watch, health, primaryModel: { provider: aiProcessor(llm.baseURL).name, model: llm.model } };
 }
 
 // Exact-file check: a suffix match ('main.js') also fires when this module is

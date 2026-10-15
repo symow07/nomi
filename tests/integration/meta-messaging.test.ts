@@ -428,7 +428,9 @@ d('C9 · a Page and no number: messaging runs without WhatsApp (requires DATABAS
     expect([...prod.channels].sort()).toEqual(['instagram', 'messenger']);
     const health = await prod.app.inject({ method: 'GET', url: '/health' });
     // `provider` is WhatsApp's, and there is none — that stays true.
-    expect(health.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled', model: 'answering' });
+    // 0165 — no real model call was made here (scripted models), so the model's health is honestly "unknown": it
+    // said "answering" before 0165 without any call having answered.
+    expect(health.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled', model: 'unknown', model_ms: null, model_checked_at: null });
     const wa = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=social-verify-token&hub.challenge=c1' });
     expect(wa.statusCode, 'a WhatsApp route with nothing behind it').toBe(404);

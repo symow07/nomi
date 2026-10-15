@@ -129,7 +129,9 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     // 0128 — and whether the model provider answers (`refusing` while it refuses for billing).
-    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'active', model: 'answering' });
+    // 0165 — no real model call was made here (scripted models), so the model's health is honestly "unknown": it
+    // said "answering" before 0165 without any call having answered.
+    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'active', model: 'unknown', model_ms: null, model_checked_at: null });
     expect(prod.channels).toEqual(['whatsapp']);
   });
 
@@ -314,7 +316,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   it('boots and health reports database + worker healthy, provider disabled', async () => {
     const res = await prod.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled', model: 'answering' });
+    // 0165 — no real model call was made here (scripted models), so the model's health is honestly "unknown": it
+    // said "answering" before 0165 without any call having answered.
+    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled', model: 'unknown', model_ms: null, model_checked_at: null });
     expect(prod.channels, 'deployment mode mounted a channel').toEqual([]);
   });
 
@@ -1723,7 +1727,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.statusCode).toBe(200);
       // exactly these keys — adding build info here would leak it publicly
       // 0128 — `model`: answering or refusing (billing), a state, never a build fact.
-      expect(Object.keys(res.json() as object).sort()).toEqual(['db', 'model', 'ok', 'provider', 'worker']);
+      // 0165 — and what the last real call said: its latency and when (`model_ms`, `model_checked_at`), and why when
+      // it did not answer (`model_reason`, absent here). States and times of the model, never a build fact.
+      expect(Object.keys(res.json() as object).sort()).toEqual(['db', 'model', 'model_checked_at', 'model_ms', 'ok', 'provider', 'worker']);
       const body = res.body.toLowerCase();
       for (const leak of ['commit', 'sha', 'branch', 'version', 'railway']) {
         expect(body.includes(leak), `/health leaks "${leak}"`).toBe(false);

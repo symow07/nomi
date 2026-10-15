@@ -407,7 +407,9 @@ import type { Db } from './client.js';
 //       reads, `capability_events.language`, and `claim_self_demotions()` returning `narrowed` / `everywhere`.
 // 164 = a mailbox live in one workspace at a time (0164): `mail_accounts_one_live_address`, which a connect of an
 //       address another workspace holds now meets as `address_taken`.
-export const REQUIRED_SCHEMA_VERSION = 164;
+// 165 = the model's health from real calls (0165): `model_checks`, which every model call and the five-minute check
+//       write and /health reads. Against a 164 database every model call's record fails (logged; the call is unharmed).
+export const REQUIRED_SCHEMA_VERSION = 165;
 
 export type SchemaState = {
   readonly required: number;

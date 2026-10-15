@@ -222,7 +222,9 @@ d('billing resilience, through production, against a provider that refuses for b
   let first = '';
 
   it('a customer writes while it refuses: handed to a person at once as provider_billing — nothing drafted or sent, one call, no retry', async () => {
-    expect((await health()).model).toBe('answering');
+    // 0165 — no longer refusing; and with no health check in this test (scripted models), what the model's health says
+    // is "unknown" — never "answering" without a real call that answered (tests/integration/model-health.test.ts).
+    expect((await health()).model).toBe('unknown');
     mode = 'refuse';
     calls = 0;
     counting = 'Do you have this in blue?';
@@ -303,7 +305,9 @@ d('billing resilience, through production, against a provider that refuses for b
     const { QUEUES } = await import('../../src/queue/boss.js');
     mode = 'ok';
     await runJob(QUEUES.provider);
-    expect((await health()).model).toBe('answering');
+    // 0165 — no longer refusing; and with no health check in this test (scripted models), what the model's health says
+    // is "unknown" — never "answering" without a real call that answered (tests/integration/model-health.test.ts).
+    expect((await health()).model).toBe('unknown');
     const today = await get('/app');
     expect(today.body).not.toContain('id="provider-billing"');
     expect(today.body).not.toContain('Nothing was sent to your customers');
