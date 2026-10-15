@@ -190,7 +190,10 @@ export async function autoDemote(
   capability: string,
   decision: DemotionDecision,
   evidence: CapabilityEvidence,
+  /** 0163 — the language the failure happened in: the step back is narrowed to it (`withdrawLanguage`). */
+  language: string | null = null,
 ): Promise<{ demoted: boolean; action: DemotionAction }> {
+  if (language) return withdrawLanguage(tx, businessId, capability, language, decision, evidence);
   if (decision.action === 'none') return { demoted: false, action: 'none' };
 
   // Only a capability currently in auto can be demoted. A draft capability is
@@ -227,7 +230,7 @@ export async function autoDemote(
  * row per capability and language). The rung is cleared as before — the
  * owner: "leave the earned-rung part alone for now".
  */
-export async function withdrawLanguage(
+async function withdrawLanguage(
   tx: Tx,
   businessId: string,
   capability: string,
