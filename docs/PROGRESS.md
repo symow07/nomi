@@ -13,17 +13,44 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Phase 4 — fallback, deploys, a local preview (2026-10-15) — read this first
+
+The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPORT-2026-10-15-PROVIDER.md`).
+
+- **#361 (0165) — `/health` is honest about the model:** a real eight-token call to each provider every five minutes
+  and every real call counted; `answering` / `slow` / `not_answering` (with why) / `refusing` / `unknown`; never
+  `answering` without a call that answered. The heartbeat pings `/fail` when no reply can be written.
+- **#362 (0166) — the fallback, behind a flag:** `LLM_FALLBACK_BASE_URL` / `_API_KEY` / `_MODEL` configure it (checked,
+  answers nothing); `LLM_FALLBACK=on` lets it answer. Never on a 400. `model_check_log` keeps 30 days;
+  `tools/model-uptime.mjs` gives the 48-hour numbers; `--fallback` on the sweep and the person check.
+  **The model string:** `claude-haiku-5-5` exists, but it answers 400 to any `temperature` other than 1 and the
+  adapters send 0 / 0.2 / 0.3 — so the fallback is **`claude-haiku-4-5-20251001`** with no code change. The transport
+  was proven with one real call from the app's own client (401 for a dummy key at `https://api.anthropic.com/v1/messages`,
+  `x-api-key` + `anthropic-version: 2023-06-01`); a successful call needs the owner's key.
+- **#363 (0167) — the deploy alarm:** every 10 minutes `RAILWAY_GIT_COMMIT_SHA` against `main`'s head on GitHub;
+  behind for more than an hour → one `deploy_behind` operator alert per head (e-mail always), `deploy_caught_up` once
+  after. `deploy_lag` keeps each head. It starts only once a deploy brings it in.
+- **The e-mail PARTIAL is closed (this batch's last PR):** the analysis prompt no longer lists e-mail. Live, deepseek-flash,
+  the same 7 conversations × 3: **18 of 21** answers asked for an e-mail before, **0 of 21** after. The person check:
+  the same one miss before and after («Appelez-moi Marie» read as asking for a person), nothing unreadable.
+  `tests/parity/prompts-ask-no-email.test.ts` holds both prompts to it.
+- **Deploys stay OFF (the owner).** Production runs #353, schema 160; main is at 167. The staged patch `a850b939` was
+  created 2026-10-15 09:55 UTC, 16 hours after the stop: not the cause. The cause is still unexplained.
+- **The 48-hour record starts when 0165–0166 are live.** The owner keeps the mark at 2026-10-17 09:50 UTC; a run then
+  covers only the hours since that deploy, and the report says how many.
+- **A local preview** ran on `http://127.0.0.1:8787` (code `smoke-code`), main through #362, the smoke cluster on
+  55440 migrated to 166, the real model via the scrubbed host. Stop it when the owner is done.
+
 ## The isolation sweep's decisions (2026-10-15) — read this first
 
 The owner's order: e-mail on orders FIRST, then 4, 2, 3, 9 before the pilot; check 11; log 1, 5, 6, 7, 8, 10, 12 with
 what makes each urgent; fix the false dedupe-key comments. The report: `docs/REPORT-2026-10-15-ISOLATION-DECISIONS.md`.
 
-- **An order needs no e-mail — #356 (0161) — PARTIAL, blocked on the provider (the owner, 2026-10-15: "don't record it
-  as done"):** the gate's Rule 7 is retired (`email_invalid` only for an address typed
+- **An order needs no e-mail — #356 (0161), closed by the analysis-prompt change (2026-10-15, live check 18/21 → 0/21;
+  see the section above):** the gate's Rule 7 is retired (`email_invalid` only for an address typed
   that is not one), the turn never asks for one, `order_proposals.client_email` may be null, the card shows the row only
   when there is one. The proforma never printed it (the sweep report said it did: corrected). The analysis prompt's three
-  e-mail lines wait for the live model check (the provider was not answering on 2026-10-15); its suggested next question
-  reaches the writer and the stand-in reply, so it is the first change once the model answers.
+  e-mail lines are gone too (its suggested next question reaches the writer and the stand-in reply).
 - **Each workspace numbers its own orders — #357 (0162):** `order_numbers` (workspace, year), 2026-0001 in the
   workspace's zone, raised in the order's transaction; unique per workspace; the YW counter closed to the app.
 - **A withdrawal narrowed to its language — #359 (0163):** `language_withdrawals`, read at the send decision;
