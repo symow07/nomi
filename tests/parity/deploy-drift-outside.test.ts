@@ -109,7 +109,7 @@ describe('the workflow', () => {
 
 describe('before the owner sets it up', () => {
   it('with neither secret, a run succeeds and says it is not set up — no red run, no e-mail every 30 minutes', () => {
-    const env = { ...process.env, GITHUB_REPOSITORY: 'symow07/nomi' };
+    const env: NodeJS.ProcessEnv = { ...process.env, GITHUB_REPOSITORY: 'symow07/nomi' };
     delete env['RAILWAY_DEPLOY_WATCH_TOKEN'];
     delete env['DEPLOY_DRIFT_PING_URL'];
     const tool = fileURLToPath(new URL('../../tools/deploy-drift.mjs', import.meta.url));
