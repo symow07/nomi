@@ -24,7 +24,7 @@ import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { readModelView, type ConfiguredModels, type ModelHealthView } from './db/modelChecks.js';
-import { deployWatchSweep, readMainHead } from './pipeline/deployWatch.js';
+import { deployWatchSweep, readMainChain } from './pipeline/deployWatch.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
@@ -1599,8 +1599,8 @@ export async function buildProduction(
   });
 
   /**
-   * 0167 — THE DEPLOY ALARM: every ten minutes, is this process the head of main? An hour behind is the operator's
-   * alert, once per head; caught up, once more (src/pipeline/deployWatch.ts). Off where the process was not deployed
+   * 0167 — THE DEPLOY ALARM: every ten minutes, does this process have every merge main has had for an hour? A merge
+   * that has not arrived is the operator's alert, once per merge; caught up, once more (src/pipeline/deployWatch.ts). Off where the process was not deployed
    * from git (local, a hand upload): it says so once.
    */
   const runningCommit = process.env['RAILWAY_GIT_COMMIT_SHA']?.trim() || null;
@@ -1612,7 +1612,7 @@ export async function buildProduction(
     await boss.work<DeployWatchJob>(QUEUES.deployWatch, async ([job]: { data: DeployWatchJob }[]) => {
       if (!job) return;
       await deployWatchSweep({
-        db, running: runningCommit, readMain: () => readMainHead(deployRepo), operatorBusinessId: job.data.businessId,
+        db, running: runningCommit, readMain: () => readMainChain(deployRepo, runningCommit), operatorBusinessId: job.data.businessId,
         send: async (j, key) => { await sendAlert(boss, j satisfies NotifyJob, { singletonKey: key }); },
       });
     });

@@ -34,7 +34,7 @@ d('0167 · production behind main is an alarm (requires DATABASE_URL)', () => {
       const sent: { kind: string; key: string; deploy?: unknown }[] = [];
       const look = () => deployWatchSweep({
         db: tx, running, operatorBusinessId: 'de300000-0000-4000-8000-0000000000b1', log: () => {}, now: () => now,
-        readMain: async () => ({ sha: HEAD, at: merged, title: 'Merge pull request #362' }),
+        readMain: async () => [{ sha: HEAD, at: merged, title: 'Merge pull request #362' }, { sha: OLD, at: new Date('2026-10-14T18:11:07Z'), title: '#353' }],
         send: async (j, key) => { sent.push({ kind: j.kind, key, deploy: j.deploy }); },
       });
       expect(await look()).toBe('deploying');                   // half an hour: a deploy may be on its way
@@ -54,13 +54,36 @@ d('0167 · production behind main is an alarm (requires DATABASE_URL)', () => {
     });
   });
 
+  it('2026-10-16 · AN ACTIVE DAY DOES NOT POSTPONE IT: a merge every 20 minutes, production stuck — told once, an hour after the FIRST merge that did not arrive', async () => {
+    await inTx(async (tx) => {
+      const { deployWatchSweep } = await import('../../src/pipeline/deployWatch.js');
+      const first = new Date('2026-10-15T08:00:00Z');
+      const merge = (i: number) => ({ sha: `${String(i).padStart(2, '0')}${'e'.repeat(38)}`, at: new Date(first.getTime() + i * 20 * 60_000), title: `#${370 + i}` });
+      let now = first;
+      const sent: { kind: string; key: string; deploy?: unknown }[] = [];
+      const look = () => deployWatchSweep({
+        db: tx, running: OLD, operatorBusinessId: 'de300000-0000-4000-8000-0000000000b1', log: () => {}, now: () => now,
+        // main's line at `now`: every merge so far, newest first, then production's commit
+        readMain: async () => [...Array.from({ length: Math.floor((now.getTime() - first.getTime()) / (20 * 60_000)) + 1 }, (_, i) => merge(i)).reverse(),
+          { sha: OLD, at: new Date('2026-10-14T18:11:07Z'), title: '#353' }],
+        send: async (j, key) => { sent.push({ kind: j.kind, key, deploy: j.deploy }); },
+      });
+      const verdicts: string[] = [];
+      for (let m = 0; m <= 120; m += 10) { now = new Date(first.getTime() + m * 60_000); verdicts.push(await look()); }
+      // The newest merge is never more than 20 minutes old; measured from it, this would read "deploying" all day.
+      expect(verdicts.slice(0, 7)).toEqual(Array(7).fill('deploying'));         // 0–60 minutes
+      expect(verdicts.slice(7)).toEqual(Array(6).fill('behind'));               // 70–120 minutes
+      expect(sent).toEqual([{ kind: 'deploy_behind', key: `deploy_behind:${merge(0).sha}`, deploy: { running: '2ecdad0', main: merge(0).sha.slice(0, 7), minutes: 70, title: '#370' } }]);
+    });
+  });
+
   it('GitHub not answering, or no running commit: nothing written, nobody told', async () => {
     await inTx(async (tx) => {
       const { deployWatchSweep } = await import('../../src/pipeline/deployWatch.js');
       const sent: unknown[] = [];
       const base = { db: tx, operatorBusinessId: 'x', log: () => {}, send: async (j: unknown) => { sent.push(j); } };
       expect(await deployWatchSweep({ ...base, running: OLD, readMain: async () => null })).toBe('unknown');
-      expect(await deployWatchSweep({ ...base, running: null, readMain: async () => ({ sha: HEAD, at: new Date(0), title: '' }) })).toBe('unknown');
+      expect(await deployWatchSweep({ ...base, running: null, readMain: async () => [{ sha: HEAD, at: new Date(0), title: '' }] })).toBe('unknown');
       expect(sent).toEqual([]);
       expect((await sql<{ n: number }>`select count(*)::int as n from deploy_lag where main_sha = ${HEAD}`.execute(tx)).rows[0]!.n).toBe(0);
     });
