@@ -30,6 +30,13 @@ The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPO
 - **#363 (0167) — the deploy alarm:** every 10 minutes `RAILWAY_GIT_COMMIT_SHA` against `main`'s head on GitHub;
   behind for more than an hour → one `deploy_behind` operator alert per head (e-mail always), `deploy_caught_up` once
   after. `deploy_lag` keeps each head. It starts only once a deploy brings it in.
+  **Nothing watches for a deploy stop today. The alarm arrives with the next deploy, and that deploy has to be
+  started by hand.**
+- **Integration locally on a Postgres of its own (2026-10-16):** `tools/run-integration-isolated.mjs` — made for the run,
+  migrated with the checkout's own migrations, seeded as CI does, removed after (~20 s). #364's first run failed two
+  tests against the shared 55451 database another branch had taken to 0167. Proven on that exact mismatch: code at 0166
+  against the shared database at 0167 fails under the old runner and passes under the new one. CI never had the problem
+  (a fresh Postgres per job): do not "fix" CI for it.
 - **The e-mail PARTIAL is closed (this batch's last PR):** the analysis prompt no longer lists e-mail. Live, deepseek-flash,
   the same 7 conversations × 3: **18 of 21** answers asked for an e-mail before, **0 of 21** after. The person check:
   the same one miss before and after («Appelez-moi Marie» read as asking for a person), nothing unreadable.

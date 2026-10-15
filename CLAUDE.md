@@ -115,10 +115,17 @@ that `schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
 env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~3040 unit
 npm run trust                                                 # 41/41 golden scenarios (44 tests)
 npm run build
-MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55451/nomi \
-DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
-  node tools/run-integration.mjs                              # ~862, none skipped, ~5 min
+env -u DATABASE_URL -u MIGRATE_DATABASE_URL \
+  node tools/run-integration-isolated.mjs                     # its own Postgres; ~1590, none skipped
 ```
+
+**Integration locally runs on a Postgres of its own** (since 2026-10-16):
+`run-integration-isolated.mjs` makes one for the run, migrates it with this
+checkout's migrations, seeds it as CI does, and removes it — about 20 s extra.
+The shared 55451 database let a branch at 0166 fail against a database another
+branch had taken to 0167 (#364's first run): two tests failed that were not
+defects. **CI never had this problem** (a fresh Postgres per job) — do not
+"fix" CI for it.
 
 Run all of it on **Node 22** — production and CI use it (`.nvmrc`); this
 Mac's default `node` is newer (`PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$PATH"`).
@@ -132,9 +139,10 @@ tools/check-person-model.mjs` — a model that stops answering `wants_person`
 hands EVERY analysed turn to a person (§5 rule 19). Never run it while
 the integration suite runs (both start pg-boss workers on the same queues).
 
-The integration runner prunes earlier runs' tenants **and their queued pg-boss
-jobs** first (PR #49). If integration goes flaky, suspect leftover state
-before suspecting code.
+Against a shared database (`run-integration.mjs` with the two URLs), the runner
+prunes earlier runs' tenants **and their queued pg-boss jobs** first (PR #49).
+If integration goes flaky there, suspect leftover state before suspecting code
+— or run it isolated.
 
 **PR flow:** branch → `gh pr create` → `gh pr checks N --watch --fail-fast` →
 `gh pr merge N --merge --delete-branch` → poll
