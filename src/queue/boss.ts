@@ -87,6 +87,11 @@ export const QUEUES = {
    */
   metaErrors: 'ops.meta_errors',
   /**
+   * 0167 — every ten minutes: is production running the head of main? An hour behind is the operator's alarm
+   * (src/pipeline/deployWatch.ts).
+   */
+  deployWatch: 'ops.deploy_watch',
+  /**
    * CC-10 — the uptime heartbeat: every five minutes the app checks itself and
    * pings HEALTH_PING_URL (src/worker/heartbeat.ts). Scheduled only when that
    * is set, and only once the server listens.
@@ -168,6 +173,7 @@ export type BackupWatchJob = { businessId: string };
 export type DeletionWatchJob = { businessId: string };
 export type ErrorSweepJob = { businessId: string };
 export type MetaErrorWatchJob = { businessId: string };
+export type DeployWatchJob = { businessId: string };
 export type HeartbeatJob = Record<string, never>;
 export type PracticeExpiryJob = Record<string, never>;
 
@@ -258,7 +264,8 @@ export type NotifyJob = {
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
   kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'deletion_reminder' | 'morning_summary' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused'
     | 'billing_trial_ending' | 'billing_payment_failed' | 'billing_lapsed' | 'plan_limit'
-    | 'provider_refusing' | 'provider_answering' | 'provider_balance';
+    | 'provider_refusing' | 'provider_answering' | 'provider_balance'
+    | 'deploy_behind' | 'deploy_caught_up';   // 0167 — production an hour behind main, and caught up again
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -275,6 +282,8 @@ export type NotifyJob = {
    * the name, the day's counts and the provider's own words. Never a customer.
    */
   metaErrors?: { business: string; attempted: number; failed: number; errors: string[] }[];
+  /** 0167 — `deploy_behind` / `deploy_caught_up`: what production runs, main's head, minutes waited, its first line. */
+  deploy?: { running: string; main: string; minutes: number; title: string };
   /** `signup_digest` only (G1): who signed up in the last day. Dates as ISO strings. */
   signups?: { business: string; kind: string | null; country: string | null; at: string }[];
   /** `signup_digest` (G7, KS4): every operator switch still on — which, for whom (null: everyone), since when (ISO). */

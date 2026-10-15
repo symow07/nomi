@@ -57,7 +57,9 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice
  */
 export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest', 'spend_breaker',
   // 0128 — the model provider refused for billing (escalating), answers again, or its balance runs low.
-  'provider_refusing', 'provider_answering', 'provider_balance'] as const satisfies readonly AlertKind[];
+  'provider_refusing', 'provider_answering', 'provider_balance',
+  // 0167 — production an hour behind main, and caught up again.
+  'deploy_behind', 'deploy_caught_up'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -234,6 +236,8 @@ export type OperatorAlertDetail = {
   readonly appError?: AppErrorAlertJob | null;
   /** `meta_errors` (CEIL): the workspaces over the line, the worst first. */
   readonly metaErrors?: readonly { readonly business: string; readonly attempted: number; readonly failed: number; readonly errors: readonly string[] }[];
+  /** 0167 — what production runs, main's head, how long it has waited, and its first line. */
+  readonly deploy?: { readonly running: string; readonly main: string; readonly minutes: number; readonly title: string };
   /** TZ — the zone the reader's dates are said in: the receiving workspace's. UTC when not given. */
   readonly zone?: string;
   /** `signup_digest` (G1): who signed up in the last day. */
@@ -420,6 +424,11 @@ export function renderOwnerAlert(
     return [t(locale, 'notify.signup_digest', { n: list.length }),
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
       ...forms, ...check, ...cohort, ...mail, ...approvals, ...flags].join('\n');
+  }
+  // 0167 — production behind main: what runs, what waits, since when; then caught up.
+  if (kind === 'deploy_behind' || kind === 'deploy_caught_up') {
+    const d = detail.deploy ?? { running: '—', main: '—', minutes: 0, title: '' };
+    return t(locale, `notify.${kind}`, { running: d.running, main: d.main, minutes: d.minutes, title: d.title || '—' });
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -779,6 +788,8 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
     ...(job.demoted ? { demoted: job.demoted } : {}),
     ...(job.spend ? { spend: job.spend } : {}),
+    // 0167 — production behind main, and caught up.
+    ...(job.deploy ? { deploy: job.deploy } : {}),
     ...(job.providerRefusal ? { providerRefusal: {
       provider: job.providerRefusal.provider, since: new Date(job.providerRefusal.since), step: job.providerRefusal.step,
       words: job.providerRefusal.words, ...(job.providerRefusal.until ? { until: new Date(job.providerRefusal.until) } : {}),

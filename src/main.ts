@@ -24,6 +24,7 @@ import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { readModelView, type ConfiguredModels, type ModelHealthView } from './db/modelChecks.js';
+import { deployWatchSweep, readMainHead } from './pipeline/deployWatch.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
@@ -77,7 +78,7 @@ import type { ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
 import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
 import type { PgBoss } from 'pg-boss';
-import type { ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
+import type { DeployWatchJob, ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
 import { signupDigestAlert } from './pipeline/signupDigest.js';
 import { allowanceAlerts, spendBreakerAlert } from './pipeline/allowanceWatch.js';
@@ -1596,6 +1597,29 @@ export async function buildProduction(
     await sendAlert(boss, alert satisfies NotifyJob,
       { singletonKey: 'meta_errors', singletonSeconds: META_ERROR_ALERT_EVERY_HOURS * 3600 });
   });
+
+  /**
+   * 0167 — THE DEPLOY ALARM: every ten minutes, is this process the head of main? An hour behind is the operator's
+   * alert, once per head; caught up, once more (src/pipeline/deployWatch.ts). Off where the process was not deployed
+   * from git (local, a hand upload): it says so once.
+   */
+  const runningCommit = process.env['RAILWAY_GIT_COMMIT_SHA']?.trim() || null;
+  const deployRepo = process.env['RAILWAY_GIT_REPO_OWNER'] && process.env['RAILWAY_GIT_REPO_NAME']
+    ? `${process.env['RAILWAY_GIT_REPO_OWNER']}/${process.env['RAILWAY_GIT_REPO_NAME']}` : null;
+  if (runningCommit && deployRepo) {
+    console.log(`Deploy watch: this process runs ${runningCommit.slice(0, 7)}; main is compared every ten minutes.`);
+    await boss.schedule(QUEUES.deployWatch, '*/10 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies DeployWatchJob);
+    await boss.work<DeployWatchJob>(QUEUES.deployWatch, async ([job]: { data: DeployWatchJob }[]) => {
+      if (!job) return;
+      await deployWatchSweep({
+        db, running: runningCommit, readMain: () => readMainHead(deployRepo), operatorBusinessId: job.data.businessId,
+        send: async (j, key) => { await sendAlert(boss, j satisfies NotifyJob, { singletonKey: key }); },
+      });
+    });
+  } else {
+    await boss.unschedule(QUEUES.deployWatch).catch(() => undefined);
+    console.log('Deploy watch: off — this process was not deployed from git (no RAILWAY_GIT_COMMIT_SHA).');
+  }
 
   /**
    * CC-10 — no error waits for ever behind the hourly limit. At most six error
