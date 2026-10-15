@@ -102,6 +102,8 @@ const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' | 'le
  */
 export type LegalFacts = {
   readonly processor: Processor;
+  /** 0166 — the fallback provider, while failing over to it is switched on: named, because a reply may go there. */
+  readonly fallback?: Processor | null;
   readonly hosting: Processor;
   readonly transcriber?: Processor | null;
   readonly botCheck?: Processor | null;
@@ -201,6 +203,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     <ul>
       <li>${esc(t(l, 'legal.privacy.who.meta'))}</li>
       <li>${esc(t(l, 'legal.privacy.who.ai', { processor: processorLabel(facts.processor, l) }))}</li>
+      ${facts.fallback ? `<li>${esc(t(l, 'legal.privacy.who.aiFallback', { processor: processorLabel(facts.fallback, l), primary: facts.processor.name }))}</li>` : ''}
       ${/* The advisor batch (2026-10-06) — the advisor's answers are phrased by the same provider: said before it goes live.
            The advisor's history (2026-10-07) — and Nomi keeps those conversations for whoever allows it: said here, told below. */ ''}<li>${esc(t(l, 'legal.privacy.who.advisor', { processor: processorLabel(facts.processor, l) }))}${
         history ? `${l === 'zh' ? '' : ' '}${esc(t(l, 'legal.privacy.who.advisorKept'))}` : ''}</li>

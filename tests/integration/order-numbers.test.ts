@@ -104,6 +104,16 @@ d('0162 · each workspace numbers its own orders (requires DATABASE_URL)', () =>
     expect(await confirm(B)).toBe(`${yearB}-0002`);
   });
 
+  it('A NUMBER THAT LEFT IS NEVER GIVEN AGAIN (the owner, 2026-10-15): a committed order that is cancelled keeps its number', async () => {
+    // Given back only when the order's own transaction rolls back — before anything outside could see it: the
+    // confirmation is queued after the commit (src/pipeline/orderProposal.ts), and a proforma needs the committed order.
+    const conv = await conversation(A);
+    const ref = await tx(A, (t) => write(t, A, conv));
+    expect(ref).toBe(`${yearA}-0006`);
+    await tx(A, (t) => sql`update orders set status = 'cancelled' where business_id = ${A} and order_reference = ${ref}`.execute(t));
+    expect(await confirm(A)).toBe(`${yearA}-0007`);
+  });
+
   it('the year is the workspace\'s own: New Year\'s Eve in Shanghai is already next year', async () => {
     const { nextOrderReference } = await import('../../src/db/orderNumbers.js');
     // 20:00 UTC on 31 December is 04:00 on 1 January in Shanghai: a new year, a new count. Rolled back: nothing is kept.
@@ -115,7 +125,7 @@ d('0162 · each workspace numbers its own orders (requires DATABASE_URL)', () =>
     })).rejects.toThrow('rollback');
     // The same moment in a UTC workspace is still this year, and its count goes on.
     await expect(tx(A, async (t) => {
-      expect(await nextOrderReference(t, A, new Date(`${yearA}-12-31T20:00:00Z`))).toBe(`${yearA}-0006`);
+      expect(await nextOrderReference(t, A, new Date(`${yearA}-12-31T20:00:00Z`))).toBe(`${yearA}-0008`);
       throw new Error('rollback');
     })).rejects.toThrow('rollback');
     expect(await confirm(B)).toBe(`${yearB}-0003`);

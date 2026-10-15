@@ -10,7 +10,7 @@ import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
 import { anthropicPageTranscriber, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
-import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
+import { fallbackSwitchedOn, llmFallbackFrom, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
 import { businessesReadingInbox } from './db/mailAccounts.js';
@@ -23,7 +23,7 @@ import { stripeConfigFrom, stripeClient, type StripeClient } from './billing/str
 import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
-import { readModelView, type ModelHealthView } from './db/modelChecks.js';
+import { readModelView, type ConfiguredModels, type ModelHealthView } from './db/modelChecks.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
@@ -425,7 +425,7 @@ export type Production = {
   /** CC-10 — the process's error recorder; the CLI hands it the process's own crashes. */
   readonly reportError: ReportError;
   /** 0165 — the provider and model this deployment is configured for: what /health and the heartbeat ask about. */
-  readonly primaryModel: { readonly provider: string; readonly model: string };
+  readonly primaryModel: ConfiguredModels;
   close(): Promise<void>;
 };
 
@@ -573,7 +573,7 @@ export async function buildProduction(
   const retired = process.env['CREDENTIAL_KEY_PREVIOUS'];
   acceptRetiredKeys(retired ? [deriveKey(retired)] : []);
   if (retired) console.log('CREDENTIAL_KEY_PREVIOUS is set: tokens sealed with the old key are still opened until tools/rekey.mjs re-seals them. Remove it afterwards (docs/SECRET-ROTATION.md).');
-  const { db, boss, errors, watch, health, primaryModel } = await startWorker({
+  const { db, boss, errors, watch, health, modelClient, primaryModel } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
     // G11 — the worker mints the proof link a quote carries, so it needs the
     // address as much as the web app does.
@@ -646,7 +646,7 @@ export async function buildProduction(
       try { await sql`select 1`.execute(db); dbOk = true; } catch { /* → 503 */ }
       // 0165 — what the last real call said: answering, slow, not answering (with why), refusing for billing, or
       // unknown when nothing has checked lately. Never "answering" without a call that answered.
-      let view: ModelHealthView = { model: 'unknown', ms: null, checkedAt: null, reason: null };
+      let view: ModelHealthView = { model: 'unknown', ms: null, checkedAt: null, reason: null, fallback: 'off', fallbackOn: false, serving: 'none' };
       if (dbOk) {
         try { view = await readModelView(db, primaryModel); } catch { /* unknown */ }
       }
@@ -654,6 +654,8 @@ export async function buildProduction(
         ok: dbOk, db: dbOk, worker: true, provider: providerStatus, model: view.model,
         model_ms: view.ms, model_checked_at: view.checkedAt?.toISOString() ?? null,
         ...(view.reason ? { model_reason: view.reason } : {}),
+        // 0166 — the fallback's own word ('off': none configured), whether failing over is on, and who writes now.
+        fallback: view.fallback, fallback_on: view.fallbackOn, serving: view.serving,
       });
     });
   };
@@ -826,7 +828,12 @@ export async function buildProduction(
   if (llm.name === 'custom') console.log(`Model provider: ${new URL(llm.baseURL!).host} · ${llm.model}`);
   // The privacy page names this company. Derived here, from the same provider
   // the model client is built from, so the two can never disagree again.
-  const legalFacts = { processor: aiProcessor(llm.baseURL), hosting: HOSTING };
+  // 0166 — and the fallback, while failing over to it is switched on: a reply may be drafted there.
+  const fallbackLlm = llmFallbackFrom(process.env);
+  const legalFacts = {
+    processor: aiProcessor(llm.baseURL), hosting: HOSTING,
+    ...(fallbackSwitchedOn(process.env, fallbackLlm) && fallbackLlm ? { fallback: aiProcessor(fallbackLlm.baseURL) } : {}),
+  };
   console.log(`Privacy page names: ${processorForLog(legalFacts.processor)} · hosted on ${processorForLog(HOSTING)}`);
   // The owner's decision at the Phase 4 gate (2026-10-14): the legal pages name who runs Nomi before any real business
   // uses it. The name is not logged; only whether one is set.
@@ -838,16 +845,16 @@ export async function buildProduction(
   // M37 — the page reader, wired at the production entrypoint. A feature whose
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
-  const pageTranscriber = anthropicPageTranscriber(llmClient(llm, { observe: watch.observe, onCall: health.callsOf('primary') }), llm.model, requestExtrasFor(llm));
+  const pageTranscriber = anthropicPageTranscriber(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // EXT — the closer reading of a list's lines, on the same provider.
-  const catalogExtractor = anthropicCatalogExtractor(llmClient(llm, { observe: watch.observe, onCall: health.callsOf('primary') }), llm.model, requestExtrasFor(llm));
+  const catalogExtractor = anthropicCatalogExtractor(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // EXT — a page of her site read into facts she ticks.
-  const pageFactsReader = anthropicPageFactsReader(llmClient(llm, { observe: watch.observe, onCall: health.callsOf('primary') }), llm.model, requestExtrasFor(llm));
+  const pageFactsReader = anthropicPageFactsReader(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // G10 — a draft in a language its owner may not read, translated on request (never sent).
-  const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(llmClient(llm, { observe: watch.observe, onCall: health.callsOf('primary') }), llm.model, requestExtrasFor(llm));
+  const draftTranslator = overrides?.draftTranslator ?? anthropicDraftTranslator(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // THE ADVISOR BATCH — the owner's advisor: the same provider the assistant uses (the privacy page says so),
   // and its own small pool, read-only at the server, the only database it is given.
-  const advisorModel = overrides?.advisorModel ?? anthropicAdvisorModel(llmClient(llm, { observe: watch.observe, onCall: health.callsOf('primary') }), llm.model, requestExtrasFor(llm));
+  const advisorModel = overrides?.advisorModel ?? anthropicAdvisorModel(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   const advisorDb = createReadOnlyDb(cfg.DATABASE_URL);
   // THE ADVISOR'S MEMORY (0130; D8) — the key its history is sealed with. Missing or wrong, the advisor answers
   // as ever and nothing is kept: said once here, never a reason not to start. Proven by a round trip, and the

@@ -46,6 +46,7 @@
  *     railway run --service nomi -- node tools/capability-sweep.mjs --json sweep.json
  *
  * Options: --repeats N (1–10, default 3) · --only id,id · --concurrency N (default 6)
+ *          · --fallback (0166: the fallback provider alone, LLM_FALLBACK_*, for its numbers beside the primary's)
  * · --json <file> (every run, for the report page) · --no-catalogue (layer 1 only).
  */
 // The words: the one list the parity test holds complete.
@@ -72,7 +73,12 @@ const ONLY = arg('--only', '')?.split(',').filter(Boolean) ?? [];
 const JSON_OUT = arg('--json', null);
 const CATALOGUE = !process.argv.includes('--no-catalogue');
 
-const provider = llmProviderFrom(process.env, process.env['ANTHROPIC_API_KEY'] ?? '');
+// 0166 — `--fallback`: the same run against the fallback provider alone (LLM_FALLBACK_*), so its numbers sit beside the primary's.
+const { modelEnvFor } = await import('./lib/model-env.mjs');
+const modelEnv = modelEnvFor(process.argv, process.env);
+if (!modelEnv) { console.error('--fallback: LLM_FALLBACK_BASE_URL, LLM_FALLBACK_API_KEY and LLM_FALLBACK_MODEL are not all set.'); process.exit(2); }
+if (process.argv.includes('--fallback')) console.log(`Against the FALLBACK: ${modelEnv['LLM_MODEL']}`);
+const provider = llmProviderFrom(modelEnv, process.env['ANTHROPIC_API_KEY'] ?? '');
 if (!provider.apiKey) {
   console.error('No model key in this environment. Run it inside: railway run --service nomi -- …');
   process.exit(2);

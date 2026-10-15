@@ -18,7 +18,8 @@ under "Decided" below.
 The owner's order: e-mail on orders FIRST, then 4, 2, 3, 9 before the pilot; check 11; log 1, 5, 6, 7, 8, 10, 12 with
 what makes each urgent; fix the false dedupe-key comments. The report: `docs/REPORT-2026-10-15-ISOLATION-DECISIONS.md`.
 
-- **An order needs no e-mail — #356 (0161):** the gate's Rule 7 is retired (`email_invalid` only for an address typed
+- **An order needs no e-mail — #356 (0161) — PARTIAL, blocked on the provider (the owner, 2026-10-15: "don't record it
+  as done"):** the gate's Rule 7 is retired (`email_invalid` only for an address typed
   that is not one), the turn never asks for one, `order_proposals.client_email` may be null, the card shows the row only
   when there is one. The proforma never printed it (the sweep report said it did: corrected). The analysis prompt's three
   e-mail lines wait for the live model check (the provider was not answering on 2026-10-15); its suggested next question

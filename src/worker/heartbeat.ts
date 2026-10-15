@@ -2,8 +2,7 @@ import { sql } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Db } from '../db/client.js';
 import { QUEUES, type HeartbeatJob } from '../queue/boss.js';
-import { readModelView } from '../db/modelChecks.js';
-import { modelServes } from '../core/ops/modelHealth.js';
+import { readModelView, type ConfiguredModels } from '../db/modelChecks.js';
 
 /**
  * CC-10 — THE UPTIME HEARTBEAT: a dead-man's switch, like the backup's.
@@ -129,7 +128,7 @@ export async function startHeartbeat(
     readonly port: number;
     readonly db: Db;
     /** 0165 — the provider and model this deployment is configured for (what /health asks about). */
-    readonly model?: { readonly provider: string; readonly model: string };
+    readonly model?: ConfiguredModels;
     /** Tests only; production asks `select 1` of `db`. */
     readonly probeDb?: () => Promise<boolean>;
     /** Tests only; production reads what /health reads (`readModelView`). */
@@ -158,7 +157,7 @@ export async function startHeartbeat(
 async function scheduleHeartbeat(
   boss: Pick<PgBoss, 'schedule' | 'work'>,
   o: {
-    readonly port: number; readonly db: Db; readonly model?: { readonly provider: string; readonly model: string };
+    readonly port: number; readonly db: Db; readonly model?: ConfiguredModels;
     readonly probeDb?: () => Promise<boolean>; readonly probeModel?: () => Promise<boolean>; readonly fetch?: PingFetch;
   },
   url: string, log: (line: string) => void,
@@ -171,7 +170,7 @@ async function scheduleHeartbeat(
     fetch: fetchImpl,
     log,
     ...(o.probeModel ? { probeModel: o.probeModel }
-      : o.model ? { probeModel: async () => modelServes((await readModelView(o.db, o.model!)).model) } : {}),
+      : o.model ? { probeModel: async () => (await readModelView(o.db, o.model!)).serving !== 'none' } : {}),
   };
   await boss.schedule(QUEUES.heartbeat, HEARTBEAT_CRON, {} satisfies HeartbeatJob);
   let last: HeartbeatOutcome = 'healthy';
