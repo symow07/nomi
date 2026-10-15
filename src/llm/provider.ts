@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { classifyProviderFailure } from './providerFailure.js';
+import type { CallOutcome } from '../core/ops/modelHealth.js';
 
 /**
  * N6a — WHICH model company answers when she needs one.
@@ -105,9 +107,50 @@ export function wholeResponseFetch(base: FetchLike = fetch, observe?: ProviderOb
   };
 }
 
+/**
+ * 0165 — how one call ended, for the model's health (src/pipeline/modelHealth.ts). Told after the call settled, to a
+ * listener that may not throw into it or hold it: the caller gets exactly the promise the SDK returned.
+ */
+export type CallObserver = (outcome: CallOutcome) => void;
+
+/** The client, with every `messages.create` timed and its ending told. Nothing else about it changes. */
+export function timedClient(client: Anthropic, onCall: CallObserver, clock: () => number = Date.now): Anthropic {
+  const tell = (o: CallOutcome): void => { try { onCall(o); } catch { /* never into the call */ } };
+  const messages = client.messages;
+  const create = messages.create.bind(messages) as (...args: unknown[]) => Promise<unknown>;
+  const timedCreate = (...args: unknown[]): Promise<unknown> => {
+    const started = clock();
+    const call = create(...args);
+    call.then(
+      () => tell({ ok: true, ms: clock() - started }),
+      (e: unknown) => {
+        const f = classifyProviderFailure(e);
+        tell({ ok: false, ms: clock() - started, failure: f.kind, status: 'status' in f ? f.status ?? null : null });
+      },
+    );
+    return call;
+  };
+  // Bound to their own objects: the SDK's classes keep private fields a proxied `this` could not reach.
+  const own = <T extends object>(target: T, swap: (k: PropertyKey) => unknown): T => new Proxy(target, {
+    get(t, k) {
+      const swapped = swap(k);
+      if (swapped !== undefined) return swapped;
+      const v = Reflect.get(t, k) as unknown;
+      return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(t) : v;
+    },
+  });
+  const timedMessages = own(messages, (k) => (k === 'create' ? timedCreate : undefined));
+  return own(client, (k) => (k === 'messages' ? timedMessages : undefined));
+}
+
 /** The one client. Another provider is the same client at another address. */
-export const llmClient = (p: LlmProvider, o: { readonly observe?: ProviderObserver; readonly fetch?: FetchLike } = {}): Anthropic =>
-  new Anthropic({
+export const llmClient = (
+  p: LlmProvider,
+  o: { readonly observe?: ProviderObserver; readonly fetch?: FetchLike; readonly onCall?: CallObserver } = {},
+): Anthropic => {
+  const client = new Anthropic({
     apiKey: p.apiKey, ...(p.baseURL ? { baseURL: p.baseURL } : {}),
     fetch: wholeResponseFetch(o.fetch ?? fetch, o.observe),
   });
+  return o.onCall ? timedClient(client, o.onCall) : client;
+};

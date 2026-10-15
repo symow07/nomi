@@ -151,6 +151,8 @@ const GLOBAL = new Set(['_migrations', 'backup_runs', 'signup_invites', 'mail_se
   'erasure_ledger_mailed',
   // 0128 — the model provider's account: the installation's, no business's (one health row, the balance's readings and steps).
   'provider_health', 'provider_balance_checks', 'provider_balance_alerts',
+  // 0165 — what the last real call to each model provider said: the installation's, no business's.
+  'model_checks',
   // Phase 1 (0148) — the sign-up marks: one-way codes with no business at all (the owner's word, 2026-10-13).
   'signup_marks',
   // Phase 1 (0149) — refusals counted for the operator: points and reasons, no business (the owner's word, 2026-10-13).

@@ -124,7 +124,8 @@ describe('N6a · the model name reaches the request and the record', () => {
     expect(worker).toMatch(/anthropicReplyWriter\(anthropic, llm\.model, extras\)/);
     expect(worker).toMatch(/anthropicVision\(anthropic, llm\.model, extras\)/);
     // 0128 — each client is given the provider watch's observer: still the ONE provider.
-    expect(main).toMatch(/anthropicPageTranscriber\(llmClient\(llm, \{ observe: watch\.observe \}\), llm\.model, requestExtrasFor\(llm\)\)/);
+    // 0165 — and the model's health listener: each call is timed. Still the ONE provider.
+    expect(main).toMatch(/anthropicPageTranscriber\(llmClient\(llm, \{ observe: watch\.observe, onCall: health\.callsOf\('primary'\) \}\), llm\.model, requestExtrasFor\(llm\)\)/);
     expect(worker).toMatch(/const anthropic = llmClient\(llm, \{ observe: /);
   });
 });

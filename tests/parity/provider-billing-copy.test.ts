@@ -254,7 +254,8 @@ describe('the heartbeat notices too', () => {
     });
     expect(out).toBe('unhealthy');
     expect(gets).toEqual(['https://hc-ping.com/1f2e3d4c-0000-4000-8000-000000000000/fail']);
-    expect(logs.join('\n')).toContain('the model provider refuses for billing');
+    // 0165 — the heartbeat reads what /health says (refusing, not answering, or unchecked): the reason is on /health.
+    expect(logs.join('\n')).toContain('the model provider is not answering (see /health)');
   });
 });
 
