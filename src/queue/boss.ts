@@ -5,13 +5,27 @@ import { loggableLine } from '../security/loggable.js';
  * Queue topology. (ADR-0004)
  *
  * pg-boss = queues in Postgres: retries with backoff, DLQ via dead-letter
- * queues, singleton keys, transactional enqueue. No Redis, nothing new to
- * operate. Remember the division of labour:
+ * queues, transactional enqueue. No Redis, nothing new to operate.
  *
- *   singletonKey prevents CONCURRENT duplicates;
- *   the orders_one_open_per_conversation unique index prevents ALL duplicates.
+ * WHAT PREVENTS DUPLICATES — and what does not (the isolation sweep, 2026-10-15).
+ * Every queue here runs pg-boss 12's `standard` policy, under which a
+ * `singletonKey` is enforced only together with `singletonSeconds` (a time
+ * window: deletion_due, meta_errors, signup_digest, the morning summary,
+ * app_error). A key with no window enforces nothing: two jobs with the same key
+ * are both queued and both run. The keys on inbound, outbound, echo and alert
+ * jobs are labels. What actually stops a duplicate:
  *
- * Money gets a database invariant, not just a queue guarantee.
+ *   · the database claims — a message's fragment row is keyed on its id and
+ *     marked `processed_in` by the turn that answers it, so a retried or
+ *     repeated job finds nothing left to answer (`db/fragments.ts`); a
+ *     webhook event is one `channel_events` row per dedup key; an employee
+ *     reply identical to one queued in the last ten minutes is not queued
+ *     again (`db/channels.ts`); and money gets its own invariant, the
+ *     `orders_one_open_per_conversation` unique index;
+ *   · the per-conversation lock (`lockConversation`, an advisory lock held for
+ *     the transaction), which serialises two jobs of one conversation;
+ *   · inbound's per-workspace group (`inboundGroup`), one job per workspace
+ *     per worker at a time — fairness, not deduplication.
  */
 
 /**
@@ -335,9 +349,12 @@ export const INBOUND_WORK = { workers: 3, pollSeconds: 2, localGroupConcurrency:
 export const inboundGroup = (businessId: string): { readonly id: string } => ({ id: businessId });
 
 /**
- * Enqueue an inbound message. singletonKey = conversationId ensures two
- * messages from the same client never process concurrently (the advisory lock
- * in the worker is the belt to this brace).
+ * Enqueue an inbound message. The `singletonKey` enforces nothing on this queue
+ * (standard policy, no window — see the top of this file). Two messages of one
+ * conversation never race because the worker takes the per-conversation lock
+ * (`lockConversation`) before it reads the batch; one message is never answered
+ * twice because its fragment row is marked `processed_in` by the turn that
+ * answers it. The group runs one job per workspace per worker.
  */
 export async function enqueueInbound(boss: PgBoss, job: InboundJob): Promise<void> {
   await boss.send(QUEUES.inbound, job, {

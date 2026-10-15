@@ -260,8 +260,14 @@ export async function startWorker(
       await watch.answered().catch((e: unknown) => console.warn(`[provider] could not record the answer: ${loggableMessage((e as Error).message)}`));
     }
 
-    // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers
-    // are idempotent (outbound keyed by messageId, notifications tolerated).
+    // Effects enqueue AFTER the tenant tx commits. The keys below enforce
+    // nothing (standard policy, no window — src/queue/boss.ts). What keeps a
+    // retried inbound job from enqueuing them twice is the database: its
+    // fragments were marked `processed_in` by this turn, so a retry finds
+    // nothing to answer and runs no turn. An outbound job that runs twice does
+    // not queue the reply twice (an identical employee reply within ten
+    // minutes is skipped, db/channels.ts). An alert can repeat only if this
+    // send is retried after it succeeded; that is tolerated.
     if (effects.outbound) {
       await boss.send(QUEUES.outbound, {
         businessId: input.businessId,
@@ -275,7 +281,8 @@ export async function startWorker(
       }, { singletonKey: input.messageId });
     }
     // P3: enqueue a language-NEUTRAL alert code; the notify consumer localizes.
-    // singletonKey dedups concurrent alerts for the same event.
+    // The key is a label (no window): one turn queues one alert because one
+    // message runs one turn — the fragment claim above, not the queue.
     // Phase 8 of the warmth run — only the two interruptions leave Nomi (an
     // order waiting for the tap, a customer handed over): a waiting reply or a
     // customer ready to buy waits in the app, so no job is queued for them.
@@ -297,8 +304,10 @@ export async function startWorker(
 
   /**
    * The alert a hand-off earns, sent after its transaction commits: a deletion
-   * request's own (0076), or the ordinary one. One per kind per conversation
-   * while it is queued.
+   * request's own (0076), or the ordinary one. The key enforces nothing (no
+   * window — src/queue/boss.ts): each call queues an alert. A job retried after
+   * its transaction committed can call it again, and a second alert is
+   * tolerated; nothing in the queue prevents it.
    */
   const alertHandoff = async (
     businessId: BusinessId, conversationId: ConversationId,

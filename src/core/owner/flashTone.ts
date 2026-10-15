@@ -87,6 +87,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'connect.meta.flash.page_taken', 'connect.meta.flash.subscribe_failed', 'connect.meta.flash.unavailable',
   // WA — the own number did not connect, or WhatsApp is not live to open.
   'connect.wa.flash.no_account', 'connect.wa.flash.no_number', 'connect.wa.flash.number_taken',
+  // 0164 — the mailbox is live in another workspace: nothing changed.
+  'connect.flash.address_taken',
   'connect.wa.flash.refused', 'connect.wa.flash.unavailable', 'pilot.flash.not_active',
   'channel.wa.template.flash.unavailable', 'channel.wa.template.flash.nothing',
   'contacts.flash.empty', 'contacts.flash.failed', 'contacts.flash.missing', 'contacts.flash.no_channel',

@@ -12,9 +12,11 @@ import { type BatchConfig, type Fragment, DEFAULT_BATCH_CONFIG } from '../core/c
  *     "hello" / "price?" / "the bags" / "5000pcs"
  *
  * in about ten seconds, and each one analysed alone is meaningless. Verified
- * against pg-boss 12 rather than assumed: `singletonKey` serialises those four
- * jobs, it does not merge them, so today they become four turns — four
- * analyses, four replies, four times the tokens, for worse answers.
+ * against pg-boss 12 rather than assumed: `singletonKey` neither merges those
+ * four jobs nor (on these standard-policy queues, with no window) serialises
+ * them — the per-conversation lock does the serialising — so without this they
+ * become four turns: four analyses, four replies, four times the tokens, for
+ * worse answers.
  *
  * `message_fragments` has existed since migration 0009 with no writer. This is
  * the writer. `core/conversation/batching.ts` — pure, and tested since it was

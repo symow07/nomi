@@ -21,7 +21,7 @@ Written for the owner, answering "Before the pilot, sweep for the rest". It is a
 **#351: is the buyer's e-mail required to prepare an order?** Required.
 
 - **Not new in #351.** The order gate has required an e-mail for every order since the port from the old system (`src/core/commerce/confirmable.ts:78`, "Rule 7"). The turn's own path asks the buyer for one before proposing.
-- **Nothing sends to that address today.** The confirmation goes to the buyer in the chat; the address is only stored on the order and printed on the proforma.
+- **Nothing sends to that address today.** The confirmation goes to the buyer in the chat; the address is only stored on the order. *(Corrected the same day: I wrote "and printed on the proforma". It never was — the proforma leaves it out, `src/api/web/proforma.ts:31`. It shows only on the owner's order card and in a buyer's copy of their data. Since #356 an order needs no e-mail at all.)*
 - **The database doesn't need it:** `orders.client_email` is nullable.
 - **The consequence:** a WhatsApp or Instagram buyer who never gives an e-mail cannot have an order recorded, by either path.
 
@@ -52,6 +52,20 @@ Written for the owner, answering "Before the pilot, sweep for the rest". It is a
 - **A practice copy takes a snapshot of its workspace's operator flags when it is made.**
 - **The send ceiling counts e-mail replies too**, though its stated reason is Meta's shared app.
 - **Not cross-workspace, but false:** the comments on most job "dedupe keys" (hand-offs, inbound, outbound). pg-boss enforces those keys only with a time window, which these don't set. What actually prevents duplicates is the database claims, the per-conversation lock and inbound's per-workspace group.
+
+## Waiting — and what makes each urgent (the owner's decisions, 2026-10-15)
+
+Fixed this round: 4 (order numbers, 0162), 9 (narrowed to the language, 0163), 11 (a release, `tools/release-number.mjs`), 12's cheap guard (0164), and the e-mail on orders (0161). 2 and 3 are below the table. The rest wait. Each one wakes when its condition is met — check it before the pilot grows, not after.
+
+| # | Waits | Urgent when |
+|---|---|---|
+| 1 | One e-mail, two workspaces: the second records it and never answers | A second workspace reads e-mail (today: one live mailbox, Westlake's). Or one buyer writes to two Nomi workspaces in the same e-mail (to/cc). 0164 now refuses the other way in, the same mailbox connected twice. |
+| 5 | Instagram and Messenger fall back to the installation's Page | Any workspace other than Westlake gets an Instagram or Messenger buyer without a live Page of its own: the first workspace that connects a Page, or one that disconnects its Page. |
+| 6 | Mail caps are one pool for every workspace | A day's codes pass 500 or alerts pass 1,500 (half the caps), or sign-up is opened to the public — spam sign-ups are the flood (and sign-up stays closed until a real card has gone through Stripe). |
+| 7 | Three stuck mailboxes can take every inbox read | A third workspace connects a mailbox that reads its inbox: from then on, three that can never finish a read stop everyone's. |
+| 8 | Outbound sends and alerts are first-come across workspaces | The outreach area is on for a second workspace (its follow-up sweep can queue 100 sends a minute), or any workspace's replies wait more than a minute behind another's. |
+| 10 | **The owner's advisor is never metered** | **Hard marker: metered before the third paying workspace.** In `docs/LAUNCH-CHECKLIST.md` (a blocking line) and at `answerFollowUp` in the code. |
+| 12 | Two workspaces on one mailbox | Guarded since 0164: the second connect is refused, changing nothing. Nothing more waits. |
 
 ## Correctly global (one line each)
 

@@ -170,6 +170,7 @@ describe('C6 · the code exchange, and every way it can be wrong', () => {
     const OUTCOMES: Record<ConnectOutcome, true> = {
       connected: true, not_configured: true, rejected: true, missing_scope: true,
       no_refresh_token: true, no_address: true, app_refused: true, unavailable: true,
+      address_taken: true,   // 0164 — live in another workspace
     };
     for (const l of LOCALES) for (const o of Object.keys(OUTCOMES)) {
       expect(t(l, `connect.flash.${o}` as MessageKey, { address: 'x@y.test' }), `${l}/${o}`).not.toBe(`connect.flash.${o}`);
