@@ -405,7 +405,9 @@ import type { Db } from './client.js';
 //       reference unique per workspace (`orders_business_reference`) rather than across the installation.
 // 163 = a withdrawal narrowed to its language (0163): `language_withdrawals`, which every turn that would send alone
 //       reads, `capability_events.language`, and `claim_self_demotions()` returning `narrowed` / `everywhere`.
-export const REQUIRED_SCHEMA_VERSION = 163;
+// 164 = a mailbox live in one workspace at a time (0164): `mail_accounts_one_live_address`, which a connect of an
+//       address another workspace holds now meets as `address_taken`.
+export const REQUIRED_SCHEMA_VERSION = 164;
 
 export type SchemaState = {
   readonly required: number;

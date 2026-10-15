@@ -52,6 +52,15 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
 - **After the deploy**, confirm `/health` answers and `schema_version` equals
   `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts`.
 
+## Before the third paying workspace — BLOCKING (the owner, 2026-10-15)
+
+- **The owner's advisor is metered.** `answerFollowUp` (`src/advisor/answer.ts`)
+  makes up to two model calls a question with no allowance check and no spend
+  record: one workspace's staff can spend without limit, uncounted, where the
+  installation's spend breaker cannot see it. The owner's words: "metered
+  before the third paying workspace." Not before. Not after. The isolation
+  sweep, item 10 (`docs/REPORT-2026-10-15-ISOLATION-SWEEP.md`).
+
 ## Somebody hears when it breaks (CC-10)
 
 - `HEALTH_PING_URL` is set on the `nomi` service and the Healthchecks.io

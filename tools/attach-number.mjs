@@ -21,7 +21,8 @@
  * IT REFUSES, and changes nothing, when: the business does not exist, is switched off, is the practice sandbox or a
  * practice copy; the number is the installation's own; Meta does not list it in Nomi's account
  * (META_WHATSAPP_BUSINESS_ACCOUNT_ID); it is not on the Cloud API and --register was not given; ANY other workspace's
- * credential or live account holds it (named — switched off or not: a credential's number is unique for good); the
+ * credential or live account holds it (named — switched off or not: a credential's number is unique for good, until
+ * `tools/release-number.mjs` frees a switched-off one); the
  * workspace already has a WhatsApp number (named: one number per workspace); the role is filtered by row security.
  *
  * Connecting is not going live: the owner activates WhatsApp on My business, as for any number.
@@ -105,8 +106,10 @@ export async function attachNumber({
       `select a.business_id::text as business_id, b.name from whatsapp_accounts a join businesses b on b.id = a.business_id
         where a.phone_number_id = $1 and a.archived_at is null`, [phoneNumberId])).rows[0];
     if (live && live.business_id !== businessId) refuse(`Number ${phoneNumberId} is the live number of another workspace — ${live.name} (${live.business_id}).`);
+    // A credential that gave its number up (tools/release-number.mjs) holds none: it is not this workspace's number.
     const own = (await client.query(
-      `select external_ref, is_active from channel_credentials where business_id = $1 and channel = 'whatsapp'`, [businessId])).rows[0];
+      `select external_ref, is_active from channel_credentials
+        where business_id = $1 and channel = 'whatsapp' and external_ref not like 'released:%'`, [businessId])).rows[0];
     if (own && own.external_ref !== phoneNumberId) {
       refuse(`${biz.name} already has a WhatsApp number (${own.external_ref}${own.is_active ? '' : ', switched off'}). One number per workspace.`);
     }

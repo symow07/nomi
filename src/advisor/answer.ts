@@ -64,6 +64,8 @@ export type Answered = {
 const NO_PARAMS: Params = { period: null, customer: null, product: null, reference: null };
 
 /** A question, with at most the last three turns of its conversation to understand it by (§4). */
+// HARD MARKER (the owner, 2026-10-15; the isolation sweep, item 10): this makes up to two model calls a question with
+// no allowance check and no spend record. It is METERED BEFORE THE THIRD PAYING WORKSPACE — docs/LAUNCH-CHECKLIST.md.
 export async function answerFollowUp(a: AskContext, question: string, earlier: readonly Earlier[]): Promise<Answered> {
   const say = (key: MessageKey, p: Record<string, string> = {}): string => t(a.locale, key, p);
   const done = (answer: AdvisorAnswer, entry = 'unknown', params: Params = NO_PARAMS, subjects: readonly string[] = []): Answered =>
