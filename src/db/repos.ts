@@ -700,7 +700,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     // definition of what the evidence is: the alternative was a second copy of
     // that query, which is the bug this repo pays for most often.
     async selfDemote({ capability, violations, language }) {
-      const { loadCapabilityEvidence, autoDemote, withdrawLanguage } = await import('../pipeline/capability.js');
+      const { loadCapabilityEvidence, autoDemote } = await import('../pipeline/capability.js');
       const { demotionDecision } = await import('../core/trust/evidence.js');
       const base = await loadCapabilityEvidence(tx, capability);
       // The violation this turn produced is not yet queryable — commitTurn
@@ -708,9 +708,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       // than read back, which also keeps the decision on THIS turn's facts.
       const evidence = { ...base, policyViolations: base.policyViolations + violations };
       // 0163 — narrowed to the language it happened in; everywhere only when nobody could tell the language.
-      return language
-        ? withdrawLanguage(tx, businessId, capability, language, demotionDecision(evidence), evidence)
-        : autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);
+      return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence, language);
     },
     // 0163 — withdrawn in this language until the owner chooses again.
     withdrawnIn: async (capability, language) => (await sql<{ v: boolean }>`

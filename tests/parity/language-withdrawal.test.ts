@@ -30,13 +30,12 @@ describe('0163 · the turn and the writer', () => {
     const turn = src('src/pipeline/turn.ts');
     expect(turn).toContain('const keptIn = replyIn && replyIn !== UNDETERMINED ? replyIn : language !== UNDETERMINED ? language : null;');
     expect(turn).toContain('language: keptIn ? languageHead(keptIn) : null,');
-    const repos = src('src/db/repos.ts');
-    expect(repos).toContain('? withdrawLanguage(tx, businessId, capability, language, demotionDecision(evidence), evidence)');
-    expect(repos).toContain(': autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);');
+    expect(src('src/db/repos.ts')).toContain('return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence, language);');
+    expect(src('src/pipeline/capability.ts')).toContain('if (language) return withdrawLanguage(tx, businessId, capability, language, decision, evidence);');
   });
   it('the writer leaves the owner\'s policy alone, writes one open row, names the language, and still clears the rung', () => {
     const cap = code('src/pipeline/capability.ts');
-    const fn = cap.slice(cap.indexOf('export async function withdrawLanguage('), cap.indexOf('export async function liftWithdrawals('));
+    const fn = cap.slice(cap.indexOf('async function withdrawLanguage('), cap.indexOf('export async function liftWithdrawals('));
     expect(fn).not.toMatch(/update autonomy_policy/);
     expect(fn).toMatch(/on conflict \(business_id, capability, language\) where lifted_at is null do nothing/);
     expect(fn).toMatch(/'system_self_demoted', \$\{language\}\)/);
