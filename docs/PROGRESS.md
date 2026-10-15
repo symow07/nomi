@@ -32,6 +32,11 @@ The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPO
   after. `deploy_lag` keeps each head. It starts only once a deploy brings it in.
   **Nothing watches for a deploy stop today. The alarm arrives with the next deploy, and that deploy has to be
   started by hand.**
+- **Two documents left the repo (the owner, 2026-10-16):** `PRE-LAUNCH.md` and the isolation sweep report list
+  weaknesses with the exact condition that makes each one bite, some deliberately left unfixed; in a public repo that
+  is a published map. They are kept in the owner's private folder, outside the repo; code comments and applied
+  migrations still name them. **They are still in the public git history** until the repo is private or the history
+  is rewritten (the owner's call). Do not write such a list into the repo while it is public.
 - **Integration locally on a Postgres of its own (2026-10-16):** `tools/run-integration-isolated.mjs` — made for the run,
   migrated with the checkout's own migrations, seeded as CI does, removed after (~20 s). #364's first run failed two
   tests against the shared 55451 database another branch had taken to 0167. Proven on that exact mismatch: code at 0166
@@ -762,7 +767,7 @@ The earlier items (Nomi's legal name and address, the copyright agent, the trial
 - **#264, the refund terms (0134)**, merged as `494034a` and deployed 10:08 UTC; `/health` ok, production schema
   **134**, equal to `REQUIRED_SCHEMA_VERSION`. `/refunds` answers in all five languages, with no trial clause (none is set).
 - **Backup before the migrating deploys:** `nomi-backup-20261009T030333Z` (03:03 UTC, schema 131, drill passed).
-- **The list and each item's state:** `docs/PRE-LAUNCH.md`.
+- **The list and each item's state:** `PRE-LAUNCH.md` (kept outside the repo since 2026-10-16).
 
 **Done (the owner's decisions of 2026-10-09: all five send-path fixes, order R1, F2, R2, F1, then e-mail):**
 - **R1 (#260).** An e-mail is its From address's words only when the receiving server's own verdict confirms the
@@ -844,7 +849,7 @@ None was acted on. The Definite connector also failed to connect; nothing here u
   `/health` ok.
 - **#258, the cookie policy at `/cookies`** (item 5, in part), merged as `b817eb7` and deployed 06:11 UTC; `/health` ok,
   and the page answers 200.
-- **The list and what each item found:** `docs/PRE-LAUNCH.md`.
+- **The list and what each item found:** `PRE-LAUNCH.md` (kept outside the repo since 2026-10-16).
 
 **Done:**
 - **0 · The IDOR audit.** No route lets one business reach another's rows. Six smaller holes are closed (#255):
@@ -863,7 +868,7 @@ None was acted on. The Definite connector also failed to connect; nothing here u
 - **5 · Policy pages, in part (#258).** Privacy, terms and now cookies, each in all five languages. The refund policy waits.
 - **7 · Dark patterns and hidden fees:** nothing found.
 
-**Waiting on the owner** (each written up in `docs/PRE-LAUNCH.md`):
+**Waiting on the owner** (each written up in `PRE-LAUNCH.md` (kept outside the repo since 2026-10-16)):
 1. **Nomi's legal name and postal address.** The e-mail footers (item 3), the terms and the copyright agent
    (item 8) all need it.
 2. **A refund policy** (item 5): what is refunded, when, how.
@@ -921,7 +926,7 @@ jobs pass on the head.
 checkout. Every query failed, so it would have waited an hour and then refused to merge. It now runs in
 a live checkout.
 
-**Next: the hardening batch, `docs/PRE-LAUNCH.md`.** The owner's list, written down on 2026-10-08:
+**Next: the hardening batch, `PRE-LAUNCH.md` (kept outside the repo since 2026-10-16).** The owner's list, written down on 2026-10-08:
 - the IDOR audit first;
 - then the launch-blockers: age at sign-up, third-party browser requests, the unsubscribe link and postal address
   on every e-mail, and Stripe's renewal terms;

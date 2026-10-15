@@ -91,7 +91,7 @@ Every queue here is pg-boss 12's `standard` policy. On it, a key is enforced onl
 
 ## Waiting, and what makes each urgent
 
-The table is in `docs/REPORT-2026-10-15-ISOLATION-SWEEP.md` ("Waiting — and what makes each urgent"), for 1, 5, 6, 7, 8, 10 and 12. **10 has its hard marker:** "metered before the third paying workspace". It is a blocking line in `docs/LAUNCH-CHECKLIST.md` and a marker at `answerFollowUp` in the code.
+The table is in the sweep report (kept outside the repo since 2026-10-16) ("Waiting — and what makes each urgent"), for 1, 5, 6, 7, 8, 10 and 12. **10 has its hard marker:** "metered before the third paying workspace". It is a blocking line in `docs/LAUNCH-CHECKLIST.md` and a marker at `answerFollowUp` in the code.
 
 ## Found, not fixed
 

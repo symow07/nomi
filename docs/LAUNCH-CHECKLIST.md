@@ -59,7 +59,7 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
   record: one workspace's staff can spend without limit, uncounted, where the
   installation's spend breaker cannot see it. The owner's words: "metered
   before the third paying workspace." Not before. Not after. The isolation
-  sweep, item 10 (`docs/REPORT-2026-10-15-ISOLATION-SWEEP.md`).
+  sweep, item 10 (the sweep report (kept outside the repo since 2026-10-16)).
 
 ## Somebody hears when it breaks (CC-10)
 
