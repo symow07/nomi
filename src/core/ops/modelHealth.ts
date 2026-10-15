@@ -75,3 +75,14 @@ export function healthOfModel(row: ModelCheckRow | null, refusing: boolean, now:
 
 /** Can a reply be written? Answering or slow; anything else is a failed heartbeat. */
 export const modelServes = (v: ModelView): boolean => v === 'answering' || v === 'slow';
+
+/**
+ * 0166 — who writes replies now: the primary while it answers; the fallback while the primary does not, failing
+ * over is switched on and the fallback answers; nobody otherwise. The heartbeat fails only on `none`.
+ */
+export type Serving = 'primary' | 'fallback' | 'none';
+export function servingOf(primary: ModelView, fallback: ModelView | 'off', fallbackOn: boolean): Serving {
+  if (modelServes(primary)) return 'primary';
+  if (fallbackOn && fallback !== 'off' && modelServes(fallback)) return 'fallback';
+  return 'none';
+}

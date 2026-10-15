@@ -114,7 +114,12 @@ if (cat.products.length === 0 || unnamed.length > 0) {
 
 const { llmProviderFrom, llmClient, requestExtrasFor } = await import('../dist/llm/provider.js');
 const { anthropicAnalyzer, anthropicReplyWriter } = await import('../dist/llm/anthropic.js');
-const provider = llmProviderFrom(process.env, process.env['ANTHROPIC_API_KEY'] ?? '');
+// 0166 — `--fallback`: the same run against the fallback provider alone (LLM_FALLBACK_*), so its numbers sit beside the primary's.
+const { fallbackAsPrimary } = await import('../dist/llm/provider.js');
+const modelEnv = process.argv.includes('--fallback') ? fallbackAsPrimary(process.env) : process.env;
+if (!modelEnv) { console.error('--fallback: LLM_FALLBACK_BASE_URL, LLM_FALLBACK_API_KEY and LLM_FALLBACK_MODEL are not all set.'); process.exit(2); }
+if (process.argv.includes('--fallback')) console.log(`Against the FALLBACK: ${modelEnv['LLM_MODEL']}`);
+const provider = llmProviderFrom(modelEnv, process.env['ANTHROPIC_API_KEY'] ?? '');
 if (!provider.apiKey) { console.error('No model key in this environment. Run it inside: railway run --service nomi -- …'); process.exit(2); }
 const analyzer = anthropicAnalyzer(llmClient(provider), provider.model, requestExtrasFor(provider));
 const writer = anthropicReplyWriter(llmClient(provider), provider.model, requestExtrasFor(provider));

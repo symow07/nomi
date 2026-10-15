@@ -14,7 +14,9 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 
 ## Done, in your order
 
-### E-mail on orders, first (#356, migration 0161)
+### E-mail on orders, first (#356, migration 0161) — PARTIAL, blocked on the provider
+
+*(Corrected 2026-10-15, on the owner's word: not done. Until the analysis prompt changes, a WhatsApp buyer can still be asked for an address. That change waits for the model to answer, so it can be checked live before and after.)*
 
 - **The gate:** a missing e-mail blocks nothing. An address typed on your "Prepare the order" form that isn't an address still blocks it, as `email_invalid`.
 - **The turn:** it no longer asks the buyer for an e-mail. The "missing e-mail" sentence is gone in every language, and the reply prompt now says "Never ask for an email address: an order does not need one."

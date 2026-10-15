@@ -8,7 +8,10 @@ import {
   recordFragment, pendingFragments, markFragmentsProcessed, batchConfigFor,
 } from '../db/fragments.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
-import { llmClient, llmProviderFrom, requestExtrasFor } from '../llm/provider.js';
+import {
+  breaker, failoverClient, fallbackSwitchedOn, llmClient, llmFallbackFrom, llmProviderFrom, requestExtrasFor,
+  type ProviderObserver,
+} from '../llm/provider.js';
 import { modelHealth } from '../pipeline/modelHealth.js';
 import type { Analyzer, ReplyWriter, VisionDescriber } from '../llm/ports.js';
 import { computeTurn, commitTurn } from '../pipeline/turn.js';
@@ -91,6 +94,8 @@ export async function startWorker(
      * model port and not this is never checked — and never reaches a real provider.
      */
     ask?: () => Promise<{ readonly tokens: number }>;
+    /** 0166 — the same for the fallback. */
+    askFallback?: () => Promise<{ readonly tokens: number }>;
   } = {},
   /**
    * The pre-pilot walkthrough only: behave as if the AI disclosure had passed
@@ -125,19 +130,46 @@ export async function startWorker(
    * timed, on a client of its own (so it is not counted twice), and every real call this client makes.
    */
   const checkClient = llmClient(llm, { observe: (a) => watchOf?.observe(a) });
+  /**
+   * 0166 — the fallback (src/llm/provider.ts `llmFallbackFrom`): checked whenever it is configured, so it is known to
+   * work before it is needed; answering only while `LLM_FALLBACK=on`. One breaker for the process.
+   */
+  const fallbackLlm = llmFallbackFrom(process.env);
+  const fallbackOn = fallbackSwitchedOn(process.env, fallbackLlm);
+  const failover = breaker();
+  const smallest = (client: ReturnType<typeof llmClient>, p: NonNullable<typeof fallbackLlm>) => async () => {
+    const res = await client.messages.create({
+      model: p.model, ...requestExtrasFor(p), max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the word OK.' }],
+    }, { timeout: 20_000, maxRetries: 0 });
+    return { tokens: res.usage.input_tokens + res.usage.output_tokens };
+  };
   const health = modelHealth({
     db,
-    providers: [{
-      role: 'primary', provider: aiProcessor(llm.baseURL).name, model: llm.model,
-      ask: models.ask ?? (scripted ? null : async () => {
-        const res = await checkClient.messages.create({
-          model: llm.model, ...extras, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the word OK.' }],
-        }, { timeout: 20_000, maxRetries: 0 });
-        return { tokens: res.usage.input_tokens + res.usage.output_tokens };
-      }),
-    }],
+    providers: [
+      { role: 'primary', provider: aiProcessor(llm.baseURL).name, model: llm.model,
+        ask: models.ask ?? (scripted ? null : smallest(checkClient, llm)) },
+      ...(fallbackLlm ? [{ role: 'fallback' as const, provider: aiProcessor(fallbackLlm.baseURL).name, model: fallbackLlm.model,
+        ask: models.askFallback ?? (scripted ? null : smallest(llmClient(fallbackLlm), fallbackLlm)) }] : []),
+    ],
+    // The check saw the primary down (or back): the breaker follows, so the next turn does not wait on it to find out.
+    onState: (role, state) => {
+      if (role !== 'primary' || !fallbackOn) return;
+      if (state === 'not_answering') failover.open(); else failover.close();
+    },
   });
-  const anthropic = llmClient(llm, { observe: (a) => watchOf?.observe(a), onCall: health.callsOf('primary') });
+  /** Every model client this process builds: the primary, failing over to the fallback while that is switched on. */
+  const modelClient = (observe: ProviderObserver | undefined) => failoverClient({
+    primary: { provider: llm, name: aiProcessor(llm.baseURL).name,
+      client: llmClient(llm, { ...(observe ? { observe } : {}), onCall: health.callsOf('primary') }) },
+    fallback: fallbackLlm ? { provider: fallbackLlm, name: aiProcessor(fallbackLlm.baseURL).name,
+      client: llmClient(fallbackLlm, { onCall: health.callsOf('fallback') }) } : null,
+    on: fallbackOn, breaker: failover,
+  });
+  if (fallbackLlm) {
+    console.log(`Model fallback: ${aiProcessor(fallbackLlm.baseURL).name} (${fallbackLlm.model}) is configured and checked; `
+      + (fallbackOn ? 'failing over to it is ON.' : 'failing over to it is OFF (LLM_FALLBACK=on turns it on).'));
+  }
+  const anthropic = modelClient((a) => watchOf?.observe(a));
 
   const { transcriber, audio, image: mediaFetcher, postCaption } = media;
   /**
@@ -790,7 +822,14 @@ export async function startWorker(
     });
   }
 
-  return { db, boss, errors, watch, health, primaryModel: { provider: aiProcessor(llm.baseURL).name, model: llm.model } };
+  return {
+    db, boss, errors, watch, health, modelClient,
+    primaryModel: {
+      provider: aiProcessor(llm.baseURL).name, model: llm.model,
+      fallback: fallbackLlm ? { provider: aiProcessor(fallbackLlm.baseURL).name, model: fallbackLlm.model } : null,
+      fallbackOn,
+    },
+  };
 }
 
 // Exact-file check: a suffix match ('main.js') also fires when this module is

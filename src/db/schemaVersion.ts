@@ -409,7 +409,9 @@ import type { Db } from './client.js';
 //       address another workspace holds now meets as `address_taken`.
 // 165 = the model's health from real calls (0165): `model_checks`, which every model call and the five-minute check
 //       write and /health reads. Against a 164 database every model call's record fails (logged; the call is unharmed).
-export const REQUIRED_SCHEMA_VERSION = 165;
+// 166 = every five-minute model check kept a month (0166): `model_check_log`, which the check appends to and
+//       tools/model-uptime.mjs reads. Against a 165 database the check's history is not kept (logged).
+export const REQUIRED_SCHEMA_VERSION = 166;
 
 export type SchemaState = {
   readonly required: number;

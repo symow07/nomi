@@ -125,8 +125,9 @@ describe('N6a · the model name reaches the request and the record', () => {
     expect(worker).toMatch(/anthropicVision\(anthropic, llm\.model, extras\)/);
     // 0128 — each client is given the provider watch's observer: still the ONE provider.
     // 0165 — and the model's health listener: each call is timed. Still the ONE provider.
-    expect(main).toMatch(/anthropicPageTranscriber\(llmClient\(llm, \{ observe: watch\.observe, onCall: health\.callsOf\('primary'\) \}\), llm\.model, requestExtrasFor\(llm\)\)/);
-    expect(worker).toMatch(/const anthropic = llmClient\(llm, \{ observe: /);
+    // 0166 — every client from the worker's one factory: the primary, failing over to the fallback while it is on.
+    expect(main).toMatch(/anthropicPageTranscriber\(modelClient\(watch\.observe\), llm\.model, requestExtrasFor\(llm\)\)/);
+    expect(worker).toMatch(/const anthropic = modelClient\(\(a\) => watchOf\?\.observe\(a\)\);/);
   });
 });
 

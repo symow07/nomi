@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import type { Db } from './client.js';
-import { healthOfModel, type ModelCheckRow, type ModelRole, type ModelState, type ModelView } from '../core/ops/modelHealth.js';
+import { healthOfModel, servingOf, type ModelCheckRow, type ModelRole, type ModelState, type ModelView, type Serving } from '../core/ops/modelHealth.js';
 import { providerRefusing } from './providerState.js';
 
 /**
@@ -57,20 +57,43 @@ export type ModelHealthView = {
   readonly ms: number | null;
   readonly checkedAt: Date | null;
   readonly reason: string | null;
+  /** 0166 — the fallback's own word (`off`: none configured), whether failing over is switched on, and who writes now. */
+  readonly fallback: ModelView | 'off';
+  readonly fallbackOn: boolean;
+  readonly serving: Serving;
 };
 
-export async function readModelView(
-  db: Db, configured: { readonly provider: string; readonly model: string }, now: Date = new Date(),
-): Promise<ModelHealthView> {
+/** The provider and model this deployment is configured for, and its fallback (0166). */
+export type ConfiguredModels = {
+  readonly provider: string;
+  readonly model: string;
+  readonly fallback?: { readonly provider: string; readonly model: string } | null;
+  readonly fallbackOn?: boolean;
+};
+
+export async function readModelView(db: Db, configured: ConfiguredModels, now: Date = new Date()): Promise<ModelHealthView> {
   const [refusing, rows] = await Promise.all([providerRefusing(db), readModelChecks(db)]);
   // A row about another provider or model (written before LLM_MODEL changed, or by another installation on the same
   // database) says nothing about this one.
-  const found = rows.get('primary') ?? null;
-  const row = found && found.provider === configured.provider && found.model === configured.model ? found : null;
-  return {
-    model: healthOfModel(row, refusing, now),
-    ms: row?.ms ?? null,
-    checkedAt: row?.checkedAt ?? null,
-    reason: row && row.state === 'not_answering' ? row.reason : null,
+  const mine = (role: ModelRole, c: { readonly provider: string; readonly model: string }) => {
+    const found = rows.get(role) ?? null;
+    return found && found.provider === c.provider && found.model === c.model ? found : null;
   };
+  const row = mine('primary', configured);
+  const model = healthOfModel(row, refusing, now);
+  // A billing refusal is the primary's (0128): the fallback is a different account.
+  const fallback = configured.fallback ? healthOfModel(mine('fallback', configured.fallback), false, now) : 'off';
+  const fallbackOn = configured.fallbackOn === true && configured.fallback != null;
+  return {
+    model, ms: row?.ms ?? null, checkedAt: row?.checkedAt ?? null,
+    reason: row && row.state === 'not_answering' ? row.reason : null,
+    fallback, fallbackOn, serving: servingOf(model, fallback, fallbackOn),
+  };
+}
+
+/** 0166 — one check, kept for the window `tools/model-uptime.mjs` reads; older than thirty days goes. */
+export async function logModelCheck(db: Db, w: ModelCheckWrite): Promise<void> {
+  await sql`insert into model_check_log (role, provider, model, state, ms, reason, at)
+            values (${w.role}, ${w.provider}, ${w.model}, ${w.state}, ${w.ms}, ${w.reason}, ${w.at})`.execute(db);
+  await sql`delete from model_check_log where at < ${w.at}::timestamptz - interval '30 days'`.execute(db);
 }

@@ -96,7 +96,8 @@ describe('0165 · wired where it is read', () => {
     const main = src('src/main.ts');
     expect(main).toContain('try { view = await readModelView(db, primaryModel); } catch { /* unknown */ }');
     expect(main).not.toMatch(/model = \(await providerRefusing\(db\)\) \? 'refusing' : 'answering'/);
-    expect(src('src/worker/heartbeat.ts')).toContain(': o.model ? { probeModel: async () => modelServes((await readModelView(o.db, o.model!)).model) } : {}),');
+    // 0166 — the heartbeat fails when nobody writes replies (`serving`), the fallback counted when it is on.
+    expect(src('src/worker/heartbeat.ts')).toContain(": o.model ? { probeModel: async () => (await readModelView(o.db, o.model!)).serving !== 'none' } : {}),");
     expect(src('src/main.ts')).toContain('db: prod.db, model: prod.primaryModel });');
   });
   it('the check runs every five minutes and once at boot; every client the app builds is timed', () => {
@@ -104,6 +105,7 @@ describe('0165 · wired where it is read', () => {
     expect(main).toContain("await boss.work(QUEUES.provider, async () => { await health.check(); await watch.sweep(); });");
     expect(main).toContain('void health.check();');
     expect(main).not.toMatch(/llmClient\(llm, \{ observe: watch\.observe \}\)/);
-    expect(src('src/worker/main.ts')).toContain("const anthropic = llmClient(llm, { observe: (a) => watchOf?.observe(a), onCall: health.callsOf('primary') });");
+    // 0166 — through the worker's factory, which times each provider's calls.
+    expect(src('src/worker/main.ts')).toContain("client: llmClient(llm, { ...(observe ? { observe } : {}), onCall: health.callsOf('primary') }) },");
   });
 });

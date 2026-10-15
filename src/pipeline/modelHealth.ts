@@ -1,7 +1,7 @@
 import type { Db } from '../db/client.js';
 import type { CallObserver } from '../llm/provider.js';
 import { classifyProviderFailure } from '../llm/providerFailure.js';
-import { recordModelCheck } from '../db/modelChecks.js';
+import { logModelCheck, recordModelCheck } from '../db/modelChecks.js';
 import {
   CALL_SLOW_MS, PROBE_SLOW_MS, reasonOf, stateOf,
   type CallOutcome, type ModelRole, type ModelState,
@@ -39,6 +39,8 @@ export type CheckedProvider = {
 export type ModelHealthDeps = {
   readonly db: Db;
   readonly providers: readonly CheckedProvider[];
+  /** 0166 — told each state as it is learnt (the failover's breaker listens to the primary's). */
+  readonly onState?: (role: ModelRole, state: ModelState) => void;
   readonly now?: () => Date;
   readonly log?: (line: string) => void;
 };
@@ -70,6 +72,7 @@ export function modelHealth(deps: ModelHealthDeps): ModelHealth {
       log(`[model] ${p.provider} (${p.role}): ${state}${reason ? ` (${reason})` : ''}`);
     }
     last.set(p.role, { state, at: now().getTime() });
+    try { deps.onState?.(p.role, state); } catch { /* a listener never breaks the record */ }
   };
 
   const write = (p: CheckedProvider, state: ModelState, o: CallOutcome, source: 'probe' | 'call', tokens = 0): Promise<void> =>
@@ -108,6 +111,12 @@ export function modelHealth(deps: ModelHealthDeps): ModelHealth {
       const state = stateOf(outcome, PROBE_SLOW_MS) ?? 'not_answering';
       said(p, state, reasonOf(outcome));
       await write(p, state, outcome, 'probe', tokens);
+      // 0166 — every check is kept a month: whether a provider is reliable is a question about all of them.
+      await logModelCheck(deps.db, {
+        role: p.role, provider: p.provider, model: p.model, state,
+        ms: outcome.ok || outcome.failure !== 'timeout' ? Math.round(outcome.ms) : null,
+        reason: reasonOf(outcome), source: 'probe', at: now(),
+      }).catch((e: unknown) => log(`[model] could not keep the check: ${(e as Error).message}`));
     }
   };
 
