@@ -32,6 +32,13 @@ The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPO
   after. `deploy_lag` keeps each head. It starts only once a deploy brings it in.
   **Nothing watches for a deploy stop today. The alarm arrives with the next deploy, and that deploy has to be
   started by hand.**
+- **The outside deploy watcher (2026-10-16):** `.github/workflows/deploy-drift.yml` every 30 minutes reads production's
+  commit through a Railway project token and walks main back to it; pings Healthchecks unless a merge production lacks
+  is over an hour old (then `/fail`, naming the commits). Every failure of the job pings nothing, so it is LOUD when
+  Actions stop. Waits on the owner's setup (`docs/DEPLOY-DRIFT.md`). **#363 has the hole this one closes** (its clock
+  is main's newest commit): not fixed, the owner's to order.
+- **Private would cost money, nothing else (measured 2026-10-16):** ~13,300 CI minutes in 30 days against 2,000 free;
+  with no payment method on the account, Actions stop. About $68 a month on Free at this pace.
 - **Two documents left the repo (the owner, 2026-10-16):** `PRE-LAUNCH.md` and the isolation sweep report list
   weaknesses with the exact condition that makes each one bite, some deliberately left unfixed; in a public repo that
   is a published map. They are kept in the owner's private folder, outside the repo; code comments and applied
