@@ -2,13 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type Anthropic from '@anthropic-ai/sdk';
 import {
-  breaker, failoverClient, fallbackAsPrimary, fallbackSwitchedOn, llmFallbackFrom, type LlmProvider,
+  breaker, failoverClient, fallbackSwitchedOn, llmFallbackFrom, type LlmProvider,
 } from '../../src/llm/provider.js';
 import { servingOf } from '../../src/core/ops/modelHealth.js';
 import { renderPrivacy } from '../../src/api/web/legal.js';
 import { HOSTING } from '../../src/core/legal/processors.js';
 // @ts-expect-error — the operator tools, plain JS on purpose.
 import { uptime } from '../../tools/model-uptime.mjs';
+// @ts-expect-error — the operator tools, plain JS on purpose.
+import { modelEnvFor } from '../../tools/lib/model-env.mjs';
 
 /**
  * 0166 — a FALLBACK provider behind a flag (the owner, 2026-10-15: "the system fails over when the primary times out
@@ -46,10 +48,11 @@ describe('0166 · the settings', () => {
   it('a tool\'s --fallback puts the fallback in the primary\'s place, and refuses when none is set', () => {
     const env = { LLM_BASE_URL: 'https://api.deepseek.com/anthropic', LLM_API_KEY: KEY, LLM_MODEL: 'deepseek-flash',
       LLM_FALLBACK_BASE_URL: 'https://api.anthropic.com', LLM_FALLBACK_API_KEY: KEY, LLM_FALLBACK_MODEL: 'claude-haiku-5-5' };
-    expect(fallbackAsPrimary(env)).toMatchObject({ LLM_BASE_URL: 'https://api.anthropic.com', LLM_MODEL: 'claude-haiku-5-5' });
-    expect(fallbackAsPrimary({ LLM_MODEL: 'deepseek-flash' })).toBeNull();
+    expect(modelEnvFor(['--fallback'], env)).toMatchObject({ LLM_BASE_URL: 'https://api.anthropic.com', LLM_MODEL: 'claude-haiku-5-5' });
+    expect(modelEnvFor([], env)).toBe(env);
+    expect(modelEnvFor(['--fallback'], { LLM_MODEL: 'deepseek-flash' })).toBeNull();
     for (const f of ['tools/capability-sweep.mjs', 'tools/check-person-model.mjs', 'tools/check-language-release.mjs']) {
-      expect(src(f), f).toContain("const modelEnv = process.argv.includes('--fallback') ? fallbackAsPrimary(process.env) : process.env;");
+      expect(src(f), f).toContain('const modelEnv = modelEnvFor(process.argv, process.env);');
     }
   });
 });

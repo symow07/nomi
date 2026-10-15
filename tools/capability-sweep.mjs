@@ -74,8 +74,8 @@ const JSON_OUT = arg('--json', null);
 const CATALOGUE = !process.argv.includes('--no-catalogue');
 
 // 0166 — `--fallback`: the same run against the fallback provider alone (LLM_FALLBACK_*), so its numbers sit beside the primary's.
-const { fallbackAsPrimary } = await import('../dist/llm/provider.js');
-const modelEnv = process.argv.includes('--fallback') ? fallbackAsPrimary(process.env) : process.env;
+const { modelEnvFor } = await import('./lib/model-env.mjs');
+const modelEnv = modelEnvFor(process.argv, process.env);
 if (!modelEnv) { console.error('--fallback: LLM_FALLBACK_BASE_URL, LLM_FALLBACK_API_KEY and LLM_FALLBACK_MODEL are not all set.'); process.exit(2); }
 if (process.argv.includes('--fallback')) console.log(`Against the FALLBACK: ${modelEnv['LLM_MODEL']}`);
 const provider = llmProviderFrom(modelEnv, process.env['ANTHROPIC_API_KEY'] ?? '');

@@ -59,7 +59,8 @@ export function llmProviderFrom(env: Record<string, string | undefined>, anthrop
  * `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_MODEL` — all three or none, checked like the
  * primary's; a half-set trio is warned about and unused. Any provider that speaks Anthropic's message format at its
  * own address (Anthropic itself: `https://api.anthropic.com`). Configured, it is CHECKED every five minutes (so it is
- * known to work before it is needed) and measured by the tools' `--fallback`; it ANSWERS only while `LLM_FALLBACK=on`.
+ * known to work before it is needed) and measured by the tools' `--fallback` (tools/lib/model-env.mjs); it ANSWERS
+ * only while `LLM_FALLBACK=on`.
  */
 export function llmFallbackFrom(env: Record<string, string | undefined>): LlmProvider | null {
   const baseURL = env['LLM_FALLBACK_BASE_URL']?.trim() ?? '';
@@ -80,17 +81,6 @@ export function llmFallbackFrom(env: Record<string, string | undefined>): LlmPro
 /** Does a call fail over? Only while `LLM_FALLBACK=on` and a fallback is configured. */
 export const fallbackSwitchedOn = (env: Record<string, string | undefined>, fallback: LlmProvider | null): boolean =>
   fallback !== null && (env['LLM_FALLBACK'] ?? '').trim().toLowerCase() === 'on';
-
-/**
- * The fallback's settings in the primary's place — for a tool that measures the fallback ALONE
- * (`tools/capability-sweep.mjs --fallback`, `tools/check-person-model.mjs --fallback`). Null: none configured.
- */
-export function fallbackAsPrimary(env: Record<string, string | undefined>): Record<string, string | undefined> | null {
-  if (!llmFallbackFrom(env)) return null;
-  return {
-    ...env, LLM_BASE_URL: env['LLM_FALLBACK_BASE_URL'], LLM_API_KEY: env['LLM_FALLBACK_API_KEY'], LLM_MODEL: env['LLM_FALLBACK_MODEL'],
-  };
-}
 
 /**
  * What every request to this provider carries besides the message. Anthropic's
