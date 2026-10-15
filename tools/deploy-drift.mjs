@@ -115,8 +115,15 @@ async function main() {
   const token = process.env.RAILWAY_DEPLOY_WATCH_TOKEN;
   const pingUrl = process.env.DEPLOY_DRIFT_PING_URL;
   const repo = process.env.GITHUB_REPOSITORY;
+  // Not set up yet (neither secret): say so and succeed — a red run every 30 minutes would e-mail the owner 48 times a
+  // day about a watcher nobody has switched on. Once set up, a secret that goes missing pings nothing, and the
+  // Healthchecks check alarms on the silence.
+  if (!token && !pingUrl) {
+    console.log('Not set up: RAILWAY_DEPLOY_WATCH_TOKEN and DEPLOY_DRIFT_PING_URL are unset (docs/DEPLOY-DRIFT.md). Nothing pinged.');
+    return;
+  }
   if (!token || !repo || (!pingUrl && !dry)) {
-    console.error('RAILWAY_DEPLOY_WATCH_TOKEN, GITHUB_REPOSITORY and DEPLOY_DRIFT_PING_URL are required. Nothing pinged.');
+    console.error('Half set up: RAILWAY_DEPLOY_WATCH_TOKEN, GITHUB_REPOSITORY and DEPLOY_DRIFT_PING_URL are all required. Nothing pinged.');
     process.exit(2);
   }
   const running = await runningCommit(token, process.env.RAILWAY_SERVICE_NAME || 'nomi');
@@ -128,7 +135,9 @@ async function main() {
   console.log(`${v.state}: ${line}`);
   if (dry) { console.log('dry run: nothing pinged'); return; }
   if (v.state === 'current' || v.state === 'deploying') await ping(pingUrl, '', line);
-  else if (v.state === 'behind') { await ping(pingUrl, '/fail', line); process.exitCode = 1; }
+  // Behind is told through Healthchecks (/fail), and the run succeeds: GitHub e-mails on every failed scheduled run,
+  // and a stop like 2026-10-14's would send one every 30 minutes. A red run means the watcher itself broke.
+  else if (v.state === 'behind') await ping(pingUrl, '/fail', line);
   else { console.error('nothing to compare: not pinged'); process.exitCode = 1; }
 }
 

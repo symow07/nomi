@@ -29,6 +29,7 @@ Measured from the newest merge instead, merges less than an hour apart would pos
   - a bug in the script.
 
   In each case there's no ping, so Healthchecks alarms once the period and grace pass.
+- **A red run in Actions means the watcher itself broke** (and GitHub e-mails you). "Behind" is told only through Healthchecks, and the run stays green; otherwise a stop would e-mail you every 30 minutes. Before the two secrets exist, every run succeeds and says "Not set up".
 - **Silent only if Healthchecks itself can't alert you.** A quiet check means Healthchecks has heard a ping in time, and nothing more.
 - **The inside watcher (#363) stays.** Two watchers, failing in different directions.
 

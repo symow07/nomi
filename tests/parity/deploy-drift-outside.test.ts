@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 // @ts-expect-error — the operator tools, plain JS on purpose (tools/ is not type-checked).
 import { driftVerdict, runningCommit, LAG_LIMIT_MIN } from '../../tools/deploy-drift.mjs';
@@ -103,5 +104,17 @@ describe('the workflow', () => {
 
   it('a run by hand is a dry run unless asked otherwise', () => {
     expect(yml).toMatch(/dry_run:[\s\S]*?default: true/);
+  });
+});
+
+describe('before the owner sets it up', () => {
+  it('with neither secret, a run succeeds and says it is not set up — no red run, no e-mail every 30 minutes', () => {
+    const env = { ...process.env, GITHUB_REPOSITORY: 'symow07/nomi' };
+    delete env['RAILWAY_DEPLOY_WATCH_TOKEN'];
+    delete env['DEPLOY_DRIFT_PING_URL'];
+    const tool = fileURLToPath(new URL('../../tools/deploy-drift.mjs', import.meta.url));
+    const r = spawnSync(process.execPath, [tool], { env, encoding: 'utf8' });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('Not set up');
   });
 });
