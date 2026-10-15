@@ -163,7 +163,7 @@ class HarnessTenant implements Tenant {
     substitutions: async () => [],
   };
   orders: OrderRepo = {
-    create: async () => ({ orderId: `o-${++this.orderSeq}`, orderReference: `YW-${this.orderSeq}` }) as never,
+    create: async () => ({ orderId: `o-${++this.orderSeq}`, orderReference: `2026-${String(this.orderSeq).padStart(4, '0')}` }) as never,
     /** M46 — no order in the harness unless a test sets one. */
     latestForClient: async () => this.latestOrder,
   };
