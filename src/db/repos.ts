@@ -699,7 +699,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     // the evidence load is the SAME one promotion uses. Three call sites, one
     // definition of what the evidence is: the alternative was a second copy of
     // that query, which is the bug this repo pays for most often.
-    async selfDemote({ capability, violations }) {
+    async selfDemote({ capability, violations, language }) {
       const { loadCapabilityEvidence, autoDemote } = await import('../pipeline/capability.js');
       const { demotionDecision } = await import('../core/trust/evidence.js');
       const base = await loadCapabilityEvidence(tx, capability);
@@ -707,8 +707,14 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       // appends the event in the same transaction — so it is added here rather
       // than read back, which also keeps the decision on THIS turn's facts.
       const evidence = { ...base, policyViolations: base.policyViolations + violations };
-      return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);
+      // 0163 — narrowed to the language it happened in; everywhere only when nobody could tell the language.
+      return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence, language);
     },
+    // 0163 — withdrawn in this language until the owner chooses again.
+    withdrawnIn: async (capability, language) => (await sql<{ v: boolean }>`
+      select exists (select 1 from language_withdrawals
+                      where business_id = ${businessId} and capability = ${capability}
+                        and language = ${language} and lifted_at is null) as v`.execute(tx)).rows[0]?.v === true,
     released: (language) => autonomyReleasedFor(language),
     // G4 / R2 — the workspace's own rung, a practice copy's from its workspace (0106).
     earnedRung: () => earnedRung(tx),

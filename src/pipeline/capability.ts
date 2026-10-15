@@ -112,6 +112,8 @@ async function changeMode(
     await sql`
       insert into capability_events (business_id, capability, action, from_mode, to_mode, reasons, actor)
       values (${bid.value}, ${capability}, ${action}, ${fromMode}, ${toMode}, array[${reason}], ${actor})`.execute(tx);
+    // 0163 — the owner granting it is the owner deciding: a withdrawal in one language goes with the grant.
+    if (toMode === 'auto') await liftWithdrawals(tx, bid.value, [capability], actor);
   });
   return { ok: true, code: toMode === 'auto' ? 'promoted' : 'revoked' };
 }
@@ -146,6 +148,10 @@ export async function chooseAutonomyLevel(
                 array[${`owner_chose_${level}`}], ${actor})`.execute(tx);
       n++;
     }
+    // 0163 — choosing a level, even the one already chosen, is the owner deciding again: a capability the
+    // level lets go alone goes alone again in the languages it was withdrawn from.
+    await liftWithdrawals(tx, bid.value,
+      Object.entries(want).filter(([c, m]) => m === 'auto' && !NON_PROMOTABLE.includes(c)).map(([c]) => c), actor);
     // R5 (0109) — the level itself, so the page can name it beside what is in
     // force when the system's own demotions have moved things since.
     await sql`update businesses set autonomy_level_chosen = ${level}, autonomy_level_chosen_at = now()
@@ -184,7 +190,10 @@ export async function autoDemote(
   capability: string,
   decision: DemotionDecision,
   evidence: CapabilityEvidence,
+  /** 0163 — the language the failure happened in: the step back is narrowed to it (`withdrawLanguage`). */
+  language: string | null = null,
 ): Promise<{ demoted: boolean; action: DemotionAction }> {
+  if (language) return withdrawLanguage(tx, businessId, capability, language, decision, evidence);
   if (decision.action === 'none') return { demoted: false, action: 'none' };
 
   // Only a capability currently in auto can be demoted. A draft capability is
@@ -207,4 +216,57 @@ export async function autoDemote(
   // fresh evidence, on a workspace that signed itself up.
   await clearRungFor(tx, businessId, capability);
   return { demoted: true, action: decision.action };
+}
+
+/**
+ * 0163 — the same step back, NARROWED TO ONE LANGUAGE (the owner, 2026-10-15:
+ * "Narrow it to the language it happened in"). A reply kept in Arabic that
+ * failed its guards withdraws the capability for Arabic only: `autonomy_policy`
+ * stays as the owner set it, and the send decision reads the withdrawal
+ * (`withdrawnIn`). Monotone like `autoDemote`: it only ever takes authority
+ * away, and only from a capability the owner put in auto.
+ *
+ * A second failure in a language already withdrawn writes nothing (one open
+ * row per capability and language). The rung is cleared as before — the
+ * owner: "leave the earned-rung part alone for now".
+ */
+async function withdrawLanguage(
+  tx: Tx,
+  businessId: string,
+  capability: string,
+  language: string,
+  decision: DemotionDecision,
+  evidence: CapabilityEvidence,
+): Promise<{ demoted: boolean; action: DemotionAction }> {
+  if (decision.action === 'none') return { demoted: false, action: 'none' };
+  const cur = (await sql<{ mode: string }>`
+    select mode from autonomy_policy
+     where business_id = ${businessId}::uuid and capability = ${capability}`.execute(tx)).rows[0];
+  if (cur?.mode !== 'auto') return { demoted: false, action: 'none' };
+
+  const opened = (await sql<{ id: string }>`
+    insert into language_withdrawals (business_id, capability, language, reasons)
+    values (${businessId}::uuid, ${capability}, ${language},
+            ${[...decision.reasons]}::text[])
+    on conflict (business_id, capability, language) where lifted_at is null do nothing
+    returning id::text as id`.execute(tx)).rows[0];
+  if (!opened) return { demoted: false, action: 'none' };
+
+  await sql`
+    insert into capability_events (business_id, capability, action, from_mode, to_mode, reasons, evidence, actor, language)
+    values (${businessId}::uuid, ${capability}, ${decision.action}, 'auto', 'draft',
+            ${[...decision.reasons]}::text[],
+            ${JSON.stringify(evidence)}::jsonb, 'system_self_demoted', ${language})`.execute(tx);
+  await clearRungFor(tx, businessId, capability);
+  return { demoted: true, action: decision.action };
+}
+
+/** 0163 — the owner chose again: each open withdrawal of these capabilities is lifted, by them. */
+export async function liftWithdrawals(tx: Tx, businessId: string, capabilities: readonly string[], actor: string): Promise<number> {
+  if (capabilities.length === 0) return 0;
+  const r = await sql`
+    update language_withdrawals set lifted_at = now(), lifted_by = ${actor}
+     where business_id = ${businessId}::uuid and lifted_at is null
+       and capability = any(${[...capabilities]}::text[])`.execute(tx);
+  return Number(r.numAffectedRows ?? 0);
 }

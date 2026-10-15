@@ -10,7 +10,7 @@ import { AUTONOMY_LEVELS, levelOf, isAutonomyLevel, type AutonomyLevel } from '.
 import { SELF_DEMOTION_REASONS } from '../../pipeline/notify.js';
 import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { capabilityName, claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, claimName, languageDisplay, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName } from './say.js';
 import { languageName } from './inbox.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
@@ -47,6 +47,8 @@ export type GrowthEvent = {
   readonly at: Date;
   /** M34.9 — the DemotionReason code, for a self-demotion only. */
   readonly why?: string | null;
+  /** 0163 — the language a self-demotion was narrowed to; none = every language. */
+  readonly language?: string | null;
 };
 
 export type EmployeeProfile = {
@@ -100,7 +102,11 @@ export type EmployeeProfile = {
    */
   readonly chosen?: { readonly level: AutonomyLevel; readonly at: Date } | null;
   /** R5 — each capability the system stepped back since that choice (or in the last 30 days): when and why. Newest per capability. */
-  readonly stepped?: readonly { readonly capability: string; readonly at: Date; readonly reasons: readonly string[] }[];
+  readonly stepped?: readonly {
+    readonly capability: string; readonly at: Date; readonly reasons: readonly string[];
+    /** 0163 — narrowed to this language, and whether that withdrawal still stands (the owner has not chosen again). */
+    readonly language?: string | null; readonly open?: boolean;
+  }[];
   /**
    * THE WARMTH RUN, phase 7 — what the menu's rows say before they are
    * opened: the products on sale (My business's own count) and the words the
@@ -165,26 +171,26 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
     const needConfirm = capabilities.filter((c) => c.mode === 'draft' && c.capability !== 'confirm_order').map((c) => c.capability);
 
     // Growth timeline — neutral event kinds; the renderer localizes. Most recent 8.
-    const growth = (await sql<{ kind: string; capability: string | null; at: Date; why: string | null }>`
+    const growth = (await sql<{ kind: string; capability: string | null; at: Date; why: string | null; language: string | null }>`
       -- M34.9 — a demotion SHE made reads differently from one the owner made.
       -- Collapsing both into 'revoke' would let the owner think he had pulled
       -- a capability back when in fact she stepped back on her own.
       (select case when action = 'promote' then 'promote'
                    when actor = 'system_self_demoted' then 'self_demote'
                    else 'revoke' end as kind,
-              capability, at, reasons[1] as why
+              capability, at, reasons[1] as why, language
          from capability_events where business_id = ${bid.value})
       union all
       (select case when verdict = 'correct' then 'spotcheck_pass'
                    when verdict = 'needs_improvement' then 'spotcheck_improve'
-                   else 'spotcheck_issue' end, null::text, answered_at, null::text
+                   else 'spotcheck_issue' end, null::text, answered_at, null::text, null::text
          from spot_checks where business_id = ${bid.value} and answered_at is not null)
       union all
-      (select 'learned_edit', capability, decided_at, null::text
+      (select 'learned_edit', capability, decided_at, null::text, null::text
          from drafts where business_id = ${bid.value} and status = 'edited' and decided_at is not null)
       order by at desc limit 8
     `.execute(tx)).rows.map((r): GrowthEvent => ({
-      kind: r.kind as GrowthKind, capability: r.capability, at: r.at, why: r.why,
+      kind: r.kind as GrowthKind, capability: r.capability, at: r.at, why: r.why, language: r.language,
     }));
 
     const passed = (await sql<{ n: number }>`select count(*)::int as n from spot_checks where verdict='correct'`.execute(tx)).rows[0]!.n;
@@ -195,11 +201,19 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
     const chose = (await sql<{ level: string | null; at: Date | null }>`
       select autonomy_level_chosen as level, autonomy_level_chosen_at as at from businesses where id = ${bid.value}`.execute(tx)).rows[0];
     const chosen = chose?.level && chose.at && isAutonomyLevel(chose.level) ? { level: chose.level, at: chose.at } : null;
-    const stepped = (await sql<{ capability: string; at: Date; reasons: string[] }>`
-      select distinct on (capability) capability, at, reasons from capability_events
-       where business_id = ${bid.value} and actor = 'system_self_demoted'
-         and at >= coalesce(${chosen?.at ?? null}::timestamptz, now() - interval '30 days')
-       order by capability, at desc`.execute(tx)).rows;
+    // 0163 — a step back narrowed to one language is listed while it stands, however long ago; one in every language
+    // as before, since the level was chosen (or in the last 30 days).
+    const stepped = (await sql<{ capability: string; at: Date; reasons: string[]; language: string | null; open: boolean }>`
+      select distinct on (e.capability, coalesce(e.language, '')) e.capability, e.at, e.reasons, e.language,
+             (e.language is not null and exists (select 1 from language_withdrawals w
+               where w.business_id = e.business_id and w.capability = e.capability
+                 and w.language = e.language and w.lifted_at is null)) as open
+        from capability_events e
+       where e.business_id = ${bid.value} and e.actor = 'system_self_demoted'
+         and (e.language is not null
+              or e.at >= coalesce(${chosen?.at ?? null}::timestamptz, now() - interval '30 days'))
+       order by e.capability, coalesce(e.language, ''), e.at desc`.execute(tx)).rows
+      .filter((r) => r.language === null || r.open);
 
     // Phase 7 — the rows' values: counted where My business and the forbidden
     // words page count them, so the two doors never disagree.
@@ -221,7 +235,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
       hireDate: onboard?.signup_at ?? null,
       knows,
       chosen,
-      stepped: stepped.map((r) => ({ capability: r.capability, at: r.at, reasons: r.reasons ?? [] })),
+      stepped: stepped.map((r) => ({ capability: r.capability, at: r.at, reasons: r.reasons ?? [], language: r.language, open: r.open })),
       spotChecks: await loadPendingSpotChecks(tx, bid.value),
       stage: promoted ? 'partial' : 'probation',
       canDo, needConfirm, capabilities, growth, promoted,
@@ -494,23 +508,41 @@ export const aloneInForce = (e: EmployeeProfile, locale: Locale): string => {
  * in auto, a spot check, a wrong price) moved things since, what holds now and
  * each step back with its date and reason. Nothing when nothing differs.
  */
+/** Why a capability stepped back, in the alert's words; a reason with none reads as repeated corrections. */
+function demotionWhy(locale: Locale, reasons: readonly string[]): string {
+  const known = reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r));
+  return formatList(locale, (known.length ? known : ['repeated_corrections']).map((r) => t(locale, `notify.self_demoted.why.${r}` as MessageKey)));
+}
+
+/**
+ * 0163 — each capability withdrawn in ONE language that still stands, with the language, the date and why. Shown
+ * where the alert and Today land (the levels) and a level down: the capability's own mode still says "alone", so
+ * nothing else on the page would show it waits in that language.
+ */
+function withdrawnRows(e: EmployeeProfile, locale: Locale): string {
+  const open = (e.stepped ?? []).filter((x) => x.language && x.open);
+  return open.length ? `<ul class="rows">${open.map((x) => `<li class="row">${esc(t(locale, 'autonomy.since.inLanguage', {
+    cap: capabilityName(locale, x.capability), language: languageDisplay(locale, x.language!),
+    date: show.date(locale, x.at), why: demotionWhy(locale, x.reasons),
+  }))}</li>`).join('')}</ul>` : '';
+}
+
 function chosenBlock(e: EmployeeProfile, locale: Locale): string {
-  if (!e.chosen) return '';
+  if (!e.chosen) return withdrawnRows(e, locale);
   const levelName = (l: AutonomyLevel) => t(locale, `autonomy.level.${l}` as MessageKey);
   const chose = `<p class="muted">${esc(t(locale, 'autonomy.chosen', { level: levelName(e.chosen.level), date: show.date(locale, e.chosen.at) }))}</p>`;
   const st = standing(e, locale);
   const now = st.effective;
-  if (now === e.chosen.level) return chose;
-  const still = (e.stepped ?? []).filter((x) => !st.alone.includes(x.capability));
-  const why = (reasons: readonly string[]) => formatList(locale, (reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r)).length
-    ? reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r)) : ['repeated_corrections'])
-    .map((r) => t(locale, `notify.self_demoted.why.${r}` as MessageKey)));
+  if (now === e.chosen.level) return `${chose}${withdrawnRows(e, locale)}`;
+  const still = (e.stepped ?? []).filter((x) => !x.language && !st.alone.includes(x.capability));
+  const why = (reasons: readonly string[]) => demotionWhy(locale, reasons);
   return `${chose}
       <p>${esc(now ? t(locale, 'autonomy.inForce', { level: levelName(now) }) : t(locale, 'autonomy.inForce.mixed'))}</p>
       ${st.hold ? `<p class="muted small">${esc(st.heldWhy)}</p>` : ''}
       ${still.length ? `<ul class="rows">${still.map((x) => `<li class="row">${esc(t(locale, 'autonomy.since', {
         cap: capabilityName(locale, x.capability), date: show.date(locale, x.at), why: why(x.reasons),
-      }))}</li>`).join('')}</ul>` : ''}`;
+      }))}</li>`).join('')}</ul>` : ''}
+      ${withdrawnRows(e, locale)}`;
 }
 
 /**
@@ -624,6 +656,7 @@ function levelControl(e: EmployeeProfile, locale: Locale, viewer: Viewer): strin
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
       </form>`}
       ${inForce}
+      ${withdrawnRows(e, locale)}
       ${languagesLine(locale, st.hold)}
       ${stopHere(e, locale, viewer)}
       ${more}
@@ -894,7 +927,12 @@ export function renderEmployeeScreen(
       return `${head}<div class="block">
         ${e.growth.length
           ? `<ul class="growth">${e.growth.map((g) => {
-              const text = g.kind === 'self_demote'
+              const text = g.kind === 'self_demote' && g.language
+                ? t(locale, 'employee.growth.self_demote.inLanguage', {
+                    cap: capName(g.capability ?? ''), language: languageDisplay(locale, g.language),
+                    why: t(locale, `demote.why.${g.why ?? 'repeated_corrections'}` as MessageKey),
+                  })
+                : g.kind === 'self_demote'
                 ? t(locale, 'employee.growth.self_demote', {
                     cap: capName(g.capability ?? ''),
                     why: t(locale, `demote.why.${g.why ?? 'repeated_corrections'}` as MessageKey),

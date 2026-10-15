@@ -214,7 +214,9 @@ class HarnessTenant implements Tenant {
     priorQuotesForClient: async () => this.priorQuotes, recordQuote: async () => ({ quoteId: 'q-1' }), recordTurn: async () => {} };
   /** M34.9 — recorded, so a test can assert the production caller reached it.
    *  The REAL behaviour is proved against Postgres in tests/integration. */
-  selfDemoted: Array<{ capability: string; violations: number }> = [];
+  selfDemoted: Array<{ capability: string; violations: number; language: string | null }> = [];
+  /** 0163 — capability:language pairs withdrawn; none by default. */
+  withdrawnPairs: readonly string[] = [];
   /**
    * The owner has confirmed what buyers will call her assistant (0065). TRUE
    * by default so that every test written before the gate still describes the
@@ -238,10 +240,11 @@ class HarnessTenant implements Tenant {
   heldLanguages: readonly string[] = [];
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
-    selfDemote: async ({ capability, violations }) => {
-      this.selfDemoted.push({ capability, violations });
+    selfDemote: async ({ capability, violations, language }) => {
+      this.selfDemoted.push({ capability, violations, language });
       return { demoted: false, action: 'none' };
     },
+    withdrawnIn: async (capability: string, language: string) => this.withdrawnPairs.includes(`${capability}:${language}`),
     assistantNamed: async () => this.assistantNamedFlag,
     // Released by default: these fakes describe what she does once autonomy is
     // allowed at all. The gate itself is proved against the real flag.

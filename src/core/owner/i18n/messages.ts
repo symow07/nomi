@@ -1593,6 +1593,7 @@ const EN = {
   // M34.9 — she demoted HERSELF. Distinct from 'revoke', which is the owner
   // doing it: the owner must never mistake her own action for the machine's.
   'employee.growth.self_demote': '{cap} went back to waiting for you, without you changing anything — {why}',
+  'employee.growth.self_demote.inLanguage': '{cap} went back to waiting for you in {language}, without you changing anything — {why}',
   // M34.10 — every insight ends in something to tap. See api/web/insights.ts.
   'insight.title': 'Worth your attention',
   'insight.quotedNoReply': '{buyer} has not answered since they were given a price.',
@@ -1798,6 +1799,7 @@ const EN = {
   'autonomy.inForce': 'In force now: {level}',
   'autonomy.inForce.mixed': 'In force now: a mix — some replies wait for you',
   'autonomy.since': '{cap}: waits for you since {date} — {why}',
+  'autonomy.since.inLanguage': '{cap}, in {language}: waits for you since {date} — {why}. Choosing the level again ends the wait.',
   'autonomy.flash.saved': 'Saved. {name} works this way from the next message.',
   'autonomy.flash.savedHeld': 'Saved. For now every reply still waits for you; what holds it is said here.',
   'autonomy.hint': 'Tired of approving replies like this? Choose how much {name} does alone.',
@@ -2079,6 +2081,8 @@ const EN = {
   'notify.self_demoted.why.repeated_corrections': 'many recent replies were rewritten',
   'notify.self_demoted.why.channel_unstable': 'the connection was unreliable',
   'notify.self_demoted.why.wrong_price': 'a spot check found a wrong price',
+  'notify.self_demoted.inLanguage': '{cap}, in {language}',
+  'notify.self_demoted.narrowed': 'These replies no longer go out alone in the language named; each waits for you: {caps}. Why: {why}. Every other language goes on as before. Choosing the level again ends the wait.',
   'notify.backup_stale': "No daily backup of Nomi's data has completed since {when}. Until one does, the last safe copy is from then.",
   'notify.backup_stale.never': "No daily backup of Nomi's data has ever completed. Until one does, there is no safe copy to fall back on.",
   // CC-10 — an error inside the app, for whoever looks after it (src/pipeline/notify.ts)
@@ -2161,6 +2165,7 @@ const EN = {
   'inbox.draft.held.first_quote': 'This is the first price of this product to go out, so it waits for you. Once you have sent one, its price may go alone — until it changes.',
   'inbox.draft.held.language_unknown': 'It is not certain which language this customer writes in, so this reply waits for you.',
   'inbox.draft.held.language_new': 'The first five replies to customers writing in {language} go out with your approval, so this one waits for you.',
+  'inbox.draft.held.language_withdrawn': 'Replies in {language} wait for you: one could not be written to pass its checks. Choosing the level again on {name}’s page ends the wait.',
   'inbox.draft.held.words': 'Stopped by: {terms}',
   'herwords.title': 'Your own words had a word you forbade',
   'herwords.taught_answer': 'Your saved answer contains {terms}, which you told {name} never to say, so it was not sent.',
@@ -6063,6 +6068,7 @@ const ZH: Record<MessageKey, string> = {
   'employee.growth.spotcheck_issue': '你检查了{name}的一条回复：有问题',
   'employee.growth.learned_edit': '你在发出前改了一条回复（{cap}）',
   'employee.growth.self_demote': '「{cap}」改回先等你，不是你改的——{why}',
+  'employee.growth.self_demote.inLanguage': '「{cap}」在{language}里改回先等你，不是你改的——{why}',
   'insight.title': '值得你看一眼',
   'insight.quotedNoReply': '告诉 {buyer} 价格之后，对方就没再回话了。',
   'insight.draftsWaiting.zero': '{n}条回复已经写好，等你。',
@@ -6256,6 +6262,7 @@ const ZH: Record<MessageKey, string> = {
   'autonomy.inForce': '现在实际生效：{level}',
   'autonomy.inForce.mixed': '现在实际生效：混合——部分回复先等你',
   'autonomy.since': '{cap}：自{date}起先等你——{why}',
+  'autonomy.since.inLanguage': '{cap}（{language}）：自{date}起先等你——{why}。重新选择一次级别即可恢复。',
   'autonomy.flash.saved': '已保存。从下一条消息起，{name}就这样工作。',
   'autonomy.flash.savedHeld': '已保存。目前每条回复仍先等你，原因写在这里。',
   'autonomy.hint': '不想每条都点？去定一下{name}自己能做多少。',
@@ -6529,6 +6536,8 @@ const ZH: Record<MessageKey, string> = {
   'notify.self_demoted.why.repeated_corrections': '最近很多回复被改写',
   'notify.self_demoted.why.channel_unstable': '连接一直不稳定',
   'notify.self_demoted.why.wrong_price': '抽查发现价格有误',
+  'notify.self_demoted.inLanguage': '{cap}（{language}）',
+  'notify.self_demoted.narrowed': '这些回复在所注明的语言里不再自行发出，每条都先等你：{caps}。原因：{why}。其他语言照旧。重新选择一次级别即可恢复。',
   'notify.backup_stale': 'Nomi 的每日备份自 {when} 起没有成功完成。在此之前，最近一份可用的数据副本就是那一天的。',
   'notify.backup_stale.never': 'Nomi 的每日备份还从未成功完成过。在此之前，没有可以回退的数据副本。',
   'notify.app_error.subject': 'Nomi：出了问题',
@@ -6607,6 +6616,7 @@ const ZH: Record<MessageKey, string> = {
   'inbox.draft.held.first_quote': '这是这个产品第一次报价，所以先等你。你发过一次之后，这个产品的价格就可以自己发出——直到价格改动为止。',
   'inbox.draft.held.language_unknown': '无法确定这位客户用的是哪种语言，所以这条回复先等你。',
   'inbox.draft.held.language_new': '用{language}写信的客户，前五条回复都要经你确认再发出，所以这条先等你。',
+  'inbox.draft.held.language_withdrawn': '{language}的回复先等你：有一条没能写得通过检查。在{name}的页面上重新选择一次级别即可恢复。',
   'inbox.draft.held.words': '被这些词拦下：{terms}',
   'herwords.title': '你自己的内容里有你禁用的词',
   'herwords.taught_answer': '你保存的回答里有{terms}，这是你不让{name}说的，所以没有发出。',
@@ -10460,6 +10470,7 @@ const AR: Record<MessageKey, string> = {
   'employee.growth.spotcheck_issue': 'مراجعة منك لأحد ردود {name}: كان فيه خطأ',
   'employee.growth.learned_edit': 'تصحيح منك لردّ قبل إرساله ({cap})',
   'employee.growth.self_demote': '{cap}: عاد إلى انتظارك دون تغيير منك — {why}',
+  'employee.growth.self_demote.inLanguage': '{cap}: عاد إلى انتظارك باللغة {language} دون تغيير منك — {why}',
   'insight.title': 'يستحق انتباهك',
   'insight.quotedNoReply': 'لا ردّ من {buyer} منذ إرسال السعر.',
   'insight.draftsWaiting.zero': 'لا ردود جاهزة.',
@@ -10653,6 +10664,7 @@ const AR: Record<MessageKey, string> = {
   'autonomy.inForce': 'المعمول به الآن: {level}',
   'autonomy.inForce.mixed': 'المعمول به الآن: مزيج — بعض الردود تنتظر موافقتك',
   'autonomy.since': '{cap}: بانتظار موافقتك منذ {date} — {why}',
+  'autonomy.since.inLanguage': '{cap} (باللغة {language}): بانتظار موافقتك منذ {date} — {why}. ينتهي الانتظار عند اختيار المستوى من جديد.',
   'autonomy.flash.saved': 'تم الحفظ. يسري هذا على عمل {name} من الرسالة التالية.',
   'autonomy.flash.savedHeld': 'تم الحفظ. يبقى كل ردّ بانتظارك حاليًا، وسبب ذلك مذكور هنا.',
   'autonomy.hint': 'هل الموافقة على كل ردّ متعبة؟ يمكن اختيار مدى استقلالية {name}.',
@@ -10926,6 +10938,8 @@ const AR: Record<MessageKey, string> = {
   'notify.self_demoted.why.repeated_corrections': 'أُعيدت كتابة ردود كثيرة مؤخرًا',
   'notify.self_demoted.why.channel_unstable': 'كان الاتصال غير مستقر',
   'notify.self_demoted.why.wrong_price': 'ظهر في الفحص سعر خاطئ',
+  'notify.self_demoted.inLanguage': '{cap} (باللغة {language})',
+  'notify.self_demoted.narrowed': 'لم تعد هذه الردود تُرسَل دون موافقتك باللغة المذكورة، وكلٌّ منها ينتظرك: {caps}. السبب: {why}. تبقى اللغات الأخرى كما كانت. ينتهي الانتظار عند اختيار المستوى من جديد.',
   'notify.backup_stale': 'لم تكتمل النسخة الاحتياطية اليومية لبيانات Nomi منذ {when}. حتى تكتمل واحدة، آخر نسخة سليمة من البيانات تعود إلى ذلك التاريخ.',
   'notify.backup_stale.never': 'لم تكتمل النسخة الاحتياطية اليومية لبيانات Nomi ولا مرة حتى الآن. حتى تكتمل واحدة، لا توجد نسخة سليمة يمكن الرجوع إليها.',
   'notify.app_error.subject': 'Nomi: حدث خلل',
@@ -11004,6 +11018,7 @@ const AR: Record<MessageKey, string> = {
   'inbox.draft.held.first_quote': 'هذا أول سعر لهذا المنتج يُرسَل، لذلك ينتظرك. وبعد إرسال سعر واحد منه، يمكن أن يُرسَل سعره دون موافقة — حتى يتغيّر.',
   'inbox.draft.held.language_unknown': 'لغة هذا العميل غير مؤكدة، لذلك ينتظرك هذا الرد.',
   'inbox.draft.held.language_new': 'أول خمسة ردود باللغة {language} تُرسَل بعد موافقتك، لذلك ينتظرك هذا الرد.',
+  'inbox.draft.held.language_withdrawn': 'تنتظر الردود باللغة {language} موافقتك: تعذّرت كتابة أحدها بما يجتاز الفحص. ينتهي الانتظار عند اختيار المستوى من جديد في صفحة {name}.',
   'inbox.draft.held.words': 'أُوقف بسبب: {terms}',
   'herwords.title': 'في كلماتك أنت كلمة من قائمة الممنوعات',
   'herwords.taught_answer': 'إجابتك المحفوظة تحتوي على {terms} من الكلمات الممنوعة على {name}، لذلك لم تُرسَل.',
@@ -14847,6 +14862,7 @@ const ES: Record<MessageKey, string> = {
   'employee.growth.spotcheck_issue': 'Revisaste una respuesta de {name}: algo estaba mal',
   'employee.growth.learned_edit': 'Corregiste una respuesta antes de enviarla ({cap})',
   'employee.growth.self_demote': '{cap} volvió a esperarte sin que cambiaras nada — {why}',
+  'employee.growth.self_demote.inLanguage': '{cap} volvió a esperarte en {language} sin que cambiaras nada — {why}',
   'insight.title': 'Merece tu atención',
   'insight.quotedNoReply': '{buyer} no ha respondido desde que recibió un precio.',
   'insight.draftsWaiting.zero': '{n} respuestas están escritas y te esperan.',
@@ -15039,6 +15055,7 @@ const ES: Record<MessageKey, string> = {
   'autonomy.inForce': 'En vigor ahora: {level}',
   'autonomy.inForce.mixed': 'En vigor ahora: una mezcla — algunas respuestas te esperan',
   'autonomy.since': '{cap}: te espera desde el {date} — {why}',
+  'autonomy.since.inLanguage': '{cap}, en {language}: te espera desde el {date} — {why}. La espera termina al elegir de nuevo el nivel.',
   'autonomy.flash.saved': 'Guardado. {name} trabaja así desde el próximo mensaje.',
   'autonomy.flash.savedHeld': 'Guardado. Por ahora cada respuesta aún te espera; aquí se dice por qué.',
   'autonomy.hint': '¿Te cansa aprobar respuestas como esta? Elige cuánto hace {name} por su cuenta.',
@@ -15308,6 +15325,8 @@ const ES: Record<MessageKey, string> = {
   'notify.self_demoted.why.repeated_corrections': 'muchas respuestas recientes se reescribieron',
   'notify.self_demoted.why.channel_unstable': 'la conexión no era fiable',
   'notify.self_demoted.why.wrong_price': 'una revisión al azar encontró un precio equivocado',
+  'notify.self_demoted.inLanguage': '{cap}, en {language}',
+  'notify.self_demoted.narrowed': 'Estas respuestas ya no salen sin tu aprobación en el idioma indicado; cada una te espera: {caps}. Motivo: {why}. Los demás idiomas siguen igual. La espera termina al elegir de nuevo el nivel.',
   'notify.backup_stale': 'No se ha completado ninguna copia de seguridad diaria de los datos de Nomi desde {when}. Hasta que se complete una, la última copia segura es de esa fecha.',
   'notify.backup_stale.never': 'Nunca se ha completado una copia de seguridad diaria de los datos de Nomi. Hasta que se complete una, no hay ninguna copia segura a la que recurrir.',
   'notify.app_error.subject': 'Nomi: algo salió mal',
@@ -15384,6 +15403,7 @@ const ES: Record<MessageKey, string> = {
   'inbox.draft.held.first_quote': 'Este es el primer precio de este producto que sale, así que te espera. Una vez que hayas enviado uno, su precio puede salir sin tu aprobación — hasta que cambie.',
   'inbox.draft.held.language_unknown': 'No se sabe con certeza en qué idioma escribe tu cliente, así que esta respuesta te espera.',
   'inbox.draft.held.language_new': 'Las primeras cinco respuestas a clientes que escriben en {language} salen con tu aprobación, así que esta te espera.',
+  'inbox.draft.held.language_withdrawn': 'Las respuestas en {language} te esperan: una no pudo escribirse de forma que pasara las comprobaciones. La espera termina al elegir de nuevo el nivel en la página de {name}.',
   'inbox.draft.held.words': 'Se detuvo por: {terms}',
   'herwords.title': 'Tu propio texto tenía una palabra que prohibiste',
   'herwords.taught_answer': 'Tu respuesta guardada contiene {terms}, que le pediste a {name} que nunca dijera, así que no se envió.',
@@ -19188,6 +19208,7 @@ const FR: Record<MessageKey, string> = {
   'employee.growth.spotcheck_issue': 'Vous avez vérifié une réponse de {name} : quelque chose n’allait pas',
   'employee.growth.learned_edit': 'Vous avez corrigé une réponse avant son envoi ({cap})',
   'employee.growth.self_demote': '{cap} vous attend de nouveau, sans que vous ayez rien changé — {why}',
+  'employee.growth.self_demote.inLanguage': '{cap} vous attend de nouveau en {language}, sans que vous ayez rien changé — {why}',
   'insight.title': 'Mérite votre attention',
   'insight.quotedNoReply': '{buyer} n’a pas répondu depuis l’envoi du prix.',
   'insight.draftsWaiting.zero': '{n} réponse est rédigée et vous attend.',
@@ -19380,6 +19401,7 @@ const FR: Record<MessageKey, string> = {
   'autonomy.inForce': 'En vigueur : {level}',
   'autonomy.inForce.mixed': 'En vigueur : un mélange — certaines réponses vous attendent',
   'autonomy.since': '{cap} : vous attend depuis le {date} — {why}',
+  'autonomy.since.inLanguage': '{cap}, en {language} : vous attend depuis le {date} — {why}. Choisir de nouveau le niveau met fin à l’attente.',
   'autonomy.flash.saved': 'Enregistré. {name} fonctionne ainsi dès le prochain message.',
   'autonomy.flash.savedHeld': 'Enregistré. Pour l’instant, chaque réponse vous attend encore ; la raison est indiquée ici.',
   'autonomy.hint': 'Vous en avez assez d’approuver ce genre de réponse ? Choisissez ce que {name} fait sans vous.',
@@ -19649,6 +19671,8 @@ const FR: Record<MessageKey, string> = {
   'notify.self_demoted.why.repeated_corrections': 'beaucoup de réponses récentes ont été réécrites',
   'notify.self_demoted.why.channel_unstable': 'la connexion n’était pas fiable',
   'notify.self_demoted.why.wrong_price': 'un contrôle aléatoire a trouvé un prix erroné',
+  'notify.self_demoted.inLanguage': '{cap}, en {language}',
+  'notify.self_demoted.narrowed': 'Ces réponses ne partent plus sans vous dans la langue indiquée ; chacune vous attend : {caps}. Raison : {why}. Les autres langues restent comme avant. Choisir de nouveau le niveau met fin à l’attente.',
   'notify.backup_stale': 'Aucune sauvegarde quotidienne des données de Nomi n’a abouti depuis {when}. Tant qu’aucune n’aboutit, la dernière copie sûre reste celle de cette date.',
   'notify.backup_stale.never': 'Aucune sauvegarde quotidienne des données de Nomi n’a jamais abouti. Tant qu’aucune n’aboutit, il n’y a aucune copie sûre sur laquelle se rabattre.',
   'notify.app_error.subject': 'Nomi : un problème est survenu',
@@ -19725,6 +19749,7 @@ const FR: Record<MessageKey, string> = {
   'inbox.draft.held.first_quote': 'C’est la première fois qu’un prix part pour ce produit : cette réponse vous attend donc. Dès que vous en aurez envoyé un, ce prix pourra partir sans vous — jusqu’à sa prochaine modification.',
   'inbox.draft.held.language_unknown': 'On ne sait pas avec certitude dans quelle langue écrit ce client : cette réponse vous attend donc.',
   'inbox.draft.held.language_new': 'Les cinq premières réponses aux clients qui écrivent en {language} partent avec votre accord : celle-ci vous attend donc.',
+  'inbox.draft.held.language_withdrawn': 'Les réponses en {language} vous attendent : l’une n’a pas pu être écrite de façon à passer les vérifications. Choisir de nouveau le niveau sur la page de {name} met fin à l’attente.',
   'inbox.draft.held.words': 'Mots en cause : {terms}',
   'herwords.title': 'Votre propre texte contenait un mot que vous avez interdit',
   'herwords.taught_answer': 'Votre réponse enregistrée contient {terms}, que vous avez interdit à {name} d’employer : cette réponse n’est donc pas partie.',
@@ -22088,4 +22113,19 @@ export function claimName(locale: Locale, key: string): string {
 export function capabilityName(locale: Locale, code: string): string {
   const key = `capability.${code}` as MessageKey;
   return key in messages[DEFAULT_LOCALE] ? t(locale, key) : code;
+}
+
+/**
+ * 0163 — a capability the system stepped back: 'quote', or 'quote:ar' when the step back was narrowed to one
+ * language ("Quoting, in Arabic").
+ */
+export function steppedName(locale: Locale, item: string): string {
+  const [code, language] = item.split(':');
+  const cap = capabilityName(locale, code ?? item);
+  return language ? t(locale, 'notify.self_demoted.inLanguage', { cap, language: languageDisplay(locale, language) }) : cap;
+}
+
+/** A language's name in the owner's language ("Arabic", "阿拉伯语", "العربية"); the code where the runtime has none. */
+export function languageDisplay(locale: Locale, code: string): string {
+  try { return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code; } catch { return code; }
 }

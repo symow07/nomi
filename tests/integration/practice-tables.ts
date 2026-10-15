@@ -32,6 +32,8 @@ export const PRACTICE_COPY = [
   'claims_policy', 'forbidden_terms', 'factory_closures',
   'sample_policy', 'trade_terms', 'owner_rates',
   'assistants', 'onboarding_state', 'autonomy_policy',
+  // 0163 — the languages a capability stands withdrawn from: open ones only, whatever "as if sending alone" says.
+  'language_withdrawals',
   // The operator's switches bind Practice as they bind the workspace: a
   // silenced assistant is silenced in Practice too.
   'ops_flags',

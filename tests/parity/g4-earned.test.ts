@@ -57,7 +57,8 @@ describe('G4 · the rule, where it is decided', () => {
     expect(turn).toContain('const earned = !speaksAlone || stopLine || (await tenant.autonomy.earnedRung()) >= rungOf(capability);');
     // R3 — and the product's first quote, beside it.
     // LG — and the language's first five, beside it.
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);');
+    // 0163 — and not withdrawn in this language.
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && named && sentence !== null);');
     expect(turn).toContain("...(!earned ? { reason: 'not_earned' } :");
   });
   it('the one function answers for the caller only, from the workspace that pays, and no outside a tenant', () => {
