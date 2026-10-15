@@ -244,7 +244,6 @@ describe('order confirmation (deterministic — replaces an LLM call)', () => {
 
   it.each([
     ['product_not_confirmed_by_client', { product: { productId: PRODUCT, confidence: 0.95, confirmedByClient: false, matchMethod: 'text' as const } }],
-    ['email_missing', { contact: { email: null } }],
     ['pending_question_unresolved', { pendingQuestion: 'order_confirmation' as const }],
     ['problem_score_too_high', { scores: { problem: 80, lead: 0 } }],
     ['quantity_missing', { quantity: null }],
@@ -255,6 +254,16 @@ describe('order confirmation (deterministic — replaces an LLM call)', () => {
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain(reason);
+  });
+
+  // CHANGED BY DESIGN (the owner, 2026-10-15): "WhatsApp buyers do not hand over e-mail addresses to place an
+  // order". Rule 7 is retired: no e-mail blocks nothing, and the address, when there is one, travels with the order.
+  it('no e-mail is no reason: the order passes, with no address on it; one given travels with it', () => {
+    const none = toConfirmableOrder({ state: { ...readyState(), contact: { email: null } }, product: product(), quote: quoteFor(5_000), paymentTerms: 'x' });
+    expect(none.ok).toBe(true);
+    if (none.ok) expect(none.value.email).toBeNull();
+    const some = toConfirmableOrder({ state: readyState(), product: product(), quote: quoteFor(5_000), paymentTerms: 'x' });
+    expect(some.ok && some.value.email).toBe(readyState().contact.email);
   });
 
   // Did not exist in n8n: escalation notified a human, then the AI kept selling.

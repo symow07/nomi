@@ -65,10 +65,9 @@ export function orderConfirmedReply(input: {
 }
 
 /** The sentences `orderBlockedReply` says, one per reason, in each language. */
-const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'email_missing' | 'product_not_confirmed_by_client' | 'quantity_missing'
+const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'product_not_confirmed_by_client' | 'quantity_missing'
   | 'below_minimum' | 'pending_question_unresolved' | 'handed_off' | 'missing_product' | 'other', string>>>> = {
   en: {
-    email_missing: 'Almost there — could you share the email address for the order confirmation?',
     product_not_confirmed_by_client: 'Before I confirm — could you confirm this is exactly the product you want?',
     quantity_missing: 'How many would you like?',
     below_minimum: 'The requested quantity is below the minimum order for this product — could you increase it?',
@@ -78,7 +77,6 @@ const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'email_missing' | 
     other: 'I need one more detail before I can confirm — bear with me a moment.',
   },
   zh: {
-    email_missing: '快好了——能发一下用于订单确认的邮箱地址吗？',
     product_not_confirmed_by_client: '确认之前——能确认一下这正是你要的产品吗？',
     quantity_missing: '需要多少？',
     below_minimum: '这个数量低于该产品的最低起订量——可以加一些吗？',
@@ -88,7 +86,6 @@ const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'email_missing' | 
     other: '确认之前还需要一个细节——请稍等。',
   },
   ar: {
-    email_missing: 'اقتربنا — يُرجى مشاركة البريد الإلكتروني لتأكيد الطلب.',
     product_not_confirmed_by_client: 'قبل التأكيد — يُرجى التأكد من أن هذا هو المنتج المطلوب تمامًا.',
     quantity_missing: 'ما الكمية المطلوبة؟',
     below_minimum: 'الكمية المطلوبة أقل من الحد الأدنى للطلب من هذا المنتج — هل يمكن زيادتها؟',
@@ -100,7 +97,6 @@ const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'email_missing' | 
   // The customer is addressed as each language's disclosure addresses them,
   // and in no gender: no adjective agrees with the customer or with "us".
   es: {
-    email_missing: 'Ya casi está. ¿Me compartes el correo electrónico para la confirmación del pedido?',
     product_not_confirmed_by_client: 'Antes de confirmar: ¿es exactamente este el producto que quieres?',
     quantity_missing: '¿Cuántas unidades quieres?',
     below_minimum: 'La cantidad pedida está por debajo del pedido mínimo de este producto. ¿Puedes aumentarla?',
@@ -110,7 +106,6 @@ const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'email_missing' | 
     other: 'Necesito un detalle más antes de confirmar. Un momento, por favor.',
   },
   fr: {
-    email_missing: "On y est presque. Pouvez-vous indiquer l'adresse e-mail pour la confirmation de commande ?",
     product_not_confirmed_by_client: 'Avant de confirmer : est-ce bien exactement ce produit que vous voulez ?',
     quantity_missing: 'Combien en voulez-vous ?',
     below_minimum: "La quantité demandée est inférieure au minimum de commande pour ce produit. Pouvez-vous l'augmenter ?",
@@ -120,7 +115,6 @@ const BLOCKED: Readonly<Record<FixedLanguage, Readonly<Record<'email_missing' | 
     other: "Il me manque un détail avant de confirmer. Un instant, s'il vous plaît.",
   },
   pt: {
-    email_missing: 'Quase lá. Pode enviar o e-mail para a confirmação do pedido?',
     product_not_confirmed_by_client: 'Antes de confirmar: é exatamente este o produto que você quer?',
     quantity_missing: 'Quantas unidades você quer?',
     below_minimum: 'A quantidade pedida está abaixo do pedido mínimo deste produto. Pode aumentar?',
@@ -136,8 +130,6 @@ export function orderBlockedReply(reasons: readonly BlockingReason[], quote: Quo
   // One question at a time: the FIRST unmet requirement, in funnel order.
   const first = reasons[0];
   switch (first) {
-    case 'email_missing':
-      return say.email_missing;
     case 'product_not_confirmed_by_client':
       return say.product_not_confirmed_by_client;
     case 'quantity_missing':

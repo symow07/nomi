@@ -38,8 +38,9 @@ export async function prepareOrderFromMaybe(
   db: Db,
   input: { businessId: BusinessId; conversationId: string; quantity: number; email: string; by: string },
 ): Promise<{ outcome: PrepareOutcome; quoted?: boolean }> {
-  const email = parseEmail(input.email);
-  if (!email.ok) return { outcome: 'bad_email' };
+  // 2026-10-15 — the e-mail is the buyer's to give or not: none is fine; one typed must be an address.
+  const email = input.email.trim() === '' ? null : parseEmail(input.email);
+  if (email && !email.ok) return { outcome: 'bad_email' };
   if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > 100_000_000) return { outcome: 'bad_quantity' };
 
   return withTenantTx(db, input.businessId, async (tx) => {
@@ -79,11 +80,11 @@ export async function prepareOrderFromMaybe(
     const total: Money = { amount: Math.round(unitPrice.amount * input.quantity * 100) / 100, currency: unitPrice.currency };
     const order = confirmableFromProposal({
       productId: product.id, quantity: input.quantity, unit: product.unit, unitPrice, total,
-      email: email.value, paymentTerms: null, incoterm: null,
+      email: email ? email.value : null, paymentTerms: null, incoterm: null,
     });
     if (!order.ok) return { outcome: 'not_priceable' };
 
-    await repos.clients.saveEmail(conv.client_id as ClientId, email.value);
+    if (email) await repos.clients.saveEmail(conv.client_id as ClientId, email.value);
     // The proposal is tied to the message that may have said yes, so the order card shows those words above Confirm.
     const messageId = maybe.payload?.messageId ?? (await sql<{ id: string | null }>`
       select external_id as id from messages

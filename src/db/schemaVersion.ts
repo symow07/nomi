@@ -399,7 +399,9 @@ import type { Db } from './client.js';
 // 160 = the languages an owner chose, told apart from the default (0160): `businesses.languages_chosen_at`, which
 //       setting up and the products pages read, and the profile writes. Against a 159 database every page that
 //       draws the setup count fails on the missing column.
-export const REQUIRED_SCHEMA_VERSION = 160;
+// 161 = an order needs no e-mail (0161): `order_proposals.client_email` may be null, which a proposal for a buyer
+//       who gave none writes. Against a 160 database such a proposal fails on the not-null column.
+export const REQUIRED_SCHEMA_VERSION = 161;
 
 export type SchemaState = {
   readonly required: number;

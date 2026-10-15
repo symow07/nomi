@@ -170,7 +170,8 @@ describe('LG · the fixed sentences, in English, Chinese and Arabic', () => {
     moq: 100, leadTimeDays: 20, leadTimeBlocked: null, requiresHuman: false, contradicts: null, appliedRules: [] };
   const quote = base;
   const one: Quote = { ...base, quantity: { value: 1, unit: 'item' }, unitPrice: usd(12), total: usd(12), leadTimeDays: null, moq: null };
-  const reasons: readonly BlockingReason[] = ['email_missing', 'product_not_confirmed_by_client', 'quantity_missing', 'quantity_below_moq',
+// CHANGED BY DESIGN (2026-10-15): no order asks for an e-mail any more — the sentence is gone.
+  const reasons: readonly BlockingReason[] = ['product_not_confirmed_by_client', 'quantity_missing', 'quantity_below_moq',
     'pending_question_unresolved', 'conversation_handed_off', 'missing_product', 'price_missing'];
   it('a customer\'s language picks one of the six; any other is English (and its reply drafts)', () => {
     for (const l of ['en', 'zh', 'ar', 'es', 'fr', 'pt']) expect(fixedLanguage(l)).toBe(l);

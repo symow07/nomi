@@ -208,16 +208,26 @@ describe('the close: a "yes" proposes, the owner confirms (0080), with idempoten
     expect(p.tenant.ordersCreated).toHaveLength(0);
   });
 
-  it('missing email → deterministic blocking question, NO order', async () => {
+  // CHANGED BY DESIGN (the owner, 2026-10-15): this was "missing email → a blocking question, NO order". An order
+  // needs no e-mail now: the "yes" is a proposal for the owner, and nobody is asked for an address.
+  it('no e-mail → the yes is still a proposal for the owner; nobody is asked for an address', async () => {
     const p = ports();
     p.tenant.seed(CONVERSATION, { ...readyState(), contact: { email: null } });
     const r = await computeTurn(p, req('yes'));
     const fx = await commitTurn(p, req('yes'), r, Date.now());
+    expect(fx.orderProposed).not.toBeNull();
+    for (const d of p.tenant.draftsCreated) expect(d.draftText.toLowerCase()).not.toMatch(/e-?mail/);
+    expect(fx.outbound?.reply ?? '').not.toMatch(/e-?mail/i);
+  });
+
+  it('a product the buyer never confirmed → deterministic blocking question, NO order', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, { ...readyState(), product: { ...readyState().product!, confirmedByClient: false } });
+    const r = await computeTurn(p, req('yes'));
+    const fx = await commitTurn(p, req('yes'), r, Date.now());
     expect(fx.orderProposed).toBeNull();
-    // confirm_order is always draft — the blocking question waits for the owner.
     expect(fx.outbound).toBeNull();
     expect(fx.draftCreated).not.toBeNull();
-    expect(p.tenant.draftsCreated[0]!.draftText).toContain('email');
     expect(r.replyDeterministic).toBe(true);
   });
 });

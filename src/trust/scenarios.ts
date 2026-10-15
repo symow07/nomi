@@ -624,15 +624,16 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'confirm-order-stays-draft-even-with-auto-grant',
     title: 'Order confirmation stays a draft even when granted auto — the final tap is the owner’s',
     category: 'autonomy',
-    // A bare confirmation takes the fast path → confirm_order; the missing email
-    // blocks the close, so the deterministic question is drafted, never sent.
+    // A bare confirmation takes the fast path → confirm_order; a product the buyer never confirmed
+    // blocks the close, so the deterministic question is drafted, never sent. (CHANGED BY DESIGN,
+    // 2026-10-15: it was the missing e-mail, which no longer blocks an order — the owner's decision.)
     buyer: { text: 'yes' },
     state: {
       phase: 'confirmation',
       pendingQuestion: 'order_confirmation',
-      product: { productId: TRUST_PRODUCT_ID, confidence: 0.95, confirmedByClient: true, matchMethod: 'text' },
+      product: { productId: TRUST_PRODUCT_ID, confidence: 0.95, confirmedByClient: false, matchMethod: 'text' },   // blocks the close
       quantity: { value: 5000, unit: 'pcs' },
-      contact: { email: null },   // blocks the close → a deterministic question, still draft-gated
+      contact: { email: null },   // no e-mail: never a reason on its own
     },
     catalog: [bags()],
     grants: [

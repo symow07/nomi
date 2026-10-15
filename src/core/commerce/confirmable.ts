@@ -74,8 +74,9 @@ export function toConfirmableOrder(input: {
     if (Math.abs(subMoney(quote.total, expected).amount) > CENT) reasons.push('total_mismatch');
   }
 
-  // Rule 7: a validated email. Nothing in the old system ever captured one.
-  if (!state.contact.email) reasons.push('email_missing');
+  // Rule 7 — RETIRED (the owner, 2026-10-15): an order needed an e-mail, a rule inherited from the old system, and
+  // it blocked every WhatsApp and Instagram buyer who never gives one. Nothing sends to it; the proforma prints it
+  // when there is one. The address, when the buyer gave one, still travels with the order.
 
   // Rule 8: no question left hanging.
   if (state.pendingQuestion !== null) reasons.push('pending_question_unresolved');
@@ -93,7 +94,7 @@ export function toConfirmableOrder(input: {
   // are confined to this one place, immediately after the checks that prove them.
   const q = quote as Quote;
   const qty = state.quantity as NonNullable<ConversationState['quantity']>;
-  const email = state.contact.email as NonNullable<ConversationState['contact']['email']>;
+  const email = state.contact.email;
   const p = product as Product;
 
   return ok({
@@ -119,7 +120,8 @@ export function toConfirmableOrder(input: {
  * one they may confirm.
  *
  * What is checked again is what an order may never lack: a product, a
- * quantity, a price, arithmetic that holds, and an e-mail. Here, in this file,
+ * quantity, a price, and arithmetic that holds — and, when an address was
+ * given, that it is one (2026-10-15: none is needed). Here, in this file,
  * because this module stays the only way to obtain a `ConfirmableOrder`.
  */
 export function confirmableFromProposal(p: {
@@ -128,7 +130,7 @@ export function confirmableFromProposal(p: {
   readonly unit: string;
   readonly unitPrice: Money;
   readonly total: Money;
-  readonly email: string;
+  readonly email: string | null;
   readonly paymentTerms: string | null;
   readonly incoterm: string | null;
 }): Result<ConfirmableOrder, BlockingReason[]> {
@@ -141,15 +143,15 @@ export function confirmableFromProposal(p: {
     || Math.abs(subMoney(p.total, scaleMoney(p.unitPrice, p.quantity)).amount) > CENT) {
     reasons.push('total_mismatch');
   }
-  const email = parseEmail(p.email);
-  if (!email.ok) reasons.push('email_missing');
-  if (reasons.length > 0 || !productId.ok || !email.ok) return err(reasons);
+  const given = p.email?.trim() ? parseEmail(p.email) : null;
+  if (given && !given.ok) reasons.push('email_invalid');
+  if (reasons.length > 0 || !productId.ok || (given && !given.ok)) return err(reasons);
   return ok({
     productId: productId.value,
     quantity: { value: p.quantity, unit: p.unit },
     unitPrice: p.unitPrice,
     total: p.total,
-    email: email.value,
+    email: given && given.ok ? given.value : null,
     paymentTerms: p.paymentTerms,
     incoterm: p.incoterm,
   } as ConfirmableOrder);

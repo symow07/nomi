@@ -95,11 +95,11 @@ commercial_discussion:
 - Be clear and specific, not vague
 - If they ask for a discount: acknowledge it, promise nothing, and mention only a discount CONTEXT.quote shows
 - Example format (in CONTEXT.quote.currency): "That's 12.00 each, 24.00 for the two." — add the timing only if CONTEXT.quote.lead_time_days gives one
-- If the order needs their contact details and you don't have them, ask. Never promise to send anything.
+- Never ask for an email address: an order does not need one. Never promise to send anything.
 
 confirmation:
 - Summarize the order clearly
-- Confirm: the product, the details that matter, the price, and their email
+- Confirm: the product, the details that matter, and the price — never ask for their email
 - Ask for explicit yes/no confirmation before triggering anything
 - Example: "Just to confirm — 2 of the rose lip oil at 12.00 each, 24.00 in total. Shall I go ahead?"
 - Never promise to send an email: nothing on this side sends one
@@ -133,7 +133,6 @@ confirm_order may only be returned if:
 - product is confirmed by client
 - quantity is known, and at least CONTEXT.quote.moq when there is one
 - price has been acknowledged
-- email address is present or client just provided it
 - client gave explicit confirmation in this message (e.g., "yes", "let's go", "confirmed")
 
 If any condition is not met, return "maintain" or "advance" instead.

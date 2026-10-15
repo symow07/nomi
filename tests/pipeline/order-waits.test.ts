@@ -144,7 +144,8 @@ describe('T6b · a "yes" the order rules pass is a proposal for the owner, in ev
 
   it('the rules that fail still get their blocking question — as a draft, never a proposal', async () => {
     const p = ports('auto');
-    p.tenant.seed(CONVERSATION, ready({ contact: { email: null } }));
+    // CHANGED BY DESIGN (2026-10-15): the failing rule was the missing e-mail, which no longer blocks an order.
+    p.tenant.seed(CONVERSATION, ready({ product: { productId: PRODUCT, confidence: 0.95, confirmedByClient: false, matchMethod: 'text' } }));
     const { fx } = await run(p, 'yes');
     expect(fx.orderProposed).toBeNull();
     expect(fx.outbound).toBeNull();

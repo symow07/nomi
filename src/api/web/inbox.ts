@@ -1801,7 +1801,8 @@ export function orderCard(d: ConversationDetail, locale: Locale, targets?: Order
     // 2026-10-14 (the owner) — the price itself, beside the quantity it is for, before any button.
     ['order.field.unitPrice', show.money(locale, p.unitPrice)],
     ['order.field.total', show.money(locale, p.total)],
-    ['order.card.email', p.email],
+    // 2026-10-15 — only when they gave one: an order needs no e-mail, and no line stands empty.
+    ...(p.email ? [['order.card.email', p.email] as const] : []),
     ...(p.paymentTerms ? [['order.card.terms', p.paymentTerms] as const] : []),
   ];
   const willSend = orderConfirmedReply({
@@ -2643,8 +2644,8 @@ export function renderConversationDetail(
             <p class="muted">${esc(t(locale, 'maybeYes.prepare.intro'))}</p>
             <label class="fld"><span class="muted">${esc(t(locale, 'order.field.quantity'))}</span>
               <input type="number" name="quantity" min="1" step="1" inputmode="numeric" required value="${otherQuantities.length ? '' : esc(String(offer.quantity))}" /></label>
-            <label class="fld"><span class="muted">${esc(t(locale, 'order.card.email'))}</span>
-              <input type="email" name="email" required dir="ltr" value="${esc(maybe.email ?? '')}" /></label>
+            <label class="fld"><span class="muted">${esc(t(locale, 'maybeYes.prepare.email'))}</span>
+              <input type="email" name="email" dir="ltr" value="${esc(maybe.email ?? '')}" /></label>
             <button class="btn" type="submit">${esc(t(locale, 'maybeYes.prepare.button'))}</button>
           </form>` : ''}
         </div>
