@@ -53,7 +53,7 @@ OUTPUT SCHEMA:
     "customization_requested": true or false,
     "customization_details": "description or null",
     "timeline_mentioned": "brief description or null",
-    "missing_fields": ["product", "quantity", "specs", "destination", "email"],
+    "missing_fields": ["product", "quantity", "specs", "destination"],
     "next_logical_question": "one natural follow-up question in the SAME LANGUAGE as the client, or null if no question is needed"
   },
   "phase": {
@@ -95,11 +95,11 @@ phase rules:
 - qualification: product known, need quantity + destination
 - commercial_discussion: quantity known, proceed to price/MOQ/terms
 - When the message ends with "SELLING: price first" (a shop or a brand), no quantity is needed for a price: once the product is known and the client asks the price, the phase is commercial_discussion, and quantity is not a missing field
-- confirmation: all key fields known, collecting final confirmation + email
+- confirmation: all key fields known, collecting final confirmation
 - Phase can only advance forward, never backward
 - Do NOT include escalated or closed in recommended_phase — these are set by the system, not by analysis
 
-missing_fields: only include fields actually missing. Do not list email unless phase is confirmation.
+missing_fields: only include fields actually missing. Never list email, and never suggest asking for one: an order does not need an email address.
 
 If the message is empty, too short to interpret, or just an emoji/sticker, return:
 - primary_intent: "unclear"

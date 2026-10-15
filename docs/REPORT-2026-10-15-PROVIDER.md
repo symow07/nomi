@@ -5,10 +5,10 @@ Written for the owner, answering "PHASE 4 — PROVIDER OUTAGE, DEPLOYS, AND THE 
 ## Next: yours
 
 1. **Turn deploys back on.** Before you click, look at the staged environment patch `a850b939` (09:55 UTC, empty) in the dashboard. One deploy then applies 0161–0166 in order; today's 03:00 backup exists and PITR is on. Tell me, and I'll confirm `/health` and schema 166.
-2. **Choose the fallback provider and paste its key: about 10 minutes.** My recommendation is **Anthropic, Claude Haiku 5.5**. It speaks the same message format, so it's the same client at another address; it's cheap; and it isn't DeepSeek. In Railway → `nomi` → Variables:
+2. **Choose the fallback provider and paste its key: about 10 minutes.** *(Corrected the same evening: Claude Haiku 5.5 answers 400 to every request the app makes, because the app sends `temperature` 0 / 0.2 / 0.3 and Haiku 5.5 accepts only 1. "The same client, no new code" was wrong for that model. Use `claude-haiku-4-5-20251001`, which accepts the requests as they are; `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` §1.)* My first recommendation was **Anthropic, Claude Haiku 5.5**. It speaks the same message format, so it's the same client at another address; it's cheap; and it isn't DeepSeek. In Railway → `nomi` → Variables:
    - `LLM_FALLBACK_BASE_URL` = `https://api.anthropic.com`
    - `LLM_FALLBACK_API_KEY` = the key (from console.anthropic.com; I can't create accounts)
-   - `LLM_FALLBACK_MODEL` = `claude-haiku-5-5`
+   - `LLM_FALLBACK_MODEL` = `claude-haiku-4-5-20251001` (corrected; was `claude-haiku-5-5`)
    - **Leave `LLM_FALLBACK` unset for now.** The fallback is then checked every five minutes but answers nothing. I run the golden scenarios and the language sweep against it, report both sets side by side, and you decide whether to set `LLM_FALLBACK=on`.
 3. **The 48-hour mark is 2026-10-17, about 09:50 UTC.** The record only starts once 0165–0166 are deployed, so item 1 matters for this too. At the mark I run `tools/model-uptime.mjs --hours 48` and give you DeepSeek's numbers.
 4. **Yours, from your list:** the reply check for #3, the Resend setup, the Mac's disk, the WhatsApp round trip, the three cold demos, naming the boss, the spare SIM, Westlake's Chinese names.
@@ -64,7 +64,7 @@ DeepSeek answers again since 10:30 UTC, and today's run matches yesterday's. The
   - My earlier "the trigger is off" was an inference from that silence, not something I saw.
   - Only the dashboard's activity log can show who or what changed something. I never change Railway settings.
 
-## 3 · The e-mail fix: recorded as PARTIAL
+## 3 · The e-mail fix: recorded as PARTIAL (closed later the same day: 18 of 21 → 0 of 21)
 
 PROGRESS and the decisions report now say "PARTIAL, blocked on the provider". DeepSeek answers again since 10:30 UTC, so the analysis-prompt change can now be made with the live check before and after. It isn't in this round because you said nothing else while you wait. Say the word and it's next.
 

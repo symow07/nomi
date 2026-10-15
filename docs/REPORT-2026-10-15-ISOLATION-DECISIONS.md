@@ -14,7 +14,9 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 
 ## Done, in your order
 
-### E-mail on orders, first (#356, migration 0161) — PARTIAL, blocked on the provider
+### E-mail on orders, first (#356, migration 0161) — done (the analysis prompt closed it later on 2026-10-15)
+
+*(Closed 2026-10-15, evening: the analysis prompt's three e-mail lines are gone. Live, deepseek-flash, the same seven conversations three times each: 18 of 21 answers asked for an e-mail before the change, 0 of 21 after. `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` §3.)*
 
 *(Corrected 2026-10-15, on the owner's word: not done. Until the analysis prompt changes, a WhatsApp buyer can still be asked for an address. That change waits for the model to answer, so it can be checked live before and after.)*
 
@@ -24,7 +26,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 - **The proforma:** unchanged. **A correction to my last report:** I said the address was "printed on the proforma". It never was. The proforma leaves it out (`src/api/web/proforma.ts:31`); it appears only on your order card and in a buyer's copy of their data.
 - **Nothing downstream broke without an address.** Nothing sends to it.
 - **Test:** a WhatsApp order with no e-mail, from hello to a confirmed proforma. Nobody asks for an address, nothing prints one, and `/pi/<token>` opens with the product and FOB and nothing address-shaped.
-- **Not yet changed, and it matters:** three lines in the *analysis* prompt still list e-mail as part of confirming an order. The analysis suggests the next question to ask, and that suggestion reaches the writer and the guard's stand-in reply. So an e-mail question is still possible that way until it changes. Changing that prompt needs the live model check before and after, and the model isn't answering (Next 5). It's the first thing I'll do once the model answers.
+- **Not yet changed at the time, and it mattered (closed since, above):** three lines in the *analysis* prompt still list e-mail as part of confirming an order. The analysis suggests the next question to ask, and that suggestion reaches the writer and the guard's stand-in reply. So an e-mail question is still possible that way until it changes. Changing that prompt needs the live model check before and after, and the model isn't answering (Next 5). It's the first thing I'll do once the model answers.
 
 ### 4 · Order numbers (#357, migration 0162)
 
