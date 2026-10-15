@@ -403,7 +403,9 @@ import type { Db } from './client.js';
 //       who gave none writes. Against a 160 database such a proposal fails on the not-null column.
 // 162 = each workspace numbers its own orders (0162): `order_numbers`, which every confirmed order raises, and the
 //       reference unique per workspace (`orders_business_reference`) rather than across the installation.
-export const REQUIRED_SCHEMA_VERSION = 162;
+// 163 = a withdrawal narrowed to its language (0163): `language_withdrawals`, which every turn that would send alone
+//       reads, `capability_events.language`, and `claim_self_demotions()` returning `narrowed` / `everywhere`.
+export const REQUIRED_SCHEMA_VERSION = 163;
 
 export type SchemaState = {
   readonly required: number;

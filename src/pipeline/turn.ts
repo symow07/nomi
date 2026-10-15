@@ -1478,16 +1478,23 @@ export async function commitTurn(
     // that language have gone out with the owner's approval (trust first;
     // 0108). A workspace the operator made or opened is not bound.
     const proven = !speaksAlone || !released || stopLine || await tenant.autonomy.languageProven(languageHead(language));
+    // 0163 — withdrawn in this language (or, G8, in the reply's own) after a reply kept in it failed its guards. The
+    // owner's choice of level stands for every other language; this one waits until they choose again.
+    const withdrawnLanguage = !speaksAlone || !released || stopLine ? null
+      : await tenant.autonomy.withdrawnIn(capability, languageHead(language)) ? languageHead(language)
+      : replyDiffers && await tenant.autonomy.withdrawnIn(capability, languageHead(replyIn!)) ? languageHead(replyIn!)
+      : null;
     const sentence = speaksAlone && released ? await disclosureText() : null;
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
-    const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);
+    const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && named && sentence !== null);
     /** What the card and the timeline say about the language, when that is why it waits. */
     /** The language that held it: the customer's, or (G8) the reply's own. */
     const heldBy = language !== UNDETERMINED && tenant.autonomy.released(language) && replyDiffers ? replyIn! : language;
     const languageWithheld = !released
       ? (withheldBecause(heldBy) === 'language_unknown' ? { reason: 'language_unknown' as const }
         : { reason: withheldBecause(heldBy), language: languageHead(heldBy) })
-      : !proven ? { reason: 'language_new' as const, language: languageHead(language) } : null;
+      : !proven ? { reason: 'language_new' as const, language: languageHead(language) }
+      : withdrawnLanguage ? { reason: 'language_withdrawn' as const, language: withdrawnLanguage } : null;
 
     const switches = await tenant.ops.switches();
     const mode = effectiveMode(
@@ -1559,10 +1566,14 @@ export async function commitTurn(
       // demotes — and every one does: a reply gendered twice and handed over is one (on #346, the owner: "a guard
       // that never demotes is as bad as one that demotes on everything").
       if (policyMode === 'auto' && keptReplyFailed) {
+        // 0163 — narrowed to the language the failed reply was kept in: the writer's, where it chose one, else the
+        // gate's. One nobody could tell withdraws the capability everywhere, as before.
+        const keptIn = replyIn && replyIn !== UNDETERMINED ? replyIn : language !== UNDETERMINED ? language : null;
         await tenant.autonomy.selfDemote({
           capability,
           conversationId: req.conversationId,
           violations: r.guardViolations,
+          language: keptIn ? languageHead(keptIn) : null,
         });
       }
     }

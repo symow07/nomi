@@ -2,7 +2,7 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import { type Locale, parseLocale } from '../core/owner/i18n/locale.js';
-import { t, capabilityName, type MessageKey } from '../core/owner/i18n/messages.js';
+import { t, capabilityName, steppedName, type MessageKey } from '../core/owner/i18n/messages.js';
 import { QUEUES, type AppErrorAlertJob, type NotifyJob } from '../queue/boss.js';
 import type { PgBoss, SendOptions } from 'pg-boss';
 import type { SendResult } from '../channels/contract.js';
@@ -258,7 +258,11 @@ export type OperatorAlertDetail = {
   /** `spend_breaker` (KS5): the installation's day so far, against its ceiling. */
   readonly spend?: { readonly tokens: number; readonly calls: number; readonly maxTokens: number; readonly maxCalls: number };
   /** `self_demoted` (R5): which capabilities stepped back, and the reason codes. */
-  readonly demoted?: { readonly capabilities: readonly string[]; readonly reasons: readonly string[] };
+  readonly demoted?: {
+    readonly capabilities: readonly string[]; readonly reasons: readonly string[];
+    /** 0163 — each step back narrowed to one language, as 'capability:language'; and those in every language. */
+    readonly narrowed?: readonly string[]; readonly everywhere?: readonly string[];
+  };
   /** `provider_refusing` / `provider_answering` (0128): the refusal, its step, its words, and its end. */
   readonly providerRefusal?: { readonly provider: string; readonly since: Date; readonly step: number; readonly words: string; readonly until?: Date };
   /** `provider_balance` (0128): the step and the paying currency's figures. */
@@ -369,9 +373,20 @@ export function renderOwnerAlert(
   if (kind === 'self_demoted') {
     const d = detail.demoted ?? { capabilities: [], reasons: [] };
     const known = d.reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r));
+    const why = formatList(locale, (known.length ? known : ['repeated_corrections']).map((r) => t(locale, `notify.self_demoted.why.${r}` as MessageKey)));
+    // 0163 — a step back narrowed to one language is named with it ("Quoting, in Arabic"), and when every step back
+    // was narrowed the alert says the other languages go on as before. A job queued before 0163 has neither list.
+    const narrowed = d.narrowed ?? [];
+    const everywhere = d.narrowed === undefined ? d.capabilities : (d.everywhere ?? []);
+    if (narrowed.length > 0) {
+      return t(locale, everywhere.length === 0 ? 'notify.self_demoted.narrowed' : 'notify.self_demoted', {
+        caps: formatList(locale, [...everywhere, ...narrowed].map((c) => steppedName(locale, c))),
+        why,
+      });
+    }
     return t(locale, 'notify.self_demoted', {
-      caps: formatList(locale, d.capabilities.map((c) => capabilityName(locale, c))),
-      why: formatList(locale, (known.length ? known : ['repeated_corrections']).map((r) => t(locale, `notify.self_demoted.why.${r}` as MessageKey))),
+      caps: formatList(locale, everywhere.map((c) => capabilityName(locale, c))),
+      why,
     });
   }
   // G3 — how much of today's allowance, and when it renews, in the owner's zone.

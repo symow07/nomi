@@ -237,6 +237,8 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
       workspaces: 12, practised: 7, replied: 4,
       // R5 — which replies stepped back, and why.
       caps: 'Quote and Negotiate', why: 'a spot check found a wrong price',
+      // 0163 — one stepped back in one language: "Quote, in Arabic".
+      cap: 'Quote', language: 'Arabic',
       // MAIL — yesterday's mail on the operator's list.
       codes: 12, alerts: 40, refused: 3,
       // KS5 — the installation's day against its ceiling.

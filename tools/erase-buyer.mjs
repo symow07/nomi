@@ -244,6 +244,8 @@ export const RULES = Object.freeze({
   trade_terms: { do: 'unrelated' },
   // 0162 — the workspace's count of its own orders: numbers only.
   order_numbers: { do: 'unrelated' },
+  // 0163 — a capability withdrawn in one language: the assistant's record.
+  language_withdrawals: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

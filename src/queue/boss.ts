@@ -283,7 +283,7 @@ export type NotifyJob = {
   /** `spend_breaker` (KS5): the installation's day so far, and its ceiling. */
   spend?: { tokens: number; calls: number; maxTokens: number; maxCalls: number };
   /** `self_demoted` (R5): which capabilities stepped back on their own, and why (`DemotionReason` codes). */
-  demoted?: { capabilities: string[]; reasons: string[] };
+  demoted?: { capabilities: string[]; reasons: string[]; narrowed?: string[]; everywhere?: string[] };
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */
   allowancePct?: number;
   renewsAt?: string;
