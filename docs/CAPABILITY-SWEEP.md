@@ -83,3 +83,11 @@ The owner's decisions: build 1 (order confirmation) and 2 (Chinese names), leave
   handed one.
 - Also: «好的» proposes the order like "yes" and «نعم» (the order-"yes" splits are gone); two scenarios wobble once in
   one language, three differ in kind with the same send-or-wait — all in the model-only layer.
+
+## 2026-10-15 — deepseek-flash again, after a day of outage (588 turns, none failed)
+
+DeepSeek answered again from 10:30 UTC; the same 41 × 3 × 3 at 11:15 UTC, as the primary column beside the fallback
+(docs/REPORT-2026-10-15-PROVIDER.md). **The same as 2026-10-14 after the fixes:** as production runs it, one
+send-alone / waits split (`low-confidence-match`, Arabic: no Arabic name); in the model-only rows the Chinese tie of
+finding 3 (2); one scenario differs in kind with the same send-or-wait; two wobble once in English. The fallback's
+run waits for its key (`--fallback`).
