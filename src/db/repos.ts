@@ -14,6 +14,7 @@ import type { AssistantRole } from '../core/owner/assistants.js';
 import { closureDate } from '../core/commerce/closures.js';
 import { isReportedOrderState } from '../core/commerce/orderState.js';
 import { writeOrderState } from './orders.js';
+import { nextOrderReference } from './orderNumbers.js';
 import { moneyFromRow, usd } from '../core/types/money.js';
 import type { Tx } from './client.js';
 import type {
@@ -433,9 +434,9 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         .select(['client_id']).where('id', '=', conversationId)
         .executeTakeFirstOrThrow();
 
-      const ref = await sql<{ ref: string }>`select generate_order_reference() as ref`
-        .execute(tx);
-      const orderReference = ref.rows[0]?.ref ?? `YW-${Date.now()}`;
+      // 0162 — the workspace's own count (2026-0001), raised in this
+      // transaction: never the installation's shared counter.
+      const orderReference = await nextOrderReference(tx, businessId);
 
       try {
         const row = await tx.insertInto('orders').values({

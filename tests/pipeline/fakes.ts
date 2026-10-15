@@ -161,7 +161,7 @@ export class FakeTenant implements Tenant {
       if (existing) return { ...existing, alreadyExisted: true } as never;
       const created = {
         orderId: `order-${++this.orderSeq}`,
-        orderReference: `YW-2026-07-000${this.orderSeq}`,
+        orderReference: `2026-${String(this.orderSeq).padStart(4, '0')}`,   // 0162's shape: the workspace's own count
       };
       this.ordersByConversation.set(conversationId, created);
       return { ...created, alreadyExisted: false } as never;

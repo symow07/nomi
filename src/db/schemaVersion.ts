@@ -401,7 +401,9 @@ import type { Db } from './client.js';
 //       draws the setup count fails on the missing column.
 // 161 = an order needs no e-mail (0161): `order_proposals.client_email` may be null, which a proposal for a buyer
 //       who gave none writes. Against a 160 database such a proposal fails on the not-null column.
-export const REQUIRED_SCHEMA_VERSION = 161;
+// 162 = each workspace numbers its own orders (0162): `order_numbers`, which every confirmed order raises, and the
+//       reference unique per workspace (`orders_business_reference`) rather than across the installation.
+export const REQUIRED_SCHEMA_VERSION = 162;
 
 export type SchemaState = {
   readonly required: number;

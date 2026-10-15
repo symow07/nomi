@@ -242,6 +242,8 @@ export const RULES = Object.freeze({
   selling_answers: { do: 'unrelated' },
   substitution_rules: { do: 'unrelated' },
   trade_terms: { do: 'unrelated' },
+  // 0162 — the workspace's count of its own orders: numbers only.
+  order_numbers: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

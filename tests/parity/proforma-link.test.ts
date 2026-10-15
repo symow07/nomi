@@ -20,7 +20,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 const VIEW: ProformaView = {
   locale: 'en', zone: 'Asia/Shanghai',
   seller: 'Westlake Canvas Co.', sellerAddress: 'Room 1203, Block B\nYiwu, Zhejiang 322000, China',
-  buyer: 'Khalid Mansoor', reference: 'YW-2026-10-0014', issuedAt: new Date('2026-10-12T03:20:00Z'),
+  buyer: 'Khalid Mansoor', reference: '2026-0014', issuedAt: new Date('2026-10-12T03:20:00Z'),
   product: 'Canvas tote bag', sku: 'ZX-200', quantity: 5000, unit: 'pcs',
   unitPrice: usd(0.38), total: usd(1900), sampleCredit: usd(25),
   incoterm: 'FOB Ningbo', paymentTerms: '30% deposit, 70% before shipment',
@@ -32,7 +32,7 @@ const visible = (html: string): string =>
 describe('Phase 2c · the proforma page', () => {
   it('states the order’s figures, the credit as two lines and what is due, the terms in the owner’s words', () => {
     const page = visible(renderProformaPage(VIEW));
-    for (const s of ['Proforma invoice', 'YW-2026-10-0014', 'Westlake Canvas Co.', 'Khalid Mansoor', 'Canvas tote bag', 'ZX-200',
+    for (const s of ['Proforma invoice', '2026-0014', 'Westlake Canvas Co.', 'Khalid Mansoor', 'Canvas tote bag', 'ZX-200',
       '5,000 pcs', '$0.38', '$1,900.00', 'Less sample already paid', '−$25.00', 'Amount due', '$1,875.00',
       'FOB Ningbo', '30% deposit, 70% before shipment', 'Room 1203, Block B']) expect(page, s).toContain(s);
     // A seller's name that ends its own sentence takes no second full stop.

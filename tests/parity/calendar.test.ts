@@ -43,7 +43,7 @@ const ENTRIES: CalendarEntry[] = [
   e({ category: 'samples', kind: 'sample_handled', at: at(TODAY, '10:00'),
     source: { table: 'sample_requests', id: 's1', column: 'handled_at' } }),
   e({ category: 'orders', kind: 'order_state', at: at(addDays(TODAY, -1), '16:40'), orderId: ORDER, buyer: OLGA,
-    detail: { orderReference: 'YW-2026-09-0001', orderState: 'shipped', trackingReference: 'SF123' },
+    detail: { orderReference: '2026-0001', orderState: 'shipped', trackingReference: 'SF123' },
     source: { table: 'order_updates', id: 'u1', column: 'at' } }),
   e({ category: 'negotiation', kind: 'price_worked_out', at: at(addDays(TODAY, -3), '11:00'),
     detail: { price: usd(0.38), quantity: 20000 }, source: { table: 'quotes', id: 'q1', column: 'created_at' } }),

@@ -36,7 +36,7 @@ const analytics = (totals: readonly Money[]): AnalyticsData => ({
 });
 
 const order = (over: Partial<OrderView> = {}): OrderView => ({
-  orderId: 'o1', reference: 'YW-2026-09-0001', conversationId: 'c1',
+  orderId: 'o1', reference: '2026-0001', conversationId: 'c1',
   buyer: 'Ahmed Al-Rashid', productName: 'Canvas Tote Bag', productSku: 'ZX-100',
   quantity: 5000, unit: 'pcs', unitPriceAmount: 0.92, totalAmount: 4600, currency: 'USD',
   email: null, confirmedAt: new Date('2026-09-01T08:00:00Z'), history: [],
