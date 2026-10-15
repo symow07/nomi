@@ -22,15 +22,17 @@ what makes each urgent; fix the false dedupe-key comments. The report: `docs/REP
   that is not one), the turn never asks for one, `order_proposals.client_email` may be null, the card shows the row only
   when there is one. The proforma never printed it (the sweep report said it did: corrected). The analysis prompt's two
   e-mail lines wait for the live model check (DeepSeek was answering 503 on 2026-10-15).
-- **Each workspace numbers its own orders — #PR_NUMBERS (0162):** `order_numbers` (workspace, year), 2026-0001 in the
+- **Each workspace numbers its own orders — #357 (0162):** `order_numbers` (workspace, year), 2026-0001 in the
   workspace's zone, raised in the order's transaction; unique per workspace; the YW counter closed to the app.
-- **A withdrawal narrowed to its language — #PR_LANGUAGE (0163):** `language_withdrawals`, read at the send decision;
+- **A withdrawal narrowed to its language — #359 (0163):** `language_withdrawals`, read at the send decision;
   the owner's level (re-)chosen or a grant lifts it; alert, Today and the assistant's page name the language. Rung and
   spot-check withdrawals unchanged (the owner: leave the rung alone).
-- **#PR_SMALL:** `tools/release-number.mjs` (item 11 — no release path existed); one mailbox per workspace at a time
+- **#360:** `tools/release-number.mjs` (item 11 — no release path existed); one mailbox per workspace at a time
   (0164, item 12's cheap guard); the dedupe-key comments say what really prevents duplicates; the waiting table in the
   sweep report; item 10's hard marker in LAUNCH-CHECKLIST ("metered before the third paying workspace").
-- **Waiting on the owner:** the #3 reply check; the dedicated sender's three variables (#2, steps in the report); disk
+- **Not deployed: Railway's `nomi` trigger is off since #353 (2026-10-14 18:11 UTC).** Main is ahead of production
+  by #354–#360; production is healthy at schema 160. The owner turns it back on; one deploy then runs 0161–0164.
+- **Waiting on the owner:** the Railway trigger; the #3 reply check; the dedicated sender's three variables (#2, steps in the report); disk
   space on the Mac; DeepSeek's outage.
 
 ## Phase 4 — after #340–#342 (2026-10-14) — read this first

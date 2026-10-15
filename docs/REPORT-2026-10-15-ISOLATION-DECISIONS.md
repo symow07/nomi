@@ -4,11 +4,13 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 
 ## Next: yours
 
-1. **The reply check (#3), 2 minutes.** Reply "test" to any e-mail Nomi sent you (a sign-in code or an alert). Wait two minutes, then open Westlake → Buyers. If your reply is there, tell me: it gets fixed before the pilot. If it isn't, it comes off the list.
-2. **The dedicated sender (#2), about 20 minutes plus the DNS wait.** Steps are under #2 below. Until it's set, the boss's codes still ride Westlake's Gmail.
-3. **The Mac's disk is full: about 0.5 GB free.** Every check needs room. Please free a few GB; I can't delete your files.
-4. **The model provider is failing.** DeepSeek answers "503 Service is too busy" or times out on every call I made today. /health doesn't see it. Either wait, or switch providers (your call). Until it recovers, every analysed turn fails and is handed to a person (rule 19).
-5. **Unchanged:** the WhatsApp round trip, the three cold demos, naming the boss, the spare SIM, Westlake's Chinese names.
+1. **Railway stopped deploying the app, 2 minutes.** Nothing merged since #353 (yesterday 18:11 UTC) has gone live: not #356's e-mail fix, and not this round. Production is healthy, on #353's code at schema 160. GitHub still reaches Railway: the `backup` service logs every push. Only the `nomi` service's trigger is off. I didn't change it, and I didn't deploy by hand in case you switched it off on purpose. To turn it back on: Railway → `nomi` → Settings → Source → branch `main` (or "Deploy latest commit"). One deploy then applies 0161–0164 in order. Today's 03:00 backup exists. Tell me and I'll confirm `/health` and schema 164.
+2. **The reply check (#3), 2 minutes.** Reply "test" to any e-mail Nomi sent you (a sign-in code or an alert). Wait two minutes, then open Westlake → Buyers. If your reply is there, tell me: it gets fixed before the pilot. If it isn't, it comes off the list.
+3. **The dedicated sender (#2), about 20 minutes plus the DNS wait.** Steps are under #2 below. Until it's set, the boss's codes still ride Westlake's Gmail.
+4. **The Mac's disk is full: about 0.5 GB free.** Every check needs room. Please free a few GB; I can't delete your files.
+5. **The model provider isn't answering.** Every call I made today failed. Early on it was DeepSeek's "503 Service is too busy"; now each one times out after 30 s. The host resolves to a real AWS address, so it isn't a proxy on this Mac. Production hasn't had a turn since 2026-09-20, so it hasn't hit this yet. `/health` says `"model":"answering"`, but that field only tracks billing refusals. Your call: wait, or switch providers. Until it answers, every analysed turn fails and goes to a person (rule 19).
+
+**Unchanged:** the WhatsApp round trip, the three cold demos, naming the boss, the spare SIM, Westlake's Chinese names.
 
 ## Done, in your order
 
@@ -22,7 +24,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 - **Test:** a WhatsApp order with no e-mail, from hello to a confirmed proforma. Nobody asks for an address, nothing prints one, and `/pi/<token>` opens with the product and FOB and nothing address-shaped.
 - **Not yet changed:** two lines in the *analysis* prompt still mention e-mail as part of the confirmation phase. Changing that prompt needs the live model check before and after, and the model is down (item 4). They describe a phase; nothing gates on them.
 
-### 4 · Order numbers (#PR_NUMBERS, migration 0162)
+### 4 · Order numbers (#357, migration 0162)
 
 - Each workspace counts its own orders, per year in its own time zone: **2026-0001, 2026-0002 … 2027-0001**. There is no shared counter and no "YW".
 - The count rises inside the order's own transaction, so an order that fails takes its number with it: no gaps. Two orders at the same moment get the next two numbers.
@@ -50,7 +52,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
   - Production holds **no** reply to a Nomi e-mail in Westlake. The one buyer who matches a sign-in address is Westlake's own.
 - **What I can't do:** the real test needs a person to reply (Next 1). **No fix was built.**
 
-### 9 · Withdrawal narrowed to the language (#PR_LANGUAGE, migration 0163)
+### 9 · Withdrawal narrowed to the language (#359, migration 0163)
 
 - A reply that failed its checks (a forbidden word twice, or Arabic that couldn't be written without a gender) now withdraws its capability **in that language only**.
   - English buyers are answered alone as before.
@@ -60,7 +62,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 - **Left alone, as you said:** the earned rung is still cleared. **Also left as it was:** a spot check's withdrawal (your verdict on work sent alone) still spans every language; it's about the work, not the language.
 - **One case still withdraws everywhere:** a reply whose language nobody could tell. Such a reply never goes alone anyway.
 
-### 11 · The spare SIM: you would have been locked out. A release is built (#PR_SMALL)
+### 11 · The spare SIM: you would have been locked out. A release is built (#360)
 
 - **Yes, locked out.** Disconnecting only switches the number's row off, and that row keeps the number for good. The attach tool refused the number for any other workspace ("belongs to another workspace, switched off there"), and a self-serve connect got "number taken". No operator path existed.
 - **Built: `tools/release-number.mjs <business-id> <phone-number-id> [--yes]`.**
@@ -71,7 +73,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 - **Then:** attach it where it belongs. The workspace it left can still connect another number.
 - **Tested:** wrong workspace → disconnect → refused → release → attached to the right one, routing there only.
 
-### 12 · Cheap, so taken (#PR_SMALL, migration 0164)
+### 12 · Cheap, so taken (#360, migration 0164)
 
 A mailbox can be connected to one workspace at a time. The second connect is refused with its own notice ("That mailbox is already connected to another workspace, so it was not connected here."), and nothing changes on either side. Production had one live mailbox, so nothing collided.
 
@@ -89,6 +91,8 @@ The table is in `docs/REPORT-2026-10-15-ISOLATION-SWEEP.md` ("Waiting — and wh
 
 ## Found, not fixed
 
+- **`/health` can't see a provider that times out.** Its `model` field turns `refusing` only on billing refusals (0128). A provider that's down reads as `answering`, and the heartbeat pings green. Today it said `answering` while every call failed.
+- **#358 was closed by GitHub, not merged.** I'd opened it stacked on #357's branch; deleting that branch on merge closed it. #359 replaces it, with the same commits and the same verified tree. Noted, so it doesn't happen again.
 - **A second confirmation of the same conversation can't take its "same order" path.** `orders.create` catches the open-order unique violation and then reads the existing order. But in Postgres a failed statement aborts the whole transaction, so that read fails too. Today the proposal's lock and state check stop a second confirm before it gets there, so I haven't seen it happen. It predates this work.
 
 ## Where I was guessing
@@ -98,4 +102,19 @@ The table is in `docs/REPORT-2026-10-15-ISOLATION-SWEEP.md` ("Waiting — and wh
 
 ## Verification
 
-VERIFY_BLOCK
+Every PR passed the four checks on Node 24 before it was opened. The integration suites were run on this Mac's Postgres; the PRs' CI ran them again.
+
+| PR | check (unit) | trust | build | integration | pre-pilot (scripted) |
+|---|---|---|---|---|---|
+| #356 e-mail | 8297 | 44 | ok | 1570 / 1570 | 12/12 before · 12/12 after |
+| #357 order numbers | 8301 | 44 | ok | 1575 / 1575 (the second run; the first found Practice's copy list to fill) | 12/12 · 12/12 ("2026-0001 · being prepared") |
+| #359 language | 8333 | 44 | ok | 1578 / 1578 | 12/12 · 12/12 |
+| #360 the rest | 8335 | 44 | ok | 1582 / 1582 | not run: nothing on the send path |
+
+Negative controls (the fix switched off, its own tests fail):
+- the old shared counter: 6 of the 9 new tests;
+- the per-language check at the send decision, and separately the language handed to the writer;
+- the mailbox catch;
+- the attach tool's released-row exclusion.
+
+The live model check (`tools/check-person-model.mjs`) wasn't run: the provider isn't answering (Next 5). That's why the analysis prompt is unchanged.
