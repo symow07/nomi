@@ -132,9 +132,9 @@ body: model, thinking {type: disabled}, max_tokens, temperature 0.2, messages
 
 | | Deploy alarm (#363) | E-mail prompt |
 |---|---|---|
-| `npm run check` | VERIFY_A_CHECK | VERIFY_E_CHECK |
-| `npm run trust` | passed | VERIFY_E_TRUST |
-| `npm run build` | passed | VERIFY_E_BUILD |
-| integration | 1592 of 1592, none skipped | VERIFY_E_INT |
-| pre-pilot `--scripted`, before → after | 12/12 → 12/12 | not on the send path |
+| `npm run check` | passed (8371 tests) | passed (8374 tests) |
+| `npm run trust` | passed | passed (44 tests) |
+| `npm run build` | passed | passed |
+| integration | 1592 of 1592, none skipped | 1592 of 1592, none skipped |
+| pre-pilot `--scripted`, before → after | 12/12 → 12/12 | 12/12 → 12/12 |
 | live model check, before → after | not touched | above (§3) |
