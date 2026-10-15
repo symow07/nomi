@@ -106,6 +106,12 @@ d('0163 · a withdrawal is narrowed to the language it happened in (requires DAT
       select capability, action, actor, language from capability_events where business_id = ${biz} order by at, id`.execute(t)).rows,
   }));
 
+  /** Practice's copy, refreshed as before every practice turn: the withdrawals it holds. */
+  const practiced = async (biz: string) => {
+    const copy = await as(biz, async (t) => (await sql<{ id: string }>`select practice_refresh(${biz}::uuid)::text as id`.execute(t)).rows[0]!.id);
+    return (await admin.query(`select capability, language from language_withdrawals where business_id = $1 and lifted_at is null`, [copy])).rows;
+  };
+
   /** The five-minute claim, for this workspace only, in a transaction rolled back: other files' alerts stay untold. */
   const claimed = async (biz: string) => {
     await admin.query('begin');
@@ -131,6 +137,8 @@ d('0163 · a withdrawal is narrowed to the language it happened in (requires DAT
     expect(s.modes[cap]).toBe('auto');                                  // the owner's setting is untouched
     expect(s.open).toEqual([{ capability: cap, language: 'ar', reasons: expect.any(Array) }]);
     expect(s.events).toEqual([{ capability: cap, action: 'withdraw', actor: 'system_self_demoted', language: 'ar' }]);
+    // Practice answers as the workspace would: its copy holds the same withdrawal.
+    expect(await practiced(biz)).toEqual([{ capability: cap, language: 'ar' }]);
 
     // English, the same capability: alone, as the owner chose.
     const en = await turn(biz, 'en', 'do you make bags?', ['Yes, we make bags. What size do you need?']);
@@ -177,6 +185,7 @@ d('0163 · a withdrawal is narrowed to the language it happened in (requires DAT
     const lifted = await as(biz, (t) => sql<{ lifted_by: string | null }>`
       select lifted_by from language_withdrawals where business_id = ${biz}`.execute(t).then((x) => x.rows));
     expect(lifted).toEqual([{ lifted_by: 'owner-test' }]);
+    expect(await practiced(biz)).toEqual([]);
     expect((await loadEmployee(db, biz)).stepped).toEqual([]);
     expect((await loadOperationsSnapshot(db, biz, 'today')).supervision?.demoted).toEqual([]);
 
