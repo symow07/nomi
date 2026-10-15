@@ -28,7 +28,8 @@ export type PendingProposal = {
   readonly unit: string;
   readonly unitPrice: Money;
   readonly total: Money;
-  readonly email: string;
+  /** The buyer's e-mail when they gave one; null when not — an order needs none (0161, 2026-10-15). */
+  readonly email: string | null;
   readonly paymentTerms: string | null;
   readonly incoterm: string | null;
   readonly createdAt: Date;
@@ -51,7 +52,7 @@ export type ProposalRow = PendingProposal & {
 type Raw = {
   id: string; conversation_id: string; product_id: string; product_name: string;
   quantity: number; unit: string; unit_price: string; total: string; currency: string;
-  client_email: string; payment_terms: string | null; incoterm: string | null;
+  client_email: string | null; payment_terms: string | null; incoterm: string | null;
   created_at: Date; state: ProposalRow['state']; customer_language: string | null; said: string | null; unquoted: boolean;
 };
 

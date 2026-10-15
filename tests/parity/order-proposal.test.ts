@@ -31,7 +31,7 @@ const PROPOSAL = {
   productId: 'b0000000-0000-0000-0000-000000000001',
   quantity: 40, unit: 'boxes',
   unitPrice: usd(2.1), total: usd(84),
-  email: 'customer@example.com',
+  email: 'customer@example.com' as string | null,
   paymentTerms: null, incoterm: null,
 };
 
@@ -51,7 +51,10 @@ describe('0080 · what a proposal may become', () => {
     expect(bad({ quantity: 0 })).toMatchObject({ ok: false });
     expect(bad({ unitPrice: usd(0), total: usd(0) })).toMatchObject({ ok: false });
     expect(bad({ total: usd(85) })).toMatchObject({ ok: false, error: ['total_mismatch'] });
-    expect(bad({ email: 'no address' })).toMatchObject({ ok: false, error: ['email_missing'] });
+    // CHANGED BY DESIGN (2026-10-15): an order needs no e-mail — none is fine; one given must be an address.
+    expect(bad({ email: 'no address' })).toMatchObject({ ok: false, error: ['email_invalid'] });
+    expect(bad({ email: null })).toMatchObject({ ok: true });
+    expect(bad({ email: '' })).toMatchObject({ ok: true });
   });
 });
 

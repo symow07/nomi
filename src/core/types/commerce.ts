@@ -187,7 +187,12 @@ export type ConfirmableOrder = Brand<
     readonly quantity: Quantity;
     readonly unitPrice: Money;
     readonly total: Money;
-    readonly email: Email;
+    /**
+     * The buyer's e-mail, when they gave one — never a condition of ordering (the owner, 2026-10-15: "WhatsApp
+     * buyers do not hand over e-mail addresses to place an order"). Nothing sends to it; the proforma prints it
+     * only when there is one.
+     */
+    readonly email: Email | null;
     /**
      * G6 — HER terms, or null when she has stated none. Never a default: a
      * literal here stamped "30% deposit, 70% before shipment" on every order.
@@ -206,7 +211,8 @@ export type BlockingReason =
   | 'quantity_missing'
   | 'quantity_below_moq'
   | 'price_missing'
-  | 'email_missing'
+  // An address was GIVEN for the order (the owner's form) and is not one. A missing address blocks nothing.
+  | 'email_invalid'
   | 'total_mismatch'
   | 'pending_question_unresolved'
   | 'problem_score_too_high'

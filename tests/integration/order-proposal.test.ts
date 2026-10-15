@@ -45,6 +45,7 @@ const CUSTOMERS = {
   maybeAr: `9718${runDigits(RUN, 6)}7`,
   mismatch: `9718${runDigits(RUN, 6)}8`,
   matched: `9718${runDigits(RUN, 6)}9`,
+  noEmail: `9718${runDigits(RUN, 6)}0`,
 } as const;
 
 type Tx = import('../../src/db/client.js').Tx;
@@ -543,6 +544,63 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     const email = await q((tx) => sql<{ email: string | null }>`select cl.email from clients cl
       join conversations c on c.client_id = cl.id where c.id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.email));
     expect(email).toBe('lee@example.com');
+    await drained(conv);
+  });
+  it('A WHATSAPP ORDER WITH NO E-MAIL (the owner, 2026-10-15): hello to confirmed proforma — nobody asks for an address, nothing prints one', async () => {
+    const { esc } = await import('../../src/api/web/layout.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    // Her delivery and payment terms, as Business › How you sell writes them: an order needs these for a proforma.
+    await q((tx) => sql`insert into trade_terms (business_id, payment_terms, incoterm, stated_at, stated_by)
+      values (${BIZ}, '30% deposit, balance before shipment', 'FOB', now(), 'owner')`.execute(tx));
+    const wa = CUSTOMERS.noEmail;
+    await say(wa, 'hello, I would like some gift boxes');
+    const conv = await convOf(wa);
+    await until(async () => ((await turnsOf(conv)) >= 1 ? true : undefined), 'the first turn');
+    await until(async () => ((await footprint(conv)).outbound >= 1 ? true : undefined), 'the first reply');
+    // Ready to confirm — product, quantity, the question asked — and NO e-mail on record, ever.
+    await q(async (tx) => {
+      await sql`update conversations set phase = 'confirmation', assigned_to = null where id = ${conv}::uuid`.execute(tx);
+      await sql`update conversation_state set identified_product_id = ${PID}::uuid, product_confidence = 0.95,
+                  product_confirmed_by_client = true, inquiry_quantity = 40, inquiry_unit = 'boxes',
+                  pending_question = 'order_confirmation', problem_score = 0
+                 where conversation_id = ${conv}::uuid`.execute(tx);
+    });
+    const email = () => q((tx) => sql<{ e: string | null }>`select cl.email as e from clients cl
+      join conversations c on c.client_id = cl.id where c.id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.e));
+    expect(await email()).toBeNull();
+    await say(wa, 'yes');
+    await until(async () => ((await footprint(conv)).proposals >= 1 ? true : undefined), 'the proposal');
+    const p = (await proposalOf(conv))!;
+    expect((await q((tx) => sql<{ e: string | null }>`select client_email as e from order_proposals where id = ${p.id}::uuid`
+      .execute(tx).then((x) => x.rows[0]!.e)))).toBeNull();
+    // Nothing that went to the buyer asked for an address.
+    const said = await q((tx) => sql<{ body: string }>`select body from outbound_messages where conversation_id = ${conv}::uuid`
+      .execute(tx).then((x) => x.rows.map((r) => r.body)));
+    for (const b of said) expect(b, b).not.toMatch(/e-?mail|邮箱|البريد/i);
+    // The order card: the facts and the Confirm — no e-mail row standing empty.
+    const page = await get(`/app/inbox/${conv}`);
+    expect(page.body).toContain(`/app/inbox/${conv}/order/confirm`);
+    const card = page.body.slice(page.body.indexOf('id="order"'), page.body.indexOf(`/app/inbox/${conv}/order/confirm`));
+    expect(card).not.toContain(esc(t('en', 'order.card.email')));
+    // Confirmed by the owner: an order, with no address on it.
+    expect((await postForm(`/app/inbox/${conv}/order/confirm`, { proposalId: p.id })).statusCode).toBe(302);
+    const order = await q((tx) => sql<{ id: string; e: string | null }>`select id::text as id, client_email as e from orders
+      where conversation_id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]));
+    expect(order, 'the order').toBeDefined();
+    expect(order!.e).toBeNull();
+    // Its proforma: made, opened by the customer with no session — no e-mail line, no blank, no placeholder.
+    expect((await postForm(`/app/orders/${order!.id}/proforma-link`, { from: 'order' })).statusCode).toBe(302);
+    const token = await q((tx) => sql<{ t: string | null }>`select proforma_token as t from orders where id = ${order!.id}::uuid`
+      .execute(tx).then((x) => x.rows[0]!.t));
+    expect(token).toBeTruthy();
+    const pi = await prod.app.inject({ method: 'GET', url: `/pi/${token}` });
+    expect(pi.statusCode).toBe(200);
+    expect(pi.body).toContain('Gift box');
+    expect(pi.body).toContain('FOB');
+    // The page's own words, its stylesheet aside (its CSS has `@media`): no address of any kind, no e-mail line.
+    const words = pi.body.replace(/<style[^]*?<\/style>/g, '');
+    expect(words).not.toMatch(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+    expect(words).not.toMatch(/e-?mail|邮箱|البريد/i);
     await drained(conv);
   });
 });
