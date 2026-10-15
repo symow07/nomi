@@ -14,11 +14,12 @@ import { ensureSpotChecks } from './spotChecks.js';
  * sweeps never send one twice; practice copies are marked and not told.
  */
 export async function demotionAlerts(db: Db): Promise<NotifyJob[]> {
-  const rows = (await sql<{ business_id: string; capabilities: string[]; reasons: string[] }>`
-    select business_id::text as business_id, capabilities, reasons from claim_self_demotions()`.execute(db)).rows;
+  const rows = (await sql<{ business_id: string; capabilities: string[]; reasons: string[]; narrowed: string[]; everywhere: string[] }>`
+    select business_id::text as business_id, capabilities, reasons, narrowed, everywhere from claim_self_demotions()`.execute(db)).rows;
   return rows.map((r) => ({
     businessId: r.business_id, kind: 'self_demoted', conversationId: null,
-    demoted: { capabilities: r.capabilities, reasons: r.reasons },
+    // 0163 — what stepped back in one language ('quote:ar') and what in every language, named apart.
+    demoted: { capabilities: r.capabilities, reasons: r.reasons, narrowed: r.narrowed, everywhere: r.everywhere },
   }));
 }
 

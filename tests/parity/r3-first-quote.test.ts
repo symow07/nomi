@@ -51,7 +51,8 @@ describe('R3 · the turn', () => {
   it('a reply that states a product\'s price goes alone only when that product is vetted — beside every other condition', () => {
     expect(turn).toContain('const quotedProduct = r.quote && r.decision.product ? r.decision.product.productId : null;');
     expect(turn).toContain('const vetted = !speaksAlone || !quotedProduct || await tenant.autonomy.quoteVetted(quotedProduct);');
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && named && sentence !== null);');
+    // 0163 — and not withdrawn in this language.
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && named && sentence !== null);');
   });
   it('the reason named: not earned first, then the first quote, then the language', () => {
     expect(turn).toContain("...(!earned ? { reason: 'not_earned' } : !vetted ? { reason: 'first_quote' } : languageWithheld");

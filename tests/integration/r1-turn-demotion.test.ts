@@ -12,8 +12,8 @@ import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
  *
  *   · a forbidden word caught and rewritten clean: sent; the capability stays on auto;
  *   · an Arabic gendered word caught and rewritten neutral: sent; stays on auto;
- *   · the forbidden word written twice (the kept reply failed): withdrawn — draft, and her own event saying so;
- *   · Arabic gendered twice and handed to a person (0158): withdrawn the same way.
+ *   · the forbidden word written twice (the kept reply failed): withdrawn — in English (0163), and her own event saying so;
+ *   · Arabic gendered twice and handed to a person (0158): withdrawn the same way, in Arabic.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -82,6 +82,9 @@ d('R1 in the turn: a clean rewrite keeps the capability, a failed one withdraws 
           .execute(t)).rows[0]?.mode,
         events: (await sql<{ action: string; actor: string }>`select action, actor from capability_events
           where business_id = ${biz}`.execute(t)).rows,
+        // 0163 — the step back is narrowed to the language the kept reply was written in.
+        withdrawn: (await sql<{ capability: string; language: string }>`select capability, language from language_withdrawals
+          where business_id = ${biz} and lifted_at is null`.execute(t)).rows,
       };
     });
     return { r, fx, ...after };
@@ -99,6 +102,7 @@ d('R1 in the turn: a clean rewrite keeps the capability, a failed one withdraws 
     expect(x.violation).toMatchObject({ final: false });
     expect(x.mode).toBe('auto');
     expect(x.events).toEqual([]);
+    expect(x.withdrawn).toEqual([]);
   });
 
   it('an Arabic gendered word caught and rewritten neutral: sent — stays on auto', async () => {
@@ -113,7 +117,9 @@ d('R1 in the turn: a clean rewrite keeps the capability, a failed one withdraws 
     const x = await run('en', 'do you make bags?', [`We work with ${FORBIDDEN}.`, `${FORBIDDEN} makes them.`]);
     expect(x.r.hold).toBe('guards_failed_twice');
     expect(x.violation).toMatchObject({ final: true });
-    expect(x.mode).toBe('draft');
+    // 0163 — withdrawn in English, the language the reply was kept in; the owner's setting stays.
+    expect(x.mode).toBe('auto');
+    expect(x.withdrawn).toEqual([{ capability: x.capability, language: 'en' }]);
     expect(x.events).toEqual([{ action: 'withdraw', actor: 'system_self_demoted' }]);
   });
 
@@ -121,7 +127,9 @@ d('R1 in the turn: a clean rewrite keeps the capability, a failed one withdraws 
     const x = await run('ar', 'أريد حقيبة قماش', ['هل تبحث عن مقاس معين؟', 'هل تحب تشوف الموديلات؟']);
     expect(x.r.signals.map((s) => s.kind)).toContain('address_unwritten');
     expect(x.violation).toMatchObject({ final: true });
-    expect(x.mode).toBe('draft');
+    // 0163 — withdrawn in Arabic only.
+    expect(x.mode).toBe('auto');
+    expect(x.withdrawn).toEqual([{ capability: x.capability, language: 'ar' }]);
     expect(x.events).toEqual([{ action: 'withdraw', actor: 'system_self_demoted' }]);
   });
 });

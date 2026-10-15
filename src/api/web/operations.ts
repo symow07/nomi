@@ -10,7 +10,7 @@ import { ownershipOf } from '../../core/conversation/ownership.js';
 import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, steppedName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
@@ -280,12 +280,18 @@ export async function loadOperationsSnapshot(
   const supervision = await withTenantTx(db, B, async (tx) => ({
     spotChecks: (await sql<{ n: number }>`
       select count(*)::int as n from spot_checks where business_id = ${B} and answered_at is null`.execute(tx)).rows[0]!.n,
-    demoted: (await sql<{ capability: string }>`
-      select distinct e.capability from capability_events e
+    // 0163 — a step back narrowed to one language counts while it stands ('quote:ar'); one in every language while
+    // the capability is still not back in auto, as before.
+    demoted: (await sql<{ item: string }>`
+      select distinct case when e.language is null then e.capability else e.capability || ':' || e.language end as item
+        from capability_events e
         left join autonomy_policy p on p.business_id = e.business_id and p.capability = e.capability
        where e.business_id = ${B} and e.actor = 'system_self_demoted' and e.at >= now() - interval '7 days'
-         and coalesce(p.mode, 'draft') <> 'auto'
-       order by e.capability`.execute(tx)).rows.map((r) => r.capability),
+         and case when e.language is null then coalesce(p.mode, 'draft') <> 'auto'
+                  else exists (select 1 from language_withdrawals w
+                                where w.business_id = e.business_id and w.capability = e.capability
+                                  and w.language = e.language and w.lifted_at is null) end
+       order by 1`.execute(tx)).rows.map((r) => r.item),
   }));
 
   return {
@@ -422,7 +428,7 @@ export function renderOperationsHome(
     gaps > 0 ? deeper('/app/knowledge', tn(locale, 'today.gaps', gaps, { name })) : '',
     // R5 — the assistant stepped back on its own, and work sent alone waits to be checked.
     s.supervision?.demoted.length ? deeper(`${ASSISTANT_HOME}#on-her-own`, t(locale, 'today.demoted', {
-      caps: formatList(locale, s.supervision.demoted.map((c) => capabilityName(locale, c))),
+      caps: formatList(locale, s.supervision.demoted.map((c) => steppedName(locale, c))),
     })) : '',
     s.supervision?.spotChecks ? deeper(`${ASSISTANT_HOME}#spot-checks`, tn(locale, 'today.spotChecks', s.supervision.spotChecks)) : '',
   ].filter(Boolean).join('');

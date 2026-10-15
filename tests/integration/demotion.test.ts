@@ -83,7 +83,7 @@ d('M34.9 · a capability demotes itself (requires DATABASE_URL)', () => {
     const result = await withBiz(async (tx) => {
       const tenant = tenantRepos(tx, bid);
       await tenant.events.append(CONV as never, 'guard_violation', { capability: CAP, count: 1 });
-      return tenant.autonomy.selfDemote({ capability: CAP, conversationId: CONV, violations: 1 });
+      return tenant.autonomy.selfDemote({ capability: CAP, conversationId: CONV, violations: 1, language: null });
     });
 
     expect(result.demoted).toBe(true);

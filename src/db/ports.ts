@@ -112,7 +112,14 @@ export interface AutonomyRepo {
     readonly capability: string;
     readonly conversationId: string;
     readonly violations: number;
+    /**
+     * 0163 — the language the failed reply was kept in (two letters): the step back is narrowed to it. Null when
+     * nobody could tell the language: then the capability steps back everywhere, as before.
+     */
+    readonly language: string | null;
   }): Promise<{ readonly demoted: boolean; readonly action: string }>;
+  /** 0163 — is this capability withdrawn in this language (two letters) until the owner chooses again? */
+  withdrawnIn(capability: string, language: string): Promise<boolean>;
   /**
    * Has the owner confirmed what buyers will call her assistant (0065)?
    *

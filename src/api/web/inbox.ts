@@ -659,7 +659,7 @@ export type ConversationDetail = {
      * no signed-off sentence saying who is answering: unread (es, fr) or none
      * at all. The card names the language and why.
      */
-    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new'; readonly language: string }
+    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn'; readonly language: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
       // LG — nobody can tell which language the customer writes in.
       | { readonly reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null;
@@ -1206,12 +1206,13 @@ export function needsWhy(
 export const perPiece = (locale: Locale, m: Money): string => `${show.money(locale, m)}/${t(locale, 'product.unit.pc')}`;
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
-function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new'; language: string }
+function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure' | 'language_new' | 'language_withdrawn'; language: string }
   | { reason: 'not_earned' | 'first_quote' | 'language_unknown' } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language } = v as { reason?: unknown; language?: unknown };
   if (reason === 'not_earned' || reason === 'first_quote' || reason === 'language_unknown') return { reason };
-  if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure' && reason !== 'language_new') || typeof language !== 'string') return null;
+  if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure' && reason !== 'language_new'
+    && reason !== 'language_withdrawn') || typeof language !== 'string') return null;
   return { reason, language: language.slice(0, 8) };
 }
 
