@@ -20,8 +20,9 @@ what makes each urgent; fix the false dedupe-key comments. The report: `docs/REP
 
 - **An order needs no e-mail — #356 (0161):** the gate's Rule 7 is retired (`email_invalid` only for an address typed
   that is not one), the turn never asks for one, `order_proposals.client_email` may be null, the card shows the row only
-  when there is one. The proforma never printed it (the sweep report said it did: corrected). The analysis prompt's two
-  e-mail lines wait for the live model check (DeepSeek was answering 503 on 2026-10-15).
+  when there is one. The proforma never printed it (the sweep report said it did: corrected). The analysis prompt's three
+  e-mail lines wait for the live model check (the provider was not answering on 2026-10-15); its suggested next question
+  reaches the writer and the stand-in reply, so it is the first change once the model answers.
 - **Each workspace numbers its own orders — #357 (0162):** `order_numbers` (workspace, year), 2026-0001 in the
   workspace's zone, raised in the order's transaction; unique per workspace; the YW counter closed to the app.
 - **A withdrawal narrowed to its language — #359 (0163):** `language_withdrawals`, read at the send decision;

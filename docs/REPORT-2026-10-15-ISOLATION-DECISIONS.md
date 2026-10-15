@@ -7,7 +7,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 1. **Railway stopped deploying the app, 2 minutes.** Nothing merged since #353 (yesterday 18:11 UTC) has gone live: not #356's e-mail fix, and not this round. Production is healthy, on #353's code at schema 160. GitHub still reaches Railway: the `backup` service logs every push. Only the `nomi` service's trigger is off. I didn't change it, and I didn't deploy by hand in case you switched it off on purpose. To turn it back on: Railway → `nomi` → Settings → Source → branch `main` (or "Deploy latest commit"). One deploy then applies 0161–0164 in order. Today's 03:00 backup exists. Tell me and I'll confirm `/health` and schema 164.
 2. **The reply check (#3), 2 minutes.** Reply "test" to any e-mail Nomi sent you (a sign-in code or an alert). Wait two minutes, then open Westlake → Buyers. If your reply is there, tell me: it gets fixed before the pilot. If it isn't, it comes off the list.
 3. **The dedicated sender (#2), about 20 minutes plus the DNS wait.** Steps are under #2 below. Until it's set, the boss's codes still ride Westlake's Gmail.
-4. **The Mac's disk is full: about 0.5 GB free.** Every check needs room. Please free a few GB; I can't delete your files.
+4. **The Mac's disk is nearly full: under 1 GB free.** Every check needs room. Please free a few GB; I can't delete your files.
 5. **The model provider isn't answering.** Every call I made today failed. Early on it was DeepSeek's "503 Service is too busy"; now each one times out after 30 s. The host resolves to a real AWS address, so it isn't a proxy on this Mac. Production hasn't had a turn since 2026-09-20, so it hasn't hit this yet. `/health` says `"model":"answering"`, but that field only tracks billing refusals. Your call: wait, or switch providers. Until it answers, every analysed turn fails and goes to a person (rule 19).
 
 **Unchanged:** the WhatsApp round trip, the three cold demos, naming the boss, the spare SIM, Westlake's Chinese names.
@@ -22,7 +22,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
 - **The proforma:** unchanged. **A correction to my last report:** I said the address was "printed on the proforma". It never was. The proforma leaves it out (`src/api/web/proforma.ts:31`); it appears only on your order card and in a buyer's copy of their data.
 - **Nothing downstream broke without an address.** Nothing sends to it.
 - **Test:** a WhatsApp order with no e-mail, from hello to a confirmed proforma. Nobody asks for an address, nothing prints one, and `/pi/<token>` opens with the product and FOB and nothing address-shaped.
-- **Not yet changed:** two lines in the *analysis* prompt still mention e-mail as part of the confirmation phase. Changing that prompt needs the live model check before and after, and the model is down (item 4). They describe a phase; nothing gates on them.
+- **Not yet changed, and it matters:** three lines in the *analysis* prompt still list e-mail as part of confirming an order. The analysis suggests the next question to ask, and that suggestion reaches the writer and the guard's stand-in reply. So an e-mail question is still possible that way until it changes. Changing that prompt needs the live model check before and after, and the model isn't answering (Next 5). It's the first thing I'll do once the model answers.
 
 ### 4 · Order numbers (#357, migration 0162)
 
@@ -50,7 +50,7 @@ Written for the owner, answering "ISOLATION SWEEP — DECISIONS". The same split
   - The system From address isn't Westlake's mailbox, but it's on the same domain.
   - Westlake's mailbox reads its inbox.
   - Production holds **no** reply to a Nomi e-mail in Westlake. The one buyer who matches a sign-in address is Westlake's own.
-- **What I can't do:** the real test needs a person to reply (Next 1). **No fix was built.**
+- **What I can't do:** the real test needs a person to reply (Next 2). **No fix was built.**
 
 ### 9 · Withdrawal narrowed to the language (#359, migration 0163)
 
