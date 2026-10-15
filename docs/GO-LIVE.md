@@ -207,7 +207,7 @@ below — never earlier, or it is done twice.
 1. The LLC exists. Then, in one pass, one PR:
    - `OPERATOR` in `src/core/legal/operator.ts` gets the LLC's legal name and postal address (both, in one commit;
      until then no page names anybody);
-   - the copyright agent's details go on the pages (`docs/PRE-LAUNCH.md` item 8);
+   - the copyright agent's details go on the pages (`PRE-LAUNCH.md` (kept outside the repo since 2026-10-16) item 8);
    - every public line that says "we", "us" or "our" is rewritten to name the company or to say nothing of
      itself — about 76 English lines on 2026-10-13, in all five languages (the legal pages, the site, import,
      refusals, errors): `grep -inE "\b(we|us|our)\b"` over the catalogue's English block finds them;
