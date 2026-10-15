@@ -55,10 +55,11 @@ d('0166 · the fallback, checked and shown (requires DATABASE_URL)', () => {
     });
   });
 
-  it('every check is kept, both providers, and kept no longer than thirty days', async () => {
+  it('every check is kept, both providers; thirty days and older go, by the database\'s clock; the app role deletes nothing', async () => {
     await inTx(async (tx) => {
       const { modelHealth } = await import('../../src/pipeline/modelHealth.js');
-      let t = Date.parse('2026-10-15T00:00:00Z');
+      const t0 = Date.now() - 3_600_000;
+      let t = t0;
       const h = modelHealth({
         db: tx, log: () => {}, now: () => new Date(t),
         providers: [
@@ -66,16 +67,18 @@ d('0166 · the fallback, checked and shown (requires DATABASE_URL)', () => {
           { role: 'fallback', provider: 'Anthropic', model: 'claude-haiku-5-5', ask: async () => ({ tokens: 9 }) },
         ],
       });
-      await sql`delete from model_check_log`.execute(tx);
+      await sql`insert into model_check_log (role, provider, model, state, ms, reason, at)
+                values ('primary', 'DeepSeek', 'deepseek-flash', 'answering', 900, null, now() - interval '31 days')`.execute(tx);
       await h.check();
       t += 5 * 60_000;
       await h.check();
       const kept = (await sql<{ role: string; state: string; n: number }>`
-        select role, state, count(*)::int as n from model_check_log group by role, state order by role`.execute(tx)).rows;
+        select role, state, count(*)::int as n from model_check_log where at >= ${new Date(t0)}
+         group by role, state order by role`.execute(tx)).rows;
       expect(kept).toEqual([{ role: 'fallback', state: 'answering', n: 2 }, { role: 'primary', state: 'not_answering', n: 2 }]);
-      t += 31 * 24 * 3_600_000;
-      await h.check();
-      expect((await sql<{ n: number }>`select count(*)::int as n from model_check_log`.execute(tx)).rows[0]!.n).toBe(2);
+      expect((await sql<{ n: number }>`
+        select count(*)::int as n from model_check_log where at < now() - interval '30 days'`.execute(tx)).rows[0]!.n).toBe(0);
+      await expect(sql`delete from model_check_log`.execute(tx)).rejects.toThrow(/permission denied/);
     });
   });
 });

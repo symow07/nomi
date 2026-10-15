@@ -7,7 +7,9 @@
 -- is reliable is a question about all of them: each check (never a real call:
 -- those are the workspaces') is appended here, with its provider, model,
 -- state, latency and why, and `tools/model-uptime.mjs` reads a window of it.
--- Kept thirty days; the check itself removes what is older.
+-- Kept thirty days: the check removes what is older through
+-- `prune_model_check_log()`, which decides the cutoff itself — the app role
+-- holds DELETE on nothing (G20, tests/integration/grants.test.ts).
 -- ---------------------------------------------------------------------------
 
 create table if not exists model_check_log (
@@ -22,8 +24,16 @@ create table if not exists model_check_log (
 );
 create index if not exists model_check_log_at on model_check_log (role, at);
 
-grant select, insert, delete on model_check_log to nomi_app;
-revoke update, truncate on model_check_log from nomi_app;
+grant select, insert on model_check_log to nomi_app;
+revoke update, delete, truncate on model_check_log from nomi_app;
+
+create or replace function prune_model_check_log() returns integer
+language sql volatile security definer set search_path = public as $$
+  with gone as (delete from model_check_log where at < now() - interval '30 days' returning 1)
+  select count(*)::int from gone
+$$;
+revoke all on function prune_model_check_log() from public;
+grant execute on function prune_model_check_log() to nomi_app;
 
 insert into _migrations (version, name) values (166, 'model_check_log')
   on conflict (version) do nothing;

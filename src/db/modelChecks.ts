@@ -95,5 +95,6 @@ export async function readModelView(db: Db, configured: ConfiguredModels, now: D
 export async function logModelCheck(db: Db, w: ModelCheckWrite): Promise<void> {
   await sql`insert into model_check_log (role, provider, model, state, ms, reason, at)
             values (${w.role}, ${w.provider}, ${w.model}, ${w.state}, ${w.ms}, ${w.reason}, ${w.at})`.execute(db);
-  await sql`delete from model_check_log where at < ${w.at}::timestamptz - interval '30 days'`.execute(db);
+  // The cutoff is the database's own (now − 30 days): the app role may delete nothing (G20).
+  await sql`select prune_model_check_log()`.execute(db);
 }
