@@ -13,6 +13,23 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Hardening chapter closed 2026-10-16 as code. Live verification deferred to the next deploy.
+
+The owner's boundary, so nobody re-opens it by accident. Production runs #353 (schema 160); everything merged since
+(#354–#370, 0161–0167) is merged and tested, not live. Zero-spend mode holds (memory: nothing bought, repo public).
+
+- **Fallback (#362): built and tested; never made a successful call.** The Anthropic key supplied is not
+  workspace-scoped and the API refuses it. Deferred with the money. Closing this needs either a correctly scoped key
+  or the `anthropic-workspace-id` header, which is a code change nobody has approved. (The owner raises it before a
+  real shop goes live; do not ask before then.)
+- **Isolation finding 3 (replies landing in Westlake's inbox): FINDING3_RESULT**
+- **The deploy-day checklist — built, never verified live:** everything after #353; the honest `/health` (#361, seen
+  only in the local preview); the fallback (above); the inside deploy watcher (#363/#368, never run in production);
+  the outside watcher (#367, its Railway half never run with a real token).
+- **Parked with the money:** Resend / isolation finding 2; the outside watcher's setup; the side-by-side fallback
+  sweeps. **Deferred:** the Arabic hold (waking condition unchanged, its 60-turn run spends DeepSeek balance).
+  **Accepted:** the g1-signup narrowing (#354), on the CI evidence.
+
 ## Phase 4 — fallback, deploys, a local preview (2026-10-15) — read this first
 
 The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPORT-2026-10-15-PROVIDER.md`).
