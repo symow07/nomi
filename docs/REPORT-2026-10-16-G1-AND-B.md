@@ -68,4 +68,13 @@ Written for the owner, answering "PHASE 4 — STOP ON ONE THING, THEN PROCEED".
 
 ## Verification
 
-VERIFY_BLOCK
+| Step | Result |
+|---|---|
+| Typecheck and unit tests | passed (8403) |
+| Golden scenarios | passed (44) |
+| Build | passed |
+| Integration (its own Postgres) | 1593 of 1593, none skipped |
+| The g1 probe, 50 local runs | 50 passed; 202 letters, every one expected |
+| The whole suite with the probe | 1599 of 1599 |
+| The merge script, live | a commit 20 behind main refused (exit 3); main's head passes |
+| Merged | through `tools/gated-merge.sh` itself (below) |
