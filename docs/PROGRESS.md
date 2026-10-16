@@ -35,8 +35,9 @@ The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPO
 - **The outside deploy watcher (2026-10-16):** `.github/workflows/deploy-drift.yml` every 30 minutes reads production's
   commit through a Railway project token and walks main back to it; pings Healthchecks unless a merge production lacks
   is over an hour old (then `/fail`, naming the commits). Every failure of the job pings nothing, so it is LOUD when
-  Actions stop. Waits on the owner's setup (`docs/DEPLOY-DRIFT.md`). **#363 has the hole this one closes** (its clock
-  is main's newest commit): not fixed, the owner's to order.
+  Actions stop. Waits on the owner's setup (`docs/DEPLOY-DRIFT.md`). **#363's clock fixed the same way (2026-10-16):** it
+  measures from the oldest merge production lacks, read in ONE compare call (GitHub allows a keyless caller 60 an hour;
+  a walk per merge would go silent exactly when production is far behind); one alert per merge that did not arrive.
 - **Private would cost money, nothing else (measured 2026-10-16):** ~13,300 CI minutes in 30 days against 2,000 free;
   with no payment method on the account, Actions stop. About $68 a month on Free at this pace.
 - **Two documents left the repo (the owner, 2026-10-16):** `PRE-LAUNCH.md` and the isolation sweep report list
