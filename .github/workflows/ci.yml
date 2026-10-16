@@ -1,10 +1,17 @@
 name: CI
 
+# B (the owner, 2026-10-16): a pull request's run is the gate; main itself is run NIGHTLY, not on every push.
+# - A push to main re-tested the tree its pull request had just tested — 366 of 806 runs in 30 days.
+# - What that push run could still catch (a fault that shows only when merges combine) is caught by
+#   tools/gated-merge.sh instead: it refuses a pull request that is not based on main's current head, so the
+#   tree a PR's run tested IS the tree that lands. Never merge on github.com.
+# - The nightly run (and a run by hand) does everything, the repeatability pass included.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '41 4 * * *'      # 04:41 UTC, after the 03:00 backup
+  workflow_dispatch:
 
 # A second push to the same branch supersedes the first; the queued run is not
 # telling us anything about code that is no longer there.
@@ -125,5 +132,8 @@ jobs:
       # Proves the suite is repeatable (M22). It mutates the database it asserts
       # against, so a second pass is the only thing that catches an ordering
       # dependency — and a green-then-red pair used to look like a regression.
+      # NIGHTLY (and by hand) only, since 2026-10-16: the check is kept, a day later,
+      # at half the cost of every pull request's run.
       - name: Integration suite, again
+        if: github.event_name != 'pull_request'
         run: node tools/run-integration.mjs

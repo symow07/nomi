@@ -1,6 +1,6 @@
 # The outside deploy watcher
 
-Every 30 minutes a GitHub Action checks whether production has every merge that has been on `main` for more than an hour. If it has, it pings a Healthchecks check. If it hasn't, it pings that check's `/fail`. If anything goes wrong, it pings nothing, and Healthchecks alarms on the silence.
+Every hour a GitHub Action checks whether production has every merge that has been on `main` for more than an hour. If it has, it pings a Healthchecks check. If it hasn't, it pings that check's `/fail`. If anything goes wrong, it pings nothing, and Healthchecks alarms on the silence.
 
 **Files:** `.github/workflows/deploy-drift.yml` and `tools/deploy-drift.mjs`. **Tests:** `tests/parity/deploy-drift-outside.test.ts`.
 
@@ -29,14 +29,14 @@ Measured from the newest merge instead, merges less than an hour apart would pos
   - a bug in the script.
 
   In each case there's no ping, so Healthchecks alarms once the period and grace pass.
-- **A red run in Actions means the watcher itself broke** (and GitHub e-mails you). "Behind" is told only through Healthchecks, and the run stays green; otherwise a stop would e-mail you every 30 minutes. Before the two secrets exist, every run succeeds and says "Not set up".
+- **A red run in Actions means the watcher itself broke** (and GitHub e-mails you). "Behind" is told only through Healthchecks, and the run stays green; otherwise a stop would e-mail you every hour. Before the two secrets exist, every run succeeds and says "Not set up".
 - **Silent only if Healthchecks itself can't alert you.** A quiet check means Healthchecks has heard a ping in time, and nothing more.
 - **The inside watcher (#363) stays.** Two watchers, failing in different directions.
 
 ## Setup: the owner's, about 15 minutes, once
 
 1. **Healthchecks.io** → new check, named "nomi deploy drift":
-   - Schedule: Simple, **Period 30 minutes**, **Grace 30 minutes**.
+   - Schedule: Simple, **Period 1 hour**, **Grace 30 minutes**. (Hourly since 2026-10-16: the limit is an hour, so checking more often buys nothing.)
    - Copy its ping URL.
 2. **Railway** → the project → Settings → Tokens:
    - Create a **project token** for the **production** environment, named "deploy drift (GitHub)".
@@ -53,6 +53,6 @@ Measured from the newest merge instead, merges less than an hour apart would pos
 ## Costs
 
 - **On a public repo:** free.
-- **On a private repo:** each run bills at least a minute, so about 1,440 Actions minutes a month. That's 72% of GitHub Free's 2,000 included minutes.
-- **Railway's API:** 3 requests per run, 6 an hour (Hobby allows 1,000 an hour).
+- **On a private repo:** each run bills at least a minute, so about 720 Actions minutes a month: 36% of GitHub Free's 2,000 included minutes.
+- **Railway's API:** 3 requests per run, 3 an hour (Hobby allows 1,000 an hour).
 - **GitHub's API:** up to 60 requests per run when production is far behind (the run's own token allows 1,000 an hour).

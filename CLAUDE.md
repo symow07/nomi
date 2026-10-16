@@ -144,12 +144,22 @@ prunes earlier runs' tenants **and their queued pg-boss jobs** first (PR #49).
 If integration goes flaky there, suspect leftover state before suspecting code
 — or run it isolated.
 
-**PR flow:** branch → `gh pr create` → `gh pr checks N --watch --fail-fast` →
-`gh pr merge N --merge --delete-branch` → poll
+**PR flow:** branch from current `origin/main` → `gh pr create` →
+`tools/gated-merge.sh N <head sha>` → poll
 `railway deployment list --service nomi --json` until the merge commit is
 `SUCCESS` → `curl https://app.nomidoes.com/health`. Gate chained steps with
 `&&`. Commits end with the Co-Authored-By line; PR bodies with the Claude Code
 footer.
+
+**Never merge on github.com; always through `tools/gated-merge.sh`** (the
+owner, 2026-10-16). Since B, CI runs on pull requests and nightly on `main`,
+not on every push to `main`; the script is what makes a PR's green run mean
+the tree that lands. It refuses (exit 3, loudly) a PR not based on `main`'s
+current head — rebase, push, gate the new head — and merges only on at least
+two checks on that exact SHA, all completed and green. On GitHub Free a
+private repo has no branch protection to require this; the script is the
+requirement. A failed GitHub API call is never "no checks": it says so and
+waits.
 
 ## 4 · What is live (production, 2026-09-30)
 

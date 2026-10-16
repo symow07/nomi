@@ -32,6 +32,14 @@ The report: `docs/REPORT-2026-10-15-PREVIEW-AND-ALARM.md` (before it, `docs/REPO
   after. `deploy_lag` keeps each head. It starts only once a deploy brings it in.
   **Nothing watches for a deploy stop today. The alarm arrives with the next deploy, and that deploy has to be
   started by hand.**
+- **B (the owner, 2026-10-16): CI on pull requests and nightly on `main` (04:41 UTC), not on every push;** the
+  repeatability pass (M22) nightly; the outside watcher hourly. About $22 a month once private, on GitHub Free. On
+  Free a private repo has no branch protection, so `tools/gated-merge.sh` is the requirement: it refuses (exit 3) a
+  PR not based on main's current head. **Never merge on github.com** (CLAUDE.md §3).
+- **The g1-signup "one letter" was test-only (2026-10-16):** CI caught, in 3 of 28 runs since #354, letters for OTHER
+  workspaces' owners ("This month's customers on your plan are used", "Your morning summary") sent by the workers
+  while g1 ran; before #354 its mailbox counted them. The refused sign-up returns before the only code send. 50 local
+  runs of the old assertions and one whole suite: no failure; every letter recorded was expected.
 - **The outside deploy watcher (2026-10-16):** `.github/workflows/deploy-drift.yml` every 30 minutes reads production's
   commit through a Railway project token and walks main back to it; pings Healthchecks unless a merge production lacks
   is over an hour old (then `/fail`, naming the commits). Every failure of the job pings nothing, so it is LOUD when
