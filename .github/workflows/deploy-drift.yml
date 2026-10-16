@@ -1,13 +1,13 @@
 name: Deploy drift (outside watcher)
 
-# THE OUTSIDE DEPLOY WATCHER (the owner, 2026-10-16). Every 30 minutes: which commit is production running, and how
+# THE OUTSIDE DEPLOY WATCHER (the owner, 2026-10-16). Every hour (its limit is an hour, so more often buys nothing): which commit is production running, and how
 # long has main had a merge production lacks? Caught up (or the oldest missing merge under an hour old) pings the
 # Healthchecks check; behind pings its /fail. Any failure of this job pings nothing, and Healthchecks alarms when the
 # period and grace pass — so Actions not running is an ALARM, not silence. tools/deploy-drift.mjs has the rule;
 # docs/DEPLOY-DRIFT.md the setup. Never on pull_request: the Railway token must not reach a branch's code.
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '7 * * * *'        # hourly, off the top of the hour
   workflow_dispatch:
     inputs:
       dry_run:

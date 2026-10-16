@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The OUTSIDE deploy watcher (the owner, 2026-10-16). Run by .github/workflows/deploy-drift.yml every 30 minutes.
+ * The OUTSIDE deploy watcher (the owner, 2026-10-16). Run by .github/workflows/deploy-drift.yml every hour.
  * It asks Railway which commit production runs, asks GitHub how far main has moved past it, and pings a Healthchecks
  * check ONLY when production is caught up. A missed ping is the alarm: Healthchecks alerts when the period and grace
  * pass with no ping. Nothing here runs inside Railway, and nothing here is the app's code.
@@ -115,7 +115,7 @@ async function main() {
   const token = process.env.RAILWAY_DEPLOY_WATCH_TOKEN;
   const pingUrl = process.env.DEPLOY_DRIFT_PING_URL;
   const repo = process.env.GITHUB_REPOSITORY;
-  // Not set up yet (neither secret): say so and succeed — a red run every 30 minutes would e-mail the owner 48 times a
+  // Not set up yet (neither secret): say so and succeed — a red run every hour would e-mail the owner 24 times a
   // day about a watcher nobody has switched on. Once set up, a secret that goes missing pings nothing, and the
   // Healthchecks check alarms on the silence.
   if (!token && !pingUrl) {
@@ -136,7 +136,7 @@ async function main() {
   if (dry) { console.log('dry run: nothing pinged'); return; }
   if (v.state === 'current' || v.state === 'deploying') await ping(pingUrl, '', line);
   // Behind is told through Healthchecks (/fail), and the run succeeds: GitHub e-mails on every failed scheduled run,
-  // and a stop like 2026-10-14's would send one every 30 minutes. A red run means the watcher itself broke.
+  // and a stop like 2026-10-14's would send one every hour. A red run means the watcher itself broke.
   else if (v.state === 'behind') await ping(pingUrl, '/fail', line);
   else { console.error('nothing to compare: not pinged'); process.exitCode = 1; }
 }

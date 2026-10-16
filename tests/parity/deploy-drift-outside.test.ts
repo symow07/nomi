@@ -88,8 +88,8 @@ describe('Railway: the query checked against its live schema (2026-10-16), with 
 describe('the workflow', () => {
   const yml = readFileSync(fileURLToPath(new URL('../../.github/workflows/deploy-drift.yml', import.meta.url)), 'utf8');
 
-  it('runs on a 30-minute schedule and by hand, never on a pull request or a push', () => {
-    expect(yml).toContain("cron: '*/30 * * * *'");
+  it('runs hourly (its limit is an hour, so more often buys nothing) and by hand, never on a pull request or a push', () => {
+    expect(yml).toContain("cron: '7 * * * *'");
     expect(yml).toContain('workflow_dispatch:');
     expect(yml).not.toMatch(/^\s*(pull_request|pull_request_target|push):/m);
   });
@@ -108,7 +108,7 @@ describe('the workflow', () => {
 });
 
 describe('before the owner sets it up', () => {
-  it('with neither secret, a run succeeds and says it is not set up — no red run, no e-mail every 30 minutes', () => {
+  it('with neither secret, a run succeeds and says it is not set up — no red run, no e-mail every hour', () => {
     const env: NodeJS.ProcessEnv = { ...process.env, GITHUB_REPOSITORY: 'symow07/nomi' };
     delete env['RAILWAY_DEPLOY_WATCH_TOKEN'];
     delete env['DEPLOY_DRIFT_PING_URL'];
