@@ -13,6 +13,15 @@ the design direction (artifact `G24Rxqbhb8yWDzhKNAHNfh`). Where the
 instruction differs from them, the instruction wins; its settled points are
 under "Decided" below.
 
+## Phase 5 — the full map (2026-10-21): a STOP-GATE, nothing built
+
+`docs/PHASE-5.md`: the owner's decisions (no "version one"; Westlake is a test workspace; connectors Odoo / Sheets /
+Excel, then Xero, then QuickBooks, through one interface; Odoo on JSON-2 only, our own client; the licence rule; the
+concession ladder EXCLUDED; still zero spend), the build order with its dependencies (a foundation — exact money,
+every currency, the books' model — before the connector shape), what "done and tested" means per item, the Excel /
+Sheets options, the privacy load, what costs money, and the owner's open questions. **Waits on the owner's answers
+and approval; no code until then.**
+
 ## Hardening chapter closed 2026-10-16 as code. Live verification deferred to the next deploy.
 
 The owner's boundary, so nobody re-opens it by accident. Production runs #353 (schema 160); everything merged since
