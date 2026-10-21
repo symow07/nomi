@@ -268,6 +268,17 @@ export const RULES = Object.freeze({
   connector_records: { do: 'unrelated' },
   // 0179 (B3–B5) — which of the shop's systems the books are connected to.
   books_connections: { do: 'unrelated' },
+  // 0181 (C0) — start dates the owner confirmed for taxes a system gave none.
+  tax_start_dates: { do: 'unrelated' },
+  // 0184 (C2) — invoices and payments, made out to a party of the books (no buyer link yet).
+  invoice_counters: { do: 'unrelated' },
+  invoices: { do: 'unrelated' },
+  invoice_lines: { do: 'unrelated' },
+  invoice_payments: { do: 'unrelated' },
+  // 0185 (C3) — bank statements read in, and the matches made against them.
+  statement_imports: { do: 'unrelated' },
+  statement_lines: { do: 'unrelated' },
+  statement_matches: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

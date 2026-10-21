@@ -51,6 +51,8 @@ d('B5 · reading changes (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { time
     read = await import('../../src/books/readIn.js');
     db = createDb(DATABASE_URL!);
     for (const id of [BIZ, HIDDEN]) {
+      // C0 — the owner has confirmed when Odoo's VAT took effect (Odoo gives no date): the sample's April entries may use it.
+      await admin.query(`insert into tax_start_dates (business_id, system, code, valid_from, confirmed_by) values ($1, 'odoo', 'ODOO-1', '2026-01-01', 'owner')`, [id]);
       const bid = parseBusinessId(id); if (!bid.ok) throw new Error('fixture');
       await withTenantTx(db, bid.value, (tx) => saveConnection(tx, KEY, { businessId: id, system: 'odoo', secret: 'good-key', by: 'owner',
         settings: { url: `https://${HOST}`, database: 'shop-db' }, keyExpiresOn: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10) }));

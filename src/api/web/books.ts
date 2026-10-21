@@ -27,10 +27,41 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'GET', url: '/app/books/sheets/callback', action: 'post' },
   { method: 'POST', url: '/app/books/sheets/read', action: 'post' },
   { method: 'POST', url: '/app/books/sheets/disconnect', action: 'post' },
+  // C4 — writing back: the owner's.
+  { method: 'POST', url: '/app/books/sheets/write', action: 'post' },
+  { method: 'POST', url: '/app/books/odoo/write', action: 'post' },
   // B4 — the shop's own Odoo: the owner's, likewise.
   { method: 'POST', url: '/app/books/odoo/connect', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/read', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/disconnect', action: 'post' },
+  // C0 — the day a tax took effect, where its system gave none: the owner's.
+  { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
+  // C1 — entries: the list and each one are the books' to see; drafting, posting, discarding, reversing the owner's.
+  { method: 'GET', url: '/app/books/entries', action: 'see' },
+  { method: 'GET', url: '/app/books/entries/:id', action: 'see' },
+  { method: 'GET', url: '/app/books/entries/new', action: 'post' },
+  { method: 'POST', url: '/app/books/entries', action: 'post' },
+  { method: 'POST', url: '/app/books/entries/:id/post', action: 'post' },
+  { method: 'POST', url: '/app/books/entries/:id/discard', action: 'post' },
+  { method: 'POST', url: '/app/books/entries/:id/reverse', action: 'post' },
+  // C1 (0183) — orders into the books, and the accounts they go to: the owner's (the orders name buyers).
+  { method: 'GET', url: '/app/books/orders', action: 'post' },
+  { method: 'POST', url: '/app/books/orders/:id/draft', action: 'post' },
+  { method: 'POST', url: '/app/books/settings/accounts', action: 'post' },
+  // C2 — invoices and payments: seen by the books' readers; drafted, issued, paid and discarded by the owner.
+  { method: 'GET', url: '/app/books/invoices', action: 'see' },
+  { method: 'GET', url: '/app/books/invoices/:id', action: 'see' },
+  { method: 'GET', url: '/app/books/invoices/new', action: 'post' },
+  { method: 'POST', url: '/app/books/invoices', action: 'post' },
+  { method: 'POST', url: '/app/books/invoices/:id/issue', action: 'post' },
+  { method: 'POST', url: '/app/books/invoices/:id/discard', action: 'post' },
+  { method: 'POST', url: '/app/books/invoices/:id/payments', action: 'post' },
+  { method: 'POST', url: '/app/books/parties', action: 'post' },
+  // C3 — reconciliation: the page is the books'; reading a statement, matching and undoing are the owner's.
+  { method: 'GET', url: '/app/books/bank', action: 'see' },
+  { method: 'POST', url: '/app/books/bank/import', action: 'post' },
+  { method: 'POST', url: '/app/books/bank/match', action: 'post' },
+  { method: 'POST', url: '/app/books/bank/unmatch', action: 'post' },
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
@@ -56,6 +87,9 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
   return `<h1 class="page">${esc(t(locale, 'books.home.title'))}</h1>
     <p class="lede">${esc(lead)}</p>
     ${state ? `<p class="muted">${esc(state)}</p>` : ''}
+    <p><a class="deeper" href="/app/books/entries">${esc(t(locale, 'books.entries.title'))}</a></p>
+    <p><a class="deeper" href="/app/books/invoices">${esc(t(locale, 'books.invoices.title'))}</a></p>
+    <p><a class="deeper" href="/app/books/bank">${esc(t(locale, 'books.bank.title'))}</a></p>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'data.books.title'))}</span>
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
@@ -99,6 +133,7 @@ function odooBlock(locale: Locale, o: NonNullable<BooksSystems['odoo']>): string
       ${o.key === 'expired' ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(t(locale, 'books.connection.key_expired', { system: 'Odoo' }))}</p>` : ''}
       ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}
       ${o.key !== 'expired' ? `<form method="post" action="/app/books/odoo/read" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.read'))}</button></form>
+      <form method="post" action="/app/books/odoo/write" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.odoo.write'))}</button></form>
       <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>` : form}
       <form method="post" action="/app/books/odoo/disconnect" class="pform">
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.odoo.disconnectAsk'))}">${esc(t(locale, 'books.sheets.disconnect'))}</button></form>
@@ -129,6 +164,8 @@ function sheetsBlock(locale: Locale, s: BooksSystems['sheets']): string {
       ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}
       ${c.reason === 'unreachable' ? `<p class="caption muted">${esc(t(locale, 'books.connection.unreachable', { system: t(locale, 'books.sheets.title') }))}</p>` : ''}
       <form method="post" action="/app/books/sheets/read" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.read'))}</button></form>
+      <form method="post" action="/app/books/sheets/write" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.sheets.write'))}</button></form>
+      <p class="caption muted">${esc(t(locale, 'books.sheets.writeNote'))}</p>
       <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>
       <form method="post" action="/app/books/sheets/disconnect" class="pform">
         <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.sheets.disconnectAsk'))}">${esc(t(locale, 'books.sheets.disconnect'))}</button></form>
@@ -158,7 +195,8 @@ function workbookBlock(locale: Locale, viewer: Viewer & { readonly kind?: 'team'
 }
 
 /** B2 — a workbook that was not read in, and every reason: the sheet, the row, the column, and what is wrong there. */
-export function renderWorkbookRefused(locale: Locale, problems: readonly BooksProblem[]): string {
+export function renderWorkbookRefused(locale: Locale, problems: readonly BooksProblem[],
+  undated?: { readonly system: 'odoo'; readonly taxes: readonly { readonly code: string; readonly label: string }[] }): string {
   const shown = problems.slice(0, 200);
   return `<h1 class="page">${esc(t(locale, 'books.workbook.refused.title'))}</h1>
     <p class="lede" role="alert">${esc(t(locale, 'books.workbook.refused.explain', { n: problems.length }))}</p>
@@ -169,5 +207,37 @@ export function renderWorkbookRefused(locale: Locale, problems: readonly BooksPr
         <td><bdi>${esc(p.column)}</bdi></td><td>${esc(t(locale, `books.problem.${p.reason}` as MessageKey))}</td></tr>`).join('')}</tbody>
     </table></div>
     ${problems.length > shown.length ? `<p class="caption muted">${esc(t(locale, 'books.workbook.refused.more', { n: problems.length - shown.length }))}</p>` : ''}
+    ${undated && undated.taxes.length > 0 ? taxStartForm(locale, undated.system, undated.taxes) : ''}
     <p><a class="deeper" href="/app/books#workbook">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
+}
+
+/**
+ * C0 (0181) — the taxes a system gave no start date, each with the day to confirm: the owner's, never Nomi's guess.
+ * Until a day is confirmed, the tax counts from the day it was first read, and an earlier entry naming it waits.
+ */
+function taxStartForm(locale: Locale, system: 'odoo', taxes: readonly { readonly code: string; readonly label: string }[]): string {
+  return `<div class="block" id="tax-start">
+      <h2>${esc(t(locale, 'books.taxStart.title'))}</h2>
+      <p>${esc(t(locale, 'books.taxStart.explain'))}</p>
+      ${taxes.map((x) => `<form method="post" action="/app/books/taxes/start" class="pform">
+        <input type="hidden" name="system" value="${esc(system)}" /><input type="hidden" name="code" value="${esc(x.code)}" />
+        <label class="pq"><span><bdi>${esc(x.label)}</bdi> · <bdi>${esc(x.code)}</bdi></span><input type="date" name="from" required /></label>
+        <button class="btn" type="submit">${esc(t(locale, 'books.taxStart.save'))}</button></form>`).join('')}
+    </div>`;
+}
+
+/**
+ * C4 — a write-back that waits: what in the spreadsheet Nomi has not read (the owner's own edits), or which of Nomi's
+ * entries Odoo could not take and why. Nothing was written over anything; the owner decides, then writes again.
+ */
+export function renderWriteConflicts(locale: Locale, system: 'sheets' | 'odoo', r: {
+  readonly sheets?: readonly { kind: string; key: string; how: 'changed' | 'removed' }[]; readonly odoo?: readonly { key: string; reason: string; detail: string }[]; readonly written: number;
+}): string {
+  const items = system === 'sheets'
+    ? (r.sheets ?? []).map((c) => esc(t(locale, c.how === 'removed' ? 'books.conflict.sheetsRemoved' : 'books.conflict.sheetsRecord', { kind: t(locale, `books.conflict.kind.${c.kind}` as MessageKey), key: c.key })))
+    : (r.odoo ?? []).map((c) => esc(t(locale, `books.conflict.odoo.${c.reason}` as MessageKey, { key: c.key, detail: c.detail })));
+  return `<h1 class="page">${esc(t(locale, 'books.conflict.title'))}</h1>
+    <p class="lede" role="alert">${esc(t(locale, system === 'sheets' ? 'books.conflict.sheetsLede' : 'books.conflict.odooLede', { n: r.written }))}</p>
+    <ul class="rows">${items.slice(0, 200).map((x) => `<li class="row"><span>${x}</span></li>`).join('')}</ul>
+    <p><a class="deeper" href="/app/books#${system}">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }

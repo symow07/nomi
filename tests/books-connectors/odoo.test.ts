@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { odooConnector, odooKeyState, ODOO_TAX_FROM } from '../../src/books/connectors/odoo.js';
+import { odooConnector, odooKeyState } from '../../src/books/connectors/odoo.js';
 import { recordsOf, type BooksData } from '../../src/core/books/interchange.js';
 import { conformance } from './conformance.js';
 import { odooFake } from './odoo-fake.js';
@@ -13,14 +13,14 @@ import { SAMPLE_BOOKS } from './sample.js';
 const TODAY = '2026-10-22';
 const GOOD = { url: 'https://shop.odoo.com', database: 'shop-db', key: 'good-key', expires: '2027-01-15' };
 
-/** What Odoo holds of the sample: no parent account; a tax is "T" and its id, in force since 2000-01-01; an entry's document is its Odoo number. */
+/** What Odoo holds of the sample: no parent account; a tax is ODOO-<id>, with NO start date (never a guessed one); an entry's document is its Odoo number. */
 const odooHolds = (d: BooksData): BooksData => {
-  const tax = new Map(d.taxCodes.map((t, i) => [t.code, `T${i + 1}`]));
+  const tax = new Map(d.taxCodes.map((t, i) => [t.code, `ODOO-${i + 1}`]));
   return {
     accounts: d.accounts.map((a) => ({ ...a, parent: null })),
     journals: d.journals.map((j) => ({ ...j, kind: j.kind === 'closing' ? 'general' : j.kind })),
     parties: d.parties,
-    taxCodes: d.taxCodes.map((t) => ({ ...t, code: tax.get(t.code)!, validFrom: ODOO_TAX_FROM, validTo: null })),
+    taxCodes: d.taxCodes.map((t) => ({ ...t, code: tax.get(t.code)!, validFrom: null, validTo: null })),
     entries: d.entries.map((e) => ({ ...e, documentRef: e.key, lines: e.lines.map((l) => ({ ...l, taxCode: l.taxCode === null ? null : tax.get(l.taxCode)! })) })),
   };
 };

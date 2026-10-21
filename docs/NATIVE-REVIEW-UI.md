@@ -15966,7 +15966,7 @@ already waits on the zh/ar/es/fr legal and advisor lines above; read the reel wi
 
 Reviewer (per language): ______  Date: ______
 
-## 2026-10-22 — Phase 5 A1 and A2.4 — an ambiguous figure; the books kept at closure (not a gate)
+## 2026-10-21 — Phase 5 A1 and A2.4 — an ambiguous figure; the books kept at closure (not a gate)
 
 - **The keys:** `rate.flash.ambiguous`, `samples.flash.ambiguous`, `prices.error.ambiguous`,
   `product.edit.error.ambiguous`, `import.error.price_ambiguous` (one sentence: a figure like 1.250 or 1,250 reads
@@ -15982,7 +15982,7 @@ Reviewer (per language): ______  Date: ______
 
 Reviewer (per language): ______  Date: ______
 
-## 2026-10-22 — Phase 5 A5 — the accountant (not a gate)
+## 2026-10-21 — Phase 5 A5 — the accountant (not a gate)
 
 - **The keys:** `books.home.title`, `books.home.owner`, `books.home.accountant`, `books.home.empty`,
   `books.flash.postIsOwners`, `books.flash.notYours`, `books.flash.onlyBooks`, `people.add.accountant`,
@@ -15995,7 +15995,7 @@ Reviewer (per language): ______  Date: ______
 
 Reviewer (per language): ______  Date: ______
 
-## 2026-10-22 — Phase 5 A6 — the two modes (not a gate)
+## 2026-10-21 — Phase 5 A6 — the two modes (not a gate)
 
 - **The keys:** `nav.books`, `nav.toBooks`, `nav.toSales` (the rail's entry for the books, and the switch between
   the books and the sales side).
@@ -16004,7 +16004,7 @@ Reviewer (per language): ______  Date: ______
 
 Reviewer (per language): ______  Date: ______
 
-## 2026-10-22 — Phase 5 B — the workbook, Google Sheets, Odoo (not a gate)
+## 2026-10-21 — Phase 5 B — the workbook, Google Sheets, Odoo (not a gate)
 
 - **The keys:** `books.workbook.*`, `books.problem.*` (25 reasons a workbook is not read in, each named by sheet,
   row and column), `books.sheets.*`, `books.odoo.*`, `books.connection.*` (why a connected system refused),
@@ -16021,5 +16021,29 @@ Reviewer (per language): ______  Date: ______
   - Arabic addresses nobody: «يُكتب», «يُرجى», «يُعاد الربط», «يُنشأ مفتاح جديد».
 - **Check:** that 冲销 / «يُعكس» / «contraasiento» / «contre-passer» read as the accountant's own word for reversing a
   posted entry; that the 25 reasons are short enough to scan in a table on a phone.
+
+Reviewer (per language): ______  Date: ______
+
+## 2026-10-21 — Phase 5 C — entries, invoices and payments, the bank, writing back (not a gate)
+
+- **The keys (182 new, in each of zh, ar, es and fr):** `books.entry.*` and `books.entries.*` (an entry by hand:
+  drafted, posted, discarded, reversed), `books.orders.*` and `books.accounts.*` (orders into the books; the sales,
+  receivable and exchange accounts), `books.invoice.*`, `books.invoices.*` and `books.party.*` (invoices, their
+  standing, payments, a customer added to the books), `books.bank.*` (a statement read in, a line matched by a
+  person, a match undone), `books.taxStart.*` (when an Odoo tax took effect, the owner's to say), `books.conflict.*`
+  and `books.sheets.write*` / `books.odoo.write` (writing back, and what waits), and 23 notices `books.flash.*`.
+- **Where the words differ, and why:**
+  - posting is 记账 / «تسجيل» / «Registrar» / «Passer l’écriture»; reversing is 冲销 / «عكس القيد» / «Anularlo» /
+    «Contre-passer» — the accountant's own verbs, never "delete";
+  - reconciliation is 银行对账 / «مطابقة البنك» / «Conciliación bancaria» / «Rapprochement bancaire», and a match
+    is 匹配 / «المطابقة» / «Conciliar» / «Rapprocher»;
+  - the exchange difference is 汇兑差额 / «فرق الصرف» / «Diferencia de cambio» / «Écart de change»;
+  - a conflict is said as what did NOT happen: 没有覆盖任何内容 / «لم يُكتب فوق أي شيء» / «No se sobrescribió nada» /
+    «Rien n’a été écrasé»; the lines that wait are "the ones below" (下面这些 / «وهذه» / «Los de abajo» /
+    «Celles ci-dessous»), never a pronoun;
+  - Arabic addresses nobody: «تُستورد أولًا، أو تُلغى في الجدول، ثم تُعاد الكتابة».
+- **Check:** that 记账 is read as posting to the books, not as "keeping accounts" in general; that «Anularlo» does
+  not read as cancelling the entry outright (a reversal keeps it, and adds its mirror); that «متأخرة» reads as an
+  invoice past its due date; that the conflict lines are short enough to scan on a phone.
 
 Reviewer (per language): ______  Date: ______

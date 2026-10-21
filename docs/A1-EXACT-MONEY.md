@@ -1,7 +1,7 @@
 # A1 · Exact money — the migration notes
 
 Phase 5, block A, item A1 (`docs/PHASE-5.md` §2.1 and §3). For whoever deploys the build that carries it, and for
-the owner. Written 2026-10-22.
+the owner. Written 2026-10-21.
 
 ## What was wrong
 
@@ -36,7 +36,7 @@ multiplied and rounded. **$5.30 less 5% is exactly $5.035; Nomi quoted $5.03**, 
    Every currency's minor unit comes from ISO 4217, and all eleven have two. A shop signing up in Morocco, the
    euro area or the United Kingdom now gets its own money without being asked.
 
-7. **A figure is read one way, or refused (the owner, 2026-10-22).** No meaning is taken from the separator, and
+7. **A figure is read one way, or refused (the owner, 2026-10-21).** No meaning is taken from the separator, and
    none from the currency. This holds in every money box (price, larger-order prices, lowest price, sample, rate,
    a corrected import row) and in the price-list reader.
    - **Refused as ambiguous:** one separator before exactly three digits, after a whole part of one to three digits
@@ -52,7 +52,7 @@ multiplied and rounded. **$5.30 less 5% is exactly $5.035; Nomi quoted $5.03**, 
      `4.500,00 €` and `4 500 €` pass for a quote of 4,500, and `4.500 €` is held for the owner. Reais and rupiah
      keep their rule (`Rp 150.000`).
    - The owner's five cases are tests in every box and in each currency (`tests/parity/a1-ambiguous-figures.test.ts`).
-   - **To measure when there is real traffic, not to tune now (the owner, 2026-10-22):** buyers in euro markets
+   - **To measure when there is real traffic, not to tune now (the owner, 2026-10-21):** buyers in euro markets
      write "4.500 €" constantly, so the reply guard may hold more euro replies for the owner than expected. Count
      the hand-offs held for an ambiguous dotted figure, per workspace, once real euro traffic exists.
 

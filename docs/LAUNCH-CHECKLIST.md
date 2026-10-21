@@ -61,7 +61,7 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
   before the third paying workspace." Not before. Not after. The isolation
   sweep, item 10 (the sweep report (kept outside the repo since 2026-10-16)).
 
-## Before the books are switched on for ANY workspace — BLOCKING (the owner, 2026-10-22)
+## Before the books are switched on for ANY workspace — BLOCKING (the owner, 2026-10-21)
 
 The books are off everywhere (`businesses.books_area`, 0176), and no workspace
 holds papers. An owner who wants to stop using Nomi and have their data erased

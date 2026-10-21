@@ -2,7 +2,7 @@ import { readStoreAddress } from '../../core/onboard/storeAddress.js';
 import type { Decimal } from '../../core/types/decimal.js';
 import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
 import {
-  booksProblems, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type RecordKind,
+  booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type RecordKind,
 } from '../../core/books/interchange.js';
 import type { PublicPost } from '../../net/publicFetch.js';
 import { excelNumber } from './excel.js';
@@ -16,7 +16,11 @@ import { parseExact } from './exactJson.js';
  *
  * ITEM 15 — WHAT CONNECTING CHECKS, BEFORE ANYTHING IS SAVED, each with its own sentence:
  *   · a wrong key: Odoo answers 401 "Invalid apikey" (documented);
- *   · a wrong database: the probe's own route is not found (404, with Odoo's JSON error);
+ *   · a wrong database: read from Odoo 19's own source (odoo/http.py, `_get_session_and_dbname`, `_serve_nodb`, and
+ *     `_generate_routing_rules`, 2026-10-21): an `X-Odoo-Database` the server's dbfilter rejects, or one it has no
+ *     database for, leaves the request with no database; the no-database routes are only those with `auth='none'`, and
+ *     JSON-2's is `bearer`, so the answer is a 404 whose body is Odoo's own HTML page, "No database is selected and the
+ *     requested URL was not found in the server-wide controllers" (`NOT_FOUND_NODB`) — not a JSON error;
  *   · a Free or Standard plan: "Access to data via the external API is only available on Custom Odoo pricing plans"
  *     (documented) — answered, with a valid key, as 403 (Odoo does not document the status: it is read so, and
  *     checked live on deploy day);
@@ -29,36 +33,48 @@ import { parseExact } from './exactJson.js';
  * taxes with their tax account, and the entries (account.move, draft or posted) with their lines. "Changed since"
  * is Odoo's own `write_date` for the entries; the chart and the rest are read whole and the read-in keeps only what
  * changed. Amounts are read from Odoo's own digits, never through a float. What Odoo cannot say is not invented:
- * an account has no parent here; a tax has no start date (it is read as in force since 2000-01-01) and its code is
- * "T" and its Odoo id; a foreign line is read in its own currency (`amount_currency`), its conversion is the owner's
- * (A3).
+ *   · an account has no parent here;
+ *   · a tax has NO START DATE in Odoo: it is read with none (`validFrom: null`), and the read-in takes it as in force
+ *     from the day it was first read — never earlier (the owner, 2026-10-21: a date before that would be a guess
+ *     wearing a fact's clothes). An entry dated before then that names it is refused with that reason;
+ *   · a tax has no CODE in Odoo: Nomi names it `ODOO-<id>`, Odoo's own id inside the name, so an accountant reading
+ *     the books sees whose it is;
+ *   · a foreign line is read in its own currency (`amount_currency`); its conversion is the owner's (A3).
  *
  * Built against a recorded fake (tests/books-connectors/odoo-fake.ts) of the documented answers; live on deploy day
  * against the shop's Odoo, which needs Odoo's Custom plan (the shop's cost, not Nomi's — PHASE-5.md §7).
  */
 
 export const ODOO_KEY_REMIND_AT_DAYS = 80; // item 14: from 80 days of a key's life, the page asks for a new one
-export const ODOO_TAX_FROM = '2000-01-01';
+/** Nomi's name for a tax Odoo gives no code: Odoo's own id inside it, so whose it is stays plain. */
+export const odooTaxCode = (id: number): string => `ODOO-${id}`;
 
 export type OdooSource = { readonly origin: string; readonly database: string; readonly key: string };
 
 /** What a JSON-2 answer means: the value, or a refusal by Odoo's status and error. */
 type Json2 = { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly refusal: ConnectRefusal };
 
-async function json2(post: PublicPost, s: OdooSource, model: string, method: string, args: Record<string, unknown>): Promise<Json2> {
+async function json2(post: PublicPost, s: OdooSource, model: string, method: string, args: Record<string, unknown>, exact = false): Promise<Json2> {
   const a = await post(`${s.origin}/json/2/${model}/${method}`, {
     authorization: `bearer ${s.key}`, 'content-type': 'application/json; charset=utf-8', 'x-odoo-database': s.database,
     accept: 'application/json',
-  }, JSON.stringify(args));
+  }, exact ? exactBody(args) : JSON.stringify(args));
   if (!a || a.status >= 500 || a.status === 429) return { ok: false, refusal: refused('unreachable') };
   let body: unknown = null;
   try { body = parseExact(a.text); } catch { body = null; }
-  const errName = body && typeof body === 'object' && 'name' in body && typeof (body as { name: unknown }).name === 'string' ? (body as { name: string }).name : '';
   if (a.status === 401) return { ok: false, refusal: refused('wrong_credentials') };
   if (a.status === 403) return { ok: false, refusal: refused('plan_without_api') };
-  if (a.status === 404) return { ok: false, refusal: refused(errName ? 'wrong_database' : 'unreadable') };
+  // A wrong database is Odoo's own no-database page (see the header); any other 404 is not this Odoo's JSON-2.
+  if (a.status === 404) return { ok: false, refusal: refused(/No database is selected/.test(a.text) ? 'wrong_database' : 'unreadable') };
   if (a.status !== 200 || body === null) return { ok: false, refusal: refused('unreadable') };
   return { ok: true, value: body };
+}
+
+/** A body whose `{ number }` values are written as JSON numbers with their own digits — never a float's (C4). */
+function exactBody(v: unknown): string {
+  return JSON.stringify(v, (_k, x: unknown) =>
+    (x && typeof x === 'object' && 'number' in x && typeof (x as { number: unknown }).number === 'string' ? `\u0000n${(x as { number: string }).number}` : x))
+    .replace(/"\\u0000n(-?\d+(?:\.\d+)?)"/g, '$1');
 }
 
 /** Odoo's many2one: `[id, "name"]` (or the id alone). */
@@ -149,10 +165,10 @@ export function odooToBooks(raw: OdooRaw, bookCurrency: string): { data: BooksDa
     const use = String(t['type_tax_use'] ?? '');
     const kind = rate === '0' ? 'exempt' : use === 'sale' ? 'collected' : use === 'purchase' ? 'deductible' : null;
     if (!kind) { bad('account.tax', id, 'type_tax_use', 'unknown_kind'); continue; }
-    const code = `T${id}`;
+    const code = odooTaxCode(id);
     taxCode.set(id, code);
-    taxCodes.push({ code, label: str(t['name']) ?? code, rate, kind, account: kind === 'exempt' ? null : (taxAccount.get(id) ?? null), validFrom: ODOO_TAX_FROM, validTo: null });
-    note('tax_code', `${code}@${ODOO_TAX_FROM}`, 'account.tax', id);
+    taxCodes.push({ code, label: str(t['name']) ?? code, rate, kind, account: kind === 'exempt' ? null : (taxAccount.get(id) ?? null), validFrom: null, validTo: null });
+    note('tax_code', taxCodeKey({ code, validFrom: null }), 'account.tax', id);
   }
   const byMove = new Map<number, Record<string, unknown>[]>();
   for (const l of raw.lines) { const m = idOf(l['move_id']); if (m !== null) byMove.set(m, [...(byMove.get(m) ?? []), l]); }
@@ -305,3 +321,68 @@ export function odooConnector(post: PublicPost, bookCurrency: string, today: () 
   };
 }
 
+
+/** C4 — one of Nomi's posted entries, as Odoo takes it: amounts in the company's currency, and a foreign line's own. */
+export type OdooEntryOut = {
+  readonly key: string; readonly journal: string; readonly date: string; readonly label: string;
+  readonly lines: readonly { readonly account: string; readonly party: string | null; readonly currency: string; readonly label: string | null;
+    readonly bookDebit: Decimal; readonly bookCredit: Decimal; readonly own: Decimal }[];
+};
+/** A sent entry: Nomi's number, and the name Odoo gave the move when it was posted (null if Odoo would not say). */
+export type OdooSent = { readonly key: string; readonly odooName: string | null };
+export type OdooWriteConflict = { readonly key: string; readonly reason: 'already_in_odoo' | 'no_account' | 'no_journal' | 'no_partner' | 'no_currency' | 'refused'; readonly detail: string };
+
+/**
+ * C4 (item 13, part 2) — NOMI'S POSTED ENTRIES INTO THE SHOP'S ODOO, each created and posted there, its reference
+ * Nomi's number. Never over anything: an entry Odoo already holds under that reference, or one naming an account,
+ * journal, partner or currency Odoo does not have, is a CONFLICT — shown, and left for the owner; Nomi changes nothing
+ * in Odoo for it. Odoo's own rules then apply (it refuses an entry that does not balance in its currency).
+ */
+export async function sendEntriesToOdoo(post: PublicPost, s: OdooSource, entries: readonly OdooEntryOut[]):
+  Promise<{ readonly written: readonly OdooSent[]; readonly conflicts: readonly OdooWriteConflict[] } | ConnectRefusal> {
+  const search = async (model: string, domain: unknown[], fields: string[]) => {
+    const r = await json2(post, s, model, 'search_read', { domain, fields });
+    if (!r.ok) return r.refusal;
+    return Array.isArray(r.value) ? (r.value as Record<string, unknown>[]) : refused('unreadable');
+  };
+  const ids = async (model: string, field: string, values: readonly string[]) => {
+    const rows = values.length === 0 ? [] : await search(model, [[field, 'in', [...new Set(values)]]], [field]);
+    if (!Array.isArray(rows)) return rows;
+    return new Map(rows.map((r) => [String(r[field]), idOf(r['id'])!]));
+  };
+  const accounts = await ids('account.account', 'code', entries.flatMap((e) => e.lines.map((l) => l.account))); if (!(accounts instanceof Map)) return accounts;
+  const journals = await ids('account.journal', 'code', entries.map((e) => e.journal)); if (!(journals instanceof Map)) return journals;
+  const partners = await ids('res.partner', 'ref', entries.flatMap((e) => e.lines.map((l) => l.party).filter((p): p is string => p !== null))); if (!(partners instanceof Map)) return partners;
+  const currencies = await ids('res.currency', 'name', entries.flatMap((e) => e.lines.map((l) => l.currency))); if (!(currencies instanceof Map)) return currencies;
+  const there = await ids('account.move', 'ref', entries.map((e) => e.key)); if (!(there instanceof Map)) return there;
+  const company = await search('res.company', [], ['currency_id']);
+  if (!Array.isArray(company)) return company;
+  const companyCurrency = str(Array.isArray(company[0]?.['currency_id']) ? (company[0]!['currency_id'] as unknown[])[1] : null) ?? '';
+  const written: OdooSent[] = []; const conflicts: OdooWriteConflict[] = [];
+  for (const e of entries) {
+    if (there.has(e.key)) { conflicts.push({ key: e.key, reason: 'already_in_odoo', detail: e.key }); continue; }
+    if (!journals.has(e.journal)) { conflicts.push({ key: e.key, reason: 'no_journal', detail: e.journal }); continue; }
+    const missing = e.lines.find((l) => !accounts.has(l.account)) ?? null;
+    if (missing) { conflicts.push({ key: e.key, reason: 'no_account', detail: missing.account }); continue; }
+    const noPartner = e.lines.find((l) => l.party !== null && !partners.has(l.party)) ?? null;
+    if (noPartner) { conflicts.push({ key: e.key, reason: 'no_partner', detail: noPartner.party! }); continue; }
+    const noCurrency = e.lines.find((l) => !currencies.has(l.currency)) ?? null;
+    if (noCurrency) { conflicts.push({ key: e.key, reason: 'no_currency', detail: noCurrency.currency }); continue; }
+    const n = (x: Decimal) => ({ number: x });
+    const vals = { journal_id: journals.get(e.journal), date: e.date, ref: e.key, move_type: 'entry', line_ids: e.lines.map((l) => [0, 0, {
+      account_id: accounts.get(l.account), partner_id: l.party === null ? false : partners.get(l.party), name: l.label ?? e.label,
+      debit: n(l.bookDebit), credit: n(l.bookCredit),
+      ...(l.currency !== companyCurrency ? { currency_id: currencies.get(l.currency), amount_currency: n(l.own) } : {}),
+    }]) };
+    const made = await json2(post, s, 'account.move', 'create', { vals_list: [vals] }, true);
+    if (!made.ok) { if (made.refusal.reason === 'unreachable' || made.refusal.reason === 'wrong_credentials') return made.refusal; conflicts.push({ key: e.key, reason: 'refused', detail: e.key }); continue; }
+    const created = Array.isArray(made.value) ? idOf(made.value[0]) : idOf(made.value);
+    if (created === null) { conflicts.push({ key: e.key, reason: 'refused', detail: e.key }); continue; }
+    const posted = await json2(post, s, 'account.move', 'action_post', { ids: [created] }, true);
+    if (!posted.ok) { conflicts.push({ key: e.key, reason: 'refused', detail: e.key }); continue; }
+    // its posted name, so the next read knows this move is Nomi's own and does not bring it back as a new entry
+    const named = await search('account.move', [['id', '=', created]], ['name']);
+    written.push({ key: e.key, odooName: Array.isArray(named) ? str(named[0]?.['name']) : null });
+  }
+  return { written, conflicts };
+}

@@ -429,7 +429,13 @@ import type { Db } from './client.js';
 // 178 = what each connected system last said of each books record (0178): `connector_records`, the read-in's memory.
 // 179 = the shop's own systems the books are connected to (0179): `books_connections`, Sheets and Odoo.
 // 180 = the morning's read of every connected system (0180): `books_connections_due()`, the worker's list.
-export const REQUIRED_SCHEMA_VERSION = 180;
+// 181 = a tax's start date is the owner's to confirm (0181): `tax_start_dates`, for taxes a system gave none.
+// 182 = where the exchange difference goes (0182): the two exchange accounts, and the marked line only on them.
+// 183 = an entry from a Nomi order, once (0183): the sales accounts in books_settings, `journal_entries.source_order_id`.
+// 184 = invoices and payments (0184): numbered at issue with no gap, posted, paid in part or whole.
+// 185 = reconciliation from statement files (0185): statement lines kept once, matches made and set aside by a person.
+// 186 = what an accountant may not do to the books, said by the database (0186): invoices, payments, statements, matches.
+export const REQUIRED_SCHEMA_VERSION = 186;
 
 export type SchemaState = {
   readonly required: number;

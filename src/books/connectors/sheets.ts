@@ -108,13 +108,31 @@ export async function createSpreadsheet(deps: SheetsDeps, accessToken: string, t
   let id: unknown; let url: unknown;
   try { ({ spreadsheetId: id, spreadsheetUrl: url } = JSON.parse(made!.text) as { spreadsheetId?: unknown; spreadsheetUrl?: unknown }); } catch { return refused('unreadable'); }
   if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{10,200}$/.test(id)) return refused('unreadable');
+  const notWritten = await writeValues(deps, accessToken, id, d);
+  if (notWritten) return notWritten;
+  return { kind: 'created', spreadsheetId: id, url: typeof url === 'string' && url.startsWith('https://docs.google.com/') ? url : `https://docs.google.com/spreadsheets/d/${id}` };
+}
+
+/** The books' values into the spreadsheet's six sheets, RAW (codes stay text, numbers numbers); null when written. */
+async function writeValues(deps: SheetsDeps, accessToken: string, id: string, d: BooksData): Promise<ConnectRefusal | null> {
   const sheets = workbookSheets(d);
   const values = (rows: readonly (readonly XlsxValue[])[]) => rows.map((r) => r.map((c) => (c === null ? '' : c)));
   const wrote = await call(deps, `${API}/${encodeURIComponent(id)}/values:batchUpdate`, { method: 'POST', headers: bearer(accessToken, true),
     body: bodyWithNumbers({ valueInputOption: 'RAW', data: sheets.map((s) => ({ range: `${range(s.name)}!A1`, majorDimension: 'ROWS', values: values(s.rows) })) }) });
-  const notWritten = refusalOf(wrote);
-  if (notWritten) return notWritten;
-  return { kind: 'created', spreadsheetId: id, url: typeof url === 'string' && url.startsWith('https://docs.google.com/') ? url : `https://docs.google.com/spreadsheets/d/${id}` };
+  return refusalOf(wrote);
+}
+
+/**
+ * C4 — the books written over the spreadsheet Nomi made, AFTER the caller checked it holds nothing Nomi has not read
+ * (src/books/writeBack.ts): its sheets cleared, then the books written. Nothing the owner typed is lost, because a
+ * spreadsheet with unread edits is never written.
+ */
+export async function rewriteSpreadsheet(deps: SheetsDeps, accessToken: string, id: string, d: BooksData): Promise<ConnectRefusal | null> {
+  const cleared = await call(deps, `${API}/${encodeURIComponent(id)}/values:batchClear`, { method: 'POST', headers: bearer(accessToken, true),
+    body: JSON.stringify({ ranges: TABS.map((t) => range(t)) }) });
+  const notCleared = refusalOf(cleared);
+  if (notCleared) return notCleared;
+  return writeValues(deps, accessToken, id, d);
 }
 
 /** The connector (B1's shape). Its `connect` exchanges the OAuth code; the books' pages hold the rest of the flow. */

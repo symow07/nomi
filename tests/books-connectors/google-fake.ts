@@ -1,8 +1,9 @@
 import type { OAuthFetch } from '../../src/connectors/oauth.js';
 
 /**
- * B3 — a recorded fake of Google: the token endpoint and the four Sheets calls the connector makes, answering with
- * the shapes Google documents (Sheets API v4: spreadsheets.create, values.batchUpdate, values.batchGet; OAuth 2.0
+ * B3 — a recorded fake of Google: the token endpoint and the Sheets calls the connector makes, answering with
+ * the shapes Google documents (Sheets API v4: spreadsheets.create, values.batchUpdate, values.batchGet, and C4's
+ * values.batchClear — values only, the sheets stay; OAuth 2.0
  * token and revoke). Like Google, it stores a RAW number as a double and gives it back as JSON's shortest digits; it
  * leaves out empty trailing cells and the `values` of an empty range. Recorded from the documentation; checked live
  * against Google on deploy day.
@@ -13,6 +14,10 @@ export type GoogleFake = {
   revoke(): void;
   /** The spreadsheet was deleted in Drive. */
   drop(id: string): void;
+  /** A sheet's rows, as stored. */
+  rows(id: string, sheet: string): readonly (readonly unknown[])[];
+  /** Delete a row as a person would in Sheets (the rows below move up). */
+  deleteRow(id: string, sheet: string, row: number): void;
   /** Set a cell as a person would type it in Sheets (a number, a text). */
   type(id: string, sheet: string, row: number, col: number, value: string | number): void;
   /** Grant without drive.file (the owner unticked it on the consent screen). */
@@ -63,11 +68,16 @@ export function googleFake(): GoogleFake {
       return ok({ spreadsheetId: id, properties: body.properties, sheets: body.sheets.map((s, i) => ({ properties: { sheetId: i, title: s.properties.title } })),
         spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${id}/edit` });
     }
-    const m = /^\/v4\/spreadsheets\/([^/]+)\/values:(batchUpdate|batchGet)$/.exec(u.pathname);
+    const m = /^\/v4\/spreadsheets\/([^/]+)\/values:(batchUpdate|batchGet|batchClear)$/.exec(u.pathname);
     if (!m) return err(404, NOT_FOUND);
     const book = books.get(decodeURIComponent(m[1]!));
     if (!book) return err(404, NOT_FOUND);
     const tabOf = (r: string) => r.replace(/!.*$/, '').replace(/^'(.*)'$/, '$1').replace(/''/g, "'");
+    if (m[2] === 'batchClear') {
+      const body = JSON.parse(init.body ?? '{}') as { ranges: string[] };
+      for (const r of body.ranges) if (book.has(tabOf(r))) book.set(tabOf(r), []);
+      return ok({ spreadsheetId: m[1], clearedRanges: body.ranges });
+    }
     if (m[2] === 'batchUpdate') {
       // RAW: a JSON number is stored as a double, a string as a string
       const body = JSON.parse(init.body ?? '{}') as { valueInputOption: string; data: { range: string; values: unknown[][] }[] };
@@ -90,6 +100,8 @@ export function googleFake(): GoogleFake {
     fetch, calls,
     revoke: () => { revoked = true; },
     drop: (id) => { books.delete(id); },
+    rows: (id, sheet) => books.get(id)?.get(sheet) ?? [],
+    deleteRow: (id, sheet, row) => { books.get(id)!.get(sheet)!.splice(row - 1, 1); },
     withoutScope: () => { scope = 'openid'; },
     type: (id, sheet, row, col, value) => {
       const tab = books.get(id)!.get(sheet)!;
