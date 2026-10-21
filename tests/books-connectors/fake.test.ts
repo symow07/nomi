@@ -1,7 +1,7 @@
 import { canonical, recordsOf, type BooksData } from '../../src/core/books/interchange.js';
 import { refused, type BooksConnector, type Grant } from '../../src/core/books/connector.js';
 import { conformance } from './conformance.js';
-import { SAMPLE_BOOKS } from './sample.js';
+import { SAMPLE_BOOKS, SAMPLE_WITH_FIELDS } from './sample.js';
 
 /**
  * B1 — a test fake: a system with a key and its OWN history (each record carries the version it last changed at, as
@@ -35,6 +35,7 @@ const fake: BooksConnector<{ readonly data: BooksData }, string> = {
       accounts: pick('account', d.accounts, (r) => r.code), journals: pick('journal', d.journals, (r) => r.code),
       parties: pick('party', d.parties, (r) => r.code), taxCodes: pick('tax_code', d.taxCodes, (r) => `${r.code}@${r.validFrom}`),
       entries: pick('entry', d.entries, (r) => r.key),
+      ...(d.fields ? { fields: pick('field', d.fields, (r) => `${r.appliesTo}.${r.key}`) } : {}),
     } };
   },
 };
@@ -42,7 +43,7 @@ const fake: BooksConnector<{ readonly data: BooksData }, string> = {
 conformance({
   name: 'a test fake with its own history',
   connector: fake,
-  sample: SAMPLE_BOOKS,
+  sample: SAMPLE_WITH_FIELDS,
   connectTo: (data) => { publish(data); return { url: 'https://books.example', key: 'right-key' }; },
   refusedWith: { values: { url: 'https://books.example', key: 'wrong-key' }, reason: 'wrong_credentials' },
 });

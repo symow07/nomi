@@ -1,0 +1,872 @@
+code	parent	kind	pdf_page	title
+11		equity	257	CAPITAUX PROPRES
+111	11	equity	257	CAPITAL SOCIAL OU PERSONNEL
+1111	111	equity	257	Capital social
+1112	111	equity	257	Fonds de dotation
+1117	111	equity	257	Capital personnel
+11171	1117	equity	257	Capital individuel
+11175	1117	equity	257	Compte de l'exploitant
+1119	111	equity	257	Actionnaires, capital souscrit-non appelé
+112	11	equity	257	PRIMES D'EMISSION, DE FUSION ET D'APPORT
+1121	112	equity	257	Primes d'émission
+1122	112	equity	257	Primes de fusion
+1123	112	equity	257	Primes d'apport
+113	11	equity	258	ECARTS DE REEVALUATION
+1130	113	equity	258	Ecarts de réévaluation
+114	11	equity	0	RESERVE LEGALE
+1140	114	equity	258	Réserve légale
+115	11	equity	258	AUTRES RESERVES
+1151	115	equity	258	Réserves statutaires ou contractuelles
+1152	115	equity	258	Réserves facultatives
+1155	115	equity	258	Réserves réglementées
+116	11	equity	258	REPORT A NOUVEAU
+1161	116	equity	258	Report à nouveau (solde créditeur)
+1169	116	equity	258	Report à nouveau (solde débiteur)
+118	11	equity	258	RESULTATS NETS EN INSTANCE D'AFFECTATION
+1181	118	equity	258	Résultats nets en instance d'affectation (solde créditeur)
+1189	118	equity	258	Résultats nets en instance d'affectation (solde débiteur)
+119	11	equity	258	RESULTAT NET DE L'EXERCICE
+1191	119	equity	258	Résultat net de l'exercice (créditeur)
+1199	119	equity	258	Résultat net de l'exercice (débiteur)
+13		equity	257	CAPITAUX PROPRES ASSIMILES
+131	13	equity	259	SUBVENTIONS D'INVESTISSEMENT
+1311	131	equity	259	Subventions d'investissement reçues
+1319	131	equity	259	Subventions d'investissement inscrites au compte de produits et charges
+135	13	equity	259	PROVISIONS REGLEMENTEES
+1351	135	equity	259	Provisions pour amortissements dérogatoires
+1352	135	equity	259	Provisions pour plus-values en instance d'imposition
+1354	135	equity	259	Provisions pour investissements
+1355	135	equity	259	Provisions pour reconstitution des gisements
+1356	135	equity	259	Provisions pour acquisition et construction de logements
+1358	135	equity	259	Autres provisions réglementées
+14		liability	257	DETTES DE FINANCEMENT
+141	14	liability	260	EMPRUNTS OBLIGATAIRES
+1410	141	liability	260	Emprunts obligataires
+148	14	liability	260	AUTRES DETTES DE FINANCEMENT
+1481	148	liability	260	Emprunts auprès des établissements de crédit
+1482	148	liability	260	Avances de l'Etat
+1483	148	liability	260	Dettes rattachées à des participations
+1484	148	liability	260	Billets de fonds
+1485	148	liability	260	Avances reçues et comptes courants bloqués
+1486	148	liability	260	Fournisseurs d'immobilisations
+1487	148	liability	260	Dépôts et cautionnements reçus
+1488	148	liability	260	Dettes de financement diverses
+15		liability	257	PROVISIONS DURABLES POUR RISQUES ET CHARGES
+151	15	liability	0	PROVISIONS POUR RISQUES
+1511	151	liability	261	Provisions pour litiges
+1512	151	liability	261	Provisions pour garanties données aux clients
+1513	151	liability	261	Provisions pour propre assureur
+1514	151	liability	261	Provisions pour pertes sur marchés à terme
+1515	151	liability	261	Provisions pour amendes, doubles droits, pénalités
+1516	151	liability	261	Provisions pour pertes de change
+1518	151	liability	261	Autres provisions pour risques
+155	15	liability	261	PROVISIONS POUR CHARGES
+1551	155	liability	261	Provisions pour impôts
+1552	155	liability	261	Provisions pour pensions de retraite et obligations similaires
+1555	155	liability	261	Provisions pour charges à répartir sur plusieurs exercices
+1558	155	liability	261	Autres provisions pour charges
+16		liability	257	COMPTES DE LIAISON DES ETABLISSEMENTS ET SUCCURSALES
+160	16	liability	261	COMPTES DE LIAISON DES ETABLISSEMENTS ET SUCCURSALES
+1601	160	liability	261	Comptes de liaison du siège
+1605	160	liability	261	Comptes de liaison des établissements
+17		liability	257	ECARTS DE CONVERSION - PASSIF
+171	17	liability	262	AUGMENTATION DES CREANCES IMMOBILISEES
+1710	171	liability	262	Augmentation des créances immobilisées
+172	17	liability	262	DIMINUTION DES DETTES DE FINANCEMENT
+1720	172	liability	262	Diminution des dettes de financement
+21		asset	263	IMMOBILISATION EN NON-VALEURS
+211	21	asset	263	FRAIS PRELIMINAIRES
+2111	211	asset	263	Frais de constitution
+2112	211	asset	263	Frais préalables au démarrage
+2113	211	asset	263	Frais d'augmentation du capital
+2114	211	asset	263	Frais sur opérations de fusions, scissions et transformations
+2116	211	asset	263	Frais de prospection
+2117	211	asset	263	Frais de publicité
+2118	211	asset	263	Autres frais préliminaires
+212	21	asset	263	CHARGES A REPARTIR SUR PLUSIEURS EXERCICES
+2121	212	asset	263	Frais d'acquisition des immobilisations
+2125	212	asset	263	Frais d'émission des emprunts
+2128	212	asset	263	Autres charges à répartir
+213	21	asset	263	PRIMES DE REMBOURSEMENT DES OBLIGATIONS
+2130	213	asset	263	Primes de remboursement des obligations
+22		asset	263	IMMOBILISATIONS INCORPORELLES
+221	22	asset	264	IMMOBILISATION EN RECHERCHE ET DEVELOPPEMENT
+2210	221	asset	264	Immobilisation en recherche et développement
+222	22	asset	264	BREVETS, MARQUES, DROITS ET VALEURS SIMILAIRES
+2220	222	asset	264	Brevets, marques, droits et valeurs similaires
+223	22	asset	264	FONDS COMMERCIAL
+2230	223	asset	264	Fonds commercial
+228	22	asset	264	AUTRES IMMOBILISATIONS INCORPORELLES
+2285	228	asset	264	Immobilisations incorporelles en cours
+23		asset	263	IMMOBILISATIONS CORPORELLES
+231	23	asset	265	TERRAINS
+2311	231	asset	265	Terrains nus
+2312	231	asset	265	Terrains aménagés
+2313	231	asset	265	Terrains bâtis
+2314	231	asset	265	Terrains de gisement
+2316	231	asset	265	Agencements et aménagements de terrains
+2318	231	asset	265	Autres terrains
+232	23	asset	265	CONSTRUCTIONS
+2321	232	asset	265	Bâtiments
+23211	2321	asset	265	Bâtiments industriels (A,B...)
+23214	2321	asset	265	Bâtiments administratifs et commerciaux (A,B...)
+23218	2321	asset	265	Autres bâtiments
+2323	232	asset	265	Constructions sur terrains d'autrui
+2325	232	asset	265	Ouvrages d'infrastructure
+2327	232	asset	265	Agencements et aménagements des constructions
+2328	232	asset	265	Autres constructions
+233	23	asset	266	INSTALLATIONS TECHNIQUES, MATERIEL ET OUTILLAGE
+2331	233	asset	266	Installations techniques
+2332	233	asset	266	Matériel et outillage
+23321	2332	asset	266	Matériel
+23324	2332	asset	266	Outillage
+2333	233	asset	266	Emballages récupérables identifiables
+2338	233	asset	266	Autres installations techniques, matériel et outillage
+234	23	asset	266	MATERIEL DE TRANSPORT
+2340	234	asset	266	Matériel de transport
+235	23	asset	266	MOBILIER, MATERIEL DE BUREAU ET AMENAGEMENTS DIVERS
+2351	235	asset	266	Mobilier de bureau
+2352	235	asset	266	Matériel de bureau
+2355	235	asset	266	Matériel informatique
+2356	235	asset	266	Agencements, installations et aménagements divers (biens n'appartenant pas à l'entreprise)
+2358	235	asset	266	Autres mobilier, matériel de bureau et aménagements divers
+238	23	asset	266	AUTRES IMMOBILISATIONS CORPORELLES
+2380	238	asset	266	Autres immobilisations corporelles
+239	23	asset	267	IMMOBILISATIONS CORPORELLES EN COURS
+2392	239	asset	267	Immobilisations corporelles en cours de terrains et constructions
+2393	239	asset	267	Immobilisations corporelles en cours des installations techniques, matériel et outillage
+2394	239	asset	267	Immobilisations corporelles en cours de matériel de transport
+2395	239	asset	267	Immobilisations corporelles en cours de mobilier, matériel de bureau et aménagements divers
+2397	239	asset	267	Avances et acomptes versés sur commandes d'immobilisations corporelles
+2398	239	asset	267	Autres immobilisations corporelles en cours
+241		asset	0	PRETS IMMOBILISES
+2411	241	asset	268	Prêts au personnel
+2415	241	asset	268	Prêts aux associés
+2416	241	asset	268	Billets de fonds
+2418	241	asset	268	Autres prêts
+248		asset	0	AUTRES CREANCES FINANCIERES
+2481	248	asset	268	Titres immobilisés (droits de créance)
+24811	2481	asset	268	Obligations
+24813	2481	asset	268	Bons d'équipement
+24818	2481	asset	268	Bons divers
+2483	248	asset	268	Créances rattachées à des participations
+2486	248	asset	268	Dépôts et cautionnements versés
+24861	2486	asset	268	Dépôts
+24864	2486	asset	268	Cautionnements
+2487	248	asset	268	Créances immobilisées
+2488	248	asset	268	Créances financières diverses
+251		asset	268	TITRES DE PARTICIPATION
+2510	251	asset	268	Titres de participation
+258		asset	268	AUTRES TITRES IMMOBILISES (Droits de propriété)
+2581	258	asset	268	Actions
+2588	258	asset	268	Titres divers
+27		asset	263	ECARTS DE CONVERSION - ACTIF
+271	27	asset	269	DIMINUTION DES CREANCES IMMOBILISEES
+2710	271	asset	269	Diminution des créances immobilisées
+272	27	asset	269	AUGMENTATION DES DETTES DE FINANCEMENT
+2720	272	asset	269	Augmentation des dettes de financement
+28		asset	263	AMORTISSEMENTS DES IMMOBILISATIONS
+281	28	asset	270	AMORTISSEMENTS DES NON-VALEURS
+2811	281	asset	270	Amortissements des Frais préliminaires
+28111	2811	asset	270	Amortissements des Frais de constitution
+28112	2811	asset	270	Amortissements des Frais préliminaires au démarrage
+28113	2811	asset	270	Amortissements des Frais d'augmentation du capital
+28114	2811	asset	270	Amortissements des Frais sur opérations de fusions, scissions et transformations
+28116	2811	asset	270	Amortissements des Frais de prospection
+28117	2811	asset	270	Amortissements des Frais de publicité
+28118	2811	asset	270	Amortissements des Autres frais préliminaires
+2812	281	asset	270	Amortissements des charges à répartir
+28121	2812	asset	270	Amortissements des Frais d'acquisition des immobilisations
+28125	2812	asset	270	Amortissements des frais d'émission des emprunts
+28128	2812	asset	270	Amortissements des Autres charges à répartir
+2813	281	asset	270	Amortissements des primes de remboursement des obligations
+282	28	asset	270	AMORTISSEMENTS DES IMMOBILISATIONS INCORPORELLES
+2821	282	asset	270	Amortissements de l'immobilisation en recherche et développement
+2822	282	asset	270	Amortissements des brevets, marques, droits et valeurs similaires
+2823	282	asset	271	Amortissements du Fonds commercial
+2828	282	asset	271	Amortissements des autres immobilisations incorporelles
+283	28	asset	271	AMORTISSEMENTS DES IMMOBILISATIONS CORPORELLES
+2831	283	asset	271	Amortissements des Terrains
+28311	2831	asset	271	Amortissements des terrains nus
+28312	2831	asset	271	Amortissements des terrains aménagés
+28313	2831	asset	271	Amortissements des terrains bâtis
+28314	2831	asset	271	Amortissements des Terrains de gisement
+28316	2831	asset	271	Amortissements des agencements et aménagements de terrains
+28318	2831	asset	271	Amortissements des autres terrains
+2832	283	asset	271	Amortissements des constructions
+28321	2832	asset	271	Amortissements des batiments
+28323	2832	asset	271	Amortissements des Constructions sur terrains d'autrui
+28325	2832	asset	271	Amortissements des ouvrages d'infrastructure
+28327	2832	asset	271	Amortissements des installations, agencements et aménagements des constructions
+28328	2832	asset	271	Amortissements des Autres constructions
+2833	283	asset	271	Amortissements des installations techniques, matériel et outillage
+28331	2833	asset	271	Amortissements des installations techniques
+28332	2833	asset	271	Amortissements du matériel et outillage
+28333	2833	asset	271	Amortissements des emballages récupérables identifiables
+28338	2833	asset	272	Amortissements des autres installations techniques, matériel et outillage
+2834	283	asset	272	Amortissements du matériel de transport
+2835	283	asset	272	Amortissements du mobilier, matériel de bureau et aménagements divers
+28351	2835	asset	272	Amortissements du mobilier de bureau
+28352	2835	asset	272	Amortissements du matériel de bureau
+28355	2835	asset	272	Amortissements du matériel informatique
+28356	2835	asset	272	Amortissements des agencements, installations et aménagements divers
+28358	2835	asset	272	Amortissements des autres mobilier, matériel de bureau et aménagements divers
+2838	283	asset	272	Amortissements des autres immobilisations corporelles
+29		asset	263	PROVISIONS POUR DEPRECIATION DES IMMOBILISATIONS
+292	29	asset	273	PROVISIONS POUR DEPRECIATION DES IMMOBILISATIONS INCORPORELLES
+2920	292	asset	273	Provisions pour dépréciation des immobilisations incorporelles
+293	29	asset	273	PROVISIONS POUR DEPRECIATION DES IMMOBILISATIONS CORPORELLES
+2930	293	asset	273	Provisions pour dépréciation des immobilisations corporelles
+2941	29	asset	273	Provisions pour dépréciation des prêts immobilisés
+2948	29	asset	273	Provisions pour dépréciation des autres créances financières
+2951	29	asset	273	Provisions pour dépréciation des titres de participation
+2958	29	asset	273	Provisions pour dépréciation des autres titres immobilisés
+31		asset	275	STOCKS
+311	31	asset	0	MARCHANDISES
+3111	311	asset	275	Marchandises (groupe A)
+3112	311	asset	275	Marchandises (groupe B)
+3116	311	asset	275	Marchandises en cours de route
+3118	311	asset	275	Autres marchandises
+312	31	asset	275	MATIERES ET FOURNITURES CONSOMMABLES
+3121	312	asset	275	Matières premières
+31211	3121	asset	275	Matières premières (groupe A)
+31212	3121	asset	275	Matières premières (groupe B)
+3122	312	asset	275	Matières et fournitures consommables
+31221	3122	asset	275	Matières consommables (groupe A)
+31222	3122	asset	275	Matières consommables (groupe B)
+31223	3122	asset	275	Combustibles
+31224	3122	asset	275	Produits d'entretien
+31225	3122	asset	275	Fournitures d'atelier et d'usine
+31226	3122	asset	275	Fournitures de magasin
+31227	3122	asset	275	Fournitures de bureau
+3123	312	asset	276	Emballages
+31231	3123	asset	276	Emballages perdus
+31232	3123	asset	276	Emballages récupérables non identifiables
+31233	3123	asset	276	Emballages à usage mixte
+3126	312	asset	276	Matières et fournitures consommables en cours de route
+3128	312	asset	276	Autres matières et fournitures consommables
+313	31	asset	0	PRODUITS EN COURS
+3131	313	asset	276	Biens en cours
+31311	3131	asset	276	Biens produits en cours
+31312	3131	asset	276	Biens intermédiaires en cours
+31317	3131	asset	276	Biens résiduels en cours
+3134	313	asset	276	Services en cours
+31341	3134	asset	276	Travaux en cours
+31342	3134	asset	276	Etudes en cours
+31343	3134	asset	276	Prestations en cours
+3138	313	asset	276	Autres produits en cours
+314	31	asset	276	PRODUITS INTERMEDIAIRES ET PRODUITS RESIDUELS
+3141	314	asset	276	Produits intermédiaires
+31411	3141	asset	276	Produits intermédiaires (groupe A)
+31412	3141	asset	276	Produits intermédiaires (groupe B)
+3145	314	asset	276	Produits résiduels (ou matières de récupération)
+31451	3145	asset	276	Déchets
+31452	3145	asset	276	Rebuts
+31453	3145	asset	276	Matières de récupération
+3148	314	asset	276	Autres produits intermédiaires et produits résiduels
+315	31	asset	277	PRODUITS FINIS
+3151	315	asset	277	Produits finis (groupe A)
+3152	315	asset	277	Produits finis (groupe B)
+3156	315	asset	277	Produits finis en cours de route
+3158	315	asset	277	Autres produits finis
+34		asset	275	CREANCES DE L'ACTIF CIRCULANT
+341	34	asset	278	FOURNISSEURS DEBITEURS, AVANCES ET ACOMPTES
+3411	341	asset	278	Fournisseurs - avances et acomptes versés sur commandes d'exploitation
+3413	341	asset	278	Fournisseurs - créances pour emballages et matériel à rendre
+3417	341	asset	278	Rabais, remises et ristournes à obtenir - avoirs non encore reçus
+3418	341	asset	278	Autres fournisseurs débiteurs
+342	34	asset	278	CLIENTS ET COMPTES RATTACHES
+3421	342	asset	278	Clients
+34211	3421	asset	278	Clients - catégorie A
+34212	3421	asset	278	Clients - catégorie B
+3423	342	asset	278	Clients - retenues de garantie
+3424	342	asset	278	Clients douteux ou litigieux
+3425	342	asset	278	Clients - effets à recevoir
+3427	342	asset	278	Clients - factures à établir et créances sur travaux non encore facturables
+34271	3427	asset	278	Clients - factures à établir
+34272	3427	asset	278	Créances sur travaux non encore facturables
+3428	342	asset	278	Autres clients et comptes rattachés
+343	34	asset	278	PERSONNEL - DEBITEUR
+3431	343	asset	278	Avances et acomptes au personnel
+3438	343	asset	278	Personnel - autres débiteurs
+345	34	asset	279	ETAT - DEBITEUR
+3451	345	asset	279	Subventions à recevoir
+34511	3451	asset	279	Subventions d'investissement à recevoir
+34512	3451	asset	279	Subventions d'exploitation à recevoir
+34513	3451	asset	279	Subventions d'équilibre à recevoir
+3453	345	asset	279	Acomptes sur impôts sur les résultats
+3455	345	asset	279	ETAT - T.V.A. récupérable
+34551	3455	asset	279	ETAT - T.V.A. récupérable sur immobilisations
+34552	3455	asset	279	ETAT - T.V.A. récupérable sur les charges
+3456	345	asset	279	ETAT - Crédit de T.V.A. (suivant déclarations)
+3458	345	asset	279	Etat - Autres comptes débiteurs
+346	34	asset	279	COMPTES D'ASSOCIES - DEBITEURS
+3461	346	asset	279	Associés - comptes d'apport en société
+3462	346	asset	279	Actionnaires - capital souscrit et appelé non versé
+3463	346	asset	279	Comptes courants des associés - débiteurs
+3464	346	asset	279	Associés - opérations faites en commun
+3467	346	asset	279	Créances rattachées aux comptes d'associés
+348	34	asset	280	AUTRES DEBITEURS
+3481	348	asset	280	Créances sur cessions d'immobilisations
+3482	348	asset	280	Créances sur cessions d'éléments d'actif circulant
+3487	348	asset	280	Créances rattachées aux autres débiteurs
+3488	348	asset	280	Divers débiteurs
+349	34	asset	280	COMPTES DE REGULARISATION - ACTIF
+3491	349	asset	280	Charges constatées d'avance
+3493	349	asset	280	Intérêts courus et non échus à percevoir
+3495	349	asset	280	Comptes de répartition périodique des charges
+3497	349	asset	280	Comptes transitoires ou d'attente - débiteurs
+35		asset	275	TITRES ET VALEURS DE PLACEMENT
+350	35	asset	280	TITRES ET VALEURS DE PLACEMENT
+3501	350	asset	280	Actions, partie libérée
+3502	350	asset	280	Actions, partie non libérée
+3504	350	asset	280	Obligations
+3506	350	asset	280	Bons de caisse et bons du Trésor
+35061	3506	asset	280	Bons de caisse
+35062	3506	asset	280	Bons du Trésor
+3508	350	asset	280	Autres titres et valeurs de placement similaires
+37		asset	275	ECARTS DE CONVERSION - ACTIF (ELEMENTS CIRCULANTS)
+370	37	asset	280	ECARTS DE CONVERSION - ACTIF (Eléments circulants)
+3701	370	asset	280	Diminution des créances circulantes
+3702	370	asset	280	Augmentation des dettes circulantes
+39		asset	275	PROVISIONS POUR DEPRECIATION DES COMPTES DE L'ACTIF CIRCULANT (HORS TRESORERIE)
+391	39	asset	281	PROVISIONS POUR DEPRECIATION DES STOCKS
+3911	391	asset	281	Provisions pour dépréciation des marchandises
+3912	391	asset	281	Provisions pour dépréciation des matières et fournitures
+3913	391	asset	281	Provisions pour dépréciation des produits en cours
+3914	391	asset	281	Provisions pour dépréciation des produits intermédiaires
+3915	391	asset	281	Provisions pour dépréciation des produits finis
+394	39	asset	281	PROVISIONS POUR DEPRECIATION DES CREANCES DE L'ACTIF CIRCULANT
+3941	394	asset	281	Provisions pour dépréciation - fournisseurs débiteurs, avances et acomptes
+3942	394	asset	281	Provisions pour dépréciation des clients et comptes rattachés
+3943	394	asset	281	Provisions pour dépréciation du personnel - débiteur
+3946	394	asset	281	Provisions pour dépréciation des comptes d'associés débiteurs
+3948	394	asset	281	Provisions pour dépréciation des autres débiteurs
+395	39	asset	281	PROVISIONS POUR DEPRECIATION DES TITRES ET VALEURS DE PLACEMENT
+3950	395	asset	281	Provisions pour dépréciation des titres et valeurs de placement
+44		liability	282	DETTES DU PASSIF CIRCULANT
+441	44	liability	282	FOURNISSEURS ET COMPTES RATTACHES
+4411	441	liability	282	Fournisseurs
+44111	4411	liability	282	Fournisseurs - catégorie A
+44112	4411	liability	282	Fournisseurs - catégorie B
+4413	441	liability	282	Fournisseurs - retenues de garantie
+4415	441	liability	282	Fournisseurs - effets à payer
+4417	441	liability	282	Fournisseurs - factures non parvenues
+4418	441	liability	282	Autres fournisseurs et comptes rattachés
+442	44	liability	283	CLIENTS CREDITEURS, AVANCES ET ACOMPTES
+4421	442	liability	283	Clients - avances et acomptes reçus sur commandes en cours
+4425	442	liability	283	Clients - Dettes pour emballages et matériel consignés
+4427	442	liability	283	Rabais, remises et ristournes à accorder - avoirs à établir
+4428	442	liability	283	Autres clients créditeurs
+443	44	liability	283	PERSONNEL - CREDITEUR
+4432	443	liability	283	Rémunérations dûes au personnel
+4433	443	liability	283	Dépôts du personnel créditeurs
+4434	443	liability	283	Oppositions sur salaires
+4437	443	liability	283	Charges du personnel à payer
+4438	443	liability	283	Personnel - autres créditeurs
+444	44	liability	283	ORGANISMES SOCIAUX
+4441	444	liability	283	Caisse Nationale de la Sécurité Sociale
+4443	444	liability	283	Caisses de retraite
+4445	444	liability	283	Mutuelles
+4447	444	liability	283	Charges sociales à payer
+4448	444	liability	283	Autres organismes sociaux
+445	44	liability	283	ETAT - CREDITEUR
+4452	445	liability	283	Etat Impôts, taxes et assimilés
+44521	4452	liability	283	Etat, taxe urbaine et taxe d'édilité
+44522	4452	liability	283	Etat, patente
+44525	4452	liability	0	Etat, PTS et PSN
+4453	445	liability	283	Etat, impôts sur les résultats
+4455	445	liability	283	Etat, T.V.A. facturée
+4456	445	liability	283	Etat, T.V.A. due (suivant déclarations)
+4457	445	liability	284	Etat, impôts et taxes à payer
+4458	445	liability	284	Etat - Autres comptes créditeurs
+446	44	liability	284	COMPTES D'ASSOCIES - CREDITEURS
+4461	446	liability	284	Associés - capital à rembourser
+4462	446	liability	284	Associés - versements reçus sur augmentation de capital
+4463	446	liability	284	Comptes courants des associés créditeurs
+4464	446	liability	284	Associés - opérations faites en commun
+4465	446	liability	284	Associés Dividendes à payer
+4468	446	liability	284	Autres comptes d'associés - créditeurs
+448	44	liability	0	AUTRES CREANCIERS
+4481	448	liability	284	Dettes sur acquisition d'immobilisations
+4483	448	liability	284	Dettes sur acquisitions de titres et valeurs de placement
+4484	448	liability	284	Obligations échues à rembourser
+4485	448	liability	284	Obligations, coupons à payer
+4487	448	liability	284	Dettes rattachées aux autres créanciers
+4488	448	liability	284	Divers créanciers
+449	44	liability	284	COMPTES DE REGULARISATION - PASSIF
+4491	449	liability	284	Produits constatés d'avance
+4493	449	liability	284	Intérêts courus et non échus à payer
+4495	449	liability	284	Comptes de répartition périodique des produits
+4497	449	liability	284	Comptes transitoires ou d'attente - créditeurs
+45		liability	282	AUTRES PROVISIONS POUR RISQUES ET CHARGES
+450	45	liability	285	AUTRES PROVISIONS POUR RISQUES ET CHARGES
+4501	450	liability	285	Provisions pour litiges
+4502	450	liability	285	Provisions pour garanties données aux clients
+4505	450	liability	285	Provisions pour amendes, doubles droits et pénalités
+4506	450	liability	285	Provisions pour pertes de change
+4507	450	liability	285	Provisions pour impôts
+4508	450	liability	285	Autres provisions pour risques et charges
+47		liability	282	ECARTS DE CONVERSION - PASSIF (ELEMENTS CIRCULANTS)
+470	47	liability	285	ECARTS DE CONVERSION - PASSIF (Eléments circulants)
+4701	470	liability	285	Augmentation des créances circulantes
+4702	470	liability	285	Diminution des dettes circulantes
+51		asset	286	TRESORERIE - ACTIF
+511	51	asset	286	CHEQUES ET VALEURS A ENCAISSER
+5111	511	asset	286	Chèques à encaisser ou à l'encaissement
+51111	5111	asset	286	Chèques en portefeuille
+51112	5111	asset	286	Chèques à l'encaissement
+5113	511	asset	286	Effets à encaisser ou à l'encaissement
+51131	5113	asset	286	Effets échus à encaisser
+51132	5113	asset	286	Effets à l'encaissement
+5115	511	asset	286	Virements de fonds
+5118	511	asset	286	Autres valeurs à encaisser
+514	51	asset	286	BANQUES, TRESORERIE GENERALE ET CHEQUES POSTAUX DEBITEURS
+5141	514	asset	286	Banques (soldes débiteurs)
+5143	514	asset	286	Trésorerie Générale
+5146	514	asset	286	Chèques postaux
+5148	514	asset	286	Autres établissements financiers et assimilés (soldes débiteurs)
+516	51	asset	287	CAISSES, REGIES D'AVANCES ET ACCREDITIFS
+5161	516	asset	287	Caisses
+51611	5161	asset	287	Caisse centrale
+51613	5161	asset	287	Caisse (succursale ou agence A)
+51614	5161	asset	287	Caisse (succursale ou agence B)
+5165	516	asset	287	Régies d'avances et accréditifs
+55		liability	286	TRESORERIE - PASSIF
+552	55	liability	0	CREDITS D'ESCOMPTE
+5520	552	liability	287	Crédits d'escompte
+553	55	liability	0	CREDITS DE TRESORERIE
+5530	553	liability	287	Crédits de trésorerie
+554	55	liability	0	BANQUES (soldes créditeurs)
+5541	554	liability	287	Banques (soldes créditeurs)
+5548	554	liability	287	Autres établissements financiers et assimilés (soldes créditeurs)
+59		asset	286	PROVISIONS POUR DEPRECIATION DES COMPTES DE TRESORERIE
+590	59	asset	287	PROVISIONS POUR DEPRECIATION DES COMPTES DE TRESORERIE
+5900	590	asset	287	Provisions pour dépréciation des comptes de trésorerie
+61		expense	288	CHARGES D'EXPLOITATION
+611	61	expense	288	ACHATS REVENDUS DE MARCHANDISES
+6111	611	expense	288	Achats de marchandises "groupe A"
+6112	611	expense	288	Achats de marchandises "groupe B"
+6114	611	expense	288	Variation de stocks de marchandises
+6118	611	expense	288	Achats revendus de marchandises des exercices antérieurs
+6119	611	expense	288	Rabais, remises, et ristournes obtenus sur achats de marchandises
+612	61	expense	289	ACHATS CONSOMMES DE MATIERES ET DE FOURNITURES
+6121	612	expense	289	Achats de matières premières
+61211	6121	expense	289	Achats de matières premières A
+61212	6121	expense	289	Achats de matières premières B
+6122	612	expense	289	Achats de matières et fournitures consommables
+61221	6122	expense	289	Achats de matières et fournitures A
+61222	6122	expense	289	Achats de matières et fournitures B
+61223	6122	expense	289	Achats de combustibles
+61224	6122	expense	289	Achats de produits d'entretien
+61225	6122	expense	289	Achats de fournitures d'atelier et d'usine
+61226	6122	expense	289	Achats de fournitures de magasin
+61227	6122	expense	289	Achats de fournitures de bureau
+6123	612	expense	289	Achats d'emballages
+61231	6123	expense	289	Achats d'emballages perdus
+61232	6123	expense	289	Achats d'emballages récupérables non identifiables
+61233	6123	expense	289	Achats d'emballages à usage mixte
+6124	612	expense	289	Variation des stocks de matières et fournitures
+61241	6124	expense	289	Variation des stocks de matières premières
+61242	6124	expense	289	Variation des stocks de matières et fournitures consommables
+61243	6124	expense	289	Variation des stocks des emballages
+6125	612	expense	289	Achats non stockés de matières et de fournitures
+61251	6125	expense	289	Achats de fournitures non stockables (eau, électricité .....)
+61252	6125	expense	289	Achats de fournitures d'entretien
+61253	6125	expense	289	Achats de petit outillage et de petit équipement
+61254	6125	expense	289	Achats de fournitures de bureau
+6126	612	expense	290	Achats de travaux, études et prestations de service
+61261	6126	expense	290	Achats des travaux
+61262	6126	expense	290	Achats des études
+61263	6126	expense	290	Achats des prestations de service
+6128	612	expense	290	Achats de matières et de fournitures des exercices antérieurs
+6129	612	expense	290	Rabais, remises et ristournes obtenus sur achats consommés de matières et fournitures
+61291	6129	expense	290	R.R.R. obtenus sur achats de matières premières
+61292	6129	expense	290	R.R.R. obtenus sur achats de matières et fournitures consommables
+61293	6129	expense	290	R.R.R. obtenus sur achats des emballages
+61295	6129	expense	290	R.R.R. obtenus sur achats non stockés
+61296	6129	expense	290	R.R.R. obtenus sur achats de travaux, études et prestations de service
+61298	6129	expense	290	R.R.R. obtenus sur achats de matières et fournitures des exercices antérieurs
+6131	61	expense	291	Locations et charges locatives
+61311	6131	expense	291	Location de terrains
+61312	6131	expense	291	Location de constructions
+61313	6131	expense	291	Location de matériel et d'outillage
+61314	6131	expense	291	Location de mobilier et matériel de bureau
+61315	6131	expense	291	Location de matériel informatique
+61316	6131	expense	291	Location de matériel de transport
+61317	6131	expense	291	Malis sur emballages rendus
+61318	6131	expense	291	Locations et charges locatives diverses
+6132	61	expense	291	Redevances de crédit-bail
+61321	6132	expense	291	Redevances de crédit-bail - mobilier et matériel
+6133	61	expense	291	Entretien et réparations
+61331	6133	expense	291	Entretien et Réparations des biens immobiliers
+61332	6133	expense	291	Entretien et réparations des biens mobiliers
+61335	6133	expense	291	Maintenance
+6134	61	expense	291	Primes d'assurances
+61341	6134	expense	291	Assurances multirisques (vol. incendie, responsabilité civile....)
+61343	6134	expense	291	Assurances - Risques d'exploitation
+61345	6134	expense	291	Assurances - Matériel de transport
+61348	6134	expense	291	Autres assurances
+6135	61	expense	292	Rémunérations du personnel extérieur à l'entreprise
+61351	6135	expense	292	Rémunérations du personnel occasionnel
+61352	6135	expense	292	Rémunérations du personnel intérimaire
+61353	6135	expense	292	Rémunérations du personnel détaché ou prêté à l'entreprise
+6136	61	expense	292	Rémunérations d'intermédiaires et honoraires
+61361	6136	expense	292	Commissions et courtages
+61365	6136	expense	292	Honoraires
+61367	6136	expense	292	Frais d'actes et de contentieux
+6137	61	expense	292	Redevances pour brevets marques, droits et valeurs similaires
+61371	6137	expense	292	Redevances pour brevets
+61378	6137	expense	292	Autres redevances
+6141	61	expense	292	Etudes, recherches et documentation
+61411	6141	expense	292	Etudes générales
+61413	6141	expense	292	Recherches
+61415	6141	expense	292	Documentation générale
+61416	6141	expense	292	Documentation technique
+6142	61	expense	292	Transports
+61421	6142	expense	292	Transports du personnel
+61425	6142	expense	292	Transports sur achats
+61426	6142	expense	292	Transports sur ventes
+61428	6142	expense	292	Autres transports
+6143	61	expense	292	Déplacements, missions et réceptions
+61431	6143	expense	292	Voyages et déplacements
+61433	6143	expense	292	Frais de déménagement
+61435	6143	expense	292	Missions
+61436	6143	expense	292	Réceptions
+6144	61	expense	293	Publicité, publications et relations publiques
+61441	6144	expense	293	Annonces et insertions
+61442	6144	expense	293	Echantillons, catalogues et imprimés publicitaires
+61443	6144	expense	293	Foires et expositions
+61444	6144	expense	293	Primes de publicité
+61446	6144	expense	293	Publications
+61447	6144	expense	293	Cadeaux à la clientèle
+61448	6144	expense	293	Autres charges de publicité et relations publiques
+6145	61	expense	293	Frais postaux et frais de télécommunications
+61451	6145	expense	293	Frais postaux
+61455	6145	expense	293	Frais de téléphone
+61456	6145	expense	293	Frais de télex et de télégrammes
+6146	61	expense	293	Cotisations et dons
+61461	6146	expense	293	Cotisations
+61462	6146	expense	293	Dons
+6147	61	expense	293	Services bancaires
+61471	6147	expense	293	Frais d'achat et de vente des titres
+61472	6147	expense	293	Frais sur effets de commerce
+61473	6147	expense	293	Frais et commissions sur services bancaires
+6148	61	expense	293	Autres charges externes des exercices antérieurs
+6149	61	expense	293	Rabais, Remises et ristournes obtenus sur autres charges externes
+616	61	expense	294	IMPOTS ET TAXES
+6161	616	expense	294	Impôts et taxes directs
+61611	6161	expense	294	Taxe urbaine et taxe d'édilité
+61612	6161	expense	294	Patente
+61615	6161	expense	294	Taxes locales
+6165	616	expense	294	Impôts et Taxes Indirectes
+6167	616	expense	294	Impôts, taxes et droits assimilés
+61671	6167	expense	294	Droits d'enregistrement et de timbre
+61673	6167	expense	294	Taxes sur les véhicules
+61678	6167	expense	294	Autres impôts, taxes et droits assimilés
+6168	616	expense	294	Impôts et taxes des exercices antérieurs
+617	61	expense	294	CHARGES DE PERSONNEL
+6171	617	expense	294	Rémunérations du personnel
+61711	6171	expense	294	Appointements et salaires
+61712	6171	expense	294	Primes et gratifications
+61713	6171	expense	294	Indemnités et avantages divers
+61714	6171	expense	294	Commissions au personnel
+61715	6171	expense	294	Rémunérations des administrateurs, gérants et associés
+6174	617	expense	294	Charges sociales
+61741	6174	expense	294	Cotisations de sécurité sociale
+61742	6174	expense	294	Cotisations aux caisses de retraite
+61743	6174	expense	294	Cotisations aux mutuelles
+61744	6174	expense	294	Prestations familiales
+61745	6174	expense	294	Assurances accidents de travail
+6176	617	expense	295	Charges sociales diverses
+61761	6176	expense	295	Assurances groupe
+61762	6176	expense	295	Prestations de retraites
+61763	6176	expense	295	Allocations aux oeuvres sociales
+61764	6176	expense	295	Habillement et vêtements de travail
+61765	6176	expense	295	Indemnités de préavis et de licenciement
+61766	6176	expense	295	Médecine de travail, pharmacie
+61768	6176	expense	295	Autres charges sociales diverses
+6177	617	expense	295	Rémunération de l'exploitant
+61771	6177	expense	295	Appointements et salaires
+61774	6177	expense	295	Charges sociales sur appointements et salaires de l'exploitant
+6178	617	expense	295	Charges de personnel des exercices antérieurs
+618	61	expense	295	AUTRES CHARGES D'EXPLOITATION
+6181	618	expense	295	Jetons de présence
+6182	618	expense	295	Pertes sur créances irrécouvrables
+6185	618	expense	295	Pertes sur opérations faites en commun
+6186	618	expense	295	Transfert de profits sur opérations faites en commun
+6188	618	expense	295	Autres charges d'exploitation des exercices antérieurs
+619	61	expense	295	DOTATIONS D'EXPLOITATION
+6191	619	expense	295	Dotations d'exploitation aux amortissements de l'immobilisation en non-valeurs
+61911	6191	expense	295	D.E.A. des frais préliminaires
+61912	6191	expense	295	D.E.A. des charges à répartir
+6192	619	expense	296	Dotations d'exploitation aux amortissements des immobilisations incorporelles
+61921	6192	expense	296	D.E.A. de l'immobilisation en recherche et développement
+61922	6192	expense	296	D.E.A. des brevets, marques, droits et valeurs similaires
+61923	6192	expense	296	D.E.A. du fonds commercial
+61928	6192	expense	296	D.E.A. des autres immobilisations incorporelles
+6193	619	expense	296	Dotations d'exploitation aux amortissements des immobilisations corporelles
+61931	6193	expense	296	D.E.A. des terrains
+61932	6193	expense	296	D.E.A. des constructions
+61933	6193	expense	296	D.E.A. des installations techniques, matériel et outillage
+61934	6193	expense	296	D.E.A. du matériel de transport
+61935	6193	expense	296	D.E.A. des mobilier, matériel de bureau et aménagements divers
+61938	6193	expense	296	D.E.A. des autres immobilisations corporelles
+6194	619	expense	296	Dotations d'exploitation aux provisions pour dépréciation des immobilisations
+61942	6194	expense	296	D.E.P. pour dépréciation des immobilisations incorporelles
+61943	6194	expense	296	D.E.P. pour dépréciation des immobilisations corporelles
+6195	619	expense	296	Dotations d'exploitation aux provisions pour risques et charges
+61955	6195	expense	296	D.E.P. pour risques et charges durables
+61957	6195	expense	296	D.E.P. pour risques et charges momentanés
+6196	619	expense	297	Dotations d'exploitation aux provisions pour dépréciation de l'actif circulant
+61961	6196	expense	297	D.E.P. pour dépréciation des stocks
+61964	6196	expense	297	D.E.P. pour dépréciation des créances de l'actif circulant
+6198	619	expense	0	Dotations d'exploitation des exercices antérieurs
+61981	6198	expense	297	D.E. aux amortissements des exercices antérieurs
+61984	6198	expense	297	D.E. aux provisions des exercices antérieurs
+63		expense	288	CHARGES FINANCIERES
+631	63	expense	298	CHARGES D'INTERETS
+6311	631	expense	0	Intérêts des emprunts et dettes
+63111	6311	expense	298	Intérêts des emprunts
+63113	6311	expense	0	Intérêts des dettes rattachées à des participations
+63114	6311	expense	298	Intérêts des comptes courants et dépôts créditeurs
+63115	6311	expense	298	Intérêts bancaires et sur opérations de financement
+63118	6311	expense	298	Autres intérêts des emprunts et dettes
+6318	631	expense	298	Charges d'intérêts des exercices antérieurs
+633	63	expense	298	PERTES DE CHANGE
+6331	633	expense	0	Pertes de change propres à l'exercice
+6338	633	expense	298	Pertes de change des exercices antérieurs
+638	63	expense	298	AUTRES CHARGES FINANCIERES
+6382	638	expense	0	Pertes sur créances liées à des participations
+6385	638	expense	298	Charges nettes sur cessions de titres et valeurs de placement
+6386	638	expense	298	Escomptes accordés
+6388	638	expense	299	Autres charges financières des exercices antérieurs
+639	63	expense	299	DOTATIONS FINANCIERES
+6391	639	expense	299	Dotations aux amortissements des primes de remboursement des obligations
+6392	639	expense	299	Dotations aux provisions pour dépréciation des immobilisations financières
+6393	639	expense	299	Dotations aux provisions pour risques et charges financiers
+6394	639	expense	299	Dotations aux provisions pour dépréciation des titres et valeurs de placement
+6396	639	expense	299	Dotations aux provisions pour dépréciation des comptes de trésorerie
+6398	639	expense	299	Dotations financières des exercices antérieurs
+65		expense	288	CHARGES NON COURANTES
+651	65	expense	300	VALEURS NETTES D'AMORTISSEMENTS DES IMMOBILISATIONS CEDEES
+6512	651	expense	300	V.N.A des immobilisations incorporelles cédées
+6513	651	expense	300	V.N.A des immobilisations corporelles cédées
+6514	651	expense	300	V.N.A des immobilisations financières cédées (droits de propriété)
+6518	651	expense	300	V.N.A des immobilisations cédées des exercices antérieurs
+656	65	expense	300	SUBVENTIONS ACCORDEES
+6561	656	expense	300	Subventions accordées de l'exercice
+6568	656	expense	300	Subventions accordées des exercices antérieurs
+658	65	expense	300	AUTRES CHARGES NON COURANTES
+6581	658	expense	300	Pénalités sur marchés et dédits
+65811	6581	expense	300	Pénalités sur marchés
+65812	6581	expense	300	Dédits
+6582	658	expense	300	Rappels d'impôts (autres qu'impôts sur les résultats)
+6583	658	expense	300	Pénalités et amendes fiscales ou pénales
+65831	6583	expense	300	Pénalités et amendes fiscales
+65833	6583	expense	300	Pénalités et amendes pénales
+6585	658	expense	300	Créances devenues irrécouvrables
+6586	658	expense	301	Dons, libéralités et lots
+65861	6586	expense	301	Dons
+65862	6586	expense	301	Libéralités
+65863	6586	expense	301	Lots
+6588	658	expense	301	Autres charges non courantes des exercices antérieurs
+659	65	expense	301	DOTATIONS NON COURANTES
+6591	659	expense	301	Dotations aux amortissements exceptionnels des immobilisations
+65911	6591	expense	301	D.A.E. de l'immobilisation en non-valeurs
+65912	6591	expense	301	D.A.E. des immobilisations incorporelles
+65913	6591	expense	301	D.A.E. des immobilisations corporelles
+6594	659	expense	301	Dotations non courantes aux provisions réglementées
+65941	6594	expense	301	DNC pour amortissements dérogatoires
+65942	6594	expense	301	DNC pour plus-values en instance d'imposition
+65944	6594	expense	301	DNC pour investissements
+65945	6594	expense	301	DNC pour reconstitution de gisements
+65946	6594	expense	301	DNC pour acquisition et construction de logements
+6595	659	expense	302	Dotations non courantes aux provisions pour risques et charges
+65955	6595	expense	302	DNC aux provisions pour risques et charges durables
+65957	6595	expense	302	DNC aux provisions pour risques et charges momentanés
+6596	659	expense	302	Dotations non courantes aux provisions pour dépréciation
+65962	6596	expense	302	DNC aux provisions pour dépréciation de l'actif immobilisé
+65963	6596	expense	302	DNC aux provisions pour dépréciation de l'actif circulant
+6598	659	expense	302	Dotations non courantes des exercices antérieurs
+67		expense	288	IMPOTS SUR LES RESULTATS
+670	67	expense	302	IMPOTS SUR LES RESULTATS
+6701	670	expense	302	Impôts sur les bénéfices
+6705	670	expense	302	Imposition minimale annuelle des sociétés
+6708	670	expense	302	Rappels et dégrèvements des impôts sur les résultats
+71		income	303	PRODUITS D'EXPLOITATION
+711	71	income	303	VENTES DE MARCHANDISES
+7111	711	income	303	Ventes de marchandises au Maroc
+7113	711	income	303	Ventes de marchandises à l'étranger
+7118	711	income	303	Ventes de marchandises des exercices antérieurs
+7119	711	income	303	Rabais, remises et ristournes accordés par l'entreprise
+712	71	income	303	VENTES DE BIENS ET SERVICES PRODUITS
+7121	712	income	303	Ventes de biens produits au Maroc
+71211	7121	income	303	Ventes de produits finis
+71212	7121	income	303	Ventes de produits intermédiaires
+71217	7121	income	303	Ventes de produits résiduels
+7122	712	income	304	Ventes de biens produits à l'étranger
+71221	7122	income	304	Ventes de produits finis
+71222	7122	income	304	Ventes de produits intermédiaires
+7124	712	income	304	Ventes de services produits au Maroc
+71241	7124	income	304	Travaux
+71242	7124	income	304	Etudes
+71243	7124	income	304	Prestations de service
+7125	712	income	0	Ventes de services produits à l'étranger
+71251	7125	income	304	Travaux
+71252	7125	income	304	Etudes
+71253	7125	income	304	Prestations de service
+7126	712	income	304	Redevances pour brevets, marques, droits et valeurs similaires
+7127	712	income	304	Ventes et produits accessoires
+71271	7127	income	304	Locations diverses reçues
+71272	7127	income	304	Commissions et courtages reçus
+71273	7127	income	304	Produits de services exploités dans l'intérêt du personnel
+71275	7127	income	304	Bonis sur reprises d'emballages consignés
+71276	7127	income	304	Ports et frais accessoires facturés
+71278	7127	income	304	Autres ventes et produits accessoires
+7128	712	income	304	Ventes de biens et services produits des exercices antérieurs
+7129	712	income	305	Rabais, remises et ristournes accordés par l'entreprise
+71291	7129	income	305	R.R.R. accordés sur ventes au Maroc des biens produits
+71292	7129	income	305	R.R.R. accordés sur ventes à l'étranger des biens produits
+71294	7129	income	305	R.R.R. accordés sur ventes au Maroc des services produits
+71295	7129	income	305	R.R.R. accordés sur ventes à l'étranger des services produits
+71298	7129	income	305	R.R.R. accordés sur ventes de biens et services produits des exercices antérieurs
+713	71	income	305	VARIATION DES STOCKS DE PRODUITS
+7131	713	income	305	Variation des stocks de produits en cours
+71311	7131	income	305	Variation des stocks de Biens produits en cours
+71312	7131	income	305	Variation des stocks de produits intermédiaires en cours
+71317	7131	income	305	Variation des stocks de produits résiduels en cours
+7132	713	income	305	Variation des stocks de biens produits
+71321	7132	income	305	Variation des stocks de produits finis
+71322	7132	income	305	Variation des stocks de produits intermédiaires
+71327	7132	income	305	Variation des stocks de produits résiduels
+7134	713	income	306	Variations des stocks de services en cours
+71341	7134	income	306	Variation des stocks de travaux
+71342	7134	income	306	Variation des stocks d'études en cours
+71343	7134	income	306	Variation des stocks de prestations en cours
+714	71	income	306	IMMOBILISATIONS PRODUITES PAR L'ENTREPRISE POUR ELLE MEME
+7141	714	income	306	Immobilisation en non-valeurs produite
+7142	714	income	306	Immobilisations incorporelles produites
+7143	714	income	306	Immobilisations corporelles produites
+7148	714	income	306	Immobilisations produites des exercices antérieurs
+716	71	income	306	SUBVENTIONS D'EXPLOITATION
+7161	716	income	306	Subventions d'exploitation reçues de l'exercice
+7168	716	income	306	Subventions d'exploitation reçues des exercices antérieurs
+718	71	income	306	AUTRES PRODUITS D'EXPLOITATION
+7181	718	income	306	Jetons de présence reçus
+7182	718	income	306	Revenus des immeubles non affectés à l'exploitation
+7185	718	income	306	Profits sur opérations faites en commun
+7186	718	income	307	Transfert de pertes sur opérations faites en commun
+7188	718	income	307	Autres produits d'exploitation des exercices antérieurs
+719	71	income	307	REPRISES D'EXPLOITATION; TRANSFERTS DE CHARGES
+7191	719	income	307	Reprises sur amortissements de l'immobilisation en non-valeurs
+7192	719	income	307	Reprises sur amortissements des immobilisations incorporelles
+7193	719	income	307	Reprises sur amortissements des immobilisations corporelles
+7194	719	income	307	Reprises sur provisions pour dépréciation des immobilisations
+7195	719	income	307	Reprises sur provisions pour risques et charges
+7196	719	income	307	Reprises sur provisions pour dépréciation de l'actif circulant
+7197	719	income	307	Transferts de charges d'exploitation
+71971	7197	income	307	T.C.E-achats de marchandises
+71972	7197	income	307	T.C.E-achats consommés de matières et fournitures
+71973	7197	income	307	T.C.E - Autres charges externes
+71975	7197	income	307	T.C.E - Impôt et taxes
+71976	7197	income	307	T.C.E - Charges du personnel
+71978	7197	income	307	T.C.E - Autres charges d'exploitation
+7198	719	income	307	Reprises sur amortissements et provisions des exercices antérieurs
+71981	7198	income	307	Reprises sur amortissements des exercices antérieurs
+71984	7198	income	307	Reprises sur provisions des exercices antérieurs
+73		income	308	PRODUITS FINANCIERS
+732	73	income	308	PRODUITS DES TITRES DE PARTICIPATION ET DES AUTRES TITRES IMMOBILISES
+7321	732	income	308	Revenus des titres de participation
+7325	732	income	308	Revenus des titres immobilisés
+7328	732	income	308	Produits des titres de participation et des autres titres immobilisés des exercices antérieurs
+733	73	income	308	GAINS DE CHANGE
+7331	733	income	308	Gains de change propres à l'exercice
+7338	733	income	308	Gains de change des exercices antérieurs
+738	73	income	308	INTERETS ET AUTRES PRODUITS FINANCIERS
+7381	738	income	308	Intérêts et produits assimilés
+73811	7381	income	308	Intérêts des prêts
+73813	7381	income	308	Revenus des autres créances financières
+7383	738	income	308	Revenus des créances rattachées à des participations
+7384	738	income	308	Revenus des titres et valeurs de placement
+7385	738	income	308	Produits nets sur cessions de titres et valeurs de placement
+7386	738	income	308	Escomptes obtenus
+7388	738	income	308	Intérêts et autres produits financiers des exercices antérieurs
+739	73	income	309	REPRISES FINANCIERES; TRANSFERTS DE CHARGES
+7391	739	income	309	Reprises sur amortissements des primes de remboursement des obligations
+7392	739	income	309	Reprises sur provisions pour dépréciation des immobilisations financières
+7393	739	income	309	Reprises sur provisions pour risques et charges financiers
+7394	739	income	309	Reprises sur provisions pour dépréciation des titres et valeurs de placement
+7396	739	income	309	Reprises sur provisions pour dépréciation des comptes de trésorerie
+7397	739	income	309	Transferts de charges financières
+73971	7397	income	309	Transferts - charges d'intérêts
+73973	7397	income	309	Transferts - pertes de change
+73978	7397	income	309	Transferts autres charges financières
+7398	739	income	309	Reprises sur dotations financières des exercices antérieurs
+75		income	303	PRODUITS NON COURANTS
+751	75	income	310	PRODUITS DES CESSIONS D'IMMOBILISATIONS
+7512	751	income	310	P.C des immobilisations incorporelles
+7513	751	income	310	P.C des immobilisations corporelles
+7514	751	income	310	P.C des immobilisations financières (droits de propriété)
+7518	751	income	310	P.C des immobilisations des exercices antérieurs
+756	75	income	310	SUBVENTIONS D'EQUILIBRE
+7561	756	income	310	Subventions d'équilibre reçues de l'exercice
+7568	756	income	310	Subventions d'équilibre reçues des exercices antérieurs
+757	75	income	310	REPRISES SUR SUBVENTIONS D'INVESTISSEMENT
+7577	757	income	310	Reprises sur subventions d'investissement de l'exercice
+7578	757	income	310	Reprises sur subventions d'investissement des exercices antérieurs
+758	75	income	310	AUTRES PRODUITS NON COURANTS
+7581	758	income	310	Pénalités et dédits reçus
+75811	7581	income	310	Pénalités reçues sur marchés
+75812	7581	income	310	Dédits reçus
+7582	758	income	311	Dégrèvements d'impôts (autres qu'impôts sur les résultats)
+7585	758	income	311	Rentrées sur créances soldées
+7586	758	income	311	Dons, libéralités et lots reçus
+75861	7586	income	311	Dons
+75862	7586	income	311	Libéralités
+75863	7586	income	311	Lots
+7588	758	income	311	Autres produits non courants des exercices antérieurs
+759	75	income	311	REPRISES NON COURANTES; TRANSFERTS DE CHARGES
+7591	759	income	311	Reprises non courantes sur amortissements exceptionnels des immobilisations
+75911	7591	income	311	R.A.E. de l'immobilisation en non valeurs
+75912	7591	income	311	R.A.E. des immobilisations incorporelles
+75913	7591	income	311	R.A.E des immobilisations corporelles
+7594	759	income	311	Reprises non courantes sur provisions réglementées
+75941	7594	income	311	Reprises sur amortissements dérogatoires
+75942	7594	income	311	Reprises sur plus-values en instance d'imposition
+75944	7594	income	311	Reprises sur provisions pour investissements
+75945	7594	income	311	Reprises sur provisions pour reconstitution de gisements
+75946	7594	income	312	Reprises sur provisions pour acquisition et construction de logements
+7595	759	income	312	Reprises non courantes sur provisions pour risques et charges
+75955	7595	income	312	Reprises sur provisions pour risques et charges durables
+75957	7595	income	312	Reprises sur provisions pour risques et charges momentanés
+7596	759	income	312	Reprises non courantes sur provisions pour dépréciation
+75962	7596	income	312	R.N.C. sur provisions pour dépréciation de l'actif immobilisé
+75963	7596	income	312	R.N.C sur provisions pour dépréciation de l'actif circulant
+7597	759	income	312	Transferts de charges non courantes
+7598	759	income	312	Reprises non courantes des exercices antérieurs
+81		equity	313	RESULTAT D'EXPLOITATION
+810	81	equity	313	RESULTAT D'EXPLOITATION
+8100	810	equity	313	Résultat d'exploitation
+811	81	equity	313	MARGE BRUTE
+8110	811	equity	313	Marge brute
+814	81	equity	313	VALEUR AJOUTEE
+8140	814	equity	313	Valeur ajoutée
+817	81	equity	314	EXCEDENT BRUT D'EXPLOITATION
+8171	817	equity	314	Excédent brut d'exploitation (créditeur)
+8179	817	equity	314	Insuffisance brute d'exploitation (débiteur)
+83		equity	313	RESULTAT FINANCIER
+830	83	equity	314	RESULTAT FINANCIER
+8300	830	equity	314	Résultat financier
+84		equity	313	RESULTAT COURANT
+840	84	equity	314	RESULTAT COURANT
+8400	840	equity	314	Résultat courant
+85		equity	313	RESULTAT NON COURANT
+850	85	equity	314	RESULTAT NON COURANT
+8500	850	equity	314	Résultat non courant
+86		equity	313	RESULTAT AVANT IMPOTS
+860	86	equity	314	RESULTAT AVANT IMPOTS
+8600	860	equity	314	Résultat avant impôts
+88		equity	313	RESULTAT APRES IMPOTS
+880	88	equity	315	RESULTAT APRES IMPOTS
+8800	880	equity	315	Résultat après impôts

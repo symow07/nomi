@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import pg from 'pg';
+import { sql } from 'kysely';
 import { asTenant, purgeBusinesses, type Q } from './books-db.js';
 import { odooFake } from '../books-connectors/odoo-fake.js';
 import { SAMPLE_BOOKS } from '../books-connectors/sample.js';
@@ -113,13 +114,27 @@ d('B4 · the shop\'s own Odoo, through the routes (requires DATABASE_URL + MIGRA
   it('ITEM 14: 80 days into a key\'s life, the page asks for a new one', async () => {
     expect(await home()).not.toContain('Key ends soon');
     await admin.query(`update books_connections set connected_at = now() - interval '80 days' where business_id = $1 and system = 'odoo'`, [BIZ]);
+    // the day it was connected is read in UTC, as the app counts today — whatever zone the database session is in
+    // (a session at +08:00 made it a day short between midnight and 08:00 there, 2026-10-22)
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { loadConnection } = await import('../../src/db/booksConnections.js');
+    const b = parseBusinessId(BIZ); if (!b.ok) throw new Error('fixture');
+    for (const zone of ['Asia/Shanghai', 'America/Los_Angeles']) {
+      const c = await withTenantTx(db, b.value, async (tx) => {
+        await sql`select set_config('timezone', ${zone}, true)`.execute(tx);
+        return loadConnection(tx, Buffer.alloc(32), b.value, 'odoo');
+      });
+      const utc = (await admin.query(`select to_char((now() - interval '80 days') at time zone 'UTC', 'YYYY-MM-DD') as d`)).rows[0].d as string;
+      expect([zone, c!.connectedAt.slice(0, 10), c!.connectedAt.endsWith('Z')]).toEqual([zone, utc, true]);
+    }
     const page = await home();
     expect(page).toContain('Key ends soon');
     expect(page).toContain('Make a new one in Odoo and connect again before then.');
   });
 
   it('ITEM 14: on its end the sync stops with that reason, and Odoo is not called with it again', async () => {
-    await admin.query(`update books_connections set key_expires_on = current_date where business_id = $1 and system = 'odoo'`, [BIZ]);
+    await admin.query(`update books_connections set key_expires_on = (now() at time zone 'UTC')::date where business_id = $1 and system = 'odoo'`, [BIZ]);
     const calls = odoo.calls.length;
     expect(await notice(await post('/app/books/odoo/read'))).toContain('Nothing was read from Odoo. The Odoo key has expired, so reading stopped.');
     expect(odoo.calls.length).toBe(calls);

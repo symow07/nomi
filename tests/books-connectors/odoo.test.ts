@@ -3,7 +3,7 @@ import { odooConnector, odooKeyState } from '../../src/books/connectors/odoo.js'
 import { recordsOf, type BooksData } from '../../src/core/books/interchange.js';
 import { conformance } from './conformance.js';
 import { odooFake } from './odoo-fake.js';
-import { SAMPLE_BOOKS } from './sample.js';
+import { SAMPLE_BOOKS, SAMPLE_WITH_FIELDS } from './sample.js';
 
 /**
  * B4 — the shop's own Odoo, over JSON-2 (PHASE-5.md §4): against a recorded Odoo 19 fake. Item 15: a Free or
@@ -13,11 +13,15 @@ import { SAMPLE_BOOKS } from './sample.js';
 const TODAY = '2026-10-22';
 const GOOD = { url: 'https://shop.odoo.com', database: 'shop-db', key: 'good-key', expires: '2027-01-15' };
 
-/** What Odoo holds of the sample: no parent account; a tax is ODOO-<id>, with NO start date (never a guessed one); an entry's document is its Odoo number. */
+/**
+ * What Odoo holds of the sample: no parent account; a tax is ODOO-<id>, with NO start date (never a guessed one); an
+ * entry's document is its Odoo number; the custom VALUES (D7, in Nomi's mark) but not the fields, which Odoo cannot hold.
+ */
 const odooHolds = (d: BooksData): BooksData => {
   const tax = new Map(d.taxCodes.map((t, i) => [t.code, `ODOO-${i + 1}`]));
   return {
     accounts: d.accounts.map((a) => ({ ...a, parent: null })),
+    // no `fields`: Odoo has nowhere to keep them
     journals: d.journals.map((j) => ({ ...j, kind: j.kind === 'closing' ? 'general' : j.kind })),
     parties: d.parties,
     taxCodes: d.taxCodes.map((t) => ({ ...t, code: tax.get(t.code)!, validFrom: null, validTo: null })),
@@ -29,7 +33,7 @@ const odoo = odooFake();
 conformance({
   name: 'the shop\'s own Odoo (JSON-2)',
   connector: odooConnector(odoo.post, 'MAD', () => TODAY),
-  sample: SAMPLE_BOOKS,
+  sample: SAMPLE_WITH_FIELDS,
   holds: odooHolds,
   connectTo: (data) => { odoo.publish(data); return GOOD; },
   refusedWith: { values: { ...GOOD, key: 'a-key-odoo-does-not-know' }, reason: 'wrong_credentials' },

@@ -9,7 +9,7 @@ import type { ConnectRefusalReason, Grant } from '../core/books/connector.js';
  * the column), and how the last read went. Nothing here is ever deleted: a new grant archives the old, a disconnect
  * archives the grant and says so.
  */
-export type ConnectedSystem = 'sheets' | 'odoo';
+export type ConnectedSystem = 'sheets' | 'odoo' | 'xero' | 'quickbooks';
 export type BooksConnection = {
   readonly system: ConnectedSystem;
   readonly state: 'connected' | 'connect_again' | 'stopped' | 'disconnected';
@@ -43,12 +43,27 @@ export async function saveConnection(tx: Tx, credentialKey: Buffer, input: {
       connected_at = now(), connected_by = excluded.connected_by`.execute(tx);
 }
 
+/**
+ * D8 — a grant the system ROTATED (Xero: every refresh returns the next refresh token, and the one before stops
+ * working): kept at once, the way a connection's is — the old one archived, never deleted — and the connection left
+ * as it is otherwise. Called before the new token is used, so a crash after a refresh never strands the grant.
+ */
+export async function rotateGrant(tx: Tx, credentialKey: Buffer, businessId: string, system: ConnectedSystem, secret: string, by: string): Promise<void> {
+  await sql`update connector_credentials set archived_at = now(), archived_by = ${by}
+    where business_id = ${businessId}::uuid and connector = ${system} and archived_at is null`.execute(tx);
+  const id = (await sql<{ id: string }>`insert into connector_credentials (business_id, connector, secret_ciphertext, fingerprint, created_by)
+    values (${businessId}::uuid, ${system}, ${encryptSecret(secret, credentialKey)}, ${credentialFingerprint(secret)}, ${by})
+    returning id::text as id`.execute(tx)).rows[0]!.id;
+  await sql`update books_connections set credential_id = ${id}::uuid where business_id = ${businessId}::uuid and system = ${system}`.execute(tx);
+}
+
 /** The connection, with its grant opened; null when this system was never connected. */
 export async function loadConnection(tx: Tx, credentialKey: Buffer, businessId: string, system: ConnectedSystem): Promise<BooksConnection | null> {
   const r = (await sql<{ state: BooksConnection['state']; reason: string | null; settings: Record<string, string>; key_expires_on: string | null;
     cursor: string | null; connected_at: string; last_read_at: string | null; last_ok_at: string | null; secret: string | null }>`
     select c.state, c.reason, c.settings, c.key_expires_on::text as key_expires_on, c.cursor,
-           to_json(c.connected_at) #>> '{}' as connected_at, to_json(c.last_read_at) #>> '{}' as last_read_at,
+           -- in UTC, as the app counts days (a session in another zone made a key's age a day short before 08:00 there)
+           to_char(c.connected_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as connected_at, to_json(c.last_read_at) #>> '{}' as last_read_at,
            to_json(c.last_ok_at) #>> '{}' as last_ok_at, k.secret_ciphertext as secret
       from books_connections c left join connector_credentials k on k.id = c.credential_id and k.archived_at is null
      where c.business_id = ${businessId}::uuid and c.system = ${system}`.execute(tx)).rows[0];

@@ -9,7 +9,7 @@ import { metaPostCaption } from './channels/meta/posts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
-import { anthropicPageTranscriber, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
+import { anthropicPageTranscriber, anthropicDocumentReader, anthropicDraftTranslator, anthropicCatalogExtractor, anthropicPageFactsReader, anthropicAdvisorModel } from './llm/anthropic.js';
 import { fallbackSwitchedOn, llmFallbackFrom, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
@@ -850,6 +850,8 @@ export async function buildProduction(
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
   const pageTranscriber = anthropicPageTranscriber(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
+  // D6 — a receipt, invoice or bill read for the books, on the same provider (a draft at most, never posted).
+  const documentReader = anthropicDocumentReader(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // EXT — the closer reading of a list's lines, on the same provider.
   const catalogExtractor = anthropicCatalogExtractor(modelClient(watch.observe), llm.model, requestExtrasFor(llm));
   // EXT — a page of her site read into facts she ticks.
@@ -894,6 +896,7 @@ export async function buildProduction(
     registerWebApp(a, {
       db,
       pageTranscriber,
+      documentReader,
       // EXT — a PDF is offered only where the provider reads documents (Anthropic's does;
       // this installation's custom provider answered one with nothing, 2026-10-01).
       pdfReadable: llm.name === 'anthropic',
@@ -964,6 +967,13 @@ export async function buildProduction(
     // once the privacy page names Google Sheets (D18 stops the boot before that).
     ...(recipientNamed('googleSheets') && process.env['SHEETS_CLIENT_ID']?.trim() && process.env['SHEETS_CLIENT_SECRET']?.trim()
       ? { sheetsClient: { clientId: process.env['SHEETS_CLIENT_ID'].trim(), clientSecret: process.env['SHEETS_CLIENT_SECRET'].trim() } } : {}),
+    // D8 — the shop's own Xero: the installation's Xero client, wired only once the privacy page names Xero (D18
+    // stops the boot before that).
+    ...(recipientNamed('xero') && process.env['XERO_CLIENT_ID']?.trim() && process.env['XERO_CLIENT_SECRET']?.trim()
+      ? { xeroClient: { clientId: process.env['XERO_CLIENT_ID'].trim(), clientSecret: process.env['XERO_CLIENT_SECRET'].trim() } } : {}),
+    // D9 — the shop's own QuickBooks: the installation's Intuit client, wired only once the privacy page names Intuit.
+    ...(recipientNamed('intuit') && process.env['QBO_CLIENT_ID']?.trim() && process.env['QBO_CLIENT_SECRET']?.trim()
+      ? { qboClient: { clientId: process.env['QBO_CLIENT_ID'].trim(), clientSecret: process.env['QBO_CLIENT_SECRET'].trim() } } : {}),
     // C9 — the accounts buyers write to, when the host configured them.
     instagramAccountId: igAccountId ?? null,
     messengerPageId: pageId ?? null,
@@ -1126,15 +1136,19 @@ export async function buildProduction(
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
     });
-    // B5 (0180) — every morning, every connected system (Google Sheets, Odoo) is read into the books as the owner's
+    // B5 (0180) — every morning, every connected system (Google Sheets, Odoo, Xero, QuickBooks) is read into the books as the owner's
     // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.
     await boss.schedule(QUEUES.booksRead, '20 5 * * *', {});
     await boss.work(QUEUES.booksRead, async () => {
       const sheetsId = process.env['SHEETS_CLIENT_ID']?.trim(); const sheetsSecret = process.env['SHEETS_CLIENT_SECRET']?.trim();
+      const xeroId = process.env['XERO_CLIENT_ID']?.trim(); const xeroSecret = process.env['XERO_CLIENT_SECRET']?.trim();
+      const qboId = process.env['QBO_CLIENT_ID']?.trim(); const qboSecret = process.env['QBO_CLIENT_SECRET']?.trim();
       const t = await readEveryConnectedSystem({
         db, credentialKey,
         ...(recipientNamed('googleSheets') && sheetsId && sheetsSecret ? { sheets: { client: { clientId: sheetsId, clientSecret: sheetsSecret }, fetch: oauthFetch } } : {}),
         odoo: { post: publicPost, today: () => new Date().toISOString().slice(0, 10) },
+        ...(recipientNamed('xero') && xeroId && xeroSecret ? { xero: { client: { clientId: xeroId, clientSecret: xeroSecret }, fetch: oauthFetch } } : {}),
+        ...(recipientNamed('intuit') && qboId && qboSecret ? { quickbooks: { client: { clientId: qboId, clientSecret: qboSecret }, fetch: oauthFetch } } : {}),
       });
       if (t.read + t.refused + t.problems > 0) console.log(`[books] morning read: ${t.read} read, ${t.refused} refused, ${t.problems} with problems`);
     });

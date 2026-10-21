@@ -19,7 +19,7 @@ import type { BooksData, BooksProblem, RecordKind } from './interchange.js';
  * The shapes are pure; the systems are not (they read files and call the network), so they live outside core.
  */
 
-export const BOOKS_SYSTEMS = ['excel', 'sheets', 'odoo'] as const;
+export const BOOKS_SYSTEMS = ['excel', 'sheets', 'odoo', 'xero', 'quickbooks'] as const;
 export type BooksSystem = (typeof BOOKS_SYSTEMS)[number];
 
 /** Why connecting, refreshing or reading was refused. Retryable says whether trying again later could help. */
@@ -29,6 +29,7 @@ export const CONNECT_REFUSALS = [
   'wrong_database',        // Odoo: the database named does not exist there
   'plan_without_api',      // Odoo: a Free or Standard plan, which has no external API (item 15)
   'key_expired',           // Odoo: the key's own expiry has passed (item 14)
+  'several_organisations', // Xero: the owner let Nomi into more than one organisation at once — connect again choosing one
   'revoked',               // the owner took the grant back: connect again (never "the books are empty")
   'source_missing',        // the spreadsheet (or the system's books) is gone, or no longer shared with Nomi
   'not_an_address',        // what was given is not a public https address (a private one is never called)

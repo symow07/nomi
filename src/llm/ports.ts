@@ -203,3 +203,23 @@ export interface PageFactsReader {
     readonly usage: { inputTokens: number; outputTokens: number };
   }>;
 }
+
+/**
+ * D6 (Phase 5, item 7) — reading a RECEIPT, INVOICE OR BILL for the books. Its own port, for its own containment
+ * rule: copy what is PRINTED — supplier, number, day, currency, each line's figures, the totals — as printed text,
+ * never computed, never completed. The figures are read by A1's rule afterwards (src/core/books/reading.ts), and
+ * nothing read is ever posted: at most it becomes a draft the owner checks.
+ *
+ * ABSENT IS A LEGITIMATE STATE: no reader configured, the page says so and the owner drafts by hand.
+ */
+export interface DocumentReader {
+  read(input: { readonly base64: string; readonly mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' }): Promise<{
+    /** The reader's answer, as it came (JSON, or UNREADABLE): src/core/books/reading.ts parses it. */
+    readonly answer: string;
+    /** The read stopped before the document did (the model ran out of room): never passed on as the document. */
+    readonly cutOff: boolean;
+    readonly promptVersion: string;
+    readonly modelId: string;
+    readonly usage: { readonly inputTokens: number; readonly outputTokens: number };
+  }>;
+}

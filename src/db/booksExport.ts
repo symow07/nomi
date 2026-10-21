@@ -20,13 +20,14 @@ export async function makeBooksFile(db: Db, businessIdRaw: string, actor: string
       journal_code: string; journal_name: string; number: number; entry_date: string; account_code: string; account_name: string;
       party_code: string | null; party_name: string | null; document_ref: string; document_date: string; label: string;
       debit: string; credit: string; book_debit: string; book_credit: string; posted_at: Date; currency: string; book: string; year_starts: string; year_ends: string; entry_id: string;
-      covers: string;
+      covers: string; entry_custom: Record<string, string>; line_custom: Record<string, string>;
     }>`
       select j.code as journal_code, j.name as journal_name, e.number, e.entry_date::text, a.code as account_code,
              a.name as account_name, p.code as party_code, p.name as party_name, e.document_ref, e.document_date::text,
              coalesce(l.label, e.label) as label, l.debit::text, l.credit::text, l.book_debit::text, l.book_credit::text,
              e.posted_at, l.currency, books_currency(e.business_id) as book,
              f.starts_on::text as year_starts, f.ends_on::text as year_ends, e.id::text as entry_id,
+             e.custom as entry_custom, l.custom as line_custom,
              -- The last posting the file holds, at the database's own precision (a JS Date stops at milliseconds).
              (max(e.posted_at) over ())::text as covers
         from journal_entries e
@@ -43,7 +44,7 @@ export async function makeBooksFile(db: Db, businessIdRaw: string, actor: string
       documentRef: r.document_ref, documentDate: r.document_date, label: r.label,
       bookDebit: r.book_debit, bookCredit: r.book_credit, postedAt: r.posted_at,
       foreign: r.currency === r.book ? null : { currency: r.currency, amount: r.debit !== '0.00' ? r.debit : r.credit },
-      yearStarts: r.year_starts, yearEnds: r.year_ends,
+      yearStarts: r.year_starts, yearEnds: r.year_ends, custom: { entry: r.entry_custom, line: r.line_custom },
     }));
     const csv = csvFile(BOOKS_FILE_HEADER, booksFileRows(lines), dialect);
     const sha256 = createHash('sha256').update(csv, 'utf8').digest('hex');

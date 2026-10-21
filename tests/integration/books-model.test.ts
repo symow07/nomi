@@ -110,13 +110,15 @@ d('A2.2 · tax codes, parties and custom fields (requires DATABASE_URL + MIGRATE
       await q(`update parties set custom = '{"segment":"wholesale","since":"2026-02-03"}' where id = $1`, [k.party]);
       await post(q, await entry(q, { date: '2026-03-02', custom: { project: 'Expo Casablanca' }, lineCustom: { weight_kg: '12.50' } }));
     });
-    // a required field: every new row needs it
-    await as(BIZ, (q) => q(`insert into custom_field_defs (business_id, applies_to, key, label, kind, required) values (current_business_id(), 'entry', 'cost_centre', 'Cost centre', 'text', true)`));
-    expect(await refused(BIZ, (q) => entry(q, { date: '2026-03-03' }))).toMatch(/"cost_centre" is required/);
+    // a required field: every new row needs it — a party's only (0192: Nomi's own entries could never give one)
+    expect(await refused(BIZ, (q) => q(`insert into custom_field_defs (business_id, applies_to, key, label, kind, required) values (current_business_id(), 'entry', 'cost_centre', 'Cost centre', 'text', true)`)))
+      .toMatch(/custom_field_defs_required_party/);
+    await as(BIZ, (q) => q(`insert into custom_field_defs (business_id, applies_to, key, label, kind, required) values (current_business_id(), 'party', 'region', 'Region', 'text', true)`));
+    expect(await refused(BIZ, (q) => q(`insert into parties (business_id, kind, code, name) values (current_business_id(), 'customer', 'C0009', 'No region')`))).toMatch(/"region" is required/);
     // a definition keeps its key and its kind
     expect(await refused(BIZ, (q) => q(`update custom_field_defs set kind = 'number' where key = 'project'`))).toMatch(/keeps its key and its kind/);
     // a posted entry's custom values are as much the record as its amounts
-    expect(await refused(BIZ, (q) => q(`update journal_entries set custom = '{"project":"Other","cost_centre":"A"}' where state = 'posted' and custom ? 'project'`)))
+    expect(await refused(BIZ, (q) => q(`update journal_entries set custom = '{"project":"Other"}' where state = 'posted' and custom ? 'project'`)))
       .toMatch(/never changed/);
   });
 

@@ -97,7 +97,7 @@ export function odooFake(host = 'shop.odoo.com'): OdooFake {
         const id = 1000 + created.length + 1;
         created.push({ id, vals });
         extraMoves.push({ id: { number: String(id) }, name: '/', journal_id: [{ number: String(vals['journal_id']) }, journal['code']], date: vals['date'],
-          ref: vals['ref'], invoice_date: false, state: 'draft', write_date: `2026-10-23 09:${String(++clock).padStart(2, '0')}:00` });
+          ref: vals['ref'], invoice_date: false, state: 'draft', narration: typeof vals['narration'] === 'string' ? `<p>${vals['narration']}</p>` : false, write_date: `2026-10-23 09:${String(++clock).padStart(2, '0')}:00` });
         for (const l of lines) {
           const acc = raw.accounts.find((a) => idOf(a['id']) === l['account_id'])!;
           const cur = l['currency_id'] ? active[Number(l['currency_id']) - 1]! : raw.companyCurrency;
@@ -140,7 +140,10 @@ export function odooFake(host = 'shop.odoo.com'): OdooFake {
     plan: (p) => { tier = p; },
     currencies: (names) => { active = [...names]; },
     publish(data) {
-      raw = booksToOdoo(data, 'MAD');
+      // Odoo's notes are HTML fields: what is written there comes back cleaned and wrapped (D7's mark must survive it).
+      const html = (v: unknown) => (typeof v === 'string' && v !== '' ? `<p>${v}</p>` : false);
+      const odoo = booksToOdoo(data, 'MAD');
+      raw = { ...odoo, partners: odoo.partners.map((p) => ({ ...p, comment: html(p['comment']) })), moves: odoo.moves.map((m) => ({ ...m, narration: html(m['narration']) })) };
       for (const e of data.entries) {
         const content = canonical(e);
         if (written.get(e.key)?.content !== content) written.set(e.key, { content, at: `2026-10-22 10:${String(++clock).padStart(2, '0')}:00` });

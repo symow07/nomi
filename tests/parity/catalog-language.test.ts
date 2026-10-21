@@ -93,7 +93,8 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     // 老板. Addressing a refusal to staff as "only you can do this" (G9a found
     // it) is the error this rule exists to prevent, pointed the other way.
     // A5 (Phase 5) — the same reason for the two lines said TO an accountant, about the owner's part.
-    const toAccountant = new Set(['books.home.accountant', 'books.flash.postIsOwners']);
+    // D2 — the refusal a non-owner meets if a route ever let them try to lock, reopen or close the books.
+    const toAccountant = new Set(['books.home.accountant', 'books.flash.postIsOwners', 'books.close.refused.not_owner']);
     const hits = entries('zh')
       .filter(([k, s]) => !k.startsWith('login.') && !k.startsWith('staff.') && !toAccountant.has(k) && /老板/.test(s))
       .map(([k, s]) => `${k}: ${s}`);
@@ -165,14 +166,18 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       // The advisor's history (2026-10-07) — the privacy page's section on cookies: "Cookies" is the French word.
       'legal.privacy.cookies.title',
       // B3 — the product's own name, which Google uses in French too.
-      'books.sheets.title', 'books.odoo.title',
+      'books.sheets.title', 'books.odoo.title', 'books.xero.title', 'books.quickbooks.title',
       // C1 — the books' own words, French as they are English: Journal, Date, Total.
-      'books.entry.journal', 'books.entry.date', 'books.entry.total', 'books.party.code', 'books.conflict.kind.journal']),
+      'books.entry.journal', 'books.entry.date', 'books.entry.total', 'books.party.code', 'books.conflict.kind.journal',
+      // D3 — the accountant pack's sheet and column: Journal, Base.
+      'books.pack.sheet.journal', 'books.pack.col.base',
+      // D7 — a custom field's kind: Date.
+      'books.fields.kind.date']),
     // The advisor's history (2026-10-07) — and the Spanish one (§9.4 of docs/ADVISOR-MEMORY.md).
-    es: new Set(['legal.privacy.cookies.title', 'books.odoo.title', 'books.entry.total']),
+    es: new Set(['legal.privacy.cookies.title', 'books.odoo.title', 'books.xero.title', 'books.quickbooks.title', 'books.entry.total', 'books.pack.col.base']),
     // B4 — Odoo is the product's own name, in every script.
-    zh: new Set(['books.odoo.title']),
-    ar: new Set(['books.odoo.title']),
+    zh: new Set(['books.odoo.title', 'books.xero.title', 'books.quickbooks.title']),
+    ar: new Set(['books.odoo.title', 'books.xero.title', 'books.quickbooks.title']),
   };
   it('the words French shares with English are still shared (else the list is stale)', () => {
     for (const [l, keys] of Object.entries(SAME_WORD) as [Locale, ReadonlySet<string>][])

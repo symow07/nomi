@@ -3,12 +3,14 @@ import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import type { BooksProblem } from '../core/books/interchange.js';
 import type { ConnectRefusalReason } from '../core/books/connector.js';
-import { loadConnection, noteRead, type ConnectedSystem } from '../db/booksConnections.js';
+import { loadConnection, noteRead, rotateGrant, type ConnectedSystem } from '../db/booksConnections.js';
 import { readInBooks } from '../db/booksInterchange.js';
 import type { PublicPost } from '../net/publicFetch.js';
 import { booksConnector } from './connectors/registry.js';
 import { sheetsAccess, type SheetsDeps } from './connectors/sheets.js';
-import { sentToOdoo } from './writeBack.js';
+import { xeroAccess, type XeroDeps } from './connectors/xero.js';
+import { qboAccess, type QboDeps } from './connectors/quickbooks.js';
+import { sentTo } from './writeBack.js';
 
 /**
  * B5 (Phase 5; item 13, part 1) — READING CHANGES FROM A CONNECTED SYSTEM, the one way: the owner's "Read it in" and
@@ -26,6 +28,8 @@ export type ReadDeps = {
   readonly credentialKey: Buffer;
   readonly sheets?: SheetsDeps;
   readonly odoo?: { readonly post: PublicPost; readonly today: () => string };
+  readonly xero?: XeroDeps;
+  readonly quickbooks?: QboDeps;
 };
 
 export type ReadResult =
@@ -50,6 +54,24 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
     if ('kind' in access) return refuse(access.reason);
     read = await booksConnector('sheets', { bookCurrency, sheets: deps.sheets })!
       .changedSince({ accessToken: access.accessToken, spreadsheetId: conn.settings['spreadsheetId'] }, conn.cursor);
+  } else if (system === 'xero') {
+    if (!deps.xero || !conn.settings['tenantId']) return { kind: 'refused', reason: 'source_missing' };
+    // Xero's refresh token rotates: the new one is kept before anything is read with it.
+    const access = await xeroAccess(deps.xero, conn.grant);
+    if ('kind' in access) return refuse(access.reason);
+    await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'xero', access.grant.secret, by));
+    read = await booksConnector('xero', { bookCurrency, xero: deps.xero })!
+      .changedSince({ accessToken: access.accessToken, tenantId: conn.settings['tenantId'] }, conn.cursor);
+  } else if (system === 'quickbooks') {
+    if (!deps.quickbooks || !conn.settings['realmId']) return { kind: 'refused', reason: 'source_missing' };
+    // Intuit's refresh token changes every 24 hours: the one it returns is kept before anything is read with it.
+    const access = await qboAccess(deps.quickbooks, conn.grant);
+    if ('kind' in access) return refuse(access.reason);
+    if (access.grant.secret !== conn.grant.secret) {
+      await withTenantTx(deps.db, bid.value, (tx) => rotateGrant(tx, deps.credentialKey, bid.value, 'quickbooks', access.grant.secret, by));
+    }
+    read = await booksConnector('quickbooks', { bookCurrency, quickbooks: deps.quickbooks })!
+      .changedSince({ accessToken: access.accessToken, realmId: conn.settings['realmId'] }, conn.cursor);
   } else {
     if (!deps.odoo) return { kind: 'refused', reason: 'unreachable' };
     const odoo = booksConnector('odoo', { bookCurrency, odoo: deps.odoo })!;
@@ -59,10 +81,10 @@ export async function readConnectedSystem(deps: ReadDeps, businessIdRaw: string,
     read = await odoo.changedSince({ origin: conn.settings['url'] ?? '', database: conn.settings['database'] ?? '', key: conn.grant.secret }, conn.cursor);
   }
   if (read.kind === 'refused') return refuse(read.reason);
-  if (system === 'odoo') {
-    // C4: a move Nomi sent there is Nomi's own entry, already in these books — never a new one
-    const sent = await withTenantTx(deps.db, bid.value, (tx) => sentToOdoo(tx, bid.value));
-    read = { ...read, data: { ...read.data, entries: read.data.entries.filter((e) => !sent.names.has(e.key) && !sent.refs.has(e.label)) } };
+  if (system === 'odoo' || system === 'xero' || system === 'quickbooks') {
+    // C4: a move (a manual journal) Nomi sent there is Nomi's own entry, already in these books — never a new one
+    const sent = await withTenantTx(deps.db, bid.value, (tx) => sentTo(tx, bid.value, system));
+    read = { ...read, data: { ...read.data, entries: read.data.entries.filter((e) => !sent.names.has(e.key) && !sent.refs.has(e.label) && !sent.refs.has(e.key)) } };
   }
   if (read.problems.length > 0) { await note({ ok: true, cursor: conn.cursor }); return { kind: 'problems', problems: read.problems }; }
   const out = await readInBooks(deps.db, bid.value, by, system, read.data, read.where);

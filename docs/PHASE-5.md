@@ -62,6 +62,17 @@ It rests on four readings:
 15. **Strict mode depends on a person:** a native reviewer per language. That's a dependency on someone, not a
     technical task, so nobody plans around it.
 16. **Bank connections are out** (§9).
+17. **A party is not a buyer — and must never be linked to one** (the owner, 2026-10-22). A party (`parties`) is
+    the books' own record of a customer or supplier. A buyer is a contact in a conversation. They are kept apart on
+    purpose. Why: a buyer can ask for their data to be erased (CC-02, `tools/erase-buyer.mjs`), while an issued
+    invoice is a statutory document the shop must keep intact for ten years. A link from the books to the buyer
+    record would let an erasure blank or break an issued invoice. **This is not an unfinished feature. Do not "fix"
+    it by adding the link.** Nomi's orders reach the books through an invoice for a party the owner chooses (D0), and
+    the buyer's name is never written into the books.
+18. **An issued invoice carries its customer as they were at issue** (the owner, 2026-10-22; 0187). At issue, the
+    database copies the party's code, name, address, country, ICE and tax number onto the invoice. The copy is frozen
+    with the rest of the issued invoice and never read from the party again. Renaming the party later changes no
+    issued invoice.
 
 ### 1a · What "Nomi's books are the record" means (decision 10)
 
@@ -289,7 +300,8 @@ Each item is built and fully tested (§4) before the next one that depends on it
     postings at once in two journals, each 1…n; entries by hand — `/app/books/entries`, drafted, posted by the
     database's rules, discarded (never deleted), reversed (a new entry, lines swapped, linked, its own number; a
     posted entry offers nothing else); entries from Nomi's confirmed orders, once each (`source_order_id`, unique
-    while not discarded — two at once make one), onto the owner's chosen sales journal, receivable and sales accounts.
+    while not discarded — two at once make one), onto the owner's chosen sales journal, receivable and sales accounts
+    (since D0, an order goes through an invoice instead, with its customer: see D0).
     What is read in (B2–B5) arrives as drafts and posts the same way. Not yet: editing a draft (discard and draft
     again); tax and the buyer as a party on an order's entry — C2's invoices.)*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
@@ -330,12 +342,80 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 ### Stage D — everything on top
 
+- **D0 · The owner's answers on block C** (2026-10-22).
+  - *(built 2026-10-22, 0187.)*
+  - **The invoice's customer is a SNAPSHOT,** no longer a link (decision 18). Parties gained an address.
+  - **What an order's entry debited, and why that changed.** C1's entry from an order debited the receivable account
+    with **no party** and credited sales. So an unpaid order could only be traced to who owed it through the order
+    itself, which lives on the sales side the accountant cannot see. The receivable could not be aged by customer,
+    and reconciliation had nothing to meet. Worse, the entry's label carried the buyer's name into a document that
+    never changes.
+  - **Now an order goes into the books THROUGH AN INVOICE:** a draft invoice for the customer the owner chooses among
+    the books' parties. It has one line (the order's reference and total, on the sales account) and the tax code the
+    owner chooses, dated the day the order was confirmed. It is made once per order. Issued, it posts what every
+    invoice posts: the receivable debited **with the customer on it**, and the sale and its tax credited. So D1's
+    trial balance and the receivables by customer see every sale with its debtor. An order entered the old way stays
+    in the books and is not offered again.
+  - **The add-customer form's labels were shuffled** in all five languages (C2). Fixed, and
+    `tests/parity/books-party-labels.test.ts` reads each label against its field.
+  - **A connection's day was read in the database session's time zone** while the app counts in UTC. A key's age came
+    out a day short before 08:00 in a +08:00 zone (found 2026-10-22, 00:40 local). It is read in UTC now, and the
+    test reads it in two other zones.
+  - "What the books do not do yet" is said on the books' page (§10).
 - **D1 · Item 1 — trial balance.** *Depends on C1.*
+  *(built 2026-10-22: `/app/books/trial-balance`, the owner's and the accountant's. For a period, each account's
+  opening, movement and closing, from the posted lines in the books' currency (never re-rated). A balance-sheet account
+  opens with everything before the period; an income or expense account with its fiscal year. The result of earlier
+  years not yet closed (D2) is one line of its own, so the opening columns balance. Proven against a two-year fixture
+  worked by hand, to the cent, and balanced for every month of both years.)*
+- **D1b · Credit notes** (the owner, 2026-10-22: a schedule item, not a note; before tax reports).
+  - Numbering is gap-free and an issued invoice never changes, which is correct. So an invoice issued in error, or a
+    sale refunded, needs its own route: **a credit note.**
+  - **What it is:**
+    - drafted against ONE issued invoice, for all of it or some of its lines;
+    - numbered at issue from its OWN gap-free counter (`A-<year>-<n>`);
+    - its customer copied at issue, like an invoice's (decision 18);
+    - issuing posts the mirror of the invoice's entry: sales and tax debited, the receivable credited with the
+      customer on it. For a foreign invoice this is at the credit note's OWN day's rate (decision 13: a rate is
+      stored, never recomputed). The receivable is relieved at the invoice's book value by the one rule C2's
+      payments use, and any difference is a marked exchange line. *(Changed from "at the invoice's rate" while
+      building: posting picks the owner's rate for the entry's own day, and forcing another would mean re-making
+      the posting rule.)*
+    - it lowers what is owed on the invoice. Already paid, the excess is a credit owed to the customer, refunded by a
+      payment out.
+  - **Never more** than the invoice less the credit notes already issued against it (the app and the database).
+  - *Depends on C2 and D0.*
+  - *(built 2026-10-22, 0188.)*
+    - A credit note credits quantities of an invoice's lines, at each line's own price, account and tax code.
+    - The last of a line takes exactly what is left of its net and tax: a line credited in thirds comes to the cent.
+    - It is numbered at issue from its own counter, its customer copied from the invoice's copy.
+    - Refunds are payments of kind `refund`, never more than the customer is owed back.
+    - What is owed counts the credit notes. The invoice reads as credited, or as refund due.
+    - **Every payment and every credit note is now checked with the invoice LOCKED.** C2 did not lock: two
+      payments at once on two journals could have paid an invoice twice. Both races are proven by tests that hold
+      one transaction open.
+    - Not yet: a price reduction on its own (no quantity given back) is not a credit note. Said in §10.
 - **D2 · Item 6 — period close:**
   - a pre-close checklist, then a lock;
   - closing entries in their own journal;
   - **at most two periods open at once** (Avis 24).
   - *Depends on C1–C3 and D1.*
+  - *(built 2026-10-22, 0189: `/app/books/closing`.)*
+    - **Two dead ends found and closed.** Nothing in the app could open a fiscal year: every entry needs one, so a
+      shop could post nothing. And the lock date was a plain column the app could move either way, unrecorded.
+    - **The lock** moves only through the database's functions: forward, up to today, by the owner, with the
+      checklist clear (draft entries, draft invoices, draft credit notes, unmatched statement lines on or before
+      the day — counted by the database).
+    - **Reopening** moves it back: the owner's, with a reason, recorded in `period_locks` with every lock and
+      closing.
+    - **Closing a year** locks it to its last day and posts ONE entry in the closing journal: each income and expense
+      account to nothing, against the owner's result account. Then the year is closed for good. The closing journal
+      takes nothing else. The app's role can neither close a year by setting its state nor move the lock by a write.
+    - **Each wall** refuses a viewer who is not the owner, and is proven load-bearing by switching it off.
+    - Opening a fiscal year is the owner's; a third open one is refused (0169).
+    - `tests/parity/migrations-remade.test.ts`: 0189 first re-used the name of 0173's `books_settings_rules` and
+      silently replaced the books' currency rule. From 0189 on, a migration that re-creates a function must say it is
+      re-made, and name the latest migration it comes from.
 - **D3 · Item 2 — tax reports and the accountant pack:**
   - **The accountant pack, for every shop:** trial balance, journal and general ledger, in a standard export any local
     accountant can work from.
@@ -345,6 +425,16 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - Which countries get a verified report is decided as each one is verified. Morocco is first (D4); France only with a
     French customer.
   - *Depends on C1 and A2's tax codes.*
+  - *(built 2026-10-22: the ACCOUNTANT PACK, `/app/books/pack.xlsx`, from the trial balance page; owner and accountant.)*
+    - One workbook for a period: About (the business, the period, when made, `Nomi · build · schema`, the books'
+      currency), the trial balance, the journal (each journal's lines and total), the general ledger (each account's
+      opening, lines with a running balance, closing), and the tax by code.
+    - Each sheet prints the business, its title and the period at the top of every page, and the software, the time
+      made and `page / pages` at the foot (Avis 24's report criteria).
+    - The tax sheet is a SUMMARY: each code's base, the tax at its rate, and each tax account's movement beside it,
+      so a difference shows. It is no country's form. A country report comes only where verified: Morocco's is D4.
+    - Proven against D1's fixture worked by hand: the same figures, read back from the file.
+    - Not yet: the business's own legal identifiers (ICE, IF, RC) are not held anywhere; D4 adds them for Morocco.
 - **D4 · Item 10 — Morocco: the chart and the Moroccan FEC (re-cut after Q3):**
   - **The chart:** the CGNC chart for **every** shop, whatever its connector. It's built from the CGNC itself, the
     legal source, not copied from Odoo's LGPL `l10n_ma`.
@@ -397,12 +487,136 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - e-invoicing (CGI art. 145-IX, waiting for its decree; *secondary* sources say UBL, with SMEs in 2027–2028);
     - the liasse fiscale in SIMPL's EDI XML (usually the accountant's job).
   - *Depends on A2, C1 and D2.*
+  - *(built 2026-10-22, 0190.)*
+    - **The CGNC chart, from the CNC's own text:** the plan de comptes, modèle normal, 871 accounts.
+      - The ministry's PDF is a scan. It was read twice by local OCR, then every page (257–315) was checked
+        against its image by hand. 116 corrections: the OCR dropped 13 headings and three accounts — one of
+        them 6331, the exchange-loss account — and misread three codes.
+      - The method, the source's SHA-256, the corrections and the list are in `docs/cgnc/`. The scripts are in
+        `tools/cgnc/`, and re-running them reproduces the list.
+      - A template of 0171: the owner adds it from the books' page. It changes nothing the owner already has, and
+        chooses the accounts Nomi drafts with only where none were chosen (VE, 3421, 7111, 6331, 7331).
+      - The six journals are Nomi's, not the CGNC's.
+    - **The Moroccan FEC** (`/app/books/fec`, owner and accountant): per fiscal year, the eighteen fields of Avis 24
+      annex 3, named and ordered as the Avis lists them, read from the ministry's PDF.
+      - The auxiliary account is the party. The validation date is the posting day. The currency amount is given
+        for foreign lines.
+      - Lettrage is left blank ("à blanc si non utilisé").
+      - The envelope is `FEC_ENVELOPE`, because the Avis sets none: UTF-8, a header line, `|`, AAAAMMJJ, a full
+        stop.
+    - **The check program of annex 2.2 b** runs on the same page: each journal's numbers, no gap and no repeat.
+    - **Accounts whose first three characters are not the CGNC's are named**, as annex 3 asks of Num_Compte.
+    - **FOUND IN AVIS 24'S OWN TEXT, for the owner (2.3 d):** « Le logiciel n'autorise pas d'avoir plus de deux
+      périodes courantes ouvertes au sein de l'exercice en cours, à savoir la période en cours et la période
+      précédente », besides the closing and opening periods.
+      - That is PERIODS within the year, not fiscal years. Nomi holds "two fiscal years open" (0169) and a lock
+        date moved by hand (D2).
+      - Enforcing the Avis literally refuses a posting dated before last month. That includes history read in from
+        a workbook, Sheets or Odoo.
+      - The owner decides: keep the lock as the owner's tool, or make it automatic for Moroccan workspaces (with
+        history read in before the books are opened).
+    - Not yet: the business's own identifiers (ICE, IF, RC) are not held, so the FEC's file name carries the years
+      only.
 - **D5 · REMOVED from 100%: the French FEC and DGFiP's checker.** They come back only with a French customer. The Moroccan
   FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted
   alone. *Depends on A4 and C1.* 💰 (a model reads each document).
+  *(built 2026-10-22, 0191: `/app/books/papers`. 💰 — tested with a recorded reader; never run live without
+  asking (zero-spend mode).)*
+  - **A paper** (a photo, or a PDF where the provider reads documents) is kept sealed in the workspace's residency
+    (A4). Its bytes must say what its label says.
+  - **"Read it"** asks the model provider through its own port (`DocumentReader`, src/llm/ports.ts). It asks for what
+    is printed, as printed text, never computed. Each read is one of the day's photo reads, and refused when the
+    allowance is used.
+  - **The reading is kept as it came** (0191), with what Nomi's check found wrong (src/core/books/reading.ts):
+    - a figure that reads two ways (A1's rule);
+    - lines that do not add up to the total;
+    - no day, no number, or a currency the books do not keep.
+  - **From a reading with no problem, the owner drafts ONE entry**, choosing the journal, the supplier, the payable
+    account and every line's account and tax code. A purchase: lines debited, tax to its code's account, the
+    supplier credited the total. A DRAFT, posted by the owner like any other. The database refuses a draft from a
+    reading with problems, a second draft, and any change to what was read.
+  - The accountant sees and takes the papers, and reads or drafts nothing.
+  - The books' launch blocker for /privacy now also names the model provider reading the papers.
 - **D7 · Item 9 — custom categories and fields.** *Depends on C1.*
+  *(built 2026-10-22, 0192: `/app/books/fields`.)*
+  - **The owner defines a field** on entries, lines, or customers and suppliers: text, an exact number, a date, or
+    one of a list (a category). 0170's table and checks hold the values; the page only adds the definitions.
+  - **Only a party's field can be required** (0192, a check in the database). Nomi writes entries of its own (an
+    invoice issued, a payment, a bank match, an exchange difference, a year's closing), and none of them could give
+    a value. A party is always made by a person.
+  - **A field is never deleted, and keeps its key and kind** (0170). One no longer wanted is RETIRED: no form offers
+    it, and no new row takes a value under it. The values it has stay, travel with it, and read back. It can be used
+    again.
+  - **The forms:** the entry form (the entry's fields, and a column per line field) and the customer form. Each value
+    is checked as the database checks it, and a wrong one is named by its field. The entry page shows the values.
+  - **Every road the books take carries them** (the done-criterion):
+    - **the workbook and Google Sheets:** the definitions below their own header on the "Nomi" sheet (not a new tab:
+      Sheets refuses to read a tab that is missing), and a column per field named by it — `party.segment`,
+      `entry.project`, `line.weight_kg`. An entry's value is the same on each of its lines;
+    - **Odoo:** no place every Odoo has, so the values travel in Nomi's mark, `[nomi:…]` (the values as JSON in
+      URL-safe base64, which an HTML field's cleaning leaves alone): the move's notes, the partner's notes, the end
+      of a line's label. The FIELDS do not go to Odoo; a read from Odoo is checked against Nomi's;
+    - **the owner's copy (A2.4):** a last column, `Champs_Personnalises`, one exact JSON object per line;
+    - **the read-in:** a definition is a record like the rest (connector_records' kind `field`). A new field is added
+      before the values that need it; a field Nomi holds otherwise is a difference to settle in Nomi. A field that
+      arrives retired comes with its values and is retired after them.
+  - The accountant sees the fields and changes none (0186's trigger on the definitions, proven past the route).
 - **D8 · Xero,** then **D9 · QuickBooks**, through B1. *Depends on C4.* 💰 above the free tiers.
+  - **D8 Xero** *(built 2026-10-22, 0193: `src/books/connectors/xero.ts`; against a recorded fake of Xero's documented
+    answers — no Xero account was made. Live on deploy day, within the Starter tier: 5 connections, no card.)*
+    - **Sign-in:** Xero's own consent page (the web flow: the client's secret, no PKCE), the granular scopes an app
+      made after 2 March 2026 must use. The ONE organisation the owner chose is found by the token's own consent;
+      none or several is refused with its reason, and the grant Xero just gave is given back.
+    - **The refresh token rotates** (each use returns the next; the one before stops after 30 minutes): every call
+      refreshes it and keeps the new one first (`rotateGrant`), the old one archived, never deleted.
+    - **What Xero holds** (the conformance suite's `xeroHolds`, said in the open):
+      - accounts without a parent, only ACTIVE ones; tax rates by their TaxType, with the organisation's tax account
+        ("GST / VAT", SystemAccount GST) and no start day — the owner confirms it, as for Odoo (C0);
+      - contacts without custom values (a contact has no notes a connector can write);
+      - manual journals, in ONE journal ("XERO"), in the organisation's currency only: an entry with a foreign line is
+        not held by the mapping, and C4 sends the converted amounts;
+      - a line's party and tax code, and the custom values, in Nomi's mark (`[nomi:…]`) in the narration and the line
+        descriptions — Xero's lines name no contact.
+    - **C4:** each posted entry not from Xero and not sent before becomes a POSTED manual journal, with an
+      Idempotency-Key. A conflict waits, nothing sent for it: already there, an account Xero lacks or archived, books
+      in another currency than the organisation's, Xero's own refusal (a bank or system account). What was sent is
+      never read back in as new.
+    - **Found building it:** a tax collected or deducted with no account now stops a read-in with its reason (it was
+      a database error); the tax-day form and its notice named Odoo, they now name the system.
+    - Not yet: the Journals endpoint (all of Xero's own postings, invoices included) is Xero's premium tier and is not
+      read: what Nomi reads from Xero is its manual journals.
+  - **D9 QuickBooks Online** *(built 2026-10-22, 0194: `src/books/connectors/quickbooks.ts`; against a recorded fake of
+    Intuit's documented answers — no Intuit account was made. Live on deploy day, on the Builder tier: free, reads
+    capped at 500,000 a month and blocked above, writes uncapped. Production keys wait on Intuit's App Assessment
+    Questionnaire.)*
+    - **Sign-in:** Intuit's own page, one scope (`com.intuit.quickbooks.accounting`); the company by the `realmId`
+      that comes back with the code, checked before anything is kept (the grant given back when it does not answer).
+      Minor version 75, the lowest Intuit still serves.
+    - **The refresh token changes every 24 hours** (the old one then expires): the one each refresh returns is kept,
+      as Xero's.
+    - **What QuickBooks holds** (`qboHolds`, said in the open):
+      - accounts by their number (`AcctNum`), WITH their parents;
+      - customers and vendors: a vendor's code is its `AcctNum`; a customer's code, ICE and custom values are in Nomi's
+        mark in its `Notes`. A tax identifier comes back masked, so none is read; a vendor carries no custom values;
+      - NO taxes: QuickBooks' tax rates name no account the books could post them to, and a United States company's
+        sales tax is QuickBooks' own automation. Nomi's tax codes stay Nomi's; a line's tax code travels in the mark;
+      - journal entries, numbered by `DocNumber` (21 at most), in one journal ("QBO"), all posted (QuickBooks keeps no
+        draft), one currency each — an entry in two currencies is not held, and C4 sends the converted amounts.
+    - **C4:** each posted entry not from QuickBooks and not sent before becomes a journal entry numbered by Nomi, with
+      a `requestid`; the party is the line's `Entity`; `GlobalTaxCalculation` is sent outside the United States only
+      (required there, refused in the US). A conflict waits: already there (or 6140), an account or a party QuickBooks
+      lacks, books in another currency than the company's, a number longer than 21, QuickBooks' own refusal. A
+      subscription that ended (6190) is said for what it is.
+- **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).
+  - Twice in block C, a role restriction held in the routes and not underneath (B0's sales side, 0186's invoices and
+    statements).
+  - Before Phase 5 closes, **every role restriction is checked at the database, not the page:**
+    - for each table, what the accountant and staff may read and write;
+    - each one proven by a test that goes past the route guard, as `books-viewer.test.ts` does.
+  - **Found in D7, for the sweep:** the accountant's write is refused at the database on invoices, payments,
+    statements, matches, credit notes, papers' readings, fiscal years and custom fields — but NOT on parties, accounts,
+    journals, tax codes, or a draft entry and its lines. The routes refuse them all, and posting is refused (0175).
 
 ### Stage S — the salesperson, alongside A–D wherever it doesn't depend on them
 
@@ -428,7 +642,7 @@ A1 exact money (existing path + books) → A2 model (+ Avis 24 criteria) → A3 
                                        └→ A5 tenancy + three roles → A6 toggle (early: the demonstrable piece)
 A2+A5 → B1 plug-in shape → B2 Excel file → B3 Sheets ;  B1 → B4 Odoo (+14, +15)
 B2–B4 → B5 read → C1 entries (no-gap numbering) → C2 payments → C3 reconciliation (files) → C4 write back
-C1 → D1 trial balance → D2 period close (two open, closing journal)
+C1 → D1 trial balance → D2 period close (two open, closing journal) ;  C2+D0 → D1b credit notes → D3
 C1 → D3 accountant pack + verified country reports ;  A2+C1+D2 → D4 CGNC chart + Moroccan FEC
 A4+C1 → D6 reading documents ;  C1 → D7 custom fields ;  C4 → D8 Xero → D9 QuickBooks
 S1–S3, S5–S7 alongside ;  S4 waits on reviewers ;  S8 parked ;  D5 removed until a French customer
@@ -482,7 +696,9 @@ S1–S3, S5–S7 alongside ;  S4 waits on reviewers ;  S8 parked ;  D5 removed u
 
 | Item | Done and tested when |
 |---|---|
+| D0 the answers on C | An issued invoice shows its customer as at issue, whatever the party becomes; the database refuses to change the copy, and a draft holds none. An order becomes one invoice draft for a chosen customer; issued, the receivable carries that customer; the buyer's name is in no books table. |
 | D1 trial balance | Debits equal credits for any period. It matches a hand-computed fixture to the cent. |
+| D1b credit notes | Numbered without a gap from their own counter. Issuing posts the invoice's mirror at the invoice's rate. What is owed falls by it, and never below what was credited. More than the invoice's remainder is refused by the app and the database. A fully credited invoice reads as credited, not paid. |
 | D2 period close | The checklist must be clear before a lock. A locked period refuses postings, with the reason. A third open period is refused. Closing entries go to their own journal. Reopening is the owner's, and recorded. |
 | D3 accountant pack and country reports | The pack (trial balance, journal, general ledger) exports in a standard format and re-imports into a fresh workspace with identical balances. A country report exists only with its verification note (the primary sources, line by line), and matches a worked example from that country's official form. |
 | D4 Morocco | **The chart:** every account of the CGNC chart, checked against the CGNC text. **The FEC:** for a fixture year, all 18 Avis 24 fields in order, debit and credit separate; every Avis 24 §2 criterion has its own test (gaps, a closed-period edit, a third open period, a missing document reference, an unbalanced entry, an unauthenticated poster, report headers). The file envelope (name, separator, encoding) is configurable and marked "to the DGI's spec when published". |
@@ -643,3 +859,17 @@ D4 leaves both as configurable details until they're published.
 - **The French FEC and DGFiP's checker,** until a French customer.
 - **Moroccan e-invoicing and the liasse fiscale EDI.** They wait for the decree (CGI art. 145-IX) and are usually the
   accountant's job.
+
+---
+
+## 10 · What the books do not do yet (said to owners on the books' page)
+
+Disclosed, not discovered (the owner, 2026-10-22). Each line is also on `/app/books` (`renderBooksNotYet`, the
+`books.notYet.*` keys). A line goes from both the day its limit is lifted.
+
+- **A payment is taken only in the invoice's own currency.** A payment in any other currency is refused.
+- **A bank statement in CSV is read in one layout only:** a header row naming Date and Amount (or Debit and Credit),
+  with Description and Currency where the bank gives them. OFX and CAMT.053 files are read as banks send them.
+- **A draft entry, invoice or credit note cannot be edited:** discard it and draft it again.
+- **A credit note gives back quantities of an invoice's lines, at their own price.** A price reduction on its own,
+  with nothing given back, is not a credit note yet.

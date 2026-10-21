@@ -84,11 +84,11 @@ d('C2 · invoices and payments (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
   });
 
   it('NO GAP: a refused issue takes no number — the next is F-2026-0002', async () => {
-    await as((q) => q(`update books_settings set lock_date = '2026-04-30'`));
+    await admin.query(`update books_settings set lock_date = '2026-04-30' where business_id = $1`, [BIZ]);   // an operator's write (0189)
     const locked = await draft('MAD', [['2', '10', false]], '2026-04-15');
     if (locked.kind !== 'drafted') throw new Error(locked.reason);
     expect(await issue(locked.id)).toMatchObject({ kind: 'refused' });
-    await as((q) => q(`update books_settings set lock_date = null`));
+    await admin.query(`update books_settings set lock_date = null where business_id = $1`, [BIZ]);
     const next = await draft('MAD', [['2', '10', false]], '2026-05-15');
     if (next.kind !== 'drafted') throw new Error(next.reason);
     expect(await issue(next.id)).toMatchObject({ kind: 'issued', key: 'F-2026-0002' });
@@ -105,6 +105,27 @@ d('C2 · invoices and payments (requires DATABASE_URL + MIGRATE_DATABASE_URL)', 
     if (fresh.kind !== 'drafted') throw new Error(fresh.reason);
     await expect(as((q) => q(`insert into invoice_lines (business_id, invoice_id, line_no, label, quantity, unit_price, account_id, net) values (current_business_id(), $1, 9, 'x', 1, 5, $2, 4)`,
       [fresh.id, k.sales]))).rejects.toThrow(/net is its quantity times its price/);
+  });
+
+  it('THE CUSTOMER AS AT ISSUE (0187): copied onto the invoice when issued, never read again — the party renamed, the invoice still says what it said', async () => {
+    const id = (await as((q) => q(`select id::text as id from invoices where number = 1`))).rows[0].id as string;
+    expect((await as((q) => q(`select party_code, party_name, party_country, party_address from invoices where id = $1`, [id]))).rows[0])
+      .toEqual({ party_code: 'C001', party_name: 'Atlas Textiles SARL', party_country: 'MA', party_address: null });
+    await as((q) => q(`update parties set name = 'Atlas Textiles (renamed)', address = 'Zone franche, Tanger' where id = $1`, [k.party]));
+    try {
+      const v = await view(id);
+      expect([v!.party, v!.billedTo.name, v!.billedTo.address, v!.billedTo.asIssued]).toEqual(['Atlas Textiles SARL', 'Atlas Textiles SARL', null, true]);
+      // the copy is the database's: an issued invoice's copy never changes, and a draft holds none, whatever it is given
+      await expect(as((q) => q(`update invoices set party_name = 'Someone else' where id = $1`, [id]))).rejects.toThrow(/an issued invoice never changes/);
+      const forged = await as(async (q) => (await q(`insert into invoices (business_id, party_id, issue_date, currency, created_by, party_name)
+        values (current_business_id(), $1, '2026-06-02', 'MAD', 'owner', 'Forged') returning party_name, id::text as id`, [k.party])).rows[0]);
+      expect(forged.party_name).toBeNull();
+      const pending = await view(forged.id as string);
+      expect([pending!.billedTo.name, pending!.billedTo.address, pending!.billedTo.asIssued]).toEqual(['Atlas Textiles (renamed)', 'Zone franche, Tanger', false]);
+      await as((q) => q(`update invoices set state = 'discarded' where id = $1`, [forged.id]));
+    } finally {
+      await as((q) => q(`update parties set name = 'Atlas Textiles SARL', address = null where id = $1`, [k.party]));
+    }
   });
 
   it('PAYMENTS: partly paid, then paid; never more than is owed — the app and the database both refuse', async () => {

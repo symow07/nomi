@@ -1,4 +1,6 @@
 import { sql } from 'kysely';
+import type { CustomValues } from '../core/books/interchange.js';
+import { fieldsOf } from './booksInterchange.js';
 import type { Tx } from './client.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 
@@ -45,9 +47,11 @@ export type EntryLine = {
   readonly taxCode: string | null; readonly currency: string; readonly debit: Decimal | null; readonly credit: Decimal | null;
   readonly bookDebit: Decimal | null; readonly bookCredit: Decimal | null; readonly rate: string | null;
   readonly label: string | null; readonly isFx: boolean;
+  /** D7 — the line's custom values. */
+  readonly custom: CustomValues;
 };
 export type EntryView = EntryRow & {
-  readonly documentRef: string | null; readonly documentDate: string | null; readonly postedBy: string | null;
+  readonly documentRef: string | null; readonly documentDate: string | null; readonly postedBy: string | null; readonly custom: CustomValues;
   readonly lines: readonly EntryLine[];
 };
 
@@ -69,39 +73,43 @@ export async function listEntries(tx: Tx, businessId: string, o: { readonly with
 
 export async function loadEntry(tx: Tx, businessId: string, id: string): Promise<EntryView | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const head = (await sql<EntryRow & { documentRef: string | null; documentDate: string | null; postedBy: string | null }>`
+  const head = (await sql<EntryRow & { documentRef: string | null; documentDate: string | null; postedBy: string | null; custom: CustomValues }>`
     select e.id::text as id, ${KEY} as key, j.code as journal, e.entry_date::text as date, e.label, e.state,
            coalesce((select sum(l.debit) from journal_lines l where l.entry_id = e.id), 0)::text as total,
            coalesce((select min(l.currency) from journal_lines l where l.entry_id = e.id), '') as currency,
            e.reverses_id::text as reverses, (select r.id::text from journal_entries r where r.reverses_id = e.id limit 1) as "reversedBy",
-           e.document_ref as "documentRef", e.document_date::text as "documentDate", e.posted_by as "postedBy"
+           e.document_ref as "documentRef", e.document_date::text as "documentDate", e.posted_by as "postedBy", e.custom
       from journal_entries e join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
      where e.business_id = ${businessId}::uuid and e.id = ${id}::uuid`.execute(tx)).rows[0];
   if (!head) return null;
   const lines = (await sql<{ line_no: number; account: string; account_name: string; party: string | null; tax_code: string | null; currency: string;
-    debit: string; credit: string; book_debit: string | null; book_credit: string | null; rate: string | null; label: string | null; is_fx: boolean }>`
+    debit: string; credit: string; book_debit: string | null; book_credit: string | null; rate: string | null; label: string | null; is_fx: boolean; custom: CustomValues }>`
     select l.line_no, a.code as account, a.name as account_name, p.code as party, t.code as tax_code, l.currency,
            l.debit::text as debit, l.credit::text as credit, l.book_debit::text as book_debit, l.book_credit::text as book_credit,
-           l.rate::text as rate, l.label, l.is_fx
+           l.rate::text as rate, l.label, l.is_fx, l.custom
       from journal_lines l join accounts a on a.id = l.account_id
       left join parties p on p.id = l.party_id left join tax_codes t on t.id = l.tax_code_id
      where l.entry_id = ${id}::uuid order by l.line_no`.execute(tx)).rows;
   return { ...head, lines: lines.map((l) => ({
     lineNo: l.line_no, account: l.account, accountName: l.account_name, party: l.party, taxCode: l.tax_code, currency: l.currency,
     debit: side(l.debit), credit: side(l.credit), bookDebit: l.book_debit === null ? null : side(l.book_debit),
-    bookCredit: l.book_credit === null ? null : side(l.book_credit), rate: l.rate, label: l.label, isFx: l.is_fx,
+    bookCredit: l.book_credit === null ? null : side(l.book_credit), rate: l.rate, label: l.label, isFx: l.is_fx, custom: l.custom,
   })) };
 }
 
 export type DraftLine = {
   readonly accountId: string; readonly partyId: string | null; readonly taxCodeId: string | null; readonly currency: string;
   readonly debit: Decimal | null; readonly credit: Decimal | null; readonly label: string | null; readonly isFx: boolean;
+  /** D7 — the line's custom values (none: the database's empty object). */
+  readonly custom?: CustomValues;
 };
 export type DraftInput = {
   readonly journalId: string; readonly date: string; readonly label: string;
   readonly documentRef: string | null; readonly documentDate: string | null; readonly lines: readonly DraftLine[];
   /** C1 (0183) — the Nomi order this entry records; an order has one entry that is not discarded. */
   readonly sourceOrderId?: string | null;
+  /** D7 — the entry's custom values. */
+  readonly custom?: CustomValues;
 };
 
 /** A draft, in the fiscal year its day falls in. The day must be open and unlocked; balance is the posting's to check. */
@@ -111,14 +119,15 @@ export async function draftEntry(tx: Tx, businessId: string, by: string, d: Draf
   if (!fy) return { kind: 'refused', reason: 'no_fiscal_year', detail: d.date };
   try {
     await sql`savepoint draft_entry`.execute(tx);
-    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, source_order_id)
-      values (${businessId}::uuid, ${d.journalId}::uuid, ${fy.id}::uuid, ${d.date}::date, ${d.label}, ${d.documentRef}, ${d.documentDate}::date, ${by}, ${d.sourceOrderId ?? null}::uuid)
+    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, source_order_id, custom)
+      values (${businessId}::uuid, ${d.journalId}::uuid, ${fy.id}::uuid, ${d.date}::date, ${d.label}, ${d.documentRef}, ${d.documentDate}::date, ${by}, ${d.sourceOrderId ?? null}::uuid,
+              ${JSON.stringify(d.custom ?? {})}::jsonb)
       returning id::text as id`.execute(tx)).rows[0]!.id;
     let n = 0;
     for (const l of d.lines) {
-      await sql`insert into journal_lines (business_id, entry_id, line_no, account_id, label, currency, debit, credit, party_id, tax_code_id, is_fx)
+      await sql`insert into journal_lines (business_id, entry_id, line_no, account_id, label, currency, debit, credit, party_id, tax_code_id, is_fx, custom)
         values (${businessId}::uuid, ${id}::uuid, ${++n}, ${l.accountId}::uuid, ${l.label}, ${l.currency}, ${l.debit ?? '0'}::numeric,
-                ${l.credit ?? '0'}::numeric, ${l.partyId}::uuid, ${l.taxCodeId}::uuid, ${l.isFx})`.execute(tx);
+                ${l.credit ?? '0'}::numeric, ${l.partyId}::uuid, ${l.taxCodeId}::uuid, ${l.isFx}, ${JSON.stringify(l.custom ?? {})}::jsonb)`.execute(tx);
     }
     await sql`release savepoint draft_entry`.execute(tx);
     return { kind: 'drafted', id };
@@ -187,5 +196,6 @@ export async function entryChoices(tx: Tx, businessId: string) {
     parties: await q(sql<{ id: string; code: string; name: string }>`select id::text as id, code, name from parties where business_id = ${businessId}::uuid and is_active order by code`),
     taxCodes: await q(sql<{ id: string; code: string; label: string; from: string }>`select id::text as id, code, label, valid_from::text as "from" from tax_codes where business_id = ${businessId}::uuid order by code, valid_from`),
     bookCurrency: (await q(sql<{ c: string }>`select books_currency(${businessId}::uuid) as c`))[0]!.c,
+    fields: (await fieldsOf(tx, businessId)).filter((f) => !f.retired),
   };
 }

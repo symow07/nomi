@@ -228,16 +228,26 @@ const escapeXml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, 
   .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
 const columnName = (i: number): string => { let s = ''; let n = i + 1; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
 
+/**
+ * What a sheet prints at the top and foot of each page (D3; Avis 24: a report carries the entity, the period, the
+ * date made, the software and its page numbers). Each side's text as written; the page number and count are added.
+ */
+export type XlsxPrint = { readonly left: string; readonly centre: string; readonly right: string; readonly footLeft: string };
+/** Text for a header or footer: `&` is the format's own escape, so a literal one is doubled. */
+const printText = (s: string): string => escapeXml(s.replace(/&/g, '&&'));
+
 /** A workbook of these sheets, in this order: the parts Excel, LibreOffice and Google Sheets need, and no more. */
-export function xlsxWrite(sheets: readonly { readonly name: string; readonly rows: readonly (readonly XlsxValue[])[] }[]): Buffer {
-  const sheetXml = (rows: readonly (readonly XlsxValue[])[]): string => {
+export function xlsxWrite(sheets: readonly { readonly name: string; readonly rows: readonly (readonly XlsxValue[])[]; readonly print?: XlsxPrint }[]): Buffer {
+  const sheetXml = (rows: readonly (readonly XlsxValue[])[], print?: XlsxPrint): string => {
     const body = rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => {
       const ref = `${columnName(j)}${i + 1}`;
       if (v === null || v === '') return '';
       if (typeof v === 'object') return `<c r="${ref}"><v>${escapeXml(v.number)}</v></c>`;
       return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(v)}</t></is></c>`;
     }).join('')}</row>`).join('');
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+    const foot = print ? `<headerFooter><oddHeader>&amp;L${printText(print.left)}&amp;C${printText(print.centre)}&amp;R${printText(print.right)}</oddHeader><oddFooter>&amp;L${
+      printText(print.footLeft)}&amp;R&amp;P / &amp;N</oddFooter></headerFooter>` : '';
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData>${foot}</worksheet>`;
   };
   const parts: [string, string][] = [
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${
@@ -249,7 +259,7 @@ export function xlsxWrite(sheets: readonly { readonly name: string; readonly row
       sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
     }<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
     ['xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
-    ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s.rows)] as [string, string]),
+    ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s.rows, s.print)] as [string, string]),
   ];
   const locals: Buffer[] = []; const central: Buffer[] = []; let offset = 0;
   for (const [name, text] of parts) {

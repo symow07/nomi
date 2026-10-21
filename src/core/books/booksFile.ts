@@ -18,13 +18,16 @@ import type { Cell } from '../owner/csv.js';
  * books' own. No row is ever cut off:
  * a statutory copy that stopped at a row limit would be a lie about the record.
  *
+ * D7 — the owner's CUSTOM VALUES are part of the record too: the last column holds an entry's and a line's, as one
+ * JSON object ("entry.project", "line.weight_kg"), empty when there are none — exact, and readable by any program.
+ *
  * Pure: the caller reads the rows and writes the file.
  */
 export const BOOKS_FILE_HEADER = [
   'Code_Journal', 'Libelle_Journal', 'Num_Ecriture', 'Date_Ecriture', 'Num_Compte', 'Libelle_Compte',
   'Num_Compte_Aux', 'Libelle_Compte_Aux', 'Ref_Piece', 'Date_Piece', 'Libelle_Ecriture', 'Montant_Debit',
   'Montant_Credit', 'Lettrage_Ecriture', 'Date_Lettrage', 'Date_Validation', 'Montant_Devise', 'Id_devise',
-  'Exercice',
+  'Exercice', 'Champs_Personnalises',
 ] as const;
 
 /** One posted line, with what the file says about its entry, its journal, its account and its party. */
@@ -50,7 +53,16 @@ export type BooksFileLine = {
   readonly foreign: { readonly currency: string; readonly amount: string } | null;
   readonly yearStarts: string;
   readonly yearEnds: string;
+  /** D7 — the entry's and the line's custom values (absent: none). */
+  readonly custom?: { readonly entry: Readonly<Record<string, string>>; readonly line: Readonly<Record<string, string>> };
 };
+
+/** The custom values' column: one JSON object, keys "entry.<key>" and "line.<key>" in order; null when there are none. */
+export function customColumn(c: BooksFileLine['custom']): string | null {
+  const pairs = [...Object.entries(c?.entry ?? {}).map(([k, v]) => [`entry.${k}`, v] as const), ...Object.entries(c?.line ?? {}).map(([k, v]) => [`line.${k}`, v] as const)]
+    .sort(([a], [b]) => a.localeCompare(b));
+  return pairs.length === 0 ? null : JSON.stringify(Object.fromEntries(pairs));
+}
 
 /** The file's rows, in the order the records were kept: fiscal year, journal, number, line. */
 export function booksFileRows(lines: readonly BooksFileLine[]): (readonly Cell[])[] {
@@ -58,6 +70,6 @@ export function booksFileRows(lines: readonly BooksFileLine[]): (readonly Cell[]
     l.journalCode, l.journalName, l.number, l.entryDate, l.accountCode, l.accountName,
     l.partyCode, l.partyName, l.documentRef, l.documentDate, l.label, l.bookDebit,
     l.bookCredit, null, null, l.postedAt.toISOString().slice(0, 10), l.foreign?.amount ?? null, l.foreign?.currency ?? null,
-    `${l.yearStarts}/${l.yearEnds}`,
+    `${l.yearStarts}/${l.yearEnds}`, customColumn(l.custom),
   ]);
 }

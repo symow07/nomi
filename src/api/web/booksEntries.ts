@@ -5,6 +5,8 @@ import { addDecimal, compareDecimal, type Decimal } from '../../core/types/decim
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import type { EntryRow, EntryView } from '../../db/booksEntries.js';
 import type { BooksAccounts, OrderToEnter } from '../../db/booksOrders.js';
+import type { BooksField } from '../../core/books/interchange.js';
+import { customHeads, customInputs, customShown } from './booksFields.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
@@ -49,7 +51,7 @@ function totals(e: EntryView): { currency: string; debit: Decimal; credit: Decim
   return [...by].map(([currency, x]) => ({ currency, ...x }));
 }
 
-export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: string, bookCurrency: string): string {
+export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: string, bookCurrency: string, fields: readonly BooksField[] = []): string {
   const posted = e.state === 'posted';
   const foreign = e.lines.some((l) => l.rate !== null);
   const sums = totals(e);
@@ -58,6 +60,7 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
     `${esc(t(locale, 'books.entry.journal'))}: <bdi>${esc(e.journal)}</bdi>`,
     `${esc(t(locale, 'books.entry.date'))}: ${esc(show.dateYear(locale, new Date(`${e.date}T12:00:00Z`)))}`,
     e.documentRef ? `${esc(t(locale, 'books.entry.document'))}: <bdi>${esc(e.documentRef)}</bdi>${e.documentDate ? ` · ${esc(show.dateYear(locale, new Date(`${e.documentDate}T12:00:00Z`)))}` : ''}` : '',
+    customShown(locale, fields, 'entry', e.custom),
   ].filter(Boolean);
   const actions = !mayPost(viewer) ? '' : e.state === 'draft' ? `
       ${!e.documentRef || !e.documentDate ? `<p class="caption muted">${esc(t(locale, 'books.entry.needsDocument'))}</p>` : ''}
@@ -78,7 +81,8 @@ export function renderEntry(locale: Locale, viewer: Who, e: EntryView, today: st
         <th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>
         ${foreign ? `<th scope="col">${esc(t(locale, 'books.entry.inBooks'))}</th>` : ''}</tr></thead>
       <tbody>${e.lines.map((l) => `<tr><td><bdi>${esc(l.account)}</bdi> <span class="muted"><bdi>${esc(l.accountName)}</bdi></span>${
-          l.isFx ? ` <span class="pill">${esc(t(locale, 'books.entry.fx'))}</span>` : ''}${l.label ? `<br><span class="caption muted"><bdi>${esc(l.label)}</bdi></span>` : ''}</td>
+          l.isFx ? ` <span class="pill">${esc(t(locale, 'books.entry.fx'))}</span>` : ''}${l.label ? `<br><span class="caption muted"><bdi>${esc(l.label)}</bdi></span>` : ''}${
+          Object.keys(l.custom ?? {}).length > 0 ? `<br><span class="caption muted">${customShown(locale, fields, 'line', l.custom)}</span>` : ''}</td>
         <td>${l.party ? `<bdi>${esc(l.party)}</bdi>` : ''}</td>
         <td>${amount(locale, l.debit, l.currency)}</td><td>${amount(locale, l.credit, l.currency)}</td>
         ${foreign ? `<td>${l.rate !== null && (l.bookDebit ?? l.bookCredit) ? `${amount(locale, l.bookDebit ?? l.bookCredit, bookCurrency)} <span class="caption muted">× ${esc(l.rate)}</span>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
@@ -95,8 +99,13 @@ export type EntryChoices = {
   readonly parties: readonly { id: string; code: string; name: string }[];
   readonly taxCodes: readonly { id: string; code: string; label: string; from: string }[];
   readonly bookCurrency: string;
+  /** D7 — the custom fields in use. */
+  readonly fields?: readonly BooksField[];
 };
 export const ENTRY_FORM_LINES = 8;
+/** D7 — a custom value's name in the entry form: the entry's, or line i's. */
+export const ENTRY_CUSTOM = 'cf_entry_';
+export const lineCustom = (i: number): string => `cf_line${i}_`;
 
 /** A new entry by hand: up to eight lines; empty ones are left out. Saved as a DRAFT, posted from its own page. */
 export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string): string {
@@ -112,7 +121,8 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
       <td><input name="debit${i}" inputmode="decimal" value="${v(`debit${i}`)}" aria-label="${esc(t(locale, 'books.entry.debit'))} ${i + 1}" /></td>
       <td><input name="credit${i}" inputmode="decimal" value="${v(`credit${i}`)}" aria-label="${esc(t(locale, 'books.entry.credit'))} ${i + 1}" /></td>
       <td><input name="label${i}" value="${v(`label${i}`)}" aria-label="${esc(t(locale, 'books.entry.lineLabel'))} ${i + 1}" /></td>
-      <td><input type="checkbox" name="fx${i}" value="1"${values[`fx${i}`] ? ' checked' : ''} aria-label="${esc(t(locale, 'books.entry.fx'))} ${i + 1}" /></td></tr>`;
+      <td><input type="checkbox" name="fx${i}" value="1"${values[`fx${i}`] ? ' checked' : ''} aria-label="${esc(t(locale, 'books.entry.fx'))} ${i + 1}" /></td>
+      ${customInputs(locale, c.fields ?? [], 'line', lineCustom(i), values, { bare: true, n: i + 1 })}</tr>`;
   return `<h1 class="page">${esc(t(locale, 'books.entries.new'))}</h1>
     <p class="lede">${esc(t(locale, 'books.entry.newLede'))}</p>
     ${problems.map((p) => `<p class="perr" role="alert">${esc(p)}</p>`).join('')}
@@ -122,11 +132,12 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
       <label class="pq"><span>${esc(t(locale, 'books.entry.label'))}</span><input name="label" value="${v('label')}" required maxlength="200" /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.document'))}</span><input name="documentRef" value="${v('documentRef')}" maxlength="80" /></label>
       <label class="pq"><span>${esc(t(locale, 'books.entry.documentDate'))}</span><input type="date" name="documentDate" value="${v('documentDate')}" /></label>
+      ${customInputs(locale, c.fields ?? [], 'entry', ENTRY_CUSTOM, values)}
       <div class="imp-table"><table>
         <thead><tr><th scope="col">${esc(t(locale, 'books.entry.account'))}</th><th scope="col">${esc(t(locale, 'books.entry.party'))}</th>
           <th scope="col">${esc(t(locale, 'books.entry.tax'))}</th><th scope="col">${esc(t(locale, 'books.entry.currency'))}</th>
           <th scope="col">${esc(t(locale, 'books.entry.debit'))}</th><th scope="col">${esc(t(locale, 'books.entry.credit'))}</th>
-          <th scope="col">${esc(t(locale, 'books.entry.lineLabel'))}</th><th scope="col">${esc(t(locale, 'books.entry.fx'))}</th></tr></thead>
+          <th scope="col">${esc(t(locale, 'books.entry.lineLabel'))}</th><th scope="col">${esc(t(locale, 'books.entry.fx'))}</th>${customHeads(c.fields ?? [], 'line')}</tr></thead>
         <tbody>${Array.from({ length: ENTRY_FORM_LINES }, (_, i) => line(i)).join('')}</tbody>
       </table></div>
       <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
@@ -138,16 +149,24 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
  * C1 (0183) — Nomi's confirmed orders not in the books yet, each with a draft to make; and the owner's choice of the
  * accounts every drafted entry uses (sales journal, receivable, sales; the exchange loss and gain of 0182).
  */
-export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[], accountsSet: boolean): string {
+export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[], accountsSet: boolean, c: Pick<EntryChoices, 'parties' | 'taxCodes'>): string {
+  const ready = accountsSet && c.parties.length > 0;
+  const choose = (o: OrderToEnter) => `<form method="post" action="/app/books/orders/${esc(o.id)}/draft" class="pform">
+      <select name="party" required aria-label="${esc(t(locale, 'books.invoice.customer'))}"><option value=""></option>${c.parties.map((p) =>
+        `<option value="${esc(p.id)}">${esc(p.code)} · ${esc(p.name)}</option>`).join('')}</select>
+      <select name="taxCode" aria-label="${esc(t(locale, 'books.entry.tax'))}"><option value=""></option>${c.taxCodes.map((x) =>
+        `<option value="${esc(x.id)}">${esc(x.code)} · ${esc(x.label)}</option>`).join('')}</select>
+      <button class="btn ghost" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>`;
   return `<h1 class="page">${esc(t(locale, 'books.orders.title'))}</h1>
     <p class="lede">${esc(t(locale, 'books.orders.lede'))}</p>
     ${!accountsSet ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.orders.setFirst'))}</span> <a class="deeper" href="/app/books#accounts">${esc(t(locale, 'books.accounts.title'))}</a></p>` : ''}
+    ${accountsSet && c.parties.length === 0 ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.orders.addCustomers'))}</span> <a class="deeper" href="/app/books/invoices/new#customer">${esc(t(locale, 'books.invoice.addCustomer'))}</a></p>` : ''}
     ${orders.length === 0 ? `<p class="muted">${esc(t(locale, 'books.orders.none'))}</p>` : `<div class="imp-table"><table>
       <thead><tr><th scope="col">${esc(t(locale, 'books.entry.date'))}</th><th scope="col">${esc(t(locale, 'books.entry.document'))}</th>
         <th scope="col">${esc(t(locale, 'books.orders.buyer'))}</th><th scope="col">${esc(t(locale, 'books.entry.total'))}</th><th scope="col"></th></tr></thead>
       <tbody>${orders.map((o) => `<tr><td>${esc(show.dateYear(locale, new Date(`${o.confirmedOn}T12:00:00Z`)))}</td><td><bdi>${esc(o.reference)}</bdi></td>
         <td>${o.buyer ? `<bdi>${esc(o.buyer)}</bdi>` : ''}</td><td>${amount(locale, o.total as Decimal, o.currency)}</td>
-        <td>${accountsSet ? `<form method="post" action="/app/books/orders/${esc(o.id)}/draft" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>` : ''}</td></tr>`).join('')}</tbody>
+        <td>${ready ? choose(o) : ''}</td></tr>`).join('')}</tbody>
     </table></div>`}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }

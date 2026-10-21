@@ -1751,6 +1751,8 @@ const STYLE_PAGES = `
   .imp-table { overflow-x:auto; margin:var(--space-12) 0; border:1px solid var(--color-border); border-radius:var(--radius-control); }
   .imp-table table { border-collapse:collapse; font-size:var(--font-size-caption); min-width:100%; }
   .imp-table th, .imp-table td { padding:6px 10px; border-bottom:1px solid var(--color-border); text-align:start; white-space:nowrap; }
+  .imp-table td.num { text-align:end; font-variant-numeric:tabular-nums; }
+  .imp-table tfoot th, .imp-table tfoot td { font-weight:600; border-bottom:0; }
   .imp-cols label { display:flex; flex-direction:column; gap:var(--space-4); margin:var(--space-12) 0; }
   .imp-cols label.pcheck { flex-direction:row; }
   .imp-cols select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:var(--radius-control); color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }

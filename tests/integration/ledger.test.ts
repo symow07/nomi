@@ -215,32 +215,34 @@ d('A2.1 · the ledger\'s rules are the database\'s (requires DATABASE_URL + MIGR
 
   it('a LOCKED day, a day outside the year, a CLOSED year: nothing is drafted or posted there', async () => {
     // the first posting made the settings row (A3: it fixes the books' currency); the lock date is set on it
-    await as(BIZ, (q) => q(`insert into books_settings (business_id, lock_date) values (current_business_id(), '2026-01-31')
-      on conflict (business_id) do update set lock_date = excluded.lock_date`));
+    // (an operator's write: the app moves the lock only through D2's functions, 0189 — tests/integration/books-close.test.ts)
+    const lockTo = (day: string | null) => admin.query(`update books_settings set lock_date = $2 where business_id = $1`, [BIZ, day]);
+    await lockTo('2026-01-31');
     expect(await refused(BIZ, (q) => draft(q, { date: '2026-01-15', label: 'In January', lines: sale('1.00') }))).toMatch(/on or before the lock date 2026-01-31/);
     expect(await refused(BIZ, (q) => draft(q, { date: '2027-01-02', label: 'Next year', lines: sale('1.00') }))).toMatch(/outside fiscal year 2026-01-01 to 2026-12-31/);
     // a draft left from before the lock cannot be posted after it
-    const early = await as(BIZ, async (q) => {
-      await q(`update books_settings set lock_date = null`);
-      return draft(q, { date: '2026-01-20', label: 'Drafted before the lock', lines: sale('2.00') });
-    });
-    await as(BIZ, (q) => q(`update books_settings set lock_date = '2026-01-31'`));
+    await lockTo(null);
+    const early = await as(BIZ, (q) => draft(q, { date: '2026-01-20', label: 'Drafted before the lock', lines: sale('2.00') }));
+    await lockTo('2026-01-31');
     expect(await refused(BIZ, (q) => post(q, early))).toMatch(/lock date/);
     await as(BIZ, (q) => q(`update journal_entries set state = 'discarded' where id = $1`, [early]));
     // a closed year: closing waits for its drafts, then nothing more is written in it, and it never reopens
     const fy2025 = await as(BIZ, async (q) => (await q(`insert into fiscal_years (business_id, starts_on, ends_on) values (current_business_id(), '2025-01-01', '2025-12-31') returning id::text as id`)).rows[0].id as string);
+    await lockTo(null);
     const last = await as(BIZ, async (q) => {
-      await q(`update books_settings set lock_date = null`);
-      const id = (await q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by) values (current_business_id(), $1, $2, '2025-12-31', 'À clôturer', 'x') returning id::text as id`, [ids.cl, fy2025])).rows[0].id as string;
+      const id = (await q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by) values (current_business_id(), $1, $2, '2025-12-31', 'À clôturer', 'x') returning id::text as id`, [ids.vt, fy2025])).rows[0].id as string;
       return id;
     });
-    expect(await refused(BIZ, (q) => q(`update fiscal_years set state = 'closed', closed_at = now(), closed_by = 'owner:mei' where id = $1`, [fy2025]))).toMatch(/still has drafts/);
+    // the app closes a year only by closing it (0189); an operator's direct close still waits for its drafts
+    expect(await refused(BIZ, (q) => q(`update fiscal_years set state = 'closed', closed_at = now(), closed_by = 'owner:mei' where id = $1`, [fy2025]))).toMatch(/closed by closing it/);
+    const closeYear = () => admin.query(`update fiscal_years set state = 'closed', closed_at = now(), closed_by = 'owner:mei' where id = $1`, [fy2025]);
+    await expect(closeYear()).rejects.toThrow(/still has drafts/);
     await as(BIZ, (q) => q(`update journal_entries set state = 'discarded' where id = $1`, [last]));
-    await as(BIZ, (q) => q(`update fiscal_years set state = 'closed', closed_at = now(), closed_by = 'owner:mei' where id = $1`, [fy2025]));
-    expect(await refused(BIZ, (q) => q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by) values (current_business_id(), $1, $2, '2025-12-31', 'Late', 'x')`, [ids.cl, fy2025])))
+    await closeYear();
+    expect(await refused(BIZ, (q) => q(`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, created_by) values (current_business_id(), $1, $2, '2025-12-31', 'Late', 'x')`, [ids.vt, fy2025])))
       .toMatch(/fiscal year 2025-01-01 to 2025-12-31 is closed/);
     expect(await refused(BIZ, (q) => q(`update fiscal_years set state = 'open', closed_at = null, closed_by = null where id = $1`, [fy2025]))).toMatch(/stays closed/);
-    await as(BIZ, (q) => q(`update books_settings set lock_date = '2026-01-31'`));
+    await lockTo('2026-01-31');
   });
 
   it('at most TWO fiscal years open (Avis 24), and never two that overlap', async () => {

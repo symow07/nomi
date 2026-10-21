@@ -435,7 +435,15 @@ import type { Db } from './client.js';
 // 184 = invoices and payments (0184): numbered at issue with no gap, posted, paid in part or whole.
 // 185 = reconciliation from statement files (0185): statement lines kept once, matches made and set aside by a person.
 // 186 = what an accountant may not do to the books, said by the database (0186): invoices, payments, statements, matches.
-export const REQUIRED_SCHEMA_VERSION = 186;
+// 187 = an issued invoice carries its customer as they were at issue; an order into the books goes through an invoice (0187).
+// 188 = credit notes against issued invoices, numbered without a gap; refunds; payments checked with the invoice locked (0188).
+// 189 = closing the books: a checklist, a lock only forward, a reopening recorded, a closing entry in its own journal (0189).
+// 190 = the CGNC chart (modèle normal), read from the CNC's own text, as a chart template (0190).
+// 191 = what a reader read from the books' papers, kept as read; one draft made from it, once (0191).
+// 192 = custom fields travel with the books: a connector's record kind 'field'; only a party's field is required (0192).
+// 193 = the shop's own Xero: its grant, its connection, its records, its taxes' start days (0193).
+// 194 = the shop's own QuickBooks Online: its grant, its connection, its records (0194).
+export const REQUIRED_SCHEMA_VERSION = 194;
 
 export type SchemaState = {
   readonly required: number;
