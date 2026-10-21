@@ -16047,3 +16047,33 @@ Reviewer (per language): ______  Date: ______
   invoice past its due date; that the conflict lines are short enough to scan on a phone.
 
 Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 D — closing, reports, the CGNC and the FEC, papers read, custom fields, Xero and QuickBooks (not a gate)
+
+- **The keys (273 new, in each of zh, ar, es and fr; 8 changed):**
+  - `books.close.*`: the checklist, the lock, a reopening with its reason, opening and closing a year;
+  - `books.credit.*`: credit notes and refunds;
+  - `books.trial.*`, `books.pack.*` and `books.fec.*`: the trial balance, the accountant pack's sheets and columns, and the Moroccan FEC;
+  - `books.chart.*`: the CGNC chart;
+  - `books.papers.*`: receipts and bills, read, and a draft from them;
+  - `books.fields.*`: custom fields;
+  - `books.xero.*`, `books.quickbooks.*` and their `books.conflict.*`;
+  - `books.notYet.*`: what the books do not do yet;
+  - 33 notices `books.flash.*`.
+  - Changed: the customer's labels (`books.party.name`, `.country`, `.ice` were shuffled), an order now drafts an invoice (`books.orders.*`), and the tax-day form names its system (`books.taxStart.explain`, `books.flash.taxStartSaved`).
+- **Where the words differ, and why:**
+  - closing is 结账 / «إقفال الدفاتر» / «Cierre contable» / «Clôture des comptes»; a lock taken back is 撤回锁定 / «إرجاع القفل» / «Reabrir» / «Rouvrir», always with its reason, never "unlock" alone;
+  - a credit note is 红字发票 / «الإشعارات الدائنة» / «Facturas rectificativas» / «Avoirs» — each country's own word for the document that cancels part of an issued invoice;
+  - the trial balance is 试算平衡表 / «ميزان المراجعة» / «Balance de comprobación» / «Balance générale»;
+  - the papers are 票据 / «الإيصالات والفواتير» / «Recibos y facturas» / «Pièces justificatives»; a figure is said as read, never as worked out;
+  - a custom field retired is 停用 / «إيقاف» / «Retirar» / «Retirer» — never deleted; only a field on customers and suppliers can be required, and the sentence says why;
+  - Xero's and QuickBooks' names stay as they are in every language; what waits is "these" (以下这些 / «هذه» / «Estos» / «Celles-ci»), never a pronoun;
+  - Arabic addresses nobody: «يُرجى الربط مجددًا»; a bank or system account is «حساب بنكي أو حساب مخصص للمؤسسة» (the word for "system" is kept out of owner copy).
+- **Check:**
+  - that 红字发票 reads right for a business outside mainland China (where a 红字发票 is a tax-office procedure) — 贷项通知单 is the neutral alternative;
+  - that «Balance générale» is the French accountant's word for the trial balance in Morocco;
+  - that 撤回锁定 reads as reopening a closed period, not as cancelling something;
+  - that the custom-field kinds (文字 / 数字 / 日期 / 列表中的一项) are short enough for a select on a phone;
+  - that «مخصص للمؤسسة» is understood as Xero's own accounts (receivables, payables, tax).
+
+Reviewer (per language): ______  Date: ______
