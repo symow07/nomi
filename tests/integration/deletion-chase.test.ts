@@ -87,6 +87,11 @@ d('D4 · a deletion request nobody answers is chased (requires DATABASE_URL + MI
 
   afterAll(async () => {
     await app?.end();
+    // Its open requests are due by design: left behind, they would be due for every later file that asks the whole
+    // database what is due (buyer-deletion-request.test.ts did, 2026-10-22).
+    // A deletion request is never deleted (it is the record that one was made): closed, as the owner withdraws one.
+    await admin?.query(`update deletion_requests set state = 'withdrawn', closed_at = now(), closed_by = 'test'
+      where business_id = any($1::uuid[]) and closed_at is null`, [[BIZ, OTHER]]);
     await admin?.end();
   });
 
