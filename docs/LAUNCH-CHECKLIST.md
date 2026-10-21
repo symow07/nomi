@@ -61,6 +61,27 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
   before the third paying workspace." Not before. Not after. The isolation
   sweep, item 10 (the sweep report (kept outside the repo since 2026-10-16)).
 
+## Before the books are switched on for ANY workspace — BLOCKING (the owner, 2026-10-22)
+
+The books are off everywhere (`businesses.books_area`, 0176), and no workspace
+holds papers. An owner who wants to stop using Nomi and have their data erased
+must always be able to, and today a workspace holding papers cannot close.
+That is acceptable only while nobody has the books. So, before
+`tools/books-area.mjs --on` runs for anyone:
+
+- **The owner's copy of their papers, and closure of a workspace holding
+  papers.** Closing refuses (NE011, `erase_workspace_rows`, 0174) while
+  documents exist, because the closing copy does not carry the papers yet.
+  This is lifted only when the papers copy is built.
+- **The public pages describe the books.** `/privacy` and `/data-deletion` say
+  what is kept when a workspace closes, for how long, why, and that the owner
+  leaves with their copy (PHASE-5.md §6).
+
+Enforced in `tools/books-area.mjs`: `--on` refuses while `BLOCKERS` names an
+item, and prints each one. Remove an item there in the commit that builds it.
+`tests/parity/books-launch-blockers.test.ts` holds the tool and this list
+together.
+
 ## Somebody hears when it breaks (CC-10)
 
 - `HEALTH_PING_URL` is set on the `nomi` service and the Healthchecks.io

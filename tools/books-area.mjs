@@ -8,8 +8,16 @@
  * Off is the default: no /app/books address answers, nobody is offered the switch, no accountant can be added.
  * Switching off hides the books; it deletes nothing, and posted books stay the record (0169). There is no owner
  * switch yet: like the outreach area (tools/outreach-area.mjs), an owner turns on nothing they cannot see.
+ *
+ * BLOCKERS (docs/LAUNCH-CHECKLIST.md, "Before the books are switched on for ANY workspace"): while one is named here,
+ * --on refuses, for every workspace. Remove an item in the commit that builds it.
  */
 import { toolClient } from './lib/db.mjs';
+
+const BLOCKERS = [
+  'the owner\'s copy of their papers, and closure of a workspace holding papers (a workspace with documents cannot close yet)',
+  'the public pages (/privacy, /data-deletion) describe the books: what is kept at closure, how long, why, and that the owner has their copy',
+];
 
 const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 && i + 1 < args.length ? args[i + 1] : null; };
@@ -23,6 +31,11 @@ const business = flag('business');
 if (!business || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(business)) usage('--business must be a uuid.');
 if (has('on') && has('off')) usage('--on or --off, not both.');
 const want = has('on') ? true : has('off') ? false : null;
+if (want === true && BLOCKERS.length > 0) {
+  console.error(`\n✗  The books are not switched on for any workspace yet. Still to build (docs/LAUNCH-CHECKLIST.md):\n${
+    BLOCKERS.map((b) => `     · ${b}`).join('\n')}\n\n   Nothing was changed.\n`);
+  process.exit(3);
+}
 
 const client = toolClient(url, { replyTimeoutMs: 60_000 });
 await client.connect().catch((e) => { console.error(`\n✗  ${e.message}\n`); process.exit(1); });

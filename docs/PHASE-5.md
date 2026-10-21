@@ -51,6 +51,10 @@ It rests on four readings:
     - the **owner** sees, posts and exports;
     - an **accountant** sees and exports, and posts nothing;
     - **staff** see nothing.
+    - **An accountant sees nothing of the sales side: no buyer, no conversation, no message.** A shop's external
+      accountant has no business reading its customers' messages. That is a privacy boundary, not a convenience
+      (the owner, 2026-10-22), and it is held twice: by the app's route guard (A5) and by the database, which shows an
+      accountant's request no row of a sales table (B0).
 13. **Exchange rates:** the owner's own. The rate used is **stored on the transaction and never recomputed.** A report
     that re-rates history is wrong by construction.
 14. **Data residency is a parameter,** not a hard-coded assumption. This is the cheap insurance against a later legal
@@ -155,11 +159,14 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - every foreign-currency line stores the rate and the date, taken from the owner's rates (decision 13);
   - **never recomputed;** a missing rate refuses the posting.
   - *Depends on A1 and A2.*
-- **A4 · Document storage, residency-aware:** *(built 2026-10-22, 0174: sealed with AES-256-GCM under a key of its
-  own, bound to workspace and id; DOCUMENT_STORES maps residency → `database` or `directory:<path>`, and a residency
+- **A4 · Document storage, residency-aware:** *(built 2026-10-22, 0174: sealed with AES-256-GCM under the installation's document key —
+  derived from CREDENTIAL_KEY, which lives in the environment and never in the database, so a dump or a backup alone
+  opens nothing — with a fresh IV per document, bound to workspace and id; B0 makes a CREDENTIAL_KEY rotation re-seal
+  them; DOCUMENT_STORES maps residency → `database` or `directory:<path>`, and a residency
   with no store refuses; each document's `keep_until` set by the database; held at closure with the books, its
   directory files removed by tools/books-retention.mjs after the legal date. Open: the closing copy includes the
-  documents (with A6's pages, which list them) — until then a workspace holding papers refuses to close; a sweep of sealed files a rolled-back upload left with no row.)*
+  documents (with A6's pages, which list them) — until then a workspace holding papers refuses to close, a LAUNCH
+  BLOCKER for the books (docs/LAUNCH-CHECKLIST.md, enforced by tools/books-area.mjs); a sweep of sealed files a rolled-back upload left with no row.)*
    encrypted, per workspace, with the retention date of its country. Where the
   data lives — the database, the documents and the backups — is **a parameter** (decision 14), not an assumption.
   *Depends on A2.* 💰 beyond the database volume.
@@ -206,6 +213,19 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 - **C1 · Item 3 — journal entries:**
   - by hand, from Nomi's orders and invoices, and from what's read in;
+  - **Where the exchange difference goes (the owner's question, 2026-10-22; answered before C1).** Since A3 (0173) an
+    entry with a foreign line posts only if it balances in each foreign currency on its own AND in the books' currency
+    after conversion. A remainder is refused (NB009, "add the exchange difference as a line"), never absorbed, rounded
+    away or left as an imbalance. It posts only as its own line in the books' currency, visible in the books and the
+    export (`tests/integration/books-currencies.test.ts`). What A3 does not say is WHICH account. C1 adds it:
+    - the workspace's exchange-loss and exchange-gain accounts in `books_settings` (the CGNC's 6331 Pertes de change
+      and 7331 Gains de change propres à l'exercice);
+    - every entry Nomi drafts puts its difference there: a loss as a debit on the loss account, a gain as a credit on
+      the gain account;
+    - the line that carries the difference is marked as such on `journal_lines`, and the database refuses a marked
+      line on any account but those two;
+    - C2's realised differences (an invoice at one rate, paid at another) land on the same two accounts, as their own
+      line of the payment's entry.
   - numbered in sequence per journal, with no gaps (the Avis 24 criterion).
   - **Strictly gap-free, as a legal requirement (Avis 24), not a preference:**
     - The journal and invoice sequences are their own counters, never the order sequence (`nextOrderReference`), and
