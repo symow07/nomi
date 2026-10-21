@@ -19,8 +19,15 @@ under "Decided" below.
 Excel, then Xero, then QuickBooks, through one interface; Odoo on JSON-2 only, our own client; the licence rule; the
 concession ladder EXCLUDED; still zero spend), the build order with its dependencies (a foundation — exact money,
 every currency, the books' model — before the connector shape), what "done and tested" means per item, the Excel /
-Sheets options, the privacy load, what costs money, and the owner's open questions. **Waits on the owner's answers
-and approval; no code until then.**
+Sheets options, the privacy load, what costs money, and the owner's open questions. **The owner's answers are recorded
+(2026-10-21); the updated map waits on the owner's approval; no code until then.**
+- **A PRE-EXISTING DEFECT found while planning (2026-10-21): money is computed in floating point.** Amounts are stored
+  exactly (`numeric`) but quotes discount and round in floats (`quote.ts`: `roundMoney(scaleMoney(...))`): measured,
+  1.34% of 700,000 price × discount pairs come out a cent wrong under both rounding rules — $5.30 less 5% (exactly
+  5.035) quotes $5.03. Phase 5's A1 fixes the EXISTING money path first, with a migration of stored amounts.
+- **Morocco requires its own FEC** (CGI art. 210; CNC Avis n° 24, 14 June 2023, read in the ministry's PDF): 18 fields
+  under Moroccan names, plus software criteria the ledger must meet. The French FEC and DGFiP's checker leave "100%"
+  until a French customer.
 
 ## Hardening chapter closed 2026-10-16 as code. Live verification deferred to the next deploy.
 
