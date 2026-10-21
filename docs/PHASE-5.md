@@ -513,10 +513,29 @@ Each item is built and fully tested (§4) before the next one that depends on it
         date moved by hand (D2).
       - Enforcing the Avis literally refuses a posting dated before last month. That includes history read in from
         a workbook, Sheets or Odoo.
-      - The owner decides: keep the lock as the owner's tool, or make it automatic for Moroccan workspaces (with
-        history read in before the books are opened).
-    - Not yet: the business's own identifiers (ICE, IF, RC) are not held, so the FEC's file name carries the years
-      only.
+      - **Does the Avis set an opening entry apart from ordinary postings? (the owner's question, 2026-10-22).** Yes, but
+        narrowly. 2.3 d goes on: « La période dédicacée dans laquelle s'enregistrent les écritures de clôture de
+        l'exercice précédent et l'écriture d'ouverture sont les seules périodes qui puissent en sus être ouvertes. »
+        - So the OPENING ENTRY ("l'écriture d'ouverture", singular) is named, and its period may be open beyond the
+          two current ones.
+        - The text names nothing for bringing a company's past entries in one by one: no "migration" and no
+          "reprise".
+        - It says only, in its preliminary definitions (point 1), that « chaque donnée entrée dans le système de
+          traitement par transmission d'un autre système de traitement, doit être appuyée d'une pièce justificative
+          probante ».
+      - **What follows:** the lock stays MANUAL — the owner's tool, as now (D2) — and nothing becomes automatic for
+        Moroccan workspaces until the owner chooses.
+        - The distinction the text makes supports an explicit, one-time OPENING mode per workspace, recorded with its
+          date and who ran it, and the two-period rule automatic after it.
+        - But what the text allows in that mode is an opening entry (the balances at the start), not the shop's
+          detailed history.
+        - Detailed history from earlier months of the current year falls under the two-period rule as written.
+        - The owner's to choose: an opening mode that takes the opening entry only, with history kept as balances, or
+          one that also takes the year's detailed entries.
+      - **Not yet, and BLOCKING for a Moroccan workspace (docs/LAUNCH-CHECKLIST.md):** the business's own identifiers
+        (ICE, IF, RC) are not held, and the DGI has published no name for the FEC file (checked 2026-10-22: the Avis,
+        CGI article 210, the DGI's 2025 report). `tools/books-area.mjs` refuses a Moroccan workspace until both are
+        built.
 - **D5 · REMOVED from 100%: the French FEC and DGFiP's checker.** They come back only with a French customer. The Moroccan
   FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted
@@ -608,7 +627,12 @@ Each item is built and fully tested (§4) before the next one that depends on it
       (required there, refused in the US). A conflict waits: already there (or 6140), an account or a party QuickBooks
       lacks, books in another currency than the company's, a number longer than 21, QuickBooks' own refusal. A
       subscription that ended (6190) is said for what it is.
-- **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).
+- **DZ · The role check, in EVERY block — and a final confirmation** (the owner, 2026-10-22; at first a closing sweep).
+  - Each block's done-criteria (§4) now include it: a new table means the accountant and staff are checked AT THE
+    DATABASE, with a test that goes past the route guard.
+  - DZ stays as the final confirmation that nothing was missed, not the first time anyone looks.
+  - The gaps already found (below: block C's and D's own tables) are closed within block S, each with its test past the
+    route guard, before block S's PR merges.
   - Twice in block C, a role restriction held in the routes and not underneath (B0's sales side, 0186's invoices and
     statements).
   - Before Phase 5 closes, **every role restriction is checked at the database, not the page:**
@@ -658,6 +682,9 @@ S1–S3, S5–S7 alongside ;  S4 waits on reviewers ;  S8 parked ;  D5 removed u
 - every owner-facing line exists in en / zh / ar / es / fr, Arabic follows the no-gender rule, and the zh / ar lines are
   listed for native review;
 - a negative control: the item's key rule, switched off, fails its own tests;
+- **every new table: what the accountant and staff may read and write, checked AT THE DATABASE**, with a test that
+  goes past the route guard (`tests/integration/books-viewer.test.ts` is the model); a route guard alone is never the
+  check (the owner, 2026-10-22: DZ in every block);
 - merged through `tools/gated-merge.sh`.
 
 **Anything that needs a paid service:** built, tested against the vendor's sandbox, proven live on deploy day (decision 9).

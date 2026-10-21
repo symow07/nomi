@@ -16070,7 +16070,7 @@ Reviewer (per language): ______  Date: ______
   - Xero's and QuickBooks' names stay as they are in every language; what waits is "these" (以下这些 / «هذه» / «Estos» / «Celles-ci»), never a pronoun;
   - Arabic addresses nobody: «يُرجى الربط مجددًا»; a bank or system account is «حساب بنكي أو حساب مخصص للمؤسسة» (the word for "system" is kept out of owner copy).
 - **Check:**
-  - that 红字发票 reads right for a business outside mainland China (where a 红字发票 is a tax-office procedure) — 贷项通知单 is the neutral alternative;
+  - 红字发票 or 贷项通知单 for a credit note: the readers are Yiwu exporters, mainland businesses, for whom 红字发票 is the tax office's own term. The question for the reviewer is whether a Chinese buyer's own accountant would recognise it, not whether it is neutral. Both are put to the reviewer with that context;
   - that «Balance générale» is the French accountant's word for the trial balance in Morocco;
   - that 撤回锁定 reads as reopening a closed period, not as cancelling something;
   - that the custom-field kinds (文字 / 数字 / 日期 / 列表中的一项) are short enough for a select on a phone;

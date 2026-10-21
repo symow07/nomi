@@ -9,15 +9,14 @@
  * Switching off hides the books; it deletes nothing, and posted books stay the record (0169). There is no owner
  * switch yet: like the outreach area (tools/outreach-area.mjs), an owner turns on nothing they cannot see.
  *
- * BLOCKERS (docs/LAUNCH-CHECKLIST.md, "Before the books are switched on for ANY workspace"): while one is named here,
- * --on refuses, for every workspace. Remove an item in the commit that builds it.
+ * BLOCKERS (docs/LAUNCH-CHECKLIST.md, "Before the books are switched on for ANY workspace"): while one is named,
+ * --on refuses, for every workspace, before it connects. MOROCCO_BLOCKERS ("… for a MOROCCAN workspace") hold for a
+ * workspace whose country is Morocco, read once connected. Both live in tools/lib/books-blockers.mjs; remove an item
+ * there in the commit that builds it.
  */
 import { toolClient } from './lib/db.mjs';
+import { BLOCKERS, MOROCCO_BLOCKERS, blockersFor } from './lib/books-blockers.mjs';
 
-const BLOCKERS = [
-  'the owner\'s copy of their papers, and closure of a workspace holding papers (a workspace with documents cannot close yet)',
-  'the public pages (/privacy, /data-deletion) describe the books: what is kept at closure, how long, why, and that the owner has their copy; and /privacy names the shop\'s own systems the books read from (Odoo; Google Sheets is held at boot by D18), and that the model provider reads a receipt or bill when the owner asks it to (D6)',
-];
 
 const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 && i + 1 < args.length ? args[i + 1] : null; };
@@ -33,15 +32,20 @@ if (has('on') && has('off')) usage('--on or --off, not both.');
 const want = has('on') ? true : has('off') ? false : null;
 if (want === true && BLOCKERS.length > 0) {
   console.error(`\n✗  The books are not switched on for any workspace yet. Still to build (docs/LAUNCH-CHECKLIST.md):\n${
-    BLOCKERS.map((b) => `     · ${b}`).join('\n')}\n\n   Nothing was changed.\n`);
+    BLOCKERS.map((b) => `     · ${b}`).join('\n')}${MOROCCO_BLOCKERS.length > 0 ? `\n   And for a Moroccan workspace:\n${MOROCCO_BLOCKERS.map((b) => `     · ${b}`).join('\n')}` : ''}\n\n   Nothing was changed.\n`);
   process.exit(3);
 }
 
 const client = toolClient(url, { replyTimeoutMs: 60_000 });
 await client.connect().catch((e) => { console.error(`\n✗  ${e.message}\n`); process.exit(1); });
 try {
-  const biz = (await client.query('select id::text as id, name, books_area from businesses where id = $1', [business])).rows[0];
+  const biz = (await client.query('select id::text as id, name, books_area, country from businesses where id = $1', [business])).rows[0];
   if (!biz) { console.error(`\n✗  No business ${business}.\n`); process.exit(1); }
+  const owed = blockersFor(biz.country);
+  if (want === true && owed.length > 0) {
+    console.error(`\n✗  ${biz.name}: the books are not switched on yet. Still to build (docs/LAUNCH-CHECKLIST.md):\n${owed.map((b) => `     · ${b}`).join('\n')}\n\n   Nothing was changed.\n`);
+    process.exit(3);
+  }
   if (want === null) {
     console.log(`\n  ${biz.name}: books ${biz.books_area ? 'SHOWN' : 'hidden'}\n`);
   } else if (biz.books_area === want) {
