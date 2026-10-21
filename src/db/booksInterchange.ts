@@ -33,7 +33,9 @@ const digest = (content: string): string => createHash('sha256').update(content)
 const withoutState = (content: string): string => canonical({ ...(JSON.parse(content) as Record<string, unknown>), state: null });
 
 /** Thrown to roll the read-in back: a problem found after something was written. */
-class ReadInRefused extends Error { constructor(readonly problems: readonly BooksProblem[]) { super('books: read-in refused'); } }
+class ReadInRefused extends Error {
+  constructor(readonly problems: readonly BooksProblem[], readonly undatedTaxes?: readonly { code: string; label: string }[]) { super('books: read-in refused'); }
+}
 const dec = (v: string | null): Decimal | null => (v === null ? null : parseDecimal(v));
 /** A line's side: the ledger keeps the empty side as 0 (0169: one side each); the books' shape leaves it empty. */
 const side = (v: string): Decimal | null => { const d = parseDecimal(v); return d === null || d === '0' ? null : d; };
@@ -84,7 +86,9 @@ export async function readBooks(tx: Tx, businessId: string): Promise<BooksData> 
 
 export type ApplyOutcome =
   | { readonly kind: 'applied'; readonly added: number; readonly replaced: number; readonly unchanged: number }
-  | { readonly kind: 'refused'; readonly problems: readonly BooksProblem[] };
+  | { readonly kind: 'refused'; readonly problems: readonly BooksProblem[];
+      /** C0 — the taxes its source gave no start date, when an entry before Nomi's day for them stopped the read: the owner's to date. */
+      readonly undatedTaxes?: readonly { readonly code: string; readonly label: string }[] };
 
 /**
  * Read `data` in from `system`, as one change or none: its own tenant transaction, rolled back on any problem — found
@@ -98,11 +102,11 @@ export async function readInBooks(
   try {
     return await withTenantTx(db, businessId, async (tx) => {
       const out = await applyBooks(tx, businessId, by, system, data, where);
-      if (out.kind === 'refused') throw new ReadInRefused(out.problems);
+      if (out.kind === 'refused') throw new ReadInRefused(out.problems, out.undatedTaxes);
       return out;
     });
   } catch (e) {
-    if (e instanceof ReadInRefused) return { kind: 'refused', problems: e.problems };
+    if (e instanceof ReadInRefused) return { kind: 'refused', problems: e.problems, ...(e.undatedTaxes ? { undatedTaxes: e.undatedTaxes } : {}) };
     throw e;
   }
 }
@@ -139,6 +143,17 @@ async function applyBooks(
     const k = `${r.kind}:${r.key}`;
     const seen = last.get(k);
     if (!fresh.has(k)) { unchanged++; continue; }   // the source says nothing new
+    if (r.kind === 'tax_code' && r.key.endsWith('@unknown')) {
+      // A tax its source gives no start date (Odoo): Nomi's tax of that code, whatever day Nomi took it from — or new,
+      // in force from today. Compared without the day, which the source never said.
+      const code = r.key.slice(0, -'@unknown'.length);
+      const mine = nomi.taxCodes.filter((t) => t.code === code).sort((a, b) => (a.validFrom ?? '').localeCompare(b.validFrom ?? '')).pop();
+      const undated = (c: string) => canonical({ ...(JSON.parse(c) as Record<string, unknown>), validFrom: null });
+      if (!mine) plan.push({ record: r, action: 'add' });
+      else if (undated(canonical(mine)) === undated(r.content)) { unchanged++; plan.push({ record: r, action: 'note' }); }
+      else at(r.kind, r.key, 'Code', 'differs_from_nomi');
+      continue;
+    }
     if (r.kind !== 'entry') {
       const mine = held.get(k);
       if (mine === undefined) plan.push({ record: r, action: 'add' });
@@ -170,14 +185,33 @@ async function applyBooks(
     select id::text as id, starts_on::text as starts_on, ends_on::text as ends_on, state from fiscal_years where business_id = ${businessId}::uuid`.execute(tx)).rows;
   const lock = (await sql<{ d: string | null }>`select lock_date::text as d from books_settings where business_id = ${businessId}::uuid`.execute(tx)).rows[0]?.d ?? null;
   const yearOf = new Map<string, string>();
+  // A tax whose start its source never gave counts from the day it was first read (today, if it is new now): an entry
+  // before that day cannot use it — said for what it is, not as an unknown tax.
+  const today = (await sql<{ d: string }>`select current_date::text as d`.execute(tx)).rows[0]!.d;
+  // C0 (0181) — the day the owner confirmed, where they did; else the day Nomi first read it; else today.
+  const confirmed = new Map((await sql<{ code: string; d: string }>`select code, valid_from::text as d from tax_start_dates
+    where business_id = ${businessId}::uuid and system = ${system}`.execute(tx)).rows.map((r) => [r.code, r.d]));
+  const undatedFrom = new Map<string, string>();
+  for (const t of data.taxCodes) {
+    if (t.validFrom !== null) continue;
+    const kept = nomi.taxCodes.filter((x) => x.code === t.code).map((x) => x.validFrom ?? today).sort()[0];
+    undatedFrom.set(t.code, confirmed.get(t.code) ?? kept ?? today);
+  }
   for (const p of plan.filter((x) => x.record.kind === 'entry' && x.action !== 'note')) {
     const e = entries.get(p.record.key)!;
+    e.lines.forEach((l, i) => {
+      const from = l.taxCode === null ? undefined : undatedFrom.get(l.taxCode);
+      if (from !== undefined && e.date < from) at('entry', e.key, 'Tax code', 'tax_before_known', i);
+    });
     const y = years.find((f) => f.starts_on <= e.date && e.date <= f.ends_on);
     if (!y) { at('entry', e.key, 'Date', 'no_fiscal_year'); continue; }
     if (y.state !== 'open' || (lock !== null && e.date <= lock)) { at('entry', e.key, 'Date', 'period_closed'); continue; }
     yearOf.set(e.key, y.id);
   }
-  if (problems.length > 0) return { kind: 'refused', problems };
+  if (problems.length > 0) {
+    const asked = problems.some((p) => p.reason === 'tax_before_known');
+    return { kind: 'refused', problems, ...(asked ? { undatedTaxes: data.taxCodes.filter((t) => t.validFrom === null).map((t) => ({ code: t.code, label: t.label })) } : {}) };
+  }
 
   // Write: the chart and the rest first (parents before children), then the entries.
   const ids = { account: new Map<string, string>(), journal: new Map<string, string>(), party: new Map<string, string>() };
@@ -215,7 +249,7 @@ async function applyBooks(
   for (const t of data.taxCodes.filter((x) => adds('tax_code').includes(taxCodeKey(x)))) {
     await sql`insert into tax_codes (business_id, code, label, rate, kind, account_id, valid_from, valid_to)
       values (${businessId}::uuid, ${t.code}, ${t.label}, ${t.rate}::numeric, ${t.kind}, ${t.account === null ? null : ids.account.get(t.account)!}::uuid,
-              ${t.validFrom}::date, ${t.validTo}::date)`.execute(tx);
+              coalesce(${t.validFrom}::date, ${confirmed.get(t.code) ?? null}::date, current_date), ${t.validTo}::date)`.execute(tx);
     added++;
   }
   const madeEntries = new Map<string, string>();

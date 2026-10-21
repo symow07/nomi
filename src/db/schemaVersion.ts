@@ -429,7 +429,8 @@ import type { Db } from './client.js';
 // 178 = what each connected system last said of each books record (0178): `connector_records`, the read-in's memory.
 // 179 = the shop's own systems the books are connected to (0179): `books_connections`, Sheets and Odoo.
 // 180 = the morning's read of every connected system (0180): `books_connections_due()`, the worker's list.
-export const REQUIRED_SCHEMA_VERSION = 180;
+// 181 = a tax's start date is the owner's to confirm (0181): `tax_start_dates`, for taxes a system gave none.
+export const REQUIRED_SCHEMA_VERSION = 181;
 
 export type SchemaState = {
   readonly required: number;

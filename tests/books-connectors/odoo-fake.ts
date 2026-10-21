@@ -5,9 +5,10 @@ import { canonical, type BooksData } from '../../src/core/books/interchange.js';
 /**
  * B4 — a recorded fake of an Odoo 19 server's External JSON-2 API: POST /json/2/<model>/<method>, "bearer" and the
  * key, the database in X-Odoo-Database. Answers as documented: 200 and the method's value; an error as Odoo's JSON
- * object (name, message, arguments, context, debug) with 401 "Invalid apikey" for a wrong key. Not documented, and
- * so assumed here and checked live on deploy day: a database the server does not have is a 404 with Odoo's error
- * object, and a Free or Standard plan refuses an authenticated call with 403.
+ * object (name, message, arguments, context, debug) with 401 "Invalid apikey" for a wrong key. A database the server
+ * does not have is a 404 with Odoo's own no-database HTML page, as Odoo 19's source answers it (odoo/http.py,
+ * `NOT_FOUND_NODB`, read 2026-10-22). Not documented and not in the open source, and so assumed here until a real
+ * Odoo Online answers it: a Free or Standard plan refuses an authenticated call with 403.
  */
 export type OdooFake = {
   readonly post: PublicPost;
@@ -39,7 +40,8 @@ export function odooFake(host = 'shop.odoo.com'): OdooFake {
     if (u.host !== host) return null;                                               // nothing answers there
     const m = /^\/json\/2\/([a-z.]+)\/([a-z_]+)$/.exec(u.pathname);
     if (!m) return { status: 404, text: '<!DOCTYPE html><title>404</title>' };
-    if (headers['x-odoo-database'] !== 'shop-db') return error(404, 'werkzeug.exceptions.NotFound', '404 Not Found: the requested database does not exist on this server.');
+    // odoo/http.py (19.0) NOT_FOUND_NODB, verbatim: what a request with no usable database gets on a db route
+    if (headers['x-odoo-database'] !== 'shop-db') return { status: 404, text: '<!DOCTYPE html>\n<title>404 Not Found</title>\n<h1>Not Found</h1>\n<p>No database is selected and the requested URL was not found in the server-wide controllers.</p>\n<p>Please verify the hostname, <a href=/web/login>login</a> and try again.</p>\n\n<!-- Alternatively, use the X-Odoo-Database header. -->\n' };
     if (headers['authorization'] !== 'bearer good-key') return error(401, 'werkzeug.exceptions.Unauthorized', 'Invalid apikey');
     if (tier === 'standard') return error(403, 'odoo.exceptions.AccessDenied', 'Access to data via the external API is only available on Custom Odoo pricing plans.');
     const [model, method] = [m[1]!, m[2]!];

@@ -26,7 +26,12 @@ export type BooksParty = {
 };
 export type BooksTaxCode = {
   readonly code: string; readonly label: string; readonly rate: Decimal; readonly kind: (typeof TAX_KINDS)[number];
-  readonly account: string | null; readonly validFrom: string; readonly validTo: string | null;
+  readonly account: string | null;
+  /**
+   * The day it takes effect — or null when the source does not say (Odoo keeps none). Never filled in with a guess:
+   * the read-in takes such a tax as in force from the day it was first read, and refuses an earlier entry naming it.
+   */
+  readonly validFrom: string | null; readonly validTo: string | null;
 };
 export type BooksLine = {
   readonly account: string; readonly party: string | null; readonly taxCode: string | null; readonly currency: string;
@@ -68,7 +73,7 @@ export const BOOKS_PROBLEMS = [
   'bad_code', 'duplicate', 'unknown_account', 'unknown_journal', 'unknown_party', 'unknown_tax_code',
   'one_side_only', 'negative', 'unbalanced', 'no_lines', 'unknown_currency', 'bad_ice', 'entry_fields_differ', 'too_many_decimals',
   // against what Nomi already holds (the read-in, B2/B5)
-  'differs_from_nomi', 'posted_differs', 'no_fiscal_year', 'period_closed',
+  'differs_from_nomi', 'posted_differs', 'no_fiscal_year', 'period_closed', 'tax_before_known',
 ] as const;
 export type BooksProblemReason = (typeof BOOKS_PROBLEMS)[number];
 export type BooksProblem = { readonly sheet: string; readonly row: number; readonly column: string; readonly reason: BooksProblemReason };
@@ -81,7 +86,7 @@ export function canonical(v: unknown): string {
   return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`).join(',')}}`;
 }
 
-export const taxCodeKey = (t: Pick<BooksTaxCode, 'code' | 'validFrom'>): string => `${t.code}@${t.validFrom}`;
+export const taxCodeKey = (t: Pick<BooksTaxCode, 'code' | 'validFrom'>): string => `${t.code}@${t.validFrom ?? 'unknown'}`;
 
 /** Every record, keyed, with its text: the unit "changed since" and the read-in work in. */
 export function recordsOf(d: BooksData): BooksRecord[] {

@@ -93,8 +93,17 @@ d('B4 · the shop\'s own Odoo, through the routes (requires DATABASE_URL + MIGRA
     expect(await notice(await post('/app/books/odoo/connect', FORM()))).toContain('Odoo is connected.');
     const sealed = (await admin.query(`select secret_ciphertext from connector_credentials where business_id = $1 and connector = 'odoo' and archived_at is null`, [BIZ])).rows[0].secret_ciphertext as string;
     expect(sealed).not.toContain('good-key');
+    // C0 — Odoo gives its VAT no start date: April's sale cannot use it until the owner says when it took effect.
+    const first = await post('/app/books/odoo/read');
+    expect(first.statusCode).toBe(422);
+    expect(first.body).toContain('has no start date in Odoo, and Nomi counts it only from the day it was first read');
+    expect(first.body).toMatch(/<input type="hidden" name="code" value="ODOO-1" \/>/);
+    expect((await as((q) => q(`select count(*)::int as n from tax_codes`))).rows[0].n).toBe(0);   // nothing read, no guessed date
+    expect(await notice(await post('/app/books/taxes/start', 'system=odoo&code=ODOO-1&from=2099-01-01'))).toContain('That is not a day on or before today.');
+    expect(await notice(await post('/app/books/taxes/start', 'system=odoo&code=ODOO-1&from=2026-01-01'))).toContain('The day is kept.');
     const r = await post('/app/books/odoo/read');
     expect(await notice(r)).toMatch(/Read in: 1[0-9] new, 0 replaced, 0 already here\./);
+    expect((await as((q) => q(`select code, valid_from::text as d from tax_codes`))).rows).toEqual([{ code: 'ODOO-1', d: '2026-01-01' }]);
     const entries = await as((q) => q(`select state, count(*)::int as n from journal_entries group by state`));
     expect(entries.rows).toEqual([{ state: 'draft', n: 3 }]);
     expect((await as((q) => q(`select cursor from books_connections where system = 'odoo'`))).rows[0].cursor).toMatch(/^2026-10-22 /);

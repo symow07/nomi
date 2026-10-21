@@ -268,6 +268,8 @@ export const RULES = Object.freeze({
   connector_records: { do: 'unrelated' },
   // 0179 (B3–B5) — which of the shop's systems the books are connected to.
   books_connections: { do: 'unrelated' },
+  // 0181 (C0) — start dates the owner confirmed for taxes a system gave none.
+  tax_start_dates: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

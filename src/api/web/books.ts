@@ -31,6 +31,8 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/odoo/connect', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/read', action: 'post' },
   { method: 'POST', url: '/app/books/odoo/disconnect', action: 'post' },
+  // C0 — the day a tax took effect, where its system gave none: the owner's.
+  { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
@@ -158,7 +160,8 @@ function workbookBlock(locale: Locale, viewer: Viewer & { readonly kind?: 'team'
 }
 
 /** B2 — a workbook that was not read in, and every reason: the sheet, the row, the column, and what is wrong there. */
-export function renderWorkbookRefused(locale: Locale, problems: readonly BooksProblem[]): string {
+export function renderWorkbookRefused(locale: Locale, problems: readonly BooksProblem[],
+  undated?: { readonly system: 'odoo'; readonly taxes: readonly { readonly code: string; readonly label: string }[] }): string {
   const shown = problems.slice(0, 200);
   return `<h1 class="page">${esc(t(locale, 'books.workbook.refused.title'))}</h1>
     <p class="lede" role="alert">${esc(t(locale, 'books.workbook.refused.explain', { n: problems.length }))}</p>
@@ -169,5 +172,21 @@ export function renderWorkbookRefused(locale: Locale, problems: readonly BooksPr
         <td><bdi>${esc(p.column)}</bdi></td><td>${esc(t(locale, `books.problem.${p.reason}` as MessageKey))}</td></tr>`).join('')}</tbody>
     </table></div>
     ${problems.length > shown.length ? `<p class="caption muted">${esc(t(locale, 'books.workbook.refused.more', { n: problems.length - shown.length }))}</p>` : ''}
+    ${undated && undated.taxes.length > 0 ? taxStartForm(locale, undated.system, undated.taxes) : ''}
     <p><a class="deeper" href="/app/books#workbook">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
+}
+
+/**
+ * C0 (0181) — the taxes a system gave no start date, each with the day to confirm: the owner's, never Nomi's guess.
+ * Until a day is confirmed, the tax counts from the day it was first read, and an earlier entry naming it waits.
+ */
+function taxStartForm(locale: Locale, system: 'odoo', taxes: readonly { readonly code: string; readonly label: string }[]): string {
+  return `<div class="block" id="tax-start">
+      <h2>${esc(t(locale, 'books.taxStart.title'))}</h2>
+      <p>${esc(t(locale, 'books.taxStart.explain'))}</p>
+      ${taxes.map((x) => `<form method="post" action="/app/books/taxes/start" class="pform">
+        <input type="hidden" name="system" value="${esc(system)}" /><input type="hidden" name="code" value="${esc(x.code)}" />
+        <label class="pq"><span><bdi>${esc(x.label)}</bdi> · <bdi>${esc(x.code)}</bdi></span><input type="date" name="from" required /></label>
+        <button class="btn" type="submit">${esc(t(locale, 'books.taxStart.save'))}</button></form>`).join('')}
+    </div>`;
 }

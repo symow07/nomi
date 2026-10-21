@@ -46,7 +46,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // 0126 — nothing was deleted or closed: the old form, the installation's own workspace, a paid plan, a reply in hand, a refusal.
-  'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.booksFirst', 'books.flash.postIsOwners', 'staff.booksNotYours', 'books.flash.onlyBooks', 'books.flash.notWorkbook', 'books.flash.sheetsNotOffered', 'books.flash.sheetsNotConnected', 'books.flash.connectAgain', 'books.flash.notReachable', 'books.flash.odooRefused', 'books.flash.odooNotRead', 'data.flash.busy', 'data.flash.eraseRefused',
+  'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.booksFirst', 'books.flash.postIsOwners', 'staff.booksNotYours', 'books.flash.onlyBooks', 'books.flash.notWorkbook', 'books.flash.sheetsNotOffered', 'books.flash.sheetsNotConnected', 'books.flash.connectAgain', 'books.flash.notReachable', 'books.flash.odooRefused', 'books.flash.odooNotRead', 'books.flash.taxStartBad', 'books.flash.taxStartUsed', 'data.flash.busy', 'data.flash.eraseRefused',
   // D4 (2026-10-12) — a change refused while the workspace is frozen.
   'frozen.refused',
   // 0130 — an advisor history switch or deletion that did not go through: nothing changed.
@@ -139,7 +139,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // B2 — a workbook read in.
-  'books.flash.workbookRead', 'books.flash.sheetsConnected', 'books.flash.sheetsDisconnected', 'books.flash.odooConnected', 'books.flash.odooDisconnected',
+  'books.flash.workbookRead', 'books.flash.sheetsConnected', 'books.flash.sheetsDisconnected', 'books.flash.odooConnected', 'books.flash.odooDisconnected', 'books.flash.taxStartSaved',
   // EXT — lines read more closely.
   'import.flash.extracted',
   'pageFacts.flash.written',

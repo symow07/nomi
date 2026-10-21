@@ -2412,7 +2412,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.kind === 'read') return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: r.added, replaced: r.replaced, unchanged: r.unchanged });
     if (r.kind === 'problems') {
       return reply.code(422).type('text/html; charset=utf-8')
-        .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, r.problems) }));
+        .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings',
+          bodyHtml: renderWorkbookRefused(locale, r.problems, system === 'odoo' && r.undatedTaxes ? { system: 'odoo', taxes: r.undatedTaxes } : undefined) }));
     }
     if (system === 'sheets') return flashTo(reply, '/app/books#sheets', r.reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
     return flashTo(reply, '/app/books#odoo', 'books.flash.odooNotRead', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: 'Odoo' }) });
@@ -2457,6 +2458,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     if (!deps.credentialKey) return flashTo(reply, '/app/books#odoo', 'books.flash.sheetsNotOffered');
     return answerRead(req, reply, 'odoo', await readConnectedSystem(readDeps(), s.businessId, 'odoo', personOf(s).id));
+  });
+  /**
+   * C0 (0181) — the owner confirms the day a tax took effect, for a tax its system gave none (Odoo). A tax Nomi already
+   * holds from that system moves to that day — unless a posted entry already relies on its present day, which the
+   * database refuses (a used version never changes), and the owner is told so.
+   */
+  app.post('/app/books/taxes/start', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const code = typeof f['code'] === 'string' ? f['code'] : '';
+    const from = typeof f['from'] === 'string' ? f['from'] : '';
+    const today = todayIso();
+    if (!bid.ok || f['system'] !== 'odoo' || !/^[A-Z0-9_-]{1,12}$/.test(code) || !/^\d{4}-\d{2}-\d{2}$/.test(from) || from > today
+        || Number.isNaN(Date.parse(`${from}T00:00:00Z`))) {
+      return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartBad');
+    }
+    try {
+      await withTenantTx(deps.db, bid.value, async (tx) => {
+        await sql`insert into tax_start_dates (business_id, system, code, valid_from, confirmed_by) values (${bid.value}::uuid, 'odoo', ${code}, ${from}::date, ${personOf(s).id})
+          on conflict (business_id, system, code) do update set valid_from = excluded.valid_from, confirmed_by = excluded.confirmed_by, confirmed_at = now()`.execute(tx);
+        await sql`update tax_codes set valid_from = ${from}::date where business_id = ${bid.value}::uuid and code = ${code}
+          and valid_from = (select min(valid_from) from tax_codes where business_id = ${bid.value}::uuid and code = ${code})`.execute(tx);
+      });
+    } catch {
+      return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartUsed');
+    }
+    return flashTo(reply, '/app/books#odoo', 'books.flash.taxStartSaved');
   });
   app.post('/app/books/odoo/disconnect', async (req, reply) => {
     const s = sessionOf(req);

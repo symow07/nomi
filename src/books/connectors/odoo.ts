@@ -2,7 +2,7 @@ import { readStoreAddress } from '../../core/onboard/storeAddress.js';
 import type { Decimal } from '../../core/types/decimal.js';
 import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
 import {
-  booksProblems, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type RecordKind,
+  booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type RecordKind,
 } from '../../core/books/interchange.js';
 import type { PublicPost } from '../../net/publicFetch.js';
 import { excelNumber } from './excel.js';
@@ -16,7 +16,11 @@ import { parseExact } from './exactJson.js';
  *
  * ITEM 15 — WHAT CONNECTING CHECKS, BEFORE ANYTHING IS SAVED, each with its own sentence:
  *   · a wrong key: Odoo answers 401 "Invalid apikey" (documented);
- *   · a wrong database: the probe's own route is not found (404, with Odoo's JSON error);
+ *   · a wrong database: read from Odoo 19's own source (odoo/http.py, `_get_session_and_dbname`, `_serve_nodb`, and
+ *     `_generate_routing_rules`, 2026-10-22): an `X-Odoo-Database` the server's dbfilter rejects, or one it has no
+ *     database for, leaves the request with no database; the no-database routes are only those with `auth='none'`, and
+ *     JSON-2's is `bearer`, so the answer is a 404 whose body is Odoo's own HTML page, "No database is selected and the
+ *     requested URL was not found in the server-wide controllers" (`NOT_FOUND_NODB`) — not a JSON error;
  *   · a Free or Standard plan: "Access to data via the external API is only available on Custom Odoo pricing plans"
  *     (documented) — answered, with a valid key, as 403 (Odoo does not document the status: it is read so, and
  *     checked live on deploy day);
@@ -29,16 +33,21 @@ import { parseExact } from './exactJson.js';
  * taxes with their tax account, and the entries (account.move, draft or posted) with their lines. "Changed since"
  * is Odoo's own `write_date` for the entries; the chart and the rest are read whole and the read-in keeps only what
  * changed. Amounts are read from Odoo's own digits, never through a float. What Odoo cannot say is not invented:
- * an account has no parent here; a tax has no start date (it is read as in force since 2000-01-01) and its code is
- * "T" and its Odoo id; a foreign line is read in its own currency (`amount_currency`), its conversion is the owner's
- * (A3).
+ *   · an account has no parent here;
+ *   · a tax has NO START DATE in Odoo: it is read with none (`validFrom: null`), and the read-in takes it as in force
+ *     from the day it was first read — never earlier (the owner, 2026-10-22: a date before that would be a guess
+ *     wearing a fact's clothes). An entry dated before then that names it is refused with that reason;
+ *   · a tax has no CODE in Odoo: Nomi names it `ODOO-<id>`, Odoo's own id inside the name, so an accountant reading
+ *     the books sees whose it is;
+ *   · a foreign line is read in its own currency (`amount_currency`); its conversion is the owner's (A3).
  *
  * Built against a recorded fake (tests/books-connectors/odoo-fake.ts) of the documented answers; live on deploy day
  * against the shop's Odoo, which needs Odoo's Custom plan (the shop's cost, not Nomi's — PHASE-5.md §7).
  */
 
 export const ODOO_KEY_REMIND_AT_DAYS = 80; // item 14: from 80 days of a key's life, the page asks for a new one
-export const ODOO_TAX_FROM = '2000-01-01';
+/** Nomi's name for a tax Odoo gives no code: Odoo's own id inside it, so whose it is stays plain. */
+export const odooTaxCode = (id: number): string => `ODOO-${id}`;
 
 export type OdooSource = { readonly origin: string; readonly database: string; readonly key: string };
 
@@ -53,10 +62,10 @@ async function json2(post: PublicPost, s: OdooSource, model: string, method: str
   if (!a || a.status >= 500 || a.status === 429) return { ok: false, refusal: refused('unreachable') };
   let body: unknown = null;
   try { body = parseExact(a.text); } catch { body = null; }
-  const errName = body && typeof body === 'object' && 'name' in body && typeof (body as { name: unknown }).name === 'string' ? (body as { name: string }).name : '';
   if (a.status === 401) return { ok: false, refusal: refused('wrong_credentials') };
   if (a.status === 403) return { ok: false, refusal: refused('plan_without_api') };
-  if (a.status === 404) return { ok: false, refusal: refused(errName ? 'wrong_database' : 'unreadable') };
+  // A wrong database is Odoo's own no-database page (see the header); any other 404 is not this Odoo's JSON-2.
+  if (a.status === 404) return { ok: false, refusal: refused(/No database is selected/.test(a.text) ? 'wrong_database' : 'unreadable') };
   if (a.status !== 200 || body === null) return { ok: false, refusal: refused('unreadable') };
   return { ok: true, value: body };
 }
@@ -149,10 +158,10 @@ export function odooToBooks(raw: OdooRaw, bookCurrency: string): { data: BooksDa
     const use = String(t['type_tax_use'] ?? '');
     const kind = rate === '0' ? 'exempt' : use === 'sale' ? 'collected' : use === 'purchase' ? 'deductible' : null;
     if (!kind) { bad('account.tax', id, 'type_tax_use', 'unknown_kind'); continue; }
-    const code = `T${id}`;
+    const code = odooTaxCode(id);
     taxCode.set(id, code);
-    taxCodes.push({ code, label: str(t['name']) ?? code, rate, kind, account: kind === 'exempt' ? null : (taxAccount.get(id) ?? null), validFrom: ODOO_TAX_FROM, validTo: null });
-    note('tax_code', `${code}@${ODOO_TAX_FROM}`, 'account.tax', id);
+    taxCodes.push({ code, label: str(t['name']) ?? code, rate, kind, account: kind === 'exempt' ? null : (taxAccount.get(id) ?? null), validFrom: null, validTo: null });
+    note('tax_code', taxCodeKey({ code, validFrom: null }), 'account.tax', id);
   }
   const byMove = new Map<number, Record<string, unknown>[]>();
   for (const l of raw.lines) { const m = idOf(l['move_id']); if (m !== null) byMove.set(m, [...(byMove.get(m) ?? []), l]); }
