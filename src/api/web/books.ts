@@ -45,6 +45,13 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'GET', url: '/app/books/invoices/:id/credit-notes/new', action: 'post' },
   { method: 'POST', url: '/app/books/invoices/:id/credit-notes', action: 'post' },
   { method: 'POST', url: '/app/books/invoices/:id/refunds', action: 'post' },
+  // D2 — closing the books: the page the books' to see; locking, reopening, opening and closing a year the owner's.
+  { method: 'GET', url: '/app/books/closing', action: 'see' },
+  { method: 'POST', url: '/app/books/closing/lock', action: 'post' },
+  { method: 'POST', url: '/app/books/closing/reopen', action: 'post' },
+  { method: 'POST', url: '/app/books/closing/open-year', action: 'post' },
+  { method: 'POST', url: '/app/books/closing/journal', action: 'post' },
+  { method: 'POST', url: '/app/books/closing/year', action: 'post' },
   // D1 — the trial balance: the books' to see (the accountant's too).
   { method: 'GET', url: '/app/books/trial-balance', action: 'see' },
   { method: 'GET', url: '/app/books/entries/:id', action: 'see' },
@@ -100,6 +107,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     <p><a class="deeper" href="/app/books/invoices">${esc(t(locale, 'books.invoices.title'))}</a></p>
     <p><a class="deeper" href="/app/books/bank">${esc(t(locale, 'books.bank.title'))}</a></p>
     <p><a class="deeper" href="/app/books/trial-balance">${esc(t(locale, 'books.trial.title'))}</a></p>
+    <p><a class="deeper" href="/app/books/closing">${esc(t(locale, 'books.close.title'))}</a></p>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'data.books.title'))}</span>
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>

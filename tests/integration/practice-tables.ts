@@ -113,7 +113,7 @@ export const PRACTICE_SKIP = [
   'books_settings', 'accounts', 'journals', 'fiscal_years', 'journal_counters', 'journal_entries', 'journal_lines',
   'tax_codes', 'parties', 'custom_field_defs', 'books_exports', 'documents', 'document_blobs', 'connector_records', 'books_connections', 'tax_start_dates',
   'invoice_counters', 'invoices', 'invoice_lines', 'invoice_payments', 'statement_imports', 'statement_lines', 'statement_matches',
-  'credit_note_counters', 'credit_notes', 'credit_note_lines',
+  'credit_note_counters', 'credit_notes', 'credit_note_lines', 'period_locks',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

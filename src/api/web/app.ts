@@ -240,6 +240,8 @@ import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEnt
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { defaultPeriod, trialBalanceOf } from '../../db/booksReports.js';
+import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, type CloseRefusal } from '../../db/booksClose.js';
+import { renderClose } from './booksClose.js';
 import { renderTrialBalance } from './booksReports.js';
 import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
@@ -2887,6 +2889,84 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * are the owner's. A match is made only here, by a person: the rule only suggests.
    */
   const bankAccountOf = (raw: unknown, accounts: readonly { id: string }[]) => (typeof raw === 'string' && accounts.some((a) => a.id === raw) ? raw : null);
+  /**
+   * D2 (0189) — CLOSING THE BOOKS: the page is the books' to see (the accountant's too); locking, reopening, opening
+   * and closing a year are the owner's, and the database refuses anyone else.
+   */
+  const closeWhy = (locale: Locale, r: CloseRefusal) => {
+    if (r.reason === 'not_clear') {
+      const [item, n] = (r.detail ?? ':').split(':');
+      return t(locale, 'books.close.refused.not_clear', { item: t(locale, `books.close.item.${item}` as MessageKey), n: n ?? '' });
+    }
+    return t(locale, `books.close.refused.${r.reason}` as MessageKey, { day: r.detail ?? '' });
+  };
+  const closeBack = (reply: FastifyReply, out: { kind: string } | CloseRefusal, done: MessageKey, params: Record<string, string | number>, locale: Locale) =>
+    out.kind === 'refused' ? flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: closeWhy(locale, out as CloseRefusal) })
+      : flashTo(reply, '/app/books/closing', done, params);
+  app.get('/app/books/closing', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const today = todayIso();
+    const asked = (req.query as { month?: unknown }).month;
+    const prev = new Date(`${today.slice(0, 7)}-01T12:00:00Z`); prev.setUTCMonth(prev.getUTCMonth() - 1);
+    const month = typeof asked === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) ? asked : prev.toISOString().slice(0, 7);
+    const end = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ state: await closeState(tx, bid), checklist: await closeChecklistFor(tx, bid, end) }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.close.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderClose(locale, personOf(s), { ...got.state, month, monthEnd: end, checklist: got.checklist, today })}` }));
+  });
+  const closeForm = (req: FastifyRequest) => {
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    return (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
+  };
+  const isDayStr = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+  app.post('/app/books/closing/lock', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req); const str = closeForm(req);
+    if (!isDayStr(str('day'))) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.entry.problem.date') });
+    const out = await withTenantTx(deps.db, bid, (tx) => lockTo(tx, bid, str('day'), personOf(s).id));
+    return closeBack(reply, out, 'books.flash.locked', { day: show.dateYear(locale, new Date(`${str('day')}T12:00:00Z`)) }, locale);
+  });
+  app.post('/app/books/closing/reopen', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req); const str = closeForm(req);
+    const day = str('day') === '' ? null : str('day');
+    if (day !== null && !isDayStr(day)) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.entry.problem.date') });
+    const out = await withTenantTx(deps.db, bid, (tx) => reopenTo(tx, bid, day, personOf(s).id, str('reason').slice(0, 300)));
+    return closeBack(reply, out, 'books.flash.reopened', {}, locale);
+  });
+  app.post('/app/books/closing/open-year', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req); const str = closeForm(req);
+    if (!isDayStr(str('startsOn')) || !isDayStr(str('endsOn'))) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.close.refused.bad_year') });
+    const out = await withTenantTx(deps.db, bid, (tx) => openYear(tx, bid, str('startsOn'), str('endsOn')));
+    return closeBack(reply, out, 'books.flash.yearOpened', {}, locale);
+  });
+  app.post('/app/books/closing/journal', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const out = await withTenantTx(deps.db, bid, (tx) => addClosingJournal(tx, bid, t(locale, 'books.close.journalName')));
+    return closeBack(reply, out, 'books.flash.journalAdded', {}, locale);
+  });
+  app.post('/app/books/closing/year', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req); const str = closeForm(req);
+    const uuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
+    if (!uuid(str('year')) || !uuid(str('result')) || !uuid(str('journal'))) return flashTo(reply, '/app/books/closing', 'books.flash.closeRefused', { why: t(locale, 'books.close.refused.other') });
+    const out = await withTenantTx(deps.db, bid, async (tx) => {
+      const y = (await sql<{ s: string; e: string }>`select starts_on::text as s, ends_on::text as e from fiscal_years where business_id = ${bid}::uuid and id = ${str('year')}::uuid`.execute(tx)).rows[0];
+      if (!y) return { kind: 'refused' as const, reason: 'not_open' as const, detail: null };
+      return closeYear(tx, bid, { yearId: str('year'), resultAccountId: str('result'), journalId: str('journal'), by: personOf(s).id,
+        label: t(locale, 'books.close.entryLabel', { from: y.s, to: y.e }), ref: `CLOSE-${y.e}` });
+    });
+    return closeBack(reply, out, 'books.flash.yearClosed', {}, locale);
+  });
   /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */
   app.get('/app/books/trial-balance', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

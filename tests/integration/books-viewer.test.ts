@@ -21,7 +21,7 @@ const SECRET = 'a-test-session-secret-of-sufficient-length';
 const ACCOUNTANT_SEES = [
   'accounts', 'books_exports', 'books_settings', 'businesses', 'credit_note_counters', 'credit_note_lines', 'credit_notes', 'custom_field_defs', 'document_blobs', 'documents',
   'fiscal_years', 'invoice_counters', 'invoice_lines', 'invoice_payments', 'invoices', 'journal_counters', 'journal_entries', 'journal_lines',
-  'journals', 'owner_rates', 'parties', 'statement_imports', 'statement_lines', 'statement_matches', 'tax_codes',
+  'journals', 'owner_rates', 'parties', 'period_locks', 'statement_imports', 'statement_lines', 'statement_matches', 'tax_codes',
 ];   // C2's invoices and C3's statements are books: the accountant reads them, and changes none (0175 and 0186)
 
 d('B0 · the database keeps an accountant to the books (requires DATABASE_URL)', { timeout: 120_000 }, () => {

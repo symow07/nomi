@@ -120,11 +120,11 @@ d('C1 · entries by hand, through the routes (requires DATABASE_URL + MIGRATE_DA
     const bare = await draft([[k.bank, '5', ''], [k.sales, '', '5']], { documentRef: '', documentDate: '' });
     expect((await get(String(bare.headers['location']))).body).toContain('Posting needs the document');
     expect(await notice(await post(`/app/books/entries/${idOf(bare)}/post`))).toMatch(/Not posted\. Posting needs the document(&#39;|&#x27;|')s reference and date\./);
-    await as((q) => q(`insert into books_settings (business_id, lock_date) values (current_business_id(), '2026-05-31') on conflict (business_id) do update set lock_date = excluded.lock_date`));
+    await admin.query(`insert into books_settings (business_id, lock_date) values ($1, '2026-05-31') on conflict (business_id) do update set lock_date = excluded.lock_date`, [BIZ]);   // an operator's write (0189)
     const locked = await draft([[k.bank, '5', ''], [k.sales, '', '5']]);
     expect(locked.statusCode).toBe(422);
     expect(locked.body).toContain('That day is in a locked or closed period');
-    await as((q) => q(`update books_settings set lock_date = null`));
+    await admin.query(`update books_settings set lock_date = null where business_id = $1`, [BIZ]);
   });
 
   it('THE ACCOUNTANT sees the entries and each one, with no way to post, discard or reverse — and the routes refuse', async () => {

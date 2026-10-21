@@ -400,6 +400,22 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - closing entries in their own journal;
   - **at most two periods open at once** (Avis 24).
   - *Depends on C1–C3 and D1.*
+  - *(built 2026-10-22, 0189: `/app/books/closing`.)*
+    - **Two dead ends found and closed.** Nothing in the app could open a fiscal year: every entry needs one, so a
+      shop could post nothing. And the lock date was a plain column the app could move either way, unrecorded.
+    - **The lock** moves only through the database's functions: forward, up to today, by the owner, with the
+      checklist clear (draft entries, draft invoices, draft credit notes, unmatched statement lines on or before
+      the day — counted by the database).
+    - **Reopening** moves it back: the owner's, with a reason, recorded in `period_locks` with every lock and
+      closing.
+    - **Closing a year** locks it to its last day and posts ONE entry in the closing journal: each income and expense
+      account to nothing, against the owner's result account. Then the year is closed for good. The closing journal
+      takes nothing else. The app's role can neither close a year by setting its state nor move the lock by a write.
+    - **Each wall** refuses a viewer who is not the owner, and is proven load-bearing by switching it off.
+    - Opening a fiscal year is the owner's; a third open one is refused (0169).
+    - `tests/parity/migrations-remade.test.ts`: 0189 first re-used the name of 0173's `books_settings_rules` and
+      silently replaced the books' currency rule. From 0189 on, a migration that re-creates a function must say it is
+      re-made, and name the latest migration it comes from.
 - **D3 · Item 2 — tax reports and the accountant pack:**
   - **The accountant pack, for every shop:** trial balance, journal and general ledger, in a standard export any local
     accountant can work from.

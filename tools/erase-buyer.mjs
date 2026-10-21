@@ -283,6 +283,8 @@ export const RULES = Object.freeze({
   credit_note_counters: { do: 'unrelated' },
   credit_notes: { do: 'unrelated' },
   credit_note_lines: { do: 'unrelated' },
+  // 0189 (D2) — every lock and reopening of the books' periods.
+  period_locks: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.
