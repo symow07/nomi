@@ -15,6 +15,23 @@ export const ACCOUNT_KINDS = ['asset', 'liability', 'equity', 'income', 'expense
 export const JOURNAL_KINDS = ['sales', 'purchases', 'bank', 'cash', 'general', 'closing'] as const;
 export const PARTY_KINDS = ['customer', 'supplier', 'other'] as const;
 export const TAX_KINDS = ['collected', 'deductible', 'exempt'] as const;
+export const FIELD_APPLIES = ['entry', 'line', 'party'] as const;
+export const FIELD_KINDS = ['text', 'number', 'date', 'choice'] as const;
+
+/**
+ * D7 (Phase 5, item 9) — a CUSTOM FIELD the owner defined (0170's custom_field_defs): on an entry, on a line or on a
+ * party; text, an exact number, a day, or one of its choices (a category). Its values travel with what they are on,
+ * as text, under its key — and only when there are some, so books without custom values read exactly as before.
+ * A RETIRED field travels too (its values are still on the rows it was written to, and are read by it); it takes
+ * no new value.
+ */
+export type BooksField = {
+  readonly appliesTo: (typeof FIELD_APPLIES)[number]; readonly key: string; readonly label: string;
+  readonly kind: (typeof FIELD_KINDS)[number]; readonly choices: readonly string[] | null; readonly required: boolean;
+  /** Retired: no new values. Absent while in use. */
+  readonly retired?: true;
+};
+export type CustomValues = Readonly<Record<string, string>>;
 
 export type BooksAccount = {
   readonly code: string; readonly name: string; readonly kind: (typeof ACCOUNT_KINDS)[number]; readonly parent: string | null;
@@ -23,6 +40,7 @@ export type BooksJournal = { readonly code: string; readonly name: string; reado
 export type BooksParty = {
   readonly code: string; readonly name: string; readonly kind: (typeof PARTY_KINDS)[number];
   readonly country: string | null; readonly ice: string | null; readonly taxNumber: string | null;
+  readonly custom?: CustomValues;
 };
 export type BooksTaxCode = {
   readonly code: string; readonly label: string; readonly rate: Decimal; readonly kind: (typeof TAX_KINDS)[number];
@@ -36,6 +54,7 @@ export type BooksTaxCode = {
 export type BooksLine = {
   readonly account: string; readonly party: string | null; readonly taxCode: string | null; readonly currency: string;
   readonly debit: Decimal | null; readonly credit: Decimal | null; readonly label: string | null;
+  readonly custom?: CustomValues;
 };
 export type BooksEntry = {
   /** The source's own name for it: Nomi's journal, year and number for a posted entry; the row's key in a workbook. */
@@ -45,6 +64,7 @@ export type BooksEntry = {
   /** What the SOURCE says it is. Nomi takes nothing in as posted: what is read in is a draft for the owner to post. */
   readonly state: 'draft' | 'posted';
   readonly lines: readonly BooksLine[];
+  readonly custom?: CustomValues;
 };
 
 export type BooksData = {
@@ -53,11 +73,13 @@ export type BooksData = {
   readonly parties: readonly BooksParty[];
   readonly taxCodes: readonly BooksTaxCode[];
   readonly entries: readonly BooksEntry[];
+  /** D7 — the custom fields these books' values are of; absent, none. */
+  readonly fields?: readonly BooksField[];
 };
 
 export const EMPTY_BOOKS: BooksData = { accounts: [], journals: [], parties: [], taxCodes: [], entries: [] };
 
-export const RECORD_KINDS = ['account', 'journal', 'party', 'tax_code', 'entry'] as const;
+export const RECORD_KINDS = ['account', 'journal', 'party', 'tax_code', 'entry', 'field'] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 /** One record of the books, as a connector's "changed since" and the read-in compare it: what, which, and its text. */
@@ -74,6 +96,8 @@ export const BOOKS_PROBLEMS = [
   'one_side_only', 'negative', 'unbalanced', 'no_lines', 'unknown_currency', 'bad_ice', 'entry_fields_differ', 'too_many_decimals',
   // against what Nomi already holds (the read-in, B2/B5)
   'differs_from_nomi', 'posted_differs', 'no_fiscal_year', 'period_closed', 'tax_before_known',
+  // D7 — custom values against their fields
+  'unknown_field', 'bad_field_value', 'required_field', 'required_not_party', 'bad_field', 'retired_field',
 ] as const;
 export type BooksProblemReason = (typeof BOOKS_PROBLEMS)[number];
 export type BooksProblem = { readonly sheet: string; readonly row: number; readonly column: string; readonly reason: BooksProblemReason };
@@ -96,7 +120,34 @@ export function recordsOf(d: BooksData): BooksRecord[] {
     ...d.parties.map((r) => ({ kind: 'party' as const, key: r.code, content: canonical(r) })),
     ...d.taxCodes.map((r) => ({ kind: 'tax_code' as const, key: taxCodeKey(r), content: canonical(r) })),
     ...d.entries.map((r) => ({ kind: 'entry' as const, key: r.key, content: canonical(r) })),
+    ...(d.fields ?? []).map((r) => ({ kind: 'field' as const, key: fieldKey(r), content: canonical(r) })),
   ];
+}
+
+export const fieldKey = (f: Pick<BooksField, 'appliesTo' | 'key'>): string => `${f.appliesTo}.${f.key}`;
+
+/**
+ * A definition the database can keep (0170): a key of small letters, digits and "_", a label, choices only for a
+ * choice — each of them text without "|" (the workbook writes them "a | b"), none twice, 1 to 50 of them.
+ */
+export function fieldShapeProblem(f: BooksField): boolean {
+  if (!(FIELD_APPLIES as readonly string[]).includes(f.appliesTo) || !(FIELD_KINDS as readonly string[]).includes(f.kind)) return true;
+  if (!/^[a-z][a-z0-9_]{0,39}$/.test(f.key) || f.label.trim().length < 1 || f.label.trim().length > 80) return true;
+  if ((f.kind === 'choice') !== (f.choices !== null)) return true;
+  if (f.choices === null) return false;
+  return f.choices.length < 1 || f.choices.length > 50 || new Set(f.choices).size !== f.choices.length
+    || f.choices.some((c) => c.trim() !== c || c === '' || c.includes('|') || c.length > 80);
+}
+
+/** What is wrong with one value of a field, as the database checks it (0170, `custom_values_problem`); null: fine. */
+export function fieldValueProblem(f: BooksField, value: string): 'bad_field_value' | null {
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const ok = f.kind === 'text' ? value.length <= 500
+    : f.kind === 'number' ? /^-?[0-9]+(\.[0-9]+)?$/.test(value)
+    : f.kind === 'date' ? day !== null && Number(day[2]) >= 1 && Number(day[2]) <= 12 && Number(day[3]) >= 1
+      && Number(day[3]) <= [31, (Number(day[1]) % 4 === 0 && Number(day[1]) % 100 !== 0) || Number(day[1]) % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][Number(day[2]) - 1]!
+    : (f.choices ?? []).includes(value);
+  return ok ? null : 'bad_field_value';
 }
 
 /**
@@ -123,6 +174,8 @@ export function booksProblems(
     readonly taxCodes: ReadonlySet<string>;
     /** The currency the books are kept in (A3): with a foreign line beside it, it balances only after conversion. */
     readonly bookCurrency: string;
+    /** D7 — the custom fields Nomi already holds (the books may bring their own too). */
+    readonly fields?: readonly BooksField[];
   },
   where: (kind: RecordKind, key: string, line?: number) => { readonly sheet: string; readonly row: number },
 ): BooksProblem[] {
@@ -134,6 +187,24 @@ export function booksProblems(
   const parties = new Set([...known.parties, ...d.parties.map((p) => p.code)]);
   const taxCodes = new Set([...known.taxCodes, ...d.taxCodes.map((t) => t.code)]);
   for (const a of d.accounts) if (a.parent !== null && !accounts.has(a.parent)) at('account', a.code, 'Parent', 'unknown_account');
+  // D7 — each custom value of a field this books or Nomi defines, of its kind; each required one present.
+  const fields = new Map([...(known.fields ?? []), ...(d.fields ?? [])].map((f) => [fieldKey(f), f]));
+  // Only a party's field can be required (0192): Nomi's own entries — an invoice, a payment — could never give one.
+  for (const f of d.fields ?? []) {
+    if (f.required && f.appliesTo !== 'party') at('field', fieldKey(f), 'Required', 'required_not_party');
+    if (fieldShapeProblem(f)) at('field', fieldKey(f), 'Key', 'bad_field');
+  }
+  const custom = (applies: BooksField['appliesTo'], values: CustomValues | undefined, kind: RecordKind, key: string, line?: number) => {
+    for (const [k, v] of Object.entries(values ?? {})) {
+      const f = fields.get(`${applies}.${k}`);
+      if (!f) { at(kind, key, `${applies}.${k}`, 'unknown_field', line); continue; }
+      const why = fieldValueProblem(f, v);
+      if (why) at(kind, key, `${applies}.${k}`, why, line);
+    }
+    for (const f of fields.values()) if (f.appliesTo === applies && applies === 'party' && f.required && !f.retired && !(f.key in (values ?? {}))) at(kind, key, `${applies}.${f.key}`, 'required_field', line);
+  };
+  for (const p of d.parties) custom('party', p.custom, 'party', p.code);
+  for (const e of d.entries) { custom('entry', e.custom, 'entry', e.key); e.lines.forEach((l, i) => custom('line', l.custom, 'entry', e.key, i)); }
   for (const t of d.taxCodes) if (t.account !== null && !accounts.has(t.account)) at('tax_code', taxCodeKey(t), 'Account', 'unknown_account');
   for (const e of d.entries) {
     if (!journals.has(e.journal)) at('entry', e.key, 'Journal', 'unknown_journal');

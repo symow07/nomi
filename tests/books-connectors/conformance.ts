@@ -14,7 +14,7 @@ import { changedRecords, recordsOf, type BooksData, type RecordKind } from '../.
 export type ConformanceFixture<S, R> = {
   readonly name: string;
   readonly connector: BooksConnector<S, R>;
-  /** Books with at least one record of every kind, foreign currency and an exchange difference among them. */
+  /** Books with at least one record of every kind, foreign currency and an exchange difference among them, custom fields (D7) too. */
   readonly sample: BooksData;
   /** What the owner gives to connect to a source that holds `data`. */
   readonly connectTo: (data: BooksData) => Promise<ConfigValues> | ConfigValues;
@@ -36,7 +36,7 @@ export function conformance<S, R>(fx: ConformanceFixture<S, R>): void {
   describe(`${fx.name} · the books' connector conformance (B1)`, () => {
     it('the sample holds a record of every kind (the suite checks what it means to)', () => {
       const kinds = new Set(recordsOf(fx.sample).map((r) => r.kind));
-      expect([...kinds].sort()).toEqual((['account', 'entry', 'journal', 'party', 'tax_code'] as RecordKind[]).sort());
+      expect([...kinds].sort()).toEqual((['account', 'entry', 'field', 'journal', 'party', 'tax_code'] as RecordKind[]).sort());
     });
 
     it('CONFIG: a known system, its fields declared; nothing required may be missing, and the right values pass', async () => {

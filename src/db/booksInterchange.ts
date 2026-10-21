@@ -5,7 +5,7 @@ import type { BusinessId } from '../core/types/ids.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 import {
   booksProblems, canonical, changedRecords, recordsOf, taxCodeKey,
-  type BooksData, type BooksEntry, type BooksProblem, type BooksProblemReason, type BooksRecord, type RecordKind,
+  fieldKey, type BooksData, type BooksEntry, type BooksField, type BooksProblem, type BooksProblemReason, type BooksRecord, type CustomValues, type RecordKind,
 } from '../core/books/interchange.js';
 import type { BooksSystem } from '../core/books/connector.js';
 
@@ -39,6 +39,9 @@ class ReadInRefused extends Error {
 const dec = (v: string | null): Decimal | null => (v === null ? null : parseDecimal(v));
 /** A line's side: the ledger keeps the empty side as 0 (0169: one side each); the books' shape leaves it empty. */
 const side = (v: string): Decimal | null => { const d = parseDecimal(v); return d === null || d === '0' ? null : d; };
+/** D7 — custom values as the books carry them: only when there are some (books without them read as before). */
+const withCustom = <T extends object>(r: T, c: CustomValues | null | undefined): T => (c && Object.keys(c).length > 0
+  ? { ...r, custom: Object.fromEntries(Object.entries(c).sort(([a], [b]) => a.localeCompare(b))) } : r);
 const DRAFT_KEY = /^draft-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 /** The books Nomi holds, as every connector receives them. */
@@ -48,22 +51,23 @@ export async function readBooks(tx: Tx, businessId: string): Promise<BooksData> 
      where a.business_id = ${businessId}::uuid order by a.code`.execute(tx)).rows;
   const journals = (await sql<BooksData['journals'][number]>`
     select code, name, kind from journals where business_id = ${businessId}::uuid order by code`.execute(tx)).rows;
-  const parties = (await sql<{ code: string; name: string; kind: BooksData['parties'][number]['kind']; country: string | null; ice: string | null; tax_number: string | null }>`
-    select code, name, kind, country, ice, tax_number from parties where business_id = ${businessId}::uuid order by code`.execute(tx)).rows;
+  const parties = (await sql<{ code: string; name: string; kind: BooksData['parties'][number]['kind']; country: string | null; ice: string | null; tax_number: string | null; custom: CustomValues }>`
+    select code, name, kind, country, ice, tax_number, custom from parties where business_id = ${businessId}::uuid order by code`.execute(tx)).rows;
+  const fields = await fieldsOf(tx, businessId);
   const taxCodes = (await sql<{ code: string; label: string; rate: string; kind: BooksData['taxCodes'][number]['kind']; account: string | null; valid_from: string; valid_to: string | null }>`
     select t.code, t.label, t.rate::text as rate, t.kind, a.code as account, t.valid_from::text as valid_from, t.valid_to::text as valid_to
       from tax_codes t left join accounts a on a.id = t.account_id
      where t.business_id = ${businessId}::uuid order by t.code, t.valid_from`.execute(tx)).rows;
-  const heads = (await sql<{ id: string; key: string; journal: string; date: string; label: string; document_ref: string | null; document_date: string | null; state: 'draft' | 'posted' }>`
+  const heads = (await sql<{ id: string; key: string; journal: string; date: string; label: string; document_ref: string | null; document_date: string | null; state: 'draft' | 'posted'; custom: CustomValues }>`
     select e.id::text as id,
            case when e.state = 'posted' then j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number else 'draft-' || e.id end as key,
-           j.code as journal, e.entry_date::text as date, e.label, e.document_ref, e.document_date::text as document_date, e.state
+           j.code as journal, e.entry_date::text as date, e.label, e.document_ref, e.document_date::text as document_date, e.state, e.custom
       from journal_entries e join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
      where e.business_id = ${businessId}::uuid and e.state <> 'discarded'
      order by e.entry_date, e.number nulls last, e.created_at, e.id`.execute(tx)).rows;
-  const lines = (await sql<{ entry_id: string; account: string; party: string | null; tax_code: string | null; currency: string; debit: string; credit: string; label: string | null }>`
+  const lines = (await sql<{ entry_id: string; account: string; party: string | null; tax_code: string | null; currency: string; debit: string; credit: string; label: string | null; custom: CustomValues }>`
     select l.entry_id::text as entry_id, a.code as account, p.code as party, t.code as tax_code, l.currency,
-           l.debit::text as debit, l.credit::text as credit, l.label
+           l.debit::text as debit, l.credit::text as credit, l.label, l.custom
       from journal_lines l join accounts a on a.id = l.account_id
       left join parties p on p.id = l.party_id left join tax_codes t on t.id = l.tax_code_id
      where l.business_id = ${businessId}::uuid
@@ -73,15 +77,24 @@ export async function readBooks(tx: Tx, businessId: string): Promise<BooksData> 
   return {
     accounts,
     journals,
-    parties: parties.map((p) => ({ code: p.code, name: p.name, kind: p.kind, country: p.country, ice: p.ice, taxNumber: p.tax_number })),
+    parties: parties.map((p) => withCustom({ code: p.code, name: p.name, kind: p.kind, country: p.country, ice: p.ice, taxNumber: p.tax_number }, p.custom)),
     taxCodes: taxCodes.map((t) => ({ code: t.code, label: t.label, rate: dec(t.rate)!, kind: t.kind, account: t.account, validFrom: t.valid_from, validTo: t.valid_to })),
-    entries: heads.map((h): BooksEntry => ({
+    entries: heads.map((h): BooksEntry => withCustom({
       key: h.key, journal: h.journal, date: h.date, label: h.label, documentRef: h.document_ref, documentDate: h.document_date, state: h.state,
-      lines: (byEntry.get(h.id) ?? []).map((l) => ({
+      lines: (byEntry.get(h.id) ?? []).map((l) => withCustom({
         account: l.account, party: l.party, taxCode: l.tax_code, currency: l.currency, debit: side(l.debit), credit: side(l.credit), label: l.label,
-      })),
-    })),
+      }, l.custom)),
+    }, h.custom)),
+    ...(fields.length > 0 ? { fields } : {}),
   };
+}
+
+/** D7 — the custom fields, a retired one marked (it travels with the values written to it, and takes no new one). */
+export async function fieldsOf(tx: Tx, businessId: string): Promise<BooksField[]> {
+  return (await sql<{ applies_to: BooksField['appliesTo']; key: string; label: string; kind: BooksField['kind']; choices: string[] | null; required: boolean; is_active: boolean }>`
+    select applies_to, key, label, kind, choices, required, is_active from custom_field_defs
+     where business_id = ${businessId}::uuid order by applies_to, key`.execute(tx)).rows
+    .map((f) => ({ appliesTo: f.applies_to, key: f.key, label: f.label, kind: f.kind, choices: f.choices, required: f.required, ...(f.is_active ? {} : { retired: true as const }) }));
 }
 
 export type ApplyOutcome =
@@ -129,7 +142,9 @@ async function applyBooks(
   problems.push(...booksProblems(data, {
     accounts: new Set(nomi.accounts.map((a) => a.code)), journals: new Set(nomi.journals.map((j) => j.code)),
     parties: new Set(nomi.parties.map((p) => p.code)), taxCodes: new Set(nomi.taxCodes.map((t) => t.code)), bookCurrency,
+    fields: nomi.fields ?? [],
   }, where));
+
 
   // Each record: the same, new, read before and unchanged at its source, or changed.
   type Plan = { record: BooksRecord; action: 'add' | 'replace' | 'note'; draftOf?: string | null };
@@ -179,6 +194,19 @@ async function applyBooks(
     plan.push({ record: r, action: 'add' });
   }
 
+  // D7 — what is written takes no value under a field Nomi has retired; what is kept as it was may hold one. A field
+  // that ARRIVES retired comes with the values written while it was in use: they are read in, and it is retired after.
+  const retiredKeys = new Set((nomi.fields ?? []).filter((f) => f.retired).map(fieldKey));
+  const written = (kind: RecordKind) => new Set(plan.filter((p) => p.record.kind === kind && p.action !== 'note').map((p) => p.record.key));
+  const noRetired = (applies: BooksField['appliesTo'], values: CustomValues | undefined, kind: RecordKind, key: string, line?: number) => {
+    for (const k of Object.keys(values ?? {})) if (retiredKeys.has(`${applies}.${k}`)) at(kind, key, `${applies}.${k}`, 'retired_field', line);
+  };
+  for (const p of data.parties.filter((x) => written('party').has(x.code))) noRetired('party', p.custom, 'party', p.code);
+  for (const e of data.entries.filter((x) => written('entry').has(x.key))) {
+    noRetired('entry', e.custom, 'entry', e.key);
+    e.lines.forEach((l, i) => noRetired('line', l.custom, 'entry', e.key, i));
+  }
+
   // Each entry to write needs an open year and a day the lock date has not closed.
   const entries = new Map(data.entries.map((e) => [e.key, e]));
   const years = (await sql<{ id: string; starts_on: string; ends_on: string; state: string }>`
@@ -224,6 +252,11 @@ async function applyBooks(
   let added = 0;
   let replaced = 0;
   const adds = (kind: RecordKind) => plan.filter((p) => p.record.kind === kind && p.action === 'add').map((p) => p.record.key);
+  for (const f of (data.fields ?? []).filter((x) => adds('field').includes(fieldKey(x)))) {
+    await sql`insert into custom_field_defs (business_id, applies_to, key, label, kind, choices, required, is_active)
+      values (${businessId}::uuid, ${f.appliesTo}, ${f.key}, ${f.label}, ${f.kind}, ${f.choices === null ? null : [...f.choices]}::text[], ${f.required}, true)`.execute(tx);
+    added++;
+  }
   let pending = data.accounts.filter((a) => adds('account').includes(a.code));
   while (pending.length > 0) {
     const ready = pending.filter((a) => a.parent === null || ids.account.has(a.parent));
@@ -242,8 +275,8 @@ async function applyBooks(
     added++;
   }
   for (const p of data.parties.filter((x) => adds('party').includes(x.code))) {
-    ids.party.set(p.code, (await sql<{ id: string }>`insert into parties (business_id, code, name, kind, country, ice, tax_number)
-      values (${businessId}::uuid, ${p.code}, ${p.name}, ${p.kind}, ${p.country}, ${p.ice}, ${p.taxNumber}) returning id::text as id`.execute(tx)).rows[0]!.id);
+    ids.party.set(p.code, (await sql<{ id: string }>`insert into parties (business_id, code, name, kind, country, ice, tax_number, custom)
+      values (${businessId}::uuid, ${p.code}, ${p.name}, ${p.kind}, ${p.country}, ${p.ice}, ${p.taxNumber}, ${JSON.stringify(p.custom ?? {})}::jsonb) returning id::text as id`.execute(tx)).rows[0]!.id);
     added++;
   }
   for (const t of data.taxCodes.filter((x) => adds('tax_code').includes(taxCodeKey(x)))) {
@@ -258,21 +291,26 @@ async function applyBooks(
     if (p.action === 'replace' && p.draftOf) {
       await sql`update journal_entries set state = 'discarded' where id = ${p.draftOf}::uuid and business_id = ${businessId}::uuid and state = 'draft'`.execute(tx);
     }
-    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by)
+    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, custom)
       values (${businessId}::uuid, ${ids.journal.get(e.journal)!}::uuid, ${yearOf.get(e.key)!}::uuid, ${e.date}::date, ${e.label},
-              ${e.documentRef}, ${e.documentDate}::date, ${by}) returning id::text as id`.execute(tx)).rows[0]!.id;
+              ${e.documentRef}, ${e.documentDate}::date, ${by}, ${JSON.stringify(e.custom ?? {})}::jsonb) returning id::text as id`.execute(tx)).rows[0]!.id;
     let n = 0;
     for (const l of e.lines) {
       const tax = l.taxCode === null ? null : (await sql<{ id: string }>`select id::text as id from tax_codes
         where business_id = ${businessId}::uuid and code = ${l.taxCode} and valid_from <= ${e.date}::date and (valid_to is null or valid_to > ${e.date}::date)
         order by valid_from desc limit 1`.execute(tx)).rows[0]?.id;
       if (l.taxCode !== null && !tax) { at('entry', e.key, 'Tax code', 'unknown_tax_code', n); return { kind: 'refused', problems }; }
-      await sql`insert into journal_lines (business_id, entry_id, line_no, account_id, label, currency, debit, credit, party_id, tax_code_id)
+      await sql`insert into journal_lines (business_id, entry_id, line_no, account_id, label, currency, debit, credit, party_id, tax_code_id, custom)
         values (${businessId}::uuid, ${id}::uuid, ${++n}, ${ids.account.get(l.account)!}::uuid, ${l.label}, ${l.currency},
-                ${l.debit ?? '0'}::numeric, ${l.credit ?? '0'}::numeric, ${l.party === null ? null : ids.party.get(l.party)!}::uuid, ${tax ?? null}::uuid)`.execute(tx);
+                ${l.debit ?? '0'}::numeric, ${l.credit ?? '0'}::numeric, ${l.party === null ? null : ids.party.get(l.party)!}::uuid, ${tax ?? null}::uuid,
+                ${JSON.stringify(l.custom ?? {})}::jsonb)`.execute(tx);
     }
     madeEntries.set(e.key, id);
     if (p.action === 'replace') replaced++; else added++;
+  }
+  // D7 — a field that arrived retired is retired now, its values written.
+  for (const f of (data.fields ?? []).filter((x) => x.retired && adds('field').includes(fieldKey(x)))) {
+    await sql`update custom_field_defs set is_active = false where business_id = ${businessId}::uuid and applies_to = ${f.appliesTo} and key = ${f.key}`.execute(tx);
   }
   // What the source said, remembered: the next read of the same thing changes nothing.
   for (const p of plan) {

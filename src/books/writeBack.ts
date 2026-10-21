@@ -77,20 +77,20 @@ export async function writeBackOdoo(deps: WriteDeps, businessIdRaw: string): Pro
   if ('kind' in live) return { kind: 'refused', reason: live.reason };
   // Posted, not from Odoo (no draft Odoo's read made became it), not sent before.
   const entries = await withTenantTx(deps.db, bid.value, async (tx) => {
-    const heads = (await sql<{ id: string; key: string; journal: string; date: string; label: string }>`
-      select e.id::text as id, j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number as key, j.code as journal, e.entry_date::text as date, e.label
+    const heads = (await sql<{ id: string; key: string; journal: string; date: string; label: string; custom: Record<string, string> }>`
+      select e.id::text as id, j.code || '-' || extract(year from f.starts_on)::int || '-' || e.number as key, j.code as journal, e.entry_date::text as date, e.label, e.custom
         from journal_entries e join journals j on j.id = e.journal_id join fiscal_years f on f.id = e.fiscal_year_id
        where e.business_id = ${bid.value}::uuid and e.state = 'posted'
          and not exists (select 1 from connector_records r where r.business_id = e.business_id and r.system = 'odoo' and r.kind = 'entry' and r.nomi_id = e.id)
        order by e.entry_date, e.number limit 200`.execute(tx)).rows;
     const out: (OdooEntryOut & { id: string })[] = [];
     for (const h of heads) {
-      const lines = (await sql<{ account: string; party: string | null; currency: string; label: string | null; debit: string; credit: string; book_debit: string; book_credit: string }>`
-        select a.code as account, p.code as party, l.currency, l.label, l.debit::text as debit, l.credit::text as credit,
+      const lines = (await sql<{ account: string; party: string | null; currency: string; label: string | null; debit: string; credit: string; book_debit: string; book_credit: string; custom: Record<string, string> }>`
+        select a.code as account, p.code as party, l.currency, l.label, l.debit::text as debit, l.credit::text as credit, l.custom,
                coalesce(l.book_debit, 0)::text as book_debit, coalesce(l.book_credit, 0)::text as book_credit
           from journal_lines l join accounts a on a.id = l.account_id left join parties p on p.id = l.party_id
          where l.entry_id = ${h.id}::uuid order by l.line_no`.execute(tx)).rows;
-      out.push({ ...h, lines: lines.map((l) => ({ account: l.account, party: l.party, currency: l.currency, label: l.label,
+      out.push({ ...h, lines: lines.map((l) => ({ account: l.account, party: l.party, currency: l.currency, label: l.label, custom: l.custom,
         bookDebit: dec(l.book_debit), bookCredit: dec(l.book_credit),
         own: dec(l.debit) !== '0' ? dec(l.debit) : (`-${dec(l.credit)}` as Decimal) })) });
     }

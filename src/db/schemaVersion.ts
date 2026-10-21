@@ -440,7 +440,8 @@ import type { Db } from './client.js';
 // 189 = closing the books: a checklist, a lock only forward, a reopening recorded, a closing entry in its own journal (0189).
 // 190 = the CGNC chart (modèle normal), read from the CNC's own text, as a chart template (0190).
 // 191 = what a reader read from the books' papers, kept as read; one draft made from it, once (0191).
-export const REQUIRED_SCHEMA_VERSION = 191;
+// 192 = custom fields travel with the books: a connector's record kind 'field'; only a party's field is required (0192).
+export const REQUIRED_SCHEMA_VERSION = 192;
 
 export type SchemaState = {
   readonly required: number;

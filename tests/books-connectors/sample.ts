@@ -53,3 +53,24 @@ export const SAMPLE_BOOKS: BooksData = {
       ] },
   ],
 };
+
+/**
+ * D7 — the sample with the owner's CUSTOM FIELDS: a required choice and a date on parties, a text on entries, a
+ * number on lines — so every connector's round trip carries the fields and their values (a value only where there
+ * is one: the books without custom values read exactly as before).
+ */
+export const SAMPLE_WITH_FIELDS: BooksData = {
+  ...SAMPLE_BOOKS,
+  fields: [
+    { appliesTo: 'entry', key: 'project', label: 'Project', kind: 'text', choices: null, required: false },
+    { appliesTo: 'line', key: 'weight_kg', label: 'Weight (kg)', kind: 'number', choices: null, required: false },
+    { appliesTo: 'party', key: 'segment', label: 'Segment', kind: 'choice', choices: ['retail', 'wholesale'], required: true },
+    { appliesTo: 'party', key: 'since', label: 'Customer since', kind: 'date', choices: null, required: false },
+  ],
+  parties: SAMPLE_BOOKS.parties.map((p) => ({ ...p, custom: p.code === 'C001' ? { segment: 'wholesale', since: '2024-03-01' }
+    : { segment: p.code === 'C002' ? 'retail' : 'wholesale' } })),
+  entries: SAMPLE_BOOKS.entries.map((e) => (e.key !== 'VE-2026-1' ? e : {
+    ...e, custom: { project: 'Expo Casablanca' },
+    lines: e.lines.map((l, i) => (i === 1 ? { ...l, custom: { weight_kg: '12.50' } } : l)),
+  })),
+};

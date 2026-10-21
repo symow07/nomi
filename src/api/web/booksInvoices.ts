@@ -5,6 +5,7 @@ import { addDecimal, compareDecimal, signOf, subDecimal, type Decimal } from '..
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import { owedOn, type BilledTo, type InvoiceRow, type InvoiceStatus, type InvoiceView } from '../../db/booksInvoices.js';
 import type { CreditableLine, CreditNoteView } from '../../db/booksCreditNotes.js';
+import { customInputs } from './booksFields.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
@@ -115,7 +116,11 @@ export type InvoiceChoices = {
   readonly taxCodes: readonly { id: string; code: string; label: string }[];
   readonly bookCurrency: string;
   readonly salesAccountId: string | null;
+  /** D7 — the custom fields in use (the party form asks for the parties'). */
+  readonly fields?: readonly import('../../core/books/interchange.js').BooksField[];
 };
+/** D7 — a party's custom value's name in its form. */
+export const PARTY_CUSTOM = 'cf_party_';
 export const INVOICE_FORM_LINES = 5;
 
 export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Readonly<Record<string, string>>, problems: readonly string[], today: string): string {
@@ -154,6 +159,7 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
         <label class="pq"><span>${esc(t(locale, 'books.party.ice'))}</span><input name="ice" inputmode="numeric" maxlength="15" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.taxNumber'))}</span><input name="taxNumber" maxlength="40" /></label>
         <label class="pq"><span>${esc(t(locale, 'books.party.address'))}</span><textarea name="address" maxlength="400" rows="3"></textarea></label>
+        ${customInputs(locale, c.fields ?? [], 'party', PARTY_CUSTOM, {})}
         <button class="btn ghost" type="submit">${esc(t(locale, 'books.invoice.addCustomer'))}</button>
       </form>
     </div>`;

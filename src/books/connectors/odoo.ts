@@ -2,7 +2,7 @@ import { readStoreAddress } from '../../core/onboard/storeAddress.js';
 import type { Decimal } from '../../core/types/decimal.js';
 import { refused, type BooksConnector, type ConnectRefusal, type Grant, type Located } from '../../core/books/connector.js';
 import {
-  booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type RecordKind,
+  booksProblems, taxCodeKey, type BooksAccount, type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksTaxCode, type CustomValues, type RecordKind,
 } from '../../core/books/interchange.js';
 import type { PublicPost } from '../../net/publicFetch.js';
 import { excelNumber } from './excel.js';
@@ -39,7 +39,12 @@ import { parseExact } from './exactJson.js';
  *     wearing a fact's clothes). An entry dated before then that names it is refused with that reason;
  *   · a tax has no CODE in Odoo: Nomi names it `ODOO-<id>`, Odoo's own id inside the name, so an accountant reading
  *     the books sees whose it is;
- *   · a foreign line is read in its own currency (`amount_currency`); its conversion is the owner's (A3).
+ *   · a foreign line is read in its own currency (`amount_currency`); its conversion is the owner's (A3);
+ *   · D7 — Odoo has no place for the owner's CUSTOM VALUES that every Odoo has (a Studio field is the shop's own), so
+ *     they travel in a mark Nomi writes and reads back, "[nomi:…]": the values as JSON, in URL-safe base64 — which an
+ *     HTML field's cleaning leaves alone. An entry's in its move's notes (`narration`), a party's in the partner's
+ *     notes (`comment`), a line's at the end of its label (`name`, with the label read back without it). The FIELDS
+ *     themselves do not travel: Odoo cannot hold them, and its values are checked against Nomi's.
  *
  * Built against a recorded fake (tests/books-connectors/odoo-fake.ts) of the documented answers; live on deploy day
  * against the shop's Odoo, which needs Odoo's Custom plan (the shop's cost, not Nomi's — PHASE-5.md §7).
@@ -76,6 +81,23 @@ function exactBody(v: unknown): string {
     (x && typeof x === 'object' && 'number' in x && typeof (x as { number: unknown }).number === 'string' ? `\u0000n${(x as { number: string }).number}` : x))
     .replace(/"\\u0000n(-?\d+(?:\.\d+)?)"/g, '$1');
 }
+
+/** D7 — custom values as a mark in an Odoo text ("" for none), and read back from one (an HTML field's too). */
+export const customMark = (c: CustomValues | undefined): string => (c && Object.keys(c).length > 0
+  ? `[nomi:${Buffer.from(JSON.stringify(Object.fromEntries(Object.entries(c).sort(([a], [b]) => a.localeCompare(b))))).toString('base64url')}]` : '');
+const MARK_IN = /\s*\[nomi:([A-Za-z0-9_-]+)\]/;
+export function readMark(text: string | null): { readonly rest: string | null; readonly custom: CustomValues | undefined } {
+  const m = text === null ? null : MARK_IN.exec(text);
+  if (!m || text === null) return { rest: text, custom: undefined };
+  const rest = (text.slice(0, m.index) + text.slice(m.index + m[0].length)).trim();
+  let v: unknown = null;
+  try { v = JSON.parse(Buffer.from(m[1]!, 'base64url').toString('utf8')); } catch { v = null; }
+  const ok = v !== null && typeof v === 'object' && !Array.isArray(v) && Object.values(v).every((x) => typeof x === 'string');
+  const custom = ok && Object.keys(v as object).length > 0
+    ? Object.fromEntries(Object.entries(v as Record<string, string>).sort(([a], [b]) => a.localeCompare(b))) : undefined;
+  return { rest: rest === '' ? null : rest, custom };
+}
+const withValues = <T extends object>(r: T, c: CustomValues | undefined): T => (c ? { ...r, custom: c } : r);
 
 /** Odoo's many2one: `[id, "name"]` (or the id alone). */
 const idOf = (v: unknown): number | null =>
@@ -144,11 +166,11 @@ export function odooToBooks(raw: OdooRaw, bookCurrency: string): { data: BooksDa
     const code = ref && CODE.test(ref) ? ref : `P${id}`;
     const registry = str(p['company_registry']);
     if (id !== null) partnerCode.set(id, code);
-    parties.push({
+    parties.push(withValues({
       code, name: str(p['name']) ?? code,
       kind: (num(p['customer_rank']) ?? '0') !== '0' ? 'customer' : (num(p['supplier_rank']) ?? '0') !== '0' ? 'supplier' : 'other',
       country: str(p['country_code']), ice: registry && /^[0-9]{15}$/.test(registry) ? registry : null, taxNumber: str(p['vat']),
-    });
+    }, readMark(str(p['comment'])).custom));
     note('party', code, 'res.partner', id);
   }
   const taxAccount = new Map<number, string>();
@@ -189,16 +211,17 @@ export function odooToBooks(raw: OdooRaw, bookCurrency: string): { data: BooksDa
       const credit = foreign ? (amount !== null && amount.startsWith('-') ? (amount.slice(1) as Decimal) : null) : num(l['credit']);
       const taxes = ids(l['tax_ids']);
       rows.push(idOf(l['id']) ?? 0);
-      return {
+      const named = readMark(str(l['name']));
+      return withValues({
         account: accountCode.get(idOf(l['account_id']) ?? -1) ?? '', party: partnerCode.get(idOf(l['partner_id']) ?? -1) ?? null,
         taxCode: taxes.length === 1 ? (taxCode.get(taxes[0]!) ?? null) : null, currency,
-        debit: debit === '0' ? null : debit, credit: credit === '0' ? null : credit, label: str(l['name']),
-      };
+        debit: debit === '0' ? null : debit, credit: credit === '0' ? null : credit, label: named.rest,
+      }, named.custom);
     });
-    entries.push({
+    entries.push(withValues({
       key, journal, date, label: str(m['ref']) ?? key, documentRef: key, documentDate: str(m['invoice_date']),
       state: m['state'] === 'posted' ? 'posted' : 'draft', lines,
-    });
+    }, readMark(str(m['narration'])).custom));
     note('entry', key, 'account.move', id);
     lineAt.set(key, rows);
   }
@@ -207,7 +230,7 @@ export function odooToBooks(raw: OdooRaw, bookCurrency: string): { data: BooksDa
     (kind === 'entry' && line !== undefined ? { sheet: 'account.move.line', row: lineAt.get(key)?.[line] ?? 0 } : at.get(`${kind}:${key}`) ?? { sheet: '', row: 0 });
   const none = new Set<string>();
   problems.push(...booksProblems(data, { accounts: none, journals: none, parties: none, taxCodes: none, bookCurrency }, where)
-    .filter((p) => !['unknown_journal', 'unknown_party', 'unknown_tax_code'].includes(p.reason)));
+    .filter((p) => !['unknown_journal', 'unknown_party', 'unknown_tax_code', 'unknown_field'].includes(p.reason)));
   return { data, problems, where };
 }
 
@@ -225,20 +248,20 @@ export function booksToOdoo(d: BooksData, companyCurrency: string): OdooRaw {
     journals: d.journals.map((j, i) => ({ id: { number: String(i + 1) }, code: j.code, name: j.name, type: ODOO_JOURNAL[j.kind] })),
     partners: d.parties.map((p, i) => ({ id: { number: String(i + 1) }, ref: p.code, name: p.name,
       customer_rank: { number: p.kind === 'customer' ? '1' : '0' }, supplier_rank: { number: p.kind === 'supplier' ? '1' : '0' },
-      country_code: p.country ?? false, vat: p.taxNumber ?? false, company_registry: p.ice ?? false })),
+      country_code: p.country ?? false, vat: p.taxNumber ?? false, company_registry: p.ice ?? false, comment: customMark(p.custom) || false })),
     taxes: d.taxCodes.map((t, i) => ({ id: { number: String(i + 1) }, name: t.label, amount: { number: t.rate }, amount_type: 'percent',
       type_tax_use: t.kind === 'deductible' ? 'purchase' : 'sale' })),
     taxAccounts: d.taxCodes.filter((t) => t.account !== null).map((t) => ({ tax_id: [{ number: String(taxId.get(t.code)!) }, t.label],
       account_id: [{ number: String(accountId.get(t.account!)!) }, t.account] })),
     moves: d.entries.map((e, i) => ({ id: { number: String(i + 1) }, name: e.key, journal_id: [{ number: String(journalId.get(e.journal)!) }, e.journal],
-      date: e.date, ref: e.label, invoice_date: e.documentDate ?? false, state: e.state })),
+      date: e.date, ref: e.label, invoice_date: e.documentDate ?? false, state: e.state, narration: customMark(e.custom) || false })),
     lines: d.entries.flatMap((e, i) => e.lines.map((l) => {
       const foreign = l.currency !== companyCurrency;
       return { id: { number: String(++lineNo) }, move_id: [{ number: String(i + 1) }, e.key],
         account_id: [{ number: String(accountId.get(l.account)!) }, l.account],
         partner_id: l.party === null ? false : [{ number: String(partnerId.get(l.party)!) }, l.party],
         tax_ids: l.taxCode === null ? [] : [{ number: String(taxId.get(l.taxCode)!) }],
-        currency_id: [{ number: '1' }, l.currency], name: l.label ?? false,
+        currency_id: [{ number: '1' }, l.currency], name: [l.label, customMark(l.custom)].filter(Boolean).join(' ') || false,
         debit: foreign ? { number: '0' } : n(l.debit), credit: foreign ? { number: '0' } : n(l.credit),
         amount_currency: foreign ? { number: l.debit !== null ? l.debit : `-${l.credit}` } : { number: '0' } };
     })),
@@ -267,12 +290,12 @@ async function readOdoo(post: PublicPost, s: OdooSource, cursor: string | null):
   const accounts = await search('account.account', [], ['code', 'name', 'account_type']); if (!Array.isArray(accounts)) return accounts;
   const journals = await search('account.journal', [], ['code', 'name', 'type']); if (!Array.isArray(journals)) return journals;
   const partners = await search('res.partner', ['|', ['customer_rank', '>', 0], ['supplier_rank', '>', 0]],
-    ['ref', 'name', 'customer_rank', 'supplier_rank', 'country_code', 'vat', 'company_registry']); if (!Array.isArray(partners)) return partners;
+    ['ref', 'name', 'customer_rank', 'supplier_rank', 'country_code', 'vat', 'company_registry', 'comment']); if (!Array.isArray(partners)) return partners;
   const taxes = await search('account.tax', [], ['name', 'amount', 'amount_type', 'type_tax_use']); if (!Array.isArray(taxes)) return taxes;
   const taxAccounts = await search('account.tax.repartition.line', [['repartition_type', '=', 'tax'], ['document_type', '=', 'invoice']],
     ['tax_id', 'account_id']); if (!Array.isArray(taxAccounts)) return taxAccounts;
   const moves = await search('account.move', [['state', 'in', ['draft', 'posted']], ...(cursor ? [['write_date', '>', cursor]] : [])],
-    ['name', 'journal_id', 'date', 'ref', 'invoice_date', 'state', 'write_date']); if (!Array.isArray(moves)) return moves;
+    ['name', 'journal_id', 'date', 'ref', 'invoice_date', 'state', 'write_date', 'narration']); if (!Array.isArray(moves)) return moves;
   const moveIds = moves.map((m) => idOf(m['id'])).filter((x): x is number => x !== null);
   const lines = moveIds.length === 0 ? [] : await search('account.move.line', [['move_id', 'in', moveIds]],
     ['move_id', 'account_id', 'partner_id', 'tax_ids', 'currency_id', 'debit', 'credit', 'amount_currency', 'name']);
@@ -324,9 +347,9 @@ export function odooConnector(post: PublicPost, bookCurrency: string, today: () 
 
 /** C4 — one of Nomi's posted entries, as Odoo takes it: amounts in the company's currency, and a foreign line's own. */
 export type OdooEntryOut = {
-  readonly key: string; readonly journal: string; readonly date: string; readonly label: string;
+  readonly key: string; readonly journal: string; readonly date: string; readonly label: string; readonly custom?: CustomValues;
   readonly lines: readonly { readonly account: string; readonly party: string | null; readonly currency: string; readonly label: string | null;
-    readonly bookDebit: Decimal; readonly bookCredit: Decimal; readonly own: Decimal }[];
+    readonly bookDebit: Decimal; readonly bookCredit: Decimal; readonly own: Decimal; readonly custom?: CustomValues }[];
 };
 /** A sent entry: Nomi's number, and the name Odoo gave the move when it was posted (null if Odoo would not say). */
 export type OdooSent = { readonly key: string; readonly odooName: string | null };
@@ -369,8 +392,10 @@ export async function sendEntriesToOdoo(post: PublicPost, s: OdooSource, entries
     const noCurrency = e.lines.find((l) => !currencies.has(l.currency)) ?? null;
     if (noCurrency) { conflicts.push({ key: e.key, reason: 'no_currency', detail: noCurrency.currency }); continue; }
     const n = (x: Decimal) => ({ number: x });
-    const vals = { journal_id: journals.get(e.journal), date: e.date, ref: e.key, move_type: 'entry', line_ids: e.lines.map((l) => [0, 0, {
-      account_id: accounts.get(l.account), partner_id: l.party === null ? false : partners.get(l.party), name: l.label ?? e.label,
+    const vals = { journal_id: journals.get(e.journal), date: e.date, ref: e.key, move_type: 'entry',
+      ...(customMark(e.custom) ? { narration: customMark(e.custom) } : {}), line_ids: e.lines.map((l) => [0, 0, {
+      account_id: accounts.get(l.account), partner_id: l.party === null ? false : partners.get(l.party),
+      name: [l.label ?? e.label, customMark(l.custom)].filter(Boolean).join(' '),
       debit: n(l.bookDebit), credit: n(l.bookCredit),
       ...(l.currency !== companyCurrency ? { currency_id: currencies.get(l.currency), amount_currency: n(l.own) } : {}),
     }]) };

@@ -539,6 +539,29 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - The accountant sees and takes the papers, and reads or drafts nothing.
   - The books' launch blocker for /privacy now also names the model provider reading the papers.
 - **D7 · Item 9 — custom categories and fields.** *Depends on C1.*
+  *(built 2026-10-22, 0192: `/app/books/fields`.)*
+  - **The owner defines a field** on entries, lines, or customers and suppliers: text, an exact number, a date, or
+    one of a list (a category). 0170's table and checks hold the values; the page only adds the definitions.
+  - **Only a party's field can be required** (0192, a check in the database). Nomi writes entries of its own (an
+    invoice issued, a payment, a bank match, an exchange difference, a year's closing), and none of them could give
+    a value. A party is always made by a person.
+  - **A field is never deleted, and keeps its key and kind** (0170). One no longer wanted is RETIRED: no form offers
+    it, and no new row takes a value under it. The values it has stay, travel with it, and read back. It can be used
+    again.
+  - **The forms:** the entry form (the entry's fields, and a column per line field) and the customer form. Each value
+    is checked as the database checks it, and a wrong one is named by its field. The entry page shows the values.
+  - **Every road the books take carries them** (the done-criterion):
+    - **the workbook and Google Sheets:** the definitions below their own header on the "Nomi" sheet (not a new tab:
+      Sheets refuses to read a tab that is missing), and a column per field named by it — `party.segment`,
+      `entry.project`, `line.weight_kg`. An entry's value is the same on each of its lines;
+    - **Odoo:** no place every Odoo has, so the values travel in Nomi's mark, `[nomi:…]` (the values as JSON in
+      URL-safe base64, which an HTML field's cleaning leaves alone): the move's notes, the partner's notes, the end
+      of a line's label. The FIELDS do not go to Odoo; a read from Odoo is checked against Nomi's;
+    - **the owner's copy (A2.4):** a last column, `Champs_Personnalises`, one exact JSON object per line;
+    - **the read-in:** a definition is a record like the rest (connector_records' kind `field`). A new field is added
+      before the values that need it; a field Nomi holds otherwise is a difference to settle in Nomi. A field that
+      arrives retired comes with its values and is retired after them.
+  - The accountant sees the fields and changes none (0186's trigger on the definitions, proven past the route).
 - **D8 · Xero,** then **D9 · QuickBooks**, through B1. *Depends on C4.* 💰 above the free tiers.
 - **DZ · Closing task of Phase 5: the role sweep** (the owner, 2026-10-22).
   - Twice in block C, a role restriction held in the routes and not underneath (B0's sales side, 0186's invoices and
@@ -546,6 +569,9 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - Before Phase 5 closes, **every role restriction is checked at the database, not the page:**
     - for each table, what the accountant and staff may read and write;
     - each one proven by a test that goes past the route guard, as `books-viewer.test.ts` does.
+  - **Found in D7, for the sweep:** the accountant's write is refused at the database on invoices, payments,
+    statements, matches, credit notes, papers' readings, fiscal years and custom fields — but NOT on parties, accounts,
+    journals, tax codes, or a draft entry and its lines. The routes refuse them all, and posting is refused (0175).
 
 ### Stage S — the salesperson, alongside A–D wherever it doesn't depend on them
 

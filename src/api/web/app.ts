@@ -237,7 +237,10 @@ import { readBooks, readInBooks, rememberWritten } from '../../db/booksInterchan
 import { writeBackOdoo, writeBackSheets, type WriteResult } from '../../books/writeBack.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
-import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
+import { ENTRY_CUSTOM, ENTRY_FORM_LINES, lineCustom, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
+import { addField, customFromForm, listFields, setFieldInUse } from '../../db/booksFields.js';
+import { renderFields } from './booksFields.js';
+import { fieldsOf } from '../../db/booksInterchange.js';
 import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
 import { fecFile, numberingProblems } from '../../core/books/fec.js';
@@ -2574,9 +2577,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const f = (req.body ?? {}) as Record<string, unknown>;
     const values: Record<string, string> = {};
-    for (const [k, v] of Object.entries(f)) if (typeof v === 'string') values[k] = v.slice(0, 300);
+    for (const [k, v] of Object.entries(f)) if (typeof v === 'string') values[k] = v.slice(0, k.startsWith('cf_') ? 600 : 300);
     const c = await withTenantTx(deps.db, bid, (tx) => entryChoices(tx, bid));
     const problems: string[] = [];
+    // D7 — the custom values, checked as the database checks them, each named by its field.
+    const said = (w: { label: string; why: 'bad_field_value' | 'required_field' }) =>
+      t(locale, w.why === 'required_field' ? 'books.fields.problem.required' : 'books.fields.problem.value', { label: w.label });
+    const entryCustom = customFromForm(c.fields, 'entry', values, ENTRY_CUSTOM);
+    problems.push(...entryCustom.wrong.map(said));
     const has = (rows: readonly { id: string }[], id: string | undefined) => !!id && rows.some((r) => r.id === id);
     if (!has(c.journals, values['journal'])) problems.push(t(locale, 'books.entry.problem.journal'));
     const date = values['date'] ?? '';
@@ -2606,15 +2614,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!(CURRENCIES as readonly string[]).includes(currency)) { problems.push(t(locale, 'books.entry.problem.amount', { n })); continue; }
       const party = values[`party${i}`] || null; const tax = values[`tax${i}`] || null;
       if ((party && !has(c.parties, party)) || (tax && !has(c.taxCodes, tax))) { problems.push(t(locale, 'books.entry.problem.account', { n })); continue; }
+      const custom = customFromForm(c.fields, 'line', values, lineCustom(i));
+      if (custom.wrong.length > 0) { problems.push(...custom.wrong.map((w) => said({ ...w, label: `${w.label} ${n}` }))); continue; }
       lines.push({ accountId: account!, partyId: party, taxCodeId: tax, currency, debit, credit,
-        label: (values[`label${i}`] ?? '').trim() || null, isFx: values[`fx${i}`] === '1' });
+        label: (values[`label${i}`] ?? '').trim() || null, isFx: values[`fx${i}`] === '1', custom: custom.values });
     }
     if (problems.length === 0 && lines.length < 2) problems.push(t(locale, 'books.entry.problem.twoLines'));
     const again = (list: readonly string[]) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.entries.new'), active: 'settings', bodyHtml: renderNewEntry(locale, c, values, list, todayIso()) }));
     if (problems.length > 0) return again(problems);
     const out = await withTenantTx(deps.db, bid, (tx) => draftEntry(tx, bid, personOf(s).id, {
-      journalId: values['journal']!, date, label, documentRef: (values['documentRef'] ?? '').trim() || null, documentDate: docDate || null, lines }));
+      journalId: values['journal']!, date, label, documentRef: (values['documentRef'] ?? '').trim() || null, documentDate: docDate || null, lines,
+      custom: entryCustom.values }));
     if (out.kind === 'refused') return again([entryRefusedWhy(locale, out)]);
     return reply.redirect(`/app/books/entries/${out.id}`, 303);
   });
@@ -2623,10 +2634,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
-    const found = await withTenantTx(deps.db, bid, async (tx) => ({ e: await loadEntry(tx, bid, id), c: (await entryChoices(tx, bid)).bookCurrency }));
+    const found = await withTenantTx(deps.db, bid, async (tx) => { const c = await entryChoices(tx, bid); return { e: await loadEntry(tx, bid, id), c: c.bookCurrency, fields: c.fields }; });
     if (!found.e) return reply.callNotFound();
     return reply.type('text/html; charset=utf-8').send(page(req, { title: found.e.state === 'posted' ? found.e.key : t(locale, 'books.entry.state.draft'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderEntry(locale, personOf(s), found.e, todayIso(), found.c)}` }));
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderEntry(locale, personOf(s), found.e, todayIso(), found.c, found.fields)}` }));
   });
   app.post('/app/books/entries/:id/post', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
@@ -2699,7 +2710,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const invoiceChoices = (bid: BusinessId) => withTenantTx(deps.db, bid, async (tx) => {
     const c = await entryChoices(tx, bid);
     const a = await booksAccountsOf(tx, bid);
-    return { parties: c.parties, accounts: c.accounts, taxCodes: c.taxCodes, bookCurrency: c.bookCurrency, salesAccountId: a.salesAccountId };
+    return { parties: c.parties, accounts: c.accounts, taxCodes: c.taxCodes, bookCurrency: c.bookCurrency, salesAccountId: a.salesAccountId, fields: c.fields };
   });
   const invoiceRefusedWhy = (locale: Locale, r: { reason: string; detail: string | null }) =>
     r.reason === 'accounts_not_set' ? t(locale, 'books.orders.setFirst')
@@ -3162,6 +3173,41 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, '/app/books#chart', 'books.flash.chartApplied', { accounts: out.accounts, journals: out.journals });
   });
   /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */
+  // D7 — the owner's custom fields: seen by the books' readers; added, retired and used again by the owner.
+  app.get('/app/books/fields', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid, (tx) => listFields(tx, bid));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.fields.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFields(locale, personOf(s), rows)}` }));
+  });
+  app.post('/app/books/fields', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
+    const kind = str('kind') as 'text' | 'number' | 'date' | 'choice';
+    const choices = str('choices').split(/\r?\n/).map((x) => x.trim()).filter((x) => x !== '');
+    const out = await withTenantTx(deps.db, bid, (tx) => addField(tx, bid, {
+      appliesTo: str('appliesTo') as 'entry' | 'line' | 'party', key: str('key'), label: str('label').slice(0, 200), kind,
+      choices: kind === 'choice' ? choices : null, required: str('required') === '1' }));
+    if (out.kind === 'refused') {
+      return flashTo(reply, '/app/books/fields#new-field', 'books.flash.fieldRefused', {
+        why: t(locale, out.reason === 'taken' ? 'books.fields.taken' : out.reason === 'required_not_party' ? 'books.problem.required_not_party' : 'books.problem.bad_field') });
+    }
+    return flashTo(reply, '/app/books/fields', 'books.flash.fieldAdded');
+  });
+  for (const [path, inUse] of [['retire', false], ['use', true]] as const) {
+    app.post(`/app/books/fields/:id/${path}`, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      const bid = bidOf(s); if (!bid) return reply.callNotFound();
+      const done = await withTenantTx(deps.db, bid, (tx) => setFieldInUse(tx, bid, (req.params as { id: string }).id, inUse));
+      if (!done) return reply.callNotFound();
+      return flashTo(reply, '/app/books/fields', inUse ? 'books.flash.fieldInUse' : 'books.flash.fieldRetired');
+    });
+  }
   app.get('/app/books/trial-balance', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();
@@ -3237,13 +3283,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).trim() : '');
     const [code, name, country, ice] = [str('code'), str('name').slice(0, 200), str('country').toUpperCase(), str('ice')];
     const [taxNumber, address] = [str('taxNumber'), str('address')];
+    // D7 — the party's custom values, every required one there (the database checks the same).
+    const form = Object.fromEntries(Object.entries(f).filter(([k, v]) => k.startsWith('cf_') && typeof v === 'string').map(([k, v]) => [k, (v as string).slice(0, 600)]));
+    const custom = customFromForm((await withTenantTx(deps.db, bid, (tx) => fieldsOf(tx, bid))).filter((x) => !x.retired), 'party', form, 'cf_party_');
+    const wrong = custom.wrong[0];
+    if (wrong) {
+      const locale = localeOf(req);
+      return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyFieldRefused',
+        { why: t(locale, wrong.why === 'required_field' ? 'books.fields.problem.required' : 'books.fields.problem.value', { label: wrong.label }) });
+    }
     if (!/^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/.test(code) || !name || (country && !/^[A-Z]{2}$/.test(country)) || (ice && !/^[0-9]{15}$/.test(ice))
         || taxNumber.length > 40 || address.length > 400) {
       return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused');
     }
     try {
-      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice, tax_number, address)
-        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null}, ${taxNumber || null}, ${address || null})`.execute(tx));
+      await withTenantTx(deps.db, bid, (tx) => sql`insert into parties (business_id, code, name, kind, country, ice, tax_number, address, custom)
+        values (${bid}::uuid, ${code}, ${name}, 'customer', ${country || null}, ${ice || null}, ${taxNumber || null}, ${address || null}, ${JSON.stringify(custom.values)}::jsonb)`.execute(tx));
     } catch { return flashTo(reply, '/app/books/invoices/new#customer', 'books.flash.partyRefused'); }
     return flashTo(reply, '/app/books/invoices/new', 'books.flash.partyAdded');
   });

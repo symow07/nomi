@@ -3,7 +3,7 @@ import { createSpreadsheet, sheetsAccess, sheetsConnector } from '../../src/book
 import { recordsOf } from '../../src/core/books/interchange.js';
 import { conformance } from './conformance.js';
 import { googleFake } from './google-fake.js';
-import { SAMPLE_BOOKS } from './sample.js';
+import { SAMPLE_BOOKS, SAMPLE_WITH_FIELDS } from './sample.js';
 
 /**
  * B3 — the Nomi workbook in Google Sheets (PHASE-5.md §4): the same workbook through the API with `drive.file`; a
@@ -18,7 +18,7 @@ const connector = sheetsConnector(deps, 'MAD');
 conformance({
   name: 'the Nomi workbook in Google Sheets',
   connector,
-  sample: SAMPLE_BOOKS,
+  sample: SAMPLE_WITH_FIELDS,
   connectTo: async (data) => {
     const signedIn = await connector.connect(SIGN_IN);
     if (signedIn.kind !== 'connected') throw new Error(signedIn.reason);

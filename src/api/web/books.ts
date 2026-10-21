@@ -68,6 +68,11 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/chart/cgnc', action: 'post' },
   // D1 — the trial balance: the books' to see (the accountant's too).
   { method: 'GET', url: '/app/books/trial-balance', action: 'see' },
+  // D7 — custom fields: the list the books' to see; adding, retiring and using one again the owner's.
+  { method: 'GET', url: '/app/books/fields', action: 'see' },
+  { method: 'POST', url: '/app/books/fields', action: 'post' },
+  { method: 'POST', url: '/app/books/fields/:id/retire', action: 'post' },
+  { method: 'POST', url: '/app/books/fields/:id/use', action: 'post' },
   { method: 'GET', url: '/app/books/entries/:id', action: 'see' },
   { method: 'GET', url: '/app/books/entries/new', action: 'post' },
   { method: 'POST', url: '/app/books/entries', action: 'post' },
@@ -124,6 +129,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     <p><a class="deeper" href="/app/books/closing">${esc(t(locale, 'books.close.title'))}</a></p>
     <p><a class="deeper" href="/app/books/fec">${esc(t(locale, 'books.fec.title'))}</a></p>
     <p><a class="deeper" href="/app/books/papers">${esc(t(locale, 'books.papers.title'))}</a></p>
+    <p><a class="deeper" href="/app/books/fields">${esc(t(locale, 'books.fields.door'))}</a></p>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'data.books.title'))}</span>
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>

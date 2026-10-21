@@ -99,7 +99,7 @@ d('B0 · the database keeps an accountant to the books (requires DATABASE_URL)',
     // the books are theirs to see
     await asViewer(accountantId, () => withTenantTx(db, bid.value, (tx) => sql`select count(*) from journal_entries`.execute(tx)));
     // and C2's and C3's tables are theirs to see, never to change (0186): each write refused before anything else is checked
-    for (const t of ['invoices', 'invoice_lines', 'invoice_payments', 'statement_imports', 'statement_lines', 'statement_matches', 'credit_notes', 'credit_note_lines']) {
+    for (const t of ['invoices', 'invoice_lines', 'invoice_payments', 'statement_imports', 'statement_lines', 'statement_matches', 'credit_notes', 'credit_note_lines', 'custom_field_defs']) {
       await asViewer(accountantId, () => withTenantTx(db, bid.value, (tx) => sql`select count(*) from ${sql.table(t)}`.execute(tx)));
       await expect(asViewer(accountantId, () => withTenantTx(db, bid.value, (tx) =>
         sql`insert into ${sql.table(t)} (business_id) values (${RUN_BIZ}::uuid)`.execute(tx)))).rejects.toThrow(/an accountant sees and exports the books; this is the owner's/);

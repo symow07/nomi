@@ -3,8 +3,8 @@ import { parseDecimal, roundDecimal, type Decimal } from '../../core/types/decim
 import { CURRENCIES } from '../../core/types/money.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import {
-  ACCOUNT_KINDS, EMPTY_BOOKS, JOURNAL_KINDS, PARTY_KINDS, TAX_KINDS, booksProblems, taxCodeKey,
-  type BooksData, type BooksEntry, type BooksLine, type BooksProblem, type BooksProblemReason, type RecordKind,
+  ACCOUNT_KINDS, EMPTY_BOOKS, FIELD_APPLIES, FIELD_KINDS, JOURNAL_KINDS, PARTY_KINDS, TAX_KINDS, booksProblems, fieldKey, taxCodeKey,
+  type BooksData, type BooksEntry, type BooksField, type BooksLine, type BooksProblem, type BooksProblemReason, type CustomValues, type RecordKind,
 } from '../../core/books/interchange.js';
 import { refused, type BooksConnector, type Grant, type Located } from '../../core/books/connector.js';
 
@@ -36,6 +36,14 @@ const HEADERS = {
     'Currency', 'Debit', 'Credit', 'Line label'],
 } as const;
 type Tab = keyof typeof HEADERS;
+/**
+ * D7 — the custom fields, on the "Nomi" sheet below this header row (a tab of their own would be a sheet older
+ * workbooks lack, and Google Sheets refuses to read a tab that is not there). Their values are columns named by the
+ * field: "party.segment" on Parties, "entry.project" and "line.weight_kg" on Journal — an entry's on each of its lines,
+ * the same on every one, as an entry's other columns are.
+ */
+const FIELD_HEADERS = ['Applies to', 'Key', 'Label', 'Kind', 'Choices', 'Required', 'In use'] as const;
+const FIELDS_TITLE = 'Custom fields';
 
 const CODE = /^[0-9A-Za-z][0-9A-Za-z.\-]{0,19}$/;
 const JOURNAL_CODE = /^[A-Z0-9]{1,8}$/;
@@ -105,6 +113,7 @@ export function sheetsToBooks(
   const where = new Map<string, { sheet: string; row: number }>();
 
   /** Each tab's rows below its header, as header → cell, with the row's own number. */
+  const headsOf = new Map<Tab, string[]>();
   const rowsOf = (tab: Tab): { n: number; get: (h: string) => XlsxCell }[] => {
     const name = SHEETS[tab];
     const sheet: XlsxSheet | undefined = book.sheets.find((s) => s.name === name);
@@ -113,6 +122,7 @@ export function sheetsToBooks(
     if (numbers.length === 0) { problems.push({ sheet: name, row: 1, column: HEADERS[tab][0]!, reason: 'missing_column' }); return []; }
     const head = numbers[0]!;
     const index = new Map(sheet.rows.get(head)!.map((c, i) => [c.text, i] as const));
+    headsOf.set(tab, [...index.keys()]);
     let complete = true;
     for (const h of HEADERS[tab]) if (!index.has(h)) { problems.push({ sheet: name, row: head, column: h, reason: 'missing_column' }); complete = false; }
     if (!complete) return [];
@@ -164,6 +174,45 @@ export function sheetsToBooks(
 
   if (!isNomiWorkbook(book)) return { data: empty, problems: [{ sheet: SHEETS.about, row: 1, column: 'A', reason: 'missing_sheet' }], where: nowhere };
 
+  // D7 — the custom fields, below their header row on the "Nomi" sheet (none: a workbook from before D7).
+  const fields: BooksField[] = [];
+  const about = book.sheets.find((s) => s.name === SHEETS.about)!;
+  const aboutRows = [...about.rows.keys()].sort((a, b) => a - b);
+  const fieldHead = aboutRows.find((n) => FIELD_HEADERS.every((h, i) => about.rows.get(n)![i]?.text === h));
+  for (const n of fieldHead === undefined ? [] : aboutRows.filter((x) => x > fieldHead)) {
+    const cells = about.rows.get(n)!;
+    const cell = (i: number) => cells[i]?.text ?? '';
+    if (cells.every((c) => c.text === '')) continue;
+    const appliesTo = cell(0) as BooksField['appliesTo'];
+    const k = cell(3) as BooksField['kind'];
+    const where1 = { sheet: SHEETS.about, row: n };
+    if (!(FIELD_APPLIES as readonly string[]).includes(appliesTo)) { problems.push({ ...where1, column: 'Applies to', reason: 'unknown_kind' }); continue; }
+    if (!(FIELD_KINDS as readonly string[]).includes(k)) { problems.push({ ...where1, column: 'Kind', reason: 'unknown_kind' }); continue; }
+    const required = cell(5) === 'yes' ? true : cell(5) === '' || cell(5) === 'no' ? false : null;
+    if (required === null) { problems.push({ ...where1, column: 'Required', reason: 'unknown_kind' }); continue; }
+    const inUse = cell(6) === '' || cell(6) === 'yes' ? true : cell(6) === 'no' ? false : null;
+    if (inUse === null) { problems.push({ ...where1, column: 'In use', reason: 'unknown_kind' }); continue; }
+    const f: BooksField = { appliesTo, key: cell(1), label: cell(2), kind: k,
+      choices: cell(4) === '' ? null : cell(4).split('|').map((c) => c.trim()), required, ...(inUse ? {} : { retired: true as const }) };
+    if (where.has(`field:${fieldKey(f)}`)) { problems.push({ ...where1, column: 'Key', reason: 'duplicate' }); continue; }
+    where.set(`field:${fieldKey(f)}`, where1);
+    fields.push(f);
+  }
+  const fieldBy = new Map(fields.map((f) => [fieldKey(f), f]));
+  /** A row's custom values: each column named "<applies>.<key>", read for its field's kind (a date may be an Excel date). */
+  const customOf = (tab: Tab, n: number, applies: BooksField['appliesTo'], heads: readonly string[], get: (h: string) => XlsxCell): CustomValues | undefined => {
+    const out: Record<string, string> = {};
+    for (const h of heads.filter((x) => x.startsWith(`${applies}.`))) {
+      const c = get(h);
+      if (c.text === '') continue;
+      const f = fieldBy.get(h);
+      const v = !c.number ? c.text : f?.kind === 'date' ? dayOfSerial(c.text, book.date1904) : excelNumber(c.text);
+      if (v === null) { at(tab, n, h, f?.kind === 'date' ? 'not_a_date' : 'not_an_amount'); continue; }
+      out[h.slice(applies.length + 1)] = v;
+    }
+    return Object.keys(out).length > 0 ? Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b))) : undefined;
+  };
+
   const accounts: BooksData['accounts'][number][] = [];
   for (const r of rowsOf('accounts')) {
     const c = code('accounts', r.n, 'Code', r.get('Code'), CODE);
@@ -188,8 +237,9 @@ export function sheetsToBooks(
     const ice = text(r.get('ICE'));
     if (ice !== null && !/^[0-9]{15}$/.test(ice)) at('parties', r.n, 'ICE', 'bad_ice');
     const taxNumber = text(r.get('Tax number'));
+    const custom = customOf('parties', r.n, 'party', headsOf.get('parties') ?? [], r.get);
     if (c && name && k && !seen('party', c, 'parties', r.n, 'Code') && (ice === null || /^[0-9]{15}$/.test(ice))) {
-      parties.push({ code: c, name, kind: k, country, ice, taxNumber });
+      parties.push({ code: c, name, kind: k, country, ice, taxNumber, ...(custom ? { custom } : {}) });
     }
   }
   const taxCodes: BooksData['taxCodes'][number][] = [];
@@ -210,9 +260,11 @@ export function sheetsToBooks(
   // The journal: rows grouped by their Entry key, in the order the keys first appear.
   type Building = { entry: Omit<BooksEntry, 'lines'>; lines: BooksLine[]; rows: number[]; broken: boolean };
   const building = new Map<string, Building>();
+  const journalHeads = () => headsOf.get('journal') ?? [];
   for (const r of rowsOf('journal')) {
     const key = need('journal', r.n, 'Entry', r.get('Entry'));
     if (key === null) continue;
+    const entryCustom = customOf('journal', r.n, 'entry', journalHeads(), r.get);
     const head = {
       journal: text(r.get('Journal')), date: r.get('Date'), label: text(r.get('Label')), documentRef: text(r.get('Document')),
       documentDate: r.get('Document date'), state: text(r.get('State')),
@@ -225,7 +277,8 @@ export function sheetsToBooks(
       const documentDate = day('journal', r.n, 'Document date', head.documentDate, false);
       const state = head.state === null || head.state === 'draft' ? 'draft' : head.state === 'posted' ? 'posted' : null;
       if (state === null) at('journal', r.n, 'State', 'unknown_kind');
-      b = { entry: { key, journal: journal ?? '', date: date ?? '', label: label ?? '', documentRef: head.documentRef, documentDate, state: state ?? 'draft' },
+      b = { entry: { key, journal: journal ?? '', date: date ?? '', label: label ?? '', documentRef: head.documentRef, documentDate, state: state ?? 'draft',
+        ...(entryCustom ? { custom: entryCustom } : {}) },
         lines: [], rows: [], broken: !journal || !date || !label || state === null };
       building.set(key, b);
       where.set(`entry:${key}`, { sheet: SHEETS.journal, row: r.n });
@@ -238,6 +291,7 @@ export function sheetsToBooks(
       differs('State', head.state, b.entry.state);
       if (head.date.text !== '') differs('Date', day('journal', r.n, 'Date', head.date, false), b.entry.date);
       if (head.documentDate.text !== '') differs('Document date', day('journal', r.n, 'Document date', head.documentDate, false), b.entry.documentDate);
+      for (const [k, v] of Object.entries(entryCustom ?? {})) differs(`entry.${k}`, v, b.entry.custom?.[k] ?? null);
     }
     const account = code('journal', r.n, 'Account', r.get('Account'), CODE);
     const party = code('journal', r.n, 'Party', r.get('Party'), CODE, false);
@@ -248,7 +302,8 @@ export function sheetsToBooks(
     const credit = amount('journal', r.n, 'Credit', r.get('Credit'));
     const ok = account !== null && currency !== null && (CURRENCIES as readonly string[]).includes(currency);
     if (!ok) b.broken = true;
-    b.lines.push({ account: account ?? '', party, taxCode, currency: currency ?? '', debit, credit, label: text(r.get('Line label')) });
+    const lineCustom = customOf('journal', r.n, 'line', journalHeads(), r.get);
+    b.lines.push({ account: account ?? '', party, taxCode, currency: currency ?? '', debit, credit, label: text(r.get('Line label')), ...(lineCustom ? { custom: lineCustom } : {}) });
     b.rows.push(r.n);
   }
   const entries: BooksEntry[] = [];
@@ -259,15 +314,15 @@ export function sheetsToBooks(
     lineRows.set(key, b.rows);
   }
 
-  const data: BooksData = { accounts, journals, parties, taxCodes, entries };
+  const data: BooksData = { accounts, journals, parties, taxCodes, entries, ...(fields.length > 0 ? { fields } : {}) };
   const located: Located = (kindOf, key, line) => {
     if (kindOf === 'entry' && line !== undefined) return { sheet: SHEETS.journal, row: lineRows.get(key)?.[line] ?? 0 };
     return where.get(`${kindOf}:${key}`) ?? { sheet: '', row: 0 };
   };
-  // What the workbook alone can say; what it names that Nomi already holds is the read-in's to check.
+  // What the workbook alone can say; what it names that Nomi already holds (a custom field too) is the read-in's to check.
   const none = new Set<string>();
   problems.push(...booksProblems(data, { accounts: none, journals: none, parties: none, taxCodes: none, bookCurrency }, located)
-    .filter((p) => !['unknown_account', 'unknown_journal', 'unknown_party', 'unknown_tax_code'].includes(p.reason)));
+    .filter((p) => !['unknown_account', 'unknown_journal', 'unknown_party', 'unknown_tax_code', 'unknown_field'].includes(p.reason)));
   return { data, problems, where: located };
 }
 
@@ -279,16 +334,30 @@ export function booksToWorkbook(d: BooksData): Buffer {
 /** The workbook's sheets and rows for these books: written to a file (B2), or to Google Sheets (B3). */
 export function workbookSheets(d: BooksData): { readonly name: string; readonly rows: readonly (readonly XlsxValue[])[] }[] {
   const n = (v: Decimal | null): XlsxValue => (v === null ? null : { number: v });
+  // D7 — a column per custom field (and per value written under a field no longer defined, so nothing is lost).
+  const fields = d.fields ?? [];
+  const columns = (applies: BooksField['appliesTo'], values: readonly (CustomValues | undefined)[]) => [...new Set([
+    ...fields.filter((f) => f.appliesTo === applies).map((f) => f.key), ...values.flatMap((v) => Object.keys(v ?? {})),
+  ])].sort();
+  const partyCols = columns('party', d.parties.map((p) => p.custom));
+  const entryCols = columns('entry', d.entries.map((e) => e.custom));
+  const lineCols = columns('line', d.entries.flatMap((e) => e.lines.map((l) => l.custom)));
+  const values = (cols: readonly string[], v: CustomValues | undefined): XlsxValue[] => cols.map((k) => v?.[k] ?? null);
   return [
     { name: SHEETS.about, rows: [[MARK, WORKBOOK_VERSION],
-      ['One row per line. The lines of an entry share its Entry key. Amounts as numbers; dates as YYYY-MM-DD.']] },
+      ['One row per line. The lines of an entry share its Entry key. Amounts as numbers; dates as YYYY-MM-DD.'],
+      ...(fields.length === 0 ? [] : [[], [FIELDS_TITLE], [...FIELD_HEADERS],
+        ...fields.map((f) => [f.appliesTo, f.key, f.label, f.kind, f.choices === null ? null : f.choices.join(' | '), f.required ? 'yes' : 'no', f.retired ? 'no' : 'yes'])])] },
     { name: SHEETS.accounts, rows: [[...HEADERS.accounts], ...d.accounts.map((a) => [a.code, a.name, a.kind, a.parent])] },
     { name: SHEETS.journals, rows: [[...HEADERS.journals], ...d.journals.map((j) => [j.code, j.name, j.kind])] },
-    { name: SHEETS.parties, rows: [[...HEADERS.parties], ...d.parties.map((p) => [p.code, p.name, p.kind, p.country, p.ice, p.taxNumber])] },
+    { name: SHEETS.parties, rows: [[...HEADERS.parties, ...partyCols.map((k) => `party.${k}`)],
+      ...d.parties.map((p) => [p.code, p.name, p.kind, p.country, p.ice, p.taxNumber, ...values(partyCols, p.custom)])] },
     { name: SHEETS.taxCodes, rows: [[...HEADERS.taxCodes], ...d.taxCodes.map((t) => [t.code, t.label, n(t.rate), t.kind, t.account, t.validFrom, t.validTo])] },
-    { name: SHEETS.journal, rows: [[...HEADERS.journal], ...d.entries.flatMap((e) => e.lines.map((l) => [
-      e.key, e.journal, e.date, e.label, e.documentRef, e.documentDate, e.state, l.account, l.party, l.taxCode, l.currency, n(l.debit), n(l.credit), l.label,
-    ]))] },
+    { name: SHEETS.journal, rows: [[...HEADERS.journal, ...entryCols.map((k) => `entry.${k}`), ...lineCols.map((k) => `line.${k}`)],
+      ...d.entries.flatMap((e) => e.lines.map((l) => [
+        e.key, e.journal, e.date, e.label, e.documentRef, e.documentDate, e.state, l.account, l.party, l.taxCode, l.currency, n(l.debit), n(l.credit), l.label,
+        ...values(entryCols, e.custom), ...values(lineCols, l.custom),
+      ]))] },
   ];
 }
 

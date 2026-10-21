@@ -77,7 +77,7 @@ d('A2.4 · closing with books: kept until the legal date, downloaded first (requ
     const file = await books.makeBooksFile(db, BOOKS, OWNER, { sep: ',', decimal: '.' });
     expect(file).not.toBeNull();
     const lines = file!.csv.replace(/^﻿/, '').trim().split(/\r?\n/);
-    expect(lines[0]).toBe('Code_Journal,Libelle_Journal,Num_Ecriture,Date_Ecriture,Num_Compte,Libelle_Compte,Num_Compte_Aux,Libelle_Compte_Aux,Ref_Piece,Date_Piece,Libelle_Ecriture,Montant_Debit,Montant_Credit,Lettrage_Ecriture,Date_Lettrage,Date_Validation,Montant_Devise,Id_devise,Exercice');
+    expect(lines[0]).toBe('Code_Journal,Libelle_Journal,Num_Ecriture,Date_Ecriture,Num_Compte,Libelle_Compte,Num_Compte_Aux,Libelle_Compte_Aux,Ref_Piece,Date_Piece,Libelle_Ecriture,Montant_Debit,Montant_Credit,Lettrage_Ecriture,Date_Lettrage,Date_Validation,Montant_Devise,Id_devise,Exercice,Champs_Personnalises');
     expect(lines.slice(1).map((l) => l.split(',').slice(0, 13).join(','))).toEqual([
       'VT,Ventes,1,2026-03-01,5141,5141,,,F-1,2026-03-01,Facture 1,1200.50,0.00',
       'VT,Ventes,1,2026-03-01,7111,7111,,,F-1,2026-03-01,Facture 1,0.00,1200.50',
