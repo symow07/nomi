@@ -148,11 +148,14 @@ else
   bad "(a) schema version = ${V:-<none>}, manifest says $EXPECT_V"
 fi
 
-# (b) RLS on every business_id table, each with at least one policy
+# (b) RLS on every business_id table, each with at least one policy that GRANTS
+# rows. Only a permissive policy grants; a restrictive one (0177's
+# not_for_accountants, on almost every table) only takes rows away, so a table
+# with nothing else is deny-all and must not pass for "has a policy".
 IFS='|' read -r TOTAL BID VIOL_OFF VIOL_NOPOL <<EOF
 $(qf "with t as (
       select c.oid, c.relname, c.relrowsecurity as rls,
-             (select count(*) from pg_policy p where p.polrelid=c.oid) as pol,
+             (select count(*) from pg_policy p where p.polrelid=c.oid and p.polpermissive) as pol,
              exists(select 1 from information_schema.columns col
                      where col.table_schema='public' and col.table_name=c.relname
                        and col.column_name='business_id') as bid,
@@ -173,9 +176,9 @@ EOF
 DENY_ALL="$(qf "select coalesce(string_agg(c.relname, ',' order by c.relname), '')
     from pg_class c join pg_namespace n on n.oid=c.relnamespace
    where n.nspname='public' and c.relkind='r' and c.relrowsecurity
-     and not exists (select 1 from pg_policy p where p.polrelid=c.oid)
+     and not exists (select 1 from pg_policy p where p.polrelid=c.oid and p.polpermissive)
      and not has_table_privilege('$RUNTIME_ROLE', c.oid, 'SELECT,INSERT,UPDATE,DELETE')")"
-[ -n "$DENY_ALL" ] && echo "      deny-all by design (RLS on, no policy, nothing granted to $RUNTIME_ROLE): $DENY_ALL"
+[ -n "$DENY_ALL" ] && echo "      deny-all by design (RLS on, no permissive policy, nothing granted to $RUNTIME_ROLE): $DENY_ALL"
 # The count was pinned at 40 when this was written (schema 25) and every
 # migration since has added tables; the invariant is not the number but that
 # EVERY business_id table came back with RLS on and at least one policy.

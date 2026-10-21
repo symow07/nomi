@@ -198,6 +198,7 @@ import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
 import { isAutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
+import { asViewer } from '../../db/viewer.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
 import { prepareOrderFromMaybe } from '../../pipeline/maybeOrder.js';
@@ -784,6 +785,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * saved (`/app/settings` evicts).
    */
   const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null }>(deps.factsTtlMs);
+  /**
+   * B0 (0177) — the signed-in person, for the DATABASE: every tenant transaction from here to the reply says who is
+   * asking (`app.viewer_id`), and the database shows an accountant no row of the sales side, whatever a route forgets.
+   * Callback-style and before the facts hook, for the reason above: the handler, and every hook after this one, run
+   * inside it.
+   */
+  app.addHook('preHandler', (req, _reply, done) => {
+    const s = req.url.startsWith('/app') ? sessionOf(req) : null;
+    if (!s) return done();
+    asViewer(personOf(s).id, done);
+  });
   app.addHook('preHandler', (req, _reply, done) => {
     if (!req.url.startsWith('/app')) return done();
     const s = sessionOf(req);
@@ -801,7 +813,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
     const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null }) => {
       const f = { ...f0, viewerRole };
-      if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
+      // An accountant has no "Needs you": the books' rail does not count customers, and the database shows them none.
+      if (req.method !== 'GET' || req.url.startsWith('/app/live') || viewerRole === 'accountant') return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
       // The warmth run (w4-whole-03) — and when the latest customer began to wait, for the rail's mark.
       Promise.all([
@@ -821,7 +834,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       business: (await sql<{ name: string | null }>`
         select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? null,
     })).then(
-      (f) => { facts.set(s.businessId, f, now); withNeeds(f); },
+      // B0 — read as an accountant, the workspace's facts lack what the database keeps from them: never the cache's.
+      (f) => { if (viewerRole !== 'accountant') facts.set(s.businessId, f, now); withNeeds(f); },
       () => done(),
     );
   });

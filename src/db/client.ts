@@ -2,6 +2,7 @@ import pg from 'pg';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import type { Database } from './schema.js';
 import type { BusinessId } from '../core/types/ids.js';
+import { viewerId } from './viewer.js';
 
 /**
  * Connection + tenant binding. (ADR-0005)
@@ -12,6 +13,8 @@ import type { BusinessId } from '../core/types/ids.js';
  *  2. Every unit of work runs inside a transaction that has SET LOCAL
  *     app.business_id. `set_config(..., true)` is transaction-scoped, which is
  *     what makes this safe under PgBouncer transaction pooling at 1,000 tenants.
+ *     B0 (0177) — and `app.viewer_id`, the signed-in person a request runs as (`asViewer`, ./viewer.ts), so the
+ *     database itself keeps an accountant to the books.
  */
 
 export type Db = Kysely<Database>;
@@ -68,7 +71,7 @@ export async function withTenantTx<T>(
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   return db.transaction().execute(async (tx) => {
-    await sql`select set_config('app.business_id', ${businessId}, true)`.execute(tx);
+    await sql`select set_config('app.business_id', ${businessId}, true), set_config('app.viewer_id', ${viewerId()}, true)`.execute(tx);
     return fn(tx);
   });
 }
