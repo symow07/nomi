@@ -27,10 +27,10 @@ const PID = 'p1' as ProductId;
 
 const view = (over: Partial<PriceRulesView> = {}): PriceRulesView => ({
   currency: 'USD',
-  businessDefault: { floor: usd(0.30), maxDiscountPct: 8, askAbovePct: 5 },
+  businessDefault: { floor: usd('0.30'), maxDiscountPct: 8, askAbovePct: 5 },
   products: [{
     productId: 'p1', sku: 'ZX-100', name: 'Canvas tote', nameZh: '帆布袋',
-    listPrice: usd(1.05), own: null, inheritsDefault: true, isActive: true,
+    listPrice: usd('1.05'), own: null, inheritsDefault: true, isActive: true,
   }],
   unanswered: 0,
   volume: [],
@@ -45,9 +45,9 @@ const product: Product = {
   id: PID, businessId: BIZ, sku: 'ZX-100', name: 'Canvas tote',
   unit: 'pcs', moq: 500, leadTimeDays: 15, customizable: false,
 };
-const tiers = [{ productId: PID, minQty: 500, maxQty: null, unitPrice: usd(1.00) }];
+const tiers = [{ productId: PID, minQty: 500, maxQty: null, unitPrice: usd('1.00') }];
 const policy: PricingPolicy = {
-  businessId: BIZ, productId: null, floorPrice: usd(0.30), maxDiscountPct: 8, humanRequiredAbovePct: 5,
+  businessId: BIZ, productId: null, floorPrice: usd('0.30'), maxDiscountPct: 8, humanRequiredAbovePct: 5,
 };
 const rule = (value: number, qtyGte = 10_000): NegotiationRule => ({
   businessId: BIZ, priority: 100, condition: { qtyGte }, action: { kind: 'discount_pct', value },

@@ -144,7 +144,7 @@ describe('G2c · the owner is told what arrived, in her language', () => {
   });
 
   it('with nothing unreadable, there is no card', () => {
-    const html = renderConversationDetail(detail({ unreadable: null, handoffReasons: [], quote: { unitPrice: usd(1), total: usd(1), quantity: 1 } }), 'en', NOW, null);
+    const html = renderConversationDetail(detail({ unreadable: null, handoffReasons: [], quote: { unitPrice: usd('1'), total: usd('1'), quantity: 1 } }), 'en', NOW, null);
     expect(html).not.toContain(t('en', 'unreadable.title'));
   });
 });

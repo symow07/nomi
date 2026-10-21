@@ -15965,3 +15965,41 @@ already waits on the zh/ar/es/fr legal and advisor lines above; read the reel wi
   example mark («مثال — متجر من الخيال», 示例——虚构的店铺…) reads as "this is a demonstration", not as a disclaimer.
 
 Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 A1 and A2.4 — an ambiguous figure; the books kept at closure (not a gate)
+
+- **The keys:** `rate.flash.ambiguous`, `samples.flash.ambiguous`, `prices.error.ambiguous`,
+  `product.edit.error.ambiguous`, `import.error.price_ambiguous` (one sentence: a figure like 1.250 or 1,250 reads
+  two ways, so type 1.25, or 1250 with no separator); `data.books.title`, `data.books.lead`, `data.books.download`,
+  `data.books.lastCopy`, `data.books.copyOld`, `data.flash.booksFirst` (the owner's books at closure: kept until a
+  date under a law, everything else erased at once, the copy downloaded first).
+- **Where the words differ, and why:** Arabic uses the passive and «يلزم» throughout («يلزم تنزيل نسخة منها»,
+  «سُجّل قيد») so nobody is addressed in a gender, and «تمثّل الدفاتر…» rather than «هي»; Spanish and French name the
+  decimal comma first in the advice («1,25»), as their owners type it.
+- **Check:** that `data.books.lead` reads as reassurance (the owner keeps a copy, the law keeps the rest), not as a
+  threat, and that the legal citation (left in its own language, e.g. «Code Général des Impôts, art. 211») sits well
+  inside the sentence.
+
+Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 A5 — the accountant (not a gate)
+
+- **The keys:** `books.home.title`, `books.home.owner`, `books.home.accountant`, `books.home.empty`,
+  `books.flash.postIsOwners`, `books.flash.notYours`, `books.flash.onlyBooks`, `people.add.accountant`,
+  `people.kind.accountant`.
+- **Where the words differ, and why:** Arabic says what the role covers rather than addressing the accountant
+  («يمكن الاطلاع على هذه الدفاتر وتنزيلها», «صلاحية المحاسب هنا تقتصر على الدفاتر»), so no verb agrees with them in a
+  gender; zh 会计 for the accountant, 老板 for the owner, as the team page already does.
+- **Check:** that «تسجيل القيود للمالك» and 记账由老板来做 read as "posting is the owner's job", not as a refusal of the
+  person reading.
+
+Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 A6 — the two modes (not a gate)
+
+- **The keys:** `nav.books`, `nav.toBooks`, `nav.toSales` (the rail's entry for the books, and the switch between
+  the books and the sales side).
+- **Check:** that 账簿 / 销售 and «الدفاتر» / «المبيعات» read as the two sides of one business at the foot of the rail,
+  and that the Spanish and French «Contabilidad» / «Comptabilité» are what an owner there calls their books.
+
+Reviewer (per language): ______  Date: ______

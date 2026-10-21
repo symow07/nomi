@@ -1,5 +1,6 @@
 import type { Scores } from '../types/conversation.js';
 import { type Money, type Currency, usd, isAbove } from '../types/money.js';
+import { fromInteger } from '../types/decimal.js';
 
 /**
  * Observations about a conversation. Scores are DERIVED from these, never
@@ -266,7 +267,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   maybe_confirmation: { kind: 'maybe_confirmation' },
   address_unwritten: { kind: 'address_unwritten' },
   language_held: { kind: 'language_held' },
-  high_value: { kind: 'high_value', total: usd(1) },
+  high_value: { kind: 'high_value', total: usd('1') },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
   moq_accepted: { kind: 'moq_accepted' },
@@ -396,6 +397,9 @@ export const HIGH_VALUE: Readonly<Record<Currency, { readonly large: number; rea
   MXN: { large: 50_000, veryLarge: 175_000 },
   INR: { large: 250_000, veryLarge: 800_000 },
   IDR: { large: 50_000_000, veryLarge: 150_000_000 },
+  MAD: { large: 30_000, veryLarge: 100_000 },
+  EUR: { large: 3_000, veryLarge: 10_000 },
+  GBP: { large: 2_500, veryLarge: 8_000 },
 };
 
 /**
@@ -456,7 +460,7 @@ export function computeScores(signals: readonly Signal[]): Scores {
 
       // --- lead: the client is buying. NEVER add these to `problem`. ---
       case 'high_value':
-        lead += isAbove(s.total, { amount: HIGH_VALUE[s.total.currency].veryLarge, currency: s.total.currency }) ? 60 : 40;
+        lead += isAbove(s.total, { amount: fromInteger(HIGH_VALUE[s.total.currency].veryLarge), currency: s.total.currency }) ? 60 : 40;
         break;
       case 'customization_requested':
         lead += 30;

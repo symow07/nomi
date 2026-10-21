@@ -63,7 +63,7 @@ export async function customerValues(tx: Tx, clientIds: readonly string[], now: 
            (select percentile_cont(0.5) within group (order by g.gap) from gaps g where g.client_id = n.client_id and g.gap is not null)::float8 as median_gap_days
       from newest n`.execute(tx)).rows;
   for (const r of rows) {
-    const spent = r.spent !== null && r.currency ? moneyFromRow(Number(r.spent), r.currency) : null;
+    const spent = r.spent !== null && r.currency ? moneyFromRow(r.spent, r.currency) : null;
     const regular = r.orders >= REGULAR_ORDERS;
     const quietAfterDays = Math.max(QUIET_FLOOR_DAYS, 2 * (r.median_gap_days ?? 0));
     const quiet = regular && r.last_at !== null && now.getTime() - r.last_at.getTime() > quietAfterDays * DAY;

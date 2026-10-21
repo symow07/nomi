@@ -6,6 +6,7 @@ import { currencyLabel, currencyInLine } from '../../src/core/owner/currencies.j
 import { importAt, submitReview } from './importReview.js';
 import { offlineModels } from '../pipeline/fakes.js';
 import { signUpWithCode, type Outbox, PASSING_BOT_CHECK } from './signUpWithCode.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
@@ -81,8 +82,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect(row.currency).toBe('AED');
     bid = row.id;
 
-    // Morocco's dirham is not on the list: the form asks, and nothing is made until it is answered.
-    const M = { ...ABOUT, factory: `Atlas Shop ${RUN}`, name: 'Sam', email: `sam-${RUN}@atlas.example`, password: `atlas-password-${RUN}`, country: 'MA', invite: '' };
+    // The Swiss franc is not on the list (Morocco's dirham is, since A1.3): the form asks, and nothing is made until it is answered.
+    const M = { ...ABOUT, factory: `Atlas Shop ${RUN}`, name: 'Sam', email: `sam-${RUN}@atlas.example`, password: `atlas-password-${RUN}`, country: 'CH', invite: '' };
     const asked = await form('/signup', M);
     expect(asked.statusCode).toBe(400);
     expect(asked.body).toContain(t('en', 'signup.problem.currency_missing'));
@@ -99,7 +100,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     expect((await one<{ currency: string }>(`select currency from businesses where id = $1`, [bid])).currency).toBe('SAR');
     const back = await form('/app/settings/currency', { currency: 'AED' }, cookie);
     expect(flashSaid(back, WEB_SECRET)).toBe(t('en', 'settings.flash.currencySaved'));
-    const bad = await form('/app/settings/currency', { currency: 'EUR' }, cookie);
+    const bad = await form('/app/settings/currency', { currency: 'CHF' }, cookie);
     expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.currencyInvalid'));
     expect((await get('/app/settings/profile')).body).toContain('<option value="AED" selected>');
   });
@@ -180,8 +181,8 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     });
     expect(quote.ok).toBe(true);
     if (!quote.ok) return;
-    expect(quote.value.unitPrice).toEqual({ amount: 1250.5, currency: 'AED' });
-    expect(quote.value.total).toEqual({ amount: 2501, currency: 'AED' });
+    expect(quote.value.unitPrice).toEqual(moneyOf('1250.5', 'AED'));
+    expect(quote.value.total).toEqual(moneyOf('2501', 'AED'));
     const state = { quantity: { value: 2, unit: 'pcs' } } as never;
     expect(guardNumerals({ reply: 'That is AED 1,250.50 each, AED 2,501 for the two.', quote: quote.value, state, clientText: '' }).ok).toBe(true);
     expect(guardNumerals({ reply: 'That is $1,250.50 each, $2,501 for the two.', quote: quote.value, state, clientText: '' }).ok).toBe(false);

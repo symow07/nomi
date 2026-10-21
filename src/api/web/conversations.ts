@@ -243,7 +243,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
 
     (await sql<{ quantity: number; unit_price_usd: string; currency: string; created_at: Date }>`
       select quantity, unit_price_usd, currency, created_at from quotes where conversation_id = ${conversationId}`.execute(tx)).rows
-      .forEach((q) => timeline.push(mile('quote', q.created_at, { qty: q.quantity, unitPrice: moneyFromRow(Number(q.unit_price_usd), q.currency) })));
+      .forEach((q) => timeline.push(mile('quote', q.created_at, { qty: q.quantity, unitPrice: moneyFromRow(q.unit_price_usd, q.currency) })));
 
     (await sql<{ status: string; quantity: number; created_at: Date; confirmed_at: Date | null }>`
       select status, quantity, created_at, confirmed_at from orders where conversation_id = ${conversationId}`.execute(tx)).rows
@@ -268,8 +268,8 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     });
     // G18 — the quote in its own currency; nothing shown if it is one this
     // build cannot price, rather than a dollar sign over a number that is not.
-    const latestQuoteUnit = latestQuoteRow ? moneyFromRow(Number(latestQuoteRow.unit_price_usd), latestQuoteRow.currency) : null;
-    const latestQuoteTotal = latestQuoteRow ? moneyFromRow(Number(latestQuoteRow.total_usd), latestQuoteRow.currency) : null;
+    const latestQuoteUnit = latestQuoteRow ? moneyFromRow(latestQuoteRow.unit_price_usd, latestQuoteRow.currency) : null;
+    const latestQuoteTotal = latestQuoteRow ? moneyFromRow(latestQuoteRow.total_usd, latestQuoteRow.currency) : null;
     const identified = (head.name || head.name_zh) ? [{ name: head.name, nameZh: head.name_zh }] : [];
     const profileProducts = products.length ? products.map((p) => ({ name: p.name, nameZh: p.nameZh })) : identified;
 
@@ -286,7 +286,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
         order: orderRow
           ? { id: orderRow.id, status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity,
               // G18 — his order in the currency it was taken in.
-              total: orderRow.total_value_usd !== null ? moneyFromRow(Number(orderRow.total_value_usd), orderRow.currency) : null }
+              total: orderRow.total_value_usd !== null ? moneyFromRow(orderRow.total_value_usd, orderRow.currency) : null }
           : null,
         corrections,
       },

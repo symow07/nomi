@@ -157,7 +157,7 @@ describe('the deep fill marks exactly one kind of act: the one that answers what
   });
   const order = {
     id: 'f0000000-0000-0000-0000-000000000001', conversationId: 'conv-1', productId: 'p1', productName: 'Gift box', quantity: 40, unit: 'boxes',
-    unitPrice: usd(2.1), total: usd(84), email: 'customer@example.com', paymentTerms: null, incoterm: null, createdAt: NOW,
+    unitPrice: usd('2.1'), total: usd('84'), email: 'customer@example.com', paymentTerms: null, incoterm: null, createdAt: NOW,
   } as unknown as NonNullable<ConversationDetail['orderProposal']>;
   const needsButtons = (html: string) => [...html.matchAll(/<button class="btn send needs"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
 

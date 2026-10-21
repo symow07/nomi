@@ -20,6 +20,7 @@ import { REGULAR_ORDERS } from '../../src/db/customerValue.js';
 import type { Tx } from '../../src/db/client.js';
 import { withoutIsolates, unisolatedFigures } from './isolates.js';
 import { linkedCss } from './linked-css.js';
+import { compareDecimal, decimal } from '../../src/core/types/decimal.js';
 
 /**
  * THE WARMTH RUN, PHASE 4 (2026-10-03) — THE INBOX. The owner: "The customer
@@ -49,7 +50,7 @@ const conv = (n: number, buyer: string, over: Partial<ConversationSummary> = {})
   conversationId: ID(n), clientId: CLIENT(n), buyer, country: 'AE', status: 'handled', needsAction: false,
   ownership: 'AI', heldBy: null, awaitingReview: false, handoffReason: null, deletionWaiting: false,
   latestMessage: 'Do you have it in navy', latestAt: AGO(30 + n), product: { name: 'Canvas tote', nameZh: '帆布袋' },
-  quantity: 500, unitPrice: usd(2.4), channel: 'whatsapp', unanswered: false, lastFrom: 'assistant',
+  quantity: 500, unitPrice: usd('2.4'), channel: 'whatsapp', unanswered: false, lastFrom: 'assistant',
   photo: null, spent: null, regular: false, ...over,
 });
 
@@ -58,18 +59,18 @@ const LIST: InboxList = {
   filter: 'all', lens: 'waiting', waitingCount: 2, blockedCount: 0, deletionCount: 1, channels: 1, query: '',
   conversations: [
     conv(1, 'Fatima Al-Zahra', { deletionWaiting: true, ownership: 'WAITING_HUMAN', handoffReason: 'deletion_requested', lastFrom: 'buyer', unanswered: true }),
-    conv(2, 'Alexandre Dupont', { ownership: 'WAITING_HUMAN', handoffReason: 'human_requested', lastFrom: 'buyer', unanswered: true, spent: usd(830) }),
-    conv(3, 'Zhang Wei', { spent: usd(1240), regular: true }),
-    conv(4, 'أحمد الراشد', { spent: usd(48250.5) }),
+    conv(2, 'Alexandre Dupont', { ownership: 'WAITING_HUMAN', handoffReason: 'human_requested', lastFrom: 'buyer', unanswered: true, spent: usd('830') }),
+    conv(3, 'Zhang Wei', { spent: usd('1240'), regular: true }),
+    conv(4, 'أحمد الراشد', { spent: usd('48250.5') }),
     conv(5, 'Lena Brandt', { lastFrom: 'buyer', unanswered: true }),
   ],
   page: { from: 1, to: 5, total: 5, next: null, prev: null },
 };
 
 const BAND: AttentionItem[] = [
-  { clientId: CLIENT(80), name: 'Carlos Mendes', photo: null, conversationId: ID(80), kind: 'quote', since: DAYS(5), spent: usd(9000) },
+  { clientId: CLIENT(80), name: 'Carlos Mendes', photo: null, conversationId: ID(80), kind: 'quote', since: DAYS(5), spent: usd('9000') },
   { clientId: CLIENT(81), name: 'Aisha Bello', photo: 'a1b2c3d4e5f6', conversationId: ID(81), kind: 'reply', since: DAYS(9), spent: null },
-  { clientId: CLIENT(82), name: '陈莉', photo: null, conversationId: ID(82), kind: 'regular', since: DAYS(70), spent: usd(31000) },
+  { clientId: CLIENT(82), name: '陈莉', photo: null, conversationId: ID(82), kind: 'regular', since: DAYS(70), spent: usd('31000') },
 ];
 
 const html = (l: Locale, over: Partial<InboxList> = {}) =>
@@ -193,7 +194,7 @@ describe('phase 4 · two lenses, both whole', () => {
   });
 
   it('"matters most": who spent most first; nothing spent after, headed apart; the needs keep their signal, not their place', () => {
-    const byValue = [...LIST.conversations].sort((a, b) => (b.spent?.amount ?? 0) - (a.spent?.amount ?? 0));
+    const byValue = [...LIST.conversations].sort((a, b) => compareDecimal(b.spent?.amount ?? decimal('0'), a.spent?.amount ?? decimal('0')));
     for (const l of LOCALES) {
       const h = html(l, { lens: 'value', conversations: byValue });
       expect(/<nav class="tabs lens"[^>]*>([\s\S]*?)<\/nav>/.exec(h)![1], l)

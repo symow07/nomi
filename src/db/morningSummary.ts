@@ -6,7 +6,7 @@ import { readAttention } from './inboxAttention.js';
 import { SPEND_STATUSES } from './customerValue.js';
 import { notOwnerTesting } from './handled.js';
 import { zoneOf } from './zone.js';
-import { moneyFromRow, type Money } from '../core/types/money.js';
+import { isPositive, moneyFromRow, type Money } from '../core/types/money.js';
 import { formatMoney } from '../core/owner/i18n/format.js';
 import type { MorningFacts } from '../core/owner/morningSummary.js';
 
@@ -47,8 +47,8 @@ export async function morningFacts(tx: Tx, businessId: BusinessId, ownerPersonId
        and coalesce(o.confirmed_at, o.created_at) < date_trunc('day', ${now}::timestamptz at time zone ${zone}) at time zone ${zone}
        and ${notOwnerTesting('o.conversation_id')}
      group by o.currency order by 3 desc`.execute(tx)).rows;
-  const totals = sold.map((r) => moneyFromRow(Number(r.val), r.currency))
-    .filter((m): m is Money => m !== null && m.amount > 0).map(formatMoney);
+  const totals = sold.map((r) => moneyFromRow(r.val, r.currency))
+    .filter((m): m is Money => m !== null && isPositive(m)).map(formatMoney);
   return {
     waiting,
     quiet,

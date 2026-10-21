@@ -1,6 +1,7 @@
 import { figuresIn } from '../../core/conversation/figures.js';
 import { sql } from 'kysely';
-import { type Money, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow, moneyFromStored, numeralOf } from '../../core/types/money.js';
+import { decimal, numeralOfDecimal } from '../../core/types/decimal.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
@@ -325,7 +326,7 @@ export async function loadInboxList(
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
         // G18 — in the currency the quote was made in. Rebuilding it as dollars
         // put a "$" in front of a number that was never dollars.
-        unitPrice: r.unit_price !== null ? moneyFromRow(Number(r.unit_price), r.quote_currency ?? 'USD') : null,
+        unitPrice: r.unit_price !== null ? moneyFromRow(r.unit_price, r.quote_currency ?? 'USD') : null,
         channel: r.channel,
         unanswered: lastFrom === 'buyer',
         live: r.live,
@@ -406,7 +407,8 @@ function contradictionOf(raw: unknown): DraftContradiction | null {
     proposedQuantity?: unknown; how?: unknown;
   };
   const money = (m?: { amount?: unknown; currency?: unknown }) =>
-    m && typeof m.amount === 'number' && typeof m.currency === 'string' ? moneyFromRow(m.amount, m.currency) : null;
+    m && (typeof m.amount === 'number' || typeof m.amount === 'string') && typeof m.currency === 'string'
+      ? moneyFromStored(m.amount, m.currency) : null;
   const before = money(c.prior?.unitPrice);
   const now = money(c.proposedUnitPrice);
   const at = typeof c.prior?.at === 'string' ? new Date(c.prior.at) : null;
@@ -828,7 +830,7 @@ function cardReadingOf(
     language: typeof language?.['detected'] === 'string' ? language['detected'] : null,
     differsOn: differsOn(own),
     quote: q ? {
-      unitPrice: Number(q.unit_price_usd), total: Number(q.total_usd), quantity: q.quantity,
+      unitPrice: numeralOfDecimal(decimal(q.unit_price_usd)), total: numeralOfDecimal(decimal(q.total_usd)), quantity: q.quantity,
       discountPct: Number(q.discount_pct), leadTimeDays: q.lead_time_days, moq: q.moq,
     } : null,
   };
@@ -1031,8 +1033,8 @@ export async function loadConversationDetail(
        limit 6
     `.execute(tx)).rows.map((r) => r.label);
 
-    const quoteUnit = q ? moneyFromRow(Number(q.unit_price_usd), q.currency) : null;
-    const quoteTotal = q ? moneyFromRow(Number(q.total_usd), q.currency) : null;
+    const quoteUnit = q ? moneyFromRow(q.unit_price_usd, q.currency) : null;
+    const quoteTotal = q ? moneyFromRow(q.total_usd, q.currency) : null;
 
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
@@ -1045,8 +1047,8 @@ export async function loadConversationDetail(
       proof: await loadProofLinkState(tx, conversationId),
       order: o ? {
         id: o.id, status: o.status, reference: o.order_reference,
-        total: o.total_value_usd !== null ? moneyFromRow(Number(o.total_value_usd), o.currency) : null,
-        proforma: { ready: o.proforma_ready && moneyFromRow(Number(o.total_value_usd), o.currency) !== null, token: o.proforma_token },
+        total: o.total_value_usd !== null ? moneyFromRow(o.total_value_usd, o.currency) : null,
+        proforma: { ready: o.proforma_ready && o.total_value_usd !== null && moneyFromRow(o.total_value_usd, o.currency) !== null, token: o.proforma_token },
       } : null,
       messages,
       transcript: { earlier: transcript.earlier, older: transcript.older },
@@ -2203,7 +2205,7 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
     // The quote's figures always count: from the loader with the extras it read,
     // else the three the page already holds.
     quote: r?.quote ?? (d.quote ? {
-      unitPrice: d.quote.unitPrice.amount, total: d.quote.total.amount, quantity: d.quote.quantity,
+      unitPrice: numeralOf(d.quote.unitPrice), total: numeralOf(d.quote.total), quantity: d.quote.quantity,
       discountPct: 0, leadTimeDays: null, moq: null,
     } : null),
     theirTexts: d.messages.filter((m) => m.direction === 'inbound').map((m) => m.text),

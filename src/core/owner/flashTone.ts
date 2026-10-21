@@ -46,7 +46,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // 0126 — nothing was deleted or closed: the old form, the installation's own workspace, a paid plan, a reply in hand, a refusal.
-  'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.busy', 'data.flash.eraseRefused',
+  'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.booksFirst', 'books.flash.postIsOwners', 'staff.booksNotYours', 'books.flash.onlyBooks', 'data.flash.busy', 'data.flash.eraseRefused',
   // D4 (2026-10-12) — a change refused while the workspace is frozen.
   'frozen.refused',
   // 0130 — an advisor history switch or deletion that did not go through: nothing changed.
@@ -111,12 +111,12 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'product.photo.flash.not_a_photo', 'product.photo.flash.too_large', 'product.photo.flash.empty', 'product.photo.flash.failed',
   'photo.flash.no_photo', 'photo.flash.no_address', 'photo.flash.photo_unsupported', 'photo.flash.window',
   'prospects.flash.exists', 'prospects.flash.failed', 'prospects.flash.invalid',
-  'prospects.flash.not_found', 'rate.flash.failed', 'rate.flash.missing', 'rate.flash.not_a_number',
+  'prospects.flash.not_found', 'rate.flash.failed', 'rate.flash.missing', 'rate.flash.not_a_number', 'rate.flash.ambiguous',
   'rate.flash.not_positive', 'rate.flash.same_currency',
   // CUR — the workspace sells in its country's own currency: nothing to convert.
   'rate.flash.none', 'reach.inbound.flash.already',
   'reach.inbound.flash.notConfigured', 'reach.inbound.flash.taken', 'samples.flash.failed',
-  'samples.flash.negative', 'samples.flash.not_a_number', 'samples.flash.price_missing',
+  'samples.flash.negative', 'samples.flash.not_a_number', 'samples.flash.ambiguous', 'samples.flash.price_missing',
   'seq.flash.already', 'seq.flash.changed', 'seq.flash.empty', 'seq.flash.failed', 'seq.flash.full',
   'seq.flash.invalid', 'seq.flash.notApproved', 'seq.flash.notDraft', 'seq.flash.notLive',
   'seq.flash.notWaiting', 'settings.flash.invalid', 'settings.flash.profileFix',

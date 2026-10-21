@@ -1,9 +1,10 @@
 import { type Signal, HIGH_VALUE } from './signals.js';
-import { type Money, scaleMoney, isAbove } from '../types/money.js';
+import { type Money, scaleMoney, isAbove, timesQuantity } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 import type { Analysis } from '../conversation/decide.js';
 import { asksForDeletion, normalizeForDeletion } from '../safety/deletion.js';
 import { asksToStop, namesAPerson, namesTheMachine } from '../safety/optOut.js';
+import { fromInteger } from '../types/decimal.js';
 
 /**
  * Deterministic signal detection from the message text and analysis.
@@ -633,8 +634,8 @@ export function detectSignals(input: {
   // The threshold is written in the price's own currency, so the comparison is
   // between two comparable amounts rather than two bare numbers.
   if (unitPrice !== null) {
-    const total = scaleMoney(unitPrice, qty);
-    if (isAbove(total, { amount: HIGH_VALUE[total.currency].large, currency: total.currency })) {
+    const total = timesQuantity(unitPrice, qty);
+    if (isAbove(total, { amount: fromInteger(HIGH_VALUE[total.currency].large), currency: total.currency })) {
       out.push({ kind: 'high_value', total });
     }
   }

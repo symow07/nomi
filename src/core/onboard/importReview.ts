@@ -1,5 +1,8 @@
 import { lessSure, figuresOn, type FieldConfidence } from './extract.js';
 import type { Currency } from '../types/money.js';
+import { addDecimal, ceilDecimal, compareDecimal, type Decimal, decimal, divDecimal, mulDecimal, parseDecimal, percentNumber, roundDecimal, signOf, subDecimal } from '../types/decimal.js';
+import { percentDecimal } from '../types/money.js';
+import { readWrittenFigure } from '../commerce/amount.js';
 import { type ExtractedProduct, type RejectReason, ownPriceCount, readWithDecimalComma, validateExtracted, validatePage } from './catalogImport.js';
 import { parseCustomerNames, MAX_ALIAS_LENGTH } from './aliases.js';
 
@@ -61,8 +64,8 @@ export type ImportRow = {
   readonly sku: string | null;
   readonly name: string;
   readonly nameZh: string | null;
-  /** In the import's currency. null: no price (a paste may add a product to price later). */
-  readonly price: number | null;
+  /** In the import's currency, exact (A1). null: no price (a paste may add a product to price later). */
+  readonly price: Decimal | null;
   /** What the price is per: a unit code (`item`, `pcs`, `pair`…) or the owner's own word. */
   readonly unit: string;
   /** null: no minimum. */
@@ -121,15 +124,15 @@ const FROM_OR_VAT = new RegExp([
 
 const CURRENCY_SIGN = /[$＄€£¥￥₹₩₽₺₫₪]|(?<![A-Za-z])(?:USD|AED|SAR|BRL|MXN|INR|IDR|RMB|CNY|Rp|Rs)(?![A-Za-z])|美元|元|درهم|ريال/;
 
-/** A price with more than two decimal places, as written. */
-const moreThanTwoDecimals = (n: number): boolean => Math.abs(Math.round(n * 100) - n * 100) > 1e-6;
+/** A price with more than two decimal places, as written (A1: read off the exact text). */
+const moreThanTwoDecimals = (d: Decimal): boolean => (d.split('.')[1]?.length ?? 0) > 2;
 
 /** The list's median price, over the rows that will be imported; null under three. */
-export function medianPrice(rows: readonly ImportRow[]): number | null {
-  const prices = rows.filter((r) => !r.removed && r.refused === null && r.price !== null).map((r) => r.price!).sort((a, b) => a - b);
+export function medianPrice(rows: readonly ImportRow[]): Decimal | null {
+  const prices = rows.filter((r) => !r.removed && r.refused === null && r.price !== null).map((r) => r.price!).sort(compareDecimal);
   if (prices.length < 3) return null;
   const mid = Math.floor(prices.length / 2);
-  return prices.length % 2 ? prices[mid]! : (prices[mid - 1]! + prices[mid]!) / 2;
+  return prices.length % 2 ? prices[mid]! : mulDecimal(addDecimal(prices[mid - 1]!, prices[mid]!), decimal('0.5'));
 }
 
 /** Every flag on one row, in the review's order. A refused or removed row carries none. */
@@ -146,7 +149,8 @@ export function flagsOf(row: ImportRow, all: readonly ImportRow[], ctx: ReviewCo
   if (ctx.currency === 'USD' && ctx.country !== null && !DOLLAR_COUNTRIES.has(ctx.country)
       && /(?<![A-Za-z])[$＄]\s*\d/.test(row.line) && !/(?<![A-Za-z])US[$＄]|USD/i.test(row.line)) out.add('bare_dollar');
   const median = medianPrice(all);
-  if (row.price !== null && median !== null && (row.price < median * 0.1 || row.price > median * 10)) out.add('outlier');
+  if (row.price !== null && median !== null
+      && (compareDecimal(row.price, mulDecimal(median, decimal('0.1'))) < 0 || compareDecimal(row.price, mulDecimal(median, decimal('10'))) > 0)) out.add('outlier');
   if (row.price !== null && moreThanTwoDecimals(row.price)) out.add('many_decimals');
   // Phase 9 (V1-334) — a price nothing on the line said was money: its own tick.
   if (row.price !== null && (ctx.kind === 'paste' || ctx.kind === 'photo') && !row.confidence && !row.half
@@ -246,16 +250,13 @@ export type RowEdit = {
   readonly ticked?: boolean | undefined;
 };
 
-export type RowEditError = 'name_empty' | 'name_long' | 'price_not_number' | 'price_not_positive' | 'moq_not_whole' | 'unit_empty' | 'names_too_long' | 'names_too_many';
+export type RowEditError = 'name_empty' | 'name_long' | 'price_not_number' | 'price_ambiguous' | 'price_not_positive' | 'moq_not_whole' | 'unit_empty' | 'names_too_long' | 'names_too_many';
 
 /** A figure as the owner types it into a box: digits, one decimal point or comma. */
-export function readTypedFigure(raw: string): number | null {
-  const s = raw.trim().replace(/\s/g, '');
-  if (s === '') return null;
-  if (/^\d+(?:[.,]\d+)?$/.test(s)) return Number(s.replace(',', '.'));
-  if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''));
-  if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) return Number(s.replace(/\./g, '').replace(',', '.'));
-  return Number.NaN;
+export function readTypedFigure(raw: string): Decimal | null | 'not_a_number' | 'ambiguous' {
+  // A1 (the owner, 2026-10-22) — the one reader (commerce/amount.ts): one reading, or refused as ambiguous.
+  if (raw.trim() === '') return null;
+  return readWrittenFigure(raw) ?? 'not_a_number';
 }
 
 
@@ -282,8 +283,9 @@ export function editRow(row: ImportRow, e: RowEdit): { readonly row: ImportRow; 
   if (e.price !== undefined) {
     const p = readTypedFigure(e.price);
     if (p === null) set('price', null);
-    else if (Number.isNaN(p)) errors.push('price_not_number');
-    else if (p <= 0) errors.push('price_not_positive');
+    else if (p === 'not_a_number') errors.push('price_not_number');
+    else if (p === 'ambiguous') errors.push('price_ambiguous');
+    else if (signOf(p) <= 0) errors.push('price_not_positive');
     else set('price', p);
   }
   if (e.unit !== undefined) {
@@ -336,7 +338,7 @@ export function pickChallenge(rows: readonly ImportRow[], pick: (n: number) => n
 }
 
 /** Two figures are the same price when they agree to the cent. */
-const samePrice = (a: number, b: number): boolean => Math.round(a * 100) === Math.round(b * 100);
+const samePrice = (a: Decimal, b: Decimal): boolean => compareDecimal(roundDecimal(a, 2), roundDecimal(b, 2)) === 0;
 
 /**
  * The owner typed what the paper says. A row typed differently from what was
@@ -354,7 +356,8 @@ export function applyChallenge(
     if (r.challenge !== 'ask') continue;
     const raw = typed.get(r.key);
     const n = raw === undefined ? null : readTypedFigure(raw);
-    if (n === null || Number.isNaN(n)) { missing.push(r.key); continue; }
+    // A1 — a figure with two readings answers nothing: asked again, never guessed.
+    if (n === null || n === 'not_a_number' || n === 'ambiguous') { missing.push(r.key); continue; }
     if (r.price !== null && samePrice(n, r.price)) (r as { challenge: ChallengeState }).challenge = 'ok';
     else { (r as { challenge: ChallengeState }).challenge = 'mismatch'; mismatch = true; }
   }
@@ -380,8 +383,9 @@ export function applyChallenge(
  * cannot catch a price misread too low — the plan says so, and the owner is
  * told on the floors page.
  */
-export function derivedFloor(list: number, discountPct: number): number {
-  return Math.ceil(list * (100 - discountPct) - 1e-7) / 100;
+export function derivedFloor(list: Decimal, discountPct: number): Decimal {
+  // A1 — exact: list × (100 − discount) is the floor in cents; up to the next whole cent.
+  return ceilDecimal(divDecimal(mulDecimal(list, subDecimal(decimal('100'), percentDecimal(discountPct))), decimal('100'), 12), 2);
 }
 
 /** A discount as the owner types it: a whole or decimal percentage, 0 up to (not including) 100. */
@@ -390,8 +394,9 @@ export function readDiscount(raw: string): number | null | 'invalid' {
   if (s === '') return null;
   const n = readTypedFigure(s);
   if (n === null) return null;
-  if (Number.isNaN(n) || n < 0 || n >= 100) return 'invalid';
-  return Math.round(n * 100) / 100;
+  if (n === 'not_a_number' || n === 'ambiguous' || signOf(n) < 0 || compareDecimal(n, decimal('100')) >= 0) return 'invalid';
+  // A percentage to two decimals (numeric(5,2)): exact text, held as the number it reads as.
+  return percentNumber(n);
 }
 
 /** ── Ready to confirm? ─────────────────────────────────────────────────────── */

@@ -234,7 +234,7 @@ describe('D7 · the owner\'s pages and every file Nomi serves ask no host off th
     currency: 'USD',
     id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
     unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: true,
-    tiers: [{ minQty: 500, maxQty: null, unitPrice: usd(1.05) }],
+    tiers: [{ minQty: 500, maxQty: null, unitPrice: usd('1.05') }],
     aliases: ['canvas bag'],
     images: ['https://elsewhere.example/x.jpg', '//elsewhere.example/y.jpg', '/\\elsewhere.example/z.jpg', '/app/products/p1/photo/1'],
     recentQuotes: [],

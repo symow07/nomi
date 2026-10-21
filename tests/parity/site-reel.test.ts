@@ -135,8 +135,8 @@ describe('Phase 4 gate · the hooks (the owner\'s notes, 2026-10-14)', () => {
     const { usd } = await import('../../src/core/types/money.js');
     for (const l of LOCALES) {
       const sum = /<p class="rl-card-text rl-sum">[\s\S]*?<\/p>/.exec(page(l))?.[0] ?? '';
-      expect(sum, l).toContain(esc(show.money(l, usd(3.8))));
-      expect(sum, l).toContain(esc(show.money(l, usd(500 * 3.8))));   // the total IS 500 × 3.80
+      expect(sum, l).toContain(esc(show.money(l, usd('3.8'))));
+      expect(sum, l).toContain(esc(show.money(l, usd('1900'))));   // the total IS 500 × 3.80
       expect(sum, l).toContain('×');
     }
   });

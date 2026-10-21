@@ -1,4 +1,5 @@
 import { type Money, currencySymbol } from '../types/money.js';
+import { formatDecimal } from '../types/decimal.js';
 /**
  * M1 — Chinese business formatting. ￥, 万. Pure; clock and zone injected
  * (TZ, 2026-09-30: the workspace's own zone, never a constant).
@@ -10,7 +11,7 @@ export const formatRmb = (n: number): string =>
 
 /** Trade money, grouped normally. M43a — the symbol comes from the currency. */
 export const formatMoney = (m: Money): string =>
-  `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `${currencySymbol(m.currency)}${formatDecimal(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), m.amount)}`;
 
 /**
  * Quantities the way a Yiwu owner says them: ≥10,000 in 万.

@@ -6,7 +6,7 @@ import { proposeOrder } from '../db/orderProposals.js';
 import { computeQuote } from '../core/commerce/quote.js';
 import { confirmableFromProposal } from '../core/commerce/confirmable.js';
 import { parseEmail, type BusinessId, type ClientId, type ConversationId } from '../core/types/ids.js';
-import type { Money } from '../core/types/money.js';
+import { roundMoney, timesQuantity, type Money } from '../core/types/money.js';
 
 /**
  * THE "MAY BE SAYING YES" CARD'S WAY TO A REAL ORDER — the owner's, in two deliberate steps (the owner, on PR 345:
@@ -77,7 +77,7 @@ export async function prepareOrderFromMaybe(
       if (!q.ok) return { outcome: 'not_priceable' };
       unitPrice = q.value.unitPrice;
     }
-    const total: Money = { amount: Math.round(unitPrice.amount * input.quantity * 100) / 100, currency: unitPrice.currency };
+    const total: Money = roundMoney(timesQuantity(unitPrice, input.quantity));
     const order = confirmableFromProposal({
       productId: product.id, quantity: input.quantity, unit: product.unit, unitPrice, total,
       email: email ? email.value : null, paymentTerms: null, incoterm: null,

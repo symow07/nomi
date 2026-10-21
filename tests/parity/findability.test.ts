@@ -64,7 +64,7 @@ const detail: ProductDetail = {
   currency: 'USD',
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
   unit: 'pcs', moq: 500, leadTimeDays: null, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: true,
-  tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2.4) }],
+  tiers: [{ minQty: 1, maxQty: null, unitPrice: usd('2.4') }],
   aliases: ['Canvas Tote Bag', '帆布袋'], images: [], recentQuotes: [],
 };
 
@@ -103,7 +103,7 @@ describe('T3 · the owner names the product, and sees whether customers can find
     expect(found).not.toContain('pill warn');
     const list: ProductListItem[] = [{
       id: 'p1', name: 'Canvas Tote Bag', nameZh: null, sku: 'ZX-100', moq: 500, unit: 'pcs', entryQty: 500,
-      entryPrice: usd(2.4), learned: true, status: 'not_findable', imageMatchable: false, isActive: true,
+      entryPrice: usd('2.4'), learned: true, status: 'not_findable', imageMatchable: false, isActive: true,
     }];
     expect(renderProductList(list, 'en')).toContain(t('en', 'product.status.notFindable'));
   });

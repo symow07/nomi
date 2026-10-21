@@ -3,7 +3,7 @@ import type { Tenant } from '../db/ports.js';
 import { asksForSample, sampleAnswerContext } from '../core/commerce/samples.js';
 import { asksOrderStatus, orderStatusReply } from '../core/commerce/orderState.js';
 import { formatDate } from '../core/owner/i18n/format.js';
-import type { Money } from '../core/types/money.js';
+import { roundMoney, timesQuantity, type Money } from '../core/types/money.js';
 import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../llm/ports.js';
 import type { ConversationId, Email } from '../core/types/ids.js';
@@ -478,7 +478,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         offer: last && product ? {
           productName: product.name, productId: product.id, quantity: last.quantity, unit: product.unit,
           unitPrice: last.unitPrice,
-          total: { amount: Math.round(last.unitPrice.amount * last.quantity * 100) / 100, currency: last.unitPrice.currency },
+          total: roundMoney(timesQuantity(last.unitPrice, last.quantity)),
           givenAt: last.at.toISOString(),
         } : null,
       });

@@ -1,13 +1,14 @@
 import { type Result, ok, err } from '../types/result.js';
 import { ownershipOf, aiMaySpeak } from '../conversation/ownership.js';
-import { scaleMoney, subMoney } from '../types/money.js';
+import { differsByMoreThan, isPositive, timesQuantity } from '../types/money.js';
+import { decimal } from '../types/decimal.js';
 import type { BlockingReason, ConfirmableOrder, Product, Quote } from '../types/commerce.js';
 import type { ConversationState } from '../types/conversation.js';
 import { parseEmail, parseProductId } from '../types/ids.js';
 import type { Money } from '../types/money.js';
 import { PROBLEM_HANDOFF_THRESHOLD } from '../scoring/signals.js';
 
-const CENT = 0.01;
+const CENT = decimal('0.01');
 
 /**
  * The order gate. Deterministic. This REPLACES the `Claude - Order Validation`
@@ -64,14 +65,14 @@ export function toConfirmableOrder(input: {
   }
 
   // Rule 5: we have a price.
-  if (!quote || quote.unitPrice.amount <= 0) reasons.push('price_missing');
+  if (!quote || !isPositive(quote.unitPrice)) reasons.push('price_missing');
 
   // Rule 6: the arithmetic is right. (An LLM was doing this.)
   if (quote && state.quantity) {
     // Both sides of this check are in the quote's own currency, so the
     // subtraction is between comparable amounts by construction.
-    const expected = scaleMoney(quote.unitPrice, state.quantity.value);
-    if (Math.abs(subMoney(quote.total, expected).amount) > CENT) reasons.push('total_mismatch');
+    const expected = timesQuantity(quote.unitPrice, state.quantity.value);
+    if (differsByMoreThan(quote.total, expected, CENT)) reasons.push('total_mismatch');
   }
 
   // Rule 7 — RETIRED (the owner, 2026-10-15): an order needed an e-mail, a rule inherited from the old system, and
@@ -138,9 +139,9 @@ export function confirmableFromProposal(p: {
   const productId = parseProductId(p.productId);
   if (!productId.ok) reasons.push('missing_product');
   if (!(p.quantity > 0)) reasons.push('quantity_missing');
-  if (!(p.unitPrice.amount > 0)) reasons.push('price_missing');
+  if (!isPositive(p.unitPrice)) reasons.push('price_missing');
   if (p.unitPrice.currency !== p.total.currency
-    || Math.abs(subMoney(p.total, scaleMoney(p.unitPrice, p.quantity)).amount) > CENT) {
+    || differsByMoreThan(p.total, timesQuantity(p.unitPrice, p.quantity), CENT)) {
     reasons.push('total_mismatch');
   }
   const given = p.email?.trim() ? parseEmail(p.email) : null;

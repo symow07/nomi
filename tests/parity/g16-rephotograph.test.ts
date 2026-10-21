@@ -8,6 +8,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 import { formatMoney } from '../../src/core/owner/i18n/format.js';
 import { esc } from '../../src/api/web/layout.js';
 import { usd } from '../../src/core/types/money.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * G16 · M37 — re-photographing a price sheet updates what changed.
@@ -20,12 +21,12 @@ import { usd } from '../../src/core/types/money.js';
  */
 
 const entry = (over: Partial<CatalogueEntry> & Pick<CatalogueEntry, 'id' | 'sku' | 'name'>): CatalogueEntry => ({
-  nameZh: null, price: 1, currency: 'USD', moq: 500, floor: null, ...over,
+  nameZh: null, price: decimal('1'), currency: 'USD', moq: 500, floor: null, ...over,
 });
 
-const TOTE = entry({ id: 'p-tote', sku: 'ZX-100', name: 'Canvas tote', price: 1.05, moq: 500 });
-const CUP = entry({ id: 'p-cup', sku: 'ZX-220', name: 'Vacuum cup', price: 2.6, moq: 1000 });
-const MUG = entry({ id: 'p-mug', sku: 'NEW-k1-0', name: 'Enamel mug', nameZh: '搪瓷杯', price: 3, moq: 200 });
+const TOTE = entry({ id: 'p-tote', sku: 'ZX-100', name: 'Canvas tote', price: decimal('1.05'), moq: 500 });
+const CUP = entry({ id: 'p-cup', sku: 'ZX-220', name: 'Vacuum cup', price: decimal('2.6'), moq: 1000 });
+const MUG = entry({ id: 'p-mug', sku: 'NEW-k1-0', name: 'Enamel mug', nameZh: '搪瓷杯', price: decimal('3'), moq: 200 });
 const CATALOGUE = [TOTE, CUP, MUG];
 
 const lines = (text: string) => validateExtracted(parsePriceLines(text, 'USD')).accepted;
@@ -37,7 +38,7 @@ describe('G16 · which pile each line goes in', () => {
       'ZX-220 Vacuum cup $2.60 MOQ 1000',
       'Enamel mug $3.00 MOQ 200',
     ].join('\n')), CATALOGUE);
-    expect(d.changed.map((c) => [c.product.id, c.price, c.moq])).toEqual([['p-tote', { from: 1.05, to: 0.98 }, null]]);
+    expect(d.changed.map((c) => [c.product.id, c.price, c.moq])).toEqual([['p-tote', { from: '1.05', to: '0.98' }, null]]);
     expect(d.unchanged.map((u) => u.product.id)).toEqual(['p-cup', 'p-mug']);
     expect(d.added).toEqual([]);
     expect(d.held).toEqual([]);
@@ -54,12 +55,12 @@ describe('G16 · which pile each line goes in', () => {
   it('with no number, her product’s name finds it — in either of its names', () => {
     const d = diffAgainstCatalogue(lines('搪瓷杯 $3.40\nenamel   MUG $3.00 MOQ 250'), CATALOGUE);
     // one product, named twice: the second line is not a second change
-    expect(d.changed.map((c) => [c.product.id, c.price])).toEqual([['p-mug', { from: 3, to: 3.4 }]]);
+    expect(d.changed.map((c) => [c.product.id, c.price])).toEqual([['p-mug', { from: '3', to: '3.4' }]]);
     expect(d.held.map((h) => [h.product?.id, h.reason])).toEqual([['p-mug', 'twice_on_page']]);
   });
 
   it('a name two of her products share is not guessed at', () => {
-    const twin = entry({ id: 'p-tote-2', sku: 'ZX-101', name: 'Canvas tote', price: 1.2 });
+    const twin = entry({ id: 'p-tote-2', sku: 'ZX-101', name: 'Canvas tote', price: decimal('1.2') });
     const d = diffAgainstCatalogue(lines('Canvas tote $0.90'), [...CATALOGUE, twin]);
     expect(d.changed).toEqual([]);
     expect(d.added).toEqual([]);
@@ -69,7 +70,7 @@ describe('G16 · which pile each line goes in', () => {
   it('a line never ERASES: no price keeps her price, no MOQ keeps her MOQ', () => {
     const d = diffAgainstCatalogue(lines('ZX-100 Canvas tote\nZX-220 Vacuum cup $2.75'), CATALOGUE);
     expect(d.unchanged.map((u) => u.product.id)).toEqual(['p-tote']);
-    expect(d.changed.map((c) => [c.product.id, c.price, c.moq])).toEqual([['p-cup', { from: 2.6, to: 2.75 }, null]]);
+    expect(d.changed.map((c) => [c.product.id, c.price, c.moq])).toEqual([['p-cup', { from: '2.6', to: '2.75' }, null]]);
   });
 
   it('0.45 and 0.4500 are one price — only a real difference is a change', () => {
@@ -80,11 +81,11 @@ describe('G16 · which pile each line goes in', () => {
   it('a product with no price yet gets the page’s — as a change she confirms', () => {
     const bare = entry({ id: 'p-bare', sku: 'ZX-300', name: 'Jute bag', price: null });
     const d = diffAgainstCatalogue(lines('ZX-300 Jute bag $1.50'), [bare]);
-    expect(d.changed.map((c) => c.price)).toEqual([{ from: null, to: 1.5 }]);
+    expect(d.changed.map((c) => c.price)).toEqual([{ from: null, to: '1.5' }]);
   });
 
   it('HER FLOOR STILL APPLIES — the same rule the product page refuses by', () => {
-    const floored = { ...TOTE, floor: 1 };
+    const floored = { ...TOTE, floor: decimal('1') };
     const below = diffAgainstCatalogue(lines('ZX-100 Canvas tote $0.95'), [floored]);
     expect(below.changed).toEqual([]);
     expect(below.held.map((h) => h.reason)).toEqual(['below_floor']);
@@ -93,7 +94,7 @@ describe('G16 · which pile each line goes in', () => {
   });
 
   it('a product in another currency is not re-priced from a dollar line', () => {
-    const yuan = { ...TOTE, currency: 'CNY' as const, price: 7.5 };
+    const yuan = { ...TOTE, currency: 'CNY' as const, price: decimal('7.5') };
     const d = diffAgainstCatalogue(lines('ZX-100 Canvas tote $1.00'), [yuan]);
     expect(d.held.map((h) => h.reason)).toEqual(['other_currency']);
   });
@@ -116,7 +117,7 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
     // K1 — the tick is on the line that changes it (its row), and it is the only one.
     expect(form).toMatch(/<input type="checkbox" name="apply:l1" checked \/>/);
     expect(form.match(/name="apply:/g)).toHaveLength(1);           // only the one that changes
-    expect(form).toContain(esc(t('en', 'product.review.change.price', { from: formatMoney(usd(1.05)), to: formatMoney(usd(0.98)) })));
+    expect(form).toContain(esc(t('en', 'product.review.change.price', { from: formatMoney(usd('1.05')), to: formatMoney(usd('0.98')) })));
     // the line it came from, beside it — the M37 rule, for a change too
     expect(form).toContain('ZX-100 Canvas tote $0.98 MOQ 500');
   });
@@ -141,7 +142,7 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
   });
 
   it('a held line says why, and links to the product when there is one', () => {
-    const html = page('ZX-100 Canvas tote $0.90', 'en', [{ ...TOTE, floor: 1 }]);
+    const html = page('ZX-100 Canvas tote $0.90', 'en', [{ ...TOTE, floor: decimal('1') }]);
     expect(html).toContain(esc(t('en', 'product.review.held.below_floor')));
     expect(html).toContain('href="/app/products/p-tote"');
     // her floor is a number a customer must never learn; the review names the rule, not the number
@@ -149,7 +150,7 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
   });
 
   it('every pile renders in every locale, with no key left showing', () => {
-    const twin = entry({ id: 'p-tote-2', sku: 'ZX-101', name: 'Canvas tote', price: 1.2 });
+    const twin = entry({ id: 'p-tote-2', sku: 'ZX-101', name: 'Canvas tote', price: decimal('1.2') });
     const all = 'ZX-100 Canvas tote $0.98\nZX-220 Vacuum cup $2.60 MOQ 1000\nZX-777 Straw hat $4.00\nCanvas tote $0.90';
     for (const locale of LOCALES) {
       const html = page(all, locale, [TOTE, CUP, twin]);

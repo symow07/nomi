@@ -109,7 +109,7 @@ d('M43b · the rate she stated (requires DATABASE_URL)', () => {
   it('a rate the code cannot price cannot be stored', async () => {
     await expect(tx((t) => sql`
       insert into owner_rates (business_id, from_currency, to_currency, rate)
-      values (${BIZ}, 'USD', 'GBP', 0.79)
+      values (${BIZ}, 'USD', 'CHF', 0.79)
     `.execute(t))).rejects.toThrow(/owner_rates_currencies_known|violates check constraint/);
   });
 
@@ -144,7 +144,7 @@ d('M43b · the rate she stated (requires DATABASE_URL)', () => {
     const detail = await loadConversationDetail(db, BIZ, convId);
     expect(detail).not.toBeNull();
     // The rate in force is the most recent one she stated, not the first.
-    expect(detail!.rate?.rate).toBe(7.22);
+    expect(detail!.rate?.rate).toBe('7.22');
     expect(detail!.rate?.statedAt).toBeInstanceOf(Date);
   });
 });

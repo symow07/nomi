@@ -46,7 +46,7 @@ d('G5 · the proof page and a withheld date (requires DATABASE_URL)', () => {
           returning id::text as id`.execute(t).then((r) => r.rows[0]!.id))
       : (await tx((t) => tenantRepos(t, bid).audit.recordQuote({
           conversationId: CONV as never, productId: PROD, quantity: 20000, inputs: {},
-          unitPrice: usd(0.38), discountPct: 0, total: usd(7600), requiresHuman: false, appliedRules: [],
+          unitPrice: usd('0.38'), discountPct: 0, total: usd('7600'), requiresHuman: false, appliedRules: [],
           leadTimeDays: quote.leadTimeDays,
           leadTimeWithheld: quote.withheld
             ? { label: '春节', from: new Date('2027-02-05'), to: new Date('2027-02-21') } : null,

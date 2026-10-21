@@ -14,7 +14,7 @@ import { withoutIsolates } from './isolates.js';
  * second, separate reading of the message agreed.
  */
 
-const usd = (n: number) => moneyFromRow(n, 'USD')!;
+const usd = (n: string) => moneyFromRow(n, 'USD')!;
 const NOW = new Date('2026-09-29T10:00:00Z');
 const QUOTE = { unitPrice: 34.9, total: 349, quantity: 10, discountPct: 0, leadTimeDays: 5, moq: null };
 
@@ -67,7 +67,7 @@ describe('the card, drawn', () => {
   const base: ConversationDetail = {
     conversationId: 'c-1', buyer: 'Maya Rahman', country: 'GB', status: 'awaiting',
     product: { name: 'Rose Face Serum', nameZh: '玫瑰精华' }, quantity: 10,
-    quote: { unitPrice: usd(34.9), total: usd(349), quantity: 10 }, order: null,
+    quote: { unitPrice: usd('34.9'), total: usd('349'), quantity: 10 }, order: null,
     messages: [{ direction: 'inbound', text: 'how much for 10 of the rose serum?', at: new Date('2026-09-29T09:58:00Z') }],
     pendingDraft: { draftId: 'd-1', draftText: 'The Rose Face Serum is $34.90 each, $349 for 10.', capability: 'quote' },
     ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,

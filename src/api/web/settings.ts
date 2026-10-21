@@ -19,7 +19,8 @@ import { INCOTERM_KEYS, isProductCategory, type ProductCategory } from '../../co
 import { questionsFor } from '../../core/owner/howYouSell.js';
 import { profileOf } from '../../core/owner/sellingStyle.js';
 import { tenantRepos } from '../../db/repos.js';
-import { type Currency, parseCurrency } from '../../core/types/money.js';
+import { type Currency, isZero, parseCurrency } from '../../core/types/money.js';
+import { decimal } from '../../core/types/decimal.js';
 import { currencyLabel, currencyInLine, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 
@@ -787,7 +788,7 @@ const toRate = (r: { from_currency: string; to_currency: string; rate: string; s
   // every other currency read: drop it, never default it.
   return from === null || to === null
     ? null
-    : { from, to, rate: Number(r.rate), statedAt: r.stated_at };
+    : { from, to, rate: decimal(r.rate), statedAt: r.stated_at };
 };
 
 /**
@@ -1254,7 +1255,7 @@ export function renderSamples(
   const name = assistantName(locale);
   const stated = v.policy
     ? `<p class="stated-now">${
-        v.policy.price.amount === 0
+        isZero(v.policy.price)
           ? esc(t(locale, 'samples.current.free'))
           : esc(t(locale, 'samples.current.paid', { price: show.money(locale, v.policy.price) }))
       } <span class="muted">${esc(t(locale, v.policy.creditedOnFirstOrder

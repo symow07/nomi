@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { booksHoldingTx, type BooksHolding } from '../../db/booksExport.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
@@ -81,6 +82,8 @@ export type DataRightsView = {
    * Absent: closable.
    */
   readonly closable?: boolean;
+  /** A2.4 (0172) — the workspace's books: kept at closure until the legal date, downloaded first. Absent: none. */
+  readonly books?: BooksHolding | null;
 };
 
 type RequestRow = {
@@ -115,6 +118,7 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
        order by (r.state = 'open') desc, r.asked_at desc
        limit 100`.execute(tx);
     const asks = await waitingAsks(tx, bid.value);
+    const books = await booksHoldingTx(tx, bid.value);
     // The warmth pass — every customer named on this page is drawn with their face.
     const photos = await faceVersions(tx, [...b.rows.map((x) => x.client_id), ...asks.map((a) => a.clientId)].filter((x): x is string => !!x));
     return {
@@ -123,6 +127,7 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
       buyers: b.rows.map((x) => ({ ...requestOf(x), buyer: x.buyer, conversationId: x.conversation_id, clientId: x.client_id, photo: x.client_id ? photos.get(x.client_id) ?? null : null })),
       asks,
       photos,
+      books: books.hasBooks ? books : null,
     };
   });
 }
@@ -404,6 +409,7 @@ export function renderDataRights(
     ${files}
     ${advisor}
     ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both, v.photos)}
+    ${booksSection(v.books ?? null, locale, viewer)}
     <section class="block" id="close">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
       <p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.now')))}</p>
@@ -412,6 +418,29 @@ export function renderDataRights(
     ${history}
     ${deeper('/privacy', t(locale, 'legal.privacyLink'))}
     `;
+}
+
+
+/**
+ * A2.4 (the owner, 2026-10-22) — what is kept, until when, why, and the copy. Shown only to a workspace with posted
+ * books: a page never states what is not there. Closing is refused (0172) until a copy covers the last posting, and
+ * this is where the owner reads why — before pressing the button, not after.
+ */
+function booksSection(b: BooksHolding | null, locale: Locale, viewer: Viewer): string {
+  if (!b || !b.hasBooks || !viewer.isOwner) return '';
+  const lead = b.keepUntil && b.law ? t(locale, 'data.books.lead', { date: show.dateYear(locale, b.keepUntil), law: b.law }) : '';
+  const copy = b.lastCopyAt
+    ? `<p class="muted">${esc(t(locale, 'data.books.lastCopy', { date: show.dateYear(locale, b.lastCopyAt) }))}</p>` : '';
+  const old = b.lastCopyAt && !b.copyCoversAll ? `<p><span class="pill warn">${esc(t(locale, 'data.books.copyOld'))}</span></p>` : '';
+  return `<section class="block" id="books">
+      <h2>${esc(t(locale, 'data.books.title'))}</h2>
+      <p class="lede">${esc(lead)}</p>
+      ${old}${copy}
+      <ul class="scard dl-files"><li class="row">
+        <span>${esc(t(locale, 'data.books.title'))}</span>
+        <a class="dl-get" href="/app/settings/data/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
+      </li></ul>
+    </section>`;
 }
 
 /** A state is a state colour: waiting, done, not done; taken back is neutral. */

@@ -62,8 +62,8 @@ type Raw = {
  * guessed currency, and never confirmed (moneyFromRow's own rule).
  */
 const rowOf = (r: Raw): ProposalRow | null => {
-  const unitPrice = moneyFromRow(Number(r.unit_price), r.currency);
-  const total = moneyFromRow(Number(r.total), r.currency);
+  const unitPrice = moneyFromRow(r.unit_price, r.currency);
+  const total = moneyFromRow(r.total, r.currency);
   if (!unitPrice || !total) return null;
   return {
   id: r.id,

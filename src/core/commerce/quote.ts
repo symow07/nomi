@@ -1,7 +1,8 @@
 import { type Result, ok, err } from '../types/result.js';
 import {
-  type Money, scaleMoney, roundMoney, isBelow, isAbove, compareMoney,
+  type Money, roundMoney, isBelow, isAbove, compareMoney, timesQuantity, lessPercent,
 } from '../types/money.js';
+import { decimal, divDecimal, mulDecimal, percentNumber, subDecimal } from '../types/decimal.js';
 import { blockingClosure, type FactoryClosure } from './closures.js';
 import type {
   HistoryContradiction,
@@ -16,7 +17,6 @@ import type {
 } from '../types/commerce.js';
 
 /** Round to cents. Floating point must never leak into a quoted price. */
-const cents = (n: number): number => Math.round(n * 100) / 100;
 
 /**
  * 0081 — the quantity to price when the customer named none (a photo with no
@@ -125,7 +125,7 @@ export function computeQuote(input: {
   if (!tier) return err({ kind: 'no_price_tier', quantity });
 
   const listUnit = tier.unitPrice;
-  const gross = scaleMoney(listUnit, quantity);
+  const gross = timesQuantity(listUnit, quantity);
 
   // Apply negotiation rules in priority order. Discounts do not stack blindly:
   // we take the single best discount, which is how humans actually negotiate and
@@ -169,14 +169,16 @@ export function computeQuote(input: {
     }
   }
 
-  let unitPrice = roundMoney(scaleMoney(listUnit, 1 - discountPct / 100));
+  // A1 — exact: list × (1 − pct/100), rounded half away from zero. In floating point, $5.30 less 5% (5.035) was $5.03.
+  let unitPrice = roundMoney(lessPercent(listUnit, discountPct));
 
   // 2. The floor. Absolute. Nothing crosses it.
   if (policy && isBelow(unitPrice, policy.floorPrice)) {
     // Prefer degrading the discount to refusing the sale entirely...
     if (compareMoney(listUnit, policy.floorPrice) >= 0) {
       unitPrice = policy.floorPrice;
-      discountPct = cents(((listUnit.amount - unitPrice.amount) / listUnit.amount) * 100);
+      // The discount actually given, to two decimals, computed exactly (a percentage, stored as numeric(5,2)).
+      discountPct = percentNumber(divDecimal(mulDecimal(subDecimal(listUnit.amount, unitPrice.amount), decimal('100')), listUnit.amount, 2));
       applied.push(`clamped_to_floor:${policy.floorPrice.amount}`);
     } else {
       // ...but if even the list price is below the floor, the catalog is
@@ -243,7 +245,7 @@ export function computeQuote(input: {
     quantity: { value: quantity, unit: product.unit },
     unitPrice,
     discountPct,
-    total: roundMoney(scaleMoney(unitPrice, quantity)),
+    total: roundMoney(timesQuantity(unitPrice, quantity)),
     moq: product.moq,
     leadTimeDays: blocked ? null : leadTimeDays,
     leadTimeBlocked: blocked,

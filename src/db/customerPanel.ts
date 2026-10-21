@@ -94,7 +94,7 @@ export async function loadCustomerPanel(tx: Tx, conversationId: string): Promise
      order by q.created_at desc limit 3`.execute(tx)).rows
     // G18 — a quote in a currency this build cannot price is left off, never shown in dollars.
     .flatMap((r) => {
-      const unitPrice = moneyFromRow(Number(r.unit_price_usd), r.currency);
+      const unitPrice = moneyFromRow(r.unit_price_usd, r.currency);
       return unitPrice ? [{ unitPrice, name: r.name, nameZh: r.name_zh, at: r.at, conversationId: r.conversation_id }] : [];
     });
 

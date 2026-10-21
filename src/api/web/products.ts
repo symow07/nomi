@@ -2,6 +2,7 @@ import { parseOptions, formatOptions, optionsOf, type ProductOption } from '../.
 import { PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { sql } from 'kysely';
 import { type Money, type Currency, parseCurrency, moneyFromRow } from '../../core/types/money.js';
+import { type Decimal, compareDecimal, decimal, roundDecimal, signOf } from '../../core/types/decimal.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { currencyOf } from '../../db/currency.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
@@ -181,7 +182,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
      order by p.is_active desc, p.updated_at desc, p.name, p.id
      limit 200
   `.execute(tx)).rows.map((r): ProductListItem => {
-    const entryPrice = r.entry_price !== null ? Number(r.entry_price) : (r.price !== null ? Number(r.price) : null);
+    const entryPrice = r.entry_price ?? r.price;
     return {
       id: r.id, name: r.name, nameZh: r.name_zh, sku: r.sku, moq: r.moq, unit: r.unit,
       entryQty: r.entry_qty ?? (entryPrice !== null ? r.moq ?? 1 : null),
@@ -261,7 +262,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
     const tiers = (await sql<{ min_qty: number; max_qty: number | null; unit_price_usd: string; currency: string }>`
       select min_qty, max_qty, unit_price_usd, currency from price_tiers where product_id = ${productId} order by min_qty asc`
       .execute(tx)).rows
-      .map((tr) => ({ minQty: tr.min_qty, maxQty: tr.max_qty, unitPrice: moneyFromRow(Number(tr.unit_price_usd), tr.currency) }))
+      .map((tr) => ({ minQty: tr.min_qty, maxQty: tr.max_qty, unitPrice: moneyFromRow(tr.unit_price_usd, tr.currency) }))
       .filter((tr): tr is { minQty: number; maxQty: number | null; unitPrice: Money } => tr.unitPrice !== null);
     const aliases = (await sql<{ alias: string }>`
       select distinct alias from product_aliases where product_id = ${productId} order by alias limit 40`
@@ -282,8 +283,8 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       .execute(tx)).rows
       .map((q) => ({
         quantity: q.quantity,
-        unitPrice: moneyFromRow(Number(q.unit_price_usd), q.currency),
-        total: moneyFromRow(Number(q.total_usd), q.currency),
+        unitPrice: moneyFromRow(q.unit_price_usd, q.currency),
+        total: moneyFromRow(q.total_usd, q.currency),
         at: q.created_at, customer: q.customer, conversationId: q.conversation_id,
       }))
       .filter((q): q is { quantity: number; unitPrice: Money; total: Money; at: Date; customer: string | null; conversationId: string | null } =>
@@ -328,9 +329,9 @@ export async function catalogueForTx(tx: Tx, bid: BusinessId): Promise<readonly 
   `.execute(tx)).rows;
   return rows.map((r) => ({
     id: r.id, sku: r.sku, name: r.name, nameZh: r.name_zh,
-    price: r.price === null ? null : Number(r.price),
+    price: r.price === null ? null : decimal(r.price),
     currency: parseCurrency(r.currency), moq: r.moq,
-    floor: r.floor === null ? null : Number(r.floor),
+    floor: r.floor === null ? null : decimal(r.floor),
   }));
 }
 
@@ -407,7 +408,7 @@ async function kindOf(tx: Tx, bid: BusinessId): Promise<string | null> {
 export async function writeImportRows(
   tx: Tx, bid: BusinessId, rows: readonly ImportRow[], currency: Currency, approval: ImportApproval,
   source: { readonly importId: string | null; readonly photoIds: ReadonlyMap<number, string> },
-  floors: { readonly byRow: ReadonlyMap<string, number>; readonly discountPct: number } | null,
+  floors: { readonly byRow: ReadonlyMap<string, Decimal>; readonly discountPct: number } | null,
 ): Promise<{ readonly result: ImportResult & { readonly floors: number }; readonly rows: readonly ImportRow[] }> {
   let added = 0, withPrice = 0, updated = 0, alreadyHere = 0, refused = 0, ready = 0, floorsSet = 0;
   const live = liveRows(rows);
@@ -424,8 +425,9 @@ export async function writeImportRows(
   const general = (await sql<{ floor: string; currency: string }>`
     select floor_price_usd as floor, currency from pricing_policy
      where business_id = ${bid} and product_id is null limit 1`.execute(tx)).rows[0];
-  const coveredByGeneral = (price: { amount: number; currency: string } | null): boolean =>
-    price !== null && general !== undefined && price.currency === general.currency && price.amount >= Number(general.floor);
+  const coveredByGeneral = (price: Money | null): boolean =>
+    price !== null && general !== undefined && price.currency === general.currency
+      && compareDecimal(price.amount, decimal(general.floor)) >= 0;
   for (let i = 0; i < diff.added.length; i++) {
     const p = diff.added[i]!;
     const row = byLine.get(p)!;
@@ -819,6 +821,9 @@ const EXAMPLE_PRICES: Readonly<Record<Currency, readonly [string, string, string
   MXN: ['$19', '$45', '$599'],
   INR: ['₹90', '₹220', '₹2,899'],
   IDR: ['Rp 15.000', 'Rp 40.000', 'Rp 499.000'],
+  MAD: ['MAD 10', 'MAD 25', 'MAD 349'],
+  EUR: ['1,05 €', '2,60 €', '34,90 €'],
+  GBP: ['£1.05', '£2.60', '£34.90'],
 };
 
 export function renderAddForm(
@@ -967,24 +972,26 @@ export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 
  * first figure that will not do refuses them all, like every other field.
  */
 export function readTierEdits(
-  current: readonly { readonly minQty: number; readonly price: number }[],
-  typed: Readonly<Record<string, string>>, currency: Currency, floor: number | null,
-): { readonly ok: true; readonly set: readonly { minQty: number; price: number }[] }
+  current: readonly { readonly minQty: number; readonly price: Decimal }[],
+  typed: Readonly<Record<string, string>>, floor: Decimal | null,
+): { readonly ok: true; readonly set: readonly { minQty: number; price: Decimal }[] }
   | { readonly ok: false; readonly error: ProductEditError } {
-  const set: { minQty: number; price: number }[] = [];
+  const set: { minQty: number; price: Decimal }[] = [];
   for (const tr of current) {
     const raw = typed[String(tr.minQty)];
     if (raw === undefined || raw.trim() === '') continue;
-    const n = readTypedAmount(raw, currency) ?? NaN;
-    if (!Number.isFinite(n)) return { ok: false, error: 'not_a_number' };
-    if (!(n > 0)) return { ok: false, error: 'not_positive' };
-    if (floor !== null && n < floor) return { ok: false, error: 'below_floor' };
-    const price = Number(n.toFixed(4));
-    if (price !== tr.price) set.push({ minQty: tr.minQty, price });
+    const n = readTypedAmount(raw);
+    if (n === null) return { ok: false, error: 'not_a_number' };
+    if (n === 'ambiguous') return { ok: false, error: 'ambiguous' };
+    if (signOf(n) <= 0) return { ok: false, error: 'not_positive' };
+    if (floor !== null && compareDecimal(n, floor) < 0) return { ok: false, error: 'below_floor' };
+    // A1 — four decimals, as `numeric(10,4)` holds it; canonical text, so an unchanged price compares equal.
+    const price = roundDecimal(n, 4);
+    if (compareDecimal(price, tr.price) !== 0) set.push({ minQty: tr.minQty, price });
   }
   return { ok: true, set };
 }
-export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far'
+export type ProductEditError = 'not_a_number' | 'ambiguous' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far'
   | 'no_name' | 'no_values' | 'too_many_options' | 'too_many_values' | 'option_too_long';
 
 /** RT — the longest lead time a product may state: a year. */
@@ -1030,19 +1037,20 @@ async function updateProductTx(
   const errors: Partial<Record<ProductEditField, ProductEditError>> = {};
   // CUR — the price box is in the workspace's one currency, read its way.
   const currency = await currencyOf(tx, bid);
-  let price: number | null = cur.price === null ? null : Number(cur.price);
+  let price: Decimal | null = cur.price === null ? null : decimal(cur.price);
   let moq: number | null = cur.moq;
   let unit = cur.unit;
 
   if (edit.price !== undefined && edit.price !== null && edit.price.trim() !== '') {
-    const n = readTypedAmount(edit.price, currency) ?? NaN;
-    if (!Number.isFinite(n)) errors.price = 'not_a_number';
-    else if (!(n > 0)) errors.price = 'not_positive';
+    const n = readTypedAmount(edit.price);
+    if (n === null) errors.price = 'not_a_number';
+    else if (n === 'ambiguous') errors.price = 'ambiguous';
+    else if (signOf(n) <= 0) errors.price = 'not_positive';
     // A new list price BELOW her own floor would make the product silently
     // unquotable — quote.ts refuses `below_floor` rather than selling at a
     // loss. She is told now, not by a buyer's silence later.
-    else if (cur.floor !== null && n < Number(cur.floor)) errors.price = 'below_floor';
-    else price = Number(n.toFixed(4));
+    else if (cur.floor !== null && compareDecimal(n, decimal(cur.floor)) < 0) errors.price = 'below_floor';
+    else price = roundDecimal(n, 4);
   }
   // 0081 — an empty box is "no minimum"; absent (null) leaves it as it is.
   if (edit.moq !== undefined && edit.moq !== null) {
@@ -1093,8 +1101,8 @@ async function updateProductTx(
   // The warmth run, phase 9 (V1-305) — the larger orders' prices, each above the entry one.
   const curTiers = (await sql<{ min_qty: number; price: string }>`
     select min_qty, unit_price_usd as price from price_tiers where product_id = ${productId} order by min_qty asc`.execute(tx)).rows
-    .map((r) => ({ minQty: Number(r.min_qty), price: Number(r.price) }));
-  const tierEdit = edit.tiers ? readTierEdits(curTiers.slice(1), edit.tiers, currency, cur.floor === null ? null : Number(cur.floor)) : null;
+    .map((r) => ({ minQty: Number(r.min_qty), price: decimal(r.price) }));
+  const tierEdit = edit.tiers ? readTierEdits(curTiers.slice(1), edit.tiers, cur.floor === null ? null : decimal(cur.floor)) : null;
   if (tierEdit && !tierEdit.ok) errors.tiers = tierEdit.error;
   // VAR — its options, read whole; one bad line refuses them all.
   const curOptions = optionsOf(cur.options);
@@ -1112,7 +1120,7 @@ async function updateProductTx(
   const note = (f: ProductEditField, from: unknown, to: unknown) => {
     if (from !== to) { changed.push(f); detail[f] = { from, to }; }
   };
-  note('price', cur.price === null ? null : Number(cur.price), price);
+  note('price', cur.price === null ? null : decimal(cur.price), price);
   note('moq', cur.moq, moq);
   note('unit', cur.unit, unit);
   note('isActive', cur.is_active, isActive);

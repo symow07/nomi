@@ -25,6 +25,7 @@ import { autonomyReleased } from '../core/conversation/disclosure.js';
 import { levelOf } from '../core/conversation/autonomyLevel.js';
 import { PROBLEM_SIGNAL_KINDS } from '../core/scoring/signals.js';
 import { moneyFromRow, type Money } from '../core/types/money.js';
+import { compareDecimal, decimal, signOf, divDecimal, fromInteger, mulDecimal, roundDecimal } from '../core/types/decimal.js';
 
 /**
  * THE ADVISOR'S READS — the ONLY place an advisor fact comes from (the owner, 2026-10-06: "every factual
@@ -270,7 +271,7 @@ async function bestCustomers(ctx: ReadCtx): Promise<Sheet> {
     if (ids.length === 0) return nothing('advisor.none.bestCustomers', undefined, { href: '/app/inbox?lens=value', label: 'nav.inbox' });
     const values = await customerValues(tx, ids, ctx.now);
     const names = await namesOf(tx, ids);
-    const top = [...values.values()].filter((v) => v.spent).sort((a, b) => (b.spent!.amount - a.spent!.amount)).slice(0, 10);
+    const top = [...values.values()].filter((v) => v.spent).sort((a, b) => compareDecimal(b.spent!.amount, a.spent!.amount)).slice(0, 10);
     return sheet(top.map((v) => L(ctx, 'advisor.k.spent', { name: nameOf(ctx, names.get(v.clientId) ?? null), amount: money(ctx, v.spent!) })),
       top.map((v) => names.get(v.clientId) ?? ''), { href: '/app/inbox?lens=value', label: 'nav.inbox' }, { subjects: top.map((v) => v.clientId) });
   });
@@ -538,7 +539,7 @@ async function ordersWaiting(ctx: ReadCtx): Promise<Sheet> {
      where op.state = 'pending' order by op.created_at`.execute(tx)).rows);
   if (rows.length === 0) return nothing('advisor.none.ordersWaiting', undefined, WAITING);
   return sheet(rows.map((r) => {
-    const m = r.total !== null && r.currency ? moneyFromRow(Number(r.total), r.currency) : null;
+    const m = r.total !== null && r.currency ? moneyFromRow(r.total, r.currency) : null;
     return m ? L(ctx, 'advisor.k.orderWaiting', { name: nameOf(ctx, r.name), amount: money(ctx, m) }) : L(ctx, 'advisor.k.orderWaitingBare', { name: nameOf(ctx, r.name) });
   }), rows.map((r) => r.name ?? ''), WAITING, { subjects: rows.map((r) => r.client_id) });
 }
@@ -551,15 +552,15 @@ async function pricesSent(ctx: ReadCtx): Promise<Sheet> {
 }
 
 /** Standing orders since `start`, per currency: how many and how much (D5, D7, D8). */
-async function totalsSince(tx: Tx, start: Date, until: Date | null = null): Promise<{ currency: string; n: number; sum: number }[]> {
+async function totalsSince(tx: Tx, start: Date, until: Date | null = null): Promise<{ currency: string; n: number; sum: string }[]> {
   return (await sql<{ currency: string; n: number; sum: string }>`
     select o.currency, count(*)::int as n, coalesce(sum(o.total_value_usd), 0)::text as sum from orders o
      where o.status = any(${[...SPEND_STATUSES]}::text[]) and coalesce(o.confirmed_at, o.created_at) >= ${start}
        and (${until}::timestamptz is null or coalesce(o.confirmed_at, o.created_at) < ${until}::timestamptz)
        and ${notOwnerTesting('o.conversation_id')}
-     group by o.currency order by 3 desc`.execute(tx)).rows.map((r) => ({ currency: r.currency, n: r.n, sum: Number(r.sum) }));
+     group by o.currency order by 3 desc`.execute(tx)).rows;
 }
-const moneyOr = (ctx: ReadCtx, amount: number, currency: string): string | null => {
+const moneyOr = (ctx: ReadCtx, amount: string, currency: string): string | null => {
   const m = moneyFromRow(amount, currency);
   return m ? money(ctx, m) : null;
 };
@@ -573,7 +574,7 @@ async function averageOrder(ctx: ReadCtx): Promise<Sheet> {
     const rows = (await totalsSince(tx, start)).filter((r) => r.n > 0);
     if (rows.length === 0) return nothing('advisor.none.salesPeriod', { period: L(ctx, `advisor.when.${range}`) }, resultsDoor(range));
     return sheet([periodLine(ctx, range, start, zone), ...rows.flatMap((r) => {
-      const avg = moneyOr(ctx, Math.round((r.sum / r.n) * 100) / 100, r.currency);
+      const avg = moneyOr(ctx, divDecimal(decimal(r.sum), fromInteger(r.n), 2), r.currency);
       return avg ? [L(ctx, 'advisor.k.average', { amount: avg, n: count(ctx, r.n) })] : [];
     })], [], resultsDoor(range));
   });
@@ -623,13 +624,13 @@ async function salesAtRate(ctx: ReadCtx): Promise<Sheet> {
     const rows = await totalsSince(tx, start);
     if (rows.length === 0) return nothing(await everSoldTx(tx) ? 'advisor.none.salesPeriod' : 'advisor.none.salesNever', { period: L(ctx, `advisor.when.${range}`) }, resultsDoor(range));
     // As the rate page says it (settings.ts `toRate`): the stored figure, never rounded by a formatter.
-    const r = Number(rate.rate);
-    const rateSaid = L(ctx, 'advisor.k.rate', { from: pair.from, rate: String(r), to: pair.to, date: show.date(ctx.locale, rate.at) });
+    const r = decimal(rate.rate);
+    const rateSaid = L(ctx, 'advisor.k.rate', { from: pair.from, rate: r, to: pair.to, date: show.date(ctx.locale, rate.at) });
     return sheet([periodLine(ctx, range, start, zone), rateSaid, ...rows.flatMap((x) => {
       const own = moneyOr(ctx, x.sum, x.currency);
       if (!own) return [];
       if (x.currency !== pair.from) return [L(ctx, 'advisor.k.notConverted', { amount: own })];
-      const converted = moneyOr(ctx, Math.round(x.sum * r * 100) / 100, pair.to);
+      const converted = moneyOr(ctx, roundDecimal(mulDecimal(decimal(x.sum), r), 2), pair.to);
       return converted ? [L(ctx, 'advisor.k.converted', { amount: own, converted })] : [];
     })], [], resultsDoor(range));
   });
@@ -648,7 +649,7 @@ async function orderByReference(ctx: ReadCtx): Promise<Sheet> {
     if (!o) return nothing('advisor.none.noSuchOrder', { ref });
     const steps = (await sql<{ state: string; at: Date }>`
       select state, at from order_updates where order_id = ${o.id}::uuid order by at`.execute(tx)).rows;
-    const total = o.total !== null ? moneyOr(ctx, Number(o.total), o.currency) : null;
+    const total = o.total !== null ? moneyOr(ctx, o.total, o.currency) : null;
     return sheet([
       L(ctx, 'advisor.k.order', { ref, state: orderStatusName(ctx.locale, o.status), name: nameOf(ctx, o.name) }),
       ...(o.product ? [L(ctx, 'advisor.k.orderWhat', { quantity: o.quantity === null ? '' : show.count(ctx.locale, o.quantity), unit: o.unit ?? '', product: o.product })] : []),
@@ -699,7 +700,7 @@ async function products(ctx: ReadCtx): Promise<Sheet> {
      order by p.name, t.min_qty nulls first limit 80`.execute(tx)).rows);
   if (rows.length === 0) return ctx.params.product ? nothing('advisor.none.noSuchProduct', { name: ctx.params.product }, PRODUCTS) : nothing('advisor.none.products', undefined, PRODUCTS);
   const lines = rows.map((r) => {
-    const m = r.price !== null && r.currency ? moneyOr(ctx, Number(r.price), r.currency) : null;
+    const m = r.price !== null && r.currency ? moneyOr(ctx, r.price, r.currency) : null;
     return m ? L(ctx, 'advisor.k.tier', { name: r.name, min: r.min_qty === null ? '1' : show.count(ctx.locale, r.min_qty), unit: r.unit, price: m })
       : L(ctx, 'advisor.k.noPriceOne', { name: r.name });
   });
@@ -718,7 +719,7 @@ async function bestSellers(ctx: ReadCtx): Promise<Sheet> {
        where o.status = any(${[...SPEND_STATUSES]}::text[]) and coalesce(o.confirmed_at, o.created_at) >= ${start} and ${notOwnerTesting('o.conversation_id')}
        group by p.name, o.currency order by 2 desc, 4 desc limit 10`.execute(tx)).rows;
     if (rows.length === 0) return nothing(await everSoldTx(tx) ? 'advisor.none.salesPeriod' : 'advisor.none.salesNever', { period: L(ctx, `advisor.when.${range}`) }, resultsDoor(range));
-    return sheet([periodLine(ctx, range, start, zone), ...rows.map((r) => L(ctx, 'advisor.k.seller', { name: r.name, n: count(ctx, r.n), amount: moneyOr(ctx, Number(r.sum), r.currency) ?? '' }))],
+    return sheet([periodLine(ctx, range, start, zone), ...rows.map((r) => L(ctx, 'advisor.k.seller', { name: r.name, n: count(ctx, r.n), amount: moneyOr(ctx, r.sum, r.currency) ?? '' }))],
       rows.map((r) => r.name), PRODUCTS);
   });
 }
@@ -863,7 +864,7 @@ async function terms(ctx: ReadCtx): Promise<Sheet> {
       select location, description, contact_phone, contact_email from businesses where id = ${ctx.businessId}`.execute(tx)).rows[0];
     const sell = (await sql<{ answered: number; total: number }>`
       select count(*) filter (where state = 'answered')::int as answered, count(*)::int as total from selling_answers`.execute(tx)).rows[0];
-    const sample = sp ? (sp.price !== null && sp.currency && Number(sp.price) > 0 ? moneyOr(ctx, Number(sp.price), sp.currency) : null) : null;
+    const sample = sp ? (sp.price !== null && sp.currency && signOf(decimal(sp.price)) > 0 ? moneyOr(ctx, sp.price, sp.currency) : null) : null;
     const lines = [
       ...(tt?.payment ? [L(ctx, 'advisor.k.payment', { v: tt.payment })] : []),
       ...(tt?.incoterm ? [L(ctx, 'advisor.k.incoterm', { v: tt.incoterm })] : []),

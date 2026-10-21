@@ -26,6 +26,7 @@ import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { csvRows } from '../../src/core/owner/csv.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
 import { GO } from '../../src/api/web/icons.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * Phase 9, round two — Products, the product page, the add page and the
@@ -39,17 +40,17 @@ const plain = (s: string): string => s.replace(/[\u2066-\u2069\u200f]/g, '');
 
 const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 500, unit: 'pcs', entryQty: 500,
-  entryPrice: usd(1.05), learned: true, status: 'learned', imageMatchable: true, isActive: true, ...over,
+  entryPrice: usd('1.05'), learned: true, status: 'learned', imageMatchable: true, isActive: true, ...over,
 });
 
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   currency: 'USD', id: 'de300000-0000-4000-8000-000000000101', name: 'Canvas Tote Bag 38x40cm', nameZh: '帆布袋', sku: 'ZX-100',
   category: 'bags', unit: 'pcs', moq: 500, leadTimeDays: 15, customizable: false, learned: true, status: 'learned',
   isActive: true, imageMatchable: true,
-  tiers: [{ minQty: 500, maxQty: null, unitPrice: usd(1.05) }, { minQty: 2000, maxQty: null, unitPrice: usd(0.92) },
-    { minQty: 10000, maxQty: null, unitPrice: usd(0.85) }],
+  tiers: [{ minQty: 500, maxQty: null, unitPrice: usd('1.05') }, { minQty: 2000, maxQty: null, unitPrice: usd('0.92') },
+    { minQty: 10000, maxQty: null, unitPrice: usd('0.85') }],
   aliases: ['canvas bag', 'tote bag', 'حقيبة قماش', '帆布包'], images: [],
-  recentQuotes: [{ quantity: 500, unitPrice: usd(1.05), total: usd(525), at: new Date('2026-10-01T09:00:00Z'), customer: 'Omar', conversationId: 'c-1' }],
+  recentQuotes: [{ quantity: 500, unitPrice: usd('1.05'), total: usd('525'), at: new Date('2026-10-01T09:00:00Z'), customer: 'Omar', conversationId: 'c-1' }],
   ...over,
 });
 
@@ -139,19 +140,19 @@ describe('Products — one product', () => {
     expect(sent).toContain('name="tier:2000" inputmode="decimal" value="0.10"');
     expect(sent).toMatch(/name="tier:10000"[\s\S]*?<p class="perr" role="alert">[^<]*<\/p><span class="caption muted">/);
     // A product priced from one keeps "Price for one", and has no group for larger orders.
-    const one = page('en', { tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2) }] });
+    const one = page('en', { tiers: [{ minQty: 1, maxQty: null, unitPrice: usd('2') }] });
     expect(one).toContain('Price for one (USD)');
     expect(one).not.toContain('name="tier:');
   });
 
   it('V1-305 — what the boxes change: a figure read the currency\'s way, never below the floor, an empty or stale box left alone', () => {
-    const current = [{ minQty: 2000, price: 0.92 }, { minQty: 10000, price: 0.85 }];
-    expect(readTierEdits(current, { '2000': '0.90', '10000': '0.85' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: 0.9 }] });
-    expect(readTierEdits(current, { '2000': '0,88' }, 'USD', null)).toEqual({ ok: true, set: [{ minQty: 2000, price: 0.88 }] });
-    expect(readTierEdits(current, { '2000': '', '500': '0.10' }, 'USD', null)).toEqual({ ok: true, set: [] });
-    expect(readTierEdits(current, { '10000': 'cheap' }, 'USD', null)).toEqual({ ok: false, error: 'not_a_number' });
-    expect(readTierEdits(current, { '10000': '0' }, 'USD', null)).toEqual({ ok: false, error: 'not_positive' });
-    expect(readTierEdits(current, { '10000': '0.70' }, 'USD', 0.72)).toEqual({ ok: false, error: 'below_floor' });
+    const current = [{ minQty: 2000, price: decimal('0.92') }, { minQty: 10000, price: decimal('0.85') }];
+    expect(readTierEdits(current, { '2000': '0.90', '10000': '0.85' }, null)).toEqual({ ok: true, set: [{ minQty: 2000, price: '0.9' }] });
+    expect(readTierEdits(current, { '2000': '0,88' }, null)).toEqual({ ok: true, set: [{ minQty: 2000, price: '0.88' }] });
+    expect(readTierEdits(current, { '2000': '', '500': '0.10' }, null)).toEqual({ ok: true, set: [] });
+    expect(readTierEdits(current, { '10000': 'cheap' }, null)).toEqual({ ok: false, error: 'not_a_number' });
+    expect(readTierEdits(current, { '10000': '0' }, null)).toEqual({ ok: false, error: 'not_positive' });
+    expect(readTierEdits(current, { '10000': '0.70' }, decimal('0.72'))).toEqual({ ok: false, error: 'below_floor' });
     // The route reads the boxes, and the edit writes them through the one audited edit.
     const src = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(src).toMatch(/\/\^tier:\\d\+\$\/\.test\(k\)/);
@@ -174,7 +175,7 @@ describe('Products — one product', () => {
 
   it('w4-products-knowledge-10 — a quote from today or yesterday says so; each fact stays whole on its line', () => {
     const NOW = new Date('2026-10-03T10:00:00Z');
-    const today = plain(renderProductDetail(detail({ recentQuotes: [{ quantity: 500, unitPrice: usd(1.05), total: usd(525), at: new Date('2026-10-03T08:00:00Z'), customer: 'Layla', conversationId: 'c-1' }] }), 'en', null, {}, {}, undefined, NOW));
+    const today = plain(renderProductDetail(detail({ recentQuotes: [{ quantity: 500, unitPrice: usd('1.05'), total: usd('525'), at: new Date('2026-10-03T08:00:00Z'), customer: 'Layla', conversationId: 'c-1' }] }), 'en', null, {}, {}, undefined, NOW));
     expect(today).toContain('<bdi class="q-fact">Today</bdi> · <bdi class="q-fact">Layla</bdi>');
     expect(today).not.toContain('Sat, Oct 3');
     const zh = plain(renderProductDetail(detail(), 'zh', null, {}, {}, undefined, NOW));
@@ -417,17 +418,17 @@ describe('The import review', () => {
 
   it('V1-334 — a plain price is read, flagged for its own tick; a figure that reads two ways is refused, never guessed', () => {
     const [tote, scarf, mug, bowl, sale] = parsePriceLines(LIST, 'USD');
-    expect(tote).toMatchObject({ name: 'Canvas tote', price: usd(18) });
+    expect(tote).toMatchObject({ name: 'Canvas tote', price: usd('18') });
     // The warmth run, phase 9 — "24,50" reads one way only (no thousands group is two digits long).
-    expect(scarf).toMatchObject({ name: 'Wool scarf', price: usd(24.5) });
+    expect(scarf).toMatchObject({ name: 'Wool scarf', price: usd('24.5') });
     expect(scarf!.problem).toBeUndefined();
     // …and "Mug 8 or bowl 12" is two products, each with the whole line as where it was read from.
-    expect(mug).toMatchObject({ name: 'Mug', price: usd(8), half: 1, sourceLine: 'Mug 8 or bowl 12' });
-    expect(bowl).toMatchObject({ name: 'bowl', price: usd(12), half: 2, sourceLine: 'Mug 8 or bowl 12' });
+    expect(mug).toMatchObject({ name: 'Mug', price: usd('8'), half: 1, sourceLine: 'Mug 8 or bowl 12' });
+    expect(bowl).toMatchObject({ name: 'bowl', price: usd('12'), half: 2, sourceLine: 'Mug 8 or bowl 12' });
     expect(sale).toMatchObject({ price: null });
     // A figure that truly reads two ways is still refused.
     expect(parsePriceLines('Bag $1.250', 'USD')[0]).toMatchObject({ price: null, problem: 'ambiguous_price' });
-    expect(parsePriceLines('Mug 2.50 each', 'USD')[0]).toMatchObject({ name: 'Mug', price: usd(2.5) });
+    expect(parsePriceLines('Mug 2.50 each', 'USD')[0]).toMatchObject({ name: 'Mug', price: usd('2.5') });
     // A size, a quantity, a model number: no cents, never a price.
     for (const line of ['Thermos 500ml', 'Version 2.0', 'Bottle 0.75 l', 'Model ZX 300']) {
       expect(parsePriceLines(line, 'USD')[0]!.price, line).toBeNull();
@@ -451,7 +452,7 @@ describe('The import review', () => {
     }
     // A sign makes it no less two products, and no "two prices" warning besides.
     const signed = reviewModel('Tote $18 or bag $24').imp.rows;
-    expect(signed.map((r) => [r.name, r.price])).toEqual([['Tote', 18], ['bag', 24]]);
+    expect(signed.map((r) => [r.name, r.price])).toEqual([['Tote', '18'], ['bag', '24']]);
     expect(flagsOf(signed[0]!, signed, m.ctx)).toEqual(['split_line']);
     // Never cut: a size range, a price per size, a name with "and" in it.
     for (const line of ['Pillow 40 or 60', 'Hoodie S-M $40 / L-XL $45', 'Salt and pepper set 12.00', 'Tote\t18\tor bag\t24']) {
@@ -613,13 +614,13 @@ describe('The import review', () => {
 });
 
 describe('Your price limits', () => {
-  const RULES = { floor: usd(0.72), maxDiscountPct: 8, askAbovePct: 5 };
-  const own = (id: string, name: string, price: number) => ({
+  const RULES = { floor: usd('0.72'), maxDiscountPct: 8, askAbovePct: 5 };
+  const own = (id: string, name: string, price: string) => ({
     productId: id, sku: `GEN-${id}`, name, nameZh: null, listPrice: usd(price), own: RULES, inheritsDefault: false, isActive: true,
   });
   const view = (over: Partial<PriceRulesView> = {}): PriceRulesView => ({
     currency: 'USD', volume: [], businessDefault: null, unanswered: 0,
-    products: [own('a1', 'Canvas Tote Bag', 1.05), own('a2', 'Bamboo board', 3.5)], ...over,
+    products: [own('a1', 'Canvas Tote Bag', '1.05'), own('a2', 'Bamboo board', '3.5')], ...over,
   });
   const page = (l: Locale, v: PriceRulesView = view(), draft: { productId?: string | null } = {}) => plain(renderPriceRules(v, l, null, {}, draft));
 
@@ -636,7 +637,7 @@ describe('Your price limits', () => {
     expect(t('en', 'prices.q.floorAll', { currency: 'USD' })).toBe('What is the least you would accept for one unit of any product? (USD)');
     expect(en).not.toContain('one of these');
     // A product still waiting: the form stands open, as before.
-    const waiting = page('en', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] }));
+    const waiting = page('en', view({ products: [{ ...own('a3', 'Lamp', '3.5'), own: null }] }));
     expect(waiting).not.toContain('pr-fold');
     expect(t('en', 'prices.default.sub')).toContain('A product priced below it needs an answer of its own');
     // w4-products-knowledge-15 — "its lowest price" could only mean the product's; the figure meant is the one given here.
@@ -666,7 +667,7 @@ describe('Your price limits', () => {
   });
 
   it('V1-356 / V1-331 — Arabic joins لـ to مساعدك on this page', () => {
-    const ar = page('ar', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] }));
+    const ar = page('ar', view({ products: [{ ...own('a3', 'Lamp', '3.5'), own: null }] }));
     expect(ar).toContain('لمساعدك');
     expect(ar).not.toMatch(/لـ\s*مساعدك/);
   });
@@ -683,7 +684,7 @@ describe('Your price limits', () => {
     const opened = en.slice(en.indexOf('id="p-a1"'));
     expect(opened.indexOf('class="btn send"')).toBeLessThan(opened.indexOf('</li>'));
     // Nothing opened: the answer for everything carries the one fill.
-    expect(page('en', view({ products: [{ ...own('a3', 'Lamp', 3.5), own: null }] })).match(/class="btn send"/g)).toHaveLength(1);
+    expect(page('en', view({ products: [{ ...own('a3', 'Lamp', '3.5'), own: null }] })).match(/class="btn send"/g)).toHaveLength(1);
   });
 
   it('new-15 — "no discount" is a valid choice, said without the waiting mark', () => {
@@ -714,18 +715,18 @@ describe('Your price limits', () => {
     const f = {
       profile: { name: 'Shop', description: 'x', location: 'Yiwu', workingHours: 'Mon–Sat', contactEmail: 's@x.example', contactPhone: null, languagesServed: ['en'], categories: [] },
       products: { total: 1, needPrice: 0, names: [{ name: 'Cup', nameZh: null }] },
-      promises: { certs: [], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false, askPct: 5, askVaries: false },
+      promises: { certs: [], floorLow: usd('0.75'), floorHigh: usd('0.75'), ceilingPct: 8, ceilingVaries: false, askPct: 5, askVaries: false },
       connection: { channel, ownerPhone: '971500001111' }, nextStep: null,
       readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null, recipients: [] },
       rehearsal: { findings: [], violations: [], probesRun: 1, productsChecked: 1, productsTotal: 1 },
-      prices: { currency: 'USD', businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 }, products: [], unanswered: 0, volume: [] },
+      prices: { currency: 'USD', businessDefault: { floor: usd('0.35'), maxDiscountPct: 10, askAbovePct: 7 }, products: [], unanswered: 0, volume: [] },
     } as unknown as FactoryView;
     // Phase 7 — My business no longer restates the price page's sentence: its
     // row opens that page (one home for the limits), and What you promise says
     // the same truth in its own words — nothing comes off unless she wrote it.
     for (const l of LOCALES) {
       const html = plain(renderFactory(f, l)) + plain(renderBusinessScreen('promises', f, l));
-      const said = (k: 'prices.stated' | 'prices.stated.noDiscount') => esc(plain(t(l, k, { floor: show.money(l, usd(0.35)), max: 10, ask: 7 })));
+      const said = (k: 'prices.stated' | 'prices.stated.noDiscount') => esc(plain(t(l, k, { floor: show.money(l, usd('0.35')), max: 10, ask: 7 })));
       expect(html, l).not.toContain(said('prices.stated.noDiscount'));
       expect(html, l).not.toContain(said('prices.stated'));
       expect(html, l).toContain(esc(plain(t(l, 'factory.promise.noDiscount', { name: '§' }))).split('§').pop()!);
@@ -985,14 +986,14 @@ describe('Every page of this area keeps the rule: buttons do things, doors go pl
   it('products, a product, adding, the review, price limits, knowledge', () => {
     const k: KnowledgeIndex = { products: [{ id: 'p1', name: 'Tote', count: 1 }], business: [], certs: ['CE'], appliesToProducts: 3 };
     const pages = {
-      list: renderProductList([{ id: 'p1', name: 'Tote', nameZh: null, sku: 'ZX-1', moq: 1, unit: 'pcs', entryQty: 1, entryPrice: usd(1), learned: true, status: 'learned', imageMatchable: true, isActive: true }], 'en'),
+      list: renderProductList([{ id: 'p1', name: 'Tote', nameZh: null, sku: 'ZX-1', moq: 1, unit: 'pcs', entryQty: 1, entryPrice: usd('1'), learned: true, status: 'learned', imageMatchable: true, isActive: true }], 'en'),
       product: renderProductDetail({ currency: 'USD', id: 'de300000-0000-4000-8000-000000000101', name: 'Tote', nameZh: null, sku: 'ZX-1', category: null, unit: 'pcs', moq: null,
         leadTimeDays: null, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: false,
-        tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(1) }], aliases: ['tote'], images: [], recentQuotes: [] }, 'en'),
+        tiers: [{ minQty: 1, maxQty: null, unitPrice: usd('1') }], aliases: ['tote'], images: [], recentQuotes: [] }, 'en'),
       add: renderAddForm('en', { isOwner: true }, 'USD', { id: 'i1', createdAt: new Date(), lines: 2 }),
       review: renderImportReview(reviewModel('Canvas tote 18.00\nSPRING SALE'), 'en', { canExtract: true }),
       prices: renderPriceRules({ currency: 'USD', volume: [], businessDefault: null, unanswered: 1,
-        products: [{ productId: 'a1', sku: 'S', name: 'Lamp', nameZh: null, listPrice: usd(3.5), own: null, inheritsDefault: false, isActive: false }] }, 'en'),
+        products: [{ productId: 'a1', sku: 'S', name: 'Lamp', nameZh: null, listPrice: usd('3.5'), own: null, inheritsDefault: false, isActive: false }] }, 'en'),
       knowledge: renderKnowledgeIndex(k, 'en') + renderPageFactsForm('en'),
       knowledgeProduct: renderProductKnowledge({ productId: 'p1', productName: 'Tote', items: [], certs: [], appliesToProducts: 3 }, 'en', null),
     };

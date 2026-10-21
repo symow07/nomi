@@ -1,6 +1,7 @@
 import type { FieldConfidence } from '../core/onboard/extract.js';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
+import { storedDecimal } from '../core/types/decimal.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { type Currency, parseCurrency } from '../core/types/money.js';
 import type { ImportKind, ImportRow, ChallengeState } from '../core/onboard/importReview.js';
@@ -54,7 +55,8 @@ function rowOf(x: unknown): ImportRow | null {
     photo: num(o['photo']),
     sku: str(o['sku']),
     nameZh: str(o['nameZh']),
-    price: num(o['price']),
+    // A1 — text since A1; a number in a draft saved before it (its shortest text is the price that was written).
+    price: typeof o['price'] === 'string' || typeof o['price'] === 'number' ? storedDecimal(o['price']) : null,
     unit: str(o['unit']) ?? 'pcs',
     moq: num(o['moq']),
     names: Array.isArray(o['names']) ? (o['names'] as unknown[]).filter((n): n is string => typeof n === 'string') : [],

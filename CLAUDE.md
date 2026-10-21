@@ -144,6 +144,16 @@ prunes earlier runs' tenants **and their queued pg-boss jobs** first (PR #49).
 If integration goes flaky there, suspect leftover state before suspecting code
 — or run it isolated.
 
+**Phase 5's working rhythm** (the owner, 2026-10-22; the plan is `docs/PHASE-5.md`):
+- One branch per block: `phase5-A`, then `phase5-B`, `-C`, `-D`, `-S`.
+- Commit after every finished item **and push the branch** (`git ls-remote` to confirm). A push triggers no CI (CI
+  runs on pull requests and nightly) and means a session restart loses nothing.
+- No PR and no merge per item. **One PR per block**, merged through `tools/gated-merge.sh` when the whole block is
+  done.
+- Tests are not skipped: each item passes its own tests locally before the next starts. The full four (above) run
+  once at the end of each block, before its PR.
+- Report to the owner once per block, not per item, unless something breaks or needs the owner's decision.
+
 **PR flow:** branch from current `origin/main` → `gh pr create` →
 `tools/gated-merge.sh N <head sha>` → poll
 `railway deployment list --service nomi --json` until the merge commit is

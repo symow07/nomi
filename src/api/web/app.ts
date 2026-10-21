@@ -1,3 +1,4 @@
+import type { Decimal } from '../../core/types/decimal.js';
 import { renderGuide, guideFileAt } from './guide.js';
 import { setupProgress } from '../../db/setup.js';
 import { providerRefusing } from '../../db/providerState.js';
@@ -149,7 +150,7 @@ import {
   confirmFollowUpById, loadSequenceDetail, loadSequenceList, renderSequenceDetail, renderSequenceList, stopEnrollmentById,
   updateStepFrom,
 } from './sequences.js';
-import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
+import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
@@ -224,6 +225,9 @@ import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindPro
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
+import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
+import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome } from './books.js';
+import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
@@ -249,7 +253,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, booksShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 import { saveMorningSetting } from '../../db/morningSummary.js';
@@ -464,6 +468,8 @@ export type WebDeps = {
   readonly advisorModel?: AdvisorModel;
   /** 0130 — each person's own advisor history (src/advisor/memory.ts). Absent: nothing is kept here. */
   readonly advisorMemory?: AdvisorMemory;
+  /** A4 (0174) — the workspaces' documents, in each one's residency. The books pages use it (A6). */
+  readonly documents?: DocumentStores;
   /** 0130 — who words the advisor's answers, recorded on each kept turn. */
   readonly advisorProvider?: { readonly name: string; readonly model: string };
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
@@ -790,7 +796,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * the minute's cache: a count that lags is a count that lies. A page's own
      * requests (the live line's question, a post) do not need it.
      */
-    const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
+    // A6 — who is looking, for the mode switch the shell offers (never cached: it is this request's person).
+    const who = personOf(s);
+    const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
+    const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null }) => {
+      const f = { ...f0, viewerRole };
       if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
       // The warmth run (w4-whole-03) — and when the latest customer began to wait, for the rail's mark.
@@ -826,6 +836,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // A stranger is not told what exists here: the route answers with the same
     // login redirect as every other address.
     if (isOutreachRoute(req.url) && sessionOf(req) && !outreachShown()) return reply.callNotFound();
+  });
+
+  /**
+   * A5 (decision 12) — THE BOOKS' THREE ROLES, at every route. A books route (`BOOKS_ROUTES`) is reached only by
+   * whom `booksMay` lets do its action: the owner all, the accountant see and export, staff nothing. And an
+   * ACCOUNTANT reaches the books and nothing else: any other page sends them to the books, any other write is
+   * refused. tests/integration/books-roles.test.ts walks every route the app registers against this.
+   */
+  app.addHook('preHandler', async (req, reply) => {
+    if (!req.url.startsWith('/app')) return;
+    const s = sessionOf(req);
+    if (!s) return;
+    const who = personOf(s);
+    const route = req.routeOptions.url;
+    // A6 (0176) — where the books are off, they are not there: not found, as the outreach area is.
+    if (req.url.startsWith('/app/books') && !booksShown()) return reply.callNotFound();
+    const books = booksRouteOf(req.method, route);
+    if (books) {
+      if (booksMay(who, books.action)) return;
+      return flashTo(reply, who.kind === 'accountant' ? '/app/books' : '/app',
+        who.kind === 'accountant' ? 'books.flash.postIsOwners' : 'staff.booksNotYours');
+    }
+    if (who.kind !== 'accountant' || ACCOUNTANT_ALSO.has(`${req.method} ${route}`)) return;
+    if (req.method === 'GET' || req.method === 'HEAD') return reply.redirect('/app/books');
+    return flashTo(reply, '/app/books', 'books.flash.onlyBooks');
   });
 
   /**
@@ -1030,12 +1065,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   const FIELD_OF: Readonly<Record<string, string>> = {
     'forbidden.flash.empty': 'term', 'forbidden.flash.duplicate': 'term',
-    'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
+    'rate.flash.missing': 'rate', 'rate.flash.not_a_number': 'rate', 'rate.flash.ambiguous': 'rate', 'rate.flash.not_positive': 'rate', 'rate.flash.same_currency': 'rate',
     'closures.flash.label_missing': 'label', 'closures.flash.from_missing': 'from', 'closures.flash.not_a_date': 'from',
     'closures.flash.to_missing': 'to', 'closures.flash.ends_before_starts': 'to',
     'business.kind.bad.kind': 'kind', 'business.kind.bad.country': 'country', 'business.kind.bad.website': 'website',
     'terms.flash.payment_missing': 'payment', 'terms.flash.payment_too_long': 'payment', 'terms.flash.incoterm_invalid': 'incoterm',
-    'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.negative': 'price',
+    'samples.flash.price_missing': 'price', 'samples.flash.not_a_number': 'price', 'samples.flash.ambiguous': 'price', 'samples.flash.negative': 'price',
     // Phase 7 — the calendar's own date.
     'calendar.flash.title': 'title', 'calendar.flash.day': 'day', 'calendar.flash.time': 'from', 'calendar.flash.order': 'to',
   };
@@ -1454,10 +1489,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return undefined;
     return (await readLiveness(deps.db, bid.value, personId).catch(() => null))?.passwordChangedAt ?? undefined;
   };
-  const signIn = (reply: FastifyReply, businessId: string, person: NonNullable<OwnerSession['person']>, next = '/app', pv?: number) => {
-    setCookie(reply, codec.sign({ businessId, exp: Date.now() + SESSION_TTL_MS, person, ...(pv === undefined ? {} : { pv }) }),
+  const signIn = async (reply: FastifyReply, businessId: string, person: NonNullable<OwnerSession['person']>, next = '/app', pv?: number) => {
+    // A5 (0175) — the person's kind, read at the door from their own row, signed into the session: an accountant's
+    // session reaches the books and nothing else, and lands there. The kind never changes (0175), so it never goes stale.
+    const kind = await personKindOf(businessId, person.id);
+    const who = kind === 'accountant' ? { ...person, kind } : person;
+    setCookie(reply, codec.sign({ businessId, exp: Date.now() + SESSION_TTL_MS, person: who, ...(pv === undefined ? {} : { pv }) }),
       Math.floor(SESSION_TTL_MS / 1000));
-    return reply.redirect(next);
+    return reply.redirect(kind === 'accountant' ? '/app/books' : next);
+  };
+  const personKindOf = async (businessId: string, personId: string): Promise<'team' | 'accountant'> => {
+    const bid = parseBusinessId(businessId);
+    if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(personId)) return 'team';
+    return withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ kind: 'team' | 'accountant' }>`
+      select kind from people where id = ${personId}::uuid`.execute(tx)).rows[0]?.kind ?? 'team');
   };
 
   app.get('/login', async (req, reply) => {
@@ -2188,6 +2233,46 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** A request id as the form carries it; anything else never reaches the query. */
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+  // A2.4 (0172) — the owner's copy of their books: every posted line, never cut off, with its receipt — what
+  // closing waits for. Its own route: a generic subject stops at EXPORT_MAX_ROWS, and a statutory copy may not.
+  app.get('/app/settings/data/books.csv', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
+    if (!s) return reply;
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
+      return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
+    }
+    const file = await makeBooksFile(deps.db, s.businessId, personOf(s).id, show.csvDialectFor(localeOf(req)));
+    if (!file) return reply.callNotFound();
+    return reply
+      .type('text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${csvFilename('books', new Date())}"`)
+      .header('cache-control', 'no-store')
+      .send(file.csv);
+  });
+
+  // A5 — the books' home, and the copy from it: the owner's and the accountant's (the guard above decides who).
+  app.get('/app/books', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.callNotFound();
+    const holding = await withTenantTx(deps.db, bid.value, (tx) => booksHoldingTx(tx, bid.value));
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'books.home.title'), active: 'settings', bodyHtml: renderBooksHome(locale, personOf(s), holding),
+    }));
+  });
+  app.get('/app/books/books.csv', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) return flashTo(reply, '/app/books', 'data.export.flash.tooMany');
+    const file = await makeBooksFile(deps.db, s.businessId, personOf(s).id, show.csvDialectFor(localeOf(req)));
+    if (!file) return reply.callNotFound();
+    return reply.type('text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${csvFilename('books', new Date())}"`)
+      .header('cache-control', 'no-store').send(file.csv);
+  });
+
   app.get('/app/settings/data/:file', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
     if (!s) return reply;
@@ -2326,7 +2411,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome !== 'closed') {
       return flashTo(reply, '/app/settings/data#close', ({
         name_wrong: 'data.flash.name_wrong', protected: 'data.flash.protected', paid: 'data.flash.paid',
-        not_owner: 'staff.notAllowed', busy: 'data.flash.busy',
+        not_owner: 'staff.notAllowed', busy: 'data.flash.busy', books_first: 'data.flash.booksFirst',
       } as const)[r.outcome]);
     }
     facts.evict(s.businessId);
@@ -5019,8 +5104,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
     const locale = localeOf(req);
-    const name = String((req.body as { name?: string } | undefined)?.name ?? '');
-    const r = await addPerson(deps.db, s.businessId, deps.sessionSecret, name);
+    const body = (req.body as { name?: string; accountant?: string } | undefined) ?? {};
+    const name = String(body.name ?? '');
+    // A6 — an accountant only where the books are on (the box is not drawn elsewhere; a forged one is refused).
+    if (body.accountant === 'on' && !booksShown()) return flashTo(reply, '/app/settings/people', 'people.flash.failed');
+    const r = await addPerson(deps.db, s.businessId, deps.sessionSecret, name, body.accountant === 'on' ? 'accountant' : 'team');
     if (r.code !== 'added') {
       return flashTo(reply, '/app/settings/people', `people.flash.${r.code}` as MessageKey);
     }
@@ -6154,7 +6242,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
     // CC-25 — every practice action returns through `practiceUrl`: onto its
     // notice under the newest line, the reply to approve under it.
-    const say = async (s: OwnerSession, text: string, expected: number | null = null) => {
+    const say = async (s: OwnerSession, text: string, expected: Decimal | null = null) => {
       const live = liveOf(s);
       if (!live.ok || !deps.enqueueInbound) return 'empty' as const;
       return sayInPractice({ db: deps.db, enqueue: deps.enqueueInbound }, live.value, text, expected);
@@ -6168,7 +6256,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       const b = (req.body ?? {}) as { text?: string; expected?: string };
-      return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected, await workspaceCurrency(deps.db, s0.businessId))));
+      return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected)));
     });
 
     // A situation from the golden set: its customer's words, answered live.

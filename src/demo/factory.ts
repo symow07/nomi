@@ -61,7 +61,7 @@ const P = (n: number, sku: string, name: string, nameZh: string, category: strin
   moq: number, lead: number, floor: number,
   tiers: readonly (readonly [number, number])[],
   aliases: readonly (readonly [string, string])[]): DemoProduct =>
-  ({ id: pid(n), sku, name, nameZh, category, unit: 'pcs', moq, leadTimeDays: lead, floor: usd(floor), tiers, aliases });
+  ({ id: pid(n), sku, name, nameZh, category, unit: 'pcs', moq, leadTimeDays: lead, floor: usd(String(floor)), tiers, aliases }); // a written literal: its text is the decimal written
 
 export const DEMO_PRODUCTS: readonly DemoProduct[] = [
   P(1, 'ZX-100', 'Canvas Tote Bag 38x40cm', '帆布袋', 'bags', 500, 15, 0.72,

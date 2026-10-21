@@ -18,7 +18,8 @@
  */
 import { currencyOfCountry } from '../../core/owner/currencies.js';
 import { sql } from 'kysely';
-import { type Money, moneyFromRow } from '../../core/types/money.js';
+import { type Money, isZero, moneyFromRow } from '../../core/types/money.js';
+import { type Decimal, compareDecimal, decimal } from '../../core/types/decimal.js';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
@@ -309,8 +310,8 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
       * may promise. So the span is stated only when her floors agree on the
       * currency; otherwise she is told nothing here rather than told a mixture.
       */
-     const byCurrency = new Map<string, number[]>();
-     for (const r of applies) byCurrency.set(r.currency, [...(byCurrency.get(r.currency) ?? []), Number(r.floor)]);
+     const byCurrency = new Map<string, Decimal[]>();
+     for (const r of applies) byCurrency.set(r.currency, [...(byCurrency.get(r.currency) ?? []), decimal(r.floor)]);
      const onlyCurrency = byCurrency.size === 1 ? [...byCurrency.keys()][0]! : null;
      const floors = onlyCurrency ? byCurrency.get(onlyCurrency)! : [];
     const ceilings = [...new Set(applies.map((r) => Number(r.ceiling)))];
@@ -319,8 +320,8 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
       certs: claims
         .filter((c) => c.allowed && (c.kind === 'certification' || c.kind === 'compliance'))
         .map((c) => c.claimKey),
-      floorLow: floors.length && onlyCurrency ? moneyFromRow(Math.min(...floors), onlyCurrency) : null,
-      floorHigh: floors.length && onlyCurrency ? moneyFromRow(Math.max(...floors), onlyCurrency) : null,
+      floorLow: floors.length && onlyCurrency ? moneyFromRow(floors.reduce((a, b) => (compareDecimal(b, a) < 0 ? b : a)), onlyCurrency) : null,
+      floorHigh: floors.length && onlyCurrency ? moneyFromRow(floors.reduce((a, b) => (compareDecimal(b, a) > 0 ? b : a)), onlyCurrency) : null,
       ceilingPct: ceilings.length ? Math.max(...ceilings) : null,
       ceilingVaries: ceilings.length > 1,
       askPct: asks.length ? Math.max(...asks) : null,
@@ -346,8 +347,8 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
 
   type Row = {
     id: string; sku: string; name: string; moq: number | null; unit: string; lead_time_days: number | null;
-    tiers: { minQty: number; maxQty: number | null; unitPrice: number; currency: string }[];
-    policy: { floorPrice: number; currency: string; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
+    tiers: { minQty: number; maxQty: number | null; unitPrice: string; currency: string }[];
+    policy: { floorPrice: string; currency: string; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
     knowledge: { kind: string; label: string; content: string; source: string }[];
   };
 
@@ -365,18 +366,18 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
         select k.id, k.sku, k.name, k.moq, k.unit, k.lead_time_days,
           coalesce((select json_agg(json_build_object(
                       'minQty', t.min_qty, 'maxQty', t.max_qty,
-                      'unitPrice', t.unit_price_usd, 'currency', t.currency)
+                      'unitPrice', t.unit_price_usd::text, 'currency', t.currency)
                       order by t.min_qty)
                       from price_tiers t where t.product_id = k.id), '[]'::json) as tiers,
           -- The policy the QUOTE ENGINE would use: the per-product row wins, and
           -- the business-wide row is the fallback (repos.pricingPolicy, M9.5).
           coalesce(
-            (select json_build_object('floorPrice', pp.floor_price_usd, 'currency', pp.currency,
+            (select json_build_object('floorPrice', pp.floor_price_usd::text, 'currency', pp.currency,
                                       'maxDiscountPct', pp.max_discount_pct,
                                       'humanRequiredAbovePct', pp.human_required_above_pct)
                from pricing_policy pp
               where pp.business_id = ${bid.value} and pp.product_id = k.id),
-            (select json_build_object('floorPrice', pp.floor_price_usd, 'currency', pp.currency,
+            (select json_build_object('floorPrice', pp.floor_price_usd::text, 'currency', pp.currency,
                                       'maxDiscountPct', pp.max_discount_pct,
                                       'humanRequiredAbovePct', pp.human_required_above_pct)
                from pricing_policy pp
@@ -406,7 +407,7 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
       // repos: the rehearsal must show what the ENGINE would do, and the engine
       // never sees such a row.
       tiers: (r.tiers ?? []).flatMap((t) => {
-        const unitPrice = moneyFromRow(Number(t.unitPrice), t.currency);
+        const unitPrice = moneyFromRow(t.unitPrice, t.currency);
         return unitPrice === null ? [] : [{
           minQty: Number(t.minQty),
           maxQty: t.maxQty === null ? null : Number(t.maxQty),
@@ -415,7 +416,7 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
       }),
       policy: (() => {
         if (r.policy === null) return null;
-        const floorPrice = moneyFromRow(Number(r.policy.floorPrice), r.policy.currency);
+        const floorPrice = moneyFromRow(r.policy.floorPrice, r.policy.currency);
         return floorPrice === null ? null : {
           floorPrice,
           maxDiscountPct: Number(r.policy.maxDiscountPct),
@@ -1163,7 +1164,7 @@ function howScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: 
     menuRow({ href: '/app/settings/samples', icon: 'samples', label: t(locale, 'samples.title'),
       value: samples === null ? null : samples.waiting > 0 ? tn(locale, 'business.value.samplesWaiting', samples.waiting)
         : samples.price === null ? t(locale, 'setup.value.notSetUp')
-        : samples.price.amount === 0 ? t(locale, 'business.value.free') : show.money(locale, samples.price),
+        : isZero(samples.price) ? t(locale, 'business.value.free') : show.money(locale, samples.price),
       // A customer waiting for a sample is waiting for the owner; a price not stated is a setting.
       tone: samples !== null && samples.waiting > 0 ? 'warn' : undefined }),
     menuRow({ href: '/app/settings/closures', icon: 'closures', label: t(locale, 'closures.title'),

@@ -71,7 +71,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
       const terms = await repos.catalog.tradeTerms();
       const order = {
         productId: PID, quantity: { value: 5000, unit: 'pcs' },
-        unitPrice: usd(0.92), total: usd(4600), email: 'buyer@example.com',
+        unitPrice: usd('0.92'), total: usd('4600'), email: 'buyer@example.com',
         paymentTerms: terms?.paymentTerms ?? null, incoterm: terms?.incoterm ?? null,
       } as unknown as import('../../src/core/types/commerce.js').ConfirmableOrder;
       const created = await repos.orders.create(conversationId as never, order);

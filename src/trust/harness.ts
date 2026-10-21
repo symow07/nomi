@@ -1,5 +1,6 @@
 import { computeTurn, commitTurn, type TurnPorts } from '../pipeline/turn.js';
 import type { TradeTerms } from '../core/commerce/terms.js';
+import type { Decimal } from '../core/types/decimal.js';
 import type { SellingFacts } from '../db/ports.js';
 import type { OrderUpdate } from '../core/commerce/orderState.js';
 import type { SamplePolicy } from '../core/commerce/samples.js';
@@ -88,8 +89,8 @@ class HarnessTenant implements Tenant {
   constructor(s: Scenario) {
     const pid = TRUST_PRODUCT_ID as string;
     this.products.set(pid, { id: TRUST_PRODUCT_ID, businessId: TRUST_BUSINESS_ID, sku: 'BAG-NW-001', name: 'Non-woven shopping bag', moq: 1000, unit: 'pcs', leadTimeDays: 25, customizable: true });
-    this.tiers.set(pid, [{ productId: TRUST_PRODUCT_ID, minQty: 1000, maxQty: null, unitPrice: usd(0.45) }]);
-    this.policies.set(pid, { businessId: TRUST_BUSINESS_ID, productId: TRUST_PRODUCT_ID, floorPrice: usd(0.35), maxDiscountPct: 10, humanRequiredAbovePct: 7 });
+    this.tiers.set(pid, [{ productId: TRUST_PRODUCT_ID, minQty: 1000, maxQty: null, unitPrice: usd('0.45') }]);
+    this.policies.set(pid, { businessId: TRUST_BUSINESS_ID, productId: TRUST_PRODUCT_ID, floorPrice: usd('0.35'), maxDiscountPct: 10, humanRequiredAbovePct: 7 });
     if (s.catalog) {
       this.products.clear(); this.tiers.clear(); this.policies.clear(); this.rules = [];
       for (const e of s.catalog) {
@@ -106,7 +107,7 @@ class HarnessTenant implements Tenant {
     this.state = emptyState(s.state);
   }
 
-  floorFor(productId: string): number | null { return this.policies.get(productId)?.floorPrice.amount ?? null; }
+  floorFor(productId: string): Decimal | null { return this.policies.get(productId)?.floorPrice.amount ?? null; }
 
   conversations: ConversationRepo = {
     loadState: async () => this.state,
@@ -337,7 +338,7 @@ export async function evaluateScenario(
   const requestedMode = requestedModeOf(result, effects,
     () => resolveMode({ capability, grants: tenant.grantRows, now, timeZone: SCENARIO_ZONE }));
   const appliedMode: TurnOutcome['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
-  const floorOf = (productId: string): number | null => tenant.floorFor(productId);
+  const floorOf = (productId: string): Decimal | null => tenant.floorFor(productId);
 
   const outcome: TurnOutcome = { scenario: s, result, effects, floorOf, capability, requestedMode, appliedMode };
   const checks = s.expect.map((e) => runCheck(e, outcome));

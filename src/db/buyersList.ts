@@ -3,7 +3,7 @@ import type { Tx } from './client.js';
 import { WAITING_HUMAN_AGENT, OWNER_AGENT } from '../core/conversation/ownership.js';
 import { SPEND_STATUSES } from './customerValue.js';
 import { PRICE_GIVEN } from './quotesGiven.js';
-import { moneyFromRow, type Money } from '../core/types/money.js';
+import { isPositive, moneyFromRow, type Money } from '../core/types/money.js';
 
 /**
  * A — Buyers and Customers are ONE list (the owner's decision 5, 2026-09-28;
@@ -318,8 +318,8 @@ export async function lastQuoteGiven(tx: Tx, clientIds: readonly string[]): Prom
      where c.client_id = any(${[...clientIds]}::uuid[]) and ${PRICE_GIVEN}
      order by c.client_id, q.created_at desc`.execute(tx)).rows;
   return new Map(rows.flatMap((r) => {
-    const m = moneyFromRow(Number(r.total), r.currency);
-    return m && m.amount > 0 ? [[r.client_id, m] as const] : [];
+    const m = moneyFromRow(r.total, r.currency);
+    return m && isPositive(m) ? [[r.client_id, m] as const] : [];
   }));
 }
 

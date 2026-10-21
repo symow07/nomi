@@ -10,6 +10,7 @@ import type { TodayData } from '../../src/api/web/today.js';
 import { t as plain } from '../../src/core/owner/i18n/messages.js';
 import { usd } from '../../src/core/types/money.js';
 import { unisolatedFigures } from './isolates.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * RIGHT TO LEFT, BY DESIGN (the design pass §9, 2026-09-30) — the parts that
@@ -49,8 +50,8 @@ describe('the value functions', () => {
   it('Arabic: the locale\'s own form, Western digits, isolated', () => {
     // The sign is a left-to-right word of its own inside the value: without
     // it the browser drew "$US 1.95".
-    expect(show.money('ar', usd(1.95))).toBe(`${FSI}\u200F1.95\u00A0\u2066US$${PDI}${PDI}`);
-    expect(show.money('ar', { amount: 2.4, currency: 'CNY' })).toBe(`${FSI}\u200F2.40\u00A0\u2066CN¥${PDI}${PDI}`);
+    expect(show.money('ar', usd('1.95'))).toBe(`${FSI}\u200F1.95\u00A0\u2066US$${PDI}${PDI}`);
+    expect(show.money('ar', moneyOf('2.4', 'CNY'))).toBe(`${FSI}\u200F2.40\u00A0\u2066CN¥${PDI}${PDI}`);
     expect(show.quantityOf('ar', 5000, 'قطعة')).toBe(`${FSI}5,000\u00A0قطعة${PDI}`);
     expect(show.phone('ar', '+971501234567')).toBe(`${FSI}+971501234567${PDI}`);
     expect(show.date('ar', new Date('2026-09-29T08:00:00Z'))).toBe(`${FSI}الثلاثاء، 29 سبتمبر${PDI}`);
@@ -58,14 +59,14 @@ describe('the value functions', () => {
   });
 
   it('left to right: exactly what the pages always said, nothing added', () => {
-    expect(show.money('en', usd(1.95))).toBe('$1.95');
-    expect(show.money('zh', usd(1.95))).toBe('$1.95');
+    expect(show.money('en', usd('1.95'))).toBe('$1.95');
+    expect(show.money('zh', usd('1.95'))).toBe('$1.95');
     expect(show.quantityOf('zh', 12000, '个')).toBe('1.2万个');
     expect(show.phone('en', '+971501234567')).toBe('+971501234567');
   });
 
   it('a value already isolated is not isolated twice', () => {
-    const once = show.money('ar', usd(3));
+    const once = show.money('ar', usd('3'));
     expect(show.isolate('ar', once)).toBe(once);
   });
 });
@@ -74,7 +75,7 @@ describe('sentences: every figure in them isolated, right to left', () => {
   it('a counted sentence, a value put in, and the catalogue\'s own numbers', () => {
     const counted = tn('ar', 'today.blocked', 3);
     expect(unisolatedFigures(`<p>${counted}</p>`)).toEqual([]);
-    const withPrice = t('ar', 'samples.current.paid', { price: show.money('ar', usd(5)) });
+    const withPrice = t('ar', 'samples.current.paid', { price: show.money('ar', usd('5')) });
     expect(unisolatedFigures(`<p>${withPrice}</p>`)).toEqual([]);
     // "{done}/{total}" reads as one figure, not two
     expect(show.isolateFigures('ar', 'الإعداد 1/5')).toBe(`الإعداد ${FSI}1/5${PDI}`);
@@ -92,7 +93,7 @@ describe('pages, in Arabic, from fixtures', () => {
     conversationId: 'c-1', buyer: 'Maya 2', country: 'AE', status: 'awaiting', needsAction: true,
     ownership: 'AI', heldBy: null, awaitingReview: true, handoffReason: null,
     latestMessage: 'I need 500 pcs', latestAt: new Date('2026-09-29T07:40:00Z'),
-    product: { name: 'Tote 38x40cm', nameZh: null }, quantity: 20000, unitPrice: usd(0.38), ...o,
+    product: { name: 'Tote 38x40cm', nameZh: null }, quantity: 20000, unitPrice: usd('0.38'), ...o,
   });
   const snapshot: OperationsSnapshot = {
     range: 'today',

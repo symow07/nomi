@@ -170,7 +170,7 @@ d('G16 · re-photographing updates what changed (requires DATABASE_URL)', () => 
     const trail = await edits();
     expect(trail).toHaveLength(1);
     expect(trail[0]!.detail.productId).toBe(tote.id);
-    expect(trail[0]!.detail.changes['price']).toEqual({ from: 1.05, to: 0.98 });
+    expect(trail[0]!.detail.changes['price']).toEqual({ from: '1.05', to: '0.98' });
     // and it says which line of which page moved the price
     expect(trail[0]!.detail.source).toEqual({ via: 'import', line: 'RP-100 Photo tote bag $0.98 MOQ 500' });
   });

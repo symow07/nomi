@@ -44,9 +44,9 @@ const fastPathArabic = (): string[] => {
   return [...block.matchAll(/^\s+ar: '([^']+)',$/gm)].map((m) => m[1]!);
 };
 
-const QUOTE: Quote = { productId: PRODUCT, quantity: { value: 500, unit: 'pcs' }, unitPrice: usd(1.2), discountPct: 0, total: usd(600),
+const QUOTE: Quote = { productId: PRODUCT, quantity: { value: 500, unit: 'pcs' }, unitPrice: usd('1.2'), discountPct: 0, total: usd('600'),
   moq: 100, leadTimeDays: 20, leadTimeBlocked: null, requiresHuman: false, contradicts: null, appliedRules: [] };
-const ONE: Quote = { ...QUOTE, quantity: { value: 1, unit: 'item' }, unitPrice: usd(12), total: usd(12), leadTimeDays: 5, moq: null };
+const ONE: Quote = { ...QUOTE, quantity: { value: 1, unit: 'item' }, unitPrice: usd('12'), total: usd('12'), leadTimeDays: 5, moq: null };
 // CHANGED BY DESIGN (2026-10-15): no order asks for an e-mail any more — the sentence is gone.
 const BLOCKED: readonly BlockingReason[] = ['product_not_confirmed_by_client', 'quantity_missing', 'quantity_below_moq',
   'pending_question_unresolved', 'problem_score_too_high', 'missing_product', 'price_missing'];

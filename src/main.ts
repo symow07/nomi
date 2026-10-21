@@ -63,6 +63,7 @@ import { activeWhatsAppNumber, liveWhatsAppAccount, markWhatsAppNeedsAttention, 
 import { withTenantTx, lockConversation, createReadOnlyDb, type Db, type Tx } from './db/client.js';
 import { advisorKeysFrom, sealAdvisor, openAdvisor } from './advisor/seal.js';
 import { advisorMemory } from './advisor/memory.js';
+import { documentStoresFrom } from './db/documents.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, unscheduleRetired, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
@@ -876,6 +877,9 @@ export async function buildProduction(
   // 0130 — each person's own advisor history, on the app's pool (row security by workspace and person), the
   // only thing that writes or opens it. Handed to the advisor's routes as a port, never as a pool.
   const advisorHistory = advisorMemory(db, advisorKeys);
+  // A4 (0174) — where the workspaces' papers live: DOCUMENT_STORES, read once. A map that cannot be read stops the boot
+  // here, by name, rather than refusing the first upload later.
+  const documentStores = documentStoresFrom(process.env, credentialKey);
   // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
   // and the way out to a push service. Unset: no phone alerts, and the page says so.
   const vapid = vapidFrom(process.env);
@@ -897,6 +901,7 @@ export async function buildProduction(
       advisorDb,
       advisorModel,
       advisorMemory: advisorHistory,
+      documents: documentStores,
       advisorProvider: { name: legalFacts.processor.name, model: llm.model },
       sessionSecret: webSessionSecret,
       accessCode: ownerAccessCode,

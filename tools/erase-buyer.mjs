@@ -246,6 +246,24 @@ export const RULES = Object.freeze({
   order_numbers: { do: 'unrelated' },
   // 0163 — a capability withdrawn in one language: the assistant's record.
   language_withdrawals: { do: 'unrelated' },
+  // 0169 (A2.1) — the workspace's own books. No customer is linked to them yet; A2.2's parties come with the
+  // "kept until the legal date" action (A2.4), and these are decided again then.
+  books_settings: { do: 'unrelated' },
+  accounts: { do: 'unrelated' },
+  journals: { do: 'unrelated' },
+  fiscal_years: { do: 'unrelated' },
+  journal_counters: { do: 'unrelated' },
+  journal_entries: { do: 'unrelated' },
+  journal_lines: { do: 'unrelated' },
+  // 0170 (A2.2) — tax codes, custom-field definitions, and parties (no buyer link yet; re-decided in A2.4).
+  tax_codes: { do: 'unrelated' },
+  parties: { do: 'unrelated' },
+  custom_field_defs: { do: 'unrelated' },
+  // 0172 (A2.4) — receipts of the owner's book downloads.
+  books_exports: { do: 'unrelated' },
+  // 0174 (A4) — the papers behind the books, and their sealed bytes.
+  documents: { do: 'unrelated' },
+  document_blobs: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

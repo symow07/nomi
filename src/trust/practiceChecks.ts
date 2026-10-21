@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { Tx } from '../db/client.js';
 import type { Money } from '../core/types/money.js';
+import type { Decimal } from '../core/types/decimal.js';
 import { capabilityOf, resolveMode, type AutonomyGrant } from '../core/conversation/autonomy.js';
 import type { TurnResult, TurnEffects } from '../pipeline/turn.js';
 import type { Tenant } from '../db/ports.js';
@@ -64,7 +65,7 @@ export function evaluateTrust(input: {
   const requestedMode = requestedModeOf(result, effects,
     () => resolveMode({ capability, grants: input.grants, now: input.now, timeZone: input.zone }));
   const appliedMode: PracticeTrust['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
-  const floorOf = (pid: string): number | null =>
+  const floorOf = (pid: string): Decimal | null =>
     result.quote && pid === (result.quote.productId as string) ? input.floorPrice?.amount ?? null : null;
   const ctx: TurnOutcome = { scenario: input.scenario, result, effects, floorOf, capability, requestedMode, appliedMode };
   const checks = input.expectations.map((e) => runCheck(e, ctx));

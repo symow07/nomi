@@ -56,7 +56,7 @@ describe('decideTurn — the engine front door', () => {
       analysis: analysis({}, 'commercial_discussion'),
       extractedEmail: null,
       signals: [
-        { kind: 'high_value', total: usd(20_000) },
+        { kind: 'high_value', total: usd('20000') },
         { kind: 'logistics_discussed' },
       ],
       quote: null,

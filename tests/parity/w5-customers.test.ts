@@ -20,6 +20,7 @@ import { withAssistantName } from '../../src/api/web/say.js';
 import { withZone } from '../../src/api/web/zone.js';
 import { linkedCss } from './linked-css.js';
 import { withoutIsolates } from './isolates.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * Phase 9 of the warmth run (2026-10-03) — the fix wave, area "customers"
@@ -166,7 +167,7 @@ describe('w4-customers-13 · w4-customers-20 · V1-201 · a price given, one rul
   const price = (id: string, state: 'given' | 'review' | 'unsent' | undefined, name: string): CalendarEntry => ({
     category: 'negotiation', kind: 'price_worked_out', day: TODAY, at: at(TODAY, '09:00'), allDay: false, conversationId: V(9), orderId: null,
     buyer: { id: C(9), name, country: 'NG', photo: null }, identity: null,
-    detail: { price: usd(1.45), quantity: 5000, ...(state ? { priceState: state } : {}) }, source: { table: 'quotes', id, column: 'created_at' },
+    detail: { price: usd('1.45'), quantity: 5000, ...(state ? { priceState: state } : {}) }, source: { table: 'quotes', id, column: 'created_at' },
   });
   // The owner's correction (2026-10-04) — one screen: this month, nothing chosen, its list beside the grid.
   const draw = (l: Locale, entries: CalendarEntry[], over: Partial<CalendarView> = {}) => withZone(ZONE, () => {
@@ -255,7 +256,7 @@ describe('Results (w4-customers-19 · -20 · -21 · -22 · -23 · -24)', () => {
     range: 'month', hasActivity: true, since: new Date('2026-09-30T16:00:00Z'),
     summary: { newClients: 27, activeConvos: 29, quotes: 8, orders: 1 },
     activity: { inbound: 40, replied: 41, waiting: 1 },
-    commerce: { quotes: 8, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd(11750)] },
+    commerce: { quotes: 8, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd('11750')] },
     employee: { handled: 1, waiting: 1, edits: 0 },
   };
   it('customers are counted as the Inbox counts them, so the new ones are among those in touch', () => {
@@ -285,7 +286,7 @@ describe('an order (V1-184 · w4-customers-09 · -10 · -11 · -12)', () => {
   const ORDER: OrderView = {
     orderId: '44444444-4444-4444-8444-444444444444', reference: 'USAB-de300000-0001', conversationId: V(1),
     buyer: 'Khalid Mansoor', clientId: C(1), photo: null, productName: 'Stainless Steel Thermos 500ml', productNameZh: '保温杯', productSku: 'ZX-200',
-    quantity: 5000, unit: 'pcs', unitPriceAmount: 2.35, totalAmount: 11750, currency: 'USD', email: null, paymentTerms: '30 days', incoterm: 'FOB',
+    quantity: 5000, unit: 'pcs', unitPriceAmount: decimal('2.35'), totalAmount: decimal('11750'), currency: 'USD', email: null, paymentTerms: '30 days', incoterm: 'FOB',
     sellerName: 'Atlas Trading', confirmedAt: new Date('2026-10-01T06:00:00Z'), history: [],
   };
   it('names whose order it is, with their face; the record code is a row', () => {
@@ -305,11 +306,11 @@ describe('the Inbox (w4-customers-03 · -04 · -06 · -07 · V1-164 · V1-166 ·
     conversationId: V(n), clientId: C(n), buyer, country: 'AE', status: 'handled', needsAction: false,
     ownership: 'AI', heldBy: null, awaitingReview: false, handoffReason: null, deletionWaiting: false,
     latestMessage: 'Thanks, noted.', latestAt: new Date(NOW.getTime() - n * 60_000), product: { name: 'Canvas tote', nameZh: '帆布袋' },
-    quantity: 500, unitPrice: usd(2.4), channel: 'whatsapp', unanswered: false, lastFrom: 'assistant', photo: null, spent: null, regular: false, ...over,
+    quantity: 500, unitPrice: usd('2.4'), channel: 'whatsapp', unanswered: false, lastFrom: 'assistant', photo: null, spent: null, regular: false, ...over,
   });
   const LIST: InboxList = {
     filter: 'all', lens: 'value', waitingCount: 1, blockedCount: 0, deletionCount: 0, channels: 1, query: '',
-    conversations: [conv(1, 'Khalid', { spent: usd(11750) }), conv(2, 'Omar', { quoted: usd(6150) }), conv(3, 'Lena')],
+    conversations: [conv(1, 'Khalid', { spent: usd('11750') }), conv(2, 'Omar', { quoted: usd('6150') }), conv(3, 'Lena')],
     page: { from: 1, to: 3, total: 3, next: null, prev: null },
   };
   const html = (l: Locale, over: Partial<InboxList> = {}) => withZone('Asia/Shanghai', () => withAssistantName('Lily', () => renderInboxList({ ...LIST, ...over }, l, NOW)));

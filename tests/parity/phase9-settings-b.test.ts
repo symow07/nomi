@@ -169,6 +169,7 @@ describe('V1-514, V1-520 · one label style and one field width on the page', ()
       // the owner's name form and the add form are the same shape, both outside the list
       const rows = html.slice(html.indexOf('<ul class="rows">'), html.indexOf('</ul>'));
       expect(rows, l).not.toContain('<form method="post" action="/app/settings/people/p-you/name"');
+      // the name's row and the new person's name (A5's accountant box is drawn only where the books are on, A6)
       expect(html.match(/<div class="setrow"><div class="fr-l"><label class="fr-name" for="pp-/g)?.length, l).toBe(2);
     }
   });

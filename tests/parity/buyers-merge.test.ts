@@ -47,7 +47,7 @@ const conv = (id: string, over: Partial<ConversationSummary> = {}): Conversation
   conversationId: id, buyer: `Buyer ${id}`, country: 'AE', status: 'handled', needsAction: false,
   ownership: 'AI', heldBy: null, awaitingReview: false, handoffReason: null, deletionWaiting: false,
   latestMessage: `last words of ${id}`, latestAt: AGO(30),
-  product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 500, unitPrice: usd(2.4),
+  product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 500, unitPrice: usd('2.4'),
   channel: 'whatsapp', unanswered: false, lastFrom: 'assistant', ...over,
 });
 
@@ -162,7 +162,7 @@ describe('A · the read model Customers brought, in the customer\'s row (phase 4
     new RegExp(`<div class="irow is-(\\w+)( unanswered)?[^"]*">((?:(?!<div class="irow)[\\s\\S])*?)<a class="ir-main" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a></div>`).exec(h);
 
   it('the row is two lines: who (and their face), what they spent; then the last message, and when', () => {
-    const h = html('en', { conversations: [conv('c-hers', { clientId: '0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01', spent: usd(1240), regular: true })] });
+    const h = html('en', { conversations: [conv('c-hers', { clientId: '0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01', spent: usd('1240'), regular: true })] });
     const m = rowOf(h, 'c-hers')!;
     // phase 4 — the face opens the customer's card; the rest of the row opens the conversation
     expect(m[3]).toContain('href="/app/customers/0b5e7c1a-2f3d-4e8a-9c6b-1d2e3f4a5b01" data-card');

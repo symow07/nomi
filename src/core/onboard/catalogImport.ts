@@ -1,5 +1,7 @@
 import type { ExtractedLine } from './extract.js';
 import { type Money, type Currency, DOT_THOUSANDS } from '../types/money.js';
+import { type Decimal, decimal, signOf, compareDecimal, fromInteger } from '../types/decimal.js';
+import { readWrittenFigure } from '../commerce/amount.js';
 /**
  * M6 — Tolerant catalog import. Messy Excel pastes, forwarded messages,
  * price-list photos (via the M4 vision path) — anything goes in; what comes
@@ -92,25 +94,12 @@ const MOQ_WORD = String.raw`(?:MOQ|起订|最低|(?:ال)?حد\s*(?:ال)?أدن
  * Spanish write a price, and it is read as 24.50; the review flags the row for
  * its own tick (`decimal_comma`), so the owner sees the figure it became.
  */
-function readAmount(raw: string, currency: Currency): number | 'ambiguous' {
-  const s = raw.replace(/[.,]+$/, '');
-  // CUR — reais and rupiah group thousands with a dot and mark decimals with a
-  // comma ("R$ 1.250,50", "Rp 150.000"): there, one reading is the right one.
-  if (DOT_THOUSANDS.has(currency)) {
-    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) return Number(s.replace(/\./g, '').replace(',', '.'));
-    if (/^\d+,\d+$/.test(s)) return Number(s.replace(',', '.'));
-    if (/^\d+(?:\.\d{1,2})?$/.test(s)) return Number(s);
-    return 'ambiguous';
-  }
-  if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''));
-  if (DECIMAL_COMMA_FIGURE.test(s)) return Number(s.replace(',', '.'));
-  if (/^[1-9]\d{0,2}\.\d{3}$/.test(s)) return 'ambiguous';
-  if (/^\d+(?:\.\d+)?$/.test(s)) return Number(s);
-  return 'ambiguous';
+function readAmount(raw: string): Decimal | 'ambiguous' {
+  // A1 (the owner, 2026-10-22) — the ONE reader of a written figure (commerce/amount.ts): one reading, or refused.
+  // No meaning from the separator or the currency: "Rp 150.000" and "1,250" are ambiguous here as in a box.
+  const r = readWrittenFigure(raw.replace(/[.,]+$/, ''));
+  return r === null ? 'ambiguous' : r;
 }
-
-/** Phase 9 (V1-334) — "24,50": a decimal comma and its cents, the only way such a figure reads. */
-const DECIMAL_COMMA_FIGURE = /^\d+,\d{2}$/;
 
 /**
  * Phase 9 (V1-334) — does this line carry a price written with a decimal comma
@@ -136,14 +125,23 @@ const MARKS: Readonly<Record<Currency, { readonly before: string; readonly after
   MXN: { before: `(?:MX|MEX)?[$＄]|${L}MXN\\s*`, after: `MXN${E}|${L}pesos?${E}|比索`, tells: `${L}(?:MX|MEX)[$＄]|${L}MXN${E}|${L}pesos${E}|比索` },
   BRL: { before: `${L}R[$＄]|${L}BRL\\s*`, after: `BRL${E}|${L}reais${E}|雷亚尔`, tells: `${L}R[$＄]|${L}BRL${E}|${L}reais${E}|雷亚尔` },
   CNY: { before: `[¥￥]|${L}(?:RMB|CNY)\\s*`, after: `(?<![美欧港日韩澳加新台])元|块|人民币|${L}(?:RMB|CNY)${E}`, tells: `[¥￥]|(?<![美欧港日韩澳加新台])元|人民币|${L}(?:RMB|CNY)${E}` },
-  AED: { before: `${L}AED\\s*|د\\.إ\\.?\\s*|${L}Dhs?\\.?\\s*`, after: `AED${E}|درهم|دراهم|${L}dirhams?${E}|${L}Dhs?${E}`, tells: `${L}AED${E}|د\\.إ|درهم|دراهم|${L}dirhams?${E}` },
+  // A1 — a bare "dirham" is the UAE's AND Morocco's: own in either workspace, foreign elsewhere (DIRHAM, below).
+  AED: { before: `${L}AED\\s*|د\\.إ\\.?\\s*|${L}Dhs?\\.?\\s*`, after: `AED${E}|درهم|دراهم|${L}dirhams?${E}|${L}Dhs?${E}`, tells: `${L}AED${E}|د\\.إ|(?:درهم|دراهم)\\s+إماراتي|阿联酋迪拉姆` },
   SAR: { before: `${L}SAR\\s*|ر\\.س\\.?\\s*|${L}SR\\s*`, after: `SAR${E}|ريال|${L}riyals?${E}|${L}SR${E}`, tells: `${L}SAR${E}|ر\\.س|ريال|${L}riyals?${E}` },
   INR: { before: `₹|${L}Rs\\.?\\s*|${L}INR\\s*`, after: `INR${E}|${L}rupees?${E}|卢比`, tells: `₹|${L}INR${E}|${L}Rs\\.?\\s*\\d|${L}rupees?${E}|卢比` },
   IDR: { before: `${L}Rp\\.?\\s*|${L}IDR\\s*`, after: `IDR${E}|${L}rupiah${E}|印尼盾`, tells: `${L}Rp\\.?\\s*\\d|${L}IDR${E}|${L}rupiah${E}|印尼盾` },
+  MAD: { before: `${L}MAD\\s*|د\\.م\\.?\\s*|${L}Dhs?\\.?\\s*`, after: `MAD${E}|درهم|دراهم|${L}dirhams?${E}|${L}Dhs?${E}|迪拉姆`, tells: `د\\.م|(?:درهم|دراهم)\\s+مغربي|${L}dirhams?\\s+marocains?${E}|摩洛哥迪拉姆` },
+  EUR: { before: `€|${L}EUR\\s*`, after: `€|EUR${E}|${L}euros?${E}|欧元|يورو`, tells: `€|${L}EUR${E}|${L}euros?${E}|欧元|يورو` },
+  GBP: { before: `£|${L}GBP\\s*`, after: `£|GBP${E}|英镑|إسترليني`,   // never bare "pounds": it is a weight too
+    tells: `£|${L}GBP${E}|${L}sterling${E}|英镑|إسترليني` },
 };
-/** Money no workspace here sells in: the euro, the pound, the yen, other dollars. */
-const NO_ONES = /[€£₩₽₺₫₪]|欧元|港元|港币|日元|韩元|澳元|加元|新元|台币|英镑|\b(?:EUR|GBP|JPY|HKD|AUD|CAD|SGD|TWD)\b/i;
-const NO_ONES_CAPS = /(?<![A-Za-z])(?:CHF|NZD|QAR|KWD|OMR|BHD|EGP|MAD|TRY|KRW|RUB)(?![A-Za-z])/;
+/** A1 — the dirham said bare: own money in an AED or MAD workspace, someone else's in any other. */
+const DIRHAM = /درهم|دراهم|(?<![A-Za-z])dirhams?(?![A-Za-z])/i;
+/** "MAD" names the dirham only in capitals — "mad" is an English word (a "Mad Hatter mug"). */
+const MAD_CAPS = /(?<![A-Za-z])MAD(?![A-Za-z])/;
+/** Money no workspace here sells in: the yen, the won, other dollars. (The euro and the pound are ours since A1.) */
+const NO_ONES = /[₩₽₺₫₪]|港元|港币|日元|韩元|澳元|加元|新元|台币|\b(?:JPY|HKD|AUD|CAD|SGD|TWD)\b/i;
+const NO_ONES_CAPS = /(?<![A-Za-z])(?:CHF|NZD|QAR|KWD|OMR|BHD|EGP|TRY|KRW|RUB)(?![A-Za-z])/;
 /** Dollars that are nobody's here — HK$, A$, C$, NT$, S$ — written as a prefix. */
 const OTHER_DOLLAR = /(?<![A-Za-z])(?!(?:US|R|MX|MEX)[$＄])[A-Z]{1,3}[$＄]/;
 
@@ -163,6 +161,7 @@ function readingFor(currency: Currency): Reading {
   const bareDollar = currency === 'USD' || currency === 'MXN' ? null : new RegExp(`${L}[$＄]\\s*\\d`);
   const r: Reading = {
     foreign: (line) => OTHER_DOLLAR.test(line) || NO_ONES.test(line) || NO_ONES_CAPS.test(line) || others.test(line)
+      || (currency !== 'AED' && currency !== 'MAD' && DIRHAM.test(line)) || (currency !== 'MAD' && MAD_CAPS.test(line))
       || (bareDollar !== null && bareDollar.test(line)),
     before: new RegExp(`(?:${own.before})\\s*(\\d[\\d.,]*)`, 'i'),
     after: new RegExp(`(\\d[\\d.,]*)\\s*(?:${own.after})`, 'i'),
@@ -291,10 +290,10 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
   const code = CODE_FIRST.exec(line);
   const priced = code ? line.slice(code[0].length) : line;
   let problem: ReadingProblem | null = reading.foreign(priced) ? 'other_currency' : null;
-  let price: number | null = null;
+  let price: Decimal | null = null;
   const written = priced.match(reading.before)?.[1] ?? priced.match(reading.after)?.[1] ?? null;
   if (!problem && written !== null) {
-    const a = readAmount(written, currency);
+    const a = readAmount(written);
     if (a === 'ambiguous') problem = 'ambiguous_price';
     else price = a;
   }
@@ -307,7 +306,7 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
   if (!problem && price === null && line.includes('\t')) {
     const nums = line.split('\t').map((c) => c.trim()).filter(Boolean).slice(1).filter((c) => NUMBER_CELL.test(c));
     if (nums.length === 1 || (nums.length === 2 && /^\d{2,}$/.test(nums[1]!))) {
-      const a = readAmount(nums[0]!, currency);
+      const a = readAmount(nums[0]!);
       if (a === 'ambiguous') problem = 'ambiguous_price';
       else price = a;
       rowMoq = nums[1] ?? null;
@@ -322,7 +321,7 @@ function readLine(line: string, whole: string, reading: Reading, currency: Curre
   const bare = !problem && price === null && written === null
     ? (half ? line.match(/(?:^|\s)(\d+(?:[.,]\d{1,2})?)\s*[.;]?\s*$/) : barePrice(line)) : null;
   if (bare) {
-    const a = readAmount(bare[1]!, currency);
+    const a = readAmount(bare[1]!);
     if (a === 'ambiguous') problem = 'ambiguous_price';
     else price = a;
   }
@@ -383,6 +382,7 @@ export type ValidatedImport = {
  */
 const PRICE_CEILING: Readonly<Record<Currency, number>> = {
   USD: 100_000, CNY: 700_000, AED: 400_000, SAR: 400_000, BRL: 500_000, MXN: 2_000_000, INR: 8_000_000, IDR: 1_500_000_000,
+  MAD: 1_000_000, EUR: 100_000, GBP: 80_000,
 };
 
 export function validateExtracted(products: readonly ExtractedProduct[]): ValidatedImport {
@@ -400,7 +400,8 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
       rejected.push({ product: p, reason: 'bad_name', reasonZh: '名字没认出来' });
     } else if (seen.has(key)) {
       rejected.push({ product: p, reason: 'duplicate', reasonZh: '重复了' });
-    } else if (p.price !== null && (p.price.amount <= 0 || p.price.amount > PRICE_CEILING[p.price.currency])) {
+    } else if (p.price !== null && (signOf(p.price.amount) <= 0
+        || compareDecimal(p.price.amount, fromInteger(PRICE_CEILING[p.price.currency])) > 0)) {
       rejected.push({ product: p, reason: 'bad_price', reasonZh: '价格看着不对' });
     } else if (p.moq !== null && (!Number.isInteger(p.moq) || p.moq <= 0)) {
       rejected.push({ product: p, reason: 'bad_moq', reasonZh: '起订量看着不对' });

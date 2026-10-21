@@ -8,6 +8,7 @@ import { pasteList, submitReview, rowKey, postPhotos, formFields, BOUNDARY } fro
 import type { PageTranscriber } from '../../src/llm/ports.js';
 import type { CatalogExtractor } from '../../src/core/onboard/catalogImport.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * EXT — through the real routes, into real rows, the model faked:
@@ -98,7 +99,7 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
     expect(flashSaid(r, SECRET)).toBe(t('en', 'import.flash.extracted', { n: 1 }));
     expect(asked[0]!.lines).toEqual(['Tote bag 39 | 2 colours | 3 sizes', 'Linen apron — 18 each, pack of 6']);
     const after = await rows(at);
-    expect(after.find((x) => x.line.startsWith('Tote'))).toMatchObject({ name: 'Tote bag', price: 39 });
+    expect(after.find((x) => x.line.startsWith('Tote'))).toMatchObject({ name: 'Tote bag', price: decimal('39') });
     expect(after.find((x) => x.line.startsWith('Tote'))!.confidence).toBeTruthy();
     expect(after.find((x) => x.line.startsWith('Linen'))).toMatchObject({ price: null });
     expect(after.find((x) => x.line.startsWith('Linen'))!.confidence).toBeUndefined();

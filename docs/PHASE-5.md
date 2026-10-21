@@ -94,6 +94,14 @@ undeniable.
   - Likewise $5.10 less 15% (exactly 4.335) gives 4.33 instead of 4.34, and $5.48 less 12.5% (exactly 4.795) gives 4.79
     instead of 4.80.
   - On an order, that cent is multiplied by the quantity.
+- **Which way the error goes:** always down. All 9,358 wrong cents in the measurement are below the exact figure, none
+  above. **Nomi has been under-charging, on about one discounted quote in 75.**
+- **Stored amounts are already exact:** Postgres `numeric`, read by the driver as exact text and then turned into a float
+  by `Number(…)`. The defect is in the arithmetic between storage and the quote, not in what is stored.
+  - So A1's migration rewrites no stored value: quotes and orders already sent are what the buyer saw, and they stay.
+  - The migration notes record that from A1 on, the same inputs can quote a cent higher than before (the corrected
+    figure). Production has had zero turns since 2026-09-20, so nothing real is affected this time. In any other week
+    this would be a customer-facing change.
 - **Consequence:** A1 covers **the existing money path too:** quotes, orders, proposals, proformas, invoices, payments
   and the advisor's sums. It also includes a **migration of stored amounts** to the exact representation, and its
   million-step property test runs on quotes and orders, not only on ledger entries.
@@ -147,16 +155,30 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - every foreign-currency line stores the rate and the date, taken from the owner's rates (decision 13);
   - **never recomputed;** a missing rate refuses the posting.
   - *Depends on A1 and A2.*
-- **A4 · Document storage, residency-aware:** encrypted, per workspace, with the retention date of its country. Where the
+- **A4 · Document storage, residency-aware:** *(built 2026-10-22, 0174: sealed with AES-256-GCM under a key of its
+  own, bound to workspace and id; DOCUMENT_STORES maps residency → `database` or `directory:<path>`, and a residency
+  with no store refuses; each document's `keep_until` set by the database; held at closure with the books, its
+  directory files removed by tools/books-retention.mjs after the legal date. Open: the closing copy includes the
+  documents (with A6's pages, which list them) — until then a workspace holding papers refuses to close; a sweep of sealed files a rolled-back upload left with no row.)*
+   encrypted, per workspace, with the retention date of its country. Where the
   data lives — the database, the documents and the backups — is **a parameter** (decision 14), not an assumption.
   *Depends on A2.* 💰 beyond the database volume.
-- **A5 · The books' tenancy and the three roles (decision 12):**
+- **A5 · The books' tenancy and the three roles (decision 12):** *(built 2026-10-22, 0175: `people.kind`
+  'accountant', made by the owner on the team page and never changed; the guard confines an accountant to the books'
+  routes, every registered route walked in tests/integration/books-roles.test.ts; an accountant's posting refused by
+  the database too; closure waits for the OWNER's copy. The roles are the books' only: staff keep their sales work and
+  get nothing of the books; an accountant reaches nothing of the sales side. D18: the six new processors stop the boot
+  until named. The per-buyer legal-retention action comes with C2's party link, as A2.4 says.)*
   - row-level security on every new table;
   - owner, accountant (see and export only) and staff (nothing), as real roles with a permission test per route;
   - erasure-contract entries with the legal-retention action;
   - D18 privacy lines for each new processor.
   - *Depends on A2.*
-- **A6 · The salesperson ↔ accountant toggle:** same login, same company. **Early because it's the demonstrable piece,
+- **A6 · The salesperson ↔ accountant toggle:** *(built 2026-10-22, 0176: `businesses.books_area`, OFF by default,
+  switched by tools/books-area.mjs; off, every /app/books address is not found and nobody is offered the switch or
+  an accountant. A page under /app/books is the books' mode and its rail shows only the books; the switch at the
+  rail's foot is the owner's alone; an accountant has the books and a way out; staff the sales side. Its books
+  side is one page today, the home and the copy — C1 onward fill it.)* Same login, same company. **Early because it's the demonstrable piece,
   not because anything depends on it.** It's the cheapest visible proof that the two-mode idea works, which the thesis
   and any investor conversation need. It builds on `shell()` in `src/api/web/layout.ts` and on the outreach area's
   per-workspace gate. *Needs A5's roles.*
@@ -185,6 +207,22 @@ Each item is built and fully tested (§4) before the next one that depends on it
 - **C1 · Item 3 — journal entries:**
   - by hand, from Nomi's orders and invoices, and from what's read in;
   - numbered in sequence per journal, with no gaps (the Avis 24 criterion).
+  - **Strictly gap-free, as a legal requirement (Avis 24), not a preference:**
+    - The journal and invoice sequences are their own counters, never the order sequence (`nextOrderReference`), and
+      they inherit none of its paths.
+    - A number is taken only at posting, inside the posting transaction. A draft has no number.
+    - A rolled-back posting never existed, so it leaves no gap.
+    - Once posted, a number is permanent under any failure. The database refuses DELETE on posted entries and any
+      UPDATE of their number. Cancelling is a reversing entry with its own new number. No tool can release a number.
+    - **Checked against the order counter (2026-10-22, 0162 and `src/db/orderNumbers.ts`):**
+      - its one reclaim path is the rollback of the order's own transaction, which takes the count back with it;
+      - the app role holds UPDATE on `order_numbers` and nothing stops the count going DOWN; a repeated number is
+        stopped only by the unique index on orders.
+      - So the books' counters share nothing with it: not the table, the function or its grants. They get their own
+        table, a trigger that refuses any decrease, and no DELETE grant. Posted entries refuse DELETE and any change of
+        number (trigger and revoked grant both). The number is taken inside the posting transaction.
+      - C1's tests: a decrease refused; a delete refused; a rollback leaves neither a gap nor a repeat; two postings at
+        once get consecutive numbers.
   - *Depends on A2–A5 and B5.*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
 - **C3 · Item 4 — reconciliation:**
@@ -239,6 +277,18 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - authenticated users, with who did what and when;
     - archiving with a certain date;
     - reports carrying the entity, the period, the date made, the software version and page numbers.
+  - **Does any of it bind the SOFTWARE? No: there is no software certification, registration or attestation in
+    Morocco, in force or announced (checked 2026-10-22, primary sources). So it is not a launch gate.**
+    - Avis 24's criteria bind the **taxpayer, through the software they keep their books in.** The text addresses the
+      "systèmes informatisés" an entity uses. The vendor appears once, in 2.1 b, as the author of the technical note
+      the entity keeps.
+    - Neither the CGI (art. 145, 210) nor the DGI's Note circulaire n° 737 on the LF 2026, which cites Avis 24,
+      creates a certificate, a list of approved software or an attestation from the publisher.
+    - Contrast France, where a certificate exists only for **cash-register** software (CGI art. 286-I-3° bis), not
+      for accounting software, and e-invoicing goes through **approved platforms** (plateformes agréées) from
+      1 September 2026. Neither applies to Morocco.
+    - **To watch:** the art. 145-IX e-invoicing decree, still unpublished. If it creates an approval for software or
+      platforms, that becomes a gate for e-invoicing, which is outside Phase 5's 100%.
   - **Who must comply:** **CGI art. 145-XI exempts** the CPU and auto-entrepreneur regimes. Companies, and shops taxed
     on real or simplified net income, need it.
   - **Not published yet (open):**
@@ -392,7 +442,25 @@ Parties, Invoices, Payments) and fixed columns.
   required for the statutory record are kept to the legal date, then erased.**
   - The erasure contract gains a "keep until the legal date, then erase" action, with the date stored per row.
   - `erase-buyer` and workspace closure refuse to erase inside the legal period, and say which records and why.
-  - A closing workspace can always take its books out first: the accountant pack, the Moroccan FEC, the workbook.
+  - **Closing a workspace ends with its books in the owner's hands, every time (the owner, 2026-10-22).** A2.1 keeps
+    posted books when a workspace is deleted, as the duty requires. So an owner who closes would leave their statutory
+    accounts with us for ten years, unable to sign in to reach them, holding a company's legal records hostage by
+    accident. Therefore:
+    - the export (the accountant pack, the Moroccan FEC where it applies, the workbook) is **MANDATORY and happens
+      BEFORE closure completes**. It isn't an option to miss;
+    - **if the export fails, closure doesn't finish**;
+    - the deletion page says, in plain words, what we keep, for how long, why, and that they already have their copy.
+    - **Built in A2.4 (0172, 2026-10-22).** Closing refuses until a downloaded copy covers the last posting (a receipt
+      with its SHA-256 is written in the same transaction as the file). Then everything else is erased, and the books
+      with their business row are HELD, switched off, until the legal date: 10 years from the end of the last fiscal
+      year with a posting, for Morocco (CGI art. 211) and France (L123-22), the later of the readings. After that,
+      `tools/books-retention.mjs` erases them. The owner's data page says what is kept, until when, under which law,
+      and when they took their copy. Tested: `tests/integration/books-closure.test.ts`.
+    - **Not yet, on purpose:**
+      - the PUBLIC pages (`/data-deletion`, `/privacy`) say nothing about books until books are switched on (A6),
+        because the site states nothing unbuilt. A6 adds those lines;
+      - a buyer's deletion request meets no books yet: no party is linked to a buyer until C2 (invoices). The
+        per-buyer "kept until the legal date" rule lands with that link; the workspace-level hold is built.
 - **The deletion page must say which is which, in plain words, before any of this ships:**
   - what is erased at once;
   - what is kept, until when, and under which law;

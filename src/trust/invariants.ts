@@ -1,4 +1,5 @@
 import type { TurnResult, TurnEffects } from '../pipeline/turn.js';
+import { type Decimal, compareDecimal } from '../core/types/decimal.js';
 import { UNCLAIMED_AGENT } from '../pipeline/turn.js';
 import { aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import type { Capability, Mode } from '../core/conversation/autonomy.js';
@@ -40,7 +41,7 @@ export type TurnOutcome = {
   readonly result: TurnResult;
   readonly effects: TurnEffects;
   /** The configured floor for a product id, or null if none. */
-  readonly floorOf: (productId: string) => number | null;
+  readonly floorOf: (productId: string) => Decimal | null;
   /** Which capability the turn exercised (capabilityOf, recomputed by the caller). */
   readonly capability: Capability;
   /** What the autonomy policy SAYS should happen, narrowed by the turn's recorded holds (`requestedModeOf`). */
@@ -69,7 +70,7 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
     if (result.quote) {
       const floor = ctx.floorOf(result.quote.productId as string);
       const unit = result.quote.unitPrice;
-      const ok = floor === null || unit.amount >= floor - 1e-9;
+      const ok = floor === null || compareDecimal(unit.amount, floor) >= 0;   // A1 — exact; no tolerance needed
       return mk('priceFloorRespected', ok,
         ok ? `unit ${unit.currency} ${unit.amount} ≥ floor ${floor} (rules: ${result.quote.appliedRules.join(', ') || 'none'})`
            : `unit ${unit.currency} ${unit.amount} BELOW floor ${floor}`);

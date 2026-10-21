@@ -474,8 +474,8 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     const words = at('<bdi>ok, 5000 again please</bdi>');
     const product = at('<bdi>Gift box</bdi>');
     const quantity = at(esc(show.quantityOf('en', 500, 'boxes')));
-    const unit = at(esc(show.money('en', usd(2.1))));
-    const total = at(esc(show.money('en', usd(1050))));
+    const unit = at(esc(show.money('en', usd('2.1'))));
+    const total = at(esc(show.money('en', usd('1050'))));
     const mismatch = at(esc(t('en', 'maybeYes.mismatch', { said: '5000', given: show.quantityOf('en', 500, 'boxes') })));
     for (const [what, i] of Object.entries({ words, product, quantity, unit, total, mismatch })) expect(i, what).toBeGreaterThan(-1);
     expect(words, 'their words first').toBeLessThan(product);
@@ -510,8 +510,8 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     for (const [what, x] of Object.entries({
       words: '<bdi>ok, 5000 again please</bdi>',
       quantity: esc(show.quantityOf('en', 5000, 'boxes')),
-      unit: esc(show.money('en', usd(2.1))),
-      total: esc(show.money('en', usd(10500))),
+      unit: esc(show.money('en', usd('2.1'))),
+      total: esc(show.money('en', usd('10500'))),
       never: esc(t('en', 'order.card.unquoted')),
     })) {
       expect(at(x), what).toBeGreaterThan(-1);

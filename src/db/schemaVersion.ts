@@ -412,7 +412,20 @@ import type { Db } from './client.js';
 // 166 = every five-minute model check kept a month (0166): `model_check_log`, which the check appends to and
 //       tools/model-uptime.mjs reads. Against a 165 database the check's history is not kept (logged).
 // 167 = the deploy alarm (0167): `deploy_lag`, which the ten-minute look writes once per head of main an hour late.
-export const REQUIRED_SCHEMA_VERSION = 167;
+// 168 = MAD, EUR and GBP (0168): the nine currency checks admit them. Against a 167 database a workspace in one of
+//       them fails on its first write.
+// 169 = the ledger (0169): accounts, journals, fiscal years, entries and lines, with the database's rules. Against a
+//       168 database every books page fails on the missing tables.
+// 170 = tax codes, parties and custom fields (0170), and the line's party, tax code and custom values.
+// 171 = chart templates (0171): shared charts and journals, and `apply_chart_template`, which a workspace starts
+//       its books from.
+// 172 = a closing workspace keeps its books and its owner leaves with them (0172): `books_exports`,
+//       `books_retention`, `businesses.books_held_until`, and the erasure that holds them.
+// 173 = the books in one currency at the owner's rates (0173): the line's rate, its day and its book amounts.
+// 174 = documents (0174): sealed, kept to their date, stored where the workspace's residency says.
+// 175 = the accountant (0175): `people.kind`, an accountant's posting refused, closure waiting for the owner's copy.
+// 176 = the books switched on per workspace (0176): `businesses.books_area`, which every page's facts read.
+export const REQUIRED_SCHEMA_VERSION = 176;
 
 export type SchemaState = {
   readonly required: number;

@@ -1,12 +1,13 @@
 import { type Money, type Currency } from '../types/money.js';
+import { compareDecimal, type Decimal, decimal, parseDecimal, percentNumber, roundDecimal, signOf } from '../types/decimal.js';
 import { readTypedAmount } from './amount.js';
 
 /*
  * The currency the owner's boxes are denominated in was a constant here,
  * TENANT_CURRENCY = 'USD', "named rather than assumed: when a tenant can
  * choose, this is the line that becomes a lookup". CUR is that day: the caller
- * passes the workspace's own currency (`currencyOf`), and the boxes are read
- * the way that currency writes a figure.
+ * passes the workspace's own currency (`currencyOf`). A1 — the boxes are read
+ * one way in every currency, or refused as ambiguous (`amount.ts`).
  */
 
 /**
@@ -57,6 +58,7 @@ export type PriceRuleField = 'floor' | 'maxDiscountPct' | 'askAbovePct';
 export type PriceRuleError =
   | 'missing'
   | 'not_a_number'
+  | 'ambiguous'
   | 'floor_not_positive'
   | 'pct_out_of_range'
   | 'ask_above_max'
@@ -71,7 +73,7 @@ export type PriceRulesInput = {
    *  floor-above-list check, which is the mistake that silently stops her
    *  quoting at all. */
   readonly listPrice?: Money | null;
-  /** CUR — the workspace's one currency: the floor is in it, and the boxes are read its way. */
+  /** CUR — the workspace's one currency: the floor is in it. (A1 — the boxes are read one way in every currency.) */
   readonly currency: Currency;
 };
 
@@ -80,14 +82,16 @@ export type PriceRulesResult =
   | { readonly ok: false; readonly errors: Partial<Record<PriceRuleField, PriceRuleError>> };
 
 /** Money to 4dp and percentages to 2dp — the precision the columns actually hold. */
-const round = (n: number, dp: number): number => Number(n.toFixed(dp));
-
-function num(raw: string | number | null | undefined, currency: Currency): number | 'missing' | 'not_a_number' {
+/** A1 — what she typed, as an exact decimal. A number (from a caller, not a box) is read through its own shortest text. */
+function num(raw: string | number | null | undefined): Decimal | 'missing' | 'not_a_number' | 'ambiguous' {
   if (raw === null || raw === undefined) return 'missing';
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 'not_a_number';
+  if (typeof raw === 'number') return Number.isFinite(raw) ? (parseDecimal(String(raw)) ?? 'not_a_number') : 'not_a_number';
   if (raw.trim() === '') return 'missing';
-  return readTypedAmount(raw, currency) ?? 'not_a_number';
+  return readTypedAmount(raw) ?? 'not_a_number';
 }
+
+const isWord = (v: Decimal | 'missing' | 'not_a_number' | 'ambiguous'): v is 'missing' | 'not_a_number' | 'ambiguous' =>
+  v === 'missing' || v === 'not_a_number' || v === 'ambiguous';
 
 /**
  * Validate all three together, because two of them only make sense against each
@@ -98,20 +102,20 @@ function num(raw: string | number | null | undefined, currency: Currency): numbe
 export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
   const errors: Partial<Record<PriceRuleField, PriceRuleError>> = {};
 
-  const floor = num(input.floor, input.currency);
-  const max = num(input.maxDiscountPct, input.currency);
-  const ask = num(input.askAbovePct, input.currency);
+  const floor = num(input.floor);
+  const max = num(input.maxDiscountPct);
+  const ask = num(input.askAbovePct);
 
-  if (typeof floor === 'string') errors.floor = floor;
-  else if (!(floor > 0)) errors.floor = 'floor_not_positive';
+  if (isWord(floor)) errors.floor = floor;
+  else if (signOf(floor) <= 0) errors.floor = 'floor_not_positive';
 
   for (const [field, v] of [['maxDiscountPct', max], ['askAbovePct', ask]] as const) {
-    if (typeof v === 'string') errors[field] = v;
-    else if (!(v >= 0 && v <= 100)) errors[field] = 'pct_out_of_range';
+    if (isWord(v)) errors[field] = v;
+    else if (signOf(v) < 0 || compareDecimal(v, decimal('100')) > 0) errors[field] = 'pct_out_of_range';
   }
 
   if (errors.maxDiscountPct === undefined && errors.askAbovePct === undefined
-      && typeof max === 'number' && typeof ask === 'number' && ask > max) {
+      && !isWord(max) && !isWord(ask) && compareDecimal(ask, max) > 0) {
     // "Ask me above 10% off" while she may only ever give 7% describes a
     // question that can never be asked. This ordering is not pedantry: a test
     // fixture in M20.5 carried maxDiscount 5 / askAbove 10, the inverted
@@ -119,8 +123,8 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
     errors.askAbovePct = 'ask_above_max';
   }
 
-  if (errors.floor === undefined && typeof floor === 'number'
-      && input.listPrice != null && floor > input.listPrice.amount) {
+  if (errors.floor === undefined && !isWord(floor)
+      && input.listPrice != null && compareDecimal(floor, input.listPrice.amount) > 0) {
     // The quote engine refuses `below_floor` rather than quoting at a loss, so a
     // floor above the list price means she silently cannot quote this product at
     // all. M20.5's factory rehearsal surfaces it after the fact; catching it here
@@ -135,9 +139,10 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
       // She typed a number into a box that is denominated in the tenant's
       // currency; the pair is assembled HERE, once, rather than by whichever
       // caller happens to write the row.
-      floor: { amount: round(floor as number, 4), currency: input.currency },
-      maxDiscountPct: round(max as number, 2),
-      askAbovePct: round(ask as number, 2),
+      floor: { amount: roundDecimal(floor as Decimal, 4), currency: input.currency },
+      // A percentage with two decimals (numeric(5,2)): exact text, held as the number it reads as.
+      maxDiscountPct: percentNumber(max as Decimal),
+      askAbovePct: percentNumber(ask as Decimal),
     },
   };
 }
@@ -148,8 +153,8 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
  */
 export function priceRuleChanges(
   before: PriceRules | null, after: PriceRules,
-): Partial<Record<PriceRuleField, { readonly from: number | null; readonly to: number }>> {
-  const out: Partial<Record<PriceRuleField, { from: number | null; to: number }>> = {};
+): Partial<Record<PriceRuleField, { readonly from: string | number | null; readonly to: string | number }>> {
+  const out: Partial<Record<PriceRuleField, { from: string | number | null; to: string | number }>> = {};
   // The audit records amounts, because that is what changed: the currency of a
   // tenant does not move, and a row that did change currency would be a
   // different fact needing its own entry rather than a from/to on this one.

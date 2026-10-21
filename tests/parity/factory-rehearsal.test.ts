@@ -38,8 +38,8 @@ type P = FactoryFixture['products'][number];
 const product = (over: Partial<P>): P => ({
   id: '11111111-1111-1111-1111-111111111111',
   sku: 'BASE', name: 'Base product', moq: 1000, unit: 'pcs', leadTimeDays: 25,
-  tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.45) }],
-  policy: { floorPrice: usd(0.35), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
+  tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd('0.45') }],
+  policy: { floorPrice: usd('0.35'), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
   knowledge: [],
   ...over,
 });
@@ -81,7 +81,7 @@ describe('M20.5 · a finding is a fact about her data, not a verdict', () => {
 
   it('price tiers that start above her own minimum order are a different problem', async () => {
     const r = await rehearseFactory(fixture({
-      products: [product({ moq: 1000, tiers: [{ minQty: 5000, maxQty: null, unitPrice: usd(0.4) }], knowledge: [TAUGHT_SPEC] })],
+      products: [product({ moq: 1000, tiers: [{ minQty: 5000, maxQty: null, unitPrice: usd('0.4') }], knowledge: [TAUGHT_SPEC] })],
     }));
     expect(reasons(r)).toEqual(['no_price_at_moq']);
     expect(r.violations).toEqual([]);
@@ -90,8 +90,8 @@ describe('M20.5 · a finding is a fact about her data, not a verdict', () => {
   it('a floor above her own list price is reported to HER, not as an engine fault', async () => {
     const r = await rehearseFactory(fixture({
       products: [product({
-        tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.45) }],
-        policy: { floorPrice: usd(0.9), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
+        tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd('0.45') }],
+        policy: { floorPrice: usd('0.9'), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
         knowledge: [TAUGHT_SPEC],
       })],
     }));

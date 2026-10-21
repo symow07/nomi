@@ -9,6 +9,8 @@ import { renderRate, type RateView } from '../../src/api/web/settings.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { moneyOf } from '../../src/core/types/money.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * M43b — the rate SHE stated, or nothing.
@@ -26,18 +28,18 @@ import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 
 const march = new Date('2026-03-04T10:00:00Z');
 const august = new Date('2026-08-12T10:00:00Z');
-const rate = (r: number, at: Date): OwnerRate => ({ from: 'USD', to: 'CNY', rate: r, statedAt: at });
+const rate = (r: string, at: Date): OwnerRate => ({ from: 'USD', to: 'CNY', rate: decimal(r), statedAt: at });
 
 describe('M43b · she states it, or nothing converts', () => {
   it('converts at HER rate', () => {
-    const c = convertMoney(usd(100), 'CNY', [rate(7.15, august)]);
+    const c = convertMoney(usd('100'), 'CNY', [rate('7.15', august)]);
     expect(c.ok).toBe(true);
     if (!c.ok) return;
-    expect(c.value.money).toEqual({ amount: 715, currency: 'CNY' });
+    expect(c.value.money).toEqual(moneyOf('715', 'CNY'));
   });
 
   it('REFUSES when she has stated nothing — it does not guess, average, or fetch', () => {
-    const c = convertMoney(usd(100), 'CNY', []);
+    const c = convertMoney(usd('100'), 'CNY', []);
     expect(c.ok).toBe(false);
     if (c.ok) return;
     expect(c.error.kind).toBe('no_rate_stated');
@@ -46,32 +48,32 @@ describe('M43b · she states it, or nothing converts', () => {
   });
 
   it('the converted figure carries the rate it went through', () => {
-    const c = convertMoney(usd(100), 'CNY', [rate(7.15, august)]);
+    const c = convertMoney(usd('100'), 'CNY', [rate('7.15', august)]);
     if (!c.ok) throw new Error('unreachable');
     // Not the amount alone: a number in ￥ with no rate behind it is exactly
     // the thing this refuses to produce.
-    expect(c.value.rate.rate).toBe(7.15);
+    expect(c.value.rate.rate).toBe('7.15');
     expect(c.value.rate.statedAt).toEqual(august);
   });
 
   it('the same currency is the identity, and needs no row', () => {
-    const c = convertMoney(usd(100), 'USD', []);
+    const c = convertMoney(usd('100'), 'USD', []);
     expect(c.ok).toBe(true);
-    if (c.ok) expect(c.value.money).toEqual(usd(100));
+    if (c.ok) expect(c.value.money).toEqual(usd('100'));
   });
 
   it('the NEWEST rate wins — what she will honour is the last thing she said', () => {
-    const r = rateFor([rate(6.90, march), rate(7.15, august)], 'USD', 'CNY');
-    expect(r!.rate).toBe(7.15);
+    const r = rateFor([rate('6.90', march), rate('7.15', august)], 'USD', 'CNY');
+    expect(r!.rate).toBe('7.15');
     // and order of the array does not decide it
-    expect(rateFor([rate(7.15, august), rate(6.90, march)], 'USD', 'CNY')!.rate).toBe(7.15);
+    expect(rateFor([rate('7.15', august), rate('6.90', march)], 'USD', 'CNY')!.rate).toBe('7.15');
   });
 
   it('the INVERSE is not implied — 1/7.15 is arithmetic she did not do', () => {
     // She stated what a dollar is worth in yuan. She did not state what a yuan
     // is worth in dollars, and inverting it for her is inventing a rate.
-    expect(rateFor([rate(7.15, august)], 'CNY', 'USD')).toBeNull();
-    expect(convertMoney({ amount: 715, currency: 'CNY' }, 'USD', [rate(7.15, august)]).ok).toBe(false);
+    expect(rateFor([rate('7.15', august)], 'CNY', 'USD')).toBeNull();
+    expect(convertMoney(moneyOf('715', 'CNY'), 'USD', [rate('7.15', august)]).ok).toBe(false);
   });
 });
 
@@ -79,20 +81,20 @@ describe('M43b · staleness is HER judgement, not an invented threshold', () => 
   it('an old rate still converts — refusing it would need a number nobody stated', () => {
     // Thirty days? Ninety? Any answer is invented, and an invented threshold is
     // an invented number wearing a responsible-looking hat.
-    const ancient = rate(6.10, new Date('2019-01-01T00:00:00Z'));
-    const c = convertMoney(usd(100), 'CNY', [ancient]);
+    const ancient = rate('6.10', new Date('2019-01-01T00:00:00Z'));
+    const c = convertMoney(usd('100'), 'CNY', [ancient]);
     expect(c.ok).toBe(true);
     if (c.ok) expect(c.value.rate.statedAt).toEqual(ancient.statedAt);
   });
 
   it('so the DATE is shown wherever the rate is', () => {
-    const html = renderRate({ current: rate(7.15, august), previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
+    const html = renderRate({ current: rate('7.15', august), previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
     expect(html).toContain(t('en', 'rate.current', { rate: 7.15, from: 'USD', to: 'CNY' }));
     expect(html).toMatch(/You set this on/);
   });
 
   it('and beside every converted figure, not only on the settings page', () => {
-    const html = renderConversationDetail(detail(rate(7.15, august)), 'en', august, null);
+    const html = renderConversationDetail(detail(rate('7.15', august)), 'en', august, null);
     expect(html).toContain('￥');
     expect(html).toContain('at the rate you set on');
   });
@@ -102,7 +104,7 @@ describe('M43b · what she typed', () => {
   it('accepts a plain positive number', () => {
     const r = validateRate({ from: 'USD', to: 'CNY', rate: '7.15', now: august });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value).toEqual({ from: 'USD', to: 'CNY', rate: 7.15, statedAt: august });
+    if (r.ok) expect(r.value).toEqual({ from: 'USD', to: 'CNY', rate: decimal('7.15'), statedAt: august });
   });
 
   it('refuses blank, non-numeric, zero and negative', () => {
@@ -141,7 +143,7 @@ describe('M43b · the surface', () => {
   });
 
   it('shows the rates she stated BEFORE — history, not state', () => {
-    const html = renderRate({ current: rate(7.15, august), previous: [rate(6.90, march)], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
+    const html = renderRate({ current: rate('7.15', august), previous: [rate('6.90', march)], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
     expect(html).toContain(t('en', 'rate.history.title'));
     expect(html).toContain(t('en', 'rate.current', { rate: 6.9, from: 'USD', to: 'CNY' }));
   });
@@ -198,11 +200,11 @@ describe('M43b · no live rate can enter this product', () => {
 
 /** A conversation detail carrying a quote, with or without a stated rate. */
 function detail(r: OwnerRate | null): ConversationDetail {
-  const money = (n: number): Money => usd(n);
+  const money = (n: string): Money => usd(n);
   return {
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000,
-    quote: { unitPrice: money(0.92), total: money(4600), quantity: 5000 },
+    quote: { unitPrice: money('0.92'), total: money('4600'), quantity: 5000 },
     order: null,
     messages: [{ direction: 'inbound', text: 'Price for 5000?', at: march }],
     pendingDraft: null, ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [],

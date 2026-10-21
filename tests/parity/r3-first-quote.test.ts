@@ -15,12 +15,12 @@ import { withoutIsolates } from './isolates.js';
  */
 
 const src = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
-const usd = (n: number) => moneyFromRow(n, 'USD')!;
+const usd = (n: string) => moneyFromRow(n, 'USD')!;
 const NOW = new Date('2026-10-01T10:00:00Z');
 const base: ConversationDetail = {
   conversationId: '0b0c3a3e-6a5c-4f0e-9a3b-1d2e3f405061', buyer: 'Maya', country: 'AE', status: 'awaiting',
   product: { name: 'Rose lip oil', nameZh: null }, quantity: null,
-  quote: { unitPrice: usd(12), total: usd(12), quantity: 1 }, order: null,
+  quote: { unitPrice: usd('12'), total: usd('12'), quantity: 1 }, order: null,
   messages: [{ direction: 'inbound', text: 'How much is the rose lip oil?', at: new Date('2026-10-01T09:58:00Z') }],
   pendingDraft: { draftId: 'd-1', draftText: 'That one is $12.00.', capability: 'quote', withheld: { reason: 'first_quote' } },
   ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,

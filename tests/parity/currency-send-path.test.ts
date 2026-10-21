@@ -5,7 +5,8 @@ import { extractQuantity } from '../../src/core/conversation/understand.js';
 import { guardFallbackReply } from '../../src/core/conversation/templates.js';
 import { detectSignals } from '../../src/core/scoring/detect.js';
 import { HIGH_VALUE } from '../../src/core/scoring/signals.js';
-import { CURRENCIES, currencySymbol, symbolIsCode, type Currency, type Money } from '../../src/core/types/money.js';
+import { CURRENCIES, currencySymbol, moneyOf, scaleMoney, symbolIsCode, type Currency, type Money } from '../../src/core/types/money.js';
+import { decimal, fromInteger, mulDecimal, roundDecimal } from '../../src/core/types/decimal.js';
 import type { Quote } from '../../src/core/types/commerce.js';
 import { product, tiers, policy, emptyState } from './fixtures.js';
 
@@ -27,8 +28,8 @@ const inCurrency = (c: Currency, m: Money): Money => ({ amount: m.amount, curren
 const quoteIn = (c: Currency, scale = 1, quantity = 5_000): Quote => {
   const r = computeQuote({
     product: product(),
-    tiers: tiers().map((t) => ({ ...t, unitPrice: inCurrency(c, { ...t.unitPrice, amount: t.unitPrice.amount * scale }) })),
-    policy: policy({ floorPrice: { amount: 0.35 * scale, currency: c } }),
+    tiers: tiers().map((t) => ({ ...t, unitPrice: inCurrency(c, scaleMoney(t.unitPrice, fromInteger(scale))) })),
+    policy: policy({ floorPrice: moneyOf(mulDecimal(decimal('0.35'), fromInteger(scale)), c) }),
     rules: [], quantity,
   });
   if (!r.ok) throw new Error(`fixture: ${JSON.stringify(r.error)}`);
@@ -38,9 +39,10 @@ const state = emptyState({ quantity: { value: 5_000, unit: 'pcs' } });
 const guard = (reply: string, quote: Quote, clientText = '') => guardNumerals({ reply, quote, state, clientText });
 
 describe('CUR · every currency a workspace can sell in', () => {
-  it('the eight, each with its own sign', () => {
-    expect([...CURRENCIES].sort()).toEqual(['AED', 'BRL', 'CNY', 'IDR', 'INR', 'MXN', 'SAR', 'USD']);
-    expect(CURRENCIES.map(currencySymbol)).toEqual(['$', '￥', 'AED ', 'SAR ', 'R$', 'MX$', '₹', 'Rp ']);
+  it('the eleven, each with its own sign', () => {
+    expect([...CURRENCIES].sort()).toEqual(['AED', 'BRL', 'CNY', 'EUR', 'GBP', 'IDR', 'INR', 'MAD', 'MXN', 'SAR', 'USD']);   // A1.3 adds three
+    expect(CURRENCIES.map(currencySymbol)).toEqual(['$', '￥', 'AED ', 'SAR ', 'R$', 'MX$', '₹', 'Rp ', 'MAD ', '€', '£']);
+    expect(symbolIsCode('MAD')).toBe(true);
     expect(symbolIsCode('AED')).toBe(true);
     expect(symbolIsCode('USD')).toBe(false);
   });
@@ -97,7 +99,7 @@ describe('CUR · a price is sourced only in its own currency', () => {
 describe('CUR · Brazil and Indonesia write their figures their way', () => {
   it('"Rp 150.000" is 150000 for a quote in rupiah', () => {
     const idr = quoteIn('IDR', 300_000, 5_000);   // 135,000 a piece at the 5,000 tier
-    const unit = idr.unitPrice.amount;
+    const unit = Number(idr.unitPrice.amount);       // a figure to WRITE in a reply, not to compute with
     const dotted = unit.toLocaleString('de-DE');   // "135.000"
     expect(guard(`Harganya Rp ${dotted} per buah.`, idr).ok).toBe(true);
     expect(guard(`Harganya Rp ${(unit + 1000).toLocaleString('de-DE')} per buah.`, idr).ok).toBe(false);
@@ -105,8 +107,7 @@ describe('CUR · Brazil and Indonesia write their figures their way', () => {
 
   it('"R$ 1.250,50" is 1250.50 for a quote in reais', () => {
     const brl = quoteIn('BRL', 2779, 5_000);   // 0.45 × 2779 = 1250.55 a piece
-    const unit = brl.unitPrice.amount;
-    const [whole, cents] = unit.toFixed(2).split('.');
+    const [whole, cents] = roundDecimal(brl.unitPrice.amount, 2).split('.');
     const written = `R$ ${Number(whole).toLocaleString('de-DE')},${cents}`;
     expect(guard(`Custa ${written} cada.`, brl).ok, written).toBe(true);
   });
@@ -118,7 +119,7 @@ describe('CUR · Brazil and Indonesia write their figures their way', () => {
 
   it('the dotted figure must still be in the right money', () => {
     const idr = quoteIn('IDR', 300_000, 5_000);
-    expect(guard(`That is $${idr.unitPrice.amount.toLocaleString('de-DE')} each.`, idr).ok).toBe(false);
+    expect(guard(`That is $${Number(idr.unitPrice.amount).toLocaleString('de-DE')} each.`, idr).ok).toBe(false);
   });
 });
 
@@ -139,7 +140,7 @@ describe('CUR · "high value" in each currency\'s own figures', () => {
   it('an order of 10 rupiah a piece is not large; one past the rupiah line is', () => {
     const signalsFor = (c: Currency, unit: number, qty: number) => detectSignals({
       text: `I need ${qty} pcs`, analysis: null, state: emptyState({ quantity: { value: qty, unit: 'pcs' } }),
-      unitPrice: { amount: unit, currency: c },
+      unitPrice: moneyOf(String(unit), c),
     } as Parameters<typeof detectSignals>[0]).map((s) => s.kind);
     expect(signalsFor('IDR', 10_000, 10)).not.toContain('high_value');           // Rp 100,000: a small order
     expect(signalsFor('IDR', 10_000, 6_000)).toContain('high_value');            // Rp 60,000,000

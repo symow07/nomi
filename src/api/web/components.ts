@@ -8,6 +8,7 @@ import { menuRow, menuGroup } from './settings.js';
 import { bubbleClass } from './inbox.js';
 import { flashBanner } from './flash.js';
 import * as show from './values.js';
+import { usd } from '../../core/types/money.js';
 
 /**
  * V1 step two — every component the shell defines, in every state it can be
@@ -99,7 +100,7 @@ export function renderComponents(locale: Locale): string {
       <div class="stat"><span class="v">${esc(show.count(locale, 3))}</span><span class="l">${label}</span></div>
       <div class="stat"><span class="v">${esc(show.count(locale, 12))}</span><span class="l">${label}</span></div>
     </div>
-    <div class="stated-now">${esc(show.money(locale, { amount: 2.1, currency: 'USD' }))}</div>`;
+    <div class="stated-now">${esc(show.money(locale, usd('2.1')))}</div>`;
 
   const sections = `
     <div class="card"><h2>${label}</h2><p class="muted">${s('sample.help')}</p>

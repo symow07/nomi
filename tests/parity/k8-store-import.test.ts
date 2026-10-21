@@ -58,9 +58,9 @@ describe('K8 · the variant rule', () => {
   const rows = itemsToRows(parseShopify(SHOPIFY)!, { defaultUnit: 'item', source: 'myshop.com' });
   it('each price of a product is a product; variants sharing a price stay one; the compare-at price is never the price', () => {
     expect(rows.map((r) => [r.name, r.price])).toEqual([
-      ['Hoodie — S, M', 40], ['Hoodie — L, XL', 45], ['Linen tee', 24], ['Gift card', 25],
+      ['Hoodie — S, M', '40'], ['Hoodie — L, XL', '45'], ['Linen tee', '24'], ['Gift card', '25'],
     ]);
-    expect(rows.some((r) => r.price === 55 || r.price === 60)).toBe(false);
+    expect(rows.some((r) => r.price === '55' || r.price === '60')).toBe(false);
   });
   it('the options go with each product as its knowledge; a placeholder option is not one', () => {
     expect(rows[0]!.options).toBe('Size: S, M');
@@ -82,10 +82,10 @@ describe('K8 · WooCommerce\'s public list', () => {
   ];
   it('prices in minor units, the currency stated, a variable product\'s variations to read', () => {
     const w = parseWoo(list)!;
-    expect(w[0]!.item).toMatchObject({ title: 'Tote bag', currency: 'AED', variants: [{ price: 12, sku: 'TB' }] });
+    expect(w[0]!.item).toMatchObject({ title: 'Tote bag', currency: 'AED', variants: [{ price: '12', sku: 'TB' }] });
     expect(w[1]!.variationIds).toEqual([121, 122]);
     const v = parseWooVariation({ prices: { price: '4500', currency_minor_unit: 2 }, sku: 'SC-L', variation: [{ attribute: 'Length', value: 'Long' }] }, ['Length']);
-    expect(v).toEqual({ price: 45, sku: 'SC-L', options: ['Long'] });
+    expect(v).toEqual({ price: '45', sku: 'SC-L', options: ['Long'] });
   });
   it('a page that is not a Store API list is not read as one', () => {
     expect(parseWoo({ products: [] })).toBeNull();
@@ -121,7 +121,7 @@ describe('K8 · a store\'s exported file', () => {
     expect(checkMapping(t, mapping, 'USD')).toBeNull();
     const rows = itemsToRows(tableToItems(t, mapping), { defaultUnit: 'item', source: 'file' });
     expect(rows.map((r) => [r.name, r.price, r.options ?? null])).toEqual([
-      ['Hoodie — S, M', 40, 'Size: S, M'], ['Hoodie — L', 45, 'Size: L'], ['Cap, wool', 18, null],
+      ['Hoodie — S, M', '40', 'Size: S, M'], ['Hoodie — L', '45', 'Size: L'], ['Cap, wool', '18', null],
     ]);
   });
   it('WooCommerce: a variable parent and its variations are one product; the sale price, else the regular one', () => {
@@ -133,7 +133,7 @@ describe('K8 · a store\'s exported file', () => {
       '10,simple,MUG,Mug,,,9.50,,',
     ].join('\n'))!;
     const rows = itemsToRows(tableToItems(t, suggestMapping(t).mapping), { defaultUnit: 'item', source: 'file' });
-    expect(rows.map((r) => [r.name, r.price])).toEqual([['Shirt — Red', 20], ['Shirt — Blue', 25], ['Mug', 9.5]]);
+    expect(rows.map((r) => [r.name, r.price])).toEqual([['Shirt — Red', '20'], ['Shirt — Blue', '25'], ['Mug', '9.5']]);
   });
   it('Etsy: the file states its currency — another one is refused, nothing converted', () => {
     const t = parseTable('TITLE,PRICE,CURRENCY_CODE,QUANTITY\nRing,35.00,EUR,4\n')!;

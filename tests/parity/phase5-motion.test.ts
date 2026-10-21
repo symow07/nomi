@@ -108,11 +108,11 @@ const today: TodayData = {
   ...NOTHING_TODAY(NOW), tally: { orders: 3, quotes: 5, afterHours: 4 }, sending: ['instagram'],
   handled: { total: 12, people: Array.from({ length: 12 }, (_, i) => ({ conversationId: uuid(2000 + i), clientId: uuid(3000 + i), name: `Buyer ${i}`, photo: null, word: 'answered' as const })) },
 };
-const usd = (n: number) => moneyFromRow(n, 'USD')!;
+const usd = (n: string) => moneyFromRow(n, 'USD')!;
 const conversation: ConversationDetail = {
   conversationId: 'c-1', buyer: 'Maya Rahman', country: 'GB', status: 'awaiting',
   product: { name: 'Rose Face Serum', nameZh: null }, quantity: 10,
-  quote: { unitPrice: usd(34.9), total: usd(349), quantity: 10 }, order: null,
+  quote: { unitPrice: usd('34.9'), total: usd('349'), quantity: 10 }, order: null,
   messages: [{ direction: 'inbound', text: 'how much for 10?', at: new Date('2026-10-03T03:58:00Z') }],
   pendingDraft: { draftId: 'd-1', draftText: 'The Rose Face Serum is $34.90 each, $349 for 10.', capability: 'quote' },
   ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
@@ -124,7 +124,7 @@ const row = (id: string, o: Partial<ConversationSummary> = {}): ConversationSumm
   conversationId: id, buyer: `Buyer ${id}`, country: 'AE', status: 'handled', needsAction: false,
   ownership: 'AI', heldBy: null, awaitingReview: false, handoffReason: null, deletionWaiting: false,
   latestMessage: 'last words', latestAt: new Date('2026-10-03T03:00:00Z'),
-  product: { name: 'Vacuum cup', nameZh: null }, quantity: 500, unitPrice: usd(2.4),
+  product: { name: 'Vacuum cup', nameZh: null }, quantity: 500, unitPrice: usd('2.4'),
   channel: 'whatsapp', unanswered: false, lastFrom: 'assistant', ...o,
 });
 const inbox: InboxList = {

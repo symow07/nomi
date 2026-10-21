@@ -1,6 +1,7 @@
 import { usd } from '../../src/core/types/money.js';
 import type { FactoryView } from '../../src/api/web/factory.js';
 import type { ChannelView } from '../../src/api/web/channels.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * THE WARMTH RUN, phase 7 — a business as My business's menu and screens are
@@ -21,7 +22,7 @@ export const SET_UP: FactoryView = {
     contactEmail: 'sales@sunrise.example', contactPhone: null, languagesServed: ['en', 'zh'],
   },
   products: { total: 12, needPrice: 0, names: [{ name: 'Vacuum cup', nameZh: '保温杯' }] },
-  promises: { certs: ['food_grade'], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false, askPct: 5, askVaries: false },
+  promises: { certs: ['food_grade'], floorLow: usd('0.75'), floorHigh: usd('0.75'), ceilingPct: 8, ceilingVaries: false, askPct: 5, askVaries: false },
   connection: {
     channel: whatsapp(true), ownerPhone: '971500001111', country: 'CN', channelsUsed: ['whatsapp', 'instagram'],
     others: [{ channel: 'instagram', state: 'connected', as: '@sunrise' }, { channel: 'email', state: 'not_connected' }],
@@ -30,12 +31,12 @@ export const SET_UP: FactoryView = {
   readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }], pilotMode: true },
   rehearsal: { findings: [], violations: [], probesRun: 26, productsChecked: 12, productsTotal: 12 },
-  prices: { currency: 'USD', businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 }, products: [], unanswered: 0,
+  prices: { currency: 'USD', businessDefault: { floor: usd('0.35'), maxDiscountPct: 10, askAbovePct: 7 }, products: [], unanswered: 0,
     volume: [{ id: 'v1', productId: null, productLabel: null, minQty: 10000, discountPct: 4, asksFirst: false }] },
   menu: {
     kind: 'manufacturer', howYouSell: { answered: 3, total: 8 }, terms: { incoterm: 'FOB', payment: '30% deposit, balance before shipping' },
-    samples: { price: usd(0), waiting: 0 }, closure: { label: 'Spring Festival', from: new Date('2027-02-01T00:00:00Z'), to: new Date('2027-02-10T00:00:00Z') },
-    rate: { from: 'USD', to: 'CNY', rate: 7.1, statedAt: new Date('2026-09-01T00:00:00Z') },
+    samples: { price: usd('0'), waiting: 0 }, closure: { label: 'Spring Festival', from: new Date('2027-02-01T00:00:00Z'), to: new Date('2027-02-10T00:00:00Z') },
+    rate: { from: 'USD', to: 'CNY', rate: decimal('7.1'), statedAt: new Date('2026-09-01T00:00:00Z') },
   },
 };
 

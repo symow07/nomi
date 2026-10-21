@@ -15,7 +15,7 @@ import { closureDate } from '../core/commerce/closures.js';
 import { isReportedOrderState } from '../core/commerce/orderState.js';
 import { writeOrderState } from './orders.js';
 import { nextOrderReference } from './orderNumbers.js';
-import { moneyFromRow, usd } from '../core/types/money.js';
+import { moneyFromRow, moneyFromStored, usd } from '../core/types/money.js';
 import type { Tx } from './client.js';
 import type {
   AuditRepo,
@@ -52,6 +52,10 @@ const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
 
 /** pg returns numeric as string. Exactly one conversion point, right here. */
 const num = (v: string | number | null): number => (v === null ? 0 : Number(v));
+/** A1 — a stored amount stays its exact text; a missing one is zero, as `num` reads it. */
+const amountOf = (v: string | null): string => (v === null ? '0' : v);
+/** An amount inside a JSON payload: text since A1, a number before it; anything else is zero. */
+const storedAmount = (v: unknown): string | number => (typeof v === 'string' || typeof v === 'number' ? v : '0');
 
 export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
   // ── conversations ──────────────────────────────────────────────────────────
@@ -295,7 +299,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       // dollar quote; dropping it makes the quote refuse for want of a tier,
       // which is the fail-closed answer.
       return rows.flatMap((r): PriceTier[] => {
-        const unitPrice = moneyFromRow(num(r.unit_price_usd), r.currency);
+        const unitPrice = moneyFromRow(amountOf(r.unit_price_usd), r.currency);
         return unitPrice === null ? [] : [{
           productId: r.product_id as PriceTier['productId'],
           minQty: r.min_qty, maxQty: r.max_qty,
@@ -314,7 +318,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         .limit(1)
         .executeTakeFirst();
       if (!r) return null;
-      const floorPrice = moneyFromRow(num(r.floor_price_usd), r.currency);
+      const floorPrice = moneyFromRow(amountOf(r.floor_price_usd), r.currency);
       // A floor this build cannot read is not "no floor" — it is a policy row
       // that exists and cannot be enforced. Returning null here means the quote
       // engine applies NO floor, so this must not be reached: the currency
@@ -382,7 +386,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
          order by stated_at desc limit 1`.execute(tx);
       const row = r.rows[0];
       if (!row) return null;
-      const price = moneyFromRow(Number(row.price_amount), row.currency);
+      const price = moneyFromRow(row.price_amount, row.currency);
       return price === null ? null : {
         price,
         creditedOnFirstOrder: row.credited_on_first_order,
@@ -552,8 +556,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
             // written before 0030 carry none; they were all USD, and saying so
             // here is a statement about history rather than a default applied
             // to new data.
-            const total = moneyFromRow(Number(p['total'] ?? p['totalUsd'] ?? 0), String(p['currency'] ?? 'USD'));
-            return { kind: 'high_value', total: total ?? usd(0) } as Signal;
+            const total = moneyFromStored(storedAmount(p['total'] ?? p['totalUsd']), String(p['currency'] ?? 'USD'));
+            return { kind: 'high_value', total: total ?? usd('0') } as Signal;
           }
           case 'audio_unheard':
             return { kind: 'audio_unheard', reason: String(p['reason'] ?? 'transcription_failed') } as Signal;
@@ -633,7 +637,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       // than compared: M36's consistency guard would otherwise order two
       // amounts that were never comparable.
       return r.rows.flatMap((x) => {
-        const unitPrice = moneyFromRow(Number(x.unit_price_usd), x.currency);
+        const unitPrice = moneyFromRow(x.unit_price_usd, x.currency);
         return unitPrice === null ? [] : [{ quantity: x.quantity, unitPrice, at: x.created_at }];
       });
     },

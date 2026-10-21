@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { seedRunTenant } from './tenant.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * G18 · M43a + M43b — what the database will actually hold, and what the
@@ -65,7 +66,7 @@ d('G18 · money keeps its currency (requires DATABASE_URL)', () => {
 
   afterAll(async () => { await db?.destroy(); });
 
-  it('a · every table that carries a currency holds the eight a workspace can sell in, and nothing else (CUR, 0092)', async () => {
+  it('a · every table that carries a currency holds the eleven a workspace can sell in, and nothing else (CUR 0092, A1.3 0168)', async () => {
     const rows = await tx((t) => sql<{ tbl: string; def: string }>`
       select conrelid::regclass::text as tbl, pg_get_constraintdef(oid) as def
         from pg_constraint where conname like '%currency_known%' or conname like '%currency%check%'
@@ -80,8 +81,8 @@ d('G18 · money keeps its currency (requires DATABASE_URL)', () => {
     for (const tbl of ['businesses', 'orders', 'products', 'price_tiers', 'pricing_policy', 'quotes', 'sample_policy']) {
       const def = byTable.get(tbl);
       expect(def, `${tbl} has no currency check at all`).toBeTruthy();
-      for (const c of ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR']) expect(def, `${tbl} · ${c}`).toContain(`'${c}'`);
-      for (const c of ['EUR', 'GBP']) expect(def, `${tbl} · ${c}`).not.toContain(`'${c}'`);
+      for (const c of ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR', 'MAD', 'EUR', 'GBP']) expect(def, `${tbl} · ${c}`).toContain(`'${c}'`);
+      for (const c of ['CHF', 'JPY']) expect(def, `${tbl} · ${c}`).not.toContain(`'${c}'`);
     }
   });
 
@@ -92,7 +93,7 @@ d('G18 · money keeps its currency (requires DATABASE_URL)', () => {
     // One currency in play, so exactly one total — and it is that currency's
     // sum, not a number assembled from every order whatever its column said.
     expect(data.commerce.totals).toHaveLength(1);
-    expect(data.commerce.totals[0]).toEqual({ amount: 6000, currency: 'USD' });
+    expect(data.commerce.totals[0]).toEqual(moneyOf('6000', 'USD'));
   });
 
   it('b · and an order in a currency this build cannot price is left out, not counted as dollars', async () => {
@@ -100,7 +101,7 @@ d('G18 · money keeps its currency (requires DATABASE_URL)', () => {
     // the only other way it could be: by the constraint being dropped in a
     // future migration. Proven here against the loader's own rule instead.
     const { moneyFromRow } = await import('../../src/core/types/money.js');
-    expect(moneyFromRow(4600, 'XYZ')).toBeNull();
-    expect(moneyFromRow(4600, 'CNY')).toEqual({ amount: 4600, currency: 'CNY' });
+    expect(moneyFromRow('4600', 'XYZ')).toBeNull();
+    expect(moneyFromRow('4600', 'CNY')).toEqual(moneyOf('4600', 'CNY'));
   });
 });

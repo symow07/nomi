@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { seedRunTenant } from './tenant.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * M43a — the currency is in the ROW, and the row refuses one this build cannot
@@ -75,7 +76,7 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
     // that should never have entered the database.
     await expect(tx((t) => sql`
       insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
-      values (${PID}, 2000, 0.40, 'EUR')
+      values (${PID}, 2000, 0.40, 'CHF')
     `.execute(t))).rejects.toThrow(/price_tiers_currency_known|violates check constraint/);
   });
 
@@ -88,8 +89,8 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
       return [await repos.catalog.priceTiers(PID), await repos.catalog.pricingPolicy(PID)] as const;
     });
     expect(tiers).toHaveLength(1);
-    expect(tiers[0]!.unitPrice).toEqual({ amount: 0.45, currency: 'USD' });
-    expect(policy!.floorPrice).toEqual({ amount: 0.35, currency: 'USD' });
+    expect(tiers[0]!.unitPrice).toEqual(moneyOf('0.45', 'USD'));
+    expect(policy!.floorPrice).toEqual(moneyOf('0.35', 'USD'));
   });
 
   it('A TIER IN A CURRENCY THIS BUILD CANNOT PRICE IS DROPPED, not quoted in dollars', async () => {
@@ -115,17 +116,17 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
     try {
       await sql`alter table price_tiers drop constraint price_tiers_currency_known`.execute(admin);
       await sql`insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
-                values (${PID}::uuid, 3000, 0.40, 'EUR')
-                on conflict (product_id, min_qty) do update set currency = 'EUR'`.execute(admin);
+                values (${PID}::uuid, 3000, 0.40, 'CHF')
+                on conflict (product_id, min_qty) do update set currency = 'CHF'`.execute(admin);
 
       const tiers = await withTenantTx(db, bid.value, (t) => tenantRepos(t, bid.value).catalog.priceTiers(PID));
-      // The USD tier survives; the EUR one is not there at all, and certainly
+      // The USD tier survives; the CHF one is not there at all, and certainly
       // not there priced in dollars.
       expect(tiers.map((t) => t.minQty)).toEqual([1000]);
       expect(tiers.every((t) => t.unitPrice.currency === 'USD')).toBe(true);
 
       // And the quote engine, given what the repo returned, refuses for 3000
-      // rather than quoting the euro price as $0.40.
+      // rather than quoting the franc price as $0.40.
       const { computeQuote } = await import('../../src/core/commerce/quote.js');
       const { parseProductId } = await import('../../src/core/types/ids.js');
       const pid = parseProductId(PID); if (!pid.ok) throw new Error('fixture');
@@ -140,7 +141,7 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
       expect(r.ok).toBe(true);
       // 3000 falls inside the surviving 1000+ tier, and is priced from it — the
       // USD row — never from the dropped one.
-      if (r.ok) expect(r.value.unitPrice).toEqual({ amount: 0.45, currency: 'USD' });
+      if (r.ok) expect(r.value.unitPrice).toEqual(moneyOf('0.45', 'USD'));
     } finally {
       await sql`delete from price_tiers where product_id = ${PID}::uuid and min_qty = 3000`.execute(admin);
       await sql`alter table price_tiers add constraint price_tiers_currency_known ${sql.raw(kept)}`.execute(admin);
@@ -173,11 +174,11 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
       productId: PID,
       quantity: 20000,
       inputs: {},
-      unitPrice: usd(0.38),
+      unitPrice: usd('0.38'),
       leadTimeDays: null,
       leadTimeWithheld: null,
       discountPct: 0,
-      total: usd(7600),
+      total: usd('7600'),
       requiresHuman: false,
       appliedRules: [],
     }));

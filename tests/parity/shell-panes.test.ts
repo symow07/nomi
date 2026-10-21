@@ -133,12 +133,12 @@ describe('the list pane', () => {
 });
 
 describe('the customer panel', () => {
-  const usd = (n: number) => moneyFromRow(n, 'USD')!;
+  const usd = (n: string) => moneyFromRow(n, 'USD')!;
   const panel: CustomerPanel = {
     clientId: 'cl-1', name: 'Maya Rahman', country: 'GB', channel: 'whatsapp', address: '447700900123', language: 'en',
     firstWrote: new Date('2026-09-02T10:00:00Z'), conversations: 2,
     askedAbout: [{ name: 'Rose Face Serum', nameZh: null, count: 3, lastAt: NOW }],
-    prices: [{ unitPrice: usd(34.9), name: 'Rose Face Serum', nameZh: null, at: new Date('2026-09-02T10:00:00Z'), conversationId: 'c-9' }],
+    prices: [{ unitPrice: usd('34.9'), name: 'Rose Face Serum', nameZh: null, at: new Date('2026-09-02T10:00:00Z'), conversationId: 'c-9' }],
     samples: [{ askedAt: new Date('2026-09-12T10:00:00Z'), handledAt: new Date('2026-09-13T10:00:00Z') }],
     promised: [{ said: 'I\'ll check the 100 ml and write by Friday.', dueOn: '2026-10-02', byAssistant: true, conversationId: 'c-1' }],
     orders: [{ id: 'o-1', reference: 'W-1042', status: 'confirmed', at: new Date('2026-09-20T10:00:00Z') }],

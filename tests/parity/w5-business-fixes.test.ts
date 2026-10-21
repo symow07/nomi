@@ -14,6 +14,7 @@ import { withoutIsolates } from './isolates.js';
 import { CATALOGUE_QUESTIONS, type SellingState } from '../../src/core/owner/howYouSell.js';
 import { profileOf } from '../../src/core/owner/sellingStyle.js';
 import { BACK } from '../../src/api/web/icons.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * THE WARMTH RUN, phase 9 — the fix wave, section 7 (My business, the
@@ -269,7 +270,7 @@ describe('V1-404 · Spanish and French amounts with no country on record', () =>
   it('My business\'s range, in the language\'s own form', () => {
     const scope = { name: 'Lily', several: false, outreach: false, setup: null, country: null };
     for (const l of ['es', 'fr'] as const) {
-      const html = withWorkspace(scope, () => renderBusinessScreen('promises', { ...SET_UP, promises: { ...SET_UP.promises, floorLow: { amount: 0.3, currency: 'USD' }, floorHigh: { amount: 2.4, currency: 'USD' } } }, l));
+      const html = withWorkspace(scope, () => renderBusinessScreen('promises', { ...SET_UP, promises: { ...SET_UP.promises, floorLow: moneyOf('0.3', 'USD'), floorHigh: moneyOf('2.4', 'USD') } }, l));
       expect(withoutIsolates(html), l).toContain('0,30 $');
       expect(withoutIsolates(html), l).not.toMatch(/\$0\.30/);
     }

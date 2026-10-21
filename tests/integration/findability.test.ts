@@ -134,7 +134,7 @@ d('T3 · an imported product is found and quoted (requires DATABASE_URL + MIGRAT
     expect(await found(BIZ, 'Hi, do you have canvas tote bags? I need 1000')).toContain(imported);
     const r = await turn(imported, 'Hi, do you have canvas tote bags? I need 1000');
     expect(r.analysis?.intent.productCandidate?.productId).toBe(imported);
-    expect(r.quote?.unitPrice.amount).toBe(2.4);
+    expect(r.quote?.unitPrice.amount).toBe('2.4');
   });
 
   it('a product as the import left it before T3 is never found, and the same turn drops it — nothing is quoted', async () => {
@@ -182,7 +182,7 @@ d('T3 · an imported product is found and quoted (requires DATABASE_URL + MIGRAT
     await newConversation();
     const r = await turn(OLD, 'Do you sell a linen apron? 1000 pieces');
     expect(r.analysis?.intent.productCandidate?.productId).toBe(OLD);
-    expect(r.quote?.unitPrice.amount).toBe(3.1);
+    expect(r.quote?.unitPrice.amount).toBe('3.1');
   });
 
   it('a rename moves the name customers find it by; names customers use are added; the trail says so', async () => {

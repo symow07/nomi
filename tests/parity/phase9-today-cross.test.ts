@@ -22,6 +22,7 @@ import { SETUP_STEPS } from '../../src/db/setup.js';
 import { readFileSync } from 'node:fs';
 import type { MetaReadiness } from '../../src/core/channel/metaReadiness.js';
 import { BACK, GO } from '../../src/api/web/icons.js';
+import { moneyOf } from '../../src/core/types/money.js';
 
 /**
  * PHASE 9 — the whole product, Today, Getting started, Before going live,
@@ -38,8 +39,8 @@ export const scopeOf = (over: Partial<RequestScope> = {}): RequestScope => ({
 const inCountry = <T>(country: string | null, fn: () => T): T => withWorkspace(scopeOf({ country }), fn);
 
 describe('Phase 9 · an amount is written the reader\'s way in the workspace\'s country (V1-009, V1-404)', () => {
-  const usd = { amount: 1.05, currency: 'USD' as const };
-  const big = { amount: 1234.05, currency: 'USD' as const };
+  const usd = moneyOf('1.05', 'USD');
+  const big = moneyOf('1234.05', 'USD');
   it('Spanish in Mexico writes 1.05, in Spain 1,05 — the sign stays the product\'s own', () => {
     expect(inCountry('MX', () => show.money('es', usd))).toBe('$1.05');
     expect(inCountry('ES', () => show.money('es', usd))).toBe('1,05\u00a0$');
@@ -53,11 +54,11 @@ describe('Phase 9 · an amount is written the reader\'s way in the workspace\'s 
       expect(inCountry(c, () => show.money('zh', big)), c).toBe('$1,234.05');
       expect(strip(inCountry(c, () => show.money('ar', big))), c).toBe(strip(show.money('ar', big)));
     }
-    expect(inCountry('CN', () => show.money('zh', { amount: 12, currency: 'CNY' }))).toBe('￥12.00');
+    expect(inCountry('CN', () => show.money('zh', moneyOf('12', 'CNY')))).toBe('￥12.00');
   });
   it('the products list\'s figures (V1-009) and My business\'s range (V1-404) go through it', () => {
     const range = inCountry('ES', () => t('es', 'factory.promise.floorRange',
-      { low: show.money('es', { amount: 0.3, currency: 'USD' }), high: show.money('es', { amount: 2.4, currency: 'USD' }), name: 'Lily' }));
+      { low: show.money('es', moneyOf('0.3', 'USD')), high: show.money('es', moneyOf('2.4', 'USD')), name: 'Lily' }));
     expect(range).toContain('0,30\u00a0$');
     expect(range).toContain('2,40\u00a0$');
     expect(range).not.toMatch(/\$\d/);
@@ -76,7 +77,7 @@ describe('Phase 9 · an amount is written the reader\'s way in the workspace\'s 
     expect(inCountry(null, () => show.money('fr', usd))).toBe('1,05\u00a0$');
     for (const l of ['en', 'zh', 'ar'] as const) expect(inCountry(null, () => show.money(l, usd)), l).toBe(show.money(l, usd));
     const range = inCountry(null, () => t('es', 'factory.promise.floorRange',
-      { low: show.money('es', { amount: 0.3, currency: 'USD' }), high: show.money('es', { amount: 2.4, currency: 'USD' }), name: 'Lily' }));
+      { low: show.money('es', moneyOf('0.3', 'USD')), high: show.money('es', moneyOf('2.4', 'USD')), name: 'Lily' }));
     expect(range).not.toMatch(/\$\d/);
     expect(range).toContain('0,30\u00a0$');
   });

@@ -71,7 +71,7 @@ describe('the 85% line, through a whole turn', () => {
   it('JUST BELOW — 0.339 against 0.400 (84.75%): the clear lead is priced, no question', async () => {
     const { r, fx } = await turn([hit(PRODUCT, SHOPPING, 0.4), hit(TOTE, 'Non-woven tote bag', 0.339)]);
     expect(fx.outbound?.reply ?? '').not.toMatch(/Which one/);
-    expect(r.quote?.unitPrice.amount).toBe(0.45);
+    expect(r.quote?.unitPrice.amount).toBe('0.45');
   });
 
   it('THREE close: all three named, best first — nothing priced', async () => {

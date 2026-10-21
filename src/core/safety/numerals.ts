@@ -1,6 +1,6 @@
 import { type Result, ok, err } from '../types/result.js';
 import type { Quote } from '../types/commerce.js';
-import { type Currency, DOT_THOUSANDS } from '../types/money.js';
+import { type Currency, DOT_THOUSANDS, numeralOf } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 import { ownSku } from '../owner/sku.js';
 
@@ -153,8 +153,8 @@ export function extractNumerals(raw: string): ExtractedNumeral[] {
  * AED 12 is the right number in the wrong money, and it reaches a customer as
  * a price nobody set. The marks below say which of this product's currencies
  * the words beside a figure can mean — "$" is the dollar AND the peso, "¥" the
- * yuan, "ريال" the riyal; a mark for money this product does not hold (€, £,
- * euros, 日元) means none of them. Longest first, so "R$" is never read as "$".
+ * yuan, "ريال" the riyal, "€" the euro (A1); a mark for money this product
+ * does not hold (₩, yen, 日元) means none of them. Longest first, so "R$" is never read as "$".
  * A three-letter code of someone else's money is matched in capitals only:
  * "try", "mad" and "won" are English words.
  */
@@ -162,26 +162,32 @@ type Mark = { readonly re: string; readonly means: readonly Currency[]; readonly
 const MARKS: readonly Mark[] = [
   { re: 'US\\$', means: ['USD'] }, { re: 'R\\$', means: ['BRL'] }, { re: 'MEX\\$|MX\\$', means: ['MXN'] },
   { re: '(?:HK|NT|NZ|C|A|S)\\$', means: [] }, { re: '[$＄]', means: ['USD', 'MXN'] },
-  { re: '[€£₩₽₺₫₪₱₦฿]', means: [] }, { re: '[¥￥]', means: ['CNY'] }, { re: '₹', means: ['INR'] },
-  { re: 'د\\.إ\\.?', means: ['AED'] }, { re: 'ر\\.س\\.?', means: ['SAR'] },
+  { re: '€', means: ['EUR'] }, { re: '£', means: ['GBP'] }, { re: '[₩₽₺₫₪₱₦฿]', means: [] }, { re: '[¥￥]', means: ['CNY'] }, { re: '₹', means: ['INR'] },
+  { re: 'د\\.إ\\.?', means: ['AED'] }, { re: 'د\\.م\\.?', means: ['MAD'] }, { re: 'ر\\.س\\.?', means: ['SAR'] },
   { re: 'usd|dollars?|d[oó]lares', means: ['USD'], word: true },
   { re: 'cny|rmb|yuan|renminbi', means: ['CNY'], word: true },
-  { re: 'aed|dirhams?|dhs?', means: ['AED'], word: true },
+  { re: 'aed', means: ['AED'], word: true },
+  { re: 'dirhams?|dhs?', means: ['AED', 'MAD'], word: true },   // the UAE's and Morocco's
   { re: 'sar|riyals?', means: ['SAR'], word: true },
   { re: 'brl|reais', means: ['BRL'], word: true },
   { re: 'mxn|pesos', means: ['MXN'], word: true },
   { re: 'inr|rupees?|rs\\.?', means: ['INR'], word: true },
   { re: 'idr|rupiah|rp\\.?', means: ['IDR'], word: true },
-  { re: 'euros?|pounds sterling|yen', means: [], word: true },
-  { re: 'EUR|GBP|JPY|HKD|AUD|CAD|SGD|NZD|CHF|QAR|KWD|OMR|BHD|EGP|MAD|TRY|KRW|RUB|VND|THB|PHP|MYR|PKR|NGN|KES|ZAR|TWD', means: [], word: true, caps: true },
+  { re: 'euros?', means: ['EUR'], word: true }, { re: 'pounds sterling|sterling', means: ['GBP'], word: true },
+  { re: 'yen', means: [], word: true },
+  { re: 'MAD', means: ['MAD'], word: true, caps: true }, { re: 'EUR', means: ['EUR'], word: true, caps: true },
+  { re: 'GBP', means: ['GBP'], word: true, caps: true },
+  { re: 'JPY|HKD|AUD|CAD|SGD|NZD|CHF|QAR|KWD|OMR|BHD|EGP|TRY|KRW|RUB|VND|THB|PHP|MYR|PKR|NGN|KES|ZAR|TWD', means: [], word: true, caps: true },
   { re: '美元|美金', means: ['USD'] }, { re: '人民币|元|块', means: ['CNY'] },
-  { re: '欧元|英镑|日元|港元|港币|韩元|卢布', means: [] },
-  { re: '迪拉姆', means: ['AED'] }, { re: '里亚尔', means: ['SAR'] }, { re: '雷亚尔', means: ['BRL'] },
+  { re: '欧元', means: ['EUR'] }, { re: '英镑', means: ['GBP'] }, { re: '日元|港元|港币|韩元|卢布', means: [] },
+  { re: '摩洛哥迪拉姆', means: ['MAD'] }, { re: '阿联酋迪拉姆', means: ['AED'] }, { re: '迪拉姆', means: ['AED', 'MAD'] }, { re: '里亚尔', means: ['SAR'] }, { re: '雷亚尔', means: ['BRL'] },
   { re: '比索', means: ['MXN'] }, { re: '卢比', means: ['INR'] }, { re: '印尼盾', means: ['IDR'] },
-  { re: 'دولار(?:ات)?', means: ['USD'] }, { re: 'درهم|دراهم', means: ['AED'] },
+  { re: 'دولار(?:ات)?', means: ['USD'] }, { re: '(?:درهم|دراهم)\\s+مغربي(?:ة)?', means: ['MAD'] },
+  { re: '(?:درهم|دراهم)\\s+إماراتي(?:ة)?', means: ['AED'] }, { re: 'درهم|دراهم', means: ['AED', 'MAD'] },
   { re: 'ريال(?:ات)?\\s+برازيلي(?:ة)?', means: ['BRL'] }, { re: 'ريال(?:ات)?', means: ['SAR'] },
   { re: 'روبية\\s+إندونيسية', means: ['IDR'] }, { re: 'روبية', means: ['INR', 'IDR'] },
-  { re: 'بيزو', means: ['MXN'] }, { re: 'يوان', means: ['CNY'] }, { re: 'يورو|جنيه|دينار', means: [] },
+  { re: 'بيزو', means: ['MXN'] }, { re: 'يوان', means: ['CNY'] }, { re: 'يورو', means: ['EUR'] },
+  { re: 'جنيه(?:ات)?\\s+إسترليني(?:ة)?', means: ['GBP'] }, { re: 'جنيه|دينار', means: [] },
 ];
 const markRe = (m: Mark, side: 'before' | 'after'): RegExp => {
   const flags = m.caps ? 'u' : 'iu';
@@ -215,12 +221,18 @@ export function currencyBeside(text: string, at: readonly [number, number]): rea
  * reading would take "150.000" for 150 and hold a right reply. Each such
  * figure, read their way, with its place in the text.
  */
-const DOT_FIGURE = /(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+,\d{1,2})(?![\d.,]*\d)/g;
-function dotFigures(text: string): { value: number; at: [number, number] }[] {
-  const out: { value: number; at: [number, number] }[] = [];
+/** A1 — currencies whose replies may write a decimal comma; only a figure that reads one way is credited. */
+const COMMA_DECIMAL: ReadonlySet<Currency> = new Set<Currency>(['EUR', 'MAD']);
+const DOT_FIGURE = /(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:,\d{1,2})?|\d+,\d{1,2})(?![\d.,]*\d)/g;
+function dotFigures(text: string): { value: number; at: [number, number]; oneWay: boolean }[] {
+  const out: { value: number; at: [number, number]; oneWay: boolean }[] = [];
   for (const m of text.matchAll(DOT_FIGURE)) {
-    const value = Number(m[1]!.replace(/\./g, '').replace(',', '.'));
-    if (Number.isFinite(value)) out.push({ value, at: [m.index, m.index + m[0].length] });
+    const value = Number(m[1]!.replace(/[.\s\u00a0\u202f]/g, '').replace(',', '.'));
+    // A1 — reads one way only: it has a decimal comma ("0,45", "1.250,00"), two groups or more ("1.250.000"), or
+    // spaces between its groups ("1 250": a space is never a decimal mark).
+    // A bare "1.250" is 1.25 to one reader and 1250 to another.
+    const oneWay = m[1]!.includes(',') || (m[1]!.match(/\./g) ?? []).length >= 2 || /[ \u00a0\u202f]/.test(m[1]!);
+    if (Number.isFinite(value)) out.push({ value, at: [m.index, m.index + m[0].length], oneWay });
   }
   return out;
 }
@@ -419,8 +431,8 @@ export function guardNumerals(input: {
 
   if (quote) {
     sourced.push(
-      quote.unitPrice.amount,
-      quote.total.amount,
+      numeralOf(quote.unitPrice),
+      numeralOf(quote.total),
       quote.discountPct,
       quote.quantity.value,
     );
@@ -443,9 +455,12 @@ export function guardNumerals(input: {
     return named !== null && !named.includes(currency) && !theirs.some((c) => near(c, n.value));
   };
   // A figure written the Brazilian or Indonesian way, in a quote of theirs,
-  // counts for what it says there ("Rp 150.000" is 150000).
-  const covered = currency !== null && DOT_THOUSANDS.has(currency)
-    ? dotFigures(text).filter((d) => sourced.some((s) => near(s, d.value))
+  // counts for what it says there ("Rp 150.000" is 150000). A1 — in euros and
+  // dirhams a comma-decimal figure counts too, but only one that reads one way
+  // ("0,45 €", "1.250,00 DH"): a bare "1.250" is never credited as 1250.
+  const dotted = currency !== null && (DOT_THOUSANDS.has(currency) || COMMA_DECIMAL.has(currency));
+  const covered = dotted
+    ? dotFigures(text).filter((d) => (DOT_THOUSANDS.has(currency!) || d.oneWay) && sourced.some((s) => near(s, d.value))
       && !foreign({ value: d.value, commercial: true, at: d.at }))
     : [];
   const inCovered = (n: ExtractedNumeral): boolean =>

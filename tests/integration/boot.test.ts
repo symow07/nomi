@@ -7,6 +7,7 @@ import { offlineModels } from '../pipeline/fakes.js';
 import { t, tn, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { assistantName } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
+import { compareDecimal, decimal } from '../../src/core/types/decimal.js';
 
 // The run's tenant never confirms an assistant name (Getting ready →
 // onboarding_state.assistant_named_at), so every page and alert renders the
@@ -2309,9 +2310,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         expect(await html()).not.toContain('never quotes below');
         return;
       }
-      const floors = applies.map((r) => Number(r.floor));
-      expect(f.promises.floorLow?.amount).toBe(Math.min(...floors));
-      expect(f.promises.floorHigh?.amount).toBe(Math.max(...floors));
+      const floors = applies.map((r) => decimal(String(r.floor)));
+      expect(f.promises.floorLow?.amount).toBe(floors.reduce((a, b) => (compareDecimal(b, a) < 0 ? b : a)));
+      expect(f.promises.floorHigh?.amount).toBe(floors.reduce((a, b) => (compareDecimal(b, a) > 0 ? b : a)));
       // The figure that makes each sentence true on EVERY product: the highest
       // ceiling ("never more than … — less on some"), the highest ask line.
       expect(f.promises.ceilingPct).toBe(Math.max(...applies.map((r) => Number(r.ceiling))));
@@ -2319,8 +2320,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       // and it must NOT be the fallback row when per-product rules exist
       const fallback = rows.find((r) => r.pid === null);
-      if (perProduct.length > 0 && fallback && Number(fallback.floor) !== f.promises.floorLow?.amount)
-        expect(f.promises.floorLow?.amount).not.toBe(Number(fallback.floor));
+      if (perProduct.length > 0 && fallback && decimal(String(fallback.floor)) !== f.promises.floorLow?.amount)
+        expect(f.promises.floorLow?.amount).not.toBe(decimal(String(fallback.floor)));
 
       const page = await html();
       // Phase 9 — nothing comes off unless she wrote a discount; with none,

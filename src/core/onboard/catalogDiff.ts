@@ -1,5 +1,6 @@
 import type { Currency } from '../types/money.js';
 import type { ExtractedProduct } from './catalogImport.js';
+import { type Decimal, compareDecimal, roundDecimal } from '../types/decimal.js';
 
 /**
  * G16 · M37 — a re-photographed price sheet updates what changed.
@@ -40,20 +41,20 @@ export type CatalogueEntry = {
   readonly sku: string;
   readonly name: string;
   readonly nameZh: string | null;
-  /** The list price, in `currency`. null: she has not given one yet. */
-  readonly price: number | null;
+  /** The list price, in `currency` (A1: exact). null: she has not given one yet. */
+  readonly price: Decimal | null;
   /** The product's currency; null when the row holds one this product does not know. */
   readonly currency: Currency | null;
   /** 0081 — null: the product has no minimum. */
   readonly moq: number | null;
   /** Her lowest price for this product, in `currency`, when she has stated one. */
-  readonly floor: number | null;
+  readonly floor: Decimal | null;
 };
 
 export type LineChange = {
   readonly line: ExtractedProduct;
   readonly product: CatalogueEntry;
-  readonly price: { readonly from: number | null; readonly to: number } | null;
+  readonly price: { readonly from: Decimal | null; readonly to: Decimal } | null;
   readonly moq: { readonly from: number | null; readonly to: number } | null;
 };
 
@@ -78,7 +79,7 @@ export type CatalogueDiff = {
 const key = (s: string): string => s.toLowerCase().replace(/\s+/g, ' ').trim();
 
 /** Four places, as the catalogue stores a price: 0.45 and 0.4500 are one price. */
-const samePrice = (a: number, b: number): boolean => a.toFixed(4) === b.toFixed(4);
+const samePrice = (a: Decimal, b: Decimal): boolean => compareDecimal(roundDecimal(a, 4), roundDecimal(b, 4)) === 0;
 
 export function diffAgainstCatalogue(
   lines: readonly ExtractedProduct[], catalogue: readonly CatalogueEntry[],
@@ -114,7 +115,7 @@ export function diffAgainstCatalogue(
     if (line.price !== null) {
       if (product.currency !== line.price.currency) { held.push({ line, reason: 'other_currency', product }); continue; }
       if (product.price === null || !samePrice(product.price, line.price.amount)) {
-        if (product.floor !== null && line.price.amount < product.floor) {
+        if (product.floor !== null && compareDecimal(line.price.amount, product.floor) < 0) {
           held.push({ line, reason: 'below_floor', product }); continue;
         }
         price = { from: product.price, to: line.price.amount };

@@ -82,7 +82,7 @@ d('G7a · the held draft names her rule (requires DATABASE_URL)', () => {
       contraConv = await conv(3);
       await draftIn(t, contraConv, 'contradicts_history', {
         contradicts: contradictsHistory(
-          [{ quantity: 5000, unitPrice: usd(0.40), at: new Date('2026-03-04T10:00:00Z') }], 8000, usd(0.45)),
+          [{ quantity: 5000, unitPrice: usd('0.40'), at: new Date('2026-03-04T10:00:00Z') }], 8000, usd('0.45')),
       });
     });
 

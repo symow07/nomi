@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { roundDecimal, storedDecimal } from '../../core/types/decimal.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import type { Cell } from '../../core/owner/csv.js';
@@ -26,8 +27,13 @@ import { unitLabel } from './products.js';
  */
 const said = (locale: Locale, k: string): string => t(locale, k as MessageKey);
 /** Money as a spreadsheet reads it: two decimals, more only where the price has them ("0.125"). */
-export const plainMoney = (v: string | number | null): string | null =>
-  v === null ? null : Number(v).toFixed(4).replace(/(\.\d{2}\d*?)0+$/, '$1');
+export const plainMoney = (v: string | number | null): string | null => {
+  // A1 — exact: the stored text, to four places, then at least two ("0.125", "5.30", "12.00").
+  const d = v === null ? null : storedDecimal(v);
+  if (d === null) return null;
+  const [int, frac = ''] = roundDecimal(d, 4).split('.');
+  return `${int}.${frac.padEnd(2, '0')}`;
+};
 /** A percentage as a plain figure: "8", "12.5". */
 const plainPct = (v: string | number | null): string | null => (v === null ? null : String(Number(v)));
 const yesNo = (locale: Locale, v: boolean): string => said(locale, v ? 'data.export.yes' : 'data.export.no');

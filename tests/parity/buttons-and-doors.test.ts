@@ -87,7 +87,7 @@ describe('the page the owner uses most keeps the rule', () => {
       rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
       orderProposal: {
         id: 'f0000000-0000-0000-0000-000000000001', conversationId: 'conv-1', productId: 'b0000000-0000-0000-0000-000000000001',
-        productName: 'Gift box', quantity: 40, unit: 'boxes', unitPrice: usd(2.1), total: usd(84), email: 'c@example.com',
+        productName: 'Gift box', quantity: 40, unit: 'boxes', unitPrice: usd('2.1'), total: usd('84'), email: 'c@example.com',
         paymentTerms: null, incoterm: null, createdAt: new Date('2026-09-29T09:00:00Z'),
       },
     };

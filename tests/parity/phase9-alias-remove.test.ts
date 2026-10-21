@@ -16,7 +16,7 @@ import { flashTone } from '../../src/core/owner/flashTone.js';
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   currency: 'USD', id: 'de300000-0000-4000-8000-000000000101', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100',
   category: null, unit: 'pcs', moq: 500, leadTimeDays: 15, customizable: false, learned: true, status: 'learned',
-  isActive: true, imageMatchable: true, tiers: [{ minQty: 500, maxQty: null, unitPrice: usd(1.05) }],
+  isActive: true, imageMatchable: true, tiers: [{ minQty: 500, maxQty: null, unitPrice: usd('1.05') }],
   aliases: ['Canvas Tote Bag', 'tote bag', '帆布袋', 'حقيبة قماش'], images: [], recentQuotes: [], ...over,
 });
 const form = (html: string): string => /<form method="post" action="\/app\/products\/[^"]+\/names\/remove"[\s\S]*?<\/form>/.exec(html)?.[0] ?? '';

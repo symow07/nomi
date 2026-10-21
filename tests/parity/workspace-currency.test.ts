@@ -13,6 +13,8 @@ import { CURRENCIES, type Currency } from '../../src/core/types/money.js';
 import { OWNER_VIEW, type Viewer } from '../../src/core/conversation/people.js';
 import { PASSWORD_MIN, PASSWORD_MAX } from '../../src/security/password.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { moneyOf } from '../../src/core/types/money.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * CUR, part two (the owner's decision, 2026-09-30: "one currency per
@@ -52,20 +54,20 @@ describe('CUR · the currency sign-up gives', () => {
   });
 
   it('any other country is asked, and only the list answers', () => {
-    expect(currencyOfCountry('MA')).toBeNull();
-    expect(asksCurrency('MA')).toBe(true);
+    expect(currencyOfCountry('CH')).toBeNull();   // A1.3 — Morocco has its own now; the franc is not on the list
+    expect(asksCurrency('CH')).toBe(true);
     expect(asksCurrency('')).toBe(false);
-    expect(validateSignup({ ...good, country: 'MA' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
-    expect(validateSignup({ ...good, country: 'MA', currency: 'EUR' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
-    const v = validateSignup({ ...good, country: 'MA', currency: 'usd' }, opts);
+    expect(validateSignup({ ...good, country: 'CH' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
+    expect(validateSignup({ ...good, country: 'CH', currency: 'CHF' }, opts)).toMatchObject({ ok: false, problems: { currency: 'currency_missing' } });
+    const v = validateSignup({ ...good, country: 'CH', currency: 'usd' }, opts);
     expect(v.ok && v.value.profile.currency).toBe('USD');
   });
 
-  it('the form asks only where it must, and offers the eight', () => {
-    const ma = signupPage({ locale: 'en', path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, values: { country: 'MA' } });
+  it('the form asks only where it must, and offers the list', () => {
+    const ma = signupPage({ locale: 'en', path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, values: { country: 'CH' } });
     expect(ma).toContain('<select id="su-currency" name="currency" required>');
     for (const c of CURRENCIES) expect(ma).toContain(`value="${c}"`);
-    expect(ma).not.toContain('value="EUR"');
+    expect(ma).not.toContain('value="CHF"');
     const ae = signupPage({ locale: 'en', path: '/signup', mode: 'open', passwordMin: PASSWORD_MIN, values: { country: 'AE' } });
     expect(ae).not.toContain('name="currency"');
   });
@@ -76,39 +78,52 @@ describe('CUR · the currency sign-up gives', () => {
   });
 });
 
-describe('CUR · a figure the owner types, read the currency\'s way', () => {
-  it('reais and rupiah: a dot groups thousands, a comma marks decimals', () => {
-    expect(readTypedAmount('15.000', 'IDR')).toBe(15000);
-    expect(readTypedAmount('1.500.000', 'IDR')).toBe(1_500_000);
-    expect(readTypedAmount('1.250,50', 'BRL')).toBe(1250.5);
-    expect(readTypedAmount('12,50', 'BRL')).toBe(12.5);
-    expect(readTypedAmount('12.50', 'BRL')).toBe(12.5);
+describe('A1 · a figure the owner types is read ONE way, in every currency, or refused (the owner, 2026-10-22)', () => {
+  it('no meaning is taken from the separator: one mark before exactly three digits is ambiguous, whatever the currency', () => {
+    for (const c of ['1.250', '1,250', '15.000', '150,000', '7.150']) expect(readTypedAmount(c), c).toBe('ambiguous');
   });
-  it('every other: a comma groups thousands (and lakhs), a dot marks decimals; a comma before one or two digits is the decimal', () => {
-    expect(readTypedAmount('1,250.50', 'USD')).toBe(1250.5);
-    expect(readTypedAmount('1,50,000', 'INR')).toBe(150000);
-    expect(readTypedAmount('1,250', 'USD')).toBe(1250);
-    expect(readTypedAmount('12,50', 'USD')).toBe(12.5);
-    expect(readTypedAmount('2,5', 'MXN')).toBe(2.5);
-    expect(readTypedAmount('1,2,3', 'USD')).toBeNull();
-    expect(readTypedAmount('abc', 'AED')).toBeNull();
-    expect(readTypedAmount('', 'AED')).toBeNull();
-    expect(readTypedAmount('-5', 'USD')).toBe(-5);
+  it('every other form reads one way only', () => {
+    expect(readTypedAmount('1.25')).toBe('1.25');
+    expect(readTypedAmount('1,25')).toBe('1.25');              // no thousands group is two digits long
+    expect(readTypedAmount('12,50')).toBe('12.5');
+    expect(readTypedAmount('2,5')).toBe('2.5');
+    expect(readTypedAmount('0.4500')).toBe('0.45');            // nor four
+    expect(readTypedAmount('0.450')).toBe('0.45');             // nobody groups a thousand behind a zero
+    expect(readTypedAmount('1 250')).toBe('1250');             // a space is never a decimal mark
+    expect(readTypedAmount('1 250,50')).toBe('1250.5');
+    expect(readTypedAmount('1\u202f250')).toBe('1250');
+    expect(readTypedAmount('1.500.000')).toBe('1500000');      // a decimal mark appears once
+    expect(readTypedAmount('1,50,000')).toBe('150000');        // the rupee's lakhs
+    expect(readTypedAmount('1.250,50')).toBe('1250.5');        // both marks: the last is the decimal
+    expect(readTypedAmount('1,250.50')).toBe('1250.5');
+    expect(readTypedAmount('1250')).toBe('1250');
+    expect(readTypedAmount('-5')).toBe('-5');
+  });
+  it('and what is not one figure is not a number', () => {
+    for (const c of ['1,2,3', '1.2.3', '1 25', '12 50', '1.250.5', '1,25.0', 'abc', '', '1e3', '+5', '.5', '5.'])
+      expect(readTypedAmount(c), c).toBeNull();
   });
 });
 
+
 describe('CUR · the price list is read in the workspace\'s currency', () => {
   it('its own marks are its price, in its own notation', () => {
-    expect(one('Kaos polos Rp 150.000', 'IDR').price).toEqual({ amount: 150000, currency: 'IDR' });
-    expect(one('Kaos polos\t150.000', 'IDR').price).toEqual({ amount: 150000, currency: 'IDR' });
-    expect(one('Camiseta R$ 49,90', 'BRL').price).toEqual({ amount: 49.9, currency: 'BRL' });
-    expect(one('Playera $199', 'MXN').price).toEqual({ amount: 199, currency: 'MXN' });
-    expect(one('Playera MX$199', 'MXN').price).toEqual({ amount: 199, currency: 'MXN' });
-    expect(one('Oud oil AED 120', 'AED').price).toEqual({ amount: 120, currency: 'AED' });
-    expect(one('عطر 50 درهم', 'AED').price).toEqual({ amount: 50, currency: 'AED' });
-    expect(one('帆布袋 18元', 'CNY').price).toEqual({ amount: 18, currency: 'CNY' });
-    expect(one('Kurta ₹899', 'INR').price).toEqual({ amount: 899, currency: 'INR' });
-    expect(one('Kurta Rs. 1,299', 'INR').price).toEqual({ amount: 1299, currency: 'INR' });
+    // A1 (the owner, 2026-10-22) — the currency no longer settles a separator: "Rp 150.000" is 150 or 150,000, and
+    // is refused for the owner to write one way. Two groups, or no mark, read one way.
+    expect(one('Kaos polos Rp 150.000', 'IDR')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Kaos polos\t150.000', 'IDR')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Kaos polos Rp 150000', 'IDR').price).toEqual(moneyOf('150000', 'IDR'));
+    expect(one('Kaos polos Rp 1.500.000', 'IDR').price).toEqual(moneyOf('1500000', 'IDR'));
+    expect(one('Camiseta R$ 49,90', 'BRL').price).toEqual(moneyOf('49.9', 'BRL'));
+    expect(one('Playera $199', 'MXN').price).toEqual(moneyOf('199', 'MXN'));
+    expect(one('Playera MX$199', 'MXN').price).toEqual(moneyOf('199', 'MXN'));
+    expect(one('Oud oil AED 120', 'AED').price).toEqual(moneyOf('120', 'AED'));
+    expect(one('عطر 50 درهم', 'AED').price).toEqual(moneyOf('50', 'AED'));
+    expect(one('帆布袋 18元', 'CNY').price).toEqual(moneyOf('18', 'CNY'));
+    expect(one('Kurta ₹899', 'INR').price).toEqual(moneyOf('899', 'INR'));
+    expect(one('Kurta Rs. 1,299', 'INR')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Kurta Rs. 1,299.00', 'INR').price).toEqual(moneyOf('1299', 'INR'));
+    expect(one('Sofa Rs. 1,29,999', 'INR').price).toEqual(moneyOf('129999', 'INR'));   // the lakhs read one way
   });
 
   it('anyone else\'s money is refused, never read as the workspace\'s', () => {
@@ -119,17 +134,18 @@ describe('CUR · the price list is read in the workspace\'s currency', () => {
   });
 
   it('dollars read exactly as they did', () => {
-    expect(one('Cup $2.60', 'USD').price).toEqual({ amount: 2.6, currency: 'USD' });
+    expect(one('Cup $2.60', 'USD').price).toEqual(moneyOf('2.6', 'USD'));
     expect(one('Serum HK$25', 'USD')).toMatchObject({ price: null, problem: 'other_currency' });
-    expect(one('Bag $1.250,00', 'USD')).toMatchObject({ price: null, problem: 'ambiguous_price' });
-    expect(one('帆布袋 1.05美元 500个起', 'USD')).toMatchObject({ price: { amount: 1.05, currency: 'USD' }, moq: 500 });
+    expect(one('Bag $1.250', 'USD')).toMatchObject({ price: null, problem: 'ambiguous_price' });
+    expect(one('Bag $1.250,00', 'USD').price).toEqual(moneyOf('1250', 'USD'));   // A1 — both marks: one reading
+    expect(one('帆布袋 1.05美元 500个起', 'USD')).toMatchObject({ price: moneyOf('1.05', 'USD'), moq: 500 });
     // "USD 2.60" is the dollar's own mark, before or after.
-    expect(one('Cup USD 2.60', 'USD').price).toEqual({ amount: 2.6, currency: 'USD' });
+    expect(one('Cup USD 2.60', 'USD').price).toEqual(moneyOf('2.6', 'USD'));
   });
 
   it('a large price is a large price in rupiah, a misread in dollars', () => {
     expect(validateExtracted(parsePriceLines('Phone Rp 15.000.000', 'IDR')).accepted).toHaveLength(1);
-    expect(validateExtracted(parsePriceLines('Phone $150,000', 'USD')).rejected.map((r) => r.reason)).toEqual(['bad_price']);
+    expect(validateExtracted(parsePriceLines('Phone $150000', 'USD')).rejected.map((r) => r.reason)).toEqual(['bad_price']);
   });
 
   it('the examples on the paste page are in the workspace\'s money', () => {
@@ -141,7 +157,7 @@ describe('CUR · the price list is read in the workspace\'s currency', () => {
 describe('CUR · floors and samples are in the workspace\'s currency', () => {
   it('a floor', () => {
     const r = validatePriceRules({ floor: '0,35', maxDiscountPct: '10', askAbovePct: '7', currency: 'BRL' });
-    expect(r.ok && r.value.floor).toEqual({ amount: 0.35, currency: 'BRL' });
+    expect(r.ok && r.value.floor).toEqual(moneyOf('0.35', 'BRL'));
     const a = validatePriceRules({ floor: '4', maxDiscountPct: '10', askAbovePct: '7', currency: 'AED' });
     expect(a.ok && a.value.floor.currency).toBe('AED');
     // Percentages keep their own refusal.
@@ -149,8 +165,10 @@ describe('CUR · floors and samples are in the workspace\'s currency', () => {
     expect(!bad.ok && bad.errors.maxDiscountPct).toBe('pct_out_of_range');
   });
   it('a sample', () => {
-    const s = validateSamplePolicy({ price: '15.000', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() });
-    expect(s.ok && s.value.price).toEqual({ amount: 15000, currency: 'IDR' });
+    const s = validateSamplePolicy({ price: '15 000', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() });
+    expect(s.ok && s.value.price).toEqual(moneyOf('15000', 'IDR'));
+    // A1 — "15.000" is refused as ambiguous, rupiah or not (the owner, 2026-10-22).
+    expect(validateSamplePolicy({ price: '15.000', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() })).toEqual({ ok: false, error: 'ambiguous' });
     expect(validateSamplePolicy({ price: '-1', creditedOnFirstOrder: false, currency: 'IDR', now: new Date() })).toMatchObject({ ok: false, error: 'negative' });
   });
 });
@@ -165,7 +183,7 @@ describe('CUR · the rate page converts only where there is something to convert
   });
   it('a pair: the rate is between those two', () => {
     const html = renderRate(view({ currency: 'USD', pair: { from: 'USD', to: 'INR' },
-      current: { from: 'USD', to: 'INR', rate: 83.1, statedAt: new Date('2026-09-30T00:00:00Z') } }), 'en', null);
+      current: { from: 'USD', to: 'INR', rate: decimal('83.1'), statedAt: new Date('2026-09-30T00:00:00Z') } }), 'en', null);
     expect(html).toContain('1 USD = 83.1 INR');
     expect(html).toContain('name="rate"');
     expect(html).not.toContain('￥');
@@ -212,7 +230,8 @@ describe('CUR · the database holds the eight, and room for them', () => {
       'quotes_currency_known', 'orders_currency_known', 'sample_policy_currency_known']) {
       expect(sql, c).toMatch(new RegExp(`${c} check \\(currency in \\(${list.replace(/[()]/g, '\\$&')}\\)\\)`));
     }
-    expect(CURRENCIES.map((c) => `'${c}'`).join(', ')).toBe(list);
+    // 0092's eight are the list's first eight; 0168 adds MAD, EUR and GBP (tests/parity/a1-currencies.test.ts)
+    expect(CURRENCIES.slice(0, 8).map((c) => `'${c}'`).join(', ')).toBe(list);
   });
   it('a price in rupiah fits', () => {
     expect(sql).toContain('alter table price_tiers    alter column unit_price_usd        type numeric(14,4)');

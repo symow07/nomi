@@ -16,7 +16,9 @@
  * the test that every named service's line exists holds it.
  */
 export type OptionalRecipient = {
-  readonly id: 'stripe' | 'webPush' | 'httpsMail' | 'd360' | 'smtp' | 'apollo';
+  readonly id: 'stripe' | 'webPush' | 'httpsMail' | 'd360' | 'smtp' | 'apollo'
+    // A5 (Phase 5, PHASE-5.md §6.3) — the books' new processors, none named yet.
+    | 'googleSheets' | 'odoo' | 'xero' | 'intuit' | 'documentReader' | 'telegram';
   readonly name: string;
   /** The variables that switch it on, as the boot reads them; none for one switched on inside the product. */
   readonly switchedOnBy: (env: Readonly<Record<string, string | undefined>>) => readonly string[];
@@ -38,6 +40,15 @@ export const OPTIONAL_RECIPIENTS: readonly OptionalRecipient[] = [
   },
   { id: 'smtp', name: 'the installation\'s own SMTP server', switchedOnBy: (env) => set(env, 'SMTP_HOST'), named: false },
   { id: 'apollo', name: 'Apollo', switchedOnBy: () => [], named: false },
+  // A5 (Phase 5, PHASE-5.md §6.3) — each receives a shop's books or messages once switched on, so none may be before
+  // the privacy page names it in every language. Odoo is the shop's own system, connected per business with a key it
+  // gives (like Apollo): nothing in the environment switches it on, and nothing wires it while it is unnamed.
+  { id: 'googleSheets', name: 'Google (Sheets)', switchedOnBy: (env) => set(env, 'SHEETS_CLIENT_ID', 'SHEETS_CLIENT_SECRET'), named: false },
+  { id: 'odoo', name: 'Odoo (the shop\'s own)', switchedOnBy: () => [], named: false },
+  { id: 'xero', name: 'Xero', switchedOnBy: (env) => set(env, 'XERO_CLIENT_ID', 'XERO_CLIENT_SECRET'), named: false },
+  { id: 'intuit', name: 'Intuit (QuickBooks)', switchedOnBy: (env) => set(env, 'QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'), named: false },
+  { id: 'documentReader', name: 'the model that reads receipts, invoices and bills', switchedOnBy: (env) => set(env, 'DOCUMENT_READER_API_KEY'), named: false },
+  { id: 'telegram', name: 'Telegram', switchedOnBy: (env) => set(env, 'TELEGRAM_BOT_TOKEN'), named: false },
 ];
 
 /** What the boot refuses: each service switched on that the privacy page does not name. */

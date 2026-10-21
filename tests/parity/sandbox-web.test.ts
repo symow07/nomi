@@ -122,7 +122,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
   });
 
   it('P4 — the checks strip names the product\'s own unit, not "pcs" for everything', () => {
-    const html = renderSandbox(view({ lastTurn: trust({ quote: { unitPrice: usd(12), total: usd(120), unit: 'boxes' } }) }), 'en', { flash: null });
+    const html = renderSandbox(view({ lastTurn: trust({ quote: { unitPrice: usd('12'), total: usd('120'), unit: 'boxes' } }) }), 'en', { flash: null });
     expect(html).toMatch(/\$12(\.00)?\/boxes|\/box/);
   });
 

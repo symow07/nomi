@@ -193,7 +193,7 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     expect(a2).not.toContain('Me testing');
     const d1 = (await READS['D1']!(await ctx())).lines;
     expect(d1).toContain('Confirmed orders: 2');
-    expect(d1).toContain(`Confirmed sales: ${show.money('en', moneyFromRow(120, 'USD')!)}`);
+    expect(d1).toContain(`Confirmed sales: ${show.money('en', moneyFromRow('120', 'USD')!)}`);
     expect(d1.join('\n')).not.toMatch(/999/);
     const b1 = (await READS['B1']!(await ctx())).lines;
     expect(b1[0]).toBe('Waiting for you: 1');
@@ -226,10 +226,10 @@ d('the advisor batch · facts from read-only reads, worded under the check (requ
     const show = await import('../../src/api/web/values.js');
     const lines = (await READS['D8']!(await ctx())).lines;
     expect(lines[1]).toBe(`Your rate: 1 USD = 7.1 CNY, set ${show.date('en', new Date('2026-09-20T09:00:00Z'))}`);
-    const usd = show.money('en', moneyFromRow(120, 'USD')!);
-    const cny = show.money('en', moneyFromRow(852, 'CNY')!);
+    const usd = show.money('en', moneyFromRow('120', 'USD')!);
+    const cny = show.money('en', moneyFromRow('852', 'CNY')!);
     expect(lines).toContain(`${usd} = ${cny} at your rate`);
-    expect(lines).toContain(`${show.money('en', moneyFromRow(500, 'CNY')!)} (not converted: your rate is for another currency)`);
+    expect(lines).toContain(`${show.money('en', moneyFromRow('500', 'CNY')!)} (not converted: your rate is for another currency)`);
     // no rate stated: nothing is converted, and no figure is said
     const none = await READS['D8']!(await ctx({ biz: EMPTY }));
     expect(none).toMatchObject({ empty: true, none: 'advisor.none.rate', lines: [] });

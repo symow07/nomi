@@ -10,6 +10,7 @@ import { renderImportReview, renderFloors, askAboutThree, renderAskedQuestions, 
 import { asExtracted } from '../../src/core/onboard/importReview.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import type { ExtractedProduct } from '../../src/core/onboard/catalogImport.js';
+import { decimal } from '../../src/core/types/decimal.js';
 
 /**
  * K1 · K2 · K7 — the kept import review (the onboarding plan, Stage 2; 0094):
@@ -109,7 +110,7 @@ describe('K1 · the owner\'s edits', () => {
   it('name, price, unit, minimum and names customers use — each kept as typed, each refused whole when wrong', () => {
     const e = editRow(row!, { name: ' Canvas  tote ', price: '14,50', unit: 'pair', moq: '', names: 'shopper, 帆布袋\ntote' });
     expect(e.errors).toEqual([]);
-    expect(e.row).toMatchObject({ name: 'Canvas tote', price: 14.5, unit: 'pair', moq: null, names: ['shopper', '帆布袋', 'tote'], edited: true });
+    expect(e.row).toMatchObject({ name: 'Canvas tote', price: '14.5', unit: 'pair', moq: null, names: ['shopper', '帆布袋', 'tote'], edited: true });
     expect(editRow(row!, { price: 'twelve' }).errors).toEqual(['price_not_number']);
     expect(editRow(row!, { price: '0' }).errors).toEqual(['price_not_positive']);
     expect(editRow(row!, { moq: '2.5' }).errors).toEqual(['moq_not_whole']);
@@ -151,10 +152,14 @@ describe('K7 · the challenge rows', () => {
 
 describe('K2 · the discount question', () => {
   it('a floor is the price less the discount, rounded UP to the cent — never more off than allowed', () => {
-    expect(derivedFloor(12, 10)).toBe(10.8);
-    expect(derivedFloor(9.99, 15)).toBe(8.5);          // 8.4915 → 8.50
-    expect(derivedFloor(150000, 10)).toBe(135000);
-    expect(derivedFloor(12, 0)).toBe(12);
+    expect(derivedFloor(decimal('12'), 10)).toBe('10.8');
+    expect(derivedFloor(decimal('9.99'), 15)).toBe('8.5');          // 8.4915 → 8.50
+    expect(derivedFloor(decimal('150000'), 10)).toBe('135000');
+    expect(derivedFloor(decimal('12'), 0)).toBe('12');
+    // A1 — exact: no floating-point residue to round up by a cent (9.95 less 10% is exactly 8.955 → 8.96; 1.10 less 0 is 1.10).
+    expect(derivedFloor(decimal('9.95'), 10)).toBe('8.96');
+    expect(derivedFloor(decimal('1.1'), 0)).toBe('1.1');
+    expect(derivedFloor(decimal('0.7'), 12.5)).toBe('0.62');        // 0.6125 → 0.62
   });
   it('a discount is 0 up to 99, with or without "%"; empty is "later"', () => {
     expect(readDiscount('10')).toBe(10);

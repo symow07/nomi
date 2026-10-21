@@ -27,6 +27,8 @@ export type WorkspaceFacts = {
   readonly country: string | null;
   /** D4 (2026-10-12) — the subscription lapsed: frozen, read-only, nothing sent or received. */
   readonly frozen: boolean;
+  /** A6 (0176) — the books are switched on for this workspace. */
+  readonly books: boolean;
 };
 
 /**
@@ -52,5 +54,6 @@ export async function workspaceFacts(tx: Tx, businessId: BusinessId): Promise<Wo
   const country = (await sql<{ country: string | null }>`
     select country from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.country ?? null;
   const frozen = await billingHeld(tx);
-  return { name: who.name, several: who.several, outreach, setup, zone, country, frozen };
+  const books = (await sql<{ on: boolean }>`select books_area as on from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0]?.on === true;
+  return { name: who.name, several: who.several, outreach, setup, zone, country, frozen, books };
 }

@@ -109,6 +109,9 @@ export const PRACTICE_SKIP = [
   'morning_summaries',
   // 0162 — the workspace's count of its own orders: a copy numbers the orders Practice makes in its own count.
   'order_numbers',
+  // 0169 (A2.1) — the workspace's books: the record, never copied into Practice, which keeps no books.
+  'books_settings', 'accounts', 'journals', 'fiscal_years', 'journal_counters', 'journal_entries', 'journal_lines',
+  'tax_codes', 'parties', 'custom_field_defs', 'books_exports', 'documents', 'document_blobs',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

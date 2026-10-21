@@ -1,4 +1,5 @@
 import type { StoreItem, StoreVariant } from './storeFeed.js';
+import { type Decimal, parseDecimal, signOf } from '../types/decimal.js';
 
 /**
  * K8 — A STORE'S EXPORTED FILE, OR ANY TABLE, ITS COLUMNS MAPPED.
@@ -105,15 +106,17 @@ export function suggestMapping(t: Table): { readonly preset: Preset | null; read
 const nonNeg = (i: number): number | null => (i >= 0 ? i : null);
 
 /** A price cell as a store writes it: "24.00", "24,00", "$24.00", "1,250.00". */
-function priceCell(raw: string): number | null {
+function priceCell(raw: string): Decimal | null {
   const s = raw.replace(/[^\d.,]/g, '');
   if (!s) return null;
-  let n: number;
-  if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) n = Number(s.replace(/,/g, ''));
-  else if (/^\d+,\d{1,2}$/.test(s)) n = Number(s.replace(',', '.'));
-  else if (/^\d+(\.\d+)?$/.test(s)) n = Number(s);
+  // A1 — exact: the cell's figure as a decimal, never a float.
+  let t: string;
+  if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) t = s.replace(/,/g, '');
+  else if (/^\d+,\d{1,2}$/.test(s)) t = s.replace(',', '.');
+  else if (/^\d+(\.\d+)?$/.test(s)) t = s;
   else return null;
-  return n > 0 ? n : null;
+  const n = parseDecimal(t);
+  return n !== null && signOf(n) > 0 ? n : null;
 }
 
 /** Why a mapping cannot be used. */
@@ -168,7 +171,7 @@ export function tableToItems(t: Table, m: Mapping): StoreItem[] {
     const key = m.group !== null && (r[m.group] ?? '') !== '' ? `g:${r[m.group]}` : ownKey(r) ? `g:${ownKey(r)}` : `r:${i}`;
     groups.set(key, [...(groups.get(key) ?? []), r]);
   });
-  const priceOf = (r: readonly string[]): number | null =>
+  const priceOf = (r: readonly string[]): Decimal | null =>
     priceCell(r[m.price] ?? '') ?? (m.priceFallback !== null && m.priceFallback !== undefined ? priceCell(r[m.priceFallback] ?? '') : null);
   const out: StoreItem[] = [];
   for (const rows of groups.values()) {
