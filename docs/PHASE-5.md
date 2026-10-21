@@ -759,9 +759,29 @@ Each item is built and fully tested (§4) before the next one that depends on it
     refuses any conversation whose buyer has a deletion request waiting; each check proven by switching it off).
     A hand-off made while the assistant is stopped or silenced is given in turn like any other: those buyers wait
     for a person, and the turn only says which one. A failure of the turn never stops the hand-off's alert.
-- **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the
-  Arabic disclosure is (decision 15). The code can be ready; it switches on per language only when that language's
-  sentence set is signed.
+- **S4 · Item 16 — strict mode per language.** *(the code built 2026-10-22; in force in no language.)* **Gated on a
+  person:** a native reviewer per language, exactly as the Arabic disclosure is (decision 15). It switches on per
+  language only when that language's sentence set is signed.
+  - **What it does:** in a strict language — the customer's, or (G8) the reply's own — a reply goes alone only when it
+    is made, end to end, of signed sentences. Their blanks are filled only by this turn's facts: the product's name as
+    the catalogue has it, the business's and the assistant's names, a whole number, an amount, one to three digits.
+    Anything else waits for the owner as a draft, with its own reason (`autonomy_withheld: strict_unapproved`, and the
+    line on the draft card). It only ever takes the right to send alone away.
+  - **Where:** `src/core/conversation/strict.ts` and the one send decision (`commitTurn`). `PROPOSED` is the starter set
+    in five languages, for a reader to read. `SIGNED` is empty: until a reader signs a set — the exact sentences, the
+    reader named, in the same commit — nothing changes anywhere.
+  - **The done-criterion's 500 turns** (`tests/pipeline/strict-mode.test.ts`): through the real send decision, with
+    English signed for the test. A seeded generator writes signed sentences, the same with one thing changed, free
+    text, and mixtures. An oracle written separately from the check finds that nothing but signed sentences ever left
+    alone, and the approved replies went word for word. The control is the same 500 without strict mode, which send
+    the unapproved replies alone. Each part of the check is proven by switching it off.
+  - **Claude's calls, reported:**
+    - The line that answers a stop is not held by strict mode: it must reach the buyer, and it is Nomi's fixed sentence.
+    - The disclosure in front of a first reply is checked by its own signature, not here.
+    - The figures in a blank are the numeral guard's, as in every reply.
+    - **Not built:** telling the writer the signed sentences, so it composes from them. That changes the analysis and
+      writing prompts, which needs the live model check, and live checks wait for the owner's word (zero-spend). Until
+      then a strict language would draft nearly every reply.
 - **S5 · Item 17 — FAQ learning.** *(built 2026-10-22, 0199: "Answers people gave" on the knowledge page.)*
   - **Only people's words.** Two kinds of reply are read: one a person typed in a conversation they held (or in the
     channel's own app), paired with the buyer's last message before it; and a draft a person rewrote before it went,

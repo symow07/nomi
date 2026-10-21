@@ -52,7 +52,8 @@ describe('R3 · the turn', () => {
     expect(turn).toContain('const quotedProduct = r.quote && r.decision.product ? r.decision.product.productId : null;');
     expect(turn).toContain('const vetted = !speaksAlone || !quotedProduct || await tenant.autonomy.quoteVetted(quotedProduct);');
     // 0163 — and not withdrawn in this language.
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && named && sentence !== null);');
+    // S4 (2026-10-22) — strict mode joined the conditions: where a language is strict, only signed sentences.
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && proven && withdrawnLanguage === null && strictOk && named && sentence !== null);');
   });
   it('the reason named: not earned first, then the first quote, then the language', () => {
     expect(turn).toContain("...(!earned ? { reason: 'not_earned' } : !vetted ? { reason: 'first_quote' } : languageWithheld");
