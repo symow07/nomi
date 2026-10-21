@@ -46,3 +46,31 @@ export function renderTrialBalance(locale: Locale, p: Period, tb: TrialBalance, 
         <a class="dl-get" href="/app/books/pack.xlsx?from=${esc(p.from)}&amp;to=${esc(p.to)}" download>${icon('download')}<span>${esc(t(locale, 'books.pack.download'))}</span></a></li></ul></div>`}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
+
+/**
+ * D4 (Avis 24) — THE MOROCCAN FEC on a page: each fiscal year, its check program's verdict (the numbers of each
+ * journal, no gap, no repeat), the accounts whose number does not begin as the CGNC's do, and its file.
+ */
+export type FecYearView = {
+  readonly id: string; readonly startsOn: string; readonly endsOn: string; readonly state: string; readonly lines: number;
+  readonly numbering: readonly { journal: string; missing: number[]; repeated: number[] }[];
+  readonly offChart: readonly { code: string; name: string }[];
+};
+
+export function renderFec(locale: Locale, years: readonly FecYearView[]): string {
+  const d = (iso: string) => esc(show.dateYear(locale, new Date(`${iso}T12:00:00Z`)));
+  return `<h1 class="page">${esc(t(locale, 'books.fec.title'))}</h1>
+    <p class="lede">${esc(t(locale, 'books.fec.lede'))}</p>
+    ${years.length === 0 ? `<p class="muted">${esc(t(locale, 'books.close.noYear'))}</p>` : years.map((y) => `<div class="block">
+      <h2>${d(y.startsOn)} – ${d(y.endsOn)}</h2>
+      <p>${y.state === 'open' ? `<span class="pill warn">${esc(t(locale, 'books.fec.open'))}</span>` : `<span class="pill ok">${esc(t(locale, 'books.close.year.closed'))}</span>`}</p>
+      <p role="status">${y.numbering.length === 0 ? `<span class="pill ok">${esc(t(locale, 'books.fec.numberingOk'))}</span>`
+        : y.numbering.map((n) => `<span class="pill stop">${esc(t(locale, 'books.fec.numberingBad', { journal: n.journal, missing: n.missing.join(', ') || '—', repeated: n.repeated.join(', ') || '—' }))}</span>`).join(' ')}</p>
+      ${y.offChart.length === 0 ? '' : `<p role="alert">${esc(t(locale, 'books.fec.offChart'))}</p><ul class="rows">${y.offChart.map((a) =>
+        `<li class="row"><span><bdi>${esc(a.code)}</bdi> · <bdi>${esc(a.name)}</bdi></span></li>`).join('')}</ul>`}
+      ${y.lines === 0 ? `<p class="muted">${esc(t(locale, 'books.trial.none'))}</p>` : `<ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.fec.file', { n: y.lines }))}</span>
+        <a class="dl-get" href="/app/books/fec/${esc(y.id)}.txt" download>${icon('download')}<span>${esc(t(locale, 'books.pack.download'))}</span></a></li></ul>`}
+    </div>`).join('')}
+    <p class="caption muted">${esc(t(locale, 'books.fec.envelope'))}</p>
+    <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
+}

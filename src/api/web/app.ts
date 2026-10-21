@@ -227,7 +227,7 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts } from './books.js';
+import { renderBooksChart, renderBooksNotYet, ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused, renderWriteConflicts } from './books.js';
 import { booksConnector } from '../../books/connectors/registry.js';
 import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
 import { odooKeyState } from '../../books/connectors/odoo.js';
@@ -238,14 +238,15 @@ import { writeBackOdoo, writeBackSheets, type WriteResult } from '../../books/wr
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
-import { booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
-import { defaultPeriod, packData, trialBalanceOf } from '../../db/booksReports.js';
+import { applyCgncChart, booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
+import { defaultPeriod, fecData, packData, trialBalanceOf } from '../../db/booksReports.js';
+import { fecFile, numberingProblems } from '../../core/books/fec.js';
 import { accountantPack, type PackWords } from '../../core/books/pack.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
 import { xlsxWrite } from '../../net/xlsx.js';
 import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, type CloseRefusal } from '../../db/booksClose.js';
 import { renderClose } from './booksClose.js';
-import { renderTrialBalance } from './booksReports.js';
+import { renderFec, renderTrialBalance, type FecYearView } from './booksReports.js';
 import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice, renderCreditNote, renderNewCreditNote } from './booksInvoices.js';
 import { creditable, discardCreditNote, draftCreditNote, issueCreditNote, loadCreditNote } from '../../db/booksCreditNotes.js';
@@ -2316,6 +2317,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'books.home.title'), active: 'settings',
       bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo })}${
         // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
+        personOf(s).isOwner ? renderBooksChart(locale) : ''}${
         personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}${
         renderBooksNotYet(locale)}`,
     }));
@@ -3012,6 +3014,43 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       .header('content-disposition', `attachment; filename="accountant-pack-${got.period.from}-${got.period.to}.xlsx"`)
       .header('cache-control', 'no-store').send(file);
+  });
+  /** D4 (Avis 24) — the Moroccan FEC: each fiscal year's file, its numbering checked, its accounts against the CGNC. */
+  app.get('/app/books/fec', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const years = await withTenantTx(deps.db, bid, async (tx) => {
+      const ys = (await sql<{ id: string }>`select id::text as id from fiscal_years where business_id = ${bid}::uuid order by starts_on desc`.execute(tx)).rows;
+      const out: FecYearView[] = [];
+      for (const y of ys) {
+        const f = await fecData(tx, bid, y.id);
+        if (f) out.push({ id: y.id, startsOn: f.year.starts_on, endsOn: f.year.ends_on, state: f.year.state, lines: f.lines.length,
+          numbering: numberingProblems(f.numbers), offChart: f.offChart });
+      }
+      return out;
+    });
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.fec.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderFec(locale, years)}` }));
+  });
+  app.get('/app/books/fec/:file', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const m = /^([0-9a-f-]{36})\.txt$/i.exec((req.params as { file: string }).file);
+    if (!m) return reply.callNotFound();
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) return flashTo(reply, '/app/books/fec', 'data.export.flash.tooMany');
+    const f = await withTenantTx(deps.db, bid, (tx) => fecData(tx, bid, m[1]!));
+    if (!f) return reply.callNotFound();
+    return reply.type('text/plain; charset=utf-8')
+      .header('content-disposition', `attachment; filename="FEC-${f.year.starts_on}-${f.year.ends_on}.txt"`)
+      .header('cache-control', 'no-store').send(fecFile(f.lines));
+  });
+  /** D4 (0190) — the books started from the CGNC chart: what is missing added, nothing the owner has changed. */
+  app.post('/app/books/chart/cgnc', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const out = await withTenantTx(deps.db, bid, (tx) => applyCgncChart(tx, bid));
+    return flashTo(reply, '/app/books#chart', 'books.flash.chartApplied', { accounts: out.accounts, journals: out.journals });
   });
   /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */
   app.get('/app/books/trial-balance', async (req, reply) => {

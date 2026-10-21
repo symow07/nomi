@@ -438,7 +438,8 @@ import type { Db } from './client.js';
 // 187 = an issued invoice carries its customer as they were at issue; an order into the books goes through an invoice (0187).
 // 188 = credit notes against issued invoices, numbered without a gap; refunds; payments checked with the invoice locked (0188).
 // 189 = closing the books: a checklist, a lock only forward, a reopening recorded, a closing entry in its own journal (0189).
-export const REQUIRED_SCHEMA_VERSION = 189;
+// 190 = the CGNC chart (modèle normal), read from the CNC's own text, as a chart template (0190).
+export const REQUIRED_SCHEMA_VERSION = 190;
 
 export type SchemaState = {
   readonly required: number;

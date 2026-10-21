@@ -487,6 +487,36 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - e-invoicing (CGI art. 145-IX, waiting for its decree; *secondary* sources say UBL, with SMEs in 2027–2028);
     - the liasse fiscale in SIMPL's EDI XML (usually the accountant's job).
   - *Depends on A2, C1 and D2.*
+  - *(built 2026-10-22, 0190.)*
+    - **The CGNC chart, from the CNC's own text:** the plan de comptes, modèle normal, 871 accounts.
+      - The ministry's PDF is a scan. It was read twice by local OCR, then every page (257–315) was checked
+        against its image by hand. 116 corrections: the OCR dropped 13 headings and three accounts — one of
+        them 6331, the exchange-loss account — and misread three codes.
+      - The method, the source's SHA-256, the corrections and the list are in `docs/cgnc/`. The scripts are in
+        `tools/cgnc/`, and re-running them reproduces the list.
+      - A template of 0171: the owner adds it from the books' page. It changes nothing the owner already has, and
+        chooses the accounts Nomi drafts with only where none were chosen (VE, 3421, 7111, 6331, 7331).
+      - The six journals are Nomi's, not the CGNC's.
+    - **The Moroccan FEC** (`/app/books/fec`, owner and accountant): per fiscal year, the eighteen fields of Avis 24
+      annex 3, named and ordered as the Avis lists them, read from the ministry's PDF.
+      - The auxiliary account is the party. The validation date is the posting day. The currency amount is given
+        for foreign lines.
+      - Lettrage is left blank ("à blanc si non utilisé").
+      - The envelope is `FEC_ENVELOPE`, because the Avis sets none: UTF-8, a header line, `|`, AAAAMMJJ, a full
+        stop.
+    - **The check program of annex 2.2 b** runs on the same page: each journal's numbers, no gap and no repeat.
+    - **Accounts whose first three characters are not the CGNC's are named**, as annex 3 asks of Num_Compte.
+    - **FOUND IN AVIS 24'S OWN TEXT, for the owner (2.3 d):** « Le logiciel n'autorise pas d'avoir plus de deux
+      périodes courantes ouvertes au sein de l'exercice en cours, à savoir la période en cours et la période
+      précédente », besides the closing and opening periods.
+      - That is PERIODS within the year, not fiscal years. Nomi holds "two fiscal years open" (0169) and a lock
+        date moved by hand (D2).
+      - Enforcing the Avis literally refuses a posting dated before last month. That includes history read in from
+        a workbook, Sheets or Odoo.
+      - The owner decides: keep the lock as the owner's tool, or make it automatic for Moroccan workspaces (with
+        history read in before the books are opened).
+    - Not yet: the business's own identifiers (ICE, IF, RC) are not held, so the FEC's file name carries the years
+      only.
 - **D5 · REMOVED from 100%: the French FEC and DGFiP's checker.** They come back only with a French customer. The Moroccan
   FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted

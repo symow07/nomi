@@ -77,3 +77,22 @@ export async function draftInvoiceFromOrder(tx: Tx, businessId: string, orderId:
     throw e;
   }
 }
+
+/**
+ * D4 (0190) — the books started from the CGNC chart: its accounts and Nomi's six journals added where the workspace
+ * lacks them (the owner's own are never changed), then — only where the owner has not chosen yet — the accounts
+ * Nomi drafts with: the sales journal VE, the receivable 3421 Clients, sales 7111, exchange loss 6331 and gain 7331.
+ */
+export async function applyCgncChart(tx: Tx, businessId: string): Promise<{ readonly accounts: number; readonly journals: number }> {
+  const r = (await sql<{ accounts_added: number; journals_added: number }>`select * from apply_chart_template('cgnc-normal')`.execute(tx)).rows[0]!;
+  const id = (table: 'accounts' | 'journals', code: string) => sql`(select id from ${sql.table(table)} where business_id = ${businessId}::uuid and code = ${code})`;
+  await sql`insert into books_settings (business_id, sales_journal_id, receivable_account_id, sales_account_id, fx_loss_account_id, fx_gain_account_id)
+    values (${businessId}::uuid, ${id('journals', 'VE')}, ${id('accounts', '3421')}, ${id('accounts', '7111')}, ${id('accounts', '6331')}, ${id('accounts', '7331')})
+    on conflict (business_id) do update set
+      sales_journal_id = coalesce(books_settings.sales_journal_id, excluded.sales_journal_id),
+      receivable_account_id = coalesce(books_settings.receivable_account_id, excluded.receivable_account_id),
+      sales_account_id = coalesce(books_settings.sales_account_id, excluded.sales_account_id),
+      fx_loss_account_id = coalesce(books_settings.fx_loss_account_id, excluded.fx_loss_account_id),
+      fx_gain_account_id = coalesce(books_settings.fx_gain_account_id, excluded.fx_gain_account_id)`.execute(tx);
+  return { accounts: r.accounts_added, journals: r.journals_added };
+}

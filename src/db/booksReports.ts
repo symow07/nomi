@@ -3,6 +3,7 @@ import type { Tx } from './client.js';
 import { parseDecimal, type Decimal } from '../core/types/decimal.js';
 import { trialBalance, type AccountKind, type TrialBalance } from '../core/books/trialBalance.js';
 import type { PackLine, PackTax, PackTaxAccount } from '../core/books/pack.js';
+import type { FecLine } from '../core/books/fec.js';
 
 /**
  * D1 (Phase 5, item 1) — THE TRIAL BALANCE's figures, summed by the database from the posted lines' amounts in the
@@ -76,4 +77,42 @@ export async function packData(tx: Tx, businessId: string, p: Period): Promise<{
        and e.state = 'posted' and e.entry_date between ${p.from}::date and ${p.to}::date
      group by a.code, a.name order by a.code`.execute(tx)).rows.map((r): PackTaxAccount => ({ code: r.code, name: r.name, debit: dec(r.debit), credit: dec(r.credit) }));
   return { lines, taxes, taxAccounts };
+}
+
+/**
+ * D4 (Avis 24, annex 3 and 2.2 b) — a fiscal year's FEC lines, its journals' numbers for the check program, and the
+ * accounts whose number does not begin as the CGNC's do (Num_Compte: « trois premiers caractères correspondant aux
+ * chiffres respectant les normes comptables applicables »).
+ */
+export async function fecData(tx: Tx, businessId: string, yearId: string) {
+  const year = (await sql<{ starts_on: string; ends_on: string; state: string }>`select starts_on::text as starts_on, ends_on::text as ends_on, state
+    from fiscal_years where business_id = ${businessId}::uuid and id = ${yearId}::uuid`.execute(tx)).rows[0];
+  if (!year) return null;
+  const dec = (v: string): Decimal => parseDecimal(v)!;
+  const rows = (await sql<{ jc: string; jn: string; number: number; entry_date: string; ac: string; an: string; pc: string | null; pn: string | null;
+    document_ref: string; document_date: string; label: string; bd: string; bc: string; currency: string; debit: string; credit: string; book: string; posted: string }>`
+    select j.code as jc, j.name as jn, e.number, e.entry_date::text as entry_date, a.code as ac, a.name as an, pa.code as pc, pa.name as pn,
+           e.document_ref, e.document_date::text as document_date, coalesce(l.label, e.label) as label, l.book_debit::text as bd, l.book_credit::text as bc,
+           l.currency, l.debit::text as debit, l.credit::text as credit, books_currency(e.business_id) as book,
+           to_char(e.posted_at at time zone 'UTC', 'YYYY-MM-DD') as posted
+      from journal_entries e join journal_lines l on l.entry_id = e.id join journals j on j.id = e.journal_id
+      join accounts a on a.id = l.account_id left join parties pa on pa.id = l.party_id
+     where e.business_id = ${businessId}::uuid and e.fiscal_year_id = ${yearId}::uuid and e.state = 'posted'
+     order by e.entry_date, j.code, e.number, l.line_no`.execute(tx)).rows;
+  const lines: FecLine[] = rows.map((r) => ({
+    journalCode: r.jc, journalName: r.jn, number: r.number, entryDate: r.entry_date, accountCode: r.ac, accountName: r.an, partyCode: r.pc, partyName: r.pn,
+    documentRef: r.document_ref, documentDate: r.document_date, label: r.label, debit: dec(r.bd), credit: dec(r.bc), validatedOn: r.posted,
+    foreign: r.currency === r.book ? null : { amount: dec(r.debit !== '0.00' ? r.debit : `-${r.credit}`), currency: r.currency },
+  }));
+  const numbers = new Map<string, number[]>();
+  for (const n of (await sql<{ code: string; number: number }>`select j.code, e.number from journal_entries e join journals j on j.id = e.journal_id
+    where e.business_id = ${businessId}::uuid and e.fiscal_year_id = ${yearId}::uuid and e.state = 'posted'`.execute(tx)).rows) {
+    numbers.set(n.code, [...(numbers.get(n.code) ?? []), n.number]);
+  }
+  const offChart = (await sql<{ code: string; name: string }>`select distinct a.code, a.name from journal_lines l join journal_entries e on e.id = l.entry_id
+      join accounts a on a.id = l.account_id
+     where e.business_id = ${businessId}::uuid and e.fiscal_year_id = ${yearId}::uuid and e.state = 'posted'
+       and left(a.code, 3) not in (select left(code, 3) from chart_template_accounts where template = 'cgnc-normal' and length(code) >= 3)
+     order by a.code`.execute(tx)).rows;
+  return { year, lines, numbers, offChart };
 }

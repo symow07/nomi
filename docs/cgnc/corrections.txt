@@ -1,0 +1,119 @@
+# Read from the CGNC's scan (finances.gov.ma, Tome II, plan de comptes, modèle normal), page by page.
+# code|title  sets the title (or adds the code); -code removes a code the OCR made up.
+1311|Subventions d'investissement reçues
+1481|Emprunts auprès des établissements de crédit
+1482|Avances de l'Etat
+114|RESERVE LEGALE
+151|PROVISIONS POUR RISQUES
+241|PRETS IMMOBILISES
+248|AUTRES CREANCES FINANCIERES
+311|MARCHANDISES
+313|PRODUITS EN COURS
+3134|Services en cours
+448|AUTRES CREANCIERS
+552|CREDITS D'ESCOMPTE
+553|CREDITS DE TRESORERIE
+554|BANQUES (soldes créditeurs)
+6198|Dotations d'exploitation des exercices antérieurs
+6311|Intérêts des emprunts et dettes
+6581|Pénalités sur marchés et dédits
+7125|Ventes de services produits à l'étranger
+112|PRIMES D'EMISSION, DE FUSION ET D'APPORT
+155|PROVISIONS POUR CHARGES
+160|COMPTES DE LIAISON DES ETABLISSEMENTS ET SUCCURSALES
+171|AUGMENTATION DES CREANCES IMMOBILISEES
+222|BREVETS, MARQUES, DROITS ET VALEURS SIMILAIRES
+2333|Emballages récupérables identifiables
+2338|Autres installations techniques, matériel et outillage
+2340|Matériel de transport
+235|MOBILIER, MATERIEL DE BUREAU ET AMENAGEMENTS DIVERS
+2356|Agencements, installations et aménagements divers (biens n'appartenant pas à l'entreprise)
+2394|Immobilisations corporelles en cours de matériel de transport
+2812|Amortissements des charges à répartir
+292|PROVISIONS POUR DEPRECIATION DES IMMOBILISATIONS INCORPORELLES
+3128|Autres matières et fournitures consommables
+31317|Biens résiduels en cours
+3417|Rabais, remises et ristournes à obtenir - avoirs non encore reçus
+34511|Subventions d'investissement à recevoir
+34512|Subventions d'exploitation à recevoir
+34513|Subventions d'équilibre à recevoir
+3455|ETAT - T.V.A. récupérable
+34551|ETAT - T.V.A. récupérable sur immobilisations
+34552|ETAT - T.V.A. récupérable sur les charges
+3463|Comptes courants des associés - débiteurs
+349|COMPTES DE REGULARISATION - ACTIF
+3493|Intérêts courus et non échus à percevoir
+3497|Comptes transitoires ou d'attente - débiteurs
+3941|Provisions pour dépréciation - fournisseurs débiteurs, avances et acomptes
+47|ECARTS DE CONVERSION - PASSIF (ELEMENTS CIRCULANTS)
+445|ETAT - CREDITEUR
+4452|Etat Impôts, taxes et assimilés
+44521|Etat, taxe urbaine et taxe d'édilité
+44522|Etat, patente
+-14525
+44525|Etat, PTS et PSN
+4455|Etat, T.V.A. facturée
+4456|Etat, T.V.A. due (suivant déclarations)
+4508|Autres provisions pour risques et charges
+470|ECARTS DE CONVERSION - PASSIF (Eléments circulants)
+4465|Associés Dividendes à payer
+4485|Obligations, coupons à payer
+449|COMPTES DE REGULARISATION - PASSIF
+514|BANQUES, TRESORERIE GENERALE ET CHEQUES POSTAUX DEBITEURS
+6111|Achats de marchandises "groupe A"
+6112|Achats de marchandises "groupe B"
+516|CAISSES, REGIES D'AVANCES ET ACCREDITIFS
+5548|Autres établissements financiers et assimilés (soldes créditeurs)
+6126|Achats de travaux, études et prestations de service
+61291|R.R.R. obtenus sur achats de matières premières
+61293|R.R.R. obtenus sur achats des emballages
+6135|Rémunérations du personnel extérieur à l'entreprise
+61421|Transports du personnel
+61473|Frais et commissions sur services bancaires
+6178|Charges de personnel des exercices antérieurs
+619|DOTATIONS D'EXPLOITATION
+# printed misprints, corrected (listed in docs/CGNC-CHART.md)
+6193|Dotations d'exploitation aux amortissements des immobilisations corporelles
+61921|D.E.A. de l'immobilisation en recherche et développement
+61938|D.E.A. des autres immobilisations corporelles
+61943|D.E.P. pour dépréciation des immobilisations corporelles
+6392|Dotations aux provisions pour dépréciation des immobilisations financières
+65862|Libéralités
+65911|D.A.E. de l'immobilisation en non-valeurs
+670|IMPOTS SUR LES RESULTATS
+6701|Impôts sur les bénéfices
+6705|Imposition minimale annuelle des sociétés
+631|CHARGES D'INTERETS
+63111|Intérêts des emprunts
+63113|Intérêts des dettes rattachées à des participations
+6318|Charges d'intérêts des exercices antérieurs
+633|PERTES DE CHANGE
+6331|Pertes de change propres à l'exercice
+638|AUTRES CHARGES FINANCIERES
+6382|Pertes sur créances liées à des participations
+651|VALEURS NETTES D'AMORTISSEMENTS DES IMMOBILISATIONS CEDEES
+6512|V.N.A des immobilisations incorporelles cédées
+6513|V.N.A des immobilisations corporelles cédées
+6514|V.N.A des immobilisations financières cédées (droits de propriété)
+6518|V.N.A des immobilisations cédées des exercices antérieurs
+71243|Prestations de service
+7129|Rabais, remises et ristournes accordés par l'entreprise
+71292|R.R.R. accordés sur ventes à l'étranger des biens produits
+7134|Variations des stocks de services en cours
+71342|Variation des stocks d'études en cours
+714|IMMOBILISATIONS PRODUITES PAR L'ENTREPRISE POUR ELLE MEME
+7143|Immobilisations corporelles produites
+7148|Immobilisations produites des exercices antérieurs
+7195|Reprises sur provisions pour risques et charges
+71976|T.C.E - Charges du personnel
+7331|Gains de change propres à l'exercice
+739|REPRISES FINANCIERES; TRANSFERTS DE CHARGES
+73971|Transferts - charges d'intérêts
+7568|Subventions d'équilibre reçues des exercices antérieurs
+7578|Reprises sur subventions d'investissement des exercices antérieurs
+7582|Dégrèvements d'impôts (autres qu'impôts sur les résultats)
+75862|Libéralités
+759|REPRISES NON COURANTES; TRANSFERTS DE CHARGES
+7594|Reprises non courantes sur provisions réglementées
+811|MARGE BRUTE
+840|RESULTAT COURANT
