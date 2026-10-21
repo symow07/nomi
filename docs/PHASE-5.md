@@ -174,7 +174,11 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - erasure-contract entries with the legal-retention action;
   - D18 privacy lines for each new processor.
   - *Depends on A2.*
-- **A6 · The salesperson ↔ accountant toggle:** same login, same company. **Early because it's the demonstrable piece,
+- **A6 · The salesperson ↔ accountant toggle:** *(built 2026-10-22, 0176: `businesses.books_area`, OFF by default,
+  switched by tools/books-area.mjs; off, every /app/books address is not found and nobody is offered the switch or
+  an accountant. A page under /app/books is the books' mode and its rail shows only the books; the switch at the
+  rail's foot is the owner's alone; an accountant has the books and a way out; staff the sales side. Its books
+  side is one page today, the home and the copy — C1 onward fill it.)* Same login, same company. **Early because it's the demonstrable piece,
   not because anything depends on it.** It's the cheapest visible proof that the two-mode idea works, which the thesis
   and any investor conversation need. It builds on `shell()` in `src/api/web/layout.ts` and on the outreach area's
   per-workspace gate. *Needs A5's roles.*

@@ -424,7 +424,8 @@ import type { Db } from './client.js';
 // 173 = the books in one currency at the owner's rates (0173): the line's rate, its day and its book amounts.
 // 174 = documents (0174): sealed, kept to their date, stored where the workspace's residency says.
 // 175 = the accountant (0175): `people.kind`, an accountant's posting refused, closure waiting for the owner's copy.
-export const REQUIRED_SCHEMA_VERSION = 175;
+// 176 = the books switched on per workspace (0176): `businesses.books_area`, which every page's facts read.
+export const REQUIRED_SCHEMA_VERSION = 176;
 
 export type SchemaState = {
   readonly required: number;

@@ -253,7 +253,7 @@ import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, localPath, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, t as mailT } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, businessName, setupState, assistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, withNeedsYou, outreachShown, booksShown, businessName, setupState, assistantName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 import { saveMorningSetting } from '../../db/morningSummary.js';
@@ -796,7 +796,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * the minute's cache: a count that lags is a count that lies. A page's own
      * requests (the live line's question, a post) do not need it.
      */
-    const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
+    // A6 — who is looking, for the mode switch the shell offers (never cached: it is this request's person).
+    const who = personOf(s);
+    const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
+    const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null }) => {
+      const f = { ...f0, viewerRole };
       if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
       // The warmth run (w4-whole-03) — and when the latest customer began to wait, for the rail's mark.
@@ -846,6 +850,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return;
     const who = personOf(s);
     const route = req.routeOptions.url;
+    // A6 (0176) — where the books are off, they are not there: not found, as the outreach area is.
+    if (req.url.startsWith('/app/books') && !booksShown()) return reply.callNotFound();
     const books = booksRouteOf(req.method, route);
     if (books) {
       if (booksMay(who, books.action)) return;
@@ -5100,6 +5106,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const body = (req.body as { name?: string; accountant?: string } | undefined) ?? {};
     const name = String(body.name ?? '');
+    // A6 — an accountant only where the books are on (the box is not drawn elsewhere; a forged one is refused).
+    if (body.accountant === 'on' && !booksShown()) return flashTo(reply, '/app/settings/people', 'people.flash.failed');
     const r = await addPerson(deps.db, s.businessId, deps.sessionSecret, name, body.accountant === 'on' ? 'accountant' : 'team');
     if (r.code !== 'added') {
       return flashTo(reply, '/app/settings/people', `people.flash.${r.code}` as MessageKey);

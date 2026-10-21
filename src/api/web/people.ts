@@ -6,7 +6,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Person, type PersonError, validatePerson, OWNER_ONLY } from '../../core/conversation/people.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, tn } from './say.js';
+import { t, tn, booksShown } from './say.js';
 
 import { back, esc } from './layout.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
@@ -317,9 +317,9 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
           fieldRow({ label: t(locale, 'people.add.label'), forId: 'pp-add-name',
             control: `<input id="pp-add-name" name="name" required maxlength="60"
               placeholder="${esc(t(locale, 'people.add.placeholder'))}" />` }),
-          // A5 (decision 12) — the business's accountant: the books, and nothing else.
-          fieldRow({ label: t(locale, 'people.add.accountant'), forId: 'pp-add-accountant',
-            control: `<span class="chkbox"><input id="pp-add-accountant" type="checkbox" name="accountant" /></span>` }),
+          // A5 (decision 12) — the business's accountant: the books, and nothing else. A6 — only where the books are on.
+          ...(booksShown() ? [fieldRow({ label: t(locale, 'people.add.accountant'), forId: 'pp-add-accountant',
+            control: `<span class="chkbox"><input id="pp-add-accountant" type="checkbox" name="accountant" /></span>` })] : []),
           cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'people.add.button'))}</button>`),
         ])}
       </form>

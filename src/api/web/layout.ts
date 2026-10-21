@@ -3,7 +3,7 @@ import { zoneChoices, zoneLabelsAmong } from '../../core/owner/zones.js';
 import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, setupState } from './say.js';
+import { t, assistantName, businessName, needsYouCount, needsYouSince, tn, workspaceFrozen, setupState, booksShown, viewerRole } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { DESIGN_TOKENS } from '../../core/owner/tokens.js';
 import { isolate } from './values.js';
@@ -2974,13 +2974,45 @@ export function shell(input: {
        >${mark}${text}</a>`;
   };
   const byId = (id: string) => NAV.find((n) => n.id === id)!;
+  /**
+   * A6 (Phase 5) — TWO MODES, ONE LOGIN. A page under /app/books is the books' mode, every other page the sales
+   * side, and each mode's rail lights only its own pages. The switch between them is offered to the one person
+   * who has both — the owner, where the books are on (0176) — at the foot of the rail. An accountant has the
+   * books alone, and their way out at the foot; staff the sales side alone, and no switch.
+   */
+  const role = viewerRole();
+  const switchTo = (href: string, key: MessageKey) => `<a href="${href}" class="navlink navswitch" data-nav="switch"
+       >${railIcon('transfer-horizontal')}<span class="nl-body"><span class="nl-text">${esc(t(locale, key))}</span></span></a>`;
+  if (isBooksPath(input.path)) {
+    const booksEntry = `<a href="/app/books" class="navlink active" data-nav="books" aria-current="page"
+       >${railIcon('notebook-minimalistic')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'nav.books'))}</span></span></a>`;
+    const foot = role === 'owner' ? switchTo('/app', 'nav.toSales')
+      : `<form method="post" action="/logout" class="navout"><button class="navlink" type="submit" data-nav="logout"
+          >${railIcon('logout')}<span class="nl-body"><span class="nl-text">${esc(t(locale, 'header.logout'))}</span></span></button></form>`;
+    return shellWith(input, `<div class="navgroup">${booksEntry}</div><div class="navfoot">${foot}</div>`);
+  }
+  const toBooks = role === 'owner' && booksShown() ? switchTo('/app/books', 'nav.toBooks') : '';
   const nav = `<div class="navgroup">${entry(byId('home'))}</div>
     <div class="navgroup navhub" role="group" aria-labelledby="nav-customers">
       <span class="navhead" id="nav-customers">${railIcon('users-group-rounded')}<span>${esc(t(locale, 'nav.customers'))}</span></span>
       ${entry(byId('inbox'), true)}${entry(byId('calendar'), true)}
     </div>
     <div class="navgroup">${entry(byId('advisor'))}</div>
-    <div class="navfoot">${entry(byId('settings'))}</div>`;
+    <div class="navfoot">${toBooks}${entry(byId('settings'))}</div>`;
+  return shellWith(input, nav);
+}
+
+/** A6 — is this address the books' mode? */
+export const isBooksPath = (path: string): boolean => {
+  const url = (path.split('?')[0] ?? path).replace(/\/+$/, '');
+  return url === '/app/books' || url.startsWith('/app/books/');
+};
+
+/** The shell around a page, given its rail. (The body of `shell`, split out for A6's two modes.) */
+function shellWith(input: Parameters<typeof shell>[0], nav: string): string {
+  const { locale } = input;
+  const name = assistantName(locale);
+  const here = hubFor(input.path, input.active);
   /**
    * CC-14 — whose workspace this is, in the owner's own words. It read
    * "Nomi · Lily's workspace" to everyone, and a new owner never saw the name

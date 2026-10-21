@@ -84,7 +84,9 @@ export function icon(id: IconId, className = 'ni'): string {
  * word in weight). Nothing in the rail is filled. The assistant's entry is not here: that slot is
  * `agentMark`. Drawn at 28 px, the nav's 1.75 px line.
  */
-export type RailIcon = 'home-2' | 'inbox' | 'calendar' | 'settings' | 'users-group-rounded' | 'chat-round';
+export type RailIcon = 'home-2' | 'inbox' | 'calendar' | 'settings' | 'users-group-rounded' | 'chat-round'
+  // A6 — the books' mode: its entry, the switch between the two, and the accountant's way out.
+  | 'notebook-minimalistic' | 'transfer-horizontal' | 'logout';
 export const railIcon = (name: RailIcon): string => solarSvg('ni', name, 28);
 
 /*

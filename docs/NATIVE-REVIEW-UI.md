@@ -15994,3 +15994,12 @@ Reviewer (per language): ______  Date: ______
   person reading.
 
 Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 A6 — the two modes (not a gate)
+
+- **The keys:** `nav.books`, `nav.toBooks`, `nav.toSales` (the rail's entry for the books, and the switch between
+  the books and the sales side).
+- **Check:** that 账簿 / 销售 and «الدفاتر» / «المبيعات» read as the two sides of one business at the foot of the rail,
+  and that the Spanish and French «Contabilidad» / «Comptabilité» are what an owner there calls their books.
+
+Reviewer (per language): ______  Date: ______

@@ -92,7 +92,35 @@ let seeded = false;
  * not isolated — in which case it warns once, so a confusing second-run failure
  * is attributable at a glance instead of being mistaken for a regression.
  */
+/**
+ * The job queue's own tables (pg-boss's schema), as production always has them: the app starts its queue before it
+ * serves a page, and pages read the queue (a conversation's live line asks whether a reply is still on its way).
+ * In a fresh database they exist only once something has started the queue — so a test that walks pages after a
+ * test that happened to start it passed, and the same walk run FIRST failed with "relation pgboss.job does not
+ * exist" (found 2026-10-22, when new files changed the order vitest ran them in). Made once, here, before any page
+ * is walked; no worker is started.
+ */
+let queueReady = false;
+export async function ensureQueueSchema(): Promise<void> {
+  if (queueReady || !process.env['DATABASE_URL']) return;
+  const pg = await import('pg');
+  const c = new pg.default.Client({ connectionString: process.env['DATABASE_URL'] });
+  await c.connect();
+  try {
+    const exists = (await c.query(`select to_regclass('pgboss.job') is not null as ok`)).rows[0].ok as boolean;
+    if (!exists) {
+      const { startBoss } = await import('../../src/queue/boss.js');
+      const boss = await startBoss(process.env['DATABASE_URL']);
+      await boss.stop();
+    }
+    queueReady = true;
+  } finally {
+    await c.end();
+  }
+}
+
 export async function seedRunTenant(): Promise<void> {
+  await ensureQueueSchema();
   if (!ISOLATED) {
     if (!warned) {
       warned = true;
