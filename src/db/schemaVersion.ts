@@ -425,7 +425,11 @@ import type { Db } from './client.js';
 // 174 = documents (0174): sealed, kept to their date, stored where the workspace's residency says.
 // 175 = the accountant (0175): `people.kind`, an accountant's posting refused, closure waiting for the owner's copy.
 // 176 = the books switched on per workspace (0176): `businesses.books_area`, which every page's facts read.
-export const REQUIRED_SCHEMA_VERSION = 176;
+// 177 = an accountant sees the books and no row of the sales side, said by the database (0177): `viewer_is_accountant()`.
+// 178 = what each connected system last said of each books record (0178): `connector_records`, the read-in's memory.
+// 179 = the shop's own systems the books are connected to (0179): `books_connections`, Sheets and Odoo.
+// 180 = the morning's read of every connected system (0180): `books_connections_due()`, the worker's list.
+export const REQUIRED_SCHEMA_VERSION = 180;
 
 export type SchemaState = {
   readonly required: number;

@@ -84,3 +84,36 @@ export const publicFetcher: StoreFetcher = {
     throw new StoreFetchError('too_many_redirects');
   },
 };
+
+/**
+ * B4 (Phase 5) — A JSON POST to a shop's own system on the public internet (its Odoo), the same way: only to a
+ * public address (our own lookup, at connect time), over https, no redirect followed, 20 seconds and 20 MB at most.
+ * What it sends is the caller's: here, the owner's key, so nothing of the request or the answer is logged.
+ */
+export type PostAnswer = { readonly status: number; readonly text: string } | null;
+export type PublicPost = (url: string, headers: Readonly<Record<string, string>>, body: string) => Promise<PostAnswer>;
+
+export const publicPost: PublicPost = (url, headers, body) => new Promise((resolve) => {
+  let target: URL;
+  try { target = new URL(url); } catch { return resolve(null); }
+  if (target.protocol !== 'https:') return resolve(null);
+  const req = https.request(target, {
+    method: 'POST', lookup: publicLookup as never, timeout: 20_000,
+    headers: { ...headers, 'content-length': Buffer.byteLength(body), 'user-agent': 'Nomi/1.0 (+https://nomidoes.com)' },
+  }, (res) => {
+    const status = res.statusCode ?? 0;
+    if (status >= 300 && status < 400) { res.resume(); return resolve({ status, text: '' }); }
+    let size = 0;
+    const chunks: Buffer[] = [];
+    res.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > 20 * 1024 * 1024) { req.destroy(); resolve(null); return; }
+      chunks.push(c);
+    });
+    res.on('end', () => resolve({ status, text: Buffer.concat(chunks).toString('utf8') }));
+    res.on('error', () => resolve(null));
+  });
+  req.on('timeout', () => { req.destroy(); resolve(null); });
+  req.on('error', () => resolve(null));
+  req.end(body);
+});

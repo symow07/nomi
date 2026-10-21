@@ -24,7 +24,7 @@ planned, no-surprise procedure and, critically, the blast radius of each key.
 | `WEBHOOK_VERIFY_TOKEN` | Meta webhook GET handshake | Only matters at (re)subscription. | Set env → redeploy → re-verify the webhook in Meta. Generated if unset. |
 | `WEBHOOK_SECRET` | 360dialog HMAC (provider=360dialog) | Inbound HMAC fails until updated. | Rotate in 360dialog → set env → redeploy. |
 | `OWNER_ACCESS_CODE` | Command Center login | Old code stops working; existing cookies stay valid to TTL. | Set a new value → redeploy. Always set it explicitly (else it is generated and logged once at boot). |
-| **`CREDENTIAL_KEY`** | **(a)** web-session HMAC **and (b)** AES-256-GCM of every stored token: Page tokens (`meta_accounts`), mailbox refresh tokens (`mail_accounts`), connector keys (`connector_credentials`), channel secrets (`channel_credentials`) | **(a)** all owner sessions invalidated → re-login. **(b)** every sealed token stops opening unless re-sealed. | See below: with `CREDENTIAL_KEY_PREVIOUS` and `tools/rekey.mjs` — never blind. |
+| **`CREDENTIAL_KEY`** | **(a)** web-session HMAC **and (b)** AES-256-GCM of every stored token: Page tokens (`meta_accounts`), mailbox refresh tokens (`mail_accounts`), connector keys (`connector_credentials`), channel secrets (`channel_credentials`); and **(c)** through its derived document key (HKDF, `nomi-documents-v1`), every stored document (`document_blobs`, or a directory store's files — 0174) | **(a)** all owner sessions invalidated → re-login. **(b)** every sealed token stops opening unless re-sealed. **(c)** every document too. | See below: with `CREDENTIAL_KEY_PREVIOUS` and `tools/rekey.mjs` — never blind. |
 | **`ADVISOR_KEY`** (0130) | AES-256-GCM of the advisor's stored conversations (`advisor_threads`, `advisor_turns`) — and nothing else | Missing or wrong: nothing new is kept; stored conversations show "could not be opened". Never a crash. | Below: with `ADVISOR_KEY_PREVIOUS`; the app re-seals as conversations are opened — no tool opens them. |
 
 ## Rotating `CREDENTIAL_KEY` (REKEY, 2026-09-30)
@@ -72,6 +72,12 @@ app opens tokens with it but never seals with it (`acceptRetiredKeys`,
    counts, never a token: how many are already under the new key, how many it
    re-sealed, and — by table and id — any that neither key opens (the app
    cannot open those either; the owner reconnects that account).
+   **Documents too (B0, 2026-10-22):** the ones in this database are re-sealed in
+   the same transaction; a directory store's files (`DOCUMENT_STORES`) only
+   where that directory is mounted. Run from the laptop, it names each such
+   file as one it cannot read and writes none; run `node tools/rekey.mjs` inside the
+   `nomi` service (`railway ssh`), where `MIGRATE_DATABASE_URL` and both keys are
+   already set, to re-seal them.
 4. **Run it once more** without `--yes`: it must say "Nothing to re-seal".
 5. **Remove `CREDENTIAL_KEY_PREVIOUS`** in Railway; it redeploys without it.
 

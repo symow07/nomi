@@ -11,7 +11,12 @@ import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:cr
  *   · the workspace and the document's id are the AUTHENTICATED DATA: a sealed blob moved to another workspace's
  *     row, or to another document's, fails to open rather than showing someone else's papers;
  *   · the key version travels with the bytes, so a rotation re-seals (docs/SECRET-ROTATION.md) instead of
- *     stranding what the old key sealed.
+ *     stranding what the old key sealed: while CREDENTIAL_KEY_PREVIOUS is set, the key derived from it opens too
+ *     (never seals), and tools/rekey.mjs seals each document again with the current one (B0).
+ *
+ * ONE document key per installation (and per key version), never one per document: what makes each document's
+ * seal its own is a fresh IV and its workspace and id as authenticated data. The key itself lives nowhere but the
+ * environment: no row holds it, so a copy of the database opens nothing.
  *
  * Packed: "NDS1" · key version (u16) · iv (12) · tag (16) · ciphertext.
  */
@@ -36,14 +41,24 @@ export function sealDocument(bytes: Buffer, k: DocumentKey, businessId: string, 
   return Buffer.concat([MAGIC, version, iv, cipher.getAuthTag(), data]);
 }
 
-/** The bytes back, or a thrown error: wrong key, wrong workspace, wrong document, or tampered with. */
+/**
+ * The bytes back, or a thrown error: wrong key, wrong workspace, wrong document, or tampered with. Each key of the
+ * packed version is tried in turn, the current first: during a rotation the previous credential key derives a key
+ * of the same version, and the authentication tag says which one sealed it.
+ */
 export function openDocument(packed: Buffer, keys: readonly DocumentKey[], businessId: string, documentId: string): Buffer {
   if (packed.length < 34 || !packed.subarray(0, 4).equals(MAGIC)) throw new Error('document: not a sealed document');
   const version = packed.readUInt16BE(4);
-  const k = keys.find((x) => x.version === version);
-  if (!k) throw new Error(`document: sealed with key version ${version}, which this installation does not hold`);
-  const decipher = createDecipheriv('aes-256-gcm', k.key, packed.subarray(6, 18));
-  decipher.setAAD(aadOf(businessId, documentId));
-  decipher.setAuthTag(packed.subarray(18, 34));
-  return Buffer.concat([decipher.update(packed.subarray(34)), decipher.final()]);
+  const candidates = keys.filter((x) => x.version === version);
+  if (candidates.length === 0) throw new Error(`document: sealed with key version ${version}, which this installation does not hold`);
+  let failure: unknown;
+  for (const k of candidates) {
+    try {
+      const decipher = createDecipheriv('aes-256-gcm', k.key, packed.subarray(6, 18));
+      decipher.setAAD(aadOf(businessId, documentId));
+      decipher.setAuthTag(packed.subarray(18, 34));
+      return Buffer.concat([decipher.update(packed.subarray(34)), decipher.final()]);
+    } catch (e) { failure = e; }
+  }
+  throw failure;
 }

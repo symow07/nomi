@@ -5,6 +5,7 @@ import { parseBusinessId, type BusinessId } from '../core/types/ids.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import { t } from '../api/web/say.js';
 import { sealAdvisor, openAdvisor, type AdvisorKeys } from './seal.js';
+import { viewerId } from '../db/viewer.js';
 
 /**
  * THE ADVISOR'S MEMORY (0130; docs/ADVISOR-MEMORY.md, the owner's decisions D1–D9 of 2026-10-07). Each
@@ -114,7 +115,8 @@ export function advisorMemory(db: Db, keys: AdvisorKeys): AdvisorMemory {
     const bid = parseBusinessId(businessId);
     if (!bid.ok || !UUID.test(personId)) return null;
     return db.transaction().execute(async (tx) => {
-      await sql`select set_config('app.business_id', ${bid.value}, true), set_config('app.person_id', ${personId}, true)`.execute(tx);
+      await sql`select set_config('app.business_id', ${bid.value}, true), set_config('app.person_id', ${personId}, true),
+        set_config('app.viewer_id', ${viewerId()}, true)`.execute(tx);
       return fn(tx, bid.value);
     });
   }

@@ -51,6 +51,10 @@ It rests on four readings:
     - the **owner** sees, posts and exports;
     - an **accountant** sees and exports, and posts nothing;
     - **staff** see nothing.
+    - **An accountant sees nothing of the sales side: no buyer, no conversation, no message.** A shop's external
+      accountant has no business reading its customers' messages. That is a privacy boundary, not a convenience
+      (the owner, 2026-10-22), and it is held twice: by the app's route guard (A5) and by the database, which shows an
+      accountant's request no row of a sales table (B0).
 13. **Exchange rates:** the owner's own. The rate used is **stored on the transaction and never recomputed.** A report
     that re-rates history is wrong by construction.
 14. **Data residency is a parameter,** not a hard-coded assumption. This is the cheap insurance against a later legal
@@ -155,11 +159,14 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - every foreign-currency line stores the rate and the date, taken from the owner's rates (decision 13);
   - **never recomputed;** a missing rate refuses the posting.
   - *Depends on A1 and A2.*
-- **A4 · Document storage, residency-aware:** *(built 2026-10-22, 0174: sealed with AES-256-GCM under a key of its
-  own, bound to workspace and id; DOCUMENT_STORES maps residency → `database` or `directory:<path>`, and a residency
+- **A4 · Document storage, residency-aware:** *(built 2026-10-22, 0174: sealed with AES-256-GCM under the installation's document key —
+  derived from CREDENTIAL_KEY, which lives in the environment and never in the database, so a dump or a backup alone
+  opens nothing — with a fresh IV per document, bound to workspace and id; B0 makes a CREDENTIAL_KEY rotation re-seal
+  them; DOCUMENT_STORES maps residency → `database` or `directory:<path>`, and a residency
   with no store refuses; each document's `keep_until` set by the database; held at closure with the books, its
   directory files removed by tools/books-retention.mjs after the legal date. Open: the closing copy includes the
-  documents (with A6's pages, which list them) — until then a workspace holding papers refuses to close; a sweep of sealed files a rolled-back upload left with no row.)*
+  documents (with A6's pages, which list them) — until then a workspace holding papers refuses to close, a LAUNCH
+  BLOCKER for the books (docs/LAUNCH-CHECKLIST.md, enforced by tools/books-area.mjs); a sweep of sealed files a rolled-back upload left with no row.)*
    encrypted, per workspace, with the retention date of its country. Where the
   data lives — the database, the documents and the backups — is **a parameter** (decision 14), not an assumption.
   *Depends on A2.* 💰 beyond the database volume.
@@ -185,27 +192,74 @@ Each item is built and fully tested (§4) before the next one that depends on it
 
 ### Stage B — the connector layer
 
-- **B1 · Item 12 — one plug-in shape:**
+- **B1 · Item 12 — one plug-in shape:** *(built 2026-10-22: `src/core/books/connector.ts` (config, connect / refresh /
+  revoke with a closed list of refusal reasons, the mapping both ways, "changed since") over one interchange shape,
+  `src/core/books/interchange.ts` (keyed by codes and the source's own entry keys, never Nomi's ids; exact decimals);
+  one registry, `src/books/connectors/registry.ts`; the suite `tests/books-connectors/conformance.ts`, passed by the
+  workbook and by a test fake that keeps its own history.)*
   - each system provides a config, a mapper to and from A2, its sign-in (exchange, refresh, revoke), and "changed since";
   - all behind one registry;
   - a conformance suite every connector must pass.
   - *Depends on A2 and A5.*
-- **B2 · Excel by file (option A):**
+- **B2 · Excel by file (option A):** *(built 2026-10-22, 0178: the versioned Nomi workbook (a "Nomi" sheet, then
+  Accounts, Journals, Parties, Tax codes, Journal — one row per line), written and read by `src/net/xlsx.ts` with no
+  library; opened and saved by Microsoft Excel 16 in the test (`tests/books-connectors/fixtures/excel-saved.xlsx`,
+  its author and path removed). Found doing so: Excel writes 33.34 back as 33.340000000000003, so a number cell is
+  read at Excel's 15 significant digits, as text; and an amount with more decimals than its currency is refused,
+  never rounded by the column. The read-in (`src/db/booksInterchange.ts`) is one change or none; entries arrive as
+  DRAFTS; a posted entry or a chart record that differs from Nomi stops it, named by sheet, row and column; what each
+  source last said is kept in `connector_records`, so the same workbook twice changes nothing. Invoices and Payments
+  tabs come with C2. The workbook is not yet a receipt for closure — the books' CSV is.)*
   - the fixed Nomi workbook, imported and exported;
   - **it validates the interface on the easy case first:** no external dependency, so B1 is proven against something we
     fully control before it meets Odoo's sign-in, plans and expiring keys.
   - *Depends on B1.*
-- **B3 · Google Sheets (option B, `drive.file`).** *Depends on B2* (the same workbook).
-- **B4 · Odoo, JSON-2, our own client:**
+- **B3 · Google Sheets (option B, `drive.file`).** *Depends on B2* (the same workbook). *(built 2026-10-22, 0179:
+  `src/books/connectors/sheets.ts` — OAuth with PKCE asking `drive.file` alone; on connecting, a NEW spreadsheet with
+  the books in it; read in through the workbook's own reader and the same read-in; values read UNFORMATTED with
+  JSON's own digits, never a float. A revoked grant is `connect_again` and nothing is read; a deleted spreadsheet is
+  `source_missing`; Google down is "try later". The grant sealed in `connector_credentials` (rekey covers it),
+  `books_connections` keeps the state. Writing an existing spreadsheet again is C4's (conflicts shown). Against a
+  recorded fake of Google's documented answers; live on deploy day with SHEETS_CLIENT_ID / _SECRET, which D18 holds
+  until the privacy page names Google Sheets.)*
+- **B4 · Odoo, JSON-2, our own client:** *(built 2026-10-22: `src/books/connectors/odoo.ts`, a POST of a JSON object to
+  `/json/2/<model>/<method>` with "bearer" and the key and `X-Odoo-Database` (Odoo 19 docs), sent only to a public https
+  address (`publicPost`: our own DNS lookup refuses private, loopback and link-local answers at connect time). Item 15:
+  a wrong key (401 "Invalid apikey", documented), a wrong name (404 with Odoo's error), a Free or Standard plan (403
+  — Odoo documents the restriction, not the status: assumed, checked live on deploy day), an address that is not
+  public https — each its own sentence, nothing saved. Item 14: the owner gives the key's end date; from 80 days of
+  a key's life, or 10 days before its end, the page asks for a new one; on its end the read stops (`stopped`,
+  `key_expired`) and Odoo is not called. Read: the chart, journals, customers and suppliers, percent taxes with their
+  tax account, entries by Odoo's own write date; amounts from Odoo's own digits. What Odoo cannot say is not invented
+  (no parent account; a tax is "T"+id, in force since 2000-01-01; a foreign line in its own currency). Against a
+  recorded fake of the documented answers.)*
   - **item 15, the plan check at sign-up;**
   - **item 14, the key-expiry reminder** (keys last at most three months).
   - *Depends on B1.*
-- **B5 · Item 13, part 1 — reading changes:** idempotent, with a cursor per system. *Depends on B2–B4.*
+- **B5 · Item 13, part 1 — reading changes:** idempotent, with a cursor per system. *Depends on B2–B4.* *(built
+  2026-10-22, 0180: one read, `src/books/readIn.ts`, for the owner's button and the morning's job (`books.read`, 05:20
+  UTC, every connected system of a workspace whose books are shown — `books_connections_due()`). The same change is
+  recorded once (`connector_records`); the cursor is the database's (`books_connections.cursor`), read again by a
+  fresh process; a read refused for its problems moves no cursor. A connected system no read has reached for two
+  days is said on the books' page, with the day it last answered. What the morning reads in is drafts, as Nomi.)*
 
 ### Stage C — the core books
 
 - **C1 · Item 3 — journal entries:**
   - by hand, from Nomi's orders and invoices, and from what's read in;
+  - **Where the exchange difference goes (the owner's question, 2026-10-22; answered before C1).** Since A3 (0173) an
+    entry with a foreign line posts only if it balances in each foreign currency on its own AND in the books' currency
+    after conversion. A remainder is refused (NB009, "add the exchange difference as a line"), never absorbed, rounded
+    away or left as an imbalance. It posts only as its own line in the books' currency, visible in the books and the
+    export (`tests/integration/books-currencies.test.ts`). What A3 does not say is WHICH account. C1 adds it:
+    - the workspace's exchange-loss and exchange-gain accounts in `books_settings` (the CGNC's 6331 Pertes de change
+      and 7331 Gains de change propres à l'exercice);
+    - every entry Nomi drafts puts its difference there: a loss as a debit on the loss account, a gain as a credit on
+      the gain account;
+    - the line that carries the difference is marked as such on `journal_lines`, and the database refuses a marked
+      line on any account but those two;
+    - C2's realised differences (an invoice at one rate, paid at another) land on the same two accounts, as their own
+      line of the payment's entry.
   - numbered in sequence per journal, with no gaps (the Avis 24 criterion).
   - **Strictly gap-free, as a legal requirement (Avis 24), not a preference:**
     - The journal and invoice sequences are their own counters, never the order sequence (`nextOrderReference`), and

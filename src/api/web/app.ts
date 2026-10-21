@@ -131,7 +131,7 @@ import {
 import { writeFirst } from '../../outbound/writeFirst.js';
 import {
   OAUTH_PROVIDERS, authorizeUrl, mintOAuthState, pkcePair, readOAuthState, sameNonce,
-  type OAuthClients, type OAuthFetch,
+  type OAuthClient, type OAuthClients, type OAuthFetch,
 } from '../../connectors/oauth.js';
 import { completeMailConnection, disconnectMailbox } from '../../channels/email/connectMailbox.js';
 import { loadAccounts, renderAccounts, mailConnectable } from './connect.js';
@@ -198,6 +198,7 @@ import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
 import { isAutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
+import { asViewer } from '../../db/viewer.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
 import { prepareOrderFromMaybe } from '../../pipeline/maybeOrder.js';
@@ -226,7 +227,15 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
-import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome } from './books.js';
+import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused } from './books.js';
+import { booksConnector } from '../../books/connectors/registry.js';
+import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl } from '../../books/connectors/sheets.js';
+import { odooKeyState } from '../../books/connectors/odoo.js';
+import { publicPost, type PublicPost } from '../../net/publicFetch.js';
+import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
+import { readBooks, readInBooks } from '../../db/booksInterchange.js';
+import { readConnectedSystem, silentSince } from '../../books/readIn.js';
+import { configProblems } from '../../core/books/connector.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
@@ -427,6 +436,10 @@ export type WebDeps = {
   readonly waConnect?: WaConnectDeps;
   /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
   readonly oauthFetch?: OAuthFetch;
+  /** B3 — the installation's Google client for the books in Sheets (`drive.file`); absent, Sheets is not offered. */
+  readonly sheetsClient?: OAuthClient;
+  /** B4 — how Nomi posts to a shop's own Odoo (tests give a recorded fake); absent, the public-internet post. */
+  readonly odooPost?: PublicPost;
   /**
    * G13 — ask the worker to answer words a person typed for a voice note. The
    * models live in the worker; this hands it the job, and everything after is
@@ -784,6 +797,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * saved (`/app/settings` evicts).
    */
   const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null }>(deps.factsTtlMs);
+  /**
+   * B0 (0177) — the signed-in person, for the DATABASE: every tenant transaction from here to the reply says who is
+   * asking (`app.viewer_id`), and the database shows an accountant no row of the sales side, whatever a route forgets.
+   * Callback-style and before the facts hook, for the reason above: the handler, and every hook after this one, run
+   * inside it.
+   */
+  app.addHook('preHandler', (req, _reply, done) => {
+    const s = req.url.startsWith('/app') ? sessionOf(req) : null;
+    if (!s) return done();
+    asViewer(personOf(s).id, done);
+  });
   app.addHook('preHandler', (req, _reply, done) => {
     if (!req.url.startsWith('/app')) return done();
     const s = sessionOf(req);
@@ -801,7 +825,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const viewerRole = who.isOwner ? 'owner' as const : who.kind === 'accountant' ? 'accountant' as const : 'team' as const;
     const withNeeds = (f0: WorkspaceFacts & { readonly business: string | null }) => {
       const f = { ...f0, viewerRole };
-      if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
+      // An accountant has no "Needs you": the books' rail does not count customers, and the database shows them none.
+      if (req.method !== 'GET' || req.url.startsWith('/app/live') || viewerRole === 'accountant') return withWorkspace(f, done);
       // Phase 9 (V1-163) — counted for this reader, as their "Needs you" tab is.
       // The warmth run (w4-whole-03) — and when the latest customer began to wait, for the rail's mark.
       Promise.all([
@@ -821,7 +846,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       business: (await sql<{ name: string | null }>`
         select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? null,
     })).then(
-      (f) => { facts.set(s.businessId, f, now); withNeeds(f); },
+      // B0 — read as an accountant, the workspace's facts lack what the database keeps from them: never the cache's.
+      (f) => { if (viewerRole !== 'accountant') facts.set(s.businessId, f, now); withNeeds(f); },
       () => done(),
     );
   });
@@ -2258,8 +2284,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.callNotFound();
     const holding = await withTenantTx(deps.db, bid.value, (tx) => booksHoldingTx(tx, bid.value));
+    // B3 — Google Sheets, where this installation has its client: the owner's door to connect, or the connection.
+    const sheetsConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets')) : null;
+    // B5 — a connected system no read has reached for two days is said, with the day it last answered.
+    const sheets = { offered: sheetsReady(), connection: sheetsConn, silent: sheetsConn ? silentSince(sheetsConn, new Date()) : null };
+    // B4 — the shop's own Odoo: offered wherever grants can be sealed; its key's life said on the page (item 14).
+    const odooConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'odoo')) : null;
+    const odoo = { offered: Boolean(deps.credentialKey), connection: odooConn, silent: odooConn ? silentSince(odooConn, new Date()) : null,
+      key: odooConn && odooConn.state === 'connected' ? odooKeyState(odooConn.connectedAt.slice(0, 10), odooConn.keyExpiresOn, todayIso()) : null };
+    // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
+    // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'books.home.title'), active: 'settings', bodyHtml: renderBooksHome(locale, personOf(s), holding),
+      title: t(locale, 'books.home.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo })}`,
     }));
   });
   app.get('/app/books/books.csv', async (req, reply) => {
@@ -2271,6 +2308,173 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/csv; charset=utf-8')
       .header('content-disposition', `attachment; filename="${csvFilename('books', new Date())}"`)
       .header('cache-control', 'no-store').send(file.csv);
+  });
+
+  /**
+   * B2 — THE NOMI WORKBOOK. Out: the books as the workbook (a copy, like the file above — the accountant's too). In: a
+   * workbook read back as ONE change or none (src/db/booksInterchange.ts), its entries as drafts for the owner to post.
+   * A file that is not the workbook says so; a workbook with problems is shown with every one, by sheet, row and
+   * column, and nothing is read in — the page answers 422 rather than moving on, because nothing changed.
+   */
+  const bookCurrencyOf = async (bid: BusinessId): Promise<string> =>
+    withTenantTx(deps.db, bid, async (tx) => (await sql<{ c: string }>`select books_currency(${bid}::uuid) as c`.execute(tx)).rows[0]!.c);
+  app.get('/app/books/workbook.xlsx', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.callNotFound();
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) return flashTo(reply, '/app/books', 'data.export.flash.tooMany');
+    const excel = booksConnector('excel', { bookCurrency: await bookCurrencyOf(bid.value) });
+    const books = await withTenantTx(deps.db, bid.value, (tx) => readBooks(tx, bid.value));
+    return reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('content-disposition', `attachment; filename="${csvFilename('books', new Date()).replace(/\.csv$/, '.xlsx')}"`)
+      .header('cache-control', 'no-store').send(excel.fromBooks(books));
+  });
+  app.post('/app/books/workbook', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    let bytes: Buffer | null = null;
+    try {
+      const file = await req.file();
+      bytes = file ? await file.toBuffer() : null;
+    } catch { bytes = null; }
+    const excel = booksConnector('excel', { bookCurrency: await bookCurrencyOf(bid.value) });
+    const values = { workbook: bytes ?? undefined };
+    if (configProblems(excel.config, values).length > 0) return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
+    const opened = await excel.connect(values);
+    if (opened.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
+    const read = await excel.changedSince(opened.source, null);
+    const refuse = (problems: Parameters<typeof renderWorkbookRefused>[1]) => reply.code(422).type('text/html; charset=utf-8')
+      .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
+    if (read.kind === 'refused') return flashTo(reply, '/app/books#workbook', 'books.flash.notWorkbook');
+    if (read.problems.length > 0) return refuse(read.problems);
+    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where);
+    if (out.kind === 'refused') return refuse(out.problems);
+    return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
+  });
+
+  /**
+   * B3 — THE BOOKS IN THE OWNER'S GOOGLE SHEETS. Connect (OAuth with PKCE, `drive.file` only; the callback tied to
+   * the person who started it by a signed ten-minute cookie, as the mailbox's is), and on connecting a NEW
+   * spreadsheet with the books in it — the only kind of file `drive.file` lets Nomi touch. Read in: the same
+   * read-in as the workbook's (one change or none, entries as drafts). A grant Google no longer honours is
+   * "connect again", and nothing is read: never empty books. All of it the owner's (the `post` action).
+   */
+  const SHEETS_COOKIE = 'yf_sheets_oauth';
+  const sheetsRedirect = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/books/sheets/callback`;
+  function sheetsReady(): boolean { return Boolean(deps.sheetsClient && deps.publicBaseUrl && deps.credentialKey); }
+  const sheetsDeps = () => ({ client: deps.sheetsClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch) });
+  app.get('/app/books/sheets/start', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    if (!sheetsReady()) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    const { verifier, challenge } = pkcePair();
+    const nonce = randomBytes(24).toString('base64url');
+    writeCookie(reply, SHEETS_COOKIE, mintOAuthState(deps.sessionSecret, { provider: 'google', verifier, nonce, personId: personOf(s).id }, Date.now()),
+      { path: '/app/books/sheets', maxAgeSec: 600 });
+    return reply.redirect(sheetsAuthorizeUrl(deps.sheetsClient!, { redirectUri: sheetsRedirect(), state: nonce, challenge }));
+  });
+  app.get('/app/books/sheets/callback', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[SHEETS_COOKIE];
+    writeCookie(reply, SHEETS_COOKIE, '', { path: '/app/books/sheets', maxAgeSec: 0 });   // used once, whatever happens
+    const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
+    const bid = parseBusinessId(s.businessId);
+    if (!sheetsReady() || !bid.ok || !state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)
+        || q.error || typeof q.code !== 'string' || !q.code) {
+      return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
+    }
+    const d = sheetsDeps();
+    const connected = await booksConnector('sheets', { bookCurrency: await bookCurrencyOf(bid.value), sheets: d })!.connect({ code: q.code.slice(0, 2048), verifier: state.verifier, redirectUri: sheetsRedirect() });
+    if (connected.kind === 'refused') return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
+    const books = await withTenantTx(deps.db, bid.value, async (tx) => ({
+      data: await readBooks(tx, bid.value),
+      name: (await sql<{ name: string | null }>`select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? 'Nomi',
+    }));
+    const made = await createSpreadsheet(d, connected.source.accessToken, `${books.name} · Nomi`, books.data);
+    if (made.kind === 'refused') return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
+    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
+      businessId: bid.value, system: 'sheets', secret: connected.grant!.secret, by: personOf(s).id,
+      settings: { spreadsheetId: made.spreadsheetId, url: made.url },
+    }));
+    return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsConnected');
+  });
+  /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
+  const readDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(sheetsReady() ? { sheets: sheetsDeps() } : {}),
+    odoo: { post: deps.odooPost ?? publicPost, today: todayIso } });
+  const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
+    const locale = localeOf(req);
+    if (r.kind === 'read') return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: r.added, replaced: r.replaced, unchanged: r.unchanged });
+    if (r.kind === 'problems') {
+      return reply.code(422).type('text/html; charset=utf-8')
+        .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, r.problems) }));
+    }
+    if (system === 'sheets') return flashTo(reply, '/app/books#sheets', r.reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
+    return flashTo(reply, '/app/books#odoo', 'books.flash.odooNotRead', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: 'Odoo' }) });
+  };
+  app.post('/app/books/sheets/read', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    if (!sheetsReady()) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    return answerRead(req, reply, 'sheets', await readConnectedSystem(readDeps(), s.businessId, 'sheets', personOf(s).id));
+  });
+  /**
+   * B4 — THE SHOP'S OWN ODOO. Connect is item 15: the address (a public https one, never a private), the name, the key
+   * and the date it ends, tried against Odoo before anything is saved, each wrong one said. Read in: Odoo's entries
+   * since the last read (its write date), the rest whole, through the same read-in. Item 14: from 80 days of a key's
+   * life the page asks for a new one; on its end, reading stops with that reason and Odoo is not called again. The
+   * key is the owner's to delete in Odoo; disconnecting makes Nomi forget it.
+   */
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const odooCtx = async (bid: BusinessId) => ({ bookCurrency: await bookCurrencyOf(bid), odoo: { post: deps.odooPost ?? publicPost, today: todayIso } });
+  app.post('/app/books/odoo/connect', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    const locale = localeOf(req);
+    if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#odoo', 'books.flash.sheetsNotOffered');
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const field = (k: string) => (typeof f[k] === 'string' ? (f[k] as string).slice(0, 500) : '');
+    const odooC = booksConnector('odoo', await odooCtx(bid.value))!;
+    const values = { url: field('url'), database: field('database'), key: field('key'), expires: field('expires') };
+    const connected = configProblems(odooC.config, values).length > 0 ? { kind: 'refused' as const, reason: 'wrong_credentials' as const } : await odooC.connect(values);
+    if (connected.kind === 'refused') {
+      return flashTo(reply, '/app/books#odoo', 'books.flash.odooRefused', { why: t(locale, `books.connection.${connected.reason}` as MessageKey, { system: 'Odoo' }) });
+    }
+    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
+      businessId: bid.value, system: 'odoo', secret: connected.grant!.secret, by: personOf(s).id,
+      settings: { url: connected.source.origin, database: connected.source.database }, keyExpiresOn: connected.grant!.expiresAt,
+    }));
+    return flashTo(reply, '/app/books#odoo', 'books.flash.odooConnected');
+  });
+  app.post('/app/books/odoo/read', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    if (!deps.credentialKey) return flashTo(reply, '/app/books#odoo', 'books.flash.sheetsNotOffered');
+    return answerRead(req, reply, 'odoo', await readConnectedSystem(readDeps(), s.businessId, 'odoo', personOf(s).id));
+  });
+  app.post('/app/books/odoo/disconnect', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return flashTo(reply, '/app/books#odoo', 'books.flash.sheetsNotOffered');
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'odoo', personOf(s).id));
+    return flashTo(reply, '/app/books#odoo', 'books.flash.odooDisconnected');
+  });
+  app.post('/app/books/sheets/disconnect', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets'));
+    if (conn?.grant && deps.sheetsClient) await booksConnector('sheets', { bookCurrency: 'MAD', sheets: sheetsDeps() })!.revoke(conn.grant);
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'sheets', personOf(s).id));
+    return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsDisconnected');
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {

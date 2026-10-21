@@ -3078,7 +3078,8 @@ ${scriptTo(LIVE_JS)}</head>
  */
 const setupStrip = (locale: Locale, active: string, path: string): string => {
   const s = setupState();
-  if (!s || s.next === null || active === 'home' || path.startsWith('/app/guide')) return '';
+  // …nor in the books' mode (A6), which is not the sales side's setup.
+  if (!s || s.next === null || active === 'home' || path.startsWith('/app/guide') || isBooksPath(path)) return '';
   return `<div class="setup-strip"><span class="caption muted">${esc(t(locale, 'guide.title'))} · ${
     esc(t(locale, 'nav.setup.progress', { done: s.done, total: s.total }))}</span>${
     deeper(`/app/guide#${s.next}`, t(locale, `factory.next.${s.next}` as MessageKey, { name: assistantName(locale) }))}</div>`;
