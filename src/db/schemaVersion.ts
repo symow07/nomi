@@ -430,7 +430,8 @@ import type { Db } from './client.js';
 // 179 = the shop's own systems the books are connected to (0179): `books_connections`, Sheets and Odoo.
 // 180 = the morning's read of every connected system (0180): `books_connections_due()`, the worker's list.
 // 181 = a tax's start date is the owner's to confirm (0181): `tax_start_dates`, for taxes a system gave none.
-export const REQUIRED_SCHEMA_VERSION = 181;
+// 182 = where the exchange difference goes (0182): the two exchange accounts, and the marked line only on them.
+export const REQUIRED_SCHEMA_VERSION = 182;
 
 export type SchemaState = {
   readonly required: number;
