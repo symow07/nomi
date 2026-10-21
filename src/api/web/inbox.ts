@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import { type Money, moneyFromRow, moneyFromStored, numeralOf } from '../../core/types/money.js';
 import { decimal, numeralOfDecimal } from '../../core/types/decimal.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { isLabelId, listLabels } from '../../db/labels.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
 import { loadCurrentRate } from './settings.js';
@@ -186,6 +187,9 @@ export type InboxList = {
   readonly conversations: readonly ConversationSummary[];
   /** A — the search, as it was matched (trimmed); absent or '' when there is none. */
   readonly query?: string;
+  /** S2 (0196) — the workspace's labels in use, and the one the list is narrowed to. */
+  readonly labels?: readonly { readonly id: string; readonly name: string; readonly buyers: number }[];
+  readonly label?: { readonly id: string; readonly name: string } | null;
   /**
    * A — where this page sits in the whole list the tab and the search hold.
    * Absent on a list built before A: one page, nothing either side.
@@ -228,6 +232,8 @@ export type InboxAsk = {
   readonly lens?: unknown;
   /** Phase 4 — read the "needs attention" band too (the first page of the whole list only). */
   readonly attention?: boolean;
+  /** S2 — a label's id: only the buyers carrying it. */
+  readonly label?: unknown;
 };
 
 /**
@@ -249,7 +255,9 @@ export async function loadInboxList(
   if (!bid.ok) return { filter, lens, waitingCount: 0, blockedCount: 0, conversations: [], query: q };
 
   return withTenantTx(db, bid.value, async (tx) => {
-    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, lens, after: ask.after, before: ask.before });
+    const labels = (await listLabels(tx, bid.value)).map((l) => ({ id: l.id, name: l.name, buyers: l.buyers }));
+    const label = isLabelId(ask.label) ? (labels.find((l) => l.id === ask.label) ?? null) : null;
+    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, lens, after: ask.after, before: ask.before, label: label?.id ?? null });
     const rows = page.ids.length === 0 ? [] : (await sql<{
       id: string; client_id: string; buyer: string | null; country: string | null; channel: string;
       name_zh: string | null; name: string | null; qty: number | null;
@@ -351,6 +359,7 @@ export async function loadInboxList(
       deletionCount: counts.deletion,
       channels: counts.channels,
       query: q,
+      labels, label: label ? { id: label.id, name: label.name } : null,
       page: { from: page.from, to: page.to, total: page.total, next: page.next, prev: page.prev },
     };
   });
@@ -1255,6 +1264,8 @@ const asksSomething = (text: string | null | undefined): boolean => typeof text 
 export const buyersHref = (o: {
   readonly filter?: InboxFilter | undefined; readonly lens?: BuyersLens | undefined; readonly q?: string;
   readonly after?: string | null; readonly before?: string | null;
+  /** S2 — a label's id. */
+  readonly label?: string | null | undefined;
 }): string => {
   const typed = (v: string): string => v
     .replace(/[%&+#=]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
@@ -1263,6 +1274,7 @@ export const buyersHref = (o: {
     o.filter && o.filter !== 'all' ? `filter=${o.filter}` : '',
     o.lens === 'value' ? 'lens=value' : '',
     o.q ? `q=${typed(o.q)}` : '',
+    o.label ? `label=${o.label}` : '',
     o.after ? `after=${o.after}` : '',
     o.before ? `before=${o.before}` : '',
   ].filter(Boolean);
@@ -1595,6 +1607,13 @@ export function renderInboxList(
   ].filter(Boolean);
   const filters = chips.length ? `<nav class="tabs filters" aria-label="${esc(t(locale, 'buyers.tabs'))}">${chips.join('')}${
     narrowed ? `<a class="clear" href="${esc(buyersHref({ lens }))}">${esc(t(locale, 'inbox.empty.seeAll'))}</a>` : ''}</nav>` : '';
+  // S2 (0196) — the labels in use, each a narrowing of the list (with the tab and the search kept); the one chosen marked.
+  const chosen = data.label ?? null;
+  const labelRow = (data.labels ?? []).filter((l) => l.buyers > 0 || l.id === chosen?.id).length === 0 ? ''
+    : `<nav class="tabs labels" aria-label="${esc(t(locale, 'labels.filterLabel'))}">${(data.labels ?? []).filter((l) => l.buyers > 0 || l.id === chosen?.id).map((l) => {
+      const on = l.id === chosen?.id;
+      return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="true"' : ''} href="${esc(buyersHref({ filter, lens, q, label: on ? null : l.id }))}"><bdi>${esc(l.name)}</bdi>${count(l.buyers)}</a>`;
+    }).join('')}${chosen ? `<a class="clear" href="${esc(buyersHref({ filter, lens, q }))}">${esc(t(locale, 'labels.clear'))}</a>` : ''}</nav>`;
   // Phase 9 of the warmth run (w4-customers-07) — under a narrowing the list is the narrowing's: no lens shown
   // selected beside it, and no caption describing a list that is not on the page. "See all customers" leads back.
   const lensBar = narrowed ? `<div class="lensbar">${filters}</div>`
@@ -1609,8 +1628,8 @@ export function renderInboxList(
   // calendar door: the rail has Calendar on every width since phase 1, and on
   // a phone the door repeated its tile; the contacts door is the page's own name (V1-548).
   // S1 — and the saved replies a person answers with, kept here, under Buyers.
-  const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}</div>`;
-  const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}`;
+  const doors = `<div class="doors">${outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}${deeper('/app/replies', t(locale, 'savedReplies.title'))}${deeper('/app/labels', t(locale, 'labels.pageTitle'))}</div>`;
+  const head = `<div class="lhead">${title}${search}</div>${found}${band}${lensBar}${labelRow}`;
 
   if (data.conversations.length === 0) {
     const all = esc(buyersHref({ lens }));

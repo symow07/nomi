@@ -243,6 +243,8 @@ import { ENTRY_CUSTOM, ENTRY_FORM_LINES, lineCustom, renderBooksAccounts, render
 import { addField, customFromForm, listFields, setFieldInUse } from '../../db/booksFields.js';
 import { renderFields } from './booksFields.js';
 import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
+import { renderLabels } from './labels.js';
+import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
 import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
 import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } from '../../core/owner/savedReplies.js';
 import { fieldsOf } from '../../db/booksInterchange.js';
@@ -3716,11 +3718,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown };
+    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown; lens?: unknown; label?: unknown };
     const requested = query.filter;
     // The warmth run, phase 4 — two lenses on one list, the lens in the address.
     const lens = lensOf(query.lens);
-    const ask = { q: query.q, after: query.after, before: query.before, lens };
+    const ask = { q: query.q, after: query.after, before: query.before, lens, label: query.label };
     const searching = typeof ask.q === 'string' && ask.q.trim() !== '';
     // "Mine" was team machinery (the owner ruled it out): its old address leads
     // to the closest lens — the whole list, where a customer a person here
@@ -3742,7 +3744,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
       // The door: the first page of the lens, the narrowing and the search she is on — where the newest lands.
-      ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '' }))) } : {}),
+      ...(mark && bid.ok ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ filter, lens, q: data.query ?? '', label: data.label?.id ?? null }))) } : {}),
     }));
   });
 
@@ -3790,7 +3792,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const people = await loadPeople(deps.db, s.businessId);
     // Phase 4 — the Inbox's own first page, "waiting now": who needs the owner leads it already.
     const list = await loadInboxList(deps.db, s.businessId, 'all', me);
-    const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
+    const customer = bid.ok ? await withTenantTx(deps.db, bid.value, async (tx) => {
+      const panel = await loadCustomerPanel(tx, conversationId);
+      // S2 (0196) — the buyer's labels, and the workspace's to pick from.
+      return panel ? { ...panel, labels: await labelsOf(tx, bid.value, panel.clientId), allLabels: (await listLabels(tx, bid.value)).map((l) => l.name) } : null;
+    }) : null;
     // The warmth run, phase 5 — the catch-up strip over the messages: their face, what they bought, where things stand.
     const catchUp = customer && bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCatchUp(tx, customer, conversationId, now)) : null;
     const today = dayKey(now, workspaceZone());
@@ -4190,6 +4196,57 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     return flashTo(reply, conversationUrl(cid), done ? 'savedReplies.flash.inserted' : 'savedReplies.flash.notInserted');
   });
+
+  /**
+   * S2 (Phase 5, item 19; 0196) — LABELS ON BUYERS, put on and taken off from the buyer's panel, kept on their own page
+   * (renamed, archived, in use again). Owner and staff; the accountant never reaches a page outside the books, and the
+   * database refuses them these rows. Back to the conversation the panel was beside.
+   */
+  const labelBack = (req: FastifyRequest): string => {
+    const b = (req.body as { back?: unknown } | undefined)?.back;
+    return typeof b === 'string' && UUID.test(b) ? `${conversationUrl(b).replace(/#.*$/, '')}#labels` : '/app/inbox';
+  };
+  app.post('/app/buyers/:clientId/labels', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/inbox');
+    const locale = localeOf(req);
+    const out = await withTenantTx(deps.db, bid.value, (tx) => putLabel(tx, bid.value, (req.params as { clientId: string }).clientId,
+      (req.body as { name?: unknown } | undefined)?.name, personOf(s).id));
+    if (out.kind === 'refused') return flashTo(reply, labelBack(req), 'labels.flash.refused', { why: t(locale, `labels.refused.${out.reason}` as MessageKey) });
+    return flashTo(reply, labelBack(req), out.kind === 'put' ? 'labels.flash.put' : 'labels.flash.already', { name: out.name });
+  });
+  app.post('/app/buyers/:clientId/labels/:labelId/off', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/inbox');
+    const { clientId, labelId } = req.params as { clientId: string; labelId: string };
+    const done = await withTenantTx(deps.db, bid.value, (tx) => takeOffLabel(tx, bid.value, clientId, labelId, personOf(s).id));
+    return flashTo(reply, labelBack(req), done ? 'labels.flash.off' : 'labels.flash.notOn');
+  });
+  app.get('/app/labels', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const locale = localeOf(req);
+    const rows = await withTenantTx(deps.db, bid.value, (tx) => listLabels(tx, bid.value, { archived: true }));
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'labels.pageTitle'), active: 'inbox',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderLabels(locale, rows)}` }));
+  });
+  app.post('/app/labels/:id', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+    const out = await withTenantTx(deps.db, bid.value, (tx) => renameLabel(tx, bid.value, (req.params as { id: string }).id,
+      (req.body as { name?: unknown } | undefined)?.name));
+    if (out.kind === 'refused' && out.reason === 'not_found') return reply.callNotFound();
+    return out.kind === 'renamed' ? flashTo(reply, '/app/labels', 'labels.flash.renamed')
+      : flashTo(reply, '/app/labels', 'labels.flash.refused', { why: t(localeOf(req), `labels.refused.${out.reason}` as MessageKey) });
+  });
+  for (const [path, archived] of [['archive', true], ['restore', false]] as const) {
+    app.post(`/app/labels/:id/${path}`, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.callNotFound();
+      const done = await withTenantTx(deps.db, bid.value, (tx) => setLabelArchived(tx, bid.value, (req.params as { id: string }).id, personOf(s).id, archived));
+      return flashTo(reply, '/app/labels', done ? (archived ? 'labels.flash.archived' : 'labels.flash.restored') : 'labels.flash.notRestored');
+    });
+  }
 
   /**
    * S1 — THE SAVED REPLIES, kept by whoever answers buyers (owner and staff; the accountant never reaches a page

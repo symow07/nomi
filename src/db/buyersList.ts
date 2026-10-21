@@ -184,8 +184,17 @@ function matching(q: string): RawBuilder<boolean> {
        or cl.phone ilike ${pattern} or cl.email ilike ${pattern}
        or exists (select 1 from client_channels cc where cc.client_id = c.client_id
                    and cc.channel_user_id ilike ${pattern})
-       or p.name ilike ${pattern} or p.name_zh ilike ${pattern}${byDigits})`;
+       or p.name ilike ${pattern} or p.name_zh ilike ${pattern}
+       -- S2 (0196) — a label the buyer carries, by its name.
+       or exists (select 1 from buyer_labels bl join labels lb on lb.id = bl.label_id
+                   where bl.client_id = c.client_id and bl.removed_at is null and lb.archived_at is null and lb.name ilike ${pattern})${byDigits})`;
 }
+
+/** S2 (0196) — only the buyers carrying this label now (a label archived narrows to nobody). */
+const carrying = (label: string | null | undefined): RawBuilder<boolean> => (label
+  ? sql<boolean>`exists (select 1 from buyer_labels bl join labels lb on lb.id = bl.label_id
+      where bl.client_id = c.client_id and bl.label_id = ${label}::uuid and bl.removed_at is null and lb.archived_at is null)`
+  : sql<boolean>`true`);
 
 /** A search as it may be used: one line, trimmed, and not a page long. */
 export const searchOf = (raw: unknown): string =>
@@ -333,6 +342,8 @@ export async function readBuyersPage(tx: Tx, o: {
   readonly filter: BuyersFilter; readonly viewerId?: string; readonly q: string;
   readonly lens?: BuyersLens;
   readonly after?: unknown; readonly before?: unknown; readonly size?: number;
+  /** S2 — a label's id: only the buyers carrying it. */
+  readonly label?: string | null;
 }): Promise<BuyersPage> {
   const size = o.size ?? BUYERS_PAGE;
   const lens = o.lens ?? 'waiting';
@@ -352,7 +363,7 @@ export async function readBuyersPage(tx: Tx, o: {
         left join lateral (select m.direction, m.sent_at from messages m
                             where m.conversation_id = c.id
                             order by m.sent_at desc, m.id desc limit 1) lm on true
-       where ${eligibleFor(o.filter, o.viewerId)} and ${matching(o.q)}
+       where ${eligibleFor(o.filter, o.viewerId)} and ${matching(o.q)} and ${carrying(o.label)}
     ), ch as (
       -- One customer, one row: the conversation that needs the owner most, else their newest.
       select distinct on (client_id) client_id, id as conversation_id, rank

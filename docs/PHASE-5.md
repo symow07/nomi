@@ -700,7 +700,20 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **No placeholders, by decision (the owner, 2026-10-22).** A placeholder that silently fails sends a buyer
     "Hi {name}". The words are put in as written, for the person to read and change. This is not a gap to fill
     later.
-- **S2 · Item 19 — labels.**
+- **S2 · Item 19 — labels.** *(built 2026-10-22, 0196–0197: `/app/labels`, under Buyers.)*
+  - **A label** is the workspace's own word, one line of at most 40 characters, the same whatever its capitals. It is
+    put on a buyer from their panel, by name: the label in use of that name, or a new one.
+  - **On Buyers:** each label in use narrows the list (with the tab and the search kept), and the search finds a buyer
+    by a label they carry.
+  - **Decision 5 holds:** a label is NOT drawn on the Buyers row (name, last message, time). It shows above the list as
+    a narrowing, and on the buyer's panel.
+  - **Erased with the buyer:** `buyer_labels` is in the erasure contract and its links (0197 wraps 0151's erasure). The
+    real tool run (erase-buyer.test.ts) finds the erased buyer's label gone, and the next buyer's label and the label
+    itself kept.
+  - Taken off, the row stays marked; put on again is a new row. Archived, a label narrows nothing and no search finds
+    it. Nothing is deleted.
+  - Owner and staff. The accountant is refused by the route, and by the database, which shows them neither table
+    (checked past the route guard: DZ, in this block).
 - **S3 · Item 21 — round-robin assignment.**
 - **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the
   Arabic disclosure is (decision 15). The code can be ready; it switches on per language only when that language's

@@ -444,7 +444,9 @@ import type { Db } from './client.js';
 // 193 = the shop's own Xero: its grant, its connection, its records, its taxes' start days (0193).
 // 194 = the shop's own QuickBooks Online: its grant, its connection, its records (0194).
 // 195 = saved replies: the words a workspace's people reuse when they answer a buyer (0195).
-export const REQUIRED_SCHEMA_VERSION = 195;
+// 196 = labels on buyers: the workspace's own words to sort its buyers by, erased with the buyer (0196).
+// 197 = a label on a buyer goes with the buyer: the customer erasure follows the new link (0197).
+export const REQUIRED_SCHEMA_VERSION = 197;
 
 export type SchemaState = {
   readonly required: number;
