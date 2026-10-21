@@ -200,6 +200,15 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - A rolled-back posting never existed, so it leaves no gap.
     - Once posted, a number is permanent under any failure. The database refuses DELETE on posted entries and any
       UPDATE of their number. Cancelling is a reversing entry with its own new number. No tool can release a number.
+    - **Checked against the order counter (2026-10-22, 0162 and `src/db/orderNumbers.ts`):**
+      - its one reclaim path is the rollback of the order's own transaction, which takes the count back with it;
+      - the app role holds UPDATE on `order_numbers` and nothing stops the count going DOWN; a repeated number is
+        stopped only by the unique index on orders.
+      - So the books' counters share nothing with it: not the table, the function or its grants. They get their own
+        table, a trigger that refuses any decrease, and no DELETE grant. Posted entries refuse DELETE and any change of
+        number (trigger and revoked grant both). The number is taken inside the posting transaction.
+      - C1's tests: a decrease refused; a delete refused; a rollback leaves neither a gap nor a repeat; two postings at
+        once get consecutive numbers.
   - *Depends on A2–A5 and B5.*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
 - **C3 · Item 4 — reconciliation:**
@@ -254,6 +263,18 @@ Each item is built and fully tested (§4) before the next one that depends on it
     - authenticated users, with who did what and when;
     - archiving with a certain date;
     - reports carrying the entity, the period, the date made, the software version and page numbers.
+  - **Does any of it bind the SOFTWARE? No: there is no software certification, registration or attestation in
+    Morocco, in force or announced (checked 2026-10-22, primary sources). So it is not a launch gate.**
+    - Avis 24's criteria bind the **taxpayer, through the software they keep their books in.** The text addresses the
+      "systèmes informatisés" an entity uses. The vendor appears once, in 2.1 b, as the author of the technical note
+      the entity keeps.
+    - Neither the CGI (art. 145, 210) nor the DGI's Note circulaire n° 737 on the LF 2026, which cites Avis 24,
+      creates a certificate, a list of approved software or an attestation from the publisher.
+    - Contrast France, where a certificate exists only for **cash-register** software (CGI art. 286-I-3° bis), not
+      for accounting software, and e-invoicing goes through **approved platforms** (plateformes agréées) from
+      1 September 2026. Neither applies to Morocco.
+    - **To watch:** the art. 145-IX e-invoicing decree, still unpublished. If it creates an approval for software or
+      platforms, that becomes a gate for e-invoicing, which is outside Phase 5's 100%.
   - **Who must comply:** **CGI art. 145-XI exempts** the CPU and auto-entrepreneur regimes. Companies, and shops taxed
     on real or simplified net income, need it.
   - **Not published yet (open):**
