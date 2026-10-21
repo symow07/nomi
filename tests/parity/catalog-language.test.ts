@@ -168,9 +168,11 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       // B3 — the product's own name, which Google uses in French too.
       'books.sheets.title', 'books.odoo.title',
       // C1 — the books' own words, French as they are English: Journal, Date, Total.
-      'books.entry.journal', 'books.entry.date', 'books.entry.total', 'books.party.code', 'books.conflict.kind.journal']),
+      'books.entry.journal', 'books.entry.date', 'books.entry.total', 'books.party.code', 'books.conflict.kind.journal',
+      // D3 — the accountant pack's sheet and column: Journal, Base.
+      'books.pack.sheet.journal', 'books.pack.col.base']),
     // The advisor's history (2026-10-07) — and the Spanish one (§9.4 of docs/ADVISOR-MEMORY.md).
-    es: new Set(['legal.privacy.cookies.title', 'books.odoo.title', 'books.entry.total']),
+    es: new Set(['legal.privacy.cookies.title', 'books.odoo.title', 'books.entry.total', 'books.pack.col.base']),
     // B4 — Odoo is the product's own name, in every script.
     zh: new Set(['books.odoo.title']),
     ar: new Set(['books.odoo.title']),

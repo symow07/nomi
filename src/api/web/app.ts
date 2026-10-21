@@ -239,7 +239,10 @@ import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
-import { defaultPeriod, trialBalanceOf } from '../../db/booksReports.js';
+import { defaultPeriod, packData, trialBalanceOf } from '../../db/booksReports.js';
+import { accountantPack, type PackWords } from '../../core/books/pack.js';
+import { REQUIRED_SCHEMA_VERSION } from '../../db/schemaVersion.js';
+import { xlsxWrite } from '../../net/xlsx.js';
 import { addClosingJournal, checklistFor as closeChecklistFor, closeState, closeYear, lockTo, openYear, reopenTo, type CloseRefusal } from '../../db/booksClose.js';
 import { renderClose } from './booksClose.js';
 import { renderTrialBalance } from './booksReports.js';
@@ -2966,6 +2969,49 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         label: t(locale, 'books.close.entryLabel', { from: y.s, to: y.e }), ref: `CLOSE-${y.e}` });
     });
     return closeBack(reply, out, 'books.flash.yearClosed', {}, locale);
+  });
+  /**
+   * D3 (item 2) — THE ACCOUNTANT PACK for a period: the trial balance, the journal, the general ledger and the tax
+   * by code, one workbook; each sheet prints whose books, the period, when and by what, and its page numbers.
+   */
+  app.get('/app/books/pack.xlsx', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) return flashTo(reply, '/app/books/trial-balance', 'data.export.flash.tooMany');
+    const locale = localeOf(req);
+    const q = req.query as { from?: unknown; to?: unknown };
+    const day = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+    const made = new Date();
+    const got = await withTenantTx(deps.db, bid, async (tx) => {
+      const period = day(q.from) && day(q.to) && q.from <= q.to ? { from: q.from as string, to: q.to as string } : await defaultPeriod(tx, bid, todayIso());
+      return { period, trial: await trialBalanceOf(tx, bid, period), data: await packData(tx, bid, period),
+        entity: (await sql<{ n: string }>`select name as n from businesses where id = ${bid}::uuid`.execute(tx)).rows[0]?.n ?? '',
+        currency: (await sql<{ c: string }>`select books_currency(${bid}::uuid) as c`.execute(tx)).rows[0]!.c };
+    });
+    const w = (k: string) => t(locale, k as MessageKey);
+    const words: PackWords = {
+      sheets: { about: w('books.pack.sheet.about'), trial: w('books.trial.title'), journal: w('books.pack.sheet.journal'), ledger: w('books.pack.sheet.ledger'), tax: w('books.pack.sheet.tax') },
+      about: { entity: w('books.pack.about.entity'), period: w('books.pack.about.period'), made: w('books.pack.about.made'), software: w('books.pack.about.software'),
+        currency: w('books.pack.about.currency'), note: w('books.pack.about.note') },
+      col: { journal: w('books.entry.journal'), journalName: w('books.pack.col.journalName'), number: w('books.entry.number'), date: w('books.entry.date'),
+        document: w('books.entry.document'), documentDate: w('books.entry.documentDate'), account: w('books.entry.account'), accountName: w('books.pack.col.accountName'),
+        party: w('books.entry.party'), partyName: w('books.pack.col.partyName'), label: w('books.entry.label'), debit: w('books.entry.debit'), credit: w('books.entry.credit'),
+        currency: w('books.entry.currency'), foreign: w('books.pack.col.foreign'), posted: w('books.pack.col.posted'), balance: w('books.pack.col.balance'),
+        openingDebit: w('books.pack.col.openingDebit'), openingCredit: w('books.pack.col.openingCredit'), periodDebit: w('books.pack.col.periodDebit'),
+        periodCredit: w('books.pack.col.periodCredit'), closingDebit: w('books.pack.col.closingDebit'), closingCredit: w('books.pack.col.closingCredit'),
+        code: w('books.party.code'), rate: w('books.pack.col.rate'), kind: w('books.pack.col.kind'), base: w('books.pack.col.base'), tax: w('books.pack.col.tax') },
+      opening: w('books.pack.opening'), closing: w('books.pack.closing'), total: w('books.entry.total'), earlier: w('books.trial.earlier'), taxAccounts: w('books.pack.taxAccounts'),
+    };
+    const commit = readDeployment(process.env, made, 0).commit;
+    const software = `Nomi · ${commit ? `build ${commit}` : 'local build'} · schema ${REQUIRED_SCHEMA_VERSION}`;
+    const madeAt = `${made.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+    const sheets = accountantPack({ entity: got.entity, from: got.period.from, to: got.period.to, madeAt, software, currency: got.currency,
+      trial: got.trial, lines: got.data.lines, taxes: got.data.taxes, taxAccounts: got.data.taxAccounts }, words);
+    const file = xlsxWrite(sheets.map((sh) => ({ name: sh.name.slice(0, 31), rows: sh.rows,
+      print: { left: got.entity, centre: sh.title, right: `${got.period.from} – ${got.period.to}`, footLeft: `${software} · ${madeAt}` } })));
+    return reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('content-disposition', `attachment; filename="accountant-pack-${got.period.from}-${got.period.to}.xlsx"`)
+      .header('cache-control', 'no-store').send(file);
   });
   /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */
   app.get('/app/books/trial-balance', async (req, reply) => {

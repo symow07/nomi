@@ -52,6 +52,8 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/closing/open-year', action: 'post' },
   { method: 'POST', url: '/app/books/closing/journal', action: 'post' },
   { method: 'POST', url: '/app/books/closing/year', action: 'post' },
+  // D3 — the accountant pack: a copy out, the accountant's too.
+  { method: 'GET', url: '/app/books/pack.xlsx', action: 'export' },
   // D1 — the trial balance: the books' to see (the accountant's too).
   { method: 'GET', url: '/app/books/trial-balance', action: 'see' },
   { method: 'GET', url: '/app/books/entries/:id', action: 'see' },

@@ -141,6 +141,30 @@ d('D1 · the trial balance (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { ti
     expect((await page('?from=2026-02-01&to=2026-04-30', accountant)).statusCode).toBe(200);
   });
 
+  it('D3 · THE ACCOUNTANT PACK for the period: the same figures in a workbook — the trial balance, the journal, the ledger — for the owner and the accountant', async () => {
+    const { xlsxSheets } = await import('../../src/net/xlsx.js');
+    const r = await app.inject({ method: 'GET', url: '/app/books/pack.xlsx?from=2026-02-01&to=2026-04-30', headers: { cookie: owner } });
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toContain('spreadsheetml');
+    expect(String(r.headers['content-disposition'])).toContain('accountant-pack-2026-02-01-2026-04-30.xlsx');
+    const book = xlsxSheets(r.rawPayload)!;
+    expect(book.sheets.map((x) => x.name)).toEqual(['About', 'Trial balance', 'Journal', 'General ledger', 'Tax by code']);
+    const rows = (name: string) => [...book.sheets.find((x) => x.name === name)!.rows.values()].map((row) => row.map((c) => c.text));
+    expect(rows('About')[0]).toEqual(['Business', `Trial ${RUN}`]);
+    expect(rows('About')[3]![1]).toMatch(/^Nomi · .* · schema \d+$/);
+    expect(rows('Trial balance').find((x) => x[0] === '5141')).toEqual(['5141', '5141', '10000', '0', '1200', '997.65', '10202.35', '0']);
+    expect(rows('Trial balance').at(-1)).toEqual(['Total', '', '12000.5', '12000.5', '2797.65', '2797.65', '12000.5', '12000.5']);
+    // the journal: the period's posted lines only — not the draft, not the entry after the period
+    const journal = rows('Journal');
+    expect(journal.filter((x) => x[3] && /^2026-0[2-4]/.test(x[3]!)).length).toBe(8);
+    expect(journal.some((x) => x.includes('99999'))).toBe(false);
+    expect(journal.find((x) => x[0] === 'Total OD')!.slice(11, 13)).toEqual(['2797.65', '2797.65']);
+    // the ledger: 5141 opens at 10000, ends at 10202.35 — its trial-balance closing
+    const ledger = rows('General ledger');
+    expect(ledger.find((x) => x[0] === '5141' && x[5] === 'Closing balance')![9]).toBe('10202.35');
+    expect((await app.inject({ method: 'GET', url: '/app/books/pack.xlsx?from=2026-02-01&to=2026-04-30', headers: { cookie: accountant } })).statusCode).toBe(200);
+  });
+
   it('a period that is not two days in order is said, and this fiscal year so far is shown instead', async () => {
     const r = await page('?from=2026-04-30&to=2026-02-01');
     expect(r.body).toContain('The period is two days, the first on or before the last.');

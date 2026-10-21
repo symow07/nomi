@@ -425,6 +425,16 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - Which countries get a verified report is decided as each one is verified. Morocco is first (D4); France only with a
     French customer.
   - *Depends on C1 and A2's tax codes.*
+  - *(built 2026-10-22: the ACCOUNTANT PACK, `/app/books/pack.xlsx`, from the trial balance page; owner and accountant.)*
+    - One workbook for a period: About (the business, the period, when made, `Nomi · build · schema`, the books'
+      currency), the trial balance, the journal (each journal's lines and total), the general ledger (each account's
+      opening, lines with a running balance, closing), and the tax by code.
+    - Each sheet prints the business, its title and the period at the top of every page, and the software, the time
+      made and `page / pages` at the foot (Avis 24's report criteria).
+    - The tax sheet is a SUMMARY: each code's base, the tax at its rate, and each tax account's movement beside it,
+      so a difference shows. It is no country's form. A country report comes only where verified: Morocco's is D4.
+    - Proven against D1's fixture worked by hand: the same figures, read back from the file.
+    - Not yet: the business's own legal identifiers (ICE, IF, RC) are not held anywhere; D4 adds them for Morocco.
 - **D4 · Item 10 — Morocco: the chart and the Moroccan FEC (re-cut after Q3):**
   - **The chart:** the CGNC chart for **every** shop, whatever its connector. It's built from the CGNC itself, the
     legal source, not copied from Odoo's LGPL `l10n_ma`.

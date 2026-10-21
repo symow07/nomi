@@ -6,6 +6,7 @@ import type { Period } from '../../db/booksReports.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
+import { icon } from './icons.js';
 
 /**
  * D1 (Phase 5, item 1) — THE TRIAL BALANCE on a page: a period chosen, each account opened / moved / closed, debit
@@ -40,5 +41,8 @@ export function renderTrialBalance(locale: Locale, p: Period, tb: TrialBalance, 
         : `<bdi>${esc(r.code!)}</bdi> · <bdi>${esc(r.name!)}</bdi>`}</th>${cells(locale, r.opening, currency)}${cells(locale, r.period, currency)}${cells(locale, r.closing, currency)}</tr>`).join('')}</tbody>
       <tfoot><tr><th scope="row">${esc(t(locale, 'books.entry.total'))}</th>${cells(locale, tb.totals.opening, currency)}${cells(locale, tb.totals.period, currency)}${cells(locale, tb.totals.closing, currency)}</tr></tfoot>
     </table></div>`}
+    ${tb.rows.length === 0 ? '' : `<div class="block" id="pack"><p>${esc(t(locale, 'books.pack.explain'))}</p>
+      <ul class="scard dl-files"><li class="row"><span>${esc(t(locale, 'books.pack.file'))}</span>
+        <a class="dl-get" href="/app/books/pack.xlsx?from=${esc(p.from)}&amp;to=${esc(p.to)}" download>${icon('download')}<span>${esc(t(locale, 'books.pack.download'))}</span></a></li></ul></div>`}
     <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
 }
