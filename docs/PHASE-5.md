@@ -1,190 +1,291 @@
 # Phase 5 — the full map (planning only, a stop-gate)
 
-Written for the owner, 2026-10-21, answering "PHASE 5 — THE FULL MAP". Nothing here is built. It is the plan to
-approve or correct before any code.
+Written for the owner. First version 2026-10-21 (#373). This version records **the owner's answers of 2026-10-21**:
+the build order approved with the four changes, the ten questions answered, and the Moroccan FEC checked against
+Morocco's own sources. Nothing here is built. It is the plan; the owner's approval starts the build.
 
-It rests on three readings:
+It rests on four readings:
 
-- **The code as it is,** at main `dc42b3fd`.
-- **The research report** `docs/RESEARCH-2026-10-21-ACCOUNTING-AND-SALES.md`.
-- **Vendor documentation and legal texts,** checked on 2026-10-21. Each claim names its source. Anything only a
-  third party confirmed is marked *unverified*.
+- **the code as it is,** at main `0eb10ac9`;
+- **the research report** `docs/RESEARCH-2026-10-21-ACCOUNTING-AND-SALES.md`;
+- **vendor documentation,** checked 2026-10-21;
+- **legal texts,** read in their primary sources where they could be reached. Each claim names its source. Anything only
+  a third party confirmed is marked *secondary*, and anything not confirmed is marked *unverified*.
 
 ## Next: yours
 
-1. **The questions in §8** — the order can't be final without the first four, which change the foundation.
-2. **Excel and Google Sheets (§5)** — choose an option.
-3. **Then approve, or correct, the build order (§3).** I build nothing until you do.
+1. **Read §2's new first item and §3's re-cut D4:** a pre-existing money defect, and the Moroccan FEC.
+2. **Approve this version, or correct it.** Building starts with A1 on your word, and not before.
 
 ---
 
 ## 1 · The decisions (the owner, 2026-10-21)
 
-1. **There is no "version one".** Nomi launches once, at 100%: every item below is built before launch, with no MVP
-   slice and no early release. What there is, is a **build order**, and each piece is fully tested before the next
-   one starts. In accounting a mistake in the foundation spreads into every report built on it.
+1. **There is no "version one".** Nomi launches once, at 100%: everything below is built before launch, with no MVP slice
+   and no early release. There is a **build order**, and each piece is fully tested before the next one that depends on
+   it starts. In accounting a mistake in the foundation spreads into every report built on it.
 2. **Westlake is a test workspace,** not a real shop. Its data is not evidence of what customers use.
-3. **Connectors:** Odoo, Google Sheets and Excel first, then Xero, then QuickBooks — one at a time, all through **one**
-   shared connector interface. Sheets and Excel matter because every shop can use them, and Odoo's API isn't
-   available on its Free or Standard plans.
+3. **Connectors:**
+   - **Excel by file first,** then Google Sheets, then Odoo, then Xero, then QuickBooks.
+   - One at a time, all through **one** shared connector interface.
+   - Sheets and Excel matter because every shop can use them. Odoo's API isn't available on its Free or Standard plans.
 4. **Odoo: JSON-2 only, from day one.** XML-RPC and JSON-RPC "are scheduled for removal in Odoo 22 (fall 2028) / Odoo
-   Online 21" (Odoo 19 docs). We write our own thin client and do not add `odoo-jsonrpc` as a dependency.
+   Online 21" (Odoo 19 docs). We write our own thin client; no `odoo-jsonrpc` dependency.
 5. **The licence rule:**
    - MIT, Apache, BSD or ISC: the code may be reused.
    - LGPL: depend on it, never copy it.
    - GPL, AGPL, ELv2, fair-code or no licence: ideas only, written from the primary documentation.
-6. **EXCLUDED: the concession ladder.** *Reason, so it isn't proposed again: Nomi never negotiates harder than the
-   owner set. The owner sets the price.* The quote engine stays as it is: the owner's rules for product, quantity
-   and value, capped at the owner's maximum, never re-quoting higher (`src/core/commerce/quote.ts`). A buyer pushing
-   back does not move it.
-7. **Still zero spend.** Nothing in the plan may require a paid service before the owner says so. Everything that will
-   cost money is marked **💰** (full list in §7).
+6. **EXCLUDED: the concession ladder.** *Reason, so it isn't proposed again: Nomi never negotiates harder than the owner
+   set. The owner sets the price.*
+7. **Still zero spend.** Nothing may require a paid service before the owner says so. Every cost is marked **💰** (§7).
+8. **"100%" must be reachable at zero spend,** or it isn't a launch bar, it's a wish. So:
+   - **channels:** web chat and Telegram only;
+   - **bank data:** statement files only;
+   - **exchange rates:** the owner's own.
+9. **The bar for anything that needs a paid service:** built, tested against the vendor's sandbox, proven live on deploy
+   day. It's the same split as hardening, which worked.
+10. **The books of record are always Nomi's own** (§1a).
+11. **Tax reports: prepared, never filed.** Country rules only where verified against primary legal sources. Everyone
+    else gets the accountant pack (§3, D3).
+12. **Three levels of access to the books:**
+    - the **owner** sees, posts and exports;
+    - an **accountant** sees and exports, and posts nothing;
+    - **staff** see nothing.
+13. **Exchange rates:** the owner's own. The rate used is **stored on the transaction and never recomputed.** A report
+    that re-rates history is wrong by construction.
+14. **Data residency is a parameter,** not a hard-coded assumption. This is the cheap insurance against a later legal
+    need for an EU region.
+15. **Strict mode depends on a person:** a native reviewer per language. That's a dependency on someone, not a
+    technical task, so nobody plans around it.
+16. **Bank connections are out** (§9).
+
+### 1a · What "Nomi's books are the record" means (decision 10)
+
+**This decision turns Phase 5 from "an integration" into "an accounting system of record".**
+
+- **The reason:** if an external system were the record, every connector bug would corrupt a real company's statutory
+  accounts. With Nomi's ledger as the record and copies pushed outward, a connector bug is recoverable.
+- **The price, plainly:** a system of record carries a **retention duty** (10 years, §6), a **correctness bar** (exact to
+  the cent, immutable once posted, auditable), and the **liability** for books a business is legally required to keep.
+  That is a real step up in what Nomi promises, and it should be visible, not implied.
+- **What follows from it:**
+  - the Moroccan software criteria (§3, D4) become requirements on Nomi itself;
+  - a shop must always be able to take its books out (§6);
+  - the foundation (Stage A) carries the most weight of anything in this phase.
 
 ---
 
-## 2 · What the code says first: six facts that move the order
+## 2 · What the code says first
 
-These come from reading main. They are why my build order (§3) starts lower than the one proposed.
+### 2.1 · A PRE-EXISTING DEFECT, found while planning Phase 5: money is computed in floating point
 
-| Fact (where) | Why it matters for accounting |
+This is not new accounting work. **The live product's money path is wrong today,** and accounting only makes it
+undeniable.
+
+- **Where it is:**
+  - Amounts are stored exactly in Postgres (`numeric`, 2 or 4 decimals).
+  - But the code reads them into `Money { amount: number }` and multiplies, discounts and rounds in floating point
+    (`src/core/types/money.ts`: `scaleMoney`, `roundMoney`).
+  - The quote engine prices every discounted unit that way: `unitPrice = roundMoney(scaleMoney(listUnit, 1 - discountPct / 100))` in `src/core/commerce/quote.ts`.
+- **Measured on 2026-10-21, with the code's own functions, from the build of main:**
+  - Over 700,000 pairs of unit price ($0.01 to $1,000.00) and common discount (2.5–15%), **1.34% come out a cent wrong
+    under BOTH rounding rules** (half-up, and half to even).
+  - For example, **$5.30 less 5% is exactly $5.035, and Nomi quotes $5.03**, where either rule gives $5.04.
+  - Likewise $5.10 less 15% (exactly 4.335) gives 4.33 instead of 4.34, and $5.48 less 12.5% (exactly 4.795) gives 4.79
+    instead of 4.80.
+  - On an order, that cent is multiplied by the quantity.
+- **Consequence:** A1 covers **the existing money path too:** quotes, orders, proposals, proformas, invoices, payments
+  and the advisor's sums. It also includes a **migration of stored amounts** to the exact representation, and its
+  million-step property test runs on quotes and orders, not only on ledger entries.
+
+### 2.2 · The other five facts
+
+| Fact (where) | Why it matters |
 |---|---|
-| **Money is a float.** `Money { amount: number, currency }`, with `roundMoney(m, 2)` (`src/core/types/money.ts`) | Books must be exact. A float adds 0.1 + 0.2 to 0.30000000000000004, and a ledger that drifts by a cent never balances. **Accounting needs exact amounts (integer minor units, or Postgres `numeric` end to end) before any entry is written.** |
-| **Eight currencies, without MAD or EUR.** `CURRENCIES` = USD, CNY, AED, SAR, BRL, MXN, INR, IDR. Migration 0092 deferred EUR and GBP "with EU1" | Moroccan and French books can't be written at all today. |
-| **One currency per workspace** (`businesses.currency`, 0092). Conversion uses only the owner's own stated rates (`owner_rates`, 0031) | Item 8 (multi-currency at the transaction-day rate) changes the model, not just the screens. |
-| **No file storage.** Buyer media isn't stored: a provider handle is swapped for the bytes when someone views it. Product photos are kept as `bytea` in Postgres (5 MB cap) | Receipts and invoices (item 7) must be kept for 10 years (§6), so they need real storage. **💰** once it outgrows the database (the Postgres volume is 5,000 MB). |
-| **Two roles only: owner and not-owner.** `OWNER_ONLY` is "a LIST, not a matrix" (`src/core/conversation/people.ts`) | Who may see or post the books is a new decision (§8). |
-| **Every business table must be classified for erasure.** `customer_erasure_contract()` is re-created in a new migration for each new table, and `customer_erasure_problems()` refuses to run while any table is undecided (tests `every-table`, `erase-buyer`, `data-protection-pages`) | Every accounting table is classified on the day it's made, under a new rule: legal retention (§6). |
+| **Eight currencies, without MAD or EUR.** `CURRENCIES` = USD, CNY, AED, SAR, BRL, MXN, INR, IDR. Migration 0092 deferred EUR and GBP | Moroccan and French books can't be written today. |
+| **One currency per workspace** (`businesses.currency`, 0092). Rates come only from the owner (`owner_rates`, 0031) | Multi-currency (item 8) changes the model. The owner's rates are already the source (decision 13). |
+| **No file storage.** Buyer media isn't stored: a provider handle is swapped for the bytes when someone views it. Product photos are `bytea` in Postgres (5 MB cap) | Receipts and invoices are kept 10 years, so they need real, residency-aware storage. 💰 beyond the 5,000 MB volume. |
+| **Two roles only:** owner and not-owner (`OWNER_ONLY` is "a LIST, not a matrix", `src/core/conversation/people.ts`) | The accountant role (decision 12) is real work, scheduled in A5. |
+| **Every business table must be classified for erasure.** `customer_erasure_contract()` is re-created per new table; `customer_erasure_problems()` refuses to run while any is undecided | Every books table is classified the day it's made, under the new legal-retention action (§6). |
 
-Also known: an order holds **one product** (`orders.product_id`). An invoice has lines, so accounting invoices are a new
-document, not a renamed order. `nextOrderReference` (0162: one gap-free count per workspace per year) is the right base
-for invoice numbering.
+**Also:**
+- An order holds one product, so an invoice with lines is a new document.
+- `nextOrderReference` (0162: gap-free per workspace per year) is the base for invoice numbering and for the FEC's
+  "numérotation sans rupture".
 
 ---
 
-## 3 · The build order
+## 3 · The build order (approved, with the owner's four changes)
 
-**Your proposed order:** connector shape → Odoo / Sheets / Excel → core books (3, 4, 5) → everything on top, with the
-sales upgrades in parallel where they don't depend on anything.
-
-**I'd change four things:**
-
-1. **A foundation comes before the connector shape.** The connector's mapper translates each system *into Nomi's model*,
-   so Nomi's model must exist first: exact money, currencies, the chart, balanced entries, periods. Otherwise the
-   first connector defines the model by accident, and every connector after it inherits that system's quirks.
-2. **Multi-currency (item 8) is foundation, not "on top".** Every journal line carries a currency and a rate from its
-   first day. Adding currency to a single-currency ledger later is exactly the mistake that spreads into every report.
-3. **Excel by file comes before Odoo.** It's the one connector every shop can use, it needs no sign-in, and it proves
-   the shape with nothing else in the way. Odoo is plan-gated (only Odoo's paid Custom plan has the API), so it's the
-   one many shops can't use at all.
-4. **"Two-way sync" splits in two.** Reading comes with each connector. Writing back waits until journal entries exist
-   in Nomi — you can't write to Odoo what Nomi can't yet represent.
-
-### The order, stage by stage
+**The changes, as approved:**
+- a foundation before the connector shape (the model before the mapper);
+- multi-currency as foundation;
+- Excel by file before Odoo;
+- reading split from writing back.
 
 Each item is built and fully tested (§4) before the next one that depends on it starts.
 
-**Stage A — the foundation (nothing else starts before A1–A5)**
-- **A1 · Exact money and every currency:**
-  - amounts held exactly (integer minor units or `numeric`), with ISO 4217 currencies including MAD, EUR and GBP;
-  - the sales side moves to the same type, so an order and its invoice can't disagree by a rounding.
+### Stage A — the foundation
+
+- **A1 · Exact money, in the EXISTING product and for the books (the §2.1 defect):**
+  - an exact representation (integer minor units, or exact decimals end to end; chosen in A1's design);
+  - ISO 4217 currencies including MAD, EUR and GBP;
+  - every money path moved to it;
+  - stored amounts migrated.
   - *Depends on nothing; everything depends on it.*
 - **A2 · The books' model:**
-  - a chart of accounts (with templates);
+  - a chart of accounts, with templates (the CGNC chart for every shop, D4);
   - journal entries whose lines balance per currency;
-  - tax codes; parties (customers and suppliers);
-  - periods and lock dates; documents attached to entries;
+  - tax codes; parties;
+  - periods and lock dates;
+  - documents attached to entries;
   - custom fields (item 9's schema).
-  - Corrections are reversing entries: a posted entry is never edited.
+  - **The Moroccan software criteria (CNC Avis n° 24, annex §2) are built in here** (D4 lists them), because they're
+    properties of the ledger, not of an export.
   - *Depends on A1.*
-- **A3 · Item 8 — multi-currency at the transaction-day rate:** a rate stored on every foreign-currency line, taken
-  from a named source on the document's date (the source is a question in §8). *Depends on A1 and A2.*
-- **A4 · Document storage:** encrypted, per workspace, with retention dates (§6). *Depends on A2.* 💰 beyond the database
-  volume.
-- **A5 · The books' tenancy and permissions:**
+- **A3 · Multi-currency (item 8):**
+  - every foreign-currency line stores the rate and the date, taken from the owner's rates (decision 13);
+  - **never recomputed;** a missing rate refuses the posting.
+  - *Depends on A1 and A2.*
+- **A4 · Document storage, residency-aware:** encrypted, per workspace, with the retention date of its country. Where the
+  data lives — the database, the documents and the backups — is **a parameter** (decision 14), not an assumption.
+  *Depends on A2.* 💰 beyond the database volume.
+- **A5 · The books' tenancy and the three roles (decision 12):**
   - row-level security on every new table;
-  - a new owner-only action (`books`);
-  - an erasure-contract entry for every table, with a new "keep for the legal period" action;
-  - privacy-page lines for each new processor, as D18 requires.
+  - owner, accountant (see and export only) and staff (nothing), as real roles with a permission test per route;
+  - erasure-contract entries with the legal-retention action;
+  - D18 privacy lines for each new processor.
   - *Depends on A2.*
-- **A6 · The shell toggle** (salesperson ↔ accountant, same login, same company). It's needed before the first accounting
-  page exists. `shell()` in `src/api/web/layout.ts` builds the rail by hand, and the outreach area's per-workspace gate
-  (`isOutreachRoute`) is the model for a mode-gated area. *Depends on A5.*
+- **A6 · The salesperson ↔ accountant toggle:** same login, same company. **Early because it's the demonstrable piece,
+  not because anything depends on it.** It's the cheapest visible proof that the two-mode idea works, which the thesis
+  and any investor conversation need. It builds on `shell()` in `src/api/web/layout.ts` and on the outreach area's
+  per-workspace gate. *Needs A5's roles.*
 
-**Stage B — the connector layer**
+### Stage B — the connector layer
+
 - **B1 · Item 12 — one plug-in shape:**
-  - each system provides a config, a mapper (to and from A2's model), its sign-in (exchange, refresh, revoke), and
-    "changed since" reading, all behind one registry;
-  - the design is from `erp-mafia/unified-accounting-api` (MIT).
+  - each system provides a config, a mapper to and from A2, its sign-in (exchange, refresh, revoke), and "changed since";
+  - all behind one registry;
+  - a conformance suite every connector must pass.
   - *Depends on A2 and A5.*
-- **B2 · Excel, by file** (§5, option A): import and export of a fixed Nomi workbook. *Depends on B1.*
-- **B3 · Google Sheets** (§5, option B, `drive.file`). *Depends on B1 and B2* (the same template).
-- **B4 · Odoo, JSON-2.** Our own thin client, plus:
-  - **item 15, the plan check at sign-up:** before anything else, it tells the owner whether their Odoo can connect;
-  - **item 14, the key-expiry reminder:** "it is not possible to create keys that last for more than three months"
-    (Odoo docs).
+- **B2 · Excel by file (option A):**
+  - the fixed Nomi workbook, imported and exported;
+  - **it validates the interface on the easy case first:** no external dependency, so B1 is proven against something we
+    fully control before it meets Odoo's sign-in, plans and expiring keys.
   - *Depends on B1.*
-- **B5 · Item 13, part 1 — reading changes** from each connected system, on a schedule, idempotent, with a cursor per
-  system. *Depends on B2–B4.*
+- **B3 · Google Sheets (option B, `drive.file`).** *Depends on B2* (the same workbook).
+- **B4 · Odoo, JSON-2, our own client:**
+  - **item 15, the plan check at sign-up;**
+  - **item 14, the key-expiry reminder** (keys last at most three months).
+  - *Depends on B1.*
+- **B5 · Item 13, part 1 — reading changes:** idempotent, with a cursor per system. *Depends on B2–B4.*
 
-**Stage C — the core books**
-- **C1 · Item 3 — journal entries:** made by hand, from Nomi's own orders and invoices, and from what's read in (B5).
-  *Depends on A2–A5 and B5.*
-- **C2 · Item 5 — payment tracking:** invoices (with lines, numbered like orders) and payments against them, partial or
-  full, in any currency. *Depends on C1.*
+### Stage C — the core books
+
+- **C1 · Item 3 — journal entries:**
+  - by hand, from Nomi's orders and invoices, and from what's read in;
+  - numbered in sequence per journal, with no gaps (the Avis 24 criterion).
+  - *Depends on A2–A5 and B5.*
+- **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
 - **C3 · Item 4 — reconciliation:**
-  - bank lines are matched to payments and entries, by rule first, then by suggestion, and **always confirmed by a
-    person**;
-  - bank lines come from statement files (CSV, OFX, CAMT.053). PDF statements wait for item 7.
+  - from **statement files only** (CSV, OFX, CAMT.053; decision 8);
+  - suggested by rule, **always confirmed by a person.**
   - *Depends on C2.*
-- **C4 · Item 13, part 2 — writing back** to Odoo, Sheets and Excel what Nomi posted, with conflicts shown, never
-  overwritten silently. *Depends on C1–C3.*
+- **C4 · Item 13, part 2 — writing back** to Sheets, Excel and Odoo: conflicts shown, never overwritten silently.
+  *Depends on C1–C3.*
 
-**Stage D — everything on top**
+### Stage D — everything on top
+
 - **D1 · Item 1 — trial balance.** *Depends on C1.*
-- **D2 · Item 6 — period close:** a pre-close checklist, then a lock date; a locked period refuses a posting, with the
-  reason. *Depends on C1–C3 and D1.*
-- **D3 · Item 2 — tax reports,** per country (which ones: §8). *Depends on C1 and A2's tax codes.*
-- **D4 · Item 10 — the Moroccan chart and the FEC:**
-  - Odoo shops: from Odoo's `l10n_ma` and its FEC export, never rebuilt;
-  - shops without Odoo: a decision for you (§8, question 3). *Depends on A2 and D2.*
-- **D5 · Item 11 — FEC validated by DGFiP's checker,** run outside Nomi in CI, never copied (CeCILL). *Depends on D4.*
+- **D2 · Item 6 — period close:**
+  - a pre-close checklist, then a lock;
+  - closing entries in their own journal;
+  - **at most two periods open at once** (Avis 24).
+  - *Depends on C1–C3 and D1.*
+- **D3 · Item 2 — tax reports and the accountant pack:**
+  - **The accountant pack, for every shop:** trial balance, journal and general ledger, in a standard export any local
+    accountant can work from.
+  - **Country tax reports only where verified against primary legal sources.** Nomi never claims a country's compliance
+    it hasn't verified.
+  - **Prepared, never filed** (§9).
+  - Which countries get a verified report is decided as each one is verified. Morocco is first (D4); France only with a
+    French customer.
+  - *Depends on C1 and A2's tax codes.*
+- **D4 · Item 10 — Morocco: the chart and the Moroccan FEC (re-cut after Q3):**
+  - **The chart:** the CGNC chart for **every** shop, whatever its connector. It's built from the CGNC itself, the
+    legal source, not copied from Odoo's LGPL `l10n_ma`.
+  - **The Moroccan FEC is required, and Moroccan, not French.** My earlier "the FEC is a French obligation" was wrong.
+    The owner's memory of AVA producing FEC exports for the DGI was right.
+    - **CGI art. 210 (LF 2018):** taxpayers keeping electronic accounts "doivent remettre une copie du fichier des
+      écritures comptables établi selon un format électronique" in an audit.
+    - **CGI art. 145-I (LF 2026):** makes electronic bookkeeping the general rule ("sous format électronique conformément
+      à la législation et à la réglementation en vigueur"). Its date of application is *unverified*.
+    - **The format, CNC Avis n° 24 of 14 June 2023,** written at the DGI's request (its correspondance n° 2384/20). Art. 2:
+      the systems "doivent produire un fichier appelé « Fichier des Ecritures Comptables (FEC) »". *Read in the
+      ministry's own PDF:*
+      https://www.finances.gov.ma/Publication/depp/2023/Avis%20n°%2024%20comptabilité%20sous%20format%20éléctronique.pdf
+    - **Its 18 fields, under Moroccan names:** Code_Journal, Libelle_Journal, Num_Ecriture, Date_Ecriture, Num_Compte,
+      Libelle_Compte, Num_Compte_Aux, Libelle_Compte_Aux, Ref_Piece, Date_Piece, Libelle_Ecriture, Montant_Debit,
+      Montant_Credit, Lettrage_Ecriture, Date_Lettrage, Date_Validation, Montant_Devise, Id_devise. That's the French
+      structure, renamed. It never cites the French LPF.
+    - **The DGI's 2025 activity report** says its system to *receive* FECs electronically is complete.
+  - **The software criteria in Avis 24's annex §2 bind the ledger (A2, C1, D2):**
+    - entries numbered in sequence, with no gaps or duplicates;
+    - closed periods can't be changed;
+    - at most two periods open;
+    - closing entries in their own journal;
+    - a document reference and date on every entry;
+    - balance checked before and after posting;
+    - authenticated users, with who did what and when;
+    - archiving with a certain date;
+    - reports carrying the entity, the period, the date made, the software version and page numbers.
+  - **Who must comply:** **CGI art. 145-XI exempts** the CPU and auto-entrepreneur regimes. Companies, and shops taxed
+    on real or simplified net income, need it.
+  - **Not published yet (open):**
+    - the FEC's **file name, separator and encoding** (Avis 24 sets none);
+    - **the DGI's upload specification.**
+
+    D4 builds the fields and the criteria now, and leaves the file envelope as one configurable detail until the DGI
+    publishes it.
+  - **Later, outside Phase 5's 100%:**
+    - e-invoicing (CGI art. 145-IX, waiting for its decree; *secondary* sources say UBL, with SMEs in 2027–2028);
+    - the liasse fiscale in SIMPL's EDI XML (usually the accountant's job).
+  - *Depends on A2, C1 and D2.*
+- **D5 · REMOVED from 100%: the French FEC and DGFiP's checker.** They come back only with a French customer. The Moroccan
+  FEC has **no official checker**; D4 is tested against Avis 24 itself (§4).
 - **D6 · Item 7 — reading receipts, invoices and bills, in any language:** a draft entry the owner confirms, never posted
   alone. *Depends on A4 and C1.* 💰 (a model reads each document).
-- **D7 · Item 9 — custom categories and fields:** the screens over A2's schema. *Depends on C1.*
-- **D8 · Xero,** then **D9 · QuickBooks**, one at a time through B1. *Depends on C4.* 💰 above the free tiers (§7).
+- **D7 · Item 9 — custom categories and fields.** *Depends on C1.*
+- **D8 · Xero,** then **D9 · QuickBooks**, through B1. *Depends on C4.* 💰 above the free tiers.
 
-**Stage S — the salesperson, alongside A–D wherever it doesn't depend on them**
-- **S1 · Item 18 — canned replies,** in the owner's reply box.
+### Stage S — the salesperson, alongside A–D wherever it doesn't depend on them
+
+- **S1 · Item 18 — canned replies.**
 - **S2 · Item 19 — labels.**
-- **S3 · Item 21 — round-robin assignment** (nothing like it exists today; `conversations.assigned_to` is the field).
-- **S4 · Item 16 — strict mode per language:** in a language with no native reviewer, sending alone uses only approved
-  sentences, with fields filled by code. It builds on the taught-answer path (`src/pipeline/turn.ts`, `answerPath =
-  'taught_answer'`) and on the disclosure's review flags. *Needs a reviewer per language (§8).*
-- **S5 · Item 17 — FAQ learning** from the owner's own replies; a dismissed suggestion never returns. Free if it matches
-  words; 💰 if it uses a model's embeddings.
-- **S6 · Item 20 — satisfaction surveys.** 💰 on WhatsApp outside the 24-hour window (a paid template).
-- **S7 · Item 22 — channels, one at a time:**
-  1. web chat — ours, free;
-  2. Telegram — free;
-  3. LINE — free up to 200 messages a month (Japan), then 💰;
-  4. SMS, WeChat and TikTok — 💰 or limited availability (§7).
-
-  `src/channels/contract.ts` already lists telegram, line and web_chat as types.
-- **S8 · Item 23 — simulated-buyer testing** — **parked with the money** (it spends model balance).
+- **S3 · Item 21 — round-robin assignment.**
+- **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the
+  Arabic disclosure is (decision 15). The code can be ready; it switches on per language only when that language's
+  sentence set is signed.
+- **S5 · Item 17 — FAQ learning** from the owner's own replies; a dismissed suggestion never returns. Free by word
+  matching; 💰 with embeddings.
+- **S6 · Item 20 — satisfaction surveys,** only where they're free: inside WhatsApp's 24-hour window, and on channels with
+  no per-message cost.
+- **S7 · Item 22 — channels:** **web chat, then Telegram. Nothing else in 100%** (decision 8). LINE, SMS, WeChat and
+  TikTok wait for revenue.
+- **S8 · Item 23 — simulated-buyer testing** — parked with the money.
 
 ### Dependencies at a glance
 
 ```
-A1 money → A2 model → A3 multi-currency
-                   ├→ A4 documents
-                   └→ A5 tenancy/permissions → A6 shell toggle
-A2+A5 → B1 plug-in shape → B2 Excel file → B3 Sheets
-                         └→ B4 Odoo (+14, +15)
-B2–B4 → B5 read changes → C1 journal entries → C2 payments → C3 reconciliation → C4 write back
-C1 → D1 trial balance → D2 period close
-C1 → D3 tax reports;  D2 → D4 PCM/FEC → D5 FEC check
-A4+C1 → D6 reading documents;  C1 → D7 custom fields;  C4 → D8 Xero → D9 QuickBooks
-S1–S7 run alongside; S4 needs reviewers; S6/S7 parts need money; S8 parked.
+A1 exact money (existing path + books) → A2 model (+ Avis 24 criteria) → A3 multi-currency (stored rates)
+                                       ├→ A4 documents (residency parameter)
+                                       └→ A5 tenancy + three roles → A6 toggle (early: the demonstrable piece)
+A2+A5 → B1 plug-in shape → B2 Excel file → B3 Sheets ;  B1 → B4 Odoo (+14, +15)
+B2–B4 → B5 read → C1 entries (no-gap numbering) → C2 payments → C3 reconciliation (files) → C4 write back
+C1 → D1 trial balance → D2 period close (two open, closing journal)
+C1 → D3 accountant pack + verified country reports ;  A2+C1+D2 → D4 CGNC chart + Moroccan FEC
+A4+C1 → D6 reading documents ;  C1 → D7 custom fields ;  C4 → D8 Xero → D9 QuickBooks
+S1–S3, S5–S7 alongside ;  S4 waits on reviewers ;  S8 parked ;  D5 removed until a French customer
 ```
 
 ---
@@ -194,143 +295,131 @@ S1–S7 run alongside; S4 needs reviewers; S6/S7 parts need money; S8 parked.
 **For every item, before the next one that depends on it starts:**
 - the four checks (CLAUDE.md §3) pass, with integration on its own Postgres;
 - every new table is in the erasure contract, and the data-protection tests pass;
-- every owner-facing line exists in en / zh / ar / es / fr, Arabic follows the no-gender rule, and the zh / ar lines
-  are listed for native review;
+- every owner-facing line exists in en / zh / ar / es / fr, Arabic follows the no-gender rule, and the zh / ar lines are
+  listed for native review;
 - a negative control: the item's key rule, switched off, fails its own tests;
 - merged through `tools/gated-merge.sh`.
 
-**Live verification is deploy-day work, as in hardening.** Anything that needs a paid service can be built and tested
-against the vendor's sandbox or a recorded fake, but it is only proven live when money is spent. Each such item says
-so.
+**Anything that needs a paid service:** built, tested against the vendor's sandbox, proven live on deploy day (decision 9).
 
 **Stage A — the foundation**
 
 | Item | Done and tested when |
 |---|---|
-| A1 exact money | No float reaches a stored amount: a property test of a million random add/split/round sequences ends at the exact cent. Every currency's minor units come from ISO 4217 (JPY 0, MAD 2, KWD 3). The sales side's quotes and orders show the same figures as before (golden scenarios unchanged). |
-| A2 the books' model | The database itself refuses a journal entry that doesn't balance per currency, a line on a locked period, and an edit to a posted entry (constraints and triggers, proven by tests that try each). A correction is a reversing entry that links to the original. |
-| A3 multi-currency | Each foreign line stores its rate, the source and the date. A report in the base currency recomputes from the stored rates and matches to the cent. A missing rate refuses the posting and says why, never using a guess or 1.0. |
-| A4 documents | A stored document is encrypted, readable only by its own workspace (an RLS test from a second workspace returns nothing), and carries the retention date of its country. |
-| A5 tenancy | Staff get "the owner decides" on every books action, and the permission snapshot test stays unchanged for every gated route. Each new processor has its privacy line in five languages before the boot allows it (D18). |
-| A6 shell toggle | One login switches between salesperson and accountant. Each mode lights only its own pages. An accounting address is refused for a workspace whose accounting is off, as outreach is today. |
+| A1 exact money | No floating point touches a money value anywhere in `src`; a static test forbids it. **The property test (a million random sequences of discount, multiply, split and round) runs on quotes and orders as well as ledger lines, and always ends at the exact cent.** §2.1's three examples are regression tests. Stored amounts are migrated, with a before-and-after sum per table per workspace that matches exactly. Every currency's minor units come from ISO 4217. Golden scenarios: any figure that changes, changes by the corrected cent, each one listed. |
+| A2 model | The database refuses an unbalanced entry, a line in a locked period, an edit to a posted entry, and a gap or duplicate in a journal's numbering (tests try each). Corrections are reversing entries, linked to the original. |
+| A3 multi-currency | Each foreign line stores the owner's rate and its date. **A report run years later gives the same figures** (a test changes the owner's rates after posting, and history must not move). A missing rate refuses the posting. |
+| A4 documents | Encrypted and readable only by its own workspace (an RLS test from another workspace returns nothing). Each document carries its retention date. **The residency parameter routes storage, and a test with two settings proves nothing is hard-coded.** |
+| A5 three roles | Per route and action: the owner may see, post and export; the accountant may see and export, and any posting is refused with the reason; staff get nothing. A snapshot test covers every books route, and the D18 privacy lines exist before the boot allows a processor. |
+| A6 toggle | One login switches modes. Each mode lights only its own pages. A books address is refused where books are off. Each role sees only what A5 allows. |
 
 **Stage B — the connector layer**
 
 | Item | Done and tested when |
 |---|---|
-| 12 plug-in shape | Two connectors (B2 and a fake one in the tests) satisfy the same interface. A conformance suite every connector must pass covers config, mapping both ways round-trip, a refused sign-in, and "changed since". |
-| B2 Excel file | The fixed workbook imports and exports. A file that breaks the template is refused, naming the sheet, row and column, and nothing half-imports. Exporting then re-importing changes nothing. |
-| B3 Sheets | The same template through the API with `drive.file` (a non-sensitive scope, so no Google verification, per Google's scope table). A revoked grant reads as "connect again", never as empty books. Tested against a recorded fake; live is deploy-day. |
-| B4 Odoo | JSON-2 against a recorded Odoo 19 fake, and against Odoo's own demo database if one is reachable for free. **Item 15:** a Free or Standard plan, a wrong key and a wrong database each give their own sentence before anything is saved. **Item 14:** a key 80 days old raises the owner's reminder, and an expired key stops the sync with that reason. |
-| 13 reading | The same change read twice is recorded once. A cursor survives a restart. A system that stops answering is said on the page, never silently stale. |
+| B1 plug-in shape | B2 and a test fake pass the same conformance suite: config, a mapping round trip, a refused sign-in, "changed since". |
+| B2 Excel file | The workbook imports and exports. A broken template is refused, naming the sheet, row and column, and nothing half-imports. Export then re-import changes nothing. |
+| B3 Sheets | The same workbook through the API with `drive.file` (non-sensitive, per Google). A revoked grant reads as "connect again", never as empty books. Recorded fake now; live on deploy day. |
+| B4 Odoo | JSON-2 against a recorded Odoo 19 fake. **Item 15:** a Free or Standard plan, a wrong key and a wrong database each give their own sentence before anything is saved. **Item 14:** a key 80 days old raises the reminder, and an expired key stops the sync with that reason. |
+| B5 reading | The same change read twice is recorded once. The cursor survives a restart. A silent system is said on the page. |
 
 **Stage C — the core books**
 
 | Item | Done and tested when |
 |---|---|
-| 3 journal entries | Entries made from orders, invoices and payments, and by hand, balance. Every one has a source link. A posted entry can only be reversed. |
-| 5 payment tracking | An invoice is open, partly paid or paid by its payments, in any currency (gains and losses on exchange posted). Invoice numbers have no gaps, per workspace per year. |
-| 4 reconciliation | Statement files (CSV, OFX, CAMT.053) import with duplicate lines refused. A match is suggested, never applied without a person, and an un-match restores exactly. |
-| 13 writing back | What Nomi posted appears in Odoo, Sheets and Excel. A conflict (both sides changed) is shown and waits; nothing is overwritten. |
+| C1 entries | Entries from orders, invoices and payments, and by hand, balance. Each journal's numbers have no gaps and no duplicates, even under concurrent posting. A posted entry can only be reversed. |
+| C2 payments | Invoices are open, partly paid or paid by their payments, in any currency (gains and losses on exchange posted). Invoice numbers have no gaps. |
+| C3 reconciliation | CSV, OFX and CAMT.053 import, with duplicate lines refused. A match is never applied without a person, and an un-match restores exactly. |
+| C4 write back | Posted entries appear in Sheets, Excel and Odoo. A conflict is shown and waits; nothing is overwritten. |
 
 **Stage D — everything on top**
 
 | Item | Done and tested when |
 |---|---|
-| 1 trial balance | Debits equal credits for any period. It matches a hand-computed fixture to the cent, and matches Odoo's own trial balance for the same Odoo fixture. |
-| 6 period close | The checklist (unreconciled lines, draft entries, missing rates) must be clear before a lock. A locked period refuses postings, with the reason. Reopening is the owner's, and recorded. |
-| 2 tax reports | Each country's report (§8) matches a worked example from that country's official form, line by line. |
-| 10 PCM / FEC | Odoo shops: Odoo's chart and Odoo's FEC, fetched, never rebuilt. Without Odoo: per your answer in §8. |
-| 11 FEC check | DGFiP's checker passes on every FEC fixture in CI, and fails on a deliberately broken one. |
-| 7 reading documents | Receipts in en, fr, ar, zh and es (photo and PDF) become draft entries. Amounts, dates and currency are read, but **nothing posts without the owner**. A wrong read is fixed in the draft. 💰 live. |
-| 9 custom fields | A shop's own categories and fields survive export, import and every connector's round trip. |
-| Xero / QuickBooks | The conformance suite and C4's round trip pass against each vendor's sandbox (free for development). Live within the free tiers is deploy-day. |
+| D1 trial balance | Debits equal credits for any period. It matches a hand-computed fixture to the cent. |
+| D2 period close | The checklist must be clear before a lock. A locked period refuses postings, with the reason. A third open period is refused. Closing entries go to their own journal. Reopening is the owner's, and recorded. |
+| D3 accountant pack and country reports | The pack (trial balance, journal, general ledger) exports in a standard format and re-imports into a fresh workspace with identical balances. A country report exists only with its verification note (the primary sources, line by line), and matches a worked example from that country's official form. |
+| D4 Morocco | **The chart:** every account of the CGNC chart, checked against the CGNC text. **The FEC:** for a fixture year, all 18 Avis 24 fields in order, debit and credit separate; every Avis 24 §2 criterion has its own test (gaps, a closed-period edit, a third open period, a missing document reference, an unbalanced entry, an unauthenticated poster, report headers). The file envelope (name, separator, encoding) is configurable and marked "to the DGI's spec when published". |
+| D6 reading documents | Receipts in en, fr, ar, zh and es (photo and PDF) become drafts, and nothing posts without the owner. 💰 live. |
+| D7 custom fields | They survive export, import and every connector's round trip. |
+| D8–D9 Xero, QuickBooks | The conformance suite and C4's round trip pass against each vendor's sandbox. Live within the free tiers on deploy day. |
 
 **Stage S — the salesperson**
 
 | Item | Done and tested when |
 |---|---|
-| 18 canned replies | Insert, edit and send go through the same guards as any owner reply. Five languages. |
-| 19 labels | They filter and search on Buyers, and are erased with the buyer. |
-| 21 round-robin | Assignment rotates fairly among available people (a property test). Absent people are skipped. The owner's override wins. |
-| 16 strict mode | In a strict language, only approved sentences are ever sent alone; any other reply waits as a draft. A test sends 500 varied turns and finds no free text sent. Each sentence set is signed off by a named reviewer. |
-| 17 FAQ learning | Suggestions come only from replies a person wrote. A dismissed one never comes back (a test re-asks it). Nothing becomes an answer without the owner. |
-| 20 surveys | Sent only inside the free window, or as an approved template when the owner allows the cost. The answers are stored and erasable. |
-| 22 channels | Each channel passes the adapter contract tests and the full send-path guards, its pre-pilot scenarios pass on a simulator, and it has a D18 line. Live is deploy-day. |
+| S1 canned replies | Insert, edit and send go through every owner-reply guard. Five languages. |
+| S2 labels | They filter and search on Buyers, and are erased with the buyer. |
+| S3 round-robin | Assignment rotates fairly among available people (property test). Absent people are skipped. The owner's override wins. |
+| S4 strict mode | The code: 500 varied turns in a strict language, and nothing but approved sentences is ever sent alone. **Switched on per language only with a signed sentence set and a named reviewer.** |
+| S5 FAQ learning | Suggestions come only from human replies. A dismissed one never returns (a test re-asks it). Nothing becomes an answer without the owner. |
+| S6 surveys | Sent only where free. Answers are stored and erasable. |
+| S7 web chat, Telegram | The adapter contract, the full send-path guards, pre-pilot scenarios on a simulator, and a D18 line each. Telegram live on deploy day. |
 
 ---
 
-## 5 · Excel and Google Sheets as a books source: the options (you decide)
+## 5 · Excel and Google Sheets as a books source: **A, then B** (the owner's choice)
 
-**A spreadsheet can't enforce double entry, locks or immutability.** So for a Sheets or Excel shop, **the books of
-record have to be Nomi's own** (A2), and the spreadsheet is the way in and out. All the options below share a **fixed
-Nomi workbook**: named tabs (Accounts, Journal, Parties, Invoices, Payments) with fixed columns. A free-form sheet would
-need column mapping by hand, which breaks silently.
+A spreadsheet can't enforce double entry, locks or immutability. So for every shop, **Nomi's ledger is the record**, and
+the spreadsheet is the way in and out. Both options use one fixed Nomi workbook, with named tabs (Accounts, Journal,
+Parties, Invoices, Payments) and fixed columns.
 
-| Option | How it works | Cost | Fits |
-|---|---|---|---|
-| **A. File upload and download** | The owner downloads the Nomi workbook (.xlsx or .csv), fills it in, and uploads it. Nomi exports the books back to the same shape. | Free. No sign-in, no Google or Microsoft account. | Every shop. No live sync: whenever the owner re-uploads. |
-| **B. Google Sheets through the API** | Nomi creates the workbook in the owner's Drive and reads and writes only that file, with the `drive.file` scope (Google: "non-sensitive", verification "not mandatory"). Changes are read on a schedule. | Free within quota (300 requests a minute per project). Google says exceeding quota "is planned to incur charges… later in 2026". The wider `spreadsheets` scope is "sensitive" (review needed); `drive` is "restricted" (an annual security assessment, 💰). | Shops on Google. |
-| **C. Excel through Microsoft Graph** | The same, with workbooks in OneDrive for Business or SharePoint. | Free within standard thresholds (Microsoft docs). | **Business Microsoft 365 only:** "Support for workbooks stored in OneDrive Consumer platform is still not available," and only .xlsx works. A home user's Excel can't connect. |
-| **D. Export only** | Nomi keeps the books and only writes a read-only copy into a sheet. | Free | Shops that want their accountant to see a spreadsheet. |
-
-**My recommendation:** A first, for every shop and with no account; then B with `drive.file`. C waits until a real
-shop needs it — it reaches only business Microsoft 365, and A already covers Excel users.
+- **A · File upload and download (first).**
+  - Free, with no account.
+  - **It has no external dependency at all, so the plug-in shape is validated on the easy case first,** before it meets
+    Odoo's sign-in, plans and expiring keys.
+- **B · Google Sheets through the API, with `drive.file` (second).**
+  - Google calls this scope "non-sensitive": verification "not mandatory".
+  - Free within quota (300 requests a minute per project). Google says exceeding the quota "is planned to incur charges…
+    later in 2026" 💰.
+- **C · Excel through Microsoft Graph: OUT.**
+  - Most small shops have personal Microsoft accounts, and Graph "Support for workbooks stored in OneDrive Consumer
+    platform is still not available".
+  - Excel users are served by A.
+- **D · Export only:** covered by A's export.
 
 ---
 
-## 6 · The privacy load: heavier than buyer chats
+## 6 · The privacy load (accepted as written, with the owner's note)
 
-Financial data adds categories, laws and obligations the current pages don't cover.
+**1. The legal duty to keep, and how it meets the erasure rule we already have.**
+- **The duty:**
+  - France: "documents comptables" and "pièces justificatives… doivent être conservés pendant dix ans" (Code de commerce
+    L123-22, via BOFiP).
+  - Morocco: CGI art. 211, "pendant dix (10) ans", electronic records "sur support électronique".
+  - GDPR art. 17(3)(b): erasure doesn't apply where processing is needed "for compliance with a legal obligation".
+- **How it meets erasure (the owner's rule):** **a buyer's deletion request still erases their personal data. Entries
+  required for the statutory record are kept to the legal date, then erased.**
+  - The erasure contract gains a "keep until the legal date, then erase" action, with the date stored per row.
+  - `erase-buyer` and workspace closure refuse to erase inside the legal period, and say which records and why.
+  - A closing workspace can always take its books out first: the accountant pack, the Moroccan FEC, the workbook.
+- **The deletion page must say which is which, in plain words, before any of this ships:**
+  - what is erased at once;
+  - what is kept, until when, and under which law;
+  - that copies in the shop's own Sheets, Excel or Odoo are the shop's to delete.
 
-**1. A legal duty to keep, which overrides erasure:**
-- **France:** "documents comptables" and "pièces justificatives… doivent être conservés pendant dix ans" (Code de
-  commerce L123-22, via BOFiP).
-- **Morocco:** the CGI's article 211 requires keeping the books and supporting documents "pendant dix (10) ans". *That
-  loi 9-88 says the same in its article 22 is unverified.*
-- **GDPR article 17(3)(b):** erasure doesn't apply where processing is needed "for compliance with a legal obligation".
-- **What this means:**
-  - the erasure contract needs a new action, *"keep until the legal date, then erase"*, with that date stored per row;
-  - `erase-buyer` and closing a workspace must refuse to erase books inside their legal period, and say so;
-  - when a workspace closes, the owner must be able to take their books out first (FEC, CSV, the workbook).
+**2. New personal data:** suppliers, people on receipts, people named on bank lines. **Payroll stays out** (§9).
 
-**2. New personal data:**
-- suppliers;
-- the people on receipts (employees' expenses, for example);
-- bank lines, which name the people who paid;
-- possibly salaries. **Payroll is not on the list and should stay off it** — it's a different law.
-
-**3. New processors, each needing a privacy line in five languages before it can be switched on (D18):**
+**3. New processors,** each with privacy lines in five languages before it can be switched on (D18):
 - Google (Sheets);
-- Microsoft (Graph);
-- Odoo, Xero and Intuit (the owner's own systems, which Nomi acts in);
-- the model that reads documents (item 7);
-- the exchange-rate source;
-- new channels (Telegram, LINE…).
+- Odoo, Xero and Intuit (the shop's own systems, which Nomi acts in);
+- the model that reads documents;
+- Telegram.
 
 **4. Moroccan shops' data in the USA:**
-- loi 09-08, article 43, allows a transfer abroad only to a country with "un niveau de protection suffisant". The
-  CNDP's list (délibération 236-2015) has the EU and EEA, the UK, Switzerland and Canada — **not the USA**.
-- Article 44 then needs the person's express consent, a listed necessity such as "l'exécution d'un contrat", or the
-  CNDP's "autorisation expresse et motivée".
-- Every transfer must also be declared (article 15(e)).
-- **This binds the Moroccan shop as data controller,** and it is a launch question for Moroccan customers (§8).
+- **The law:** loi 09-08, art. 43, allows transfers abroad only to countries with "un niveau de protection suffisant".
+  The CNDP's list (délibération 236-2015) doesn't include the USA. Art. 44 then needs consent, a listed necessity, or the
+  CNDP's authorisation, and art. 15(e) requires the transfer to be declared.
+- **Parked as a lawyer's question.** The seam is open now: residency is a parameter (A4, decision 14).
 
-**5. The data-deletion page must say:**
-- which accounting records are kept, for how long, and why (the law);
-- that erasure of a buyer leaves their invoices, payments and journal lines, without contact details where the law
-  allows;
-- that copies in the owner's Odoo, Xero, QuickBooks, Sheets or Excel are the owner's to delete, not Nomi's;
-- that receipts sent for reading went to the model provider.
+**5. Backups** are kept 180 days. That's fine for recovery, but they are **not the legal archive.** The books plus the
+closing export carry the 10 years, and the pages won't suggest otherwise.
 
-**6. Backups:** today they are kept 180 days. That is fine for recovery, but **backups are not the legal archive.** The
-10-year duty is met by the books themselves, plus the export at closure. The pages must not suggest otherwise.
+**6. Access:** the three roles (A5). Every view and export of books data goes on the audit trail. That's also an Avis 24
+§2 criterion: who did what, when.
 
-**7. Access:** the books are owner-only until you decide otherwise (§8). Every view and export of financial data goes on
-the audit trail.
-
-**8. Secrets:** connector tokens and Odoo keys use the same encryption as mailbox tokens (AES-256-GCM, `key_version`,
-`tools/rekey.mjs`). An Odoo key is stored with its expiry, so it can be reminded.
+**7. Secrets:** connector tokens and Odoo keys use the mailbox tokens' encryption (AES-256-GCM, `key_version`,
+`tools/rekey.mjs`). The Odoo key is stored with its expiry.
 
 ---
 
@@ -338,59 +427,55 @@ the audit trail.
 
 | Item | Free | Costs money |
 |---|---|---|
-| Google Sheets (`drive.file`) | yes, within quota | above quota, "later in 2026" (Google). Wider scopes need review; `drive` needs a paid assessment |
-| Excel (Graph) | yes, within thresholds | — (the shop needs business Microsoft 365) |
-| Excel by file (option A) | yes | — |
+| Excel by file (A) | yes | — |
+| Google Sheets (`drive.file`) | yes, within quota | above quota, "later in 2026" (Google) |
 | Odoo | Nomi pays nothing | **the shop** needs Odoo's Custom plan (about US$61 a user a month, odoo.com/pricing) |
-| Xero | Starter: 5 connections | from AUD 35 a month for 50 connections (since 2 March 2026, developer.xero.com/pricing) |
-| QuickBooks | Builder tier: writes unlimited, 500,000 reads a month | above that, blocked unless on a paid tier (paid tier prices unverified) |
-| Exchange rates | ECB's (no MAD), Bank Al-Maghrib's site (no official API) | a commercial feed, if neither fits |
-| Reading documents (item 7) | — | **💰 a model call per document** |
-| FAQ learning (item 17) | word matching | 💰 if embeddings |
-| Document storage (A4) | within the Postgres volume (5,000 MB) | 💰 storage beyond it |
-| Web chat, Telegram | yes | Telegram's paid broadcasts only at very large scale |
-| LINE | 200 messages a month (Japan; "pricing plans vary by country") | from JPY 5,000 a month |
-| SMS | — | 💰 per message (Twilio: France $0.0798, Morocco $0.2244) |
-| WeChat | — | 💰 verification (US$99 for an overseas business, *unverified*); a verified Service account needed |
-| TikTok | — | an API exists, needs TikTok's approval; *unverified* reports say it's not in the EEA, Switzerland or the UK |
-| Satisfaction surveys on WhatsApp | inside the 24-hour window | 💰 a template outside it; utility replies inside the window are paid from 1 October 2026 (Meta) |
-| Simulated-buyer testing (item 23) | — | 💰 model balance — parked |
-| Hosting (Railway) | — | 💰 already unpaid; nothing launches without it |
+| Xero | Starter: 5 connections | from AUD 35 a month for 50 (since 2 March 2026, developer.xero.com/pricing) |
+| QuickBooks | Builder tier: writes unlimited, 500,000 reads a month | above that, blocked unless on a paid tier (prices *unverified*) |
+| Exchange rates | the owner's own (decision 13) | a commercial feed, later, as an option |
+| Bank data | statement files | — (bank connections are out, §9) |
+| Reading documents (D6) | — | **💰 a model call per document** |
+| FAQ learning (S5) | word matching | 💰 with embeddings |
+| Document storage (A4) | within the Postgres volume | 💰 beyond it |
+| Web chat, Telegram | yes | — |
+| Surveys (S6) | inside free windows | 💰 WhatsApp templates outside the window (Meta) |
+| Simulated-buyer testing (S8) | — | 💰 model balance — parked |
+| Hosting (Railway) | — | 💰 unpaid today; nothing launches without it |
 
 ---
 
-## 8 · Open questions only you can answer
+## 8 · The owner's answers (2026-10-21)
 
-1. **Whose books are the record?** For a shop on Odoo, Xero or QuickBooks: are the books *there*, with Nomi reading and
-   writing them? Or does Nomi always keep its own copy, with the systems synced? For Sheets and Excel it has to be
-   Nomi's own (§5). *My recommendation: Nomi always keeps its own, which makes one model and one set of reports.*
-2. **Which countries' tax reports (item 2)?** Morocco's VAT return? France's TVA (CA3/CA12)? The UAE? Others? And does
-   Nomi only **prepare** them, never file?
-3. **The Moroccan chart and the FEC for shops without Odoo.** Item 10 says "from Odoo's `l10n_ma`, never rebuilt", which
-   only works for Odoo shops (and that code is LGPL, so it can't be copied). For the rest:
-   - the chart would come from the CGNC itself, the legal source;
-   - the FEC would be built from the legal format (LPF article A47 A-1).
+| # | Question | Answer |
+|---|---|---|
+| Q1 | Whose books are the record? | **Always Nomi's own.** It makes Nomi a system of record (§1a). |
+| Q2 | Which countries' tax reports? | **Prepare only, never file.** Only countries verified against primary sources; the accountant pack for everyone else (D3). |
+| Q3 | The Moroccan chart and the FEC | **Verified:** Morocco requires its own FEC (CGI 210; CNC Avis n° 24). The CGNC chart for every shop. The French FEC and DGFiP's checker are removed until a French customer (D4, D5). |
+| Q4 | Who may see and post the books | Owner: see, post, export. Accountant: see, export. Staff: nothing (A5). |
+| Q5 | Exchange rates | The owner's own, **stored on the transaction, never recomputed** (A3). |
+| Q6 | Moroccan data in the USA | A lawyer's question, parked; **residency made a parameter now** (A4). |
+| Q7 | Strict mode's reviewers | Unresolved; strict mode is **gated on a person** (S4). |
+| Q8 | Paid channels in 100% | **None.** Web chat and Telegram only (S7). |
+| Q9 | The bar for paid items | **Yes:** sandbox-tested, live on deploy day. |
+| Q10 | Bank statements | **Files only.** Bank connections are out (§9). |
 
-   Do you want that? Note also that **the FEC is a French obligation.** Moroccan shops need Moroccan reports, not an FEC.
-4. **Who may see and post the books:** the owner only, an outside accountant (a new role), or staff?
-5. **The exchange-rate source for item 8:**
-   - the ECB has no MAD;
-   - Bank Al-Maghrib publishes daily rates but no official API;
-   - the owner's own stated rates (as today);
-   - or a paid feed later.
-6. **Moroccan data in the USA (§6.4).** Do Moroccan shops declare the transfer to the CNDP themselves? Does Nomi supply
-   the contract clauses? Is EU hosting a requirement before launch? This needs a lawyer's reading; it is not mine to
-   decide.
-7. **Strict mode's reviewers (item 16):** who approves the sentence sets in zh and ar (and es/fr if they join)?
-8. **Channels at launch (item 22):** SMS, WeChat and TikTok all cost money or need approval. Which are in "100%"?
-9. **"100% at launch" versus zero spend.** Several items can be built and tested but only proven live with money (§4).
-   Is "built, tested against sandboxes, live on deploy day" the bar, as in hardening?
-10. **Bank statements:** files only (CSV, OFX, CAMT), or bank connections too (aggregators are 💰)?
+**Still open, and not the owner's to answer:**
+- **The DGI's FEC upload specification:** file name, separator, encoding.
+- **The date CGI art. 145-I (LF 2026) applies from.**
+
+D4 leaves both as configurable details until they're published.
 
 ---
 
 ## 9 · Not in Phase 5
 
-- **The concession ladder** — excluded (decision 6).
-- **Payroll** — a different law, not on the list (§6.2).
-- **Filing tax returns on the owner's behalf** — prepare only, unless you decide otherwise (§8, question 2).
+- **The concession ladder.** Nomi never negotiates harder than the owner set; the owner sets the price.
+- **Payroll.** A different law.
+- **Filing anything with a tax authority** on a shop's behalf. That's a regulated act and a liability Nomi isn't taking;
+  reports are prepared, never filed.
+- **Bank connections.** They cost money, they're regulated, and they'd raise the privacy load from "a shop's books" to "a
+  shop's live banking".
+- **Paid channels** (LINE, SMS, WeChat, TikTok), until there's revenue.
+- **The French FEC and DGFiP's checker,** until a French customer.
+- **Moroccan e-invoicing and the liasse fiscale EDI.** They wait for the decree (CGI art. 145-IX) and are usually the
+  accountant's job.
