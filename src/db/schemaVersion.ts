@@ -446,7 +446,8 @@ import type { Db } from './client.js';
 // 195 = saved replies: the words a workspace's people reuse when they answer a buyer (0195).
 // 196 = labels on buyers: the workspace's own words to sort its buyers by, erased with the buyer (0196).
 // 197 = a label on a buyer goes with the buyer: the customer erasure follows the new link (0197).
-export const REQUIRED_SCHEMA_VERSION = 197;
+// 198 = hand-offs in turn: the switch, who is in turn and away, and when each was last given one (0198).
+export const REQUIRED_SCHEMA_VERSION = 198;
 
 export type SchemaState = {
   readonly required: number;

@@ -244,6 +244,7 @@ import { addField, customFromForm, listFields, setFieldInUse } from '../../db/bo
 import { renderFields } from './booksFields.js';
 import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
 import { renderLabels } from './labels.js';
+import { rotationOf, setPersonTurn, setRotationOn } from '../../db/rotation.js';
 import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
 import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
 import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } from '../../core/owner/savedReplies.js';
@@ -278,7 +279,7 @@ import { markLedgerMailed } from '../../db/erasureMail.js';
 
 /** The ids of ledger lines, as the erasure returned them. */
 const ledgerIds = (lines: readonly Record<string, unknown>[]): string[] => lines.map((l) => String(l['id'] ?? '')).filter((x) => x !== '');
-import { dayKey, addDays } from '../../core/owner/i18n/format.js';
+import { dayKey, addDays, dayStart } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
   lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, selfServeCount, loginOfPerson, setPassword,
@@ -6411,6 +6412,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, `/app/orders/${encodeURIComponent(id)}`, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey);
   });
 
+  const teamBid = (raw: string): BusinessId | null => { const b = parseBusinessId(raw); return b.ok ? b.value : null; };
   // M47 — who works here. OWNER ONLY: handing someone a way in is hers — and
   // since G9a the page too, not only the form's POST.
   app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings/setup', async (sess, req, reply, locale) => {
@@ -6423,9 +6425,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       people: await loadPeople(deps.db, sess.businessId), justIssued,
       assistants: await loadAssistants(deps.db, sess.businessId),
       business: businessName(),
+      // S3 (0198) — hand-offs in turn.
+      ...(teamBid(sess.businessId) ? { rotation: await withTenantTx(deps.db, teamBid(sess.businessId)!, (tx) => rotationOf(tx, teamBid(sess.businessId)!)) } : {}),
     }, locale,
       takeFlash(req, reply));
   }));
+
+  /** S3 (0198) — hand-offs in turn, on or off, and one person's place in it: the owner's (`people`). */
+  app.post('/app/settings/people/turn', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people#turn');
+    if (!s) return reply;
+    const bid = teamBid(s.businessId); if (!bid) return reply.redirect('/app/settings/people');
+    const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+    await withTenantTx(deps.db, bid, (tx) => setRotationOn(tx, bid, on));
+    return flashTo(reply, '/app/settings/people#turn', on ? 'turn.flash.on' : 'turn.flash.off');
+  });
+  app.post('/app/settings/people/:id/turn', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people#turn');
+    if (!s) return reply;
+    const bid = teamBid(s.businessId); if (!bid) return reply.redirect('/app/settings/people');
+    const f = (req.body ?? {}) as { inTurn?: unknown; awayUntil?: unknown };
+    const day = typeof f.awayUntil === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.awayUntil) ? f.awayUntil : '';
+    // Away until the END of that day, in the workspace's own day; an empty box is "here".
+    const awayUntil = day ? dayStart(addDays(day, 1), workspaceZone()) : null;
+    const done = await withTenantTx(deps.db, bid, (tx) => setPersonTurn(tx, bid, (req.params as { id: string }).id, { inRotation: f.inTurn === '1', awayUntil }));
+    return flashTo(reply, '/app/settings/people#turn', done ? 'turn.flash.saved' : 'turn.flash.notSaved');
+  });
 
   app.post('/app/settings/people', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');

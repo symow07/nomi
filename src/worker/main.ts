@@ -1,6 +1,7 @@
 import { createDb, lockConversation, withTenantTx } from '../db/client.js';
 import { sql } from 'kysely';
 import { tenantRepos } from '../db/repos.js';
+import { giveToNextInTurn } from '../db/rotation.js';
 import { hybridRetriever } from '../retrieval/hybrid.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
 import { decideBatch } from '../core/conversation/batching.js';
@@ -341,6 +342,7 @@ export async function startWorker(
     // Phase 8 of the warmth run — only the two interruptions leave Nomi (an
     // order waiting for the tap, a customer handed over): a waiting reply or a
     // customer ready to buy waits in the app, so no job is queued for them.
+    await inTurn(input.businessId, input.conversationId, effects);
     const alertKind = alertKindFor(effects);
     if (alertKind && interrupts(alertKind)) {
       await sendAlert(boss, {
@@ -358,6 +360,18 @@ export async function startWorker(
   };
 
   /**
+   * S3 (0198) — a hand-off just committed, given to the next one in turn where the workspace shares them (never one a
+   * deletion request made: the owner's). Its own transaction, after the hand-off's; a failure here never stops the
+   * alert — the conversation then simply waits for anyone, as it does without the turn.
+   */
+  const inTurn = async (businessId: BusinessId, conversationId: ConversationId,
+    effects: { readonly handoffAlert: boolean; readonly deletionAlert?: boolean }): Promise<void> => {
+    if (!effects.handoffAlert || effects.deletionAlert) return;
+    await withTenantTx(db, businessId, (tx) => giveToNextInTurn(tx, businessId, conversationId, new Date()))
+      .catch((e: unknown) => console.warn(`[turn] a hand-off was not given in turn: ${loggableMessage((e as Error).message)}`));
+  };
+
+  /**
    * The alert a hand-off earns, sent after its transaction commits: a deletion
    * request's own (0076), or the ordinary one. The key enforces nothing (no
    * window — src/queue/boss.ts): each call queues an alert. A job retried after
@@ -368,6 +382,7 @@ export async function startWorker(
     businessId: BusinessId, conversationId: ConversationId,
     effects: Parameters<typeof alertKindFor>[0] | null,
   ): Promise<void> => {
+    if (effects) await inTurn(businessId, conversationId, effects);
     const kind = effects ? alertKindFor(effects) : null;
     if (!kind || !interrupts(kind)) return;
     await sendAlert(boss, {

@@ -729,7 +729,25 @@ Each item is built and fully tested (§4) before the next one that depends on it
     it. Nothing is deleted.
   - Owner and staff. The accountant is refused by the route, and by the database, which shows them neither table
     (checked past the route guard: DZ, in this block).
-- **S3 · Item 21 — round-robin assignment.**
+- **S3 · Item 21 — round-robin assignment.** *(built 2026-10-22, 0198: the team page's "In turn" section.)*
+  - **The owner switches it on** and says who is in turn and who is away until a date, on the
+    team page, which is the owner's alone. An accountant is never in turn: the page offers no box, and the database
+    refuses it.
+  - **Who is next:** among those in turn and not away, the one who has waited longest since they were last given
+    one; never given one comes first; ties go to whoever joined first. Waiting longest, not fewest given, keeps it
+    fair across an absence: back from away, a person is next once, not given everything they missed. A seeded
+    property test (`tests/rotation.property.test.ts`, 2,000 runs a property) holds fairness to within one, the
+    skipping of anyone away, the return without a burst, and that the answer never depends on the rows' order.
+  - **When:** after a hand-off commits, before its alert is queued. The next in turn holds the conversation as if
+    they had taken it, and their turn moves only when they are given one. The alert still goes as before.
+  - **The owner's override wins:** the turn gives only a conversation that still waits for anyone. One a person
+    holds, or the owner has handed on, is never taken, then or later.
+  - **Nobody in turn, or the turn off:** the hand-off waits for anyone, exactly as before S3.
+  - **Claude's calls, reported:** a hand-off a deletion request made is never given in turn — it stays the owner's,
+    since recording the request is the owner's alone (checked twice: the worker skips it, and the database step
+    refuses any conversation whose buyer has a deletion request waiting; each check proven by switching it off).
+    A hand-off made while the assistant is stopped or silenced is given in turn like any other: those buyers wait
+    for a person, and the turn only says which one. A failure of the turn never stops the hand-off's alert.
 - **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the
   Arabic disclosure is (decision 15). The code can be ready; it switches on per language only when that language's
   sentence set is signed.
