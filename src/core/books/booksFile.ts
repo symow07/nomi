@@ -13,8 +13,9 @@ import type { Cell } from '../owner/csv.js';
  * whole record, in a file any spreadsheet opens.
  *
  * Amounts are the exact text the database holds, two places ("1200.50", "0.00"), written as stored and never
- * re-formed; a line's currency is `Id_devise`. `Montant_Devise` — the amount in a currency other than the books'
- * own — is A3's, and empty until then. No row is ever cut off:
+ * re-formed. `Montant_Debit` and `Montant_Credit` are in the BOOKS' currency (A3, 0173); a line written in another
+ * currency also carries that amount (`Montant_Devise`) and that currency (`Id_devise`), both empty for a line in the
+ * books' own. No row is ever cut off:
  * a statutory copy that stopped at a row limit would be a lie about the record.
  *
  * Pure: the caller reads the rows and writes the file.
@@ -41,11 +42,12 @@ export type BooksFileLine = {
   readonly documentDate: string;
   /** The line's own label, or the entry's. */
   readonly label: string;
-  /** As stored: `numeric(18,2)`'s own text. */
-  readonly debit: string;
-  readonly credit: string;
+  /** As stored: `numeric(18,2)`'s own text, in the books' currency. */
+  readonly bookDebit: string;
+  readonly bookCredit: string;
   readonly postedAt: Date;
-  readonly currency: string;
+  /** The line's own currency and amount, when it is not the books'; null for a line in the books' own. */
+  readonly foreign: { readonly currency: string; readonly amount: string } | null;
   readonly yearStarts: string;
   readonly yearEnds: string;
 };
@@ -54,8 +56,8 @@ export type BooksFileLine = {
 export function booksFileRows(lines: readonly BooksFileLine[]): (readonly Cell[])[] {
   return lines.map((l) => [
     l.journalCode, l.journalName, l.number, l.entryDate, l.accountCode, l.accountName,
-    l.partyCode, l.partyName, l.documentRef, l.documentDate, l.label, l.debit,
-    l.credit, null, null, l.postedAt.toISOString().slice(0, 10), null, l.currency,
+    l.partyCode, l.partyName, l.documentRef, l.documentDate, l.label, l.bookDebit,
+    l.bookCredit, null, null, l.postedAt.toISOString().slice(0, 10), l.foreign?.amount ?? null, l.foreign?.currency ?? null,
     `${l.yearStarts}/${l.yearEnds}`,
   ]);
 }

@@ -49,10 +49,16 @@ describe('A2.4 · the copy itself', () => {
       'Montant_Credit', 'Lettrage_Ecriture', 'Date_Lettrage', 'Date_Validation', 'Montant_Devise', 'Id_devise']);
     const rows = booksFileRows([{ journalCode: 'VT', journalName: 'Ventes', number: 7, entryDate: '2026-03-01', accountCode: '3421',
       accountName: 'Clients', partyCode: 'C0001', partyName: '=HYPERLINK("x")', documentRef: 'F-7', documentDate: '2026-03-01',
-      label: 'Facture 7', debit: '1200.50', credit: '0.00', postedAt: new Date('2026-03-01T10:00:00Z'), currency: 'MAD',
+      label: 'Facture 7', bookDebit: '1200.50', bookCredit: '0.00', postedAt: new Date('2026-03-01T10:00:00Z'), foreign: null,
       yearStarts: '2026-01-01', yearEnds: '2026-12-31' }]);
     const text = csvRows(BOOKS_FILE_HEADER, rows);
-    expect(text).toContain('VT,Ventes,7,2026-03-01,3421,Clients,C0001,"\'=HYPERLINK(""x"")",F-7,2026-03-01,Facture 7,1200.50,0.00,,,2026-03-01,,MAD,2026-01-01/2026-12-31');
+    expect(text).toContain('VT,Ventes,7,2026-03-01,3421,Clients,C0001,"\'=HYPERLINK(""x"")",F-7,2026-03-01,Facture 7,1200.50,0.00,,,2026-03-01,,,2026-01-01/2026-12-31');
+    // a line in another currency: the books' amounts, and its own amount and currency
+    const eur = booksFileRows([{ journalCode: 'VT', journalName: 'Ventes', number: 8, entryDate: '2026-03-02', accountCode: '3421',
+      accountName: 'Clients', partyCode: null, partyName: null, documentRef: 'F-8', documentDate: '2026-03-02', label: 'Facture 8',
+      bookDebit: '1087.50', bookCredit: '0.00', postedAt: new Date('2026-03-02T10:00:00Z'), foreign: { currency: 'EUR', amount: '100.00' },
+      yearStarts: '2026-01-01', yearEnds: '2026-12-31' }]);
+    expect(csvRows(BOOKS_FILE_HEADER, eur)).toContain(',1087.50,0.00,,,2026-03-02,100.00,EUR,');
   });
 });
 

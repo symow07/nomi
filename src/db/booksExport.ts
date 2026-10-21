@@ -19,12 +19,13 @@ export async function makeBooksFile(db: Db, businessIdRaw: string, actor: string
     const rows = (await sql<{
       journal_code: string; journal_name: string; number: number; entry_date: string; account_code: string; account_name: string;
       party_code: string | null; party_name: string | null; document_ref: string; document_date: string; label: string;
-      debit: string; credit: string; posted_at: Date; currency: string; year_starts: string; year_ends: string; entry_id: string;
+      debit: string; credit: string; book_debit: string; book_credit: string; posted_at: Date; currency: string; book: string; year_starts: string; year_ends: string; entry_id: string;
       covers: string;
     }>`
       select j.code as journal_code, j.name as journal_name, e.number, e.entry_date::text, a.code as account_code,
              a.name as account_name, p.code as party_code, p.name as party_name, e.document_ref, e.document_date::text,
-             coalesce(l.label, e.label) as label, l.debit::text, l.credit::text, e.posted_at, l.currency,
+             coalesce(l.label, e.label) as label, l.debit::text, l.credit::text, l.book_debit::text, l.book_credit::text,
+             e.posted_at, l.currency, books_currency(e.business_id) as book,
              f.starts_on::text as year_starts, f.ends_on::text as year_ends, e.id::text as entry_id,
              -- The last posting the file holds, at the database's own precision (a JS Date stops at milliseconds).
              (max(e.posted_at) over ())::text as covers
@@ -40,7 +41,8 @@ export async function makeBooksFile(db: Db, businessIdRaw: string, actor: string
       journalCode: r.journal_code, journalName: r.journal_name, number: r.number, entryDate: r.entry_date,
       accountCode: r.account_code, accountName: r.account_name, partyCode: r.party_code, partyName: r.party_name,
       documentRef: r.document_ref, documentDate: r.document_date, label: r.label,
-      debit: r.debit, credit: r.credit, postedAt: r.posted_at, currency: r.currency,
+      bookDebit: r.book_debit, bookCredit: r.book_credit, postedAt: r.posted_at,
+      foreign: r.currency === r.book ? null : { currency: r.currency, amount: r.debit !== '0.00' ? r.debit : r.credit },
       yearStarts: r.year_starts, yearEnds: r.year_ends,
     }));
     const csv = csvFile(BOOKS_FILE_HEADER, booksFileRows(lines), dialect);

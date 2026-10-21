@@ -31,7 +31,7 @@ d('A2.4 · closing with books: kept until the legal date, downloaded first (requ
   const as = <T>(b: string, fn: (q: Q) => Promise<T>) => asTenant(app, b, fn);
 
   const setUp = async (biz: string, owner: string, post: boolean) => {
-    await admin.query(`insert into businesses (id, name, engine, country) values ($1, $2, 'service', 'MA')`, [biz, `Closure ${biz.slice(-4)} ${RUN}`]);
+    await admin.query(`insert into businesses (id, name, engine, country, currency) values ($1, $2, 'service', 'MA', 'MAD')`, [biz, `Closure ${biz.slice(-4)} ${RUN}`]);
     await admin.query(`insert into people (id, business_id, name, is_owner) values ($1, $2, 'Mei', true)`, [owner, biz]);
     await admin.query(`insert into clients (business_id, phone, display_name) values ($1, $2, 'A buyer')`, [biz, `+2126${RUN.replace(/\D/g, '1').slice(0, 7)}${biz.slice(-1)}`]);
     await as(biz, async (q) => {

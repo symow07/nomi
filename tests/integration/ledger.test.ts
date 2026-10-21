@@ -75,7 +75,7 @@ d('A2.1 · the ledger\'s rules are the database\'s (requires DATABASE_URL + MIGR
     await admin.connect();
     await app.connect();
     for (const [id, name] of [[BIZ, `Ledger ${RUN}`], [OTHER, `Ledger other ${RUN}`]]) {
-      await admin.query(`insert into businesses (id, name, engine) values ($1, $2, 'service')`, [id, name]);
+      await admin.query(`insert into businesses (id, name, engine, currency) values ($1, $2, 'service', 'MAD')`, [id, name]);
     }
     ids = await as(BIZ, async (q) => {
       const acc = async (code: string, name: string, kind: string) =>
@@ -117,7 +117,7 @@ d('A2.1 · the ledger\'s rules are the database\'s (requires DATABASE_URL + MIGR
       .toMatch(/does not balance — MAD: debits 100\.00, credits 99\.99/);
     expect(await refused(BIZ, async (q) => post(q, await draft(q, { date: '2026-02-02', label: 'Mixed', lines: [
       { account: ids.bank, currency: 'MAD', debit: '100.00' }, { account: ids.sales, currency: 'EUR', credit: '100.00' }] }))))
-      .toMatch(/does not balance — EUR: debits 0(\.00)?, credits 100\.00; MAD: debits 100\.00, credits 0(\.00)?/);
+      .toMatch(/does not balance — EUR: debits 0(\.00)?, credits 100\.00/);   // A3: MAD, the books' own, is checked converted
     expect(await refused(BIZ, async (q) => post(q, await draft(q, { date: '2026-02-02', label: 'One line', lines: [
       { account: ids.bank, debit: '100.00' }] })))).toMatch(/two lines at least/);
     // a line is one side, never both, never neither
@@ -214,7 +214,9 @@ d('A2.1 · the ledger\'s rules are the database\'s (requires DATABASE_URL + MIGR
   });
 
   it('a LOCKED day, a day outside the year, a CLOSED year: nothing is drafted or posted there', async () => {
-    await as(BIZ, (q) => q(`insert into books_settings (business_id, lock_date) values (current_business_id(), '2026-01-31')`));
+    // the first posting made the settings row (A3: it fixes the books' currency); the lock date is set on it
+    await as(BIZ, (q) => q(`insert into books_settings (business_id, lock_date) values (current_business_id(), '2026-01-31')
+      on conflict (business_id) do update set lock_date = excluded.lock_date`));
     expect(await refused(BIZ, (q) => draft(q, { date: '2026-01-15', label: 'In January', lines: sale('1.00') }))).toMatch(/on or before the lock date 2026-01-31/);
     expect(await refused(BIZ, (q) => draft(q, { date: '2027-01-02', label: 'Next year', lines: sale('1.00') }))).toMatch(/outside fiscal year 2026-01-01 to 2026-12-31/);
     // a draft left from before the lock cannot be posted after it

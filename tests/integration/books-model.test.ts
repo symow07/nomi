@@ -43,7 +43,7 @@ d('A2.2 · tax codes, parties and custom fields (requires DATABASE_URL + MIGRATE
     await admin.connect();
     await app.connect();
     for (const [id, name] of [[BIZ, `Books model ${RUN}`], [OTHER, `Books model other ${RUN}`]]) {
-      await admin.query(`insert into businesses (id, name, engine) values ($1, $2, 'service')`, [id, name]);
+      await admin.query(`insert into businesses (id, name, engine, currency) values ($1, $2, 'service', 'MAD')`, [id, name]);
     }
     k = await as(BIZ, async (q) => {
       const one = async (sql: string, v: unknown[]) => (await q(sql, v)).rows[0].id as string;
