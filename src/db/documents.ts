@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'node:path';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import { documentKeyFrom, openDocument, sealDocument, type DocumentKey } from '../security/documentSeal.js';
+import { deriveKey } from '../security/credentials.js';
 
 /**
  * A4 (0174; decision 14) — WHERE A WORKSPACE'S PAPERS LIVE IS A PARAMETER, NOT AN ASSUMPTION.
@@ -61,8 +62,11 @@ export type DocumentStores = {
 
 export function documentStoresFrom(env: Record<string, string | undefined>, credentialKey: Buffer): DocumentStores {
   const stores = storesFrom(env['DOCUMENT_STORES']);
-  const keys: readonly DocumentKey[] = [documentKeyFrom(credentialKey, 1)];
-  const current = keys[0]!;
+  // B0 — during a CREDENTIAL_KEY rotation the previous key still OPENS (never seals) what it sealed, until
+  // tools/rekey.mjs seals it again with the current one (docs/SECRET-ROTATION.md).
+  const retired = env['CREDENTIAL_KEY_PREVIOUS'];
+  const current = documentKeyFrom(credentialKey, 1);
+  const keys: readonly DocumentKey[] = retired ? [current, documentKeyFrom(deriveKey(retired), 1)] : [current];
   const fileOf = (path: string, businessId: string, id: string) => join(path, businessId, `${id}.sealed`);
 
   return {
