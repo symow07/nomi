@@ -164,7 +164,7 @@ export async function reverseEntry(tx: Tx, businessId: string, id: string, by: s
   try {
     await sql`savepoint reverse_entry`.execute(tx);
     const made = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, reverses_id)
-      select e.business_id, e.journal_id, ${fy.id}::uuid, ${date}::date, ${`↩ ${original.key} · ${original.label}`.slice(0, 200)}, ${original.key}, ${date}::date, ${by}, e.id
+      select e.business_id, e.journal_id, ${fy.id}::uuid, ${date}::date, ${original.label}, ${original.key}, ${date}::date, ${by}, e.id
         from journal_entries e where e.id = ${id}::uuid returning id::text as id`.execute(tx)).rows[0]!.id;
     await sql`insert into journal_lines (business_id, entry_id, line_no, account_id, label, currency, debit, credit, party_id, tax_code_id, is_fx)
       select l.business_id, ${made}::uuid, l.line_no, l.account_id, l.label, l.currency, l.credit, l.debit, l.party_id, l.tax_code_id, false

@@ -130,3 +130,41 @@ export function renderNewInvoice(locale: Locale, c: InvoiceChoices, values: Read
       </form>
     </div>`;
 }
+
+/**
+ * C3 (Phase 5, item 4) — RECONCILIATION ON THE PAGE: a bank account, its statement read in from a file, each line
+ * not matched yet with what the rule suggests, and each match a person made — with the way to undo it.
+ */
+export function renderBank(locale: Locale, viewer: Who, c: {
+  readonly accounts: readonly { id: string; code: string; name: string }[]; readonly accountId: string | null;
+  readonly open: readonly import('../../db/bankStatements.js').OpenLine[]; readonly matched: readonly import('../../db/bankStatements.js').MatchedLine[];
+}): string {
+  const owner = mayPost(viewer);
+  const choose = `<form method="get" action="/app/books/bank" class="pform">
+      <label class="pq"><span>${esc(t(locale, 'books.bank.account'))}</span><select name="account">${c.accounts.map((a) =>
+        `<option value="${esc(a.id)}"${a.id === c.accountId ? ' selected' : ''}>${esc(a.code)} · ${esc(a.name)}</option>`).join('')}</select></label>
+      <button class="btn ghost" type="submit">${esc(t(locale, 'books.bank.show'))}</button></form>`;
+  if (!c.accountId) return `<h1 class="page">${esc(t(locale, 'books.bank.title'))}</h1><p class="lede">${esc(t(locale, 'books.bank.lede'))}</p>${choose}`;
+  const upload = owner ? `<form method="post" action="/app/books/bank/import?account=${esc(c.accountId)}" enctype="multipart/form-data" class="pform">
+      <label class="pq"><span>${esc(t(locale, 'books.bank.file'))}</span><input type="file" name="statement" accept=".csv,.ofx,.qfx,.xml,text/csv,application/xml" required /></label>
+      <button class="btn" type="submit">${esc(t(locale, 'books.bank.read'))}</button></form>
+      <p class="caption muted">${esc(t(locale, 'books.bank.formats'))}</p>` : '';
+  const line = (l: { bookedOn: string; amount: Decimal; currency: string; wording: string | null; reference: string | null }) =>
+    `${day(locale, l.bookedOn)} · ${money(locale, l.amount, l.currency)}${l.wording ? ` · <bdi>${esc(l.wording)}</bdi>` : ''}`;
+  return `<h1 class="page">${esc(t(locale, 'books.bank.title'))}</h1>
+    <p class="lede">${esc(t(locale, 'books.bank.lede'))}</p>
+    ${choose}${upload}
+    <h2>${esc(t(locale, 'books.bank.open'))}</h2>
+    ${c.open.length === 0 ? `<p class="muted">${esc(t(locale, 'books.bank.noneOpen'))}</p>` : `<ul class="rows">${c.open.map((l) => `<li class="row"><span>${line(l)}</span>
+      <span>${l.suggestions.length === 0 ? `<span class="caption muted">${esc(t(locale, 'books.bank.noSuggestion'))}</span>` : l.suggestions.map((s) => owner
+        ? `<form method="post" action="/app/books/bank/match" class="pform"><input type="hidden" name="account" value="${esc(c.accountId!)}" />
+            <input type="hidden" name="line" value="${esc(l.id)}" /><input type="hidden" name="journalLine" value="${esc(s.journalLineId)}" />
+            <button class="btn ghost" type="submit">${esc(t(locale, 'books.bank.matchWith', { key: s.key }))}</button> <span class="caption muted"><bdi>${esc(s.label)}</bdi></span></form>`
+        : `<span class="caption muted">${esc(t(locale, 'books.bank.suggested', { key: s.key }))}</span>`).join('')}</span></li>`).join('')}</ul>`}
+    <h2>${esc(t(locale, 'books.bank.matched'))}</h2>
+    ${c.matched.length === 0 ? `<p class="muted">${esc(t(locale, 'books.bank.noneMatched'))}</p>` : `<ul class="rows">${c.matched.map((m) => `<li class="row"><span>${line(m)} ·
+      <a href="/app/books/entries/${esc(m.entryId)}"><bdi>${esc(m.key)}</bdi></a></span>${owner ? `<form method="post" action="/app/books/bank/unmatch" class="pform">
+        <input type="hidden" name="account" value="${esc(c.accountId!)}" /><input type="hidden" name="match" value="${esc(m.matchId)}" />
+        <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.bank.unmatchAsk'))}">${esc(t(locale, 'books.bank.unmatch'))}</button></form>` : ''}</li>`).join('')}</ul>`}
+    <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
+}

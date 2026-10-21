@@ -275,6 +275,10 @@ export const RULES = Object.freeze({
   invoices: { do: 'unrelated' },
   invoice_lines: { do: 'unrelated' },
   invoice_payments: { do: 'unrelated' },
+  // 0185 (C3) — bank statements read in, and the matches made against them.
+  statement_imports: { do: 'unrelated' },
+  statement_lines: { do: 'unrelated' },
+  statement_matches: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

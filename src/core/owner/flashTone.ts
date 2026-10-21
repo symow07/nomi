@@ -47,7 +47,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'data.flash.name_wrong', 'data.flash.not_open',
   // 0126 — nothing was deleted or closed: the old form, the installation's own workspace, a paid plan, a reply in hand, a refusal.
   'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.booksFirst', 'books.flash.postIsOwners', 'staff.booksNotYours', 'books.flash.onlyBooks', 'books.flash.notWorkbook', 'books.flash.sheetsNotOffered', 'books.flash.sheetsNotConnected', 'books.flash.connectAgain', 'books.flash.notReachable', 'books.flash.odooRefused', 'books.flash.odooNotRead', 'books.flash.taxStartBad', 'books.flash.taxStartUsed', 'books.flash.entryRefused', 'books.entry.refused.not_a_draft', 'books.entry.problem.date', 'books.orders.setFirst', 'books.orders.alreadyIn', 'books.flash.invoiceRefused', 'books.flash.partyRefused',
-  'books.invoice.tooMuch', 'books.invoice.notIssued', 'books.entry.problem.ambiguous', 'books.entry.problem.amount', 'data.flash.busy', 'data.flash.eraseRefused',
+  'books.invoice.tooMuch', 'books.invoice.notIssued', 'books.entry.problem.ambiguous', 'books.entry.problem.amount',
+  'books.flash.statementUnreadable', 'books.flash.statementProblems', 'books.flash.matchRefused', 'data.flash.busy', 'data.flash.eraseRefused',
   // D4 (2026-10-12) — a change refused while the workspace is frozen.
   'frozen.refused',
   // 0130 — an advisor history switch or deletion that did not go through: nothing changed.
@@ -143,6 +144,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'books.flash.workbookRead', 'books.flash.sheetsConnected', 'books.flash.sheetsDisconnected', 'books.flash.odooConnected', 'books.flash.odooDisconnected', 'books.flash.taxStartSaved',
   'books.flash.entryPosted', 'books.flash.entryDiscarded', 'books.flash.entryReversed', 'books.flash.orderDrafted', 'books.flash.accountsSaved',
   'books.flash.invoiceIssued', 'books.flash.invoiceDiscarded', 'books.flash.paymentRecorded', 'books.flash.partyAdded',
+  'books.flash.statementRead', 'books.flash.matched', 'books.flash.unmatched',
   // EXT — lines read more closely.
   'import.flash.extracted',
   'pageFacts.flash.written',

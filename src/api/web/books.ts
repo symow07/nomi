@@ -54,6 +54,11 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/invoices/:id/discard', action: 'post' },
   { method: 'POST', url: '/app/books/invoices/:id/payments', action: 'post' },
   { method: 'POST', url: '/app/books/parties', action: 'post' },
+  // C3 — reconciliation: the page is the books'; reading a statement, matching and undoing are the owner's.
+  { method: 'GET', url: '/app/books/bank', action: 'see' },
+  { method: 'POST', url: '/app/books/bank/import', action: 'post' },
+  { method: 'POST', url: '/app/books/bank/match', action: 'post' },
+  { method: 'POST', url: '/app/books/bank/unmatch', action: 'post' },
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
@@ -81,6 +86,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     ${state ? `<p class="muted">${esc(state)}</p>` : ''}
     <p><a class="deeper" href="/app/books/entries">${esc(t(locale, 'books.entries.title'))}</a></p>
     <p><a class="deeper" href="/app/books/invoices">${esc(t(locale, 'books.invoices.title'))}</a></p>
+    <p><a class="deeper" href="/app/books/bank">${esc(t(locale, 'books.bank.title'))}</a></p>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'data.books.title'))}</span>
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>

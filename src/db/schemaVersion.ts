@@ -433,7 +433,8 @@ import type { Db } from './client.js';
 // 182 = where the exchange difference goes (0182): the two exchange accounts, and the marked line only on them.
 // 183 = an entry from a Nomi order, once (0183): the sales accounts in books_settings, `journal_entries.source_order_id`.
 // 184 = invoices and payments (0184): numbered at issue with no gap, posted, paid in part or whole.
-export const REQUIRED_SCHEMA_VERSION = 184;
+// 185 = reconciliation from statement files (0185): statement lines kept once, matches made and set aside by a person.
+export const REQUIRED_SCHEMA_VERSION = 185;
 
 export type SchemaState = {
   readonly required: number;

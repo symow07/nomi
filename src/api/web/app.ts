@@ -239,7 +239,9 @@ import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEnt
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { booksAccountsOf, draftFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
-import { INVOICE_FORM_LINES, renderInvoice, renderInvoices, renderNewInvoice } from './booksInvoices.js';
+import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice } from './booksInvoices.js';
+import { bankAccounts, importStatement, matchedLines, matchLine, openLines, unmatch } from '../../db/bankStatements.js';
+import { readStatement } from '../../core/books/statements.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
@@ -2765,6 +2767,60 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     if (out.kind === 'refused') return back(invoiceRefusedWhy(locale, out));
     return flashTo(reply, `/app/books/invoices/${id}`, 'books.flash.paymentRecorded');
+  });
+  /**
+   * C3 (item 4) — RECONCILIATION. The page is the books' to see; reading a statement in, matching and undoing a match
+   * are the owner's. A match is made only here, by a person: the rule only suggests.
+   */
+  const bankAccountOf = (raw: unknown, accounts: readonly { id: string }[]) => (typeof raw === 'string' && accounts.some((a) => a.id === raw) ? raw : null);
+  app.get('/app/books/bank', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const got = await withTenantTx(deps.db, bid, async (tx) => {
+      const accounts = await bankAccounts(tx, bid);
+      const accountId = bankAccountOf((req.query as { account?: string }).account, accounts) ?? accounts[0]?.id ?? null;
+      return { accounts, accountId, open: accountId ? await openLines(tx, bid, accountId) : [], matched: accountId ? await matchedLines(tx, bid, accountId) : [] };
+    });
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.bank.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBank(locale, personOf(s), got)}` }));
+  });
+  app.post('/app/books/bank/import', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const accounts = await withTenantTx(deps.db, bid, (tx) => bankAccounts(tx, bid));
+    const accountId = bankAccountOf((req.query as { account?: string }).account, accounts);
+    const to = `/app/books/bank${accountId ? `?account=${accountId}` : ''}`;
+    if (!accountId) return flashTo(reply, to, 'books.flash.statementUnreadable');
+    let text = '';
+    try { const file = await req.file(); text = file ? (await file.toBuffer()).toString('utf8') : ''; } catch { text = ''; }
+    const book = (await withTenantTx(deps.db, bid, (tx) => entryChoices(tx, bid))).bookCurrency;
+    const read = readStatement(text.slice(0, 5_000_000), book);
+    if (read.kind === 'unreadable') return flashTo(reply, to, 'books.flash.statementUnreadable');
+    if (read.problems.length > 0) {
+      const p = read.problems[0]!;
+      return flashTo(reply, to, 'books.flash.statementProblems', { n: read.problems.length, line: p.line, why: t(localeOf(req), `books.bank.problem.${p.reason}` as MessageKey) });
+    }
+    const out = await withTenantTx(deps.db, bid, (tx) => importStatement(tx, bid, personOf(s).id, accountId, read.format, text, read.lines));
+    return flashTo(reply, to, 'books.flash.statementRead', { added: out.added, refused: out.refused });
+  });
+  app.post('/app/books/bank/match', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string) : '');
+    const to = `/app/books/bank?account=${encodeURIComponent(str('account'))}`;
+    if (!/^[0-9a-f-]{36}$/i.test(str('line')) || !/^[0-9a-f-]{36}$/i.test(str('journalLine'))) return flashTo(reply, to, 'books.flash.matchRefused');
+    const ok = await withTenantTx(deps.db, bid, (tx) => matchLine(tx, bid, personOf(s).id, str('line'), str('journalLine')));
+    return flashTo(reply, to, ok ? 'books.flash.matched' : 'books.flash.matchRefused');
+  });
+  app.post('/app/books/bank/unmatch', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof f[k] === 'string' ? (f[k] as string) : '');
+    const ok = await withTenantTx(deps.db, bid, (tx) => unmatch(tx, bid, personOf(s).id, str('match')));
+    return flashTo(reply, `/app/books/bank?account=${encodeURIComponent(str('account'))}`, ok ? 'books.flash.unmatched' : 'books.flash.matchRefused');
   });
   /** C2 — a customer, added as a party of the books (no link to a buyer: a party is the books' own record). */
   app.post('/app/books/parties', async (req, reply) => {

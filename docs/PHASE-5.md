@@ -306,6 +306,13 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - from **statement files only** (CSV, OFX, CAMT.053; decision 8);
   - suggested by rule, **always confirmed by a person.**
   - *Depends on C2.*
+  - *(built 2026-10-22, 0185: `src/core/books/statements.ts` reads CSV (the Nomi layout, "1.250" refused), OFX 1.x/2.x
+    and CAMT.053 (booked entries only), machine numbers exactly; each line kept once per bank account by its
+    fingerprint — the bank's reference, else day, amount, wording and its place among equal lines — so a statement
+    read twice adds nothing. The rule suggests a posted line of the same account, currency and amount within a week;
+    a match is made only when a person presses it, and the database checks it (posted, same account, amount and
+    side, one match a line at a time). Undone, a match is set aside (kept), and both lines are open again. Page
+    /app/books/bank; the accountant sees it and matches nothing.)*
 - **C4 · Item 13, part 2 — writing back** to Sheets, Excel and Odoo: conflicts shown, never overwritten silently.
   *Depends on C1–C3.*
 
