@@ -103,7 +103,7 @@ export async function eraseCustomerNow(
 
 export type CloseOutcome =
   | { readonly outcome: 'closed'; readonly rows: number; readonly line: Record<string, unknown> | null }
-  | { readonly outcome: 'name_wrong' | 'protected' | 'paid' | 'not_owner' | 'busy' }
+  | { readonly outcome: 'name_wrong' | 'protected' | 'paid' | 'not_owner' | 'busy' | 'books_first' }
   | { readonly outcome: 'refused'; readonly error: unknown };
 
 /**
@@ -126,6 +126,8 @@ export async function closeWorkspace(db: Db, businessIdRaw: string, typedName: s
     if (code === 'NE007') return { outcome: 'name_wrong' };
     if (code === 'NE006') return { outcome: 'protected' };
     if (code === 'NE008') return { outcome: 'paid' };
+    // A2.4 (0172) — books kept, and not downloaded since the last posting: the owner leaves with them first.
+    if (code === 'NE011') return { outcome: 'books_first' };
     if (code === 'NE003') return { outcome: 'not_owner' };
     if (code !== null && BUSY.has(code)) return { outcome: 'busy' };
     return { outcome: 'refused', error: e };

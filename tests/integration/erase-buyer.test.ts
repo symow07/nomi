@@ -157,6 +157,9 @@ const GLOBAL = new Set(['_migrations', 'backup_runs', 'signup_invites', 'mail_se
   'model_check_log',
   // 0167 — production behind main: commits only, the installation's, no business's.
   'deploy_lag',
+  // Phase 5 (0171) — chart templates, shared by every workspace and written by migrations; (0172) the years each
+  // country's law keeps books. The installation's, no business's.
+  'chart_templates', 'chart_template_accounts', 'chart_template_journals', 'books_retention',
   // Phase 1 (0148) — the sign-up marks: one-way codes with no business at all (the owner's word, 2026-10-13).
   'signup_marks',
   // Phase 1 (0149) — refusals counted for the operator: points and reasons, no business (the owner's word, 2026-10-13).

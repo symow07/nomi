@@ -259,6 +259,8 @@ export const RULES = Object.freeze({
   tax_codes: { do: 'unrelated' },
   parties: { do: 'unrelated' },
   custom_field_defs: { do: 'unrelated' },
+  // 0172 (A2.4) — receipts of the owner's book downloads.
+  books_exports: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

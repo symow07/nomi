@@ -15965,3 +15965,19 @@ already waits on the zh/ar/es/fr legal and advisor lines above; read the reel wi
   example mark («مثال — متجر من الخيال», 示例——虚构的店铺…) reads as "this is a demonstration", not as a disclaimer.
 
 Reviewer (per language): ______  Date: ______
+
+## 2026-10-22 — Phase 5 A1 and A2.4 — an ambiguous figure; the books kept at closure (not a gate)
+
+- **The keys:** `rate.flash.ambiguous`, `samples.flash.ambiguous`, `prices.error.ambiguous`,
+  `product.edit.error.ambiguous`, `import.error.price_ambiguous` (one sentence: a figure like 1.250 or 1,250 reads
+  two ways, so type 1.25, or 1250 with no separator); `data.books.title`, `data.books.lead`, `data.books.download`,
+  `data.books.lastCopy`, `data.books.copyOld`, `data.flash.booksFirst` (the owner's books at closure: kept until a
+  date under a law, everything else erased at once, the copy downloaded first).
+- **Where the words differ, and why:** Arabic uses the passive and «يلزم» throughout («يلزم تنزيل نسخة منها»,
+  «سُجّل قيد») so nobody is addressed in a gender, and «تمثّل الدفاتر…» rather than «هي»; Spanish and French name the
+  decimal comma first in the advice («1,25»), as their owners type it.
+- **Check:** that `data.books.lead` reads as reassurance (the owner keeps a copy, the law keeps the rest), not as a
+  threat, and that the legal citation (left in its own language, e.g. «Code Général des Impôts, art. 211») sits well
+  inside the sentence.
+
+Reviewer (per language): ______  Date: ______

@@ -46,7 +46,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // 0126 — nothing was deleted or closed: the old form, the installation's own workspace, a paid plan, a reply in hand, a refusal.
-  'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.busy', 'data.flash.eraseRefused',
+  'data.flash.moved', 'data.flash.protected', 'data.flash.paid', 'data.flash.booksFirst', 'data.flash.busy', 'data.flash.eraseRefused',
   // D4 (2026-10-12) — a change refused while the workspace is frozen.
   'frozen.refused',
   // 0130 — an advisor history switch or deletion that did not go through: nothing changed.

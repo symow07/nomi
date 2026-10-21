@@ -436,8 +436,17 @@ Parties, Invoices, Payments) and fixed columns.
       BEFORE closure completes**. It isn't an option to miss;
     - **if the export fails, closure doesn't finish**;
     - the deletion page says, in plain words, what we keep, for how long, why, and that they already have their copy.
-    - Built in A2.4 (the erasure side) or A5 (the owner's closing flow), whichever it fits. Tested: a closure whose
-      export fails leaves the workspace open and says why.
+    - **Built in A2.4 (0172, 2026-10-22).** Closing refuses until a downloaded copy covers the last posting (a receipt
+      with its SHA-256 is written in the same transaction as the file). Then everything else is erased, and the books
+      with their business row are HELD, switched off, until the legal date: 10 years from the end of the last fiscal
+      year with a posting, for Morocco (CGI art. 211) and France (L123-22), the later of the readings. After that,
+      `tools/books-retention.mjs` erases them. The owner's data page says what is kept, until when, under which law,
+      and when they took their copy. Tested: `tests/integration/books-closure.test.ts`.
+    - **Not yet, on purpose:**
+      - the PUBLIC pages (`/data-deletion`, `/privacy`) say nothing about books until books are switched on (A6),
+        because the site states nothing unbuilt. A6 adds those lines;
+      - a buyer's deletion request meets no books yet: no party is linked to a buyer until C2 (invoices). The
+        per-buyer "kept until the legal date" rule lands with that link; the workspace-level hold is built.
 - **The deletion page must say which is which, in plain words, before any of this ships:**
   - what is erased at once;
   - what is kept, until when, and under which law;

@@ -225,6 +225,7 @@ import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindPro
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
+import { makeBooksFile } from '../../db/booksExport.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
@@ -2189,6 +2190,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** A request id as the form carries it; anything else never reaches the query. */
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+  // A2.4 (0172) — the owner's copy of their books: every posted line, never cut off, with its receipt — what
+  // closing waits for. Its own route: a generic subject stops at EXPORT_MAX_ROWS, and a statutory copy may not.
+  app.get('/app/settings/data/books.csv', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
+    if (!s) return reply;
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
+      return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
+    }
+    const file = await makeBooksFile(deps.db, s.businessId, personOf(s).id, show.csvDialectFor(localeOf(req)));
+    if (!file) return reply.callNotFound();
+    return reply
+      .type('text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${csvFilename('books', new Date())}"`)
+      .header('cache-control', 'no-store')
+      .send(file.csv);
+  });
+
   app.get('/app/settings/data/:file', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/setup');
     if (!s) return reply;
@@ -2327,7 +2345,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (r.outcome !== 'closed') {
       return flashTo(reply, '/app/settings/data#close', ({
         name_wrong: 'data.flash.name_wrong', protected: 'data.flash.protected', paid: 'data.flash.paid',
-        not_owner: 'staff.notAllowed', busy: 'data.flash.busy',
+        not_owner: 'staff.notAllowed', busy: 'data.flash.busy', books_first: 'data.flash.booksFirst',
       } as const)[r.outcome]);
     }
     facts.evict(s.businessId);

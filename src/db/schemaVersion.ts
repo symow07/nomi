@@ -419,7 +419,9 @@ import type { Db } from './client.js';
 // 170 = tax codes, parties and custom fields (0170), and the line's party, tax code and custom values.
 // 171 = chart templates (0171): shared charts and journals, and `apply_chart_template`, which a workspace starts
 //       its books from.
-export const REQUIRED_SCHEMA_VERSION = 171;
+// 172 = a closing workspace keeps its books and its owner leaves with them (0172): `books_exports`,
+//       `books_retention`, `businesses.books_held_until`, and the erasure that holds them.
+export const REQUIRED_SCHEMA_VERSION = 172;
 
 export type SchemaState = {
   readonly required: number;
