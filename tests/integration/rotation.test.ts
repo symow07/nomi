@@ -104,7 +104,16 @@ d('S3 · hand-offs in turn, end to end (requires DATABASE_URL)', { timeout: 180_
       WEBHOOK_VERIFY_TOKEN: 'rot-verify-token-xx', CREDENTIAL_KEY: 'b'.repeat(64), PORT: 0,
     }, { adapter: sim.adapter, logger: false, models: { analyzer, replyWriter } });
   }, 60_000);
-  afterAll(async () => { await prod?.close(); });
+  afterAll(async () => {
+    // The hand-offs' alerts are this test's own: let the running worker finish them, so none is left queued for the
+    // next file to wait on (boot.test drains notify.team before it measures).
+    if (prod) {
+      const { QUEUES } = await import('../../src/queue/boss.js');
+      await until(async () => ((await sql<{ n: number }>`select count(*)::int as n from pgboss.job where name = ${QUEUES.notify}
+        and data->>'businessId' = ${BIZ} and state in ('created', 'retry', 'active')`.execute(prod.db)).rows[0]!.n === 0 ? true : undefined), 'this test\'s alerts', 60_000);
+    }
+    await prod?.close();
+  }, 90_000);
 
   it('IN TURN: each hand-off goes to the next who has waited longest; someone away is skipped', async () => {
     const order: string[] = [];
