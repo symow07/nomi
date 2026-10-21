@@ -427,7 +427,8 @@ import type { Db } from './client.js';
 // 176 = the books switched on per workspace (0176): `businesses.books_area`, which every page's facts read.
 // 177 = an accountant sees the books and no row of the sales side, said by the database (0177): `viewer_is_accountant()`.
 // 178 = what each connected system last said of each books record (0178): `connector_records`, the read-in's memory.
-export const REQUIRED_SCHEMA_VERSION = 178;
+// 179 = the shop's own systems the books are connected to (0179): `books_connections`, Sheets and Odoo.
+export const REQUIRED_SCHEMA_VERSION = 179;
 
 export type SchemaState = {
   readonly required: number;

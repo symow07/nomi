@@ -214,7 +214,14 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **it validates the interface on the easy case first:** no external dependency, so B1 is proven against something we
     fully control before it meets Odoo's sign-in, plans and expiring keys.
   - *Depends on B1.*
-- **B3 · Google Sheets (option B, `drive.file`).** *Depends on B2* (the same workbook).
+- **B3 · Google Sheets (option B, `drive.file`).** *Depends on B2* (the same workbook). *(built 2026-10-22, 0179:
+  `src/books/connectors/sheets.ts` — OAuth with PKCE asking `drive.file` alone; on connecting, a NEW spreadsheet with
+  the books in it; read in through the workbook's own reader and the same read-in; values read UNFORMATTED with
+  JSON's own digits, never a float. A revoked grant is `connect_again` and nothing is read; a deleted spreadsheet is
+  `source_missing`; Google down is "try later". The grant sealed in `connector_credentials` (rekey covers it),
+  `books_connections` keeps the state. Writing an existing spreadsheet again is C4's (conflicts shown). Against a
+  recorded fake of Google's documented answers; live on deploy day with SHEETS_CLIENT_ID / _SECRET, which D18 holds
+  until the privacy page names Google Sheets.)*
 - **B4 · Odoo, JSON-2, our own client:**
   - **item 15, the plan check at sign-up;**
   - **item 14, the key-expiry reminder** (keys last at most three months).

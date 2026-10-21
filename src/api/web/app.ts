@@ -131,7 +131,7 @@ import {
 import { writeFirst } from '../../outbound/writeFirst.js';
 import {
   OAUTH_PROVIDERS, authorizeUrl, mintOAuthState, pkcePair, readOAuthState, sameNonce,
-  type OAuthClients, type OAuthFetch,
+  type OAuthClient, type OAuthClients, type OAuthFetch,
 } from '../../connectors/oauth.js';
 import { completeMailConnection, disconnectMailbox } from '../../channels/email/connectMailbox.js';
 import { loadAccounts, renderAccounts, mailConnectable } from './connect.js';
@@ -229,6 +229,8 @@ import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataE
 import { makeBooksFile, booksHoldingTx } from '../../db/booksExport.js';
 import { ACCOUNTANT_ALSO, booksRouteOf, renderBooksHome, renderWorkbookRefused } from './books.js';
 import { booksConnector } from '../../books/connectors/registry.js';
+import { createSpreadsheet, sheetsAccess, sheetsAuthorizeUrl, sheetsConnector } from '../../books/connectors/sheets.js';
+import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
 import { readBooks, readInBooks } from '../../db/booksInterchange.js';
 import { configProblems } from '../../core/books/connector.js';
 import type { DocumentStores } from '../../db/documents.js';
@@ -431,6 +433,8 @@ export type WebDeps = {
   readonly waConnect?: WaConnectDeps;
   /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
   readonly oauthFetch?: OAuthFetch;
+  /** B3 — the installation's Google client for the books in Sheets (`drive.file`); absent, Sheets is not offered. */
+  readonly sheetsClient?: OAuthClient;
   /**
    * G13 — ask the worker to answer words a person typed for a voice note. The
    * models live in the worker; this hands it the job, and everything after is
@@ -2275,11 +2279,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.callNotFound();
     const holding = await withTenantTx(deps.db, bid.value, (tx) => booksHoldingTx(tx, bid.value));
+    // B3 — Google Sheets, where this installation has its client: the owner's door to connect, or the connection.
+    const sheets = { offered: sheetsReady(), connection: deps.credentialKey
+      ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets')) : null };
     // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.home.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding)}`,
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets })}`,
     }));
   });
   app.get('/app/books/books.csv', async (req, reply) => {
@@ -2337,6 +2344,88 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'excel', read.data, read.where);
     if (out.kind === 'refused') return refuse(out.problems);
     return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
+  });
+
+  /**
+   * B3 — THE BOOKS IN THE OWNER'S GOOGLE SHEETS. Connect (OAuth with PKCE, `drive.file` only; the callback tied to
+   * the person who started it by a signed ten-minute cookie, as the mailbox's is), and on connecting a NEW
+   * spreadsheet with the books in it — the only kind of file `drive.file` lets Nomi touch. Read in: the same
+   * read-in as the workbook's (one change or none, entries as drafts). A grant Google no longer honours is
+   * "connect again", and nothing is read: never empty books. All of it the owner's (the `post` action).
+   */
+  const SHEETS_COOKIE = 'yf_sheets_oauth';
+  const sheetsRedirect = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/books/sheets/callback`;
+  function sheetsReady(): boolean { return Boolean(deps.sheetsClient && deps.publicBaseUrl && deps.credentialKey); }
+  const sheetsDeps = () => ({ client: deps.sheetsClient!, fetch: deps.oauthFetch ?? (fetch as unknown as OAuthFetch) });
+  app.get('/app/books/sheets/start', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    if (!sheetsReady()) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    const { verifier, challenge } = pkcePair();
+    const nonce = randomBytes(24).toString('base64url');
+    writeCookie(reply, SHEETS_COOKIE, mintOAuthState(deps.sessionSecret, { provider: 'google', verifier, nonce, personId: personOf(s).id }, Date.now()),
+      { path: '/app/books/sheets', maxAgeSec: 600 });
+    return reply.redirect(sheetsAuthorizeUrl(deps.sheetsClient!, { redirectUri: sheetsRedirect(), state: nonce, challenge }));
+  });
+  app.get('/app/books/sheets/callback', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[SHEETS_COOKIE];
+    writeCookie(reply, SHEETS_COOKIE, '', { path: '/app/books/sheets', maxAgeSec: 0 });   // used once, whatever happens
+    const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
+    const bid = parseBusinessId(s.businessId);
+    if (!sheetsReady() || !bid.ok || !state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)
+        || q.error || typeof q.code !== 'string' || !q.code) {
+      return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
+    }
+    const d = sheetsDeps();
+    const connected = await sheetsConnector(d, await bookCurrencyOf(bid.value)).connect({ code: q.code.slice(0, 2048), verifier: state.verifier, redirectUri: sheetsRedirect() });
+    if (connected.kind === 'refused') return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
+    const books = await withTenantTx(deps.db, bid.value, async (tx) => ({
+      data: await readBooks(tx, bid.value),
+      name: (await sql<{ name: string | null }>`select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? 'Nomi',
+    }));
+    const made = await createSpreadsheet(d, connected.source.accessToken, `${books.name} · Nomi`, books.data);
+    if (made.kind === 'refused') return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotConnected');
+    await withTenantTx(deps.db, bid.value, (tx) => saveConnection(tx, deps.credentialKey!, {
+      businessId: bid.value, system: 'sheets', secret: connected.grant!.secret, by: personOf(s).id,
+      settings: { spreadsheetId: made.spreadsheetId, url: made.url },
+    }));
+    return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsConnected');
+  });
+  app.post('/app/books/sheets/read', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !sheetsReady()) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    const locale = localeOf(req);
+    const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets'));
+    if (!conn || conn.state === 'disconnected' || !conn.grant || !conn.settings['spreadsheetId']) return flashTo(reply, '/app/books#sheets', 'books.flash.connectAgain');
+    const d = sheetsDeps();
+    const note = (o: Parameters<typeof noteRead>[3]) => withTenantTx(deps.db, bid.value, (tx) => noteRead(tx, bid.value, 'sheets', o));
+    const said = (reason: string) => flashTo(reply, '/app/books#sheets', reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
+    const access = await sheetsAccess(d, conn.grant);
+    if ('kind' in access) { await note({ ok: false, reason: access.reason }); return said(access.reason); }
+    const read = await sheetsConnector(d, await bookCurrencyOf(bid.value)).changedSince({ accessToken: access.accessToken, spreadsheetId: conn.settings['spreadsheetId']! }, conn.cursor);
+    if (read.kind === 'refused') { await note({ ok: false, reason: read.reason }); return said(read.reason); }
+    const refuse = (problems: Parameters<typeof renderWorkbookRefused>[1]) => reply.code(422).type('text/html; charset=utf-8')
+      .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
+    if (read.problems.length > 0) { await note({ ok: true, cursor: read.cursor }); return refuse(read.problems); }
+    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'sheets', read.data, read.where);
+    await note({ ok: true, cursor: read.cursor });
+    if (out.kind === 'refused') return refuse(out.problems);
+    return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
+  });
+  app.post('/app/books/sheets/disconnect', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets'));
+    if (conn?.grant && deps.sheetsClient) await sheetsConnector(sheetsDeps(), 'MAD').revoke(conn.grant);
+    await withTenantTx(deps.db, bid.value, (tx) => disconnectSystem(tx, bid.value, 'sheets', personOf(s).id));
+    return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsDisconnected');
   });
 
   app.get('/app/settings/data/:file', async (req, reply) => {

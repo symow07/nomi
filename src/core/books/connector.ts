@@ -30,6 +30,7 @@ export const CONNECT_REFUSALS = [
   'plan_without_api',      // Odoo: a Free or Standard plan, which has no external API (item 15)
   'key_expired',           // Odoo: the key's own expiry has passed (item 14)
   'revoked',               // the owner took the grant back: connect again (never "the books are empty")
+  'source_missing',        // the spreadsheet (or the system's books) is gone, or no longer shared with Nomi
   'unreachable',           // the system did not answer
   'unreadable',            // it answered something this cannot read
 ] as const;

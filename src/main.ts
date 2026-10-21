@@ -958,6 +958,10 @@ export async function buildProduction(
     ...(recipientNamed('apollo') ? { prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }) } : {}),
     // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.
     oauthClients,
+    // B3 — the books in the owner's Google Sheets: the installation's own Google client (drive.file only), wired only
+    // once the privacy page names Google Sheets (D18 stops the boot before that).
+    ...(recipientNamed('googleSheets') && process.env['SHEETS_CLIENT_ID']?.trim() && process.env['SHEETS_CLIENT_SECRET']?.trim()
+      ? { sheetsClient: { clientId: process.env['SHEETS_CLIENT_ID'].trim(), clientSecret: process.env['SHEETS_CLIENT_SECRET'].trim() } } : {}),
     // C9 — the accounts buyers write to, when the host configured them.
     instagramAccountId: igAccountId ?? null,
     messengerPageId: pageId ?? null,

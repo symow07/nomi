@@ -88,8 +88,17 @@ function isNomiWorkbook(book: { readonly sheets: readonly XlsxSheet[] } | null):
 
 /** The workbook as this file reads it, every problem named by sheet, row and column. */
 export function workbookToBooks(raw: Buffer, bookCurrency: string): { data: BooksData; problems: BooksProblem[]; where: Located } {
+  return sheetsToBooks(xlsxSheets(raw), bookCurrency);
+}
+
+/**
+ * The Nomi workbook's sheets, wherever they came from — an .xlsx file (B2), or Google Sheets' values (B3): the same
+ * sheets, the same columns, the same reading, so a spreadsheet is read one way whichever road it arrived by.
+ */
+export function sheetsToBooks(
+  book: { readonly sheets: readonly XlsxSheet[]; readonly date1904: boolean } | null, bookCurrency: string,
+): { data: BooksData; problems: BooksProblem[]; where: Located } {
   const problems: BooksProblem[] = [];
-  const book = xlsxSheets(raw);
   const empty = EMPTY_BOOKS;
   const nowhere: Located = () => ({ sheet: '', row: 0 });
   if (!book) return { data: empty, problems: [{ sheet: '', row: 0, column: '', reason: 'missing_sheet' }], where: nowhere };
@@ -264,8 +273,13 @@ export function workbookToBooks(raw: Buffer, bookCurrency: string): { data: Book
 
 /** The books as the Nomi workbook: what an owner downloads, and what reading it back gives again, exactly. */
 export function booksToWorkbook(d: BooksData): Buffer {
+  return xlsxWrite(workbookSheets(d));
+}
+
+/** The workbook's sheets and rows for these books: written to a file (B2), or to Google Sheets (B3). */
+export function workbookSheets(d: BooksData): { readonly name: string; readonly rows: readonly (readonly XlsxValue[])[] }[] {
   const n = (v: Decimal | null): XlsxValue => (v === null ? null : { number: v });
-  return xlsxWrite([
+  return [
     { name: SHEETS.about, rows: [[MARK, WORKBOOK_VERSION],
       ['One row per line. The lines of an entry share its Entry key. Amounts as numbers; dates as YYYY-MM-DD.']] },
     { name: SHEETS.accounts, rows: [[...HEADERS.accounts], ...d.accounts.map((a) => [a.code, a.name, a.kind, a.parent])] },
@@ -275,8 +289,11 @@ export function booksToWorkbook(d: BooksData): Buffer {
     { name: SHEETS.journal, rows: [[...HEADERS.journal], ...d.entries.flatMap((e) => e.lines.map((l) => [
       e.key, e.journal, e.date, e.label, e.documentRef, e.documentDate, e.state, l.account, l.party, l.taxCode, l.currency, n(l.debit), n(l.credit), l.label,
     ]))] },
-  ]);
+  ];
 }
+
+/** Does this read as the Nomi workbook, of a version this reads? For a source other than a file (B3). */
+export const isTheNomiWorkbook = (sheets: readonly XlsxSheet[]): boolean => isNomiWorkbook({ sheets });
 
 /**
  * The connector (B1's shape): nothing to sign in to — the owner's file IS the source. Connecting opens it and refuses

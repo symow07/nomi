@@ -161,6 +161,10 @@ export const COOKIES: readonly NomiCookie[] = [
     reason: 'The state of a mailbox connection in progress (Google or Microsoft), checked when the provider sends the person back.',
   },
   {
+    name: 'yf_sheets_oauth', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
+    reason: 'B3 — the state of a Google Sheets connection in progress (the books), checked when Google sends the owner back.',
+  },
+  {
     name: 'yf_meta', purpose: 'legal.privacy.cookies.for.connect', lifetimeSec: 10 * 60, class: 'necessary',
     reason: 'The state of an Instagram or Messenger connection in progress, checked when Meta sends the person back.',
   },

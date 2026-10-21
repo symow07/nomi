@@ -163,7 +163,9 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       // Phase 9 — the channels' number screen names the page its door opens (w4-settings-a-06).
       'meta.phoneAlerts',
       // The advisor's history (2026-10-07) — the privacy page's section on cookies: "Cookies" is the French word.
-      'legal.privacy.cookies.title']),
+      'legal.privacy.cookies.title',
+      // B3 — the product's own name, which Google uses in French too.
+      'books.sheets.title']),
     // The advisor's history (2026-10-07) — and the Spanish one (§9.4 of docs/ADVISOR-MEMORY.md).
     es: new Set(['legal.privacy.cookies.title']),
   };
