@@ -61,6 +61,12 @@ export const QUEUES = {
    */
   backups: 'ops.backups',
   /**
+   * B5 (0180) — once a day: every connected system (Google Sheets, Odoo) is read into the books, as the owner's
+   * "Read it in" does (src/books/readIn.ts). Entries arrive as drafts; a system that stops answering is said on the
+   * books' page.
+   */
+  booksRead: 'books.read',
+  /**
    * CC-02a — the once-a-day look at deletion requests: is any open one within
    * seven days of its thirty, or past them? Only the question and the
    * operator alert; the deletion itself is carried out by hand

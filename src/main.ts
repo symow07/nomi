@@ -94,6 +94,8 @@ import { loggableLine, loggableMessage } from './security/loggable.js';
 import { mailUnmailedLedger } from './db/erasureMail.js';
 import { billingHeld } from './db/billing.js';
 import { claimMorningSummaries } from './db/morningSummary.js';
+import { readEveryConnectedSystem } from './books/readIn.js';
+import { publicPost } from './net/publicFetch.js';
 
 /**
  * PRODUCTION ENTRYPOINT (audit C1). Composes existing components — worker,
@@ -1123,6 +1125,18 @@ export async function buildProduction(
     await boss.work(QUEUES.advisorExpiry, async () => {
       const n = Number((await sql<{ n: string }>`select advisor_expire()::text as n`.execute(db)).rows[0]?.n ?? 0);
       if (n > 0) console.log(`[advisor] ${n} conversation(s) not opened for twelve months deleted`);
+    });
+    // B5 (0180) — every morning, every connected system (Google Sheets, Odoo) is read into the books as the owner's
+    // "Read it in" does: entries as drafts, the same change once, a refusal written down for the books' page.
+    await boss.schedule(QUEUES.booksRead, '20 5 * * *', {});
+    await boss.work(QUEUES.booksRead, async () => {
+      const sheetsId = process.env['SHEETS_CLIENT_ID']?.trim(); const sheetsSecret = process.env['SHEETS_CLIENT_SECRET']?.trim();
+      const t = await readEveryConnectedSystem({
+        db, credentialKey,
+        ...(recipientNamed('googleSheets') && sheetsId && sheetsSecret ? { sheets: { client: { clientId: sheetsId, clientSecret: sheetsSecret }, fetch: oauthFetch } } : {}),
+        odoo: { post: publicPost, today: () => new Date().toISOString().slice(0, 10) },
+      });
+      if (t.read + t.refused + t.problems > 0) console.log(`[books] morning read: ${t.read} read, ${t.refused} refused, ${t.problems} with problems`);
     });
     // D1 (0137) — a sign-up never finished is not kept: its form and address go an hour after its code
     // expired. In both modes: sign-up runs with no channel configured, too.

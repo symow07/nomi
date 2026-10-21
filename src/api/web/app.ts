@@ -234,6 +234,7 @@ import { odooKeyState } from '../../books/connectors/odoo.js';
 import { publicPost, type PublicPost } from '../../net/publicFetch.js';
 import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../../db/booksConnections.js';
 import { readBooks, readInBooks } from '../../db/booksInterchange.js';
+import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { configProblems } from '../../core/books/connector.js';
 import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
@@ -2284,11 +2285,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return reply.callNotFound();
     const holding = await withTenantTx(deps.db, bid.value, (tx) => booksHoldingTx(tx, bid.value));
     // B3 — Google Sheets, where this installation has its client: the owner's door to connect, or the connection.
-    const sheets = { offered: sheetsReady(), connection: deps.credentialKey
-      ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets')) : null };
+    const sheetsConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets')) : null;
+    // B5 — a connected system no read has reached for two days is said, with the day it last answered.
+    const sheets = { offered: sheetsReady(), connection: sheetsConn, silent: sheetsConn ? silentSince(sheetsConn, new Date()) : null };
     // B4 — the shop's own Odoo: offered wherever grants can be sealed; its key's life said on the page (item 14).
     const odooConn = deps.credentialKey ? await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'odoo')) : null;
-    const odoo = { offered: Boolean(deps.credentialKey), connection: odooConn,
+    const odoo = { offered: Boolean(deps.credentialKey), connection: odooConn, silent: odooConn ? silentSince(odooConn, new Date()) : null,
       key: odooConn && odooConn.state === 'connected' ? odooKeyState(odooConn.connectedAt.slice(0, 10), odooConn.keyExpiresOn, todayIso()) : null };
     // B2 — and the notice a books action left (a workbook read in; the accountant's "the books only"), drawn here:
     // before B2 nothing on this page read it, so a notice sent here was never seen.
@@ -2402,28 +2404,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
     return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsConnected');
   });
+  /** B5 — one read for the button and the morning's job alike (src/books/readIn.ts). */
+  const readDeps = () => ({ db: deps.db, credentialKey: deps.credentialKey!, ...(sheetsReady() ? { sheets: sheetsDeps() } : {}),
+    odoo: { post: deps.odooPost ?? publicPost, today: todayIso } });
+  const answerRead = (req: FastifyRequest, reply: FastifyReply, system: 'sheets' | 'odoo', r: Awaited<ReturnType<typeof readConnectedSystem>>) => {
+    const locale = localeOf(req);
+    if (r.kind === 'read') return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: r.added, replaced: r.replaced, unchanged: r.unchanged });
+    if (r.kind === 'problems') {
+      return reply.code(422).type('text/html; charset=utf-8')
+        .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, r.problems) }));
+    }
+    if (system === 'sheets') return flashTo(reply, '/app/books#sheets', r.reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
+    return flashTo(reply, '/app/books#odoo', 'books.flash.odooNotRead', { why: t(locale, `books.connection.${r.reason}` as MessageKey, { system: 'Odoo' }) });
+  };
   app.post('/app/books/sheets/read', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
-    const bid = parseBusinessId(s.businessId);
-    if (!bid.ok || !sheetsReady()) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
-    const locale = localeOf(req);
-    const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'sheets'));
-    if (!conn || conn.state === 'disconnected' || !conn.grant || !conn.settings['spreadsheetId']) return flashTo(reply, '/app/books#sheets', 'books.flash.connectAgain');
-    const d = sheetsDeps();
-    const note = (o: Parameters<typeof noteRead>[3]) => withTenantTx(deps.db, bid.value, (tx) => noteRead(tx, bid.value, 'sheets', o));
-    const said = (reason: string) => flashTo(reply, '/app/books#sheets', reason === 'unreachable' ? 'books.flash.notReachable' : 'books.flash.connectAgain');
-    const access = await sheetsAccess(d, conn.grant);
-    if ('kind' in access) { await note({ ok: false, reason: access.reason }); return said(access.reason); }
-    const read = await booksConnector('sheets', { bookCurrency: await bookCurrencyOf(bid.value), sheets: d })!.changedSince({ accessToken: access.accessToken, spreadsheetId: conn.settings['spreadsheetId']! }, conn.cursor);
-    if (read.kind === 'refused') { await note({ ok: false, reason: read.reason }); return said(read.reason); }
-    const refuse = (problems: Parameters<typeof renderWorkbookRefused>[1]) => reply.code(422).type('text/html; charset=utf-8')
-      .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
-    if (read.problems.length > 0) { await note({ ok: true, cursor: read.cursor }); return refuse(read.problems); }
-    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'sheets', read.data, read.where);
-    await note({ ok: true, cursor: read.cursor });
-    if (out.kind === 'refused') return refuse(out.problems);
-    return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
+    if (!sheetsReady()) return flashTo(reply, '/app/books#sheets', 'books.flash.sheetsNotOffered');
+    return answerRead(req, reply, 'sheets', await readConnectedSystem(readDeps(), s.businessId, 'sheets', personOf(s).id));
   });
   /**
    * B4 — THE SHOP'S OWN ODOO. Connect is item 15: the address (a public https one, never a private), the name, the key
@@ -2457,28 +2455,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/books/odoo/read', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
-    const bid = parseBusinessId(s.businessId);
-    const locale = localeOf(req);
-    if (!bid.ok || !deps.credentialKey) return flashTo(reply, '/app/books#odoo', 'books.flash.sheetsNotOffered');
-    const conn = await withTenantTx(deps.db, bid.value, (tx) => loadConnection(tx, deps.credentialKey!, bid.value, 'odoo'));
-    const say = (reason: string) => flashTo(reply, '/app/books#odoo', 'books.flash.odooNotRead', { why: t(locale, `books.connection.${reason}` as MessageKey, { system: 'Odoo' }) });
-    if (!conn || conn.state === 'disconnected' || !conn.grant) return say('revoked');
-    const note = (o: Parameters<typeof noteRead>[3]) => withTenantTx(deps.db, bid.value, (tx) => noteRead(tx, bid.value, 'odoo', o));
-    const ctx = await odooCtx(bid.value);
-    const odooC = booksConnector('odoo', ctx)!;
-    // Item 14: an expired key is not used — the sync stops, with that reason.
-    const live = await odooC.refresh(conn.grant);
-    if ('kind' in live) { await note({ ok: false, reason: live.reason }); return say(live.reason); }
-    const read = await odooC.changedSince({ origin: conn.settings['url'] ?? '', database: conn.settings['database'] ?? '', key: conn.grant.secret }, conn.cursor);
-    if (read.kind === 'refused') { await note({ ok: false, reason: read.reason }); return say(read.reason); }
-    const refuse = (problems: Parameters<typeof renderWorkbookRefused>[1]) => reply.code(422).type('text/html; charset=utf-8')
-      .send(page(req, { title: t(locale, 'books.workbook.refused.title'), active: 'settings', bodyHtml: renderWorkbookRefused(locale, problems) }));
-    // A read with problems moves no cursor: the same entries are read again once they are fixed in Odoo.
-    if (read.problems.length > 0) return refuse(read.problems);
-    const out = await readInBooks(deps.db, bid.value, personOf(s).id, 'odoo', read.data, read.where);
-    if (out.kind === 'refused') return refuse(out.problems);
-    await note({ ok: true, cursor: read.cursor });
-    return flashTo(reply, '/app/books', 'books.flash.workbookRead', { added: out.added, replaced: out.replaced, unchanged: out.unchanged });
+    if (!deps.credentialKey) return flashTo(reply, '/app/books#odoo', 'books.flash.sheetsNotOffered');
+    return answerRead(req, reply, 'odoo', await readConnectedSystem(readDeps(), s.businessId, 'odoo', personOf(s).id));
   });
   app.post('/app/books/odoo/disconnect', async (req, reply) => {
     const s = sessionOf(req);

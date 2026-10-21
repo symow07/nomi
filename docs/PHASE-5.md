@@ -236,7 +236,12 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - **item 15, the plan check at sign-up;**
   - **item 14, the key-expiry reminder** (keys last at most three months).
   - *Depends on B1.*
-- **B5 · Item 13, part 1 — reading changes:** idempotent, with a cursor per system. *Depends on B2–B4.*
+- **B5 · Item 13, part 1 — reading changes:** idempotent, with a cursor per system. *Depends on B2–B4.* *(built
+  2026-10-22, 0180: one read, `src/books/readIn.ts`, for the owner's button and the morning's job (`books.read`, 05:20
+  UTC, every connected system of a workspace whose books are shown — `books_connections_due()`). The same change is
+  recorded once (`connector_records`); the cursor is the database's (`books_connections.cursor`), read again by a
+  fresh process; a read refused for its problems moves no cursor. A connected system no read has reached for two
+  days is said on the books' page, with the day it last answered. What the morning reads in is drafts, as Nomi.)*
 
 ### Stage C — the core books
 

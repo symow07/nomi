@@ -44,8 +44,8 @@ export const booksRouteOf = (method: string, url: string | undefined): (typeof B
  * accountant lands on, and the owner's door to the same copy.
  */
 export type BooksSystems = {
-  readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null };
-  readonly odoo?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly key: 'fine' | 'renew' | 'expired' | null };
+  readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly silent?: Date | null };
+  readonly odoo?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly key: 'fine' | 'renew' | 'expired' | null; readonly silent?: Date | null };
 };
 
 export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems): string {
@@ -63,6 +63,10 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     ${workbookBlock(locale, viewer)}
     ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') : ''}`;
 }
+
+/** B5 — a connected system that has gone silent: the day it last answered, said plainly. */
+const silentLine = (locale: Locale, system: string, since: Date | null | undefined): string =>
+  since ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.silent.pill'))}</span> ${esc(t(locale, 'books.silent.since', { system, date: show.dateYear(locale, since) }))}</p>` : '';
 
 /**
  * B4 — the shop's own Odoo on the books' home, the owner's: the form that connects it (the address, the name Odoo
@@ -90,6 +94,7 @@ function odooBlock(locale: Locale, o: NonNullable<BooksSystems['odoo']>): string
   const where = `${c.settings['url'] ?? ''} · ${c.settings['database'] ?? ''}`;
   return `<div class="block" id="odoo">${head}
       <p><bdi>${esc(where)}</bdi></p>
+      ${silentLine(locale, 'Odoo', o.silent)}
       ${o.key === 'renew' && c.keyExpiresOn ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.odoo.renewSoon'))}</span> ${esc(t(locale, 'books.odoo.renew', { date: show.dateYear(locale, new Date(`${c.keyExpiresOn}T12:00:00Z`)) }))}</p>` : ''}
       ${o.key === 'expired' ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(t(locale, 'books.connection.key_expired', { system: 'Odoo' }))}</p>` : ''}
       ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}
@@ -119,6 +124,7 @@ function sheetsBlock(locale: Locale, s: BooksSystems['sheets']): string {
   }
   const url = c.settings['url'] ?? '';
   return `<div class="block" id="sheets">${head}
+      ${silentLine(locale, t(locale, 'books.sheets.title'), s.silent)}
       ${url.startsWith('https://docs.google.com/') ? `<p><a class="deeper" href="${esc(url)}" rel="noopener" target="_blank">${esc(t(locale, 'books.sheets.open'))}</a></p>` : ''}
       ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}
       ${c.reason === 'unreachable' ? `<p class="caption muted">${esc(t(locale, 'books.connection.unreachable', { system: t(locale, 'books.sheets.title') }))}</p>` : ''}
