@@ -52,6 +52,9 @@ multiplied and rounded. **$5.30 less 5% is exactly $5.035; Nomi quoted $5.03**, 
      `4.500,00 €` and `4 500 €` pass for a quote of 4,500, and `4.500 €` is held for the owner. Reais and rupiah
      keep their rule (`Rp 150.000`).
    - The owner's five cases are tests in every box and in each currency (`tests/parity/a1-ambiguous-figures.test.ts`).
+   - **To measure when there is real traffic, not to tune now (the owner, 2026-10-22):** buyers in euro markets
+     write "4.500 €" constantly, so the reply guard may hold more euro replies for the owner than expected. Count
+     the hand-offs held for an ambiguous dotted figure, per workspace, once real euro traffic exists.
 
 ## The check on the day (before and after)
 

@@ -428,7 +428,16 @@ Parties, Invoices, Payments) and fixed columns.
   required for the statutory record are kept to the legal date, then erased.**
   - The erasure contract gains a "keep until the legal date, then erase" action, with the date stored per row.
   - `erase-buyer` and workspace closure refuse to erase inside the legal period, and say which records and why.
-  - A closing workspace can always take its books out first: the accountant pack, the Moroccan FEC, the workbook.
+  - **Closing a workspace ends with its books in the owner's hands, every time (the owner, 2026-10-22).** A2.1 keeps
+    posted books when a workspace is deleted, as the duty requires. So an owner who closes would leave their statutory
+    accounts with us for ten years, unable to sign in to reach them, holding a company's legal records hostage by
+    accident. Therefore:
+    - the export (the accountant pack, the Moroccan FEC where it applies, the workbook) is **MANDATORY and happens
+      BEFORE closure completes**. It isn't an option to miss;
+    - **if the export fails, closure doesn't finish**;
+    - the deletion page says, in plain words, what we keep, for how long, why, and that they already have their copy.
+    - Built in A2.4 (the erasure side) or A5 (the owner's closing flow), whichever it fits. Tested: a closure whose
+      export fails leaves the workspace open and says why.
 - **The deletion page must say which is which, in plain words, before any of this ships:**
   - what is erased at once;
   - what is kept, until when, and under which law;
