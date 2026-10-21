@@ -261,6 +261,9 @@ export const RULES = Object.freeze({
   custom_field_defs: { do: 'unrelated' },
   // 0172 (A2.4) — receipts of the owner's book downloads.
   books_exports: { do: 'unrelated' },
+  // 0174 (A4) — the papers behind the books, and their sealed bytes.
+  documents: { do: 'unrelated' },
+  document_blobs: { do: 'unrelated' },
   tenant_budgets: { do: 'unrelated' },
   assistants: { do: 'unrelated' },
   // Its catalogue and what the owner taught.

@@ -226,6 +226,7 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { exportSubjectOf, downloadName, loadExport, recordExport } from './dataExport.js';
 import { makeBooksFile } from '../../db/booksExport.js';
+import type { DocumentStores } from '../../db/documents.js';
 import { loadBuyerCopy } from './buyerCopy.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { eraseCustomerNow, closeWorkspace, erasureNotice, renderEraseAsk, renderCloseAsk, renderClosed } from './erasure.js';
@@ -466,6 +467,8 @@ export type WebDeps = {
   readonly advisorModel?: AdvisorModel;
   /** 0130 — each person's own advisor history (src/advisor/memory.ts). Absent: nothing is kept here. */
   readonly advisorMemory?: AdvisorMemory;
+  /** A4 (0174) — the workspaces' documents, in each one's residency. The books pages use it (A6). */
+  readonly documents?: DocumentStores;
   /** 0130 — who words the advisor's answers, recorded on each kept turn. */
   readonly advisorProvider?: { readonly name: string; readonly model: string };
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */

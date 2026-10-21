@@ -155,7 +155,12 @@ Each item is built and fully tested (§4) before the next one that depends on it
   - every foreign-currency line stores the rate and the date, taken from the owner's rates (decision 13);
   - **never recomputed;** a missing rate refuses the posting.
   - *Depends on A1 and A2.*
-- **A4 · Document storage, residency-aware:** encrypted, per workspace, with the retention date of its country. Where the
+- **A4 · Document storage, residency-aware:** *(built 2026-10-22, 0174: sealed with AES-256-GCM under a key of its
+  own, bound to workspace and id; DOCUMENT_STORES maps residency → `database` or `directory:<path>`, and a residency
+  with no store refuses; each document's `keep_until` set by the database; held at closure with the books, its
+  directory files removed by tools/books-retention.mjs after the legal date. Open: the closing copy includes the
+  documents (with A6's pages, which list them) — until then a workspace holding papers refuses to close; a sweep of sealed files a rolled-back upload left with no row.)*
+   encrypted, per workspace, with the retention date of its country. Where the
   data lives — the database, the documents and the backups — is **a parameter** (decision 14), not an assumption.
   *Depends on A2.* 💰 beyond the database volume.
 - **A5 · The books' tenancy and the three roles (decision 12):**

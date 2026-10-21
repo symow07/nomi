@@ -422,7 +422,8 @@ import type { Db } from './client.js';
 // 172 = a closing workspace keeps its books and its owner leaves with them (0172): `books_exports`,
 //       `books_retention`, `businesses.books_held_until`, and the erasure that holds them.
 // 173 = the books in one currency at the owner's rates (0173): the line's rate, its day and its book amounts.
-export const REQUIRED_SCHEMA_VERSION = 173;
+// 174 = documents (0174): sealed, kept to their date, stored where the workspace's residency says.
+export const REQUIRED_SCHEMA_VERSION = 174;
 
 export type SchemaState = {
   readonly required: number;
