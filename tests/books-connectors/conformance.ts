@@ -18,6 +18,11 @@ export type ConformanceFixture<S, R> = {
   readonly sample: BooksData;
   /** What the owner gives to connect to a source that holds `data`. */
   readonly connectTo: (data: BooksData) => Promise<ConfigValues> | ConfigValues;
+  /**
+   * What the system can hold of the books, when it cannot hold all of them (Odoo has no parent account, no tax code,
+   * no tax start date): said here, in the open, and the round trips are measured against it. Absent: everything.
+   */
+  readonly holds?: (data: BooksData) => BooksData;
   /** Values the config accepts but the system refuses at sign-in, and the reason it must give. */
   readonly refusedWith: { readonly values: ConfigValues; readonly reason: ConnectRefusalReason };
 };
@@ -27,6 +32,7 @@ const lastReadOf = (d: BooksData) => new Map(recordsOf(d).map((r) => [`${r.kind}
 
 export function conformance<S, R>(fx: ConformanceFixture<S, R>): void {
   const c = fx.connector;
+  const kept = fx.holds ? fx.holds(fx.sample) : fx.sample;
   describe(`${fx.name} · the books' connector conformance (B1)`, () => {
     it('the sample holds a record of every kind (the suite checks what it means to)', () => {
       const kinds = new Set(recordsOf(fx.sample).map((r) => r.kind));
@@ -44,7 +50,7 @@ export function conformance<S, R>(fx: ConformanceFixture<S, R>): void {
     it('MAPPING: the books to the system and back are the same books, and nothing is found wrong with them', () => {
       const back = c.toBooks(c.fromBooks(fx.sample));
       expect(back.problems).toEqual([]);
-      expect(recordsOf(back.data)).toEqual(recordsOf(fx.sample));
+      expect(recordsOf(back.data)).toEqual(recordsOf(kept));
     });
 
     it('SIGN-IN REFUSED: with a reason from the closed list — and nothing the vendor said', async () => {
@@ -70,7 +76,7 @@ export function conformance<S, R>(fx: ConformanceFixture<S, R>): void {
       const all = await c.changedSince(first.source, null);
       if (all.kind !== 'read') throw new Error(`could not read: ${all.reason}`);
       expect(all.problems).toEqual([]);
-      expect(recordsOf(all.data)).toEqual(recordsOf(fx.sample));
+      expect(recordsOf(all.data)).toEqual(recordsOf(kept));
       const read = lastReadOf(all.data);
       // the same source again, from the cursor it gave: nothing has changed
       const again = await c.changedSince(first.source, all.cursor);

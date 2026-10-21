@@ -75,7 +75,10 @@ That is acceptable only while nobody has the books. So, before
   This is lifted only when the papers copy is built.
 - **The public pages describe the books.** `/privacy` and `/data-deletion` say
   what is kept when a workspace closes, for how long, why, and that the owner
-  leaves with their copy (PHASE-5.md §6).
+  leaves with their copy (PHASE-5.md §6). And `/privacy` names the shop's own
+  systems the books can read from: Odoo (B4). Google Sheets is already held
+  by D18, which stops the boot while `SHEETS_CLIENT_ID` is set and the privacy
+  page does not name it.
 
 Enforced in `tools/books-area.mjs`: `--on` refuses while `BLOCKERS` names an
 item, and prints each one. Remove an item there in the commit that builds it.

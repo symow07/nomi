@@ -222,7 +222,17 @@ Each item is built and fully tested (§4) before the next one that depends on it
   `books_connections` keeps the state. Writing an existing spreadsheet again is C4's (conflicts shown). Against a
   recorded fake of Google's documented answers; live on deploy day with SHEETS_CLIENT_ID / _SECRET, which D18 holds
   until the privacy page names Google Sheets.)*
-- **B4 · Odoo, JSON-2, our own client:**
+- **B4 · Odoo, JSON-2, our own client:** *(built 2026-10-22: `src/books/connectors/odoo.ts`, a POST of a JSON object to
+  `/json/2/<model>/<method>` with "bearer" and the key and `X-Odoo-Database` (Odoo 19 docs), sent only to a public https
+  address (`publicPost`: our own DNS lookup refuses private, loopback and link-local answers at connect time). Item 15:
+  a wrong key (401 "Invalid apikey", documented), a wrong name (404 with Odoo's error), a Free or Standard plan (403
+  — Odoo documents the restriction, not the status: assumed, checked live on deploy day), an address that is not
+  public https — each its own sentence, nothing saved. Item 14: the owner gives the key's end date; from 80 days of
+  a key's life, or 10 days before its end, the page asks for a new one; on its end the read stops (`stopped`,
+  `key_expired`) and Odoo is not called. Read: the chart, journals, customers and suppliers, percent taxes with their
+  tax account, entries by Odoo's own write date; amounts from Odoo's own digits. What Odoo cannot say is not invented
+  (no parent account; a tax is "T"+id, in force since 2000-01-01; a foreign line in its own currency). Against a
+  recorded fake of the documented answers.)*
   - **item 15, the plan check at sign-up;**
   - **item 14, the key-expiry reminder** (keys last at most three months).
   - *Depends on B1.*

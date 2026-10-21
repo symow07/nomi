@@ -3,6 +3,7 @@ import { refused, type BooksConnector, type ConnectRefusal, type Grant } from '.
 import type { BooksData } from '../../core/books/interchange.js';
 import type { XlsxCell, XlsxSheet, XlsxValue } from '../../net/xlsx.js';
 import { SHEETS, isTheNomiWorkbook, sheetsToBooks, workbookSheets } from './excel.js';
+import { parseExact } from './exactJson.js';
 
 /**
  * B3 (Phase 5, §5 option B) — THE NOMI WORKBOOK IN THE OWNER'S GOOGLE SHEETS. The same sheets and columns as the file
@@ -51,18 +52,6 @@ function refusalOf(a: Answer): ConnectRefusal | null {
   if (a.status === 403 || a.status === 404) return refused('source_missing');
   if (a.status !== 200) return refused('unreadable');
   return null;
-}
-
-/**
- * JSON whose numbers keep their own digits: `{ number: "33.34" }`, never 33.34 as a float. Uses the parser's source
- * text (V8's JSON.parse source access); where that is missing, the answer is unreadable rather than read loosely.
- */
-function parseExact(text: string): unknown {
-  return JSON.parse(text, function (this: unknown, _k: string, v: unknown, ctx?: { source?: string }) {
-    if (typeof v !== 'number') return v;
-    if (!ctx || typeof ctx.source !== 'string') throw new Error('sheets: numbers cannot be read exactly here');
-    return { number: ctx.source };
-  } as (this: unknown, k: string, v: unknown) => unknown);
 }
 
 /** The body for the API, with each `{ number }` written as the JSON number it is — its digits, not a float's. */

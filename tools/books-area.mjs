@@ -16,7 +16,7 @@ import { toolClient } from './lib/db.mjs';
 
 const BLOCKERS = [
   'the owner\'s copy of their papers, and closure of a workspace holding papers (a workspace with documents cannot close yet)',
-  'the public pages (/privacy, /data-deletion) describe the books: what is kept at closure, how long, why, and that the owner has their copy',
+  'the public pages (/privacy, /data-deletion) describe the books: what is kept at closure, how long, why, and that the owner has their copy; and /privacy names the shop\'s own systems the books read from (Odoo; Google Sheets is held at boot by D18)',
 ];
 
 const args = process.argv.slice(2);

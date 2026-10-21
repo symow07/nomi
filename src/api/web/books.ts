@@ -27,6 +27,10 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'GET', url: '/app/books/sheets/callback', action: 'post' },
   { method: 'POST', url: '/app/books/sheets/read', action: 'post' },
   { method: 'POST', url: '/app/books/sheets/disconnect', action: 'post' },
+  // B4 — the shop's own Odoo: the owner's, likewise.
+  { method: 'POST', url: '/app/books/odoo/connect', action: 'post' },
+  { method: 'POST', url: '/app/books/odoo/read', action: 'post' },
+  { method: 'POST', url: '/app/books/odoo/disconnect', action: 'post' },
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */
@@ -39,7 +43,10 @@ export const booksRouteOf = (method: string, url: string | undefined): (typeof B
  * The books' home: what is there, and the copy. A6 grows it into the books' own mode; until then it is the page an
  * accountant lands on, and the owner's door to the same copy.
  */
-export type BooksSystems = { readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null } };
+export type BooksSystems = {
+  readonly sheets: { readonly offered: boolean; readonly connection: BooksConnection | null };
+  readonly odoo?: { readonly offered: boolean; readonly connection: BooksConnection | null; readonly key: 'fine' | 'renew' | 'expired' | null };
+};
 
 export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind?: 'team' | 'accountant' }, b: BooksHolding, systems?: BooksSystems): string {
   const lead = viewer.kind === 'accountant' ? t(locale, 'books.home.accountant') : t(locale, 'books.home.owner');
@@ -54,7 +61,43 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>
     </li></ul>
     ${workbookBlock(locale, viewer)}
-    ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) : ''}`;
+    ${systems && booksMay({ id: viewer.id ?? '', name: '', ...viewer }, 'post') ? sheetsBlock(locale, systems.sheets) + (systems.odoo ? odooBlock(locale, systems.odoo) : '') : ''}`;
+}
+
+/**
+ * B4 — the shop's own Odoo on the books' home, the owner's: the form that connects it (the address, the name Odoo
+ * shows at sign-in, the key and the day it ends — Odoo's Custom plan named up front); or where it is, when it was last
+ * read, the key's reminder (item 14), a way to read it in, and a disconnect that asks first.
+ */
+function odooBlock(locale: Locale, o: NonNullable<BooksSystems['odoo']>): string {
+  const head = `<h2>${esc(t(locale, 'books.odoo.title'))}</h2><p>${esc(t(locale, 'books.odoo.explain'))}</p>`;
+  if (!o.offered) return '';
+  const c = o.connection;
+  const form = `<form method="post" action="/app/books/odoo/connect" class="pform">
+      <label class="pq"><span>${esc(t(locale, 'books.odoo.url'))}</span><input type="url" name="url" required placeholder="https://" inputmode="url" autocomplete="off" /></label>
+      <label class="pq"><span>${esc(t(locale, 'books.odoo.name'))}</span><input type="text" name="database" required autocomplete="off" /></label>
+      <label class="pq"><span>${esc(t(locale, 'books.odoo.key'))}</span><input type="password" name="key" required autocomplete="off" /></label>
+      <p class="caption muted">${esc(t(locale, 'books.odoo.keyHelp'))}</p>
+      <label class="pq"><span>${esc(t(locale, 'books.odoo.expires'))}</span><input type="date" name="expires" required /></label>
+      <button class="btn" type="submit">${esc(t(locale, 'books.odoo.connect'))}</button>
+    </form>`;
+  if (!c || c.state === 'disconnected') return `<div class="block" id="odoo">${head}${form}</div>`;
+  if (c.state !== 'connected') {
+    return `<div class="block" id="odoo">${head}
+      <p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(t(locale, `books.connection.${c.reason ?? 'revoked'}` as MessageKey, { system: 'Odoo' }))}</p>
+      ${form}</div>`;
+  }
+  const where = `${c.settings['url'] ?? ''} · ${c.settings['database'] ?? ''}`;
+  return `<div class="block" id="odoo">${head}
+      <p><bdi>${esc(where)}</bdi></p>
+      ${o.key === 'renew' && c.keyExpiresOn ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.odoo.renewSoon'))}</span> ${esc(t(locale, 'books.odoo.renew', { date: show.dateYear(locale, new Date(`${c.keyExpiresOn}T12:00:00Z`)) }))}</p>` : ''}
+      ${o.key === 'expired' ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.sheets.needsAgain'))}</span> ${esc(t(locale, 'books.connection.key_expired', { system: 'Odoo' }))}</p>` : ''}
+      ${c.lastOkAt ? `<p class="caption muted">${esc(t(locale, 'books.sheets.lastRead', { date: show.dateYear(locale, new Date(c.lastOkAt)) }))}</p>` : ''}
+      ${o.key !== 'expired' ? `<form method="post" action="/app/books/odoo/read" class="pform"><button class="btn" type="submit">${esc(t(locale, 'books.sheets.read'))}</button></form>
+      <p class="caption muted">${esc(t(locale, 'books.workbook.asDrafts'))}</p>` : form}
+      <form method="post" action="/app/books/odoo/disconnect" class="pform">
+        <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'books.odoo.disconnectAsk'))}">${esc(t(locale, 'books.sheets.disconnect'))}</button></form>
+    </div>`;
 }
 
 /**

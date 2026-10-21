@@ -31,6 +31,7 @@ export const CONNECT_REFUSALS = [
   'key_expired',           // Odoo: the key's own expiry has passed (item 14)
   'revoked',               // the owner took the grant back: connect again (never "the books are empty")
   'source_missing',        // the spreadsheet (or the system's books) is gone, or no longer shared with Nomi
+  'not_an_address',        // what was given is not a public https address (a private one is never called)
   'unreachable',           // the system did not answer
   'unreadable',            // it answered something this cannot read
 ] as const;

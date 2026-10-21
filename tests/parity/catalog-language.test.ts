@@ -165,9 +165,12 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       // The advisor's history (2026-10-07) — the privacy page's section on cookies: "Cookies" is the French word.
       'legal.privacy.cookies.title',
       // B3 — the product's own name, which Google uses in French too.
-      'books.sheets.title']),
+      'books.sheets.title', 'books.odoo.title']),
     // The advisor's history (2026-10-07) — and the Spanish one (§9.4 of docs/ADVISOR-MEMORY.md).
-    es: new Set(['legal.privacy.cookies.title']),
+    es: new Set(['legal.privacy.cookies.title', 'books.odoo.title']),
+    // B4 — Odoo is the product's own name, in every script.
+    zh: new Set(['books.odoo.title']),
+    ar: new Set(['books.odoo.title']),
   };
   it('the words French shares with English are still shared (else the list is stale)', () => {
     for (const [l, keys] of Object.entries(SAME_WORD) as [Locale, ReadonlySet<string>][])
