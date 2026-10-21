@@ -74,6 +74,8 @@ describe('M47 · one distinction, and it is named in code', () => {
       'outreach', 'data_rights',
       // BILL (0117) — money is the owner's: the plan, the card, the invoices.
       'billing',
+      // S5 (0199) — an answer a person gave becoming a taught answer.
+      'answers_given',
     ]);
   });
 

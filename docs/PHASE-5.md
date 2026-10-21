@@ -751,8 +751,32 @@ Each item is built and fully tested (§4) before the next one that depends on it
 - **S4 · Item 16 — strict mode per language.** **Gated on a person:** a native reviewer per language, exactly as the
   Arabic disclosure is (decision 15). The code can be ready; it switches on per language only when that language's
   sentence set is signed.
-- **S5 · Item 17 — FAQ learning** from the owner's own replies; a dismissed suggestion never returns. Free by word
-  matching; 💰 with embeddings.
+- **S5 · Item 17 — FAQ learning.** *(built 2026-10-22, 0199: "Answers people gave" on the knowledge page.)*
+  - **Only people's words.** Two kinds of reply are read: one a person typed in a conversation they held (or in the
+    channel's own app), paired with the buyer's last message before it; and a draft a person rewrote before it went,
+    paired with that turn's words. The assistant's words — sent alone, or approved as written — are never read. Neither
+    is the reopening template that goes in a person's place, nor a test conversation.
+  - **Word matching, free.** One suggestion per question: the same words, whatever their order, capitals, accents,
+    punctuation or a plural "s"; Chinese by pairs of characters; Arabic without its marks or article. It shows how many
+    asked, the newest wording, and the newest answer. Fewer than two words that matter is no question. A request for
+    a person or for a buyer's data to go, and an answer promising deletion, are never offered.
+  - **Nothing becomes an answer without the owner.** Teach and Set aside are the owner's alone (`answers_given`,
+    added to OWNER_ONLY). Teach writes a business-wide taught answer in the words the owner leaves in the form, and
+    decides the question in the same transaction. Staff see what is offered, and that the owner decides.
+  - **A dismissed one never returns.** The test sets a question aside, has another buyer ask it again in other
+    capitals and order, has a person answer it again — and it is not offered. A question the assistant would already
+    answer from what it was taught (the turn's own test) is not offered either.
+  - **Claude's calls, reported:**
+    - The suggestions are READ from replies already kept, never stored. They go with a buyer's messages when the buyer
+      is erased.
+    - Only the owner's decision is stored (`answer_decisions`): a SHA-256 digest of the question's folded words, never
+      the words. The decision therefore outlives the buyers who asked, and the erasure classes it as unrelated.
+    - A decision is final: no change, no deletion. Setting aside has no Undo; it asks first.
+    - Deciding is owner-only, even though staff may teach a fact by hand, because the item's criterion says "without
+      the owner".
+    - Read from the last 90 days; at most 12 shown, the most asked first.
+  - The accountant is refused by the route, and by the database, which shows them no decision and takes none (DZ,
+    in this block).
 - **S6 · Item 20 — satisfaction surveys,** only where they're free: inside WhatsApp's 24-hour window, and on channels with
   no per-message cost.
 - **S7 · Item 22 — channels:** **web chat, then Telegram. Nothing else in 100%** (decision 8). LINE, SMS, WeChat and

@@ -263,6 +263,8 @@ export const RULES = Object.freeze({
   saved_replies: { do: 'unrelated' },
   // 0196 (S2) — the workspace's labels are its own words; a label on a buyer is the buyer's, erased with them.
   labels: { do: 'unrelated' },
+  // 0199 (S5) — the owner's decisions on answers people gave: a digest of the question, never a buyer's words.
+  answer_decisions: { do: 'unrelated' },
   buyer_labels: { do: 'erase' },
   // 0172 (A2.4) — receipts of the owner's book downloads.
   books_exports: { do: 'unrelated' },

@@ -245,6 +245,9 @@ import { renderFields } from './booksFields.js';
 import { renderSavedReplies, renderSavedReply } from './savedReplies.js';
 import { renderLabels } from './labels.js';
 import { rotationOf, setPersonTurn, setRotationOn } from '../../db/rotation.js';
+import { answerSuggestions, dismissSuggestion, teachSuggestion } from '../../db/answerSuggestions.js';
+import { renderAnswerSuggestions } from './answerSuggestions.js';
+import { FAQ_ANSWER_MIN_RELEVANCE } from '../../pipeline/turn.js';
 import { labelsOf, listLabels, putLabel, renameLabel, setLabelArchived, takeOffLabel } from '../../db/labels.js';
 import { addSavedReply, buyerLanguageOf, listSavedReplies, savedReplyOf, setSavedReplyArchived, updateSavedReply } from '../../db/savedReplies.js';
 import { SAVED_REPLY_LANGUAGES, boxWithSaved, savedReplyFor, savedReplyTexts } from '../../core/owner/savedReplies.js';
@@ -7399,10 +7402,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const prefill = typeof (req.query as { teach?: string } | undefined)?.teach === 'string' ? (req.query as { teach: string }).teach : '';
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
     const index = await loadKnowledgeIndex(deps.db, s.businessId);
+    // S5 — the answers people gave, offered to the owner (read, never stored; only the owner's decision is).
+    const kb = parseBusinessId(s.businessId);
+    const given = kb.ok ? await withTenantTx(deps.db, kb.value, (tx) => answerSuggestions(tx, kb.value, new Date(), FAQ_ANSWER_MIN_RELEVANCE)) : [];
     // Phase 5 — the page says what was just done here (a business-wide fact taught or set aside, with its Undo).
     // Phase 9 (V1-358) — what to do first; the period's counts last.
     // The warmth run, phase 9 (new-17) — one wrapper, so the page keeps one measure (`.kpage`).
-    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply)) + renderKnowledgeIndex(index, locale, prefill)
+    return '<div class="kpage">' + renderKnowledgeOps(ops, locale, new Date(), kept ? null : takeFlash(req, reply))
+      + renderAnswerSuggestions(locale, given, personOf(s), new Date()) + renderKnowledgeIndex(index, locale, prefill)
       + (deps.pageFactsReader ? renderPageFactsForm(locale, kept)
         // No page reader here: no form is offered, but a page sent anyway still says why.
         : kept ? `<div class="block" id="page-facts-off"><p class="perr" role="alert">${esc(t(locale, `pageFacts.refused.${kept.reason}` as MessageKey))}</p></div>` : '')
@@ -7475,6 +7482,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 5 — Knowledge itself says what was done now, so a business-wide fact's notice lands there too.
   const kBack = (reply: FastifyReply, _req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') =>
     flashTo(reply, productId ? `/app/knowledge/${encodeURIComponent(productId)}` : '/app/knowledge', `knowledge.flash.${code}` as MessageKey);
+  /**
+   * S5 (Phase 5, item 17; 0199) — an answer a person gave, taught or set aside. The owner's alone: nothing a person
+   * wrote to one buyer becomes what the assistant says to every buyer unless the owner says so. Teach writes a
+   * business-wide taught answer in the words left in the form, and decides the question in the same transaction.
+   */
+  const givenBody = (req: FastifyRequest) => {
+    const b = (req.body ?? {}) as { question?: unknown; label?: unknown; content?: unknown };
+    const str = (v: unknown) => (typeof v === 'string' ? v : '');
+    return { question: str(b.question), label: str(b.label), content: str(b.content) };
+  };
+  app.post('/app/knowledge/answers/teach', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'answers_given', '/app/knowledge#answers-given'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/knowledge');
+    const b = givenBody(req);
+    const r = await withTenantTx(deps.db, bid.value, (tx) => teachSuggestion(tx, bid.value, { ...b, actor: personOf(s).id }));
+    return flashTo(reply, '/app/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
+  });
+  app.post('/app/knowledge/answers/dismiss', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'answers_given', '/app/knowledge#answers-given'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId); if (!bid.ok) return reply.redirect('/app/knowledge');
+    const r = await withTenantTx(deps.db, bid.value, (tx) => dismissSuggestion(tx, bid.value, givenBody(req).question, personOf(s).id));
+    return flashTo(reply, '/app/knowledge#answers-given', `knowledge.given.flash.${r}` as MessageKey);
+  });
   app.post('/app/knowledge/teach', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };

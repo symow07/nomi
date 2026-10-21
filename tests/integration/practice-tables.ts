@@ -109,6 +109,8 @@ export const PRACTICE_SKIP = [
   'saved_replies',
   // S2 (0196) — the workspace's labels and the labels on its buyers: never copied into Practice.
   'labels', 'buyer_labels',
+  // S5 (0199) — the owner's decisions on answers people gave: never copied into Practice.
+  'answer_decisions',
   // Phase 2a (0150) — the owner's morning summaries: the workspace's, never a copy's.
   'morning_summaries',
   // 0162 — the workspace's count of its own orders: a copy numbers the orders Practice makes in its own count.

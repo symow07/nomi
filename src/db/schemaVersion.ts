@@ -447,7 +447,8 @@ import type { Db } from './client.js';
 // 196 = labels on buyers: the workspace's own words to sort its buyers by, erased with the buyer (0196).
 // 197 = a label on a buyer goes with the buyer: the customer erasure follows the new link (0197).
 // 198 = hand-offs in turn: the switch, who is in turn and away, and when each was last given one (0198).
-export const REQUIRED_SCHEMA_VERSION = 198;
+// 199 = the owner's decisions on answers people gave: taught or dismissed, by a digest of the question (0199).
+export const REQUIRED_SCHEMA_VERSION = 199;
 
 export type SchemaState = {
   readonly required: number;

@@ -101,6 +101,8 @@ export const OWNER_ONLY = [
   'data_rights',
   // BILL (0117) — money is the owner's (rule 11): the plan, the card, the invoices.
   'billing',
+  // S5 (0199) — what a person wrote to one buyer becoming what the assistant says to every buyer.
+  'answers_given',
 ] as const;
 export type OwnerOnlyAction = (typeof OWNER_ONLY)[number];
 
