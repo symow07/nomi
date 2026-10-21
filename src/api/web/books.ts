@@ -41,6 +41,10 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/entries/:id/post', action: 'post' },
   { method: 'POST', url: '/app/books/entries/:id/discard', action: 'post' },
   { method: 'POST', url: '/app/books/entries/:id/reverse', action: 'post' },
+  // C1 (0183) — orders into the books, and the accounts they go to: the owner's (the orders name buyers).
+  { method: 'GET', url: '/app/books/orders', action: 'post' },
+  { method: 'POST', url: '/app/books/orders/:id/draft', action: 'post' },
+  { method: 'POST', url: '/app/books/settings/accounts', action: 'post' },
 ];
 
 /** Outside the books, what an accountant may still reach: signing out. Any other page sends them to the books. */

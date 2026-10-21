@@ -98,6 +98,8 @@ export type DraftLine = {
 export type DraftInput = {
   readonly journalId: string; readonly date: string; readonly label: string;
   readonly documentRef: string | null; readonly documentDate: string | null; readonly lines: readonly DraftLine[];
+  /** C1 (0183) — the Nomi order this entry records; an order has one entry that is not discarded. */
+  readonly sourceOrderId?: string | null;
 };
 
 /** A draft, in the fiscal year its day falls in. The day must be open and unlocked; balance is the posting's to check. */
@@ -107,8 +109,8 @@ export async function draftEntry(tx: Tx, businessId: string, by: string, d: Draf
   if (!fy) return { kind: 'refused', reason: 'no_fiscal_year', detail: d.date };
   try {
     await sql`savepoint draft_entry`.execute(tx);
-    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by)
-      values (${businessId}::uuid, ${d.journalId}::uuid, ${fy.id}::uuid, ${d.date}::date, ${d.label}, ${d.documentRef}, ${d.documentDate}::date, ${by})
+    const id = (await sql<{ id: string }>`insert into journal_entries (business_id, journal_id, fiscal_year_id, entry_date, label, document_ref, document_date, created_by, source_order_id)
+      values (${businessId}::uuid, ${d.journalId}::uuid, ${fy.id}::uuid, ${d.date}::date, ${d.label}, ${d.documentRef}, ${d.documentDate}::date, ${by}, ${d.sourceOrderId ?? null}::uuid)
       returning id::text as id`.execute(tx)).rows[0]!.id;
     let n = 0;
     for (const l of d.lines) {

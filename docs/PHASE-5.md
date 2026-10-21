@@ -285,6 +285,13 @@ Each item is built and fully tested (§4) before the next one that depends on it
       - C1's tests: a decrease refused; a delete refused; a rollback leaves neither a gap nor a repeat; two postings at
         once get consecutive numbers.
   - *Depends on A2–A5 and B5.*
+  - *(built 2026-10-22, 0182–0183: the exchange accounts and the marked line (refused anywhere else); twenty
+    postings at once in two journals, each 1…n; entries by hand — `/app/books/entries`, drafted, posted by the
+    database's rules, discarded (never deleted), reversed (a new entry, lines swapped, linked, its own number; a
+    posted entry offers nothing else); entries from Nomi's confirmed orders, once each (`source_order_id`, unique
+    while not discarded — two at once make one), onto the owner's chosen sales journal, receivable and sales accounts.
+    What is read in (B2–B5) arrives as drafts and posts the same way. Not yet: editing a draft (discard and draft
+    again); tax and the buyer as a party on an order's entry — C2's invoices.)*
 - **C2 · Item 5 — payment tracking:** invoices with lines, and payments, partial or full, in any currency. *Depends on C1.*
 - **C3 · Item 4 — reconciliation:**
   - from **statement files only** (CSV, OFX, CAMT.053; decision 8);

@@ -236,7 +236,8 @@ import { disconnectSystem, loadConnection, noteRead, saveConnection } from '../.
 import { readBooks, readInBooks } from '../../db/booksInterchange.js';
 import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
-import { ENTRY_FORM_LINES, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
+import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
+import { booksAccountsOf, draftFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { CURRENCIES } from '../../core/types/money.js';
 import { configProblems } from '../../core/books/connector.js';
@@ -2300,7 +2301,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // before B2 nothing on this page read it, so a notice sent here was never seen.
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'books.home.title'), active: 'settings',
-      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo })}`,
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksHome(locale, personOf(s), holding, { sheets, odoo })}${
+        // C1 (0183) — the accounts every drafted entry uses: the owner's to choose.
+        personOf(s).isOwner ? renderBooksAccounts(locale, ...(await withTenantTx(deps.db, bid.value, async (tx) => [await entryChoices(tx, bid.value), await booksAccountsOf(tx, bid.value)] as const))) : ''}`,
     }));
   });
   app.get('/app/books/books.csv', async (req, reply) => {
@@ -2601,6 +2604,38 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const out = await withTenantTx(deps.db, bid, (tx) => reverseEntry(tx, bid, id, personOf(s).id, date));
     if (out.kind === 'refused') return flashTo(reply, `/app/books/entries/${id}`, 'books.flash.entryRefused', { why: entryRefusedWhy(localeOf(req), out) });
     return flashTo(reply, `/app/books/entries/${out.id}`, 'books.flash.entryReversed', { key: out.key });
+  });
+  /** C1 (0183) — Nomi's confirmed orders into the books, once each; and the accounts they go to. The owner's. */
+  app.get('/app/books/orders', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const got = await withTenantTx(deps.db, bid, async (tx) => ({ orders: await ordersToEnter(tx, bid), a: await booksAccountsOf(tx, bid) }));
+    const set = Boolean(got.a.salesJournalId && got.a.receivableAccountId && got.a.salesAccountId);
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.orders.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderBooksOrders(locale, got.orders, set)}` }));
+  });
+  app.post('/app/books/orders/:id/draft', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.callNotFound();
+    const out = await withTenantTx(deps.db, bid, (tx) => draftFromOrder(tx, bid, id, personOf(s).id));
+    if (out.kind === 'drafted') return flashTo(reply, `/app/books/entries/${out.id}`, 'books.flash.orderDrafted');
+    const why = out.reason === 'accounts_not_set' ? t(localeOf(req), 'books.orders.setFirst')
+      : out.reason === 'not_an_order' ? t(localeOf(req), 'books.orders.alreadyIn') : entryRefusedWhy(localeOf(req), out as EntryRefusal);
+    return flashTo(reply, '/app/books/orders', 'books.flash.entryRefused', { why });
+  });
+  app.post('/app/books/settings/accounts', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const f = (req.body ?? {}) as Record<string, unknown>;
+    const c = await withTenantTx(deps.db, bid, (tx) => entryChoices(tx, bid));
+    const one = (k: string, rows: readonly { id: string }[]) => { const v = typeof f[k] === 'string' ? (f[k] as string) : ''; return rows.some((r) => r.id === v) ? v : null; };
+    await withTenantTx(deps.db, bid, (tx) => saveBooksAccounts(tx, bid, {
+      salesJournalId: one('salesJournal', c.journals), receivableAccountId: one('receivable', c.accounts), salesAccountId: one('sales', c.accounts),
+      fxLossAccountId: one('fxLoss', c.accounts), fxGainAccountId: one('fxGain', c.accounts) }));
+    return flashTo(reply, '/app/books#accounts', 'books.flash.accountsSaved');
   });
   app.post('/app/books/odoo/disconnect', async (req, reply) => {
     const s = sessionOf(req);

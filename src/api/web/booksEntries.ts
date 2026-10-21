@@ -4,6 +4,7 @@ import { booksMay, type Viewer } from '../../core/conversation/people.js';
 import { addDecimal, compareDecimal, type Decimal } from '../../core/types/decimal.js';
 import { CURRENCIES, moneyFromRow } from '../../core/types/money.js';
 import type { EntryRow, EntryView } from '../../db/booksEntries.js';
+import type { BooksAccounts, OrderToEnter } from '../../db/booksOrders.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
 import * as show from './values.js';
@@ -131,4 +132,40 @@ export function renderNewEntry(locale: Locale, c: EntryChoices, values: Readonly
       <button class="btn" type="submit">${esc(t(locale, 'books.entry.saveDraft'))}</button>
     </form>
     <p class="caption muted">${esc(t(locale, 'books.entry.draftNote'))}</p>`;
+}
+
+/**
+ * C1 (0183) — Nomi's confirmed orders not in the books yet, each with a draft to make; and the owner's choice of the
+ * accounts every drafted entry uses (sales journal, receivable, sales; the exchange loss and gain of 0182).
+ */
+export function renderBooksOrders(locale: Locale, orders: readonly OrderToEnter[], accountsSet: boolean): string {
+  return `<h1 class="page">${esc(t(locale, 'books.orders.title'))}</h1>
+    <p class="lede">${esc(t(locale, 'books.orders.lede'))}</p>
+    ${!accountsSet ? `<p role="status"><span class="pill warn">${esc(t(locale, 'books.orders.setFirst'))}</span> <a class="deeper" href="/app/books#accounts">${esc(t(locale, 'books.accounts.title'))}</a></p>` : ''}
+    ${orders.length === 0 ? `<p class="muted">${esc(t(locale, 'books.orders.none'))}</p>` : `<div class="imp-table"><table>
+      <thead><tr><th scope="col">${esc(t(locale, 'books.entry.date'))}</th><th scope="col">${esc(t(locale, 'books.entry.document'))}</th>
+        <th scope="col">${esc(t(locale, 'books.orders.buyer'))}</th><th scope="col">${esc(t(locale, 'books.entry.total'))}</th><th scope="col"></th></tr></thead>
+      <tbody>${orders.map((o) => `<tr><td>${esc(show.dateYear(locale, new Date(`${o.confirmedOn}T12:00:00Z`)))}</td><td><bdi>${esc(o.reference)}</bdi></td>
+        <td>${o.buyer ? `<bdi>${esc(o.buyer)}</bdi>` : ''}</td><td>${amount(locale, o.total as Decimal, o.currency)}</td>
+        <td>${accountsSet ? `<form method="post" action="/app/books/orders/${esc(o.id)}/draft" class="pform"><button class="btn ghost" type="submit">${esc(t(locale, 'books.orders.draft'))}</button></form>` : ''}</td></tr>`).join('')}</tbody>
+    </table></div>`}
+    <p><a class="deeper" href="/app/books">${esc(t(locale, 'books.workbook.again'))}</a></p>`;
+}
+
+export function renderBooksAccounts(locale: Locale, c: EntryChoices, a: BooksAccounts): string {
+  const pick = (name: string, rows: readonly { id: string; code: string; name: string }[], chosen: string | null) =>
+    `<select name="${name}"><option value=""></option>${rows.map((r) => `<option value="${esc(r.id)}"${chosen === r.id ? ' selected' : ''}>${esc(r.code)} · ${esc(r.name)}</option>`).join('')}</select>`;
+  return `<div class="block" id="accounts">
+      <h2>${esc(t(locale, 'books.accounts.title'))}</h2>
+      <p>${esc(t(locale, 'books.accounts.explain'))}</p>
+      <form method="post" action="/app/books/settings/accounts" class="pform">
+        <label class="pq"><span>${esc(t(locale, 'books.accounts.salesJournal'))}</span>${pick('salesJournal', c.journals, a.salesJournalId)}</label>
+        <label class="pq"><span>${esc(t(locale, 'books.accounts.receivable'))}</span>${pick('receivable', c.accounts, a.receivableAccountId)}</label>
+        <label class="pq"><span>${esc(t(locale, 'books.accounts.sales'))}</span>${pick('sales', c.accounts, a.salesAccountId)}</label>
+        <label class="pq"><span>${esc(t(locale, 'books.accounts.fxLoss'))}</span>${pick('fxLoss', c.accounts, a.fxLossAccountId)}</label>
+        <label class="pq"><span>${esc(t(locale, 'books.accounts.fxGain'))}</span>${pick('fxGain', c.accounts, a.fxGainAccountId)}</label>
+        <button class="btn" type="submit">${esc(t(locale, 'books.accounts.save'))}</button>
+      </form>
+      <p><a class="deeper" href="/app/books/orders">${esc(t(locale, 'books.orders.title'))}</a></p>
+    </div>`;
 }

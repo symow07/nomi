@@ -431,7 +431,8 @@ import type { Db } from './client.js';
 // 180 = the morning's read of every connected system (0180): `books_connections_due()`, the worker's list.
 // 181 = a tax's start date is the owner's to confirm (0181): `tax_start_dates`, for taxes a system gave none.
 // 182 = where the exchange difference goes (0182): the two exchange accounts, and the marked line only on them.
-export const REQUIRED_SCHEMA_VERSION = 182;
+// 183 = an entry from a Nomi order, once (0183): the sales accounts in books_settings, `journal_entries.source_order_id`.
+export const REQUIRED_SCHEMA_VERSION = 183;
 
 export type SchemaState = {
   readonly required: number;
