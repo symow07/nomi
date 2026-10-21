@@ -38,6 +38,8 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
   { method: 'POST', url: '/app/books/taxes/start', action: 'post' },
   // C1 — entries: the list and each one are the books' to see; drafting, posting, discarding, reversing the owner's.
   { method: 'GET', url: '/app/books/entries', action: 'see' },
+  // D1 — the trial balance: the books' to see (the accountant's too).
+  { method: 'GET', url: '/app/books/trial-balance', action: 'see' },
   { method: 'GET', url: '/app/books/entries/:id', action: 'see' },
   { method: 'GET', url: '/app/books/entries/new', action: 'post' },
   { method: 'POST', url: '/app/books/entries', action: 'post' },
@@ -90,6 +92,7 @@ export function renderBooksHome(locale: Locale, viewer: Viewer & { readonly kind
     <p><a class="deeper" href="/app/books/entries">${esc(t(locale, 'books.entries.title'))}</a></p>
     <p><a class="deeper" href="/app/books/invoices">${esc(t(locale, 'books.invoices.title'))}</a></p>
     <p><a class="deeper" href="/app/books/bank">${esc(t(locale, 'books.bank.title'))}</a></p>
+    <p><a class="deeper" href="/app/books/trial-balance">${esc(t(locale, 'books.trial.title'))}</a></p>
     <ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'data.books.title'))}</span>
       <a class="dl-get" href="/app/books/books.csv" download>${icon('download')}<span>${esc(t(locale, 'data.books.download'))}</span></a>

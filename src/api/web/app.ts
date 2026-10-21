@@ -239,6 +239,8 @@ import { readConnectedSystem, silentSince } from '../../books/readIn.js';
 import { discardEntry, draftEntry, entryChoices, listEntries, loadEntry, postEntry, reverseEntry, type DraftLine, type EntryRefusal } from '../../db/booksEntries.js';
 import { ENTRY_FORM_LINES, renderBooksAccounts, renderBooksOrders, renderEntries, renderEntry, renderNewEntry } from './booksEntries.js';
 import { booksAccountsOf, draftInvoiceFromOrder, ordersToEnter, saveBooksAccounts } from '../../db/booksOrders.js';
+import { defaultPeriod, trialBalanceOf } from '../../db/booksReports.js';
+import { renderTrialBalance } from './booksReports.js';
 import { discardInvoice, draftInvoice, issueInvoice, listInvoices, loadInvoice, recordPayment } from '../../db/booksInvoices.js';
 import { INVOICE_FORM_LINES, renderBank, renderInvoice, renderInvoices, renderNewInvoice } from './booksInvoices.js';
 import { bankAccounts, importStatement, matchedLines, matchLine, openLines, unmatch } from '../../db/bankStatements.js';
@@ -2808,6 +2810,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * are the owner's. A match is made only here, by a person: the rule only suggests.
    */
   const bankAccountOf = (raw: unknown, accounts: readonly { id: string }[]) => (typeof raw === 'string' && accounts.some((a) => a.id === raw) ? raw : null);
+  /** D1 — the trial balance for a period; this fiscal year so far unless another is asked. */
+  app.get('/app/books/trial-balance', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = bidOf(s); if (!bid) return reply.callNotFound();
+    const locale = localeOf(req);
+    const q = req.query as { from?: unknown; to?: unknown };
+    const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
+      && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+    const asked = q.from !== undefined || q.to !== undefined;
+    const got = await withTenantTx(deps.db, bid, async (tx) => {
+      const fallback = await defaultPeriod(tx, bid, todayIso());
+      const ok = isDay(q.from) && isDay(q.to) && q.from <= q.to;
+      const period = ok ? { from: q.from as string, to: q.to as string } : fallback;
+      return { period, problem: asked && !ok, tb: await trialBalanceOf(tx, bid, period),
+        currency: (await sql<{ c: string }>`select books_currency(${bid}::uuid) as c`.execute(tx)).rows[0]!.c };
+    });
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'books.trial.title'), active: 'settings',
+      bodyHtml: `${flashBanner(takeFlash(req, reply))}${renderTrialBalance(locale, got.period, got.tb, got.currency, new Date(), got.problem)}` }));
+  });
   app.get('/app/books/bank', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = bidOf(s); if (!bid) return reply.callNotFound();

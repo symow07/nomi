@@ -363,6 +363,11 @@ Each item is built and fully tested (§4) before the next one that depends on it
     test reads it in two other zones.
   - "What the books do not do yet" is said on the books' page (§10).
 - **D1 · Item 1 — trial balance.** *Depends on C1.*
+  *(built 2026-10-22: `/app/books/trial-balance`, the owner's and the accountant's. For a period, each account's
+  opening, movement and closing, from the posted lines in the books' currency (never re-rated). A balance-sheet account
+  opens with everything before the period; an income or expense account with its fiscal year. The result of earlier
+  years not yet closed (D2) is one line of its own, so the opening columns balance. Proven against a two-year fixture
+  worked by hand, to the cent, and balanced for every month of both years.)*
 - **D1b · Credit notes** (the owner, 2026-10-22: a schedule item, not a note; before tax reports).
   - Numbering is gap-free and an issued invoice never changes, which is correct. So an invoice issued in error, or a
     sale refunded, needs its own route: **a credit note.**
