@@ -417,7 +417,9 @@ import type { Db } from './client.js';
 // 169 = the ledger (0169): accounts, journals, fiscal years, entries and lines, with the database's rules. Against a
 //       168 database every books page fails on the missing tables.
 // 170 = tax codes, parties and custom fields (0170), and the line's party, tax code and custom values.
-export const REQUIRED_SCHEMA_VERSION = 170;
+// 171 = chart templates (0171): shared charts and journals, and `apply_chart_template`, which a workspace starts
+//       its books from.
+export const REQUIRED_SCHEMA_VERSION = 171;
 
 export type SchemaState = {
   readonly required: number;
